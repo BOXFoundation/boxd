@@ -39,15 +39,16 @@ func NewHostWithAddress(listenPort int, listenAddress string, ps pstore.Peerstor
 
 	// Generate a key pair for this host. We will use it at least
 	// to obtain a valid host ID.
-	priv, pub, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
+	priv, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
 	if err != nil {
 		return nil, err
 	}
 
+	cm := NewConnManager()
 	opts := []libp2p.Option{
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", listenAddress, listenPort)),
 		libp2p.Identity(priv),
-		libp2p.ConnectionManager(NewConnManager()),
+		libp2p.ConnectionManager(&cm),
 		libp2p.Peerstore(ps), // TODO NAT/Relay/...
 	}
 
@@ -57,10 +58,10 @@ func NewHostWithAddress(listenPort int, listenAddress string, ps pstore.Peerstor
 	}
 
 	// Build host multiaddress
-	hostAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/%s/%s", ma.ProtocolWithCode(ma.P_P2P).Name, basicHost.ID().Pretty()))
+	hostAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/%s/%s", ma.ProtocolWithCode(ma.P_P2P).Name, host.ID().Pretty()))
 
 	// Now we can build a full multiaddress to reach this host
-	addr := basicHost.Addrs()[0]
+	addr := host.Addrs()[0]
 	fullAddr := addr.Encapsulate(hostAddr)
 	fmt.Printf("Now listening on %s", fullAddr) //TODO change to logger
 
