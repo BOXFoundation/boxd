@@ -16,3 +16,10 @@
 
 # Vendor 
 /vendor
+
+# Log
+*.log
+
+# workspace
+.vscode/
+outputs/
