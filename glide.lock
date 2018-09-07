@@ -1,5 +1,5 @@
-hash: 08c093f53a9299755a3307c2421437db81caf2652763e0b50b6fcc28747320f9
-updated: 2018-09-07T01:15:44.269585498+08:00
+hash: 120930d0236b0022d0826bdea3b250750a96c12cb146d620daafa7c72046f566
+updated: 2018-09-07T15:12:21.0606272+08:00
 imports:
 - name: github.com/btcsuite/btcd
   version: cff30e1d23fc9e800b2b5b4b41ef1817dda07e9f
@@ -65,20 +65,32 @@ imports:
   - ssdp
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/ipfs/go-cid
+  version: 6ddb575a8dbb930b5437145f02080a0f32a9204b
 - name: github.com/ipfs/go-datastore
   version: bd0caea1845f2ffebea4f3d20ec5b4b50a4c78c5
   subpackages:
+  - autobatch
   - query
+  - sync
+- name: github.com/ipfs/go-ipfs-util
+  version: 10d786c5ed859afd22223df76a89bf57b24b2ee1
 - name: github.com/ipfs/go-log
   version: f2bdd6b39490312e392e2004831afeb9e58fd8de
   subpackages:
   - tracer
   - tracer/wire
   - writer
+- name: github.com/ipfs/go-todocounter
+  version: 1e832b829506383050e6eebd12e05ea41a451532
 - name: github.com/jackpal/gateway
   version: cbcf4e3f3baee7952fc386c8b2534af4d267c875
 - name: github.com/jackpal/go-nat-pmp
   version: 28a68d0c24adce1da43f8df6a57340909ecd7fdd
+- name: github.com/jbenet/go-context
+  version: d14ea06fba99483203c19d92cfcd13ebe73135f4
+  subpackages:
+  - io
 - name: github.com/jbenet/go-temp-err-catcher
   version: aac704a3f4f27190b4ccc05f303a4931fd1241ff
 - name: github.com/jbenet/goprocess
@@ -122,6 +134,16 @@ imports:
   version: 36436db7edb1e51a4bff11e71fb8a929337d894e
 - name: github.com/libp2p/go-libp2p-interface-pnet
   version: 86e6fc84b906599eac696308369896ece0ced63b
+- name: github.com/libp2p/go-libp2p-kad-dht
+  version: 27301978c53421f48a4a9dc9faf26affc173a508
+  subpackages:
+  - opts
+  - pb
+  - providers
+- name: github.com/libp2p/go-libp2p-kbucket
+  version: 18e74109a3c0c2897925da4d6b7ad4dea62857d5
+  subpackages:
+  - keyspace
 - name: github.com/libp2p/go-libp2p-loggables
   version: d6d01a5f5e0bcc27c612fd1e6aa8fc97e1cac488
 - name: github.com/libp2p/go-libp2p-metrics
@@ -132,12 +154,24 @@ imports:
   version: 1eeec6d7e4e6d46717a764778c7b6b07285900e0
 - name: github.com/libp2p/go-libp2p-peer
   version: e79fbd6ae779787504f963eddfead69494bb3e92
+  subpackages:
+  - peerset
 - name: github.com/libp2p/go-libp2p-peerstore
   version: b1e626f38de4d5f3b8c292f230f8b9f03889ae65
   subpackages:
   - addr
+  - queue
 - name: github.com/libp2p/go-libp2p-protocol
   version: b29f3d97e3a2fb8b29c5d04290e6cb5c5018004b
+- name: github.com/libp2p/go-libp2p-record
+  version: 07353e628b47a5a16ac815174ae335af6cbee98e
+  subpackages:
+  - pb
+- name: github.com/libp2p/go-libp2p-routing
+  version: 7063f88b459179a1ac9af8085523cd71976f61d4
+  subpackages:
+  - notifications
+  - options
 - name: github.com/libp2p/go-libp2p-secio
   version: 0613eff75c6b8203930579b9159f8d3dbb21e392
   subpackages:
@@ -189,6 +223,8 @@ imports:
   version: 78f39e8892d4f8c5c9f18679cc06d0b40ecab8cf
 - name: github.com/multiformats/go-multiaddr-net
   version: cba4f9fea8613343eb7ecc4ddadd8e7298a00c39
+- name: github.com/multiformats/go-multibase
+  version: bb91b53e5695e699a86654d77d03db7bc7506d12
 - name: github.com/multiformats/go-multihash
   version: bffb9dfeaca3b66c0accb675d2910407f3615eec
 - name: github.com/multiformats/go-multistream
@@ -204,6 +240,10 @@ imports:
   version: 99dc123558852f67743bd0b2caf8383cb3c6d720
 - name: github.com/spf13/pflag
   version: 298182f68c66c05229eb03ac171abe6e309ee79a
+- name: github.com/whyrusleeping/base32
+  version: c30ac30633ccdabefe87eb12465113f06f1bab75
+- name: github.com/whyrusleeping/go-keyspace
+  version: 5b898ac5add1da7178a4a98e69cb7b9205c085ee
 - name: github.com/whyrusleeping/go-logging
   version: 0457bb6b88fc1973573aaf6b5145d8d3ae972390
 - name: github.com/whyrusleeping/go-multiplex

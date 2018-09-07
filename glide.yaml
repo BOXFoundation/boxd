@@ -3,7 +3,7 @@ license: MIT
 
 import:
 - package: github.com/libp2p/go-libp2p
-- package: github.com/multiformats/go-multiaddr
+- package: github.com/libp2p/go-libp2p-kad-dht
 
 testImport:
 - package: github.com/mattn/goveralls

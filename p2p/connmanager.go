@@ -6,6 +6,8 @@ package p2p
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	ifconnmgr "github.com/libp2p/go-libp2p-interface-connmgr"
@@ -17,8 +19,12 @@ import (
 
 // ConnManager is an object to maitian all connections
 type ConnManager struct {
-	tagInfos map[peer.ID]*ifconnmgr.TagInfo
-	notifiee inet.Notifiee
+	mutex               sync.Mutex
+	tagInfos            map[peer.ID]*ifconnmgr.TagInfo
+	notifiee            inet.Notifiee
+	context             context.Context
+	cancel              context.CancelFunc
+	durationToTrimConns time.Duration
 }
 
 const (
@@ -38,13 +44,58 @@ const (
 	NetDisconnected
 )
 
+const secondsToTrimConnections = 30
+
 // NewConnManager creates a ConnManager object, which is used on Host object.
-func NewConnManager() ConnManager {
+func NewConnManager() *ConnManager {
 	cmgr := ConnManager{
-		tagInfos: make(map[peer.ID]*ifconnmgr.TagInfo),
+		tagInfos:            make(map[peer.ID]*ifconnmgr.TagInfo),
+		durationToTrimConns: time.Second * 30,
 	}
 	cmgr.notifiee = newNotifiee(&cmgr)
-	return cmgr
+	return &cmgr
+}
+
+// Start function starts a go thread to loop removing unnecessary connections.
+func (cm *ConnManager) Start(ctx context.Context) {
+	go cm.run(ctx)
+}
+
+// loop removing unnecessary connections
+func (cm *ConnManager) run(ctx context.Context) {
+	cm.mutex.Lock()
+	if cm.context != nil {
+		cm.mutex.Unlock()
+		fmt.Println("Connection Manager has already been running.")
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cm.context, cm.cancel = context.WithCancel(ctx)
+	cm.mutex.Unlock()
+
+	ticker := time.NewTicker(cm.durationToTrimConns)
+	for {
+		select {
+		case <-ticker.C:
+			go func(ctx context.Context) {
+				cm.TrimOpenConns(ctx)
+			}(cm.context)
+		case <-cm.context.Done():
+			fmt.Println("Quit connection manager.")
+			return
+		}
+	}
+}
+
+// Stop function stops the ConnManager
+func (cm *ConnManager) Stop() {
+	cm.mutex.Lock()
+	if cm.cancel != nil {
+		cm.cancel()
+	}
+	cm.mutex.Unlock()
 }
 
 // notifiee implements interface inet.Notifiee, which is called when network connection changes.
@@ -61,13 +112,11 @@ func newNotifiee(cmgr *ConnManager) inet.Notifiee {
 // TODO not implemented
 
 // called when network starts listening on an addr
-func (n *notifiee) Listen(net net.Network, multiaddr ma.Multiaddr) {
-
+func (n *notifiee) Listen(network net.Network, multiaddr ma.Multiaddr) {
 }
 
 // called when network starts listening on an addr
-func (n *notifiee) ListenClose(net net.Network, multiaddr ma.Multiaddr) {
-
+func (n *notifiee) ListenClose(network net.Network, multiaddr ma.Multiaddr) {
 }
 
 // called when a connection opened
@@ -95,6 +144,8 @@ func (n *notifiee) ClosedStream(network net.Network, stream net.Stream) {
 
 // TagPeer tags a peer with a string, associating a weight with the tag.
 func (cm *ConnManager) TagPeer(p peer.ID, tag string, value int) {
+	cm.mutex.Lock()
+
 	tagInfo, ok := cm.tagInfos[p]
 	if !ok {
 		tagInfo = &ifconnmgr.TagInfo{
@@ -106,14 +157,20 @@ func (cm *ConnManager) TagPeer(p peer.ID, tag string, value int) {
 		cm.tagInfos[p] = tagInfo
 	}
 	tagInfo.Tags[tag] = value
+
+	cm.mutex.Unlock()
 }
 
 // UntagPeer removes the tagged value from the peer.
 func (cm *ConnManager) UntagPeer(p peer.ID, tag string) {
+	cm.mutex.Lock()
+
 	tagInfo, ok := cm.tagInfos[p]
 	if ok {
 		delete(tagInfo.Tags, tag)
 	}
+
+	cm.mutex.Unlock()
 }
 
 // GetTagInfo returns the metadata associated with the peer,
