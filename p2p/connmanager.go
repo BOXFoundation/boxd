@@ -6,6 +6,7 @@ package p2p
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	ifconnmgr "github.com/libp2p/go-libp2p-interface-connmgr"
@@ -17,6 +18,7 @@ import (
 
 // ConnManager is an object to maitian all connections
 type ConnManager struct {
+	tiMutex  sync.Mutex
 	tagInfos map[peer.ID]*ifconnmgr.TagInfo
 	notifiee inet.Notifiee
 }
@@ -95,6 +97,8 @@ func (n *notifiee) ClosedStream(network net.Network, stream net.Stream) {
 
 // TagPeer tags a peer with a string, associating a weight with the tag.
 func (cm *ConnManager) TagPeer(p peer.ID, tag string, value int) {
+	cm.tiMutex.Lock()
+
 	tagInfo, ok := cm.tagInfos[p]
 	if !ok {
 		tagInfo = &ifconnmgr.TagInfo{
@@ -106,14 +110,20 @@ func (cm *ConnManager) TagPeer(p peer.ID, tag string, value int) {
 		cm.tagInfos[p] = tagInfo
 	}
 	tagInfo.Tags[tag] = value
+
+	cm.tiMutex.Unlock()
 }
 
 // UntagPeer removes the tagged value from the peer.
 func (cm *ConnManager) UntagPeer(p peer.ID, tag string) {
+	cm.tiMutex.Lock()
+
 	tagInfo, ok := cm.tagInfos[p]
 	if ok {
 		delete(tagInfo.Tags, tag)
 	}
+
+	cm.tiMutex.Unlock()
 }
 
 // GetTagInfo returns the metadata associated with the peer,
