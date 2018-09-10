@@ -44,12 +44,12 @@ func init() {
 const DefaultPeerPort = 19199
 
 // fullnode sub-command
-func initNodeCommand(root *cobra.Command, callback CommandFunc) {
+func initStartCommand(root *cobra.Command, callback CommandFunc) {
 	var addpeers = make([]string, 0, 8)
 	var listenAddr net.IP
 	var listenPort uint
 
-	var cmdNode = &cobra.Command{
+	var cmdStart = &cobra.Command{
 		Use:   "start [# addpeer] [# listen-addr] [# listen-port]",
 		Short: "starts fullnode server.",
 		Long:  `starts fullnode server. It will start a p2p server and then sync blockchain data from remote peers.`,
@@ -82,16 +82,16 @@ func initNodeCommand(root *cobra.Command, callback CommandFunc) {
 		},
 	}
 
-	cmdNode.Flags().StringSliceVar(&addpeers, "addpeer", []string{}, "addresse and port of remote peers, seperated by comma.")
-	cmdNode.Flags().IPVar(&listenAddr, "listen-addr", net.IPv4zero, "local p2p listen address.")
-	cmdNode.Flags().UintVar(&listenPort, "listen-port", DefaultPeerPort, "local p2p listen address.")
+	cmdStart.Flags().StringSliceVar(&addpeers, "addpeer", []string{}, "addresse and port of remote peers, seperated by comma.")
+	cmdStart.Flags().IPVar(&listenAddr, "listen-addr", net.IPv4zero, "local p2p listen address.")
+	cmdStart.Flags().UintVar(&listenPort, "listen-port", DefaultPeerPort, "local p2p listen address.")
 
-	root.AddCommand(cmdNode)
+	root.AddCommand(cmdStart)
 }
 
 // Execute executes the root command
-func Execute(callback CommandFunc) {
-	initNodeCommand(cmdBox, callback)
+func Execute(callbacks ...CommandFunc) {
+	initStartCommand(cmdBox, callbacks[0])
 	if err := cmdBox.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
