@@ -5,6 +5,7 @@
 package log
 
 import (
+	"fmt"
 	"io"
 	l "log"
 	"os"
@@ -55,7 +56,7 @@ var allLoggers map[string]*Logger
 var mutex sync.Mutex
 
 func init() {
-	defaultFlags = l.LstdFlags
+	defaultFlags = l.LstdFlags | l.Lshortfile
 	defaultWriter = os.Stdout
 	defaultLevel = LevelDebug
 	allLoggers = make(map[string]*Logger)
@@ -95,7 +96,7 @@ func SetWriter(writer io.Writer) {
 	mutex.Lock()
 	defaultWriter = writer
 	for tag, logger := range allLoggers {
-		logger.Logger = l.New(defaultWriter, tag, defaultFlags)
+		logger.Logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
 	}
 	mutex.Unlock()
 }
@@ -105,12 +106,16 @@ func NewLogger(prefix string) *Logger {
 	mutex.Lock()
 	log, ok := allLoggers[prefix]
 	if !ok {
-		logger := l.New(defaultWriter, prefix, defaultFlags)
+		logger := l.New(defaultWriter, formatPrefix(prefix), defaultFlags)
 		log = &Logger{Logger: logger, level: defaultLevel}
 	}
 	mutex.Unlock()
 
 	return log
+}
+
+func formatPrefix(prefix string) string {
+	return fmt.Sprintf("%s\t", prefix)
 }
 
 // Debugf prints Debug level log
