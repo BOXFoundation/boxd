@@ -6,6 +6,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"os/signal"
 	"runtime"
 
 	"github.com/BOXFoundation/Quicksilver/cmd"
@@ -37,6 +39,8 @@ func init() {
 func startNodeServer(cfg *config.Config) error {
 	log.Setup(cfg) // setup logger
 
+	interruptListener() // listenning OS Signals
+
 	var host, err = p2p.NewDefaultHost(NodeContext, cfg.ListenAddr, cfg.ListenPort)
 	if err != nil {
 		logger.Error(err)
@@ -49,11 +53,37 @@ func startNodeServer(cfg *config.Config) error {
 		if err != nil {
 			logger.Warn(err)
 		} else {
-			logger.Infof("Peer %s connected.\n", multiaddr)
+			logger.Infof("Peer %s connected.", multiaddr)
 		}
 	}
 
-	select {} // TODO loop
+	select {
+	case <-NodeContext.Done():
+		logger.Info("Box server is down.")
+	}
 
 	return nil
+}
+
+// interruptListener listens for OS Signals such as SIGINT (Ctrl+C) and shutdown
+// requests via func ContexCancel.
+func interruptListener() {
+	// interruptSignals defines the default signals to catch in order to do a proper
+	// shutdown.  This may be modified during init depending on the platform.
+	var interruptSignals = []os.Signal{os.Interrupt}
+
+	go func() {
+		interruptChannel := make(chan os.Signal, 1)
+		signal.Notify(interruptChannel, interruptSignals...)
+
+		// Listen for initial shutdown signal and close the returned
+		// channel to notify the caller.
+		for {
+			select {
+			case sig := <-interruptChannel:
+				logger.Infof("Received signal (%s). Shutting down...", sig)
+				NodeCancel()
+			}
+		}
+	}()
 }

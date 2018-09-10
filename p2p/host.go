@@ -87,7 +87,7 @@ func NewHost(ctx context.Context, listenAddress net.IP, listenPort uint, ps psto
 
 	// Now we can build a full multiaddress to reach this host
 	fullAddr := localhost.Addrs()[0].Encapsulate(hostAddr)
-	logger.Infof("Now listening on %s\n", fullAddr) //TODO change to logger
+	logger.Infof("Now listening on %s", fullAddr)
 
 	// create dht routing table
 	routing, err := dht.New(hostContext, localhost)

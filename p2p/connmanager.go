@@ -82,7 +82,7 @@ func (cm *ConnManager) run(ctx context.Context) {
 				cm.TrimOpenConns(ctx)
 			}(cm.context)
 		case <-cm.context.Done():
-			logger.Info("Quit connection manager.\n")
+			logger.Info("Quit connection manager.")
 			return
 		}
 	}

@@ -75,7 +75,7 @@ func SetLevel(level Level) {
 
 	defaultLevel = level
 	for tag, logger := range allLoggers {
-		logger.Logger = l.New(defaultWriter, tag, defaultFlags)
+		logger.Logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
 	}
 
 	mutex.Unlock()
@@ -102,11 +102,11 @@ func SetWriter(writer io.Writer) {
 }
 
 // NewLogger creates a new logger.
-func NewLogger(prefix string) *Logger {
+func NewLogger(tag string) *Logger {
 	mutex.Lock()
-	log, ok := allLoggers[prefix]
+	log, ok := allLoggers[tag]
 	if !ok {
-		logger := l.New(defaultWriter, formatPrefix(prefix), defaultFlags)
+		logger := l.New(defaultWriter, formatPrefix(tag), defaultFlags)
 		log = &Logger{Logger: logger, level: defaultLevel}
 	}
 	mutex.Unlock()
@@ -114,24 +114,15 @@ func NewLogger(prefix string) *Logger {
 	return log
 }
 
-func formatPrefix(prefix string) string {
-	return fmt.Sprintf("%s\t", prefix)
+func formatPrefix(tag string) string {
+	return fmt.Sprintf("%s\t", tag)
 }
 
 // Debugf prints Debug level log
 func (log *Logger) Debugf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelDebug {
-		log.Logger.Printf(f, v...)
-	}
-	mutex.Unlock()
-}
-
-// Debugln prints Debug level log
-func (log *Logger) Debugln(v ...interface{}) {
-	mutex.Lock()
-	if log.level >= LevelDebug {
-		log.Logger.Println(v...)
+		log.Logger.Output(2, log.sprintf(f, v))
 	}
 	mutex.Unlock()
 }
@@ -140,7 +131,7 @@ func (log *Logger) Debugln(v ...interface{}) {
 func (log *Logger) Debug(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelDebug {
-		log.Logger.Print(v...)
+		log.Logger.Output(2, log.sprint(v))
 	}
 	mutex.Unlock()
 }
@@ -149,16 +140,7 @@ func (log *Logger) Debug(v ...interface{}) {
 func (log *Logger) Infof(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelInfo {
-		log.Logger.Printf(f, v...)
-	}
-	mutex.Unlock()
-}
-
-// Infoln prints Info level log
-func (log *Logger) Infoln(v ...interface{}) {
-	mutex.Lock()
-	if log.level >= LevelInfo {
-		log.Logger.Println(v...)
+		log.Logger.Output(2, log.sprintf(f, v))
 	}
 	mutex.Unlock()
 }
@@ -167,7 +149,7 @@ func (log *Logger) Infoln(v ...interface{}) {
 func (log *Logger) Info(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelInfo {
-		log.Logger.Print(v...)
+		log.Logger.Output(2, log.sprint(v))
 	}
 	mutex.Unlock()
 }
@@ -176,16 +158,7 @@ func (log *Logger) Info(v ...interface{}) {
 func (log *Logger) Warnf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelWarn {
-		log.Logger.Printf(f, v...)
-	}
-	mutex.Unlock()
-}
-
-// Warnln prints Warn level log
-func (log *Logger) Warnln(v ...interface{}) {
-	mutex.Lock()
-	if log.level >= LevelWarn {
-		log.Logger.Println(v...)
+		log.Logger.Output(2, log.sprintf(f, v...))
 	}
 	mutex.Unlock()
 }
@@ -194,7 +167,7 @@ func (log *Logger) Warnln(v ...interface{}) {
 func (log *Logger) Warn(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelWarn {
-		log.Logger.Print(v...)
+		log.Logger.Output(2, log.sprint(v...))
 	}
 	mutex.Unlock()
 }
@@ -203,16 +176,7 @@ func (log *Logger) Warn(v ...interface{}) {
 func (log *Logger) Errorf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelError {
-		log.Logger.Printf(f, v...)
-	}
-	mutex.Unlock()
-}
-
-// Errorln prints Error level log
-func (log *Logger) Errorln(v ...interface{}) {
-	mutex.Lock()
-	if log.level >= LevelError {
-		log.Logger.Println(v...)
+		log.Logger.Output(2, log.sprintf(f, v...))
 	}
 	mutex.Unlock()
 }
@@ -221,7 +185,7 @@ func (log *Logger) Errorln(v ...interface{}) {
 func (log *Logger) Error(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelError {
-		log.Logger.Print(v...)
+		log.Logger.Output(2, log.sprint(v...))
 	}
 	mutex.Unlock()
 }
@@ -232,17 +196,8 @@ func (log *Logger) Fatalf(f string, v ...interface{}) {
 	defer mutex.Unlock()
 
 	if log.level >= LevelFatal {
-		log.Logger.Fatalf(f, v...)
-	}
-}
-
-// Fatalln prints Fatal level log
-func (log *Logger) Fatalln(f string, v ...interface{}) {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if log.level >= LevelFatal {
-		log.Logger.Fatalln(v...)
+		log.Logger.Output(2, log.sprintf(f, v...))
+		os.Exit(1)
 	}
 }
 
@@ -252,6 +207,33 @@ func (log *Logger) Fatal(v ...interface{}) {
 	defer mutex.Unlock()
 
 	if log.level >= LevelFatal {
-		log.Logger.Fatal(v...)
+		log.Logger.Output(2, log.sprint(v...))
+		os.Exit(1)
+	}
+}
+
+func (log *Logger) sprintf(f string, v ...interface{}) string {
+	return fmt.Sprintf("%s\t%s", log.tag(), fmt.Sprintf(f, v...))
+}
+
+func (log *Logger) sprint(v ...interface{}) string {
+
+	return fmt.Sprintf("%s\t%s", log.tag(), fmt.Sprint(v...))
+}
+
+func (log *Logger) tag() string {
+	switch log.level {
+	case LevelDebug:
+		return "[D]"
+	case LevelInfo:
+		return "[I]"
+	case LevelWarn:
+		return "[W]"
+	case LevelError:
+		return "[E]"
+	case LevelFatal:
+		return "[F]"
+	default:
+		return "[*]"
 	}
 }
