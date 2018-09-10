@@ -18,6 +18,8 @@ type Config struct {
 	AddPeers        []ma.Multiaddr // peers to be connected when the p2p service gets on
 	DefaultPeerPort uint           // default p2p listen port of peers
 	// rpc client
+	// logger
+	LogLevel int
 }
 
 // // PeerAddr represents the listening address of peer, including ip/port
