@@ -6,7 +6,6 @@ package p2p
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -66,7 +65,7 @@ func (cm *ConnManager) run(ctx context.Context) {
 	cm.mutex.Lock()
 	if cm.context != nil {
 		cm.mutex.Unlock()
-		fmt.Println("Connection Manager has already been running.")
+		logger.Warn("Connection Manager has already been running.\n")
 		return
 	}
 	if ctx == nil {
@@ -83,7 +82,7 @@ func (cm *ConnManager) run(ctx context.Context) {
 				cm.TrimOpenConns(ctx)
 			}(cm.context)
 		case <-cm.context.Done():
-			fmt.Println("Quit connection manager.")
+			logger.Info("Quit connection manager.\n")
 			return
 		}
 	}

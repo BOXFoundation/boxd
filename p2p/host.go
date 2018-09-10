@@ -11,6 +11,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/BOXFoundation/Quicksilver/log"
 	libp2p "github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
@@ -30,9 +31,12 @@ type Host struct {
 	mutex   sync.Mutex
 }
 
+var logger *log.Logger // logger
+
 // init function
 func init() {
 	ma.SwapToP2pMultiaddrs() // change ma.P_P2P from 'ipfs' to 'p2p'
+	logger = log.NewLogger("p2p")
 }
 
 // NewDefaultHost creates a wrapper of host.Host
@@ -83,7 +87,7 @@ func NewHost(ctx context.Context, listenAddress net.IP, listenPort uint, ps psto
 
 	// Now we can build a full multiaddress to reach this host
 	fullAddr := localhost.Addrs()[0].Encapsulate(hostAddr)
-	fmt.Printf("Now listening on %s\n", fullAddr) //TODO change to logger
+	logger.Infof("Now listening on %s\n", fullAddr) //TODO change to logger
 
 	// create dht routing table
 	routing, err := dht.New(hostContext, localhost)

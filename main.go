@@ -6,11 +6,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 
 	"github.com/BOXFoundation/Quicksilver/cmd"
 	config "github.com/BOXFoundation/Quicksilver/config"
+	"github.com/BOXFoundation/Quicksilver/log"
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
 )
 
@@ -25,14 +25,21 @@ var NodeContext context.Context
 // NodeCancel is the cancel function to stop the server
 var NodeCancel context.CancelFunc
 
+var logger *log.Logger
+
 func init() {
 	NodeContext, NodeCancel = context.WithCancel(context.Background())
+
+	logger = log.NewLogger("main")
 }
 
 // start node server
 func startNodeServer(cfg *config.Config) error {
+	log.Setup(cfg) // setup logger
+
 	var host, err = p2p.NewDefaultHost(NodeContext, cfg.ListenAddr, cfg.ListenPort)
 	if err != nil {
+		logger.Error(err)
 		return err
 	}
 
@@ -40,9 +47,9 @@ func startNodeServer(cfg *config.Config) error {
 	for _, multiaddr := range cfg.AddPeers {
 		err := host.ConnectPeer(NodeContext, multiaddr)
 		if err != nil {
-			fmt.Println(err)
+			logger.Warn(err)
 		} else {
-			fmt.Printf("Peer %s connected.\n", multiaddr)
+			logger.Infof("Peer %s connected.\n", multiaddr)
 		}
 	}
 

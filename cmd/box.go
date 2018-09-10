@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	config "github.com/BOXFoundation/Quicksilver/config"
+	log "github.com/BOXFoundation/Quicksilver/log"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
 )
@@ -21,6 +23,7 @@ type CommandFunc func(cfg *config.Config) error
 
 // root command
 var verbose bool
+var loglevel string
 
 var cmdBox = &cobra.Command{
 	Use:   "box [# verbose]",
@@ -34,6 +37,7 @@ var cmdBox = &cobra.Command{
 
 func init() {
 	cmdBox.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+	cmdBox.PersistentFlags().StringVarP(&loglevel, "log-level", "l", "info", "log level [debug|info|warn|error|fatal]")
 }
 
 // DefaultPeerPort is the default listen port for box p2p message.
@@ -46,7 +50,7 @@ func initNodeCommand(root *cobra.Command, callback CommandFunc) {
 	var listenPort uint
 
 	var cmdNode = &cobra.Command{
-		Use:   "start [# addpeer] [# listenAddr] [# listenPort]",
+		Use:   "start [# addpeer] [# listen-addr] [# listen-port]",
 		Short: "starts fullnode server.",
 		Long:  `starts fullnode server. It will start a p2p server and then sync blockchain data from remote peers.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -60,11 +64,18 @@ func initNodeCommand(root *cobra.Command, callback CommandFunc) {
 					fmt.Printf("Invalid multi address: %s\n", addr)
 				}
 			}
+			var llevel = log.LevelInfo
+			loglevel = strings.ToLower(loglevel)
+			if loglevel, ok := log.LevelValue[loglevel]; ok {
+				llevel = loglevel
+			}
+
 			var cfg = &config.Config{
 				ListenAddr:      listenAddr,
 				ListenPort:      listenPort,
 				AddPeers:        peers,
 				DefaultPeerPort: DefaultPeerPort,
+				LogLevel:        int(llevel),
 			}
 
 			return callback(cfg)
@@ -72,8 +83,8 @@ func initNodeCommand(root *cobra.Command, callback CommandFunc) {
 	}
 
 	cmdNode.Flags().StringSliceVar(&addpeers, "addpeer", []string{}, "addresse and port of remote peers, seperated by comma.")
-	cmdNode.Flags().IPVar(&listenAddr, "listenAddr", net.IPv4zero, "local p2p listen address.")
-	cmdNode.Flags().UintVar(&listenPort, "listenPort", DefaultPeerPort, "local p2p listen address.")
+	cmdNode.Flags().IPVar(&listenAddr, "listen-addr", net.IPv4zero, "local p2p listen address.")
+	cmdNode.Flags().UintVar(&listenPort, "listen-port", DefaultPeerPort, "local p2p listen address.")
 
 	root.AddCommand(cmdNode)
 }
