@@ -127,6 +127,15 @@ func (log *Logger) Debugf(f string, v ...interface{}) {
 	mutex.Unlock()
 }
 
+// Debugln prints Debug level log
+func (log *Logger) Debugln(v ...interface{}) {
+	mutex.Lock()
+	if log.level >= LevelDebug {
+		log.Logger.Println(v...)
+	}
+	mutex.Unlock()
+}
+
 // Debug prints Debug level log
 func (log *Logger) Debug(v ...interface{}) {
 	mutex.Lock()
@@ -141,6 +150,15 @@ func (log *Logger) Infof(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelInfo {
 		log.Logger.Printf(f, v...)
+	}
+	mutex.Unlock()
+}
+
+// Infoln prints Info level log
+func (log *Logger) Infoln(v ...interface{}) {
+	mutex.Lock()
+	if log.level >= LevelInfo {
+		log.Logger.Println(v...)
 	}
 	mutex.Unlock()
 }
@@ -163,6 +181,15 @@ func (log *Logger) Warnf(f string, v ...interface{}) {
 	mutex.Unlock()
 }
 
+// Warnln prints Warn level log
+func (log *Logger) Warnln(v ...interface{}) {
+	mutex.Lock()
+	if log.level >= LevelWarn {
+		log.Logger.Println(v...)
+	}
+	mutex.Unlock()
+}
+
 // Warn prints Warn level log
 func (log *Logger) Warn(v ...interface{}) {
 	mutex.Lock()
@@ -177,6 +204,15 @@ func (log *Logger) Errorf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelError {
 		log.Logger.Printf(f, v...)
+	}
+	mutex.Unlock()
+}
+
+// Errorln prints Error level log
+func (log *Logger) Errorln(v ...interface{}) {
+	mutex.Lock()
+	if log.level >= LevelError {
+		log.Logger.Println(v...)
 	}
 	mutex.Unlock()
 }
@@ -197,6 +233,16 @@ func (log *Logger) Fatalf(f string, v ...interface{}) {
 
 	if log.level >= LevelFatal {
 		log.Logger.Fatalf(f, v...)
+	}
+}
+
+// Fatalln prints Fatal level log
+func (log *Logger) Fatalln(f string, v ...interface{}) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if log.level >= LevelFatal {
+		log.Logger.Fatalln(v...)
 	}
 }
 
