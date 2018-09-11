@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jbenet/goprocess"
+	goprocessctx "github.com/jbenet/goprocess/context"
 	ifconnmgr "github.com/libp2p/go-libp2p-interface-connmgr"
 	inet "github.com/libp2p/go-libp2p-net"
 	net "github.com/libp2p/go-libp2p-net"
@@ -21,8 +23,7 @@ type ConnManager struct {
 	mutex               sync.Mutex
 	tagInfos            map[peer.ID]*ifconnmgr.TagInfo
 	notifiee            inet.Notifiee
-	context             context.Context
-	cancel              context.CancelFunc
+	proc                goprocess.Process
 	durationToTrimConns time.Duration
 }
 
@@ -56,32 +57,32 @@ func NewConnManager() *ConnManager {
 }
 
 // Start function starts a go thread to loop removing unnecessary connections.
-func (cm *ConnManager) Start(ctx context.Context) {
-	go cm.run(ctx)
+func (cm *ConnManager) Start(parent goprocess.Process) {
+	go cm.run(parent)
 }
 
 // loop removing unnecessary connections
-func (cm *ConnManager) run(ctx context.Context) {
+func (cm *ConnManager) run(parent goprocess.Process) {
 	cm.mutex.Lock()
-	if cm.context != nil {
+	if cm.proc != nil {
 		cm.mutex.Unlock()
-		logger.Warn("Connection Manager has already been running.\n")
+		logger.Warn("Connection Manager has already been running.")
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	cm.context, cm.cancel = context.WithCancel(ctx)
+	cm.proc = goprocess.WithParent(parent)
 	cm.mutex.Unlock()
+
+	logger.Info("Now starting connection manager.")
 
 	ticker := time.NewTicker(cm.durationToTrimConns)
 	for {
 		select {
 		case <-ticker.C:
-			go func(ctx context.Context) {
-				cm.TrimOpenConns(ctx)
-			}(cm.context)
-		case <-cm.context.Done():
+			p := cm.proc.Go(func(p goprocess.Process) {
+				cm.TrimOpenConns(goprocessctx.OnClosingContext(p))
+			})
+			<-p.Closed()
+		case <-cm.proc.Closing():
 			logger.Info("Quit connection manager.")
 			return
 		}
@@ -91,8 +92,8 @@ func (cm *ConnManager) run(ctx context.Context) {
 // Stop function stops the ConnManager
 func (cm *ConnManager) Stop() {
 	cm.mutex.Lock()
-	if cm.cancel != nil {
-		cm.cancel()
+	if cm.proc != nil {
+		cm.proc.Close()
 	}
 	cm.mutex.Unlock()
 }
@@ -186,6 +187,7 @@ func (cm *ConnManager) GetTagInfo(p peer.ID) *ifconnmgr.TagInfo {
 // heuristic.
 func (cm *ConnManager) TrimOpenConns(ctx context.Context) {
 	//TODO close unnecessary connections...
+	logger.Info("TrimOpenConns...")
 }
 
 // Notifee returns an implementation that can be called back to inform of

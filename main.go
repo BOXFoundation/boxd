@@ -5,7 +5,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"os/signal"
 	"runtime"
@@ -14,6 +13,7 @@ import (
 	config "github.com/BOXFoundation/Quicksilver/config"
 	"github.com/BOXFoundation/Quicksilver/log"
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
+	"github.com/jbenet/goprocess"
 )
 
 func main() {
@@ -21,17 +21,13 @@ func main() {
 	cmd.Execute(startNodeServer)
 }
 
-// NodeContext is the context to start the server
-var NodeContext context.Context
-
-// NodeCancel is the cancel function to stop the server
-var NodeCancel context.CancelFunc
+// RootProcess is the root process of the app
+var RootProcess goprocess.Process
 
 var logger *log.Logger
 
 func init() {
-	NodeContext, NodeCancel = context.WithCancel(context.Background())
-
+	RootProcess = goprocess.WithParent(goprocess.Background())
 	logger = log.NewLogger("main")
 }
 
@@ -41,7 +37,7 @@ func startNodeServer(cfg *config.Config) error {
 
 	interruptListener() // listenning OS Signals
 
-	var host, err = p2p.NewDefaultHost(NodeContext, cfg.ListenAddr, cfg.ListenPort)
+	var host, err = p2p.NewDefaultHost(RootProcess, cfg.ListenAddr, cfg.ListenPort)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -49,7 +45,7 @@ func startNodeServer(cfg *config.Config) error {
 
 	// connect to other peers passed via commandline
 	for _, multiaddr := range cfg.AddPeers {
-		err := host.ConnectPeer(NodeContext, multiaddr)
+		err := host.ConnectPeer(RootProcess, multiaddr)
 		if err != nil {
 			logger.Warn(err)
 		} else {
@@ -58,7 +54,7 @@ func startNodeServer(cfg *config.Config) error {
 	}
 
 	select {
-	case <-NodeContext.Done():
+	case <-RootProcess.Closed():
 		logger.Info("Box server is down.")
 	}
 
@@ -82,7 +78,9 @@ func interruptListener() {
 			select {
 			case sig := <-interruptChannel:
 				logger.Infof("Received signal (%s). Shutting down...", sig)
-				NodeCancel()
+				RootProcess.Close()
+			case <-RootProcess.Closed():
+				return
 			}
 		}
 	}()

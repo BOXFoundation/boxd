@@ -5,13 +5,13 @@
 package p2p
 
 import (
-	"context"
 	"crypto/rand"
 	"fmt"
 	"net"
-	"sync"
 
 	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/jbenet/goprocess"
+	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2p "github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
@@ -26,9 +26,7 @@ type Host struct {
 	host.Host
 	cmgr    *ConnManager
 	routing *dht.IpfsDHT // TODO change it to box impl
-	ctx     context.Context
-	cancel  context.CancelFunc
-	mutex   sync.Mutex
+	proc    goprocess.Process
 }
 
 var logger *log.Logger // logger
@@ -40,12 +38,12 @@ func init() {
 }
 
 // NewDefaultHost creates a wrapper of host.Host
-func NewDefaultHost(ctx context.Context, listenAddress net.IP, listenPort uint) (*Host, error) {
-	return NewHost(ctx, listenAddress, listenPort, pstore.NewPeerstore())
+func NewDefaultHost(parent goprocess.Process, listenAddress net.IP, listenPort uint) (*Host, error) {
+	return NewHost(parent, listenAddress, listenPort, pstore.NewPeerstore())
 }
 
 // NewHost creates a wrapper of host.Host, with given peerstore & notifiee, and listening on given port/address
-func NewHost(ctx context.Context, listenAddress net.IP, listenPort uint, ps pstore.Peerstore) (*Host, error) {
+func NewHost(parent goprocess.Process, listenAddress net.IP, listenPort uint, ps pstore.Peerstore) (*Host, error) {
 	if listenAddress == nil {
 		listenAddress = net.IPv4zero
 	}
@@ -59,7 +57,8 @@ func NewHost(ctx context.Context, listenAddress net.IP, listenPort uint, ps psto
 		return nil, err
 	}
 
-	hostContext, cancel := context.WithCancel(ctx)
+	proc := goprocess.WithParent(parent) // p2p proc
+	hostContext := goprocessctx.OnClosingContext(proc)
 
 	var addr string // TODO find a better way to converto IP to ip4/ip6 ma
 	if p4 := listenAddress.To4(); len(p4) == net.IPv4len {
@@ -78,7 +77,6 @@ func NewHost(ctx context.Context, listenAddress net.IP, listenPort uint, ps psto
 
 	localhost, err := libp2p.New(hostContext, opts...)
 	if err != nil {
-		defer cancel()
 		return nil, err
 	}
 
@@ -92,22 +90,21 @@ func NewHost(ctx context.Context, listenAddress net.IP, listenPort uint, ps psto
 	// create dht routing table
 	routing, err := dht.New(hostContext, localhost)
 	if err != nil {
-		defer cancel()
 		return nil, err
 	}
 
-	h := &Host{Host: localhost, cmgr: cmgr, routing: routing, ctx: hostContext, cancel: cancel}
+	h := &Host{Host: localhost, cmgr: cmgr, routing: routing, proc: proc}
 
 	// start connmanager
-	h.cmgr.Start(h.ctx)
+	h.cmgr.Start(proc)
 	//  bootstrap dht routing table
-	h.routing.Bootstrap(h.ctx)
+	h.routing.Bootstrap(hostContext)
 
 	return h, nil
 }
 
 // ConnectPeer establishs p2p connection with specified multiaddr
-func (h *Host) ConnectPeer(ctx context.Context, multiaddr ma.Multiaddr) error {
+func (h *Host) ConnectPeer(parent goprocess.Process, multiaddr ma.Multiaddr) error {
 	pid, err := multiaddr.ValueForProtocol(ma.P_P2P)
 	if err != nil {
 		return err
@@ -125,26 +122,10 @@ func (h *Host) ConnectPeer(ctx context.Context, multiaddr ma.Multiaddr) error {
 	h.Peerstore().AddAddr(peerID, targetAddr, pstore.AddressTTL)
 
 	peerInfo := pstore.PeerInfo{ID: peerID}
-	return h.Connect(ctx, peerInfo)
+	return h.Connect(goprocessctx.OnClosingContext(parent), peerInfo)
 }
 
-// Context returns the running context of the Host object
-func (h *Host) Context() context.Context {
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
-	if h.ctx == nil {
-		return context.Background()
-	}
-	return h.ctx
-}
-
-// Stop function stops the Host
-func (h *Host) Stop() {
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
-	if h.cancel != nil {
-		h.cancel()
-	}
+// Process returns the running process of the Host object
+func (h *Host) Process() goprocess.Process {
+	return h.proc
 }
