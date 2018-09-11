@@ -58,35 +58,33 @@ func NewConnManager() *ConnManager {
 
 // Start function starts a go thread to loop removing unnecessary connections.
 func (cm *ConnManager) Start(parent goprocess.Process) {
-	go cm.run(parent)
+	cm.run(parent)
 }
 
 // loop removing unnecessary connections
 func (cm *ConnManager) run(parent goprocess.Process) {
 	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
 	if cm.proc != nil {
-		cm.mutex.Unlock()
 		logger.Warn("Connection Manager has already been running.")
 		return
 	}
-	cm.proc = goprocess.WithParent(parent)
-	cm.mutex.Unlock()
 
 	logger.Info("Now starting connection manager.")
-
-	ticker := time.NewTicker(cm.durationToTrimConns)
-	for {
-		select {
-		case <-ticker.C:
-			p := cm.proc.Go(func(p goprocess.Process) {
-				cm.TrimOpenConns(goprocessctx.OnClosingContext(p))
-			})
-			<-p.Closed()
-		case <-cm.proc.Closing():
-			logger.Info("Quit connection manager.")
-			return
+	cm.proc = parent.Go(func(p goprocess.Process) {
+		ticker := time.NewTicker(cm.durationToTrimConns)
+		for {
+			select {
+			case <-ticker.C:
+				<-p.Go(func(proc goprocess.Process) {
+					cm.TrimOpenConns(goprocessctx.OnClosingContext(proc))
+				}).Closed() // blocked on go function
+			case <-p.Closing():
+				logger.Info("Quit connection manager.")
+				return
+			}
 		}
-	}
+	})
 }
 
 // Stop function stops the ConnManager
