@@ -11,6 +11,7 @@ import (
 
 // const
 const (
+	ProtocolID = "/box/1.0.0"
 	// Mainnet velocity of light
 	Mainnet                 uint32 = 0x11de784a
 	Testnet                 uint32 = 0x54455354
