@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The go-contentbox Authors
+ * Copyright (C) 2018 ContentBox Authors
  * This file is part of The go-contentbox library.
  *
  * The go-contentbox library is free software: you can redistribute it and/or modify
@@ -32,22 +32,25 @@ import (
 	host "github.com/libp2p/go-libp2p-host"
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
+	peerstore "github.com/libp2p/go-libp2p-peerstore"
+	multiaddr "github.com/multiformats/go-multiaddr"
 )
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
-	conns   *sync.Map
+	conns   map[string]interface{}
 	config  *Config
 	host    host.Host
 	context context.Context
 	id      peer.ID
 	table   *Table
+	mu      sync.Mutex
 }
 
 // New create a BoxPeer
 func New(config *Config) (*BoxPeer, error) {
 	ctx := context.Background()
-	boxPeer := &BoxPeer{conns: new(sync.Map), config: config, context: ctx, table: NewTable()}
+	boxPeer := &BoxPeer{conns: make(map[string]interface{}), config: config, context: ctx, table: NewTable()}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -74,6 +77,7 @@ func New(config *Config) (*BoxPeer, error) {
 
 // Bootstrap schedules lookup and discover new peer
 func (p *BoxPeer) Bootstrap() {
+	p.ConnectSeeds()
 	p.table.Loop()
 }
 
@@ -97,14 +101,56 @@ func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
 }
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
-	conn := NewConn(s)
-	if v, ok := p.conns.Load(s.Conn().RemotePeer()); ok {
-		old, _ := v.(Conn)
-		p.conns.Delete(s.Conn().RemotePeer())
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	conn := NewConn(s, p)
+	if p.conns[s.Conn().RemotePeer().String()] != nil {
+		old, _ := p.conns[s.Conn().RemotePeer().String()].(Conn)
 		old.stream.Close()
 	}
-	p.conns.Store(s.Conn().RemotePeer(), conn)
+	p.conns[s.Conn().RemotePeer().String()] = conn
 	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
 	go conn.readData(rw)
 	go conn.writeData(rw)
+}
+
+// ConnectSeeds connect the seeds in config
+func (p *BoxPeer) ConnectSeeds() {
+	host := p.host
+	for _, v := range p.config.Seeds {
+		peerID, err := addAddrToPeerstore(host, v)
+		if err != nil {
+			logger.Warn("Failed to add seed to peerstore.")
+		}
+		s, err := host.NewStream(context.Background(), peerID, ProtocolID)
+		if err != nil {
+			logger.Warn("Failed to new stream to seed.")
+		}
+		p.handleStream(s)
+	}
+	if len(p.conns) == 0 {
+		logger.Fatal("Failed to connect seeds.")
+	}
+}
+
+func addAddrToPeerstore(h host.Host, addr string) (peer.ID, error) {
+	ipfsaddr, err := multiaddr.NewMultiaddr(addr)
+	if err != nil {
+		return "", err
+	}
+	pid, err := ipfsaddr.ValueForProtocol(multiaddr.P_IPFS)
+	if err != nil {
+		return "", err
+	}
+
+	peerid, err := peer.IDB58Decode(pid)
+	if err != nil {
+		return "", err
+	}
+	targetPeerAddr, _ := multiaddr.NewMultiaddr(
+		fmt.Sprintf("/ipfs/%s", peer.IDB58Encode(peerid)))
+	targetAddr := ipfsaddr.Decapsulate(targetPeerAddr)
+
+	h.Peerstore().AddAddr(peerid, targetAddr, peerstore.PermanentAddrTTL)
+	return peerid, nil
 }

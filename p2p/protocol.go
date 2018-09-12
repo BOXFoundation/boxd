@@ -4,12 +4,11 @@
 
 package p2p
 
-type BoxNet uint32
-
+// const
 const (
 	// Mainnet velocity of light
-	Mainnet BoxNet = 0x11de784a
-	Testnet BoxNet = 0x11de784a
+	Mainnet uint32 = 0x11de784a
+	Testnet uint32 = 0x54455354
 
 	ProtocolID = "/box/1.0.0"
 )
