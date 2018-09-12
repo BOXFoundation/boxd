@@ -73,6 +73,7 @@ func (cm *ConnManager) run(parent goprocess.Process) {
 	logger.Info("Now starting connection manager.")
 	cm.proc = parent.Go(func(p goprocess.Process) {
 		ticker := time.NewTicker(cm.durationToTrimConns)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
