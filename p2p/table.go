@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The go-contentbox Authors
+ * Copyright (C) 2018 ContentBox Authors
  * This file is part of The go-contentbox library.
  *
  * The go-contentbox library is free software: you can redistribute it and/or modify
@@ -29,6 +29,7 @@ func NewTable() *Table {
 }
 
 func (t *Table) Loop() {
+	// Load Route Table.
 
 }
 

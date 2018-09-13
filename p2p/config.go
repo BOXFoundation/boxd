@@ -5,6 +5,8 @@
 package p2p
 
 type Config struct {
+	Magic   uint32
 	KeyPath string
 	Port    uint32
+	Seeds   []string
 }

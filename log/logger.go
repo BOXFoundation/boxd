@@ -9,9 +9,10 @@ import (
 	"io"
 	l "log"
 	"os"
+	"strings"
 	"sync"
 
-	config "github.com/BOXFoundation/Quicksilver/config"
+	"github.com/spf13/viper"
 )
 
 // Logger defines the box log functions
@@ -63,10 +64,11 @@ func init() {
 }
 
 // Setup loggers globally
-func Setup(cfg *config.Config) error {
-	SetLevel(Level(cfg.LogLevel))
-
-	return nil
+func Setup(v *viper.Viper) {
+	loglevel := strings.ToLower(v.GetString("log.level"))
+	if loglevel, ok := LevelValue[loglevel]; ok {
+		SetLevel(Level(loglevel))
+	}
 }
 
 // SetLevel sets the log level of all loggers

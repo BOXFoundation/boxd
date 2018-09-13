@@ -4,12 +4,16 @@
 
 NAME=box
 
+VERSION?=0.1.0
+
+COMMIT=$(shell git rev-parse HEAD)
+BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
+
 DIR_WORKSPACE=$(shell pwd)
-DIR_OUTPUTS=${DIR_WORKSPACE}/outputs
+DIR_OUTPUTS=${DIR_WORKSPACE}
 BIN="${DIR_OUTPUTS}/${NAME}"
 
-VER_COMMIT=$(shell git rev-parse HEAD)
-VER_BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
+LDFLAGS = -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.branch=${BRANCH}"
 
 export GO15VENDOREXPERIMENT=1
 
@@ -76,12 +80,11 @@ test:
 
 .PHONY: clean
 clean:
-	@rm -rf ${DIR_OUTPUTS}
+	@rm -rf ${BIN}
 
 .PHONY: build
 build: fullnode 
 
 .PHONY: fullnode
-fullnode:
-	@mkdir ${DIR_OUTPUTS}
-	go build -o ${BIN} main.go
+fullnode:		
+	go build $(LDFLAGS) -o ${BIN} main.go
