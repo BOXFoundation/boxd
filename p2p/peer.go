@@ -5,7 +5,6 @@
 package p2p
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -87,17 +86,15 @@ func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
 }
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	conn := NewConn(s, p)
-	if p.conns[s.Conn().RemotePeer().String()] != nil {
-		old, _ := p.conns[s.Conn().RemotePeer().String()].(Conn)
-		old.stream.Close()
-	}
-	p.conns[s.Conn().RemotePeer().String()] = conn
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-	go conn.readData(rw)
-	go conn.writeData(rw)
+	// p.mu.Lock()
+	// defer p.mu.Unlock()
+	conn := NewConn(s, p, s.Conn().RemotePeer())
+	// if p.conns[s.Conn().RemotePeer().String()] != nil {
+	// 	old, _ := p.conns[s.Conn().RemotePeer().String()].(Conn)
+	// 	old.stream.Close()
+	// }
+	// p.conns[s.Conn().RemotePeer().String()] = conn
+	go conn.loop()
 }
 
 // ConnectSeeds connect the seeds in config
@@ -108,14 +105,8 @@ func (p *BoxPeer) ConnectSeeds() {
 		if err != nil {
 			logger.Warn("Failed to add seed to peerstore.")
 		}
-		s, err := host.NewStream(context.Background(), peerID, ProtocolID)
-		if err != nil {
-			logger.Warn("Failed to new stream to seed.")
-		}
-		p.handleStream(s)
-	}
-	if len(p.conns) == 0 {
-		logger.Fatal("Failed to connect seeds.")
+		conn := NewConn(nil, p, peerID)
+		go conn.loop()
 	}
 }
 

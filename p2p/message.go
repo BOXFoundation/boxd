@@ -5,8 +5,10 @@
 package p2p
 
 import (
-	"github.com/BOXFoundation/Quicksilver/p2p/pb"
-	"github.com/gogo/protobuf/proto"
+	"errors"
+	"hash/crc32"
+
+	"github.com/BOXFoundation/Quicksilver/util"
 )
 
 // const
@@ -15,10 +17,16 @@ const (
 	// Mainnet velocity of light
 	Mainnet                 uint32 = 0x11de784a
 	Testnet                 uint32 = 0x54455354
-	MessageHeaderLength            = 20
+	Step                           = 4
+	MessageHeaderLength            = 24
 	Ping                           = 0x00
 	Pong                           = 0x01
 	MaxNebMessageDataLength        = 1024 * 1024 * 1024 // 1G bytes
+)
+
+// error
+var (
+	ErrMessageHeader = errors.New("Invalid message header data")
 )
 
 // MessageHeader message header info from network.
@@ -28,32 +36,36 @@ type MessageHeader struct {
 	DataLength   uint32
 	Checksum     uint32
 	DataChecksum uint32
+	Reserved     []byte
+}
+
+// NewMessage return full message in bytes
+func NewMessage(header *MessageHeader, body []byte) []byte {
+
+	msg := make([]byte, MessageHeaderLength+len(body))
+	copy(msg[:4], util.FromUint32(header.Magic))
+	copy(msg[4:8], util.FromUint32(header.Code))
+	copy(msg[8:12], util.FromUint32(header.DataLength))
+	copy(msg[12:16], util.FromUint32(header.DataChecksum))
+	copy(msg[16:20], header.Reserved)
+	headerCheckSum := crc32.ChecksumIEEE(msg[:20])
+	copy(msg[20:24], util.FromUint32(headerCheckSum))
+	copy(msg[24:], body)
+	return msg
 }
 
 // ParseHeader parse the bytes data into MessageHeader
 func ParseHeader(data []byte) (*MessageHeader, error) {
-	pb := new(p2ppb.MessageHeader)
-	if err := proto.Unmarshal(data, pb); err != nil {
-		logger.Error("Failed to unmarshal message header.")
-		return nil, err
-	}
-	header := &MessageHeader{
-		Magic:        pb.Magic,
-		Code:         pb.Code,
-		DataLength:   pb.DataLength,
-		Checksum:     pb.Checksum,
-		DataChecksum: pb.DataChecksum,
-	}
-	return header, nil
-}
 
-// ToProto converts domain BlockHeader to proto BlockHeader
-func (header *MessageHeader) ToProto() (proto.Message, error) {
-	return &p2ppb.MessageHeader{
-		Magic:        header.Magic,
-		Code:         header.Code,
-		DataLength:   header.DataLength,
-		Checksum:     header.Checksum,
-		DataChecksum: header.DataChecksum,
-	}, nil
+	if len(data) != MessageHeaderLength {
+		return nil, ErrMessageHeader
+	}
+	header := &MessageHeader{}
+	header.Magic = util.Uint32(data[:4])
+	header.Code = util.Uint32(data[4:8])
+	header.DataLength = util.Uint32(data[8:12])
+	header.DataChecksum = util.Uint32(data[12:16])
+	header.Reserved = data[16:20]
+	header.Checksum = util.Uint32(data[20:24])
+	return header, nil
 }

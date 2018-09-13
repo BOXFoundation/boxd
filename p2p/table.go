@@ -4,10 +4,14 @@
 
 package p2p
 
-import peerstore "github.com/libp2p/go-libp2p-peerstore"
+import (
+	kbucket "github.com/libp2p/go-libp2p-kbucket"
+	peerstore "github.com/libp2p/go-libp2p-peerstore"
+)
 
 type Table struct {
-	peerStore peerstore.Peerstore
+	peerStore  peerstore.Peerstore
+	routeTable *kbucket.RoutingTable
 }
 
 func NewTable() *Table {
@@ -21,4 +25,15 @@ func (t *Table) Loop() {
 
 func (t *Table) lookup() {
 
+}
+
+// AddPeerToTable add peer route table.
+func (t *Table) AddPeerToTable(conn *Conn) {
+	peerID := conn.stream.Conn().RemotePeer()
+	t.peerStore.AddAddr(
+		peerID,
+		conn.stream.Conn().RemoteMultiaddr(),
+		peerstore.PermanentAddrTTL,
+	)
+	t.routeTable.Update(peerID)
 }
