@@ -22,4 +22,5 @@
 
 # workspace
 .vscode/
-outputs/
+/box
+/outputs
