@@ -1,5 +1,5 @@
 hash: 120930d0236b0022d0826bdea3b250750a96c12cb146d620daafa7c72046f566
-updated: 2018-09-07T15:12:21.0606272+08:00
+updated: 2018-09-14T01:41:41.385906915+08:00
 imports:
 - name: github.com/btcsuite/btcd
   version: cff30e1d23fc9e800b2b5b4b41ef1817dda07e9f
@@ -15,6 +15,8 @@ imports:
   - semver
 - name: github.com/fd/go-nat
   version: bad65a492f32121a87197f4a085905c35e2a367e
+- name: github.com/fsnotify/fsnotify
+  version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
 - name: github.com/gogo/protobuf
   version: 5669497fd64452f28d142899eeb1bfd7e8b26ac8
   subpackages:
@@ -54,6 +56,18 @@ imports:
   version: 20f1fb78b0740ba8c3cb143a61e86ba5c8669768
   subpackages:
   - simplelru
+- name: github.com/hashicorp/hcl
+  version: 65a6292f0157eff210d03ed1bf6c59b190b8b906
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/printer
+  - hcl/scanner
+  - hcl/strconv
+  - hcl/token
+  - json/parser
+  - json/scanner
+  - json/token
 - name: github.com/huin/goupnp
   version: 1395d1447324cbea88d249fbfcfd70ea878fdfca
   subpackages:
@@ -87,6 +101,8 @@ imports:
   version: cbcf4e3f3baee7952fc386c8b2534af4d267c875
 - name: github.com/jackpal/go-nat-pmp
   version: 28a68d0c24adce1da43f8df6a57340909ecd7fdd
+- name: github.com/jbenet/go-base58
+  version: 6237cf65f3a6f7111cd8a42be3590df99a66bc7d
 - name: github.com/jbenet/go-context
   version: d14ea06fba99483203c19d92cfcd13ebe73135f4
   subpackages:
@@ -205,6 +221,8 @@ imports:
   version: 6542203d415dadff641ae94f9a6b51fead8bded7
 - name: github.com/libp2p/go-ws-transport
   version: 32d17885f64a5e902a758dfa793988c3cbbd28e9
+- name: github.com/magiconair/properties
+  version: c2353362d570a7bfa228149c62842019201cfb71
 - name: github.com/mattn/go-colorable
   version: efa589957cd060542a26d2dd7832fd6a6c6c3ade
 - name: github.com/mattn/go-isatty
@@ -213,6 +231,10 @@ imports:
   version: 3f5f724cb5b182a5c278d6d3d55b40e7f8c2efb4
 - name: github.com/minio/sha256-simd
   version: ad98a36ba0da87206e3378c556abbfeaeaa98668
+- name: github.com/mitchellh/go-homedir
+  version: ae18d6b8b3205b561c79e8e5f69bff09736185f4
+- name: github.com/mitchellh/mapstructure
+  version: fa473d140ef3c6adf42d6b391fe76707f1f243c8
 - name: github.com/mr-tron/base58
   version: f84df45a6b88974a98d1473e9f0de0eac859a3d9
   subpackages:
@@ -234,12 +256,24 @@ imports:
   subpackages:
   - ext
   - log
+- name: github.com/pelletier/go-toml
+  version: c2dbbc24a97911339e01bda0b8cabdbd8f13b602
 - name: github.com/spaolacci/murmur3
   version: f09979ecbc725b9e6d41a297405f65e7e8804acc
+- name: github.com/spf13/afero
+  version: d40851caa0d747393da1ffb28f7f9d8b4eeffebd
+  subpackages:
+  - mem
+- name: github.com/spf13/cast
+  version: 8965335b8c7107321228e3e3702cab9832751bac
 - name: github.com/spf13/cobra
   version: 99dc123558852f67743bd0b2caf8383cb3c6d720
+- name: github.com/spf13/jwalterweatherman
+  version: 4a4406e478ca629068e7768fc33f3f044173c0a6
 - name: github.com/spf13/pflag
   version: 298182f68c66c05229eb03ac171abe6e309ee79a
+- name: github.com/spf13/viper
+  version: 8fb642006536c8d3760c99d4fa2389f5e2205631
 - name: github.com/whyrusleeping/base32
   version: c30ac30633ccdabefe87eb12465113f06f1bab75
 - name: github.com/whyrusleeping/go-keyspace
@@ -269,6 +303,7 @@ imports:
   - blowfish
   - ed25519
   - ed25519/internal/edwards25519
+  - ripemd160
   - sha3
 - name: golang.org/x/lint
   version: 06c8688daad7faa9da5a0c2f163a3d14aac986ca
@@ -358,6 +393,8 @@ imports:
   - stats
   - status
   - tap
+- name: gopkg.in/yaml.v2
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 - name: honnef.co/go/tools
   version: 88497007e8588ea5b6baee991f74a1607e809487
   subpackages:
