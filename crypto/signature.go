@@ -15,8 +15,8 @@ type Signature btcec.Signature
 
 // Sign calculates an ECDSA signature of messageHash using privateKey.
 func Sign(privKey *PrivateKey, messageHash []byte) (*Signature, error) {
-	if len(messageHash) != 32 {
-		return nil, fmt.Errorf("hash must be be exactly 32 bytes (%d)", len(messageHash))
+	if len(messageHash) != HashSize {
+		return nil, fmt.Errorf("hash must be be exactly %d bytes (%d)", HashSize, len(messageHash))
 	}
 	btcecSig, err := (*btcec.PrivateKey)(privKey).Sign(messageHash)
 	return (*Signature)(btcecSig), err

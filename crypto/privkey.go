@@ -5,6 +5,8 @@
 package crypto
 
 import (
+	"fmt"
+
 	"github.com/btcsuite/btcd/btcec"
 )
 
@@ -16,9 +18,12 @@ var (
 type PrivateKey btcec.PrivateKey
 
 // KeyPairFromBytes returns a private and public key pair from private key passed as a byte slice privKeyBytes
-func KeyPairFromBytes(privKeyBytes []byte) (*PrivateKey, *PublicKey) {
+func KeyPairFromBytes(privKeyBytes []byte) (*PrivateKey, *PublicKey, error) {
+	if len(privKeyBytes) != btcec.PrivKeyBytesLen {
+		return nil, nil, fmt.Errorf("Private key must be be exactly %d bytes (%d)", btcec.PrivKeyBytesLen, len(privKeyBytes))
+	}
 	privKey, pubKey := btcec.PrivKeyFromBytes(curve, privKeyBytes)
-	return (*PrivateKey)(privKey), (*PublicKey)(pubKey)
+	return (*PrivateKey)(privKey), (*PublicKey)(pubKey), nil
 }
 
 // NewKeyPair returns a new private and public key pair
