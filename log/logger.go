@@ -16,8 +16,20 @@ import (
 )
 
 // Logger defines the box log functions
-type Logger struct {
-	Logger *l.Logger
+type Logger interface {
+	Debugf(f string, v ...interface{})
+	Debug(v ...interface{})
+	Infof(f string, v ...interface{})
+	Info(v ...interface{})
+	Warnf(f string, v ...interface{})
+	Warn(v ...interface{})
+	Errorf(f string, v ...interface{})
+	Error(v ...interface{})
+}
+
+// golang log impl
+type gologger struct {
+	logger *l.Logger
 	level  Level
 }
 
@@ -52,7 +64,7 @@ var LevelValue = map[string]Level{
 var defaultLevel Level
 var defaultWriter io.Writer
 var defaultFlags int
-var allLoggers map[string]*Logger
+var allLoggers map[string]*gologger
 
 var mutex sync.Mutex
 
@@ -60,7 +72,7 @@ func init() {
 	defaultFlags = l.LstdFlags | l.Lshortfile
 	defaultWriter = os.Stdout
 	defaultLevel = LevelDebug
-	allLoggers = make(map[string]*Logger)
+	allLoggers = make(map[string]*gologger)
 }
 
 // Setup loggers globally
@@ -77,7 +89,7 @@ func SetLevel(level Level) {
 
 	defaultLevel = level
 	for tag, logger := range allLoggers {
-		logger.Logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
+		logger.logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
 	}
 
 	mutex.Unlock()
@@ -88,7 +100,7 @@ func SetFlags(flags int) {
 	mutex.Lock()
 	defaultFlags = flags
 	for _, logger := range allLoggers {
-		logger.Logger.SetFlags(defaultFlags)
+		logger.logger.SetFlags(defaultFlags)
 	}
 	mutex.Unlock()
 }
@@ -98,18 +110,18 @@ func SetWriter(writer io.Writer) {
 	mutex.Lock()
 	defaultWriter = writer
 	for tag, logger := range allLoggers {
-		logger.Logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
+		logger.logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
 	}
 	mutex.Unlock()
 }
 
 // NewLogger creates a new logger.
-func NewLogger(tag string) *Logger {
+func NewLogger(tag string) Logger {
 	mutex.Lock()
 	log, ok := allLoggers[tag]
 	if !ok {
 		logger := l.New(defaultWriter, formatPrefix(tag), defaultFlags)
-		log = &Logger{Logger: logger, level: defaultLevel}
+		log = &gologger{logger: logger, level: defaultLevel}
 	}
 	mutex.Unlock()
 
@@ -121,109 +133,109 @@ func formatPrefix(tag string) string {
 }
 
 // Debugf prints Debug level log
-func (log *Logger) Debugf(f string, v ...interface{}) {
+func (log *gologger) Debugf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelDebug {
-		log.Logger.Output(2, log.sprintf(log.level, f, v))
+		log.logger.Output(2, log.sprintf(log.level, f, v))
 	}
 	mutex.Unlock()
 }
 
 // Debug prints Debug level log
-func (log *Logger) Debug(v ...interface{}) {
+func (log *gologger) Debug(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelDebug {
-		log.Logger.Output(2, log.sprint(log.level, v))
+		log.logger.Output(2, log.sprint(log.level, v))
 	}
 	mutex.Unlock()
 }
 
 // Infof prints Info level log
-func (log *Logger) Infof(f string, v ...interface{}) {
+func (log *gologger) Infof(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelInfo {
-		log.Logger.Output(2, log.sprintf(log.level, f, v))
+		log.logger.Output(2, log.sprintf(log.level, f, v))
 	}
 	mutex.Unlock()
 }
 
 // Info prints Info level log
-func (log *Logger) Info(v ...interface{}) {
+func (log *gologger) Info(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelInfo {
-		log.Logger.Output(2, log.sprint(log.level, v))
+		log.logger.Output(2, log.sprint(log.level, v))
 	}
 	mutex.Unlock()
 }
 
 // Warnf prints Warn level log
-func (log *Logger) Warnf(f string, v ...interface{}) {
+func (log *gologger) Warnf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelWarn {
-		log.Logger.Output(2, log.sprintf(log.level, f, v...))
+		log.logger.Output(2, log.sprintf(log.level, f, v...))
 	}
 	mutex.Unlock()
 }
 
 // Warn prints Warn level log
-func (log *Logger) Warn(v ...interface{}) {
+func (log *gologger) Warn(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelWarn {
-		log.Logger.Output(2, log.sprint(log.level, v...))
+		log.logger.Output(2, log.sprint(log.level, v...))
 	}
 	mutex.Unlock()
 }
 
 // Errorf prints Error level log
-func (log *Logger) Errorf(f string, v ...interface{}) {
+func (log *gologger) Errorf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelError {
-		log.Logger.Output(2, log.sprintf(log.level, f, v...))
+		log.logger.Output(2, log.sprintf(log.level, f, v...))
 	}
 	mutex.Unlock()
 }
 
 // Error prints Error level log
-func (log *Logger) Error(v ...interface{}) {
+func (log *gologger) Error(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelError {
-		log.Logger.Output(2, log.sprint(log.level, v...))
+		log.logger.Output(2, log.sprint(log.level, v...))
 	}
 	mutex.Unlock()
 }
 
 // Fatalf prints Fatal level log
-func (log *Logger) Fatalf(f string, v ...interface{}) {
+func (log *gologger) Fatalf(f string, v ...interface{}) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	if log.level >= LevelFatal {
-		log.Logger.Output(2, log.sprintf(log.level, f, v...))
+		log.logger.Output(2, log.sprintf(log.level, f, v...))
 		os.Exit(1)
 	}
 }
 
 // Fatal prints Fatal level log
-func (log *Logger) Fatal(v ...interface{}) {
+func (log *gologger) Fatal(v ...interface{}) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	if log.level >= LevelFatal {
-		log.Logger.Output(2, log.sprint(log.level, v...))
+		log.logger.Output(2, log.sprint(log.level, v...))
 		os.Exit(1)
 	}
 }
 
-func (log *Logger) sprintf(level Level, f string, v ...interface{}) string {
+func (log *gologger) sprintf(level Level, f string, v ...interface{}) string {
 	return fmt.Sprintf("%s\t%s", log.tag(level), fmt.Sprintf(f, v...))
 }
 
-func (log *Logger) sprint(level Level, v ...interface{}) string {
+func (log *gologger) sprint(level Level, v ...interface{}) string {
 
 	return fmt.Sprintf("%s\t%s", log.tag(level), fmt.Sprint(v...))
 }
 
-func (log *Logger) tag(level Level) string {
+func (log *gologger) tag(level Level) string {
 	switch level {
 	case LevelDebug:
 		return "[D]"

@@ -55,7 +55,6 @@ VET_RULES := -printf=false
 
 .PHONY: lint
 lint:
-	echo $(PKG_FILES)
 ifdef SHOULD_LINT
 	@rm -rf lint.log
 	@echo "Checking formatting..."

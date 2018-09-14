@@ -19,7 +19,7 @@ import (
 // RootProcess is the root process of the app
 var RootProcess goprocess.Process
 
-var logger *log.Logger
+var logger log.Logger
 
 func init() {
 	RootProcess = goprocess.WithSignals(os.Interrupt)

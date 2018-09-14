@@ -29,7 +29,7 @@ type Host struct {
 	proc    goprocess.Process
 }
 
-var logger *log.Logger // logger
+var logger log.Logger // logger
 
 // init function
 func init() {
