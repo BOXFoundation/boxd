@@ -10,7 +10,7 @@ import (
 
 	"github.com/BOXFoundation/Quicksilver/p2p/pb"
 	"github.com/BOXFoundation/Quicksilver/util"
-	proto "github.com/protobuf/proto"
+	proto "github.com/gogo/protobuf/proto"
 )
 
 // const

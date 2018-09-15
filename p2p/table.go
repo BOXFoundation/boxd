@@ -10,6 +10,7 @@ import (
 
 	"github.com/BOXFoundation/Quicksilver/p2p/pb"
 	"github.com/BOXFoundation/Quicksilver/util"
+	"github.com/jbenet/goprocess"
 	kbucket "github.com/libp2p/go-libp2p-kbucket"
 	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
@@ -28,14 +29,13 @@ type Table struct {
 	peerStore  peerstore.Peerstore
 	routeTable *kbucket.RoutingTable
 	peer       *BoxPeer
-	quitCh     chan bool
+	proc       goprocess.Process
 }
 
 // NewTable return a new route table.
 func NewTable(peer *BoxPeer) *Table {
 
 	table := &Table{
-		quitCh:    make(chan bool, 1),
 		peerStore: peerstore.NewPeerstore(),
 		peer:      peer,
 	}
@@ -53,26 +53,32 @@ func NewTable(peer *BoxPeer) *Table {
 }
 
 // Loop for discover new peer.
-func (t *Table) Loop() {
-	// Load Route Table.
+func (t *Table) Loop(parent goprocess.Process) {
 
-	loopTicker := time.NewTicker(PeerDiscoverLoopInterval)
-	for {
-		select {
-		case <-loopTicker.C:
-			t.peerDiscover()
-		case <-t.quitCh:
-			break
+	t.peerDiscover()
+	t.proc = parent.Go(func(p goprocess.Process) {
+		loopTicker := time.NewTicker(PeerDiscoverLoopInterval)
+		for {
+			select {
+			case <-loopTicker.C:
+				t.peerDiscover()
+			case <-p.Closing():
+				logger.Info("Quit route table loop.")
+				return
+			}
 		}
-	}
-
+	})
 }
 
 func (t *Table) peerDiscover() {
-
+	logger.Info("do peer discover")
 	all := t.routeTable.ListPeers()
+	logger.Info(all)
 	if len(all) <= MaxPeerCountToSyncRouteTable {
 		for _, v := range t.routeTable.ListPeers() {
+			if v.Pretty() == t.peer.id.Pretty() {
+				continue
+			}
 			go t.lookup(v)
 		}
 		return
@@ -114,7 +120,7 @@ func (t *Table) lookup(pid peer.ID) {
 		conn = t.peer.conns[pid].(*Conn)
 	} else {
 		// unestablished peer
-		conn := NewConn(nil, t.peer, pid)
+		conn = NewConn(nil, t.peer, pid)
 		go conn.loop()
 	}
 	if err := conn.PeerDiscover(); err != nil {

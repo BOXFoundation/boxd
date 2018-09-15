@@ -11,6 +11,8 @@ import (
 
 	"github.com/BOXFoundation/Quicksilver/p2p/pb"
 	"github.com/BOXFoundation/Quicksilver/util"
+	"github.com/jbenet/goprocess"
+	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
 	proto "github.com/protobuf/proto"
@@ -18,7 +20,7 @@ import (
 
 // const
 const (
-	PeriodTime = 3
+	PeriodTime = 5
 )
 
 // error defined
@@ -38,7 +40,7 @@ type Conn struct {
 	remotePeer         peer.ID
 	establish          bool
 	establishSucceedCh chan bool
-	quitHeartBeat      chan bool
+	proc               goprocess.Process
 }
 
 // NewConn create a stream to remote peer.
@@ -49,13 +51,14 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 		remotePeer:         peerID,
 		establish:          false,
 		establishSucceedCh: make(chan bool, 1),
-		quitHeartBeat:      make(chan bool, 1),
+		proc:               goprocess.WithParent(peer.proc),
 	}
 }
 
 func (conn *Conn) loop() {
 	if conn.stream == nil {
-		s, err := conn.peer.host.NewStream(conn.peer.context, conn.remotePeer, ProtocolID)
+		ctx := goprocessctx.OnClosingContext(conn.peer.proc)
+		s, err := conn.peer.host.NewStream(ctx, conn.remotePeer, ProtocolID)
 		if err != nil {
 			return
 		}
@@ -63,7 +66,6 @@ func (conn *Conn) loop() {
 		if err := conn.Ping(); err != nil {
 			return
 		}
-		go conn.heartBeatService()
 	}
 
 	buf := make([]byte, 1024)
@@ -86,7 +88,7 @@ func (conn *Conn) loop() {
 				if len(messageBuffer) < FixHeaderLength+int(headerLength) {
 					break
 				}
-				headerBytes := messageBuffer[FixHeaderLength:headerLength]
+				headerBytes := messageBuffer[FixHeaderLength : headerLength+FixHeaderLength]
 				header, err = ParseHeader(headerBytes)
 				if err != nil {
 					conn.Close()
@@ -157,8 +159,9 @@ func (conn *Conn) heartBeatService() {
 	for {
 		select {
 		case <-t.C:
+			logger.Info("do heartbeat...")
 			conn.Ping()
-		case <-conn.quitHeartBeat:
+		case <-conn.proc.Closing():
 			t.Stop()
 			break
 		}
@@ -167,33 +170,37 @@ func (conn *Conn) heartBeatService() {
 
 // Ping the target node
 func (conn *Conn) Ping() error {
-
 	body := []byte("ping")
 	return conn.Write(Ping, body)
 }
 
 func (conn *Conn) onPing(data []byte) error {
-
+	logger.Info("receive ping message.")
 	if "ping" != string(data) {
 		return ErrMessageDataContent
 	}
 	body := []byte("pong")
-	conn.established()
+	if !conn.establish {
+		conn.established()
+	}
 	return conn.Write(Pong, body)
 }
 
 func (conn *Conn) onPong(data []byte) error {
-
+	logger.Info("reveive pong message.")
 	if "pong" != string(data) {
 		return ErrMessageDataContent
 	}
-	conn.established()
+	if !conn.establish {
+		conn.established()
+		go conn.heartBeatService()
+	}
+
 	return nil
 }
 
 // PeerDiscover discover new peers from remoute peer.
 func (conn *Conn) PeerDiscover() error {
-
 	if !conn.establish {
 		establishedTimeout := time.NewTicker(30 * time.Second)
 		select {
@@ -209,6 +216,7 @@ func (conn *Conn) PeerDiscover() error {
 
 // OnPeerDiscover handle PeerDiscover message.
 func (conn *Conn) OnPeerDiscover(body []byte) error {
+	logger.Info("receive peer discover message.")
 	// get random peers from routeTable
 	peers := conn.peer.table.GetRandomPeers(conn.stream.Conn().LocalPeer())
 	msg := &p2ppb.Peers{Peers: make([]*p2ppb.PeerInfo, len(peers))}
@@ -232,7 +240,7 @@ func (conn *Conn) OnPeerDiscover(body []byte) error {
 
 // OnPeerDiscoverReply handle PeerDiscoverReply message.
 func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
-
+	logger.Info("receive peer discover reply message.")
 	peers := new(p2ppb.Peers)
 	if err := proto.Unmarshal(body, peers); err != nil {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
@@ -258,9 +266,8 @@ func (conn *Conn) Write(OpCode uint32, body []byte) error {
 
 // Close connection to remote peer.
 func (conn *Conn) Close() {
-	// delete(conn.peer.conns, conn.stream.Conn().RemotePeer().String())
+	delete(conn.peer.conns, conn.stream.Conn().RemotePeer())
 	conn.stream.Close()
-	conn.quitHeartBeat <- true
 }
 
 func (conn *Conn) checkHeader(header *MessageHeader) error {
@@ -289,4 +296,5 @@ func (conn *Conn) established() {
 	conn.establish = true
 	conn.establishSucceedCh <- true
 	conn.peer.conns[conn.remotePeer] = conn
+	logger.Info("Succed to established with peer ", conn.remotePeer.Pretty())
 }

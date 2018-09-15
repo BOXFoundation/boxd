@@ -1,0 +1,14 @@
+log:
+    level: debug|info|warn|error
+verbose: true|false
+# node:
+#     addpeer: [multiaddr]
+#     listen:
+#         port: 19199
+#         address: 127.0.0.1
+p2p:
+    magic: 0x11de784a
+    key_path: networkkey
+    port: 19199
+    bucket_size: 16
+    latency: 10
