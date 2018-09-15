@@ -9,8 +9,11 @@ import (
 	"hash/crc32"
 	"time"
 
+	"github.com/BOXFoundation/Quicksilver/p2p/pb"
+	"github.com/BOXFoundation/Quicksilver/util"
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
+	proto "github.com/protobuf/proto"
 )
 
 // const
@@ -32,6 +35,7 @@ var (
 type Conn struct {
 	stream             libp2pnet.Stream
 	peer               *BoxPeer
+	remotePeer         peer.ID
 	establish          bool
 	establishSucceedCh chan bool
 	quitHeartBeat      chan bool
@@ -42,6 +46,7 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 	return &Conn{
 		stream:             stream,
 		peer:               peer,
+		remotePeer:         peerID,
 		establish:          false,
 		establishSucceedCh: make(chan bool, 1),
 		quitHeartBeat:      make(chan bool, 1),
@@ -50,6 +55,11 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 
 func (conn *Conn) loop() {
 	if conn.stream == nil {
+		s, err := conn.peer.host.NewStream(conn.peer.context, conn.remotePeer, ProtocolID)
+		if err != nil {
+			return
+		}
+		conn.stream = s
 		if err := conn.Ping(); err != nil {
 			return
 		}
@@ -69,21 +79,25 @@ func (conn *Conn) loop() {
 		for {
 			if header == nil {
 				var err error
-				if len(messageBuffer) < MessageHeaderLength {
+				if len(messageBuffer) < FixHeaderLength {
 					break
 				}
-				headerBytes := messageBuffer[:MessageHeaderLength]
+				headerLength := util.Uint32(messageBuffer[:FixHeaderLength])
+				if len(messageBuffer) < FixHeaderLength+int(headerLength) {
+					break
+				}
+				headerBytes := messageBuffer[FixHeaderLength:headerLength]
 				header, err = ParseHeader(headerBytes)
 				if err != nil {
 					conn.Close()
 					return
 				}
-				if err := conn.checkHeader(header, headerBytes[:20]); err != nil {
+				if err := conn.checkHeader(header); err != nil {
 					logger.Error("Invalid message header. ", err)
 					conn.Close()
 					return
 				}
-				messageBuffer = messageBuffer[MessageHeaderLength:]
+				messageBuffer = messageBuffer[FixHeaderLength+int(headerLength):]
 			}
 			if len(messageBuffer) < int(header.DataLength) {
 				break
@@ -118,6 +132,12 @@ func (conn *Conn) handle(messageCode uint32, body []byte) error {
 		return ErrNoConnectionEstablished
 	}
 
+	switch messageCode {
+	case PeerDiscover:
+		return conn.OnPeerDiscover(body)
+	case PeerDiscoverReply:
+		return conn.OnPeerDiscoverReply(body)
+	}
 	return nil
 }
 
@@ -147,40 +167,89 @@ func (conn *Conn) heartBeatService() {
 
 // Ping the target node
 func (conn *Conn) Ping() error {
+
 	body := []byte("ping")
-	header := conn.buildMessageHeader(Ping, body, nil)
-	msg := NewMessage(header, body)
-	if err := conn.Write(msg); err != nil {
-		return err
-	}
-	return nil
+	return conn.Write(Ping, body)
 }
 
 func (conn *Conn) onPing(data []byte) error {
+
 	if "ping" != string(data) {
 		return ErrMessageDataContent
 	}
 	body := []byte("pong")
-	header := conn.buildMessageHeader(Pong, body, nil)
-	msg := NewMessage(header, body)
-	if err := conn.Write(msg); err != nil {
-		return err
-	}
-	return nil
+	conn.established()
+	return conn.Write(Pong, body)
 }
 
 func (conn *Conn) onPong(data []byte) error {
+
 	if "pong" != string(data) {
 		return ErrMessageDataContent
 	}
-	conn.peer.table.AddPeerToTable(conn)
-	conn.establish = true
-	conn.establishSucceedCh <- true
+	conn.established()
 	return nil
 }
 
-func (conn *Conn) Write(data []byte) error {
-	_, err := conn.stream.Write(data)
+// PeerDiscover discover new peers from remoute peer.
+func (conn *Conn) PeerDiscover() error {
+
+	if !conn.establish {
+		establishedTimeout := time.NewTicker(30 * time.Second)
+		select {
+		case <-conn.establishSucceedCh:
+		case <-establishedTimeout.C:
+			logger.Error("Handshaking timeout")
+			conn.Close()
+			return errors.New("Handshaking timeout")
+		}
+	}
+	return conn.Write(PeerDiscover, []byte{})
+}
+
+// OnPeerDiscover handle PeerDiscover message.
+func (conn *Conn) OnPeerDiscover(body []byte) error {
+	// get random peers from routeTable
+	peers := conn.peer.table.GetRandomPeers(conn.stream.Conn().LocalPeer())
+	msg := &p2ppb.Peers{Peers: make([]*p2ppb.PeerInfo, len(peers))}
+
+	for i, v := range peers {
+		peerInfo := &p2ppb.PeerInfo{
+			Id:    v.ID.Pretty(),
+			Addrs: []string{}[:],
+		}
+		for _, addr := range v.Addrs {
+			peerInfo.Addrs = append(peerInfo.Addrs, addr.String())
+		}
+		msg.Peers[i] = peerInfo
+	}
+	body, err := proto.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return conn.Write(PeerDiscoverReply, body)
+}
+
+// OnPeerDiscoverReply handle PeerDiscoverReply message.
+func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
+
+	peers := new(p2ppb.Peers)
+	if err := proto.Unmarshal(body, peers); err != nil {
+		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
+		return err
+	}
+	conn.peer.table.AddPeers(conn, peers)
+	return nil
+}
+
+func (conn *Conn) Write(OpCode uint32, body []byte) error {
+
+	header := conn.buildMessageHeader(OpCode, body, nil)
+	msg, err := NewMessage(header, body)
+	if err != nil {
+		return err
+	}
+	_, err = conn.stream.Write(msg)
 	if err != nil {
 		return err
 	}
@@ -189,18 +258,15 @@ func (conn *Conn) Write(data []byte) error {
 
 // Close connection to remote peer.
 func (conn *Conn) Close() {
-	delete(conn.peer.conns, conn.stream.Conn().RemotePeer().String())
+	// delete(conn.peer.conns, conn.stream.Conn().RemotePeer().String())
 	conn.stream.Close()
 	conn.quitHeartBeat <- true
 }
 
-func (conn *Conn) checkHeader(header *MessageHeader, headerBytes []byte) error {
+func (conn *Conn) checkHeader(header *MessageHeader) error {
+
 	if conn.peer.config.Magic != header.Magic {
 		return ErrMagic
-	}
-	expectedCheckSum := crc32.ChecksumIEEE(headerBytes)
-	if expectedCheckSum != header.Checksum {
-		return ErrHeaderCheckSum
 	}
 	if header.DataLength > MaxNebMessageDataLength {
 		return ErrExceedMaxDataLength
@@ -209,9 +275,18 @@ func (conn *Conn) checkHeader(header *MessageHeader, headerBytes []byte) error {
 }
 
 func (conn *Conn) checkBody(header *MessageHeader, body []byte) error {
+
 	expectedDataCheckSum := crc32.ChecksumIEEE(body)
 	if expectedDataCheckSum != header.DataChecksum {
 		return ErrBodyCheckSum
 	}
 	return nil
+}
+
+func (conn *Conn) established() {
+	// TODO: need mutex?
+	conn.peer.table.AddPeerToTable(conn)
+	conn.establish = true
+	conn.establishSucceedCh <- true
+	conn.peer.conns[conn.remotePeer] = conn
 }

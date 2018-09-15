@@ -12,6 +12,8 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"github.com/jbenet/goprocess"
+	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2p "github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
@@ -23,23 +25,27 @@ import (
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
-	conns   map[string]interface{}
-	config  *Config
-	host    host.Host
-	context context.Context
-	id      peer.ID
-	table   *Table
-	mu      sync.Mutex
+	conns           map[peer.ID]interface{}
+	config          *Config
+	host            host.Host
+	context         context.Context
+	id              peer.ID
+	table           *Table
+	networkIdentity crypto.PrivKey
+	mu              sync.Mutex
 }
 
 // New create a BoxPeer
-func New(config *Config) (*BoxPeer, error) {
-	ctx := context.Background()
-	boxPeer := &BoxPeer{conns: make(map[string]interface{}), config: config, context: ctx, table: NewTable()}
+func New(config *Config, parent goprocess.Process) (*BoxPeer, error) {
+	// ctx := context.Background()
+	proc := goprocess.WithParent(parent) // p2p proc
+	ctx := goprocessctx.OnClosingContext(proc)
+	boxPeer := &BoxPeer{conns: make(map[peer.ID]interface{}), config: config, context: ctx}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
 	}
+	boxPeer.networkIdentity = networkIdentity
 	boxPeer.id, err = peer.IDFromPublicKey(networkIdentity.GetPublic())
 	if err != nil {
 		return nil, err
@@ -56,7 +62,7 @@ func New(config *Config) (*BoxPeer, error) {
 
 	boxPeer.host, err = libp2p.New(ctx, opts...)
 	boxPeer.host.SetStreamHandler(ProtocolID, boxPeer.handleStream)
-
+	boxPeer.table = NewTable(boxPeer)
 	return boxPeer, nil
 }
 
@@ -86,14 +92,7 @@ func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
 }
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
-	// p.mu.Lock()
-	// defer p.mu.Unlock()
 	conn := NewConn(s, p, s.Conn().RemotePeer())
-	// if p.conns[s.Conn().RemotePeer().String()] != nil {
-	// 	old, _ := p.conns[s.Conn().RemotePeer().String()].(Conn)
-	// 	old.stream.Close()
-	// }
-	// p.conns[s.Conn().RemotePeer().String()] = conn
 	go conn.loop()
 }
 

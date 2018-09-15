@@ -4,9 +4,16 @@
 
 package p2p
 
+import (
+	"time"
+)
+
+// Config for peer configuration
 type Config struct {
-	Magic   uint32
-	KeyPath string
-	Port    uint32
-	Seeds   []string
+	Magic      uint32
+	KeyPath    string
+	Port       uint32
+	Seeds      []string
+	Bucketsize int
+	Latency    time.Duration
 }
