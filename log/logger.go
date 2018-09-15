@@ -136,7 +136,7 @@ func formatPrefix(tag string) string {
 func (log *gologger) Debugf(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelDebug {
-		log.logger.Output(2, log.sprintf(log.level, f, v))
+		log.logger.Output(2, log.sprintf(log.level, f, v...))
 	}
 	mutex.Unlock()
 }
@@ -145,7 +145,7 @@ func (log *gologger) Debugf(f string, v ...interface{}) {
 func (log *gologger) Debug(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelDebug {
-		log.logger.Output(2, log.sprint(log.level, v))
+		log.logger.Output(2, log.sprint(log.level, v...))
 	}
 	mutex.Unlock()
 }
@@ -154,7 +154,7 @@ func (log *gologger) Debug(v ...interface{}) {
 func (log *gologger) Infof(f string, v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelInfo {
-		log.logger.Output(2, log.sprintf(log.level, f, v))
+		log.logger.Output(2, log.sprintf(log.level, f, v...))
 	}
 	mutex.Unlock()
 }
@@ -163,7 +163,7 @@ func (log *gologger) Infof(f string, v ...interface{}) {
 func (log *gologger) Info(v ...interface{}) {
 	mutex.Lock()
 	if log.level >= LevelInfo {
-		log.logger.Output(2, log.sprint(log.level, v))
+		log.logger.Output(2, log.sprint(log.level, v...))
 	}
 	mutex.Unlock()
 }
