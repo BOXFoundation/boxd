@@ -11,11 +11,11 @@ import (
 
 	"github.com/BOXFoundation/Quicksilver/p2p/pb"
 	"github.com/BOXFoundation/Quicksilver/util"
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
-	proto "github.com/protobuf/proto"
 )
 
 // const

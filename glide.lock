@@ -1,5 +1,5 @@
 hash: 120930d0236b0022d0826bdea3b250750a96c12cb146d620daafa7c72046f566
-updated: 2018-09-14T01:41:41.385906915+08:00
+updated: 2018-09-16T13:23:05.665157861+08:00
 imports:
 - name: github.com/btcsuite/btcd
   version: cff30e1d23fc9e800b2b5b4b41ef1817dda07e9f
@@ -247,6 +247,10 @@ imports:
   version: cba4f9fea8613343eb7ecc4ddadd8e7298a00c39
 - name: github.com/multiformats/go-multibase
   version: bb91b53e5695e699a86654d77d03db7bc7506d12
+- name: github.com/multiformats/go-multicodec
+  version: b67bc51f663437753e2028cc4b5fea6192479956
+  subpackages:
+  - protobuf
 - name: github.com/multiformats/go-multihash
   version: bffb9dfeaca3b66c0accb675d2910407f3615eec
 - name: github.com/multiformats/go-multistream
