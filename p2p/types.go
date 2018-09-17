@@ -11,3 +11,13 @@ type Serializable interface {
 	Serialize() (proto.Message, error)
 	Deserialize(proto.Message) error
 }
+
+// Message Define message interface
+type Message interface {
+	Code() uint32
+	Body() []byte
+}
+
+// Net Define Net interface
+type Net interface {
+}

@@ -45,6 +45,7 @@ var levelValue = map[string]Level{
 	"d":       LevelDebug,
 }
 
+// GologConfig define struct
 type GologConfig struct {
 	Level string `mapstructure:"level" json:"level"`
 }

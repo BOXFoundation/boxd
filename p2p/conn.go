@@ -139,6 +139,8 @@ func (conn *Conn) handle(messageCode uint32, body []byte) error {
 		return conn.OnPeerDiscover(body)
 	case PeerDiscoverReply:
 		return conn.OnPeerDiscoverReply(body)
+	default:
+		conn.peer.notifier.Notify(NewNotifierMessage(messageCode, body))
 	}
 	return nil
 }

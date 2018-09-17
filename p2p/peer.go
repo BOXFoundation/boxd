@@ -31,6 +31,7 @@ type BoxPeer struct {
 	id              peer.ID
 	table           *Table
 	networkIdentity crypto.PrivKey
+	notifier        *Notifier
 	mu              sync.Mutex
 }
 
@@ -39,7 +40,7 @@ func NewBoxPeer(config *Config, parent goprocess.Process) (*BoxPeer, error) {
 	// ctx := context.Background()
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
-	boxPeer := &BoxPeer{conns: make(map[peer.ID]interface{}), config: config, proc: proc}
+	boxPeer := &BoxPeer{conns: make(map[peer.ID]interface{}), config: config, notifier: NewNotifier(), proc: proc}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -72,6 +73,7 @@ func (p *BoxPeer) Bootstrap() {
 		p.ConnectSeeds()
 		p.table.Loop(p.proc)
 	}
+	p.notifier.Loop(p.proc)
 }
 
 func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
