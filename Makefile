@@ -40,6 +40,18 @@ dependencies:
 	@echo "Installing Glide and locked dependencies..."
 	glide --version || go get -u -f github.com/Masterminds/glide
 	glide install
+	@echo "Installing dev tools required by vs code..."
+	go get -u github.com/mdempsky/gocode
+	go get -u github.com/uudashr/gopkgs/cmd/gopkgs
+	go get -u github.com/ramya-rao-a/go-outline
+	go get -u github.com/acroca/go-symbols
+	go get -u golang.org/x/tools/cmd/guru
+	go get -u golang.org/x/tools/cmd/gorename
+	go get -u github.com/derekparker/delve/cmd/dlv
+	go get -u github.com/rogpeppe/godef
+	go get -u golang.org/x/tools/cmd/godoc
+	go get -u github.com/sqs/goreturns
+	go get -u github.com/golang/lint/golint
 	@echo "Installing test dependencies..."
 	go install ./vendor/github.com/axw/gocov/gocov
 	go install ./vendor/github.com/mattn/goveralls
