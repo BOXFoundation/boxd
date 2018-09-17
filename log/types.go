@@ -20,14 +20,18 @@ type Logger interface {
 	Error(v ...interface{})
 	Fatalf(f string, v ...interface{})
 	Fatal(v ...interface{})
+	Panicf(f string, v ...interface{})
+	Panic(v ...interface{})
 }
 
 // Level can be Debug/Info/Warn/Error
 type Level int
 
 const (
+	// LevelPanic enables panic level log
+	LevelPanic Level = iota
 	// LevelFatal enables fatal level log
-	LevelFatal Level = iota
+	LevelFatal
 	// LevelError enables error or higher level log
 	LevelError
 	// LevelWarn enables error or higher level log

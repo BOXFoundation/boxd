@@ -92,3 +92,13 @@ func (log *logrusLogger) Fatalf(f string, v ...interface{}) {
 func (log *logrusLogger) Fatal(v ...interface{}) {
 	log.entry().Fatal(v...)
 }
+
+// Panicf prints Panic level log
+func (log *logrusLogger) Panicf(f string, v ...interface{}) {
+	log.entry().Panicf(f, v...)
+}
+
+// Panic prints Panic level log
+func (log *logrusLogger) Panic(v ...interface{}) {
+	log.entry().Panic(v...)
+}

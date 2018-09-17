@@ -205,6 +205,30 @@ func (log *gologger) Fatal(v ...interface{}) {
 	}
 }
 
+// Panicf prints Panic level log
+func (log *gologger) Panicf(f string, v ...interface{}) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if log.level >= LevelPanic {
+		var s = log.sprintf(log.level, f, v...)
+		log.logger.Output(2, s)
+		panic(s)
+	}
+}
+
+// Panic prints Panic level log
+func (log *gologger) Panic(v ...interface{}) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if log.level >= LevelPanic {
+		var s = log.sprint(log.level, v...)
+		log.logger.Output(2, s)
+		panic(s)
+	}
+}
+
 func (log *gologger) sprintf(level Level, f string, v ...interface{}) string {
 	return fmt.Sprintf("%s\t%s", log.tag(level), fmt.Sprintf(f, v...))
 }
@@ -226,6 +250,8 @@ func (log *gologger) tag(level Level) string {
 		return "[E]"
 	case LevelFatal:
 		return "[F]"
+	case LevelPanic:
+		return "[P]"
 	default:
 		return "[*]"
 	}
