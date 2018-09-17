@@ -26,18 +26,20 @@ func init() {
 
 // Start function starts node server.
 func Start(v *viper.Viper) error {
-
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	log.Setup(v.Sub("log")) // setup logger
-	config := p2p.NewP2PConfig(v)
-	peer, err := p2p.NewBoxPeer(config, RootProcess)
-	if err != nil {
-		logger.Error("Failed to new BoxPeer...")
-		RootProcess.Close()
-	} else {
-		peer.Bootstrap()
+
+	var config p2p.Config
+	if err := v.Sub("p2p").Unmarshal(&config); err != nil {
+		logger.Fatal("Failed to read config", err) // exit in case of config error
 	}
+	peer, err := p2p.NewBoxPeer(&config, RootProcess)
+	if err != nil {
+		logger.Fatal("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
+	}
+
+	peer.Bootstrap()
 
 	// var host, err = p2p.NewDefaultHost(RootProcess, net.ParseIP(v.GetString("node.listen.address")), uint(v.GetInt("node.listen.port")))
 	// if err != nil {

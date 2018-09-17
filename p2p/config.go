@@ -6,30 +6,14 @@ package p2p
 
 import (
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 // Config for peer configuration
 type Config struct {
-	Magic      uint32
-	KeyPath    string
-	Port       uint32
-	Seeds      []string
-	Bucketsize int
-	Latency    time.Duration
-}
-
-// NewP2PConfig create a p2p config
-func NewP2PConfig(v *viper.Viper) *Config {
-
-	config := &Config{
-		Magic:      uint32(v.GetInt32("p2p.magic")),
-		KeyPath:    v.GetString("p2p.key_path"),
-		Port:       uint32(v.GetInt32("p2p.port")),
-		Seeds:      v.GetStringSlice("p2p.seeds"),
-		Bucketsize: v.GetInt("p2p.bucket_size"),
-		Latency:    v.GetDuration("p2p.latency"),
-	}
-	return config
+	Magic      uint32        `mapstructure:"magic"`
+	KeyPath    string        `mapstructure:"key_path"`
+	Port       uint32        `mapstructure:"port"`
+	Seeds      []string      `mapstructure:"seeds"`
+	Bucketsize int           `mapstructure:"bucket_size"`
+	Latency    time.Duration `mapstructure:"latency"`
 }
