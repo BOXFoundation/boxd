@@ -29,7 +29,7 @@ func Start(v *viper.Viper) error {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	log.Setup(v) // setup logger
+	log.Setup(v.Sub("log")) // setup logger
 	config := p2p.NewP2PConfig(v)
 	peer, err := p2p.NewBoxPeer(config, RootProcess)
 	if err != nil {

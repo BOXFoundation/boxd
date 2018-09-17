@@ -1,6 +1,5 @@
 log:
-    level: debug|info|warn|error
-verbose: true|false
+    level: debug
 # node:
 #     addpeer: [multiaddr]
 #     listen:

@@ -53,7 +53,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringP("log-level", "l", "info", "log level [debug|info|warn|error|fatal]")
 
-	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
 
 	// init subcommand

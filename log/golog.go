@@ -9,23 +9,10 @@ import (
 	"io"
 	l "log"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/spf13/viper"
 )
-
-// Logger defines the box log functions
-type Logger interface {
-	Debugf(f string, v ...interface{})
-	Debug(v ...interface{})
-	Infof(f string, v ...interface{})
-	Info(v ...interface{})
-	Warnf(f string, v ...interface{})
-	Warn(v ...interface{})
-	Errorf(f string, v ...interface{})
-	Error(v ...interface{})
-}
 
 // golang log impl
 type gologger struct {
@@ -33,97 +20,89 @@ type gologger struct {
 	level  Level
 }
 
-// Level can be Debug/Info/Warn/Error
-type Level int
-
-// TODO Verbose level to enable spew dump (https://github.com/davecgh/go-spew)
-const (
-	LevelFatal Level = iota
-	LevelError
-	LevelWarn
-	LevelInfo
-	// LevelDebug debug level logs
-	LevelDebug
-)
-
-// LevelValue is the map from name to value
-var LevelValue = map[string]Level{
-	"fatal": LevelFatal,
-	"error": LevelError,
-	"warn":  LevelWarn,
-	"info":  LevelInfo,
-	"debug": LevelDebug,
-	"f":     LevelFatal,
-	"e":     LevelError,
-	"w":     LevelWarn,
-	"i":     LevelInfo,
-	"d":     LevelDebug,
-}
-
-// DefaultLevel is the default log level for new created logger
-var defaultLevel Level
-var defaultWriter io.Writer
-var defaultFlags int
-var allLoggers map[string]*gologger
+// defaultGologLevel is the default log level for new created logger
+var defaultGologLevel = LevelDebug
+var defaultGologWriter io.Writer = os.Stdout
+var defaultGologFlags = l.LstdFlags | l.Lshortfile
+var allGologLoggers = make(map[string]*gologger)
 
 var mutex sync.Mutex
 
-func init() {
-	defaultFlags = l.LstdFlags | l.Lshortfile
-	defaultWriter = os.Stdout
-	defaultLevel = LevelDebug
-	allLoggers = make(map[string]*gologger)
+var _ Logger = (*gologger)(nil)
+
+// levelValue is the map from name to value
+var levelValue = map[string]Level{
+	"fatal":   LevelFatal,
+	"error":   LevelError,
+	"warn":    LevelWarn,
+	"warning": LevelWarn,
+	"info":    LevelInfo,
+	"debug":   LevelDebug,
+	"f":       LevelFatal,
+	"e":       LevelError,
+	"w":       LevelWarn,
+	"i":       LevelInfo,
+	"d":       LevelDebug,
+}
+
+type GologConfig struct {
+	Level string `mapstructure:"level" json:"level"`
 }
 
 // Setup loggers globally
-func Setup(v *viper.Viper) {
-	loglevel := strings.ToLower(v.GetString("log.level"))
-	if loglevel, ok := LevelValue[loglevel]; ok {
-		SetLevel(Level(loglevel))
+func gologSetup(v *viper.Viper) {
+	var config GologConfig
+	v.Unmarshal(&config)
+	if loglevel, ok := levelValue[config.Level]; ok {
+		gologSetLevel(Level(loglevel))
 	}
 }
 
 // SetLevel sets the log level of all loggers
-func SetLevel(level Level) {
+func gologSetLevel(level Level) {
 	mutex.Lock()
 
-	defaultLevel = level
-	for tag, logger := range allLoggers {
-		logger.logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
+	defaultGologLevel = level
+	for _, logger := range allGologLoggers {
+		logger.level = defaultGologLevel
 	}
 
 	mutex.Unlock()
 }
 
 // SetFlags sets the log flags
-func SetFlags(flags int) {
+func gologSetFlags(flags int) {
 	mutex.Lock()
-	defaultFlags = flags
-	for _, logger := range allLoggers {
-		logger.logger.SetFlags(defaultFlags)
+	defaultGologFlags = flags
+	for _, logger := range allGologLoggers {
+		logger.logger.SetFlags(defaultGologFlags)
 	}
 	mutex.Unlock()
 }
 
 // SetWriter updates all loggers' output writer.
-func SetWriter(writer io.Writer) {
+func gologSetWriter(writer io.Writer) {
 	mutex.Lock()
-	defaultWriter = writer
-	for tag, logger := range allLoggers {
-		logger.logger = l.New(defaultWriter, formatPrefix(tag), defaultFlags)
+	defaultGologWriter = writer
+	for tag, logger := range allGologLoggers {
+		logger.logger = l.New(defaultGologWriter, formatPrefix(tag), defaultGologFlags)
 	}
 	mutex.Unlock()
 }
 
 // NewLogger creates a new logger.
-func NewLogger(tag string) Logger {
+func gologNewLogger(tag string) Logger {
 	mutex.Lock()
-	log, ok := allLoggers[tag]
+	defer mutex.Unlock()
+
+	log, ok := allGologLoggers[tag]
 	if !ok {
-		logger := l.New(defaultWriter, formatPrefix(tag), defaultFlags)
-		log = &gologger{logger: logger, level: defaultLevel}
+		log = &gologger{
+			logger: l.New(defaultGologWriter, formatPrefix(tag), defaultGologFlags),
+			level:  defaultGologLevel,
+		}
+		allGologLoggers[tag] = log
 	}
-	mutex.Unlock()
 
 	return log
 }
