@@ -29,7 +29,8 @@ const (
 
 // error
 var (
-	ErrMessageHeader = errors.New("Invalid message header data")
+	ErrMessageHeader      = errors.New("Invalid message header data")
+	ErrDeserializeMessage = errors.New("Invalid proto message")
 )
 
 // MessageHeader message header info from network.
@@ -44,7 +45,7 @@ type MessageHeader struct {
 // NewMessage return full message in bytes
 func NewMessage(header *MessageHeader, body []byte) ([]byte, error) {
 
-	pbHeader := header.ToProto()
+	pbHeader := header.Serialize()
 	headerBytes, err := proto.Marshal(pbHeader)
 	if err != nil {
 		return nil, err
@@ -56,8 +57,9 @@ func NewMessage(header *MessageHeader, body []byte) ([]byte, error) {
 	return msg.Bytes(), nil
 }
 
-// ToProto serialize header in proto.
-func (header *MessageHeader) ToProto() proto.Message {
+// Serialize header message in proto.
+func (header *MessageHeader) Serialize() proto.Message {
+
 	return &p2ppb.MessageHeader{
 		Magic:        header.Magic,
 		Code:         header.Code,
@@ -67,18 +69,31 @@ func (header *MessageHeader) ToProto() proto.Message {
 	}
 }
 
+// Deserialize header message in proto.
+func (header *MessageHeader) Deserialize(msg proto.Message) error {
+
+	pb := msg.(*p2ppb.MessageHeader)
+	if pb != nil {
+		header.Magic = pb.Magic
+		header.Code = pb.Code
+		header.DataLength = pb.DataLength
+		header.DataChecksum = pb.DataChecksum
+		header.Reserved = pb.Reserved
+		return nil
+	}
+	return ErrDeserializeMessage
+}
+
 // ParseHeader parse the bytes data into MessageHeader
 func ParseHeader(data []byte) (*MessageHeader, error) {
+
 	pb := new(p2ppb.MessageHeader)
 	if err := proto.Unmarshal(data, pb); err != nil {
 		return nil, err
 	}
-	header := &MessageHeader{
-		Magic:        pb.Magic,
-		Code:         pb.Code,
-		DataLength:   pb.DataLength,
-		DataChecksum: pb.DataChecksum,
-		Reserved:     pb.Reserved,
+	header := &MessageHeader{}
+	if err := header.Deserialize(pb); err != nil {
+		return nil, err
 	}
 	return header, nil
 }
