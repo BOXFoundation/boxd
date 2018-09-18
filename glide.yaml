@@ -1,0 +1,18 @@
+package: github.com/BOXFoundation/Quicksilver
+license: MIT
+
+import:
+- package: github.com/libp2p/go-libp2p
+- package: github.com/libp2p/go-libp2p-kad-dht
+
+testImport:
+- package: github.com/mattn/goveralls
+- package: golang.org/x/tools
+  subpackages:
+  - cover
+- package: github.com/golang/lint
+  subpackages:
+  - golint
+- package: github.com/axw/gocov
+  subpackages:
+  - gocov

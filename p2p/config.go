@@ -2,12 +2,11 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package main
+package p2p
 
-import (
-	"github.com/BOXFoundation/Quicksilver/commands/box"
-)
-
-func main() {
-	box.Execute()
+type Config struct {
+	Magic   uint32
+	KeyPath string
+	Port    uint32
+	Seeds   []string
 }
