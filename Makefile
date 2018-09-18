@@ -49,7 +49,6 @@ dependencies:
 	go get -u github.com/rogpeppe/godef
 	go get -u golang.org/x/tools/cmd/godoc
 	go get -u github.com/sqs/goreturns
-	go get -u github.com/golang/lint/golint
 	@echo "Installing test dependencies..."
 	go get -u github.com/axw/gocov/gocov
 	go get -u github.com/mattn/goveralls
