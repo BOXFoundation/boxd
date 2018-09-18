@@ -34,17 +34,3 @@ type OutPoint struct {
 	hash  crypto.HashType
 	index uint32
 }
-
-// MemPool define struct
-type MemPool struct {
-	// mempool
-	hashToTx map[crypto.HashType]*Transaction
-
-	// orphan transaction pool
-	hashToOrphanTx map[crypto.HashType]*Transaction
-	// orphan transaction's parent; one parent can have multiple orphan children
-	parentToOrphanTx map[crypto.HashType]*Transaction
-
-	// UTXO set
-	outpointToOutput map[OutPoint]TxOut
-}
