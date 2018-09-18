@@ -10,8 +10,13 @@ import (
 	"golang.org/x/crypto/ripemd160"
 )
 
-// HashSize of array used to store hashes
-const HashSize = 32
+const (
+	// HashSize is length of digest
+	HashSize = 32
+)
+
+// HashType is renamed hash type
+type HashType [HashSize]byte
 
 // Ripemd160 calculates the RIPEMD160 digest of buf
 func Ripemd160(buf []byte) []byte {

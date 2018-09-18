@@ -23,13 +23,6 @@ func NewMemoryStorage() (*memoryStorage, error) {
 	}, nil
 }
 
-// NewMemoryStoragewithCap initialize the storage with the capacity
-func NewMemoryStoragewithCap(size int) (*memoryStorage, error) {
-	return &memoryStorage{ 
-		sm: new(sync.Map, size),
-	}, nil
-}
-
 // Get return value to the key in db
 func (db *memoryStorage) Get(key []byte) ([]byte, error) {
 	if entry, ok := db.sm.Load(util.Hex(key)); ok {
@@ -50,17 +43,18 @@ func (db *memoryStorage) Del(key []byte) error {
 	return nil
 }
 
-func (db *memoryStorage) Has(key []byte)(bool, error){
-	_,ok := db.sm.Load(util.Hex(key))
+func (db *memoryStorage) Has(key []byte) (bool, error) {
+	_, ok := db.sm.Load(util.Hex(key))
 	return ok, nil
 }
 
-func (db *memoryStorage) Keys()[][]byte{
+func (db *memoryStorage) Keys() [][]byte {
 	keys := [][]byte{}
-	for key := range util.Hex(key){
-		keys = append(keys, []byte(key))
-	}
+	db.sm.Range(func(key, value interface{}) bool {
+		keys = append(keys, key.([]byte))
+		return true
+	})
 	return keys
 }
 
-func (db *memoryStorage) Close(){}
+func (db *memoryStorage) Close() {}

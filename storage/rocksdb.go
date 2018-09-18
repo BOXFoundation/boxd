@@ -6,9 +6,7 @@ package storage
 
 import (
 	"errors"
-	"sync"
 
-	"github.com/BOXFoundation/Quicksilver/util"
 	"github.com/tecbot/gorocksdb"
 )
 
@@ -17,7 +15,7 @@ const cache = 3 << 30
 
 // rocksdbStorage store the node in trie
 type rocksdbStorage struct {
-	db           *gorocksdb.DB
+	db *gorocksdb.DB
 
 	readOptions  *gorocksdb.ReadOptions
 	writeOptions *gorocksdb.WriteOptions
@@ -41,22 +39,22 @@ func NewRocksDBStorage(path string) (*rocksdbStorage, error) {
 		return nil, err
 	}
 
-	db := &RocksDBStorage{
-	db:           db,
-	readOptions:  gorocksdb.NewDefaultReadOptions(),
-	writeOptions: gorocksdb.NewDefaultWriteOptions(),
+	dbstorage := &rocksdbStorage{
+		db:           db,
+		readOptions:  gorocksdb.NewDefaultReadOptions(),
+		writeOptions: gorocksdb.NewDefaultWriteOptions(),
 	}
 	return dbstorage, nil
 }
 
 // Put is used to put the key-value entry to the Storage
-func （db *rocksdbStorage）Put(key, value []byte) error{
-	return db.db.Put(db.writeOptions, key, value)
+func (dbstorage *rocksdbStorage) Put(key []byte, value []byte) error {
+	return dbstorage.db.Put(dbstorage.writeOptions, key, value)
 }
 
 // Get is used to return the data associated with the key from the Storage
-func (db *rocksdbStorage) Get(key []byte) ([]byte, error) {
-	val, err := db.db.Get(db.readOptions, key)
+func (dbstorage *rocksdbStorage) Get(key []byte) ([]byte, error) {
+	val, err := dbstorage.db.GetBytes(dbstorage.readOptions, key)
 	if err != nil {
 		return nil, err
 	}
@@ -67,12 +65,12 @@ func (db *rocksdbStorage) Get(key []byte) ([]byte, error) {
 }
 
 // Delete is used to delete the key associate with the value in the Storage
-func (db *rocksdbStorage) Del(key []byte) error {
-	return db.db.Delete(db.WriteOptions, key)
+func (dbstorage *rocksdbStorage) Del(key []byte) error {
+	return dbstorage.db.Delete(dbstorage.writeOptions, key)
 }
 
 // Close db
-func (db *rocksdbStorage) Close() error {
-	db.db.Close()
+func (dbstorage *rocksdbStorage) Close() error {
+	dbstorage.db.Close()
 	return nil
 }

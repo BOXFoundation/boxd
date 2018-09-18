@@ -1,5 +1,5 @@
 hash: 120930d0236b0022d0826bdea3b250750a96c12cb146d620daafa7c72046f566
-updated: 2018-09-14T01:41:41.385906915+08:00
+updated: 2018-09-17T18:19:59.124196+08:00
 imports:
 - name: github.com/btcsuite/btcd
   version: cff30e1d23fc9e800b2b5b4b41ef1817dda07e9f
@@ -17,6 +17,10 @@ imports:
   version: bad65a492f32121a87197f4a085905c35e2a367e
 - name: github.com/fsnotify/fsnotify
   version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
+- name: github.com/gogap/env_json
+  version: 86150085ddbeee9e9a1808c00d19b4310aa8f7fe
+- name: github.com/gogap/env_strings
+  version: bdb994cfe0932e690e632d780069865aa1d3eee1
 - name: github.com/gogo/protobuf
   version: 5669497fd64452f28d142899eeb1bfd7e8b26ac8
   subpackages:
@@ -68,6 +72,18 @@ imports:
   - json/parser
   - json/scanner
   - json/token
+- name: github.com/heirko/go-contrib
+  version: 82c95aa7d665584a236fb3aa7f985c60b3e6ad7f
+  subpackages:
+  - logrusHelper
+- name: github.com/heralight/logrus_mate
+  version: 969b6efb860ed2cf40d7e280c831928a2555fff9
+  subpackages:
+  - hooks/file
+  - hooks/slack
+  - hooks/utils/caller
+- name: github.com/hoisie/redis
+  version: b5c6e81454e0395c280f220d82a6854fd0fcf42e
 - name: github.com/huin/goupnp
   version: 1395d1447324cbea88d249fbfcfd70ea878fdfca
   subpackages:
@@ -115,10 +131,16 @@ imports:
   - context
   - periodic
   - ratelimit
+- name: github.com/johntdyer/slack-go
+  version: 95fac1160b220c5abcf8b0ef88e9c3cb213c09f4
+- name: github.com/johntdyer/slackrus
+  version: f7aae3243a0786c5a974bce71ed951c459876e64
 - name: github.com/kisielk/gotool
   version: 80517062f582ea3340cd4baf70e86d539ae7d84d
   subpackages:
   - internal/load
+- name: github.com/konsorten/go-windows-terminal-sequences
+  version: b729f2633dfe35f4d1d8a32385f6685610ce1cb5
 - name: github.com/libp2p/go-addr-util
   version: 26ae616f0dac754fff557513e984f930fbd88a92
 - name: github.com/libp2p/go-conn-security
@@ -247,6 +269,10 @@ imports:
   version: cba4f9fea8613343eb7ecc4ddadd8e7298a00c39
 - name: github.com/multiformats/go-multibase
   version: bb91b53e5695e699a86654d77d03db7bc7506d12
+- name: github.com/multiformats/go-multicodec
+  version: b67bc51f663437753e2028cc4b5fea6192479956
+  subpackages:
+  - protobuf
 - name: github.com/multiformats/go-multihash
   version: bffb9dfeaca3b66c0accb675d2910407f3615eec
 - name: github.com/multiformats/go-multistream
@@ -258,6 +284,8 @@ imports:
   - log
 - name: github.com/pelletier/go-toml
   version: c2dbbc24a97911339e01bda0b8cabdbd8f13b602
+- name: github.com/sirupsen/logrus
+  version: d23a0f20d429b5da960216daca3b37e075cbdcd1
 - name: github.com/spaolacci/murmur3
   version: f09979ecbc725b9e6d41a297405f65e7e8804acc
 - name: github.com/spf13/afero
@@ -305,6 +333,7 @@ imports:
   - ed25519/internal/edwards25519
   - ripemd160
   - sha3
+  - ssh/terminal
 - name: golang.org/x/lint
   version: 06c8688daad7faa9da5a0c2f163a3d14aac986ca
 - name: golang.org/x/net

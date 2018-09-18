@@ -15,7 +15,7 @@ type Storage interface {
 	// delete the entry associate with the key in the Storage
 	Del(key []byte) error
 
-	Has(key []byte) (bool error)
+	Has(key []byte) (bool, error)
 
 	// return a set of keys in the Storage
 	Keys() [][]byte

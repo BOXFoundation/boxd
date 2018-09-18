@@ -7,6 +7,8 @@ package box
 import (
 	"fmt"
 	"os"
+	"path"
+	"strings"
 
 	"github.com/BOXFoundation/Quicksilver/commands/box/ctl"
 	"github.com/BOXFoundation/Quicksilver/commands/box/wallet"
@@ -51,10 +53,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.box.yaml)")
 
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().StringP("log-level", "l", "info", "log level [debug|info|warn|error|fatal]")
+	rootCmd.PersistentFlags().StringP("network", "n", "mainnet", "network name (default mainnet)")
+	rootCmd.PersistentFlags().String("workspace", "", "work directory for boxd (default ~/.boxd)")
+	rootCmd.PersistentFlags().String("log-level", "info", "log level [debug|info|warn|error|fatal]")
 
-	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
+	viper.BindPFlag("network", rootCmd.PersistentFlags().Lookup("network"))
+	viper.BindPFlag("workspace", rootCmd.PersistentFlags().Lookup("workspace"))
 
 	// init subcommand
 	ctl.Init(rootCmd)
@@ -63,24 +68,28 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	// Find home directory.
+	home, err := homedir.Dir()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
 	} else {
-		// Find home directory.
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
 		// Search config in home directory or current directory with name ".box" (without extension).
 		viper.AddConfigPath(home)
 		viper.AddConfigPath(".")
 		viper.SetConfigName(".box")
 	}
 
+	viper.SetEnvPrefix("box")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("_", "."))
 	viper.AutomaticEnv() // read in environment variables that match
+
+	viper.SetDefault("workspace", path.Join(home, ".boxd"))
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {

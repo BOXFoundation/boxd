@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -20,7 +21,8 @@ func serve(port string) {
 
 	lis, err := net.Listen("tcp4", port)
 	if err != nil {
-		return fmt.Errorf("failed to listen: %v", err)
+		fmt.Printf("failed to listen: %v", err)
+		os.Exit(1)
 	}
 
 	s := grpc.NewServer()

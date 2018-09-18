@@ -5,10 +5,12 @@
 package p2p
 
 import (
+	"bytes"
 	"errors"
-	"hash/crc32"
 
+	"github.com/BOXFoundation/Quicksilver/p2p/pb"
 	"github.com/BOXFoundation/Quicksilver/util"
+	proto "github.com/gogo/protobuf/proto"
 )
 
 // const
@@ -17,16 +19,24 @@ const (
 	// Mainnet velocity of light
 	Mainnet                 uint32 = 0x11de784a
 	Testnet                 uint32 = 0x54455354
-	Step                           = 4
-	MessageHeaderLength            = 24
+	FixHeaderLength                = 4
 	Ping                           = 0x00
 	Pong                           = 0x01
+	PeerDiscover                   = 0x02
+	PeerDiscoverReply              = 0x03
 	MaxNebMessageDataLength        = 1024 * 1024 * 1024 // 1G bytes
 )
 
+// NetworkNamtToMagic is a map from network name to magic number.
+var NetworkNamtToMagic = map[string]uint32{
+	"mainnet": Mainnet,
+	"testnet": Testnet,
+}
+
 // error
 var (
-	ErrMessageHeader = errors.New("Invalid message header data")
+	ErrMessageHeader      = errors.New("Invalid message header data")
+	ErrDeserializeMessage = errors.New("Invalid proto message")
 )
 
 // MessageHeader message header info from network.
@@ -34,38 +44,62 @@ type MessageHeader struct {
 	Magic        uint32
 	Code         uint32
 	DataLength   uint32
-	Checksum     uint32
 	DataChecksum uint32
 	Reserved     []byte
 }
 
 // NewMessage return full message in bytes
-func NewMessage(header *MessageHeader, body []byte) []byte {
+func NewMessage(header *MessageHeader, body []byte) ([]byte, error) {
 
-	msg := make([]byte, MessageHeaderLength+len(body))
-	copy(msg[:4], util.FromUint32(header.Magic))
-	copy(msg[4:8], util.FromUint32(header.Code))
-	copy(msg[8:12], util.FromUint32(header.DataLength))
-	copy(msg[12:16], util.FromUint32(header.DataChecksum))
-	copy(msg[16:20], header.Reserved)
-	headerCheckSum := crc32.ChecksumIEEE(msg[:20])
-	copy(msg[20:24], util.FromUint32(headerCheckSum))
-	copy(msg[24:], body)
-	return msg
+	pbHeader := header.Serialize()
+	headerBytes, err := proto.Marshal(pbHeader)
+	if err != nil {
+		return nil, err
+	}
+	var msg bytes.Buffer
+	msg.Write(util.FromUint32(uint32(len(headerBytes))))
+	msg.Write(headerBytes)
+	msg.Write(body)
+	return msg.Bytes(), nil
+}
+
+// Serialize header message in proto.
+func (header *MessageHeader) Serialize() proto.Message {
+
+	return &p2ppb.MessageHeader{
+		Magic:        header.Magic,
+		Code:         header.Code,
+		DataLength:   header.DataLength,
+		DataChecksum: header.DataChecksum,
+		Reserved:     header.Reserved,
+	}
+}
+
+// Deserialize header message in proto.
+func (header *MessageHeader) Deserialize(msg proto.Message) error {
+
+	pb := msg.(*p2ppb.MessageHeader)
+	if pb != nil {
+		header.Magic = pb.Magic
+		header.Code = pb.Code
+		header.DataLength = pb.DataLength
+		header.DataChecksum = pb.DataChecksum
+		header.Reserved = pb.Reserved
+		return nil
+	}
+	return ErrDeserializeMessage
 }
 
 // ParseHeader parse the bytes data into MessageHeader
 func ParseHeader(data []byte) (*MessageHeader, error) {
 
-	if len(data) != MessageHeaderLength {
-		return nil, ErrMessageHeader
+	pb := new(p2ppb.MessageHeader)
+	if err := proto.Unmarshal(data, pb); err != nil {
+		return nil, err
 	}
 	header := &MessageHeader{}
-	header.Magic = util.Uint32(data[:4])
-	header.Code = util.Uint32(data[4:8])
-	header.DataLength = util.Uint32(data[8:12])
-	header.DataChecksum = util.Uint32(data[12:16])
-	header.Reserved = data[16:20]
-	header.Checksum = util.Uint32(data[20:24])
+	if err := header.Deserialize(pb); err != nil {
+		return nil, err
+	}
 	return header, nil
 }

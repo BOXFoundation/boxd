@@ -9,30 +9,32 @@ type table struct {
 	prefix  string
 }
 
-func NewTable(storage Storage, prefix string) Storage{
+// NewTable returns a Storage object that prefixes all keys with a given string
+func NewTable(storage Storage, prefix string) Storage {
 	return &table{
-		storage: storage
-		prefix: prefix
+		storage: storage,
+		prefix:  prefix,
 	}
 }
 
-
-// TODO: 
-//remove ":"
-func (nt *table) Put(key, value []byte) error{
-	return nt.storage.Put(append([]byte(nt.prefix), key...), value)
-}
-
-func(nt *table) Has(key []byte)(bool, error){
+func (nt *table) Has(key []byte) (bool, error) {
 	return nt.storage.Has(append([]byte(nt.prefix), key...))
 }
 
-func(nt *table) Get(key []byte)([]byte, error){
+func (nt *table) Put(key []byte, value []byte) error {
+	return nt.storage.Put(append([]byte(nt.prefix), key...), value)
+}
+
+func (nt *table) Get(key []byte) ([]byte, error) {
 	return nt.storage.Get(append([]byte(nt.prefix), key...))
 }
 
-func(nt *table) Delete(key []byte) error{
-	return nt.storage.Delete(append([]byte(nt.prefix), key...))
+func (nt *table) Del(key []byte) error {
+	return nt.storage.Del(append([]byte(nt.prefix), key...))
 }
 
-func (nt *table) Close(){}
+func (nt *table) Keys() [][]byte {
+	return nil
+}
+
+func (nt *table) Close() {}
