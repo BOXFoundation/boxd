@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 
+	config "github.com/BOXFoundation/Quicksilver/config"
 	"github.com/BOXFoundation/Quicksilver/log"
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
 	"github.com/jbenet/goprocess"
@@ -28,13 +29,17 @@ func init() {
 func Start(v *viper.Viper) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	log.Setup(v.Sub("log")) // setup logger
-
-	var config p2p.Config
-	if err := v.Sub("p2p").Unmarshal(&config); err != nil {
+	// init config object from viper
+	var config config.Config
+	if err := v.Unmarshal(&config); err != nil {
 		logger.Fatal("Failed to read config", err) // exit in case of config error
 	}
-	peer, err := p2p.NewBoxPeer(&config, RootProcess)
+
+	config.Prepare() // make sure the config is correct and all directories are ok.
+
+	log.Setup(&config.Log) // setup logger
+
+	peer, err := p2p.NewBoxPeer(&config.P2p, RootProcess)
 	if err != nil {
 		logger.Fatal("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 	}

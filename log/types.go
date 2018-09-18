@@ -5,7 +5,7 @@
 package log
 
 import (
-	"github.com/spf13/viper"
+	mate "github.com/heralight/logrus_mate"
 )
 
 // Logger defines the box log functions
@@ -27,6 +27,9 @@ type Logger interface {
 // Level can be Debug/Info/Warn/Error
 type Level int
 
+// Config is the configuration of the logrus logger
+type Config mate.LoggerConfig
+
 const (
 	// LevelPanic enables panic level log
 	LevelPanic Level = iota
@@ -43,13 +46,11 @@ const (
 )
 
 // Setup loggers globally
-func Setup(v *viper.Viper) {
-	// gologSetup(v)
-	logrusSetup(v)
+func Setup(cfg *Config) {
+	logrusSetup(mate.LoggerConfig(*cfg))
 }
 
 // NewLogger creates a new logger.
 func NewLogger(tag string) Logger {
-	// return gologNewLogger(tag)
 	return logrusNewLogger(tag)
 }

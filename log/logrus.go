@@ -6,10 +6,10 @@ package log
 
 import (
 	"github.com/heirko/go-contrib/logrusHelper"
+	mate "github.com/heralight/logrus_mate"
 	_ "github.com/heralight/logrus_mate/hooks/file"  // file log hook
 	_ "github.com/heralight/logrus_mate/hooks/slack" // slack log hook
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 type logrusLogger struct {
@@ -21,11 +21,16 @@ var _ Logger = (*logrusLogger)(nil)
 
 var defaultLogrusLogger = logrus.New()
 
+func init() {
+	sourceHook := newHook()
+	defaultLogrusLogger.AddHook(sourceHook)
+}
+
 // Setup logrus logger
-func logrusSetup(v *viper.Viper) {
+func logrusSetup(cfg mate.LoggerConfig) {
 	logrusHelper.SetConfig(
 		defaultLogrusLogger,
-		logrusHelper.UnmarshalConfiguration(v),
+		cfg,
 	)
 }
 

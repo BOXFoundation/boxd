@@ -1,3 +1,5 @@
+# network: mainnet
+# workspace: ~/.boxd
 log:
     out:
         name: stderr # stdout|stderr|null
@@ -13,15 +15,8 @@ log:
               # maxsize: 10240000
               rotate: true
               level:  2 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
-
-# node:
-#     addpeer: [multiaddr]
-#     listen:
-#         port: 19199
-#         address: 127.0.0.1
 p2p:
-    magic: 0x11de784a
-    key_path: networkkey
+    key_path: peer.key
     port: 19199
     bucket_size: 16
     latency: 10
