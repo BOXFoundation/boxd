@@ -13,6 +13,7 @@ type Config struct {
 	Magic      uint32        `mapstructure:"magic"`
 	KeyPath    string        `mapstructure:"key_path"`
 	Port       uint32        `mapstructure:"port"`
+	Address    string        `mapstructure:"address"`
 	Seeds      []string      `mapstructure:"seeds"`
 	Bucketsize int           `mapstructure:"bucket_size"`
 	Latency    time.Duration `mapstructure:"latency"`

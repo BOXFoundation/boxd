@@ -53,7 +53,7 @@ func NewBoxPeer(config *Config, parent goprocess.Process) (*BoxPeer, error) {
 	}
 
 	opts := []libp2p.Option{
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.Port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", config.Address, config.Port)),
 		libp2p.Identity(networkIdentity),
 		libp2p.DefaultTransports,
 		libp2p.DefaultMuxers,
