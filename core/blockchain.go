@@ -5,9 +5,16 @@
 package core
 
 import (
+	"github.com/BOXFoundation/Quicksilver/core/types"
+	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
 	"github.com/jbenet/goprocess"
+)
+
+// const defines constants
+const (
+	BlockMsgChBufferSize = 1024
 )
 
 var logger log.Logger // logger
@@ -22,6 +29,20 @@ type BlockChain struct {
 	newblockMsgCh chan p2p.Message
 	txpool        *TransactionPool
 	proc          goprocess.Process
+
+	// Actually a tree-shaped structure where any node can have
+	// multiple children.  However, there can only be one active branch (longest) which does
+	// indeed form a chain from the tip all the way back to the genesis block.
+	hashToBlock map[crypto.HashType]*types.Block
+
+	// longest chain
+	longestChainHeight int
+	longestChainTip    *types.Block
+
+	// orphan block pool
+	hashToOrphanBlockmap map[crypto.HashType]*types.Block
+	// orphan block's parents; one parent can have multiple orphan children
+	parentToOrphanBlock map[crypto.HashType]*types.Block
 }
 
 // NewBlockChain return a blockchain.
@@ -29,7 +50,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net) *BlockChain {
 
 	return &BlockChain{
 		notifiee:      notifiee,
-		newblockMsgCh: make(chan p2p.Message, 1024),
+		newblockMsgCh: make(chan p2p.Message, BlockMsgChBufferSize),
 		proc:          goprocess.WithParent(parent),
 		txpool:        NewTransactionPool(parent, notifiee),
 	}
