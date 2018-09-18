@@ -5,28 +5,42 @@
 package core
 
 import (
+	"github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
-	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 	"github.com/jbenet/goprocess"
 )
 
+var logger log.Logger // logger
+
+func init() {
+	logger = log.NewLogger("core")
+}
+
 // BlockChain define chain struct
 type BlockChain struct {
+	notifiee      p2p.Net
 	newblockMsgCh chan p2p.Message
+	txpool        *TransactionPool
 	proc          goprocess.Process
 }
 
 // NewBlockChain return a blockchain.
-func NewBlockChain(parent goprocess.Process) *BlockChain {
+func NewBlockChain(parent goprocess.Process, notifiee p2p.Net) *BlockChain {
+
 	return &BlockChain{
+		notifiee:      notifiee,
 		newblockMsgCh: make(chan p2p.Message, 1024),
 		proc:          goprocess.WithParent(parent),
+		txpool:        NewTransactionPool(parent, notifiee),
 	}
 }
 
 // Run launch blockchain.
 func (chain *BlockChain) Run() {
-	chain.loop()
+
+	chain.subscribeMessageNotifiee(chain.notifiee)
+	go chain.loop()
+	chain.txpool.Run()
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee(notifiee p2p.Net) {

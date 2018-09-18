@@ -1,6 +1,7 @@
 // Copyright (c) 2018 ContentBox Authors.
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
+
 package types
 
 import (
@@ -34,6 +35,7 @@ type BlockHeader struct {
 	nonce uint32
 }
 
+// DposContext define struct
 type DposContext struct {
 	// TODO: fill in here or some other package
 }
@@ -44,6 +46,7 @@ type Block struct {
 	txs    []Transaction
 }
 
+// Tmp define struct
 // TODO: give it a proper name
 type Tmp struct {
 	// Actually a tree-shaped structure where any node can have

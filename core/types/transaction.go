@@ -1,6 +1,7 @@
 // Copyright (c) 2018 ContentBox Authors.
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
+
 package types
 
 import (
@@ -34,6 +35,7 @@ type OutPoint struct {
 	index uint32
 }
 
+// MemPool define struct
 type MemPool struct {
 	// mempool
 	hashToTx map[crypto.HashType]*Transaction
