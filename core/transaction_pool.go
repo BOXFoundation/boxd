@@ -9,6 +9,11 @@ import (
 	"github.com/jbenet/goprocess"
 )
 
+// const define const
+const (
+	PoolSize = 65536
+)
+
 // TransactionPool define struct.
 type TransactionPool struct {
 	notifiee   p2p.Net
@@ -19,7 +24,7 @@ type TransactionPool struct {
 // NewTransactionPool new a transaction pool.
 func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net) *TransactionPool {
 	return &TransactionPool{
-		newTxMsgCh: make(chan p2p.Message),
+		newTxMsgCh: make(chan p2p.Message, PoolSize),
 		proc:       goprocess.WithParent(parent),
 		notifiee:   notifiee,
 	}
