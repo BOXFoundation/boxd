@@ -17,14 +17,18 @@ import (
 const (
 	ProtocolID = "/box/1.0.0"
 	// Mainnet velocity of light
-	Mainnet                 uint32 = 0x11de784a
-	Testnet                 uint32 = 0x54455354
-	FixHeaderLength                = 4
-	Ping                           = 0x00
-	Pong                           = 0x01
-	PeerDiscover                   = 0x02
-	PeerDiscoverReply              = 0x03
-	MaxNebMessageDataLength        = 1024 * 1024 * 1024 // 1G bytes
+	Mainnet         uint32 = 0x11de784a
+	Testnet         uint32 = 0x54455354
+	FixHeaderLength        = 4
+
+	Ping              = 0x00
+	Pong              = 0x01
+	PeerDiscover      = 0x02
+	PeerDiscoverReply = 0x03
+	NewBlockMsg       = 0x04
+	TransactionMsg    = 0x05
+
+	MaxNebMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
 )
 
 // NetworkNamtToMagic is a map from network name to magic number.

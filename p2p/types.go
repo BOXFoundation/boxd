@@ -4,7 +4,10 @@
 
 package p2p
 
-import proto "github.com/gogo/protobuf/proto"
+import (
+	proto "github.com/gogo/protobuf/proto"
+	peer "github.com/libp2p/go-libp2p-peer"
+)
 
 // Serializable Define serialize interface
 type Serializable interface {
@@ -20,4 +23,9 @@ type Message interface {
 
 // Net Define Net interface
 type Net interface {
+	Bootstrap()
+	Broadcast(uint32, Serializable)
+	SendMessageToPeer(uint32, Serializable, peer.ID)
+	Subscribe(*Notifiee)
+	UnSubscribe(*Notifiee)
 }
