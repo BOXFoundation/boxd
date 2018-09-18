@@ -27,6 +27,12 @@ const (
 	MaxNebMessageDataLength        = 1024 * 1024 * 1024 // 1G bytes
 )
 
+// NetworkNamtToMagic is a map from network name to magic number.
+var NetworkNamtToMagic = map[string]uint32{
+	"mainnet": Mainnet,
+	"testnet": Testnet,
+}
+
 // error
 var (
 	ErrMessageHeader      = errors.New("Invalid message header data")

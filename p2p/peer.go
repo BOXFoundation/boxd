@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/jbenet/goprocess"
@@ -82,6 +83,11 @@ func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
 		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
 		return key, err
 	}
+	if _, err := os.Stat(path); os.IsNotExist(err) { // file does not exist.
+		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
+		return key, err
+	}
+
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err

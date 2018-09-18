@@ -30,7 +30,9 @@ func init() {
 	startCmd.Flags().IP("listen-addr", net.IPv4zero, "local p2p listen address.")
 	startCmd.Flags().Uint("listen-port", DefaultPeerPort, "local p2p listen address.")
 
-	viper.BindPFlag("node.addpeer", startCmd.Flags().Lookup("addpeer"))
-	viper.BindPFlag("node.listen.address", startCmd.Flags().Lookup("listen-addr"))
-	viper.BindPFlag("node.listen.port", startCmd.Flags().Lookup("listen-port"))
+	viper.BindPFlag("p2p.addpeer", startCmd.Flags().Lookup("addpeer"))
+	viper.BindPFlag("p2p.listen.address", startCmd.Flags().Lookup("listen-addr"))
+	viper.BindPFlag("p2p.listen.port", startCmd.Flags().Lookup("listen-port"))
+
+	viper.SetDefault("p2p.key_path", "peer.key")
 }
