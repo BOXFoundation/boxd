@@ -13,6 +13,9 @@ require (
 	github.com/derekparker/delve v1.1.0 // indirect
 	github.com/dgraph-io/badger v1.5.3 // indirect
 	github.com/dgryski/go-farm v0.0.0-20180109070241-2de33835d102 // indirect
+	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51 // indirect
+	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
+	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
 	github.com/fd/go-nat v1.0.0
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/go-akka/configuration v0.0.0-20180418110749-6065b2d05c3b // indirect
@@ -117,6 +120,7 @@ require (
 	github.com/spf13/pflag v1.0.2
 	github.com/spf13/viper v1.2.0
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
+	github.com/tecbot/gorocksdb v0.0.0-20180907100951-214b6b7bc0f0
 	github.com/uudashr/gopkgs v1.3.2 // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1
