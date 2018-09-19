@@ -71,7 +71,7 @@ func NewBoxPeer(config *Config, parent goprocess.Process) (*BoxPeer, error) {
 // Bootstrap schedules lookup and discover new peer
 func (p *BoxPeer) Bootstrap() {
 	if len(p.config.Seeds) > 0 {
-		p.ConnectSeeds()
+		p.connectSeeds()
 		p.table.Loop(p.proc)
 	}
 	p.notifier.Loop(p.proc)
@@ -106,8 +106,7 @@ func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	go conn.loop()
 }
 
-// ConnectSeeds connect the seeds in config
-func (p *BoxPeer) ConnectSeeds() {
+func (p *BoxPeer) connectSeeds() {
 	host := p.host
 	for _, v := range p.config.Seeds {
 		if err := p.addAddrToPeerstore(host, v); err != nil {
@@ -139,4 +138,24 @@ func (p *BoxPeer) addAddrToPeerstore(h host.Host, addr string) error {
 	h.Peerstore().AddAddr(peerid, targetAddr, peerstore.PermanentAddrTTL)
 	p.table.routeTable.Update(peerid)
 	return nil
+}
+
+// Broadcast business message.
+func (p *BoxPeer) Broadcast(code uint32, message Serializable) {
+
+}
+
+// SendMessageToPeer send message to a peer.
+func (p *BoxPeer) SendMessageToPeer(code uint32, message Serializable, pid peer.ID) {
+
+}
+
+// Subscribe a message notification.
+func (p *BoxPeer) Subscribe(notifiee *Notifiee) {
+	p.notifier.Subscribe(notifiee)
+}
+
+// UnSubscribe cancel subcribe.
+func (p *BoxPeer) UnSubscribe(notifiee *Notifiee) {
+	p.notifier.UnSubscribe(notifiee)
 }

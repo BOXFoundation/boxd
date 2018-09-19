@@ -1,6 +1,7 @@
 // Copyright (c) 2018 ContentBox Authors.
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
+
 package types
 
 import (
@@ -32,17 +33,4 @@ type TxIn struct {
 type OutPoint struct {
 	hash  crypto.HashType
 	index uint32
-}
-
-type MemPool struct {
-	// mempool
-	hashToTx map[crypto.HashType]*Transaction
-
-	// orphan transaction pool
-	hashToOrphanTx map[crypto.HashType]*Transaction
-	// orphan transaction's parent; one parent can have multiple orphan children
-	parentToOrphanTx map[crypto.HashType]*Transaction
-
-	// UTXO set
-	outpointToOutput map[OutPoint]TxOut
 }

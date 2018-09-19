@@ -5,6 +5,7 @@
 package log
 
 import (
+	source "github.com/BOXFoundation/Quicksilver/log/hooks/source"
 	"github.com/heirko/go-contrib/logrusHelper"
 	mate "github.com/heralight/logrus_mate"
 	_ "github.com/heralight/logrus_mate/hooks/file"  // file log hook
@@ -22,20 +23,20 @@ var _ Logger = (*logrusLogger)(nil)
 var defaultLogrusLogger = logrus.New()
 
 func init() {
-	sourceHook := newHook()
+	sourceHook := source.NewHook()
 	defaultLogrusLogger.AddHook(sourceHook)
 }
 
-// Setup logrus logger
-func logrusSetup(cfg mate.LoggerConfig) {
+// SetupLogrus setups logrus logger
+func SetupLogrus(cfg *Config) {
 	logrusHelper.SetConfig(
 		defaultLogrusLogger,
-		cfg,
+		mate.LoggerConfig(*cfg),
 	)
 }
 
-// newLogger creates a new logrus logger.
-func logrusNewLogger(tag string) Logger {
+// NewLogrusLogger creates a new logrus logger.
+func NewLogrusLogger(tag string) Logger {
 	return &logrusLogger{
 		logger: defaultLogrusLogger,
 		tag:    tag,
