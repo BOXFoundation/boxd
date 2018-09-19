@@ -23,8 +23,8 @@ type Storage interface {
 	Close()
 }
 
+// Transaction supports operations: 1. prepare   2. put the data for temporary    3. commit or rollback
 // TODO: add API for multiple transactions
-// support transaction : 1. prepare   2. put the data for temporary    3. commit or rollback
 type Transaction interface {
 	Prepare() error
 

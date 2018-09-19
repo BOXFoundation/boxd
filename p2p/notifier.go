@@ -19,7 +19,7 @@ type Notifier struct {
 
 // Notifiee represent message receiver.
 type Notifiee struct {
-	Code      uint32
+	code      uint32
 	messageCh chan Message
 }
 
@@ -32,14 +32,19 @@ func NewNotifier() *Notifier {
 	return notifier
 }
 
+// NewNotifiee return a message notifiee.
+func NewNotifiee(code uint32, messageCh chan Message) *Notifiee {
+	return &Notifiee{code: code, messageCh: messageCh}
+}
+
 // Subscribe notifier
 func (notifier *Notifier) Subscribe(notifiee *Notifiee) {
-	notifier.notifierMap.Store(notifiee.Code, notifiee)
+	notifier.notifierMap.Store(notifiee.code, notifiee)
 }
 
 // UnSubscribe notifiee
 func (notifier *Notifier) UnSubscribe(notifiee *Notifiee) {
-	notifier.notifierMap.Delete(notifiee.Code)
+	notifier.notifierMap.Delete(notifiee.code)
 }
 
 // Loop handle notifiee message

@@ -16,9 +16,10 @@ BIN="${DIR_OUTPUTS}/${NAME}"
 LDFLAGS = -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.branch=${BRANCH}"
 
 export GO15VENDOREXPERIMENT=1
+export GO111MODULE=on
 
 BENCH_FLAGS ?= -cpuprofile=cpu.pprof -memprofile=mem.pprof -benchmem
-PKGS ?= $(shell glide novendor)
+PKGS ?= $(shell go list ./... | grep -v /vendor/)
 # Many Go tools take file globs or directories as arguments instead of packages.
 PKG_FILES ?= $(shell ls -d  */ | grep -v "vendor") *.go 
 
@@ -26,7 +27,7 @@ PKG_FILES ?= $(shell ls -d  */ | grep -v "vendor") *.go
 # stable release.
 GO_VERSION := $(shell go version | cut -d " " -f 3)
 GO_MINOR_VERSION := $(word 2,$(subst ., ,$(GO_VERSION)))
-LINTABLE_MINOR_VERSIONS := 10
+LINTABLE_MINOR_VERSIONS := 11
 ifneq ($(filter $(LINTABLE_MINOR_VERSIONS),$(GO_MINOR_VERSION)),)
 SHOULD_LINT := true
 endif
@@ -37,9 +38,6 @@ all: clean lint test build
 
 .PHONY: dependencies
 dependencies:
-	@echo "Installing Glide and locked dependencies..."
-	glide --version || go get -u -f github.com/Masterminds/glide
-	glide install
 	@echo "Installing dev tools required by vs code..."
 	go get -u github.com/mdempsky/gocode
 	go get -u github.com/uudashr/gopkgs/cmd/gopkgs
@@ -51,13 +49,12 @@ dependencies:
 	go get -u github.com/rogpeppe/godef
 	go get -u golang.org/x/tools/cmd/godoc
 	go get -u github.com/sqs/goreturns
-	go get -u github.com/golang/lint/golint
 	@echo "Installing test dependencies..."
-	go install ./vendor/github.com/axw/gocov/gocov
-	go install ./vendor/github.com/mattn/goveralls
+	go get -u github.com/axw/gocov/gocov
+	go get -u github.com/mattn/goveralls
 ifdef SHOULD_LINT
 	@echo "Installing golint..."
-	go install ./vendor/github.com/golang/lint/golint
+	go get -u github.com/golang/lint/golint
 else
 	@echo "Not installing golint, since we don't expect to lint on" $(GO_VERSION)
 endif

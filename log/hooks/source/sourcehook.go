@@ -28,7 +28,8 @@ func (hook *logrusSourceHook) Fire(entry *logrus.Entry) error {
 	return nil
 }
 
-func newHook(levels ...logrus.Level) *logrusSourceHook {
+// NewHook creates logrus source hook which will print source filename and line number
+func NewHook(levels ...logrus.Level) logrus.Hook {
 	hook := logrusSourceHook{
 		Field:  "source",
 		Skip:   5,
