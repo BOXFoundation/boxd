@@ -5,10 +5,13 @@
 package types
 
 import (
+	"bytes"
 	"errors"
+	"io"
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/crypto"
+	"github.com/BOXFoundation/Quicksilver/util"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -19,6 +22,12 @@ var (
 	ErrInvalidBlockHeaderProtoMessage = errors.New("Invalid block header proto message")
 	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
 )
+
+// MaxBlockHeaderPayload is the maximum number of bytes a block header can be.
+// version 4 bytes + timestamp 4 bytes + bits 4 bytes + nonce 4 bytes +
+// prevBlock and merkleRoot hashes + dposContextRoot.
+// TODO: fill in dposContextRoot length
+const MaxBlockHeaderPayload = 16 + (crypto.HashSize * 2) + 0
 
 // BlockHeader defines information about a block and is used in the
 // block (MsgBlock) and headers (MsgHeaders) messages.
@@ -40,6 +49,26 @@ type BlockHeader struct {
 
 	// Distinguish between mainnet and testnet.
 	Magic uint32
+}
+
+func (h *BlockHeader) blockHash() crypto.HashType {
+	// Encode the header and double sha256 everything prior to the number of
+	// transactions.  Ignore the error returns since there is no way the
+	// encode could fail except being out of memory which would cause a
+	// run-time panic.
+	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
+	_ = writeBlockHeader(buf, 0, h)
+
+	return crypto.DoubleSha256(buf.Bytes())
+}
+
+// writeBlockHeader writes a block header to w.  See Serialize for
+// encoding block headers to be stored to disk, such as in a database, as
+// opposed to encoding for the wire.
+func writeBlockHeader(w io.Writer, pver uint32, bh *BlockHeader) error {
+	sec := uint32(bh.timestamp.Unix())
+	return util.WriteElements(w, bh.version, &bh.prevBlock, &bh.dposContextRoot, &bh.merkleRoot,
+		sec, bh.bits, bh.nonce)
 }
 
 // DposContext define struct
@@ -132,4 +161,9 @@ func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 	}
 
 	return ErrInvalidBlockProtoMessage
+}
+
+// BlockHash calculates hash of the block
+func (b *Block) BlockHash() crypto.HashType {
+	return b.header.blockHash()
 }

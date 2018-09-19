@@ -171,7 +171,7 @@ func (chain *BlockChain) loop() {
 	for {
 		select {
 		case msg := <-chain.newblockMsgCh:
-			chain.processBlock(msg)
+			chain.processBlockMsg(msg)
 		case <-chain.proc.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
@@ -179,7 +179,7 @@ func (chain *BlockChain) loop() {
 	}
 }
 
-func (chain *BlockChain) processBlock(msg p2p.Message) error {
+func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 	body := msg.Body()
 	pbblock := new(corepb.MsgBlock)
@@ -192,11 +192,72 @@ func (chain *BlockChain) processBlock(msg p2p.Message) error {
 	}
 
 	// process block
-	chain.handleBlock(block)
+	chain.processBlock(block)
 
 	return nil
 }
 
-func (chain *BlockChain) handleBlock(block *types.MsgBlock) error {
-	return nil
+// ProcessBlock is the main workhorse for handling insertion of new blocks into
+// the block chain.  It includes functionality such as rejecting duplicate
+// blocks, ensuring blocks follow all rules, orphan handling, and insertion into
+// the block chain along with best chain selection and reorganization.
+//
+// The first return value indicates if the block is on the main chain.
+// The second indicates if the block is an orphan.
+func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error) {
+	blockHash := block.BlockHash()
+	logger.Infof("Processing block %v", blockHash)
+	return true, true, nil
+	// // The block must not already exist in the main chain or side chains.
+	// exists, err := b.blockExists(blockHash)
+	// if err != nil {
+	// 	return false, false, err
+	// }
+	// if exists {
+	// 	str := fmt.Sprintf("already have block %v", blockHash)
+	// 	return false, false, ruleError(ErrDuplicateBlock, str)
+	// }
+
+	// // The block must not already exist as an orphan.
+	// if _, exists := b.orphans[*blockHash]; exists {
+	// 	str := fmt.Sprintf("already have block (orphan) %v", blockHash)
+	// 	return false, false, ruleError(ErrDuplicateBlock, str)
+	// }
+
+	// // Perform preliminary sanity checks on the block and its transactions.
+	// err = checkBlockSanity(block, b.chainParams.PowLimit, b.timeSource, flags)
+	// if err != nil {
+	// 	return false, false, err
+	// }
+	// // Handle orphan blocks.
+	// prevHash := &blockHeader.PrevBlock
+	// prevHashExists, err := b.blockExists(prevHash)
+	// if err != nil {
+	// 	return false, false, err
+	// }
+	// if !prevHashExists {
+	// 	log.Infof("Adding orphan block %v with parent %v", blockHash, prevHash)
+	// 	b.addOrphanBlock(block)
+
+	// 	return false, true, nil
+	// }
+
+	// // The block has passed all context independent checks and appears sane
+	// // enough to potentially accept it into the block chain.
+	// isMainChain, err := b.maybeAcceptBlock(block, flags)
+	// if err != nil {
+	// 	return false, false, err
+	// }
+
+	// // Accept any orphan blocks that depend on this block (they are
+	// // no longer orphans) and repeat for those accepted blocks until
+	// // there are no more.
+	// err = b.processOrphans(blockHash, flags)
+	// if err != nil {
+	// 	return false, false, err
+	// }
+
+	// log.Debugf("Accepted block %v", blockHash)
+
+	// return isMainChain, false, nil
 }
