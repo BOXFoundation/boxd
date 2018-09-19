@@ -24,3 +24,6 @@
 .vscode/
 /box
 /outputs
+
+.DS_Store
+

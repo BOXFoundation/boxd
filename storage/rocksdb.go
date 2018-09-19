@@ -23,8 +23,10 @@ type rocksdbStorage struct {
 	cache *gorocksdb.Cache
 }
 
+var _ Storage = (*rocksdbStorage)(nil)
+
 // NewRocksDBStorage initialize the storage
-func NewRocksDBStorage(path string) (*rocksdbStorage, error) {
+func NewRocksDBStorage(path string) (Storage, error) {
 	bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
 	filter := gorocksdb.NewBloomFilter(number)
 	bbto.SetFilterPolicy(filter)
@@ -69,8 +71,18 @@ func (dbstorage *rocksdbStorage) Del(key []byte) error {
 	return dbstorage.db.Delete(dbstorage.writeOptions, key)
 }
 
+// Has is used to check if the key existed
+func (dbstorage *rocksdbStorage) Has(key []byte) (bool, error) {
+	//return dbstorage.db.Has(key, nil)
+	return false, nil
+}
+
+func (dbstorage *rocksdbStorage) Keys() [][]byte {
+	keys := [][]byte{}
+	return keys
+}
+
 // Close db
-func (dbstorage *rocksdbStorage) Close() error {
+func (dbstorage *rocksdbStorage) Close() {
 	dbstorage.db.Close()
-	return nil
 }

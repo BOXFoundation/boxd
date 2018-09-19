@@ -1,6 +1,7 @@
 // Copyright (c) 2018 ContentBox Authors.
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
+
 package types
 
 import (
@@ -34,6 +35,7 @@ type BlockHeader struct {
 	nonce uint32
 }
 
+// DposContext define struct
 type DposContext struct {
 	// TODO: fill in here or some other package
 }
@@ -42,21 +44,4 @@ type DposContext struct {
 type Block struct {
 	header *BlockHeader
 	txs    []Transaction
-}
-
-// TODO: give it a proper name
-type Tmp struct {
-	// Actually a tree-shaped structure where any node can have
-	// multiple children.  However, there can only be one active branch (longest) which does
-	// indeed form a chain from the tip all the way back to the genesis block.
-	hashToBlock map[crypto.HashType]*Block
-
-	// longest chain
-	longestChainHeight int
-	longestChainTip    *Block
-
-	// orphan block pool
-	hashToOrphanBlockmap map[crypto.HashType]*Block
-	// orphan block's parents; one parent can have multiple orphan children
-	parentToOrphanBlock map[crypto.HashType]*Block
 }

@@ -16,8 +16,10 @@ type memoryStorage struct {
 	sm *sync.Map
 }
 
+var _ Storage = (*memoryStorage)(nil)
+
 // NewMemoryStorage initialize the storage
-func NewMemoryStorage() (*memoryStorage, error) {
+func NewMemoryStorage() (Storage, error) {
 	return &memoryStorage{
 		sm: new(sync.Map),
 	}, nil
@@ -43,6 +45,7 @@ func (db *memoryStorage) Del(key []byte) error {
 	return nil
 }
 
+// Has is used to check if the key existed
 func (db *memoryStorage) Has(key []byte) (bool, error) {
 	_, ok := db.sm.Load(util.Hex(key))
 	return ok, nil
