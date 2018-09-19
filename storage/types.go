@@ -20,7 +20,9 @@ type Storage interface {
 	// return a set of keys in the Storage
 	Keys() [][]byte
 
-	Close()
+	Flush() error
+
+	Close() error
 }
 
 // Transaction supports operations: 1. prepare   2. put the data for temporary    3. commit or rollback

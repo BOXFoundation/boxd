@@ -9,6 +9,8 @@ type table struct {
 	prefix  string
 }
 
+var _ Storage = (*table)(nil)
+
 // NewTable returns a Storage object that prefixes all keys with a given string
 func NewTable(storage Storage, prefix string) Storage {
 	return &table{
@@ -17,24 +19,30 @@ func NewTable(storage Storage, prefix string) Storage {
 	}
 }
 
-func (nt *table) Has(key []byte) (bool, error) {
-	return nt.storage.Has(append([]byte(nt.prefix), key...))
+func (t *table) Has(key []byte) (bool, error) {
+	return t.storage.Has(append([]byte(t.prefix), key...))
 }
 
-func (nt *table) Put(key []byte, value []byte) error {
-	return nt.storage.Put(append([]byte(nt.prefix), key...), value)
+func (t *table) Put(key []byte, value []byte) error {
+	return t.storage.Put(append([]byte(t.prefix), key...), value)
 }
 
-func (nt *table) Get(key []byte) ([]byte, error) {
-	return nt.storage.Get(append([]byte(nt.prefix), key...))
+func (t *table) Get(key []byte) ([]byte, error) {
+	return t.storage.Get(append([]byte(t.prefix), key...))
 }
 
-func (nt *table) Del(key []byte) error {
-	return nt.storage.Del(append([]byte(nt.prefix), key...))
+func (t *table) Del(key []byte) error {
+	return t.storage.Del(append([]byte(t.prefix), key...))
 }
 
-func (nt *table) Keys() [][]byte {
+func (t *table) Keys() [][]byte {
 	return nil
 }
 
-func (nt *table) Close() {}
+func (t *table) Flush() error {
+	return nil
+}
+
+func (t *table) Close() error {
+	return nil
+}
