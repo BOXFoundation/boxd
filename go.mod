@@ -18,6 +18,7 @@ require (
 	github.com/fd/go-nat v1.0.0 // indirect
 	github.com/go-akka/configuration v0.0.0-20180418110749-6065b2d05c3b // indirect
 	github.com/gogap/config v0.0.0-20180418140818-a1522129698c // indirect
+	github.com/fd/go-nat v1.0.0 // indirect
 	github.com/gogap/env_json v0.0.0-20150503135429-86150085ddbe // indirect
 	github.com/gogap/env_strings v0.0.0-20171020034610-bdb994cfe093 // indirect
 	github.com/gogo/protobuf v0.0.0-20180830160456-5669497fd644

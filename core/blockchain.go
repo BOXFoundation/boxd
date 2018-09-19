@@ -5,10 +5,12 @@
 package core
 
 import (
+	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
 
@@ -80,6 +82,24 @@ func (chain *BlockChain) loop() {
 	}
 }
 
-func (chain *BlockChain) processBlock(msg p2p.Message) {
+func (chain *BlockChain) processBlock(msg p2p.Message) error {
 
+	body := msg.Body()
+	pbblock := new(corepb.Block)
+	if err := proto.Unmarshal(body, pbblock); err != nil {
+		return err
+	}
+	block := new(types.Block)
+	if err := block.Deserialize(pbblock); err != nil {
+		return err
+	}
+
+	// process block
+	chain.handleBlock(block)
+
+	return nil
+}
+
+func (chain *BlockChain) handleBlock(block *types.Block) error {
+	return nil
 }

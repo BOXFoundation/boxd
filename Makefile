@@ -92,8 +92,8 @@ clean:
 	@rm -rf ${BIN}
 
 .PHONY: build
-build: fullnode 
+build: lint fullnode 
 
 .PHONY: fullnode
 fullnode:		
-	go build $(LDFLAGS) -o ${BIN} main.go
+	go build $(LDFLAGS) -o ${BIN}

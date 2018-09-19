@@ -1,0 +1,45 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package corepb;
+
+message BlockHeader {
+    int32 version = 1;
+    bytes prev_block_hash = 2;
+    bytes txs_root = 3;
+    int64 timestamp = 4;
+    bytes coinbase = 5;
+    uint32 magic = 6;
+}
+
+message Block {
+    BlockHeader header = 1;
+    repeated Transaction txs = 2;
+}
+
+message Transaction {
+    int32 version = 1;
+    repeated TxIn vin  = 2;
+    repeated TxOut vout  = 3;
+    uint32 magic = 4;
+    int64 lockTime = 5;
+}
+
+message TxIn {
+    OutPoint prev_out_point = 1;
+    bytes script_sig = 2;
+    uint32 sequence = 3;
+}
+
+message TxOut {
+    int64 value = 1;
+    bytes script_pub_key = 2;
+}
+
+message OutPoint {
+    bytes hash = 1;
+    uint32 index =2;
+}
