@@ -15,6 +15,8 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20180109070241-2de33835d102 // indirect
 	github.com/fd/go-nat v1.0.0
 	github.com/fsnotify/fsnotify v1.4.7
+	github.com/go-akka/configuration v0.0.0-20180418110749-6065b2d05c3b // indirect
+	github.com/gogap/config v0.0.0-20180418140818-a1522129698c
 	github.com/gogap/env_json v0.0.0-20150503135429-86150085ddbe
 	github.com/gogap/env_strings v0.0.0-20171020034610-bdb994cfe093
 	github.com/gogo/protobuf v0.0.0-20180830160456-5669497fd644

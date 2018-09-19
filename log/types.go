@@ -47,10 +47,10 @@ const (
 
 // Setup loggers globally
 func Setup(cfg *Config) {
-	logrusSetup(mate.LoggerConfig(*cfg))
+	SetupLogrus(cfg)
 }
 
 // NewLogger creates a new logger.
 func NewLogger(tag string) Logger {
-	return logrusNewLogger(tag)
+	return NewLogrusLogger(tag)
 }
