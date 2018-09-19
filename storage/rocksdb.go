@@ -26,7 +26,7 @@ type rocksdbStorage struct {
 var _ Storage = (*rocksdbStorage)(nil)
 
 // NewRocksDBStorage initialize the storage
-func NewRocksDBStorage(path string) (Storage, error) {
+func NewRocksDBStorage(cfg *Config) (Storage, error) {
 	bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
 	filter := gorocksdb.NewBloomFilter(number)
 	bbto.SetFilterPolicy(filter)
@@ -36,7 +36,7 @@ func NewRocksDBStorage(path string) (Storage, error) {
 	options.SetBlockBasedTableFactory(bbto)
 	options.SetCreateIfMissing(true)
 
-	db, err := gorocksdb.OpenDb(options, path)
+	db, err := gorocksdb.OpenDb(options, cfg.Path)
 	if err != nil {
 		return nil, err
 	}

@@ -12,15 +12,17 @@ import (
 
 	log "github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
+	"github.com/BOXFoundation/Quicksilver/storage"
 )
 
 // Config is a configuration data structure for box blockchain server,
 // which is read from config file or parsed from command line.
 type Config struct {
-	Workspace string     `mapstructure:"workspace"`
-	Network   string     `mapstructure:"network"`
-	Log       log.Config `mapstructure:"log"`
-	P2p       p2p.Config `mapstructure:"p2p"`
+	Workspace string         `mapstructure:"workspace"`
+	Network   string         `mapstructure:"network"`
+	Log       log.Config     `mapstructure:"log"`
+	P2p       p2p.Config     `mapstructure:"p2p"`
+	Database  storage.Config `mapstructure:"database"`
 }
 
 var format = `workspace: %s
@@ -80,6 +82,7 @@ func (c *Config) Prepare() {
 	// database
 	dbpath := filepath.Join(c.Workspace, "database", c.Network)
 	mkDirAll(dbpath)
+	c.Database.Path = dbpath
 
 	// p2p
 	var keyPath = c.P2p.KeyPath
