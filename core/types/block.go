@@ -5,14 +5,10 @@
 package types
 
 import (
-	"bytes"
 	"errors"
-	"io"
-	"time"
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/crypto"
-	"github.com/BOXFoundation/Quicksilver/util"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -37,10 +33,10 @@ type BlockHeader struct {
 	Version int32
 
 	// Hash of the previous block header in the block chain.
-	PrevBlock crypto.HashType
+	PrevBlockHash crypto.HashType
 
 	// Merkle tree reference to hash of all transactions for the block.
-	MerkleRoot crypto.HashType
+	TxsRoot crypto.HashType
 
 	DposContextRoot DposContext
 
@@ -49,33 +45,13 @@ type BlockHeader struct {
 
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
-	Timestamp time.Time
+	TimeStamp int64
 
 	// Difficulty target for the block.
 	Bits uint32
 
 	// Nonce used to generate the block.
 	Nonce uint32
-}
-
-func (h *BlockHeader) blockHash() crypto.HashType {
-	// Encode the header and double sha256 everything prior to the number of
-	// transactions.  Ignore the error returns since there is no way the
-	// encode could fail except being out of memory which would cause a
-	// run-time panic.
-	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
-	_ = writeBlockHeader(buf, h)
-	// TODO: serialize
-	return crypto.DoubleSha256(buf.Bytes())
-}
-
-// writeBlockHeader writes a block header to w.  See Serialize for
-// encoding block headers to be stored to disk, such as in a database, as
-// opposed to encoding for the wire.
-func writeBlockHeader(w io.Writer, bh *BlockHeader) error {
-	sec := uint32(bh.Timestamp.Unix())
-	return util.WriteElements(w, bh.Version, &bh.PrevBlock, &bh.DposContextRoot, &bh.MerkleRoot,
-		sec, bh.Bits, bh.Nonce)
 }
 
 // DposContext define struct
@@ -171,6 +147,14 @@ func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 }
 
 // BlockHash calculates hash of the block
-func (b *Block) BlockHash() crypto.HashType {
-	return b.Header.blockHash()
+func (msgBlock *MsgBlock) BlockHash() (crypto.HashType, error) {
+	pbblock, err := msgBlock.Serialize()
+	if err != nil {
+		return crypto.HashType{}, err
+	}
+	rawMsgBlock, err := proto.Marshal(pbblock)
+	if err != nil {
+		return crypto.HashType{}, err
+	}
+	return crypto.DoubleHashH(rawMsgBlock), nil
 }

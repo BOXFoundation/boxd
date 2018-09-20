@@ -14,7 +14,7 @@ import (
 
 // Define error message
 var (
-	ErrSerializeOutPoint           = errors.New("serialize outpoint error")
+	ErrSerializeOutPoint           = errors.New("serialize outPoint error")
 	ErrInvalidOutPointProtoMessage = errors.New("Invalid OutPoint proto message")
 	ErrInvalidTxInProtoMessage     = errors.New("Invalid TxIn proto message")
 	ErrInvalidTxOutProtoMessage    = errors.New("Invalid TxOut proto message")
@@ -45,13 +45,13 @@ type TxOut struct {
 
 // TxIn defines a transaction input.
 type TxIn struct {
-	PrevOutpoint Outpoint
+	PrevOutPoint OutPoint
 	ScriptSig    []byte
 	Sequence     uint32
 }
 
-// Outpoint defines a data type that is used to track previous transaction outputs.
-type Outpoint struct {
+// OutPoint defines a data type that is used to track previous transaction outputs.
+type OutPoint struct {
 	Hash  crypto.HashType
 	Index uint32
 }
@@ -163,11 +163,11 @@ func (txin *TxIn) Deserialize(message proto.Message) error {
 
 	if message, ok := message.(*corepb.TxIn); ok {
 		if message != nil {
-			outpoint := new(OutPoint)
-			if err := outpoint.Deserialize(message.PrevOutPoint); err != nil {
+			outPoint := new(OutPoint)
+			if err := outPoint.Deserialize(message.PrevOutPoint); err != nil {
 				return err
 			}
-			txin.PrevOutPoint = outpoint
+			txin.PrevOutPoint = *outPoint
 			txin.ScriptSig = message.ScriptSig
 			txin.Sequence = message.Sequence
 			return nil
@@ -201,19 +201,30 @@ func (op *OutPoint) Deserialize(message proto.Message) error {
 	return ErrInvalidOutPointProtoMessage
 }
 
-// TxHash return tx hash
-func (tx *Transaction) Hash() (*crypto.HashType, error) {
+// TxHash returns tx hash
+func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	if tx.Hash != nil {
 		return tx.Hash, nil
 	}
-	pbtx, err := tx.MsgTx.Serialize()
+	hash, err := tx.MsgTx.MsgTxHash()
 	if err != nil {
 		return nil, err
 	}
-	msgTx, err := proto.Marshal(pbtx)
+	// cache it
+	tx.Hash = hash
+	return hash, nil
+}
+
+// MsgTxHash return msg tx hash
+func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
+	pbtx, err := msgTx.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	hash := crypto.DoubleHashH(msgTx)
+	rawMsgTx, err := proto.Marshal(pbtx)
+	if err != nil {
+		return nil, err
+	}
+	hash := crypto.DoubleHashH(rawMsgTx)
 	return &hash, nil
 }

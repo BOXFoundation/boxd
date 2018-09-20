@@ -76,9 +76,9 @@ var (
 	ErrTooManySigOps        = errors.New("Too many signature operations in a block")
 )
 
-// isNullOutpoint determines whether or not a previous transaction output point is set.
-func isNullOutpoint(outpoint *types.Outpoint) bool {
-	return outpoint.Index == math.MaxUint32 && outpoint.Hash == zeroHash
+// isNullOutPoint determines whether or not a previous transaction output point is set.
+func isNullOutPoint(outPoint *types.OutPoint) bool {
+	return outPoint.Index == math.MaxUint32 && outPoint.Hash == zeroHash
 }
 
 var logger log.Logger // logger
@@ -99,7 +99,7 @@ type BlockChain struct {
 
 	// longest chain
 	longestChainHeight int
-	longestChainTip    *types.Block
+	longestChainTip    *types.MsgBlock
 
 	// Actually a tree-shaped structure where any node can have
 	// multiple children.  However, there can only be one active branch (longest) which does
@@ -265,7 +265,7 @@ func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
 	return exists
 }
 
-func (chain *BlockChain) addOrphanBlock(block *types.Block, blockHash crypto.HashType, prevHash crypto.HashType) {
+func (chain *BlockChain) addOrphanBlock(block *types.MsgBlock, blockHash crypto.HashType, prevHash crypto.HashType) {
 	chain.hashToOrphanBlock[blockHash] = block
 	// Add to previous hash lookup index for faster dependency lookups.
 	chain.orphanBlockHashToChildren[prevHash] = append(chain.orphanBlockHashToChildren[prevHash], block)
@@ -279,7 +279,11 @@ func (chain *BlockChain) addOrphanBlock(block *types.Block, blockHash crypto.Has
 // The first return value indicates if the block is on the main chain.
 // The second indicates if the block is an orphan.
 func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error) {
-	blockHash := block.BlockHash()
+	blockHash, err := block.BlockHash()
+	if err != nil {
+		logger.Errorf("block hash calculation error")
+		return false, false, err
+	}
 	logger.Infof("Processing block %v", blockHash)
 
 	// The block must not already exist in the main chain or side chains.
@@ -295,13 +299,12 @@ func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error)
 	}
 
 	// Perform preliminary sanity checks on the block and its transactions.
-	err := sanityCheckBlock(block, util.NewMedianTime())
-	if err != nil {
+	if err := sanityCheckBlock(block, util.NewMedianTime()); err != nil {
 		return false, false, err
 	}
 
 	// Handle orphan blocks.
-	prevHash := block.Header.PrevBlock
+	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 		logger.Infof("Adding orphan block %v with parent %v", blockHash, prevHash)
 		chain.addOrphanBlock(block, blockHash, prevHash)
@@ -339,21 +342,16 @@ func sanityCheckBlockHeader(header *types.BlockHeader, timeSource util.MedianTim
 	// err := checkProofOfWork(header, powLimit, flags)
 
 	// A block timestamp must not have a greater precision than one second.
-	// This check is necessary because Go time.Time values support
+	// Go time.Time values support
 	// nanosecond precision whereas the consensus rules only apply to
 	// seconds and it's much nicer to deal with standard Go time values
 	// instead of converting to seconds everywhere.
-	if !header.Timestamp.Equal(time.Unix(header.Timestamp.Unix(), 0)) {
-		logger.Errorf("block timestamp of %v has a higher "+
-			"precision than one second", header.Timestamp)
-		return ErrInvalidTime
-	}
+	timestamp := time.Unix(header.TimeStamp, 0)
 
 	// Ensure the block time is not too far in the future.
-	maxTimestamp := timeSource.AdjustedTime().Add(time.Second *
-		MaxTimeOffsetSeconds)
-	if header.Timestamp.After(maxTimestamp) {
-		logger.Errorf("block timestamp of %v is too far in the future", header.Timestamp)
+	maxTimestamp := timeSource.AdjustedTime().Add(time.Second * MaxTimeOffsetSeconds)
+	if timestamp.After(maxTimestamp) {
+		logger.Errorf("block timestamp of %v is too far in the future", header.TimeStamp)
 		return ErrTimeTooNew
 	}
 
@@ -367,19 +365,19 @@ func sanityCheckBlockHeader(header *types.BlockHeader, timeSource util.MedianTim
 //
 // This function only differs from IsCoinBase in that it works with a raw wire
 // transaction as opposed to a higher level util transaction.
-func IsCoinBase(tx types.Transaction) bool {
+func IsCoinBase(tx *types.MsgTx) bool {
 	// A coin base must only have one transaction input.
 	if len(tx.Vin) != 1 {
 		return false
 	}
 
 	// The previous output of a coin base must have a max value index and a zero hash.
-	return isNullOutpoint(&tx.Vin[0].PrevOutpoint)
+	return isNullOutPoint(&tx.Vin[0].PrevOutPoint)
 }
 
 // SanityCheckTransaction performs some preliminary checks on a transaction to
 // ensure it is sane. These checks are context free.
-func SanityCheckTransaction(tx types.Transaction) error {
+func SanityCheckTransaction(tx *types.MsgTx) error {
 	// A transaction must have at least one input.
 	if len(tx.Vin) == 0 {
 		return ErrNoTxInputs
@@ -433,12 +431,12 @@ func SanityCheckTransaction(tx types.Transaction) error {
 	}
 
 	// Check for duplicate transaction inputs.
-	existingOutpoints := make(map[types.Outpoint]struct{})
+	existingOutPoints := make(map[types.OutPoint]struct{})
 	for _, txIn := range tx.Vin {
-		if _, exists := existingOutpoints[txIn.PrevOutpoint]; exists {
+		if _, exists := existingOutPoints[txIn.PrevOutPoint]; exists {
 			return ErrDuplicateTxInputs
 		}
-		existingOutpoints[txIn.PrevOutpoint] = struct{}{}
+		existingOutPoints[txIn.PrevOutPoint] = struct{}{}
 	}
 
 	if IsCoinBase(tx) {
@@ -454,18 +452,13 @@ func SanityCheckTransaction(tx types.Transaction) error {
 		// Previous transaction outputs referenced by the inputs to this
 		// transaction must not be null.
 		for _, txIn := range tx.Vin {
-			if isNullOutpoint(&txIn.PrevOutpoint) {
+			if isNullOutPoint(&txIn.PrevOutPoint) {
 				return ErrBadTxInput
 			}
 		}
 	}
 
 	return nil
-}
-
-func buildMerkleTreeStore(txs []types.Transaction) crypto.HashType {
-	// TODO
-	return crypto.HashType{}
 }
 
 // return number of transactions in a script
@@ -476,7 +469,7 @@ func getSigOpCount(script []byte) int {
 
 // return the number of signature operations for all transaction
 // input and output scripts in the provided transaction.
-func countSigOps(tx *types.Transaction) int {
+func countSigOps(tx *types.MsgTx) int {
 	// Accumulate the number of signature operations in all transaction inputs.
 	totalSigOps := 0
 	for _, txIn := range tx.Vin {
@@ -495,7 +488,7 @@ func countSigOps(tx *types.Transaction) int {
 
 // sanityCheckBlock performs some preliminary checks on a block to ensure it is
 // sane before continuing with block processing.  These checks are context free.
-func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) error {
+func sanityCheckBlock(block *types.MsgBlock, timeSource util.MedianTimeSource) error {
 	header := block.Header
 
 	if err := sanityCheckBlockHeader(header, timeSource); err != nil {
@@ -544,18 +537,19 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 
 	// Build merkle tree and ensure the calculated merkle root matches the entry in the block header.
 	// TODO: caching all of the transaction hashes in the block to speed up future hashing
-	calculatedMerkleRoot := buildMerkleTreeStore(block.Txs)
-	if header.MerkleRoot != calculatedMerkleRoot {
+	calculatedMerkleRoot := util.CalcTxsHash(block.Txs)
+	if header.TxsRoot != *calculatedMerkleRoot {
 		logger.Errorf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
-			header.MerkleRoot, calculatedMerkleRoot)
+			header.TxsRoot, *calculatedMerkleRoot)
 		return ErrBadMerkleRoot
 	}
 
 	// Check for duplicate transactions.
-	existingTxHashes := make(map[crypto.HashType]struct{})
+	existingTxHashes := make(map[*crypto.HashType]struct{})
 	for _, tx := range transactions {
-		hash := tx.Hash()
+		transaction := types.Transaction{MsgTx: tx}
+		hash, _ := transaction.TxHash()
 		if _, exists := existingTxHashes[hash]; exists {
 			logger.Errorf("block contains duplicate transaction %v", hash)
 			return ErrDuplicateTx
@@ -567,7 +561,7 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 	// allowed per block.
 	totalSigOps := 0
 	for _, tx := range transactions {
-		totalSigOps += countSigOps(&tx)
+		totalSigOps += countSigOps(tx)
 		if totalSigOps > MaxBlockSigOps {
 			logger.Errorf("block contains too many signature "+
 				"operations - got %v, max %v", totalSigOps, MaxBlockSigOps)
