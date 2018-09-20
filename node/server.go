@@ -11,6 +11,7 @@ import (
 	config "github.com/BOXFoundation/Quicksilver/config"
 	"github.com/BOXFoundation/Quicksilver/log"
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
+	storage "github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
 )
@@ -39,12 +40,20 @@ func Start(v *viper.Viper) error {
 
 	log.Setup(&config.Log) // setup logger
 
-	peer, err := p2p.NewBoxPeer(&config.P2p, RootProcess)
+	// start database life cycle
+	var database, err = storage.NewDatabase(RootProcess, &config.Database)
+	var _ = database // TODO use database later...
 	if err != nil {
-		logger.Fatal("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
+		logger.Fatal("Failed to initialize database...") // exit in case of error during initialization of database
 	}
 
-	peer.Bootstrap()
+	peer, err := p2p.NewBoxPeer(&config.P2p, RootProcess)
+	if err != nil {
+		logger.Error("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
+		RootProcess.Close()
+	} else {
+		peer.Bootstrap()
+	}
 
 	// var host, err = p2p.NewDefaultHost(RootProcess, net.ParseIP(v.GetString("node.listen.address")), uint(v.GetInt("node.listen.port")))
 	// if err != nil {

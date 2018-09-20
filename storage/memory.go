@@ -19,7 +19,7 @@ type memoryStorage struct {
 var _ Storage = (*memoryStorage)(nil)
 
 // NewMemoryStorage initialize the storage
-func NewMemoryStorage() (Storage, error) {
+func NewMemoryStorage(_ *Config) (Storage, error) {
 	return &memoryStorage{
 		sm: new(sync.Map),
 	}, nil
