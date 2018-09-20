@@ -10,8 +10,8 @@ Install Go 1.11 or higher version.
 Install homebrew.
 
 Install rocksdb.
-`brew install rocksdb`
 
+`brew install rocksdb`
 
 # Building the Source
 
