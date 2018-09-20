@@ -23,6 +23,13 @@ var (
 
 // Transaction defines a transaction.
 type Transaction struct {
+	hash    *crypto.HashType
+	msgTx   *MsgTx
+	txIndex int // Position within a block or TxIndexUnknown
+}
+
+// MsgTx is used to deliver transaction information.
+type MsgTx struct {
 	version  int32
 	vin      []*TxIn
 	vout     []*TxOut
@@ -50,11 +57,11 @@ type OutPoint struct {
 }
 
 // Serialize transaction to proto message.
-func (tx *Transaction) Serialize() (proto.Message, error) {
+func (msgTx *MsgTx) Serialize() (proto.Message, error) {
 
 	var vins []*corepb.TxIn
 	var vouts []*corepb.TxOut
-	for _, v := range tx.vin {
+	for _, v := range msgTx.vin {
 		vin, err := v.Serialize()
 		if err != nil {
 			return nil, err
@@ -63,25 +70,25 @@ func (tx *Transaction) Serialize() (proto.Message, error) {
 			vins = append(vins, vin)
 		}
 	}
-	for _, v := range tx.vout {
+	for _, v := range msgTx.vout {
 		vout, _ := v.Serialize()
 		if vout, ok := vout.(*corepb.TxOut); ok {
 			vouts = append(vouts, vout)
 		}
 	}
-	return &corepb.Transaction{
-		Version:  tx.version,
+	return &corepb.MsgTx{
+		Version:  msgTx.version,
 		Vin:      vins,
 		Vout:     vouts,
-		Magic:    tx.magic,
-		LockTime: tx.lockTime,
+		Magic:    msgTx.magic,
+		LockTime: msgTx.lockTime,
 	}, nil
 }
 
 // Deserialize convert proto message to transaction.
-func (tx *Transaction) Deserialize(message proto.Message) error {
+func (msgTx *MsgTx) Deserialize(message proto.Message) error {
 
-	if message, ok := message.(*corepb.Transaction); ok {
+	if message, ok := message.(*corepb.MsgTx); ok {
 		if message != nil {
 			var vins []*TxIn
 			for _, v := range message.Vin {
@@ -101,11 +108,11 @@ func (tx *Transaction) Deserialize(message proto.Message) error {
 				vouts = append(vouts, txout)
 			}
 
-			tx.version = message.Version
-			tx.vin = vins
-			tx.vout = vouts
-			tx.magic = message.Magic
-			tx.lockTime = message.LockTime
+			msgTx.version = message.Version
+			msgTx.vin = vins
+			msgTx.vout = vouts
+			msgTx.magic = message.Magic
+			msgTx.lockTime = message.LockTime
 			return nil
 		}
 		return ErrEmptyProtoMessage
@@ -192,4 +199,21 @@ func (op *OutPoint) Deserialize(message proto.Message) error {
 	}
 
 	return ErrInvalidOutPointProtoMessage
+}
+
+// Hash return tx hash
+func (tx *Transaction) Hash() (*crypto.HashType, error) {
+	if tx.hash != nil {
+		return tx.hash, nil
+	}
+	pbtx, err := tx.msgTx.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	msgTx, err := proto.Marshal(pbtx)
+	if err != nil {
+		return nil, err
+	}
+	hash := crypto.DoubleHashH(msgTx)
+	return &hash, nil
 }

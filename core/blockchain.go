@@ -35,16 +35,16 @@ type BlockChain struct {
 	// Actually a tree-shaped structure where any node can have
 	// multiple children.  However, there can only be one active branch (longest) which does
 	// indeed form a chain from the tip all the way back to the genesis block.
-	hashToBlock map[crypto.HashType]*types.Block
+	hashToBlock map[crypto.HashType]*types.MsgBlock
 
 	// longest chain
 	longestChainHeight int
-	longestChainTip    *types.Block
+	longestChainTip    *types.MsgBlock
 
 	// orphan block pool
-	hashToOrphanBlockmap map[crypto.HashType]*types.Block
+	hashToOrphanBlockmap map[crypto.HashType]*types.MsgBlock
 	// orphan block's parents; one parent can have multiple orphan children
-	parentToOrphanBlock map[crypto.HashType]*types.Block
+	parentToOrphanBlock map[crypto.HashType]*types.MsgBlock
 }
 
 // NewBlockChain return a blockchain.
@@ -85,11 +85,11 @@ func (chain *BlockChain) loop() {
 func (chain *BlockChain) processBlock(msg p2p.Message) error {
 
 	body := msg.Body()
-	pbblock := new(corepb.Block)
+	pbblock := new(corepb.MsgBlock)
 	if err := proto.Unmarshal(body, pbblock); err != nil {
 		return err
 	}
-	block := new(types.Block)
+	block := new(types.MsgBlock)
 	if err := block.Deserialize(pbblock); err != nil {
 		return err
 	}
@@ -100,6 +100,6 @@ func (chain *BlockChain) processBlock(msg p2p.Message) error {
 	return nil
 }
 
-func (chain *BlockChain) handleBlock(block *types.Block) error {
+func (chain *BlockChain) handleBlock(block *types.MsgBlock) error {
 	return nil
 }

@@ -52,10 +52,10 @@ type DposContext struct {
 	// TODO: fill in here or some other package
 }
 
-// Block defines a block containing header and transactions within it.
-type Block struct {
+// MsgBlock defines a block containing header and transactions within it.
+type MsgBlock struct {
 	header *BlockHeader
-	txs    []*Transaction
+	txs    []*MsgTx
 }
 
 // Serialize block header to proto message.
@@ -91,21 +91,21 @@ func (header *BlockHeader) Deserialize(message proto.Message) error {
 }
 
 // Serialize block to proto message.
-func (block *Block) Serialize() (proto.Message, error) {
+func (msgBlock *MsgBlock) Serialize() (proto.Message, error) {
 
-	header, _ := block.header.Serialize()
+	header, _ := msgBlock.header.Serialize()
 	if header, ok := header.(*corepb.BlockHeader); ok {
-		var txs []*corepb.Transaction
-		for _, v := range block.txs {
+		var txs []*corepb.MsgTx
+		for _, v := range msgBlock.txs {
 			tx, err := v.Serialize()
 			if err != nil {
 				return nil, err
 			}
-			if tx, ok := tx.(*corepb.Transaction); ok {
+			if tx, ok := tx.(*corepb.MsgTx); ok {
 				txs = append(txs, tx)
 			}
 		}
-		return &corepb.Block{
+		return &corepb.MsgBlock{
 			Header: header,
 			Txs:    txs,
 		}, nil
@@ -115,24 +115,24 @@ func (block *Block) Serialize() (proto.Message, error) {
 }
 
 // Deserialize convert proto message to block.
-func (block *Block) Deserialize(message proto.Message) error {
+func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 
-	if message, ok := message.(*corepb.Block); ok {
+	if message, ok := message.(*corepb.MsgBlock); ok {
 		if message != nil {
 			header := new(BlockHeader)
 			if err := header.Deserialize(message.Header); err != nil {
 				return err
 			}
-			var txs []*Transaction
+			var txs []*MsgTx
 			for _, v := range message.Txs {
-				tx := new(Transaction)
+				tx := new(MsgTx)
 				if err := tx.Deserialize(v); err != nil {
 					return err
 				}
 				txs = append(txs, tx)
 			}
-			block.header = header
-			block.txs = txs
+			msgBlock.header = header
+			msgBlock.txs = txs
 			return nil
 		}
 		return ErrEmptyProtoMessage
