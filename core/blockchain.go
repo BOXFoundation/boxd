@@ -18,6 +18,7 @@ import (
 // const defines constants
 const (
 	BlockMsgChBufferSize = 1024
+	Tail                 = "tail_block"
 )
 
 var logger log.Logger // logger
@@ -33,6 +34,7 @@ type BlockChain struct {
 	txpool        *TransactionPool
 	db            storage.Storage
 	genesis       *types.MsgBlock
+	tail          *types.MsgBlock
 	proc          goprocess.Process
 
 	// Actually a tree-shaped structure where any node can have
@@ -60,18 +62,25 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		txpool:        NewTransactionPool(parent, notifiee),
 		db:            db,
 	}
+
 	genesis, err := b.loadGenesis()
 	if err != nil {
 		return nil, err
 	}
 	b.genesis = genesis
 
+	tail, err := b.loadTailBlock()
+	if err != nil {
+		return nil, err
+	}
+	b.tail = tail
+
 	return b, nil
 }
 
 func (chain *BlockChain) loadGenesis() (*types.MsgBlock, error) {
 
-	if ok, _ := chain.db.Has(genesisHash[:]); !ok {
+	if ok, _ := chain.db.Has(genesisHash[:]); ok {
 		genesis, err := chain.LoadBlockByHashFromDb(genesisHash)
 		if err != nil {
 			return nil, err
@@ -86,12 +95,43 @@ func (chain *BlockChain) loadGenesis() (*types.MsgBlock, error) {
 	genesisBin, err := proto.Marshal(genesispb)
 	chain.db.Put(genesisHash[:], genesisBin)
 
-	genesis := new(types.MsgBlock)
-	if err := genesis.Deserialize(genesispb); err != nil {
-		return nil, err
+	return &genesisBlock, nil
+}
+
+func (chain *BlockChain) loadTailBlock() (*types.MsgBlock, error) {
+
+	if ok, _ := chain.db.Has([]byte(Tail)); ok {
+		tailBin, err := chain.db.Get([]byte(Tail))
+		if err != nil {
+			return nil, err
+		}
+
+		pbblock := new(corepb.MsgBlock)
+		if err := proto.Unmarshal(tailBin, pbblock); err != nil {
+			return nil, err
+		}
+
+		tail := new(types.MsgBlock)
+		if err := tail.Deserialize(pbblock); err != nil {
+			return nil, err
+		}
+
+		return tail, nil
+
 	}
 
-	return genesis, nil
+	tailpb, err := genesisBlock.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	tailBin, err := proto.Marshal(tailpb)
+	if err != nil {
+		return nil, err
+	}
+	chain.db.Put([]byte(Tail), tailBin)
+
+	return &genesisBlock, nil
+
 }
 
 // LoadBlockByHashFromDb load block by hash from db.
