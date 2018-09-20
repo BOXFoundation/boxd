@@ -15,9 +15,9 @@ var logger = log.NewLogger("storage")
 
 // Config defines the database configuration
 type Config struct {
-	Name    string
-	Path    string
-	Options Options
+	Name    string  `mapstructure:"name"`
+	Path    string  `mapstructure:"path"`
+	Options Options `mapstructure:"options"`
 }
 
 // Options defines the options of database impl

@@ -35,7 +35,7 @@ func init() {
 	viper.BindPFlag("p2p.address", startCmd.Flags().Lookup("listen-addr"))
 	viper.BindPFlag("p2p.port", startCmd.Flags().Lookup("listen-port"))
 
-	viper.BindPFlag("database.name", rootCmd.PersistentFlags().Lookup("database"))
+	viper.BindPFlag("database.name", startCmd.Flags().Lookup("database"))
 
 	viper.SetDefault("p2p.key_path", "peer.key")
 }
