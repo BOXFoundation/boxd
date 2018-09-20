@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"time"
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/crypto"
@@ -36,19 +37,25 @@ type BlockHeader struct {
 	Version int32
 
 	// Hash of the previous block header in the block chain.
-	PrevBlockHash crypto.HashType
+	PrevBlock crypto.HashType
 
 	// Merkle tree reference to hash of all transactions for the block.
-	TxsRoot crypto.HashType
+	MerkleRoot crypto.HashType
 
 	DposContextRoot DposContext
 
-	// Time the block was created.  This is, unfortunately, encoded as a
-	// uint32 on the wire and therefore is limited to 2106.
-	TimeStamp int64
-
 	// Distinguish between mainnet and testnet.
 	Magic uint32
+
+	// Time the block was created.  This is, unfortunately, encoded as a
+	// uint32 on the wire and therefore is limited to 2106.
+	Timestamp time.Time
+
+	// Difficulty target for the block.
+	Bits uint32
+
+	// Nonce used to generate the block.
+	Nonce uint32
 }
 
 func (h *BlockHeader) blockHash() crypto.HashType {
@@ -57,18 +64,18 @@ func (h *BlockHeader) blockHash() crypto.HashType {
 	// encode could fail except being out of memory which would cause a
 	// run-time panic.
 	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
-	_ = writeBlockHeader(buf, 0, h)
-
+	_ = writeBlockHeader(buf, h)
+	// TODO: serialize
 	return crypto.DoubleSha256(buf.Bytes())
 }
 
 // writeBlockHeader writes a block header to w.  See Serialize for
 // encoding block headers to be stored to disk, such as in a database, as
 // opposed to encoding for the wire.
-func writeBlockHeader(w io.Writer, pver uint32, bh *BlockHeader) error {
-	sec := uint32(bh.timestamp.Unix())
-	return util.WriteElements(w, bh.version, &bh.prevBlock, &bh.dposContextRoot, &bh.merkleRoot,
-		sec, bh.bits, bh.nonce)
+func writeBlockHeader(w io.Writer, bh *BlockHeader) error {
+	sec := uint32(bh.Timestamp.Unix())
+	return util.WriteElements(w, bh.Version, &bh.PrevBlock, &bh.DposContextRoot, &bh.MerkleRoot,
+		sec, bh.Bits, bh.Nonce)
 }
 
 // DposContext define struct
@@ -165,5 +172,5 @@ func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 
 // BlockHash calculates hash of the block
 func (b *Block) BlockHash() crypto.HashType {
-	return b.header.blockHash()
+	return b.Header.blockHash()
 }

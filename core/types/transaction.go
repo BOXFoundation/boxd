@@ -45,13 +45,13 @@ type TxOut struct {
 
 // TxIn defines a transaction input.
 type TxIn struct {
-	PrevOutPoint *OutPoint
+	PrevOutpoint Outpoint
 	ScriptSig    []byte
 	Sequence     uint32
 }
 
-// OutPoint defines a data type that is used to track previous transaction outputs.
-type OutPoint struct {
+// Outpoint defines a data type that is used to track previous transaction outputs.
+type Outpoint struct {
 	Hash  crypto.HashType
 	Index uint32
 }
@@ -202,7 +202,7 @@ func (op *OutPoint) Deserialize(message proto.Message) error {
 }
 
 // TxHash return tx hash
-func (tx *Transaction) TxHash() (*crypto.HashType, error) {
+func (tx *Transaction) Hash() (*crypto.HashType, error) {
 	if tx.Hash != nil {
 		return tx.Hash, nil
 	}

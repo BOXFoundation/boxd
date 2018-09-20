@@ -12,20 +12,27 @@ require (
 =======
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v0.0.0-20180706230648-ab6388e0c60a // indirect
+<<<<<<< HEAD
 	github.com/client9/misspell v0.3.4
 	github.com/coreos/go-semver v0.0.0-20180108230905-e214231b295a
 >>>>>>> processBlock part 1
+=======
+	github.com/coreos/go-semver v0.0.0-20180108230905-e214231b295a // indirect
+>>>>>>> processBlock part 2: sanity check block & header
 	github.com/cosiner/argv v0.0.0-20170225145430-13bacc38a0a5 // indirect
-	github.com/davecgh/go-spew v1.1.1
 	github.com/derekparker/delve v1.1.0 // indirect
 	github.com/dgraph-io/badger v1.5.3 // indirect
 	github.com/dgryski/go-farm v0.0.0-20180109070241-2de33835d102 // indirect
+<<<<<<< HEAD
 	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51 // indirect
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
 	github.com/fd/go-nat v1.0.0 // indirect
 	github.com/go-akka/configuration v0.0.0-20180418110749-6065b2d05c3b // indirect
 	github.com/gogap/config v0.0.0-20180418140818-a1522129698c // indirect
+=======
+	github.com/fd/go-nat v1.0.0 // indirect
+>>>>>>> processBlock part 2: sanity check block & header
 	github.com/gogap/env_json v0.0.0-20150503135429-86150085ddbe // indirect
 	github.com/gogap/env_strings v0.0.0-20171020034610-bdb994cfe093 // indirect
 	github.com/gogo/protobuf v0.0.0-20180830160456-5669497fd644

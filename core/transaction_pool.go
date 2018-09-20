@@ -31,7 +31,7 @@ type TransactionPool struct {
 	parentToOrphanTx map[crypto.HashType]*types.Transaction
 
 	// UTXO set
-	outpointToOutput map[types.OutPoint]types.TxOut
+	outpointToOutput map[types.Outpoint]types.TxOut
 }
 
 // NewTransactionPool new a transaction pool.

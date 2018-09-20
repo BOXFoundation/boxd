@@ -5,12 +5,18 @@
 package core
 
 import (
+	"errors"
+	"math"
+	"time"
+
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
+
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
 	"github.com/BOXFoundation/Quicksilver/storage"
+	"github.com/BOXFoundation/Quicksilver/util"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
@@ -18,8 +24,62 @@ import (
 // const defines constants
 const (
 	BlockMsgChBufferSize = 1024
-	Tail                 = "tail_block"
+
+	Tail = "tail_block"
+
+	// MaxTimeOffsetSeconds is the maximum number of seconds a block time
+	// is allowed to be ahead of the current time.  This is currently 2 hours.
+	MaxTimeOffsetSeconds = 2 * 60 * 60
+
+	// MaxBlockSize is the maximum number of bytes within a block
+	MaxBlockSize = 32000000
+
+	// decimals is the number of digits after decimal point of value/amount
+	decimals = 8
+
+	// MinCoinbaseScriptLen is the minimum length a coinbase script can be.
+	MinCoinbaseScriptLen = 2
+
+	// MaxCoinbaseScriptLen is the maximum length a coinbase script can be.
+	MaxCoinbaseScriptLen = 1000
+
+	// MaxBlockSigOps is the maximum number of signature operations
+	// allowed for a block.
+	MaxBlockSigOps = 80000
 )
+
+var (
+	// zeroHash is the zero value for a hash
+	zeroHash crypto.HashType
+
+	// totalSupply is the total supply of box: 3 billion
+	totalSupply = (int64)(3e9 * math.Pow10(decimals))
+)
+
+// error
+var (
+	ErrBlockExists          = errors.New("Block already exists")
+	ErrInvalidTime          = errors.New("Invalid time")
+	ErrTimeTooNew           = errors.New("Block time too new")
+	ErrNoTransactions       = errors.New("Block does not contain any transaction")
+	ErrBlockTooBig          = errors.New("Block too big")
+	ErrFirstTxNotCoinbase   = errors.New("First transaction in block is not a coinbase")
+	ErrMultipleCoinbases    = errors.New("Block contains multiple coinbase transactions")
+	ErrNoTxInputs           = errors.New("Transaction has no inputs")
+	ErrNoTxOutputs          = errors.New("Transaction has no outputs")
+	ErrBadTxOutValue        = errors.New("Invalid output value")
+	ErrDuplicateTxInputs    = errors.New("Transaction contains duplicate inputs")
+	ErrBadCoinbaseScriptLen = errors.New("Coinbase scriptSig out of range")
+	ErrBadTxInput           = errors.New("Transaction input refers to null out point")
+	ErrBadMerkleRoot        = errors.New("Merkel root mismatch")
+	ErrDuplicateTx          = errors.New("Duplicate transactions in a block")
+	ErrTooManySigOps        = errors.New("Too many signature operations in a block")
+)
+
+// isNullOutpoint determines whether or not a previous transaction output point is set.
+func isNullOutpoint(outpoint *types.Outpoint) bool {
+	return outpoint.Index == math.MaxUint32 && outpoint.Hash == zeroHash
+}
 
 var logger log.Logger // logger
 
@@ -37,19 +97,20 @@ type BlockChain struct {
 	tail          *types.MsgBlock
 	proc          goprocess.Process
 
+	// longest chain
+	longestChainHeight int
+	longestChainTip    *types.Block
+
 	// Actually a tree-shaped structure where any node can have
 	// multiple children.  However, there can only be one active branch (longest) which does
 	// indeed form a chain from the tip all the way back to the genesis block.
+	// It includes main chain and side chains, but not orphan blocks
 	hashToBlock map[crypto.HashType]*types.MsgBlock
 
-	// longest chain
-	longestChainHeight int
-	longestChainTip    *types.MsgBlock
-
 	// orphan block pool
-	hashToOrphanBlockmap map[crypto.HashType]*types.MsgBlock
-	// orphan block's parents; one parent can have multiple orphan children
-	parentToOrphanBlock map[crypto.HashType]*types.MsgBlock
+	hashToOrphanBlock map[crypto.HashType]*types.MsgBlock
+	// orphan block's children; one parent can have multiple orphan children
+	orphanBlockHashToChildren map[crypto.HashType][]*types.MsgBlock
 }
 
 // NewBlockChain return a blockchain.
@@ -197,6 +258,19 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	return nil
 }
 
+// blockExists determines whether a block with the given hash exists either in
+// the main chain or any side chains.
+func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
+	_, exists := chain.hashToBlock[blockHash]
+	return exists
+}
+
+func (chain *BlockChain) addOrphanBlock(block *types.Block, blockHash crypto.HashType, prevHash crypto.HashType) {
+	chain.hashToOrphanBlock[blockHash] = block
+	// Add to previous hash lookup index for faster dependency lookups.
+	chain.orphanBlockHashToChildren[prevHash] = append(chain.orphanBlockHashToChildren[prevHash], block)
+}
+
 // ProcessBlock is the main workhorse for handling insertion of new blocks into
 // the block chain.  It includes functionality such as rejecting duplicate
 // blocks, ensuring blocks follow all rules, orphan handling, and insertion into
@@ -207,40 +281,33 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error) {
 	blockHash := block.BlockHash()
 	logger.Infof("Processing block %v", blockHash)
-	return true, true, nil
-	// // The block must not already exist in the main chain or side chains.
-	// exists, err := b.blockExists(blockHash)
-	// if err != nil {
-	// 	return false, false, err
-	// }
-	// if exists {
-	// 	str := fmt.Sprintf("already have block %v", blockHash)
-	// 	return false, false, ruleError(ErrDuplicateBlock, str)
-	// }
 
-	// // The block must not already exist as an orphan.
-	// if _, exists := b.orphans[*blockHash]; exists {
-	// 	str := fmt.Sprintf("already have block (orphan) %v", blockHash)
-	// 	return false, false, ruleError(ErrDuplicateBlock, str)
-	// }
+	// The block must not already exist in the main chain or side chains.
+	if exists := chain.blockExists(blockHash); exists {
+		logger.Warnf("already have block %v", blockHash)
+		return false, false, ErrBlockExists
+	}
 
-	// // Perform preliminary sanity checks on the block and its transactions.
-	// err = checkBlockSanity(block, b.chainParams.PowLimit, b.timeSource, flags)
-	// if err != nil {
-	// 	return false, false, err
-	// }
-	// // Handle orphan blocks.
-	// prevHash := &blockHeader.PrevBlock
-	// prevHashExists, err := b.blockExists(prevHash)
-	// if err != nil {
-	// 	return false, false, err
-	// }
-	// if !prevHashExists {
-	// 	log.Infof("Adding orphan block %v with parent %v", blockHash, prevHash)
-	// 	b.addOrphanBlock(block)
+	// The block must not already exist as an orphan.
+	if _, exists := chain.hashToOrphanBlock[blockHash]; exists {
+		logger.Warnf("already have block (orphan) %v", blockHash)
+		return false, false, ErrBlockExists
+	}
 
-	// 	return false, true, nil
-	// }
+	// Perform preliminary sanity checks on the block and its transactions.
+	err := sanityCheckBlock(block, util.NewMedianTime())
+	if err != nil {
+		return false, false, err
+	}
+
+	// Handle orphan blocks.
+	prevHash := block.Header.PrevBlock
+	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
+		logger.Infof("Adding orphan block %v with parent %v", blockHash, prevHash)
+		chain.addOrphanBlock(block, blockHash, prevHash)
+
+		return false, true, nil
+	}
 
 	// // The block has passed all context independent checks and appears sane
 	// // enough to potentially accept it into the block chain.
@@ -260,4 +327,253 @@ func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error)
 	// log.Debugf("Accepted block %v", blockHash)
 
 	// return isMainChain, false, nil
+	// TODO
+	return true, false, nil
+}
+
+// sanityCheckBlockHeader performs some preliminary checks on a block header to
+// ensure it is sane before continuing with processing.  These checks are
+// context free.
+func sanityCheckBlockHeader(header *types.BlockHeader, timeSource util.MedianTimeSource) error {
+	// TODO: PoW check here
+	// err := checkProofOfWork(header, powLimit, flags)
+
+	// A block timestamp must not have a greater precision than one second.
+	// This check is necessary because Go time.Time values support
+	// nanosecond precision whereas the consensus rules only apply to
+	// seconds and it's much nicer to deal with standard Go time values
+	// instead of converting to seconds everywhere.
+	if !header.Timestamp.Equal(time.Unix(header.Timestamp.Unix(), 0)) {
+		logger.Errorf("block timestamp of %v has a higher "+
+			"precision than one second", header.Timestamp)
+		return ErrInvalidTime
+	}
+
+	// Ensure the block time is not too far in the future.
+	maxTimestamp := timeSource.AdjustedTime().Add(time.Second *
+		MaxTimeOffsetSeconds)
+	if header.Timestamp.After(maxTimestamp) {
+		logger.Errorf("block timestamp of %v is too far in the future", header.Timestamp)
+		return ErrTimeTooNew
+	}
+
+	return nil
+}
+
+// IsCoinBase determines whether or not a transaction is a coinbase.  A coinbase
+// is a special transaction created by miners that has no inputs.  This is
+// represented in the block chain by a transaction with a single input that has
+// a previous output transaction index set to the maximum value along with a zero hash.
+//
+// This function only differs from IsCoinBase in that it works with a raw wire
+// transaction as opposed to a higher level util transaction.
+func IsCoinBase(tx types.Transaction) bool {
+	// A coin base must only have one transaction input.
+	if len(tx.Vin) != 1 {
+		return false
+	}
+
+	// The previous output of a coin base must have a max value index and a zero hash.
+	return isNullOutpoint(&tx.Vin[0].PrevOutpoint)
+}
+
+// SanityCheckTransaction performs some preliminary checks on a transaction to
+// ensure it is sane. These checks are context free.
+func SanityCheckTransaction(tx types.Transaction) error {
+	// A transaction must have at least one input.
+	if len(tx.Vin) == 0 {
+		return ErrNoTxInputs
+	}
+
+	// A transaction must have at least one output.
+	if len(tx.Vout) == 0 {
+		return ErrNoTxOutputs
+	}
+
+	// TOOD: check before deserialization
+	// // A transaction must not exceed the maximum allowed block payload when
+	// // serialized.
+	// serializedTxSize := tx.MsgTx().SerializeSizeStripped()
+	// if serializedTxSize > MaxBlockBaseSize {
+	// 	str := fmt.Sprintf("serialized transaction is too big - got "+
+	// 		"%d, max %d", serializedTxSize, MaxBlockBaseSize)
+	// 	return ruleError(ErrTxTooBig, str)
+	// }
+
+	// Ensure the transaction amounts are in range. Each transaction
+	// output must not be negative or more than the max allowed per
+	// transaction. Also, the total of all outputs must abide by the same
+	// restrictions.
+	var totalValue int64
+	for _, txOut := range tx.Vout {
+		value := txOut.Value
+		if value < 0 {
+			logger.Errorf("transaction output has negative value of %v", value)
+			return ErrBadTxOutValue
+		}
+		if value > totalSupply {
+			logger.Errorf("transaction output value of %v is "+
+				"higher than max allowed value of %v", totalSupply)
+			return ErrBadTxOutValue
+		}
+
+		// Two's complement int64 overflow guarantees that any overflow
+		// is detected and reported.
+		totalValue += value
+		if totalValue < 0 {
+			logger.Errorf("total value of all transaction outputs overflows %v", totalValue)
+			return ErrBadTxOutValue
+		}
+		if totalValue > totalSupply {
+			logger.Errorf("total value of all transaction "+
+				"outputs is %v which is higher than max "+
+				"allowed value of %v", totalValue, totalSupply)
+			return ErrBadTxOutValue
+		}
+	}
+
+	// Check for duplicate transaction inputs.
+	existingOutpoints := make(map[types.Outpoint]struct{})
+	for _, txIn := range tx.Vin {
+		if _, exists := existingOutpoints[txIn.PrevOutpoint]; exists {
+			return ErrDuplicateTxInputs
+		}
+		existingOutpoints[txIn.PrevOutpoint] = struct{}{}
+	}
+
+	if IsCoinBase(tx) {
+		// Coinbase script length must be between min and max length.
+		slen := len(tx.Vin[0].ScriptSig)
+		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
+			logger.Errorf("coinbase transaction script length "+
+				"of %d is out of range (min: %d, max: %d)",
+				slen, MinCoinbaseScriptLen, MaxCoinbaseScriptLen)
+			return ErrBadCoinbaseScriptLen
+		}
+	} else {
+		// Previous transaction outputs referenced by the inputs to this
+		// transaction must not be null.
+		for _, txIn := range tx.Vin {
+			if isNullOutpoint(&txIn.PrevOutpoint) {
+				return ErrBadTxInput
+			}
+		}
+	}
+
+	return nil
+}
+
+func buildMerkleTreeStore(txs []types.Transaction) crypto.HashType {
+	// TODO
+	return crypto.HashType{}
+}
+
+// return number of transactions in a script
+func getSigOpCount(script []byte) int {
+	// TODO after adding script
+	return 1
+}
+
+// return the number of signature operations for all transaction
+// input and output scripts in the provided transaction.
+func countSigOps(tx *types.Transaction) int {
+	// Accumulate the number of signature operations in all transaction inputs.
+	totalSigOps := 0
+	for _, txIn := range tx.Vin {
+		numSigOps := getSigOpCount(txIn.ScriptSig)
+		totalSigOps += numSigOps
+	}
+
+	// Accumulate the number of signature operations in all transaction outputs.
+	for _, txOut := range tx.Vout {
+		numSigOps := getSigOpCount(txOut.ScriptPubKey)
+		totalSigOps += numSigOps
+	}
+
+	return totalSigOps
+}
+
+// sanityCheckBlock performs some preliminary checks on a block to ensure it is
+// sane before continuing with block processing.  These checks are context free.
+func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) error {
+	header := block.Header
+
+	if err := sanityCheckBlockHeader(header, timeSource); err != nil {
+		return err
+	}
+
+	// A block must have at least one transaction.
+	numTx := len(block.Txs)
+	if numTx == 0 {
+		logger.Errorf("block does not contain any transactions")
+		return ErrNoTransactions
+	}
+
+	// TODO: check before deserialization
+	// // A block must not exceed the maximum allowed block payload when serialized.
+	// serializedSize := msgBlock.SerializeSizeStripped()
+	// if serializedSize > MaxBlockSize {
+	// 	logger.Errorf("serialized block is too big - got %d, "+
+	// 		"max %d", serializedSize, MaxBlockSize)
+	// 	return ErrBlockTooBig
+	// }
+
+	// The first transaction in a block must be a coinbase.
+	transactions := block.Txs
+	if !IsCoinBase(transactions[0]) {
+		logger.Errorf("first transaction in block is not a coinbase")
+		return ErrFirstTxNotCoinbase
+	}
+
+	// A block must not have more than one coinbase.
+	for i, tx := range transactions[1:] {
+		if IsCoinBase(tx) {
+			logger.Errorf("block contains second coinbase at index %d", i+1)
+			return ErrMultipleCoinbases
+		}
+	}
+
+	// Do some preliminary checks on each transaction to ensure they are
+	// sane before continuing.
+	for _, tx := range transactions {
+		err := SanityCheckTransaction(tx)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Build merkle tree and ensure the calculated merkle root matches the entry in the block header.
+	// TODO: caching all of the transaction hashes in the block to speed up future hashing
+	calculatedMerkleRoot := buildMerkleTreeStore(block.Txs)
+	if header.MerkleRoot != calculatedMerkleRoot {
+		logger.Errorf("block merkle root is invalid - block "+
+			"header indicates %v, but calculated value is %v",
+			header.MerkleRoot, calculatedMerkleRoot)
+		return ErrBadMerkleRoot
+	}
+
+	// Check for duplicate transactions.
+	existingTxHashes := make(map[crypto.HashType]struct{})
+	for _, tx := range transactions {
+		hash := tx.Hash()
+		if _, exists := existingTxHashes[hash]; exists {
+			logger.Errorf("block contains duplicate transaction %v", hash)
+			return ErrDuplicateTx
+		}
+		existingTxHashes[hash] = struct{}{}
+	}
+
+	// The number of signature operations must be less than the maximum
+	// allowed per block.
+	totalSigOps := 0
+	for _, tx := range transactions {
+		totalSigOps += countSigOps(&tx)
+		if totalSigOps > MaxBlockSigOps {
+			logger.Errorf("block contains too many signature "+
+				"operations - got %v, max %v", totalSigOps, MaxBlockSigOps)
+			return ErrTooManySigOps
+		}
+	}
+
+	return nil
 }
