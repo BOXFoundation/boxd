@@ -23,37 +23,37 @@ var (
 
 // Transaction defines a transaction.
 type Transaction struct {
-	hash    *crypto.HashType
-	msgTx   *MsgTx
-	txIndex int // Position within a block or TxIndexUnknown
+	Hash    *crypto.HashType
+	MsgTx   *MsgTx
+	TxIndex int // Position within a block or TxIndexUnknown
 }
 
 // MsgTx is used to deliver transaction information.
 type MsgTx struct {
-	version  int32
-	vin      []*TxIn
-	vout     []*TxOut
-	magic    uint32
-	lockTime int64
+	Version  int32
+	Vin      []*TxIn
+	Vout     []*TxOut
+	Magic    uint32
+	LockTime int64
 }
 
 // TxOut defines a transaction output.
 type TxOut struct {
-	value        int64
-	scriptPubKey []byte
+	Value        int64
+	ScriptPubKey []byte
 }
 
 // TxIn defines a transaction input.
 type TxIn struct {
-	prevOutPoint *OutPoint
-	scriptSig    []byte
-	sequence     uint32
+	PrevOutPoint *OutPoint
+	ScriptSig    []byte
+	Sequence     uint32
 }
 
 // OutPoint defines a data type that is used to track previous transaction outputs.
 type OutPoint struct {
-	hash  crypto.HashType
-	index uint32
+	Hash  crypto.HashType
+	Index uint32
 }
 
 // Serialize transaction to proto message.
@@ -61,7 +61,7 @@ func (msgTx *MsgTx) Serialize() (proto.Message, error) {
 
 	var vins []*corepb.TxIn
 	var vouts []*corepb.TxOut
-	for _, v := range msgTx.vin {
+	for _, v := range msgTx.Vin {
 		vin, err := v.Serialize()
 		if err != nil {
 			return nil, err
@@ -70,18 +70,18 @@ func (msgTx *MsgTx) Serialize() (proto.Message, error) {
 			vins = append(vins, vin)
 		}
 	}
-	for _, v := range msgTx.vout {
+	for _, v := range msgTx.Vout {
 		vout, _ := v.Serialize()
 		if vout, ok := vout.(*corepb.TxOut); ok {
 			vouts = append(vouts, vout)
 		}
 	}
 	return &corepb.MsgTx{
-		Version:  msgTx.version,
+		Version:  msgTx.Version,
 		Vin:      vins,
 		Vout:     vouts,
-		Magic:    msgTx.magic,
-		LockTime: msgTx.lockTime,
+		Magic:    msgTx.Magic,
+		LockTime: msgTx.LockTime,
 	}, nil
 }
 
@@ -108,11 +108,11 @@ func (msgTx *MsgTx) Deserialize(message proto.Message) error {
 				vouts = append(vouts, txout)
 			}
 
-			msgTx.version = message.Version
-			msgTx.vin = vins
-			msgTx.vout = vouts
-			msgTx.magic = message.Magic
-			msgTx.lockTime = message.LockTime
+			msgTx.Version = message.Version
+			msgTx.Vin = vins
+			msgTx.Vout = vouts
+			msgTx.Magic = message.Magic
+			msgTx.LockTime = message.LockTime
 			return nil
 		}
 		return ErrEmptyProtoMessage
@@ -124,8 +124,8 @@ func (msgTx *MsgTx) Deserialize(message proto.Message) error {
 func (txout *TxOut) Serialize() (proto.Message, error) {
 
 	return &corepb.TxOut{
-		Value:        txout.value,
-		ScriptPubKey: txout.scriptPubKey,
+		Value:        txout.Value,
+		ScriptPubKey: txout.ScriptPubKey,
 	}, nil
 }
 
@@ -134,8 +134,8 @@ func (txout *TxOut) Deserialize(message proto.Message) error {
 
 	if message, ok := message.(*corepb.TxOut); ok {
 		if message != nil {
-			txout.scriptPubKey = message.ScriptPubKey
-			txout.value = message.Value
+			txout.ScriptPubKey = message.ScriptPubKey
+			txout.Value = message.Value
 			return nil
 		}
 		return ErrEmptyProtoMessage
@@ -147,12 +147,12 @@ func (txout *TxOut) Deserialize(message proto.Message) error {
 // Serialize txin to proto message.
 func (txin *TxIn) Serialize() (proto.Message, error) {
 
-	prevOutPoint, _ := txin.prevOutPoint.Serialize()
+	prevOutPoint, _ := txin.PrevOutPoint.Serialize()
 	if prevOutPoint, ok := prevOutPoint.(*corepb.OutPoint); ok {
 		return &corepb.TxIn{
 			PrevOutPoint: prevOutPoint,
-			ScriptSig:    txin.scriptSig,
-			Sequence:     txin.sequence,
+			ScriptSig:    txin.ScriptSig,
+			Sequence:     txin.Sequence,
 		}, nil
 	}
 	return nil, ErrSerializeOutPoint
@@ -167,9 +167,9 @@ func (txin *TxIn) Deserialize(message proto.Message) error {
 			if err := outpoint.Deserialize(message.PrevOutPoint); err != nil {
 				return err
 			}
-			txin.prevOutPoint = outpoint
-			txin.scriptSig = message.ScriptSig
-			txin.sequence = message.Sequence
+			txin.PrevOutPoint = outpoint
+			txin.ScriptSig = message.ScriptSig
+			txin.Sequence = message.Sequence
 			return nil
 		}
 		return ErrEmptyProtoMessage
@@ -181,8 +181,8 @@ func (txin *TxIn) Deserialize(message proto.Message) error {
 func (op *OutPoint) Serialize() (proto.Message, error) {
 
 	return &corepb.OutPoint{
-		Hash:  op.hash[:],
-		Index: op.index,
+		Hash:  op.Hash[:],
+		Index: op.Index,
 	}, nil
 }
 
@@ -191,8 +191,8 @@ func (op *OutPoint) Deserialize(message proto.Message) error {
 
 	if message, ok := message.(*corepb.OutPoint); ok {
 		if message != nil {
-			copy(op.hash[:], message.Hash[:])
-			op.index = message.Index
+			copy(op.Hash[:], message.Hash[:])
+			op.Index = message.Index
 			return nil
 		}
 		return ErrEmptyProtoMessage
@@ -201,12 +201,12 @@ func (op *OutPoint) Deserialize(message proto.Message) error {
 	return ErrInvalidOutPointProtoMessage
 }
 
-// Hash return tx hash
-func (tx *Transaction) Hash() (*crypto.HashType, error) {
-	if tx.hash != nil {
-		return tx.hash, nil
+// TxHash return tx hash
+func (tx *Transaction) TxHash() (*crypto.HashType, error) {
+	if tx.Hash != nil {
+		return tx.Hash, nil
 	}
-	pbtx, err := tx.msgTx.Serialize()
+	pbtx, err := tx.MsgTx.Serialize()
 	if err != nil {
 		return nil, err
 	}

@@ -10,9 +10,8 @@ message BlockHeader {
     int32 version = 1;
     bytes prev_block_hash = 2;
     bytes txs_root = 3;
-    int64 timestamp = 4;
-    bytes coinbase = 5;
-    uint32 magic = 6;
+    int64 time_stamp = 4;
+    uint32 magic = 5;
 }
 
 message MsgBlock {

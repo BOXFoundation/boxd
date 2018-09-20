@@ -27,7 +27,7 @@ func BuildMerkleRoot(txs []*Transaction) []*crypto.HashType {
 	arraySize := leafSize*2 - 1
 	merkles := make([]*crypto.HashType, arraySize)
 	for i, tx := range txs {
-		hash, err := tx.Hash()
+		hash, err := tx.TxHash()
 		if err != nil {
 			return nil
 		}

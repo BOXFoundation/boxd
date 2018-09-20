@@ -24,27 +24,22 @@ var (
 // block (MsgBlock) and headers (MsgHeaders) messages.
 type BlockHeader struct {
 	// Version of the block.  This is not the same as the protocol version.
-	version int32
+	Version int32
 
 	// Hash of the previous block header in the block chain.
-	prevBlockHash crypto.HashType
+	PrevBlockHash crypto.HashType
 
 	// Merkle tree reference to hash of all transactions for the block.
-	txsRoot crypto.HashType
+	TxsRoot crypto.HashType
 
-	dposContextRoot DposContext
+	DposContextRoot DposContext
 
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
-	timestamp int64
-
-	coinbase []byte
+	TimeStamp int64
 
 	// Distinguish between mainnet and testnet.
-	magic uint32
-
-	// Nonce used to generate the block.
-	nonce uint32
+	Magic uint32
 }
 
 // DposContext define struct
@@ -54,20 +49,19 @@ type DposContext struct {
 
 // MsgBlock defines a block containing header and transactions within it.
 type MsgBlock struct {
-	header *BlockHeader
-	txs    []*MsgTx
+	Header *BlockHeader
+	Txs    []*MsgTx
 }
 
 // Serialize block header to proto message.
 func (header *BlockHeader) Serialize() (proto.Message, error) {
 
 	return &corepb.BlockHeader{
-		Version:       header.version,
-		PrevBlockHash: header.prevBlockHash[:],
-		TxsRoot:       header.txsRoot[:],
-		Timestamp:     header.timestamp,
-		Coinbase:      header.coinbase,
-		Magic:         header.magic,
+		Version:       header.Version,
+		PrevBlockHash: header.PrevBlockHash[:],
+		TxsRoot:       header.TxsRoot[:],
+		TimeStamp:     header.TimeStamp,
+		Magic:         header.Magic,
 	}, nil
 }
 
@@ -76,12 +70,11 @@ func (header *BlockHeader) Deserialize(message proto.Message) error {
 
 	if message, ok := message.(*corepb.BlockHeader); ok {
 		if message != nil {
-			header.version = message.Version
-			copy(header.prevBlockHash[:], message.PrevBlockHash[:])
-			copy(header.txsRoot[:], message.TxsRoot[:])
-			header.timestamp = message.Timestamp
-			header.coinbase = message.Coinbase
-			header.magic = message.Magic
+			header.Version = message.Version
+			copy(header.PrevBlockHash[:], message.PrevBlockHash[:])
+			copy(header.TxsRoot[:], message.TxsRoot[:])
+			header.TimeStamp = message.TimeStamp
+			header.Magic = message.Magic
 			return nil
 		}
 		return ErrEmptyProtoMessage
@@ -93,10 +86,10 @@ func (header *BlockHeader) Deserialize(message proto.Message) error {
 // Serialize block to proto message.
 func (msgBlock *MsgBlock) Serialize() (proto.Message, error) {
 
-	header, _ := msgBlock.header.Serialize()
+	header, _ := msgBlock.Header.Serialize()
 	if header, ok := header.(*corepb.BlockHeader); ok {
 		var txs []*corepb.MsgTx
-		for _, v := range msgBlock.txs {
+		for _, v := range msgBlock.Txs {
 			tx, err := v.Serialize()
 			if err != nil {
 				return nil, err
@@ -131,8 +124,8 @@ func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 				}
 				txs = append(txs, tx)
 			}
-			msgBlock.header = header
-			msgBlock.txs = txs
+			msgBlock.Header = header
+			msgBlock.Txs = txs
 			return nil
 		}
 		return ErrEmptyProtoMessage

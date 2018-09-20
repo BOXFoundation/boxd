@@ -10,6 +10,7 @@ import (
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
+	"github.com/BOXFoundation/Quicksilver/storage"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
@@ -30,6 +31,8 @@ type BlockChain struct {
 	notifiee      p2p.Net
 	newblockMsgCh chan p2p.Message
 	txpool        *TransactionPool
+	db            storage.Storage
+	genesis       *types.MsgBlock
 	proc          goprocess.Process
 
 	// Actually a tree-shaped structure where any node can have
@@ -48,14 +51,68 @@ type BlockChain struct {
 }
 
 // NewBlockChain return a blockchain.
-func NewBlockChain(parent goprocess.Process, notifiee p2p.Net) *BlockChain {
+func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage) (*BlockChain, error) {
 
-	return &BlockChain{
+	b := &BlockChain{
 		notifiee:      notifiee,
 		newblockMsgCh: make(chan p2p.Message, BlockMsgChBufferSize),
 		proc:          goprocess.WithParent(parent),
 		txpool:        NewTransactionPool(parent, notifiee),
+		db:            db,
 	}
+	genesis, err := b.loadGenesis()
+	if err != nil {
+		return nil, err
+	}
+	b.genesis = genesis
+
+	return b, nil
+}
+
+func (chain *BlockChain) loadGenesis() (*types.MsgBlock, error) {
+
+	if ok, _ := chain.db.Has(genesisHash[:]); !ok {
+		genesis, err := chain.LoadBlockByHashFromDb(genesisHash)
+		if err != nil {
+			return nil, err
+		}
+		return genesis, nil
+	}
+
+	genesispb, err := genesisBlock.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	genesisBin, err := proto.Marshal(genesispb)
+	chain.db.Put(genesisHash[:], genesisBin)
+
+	genesis := new(types.MsgBlock)
+	if err := genesis.Deserialize(genesispb); err != nil {
+		return nil, err
+	}
+
+	return genesis, nil
+}
+
+// LoadBlockByHashFromDb load block by hash from db.
+func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.MsgBlock, error) {
+
+	blockBin, err := chain.db.Get(hash[:])
+	if err != nil {
+		return nil, err
+	}
+
+	pbblock := new(corepb.MsgBlock)
+	if err := proto.Unmarshal(blockBin, pbblock); err != nil {
+		return nil, err
+	}
+
+	block := new(types.MsgBlock)
+	if err := block.Deserialize(pbblock); err != nil {
+		return nil, err
+	}
+
+	return block, nil
 }
 
 // Run launch blockchain.
