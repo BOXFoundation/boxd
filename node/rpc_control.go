@@ -32,7 +32,7 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *ctlpb.DebugLevelReque
 		logger.Info(info)
 		return &ctlpb.Reply{Code: 1, Message: info}, nil
 	}
-	var info = fmt.Sprintf("Set debug level %s", logger.LogLevel())
+	var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
 	logger.Infof(info)
 	return &ctlpb.Reply{Code: 0, Message: info}, nil
 }

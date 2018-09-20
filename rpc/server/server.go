@@ -55,6 +55,7 @@ func NewServer(parent goprocess.Process, cfg *Config) (*Server, error) {
 
 func (s *Server) serve(proc goprocess.Process) {
 	var addr = fmt.Sprintf("%s:%d", s.cfg.Address, s.cfg.Port)
+	logger.Infof("Starting gRPC server at %s", addr)
 	lis, err := net.Listen("tcp4", addr)
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)
