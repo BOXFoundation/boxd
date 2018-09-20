@@ -119,6 +119,7 @@ require (
 	github.com/whyrusleeping/yamux v0.0.0-20180713144751-cb29a700b01d // indirect
 	golang.org/x/arch v0.0.0-20180516175055-5de9028c2478 // indirect
 	golang.org/x/crypto v0.0.0-20180904163835-0709b304e793
+	golang.org/x/net v0.0.0-20180826012351-8a410e7b638d
 	golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b // indirect
 	google.golang.org/grpc v0.0.0-20180905221542-0150fc5d50cc

@@ -12,6 +12,7 @@ import (
 
 	log "github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
+	rpc "github.com/BOXFoundation/Quicksilver/rpc/server"
 	"github.com/BOXFoundation/Quicksilver/storage"
 )
 
@@ -22,6 +23,7 @@ type Config struct {
 	Network   string         `mapstructure:"network"`
 	Log       log.Config     `mapstructure:"log"`
 	P2p       p2p.Config     `mapstructure:"p2p"`
+	RPC       rpc.Config     `mapstructure:"rpc"`
 	Database  storage.Config `mapstructure:"database"`
 }
 

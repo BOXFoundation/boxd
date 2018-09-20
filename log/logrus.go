@@ -49,6 +49,18 @@ func (log *logrusLogger) entry() *logrus.Entry {
 	})
 }
 
+// SetLogLevel is to set the log level
+func (log *logrusLogger) SetLogLevel(level string) {
+	if lvl, err := logrus.ParseLevel(level); err == nil {
+		log.logger.Level = lvl
+	}
+}
+
+// SetLogLevel is to set the log level
+func (log *logrusLogger) LogLevel() string {
+	return log.logger.Level.String()
+}
+
 // Debugf prints Debug level log
 func (log *logrusLogger) Debugf(f string, v ...interface{}) {
 	log.entry().Debugf(f, v...)
