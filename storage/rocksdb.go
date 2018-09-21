@@ -23,7 +23,7 @@ type rocksdbStorage struct {
 
 	// synchronize access to the storage
 	mutex sync.Mutex
-	//
+	// check if data is batch
 	isBatch         bool
 	batchPutOptions map[string]*batchOption
 	batchDelOptions map[string]*batchOption
