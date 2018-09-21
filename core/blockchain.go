@@ -93,8 +93,8 @@ type BlockChain struct {
 	newblockMsgCh chan p2p.Message
 	txpool        *TransactionPool
 	db            storage.Storage
-	genesis       *types.MsgBlock
-	tail          *types.MsgBlock
+	genesis       *types.Block
+	tail          *types.Block
 	proc          goprocess.Process
 
 	// longest chain
@@ -139,12 +139,17 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	return b, nil
 }
 
-func (chain *BlockChain) loadGenesis() (*types.MsgBlock, error) {
+func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 	if ok, _ := chain.db.Has(genesisHash[:]); ok {
-		genesis, err := chain.LoadBlockByHashFromDb(genesisHash)
+		genesisMsgBlock, err := chain.LoadBlockByHashFromDb(genesisHash)
 		if err != nil {
 			return nil, err
+		}
+		genesis := &types.Block{
+			Hash:     &genesisHash,
+			MsgBlock: genesisMsgBlock,
+			Height:   0,
 		}
 		return genesis, nil
 	}
@@ -156,10 +161,16 @@ func (chain *BlockChain) loadGenesis() (*types.MsgBlock, error) {
 	genesisBin, err := proto.Marshal(genesispb)
 	chain.db.Put(genesisHash[:], genesisBin)
 
-	return &genesisBlock, nil
+	genesis := &types.Block{
+		Hash:     &genesisHash,
+		MsgBlock: &genesisBlock,
+		Height:   0,
+	}
+	return genesis, nil
+
 }
 
-func (chain *BlockChain) loadTailBlock() (*types.MsgBlock, error) {
+func (chain *BlockChain) loadTailBlock() (*types.Block, error) {
 
 	if ok, _ := chain.db.Has([]byte(Tail)); ok {
 		tailBin, err := chain.db.Get([]byte(Tail))
@@ -172,11 +183,16 @@ func (chain *BlockChain) loadTailBlock() (*types.MsgBlock, error) {
 			return nil, err
 		}
 
-		tail := new(types.MsgBlock)
-		if err := tail.Deserialize(pbblock); err != nil {
+		tailMsgBlock := new(types.MsgBlock)
+		if err := tailMsgBlock.Deserialize(pbblock); err != nil {
 			return nil, err
 		}
 
+		tail := &types.Block{
+			Hash:     &genesisHash,
+			MsgBlock: tailMsgBlock,
+			Height:   0,
+		}
 		return tail, nil
 
 	}
@@ -191,7 +207,13 @@ func (chain *BlockChain) loadTailBlock() (*types.MsgBlock, error) {
 	}
 	chain.db.Put([]byte(Tail), tailBin)
 
-	return &genesisBlock, nil
+	tail := &types.Block{
+		Hash:     &genesisHash,
+		MsgBlock: &genesisBlock,
+		Height:   0,
+	}
+
+	return tail, nil
 
 }
 
@@ -538,7 +560,7 @@ func sanityCheckBlock(block *types.MsgBlock, timeSource util.MedianTimeSource) e
 	// Build merkle tree and ensure the calculated merkle root matches the entry in the block header.
 	// TODO: caching all of the transaction hashes in the block to speed up future hashing
 	calculatedMerkleRoot := util.CalcTxsHash(block.Txs)
-	if header.TxsRoot != *calculatedMerkleRoot {
+	if !header.TxsRoot.IsEqual(calculatedMerkleRoot) {
 		logger.Errorf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
 			header.TxsRoot, *calculatedMerkleRoot)
@@ -570,4 +592,9 @@ func sanityCheckBlock(block *types.MsgBlock, timeSource util.MedianTimeSource) e
 	}
 
 	return nil
+}
+
+// TailBlock return chain tail block.
+func (chain *BlockChain) TailBlock() *types.Block {
+	return chain.tail
 }

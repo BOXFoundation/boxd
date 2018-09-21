@@ -36,3 +36,14 @@ func DoubleHashH(b []byte) HashType {
 	first := sha256.Sum256(b)
 	return HashType(sha256.Sum256(first[:]))
 }
+
+// IsEqual returns true if target is the same as hash.
+func (hash *HashType) IsEqual(target *HashType) bool {
+	if hash == nil && target == nil {
+		return true
+	}
+	if hash == nil || target == nil {
+		return false
+	}
+	return *hash == *target
+}
