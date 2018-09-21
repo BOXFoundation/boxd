@@ -2,6 +2,17 @@
 
 A Go implementation of BOX Payout blockchain. 
 
+# Prerequisite
+## OS X:
+
+Install Go 1.11 or higher version.
+
+Install homebrew.
+
+Install rocksdb.
+
+`brew install rocksdb`
+
 # Building the Source
 
 ## Dependencies

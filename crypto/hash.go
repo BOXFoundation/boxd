@@ -30,3 +30,10 @@ func Sha256(buf []byte) []byte {
 	digest := sha256.Sum256(buf)
 	return digest[:]
 }
+
+// DoubleHashH calculates hash(hash(b)) and returns the resulting bytes as a
+// Hash.
+func DoubleHashH(b []byte) HashType {
+	first := sha256.Sum256(b)
+	return HashType(sha256.Sum256(first[:]))
+}

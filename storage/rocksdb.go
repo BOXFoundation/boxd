@@ -38,8 +38,7 @@ type batchOption struct {
 var _ Storage = (*rocksdbStorage)(nil)
 
 // NewRocksDBStorage initializes the storage
-func NewRocksDBStorage(path string) (Storage, error) {
-	// NewDefaultBlockBasedTableOptions is used to create a default BlockBasedTableOptions object
+func NewRocksDBStorage(cfg *Config) (Storage, error) {
 	bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
 
 	// If your working dataset does not fit in memory, you'll want to add a bloom filter to your database.
@@ -57,7 +56,7 @@ func NewRocksDBStorage(path string) (Storage, error) {
 	options.SetBlockBasedTableFactory(bbto)
 	options.SetCreateIfMissing(true)
 
-	db, err := gorocksdb.OpenDb(options, path)
+	db, err := gorocksdb.OpenDb(options, cfg.Path)
 	if err != nil {
 		return nil, err
 	}

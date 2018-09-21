@@ -5,16 +5,20 @@
 package core
 
 import (
+	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p"
+	"github.com/BOXFoundation/Quicksilver/storage"
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
 
 // const defines constants
 const (
 	BlockMsgChBufferSize = 1024
+	Tail                 = "tail_block"
 )
 
 var logger log.Logger // logger
@@ -28,32 +32,127 @@ type BlockChain struct {
 	notifiee      p2p.Net
 	newblockMsgCh chan p2p.Message
 	txpool        *TransactionPool
+	db            storage.Storage
+	genesis       *types.MsgBlock
+	tail          *types.MsgBlock
 	proc          goprocess.Process
 
 	// Actually a tree-shaped structure where any node can have
 	// multiple children.  However, there can only be one active branch (longest) which does
 	// indeed form a chain from the tip all the way back to the genesis block.
-	hashToBlock map[crypto.HashType]*types.Block
+	hashToBlock map[crypto.HashType]*types.MsgBlock
 
 	// longest chain
 	longestChainHeight int
-	longestChainTip    *types.Block
+	longestChainTip    *types.MsgBlock
 
 	// orphan block pool
-	hashToOrphanBlockmap map[crypto.HashType]*types.Block
+	hashToOrphanBlockmap map[crypto.HashType]*types.MsgBlock
 	// orphan block's parents; one parent can have multiple orphan children
-	parentToOrphanBlock map[crypto.HashType]*types.Block
+	parentToOrphanBlock map[crypto.HashType]*types.MsgBlock
 }
 
 // NewBlockChain return a blockchain.
-func NewBlockChain(parent goprocess.Process, notifiee p2p.Net) *BlockChain {
+func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage) (*BlockChain, error) {
 
-	return &BlockChain{
+	b := &BlockChain{
 		notifiee:      notifiee,
 		newblockMsgCh: make(chan p2p.Message, BlockMsgChBufferSize),
 		proc:          goprocess.WithParent(parent),
 		txpool:        NewTransactionPool(parent, notifiee),
+		db:            db,
 	}
+
+	genesis, err := b.loadGenesis()
+	if err != nil {
+		return nil, err
+	}
+	b.genesis = genesis
+
+	tail, err := b.loadTailBlock()
+	if err != nil {
+		return nil, err
+	}
+	b.tail = tail
+
+	return b, nil
+}
+
+func (chain *BlockChain) loadGenesis() (*types.MsgBlock, error) {
+
+	if ok, _ := chain.db.Has(genesisHash[:]); ok {
+		genesis, err := chain.LoadBlockByHashFromDb(genesisHash)
+		if err != nil {
+			return nil, err
+		}
+		return genesis, nil
+	}
+
+	genesispb, err := genesisBlock.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	genesisBin, err := proto.Marshal(genesispb)
+	chain.db.Put(genesisHash[:], genesisBin)
+
+	return &genesisBlock, nil
+}
+
+func (chain *BlockChain) loadTailBlock() (*types.MsgBlock, error) {
+
+	if ok, _ := chain.db.Has([]byte(Tail)); ok {
+		tailBin, err := chain.db.Get([]byte(Tail))
+		if err != nil {
+			return nil, err
+		}
+
+		pbblock := new(corepb.MsgBlock)
+		if err := proto.Unmarshal(tailBin, pbblock); err != nil {
+			return nil, err
+		}
+
+		tail := new(types.MsgBlock)
+		if err := tail.Deserialize(pbblock); err != nil {
+			return nil, err
+		}
+
+		return tail, nil
+
+	}
+
+	tailpb, err := genesisBlock.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	tailBin, err := proto.Marshal(tailpb)
+	if err != nil {
+		return nil, err
+	}
+	chain.db.Put([]byte(Tail), tailBin)
+
+	return &genesisBlock, nil
+
+}
+
+// LoadBlockByHashFromDb load block by hash from db.
+func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.MsgBlock, error) {
+
+	blockBin, err := chain.db.Get(hash[:])
+	if err != nil {
+		return nil, err
+	}
+
+	pbblock := new(corepb.MsgBlock)
+	if err := proto.Unmarshal(blockBin, pbblock); err != nil {
+		return nil, err
+	}
+
+	block := new(types.MsgBlock)
+	if err := block.Deserialize(pbblock); err != nil {
+		return nil, err
+	}
+
+	return block, nil
 }
 
 // Run launch blockchain.
@@ -80,6 +179,24 @@ func (chain *BlockChain) loop() {
 	}
 }
 
-func (chain *BlockChain) processBlock(msg p2p.Message) {
+func (chain *BlockChain) processBlock(msg p2p.Message) error {
 
+	body := msg.Body()
+	pbblock := new(corepb.MsgBlock)
+	if err := proto.Unmarshal(body, pbblock); err != nil {
+		return err
+	}
+	block := new(types.MsgBlock)
+	if err := block.Deserialize(pbblock); err != nil {
+		return err
+	}
+
+	// process block
+	chain.handleBlock(block)
+
+	return nil
+}
+
+func (chain *BlockChain) handleBlock(block *types.MsgBlock) error {
+	return nil
 }

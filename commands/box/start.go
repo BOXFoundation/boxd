@@ -29,10 +29,13 @@ func init() {
 	startCmd.Flags().StringSlice("addpeer", []string{}, "addresse and port of remote peers, seperated by comma.")
 	startCmd.Flags().IP("listen-addr", net.IPv4zero, "local p2p listen address.")
 	startCmd.Flags().Uint("listen-port", DefaultPeerPort, "local p2p listen port.")
+	startCmd.Flags().String("database", "rocksdb", "database name [rocksdb|mem]")
 
 	viper.BindPFlag("p2p.addpeer", startCmd.Flags().Lookup("addpeer"))
 	viper.BindPFlag("p2p.address", startCmd.Flags().Lookup("listen-addr"))
 	viper.BindPFlag("p2p.port", startCmd.Flags().Lookup("listen-port"))
+
+	viper.BindPFlag("database.name", startCmd.Flags().Lookup("database"))
 
 	viper.SetDefault("p2p.key_path", "peer.key")
 }

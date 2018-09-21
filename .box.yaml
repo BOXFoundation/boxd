@@ -1,5 +1,7 @@
 # network: mainnet
 # workspace: ~/.boxd
+# database:
+#     name: rocksdb
 log:
     out:
         name: stderr # stdout|stderr|null
