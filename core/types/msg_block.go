@@ -33,10 +33,10 @@ type BlockHeader struct {
 	Version int32
 
 	// Hash of the previous block header in the block chain.
-	PrevBlockHash *crypto.HashType
+	PrevBlockHash crypto.HashType
 
 	// Merkle tree reference to hash of all transactions for the block.
-	TxsRoot *crypto.HashType
+	TxsRoot crypto.HashType
 
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.

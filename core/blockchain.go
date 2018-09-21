@@ -309,13 +309,13 @@ func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error)
 	logger.Infof("Processing block %v", blockHash)
 
 	// The block must not already exist in the main chain or side chains.
-	if exists := chain.blockExists(blockHash); exists {
+	if exists := chain.blockExists(*blockHash); exists {
 		logger.Warnf("already have block %v", blockHash)
 		return false, false, ErrBlockExists
 	}
 
 	// The block must not already exist as an orphan.
-	if _, exists := chain.hashToOrphanBlock[blockHash]; exists {
+	if _, exists := chain.hashToOrphanBlock[*blockHash]; exists {
 		logger.Warnf("already have block (orphan) %v", blockHash)
 		return false, false, ErrBlockExists
 	}
@@ -329,7 +329,7 @@ func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error)
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 		logger.Infof("Adding orphan block %v with parent %v", blockHash, prevHash)
-		chain.addOrphanBlock(block, blockHash, prevHash)
+		chain.addOrphanBlock(block, *blockHash, prevHash)
 
 		return false, true, nil
 	}

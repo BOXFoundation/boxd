@@ -39,8 +39,8 @@ var genesisMerkleRoot = crypto.HashType([crypto.HashSize]byte{})
 var genesisBlock = types.MsgBlock{
 	Header: &types.BlockHeader{
 		Version:       1,
-		PrevBlockHash: &crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
-		TxsRoot:       &genesisMerkleRoot,
+		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
+		TxsRoot:       genesisMerkleRoot,
 		TimeStamp:     time.Now().UnixNano(),
 	},
 	Txs: []*types.MsgTx{&genesisCoinbaseTx},

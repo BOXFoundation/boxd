@@ -23,7 +23,7 @@ func NewBlock(parent *Block) *Block {
 		MsgBlock: &MsgBlock{
 			Header: &BlockHeader{
 				Magic:         parent.MsgBlock.Header.Magic,
-				PrevBlockHash: parent.Hash,
+				PrevBlockHash: *parent.Hash,
 				TimeStamp:     time.Now().Unix(),
 			},
 			Txs: make([]*MsgTx, 0),
