@@ -11,7 +11,7 @@ import (
 	"github.com/BOXFoundation/Quicksilver/util"
 )
 
-// memoryStorage the nodes in concurrent map
+// memoryStorage the data in concurrent map
 type memoryStorage struct {
 	sm *sync.Map
 }
@@ -45,7 +45,7 @@ func (ms *memoryStorage) Del(key []byte) error {
 	return nil
 }
 
-// Has is used to check if the key existes
+// Has is used to check if the key exists
 func (ms *memoryStorage) Has(key []byte) (bool, error) {
 	_, ok := ms.sm.Load(util.Hex(key))
 	return ok, nil
