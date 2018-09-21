@@ -21,18 +21,21 @@ const (
 type rocksdbStorage struct {
 	db *gorocksdb.DB
 
-	mutex        sync.Mutex
-	isBatch      bool
-	batchOptions map[string]*batchOption
+	// synchronize access to the storage
+	mutex sync.Mutex
+	//
+	isBatch         bool
+	batchPutOptions map[string]*batchOption
+	batchDelOptions map[string]*batchOption
 
 	readOptions  *gorocksdb.ReadOptions
 	writeOptions *gorocksdb.WriteOptions
 }
 
 type batchOption struct {
-	key     []byte
-	value   []byte
-	deleted bool
+	key    []byte
+	value  []byte
+	delete bool
 }
 
 var _ Storage = (*rocksdbStorage)(nil)
@@ -44,11 +47,7 @@ func NewRocksDBStorage(cfg *Config) (Storage, error) {
 	// If your working dataset does not fit in memory, you'll want to add a bloom filter to your database.
 	// NewBloomFilter creates a new initialized bloom filter for given bitsPerKey
 	filter := gorocksdb.NewBloomFilter(bloomfilterBitsPerKey)
-
-	// SetFilterPolicy sets the filter policy opts reduce disk reads
 	bbto.SetFilterPolicy(filter)
-
-	// SetBlockCache sets the control over blocks (user data is stored in a set of blocks, and a block is the unit of reading from disk)
 	bbto.SetBlockCache(gorocksdb.NewLRUCache(lruCacheSize))
 
 	// NewDefaultOptions builds a set of options
@@ -62,14 +61,12 @@ func NewRocksDBStorage(cfg *Config) (Storage, error) {
 	}
 
 	dbstorage := &rocksdbStorage{
-		db: db,
-		// NewDefaultReadOptions creates a default ReadOptions object
-		readOptions: gorocksdb.NewDefaultReadOptions(),
-
-		// NewDefaultWriteOptions creates a default WriteOptions object
-		writeOptions: gorocksdb.NewDefaultWriteOptions(),
-		batchOptions: make(map[string]*batchOption),
-		isBatch:      false,
+		db:              db,
+		readOptions:     gorocksdb.NewDefaultReadOptions(),
+		writeOptions:    gorocksdb.NewDefaultWriteOptions(),
+		batchDelOptions: make(map[string]*batchOption),
+		batchPutOptions: make(map[string]*batchOption),
+		isBatch:         false,
 	}
 	return dbstorage, nil
 }
@@ -80,10 +77,10 @@ func (dbstorage *rocksdbStorage) Put(key []byte, value []byte) error {
 		dbstorage.mutex.Lock()
 		defer dbstorage.mutex.Unlock()
 
-		dbstorage.batchOptions[util.Hex(key)] = &batchOption{
-			key:     key,
-			value:   value,
-			deleted: false,
+		dbstorage.batchPutOptions[util.Hex(key)] = &batchOption{
+			key:    key,
+			value:  value,
+			delete: false,
 		}
 	}
 	return dbstorage.db.Put(dbstorage.writeOptions, key, value)
@@ -106,9 +103,9 @@ func (dbstorage *rocksdbStorage) Del(key []byte) error {
 	if dbstorage.isBatch {
 		dbstorage.mutex.Lock()
 		defer dbstorage.mutex.Unlock()
-		dbstorage.batchOptions[util.Hex(key)] = &batchOption{
-			key:     key,
-			deleted: true,
+		dbstorage.batchDelOptions[util.Hex(key)] = &batchOption{
+			key:    key,
+			delete: true,
 		}
 		return nil
 	}
@@ -134,9 +131,7 @@ func (dbstorage *rocksdbStorage) Keys() [][]byte {
 	defer iter.Close()
 
 	for iter.SeekToFirst(); iter.Valid(); iter.Next() {
-		key := make([]byte, 4)
-		copy(key, iter.Key().Data())
-		keys = append(keys, key)
+		keys = append(keys, iter.Key().Data())
 	}
 	return keys
 }
@@ -152,15 +147,16 @@ func (dbstorage *rocksdbStorage) Flush() error {
 	writeBatch := gorocksdb.NewWriteBatch()
 	defer writeBatch.Destroy()
 
-	for _, option := range dbstorage.batchOptions {
-		if option.deleted {
-			writeBatch.Delete(option.key)
-		} else {
-			writeBatch.Put(option.key, option.value)
-		}
+	for _, putoption := range dbstorage.batchPutOptions {
+		writeBatch.Put(putoption.key, putoption.value)
 	}
 
-	dbstorage.batchOptions = make(map[string]*batchOption)
+	for _, deloption := range dbstorage.batchDelOptions {
+		writeBatch.Delete(deloption.key)
+	}
+
+	dbstorage.batchPutOptions = make(map[string]*batchOption)
+	dbstorage.batchDelOptions = make(map[string]*batchOption)
 
 	return dbstorage.db.Write(dbstorage.writeOptions, writeBatch)
 }
