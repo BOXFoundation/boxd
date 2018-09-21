@@ -20,6 +20,12 @@ var (
 	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
 )
 
+// MaxBlockHeaderPayload is the maximum number of bytes a block header can be.
+// version 4 bytes + timestamp 4 bytes + bits 4 bytes + nonce 4 bytes +
+// prevBlock and merkleRoot hashes + dposContextRoot.
+// TODO: fill in dposContextRoot length
+const MaxBlockHeaderPayload = 16 + (crypto.HashSize * 2) + 0
+
 // BlockHeader defines information about a block and is used in the
 // block (MsgBlock) and headers (MsgHeaders) messages.
 type BlockHeader struct {
@@ -34,12 +40,18 @@ type BlockHeader struct {
 
 	DposContextRoot DposContext
 
+	// Distinguish between mainnet and testnet.
+	Magic uint32
+
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
 	TimeStamp int64
 
-	// Distinguish between mainnet and testnet.
-	Magic uint32
+	// Difficulty target for the block.
+	Bits uint32
+
+	// Nonce used to generate the block.
+	Nonce uint32
 }
 
 // DposContext define struct
@@ -132,4 +144,17 @@ func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 	}
 
 	return ErrInvalidBlockProtoMessage
+}
+
+// BlockHash calculates hash of the block
+func (msgBlock *MsgBlock) BlockHash() (crypto.HashType, error) {
+	pbblock, err := msgBlock.Serialize()
+	if err != nil {
+		return crypto.HashType{}, err
+	}
+	rawMsgBlock, err := proto.Marshal(pbblock)
+	if err != nil {
+		return crypto.HashType{}, err
+	}
+	return crypto.DoubleHashH(rawMsgBlock), nil
 }

@@ -15,7 +15,7 @@ var genesisCoinbaseTx = types.MsgTx{
 	Version: 1,
 	Vin: []*types.TxIn{
 		{
-			PrevOutPoint: &types.OutPoint{
+			PrevOutPoint: types.OutPoint{
 				Hash:  crypto.HashType{},
 				Index: 0xffffffff,
 			},

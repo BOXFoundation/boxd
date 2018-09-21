@@ -2,15 +2,16 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package types
+package util
 
 import (
 	"math"
 
+	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 )
 
-// BuildMerkleRoot build transaction merkle trie
+// BuildMerkleRoot build transaction merkle tree
 //
 //	         root = h1234 = h(h12 + h34)
 //	        /                           \
@@ -21,13 +22,13 @@ import (
 // The above stored as a linear array is as follows:
 //
 // 	[h1 h2 h3 h4 h12 h34 root]
-func BuildMerkleRoot(txs []*Transaction) []*crypto.HashType {
+func BuildMerkleRoot(txs []*types.MsgTx) []*crypto.HashType {
 
 	leafSize := calcLowestHierarchyCount(len(txs))
 	arraySize := leafSize*2 - 1
 	merkles := make([]*crypto.HashType, arraySize)
 	for i, tx := range txs {
-		hash, err := tx.TxHash()
+		hash, err := tx.MsgTxHash()
 		if err != nil {
 			return nil
 		}
@@ -62,8 +63,9 @@ func calcLowestHierarchyCount(n int) int {
 }
 
 // CalcTxsHash calculate txsHash in block.
-func CalcTxsHash(txs []*Transaction) *crypto.HashType {
+func CalcTxsHash(txs []*types.MsgTx) *crypto.HashType {
 	txsHash := BuildMerkleRoot(txs)
+	// TODO: txsHash can be nil
 	return txsHash[len(txsHash)-1]
 }
 
