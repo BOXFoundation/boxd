@@ -6,6 +6,7 @@ package box
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path"
 	"strings"
@@ -17,6 +18,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// DefaultGRPCPort is the default listen port for box p2p message.
+const DefaultGRPCPort = 19191
 
 // logger
 var logger = log.NewLogger("box")
@@ -53,13 +57,21 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.box.yaml)")
 
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().StringP("network", "n", "mainnet", "network name (default mainnet)")
-	rootCmd.PersistentFlags().String("workspace", "", "work directory for boxd (default ~/.boxd)")
-	rootCmd.PersistentFlags().String("log-level", "info", "log level [debug|info|warn|error|fatal]")
 
-	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
+	rootCmd.PersistentFlags().StringP("network", "n", "mainnet", "network name (default mainnet)")
 	viper.BindPFlag("network", rootCmd.PersistentFlags().Lookup("network"))
+
+	rootCmd.PersistentFlags().String("workspace", "", "work directory for boxd (default ~/.boxd)")
 	viper.BindPFlag("workspace", rootCmd.PersistentFlags().Lookup("workspace"))
+
+	rootCmd.PersistentFlags().String("log-level", "info", "log level [debug|info|warn|error|fatal]")
+	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
+
+	rootCmd.PersistentFlags().IP("rpc-addr", net.ParseIP("127.0.0.1"), "rpc listen address.")
+	viper.BindPFlag("rpc.address", rootCmd.PersistentFlags().Lookup("rpc-addr"))
+
+	rootCmd.PersistentFlags().Uint("rpc-port", DefaultGRPCPort, "local p2p listen port.")
+	viper.BindPFlag("rpc.port", rootCmd.PersistentFlags().Lookup("rpc-port"))
 
 	// init subcommand
 	ctl.Init(rootCmd)

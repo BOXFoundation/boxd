@@ -1,0 +1,25 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package controlpb;
+
+// The box control command service definition.
+service ContorlCommand {
+    // set boxd debug level
+    rpc SetDebugLevel (DebugLevelRequest) returns (Reply) {}
+  }
+  
+  // The request message containing debug level.
+  message DebugLevelRequest {
+    string level = 1;
+  }
+  
+  // The response message containing the result message
+  message Reply {
+    int32   code = 1;
+    string message = 2;
+  }
+  

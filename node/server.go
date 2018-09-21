@@ -7,10 +7,12 @@ package node
 import (
 	"os"
 	"runtime"
+	"sync"
 
 	config "github.com/BOXFoundation/Quicksilver/config"
 	"github.com/BOXFoundation/Quicksilver/log"
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
+	grpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
 	storage "github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
@@ -19,40 +21,55 @@ import (
 // RootProcess is the root process of the app
 var RootProcess goprocess.Process
 
-var logger log.Logger
+var logger = log.NewLogger("node")
 
 func init() {
 	RootProcess = goprocess.WithSignals(os.Interrupt)
-	logger = log.NewLogger("node")
 }
+
+// nodeServer is the boxd server instance, which contains all services,
+// including grpc, p2p, database...
+var nodeServer = struct {
+	sm sync.Mutex
+
+	cfg      config.Config
+	database *storage.Database
+	peer     *p2p.BoxPeer
+	grpcsvr  *grpcserver.Server
+}{}
 
 // Start function starts node server.
 func Start(v *viper.Viper) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	var cfg = &nodeServer.cfg
 	// init config object from viper
-	var config config.Config
-	if err := v.Unmarshal(&config); err != nil {
-		logger.Fatal("Failed to read config", err) // exit in case of config error
+	if err := v.Unmarshal(cfg); err != nil {
+		logger.Fatal("Failed to read cfg", err) // exit in case of cfg error
 	}
 
-	config.Prepare() // make sure the config is correct and all directories are ok.
+	cfg.Prepare() // make sure the cfg is correct and all directories are ok.
 
-	log.Setup(&config.Log) // setup logger
+	log.Setup(&cfg.Log) // setup logger
 
 	// start database life cycle
-	var database, err = storage.NewDatabase(RootProcess, &config.Database)
-	var _ = database // TODO use database later...
+	var database, err = storage.NewDatabase(RootProcess, &cfg.Database)
 	if err != nil {
 		logger.Fatal("Failed to initialize database...") // exit in case of error during initialization of database
 	}
+	nodeServer.database = database
 
-	peer, err := p2p.NewBoxPeer(&config.P2p, RootProcess)
+	peer, err := p2p.NewBoxPeer(&cfg.P2p, RootProcess)
 	if err != nil {
 		logger.Error("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 		RootProcess.Close()
 	} else {
-		peer.Bootstrap()
+		nodeServer.peer = peer
+		nodeServer.peer.Bootstrap()
+	}
+
+	if cfg.RPC.Enabled {
+		nodeServer.grpcsvr, _ = grpcserver.NewServer(RootProcess, &cfg.RPC)
 	}
 
 	// var host, err = p2p.NewDefaultHost(RootProcess, net.ParseIP(v.GetString("node.listen.address")), uint(v.GetInt("node.listen.port")))
