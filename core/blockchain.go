@@ -119,10 +119,10 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		notifiee:      notifiee,
 		newblockMsgCh: make(chan p2p.Message, BlockMsgChBufferSize),
 		proc:          goprocess.WithParent(parent),
-		txpool:        NewTransactionPool(parent, notifiee),
 		db:            db,
 	}
 
+	b.txpool = NewTransactionPool(parent, notifiee, b)
 	genesis, err := b.loadGenesis()
 	if err != nil {
 		return nil, err
@@ -596,4 +596,33 @@ func sanityCheckBlock(block *types.MsgBlock, timeSource util.MedianTimeSource) e
 // TailBlock return chain tail block.
 func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
+}
+
+//LoadUnspentUtxo load related unspent utxo
+func (chain *BlockChain) LoadUnspentUtxo(tx *types.MsgTx) (*UtxoUnspentCache, error) {
+
+	outPointMap := make(map[types.OutPoint]struct{})
+	hash, err := tx.MsgTxHash()
+	if err != nil {
+		return nil, err
+	}
+	prevOut := types.OutPoint{Hash: *hash}
+	for txOutIdx := range tx.Vout {
+		prevOut.Index = uint32(txOutIdx)
+		outPointMap[prevOut] = struct{}{}
+	}
+	if !IsCoinBase(tx) {
+		for _, txIn := range tx.Vin {
+			outPointMap[txIn.PrevOutPoint] = struct{}{}
+		}
+	}
+
+	// Request the utxos from the point of view of the end of the main
+	// chain.
+	uup := NewUtxoUnspentCache()
+
+	// TODO: add mutex?
+	err = uup.LoadUtxoFromDB(chain.db, outPointMap)
+
+	return uup, err
 }
