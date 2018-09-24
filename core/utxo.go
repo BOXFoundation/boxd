@@ -25,7 +25,7 @@ type UtxoUnspentCache struct {
 type UtxoWrap struct {
 	Value        int64
 	ScriptPubKey []byte
-	BlockHeight  int
+	BlockHeight  int32
 	IsPacked     bool
 	IsCoinbase   bool
 }
@@ -64,7 +64,7 @@ func (uw *UtxoWrap) Deserialize(message proto.Message) error {
 		if message != nil {
 			uw.Value = message.Value
 			uw.ScriptPubKey = message.ScriptPubKey
-			uw.BlockHeight = int(message.BlockHeight)
+			uw.BlockHeight = message.BlockHeight
 			uw.IsPacked = message.IsPacked
 			uw.IsCoinbase = message.IsCoinbase
 			return nil
@@ -91,7 +91,7 @@ func (uup *UtxoUnspentCache) RemoveByOutPoint(outpoint types.OutPoint) {
 }
 
 // AddTxOuts adds all outputs in the passed transaction.
-func (uup *UtxoUnspentCache) AddTxOuts(tx *types.Transaction, height int) {
+func (uup *UtxoUnspentCache) AddTxOuts(tx *types.Transaction, height int32) {
 	// isCoinBase := IsCoinBase(tx.MsgTx)
 	prevOut := types.OutPoint{Hash: *tx.Hash}
 	for txOutIdx, txOut := range tx.MsgTx.Vout {
@@ -100,7 +100,7 @@ func (uup *UtxoUnspentCache) AddTxOuts(tx *types.Transaction, height int) {
 	}
 }
 
-func (uup *UtxoUnspentCache) addTxOut(prevOut types.OutPoint, txOut *types.TxOut, height int) {
+func (uup *UtxoUnspentCache) addTxOut(prevOut types.OutPoint, txOut *types.TxOut, height int32) {
 	utxowrap := uup.FindByOutPoint(prevOut)
 	if utxowrap == nil {
 		utxowrap = new(UtxoWrap)

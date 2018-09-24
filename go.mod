@@ -8,6 +8,9 @@ require (
 	github.com/acroca/go-symbols v0.0.0-20180523203557-953befd75e22 // indirect
 	github.com/axw/gocov v0.0.0-20170322000131-3a69a0d2a4ef // indirect
 	github.com/btcsuite/btcd v0.0.0-20180903232927-cff30e1d23fc
+	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
+	github.com/btcsuite/btcutil v0.0.0-20180706230648-ab6388e0c60a // indirect
+	github.com/btcsuite/goleveldb v1.0.0 // indirect
 	github.com/coreos/go-semver v0.0.0-20180108230905-e214231b295a // indirect
 	github.com/cosiner/argv v0.0.0-20170225145430-13bacc38a0a5 // indirect
 	github.com/derekparker/delve v1.1.0 // indirect
