@@ -95,6 +95,7 @@ require (
 	github.com/multiformats/go-multicodec v0.1.6 // indirect
 	github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3 // indirect
 	github.com/multiformats/go-multistream v0.3.9 // indirect
+	github.com/onrik/logrus v0.0.0-20180801161715-ca0a758702be
 	github.com/opentracing/opentracing-go v0.0.0-20180606204148-bd9c31933947 // indirect
 	github.com/peterh/liner v1.1.0 // indirect
 	github.com/ramya-rao-a/go-outline v0.0.0-20170803230019-9e9d089bb61a // indirect

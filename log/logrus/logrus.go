@@ -9,8 +9,9 @@ import (
 	log "github.com/BOXFoundation/Quicksilver/log/types"
 	"github.com/heirko/go-contrib/logrusHelper"
 	mate "github.com/heralight/logrus_mate"
-	_ "github.com/heralight/logrus_mate/hooks/file"  // file log hook
-	_ "github.com/heralight/logrus_mate/hooks/slack" // slack log hook
+	_ "github.com/heralight/logrus_mate/hooks/file"              // file log hook
+	_ "github.com/heralight/logrus_mate/hooks/filewithformatter" // file log hook
+	_ "github.com/heralight/logrus_mate/hooks/slack"             // slack log hook
 	"github.com/sirupsen/logrus"
 )
 

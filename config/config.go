@@ -56,7 +56,7 @@ func (c *Config) Prepare() {
 
 	// check log file configuration
 	for _, hook := range c.Log.Hooks {
-		if hook.Name == "file" { // only check file logs
+		if hook.Name == "file" || hook.Name == "filewithformatter" { // only check file logs
 			filename, ok := hook.Options["filename"]
 			if !ok {
 				logfile := filepath.Join(c.Workspace, "logs", c.Network, "box.log")

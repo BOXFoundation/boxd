@@ -5,7 +5,7 @@
 package types
 
 import (
-	"log"
+	"fmt"
 
 	mate "github.com/heralight/logrus_mate"
 )
@@ -52,7 +52,7 @@ func Setup(name string, cfg *Config) {
 	if entry, ok := loggers[name]; ok {
 		entry.Setup(cfg)
 	} else {
-		log.Fatalf("Invalid logger: %s", name)
+		fmt.Printf("Invalid logger: %s", name)
 	}
 }
 
@@ -62,6 +62,6 @@ func NewLogger(name, tag string) Logger {
 		return entry.NewLogger(tag)
 	}
 
-	log.Fatalf("Invalid logger: %s", name)
+	fmt.Printf("Invalid logger: %s", name)
 	return nil
 }
