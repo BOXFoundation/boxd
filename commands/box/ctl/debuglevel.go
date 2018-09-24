@@ -5,17 +5,10 @@
 package ctl
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"time"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
 
-	config "github.com/BOXFoundation/Quicksilver/config"
-	pb "github.com/BOXFoundation/Quicksilver/rpc/pb"
+	rpc "github.com/BOXFoundation/Quicksilver/rpc/client"
 )
 
 // debuglevelCmd represents the debuglevel command
@@ -23,32 +16,11 @@ var debuglevelCmd = &cobra.Command{
 	Use:   "debuglevel [debug|info|warning|error|fatal]",
 	Short: "Set the debug level of boxd",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var cfg config.Config
-		viper.Unmarshal(&cfg)
-
-		conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port), grpc.WithInsecure())
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-
-		c := pb.NewContorlCommandClient(conn)
-
-		// Contact the server and print out its response.
 		level := "info"
 		if len(args) > 0 {
 			level = args[0]
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		log.Printf("Set debug level %s", level)
-		r, err := c.SetDebugLevel(ctx, &pb.DebugLevelRequest{Level: level})
-		if err != nil {
-			return err
-		}
-		log.Printf("Result: %d, Message: %s", r.Code, r.Message)
-		return nil
+		return rpc.SetDebugLevel(viper.GetViper(), level)
 	},
 }
 
