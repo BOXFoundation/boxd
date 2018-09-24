@@ -29,12 +29,11 @@ type Host struct {
 	proc    goprocess.Process
 }
 
-var logger log.Logger // logger
+var logger = log.NewLogger("p2p") // logger
 
 // init function
 func init() {
 	ma.SwapToP2pMultiaddrs() // change ma.P_P2P from 'ipfs' to 'p2p'
-	logger = log.NewLogger("p2p")
 }
 
 // NewDefaultHost creates a wrapper of host.Host

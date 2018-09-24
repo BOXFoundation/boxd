@@ -15,12 +15,11 @@ import (
 )
 
 var (
-	logger log.Logger // logger
+	logger = log.NewLogger("dpos") // logger
 	index  = 0
 )
 
 func init() {
-	logger = log.NewLogger("dpos")
 }
 
 // Dpos define dpos struct

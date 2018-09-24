@@ -2,10 +2,11 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package log
+package logruslog
 
 import (
-	source "github.com/BOXFoundation/Quicksilver/log/hooks/source"
+	source "github.com/BOXFoundation/Quicksilver/log/logrus/hooks/source"
+	log "github.com/BOXFoundation/Quicksilver/log/types"
 	"github.com/heirko/go-contrib/logrusHelper"
 	mate "github.com/heralight/logrus_mate"
 	_ "github.com/heralight/logrus_mate/hooks/file"  // file log hook
@@ -18,25 +19,33 @@ type logrusLogger struct {
 	tag    string
 }
 
-var _ Logger = (*logrusLogger)(nil)
+var _ log.Logger = (*logrusLogger)(nil)
 
 var defaultLogrusLogger = logrus.New()
+
+// LoggerName is the name of the logger impl
+const LoggerName = "logrus"
 
 func init() {
 	sourceHook := source.NewHook()
 	defaultLogrusLogger.AddHook(sourceHook)
+
+	log.Register(LoggerName, &log.LoggerEntry{
+		Setup:     Setup,
+		NewLogger: NewLogger,
+	})
 }
 
-// SetupLogrus setups logrus logger
-func SetupLogrus(cfg *Config) {
+// Setup setups logrus logger
+func Setup(cfg *log.Config) {
 	logrusHelper.SetConfig(
 		defaultLogrusLogger,
 		mate.LoggerConfig(*cfg),
 	)
 }
 
-// NewLogrusLogger creates a new logrus logger.
-func NewLogrusLogger(tag string) Logger {
+// NewLogger creates a new logrus logger.
+func NewLogger(tag string) log.Logger {
 	return &logrusLogger{
 		logger: defaultLogrusLogger,
 		tag:    tag,

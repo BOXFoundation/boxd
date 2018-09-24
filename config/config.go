@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/BOXFoundation/Quicksilver/log"
+	logtypes "github.com/BOXFoundation/Quicksilver/log/types"
 	"github.com/BOXFoundation/Quicksilver/p2p"
 	rpc "github.com/BOXFoundation/Quicksilver/rpc/server"
 	"github.com/BOXFoundation/Quicksilver/storage"
@@ -19,12 +19,12 @@ import (
 // Config is a configuration data structure for box blockchain server,
 // which is read from config file or parsed from command line.
 type Config struct {
-	Workspace string         `mapstructure:"workspace"`
-	Network   string         `mapstructure:"network"`
-	Log       log.Config     `mapstructure:"log"`
-	P2p       p2p.Config     `mapstructure:"p2p"`
-	RPC       rpc.Config     `mapstructure:"rpc"`
-	Database  storage.Config `mapstructure:"database"`
+	Workspace string          `mapstructure:"workspace"`
+	Network   string          `mapstructure:"network"`
+	Log       logtypes.Config `mapstructure:"log"`
+	P2p       p2p.Config      `mapstructure:"p2p"`
+	RPC       rpc.Config      `mapstructure:"rpc"`
+	Database  storage.Config  `mapstructure:"database"`
 }
 
 var format = `workspace: %s

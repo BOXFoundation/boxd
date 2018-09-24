@@ -13,10 +13,9 @@ import (
 	"github.com/BOXFoundation/Quicksilver/log"
 )
 
-var logger log.Logger // logger
+var logger = log.NewLogger("mediantime") // logger
 
 func init() {
-	logger = log.NewLogger("mediantime")
 }
 
 const (

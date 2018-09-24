@@ -2,9 +2,11 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package log
+package types
 
 import (
+	"log"
+
 	mate "github.com/heralight/logrus_mate"
 )
 
@@ -29,12 +31,37 @@ type Logger interface {
 // Config is the configuration of the logrus logger
 type Config mate.LoggerConfig
 
+type setupFunc func(*Config)
+type newLoggerFunc func(string) Logger
+
+// LoggerEntry is a logger impl entry
+type LoggerEntry struct {
+	Setup     setupFunc
+	NewLogger newLoggerFunc
+}
+
+var loggers = map[string]*LoggerEntry{}
+
+// Register registers a logger
+func Register(name string, entry *LoggerEntry) {
+	loggers[name] = entry
+}
+
 // Setup loggers globally
-func Setup(cfg *Config) {
-	SetupLogrus(cfg)
+func Setup(name string, cfg *Config) {
+	if entry, ok := loggers[name]; ok {
+		entry.Setup(cfg)
+	} else {
+		log.Fatalf("Invalid logger: %s", name)
+	}
 }
 
 // NewLogger creates a new logger.
-func NewLogger(tag string) Logger {
-	return NewLogrusLogger(tag)
+func NewLogger(name, tag string) Logger {
+	if entry, ok := loggers[name]; ok {
+		return entry.NewLogger(tag)
+	}
+
+	log.Fatalf("Invalid logger: %s", name)
+	return nil
 }

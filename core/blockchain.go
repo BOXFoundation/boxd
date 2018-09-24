@@ -81,10 +81,9 @@ func isNullOutPoint(outPoint *types.OutPoint) bool {
 	return outPoint.Index == math.MaxUint32 && outPoint.Hash == zeroHash
 }
 
-var logger log.Logger // logger
+var logger = log.NewLogger("core") // logger
 
 func init() {
-	logger = log.NewLogger("core")
 }
 
 // BlockChain define chain struct
