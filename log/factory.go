@@ -9,8 +9,6 @@ import (
 	log "github.com/BOXFoundation/Quicksilver/log/types"
 )
 
-var _ = ll.Setup // make sure init logrus logger
-
 // Setup loggers globally
 func Setup(cfg *log.Config) {
 	log.Setup(ll.LoggerName, cfg)

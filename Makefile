@@ -6,7 +6,7 @@ NAME=box
 
 VERSION?=0.1.0
 
-COMMIT=$(shell git rev-parse HEAD)
+COMMIT=$(shell git rev-parse --short HEAD)
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 
 DIR_WORKSPACE=$(shell pwd)
