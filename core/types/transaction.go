@@ -56,6 +56,18 @@ type OutPoint struct {
 	Index uint32
 }
 
+// NewTx a Transaction wrapped by msgTx.
+func NewTx(msgTx *MsgTx) (*Transaction, error) {
+	hash, err := msgTx.MsgTxHash()
+	if err != nil {
+		return nil, err
+	}
+	return &Transaction{
+		Hash:  hash,
+		MsgTx: msgTx,
+	}, nil
+}
+
 // Serialize transaction to proto message.
 func (msgTx *MsgTx) Serialize() (proto.Message, error) {
 
@@ -227,4 +239,17 @@ func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
 	}
 	hash := crypto.DoubleHashH(rawMsgTx)
 	return &hash, nil
+}
+
+// SerializeSize return msgTx size.
+func (msgTx *MsgTx) SerializeSize() (int, error) {
+	pbtx, err := msgTx.Serialize()
+	if err != nil {
+		return 0, err
+	}
+	rawMsgTx, err := proto.Marshal(pbtx)
+	if err != nil {
+		return 0, err
+	}
+	return len(rawMsgTx), nil
 }

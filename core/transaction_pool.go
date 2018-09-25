@@ -98,58 +98,88 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	if err := msgTx.Deserialize(pbtx); err != nil {
 		return err
 	}
-	return tx_pool.processTx(msgTx)
-}
-
-func (tx_pool *TransactionPool) processTx(msgTx *types.MsgTx) error {
-
-	hash, err := msgTx.MsgTxHash()
+	tx, err := types.NewTx(msgTx)
 	if err != nil {
 		return err
 	}
+	return tx_pool.processTx(tx)
+}
 
-	if tx_pool.isTransactionInPool(hash) {
+func (tx_pool *TransactionPool) processTx(tx *types.Transaction) error {
+
+	if tx_pool.isTransactionInPool(tx.Hash) {
 		return ErrDuplicateTxInPool
 	}
 
-	if err = SanityCheckTransaction(msgTx); err != nil {
+	if err := SanityCheckTransaction(tx.MsgTx); err != nil {
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
-	if IsCoinBase(msgTx) {
+	if IsCoinBase(tx.MsgTx) {
 		return ErrCoinbaseTx
 	}
 
 	// ensure it is a "standard" transaction
-	if err = tx_pool.checkTransactionStandard(msgTx); err != nil {
+	if err := tx_pool.checkTransactionStandard(tx); err != nil {
 		return ErrNonStandardTransaction
 	}
 
-	if err = tx_pool.checkDoubleSpend(msgTx); err != nil {
+	if err := tx_pool.checkDoubleSpend(tx.MsgTx); err != nil {
+		return err
+	}
+
+	unspentUtxoCache, err := tx_pool.chain.LoadUnspentUtxo(tx)
+	if err != nil {
 		return err
 	}
 
 	// check msgTx is already exist in the main chain
-	if err = tx_pool.checkExistInChain(msgTx, hash); err != nil {
+	if err := tx_pool.checkExistInChain(tx, unspentUtxoCache); err != nil {
 		return err
 	}
 
 	// handle orphan transactions
-	tx_pool.handleOrphan()
+	if err := tx_pool.handleOrphan(); err != nil {
+		return err
+	}
+
+	txFee, err := tx_pool.chain.CheckTransactionInputs(tx, unspentUtxoCache)
+	if err != nil {
+		return err
+	}
+
+	// TODO: Whether the minfee limit is needed？
+	// how to calc the minfee, or use a fixed value.
+	txSize, err := tx.MsgTx.SerializeSize()
+	if err != nil {
+		return err
+	}
+	minFee := calcRequiredMinFee(txSize)
+	if txFee < minFee {
+		return errors.New("txFee is less than minFee")
+	}
+
+	// verify crypto signatures for each input
+	if err = tx_pool.chain.ValidateTransactionScripts(tx, unspentUtxoCache); err != nil {
+		return err
+	}
+
+	// add transaction to pool.
+	tx_pool.push(unspentUtxoCache, tx, txFee)
 
 	return nil
 }
 
 func (tx_pool *TransactionPool) isTransactionInPool(hash *crypto.HashType) bool {
+
 	if _, exists := tx_pool.hashToTx[*hash]; exists {
 		return true
 	}
-
 	return false
 }
 
-func (tx_pool *TransactionPool) checkTransactionStandard(msgTx *types.MsgTx) error {
+func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
 	// TODO:
 	return nil
 }
@@ -163,14 +193,9 @@ func (tx_pool *TransactionPool) checkDoubleSpend(msgTx *types.MsgTx) error {
 	return nil
 }
 
-func (tx_pool *TransactionPool) checkExistInChain(msgTx *types.MsgTx, hash *crypto.HashType) error {
+func (tx_pool *TransactionPool) checkExistInChain(tx *types.Transaction, unspentUtxoCache *UtxoUnspentCache) error {
 
-	unspentUtxoCache, err := tx_pool.chain.LoadUnspentUtxo(msgTx)
-
-	if err != nil {
-		return err
-	}
-
+	msgTx := tx.MsgTx
 	for _, txIn := range msgTx.Vin {
 		prevOut := &txIn.PrevOutPoint
 		utxoWrap := unspentUtxoCache.FindByOutPoint(*prevOut)
@@ -186,7 +211,7 @@ func (tx_pool *TransactionPool) checkExistInChain(msgTx *types.MsgTx, hash *cryp
 		}
 	}
 
-	prevOut := types.OutPoint{Hash: *hash}
+	prevOut := types.OutPoint{Hash: *tx.Hash}
 	for txOutIdx := range msgTx.Vout {
 		prevOut.Index = uint32(txOutIdx)
 		utxoWrap := unspentUtxoCache.FindByOutPoint(prevOut)
@@ -199,6 +224,14 @@ func (tx_pool *TransactionPool) checkExistInChain(msgTx *types.MsgTx, hash *cryp
 	return nil
 }
 
-func (tx_pool *TransactionPool) handleOrphan() {
+func (tx_pool *TransactionPool) handleOrphan() error {
+	return nil
+}
 
+func (tx_pool *TransactionPool) push(unspentUtxoCache *UtxoUnspentCache, tx *types.Transaction, txFee int64) error {
+	return nil
+}
+
+func calcRequiredMinFee(txSize int) int64 {
+	return 0
 }

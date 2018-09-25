@@ -34,6 +34,9 @@ const (
 	// MaxBlockSize is the maximum number of bytes within a block
 	MaxBlockSize = 32000000
 
+	// CoinbaseLib is the number of blocks required before newly mined coins (coinbase transactions) can be spent.
+	CoinbaseLib = 100
+
 	// decimals is the number of digits after decimal point of value/amount
 	decimals = 8
 
@@ -599,20 +602,16 @@ func (chain *BlockChain) TailBlock() *types.Block {
 }
 
 //LoadUnspentUtxo load related unspent utxo
-func (chain *BlockChain) LoadUnspentUtxo(tx *types.MsgTx) (*UtxoUnspentCache, error) {
+func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCache, error) {
 
 	outPointMap := make(map[types.OutPoint]struct{})
-	hash, err := tx.MsgTxHash()
-	if err != nil {
-		return nil, err
-	}
-	prevOut := types.OutPoint{Hash: *hash}
-	for txOutIdx := range tx.Vout {
+	prevOut := types.OutPoint{Hash: *tx.Hash}
+	for txOutIdx := range tx.MsgTx.Vout {
 		prevOut.Index = uint32(txOutIdx)
 		outPointMap[prevOut] = struct{}{}
 	}
-	if !IsCoinBase(tx) {
-		for _, txIn := range tx.Vin {
+	if !IsCoinBase(tx.MsgTx) {
+		for _, txIn := range tx.MsgTx.Vin {
 			outPointMap[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
@@ -622,7 +621,59 @@ func (chain *BlockChain) LoadUnspentUtxo(tx *types.MsgTx) (*UtxoUnspentCache, er
 	uup := NewUtxoUnspentCache()
 
 	// TODO: add mutex?
-	err = uup.LoadUtxoFromDB(chain.db, outPointMap)
+	err := uup.LoadUtxoFromDB(chain.db, outPointMap)
 
 	return uup, err
+}
+
+// CheckTransactionInputs check transaction inputs.
+func (chain *BlockChain) CheckTransactionInputs(tx *types.Transaction, unspentUtxo *UtxoUnspentCache) (int64, error) {
+	// Coinbase transactions have no inputs.
+	if IsCoinBase(tx.MsgTx) {
+		return 0, nil
+	}
+
+	var totalFeeIn int64
+	for _, txIn := range tx.MsgTx.Vin {
+		// Ensure the referenced input transaction is available.
+		utxo := unspentUtxo.FindByOutPoint(txIn.PrevOutPoint)
+		if utxo == nil || utxo.IsPacked {
+			return 0, errors.New("utxo is not exist or has already been spent")
+		}
+		// if utxo is coinbase
+		if utxo.IsCoinbase {
+			originHeight := utxo.blockHeight
+			blocksSincePrev := chain.tail.Height - originHeight
+			coinbaseMaturity := CoinbaseLib
+			if blocksSincePrev < coinbaseMaturity {
+				return 0, errors.New("tried to spend coinbase tx at height before required lib blocks")
+			}
+		}
+
+		txInFee := utxo.Value
+		if txInFee < 0 || txInFee > totalSupply {
+			return 0, errors.New("Invalid txIn fee")
+		}
+		totalFeeIn += txInFee
+		if totalFeeIn > totalSupply {
+			return 0, errors.New("Invalid totalFeesIn")
+		}
+	}
+
+	var totalFeeOut int64
+	for _, txOut := range tx.MsgTx.Vout {
+		totalFeeOut += txOut.Value
+	}
+
+	if totalFeeIn < totalFeeOut {
+		return 0, errors.New("total value of all transaction inputs is less than the amount spent")
+	}
+
+	txFee := totalFeeIn - totalFeeOut
+	return txFee, nil
+}
+
+// ValidateTransactionScripts verify crypto signatures for each input
+func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction, unspentUtxo *UtxoUnspentCache) error {
+	return nil
 }

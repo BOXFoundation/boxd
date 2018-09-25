@@ -21,6 +21,7 @@ type UtxoWrap struct {
 	ScriptPubKey []byte
 	blockHeight  int
 	IsPacked     bool
+	IsCoinbase   bool
 }
 
 // NewUtxoUnspentCache returns a new empty unspent transaction pool
