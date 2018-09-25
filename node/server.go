@@ -18,30 +18,27 @@ import (
 	"github.com/spf13/viper"
 )
 
-// RootProcess is the root process of the app
-var RootProcess goprocess.Process
-
-var logger = log.NewLogger("node")
-
-func init() {
-	RootProcess = goprocess.WithSignals(os.Interrupt)
-}
+var logger = log.NewLogger("node") // logger for node package
 
 // nodeServer is the boxd server instance, which contains all services,
 // including grpc, p2p, database...
 var nodeServer = struct {
-	sm sync.Mutex
+	sm   sync.Mutex
+	proc goprocess.Process
 
 	cfg      config.Config
 	database *storage.Database
 	peer     *p2p.BoxPeer
 	grpcsvr  *grpcserver.Server
-}{}
+}{
+	proc: goprocess.WithSignals(os.Interrupt),
+}
 
 // Start function starts node server.
 func Start(v *viper.Viper) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	var proc = nodeServer.proc // parent goprocess
 	var cfg = &nodeServer.cfg
 	// init config object from viper
 	if err := v.Unmarshal(cfg); err != nil {
@@ -53,26 +50,26 @@ func Start(v *viper.Viper) error {
 	log.Setup(&cfg.Log) // setup logger
 
 	// start database life cycle
-	var database, err = storage.NewDatabase(RootProcess, &cfg.Database)
+	var database, err = storage.NewDatabase(proc, &cfg.Database)
 	if err != nil {
 		logger.Fatal("Failed to initialize database...") // exit in case of error during initialization of database
 	}
 	nodeServer.database = database
 
-	peer, err := p2p.NewBoxPeer(&cfg.P2p, RootProcess)
+	peer, err := p2p.NewBoxPeer(&cfg.P2p, proc)
 	if err != nil {
 		logger.Error("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
-		RootProcess.Close()
+		proc.Close()
 	} else {
 		nodeServer.peer = peer
 		nodeServer.peer.Bootstrap()
 	}
 
 	if cfg.RPC.Enabled {
-		nodeServer.grpcsvr, _ = grpcserver.NewServer(RootProcess, &cfg.RPC)
+		nodeServer.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC)
 	}
 
-	// var host, err = p2p.NewDefaultHost(RootProcess, net.ParseIP(v.GetString("node.listen.address")), uint(v.GetInt("node.listen.port")))
+	// var host, err = p2p.NewDefaultHost(proc, net.ParseIP(v.GetString("node.listen.address")), uint(v.GetInt("node.listen.port")))
 	// if err != nil {
 	// 	logger.Error(err)
 	// 	return err
@@ -81,7 +78,7 @@ func Start(v *viper.Viper) error {
 	// connect to other peers passed via commandline
 	// for _, addr := range v.GetStringSlice("node.addpeer") {
 	// 	if maddr, err := ma.NewMultiaddr(addr); err == nil {
-	// 		err := host.ConnectPeer(RootProcess, maddr)
+	// 		err := host.ConnectPeer(proc, maddr)
 	// 		if err != nil {
 	// 			logger.Warn(err)
 	// 		} else {
@@ -93,12 +90,12 @@ func Start(v *viper.Viper) error {
 	// }
 
 	select {
-	case <-RootProcess.Closing():
+	case <-proc.Closing():
 		logger.Info("Box server is shutting down...")
 	}
 
 	select {
-	case <-RootProcess.Closed():
+	case <-proc.Closed():
 		logger.Info("Box server is down.")
 	}
 
