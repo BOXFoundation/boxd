@@ -2,11 +2,12 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package box
+package start
 
 import (
 	"net"
 
+	root "github.com/BOXFoundation/Quicksilver/commands/box/root"
 	"github.com/BOXFoundation/Quicksilver/node"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -21,10 +22,11 @@ var startCmd = &cobra.Command{
 	Short: "Start full node server.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return node.Start(viper.GetViper())
-	}}
+	},
+}
 
 func init() {
-	rootCmd.AddCommand(startCmd)
+	root.RootCmd.AddCommand(startCmd)
 
 	startCmd.Flags().StringSlice("addpeer", []string{}, "addresse and port of remote peers, seperated by comma.")
 	viper.BindPFlag("p2p.addpeer", startCmd.Flags().Lookup("addpeer"))

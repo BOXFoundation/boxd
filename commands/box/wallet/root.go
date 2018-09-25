@@ -5,6 +5,7 @@
 package wallet
 
 import (
+	root "github.com/BOXFoundation/Quicksilver/commands/box/root"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +27,6 @@ to quickly create a Cobra application.`,
 }
 
 // Init adds the sub command to the root command.
-func Init(root *cobra.Command) {
-	root.AddCommand(rootCmd)
+func init() {
+	root.RootCmd.AddCommand(rootCmd)
 }

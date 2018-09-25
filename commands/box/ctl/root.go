@@ -5,6 +5,7 @@
 package ctl
 
 import (
+	root "github.com/BOXFoundation/Quicksilver/commands/box/root"
 	"github.com/spf13/cobra"
 )
 
@@ -17,10 +18,6 @@ var rootCmd = &cobra.Command{
 	//	Run: func(cmd *cobra.Command, args []string) { },
 }
 
-// Init adds child commands to the root command.
-func Init(root *cobra.Command) {
-	root.AddCommand(rootCmd)
-}
-
 func init() {
+	root.RootCmd.AddCommand(rootCmd)
 }
