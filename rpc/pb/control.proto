@@ -6,10 +6,17 @@ syntax = "proto3";
 
 package controlpb;
 
+import "google/api/annotations.proto";
+
 // The box control command service definition.
 service ContorlCommand {
     // set boxd debug level
-    rpc SetDebugLevel (DebugLevelRequest) returns (Reply) {}
+    rpc SetDebugLevel (DebugLevelRequest) returns (Reply) {
+      option (google.api.http) = {
+        post: "/v1/ctl/debuglevel"
+        body: "*"
+      };
+    }
   }
   
   // The request message containing debug level.

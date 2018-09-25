@@ -19,6 +19,7 @@ func registerControl(s *grpc.Server) {
 
 func init() {
 	rpcserver.RegisterService("control", registerControl)
+	rpcserver.RegisterGatewayHandler("control", ctlpb.RegisterContorlCommandHandlerFromEndpoint)
 }
 
 type ctlserver struct{}

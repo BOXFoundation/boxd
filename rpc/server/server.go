@@ -5,12 +5,17 @@
 package rpc
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
+	goprocessctx "github.com/jbenet/goprocess/context"
 	"google.golang.org/grpc"
 )
 
@@ -18,18 +23,29 @@ var logger = log.NewLogger("rpc")
 
 // Config defines the configurations of rpc server
 type Config struct {
-	Enabled bool   `mapstructure:"enabled"`
+	Enabled bool       `mapstructure:"enabled"`
+	Address string     `mapstructure:"address"`
+	Port    int        `mapstructure:"port"`
+	HTTP    HTTPConfig `mapstructure:"http"`
+}
+
+// HTTPConfig defines the address/port of rest api over http
+type HTTPConfig struct {
 	Address string `mapstructure:"address"`
 	Port    int    `mapstructure:"port"`
 }
 
 // Server defines the rpc server
 type Server struct {
-	cfg    *Config
-	server *grpc.Server
-	proc   goprocess.Process
+	cfg *Config
 
-	wg sync.WaitGroup
+	server   *grpc.Server
+	gRPCProc goprocess.Process
+	wggRPC   sync.WaitGroup
+
+	httpserver *http.Server
+	httpProc   goprocess.Process
+	wgHTTP     sync.WaitGroup
 }
 
 // Service defines the grpc service func
@@ -37,9 +53,19 @@ type Service func(s *grpc.Server)
 
 var services = make(map[string]Service)
 
-// RegisterService registers a new grpc service
+// GatewayHandler defines the register func of http gateway handler for gRPC service
+type GatewayHandler func(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error
+
+var handlers = make(map[string]GatewayHandler)
+
+// RegisterService registers a new gRPC service
 func RegisterService(name string, s Service) {
 	services[name] = s
+}
+
+// RegisterGatewayHandler registers a new http gateway handler for gRPC service
+func RegisterGatewayHandler(name string, h GatewayHandler) {
+	handlers[name] = h
 }
 
 // NewServer creates a RPC server instance.
@@ -48,14 +74,15 @@ func NewServer(parent goprocess.Process, cfg *Config) (*Server, error) {
 		cfg: cfg,
 	}
 
-	server.proc = parent.Go(server.serve)
+	server.gRPCProc = parent.Go(server.servegRPC)
+	server.httpProc = server.gRPCProc.Go(server.serveHTTP)
 
 	return server, nil
 }
 
-func (s *Server) serve(proc goprocess.Process) {
+func (s *Server) servegRPC(proc goprocess.Process) {
 	var addr = fmt.Sprintf("%s:%d", s.cfg.Address, s.cfg.Port)
-	logger.Infof("Starting gRPC server at %s", addr)
+	logger.Infof("Starting RPC:gRPC server at %s", addr)
 	lis, err := net.Listen("tcp4", addr)
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)
@@ -63,32 +90,74 @@ func (s *Server) serve(proc goprocess.Process) {
 
 	s.server = grpc.NewServer()
 
-	// regist all grpc services for the server
+	// regist all gRPC services for the server
 	for name, service := range services {
-		logger.Debugf("register grpc service: %s", name)
+		logger.Debugf("register gRPC service: %s", name)
 		service(s.server)
 	}
 
 	go func() {
-		s.wg.Add(1)
-		defer s.wg.Done()
+		s.wggRPC.Add(1)
+		defer s.wggRPC.Done()
 
 		if err := s.server.Serve(lis); err != nil {
-			logger.Fatalf("failed to serve: %v", err)
+			logger.Errorf("failed to serve gRPC: %v", err)
+			go proc.Close()
 		}
 	}()
 
 	select {
 	case <-proc.Closing():
-		logger.Info("Shutting down rpc server...")
+		logger.Info("Shutting down RPC:gRPC server...")
 		s.server.GracefulStop()
+		lis.Close()
 	}
 
-	s.wg.Wait()
-	logger.Info("RPC server is down.")
+	s.wggRPC.Wait()
+	logger.Info("RPC:gRPC server is down.")
+}
+
+func (s *Server) serveHTTP(proc goprocess.Process) {
+	var addr = fmt.Sprintf("%s:%d", s.cfg.Address, s.cfg.Port)
+
+	// register http gateway handlers
+	mux := runtime.NewServeMux()
+	opts := []grpc.DialOption{grpc.WithInsecure()}
+	for name, handler := range handlers {
+		logger.Debugf("register gRPC http gateway handler: %s", name)
+		if err := handler(goprocessctx.OnClosingContext(proc), mux, addr, opts); err != nil {
+			logger.Fatalf("failed register gRPC http gateway handler: %s", name)
+		}
+	}
+
+	var httpendpoint = fmt.Sprintf("%s:%d", s.cfg.HTTP.Address, s.cfg.HTTP.Port)
+	logger.Infof("Starting RPC:http server at %s", httpendpoint)
+	s.httpserver = &http.Server{Addr: httpendpoint, Handler: mux}
+	go func() {
+		s.wgHTTP.Add(1)
+		defer s.wgHTTP.Done()
+
+		if err := s.httpserver.ListenAndServe(); err != nil {
+			logger.Errorf("gRPC http gateway error: %v", err)
+			go proc.Close()
+		}
+	}()
+
+	select {
+	case <-proc.Closing():
+		logger.Info("Shutting down RPC:http server...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		s.httpserver.Shutdown(ctx)
+	}
+
+	s.wgHTTP.Wait()
+	logger.Info("RPC:http server is down.")
 }
 
 // Stop the rpc server
 func (s *Server) Stop() {
-	s.proc.Close()
+	go s.gRPCProc.Close()
 }

@@ -16,8 +16,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-// DefaultGRPCPort is the default listen port for box p2p message.
+// DefaultGRPCPort is the default listen port for box gRPC service.
 const DefaultGRPCPort = 19191
+
+// DefaultRPCHTTPPort is the default listen port for box RPC http service.
+const DefaultRPCHTTPPort = 19190
 
 // root command
 var cfgFile string
@@ -53,11 +56,17 @@ func init() {
 	RootCmd.PersistentFlags().String("log-level", "info", "log level [debug|info|warn|error|fatal]")
 	viper.BindPFlag("log.level", RootCmd.PersistentFlags().Lookup("log-level"))
 
-	RootCmd.PersistentFlags().IP("rpc-addr", net.ParseIP("127.0.0.1"), "rpc listen address.")
+	RootCmd.PersistentFlags().IP("rpc-addr", net.ParseIP("127.0.0.1"), "gRPC listen address.")
 	viper.BindPFlag("rpc.address", RootCmd.PersistentFlags().Lookup("rpc-addr"))
 
-	RootCmd.PersistentFlags().Uint("rpc-port", DefaultGRPCPort, "local p2p listen port.")
+	RootCmd.PersistentFlags().Uint("rpc-port", DefaultGRPCPort, "gRPC listen port.")
 	viper.BindPFlag("rpc.port", RootCmd.PersistentFlags().Lookup("rpc-port"))
+
+	RootCmd.PersistentFlags().IP("rpc-http-addr", net.ParseIP("127.0.0.1"), "rpc http listen address.")
+	viper.BindPFlag("rpc.http.address", RootCmd.PersistentFlags().Lookup("rpc-http-addr"))
+
+	RootCmd.PersistentFlags().Uint("rpc-http-port", DefaultRPCHTTPPort, "rpc http listen port.")
+	viper.BindPFlag("rpc.http.port", RootCmd.PersistentFlags().Lookup("rpc-http-port"))
 }
 
 // initConfig reads in config file and ENV variables if set.
