@@ -153,3 +153,14 @@ func HashBytes(a []byte) uint32 {
 func Less(a []byte, b []byte) bool {
 	return HashBytes(a) < HashBytes(b)
 }
+
+// CopyBytes returns an exact copy of the provide bytes
+func CopyBytes(b []byte) (copiedBytes []byte) {
+	if b == nil {
+		return nil
+	}
+	copiedBytes = make([]byte, len(b))
+	copy(copiedBytes, b)
+
+	return
+}

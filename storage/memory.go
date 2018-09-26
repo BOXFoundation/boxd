@@ -16,6 +16,7 @@ type memoryStorage struct {
 	sm *sync.Map
 }
 
+// enforce memoryStorage implements the Storage interface
 var _ Storage = (*memoryStorage)(nil)
 
 // NewMemoryStorage initializes the storage
@@ -60,10 +61,88 @@ func (ms *memoryStorage) Keys() [][]byte {
 	return keys
 }
 
-func (ms *memoryStorage) Flush() error {
+func (ms *memoryStorage) Close() error {
 	return nil
 }
 
-func (ms *memoryStorage) Close() error {
+func (ms *memoryStorage) BeginTransaction() Batch {
+	//lock map
+	//new object
+	return &memoryBatch{ms: ms}
+}
+
+type kv struct {
+	key    []byte
+	value  []byte
+	delete bool
+}
+
+type memoryBatch struct {
+	ms    *memoryStorage
+	write []kv
+	size  int
+}
+
+func (mb *memoryBatch) Put(key, value []byte) error {
+	mb.write = append(mb.write, kv{util.CopyBytes(key), util.CopyBytes(value), false})
+	mb.size += len(value)
+	return nil
+}
+
+func (mb *memoryBatch) Del(key []byte) error {
+	mb.write = append(mb.write, kv{util(key), nil, true})
+	mb.size += 1
+	return nil
+}
+
+func (mb *memoryBatch) Commit() error {
+	for _, kv := range mb.write {
+		if kv.delete {
+			delete(mb.ms.sm, string(kv.key))
+			continue
+		}
+		mb.ms.sm[string(kv.key)] = kv.key
+	}
+	return nil
+}
+
+func (mb *memoryBatch) Rollback() error {
+	mb.write = mb.write[:0]
+	mb.size = 0
+}
+
+type table struct {
+	storage Storage
+	prefix  string
+}
+
+func NewTable(prefix string) Storage {
+	return &table{
+		storage: storage,
+		prefix:  prefix,
+	}
+}
+
+func (t *table) Has(key []byte) (bool, error) {
+	return t.storage.Has(append([]byte(t.prefix), key...))
+}
+
+func (t *table) Put(key []byte, value []byte) error {
+	return t.storage.Put(append([]byte(t.prefix), key...), value)
+}
+
+func (t *table) Get(key []byte) ([]byte, error) {
+	return t.storage.Get(append([]byte(t.prefix), key...))
+}
+
+func (t *table) Del(key []byte) error {
+	return t.storage.Del(append([]byte(t.prefix), key...))
+}
+
+func (t *table) Keys() [][]byte {
+	return nil
+}
+
+func (t *table) Close() error {
 	return nil
 }

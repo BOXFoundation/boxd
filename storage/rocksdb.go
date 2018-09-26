@@ -6,9 +6,7 @@ package storage
 
 import (
 	"errors"
-	"sync"
 
-	"github.com/BOXFoundation/Quicksilver/util"
 	"github.com/tecbot/gorocksdb"
 )
 
@@ -21,15 +19,9 @@ const (
 type rocksdbStorage struct {
 	db *gorocksdb.DB
 
-	// synchronize access to the storage
-	mutex sync.Mutex
-	// check if data is batch
-	isBatch         bool
-	batchPutOptions map[string]*batchOption
-	batchDelOptions map[string]*batchOption
-
 	readOptions  *gorocksdb.ReadOptions
 	writeOptions *gorocksdb.WriteOptions
+	tnxdb        *gorocksdb.TransactionDB
 }
 
 type batchOption struct {
@@ -61,28 +53,17 @@ func NewRocksDBStorage(cfg *Config) (Storage, error) {
 	}
 
 	dbstorage := &rocksdbStorage{
-		db:              db,
-		readOptions:     gorocksdb.NewDefaultReadOptions(),
-		writeOptions:    gorocksdb.NewDefaultWriteOptions(),
-		batchDelOptions: make(map[string]*batchOption),
-		batchPutOptions: make(map[string]*batchOption),
-		isBatch:         false,
+		db:           db,
+		readOptions:  gorocksdb.NewDefaultReadOptions(),
+		writeOptions: gorocksdb.NewDefaultWriteOptions(),
+		tnxdbopts:    gorocksdb.TransactionDBOptions(),
+		tnxdb:        gorocksdb.TransactionDB("", options, tnxdbopts),
 	}
 	return dbstorage, nil
 }
 
 // Put is used to put the key-value entry to the Storage
 func (dbstorage *rocksdbStorage) Put(key []byte, value []byte) error {
-	if dbstorage.isBatch {
-		dbstorage.mutex.Lock()
-		defer dbstorage.mutex.Unlock()
-
-		dbstorage.batchPutOptions[util.Hex(key)] = &batchOption{
-			key:    key,
-			value:  value,
-			delete: false,
-		}
-	}
 	return dbstorage.db.Put(dbstorage.writeOptions, key, value)
 }
 
@@ -100,15 +81,6 @@ func (dbstorage *rocksdbStorage) Get(key []byte) ([]byte, error) {
 
 // Delete is used to delete the key associated with the value in the Storage
 func (dbstorage *rocksdbStorage) Del(key []byte) error {
-	if dbstorage.isBatch {
-		dbstorage.mutex.Lock()
-		defer dbstorage.mutex.Unlock()
-		dbstorage.batchDelOptions[util.Hex(key)] = &batchOption{
-			key:    key,
-			delete: true,
-		}
-		return nil
-	}
 	return dbstorage.db.Delete(dbstorage.writeOptions, key)
 }
 
@@ -136,33 +108,74 @@ func (dbstorage *rocksdbStorage) Keys() [][]byte {
 	return keys
 }
 
-func (dbstorage *rocksdbStorage) Flush() error {
-	dbstorage.mutex.Lock()
-	defer dbstorage.mutex.Unlock()
-
-	if !dbstorage.isBatch {
-		return nil
-	}
-
-	writeBatch := gorocksdb.NewWriteBatch()
-	defer writeBatch.Destroy()
-
-	for _, putoption := range dbstorage.batchPutOptions {
-		writeBatch.Put(putoption.key, putoption.value)
-	}
-
-	for _, deloption := range dbstorage.batchDelOptions {
-		writeBatch.Delete(deloption.key)
-	}
-
-	dbstorage.batchPutOptions = make(map[string]*batchOption)
-	dbstorage.batchDelOptions = make(map[string]*batchOption)
-
-	return dbstorage.db.Write(dbstorage.writeOptions, writeBatch)
-}
-
 // Close db
 func (dbstorage *rocksdbStorage) Close() error {
+	dbstorage.db.Flush()
 	dbstorage.db.Close()
+	return nil
+}
+
+type rocksBatch struct {
+	db *rocksdbStorage
+	tx *gorocksdb.Transaction
+}
+
+func (dbstorage *rocksdbStorage) NewBatch() Batch {
+	return &rocksBatch{tx: tnx_db.TransactionBegin()}
+}
+
+func (dbbatch *rocksBatch) Put(key, value []byte) error {
+	tx.Put(key, value)
+	return nil
+}
+
+func (dbbatch *rocksBatch) Del(key []byte) error {
+	tx.Delete(key)
+	return nil
+}
+
+func (dbbatch *rocksBatch) Commit() error {
+	tx.Commit()
+	return nil
+}
+
+func (dbbatch *rocksBatch) Rollback() error {
+	tx.Rollback()
+	return nil
+}
+
+type rocksTable struct {
+	rocksdb rocksdbStorage
+	prefix  string
+}
+
+func NewRocksTable(prefix string) rocksdbStorage {
+	return &rocksTable{
+		rocksdb: rocksdb
+		prefix: prefix
+	}
+}
+
+func (t *rocksTable) Has(key []byte) (bool, error) {
+	return nil
+}
+
+func (t *rocksTable) Put(key []byte, value []byte) error {
+	return nil
+}
+
+func (t *rocksTable) Get(key []byte) ([]byte, error) {
+	return nil
+}
+
+func (t *rocksTable) Del(key []byte) error {
+	return nil
+}
+
+func (t *rocksTable) Keys() [][]byte {
+	return nil
+}
+
+func (t *rocksTable) Close() error {
 	return nil
 }
