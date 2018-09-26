@@ -6,6 +6,7 @@ package core
 
 import (
 	"errors"
+	"sync/atomic"
 	"time"
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
@@ -44,6 +45,8 @@ type TransactionPool struct {
 	// orphan transaction's parent; one parent can have multiple orphan children
 	parentToOrphanTx map[crypto.HashType]*TxWrap
 
+	outpoints map[types.OutPoint]*TxWrap
+
 	// UTXO set
 	outpointToOutput map[types.OutPoint]types.TxOut
 }
@@ -51,7 +54,7 @@ type TransactionPool struct {
 // TxWrap wrap transaction
 type TxWrap struct {
 	tx     *types.Transaction
-	added  time.Time
+	added  int64
 	height int
 }
 
@@ -168,6 +171,8 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction) error {
 	// add transaction to pool.
 	tx_pool.push(unspentUtxoCache, tx, txFee)
 
+	// Accept any orphan transactions that depend on this tx.
+
 	return nil
 }
 
@@ -228,8 +233,17 @@ func (tx_pool *TransactionPool) handleOrphan() error {
 	return nil
 }
 
-func (tx_pool *TransactionPool) push(unspentUtxoCache *UtxoUnspentCache, tx *types.Transaction, txFee int64) error {
-	return nil
+func (tx_pool *TransactionPool) push(unspentUtxoCache *UtxoUnspentCache, tx *types.Transaction, txFee int64) *TxWrap {
+	txwrap := &TxWrap{
+		tx:     tx,
+		height: tx_pool.chain.tail.Height,
+	}
+	atomic.StoreInt64(&txwrap.added, time.Now().Unix())
+	tx_pool.hashToTx[*tx.Hash] = txwrap
+	for _, txIn := range tx.MsgTx.Vin {
+		tx_pool.outpoints[txIn.PrevOutPoint] = txwrap
+	}
+	return txwrap
 }
 
 func calcRequiredMinFee(txSize int) int64 {

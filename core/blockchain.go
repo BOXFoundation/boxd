@@ -642,7 +642,7 @@ func (chain *BlockChain) CheckTransactionInputs(tx *types.Transaction, unspentUt
 		}
 		// if utxo is coinbase
 		if utxo.IsCoinbase {
-			originHeight := utxo.blockHeight
+			originHeight := utxo.BlockHeight
 			blocksSincePrev := chain.tail.Height - originHeight
 			coinbaseMaturity := CoinbaseLib
 			if blocksSincePrev < coinbaseMaturity {

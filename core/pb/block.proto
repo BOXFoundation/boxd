@@ -42,3 +42,11 @@ message OutPoint {
     bytes hash = 1;
     uint32 index =2;
 }
+
+message UtxoWrap {
+    int64 value = 1;
+	bytes script_pubKey = 2;
+	int32 blockHeight = 3;
+	bool is_packed = 4;
+	bool is_coinbase = 5;
+}
