@@ -68,6 +68,12 @@ func RegisterGatewayHandler(name string, h GatewayHandler) {
 	handlers[name] = h
 }
 
+// RegisterServiceWithGatewayHandler registers a gRPC service with gateway handler
+func RegisterServiceWithGatewayHandler(name string, s Service, h GatewayHandler) {
+	services[name] = s
+	handlers[name] = h
+}
+
 // NewServer creates a RPC server instance.
 func NewServer(parent goprocess.Process, cfg *Config) (*Server, error) {
 	var server = &Server{
@@ -75,7 +81,6 @@ func NewServer(parent goprocess.Process, cfg *Config) (*Server, error) {
 	}
 
 	server.gRPCProc = parent.Go(server.servegRPC)
-	server.httpProc = server.gRPCProc.Go(server.serveHTTP)
 
 	return server, nil
 }
@@ -106,6 +111,9 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 		}
 	}()
 
+	// start gRPC gateway
+	s.httpProc = proc.Go(s.serveHTTP)
+
 	select {
 	case <-proc.Closing():
 		logger.Info("Shutting down RPC:gRPC server...")
@@ -121,23 +129,32 @@ func (s *Server) serveHTTP(proc goprocess.Process) {
 	var addr = fmt.Sprintf("%s:%d", s.cfg.Address, s.cfg.Port)
 
 	// register http gateway handlers
-	mux := runtime.NewServeMux()
+	// mux := runtime.NewServeMux()
+	// see https://github.com/grpc-ecosystem/grpc-gateway/issues/233
+	mux := runtime.NewServeMux(runtime.WithMarshalerOption(
+		runtime.MIMEWildcard,
+		&runtime.JSONPb{
+			OrigName:     true,
+			EmitDefaults: true,
+		},
+	))
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 	for name, handler := range handlers {
-		logger.Debugf("register gRPC http gateway handler: %s", name)
+		logger.Debugf("register gRPC gateway handler: %s", name)
 		if err := handler(goprocessctx.OnClosingContext(proc), mux, addr, opts); err != nil {
 			logger.Fatalf("failed register gRPC http gateway handler: %s", name)
 		}
 	}
 
 	var httpendpoint = fmt.Sprintf("%s:%d", s.cfg.HTTP.Address, s.cfg.HTTP.Port)
-	logger.Infof("Starting RPC:http server at %s", httpendpoint)
 	s.httpserver = &http.Server{Addr: httpendpoint, Handler: mux}
 	go func() {
 		s.wgHTTP.Add(1)
 		defer s.wgHTTP.Done()
 
-		if err := s.httpserver.ListenAndServe(); err != nil {
+		logger.Infof("Starting RPC:http server at %s", httpendpoint)
+		if err := s.httpserver.ListenAndServe(); err != http.ErrServerClosed {
+			// close proc only if the err is not ErrServerClosed
 			logger.Errorf("gRPC http gateway error: %v", err)
 			go proc.Close()
 		}
