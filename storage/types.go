@@ -4,31 +4,47 @@
 
 package storage
 
-// Storage wraps storage operations
-type Storage interface {
+// Operations wraps the basic storage operations
+type Operations interface {
 	// put the k-v to the Storage for database write operation
 	Put(key, value []byte) error
 
-	// return value associate with the key in the Storage
-	Get(key []byte) ([]byte, error)
-
 	// delete the entry associate with the key in the Storage
 	Del(key []byte) error
+
+	Get(key []byte) ([]byte, error)
 
 	Has(key []byte) (bool, error)
 
 	// return a set of keys in the Storage
 	Keys() [][]byte
-
-	Close()
 }
 
-// Transaction supports operations: 1. prepare   2. put the data for temporary    3. commit or rollback
-// TODO: add API for multiple transactions
-type Transaction interface {
-	Prepare() error
+// Batch wraps the batch options
+type Batch interface {
+	Operations
 
+	// commit changes to db
 	Commit() error
 
+	// reset
 	Rollback() error
+}
+
+// Table wraps the interface of a db table
+type Table interface {
+	Operations
+
+	BeginTransaction() Batch
+}
+
+// Storage wraps the whole db interface
+type Storage interface {
+	Operations
+
+	BeginTransaction() Batch
+
+	Table(name string) Table
+
+	Close() error
 }
