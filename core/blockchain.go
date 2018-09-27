@@ -5,6 +5,7 @@
 package core
 
 import (
+	"container/heap"
 	"errors"
 	"math"
 	"time"
@@ -675,5 +676,52 @@ func (chain *BlockChain) CheckTransactionInputs(tx *types.Transaction, unspentUt
 
 // ValidateTransactionScripts verify crypto signatures for each input
 func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction, unspentUtxo *UtxoUnspentCache) error {
+	return nil
+}
+
+// PackTxs packed txs and add them to block.
+func (chain *BlockChain) PackTxs(block *types.Block) {
+	pool := chain.txpool.pool
+	blockUtxos := NewUtxoUnspentCache()
+	var blockTxns []*types.MsgTx
+	for pool.Len() > 0 {
+		txwrap := heap.Pop(pool).(*TxWrap)
+		tx := txwrap.tx
+		unspentUtxoCache, err := chain.LoadUnspentUtxo(tx)
+		if err != nil {
+			continue
+		}
+		mergeUtxoCache(blockUtxos, unspentUtxoCache)
+		// spent tx
+		chain.spendTransaction(blockUtxos, tx, chain.tail.Height)
+		blockTxns = append(blockTxns, tx.MsgTx)
+	}
+
+	merkles := util.CalcTxsHash(blockTxns)
+	block.MsgBlock.Header.TxsRoot = *merkles
+	for _, tx := range blockTxns {
+		block.MsgBlock.Txs = append(block.MsgBlock.Txs, tx)
+	}
+}
+
+func mergeUtxoCache(cacheA *UtxoUnspentCache, cacheB *UtxoUnspentCache) {
+	viewAEntries := cacheA.outPointMap
+	for outpoint, entryB := range cacheB.outPointMap {
+		if entryA, exists := viewAEntries[outpoint]; !exists ||
+			entryA == nil || entryA.IsPacked {
+			viewAEntries[outpoint] = entryB
+		}
+	}
+}
+
+func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *types.Transaction, height int) error {
+	for _, txIn := range tx.MsgTx.Vin {
+		utxowrap := blockUtxos.FindByOutPoint(txIn.PrevOutPoint)
+		if utxowrap != nil {
+			utxowrap.IsPacked = true
+		}
+	}
+
+	blockUtxos.AddTxOuts(tx, height)
 	return nil
 }

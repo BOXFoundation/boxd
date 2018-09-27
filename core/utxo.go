@@ -81,6 +81,28 @@ func (uup *UtxoUnspentCache) RemoveByOutPoint(outpoint types.OutPoint) {
 	delete(uup.outPointMap, outpoint)
 }
 
+// AddTxOuts adds all outputs in the passed transaction.
+func (uup *UtxoUnspentCache) AddTxOuts(tx *types.Transaction, height int) {
+	// isCoinBase := IsCoinBase(tx.MsgTx)
+	prevOut := types.OutPoint{Hash: *tx.Hash}
+	for txOutIdx, txOut := range tx.MsgTx.Vout {
+		prevOut.Index = uint32(txOutIdx)
+		uup.addTxOut(prevOut, txOut, height)
+	}
+}
+
+func (uup *UtxoUnspentCache) addTxOut(prevOut types.OutPoint, txOut *types.TxOut, height int) {
+	utxowrap := uup.FindByOutPoint(prevOut)
+	if utxowrap == nil {
+		utxowrap = new(UtxoWrap)
+		uup.outPointMap[prevOut] = utxowrap
+	}
+
+	utxowrap.Value = txOut.Value
+	utxowrap.ScriptPubKey = txOut.ScriptPubKey
+	utxowrap.BlockHeight = height
+}
+
 // make sure save unspent utxo to storage when link block to main chain.
 func (uup *UtxoUnspentCache) storeUnspentUtxo(db storage.Storage) error {
 

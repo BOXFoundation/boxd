@@ -45,8 +45,3 @@ func (block *Block) BlockHash() (*crypto.HashType, error) {
 	block.Hash = hash
 	return hash, nil
 }
-
-// PackTxs packed txs and add them to block.
-func (block *Block) PackTxs() {
-
-}

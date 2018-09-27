@@ -76,5 +76,5 @@ func (dpos *Dpos) mint() {
 func (dpos *Dpos) mintBlock() {
 	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
-	block.PackTxs()
+	dpos.chain.PackTxs(block)
 }

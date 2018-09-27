@@ -5,6 +5,7 @@
 package core
 
 import (
+	"container/heap"
 	"errors"
 	"sync/atomic"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/p2p"
+	"github.com/BOXFoundation/Quicksilver/util"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
@@ -36,7 +38,7 @@ type TransactionPool struct {
 	newTxMsgCh chan p2p.Message
 	proc       goprocess.Process
 	chain      *BlockChain
-
+	pool       *util.PriorityQueue
 	// transaction pool
 	hashToTx map[crypto.HashType]*TxWrap
 
@@ -51,11 +53,22 @@ type TransactionPool struct {
 	outpointToOutput map[types.OutPoint]types.TxOut
 }
 
+func lessFunc(queue *util.PriorityQueue, i, j int) bool {
+
+	txi := queue.Items(i).(*TxWrap)
+	txj := queue.Items(j).(*TxWrap)
+	if txi.feePerKB == txj.feePerKB {
+		return txi.added < txj.added
+	}
+	return txi.feePerKB < txj.feePerKB
+}
+
 // TxWrap wrap transaction
 type TxWrap struct {
-	tx     *types.Transaction
-	added  int64
-	height int
+	tx       *types.Transaction
+	added    int64
+	height   int
+	feePerKB int64
 }
 
 // NewTransactionPool new a transaction pool.
@@ -65,6 +78,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *Block
 		proc:       goprocess.WithParent(parent),
 		notifiee:   notifiee,
 		chain:      chain,
+		pool:       util.NewPriorityQueue(lessFunc),
 	}
 }
 
@@ -169,7 +183,7 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction) error {
 	}
 
 	// add transaction to pool.
-	tx_pool.push(unspentUtxoCache, tx, txFee)
+	tx_pool.push(unspentUtxoCache, tx, txFee, int64(txSize))
 
 	// Accept any orphan transactions that depend on this tx.
 
@@ -233,12 +247,14 @@ func (tx_pool *TransactionPool) handleOrphan() error {
 	return nil
 }
 
-func (tx_pool *TransactionPool) push(unspentUtxoCache *UtxoUnspentCache, tx *types.Transaction, txFee int64) *TxWrap {
+func (tx_pool *TransactionPool) push(unspentUtxoCache *UtxoUnspentCache, tx *types.Transaction, txFee int64, txSize int64) *TxWrap {
 	txwrap := &TxWrap{
-		tx:     tx,
-		height: tx_pool.chain.tail.Height,
+		tx:       tx,
+		height:   tx_pool.chain.tail.Height,
+		feePerKB: int64(txFee / txSize),
 	}
 	atomic.StoreInt64(&txwrap.added, time.Now().Unix())
+	heap.Push(tx_pool.pool, txwrap)
 	tx_pool.hashToTx[*tx.Hash] = txwrap
 	for _, txIn := range tx.MsgTx.Vin {
 		tx_pool.outpoints[txIn.PrevOutPoint] = txwrap
