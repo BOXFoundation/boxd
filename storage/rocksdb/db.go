@@ -14,6 +14,9 @@ import (
 
 var logger = log.NewLogger("rocksdb")
 
+const number = 10
+const cache = 3 << 30
+
 func init() {
 	// register rocksdb impl
 	storage.Register("rocksdb", NewRocksDB)
@@ -31,20 +34,22 @@ func prepare(path string) {
 func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	logger.Infof("Creating rocksdb at %s", name)
 
-	bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
-	filter := gorocksdb.NewBloomFilter(number)
-	bbto.SetFilterPolicy(filter)
+	// bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
+	// filter := gorocksdb.NewBloomFilter(number)
+	// bbto.SetFilterPolicy(filter)
 
-	bbto.SetBlockCache(gorocksdb.NewLRUCache(cache))
+	// bbto.SetBlockCache(gorocksdb.NewLRUCache(cache))
 	options := gorocksdb.NewDefaultOptions()
-	options.SetBlockBasedTableFactory(bbto)
+	// options.SetBlockBasedTableFactory(bbto)
 	options.SetCreateIfMissing(true)
+	options.SetCreateIfMissingColumnFamilies(true)
+	options.SetMaxBackgroundFlushes(4)
 
 	prepare(name)
 	// get all column families
 	cfnames, err := gorocksdb.ListColumnFamilies(options, name)
 	if err != nil {
-		logger.Error(err)
+		logger.Debug(err)
 	}
 
 	var cfhandlers []*gorocksdb.ColumnFamilyHandle
@@ -67,12 +72,14 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 
 	d := &rocksdb{
 		rocksdb:      db,
-		cfs:          make(map[string]*gorocksdb.ColumnFamilyHandle),
+		cfs:          map[string]*gorocksdb.ColumnFamilyHandle{},
 		dboptions:    options,
 		readOptions:  gorocksdb.NewDefaultReadOptions(),
 		writeOptions: gorocksdb.NewDefaultWriteOptions(),
 		flushOptions: gorocksdb.NewDefaultFlushOptions(),
 	}
+	// d.flushOptions.SetWait(true)
+	// d.writeOptions.SetSync(true)
 
 	for i, cfhandler := range cfhandlers {
 		d.cfs[cfnames[i]] = cfhandler

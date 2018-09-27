@@ -7,8 +7,6 @@ package rocksdb
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"math/rand"
 	"os"
 	"sync"
 	"testing"
@@ -17,42 +15,7 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
-func randomPath(t *testing.T) string {
-	dir, err := ioutil.TempDir("", fmt.Sprintf("%d", rand.Int()))
-	ensure.Nil(t, err)
-	return dir
-}
-
-func TestDBCreateClose(t *testing.T) {
-	var dbpath = randomPath(t)
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
-	ensure.Nil(t, err)
-	defer os.RemoveAll(dbpath)
-
-	err = db.Close()
-	ensure.Nil(t, err)
-}
-
-var testFunc = func(t *testing.T, db storage.Storage, k, v []byte) func(*testing.T) {
-	return func(t *testing.T) {
-		db.Put(k, v)
-		has, err := db.Has(k)
-		ensure.Nil(t, err)
-		ensure.True(t, has)
-
-		value, err := db.Get(k)
-		ensure.Nil(t, err)
-		ensure.True(t, bytes.Equal(value, v))
-
-		ensure.Nil(t, db.Del(k))
-		has, err = db.Has(k)
-		ensure.Nil(t, err)
-		ensure.False(t, has)
-	}
-}
-
-func TestDBPut(t *testing.T) {
+func TestTableCreateClose(t *testing.T) {
 	var dbpath = randomPath(t)
 	defer os.RemoveAll(dbpath)
 
@@ -61,13 +24,14 @@ func TestDBPut(t *testing.T) {
 	ensure.Nil(t, err)
 	defer db.Close()
 
-	t.Run("put1", testFunc(t, db, []byte("tk1"), []byte("tv1")))
-	t.Run("put2", testFunc(t, db, []byte("tk2"), []byte("tv2")))
-	t.Run("put3", testFunc(t, db, []byte("tk3"), []byte("tv3")))
-	t.Run("put4", testFunc(t, db, []byte("tk4"), []byte("tv4")))
+	table, err := db.Table("t1")
+	ensure.Nil(t, err)
+
+	ensure.Nil(t, table.Put([]byte("!&@%hdg"), []byte("djksfusm, dl")))
+	ensure.Nil(t, db.DropTable("t1"))
 }
 
-func TestDBDel(t *testing.T) {
+func TestTableDel(t *testing.T) {
 	var dbpath = randomPath(t)
 	defer os.RemoveAll(dbpath)
 
@@ -78,12 +42,15 @@ func TestDBDel(t *testing.T) {
 
 	var wg sync.WaitGroup
 
+	table, err := db.Table("t1")
+	ensure.Nil(t, err)
+
 	var keys = []string{}
 	for i := 0; i < 10000; i++ {
 		k := fmt.Sprintf("key-%d", i)
 		v := fmt.Sprintf("value-%d", i)
 
-		ensure.Nil(t, db.Put([]byte(k), []byte(v)))
+		ensure.Nil(t, table.Put([]byte(k), []byte(v)))
 		wg.Add(1)
 		keys = append(keys, k)
 	}
@@ -96,17 +63,19 @@ func TestDBDel(t *testing.T) {
 	}
 	wg.Wait()
 }
-
-func TestDBBatch(t *testing.T) {
+func TestTableBatch(t *testing.T) {
 	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
 	var o storage.Options
 	var db, err = NewRocksDB(dbpath, &o)
 	ensure.Nil(t, err)
-
-	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
-	var count = 500
+	table, err := db.Table("t1")
+	ensure.Nil(t, err)
+
+	var count = 100
 	var kvs = map[string][]byte{}
 	var delkeys = []string{}
 	for i := 0; i < count; i++ {
@@ -118,7 +87,7 @@ func TestDBBatch(t *testing.T) {
 		}
 	}
 
-	var batch = db.NewBatch()
+	var batch = table.NewBatch()
 	defer batch.Close()
 
 	for k, v := range kvs {
@@ -131,14 +100,11 @@ func TestDBBatch(t *testing.T) {
 	}
 	var countAfterDel = count + len(delkeys)
 	ensure.True(t, batch.Count() == countAfterDel)
-
-	if err := batch.Write(); err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, batch.Write())
 
 	for _, k := range delkeys {
 		delete(kvs, k)
-		exist, err := db.Has([]byte(k))
+		exist, err := table.Has([]byte(k))
 		ensure.Nil(t, err)
 		ensure.False(t, exist)
 	}
@@ -150,53 +116,56 @@ func TestDBBatch(t *testing.T) {
 		go func(k, v []byte) {
 			defer wg.Done()
 
-			value, err := db.Get(k)
+			value, err := table.Get(k)
 			ensure.Nil(t, err)
-			if !bytes.Equal(v, value) {
-				t.Fatalf("value of key %s: expected %s, but actually %s", string(k), string(v), string(value))
-			}
+			ensure.True(t, bytes.Equal(v, value))
 		}([]byte(k), v)
 	}
 	wg.Wait()
 }
 
-func TestDBBatchs(t *testing.T) {
+func TestTableBatchs(t *testing.T) {
 	for i := 0; i < 10; i++ {
-		t.Run(fmt.Sprint("t", i), TestDBBatch)
+		t.Run(fmt.Sprint("t", i), TestTableBatch)
 	}
 }
 
-func TestDBKeys(t *testing.T) {
+func TestTableKeys(t *testing.T) {
 	var dbpath = randomPath(t)
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
-	ensure.Nil(t, err)
-
 	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	db, err := NewRocksDB(dbpath, &o)
+	ensure.Nil(t, err)
 	defer db.Close()
+
+	table, err := db.Table("tx")
+	ensure.Nil(t, err)
 
 	var count = 10000
 	var keys = map[string][]byte{}
 	for i := 0; i < count; i++ {
 		k := []byte(fmt.Sprintf("key-%d", i))
 		v := []byte(fmt.Sprintf("value-%d", i))
-		db.Put(k, v)
+		table.Put(k, v)
 		keys[string(k)] = k
 	}
 
-	for _, k := range db.Keys() {
-		if _, ok := keys[string(k)]; !ok {
-			t.Fatalf("key %s is unexpected", string(k))
-		}
+	for _, k := range table.Keys() {
+		_, ok := keys[string(k)]
+		ensure.True(t, ok)
 	}
 }
 
-func TestDBPersistent(t *testing.T) {
+func TestTablePersistent(t *testing.T) {
 	var dbpath = randomPath(t)
 	defer os.RemoveAll(dbpath)
 
 	var o storage.Options
 	var db, err = NewRocksDB(dbpath, &o)
+	ensure.Nil(t, err)
+
+	table, err := db.Table("t")
 	ensure.Nil(t, err)
 
 	var count = 100 // TODO the test may fail in case the count is greate than 10000
@@ -204,16 +173,20 @@ func TestDBPersistent(t *testing.T) {
 	for i := 0; i < count; i++ {
 		k := []byte(fmt.Sprintf("key-%d", i))
 		v := []byte(fmt.Sprintf("value-%d", i))
-		ensure.Nil(t, db.Put(k, v))
+		ensure.Nil(t, table.Put(k, v))
 		kvs[string(k)] = v
 	}
 	db.Close()
 
 	db, err = NewRocksDB(dbpath, &o)
 	ensure.Nil(t, err)
+	defer db.Close()
+
+	table, err = db.Table("t")
+	ensure.Nil(t, err)
 
 	for k, v := range kvs {
-		value, err := db.Get([]byte(k))
+		value, err := table.Get([]byte(k))
 		ensure.Nil(t, err)
 		ensure.True(t,
 			bytes.Equal(v, value),

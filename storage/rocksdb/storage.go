@@ -12,9 +12,6 @@ import (
 	"github.com/tecbot/gorocksdb"
 )
 
-const number = 10
-const cache = 3 << 30
-
 type rocksdb struct {
 	sm sync.Mutex
 
@@ -35,7 +32,8 @@ func (db *rocksdb) Table(name string) (storage.Table, error) {
 
 	cf, ok := db.cfs[name]
 	if !ok {
-		cf, err := db.rocksdb.CreateColumnFamily(db.dboptions, name)
+		var err error
+		cf, err = db.rocksdb.CreateColumnFamily(db.dboptions, name)
 		if err != nil {
 			return nil, err
 		}
@@ -80,8 +78,15 @@ func (db *rocksdb) Close() error {
 	if err := db.rocksdb.Flush(db.flushOptions); err != nil {
 		return err
 	}
-
+	for _, cfh := range db.cfs {
+		cfh.Destroy()
+	}
 	db.rocksdb.Close()
+
+	db.writeOptions.Destroy()
+	db.readOptions.Destroy()
+	db.flushOptions.Destroy()
+
 	return nil
 }
 
