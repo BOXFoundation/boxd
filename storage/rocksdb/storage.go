@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"sync"
 
-	types "github.com/BOXFoundation/Quicksilver/storage/types"
+	storage "github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/tecbot/gorocksdb"
 )
 
@@ -29,7 +29,7 @@ type rocksdb struct {
 }
 
 // Create or Get the table associate with the name
-func (db *rocksdb) Table(name string) (types.Table, error) {
+func (db *rocksdb) Table(name string) (storage.Table, error) {
 	db.smcfhandlers.Lock()
 	defer db.smcfhandlers.Unlock()
 
@@ -64,7 +64,7 @@ func (db *rocksdb) DropTable(name string) error {
 }
 
 // create a new write batch
-func (db *rocksdb) NewBatch() types.Batch {
+func (db *rocksdb) NewBatch() storage.Batch {
 	return &rbatch{
 		rocksdb:      db.rocksdb,
 		cf:           nil,

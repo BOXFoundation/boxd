@@ -14,6 +14,7 @@ import (
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
 	grpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
 	storage "github.com/BOXFoundation/Quicksilver/storage"
+	_ "github.com/BOXFoundation/Quicksilver/storage/rocksdb" // init rocksdb
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
 )
@@ -52,7 +53,7 @@ func Start(v *viper.Viper) error {
 	// start database life cycle
 	var database, err = storage.NewDatabase(proc, &cfg.Database)
 	if err != nil {
-		logger.Fatal("Failed to initialize database...") // exit in case of error during initialization of database
+		logger.Fatalf("Failed to initialize database: %v", err) // exit in case of error during initialization of database
 	}
 	nodeServer.database = database
 

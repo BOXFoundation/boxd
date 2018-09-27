@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"sync"
 
-	types "github.com/BOXFoundation/Quicksilver/storage/types"
+	storage "github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/tecbot/gorocksdb"
 )
 
@@ -23,7 +23,7 @@ type rtable struct {
 }
 
 // create a new write batch
-func (t *rtable) NewBatch() types.Batch {
+func (t *rtable) NewBatch() storage.Batch {
 	return &rbatch{
 		rocksdb:      t.rocksdb,
 		cf:           t.cf,

@@ -5,12 +5,30 @@
 package rocksdb
 
 import (
-	types "github.com/BOXFoundation/Quicksilver/storage/types"
+	"io/ioutil"
+
+	"github.com/BOXFoundation/Quicksilver/log"
+	storage "github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/tecbot/gorocksdb"
 )
 
-// NewRocksdb creates a rocksdb instance
-func NewRocksdb(name string, o *types.Options) (types.Storage, error) {
+var logger = log.NewLogger("rocksdb")
+
+func init() {
+	// register rocksdb impl
+	storage.Register("rocksdb", NewRocksDB)
+}
+
+func prepare(path string) {
+	files, err := ioutil.ReadDir(path)
+	if err != nil || len(files) == 0 {
+		dbpath := gorocksdb.NewDBPath(path, 0)
+		defer dbpath.Destroy()
+	}
+}
+
+// NewRocksDB creates a rocksdb instance
+func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
 	filter := gorocksdb.NewBloomFilter(number)
 	bbto.SetFilterPolicy(filter)
@@ -20,21 +38,29 @@ func NewRocksdb(name string, o *types.Options) (types.Storage, error) {
 	options.SetBlockBasedTableFactory(bbto)
 	options.SetCreateIfMissing(true)
 
+	prepare(name)
 	// get all column families
 	cfnames, err := gorocksdb.ListColumnFamilies(options, name)
 	if err != nil {
-		return nil, err
-	}
-	// column families options
-	var cfoptions = make([]*gorocksdb.Options, len(cfnames))
-	for i := range cfnames {
-		cfoptions[i] = options
+		logger.Error(err)
 	}
 
-	// open database with column families
-	db, cfhandlers, err := gorocksdb.OpenDbColumnFamilies(options, name, cfnames, cfoptions)
-	if err != nil {
-		return nil, err
+	var cfhandlers []*gorocksdb.ColumnFamilyHandle
+	var db *gorocksdb.DB
+	if len(cfnames) == 0 {
+		db, err = gorocksdb.OpenDb(options, name)
+	} else {
+		// column families options
+		var cfoptions = make([]*gorocksdb.Options, len(cfnames))
+		for i := range cfnames {
+			cfoptions[i] = options
+		}
+
+		// open database with column families
+		db, cfhandlers, err = gorocksdb.OpenDbColumnFamilies(options, name, cfnames, cfoptions)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	d := &rocksdb{
