@@ -14,6 +14,7 @@ import (
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
 	grpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
 	storage "github.com/BOXFoundation/Quicksilver/storage"
+	_ "github.com/BOXFoundation/Quicksilver/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/Quicksilver/storage/rocksdb" // init rocksdb
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
