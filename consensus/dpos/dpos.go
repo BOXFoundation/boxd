@@ -77,4 +77,6 @@ func (dpos *Dpos) mintBlock() {
 	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
 	dpos.chain.PackTxs(block)
+	// block.setMiner()
+	dpos.chain.ProcessBlock(block.MsgBlock)
 }

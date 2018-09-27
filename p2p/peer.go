@@ -12,6 +12,7 @@ import (
 	"os"
 	"sync"
 
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -141,8 +142,17 @@ func (p *BoxPeer) addAddrToPeerstore(h host.Host, addr string) error {
 }
 
 // Broadcast business message.
-func (p *BoxPeer) Broadcast(code uint32, message Serializable) {
-
+func (p *BoxPeer) Broadcast(code uint32, message Serializable) error {
+	pb, err := message.Serialize()
+	if err != nil {
+		return err
+	}
+	body, err := proto.Marshal(pb)
+	for _, v := range p.conns {
+		conn := v.(*Conn)
+		go conn.Write(code, body)
+	}
+	return nil
 }
 
 // SendMessageToPeer send message to a peer.

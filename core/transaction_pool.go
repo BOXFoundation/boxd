@@ -119,10 +119,10 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	if err != nil {
 		return err
 	}
-	return tx_pool.processTx(tx)
+	return tx_pool.processTx(tx, false)
 }
 
-func (tx_pool *TransactionPool) processTx(tx *types.Transaction) error {
+func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool) error {
 
 	if tx_pool.isTransactionInPool(tx.Hash) {
 		return ErrDuplicateTxInPool
@@ -138,6 +138,7 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction) error {
 	}
 
 	// ensure it is a "standard" transaction
+	// TODO: is needed?
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
 		return ErrNonStandardTransaction
 	}
@@ -186,7 +187,9 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction) error {
 	tx_pool.push(unspentUtxoCache, tx, txFee, int64(txSize))
 
 	// Accept any orphan transactions that depend on this tx.
-
+	if broadcast {
+		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx.MsgTx)
+	}
 	return nil
 }
 

@@ -18,7 +18,7 @@ import (
 // UtxoUnspentCache define unspent transaction  pool
 type UtxoUnspentCache struct {
 	outPointMap map[types.OutPoint]*UtxoWrap
-	tailHash    *types.Block
+	tailHash    *crypto.HashType
 }
 
 // UtxoWrap utxo wrap
@@ -35,6 +35,15 @@ func NewUtxoUnspentCache() *UtxoUnspentCache {
 	return &UtxoUnspentCache{
 		outPointMap: make(map[types.OutPoint]*UtxoWrap),
 	}
+}
+
+// UtxoUnspentCachePool  to cache temporary objects
+var UtxoUnspentCachePool = sync.Pool{
+	New: func() interface{} {
+		return &UtxoUnspentCache{
+			outPointMap: make(map[types.OutPoint]*UtxoWrap),
+		}
+	},
 }
 
 // Serialize utxo wrap to proto message.

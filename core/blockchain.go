@@ -278,7 +278,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	chain.processBlock(block)
+	chain.ProcessBlock(block)
 
 	return nil
 }
@@ -303,7 +303,7 @@ func (chain *BlockChain) addOrphanBlock(block *types.MsgBlock, blockHash crypto.
 //
 // The first return value indicates if the block is on the main chain.
 // The second indicates if the block is an orphan.
-func (chain *BlockChain) processBlock(block *types.MsgBlock) (bool, bool, error) {
+func (chain *BlockChain) ProcessBlock(block *types.MsgBlock) (bool, bool, error) {
 	blockHash, err := block.BlockHash()
 	if err != nil {
 		logger.Errorf("block hash calculation error")
@@ -619,8 +619,9 @@ func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCac
 
 	// Request the utxos from the point of view of the end of the main
 	// chain.
-	uup := NewUtxoUnspentCache()
-
+	// uup := NewUtxoUnspentCache()
+	uup := UtxoUnspentCachePool.Get().(*UtxoUnspentCache)
+	UtxoUnspentCachePool.Put(uup)
 	// TODO: add mutex?
 	err := uup.LoadUtxoFromDB(chain.db, outPointMap)
 
@@ -676,6 +677,26 @@ func (chain *BlockChain) CheckTransactionInputs(tx *types.Transaction, unspentUt
 
 // ValidateTransactionScripts verify crypto signatures for each input
 func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction, unspentUtxo *UtxoUnspentCache) error {
+	txIns := tx.MsgTx.Vin
+	txValItems := make([]*txValidateItem, 0, len(txIns))
+	for txInIdx, txIn := range txIns {
+		// Skip coinbases.
+		if txIn.PrevOutPoint.Index == math.MaxUint32 {
+			continue
+		}
+
+		txVI := &txValidateItem{
+			txInIndex: txInIdx,
+			txIn:      txIn,
+			tx:        tx,
+			// sigHashes: cachedHashes,
+		}
+		txValItems = append(txValItems, txVI)
+	}
+
+	// Validate all of the inputs.
+	// validator := NewTxValidator(unspentUtxo, flags, sigCache, hashCache)
+	// return validator.Validate(txValItems)
 	return nil
 }
 
