@@ -18,7 +18,7 @@ func init() {
 
 // NewMemoryDB creates a memorydb instance
 func NewMemoryDB(_ string, _ *storage.Options) (storage.Storage, error) {
-	logger.Info("Creating memdb")
+	logger.Debug("Creating memdb")
 	return &memorydb{
 		db: make(map[string][]byte),
 	}, nil

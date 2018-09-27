@@ -99,11 +99,11 @@ func TestDBDel(t *testing.T) {
 
 func TestDBBatch(t *testing.T) {
 	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
 	var o storage.Options
 	var db, err = NewRocksDB(dbpath, &o)
 	ensure.Nil(t, err)
-
-	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
 	var count = 500
@@ -168,11 +168,11 @@ func TestDBBatchs(t *testing.T) {
 
 func TestDBKeys(t *testing.T) {
 	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
 	var o storage.Options
 	var db, err = NewRocksDB(dbpath, &o)
 	ensure.Nil(t, err)
-
-	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
 	var count = 10000
