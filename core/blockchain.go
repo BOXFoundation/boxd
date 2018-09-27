@@ -455,8 +455,8 @@ func (chain *BlockChain) checkTransactionInputs(tx *types.MsgTx, txHeight int32)
 		// Ensure the referenced input transaction is available.
 		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
-			logger.Errorf("output %v referenced from transaction %s:%d either does not exist",
-				txIn.PrevOutPoint, txHash, txInIndex)
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
+				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
 			return 0, ErrMissingTxOut
 		}
 
@@ -593,8 +593,8 @@ func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.MsgTx) (
 	nextHeight := block.Height + 1
 
 	for txInIndex, txIn := range tx.Vin {
-		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
 		txHash, _ := tx.MsgTxHash()
+		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
 			logger.Errorf("output %v referenced from transaction %s:%d either does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
@@ -790,6 +790,39 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	return nil
 }
 
+// findFork returns final common block between the passed block and the main chain, and blocks to be detached and attached
+func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Block, []*types.Block) {
+	if block.Height != (chain.longestChainHeight + 1) {
+		logger.Panicf("Side chain (height: %d) is more than one block longer than main chain (height: %d) during chain reorg",
+			block.Height, chain.longestChainHeight)
+	}
+	detachBlocks := make([]*types.Block, 0)
+	attachBlocks := []*types.Block{block}
+	// Start from the same height by moving side chain one block up
+	mainChainBlock, sideChainBlock, found := chain.TailBlock(), chain.getParentBlock(block), false
+	for mainChainBlock != nil && sideChainBlock != nil {
+		if mainChainBlock.Height != sideChainBlock.Height {
+			logger.Panicf("Expect to compare main chain and side chain block at same height")
+		}
+		mainChainHash, _ := mainChainBlock.BlockHash()
+		sideChainHash, _ := sideChainBlock.BlockHash()
+		if mainChainHash.IsEqual(sideChainHash) {
+			found = true
+			break
+		}
+		detachBlocks = append(detachBlocks, mainChainBlock)
+		attachBlocks = append(attachBlocks, sideChainBlock)
+		mainChainBlock, sideChainBlock = chain.getParentBlock(mainChainBlock), chain.getParentBlock(sideChainBlock)
+	}
+	if !found {
+		logger.Panicf("Fork point not found, but main chain and side chain share at least one common block, i.e., genesis")
+	}
+	if len(detachBlocks)+1 != len(attachBlocks) {
+		logger.Panicf("Blocks to be attached should be one block more than ones to be detached")
+	}
+	return mainChainBlock, detachBlocks, attachBlocks
+}
+
 // connectBlockToChain handles connecting the passed block to the chain while
 // respecting proper chain selection according to the longest chain.
 // In the typical case, the new block simply extends the main
@@ -799,62 +832,71 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 // ended up on the main chain (either due to extending the main chain or causing
 // a reorganization to become the main chain).
 func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
-	// We are extending the main (best) chain with a new block.  This is the most common case.
+	blockHash, _ := block.BlockHash()
 	parentHash := &block.MsgBlock.Header.PrevBlockHash
 	tailHash, _ := chain.TailBlock().BlockHash()
 	if parentHash.IsEqual(tailHash) {
-		// Perform several checks to verify the block can be connected
-		// to the main chain without violating any rules before
-		// actually connecting the block.
+		// We are extending the main (best) chain with a new block. This is the most common case.
+		// Perform several checks to verify the block can be connected to the
+		// main chain without violating any rules before actually connecting the block.
 		err := chain.maybeConnectBlock(block)
 		if err != nil {
 			return false, err
 		}
-
 		return true, nil
 	}
 
-	// // We're extending (or creating) a side chain, but the cumulative
-	// // work for this new side chain is not enough to make it the new chain.
-	// if node.workSum.Cmp(b.bestChain.Tip().workSum) <= 0 {
-	// 	// Log information about how the block is forking the chain.
-	// 	fork := b.bestChain.FindFork(node)
-	// 	if fork.hash.IsEqual(parentHash) {
-	// 		log.Infof("FORK: Block %v forks the chain at height %d"+
-	// 			"/block %v, but does not cause a reorganize",
-	// 			node.hash, fork.height, fork.hash)
-	// 	} else {
-	// 		log.Infof("EXTEND FORK: Block %v extends a side chain "+
-	// 			"which forks the chain at height %d/block %v",
-	// 			node.hash, fork.height, fork.hash)
-	// 	}
+	// We're extending (or creating) a side chain, but the new side chain is not long enough to make it the main chain.
+	if block.Height <= chain.longestChainHeight {
+		// Log information about how the block is forking the chain.
+		fork, _, _ := chain.findFork(block)
+		forkHash, _ := fork.BlockHash()
+		if forkHash.IsEqual(parentHash) {
+			logger.Infof("FORK: Block %v forks the chain at height %d, but does not "+
+				"cause a reorganization", blockHash, fork.Height)
+		} else {
+			logger.Infof("EXTEND FORK: Block %v extends a side chain which forks the chain "+
+				"at height %d", blockHash, fork.Height)
+		}
+		return false, nil
+	}
 
-	// 	return false, nil
-	// }
+	// We're extending a side chain longer than the old best chain, so this side
+	// chain needs to become the main chain.
+	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash)
+	err := chain.reorganizeChain(block)
+	if err != nil {
+		return false, err
+	}
+	// This block is now the end of the best chain.
+	chain.SetTailBlock(block)
+	chain.longestChainHeight = block.Height
+	return true, err
+}
 
-	// // We're extending (or creating) a side chain and the cumulative work
-	// // for this new side chain is more than the old best chain, so this side
-	// // chain needs to become the main chain.  In order to accomplish that,
-	// // find the common ancestor of both sides of the fork, disconnect the
-	// // blocks that form the (now) old fork from the main chain, and attach
-	// // the blocks that form the new chain to the main chain starting at the
-	// // common ancenstor (the point where the chain forked).
-	// detachNodes, attachNodes := b.getReorganizeNodes(node)
+func (chain *BlockChain) reorganizeChain(block *types.Block) error {
+	// Find the common ancestor of the main chain and side chain
+	_, detachBlocks, attachBlocks := chain.findFork(block)
 
-	// // Reorganize the chain.
-	// log.Infof("REORGANIZE: Block %v is causing a reorganize.", node.hash)
-	// err := b.reorganizeChain(detachNodes, attachNodes)
+	// Detach the blocks that form the (now) old fork from the main chain.
+	// From tip to fork, not including fork
+	for _, detachBlock := range detachBlocks {
+		if err := chain.utxoSet.RevertBlock(detachBlock); err != nil {
+			return err
+		}
+	}
 
-	// // Either getReorganizeNodes or reorganizeChain could have made unsaved
-	// // changes to the block index, so flush regardless of whether there was an
-	// // error. The index would only be dirty if the block failed to connect, so
-	// // we can ignore any errors writing.
-	// if writeErr := b.index.flushToDB(); writeErr != nil {
-	// 	log.Warnf("Error flushing block index changes to disk: %v", writeErr)
-	// }
+	// Attach the blocks that form the new chain to the main chain starting at the
+	// common ancenstor (the point where the chain forked).
+	// From fork to tip, not including fork
+	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
+		attachBlock := attachBlocks[blockIdx]
+		if err := chain.utxoSet.ApplyBlock(attachBlock); err != nil {
+			return err
+		}
+	}
 
-	// return err == nil, err
-	return true, nil
+	return nil
 }
 
 // IsFinalizedTransaction determines whether or not a transaction is finalized.
