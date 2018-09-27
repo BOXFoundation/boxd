@@ -29,6 +29,8 @@ func prepare(path string) {
 
 // NewRocksDB creates a rocksdb instance
 func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
+	logger.Infof("Creating rocksdb at %s", name)
+
 	bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
 	filter := gorocksdb.NewBloomFilter(number)
 	bbto.SetFilterPolicy(filter)
