@@ -94,6 +94,7 @@ func (tx_pool *TransactionPool) Run() {
 
 // handle new tx message from network.
 func (tx_pool *TransactionPool) loop() {
+	logger.Info("Waitting for new tx message...")
 	for {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:

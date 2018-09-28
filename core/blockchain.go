@@ -303,6 +303,7 @@ func (chain *BlockChain) subscribeMessageNotifiee(notifiee p2p.Net) {
 }
 
 func (chain *BlockChain) loop() {
+	logger.Info("Waitting for new block message...")
 	for {
 		select {
 		case msg := <-chain.newblockMsgCh:
@@ -327,7 +328,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	chain.processBlock(&types.Block{MsgBlock: msgBlock})
+	chain.ProcessBlock(&types.Block{MsgBlock: msgBlock})
 
 	return nil
 }
@@ -386,7 +387,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 //
 // The first return value indicates if the block is on the main chain.
 // The second indicates if the block is an orphan.
-func (chain *BlockChain) processBlock(block *types.Block) (bool, bool, error) {
+func (chain *BlockChain) ProcessBlock(block *types.Block) (bool, bool, error) {
 	blockHash, _ := block.BlockHash()
 	logger.Infof("Processing block %v", blockHash)
 
@@ -1344,6 +1345,7 @@ func (chain *BlockChain) PackTxs(block *types.Block) error {
 	var blockTxns []*types.MsgTx
 	coinbaseTx, err := chain.createCoinbaseTx()
 	if err != nil || coinbaseTx == nil {
+		logger.Info("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)

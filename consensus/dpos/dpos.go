@@ -25,12 +25,12 @@ func init() {
 // Dpos define dpos struct
 type Dpos struct {
 	chain *core.BlockChain
-	net   *p2p.Net
+	net   p2p.Net
 	proc  goprocess.Process
 }
 
 // NewDpos new a dpos implement.
-func NewDpos(chain *core.BlockChain, net *p2p.Net, parent goprocess.Process) *Dpos {
+func NewDpos(chain *core.BlockChain, net p2p.Net, parent goprocess.Process) *Dpos {
 	return &Dpos{
 		chain: chain,
 		net:   net,
@@ -78,5 +78,5 @@ func (dpos *Dpos) mintBlock() {
 	block := types.NewBlock(tail)
 	dpos.chain.PackTxs(block)
 	// block.setMiner()
-	dpos.chain.ProcessBlock(block.MsgBlock)
+	dpos.chain.ProcessBlock(block)
 }

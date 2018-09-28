@@ -6,6 +6,6 @@ package consensus
 
 // Consensus define consensus interface
 type Consensus interface {
-	Start()
+	Run()
 	Stop()
 }

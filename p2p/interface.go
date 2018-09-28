@@ -24,7 +24,7 @@ type Message interface {
 // Net Define Net interface
 type Net interface {
 	Bootstrap()
-	Broadcast(uint32, Serializable)
+	Broadcast(uint32, Serializable) error
 	SendMessageToPeer(uint32, Serializable, peer.ID)
 	Subscribe(*Notifiee)
 	UnSubscribe(*Notifiee)

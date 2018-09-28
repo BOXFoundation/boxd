@@ -10,6 +10,8 @@ import (
 	"sync"
 
 	config "github.com/BOXFoundation/Quicksilver/config"
+	"github.com/BOXFoundation/Quicksilver/consensus/dpos"
+	"github.com/BOXFoundation/Quicksilver/core"
 	"github.com/BOXFoundation/Quicksilver/log"
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
 	grpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
@@ -66,6 +68,16 @@ func Start(v *viper.Viper) error {
 		nodeServer.peer = peer
 		nodeServer.peer.Bootstrap()
 	}
+
+	bc, err := core.NewBlockChain(proc, peer, database.Storage)
+	if err != nil {
+		logger.Error("Failed to new BlockChain...") // exit in case of error during creating p2p server instance
+		proc.Close()
+	}
+	bc.Run()
+
+	consensus := dpos.NewDpos(bc, peer, proc)
+	consensus.Run()
 
 	if cfg.RPC.Enabled {
 		nodeServer.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC)

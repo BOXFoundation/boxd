@@ -1,5 +1,5 @@
-# network: mainnet
-# workspace: ~/.boxd
+network: mainnet
+workspace: boxd
 # database:
 #     name: rocksdb
 log:
@@ -18,7 +18,11 @@ log:
               rotate: true
               level:  4 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
-    key_path: peer.key
+    key_path: networkkey
     port: 19199
     bucket_size: 16
     latency: 10
+rpc:
+    port: 19181
+    http:
+        port: 19180
