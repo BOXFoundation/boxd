@@ -701,10 +701,15 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction, unspe
 }
 
 // PackTxs packed txs and add them to block.
-func (chain *BlockChain) PackTxs(block *types.Block) {
+func (chain *BlockChain) PackTxs(block *types.Block) error {
 	pool := chain.txpool.pool
 	blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.MsgTx
+	coinbaseTx, err := chain.createCoinbaseTx()
+	if err != nil || coinbaseTx == nil {
+		return errors.New("Failed to create coinbaseTx")
+	}
+	blockTxns = append(blockTxns, coinbaseTx)
 	for pool.Len() > 0 {
 		txwrap := heap.Pop(pool).(*TxWrap)
 		tx := txwrap.tx
@@ -723,6 +728,7 @@ func (chain *BlockChain) PackTxs(block *types.Block) {
 	for _, tx := range blockTxns {
 		block.MsgBlock.Txs = append(block.MsgBlock.Txs, tx)
 	}
+	return nil
 }
 
 func mergeUtxoCache(cacheA *UtxoUnspentCache, cacheB *UtxoUnspentCache) {
@@ -745,4 +751,8 @@ func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *type
 
 	blockUtxos.AddTxOuts(tx, height)
 	return nil
+}
+
+func (chain *BlockChain) createCoinbaseTx() (*types.MsgTx, error) {
+	return nil, nil
 }
