@@ -339,25 +339,55 @@ func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
 	return exists
 }
 
-func (chain *BlockChain) addOrphanBlock(block *types.Block, blockHash crypto.HashType, prevHash crypto.HashType) {
-	chain.hashToOrphanBlock[blockHash] = block
-	// Add to previous hash lookup index for faster dependency lookups.
-	chain.orphanBlockHashToChildren[prevHash] = append(chain.orphanBlockHashToChildren[prevHash], block)
+func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
+	chain.hashToOrphanBlock[orphanHash] = orphan
+	// Add to parent hash map lookup index for faster dependency lookups.
+	chain.orphanBlockHashToChildren[parentHash] = append(chain.orphanBlockHashToChildren[parentHash], orphan)
+}
+
+// processOrphans determines if there are any orphans which depend on the accepted
+// block hash (they are no longer orphans if true) and potentially accepts them.
+// It repeats the process for the newly accepted blocks (to detect further
+// orphans which may no longer be orphans) until there are no more.
+func (chain *BlockChain) processOrphans(block *types.Block) error {
+	// Start with processing at least the passed block.
+	acceptedBlocks := []*types.Block{block}
+
+	// Note: use index here instead of range because acceptedBlocks can be extended inside the loop
+	for i := 0; i < len(acceptedBlocks); i++ {
+		acceptedBlock := acceptedBlocks[i]
+		acceptedBlockHash, _ := acceptedBlock.BlockHash()
+
+		// Look up all orphans that are parented by the block we just accepted.
+		childOrphans := chain.orphanBlockHashToChildren[*acceptedBlockHash]
+		for _, orphan := range childOrphans {
+			orphanHash, _ := orphan.BlockHash()
+			// Remove the orphan from the orphan pool even if it is not accepted
+			// since it will not be accepted later if rejected once.
+			delete(chain.hashToOrphanBlock, *orphanHash)
+			// Potentially accept the block into the block chain.
+			if _, err := chain.maybeAcceptBlock(orphan); err != nil {
+				return err
+			}
+			// Add this block to the list of blocks to process so any orphan
+			// blocks that depend on this block are handled too.
+			acceptedBlocks = append(acceptedBlocks, orphan)
+		}
+		// Remove the acceptedBlock from the orphan children map.
+		delete(chain.orphanBlockHashToChildren, *acceptedBlockHash)
+	}
+	return nil
 }
 
 // ProcessBlock is the main workhorse for handling insertion of new blocks into
-// the block chain.  It includes functionality such as rejecting duplicate
+// the block chain. It includes functionality such as rejecting duplicate
 // blocks, ensuring blocks follow all rules, orphan handling, and insertion into
 // the block chain along with best chain selection and reorganization.
 //
 // The first return value indicates if the block is on the main chain.
 // The second indicates if the block is an orphan.
 func (chain *BlockChain) processBlock(block *types.Block) (bool, bool, error) {
-	blockHash, err := block.BlockHash()
-	if err != nil {
-		logger.Errorf("block hash calculation error")
-		return false, false, err
-	}
+	blockHash, _ := block.BlockHash()
 	logger.Infof("Processing block %v", blockHash)
 
 	// The block must not already exist in the main chain or side chains.
@@ -393,16 +423,13 @@ func (chain *BlockChain) processBlock(block *types.Block) (bool, bool, error) {
 		return false, false, err
 	}
 
-	// // Accept any orphan blocks that depend on this block (they are
-	// // no longer orphans) and repeat for those accepted blocks until
-	// // there are no more.
-	// err = b.processOrphans(blockHash)
-	// if err != nil {
-	// 	return false, false, err
-	// }
+	// Accept any orphan blocks that depend on this block (they are no longer orphans)
+	// and repeat for those accepted blocks until there are no more.
+	if err := chain.processOrphans(block); err != nil {
+		return false, false, err
+	}
 
-	// log.Debugf("Accepted block %v", blockHash)
-
+	logger.Infof("Accepted block %v", blockHash)
 	return isMainChain, false, nil
 }
 
@@ -935,7 +962,7 @@ func IsFinalizedTransaction(msgTx *types.MsgTx, blockHeight int32, blockTime int
 // maybeAcceptBlock potentially accepts a block into the block chain and, if
 // accepted, returns whether or not it is on the main chain.  It performs
 // several validation checks which depend on its position within the block chain
-// before adding it.  The block is expected to have already gone through
+// before adding it. The block is expected to have already gone through
 // ProcessBlock before calling this function with it.
 func (chain *BlockChain) maybeAcceptBlock(block *types.Block) (bool, error) {
 	// must not be orphan block if reaching here
