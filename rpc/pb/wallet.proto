@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package walletpb;
+import "block.proto";
+import "google/api/annotations.proto";
+
+service WalletCommand {
+    rpc ListTransactions (ListTransactionsRequest) returns (ListTransactionsResponse) {
+        option (google.api.http) =  {
+            post: "/v1/wlt/listtransactions"
+            body: "*"
+        };
+    }
+
+
+    rpc GetTransactionCount(GetTransactionCountRequest) returns (GetTransactionCountResponse) {
+        option (google.api.http) = {
+            post: "/v1/wlt/gettransactioncount"
+            body: "*"
+        };
+    }
+
+    rpc ListUtxos(ListUtxosRequest) returns (ListUtxosResponse) {
+        option (google.api.http) = {
+            post: "/v1/wlt/listutxos"
+            body: "*"
+        };
+    }
+
+}
+
+message ListTransactionsRequest {
+    string addr = 1;
+    uint32 offset = 2;
+    uint32 limit = 3;
+}
+
+message ListTransactionsResponse {
+    int32 code = 1;
+    string message = 2;
+    uint32 count = 3;
+    repeated corepb.MsgTx transactions = 4;
+}
+
+message Transaction {
+    string tx_hash = 1;
+    bytes raw_bytes = 2;
+}
+
+message GetTransactionCountRequest {
+    string addr = 1;
+}
+
+message GetTransactionCountResponse {
+    int32 code = 1;
+    string message = 2;
+    uint32 count = 3;
+}
+
+message ListUtxosRequest {
+    string addr = 1;
+    uint32 offset = 2;
+    uint32 limit = 3;
+}
+
+message ListUtxosResponse {
+    int32 code = 1;
+    string message = 2;
+    uint32 count = 3;
+    repeated corepb.UtxoWrap utxos = 4;
+}
