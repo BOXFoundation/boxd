@@ -37,6 +37,13 @@ type UtxoSet struct {
 	utxoMap map[types.OutPoint]*UtxoEntry
 }
 
+// NewUtxoSet new utxo set
+func NewUtxoSet() *UtxoSet {
+	return &UtxoSet{
+		utxoMap: make(map[types.OutPoint]*UtxoEntry),
+	}
+}
+
 // FindUtxo returns information about an outpoint.
 // It returns nil if the outpoint does not exist or has been spent.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *UtxoEntry {

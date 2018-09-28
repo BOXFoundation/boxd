@@ -23,7 +23,8 @@ func init() {
 
 // Config defines the configurations of dpos
 type Config struct {
-	Index int `mapstructure:"index"`
+	Index  int    `mapstructure:"index"`
+	Pubkey string `mapstructure:"pubkey"`
 }
 
 // Dpos define dpos struct
@@ -71,7 +72,7 @@ func (dpos *Dpos) loop() {
 
 func (dpos *Dpos) mint() {
 	now := time.Now().Unix()
-	if int(now%15) != dpos.cfg.Index {
+	if int(now%10) != dpos.cfg.Index {
 		return
 	}
 
@@ -80,9 +81,24 @@ func (dpos *Dpos) mint() {
 }
 
 func (dpos *Dpos) mintBlock() {
-	tail := dpos.chain.TailBlock()
+	// serializedPubKey, err := hex.DecodeString(dpos.cfg.Pubkey)
+	// if err != nil {
+	// 	panic("invalid hex in source file: " + dpos.cfg.Pubkey)
+	// }
+	// logger.Info("pubkey ", serializedPubKey)
+	pubkey := []byte{
+		0xe3, 0x4c, 0xce, 0x70, 0xc8, 0x63, 0x73, 0x27, 0x3e, 0xfc,
+		0xc5, 0x4c, 0xe7, 0xd2, 0xa4, 0x91, 0xbb, 0x4a, 0x0e, 0x84}
+	addr, err := types.NewAddressPubKeyHash(pubkey, 0x00)
+	if err != nil {
+		panic("invalid public key in test source")
+	}
+
+	tail, _ := dpos.chain.LoadTailBlock()
+	logger.Info("current tail block: ", tail.Hash, tail.Height)
+
 	block := types.NewBlock(tail)
-	dpos.chain.PackTxs(block)
+	dpos.chain.PackTxs(block, addr)
 	// block.setMiner()
-	dpos.chain.ProcessBlock(block)
+	dpos.chain.ProcessBlock(block, true)
 }

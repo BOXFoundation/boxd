@@ -8,10 +8,12 @@ import (
 	"container/heap"
 	"errors"
 	"math"
+	"math/rand"
 	"sort"
 	"time"
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
+	"github.com/btcsuite/btcd/txscript"
 
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
@@ -162,17 +164,21 @@ type BlockChain struct {
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 
 	// all utxos for main chain
-	utxoSet UtxoSet
+	utxoSet *UtxoSet
 }
 
 // NewBlockChain return a blockchain.
 func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage) (*BlockChain, error) {
 
 	b := &BlockChain{
-		notifiee:      notifiee,
-		newblockMsgCh: make(chan p2p.Message, BlockMsgChBufferSize),
-		proc:          goprocess.WithParent(parent),
-		db:            db,
+		notifiee:                  notifiee,
+		newblockMsgCh:             make(chan p2p.Message, BlockMsgChBufferSize),
+		proc:                      goprocess.WithParent(parent),
+		db:                        db,
+		hashToBlock:               make(map[crypto.HashType]*types.Block),
+		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
+		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
+		utxoSet:                   NewUtxoSet(),
 	}
 
 	b.txpool = NewTransactionPool(parent, notifiee, b)
@@ -183,12 +189,12 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 	b.genesis = genesis
 
-	tail, err := b.loadTailBlock()
+	tail, err := b.LoadTailBlock()
 	if err != nil {
 		return nil, err
 	}
 	b.tail = tail
-
+	b.hashToBlock[genesisHash] = genesis
 	return b, nil
 }
 
@@ -223,8 +229,11 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 }
 
-func (chain *BlockChain) loadTailBlock() (*types.Block, error) {
-
+// LoadTailBlock load tail block
+func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
+	if chain.tail != nil {
+		return chain.tail, nil
+	}
 	if ok, _ := chain.db.Has([]byte(Tail)); ok {
 		tailBin, err := chain.db.Get([]byte(Tail))
 		if err != nil {
@@ -329,7 +338,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	chain.ProcessBlock(&types.Block{MsgBlock: msgBlock})
+	chain.ProcessBlock(&types.Block{MsgBlock: msgBlock}, false)
 
 	return nil
 }
@@ -388,7 +397,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 //
 // The first return value indicates if the block is on the main chain.
 // The second indicates if the block is an orphan.
-func (chain *BlockChain) ProcessBlock(block *types.Block) (bool, bool, error) {
+func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
 	blockHash, _ := block.BlockHash()
 	logger.Infof("Processing block %v", blockHash)
 
@@ -406,6 +415,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block) (bool, bool, error) {
 
 	// Perform preliminary sanity checks on the block and its transactions.
 	if err := sanityCheckBlock(block, util.NewMedianTime()); err != nil {
+		logger.Error(err)
 		return false, false, err
 	}
 
@@ -422,16 +432,21 @@ func (chain *BlockChain) ProcessBlock(block *types.Block) (bool, bool, error) {
 	// enough to potentially accept it into the block chain.
 	isMainChain, err := chain.maybeAcceptBlock(block)
 	if err != nil {
+		logger.Error(err)
 		return false, false, err
 	}
 
 	// Accept any orphan blocks that depend on this block (they are no longer orphans)
 	// and repeat for those accepted blocks until there are no more.
 	if err := chain.processOrphans(block); err != nil {
+		logger.Error(err)
 		return false, false, err
 	}
 
 	logger.Infof("Accepted block %v", blockHash)
+	if broadcast {
+		chain.notifiee.Broadcast(p2p.NewBlockMsg, block.MsgBlock)
+	}
 	return isMainChain, false, nil
 }
 
@@ -625,7 +640,7 @@ func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.MsgTx) (
 		txHash, _ := tx.MsgTxHash()
 		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
-			logger.Errorf("output %v referenced from transaction %s:%d either does not exist or "+
+			logger.Errorf("output %v referenced from transaction %v:%d either does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
 			return sequenceLock, ErrMissingTxOut
 		}
@@ -788,22 +803,22 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 
 	// We obtain the MTP of the *previous* block in order to
 	// determine if transactions in the current block are final.
-	medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
+	// medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
 
 	// Enforce the relative sequence number based lock-times within
 	// the inputs of all transactions in this candidate block.
-	for _, tx := range transactions {
-		// A transaction can only be included within a block
-		// once the sequence locks of *all* its inputs are active.
-		sequenceLock, err := chain.calcSequenceLock(block, tx)
-		if err != nil {
-			return err
-		}
-		if !sequenceLockActive(sequenceLock, block.Height, medianTime) {
-			logger.Errorf("block contains transaction whose input sequence locks are not met")
-			return ErrUnfinalizedTx
-		}
-	}
+	// for _, tx := range transactions {
+	// A transaction can only be included within a block
+	// once the sequence locks of *all* its inputs are active.
+	// sequenceLock, err := chain.calcSequenceLock(block, tx)
+	// if err != nil {
+	// 	return err
+	// }
+	// if !sequenceLockActive(sequenceLock, block.Height, medianTime) {
+	// 	logger.Errorf("block contains transaction whose input sequence locks are not met")
+	// 	return ErrUnfinalizedTx
+	// }
+	// }
 
 	// Now that the inexpensive checks are done and have passed, verify the
 	// transactions are actually allowed to spend the coins by running the
@@ -1340,11 +1355,11 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx, unspentUtxo
 }
 
 // PackTxs packed txs and add them to block.
-func (chain *BlockChain) PackTxs(block *types.Block) error {
+func (chain *BlockChain) PackTxs(block *types.Block, addr types.Address) error {
 	pool := chain.txpool.pool
 	blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.MsgTx
-	coinbaseTx, err := chain.createCoinbaseTx()
+	coinbaseTx, err := chain.createCoinbaseTx(addr)
 	if err != nil || coinbaseTx == nil {
 		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
@@ -1393,8 +1408,46 @@ func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *type
 	return nil
 }
 
-func (chain *BlockChain) createCoinbaseTx() (*types.MsgTx, error) {
-	return nil, nil
+func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, error) {
+	var pkScript []byte
+	if addr != nil {
+		var err error
+		// pkScript, err = txscript.PayToAddrScript(addr)
+		pkScript, err = PayToPubKeyHashScript(addr.ScriptAddress())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		scriptBuilder := txscript.NewScriptBuilder()
+		pkScript, err = scriptBuilder.AddOp(txscript.OP_TRUE).Script()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	seq := rand.Intn(99999999)
+	tx := &types.MsgTx{
+		Version: 1,
+		Vin: []*types.TxIn{
+			{
+				PrevOutPoint: types.OutPoint{
+					Hash:  crypto.HashType{},
+					Index: 0xffffffff,
+				},
+				ScriptSig: []byte{OP0, OP0},
+				Sequence:  uint32(seq),
+			},
+		},
+		Vout: []*types.TxOut{
+			{
+				Value:        0x12a05f200,
+				ScriptPubKey: pkScript,
+			},
+		},
+		LockTime: 0,
+	}
+	return tx, nil
 }
 
 // SetTailBlock sets chain tail block.
