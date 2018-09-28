@@ -62,21 +62,19 @@ func Start(v *viper.Viper) error {
 
 	peer, err := p2p.NewBoxPeer(&cfg.P2p, proc)
 	if err != nil {
-		logger.Error("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
+		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 		proc.Close()
-	} else {
-		nodeServer.peer = peer
-		nodeServer.peer.Bootstrap()
 	}
+	nodeServer.peer = peer
+	nodeServer.peer.Bootstrap()
 
 	bc, err := core.NewBlockChain(proc, peer, database.Storage)
 	if err != nil {
-		logger.Error("Failed to new BlockChain...") // exit in case of error during creating p2p server instance
+		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
 	bc.Run()
-
-	consensus := dpos.NewDpos(bc, peer, proc)
+	consensus := dpos.NewDpos(bc, peer, proc, &cfg.Dpos)
 	consensus.Run()
 
 	if cfg.RPC.Enabled {

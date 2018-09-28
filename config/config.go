@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/BOXFoundation/Quicksilver/consensus/dpos"
 	logtypes "github.com/BOXFoundation/Quicksilver/log/types"
 	"github.com/BOXFoundation/Quicksilver/p2p"
 	rpc "github.com/BOXFoundation/Quicksilver/rpc/server"
@@ -25,6 +26,7 @@ type Config struct {
 	P2p       p2p.Config      `mapstructure:"p2p"`
 	RPC       rpc.Config      `mapstructure:"rpc"`
 	Database  storage.Config  `mapstructure:"database"`
+	Dpos      dpos.Config     `mapstructure:"dpos"`
 }
 
 var format = `workspace: %s

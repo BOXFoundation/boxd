@@ -16,10 +16,14 @@ import (
 
 var (
 	logger = log.NewLogger("dpos") // logger
-	index  = 0
 )
 
 func init() {
+}
+
+// Config defines the configurations of dpos
+type Config struct {
+	Index int `mapstructure:"index"`
 }
 
 // Dpos define dpos struct
@@ -27,14 +31,16 @@ type Dpos struct {
 	chain *core.BlockChain
 	net   p2p.Net
 	proc  goprocess.Process
+	cfg   *Config
 }
 
 // NewDpos new a dpos implement.
-func NewDpos(chain *core.BlockChain, net p2p.Net, parent goprocess.Process) *Dpos {
+func NewDpos(chain *core.BlockChain, net p2p.Net, parent goprocess.Process, cfg *Config) *Dpos {
 	return &Dpos{
 		chain: chain,
 		net:   net,
 		proc:  goprocess.WithParent(parent),
+		cfg:   cfg,
 	}
 }
 
@@ -64,8 +70,8 @@ func (dpos *Dpos) loop() {
 }
 
 func (dpos *Dpos) mint() {
-	now := time.Now().UnixNano()
-	if int(now%3) != index {
+	now := time.Now().Unix()
+	if int(now%15) != dpos.cfg.Index {
 		return
 	}
 

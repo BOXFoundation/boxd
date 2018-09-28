@@ -112,7 +112,7 @@ func (msgTx *MsgTx) Deserialize(message proto.Message) error {
 			}
 
 			var vouts []*TxOut
-			for _, v := range message.Vin {
+			for _, v := range message.Vout {
 				txout := new(TxOut)
 				if err := txout.Deserialize(v); err != nil {
 					return err

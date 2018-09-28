@@ -178,6 +178,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.txpool = NewTransactionPool(parent, notifiee, b)
 	genesis, err := b.loadGenesis()
 	if err != nil {
+		logger.Error("Failed to load genesis block ", err)
 		return nil, err
 	}
 	b.genesis = genesis
@@ -1345,7 +1346,7 @@ func (chain *BlockChain) PackTxs(block *types.Block) error {
 	var blockTxns []*types.MsgTx
 	coinbaseTx, err := chain.createCoinbaseTx()
 	if err != nil || coinbaseTx == nil {
-		logger.Info("Failed to create coinbaseTx")
+		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
