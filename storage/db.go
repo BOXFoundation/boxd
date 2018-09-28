@@ -20,11 +20,6 @@ type Config struct {
 	Options Options `mapstructure:"options"`
 }
 
-// Options defines the options of database impl
-type Options struct {
-	//options map[string]interface{}
-}
-
 // Database is a wrapper of Storage, implementing the database life cycle
 type Database struct {
 	Storage
@@ -32,27 +27,15 @@ type Database struct {
 	sm   sync.Mutex
 }
 
-type newDatabaseFunc func(*Config) (Storage, error)
-
-var dbs = map[string]newDatabaseFunc{
-	"mem":     NewMemoryStorage,
-	"rocksdb": NewRocksDBStorage,
-}
-
 // NewDatabase creates a database instance
 func NewDatabase(parent goprocess.Process, cfg *Config) (*Database, error) {
-	var storageFunc, ok = dbs[cfg.Name]
-	if !ok {
-		storageFunc = NewMemoryStorage
-	}
-
-	var db, err = storageFunc(cfg)
+	var storage, err = newStorage(cfg.Name, cfg.Path, &cfg.Options)
 	if err != nil {
 		return nil, err
 	}
 
 	var database = &Database{
-		Storage: db,
+		Storage: storage,
 		proc:    goprocess.WithParent(parent),
 	}
 	database.proc.SetTeardown(database.shutdown)
