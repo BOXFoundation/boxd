@@ -8,10 +8,11 @@ import (
 	"github.com/BOXFoundation/Quicksilver/core/types"
 )
 
+// txValidateItem holds a transaction along with which input to validate.
 type txValidateItem struct {
 	txInIndex int
 	txIn      *types.TxIn
-	tx        *types.Transaction
+	tx        *types.MsgTx
 	// sigHashes *txscript.TxSigHashes
 }
 
