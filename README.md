@@ -2,16 +2,27 @@
 
 A Go implementation of BOX Payout blockchain. 
 
+# Prerequisite
+## OS X:
+
+Install Go 1.11 or higher version.
+
+Install homebrew.
+
+Install rocksdb.
+
+`brew install rocksdb`
+
 # Building the Source
 
-```sh
-brew install dep
-cd /path/to/Quicksilver
-dep ensure
-```
+## Dependencies
+
+Run `make dependencies` to install dependencies.
+
+## Build
 
 ```sh
-make fullnode
+make
 ```
 
 # Contribution

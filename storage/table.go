@@ -2,12 +2,12 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package main
+package storage
 
-import (
-	"github.com/BOXFoundation/Quicksilver/commands/box"
-)
+// Table defines all methods of database table.
+type Table interface {
+	Operations
 
-func main() {
-	box.Execute()
+	// create a new write batch
+	NewBatch() Batch
 }

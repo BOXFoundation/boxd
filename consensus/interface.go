@@ -2,12 +2,10 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package main
+package consensus
 
-import (
-	"github.com/BOXFoundation/Quicksilver/commands/box"
-)
-
-func main() {
-	box.Execute()
+// Consensus define consensus interface
+type Consensus interface {
+	Start()
+	Stop()
 }
