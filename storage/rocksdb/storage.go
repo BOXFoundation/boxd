@@ -107,12 +107,10 @@ func (db *rocksdb) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// var buf = make([]byte, value.Size())
-	// copy(buf, value.Data())
-	// value.Free()
-	// return buf, nil
-	defer value.Free()
-	return value.Data(), nil
+	var buf = make([]byte, value.Size())
+	copy(buf, value.Data())
+	value.Free()
+	return buf, nil
 }
 
 // check if the entry associate with key exists
