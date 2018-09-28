@@ -17,6 +17,12 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
+func randomPathB(b *testing.B) string {
+	dir, err := ioutil.TempDir("", fmt.Sprintf("%d", rand.Int()))
+	ensure.Nil(b, err)
+	return dir
+}
+
 func randomPath(t *testing.T) string {
 	dir, err := ioutil.TempDir("", fmt.Sprintf("%d", rand.Int()))
 	ensure.Nil(t, err)
@@ -220,4 +226,91 @@ func TestDBPersistent(t *testing.T) {
 			"key "+k+" = "+string(value)+", != expected "+string(v),
 		)
 	}
+}
+
+func dbPutGet(t *testing.T, db storage.Storage, k []byte, v []byte) func(*testing.T) {
+	return func(t *testing.T) {
+		ensure.Nil(t, db.Put(k, v))
+		value, err := db.Get(k)
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, len(v), len(value))
+		ensure.DeepEqual(t, v, value)
+	}
+}
+
+const chars = "1234567890abcdefhijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ"
+
+func BenchmarkPutData(b *testing.B) {
+	var dbpath = randomPathB(b)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, err = NewRocksDB(dbpath, &o)
+	ensure.Nil(b, err)
+	defer db.Close()
+
+	var k = []byte("k1")
+	var v = make([]byte, 512*1024*1024)
+	var l = len(chars)
+	for i := 0; i < len(v); i++ {
+		v[i] = chars[i%l]
+	}
+
+	b.ResetTimer()
+	ensure.Nil(b, db.Put(k, v))
+}
+
+func BenchmarkGetData(b *testing.B) {
+	var dbpath = randomPathB(b)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, err = NewRocksDB(dbpath, &o)
+	ensure.Nil(b, err)
+	defer db.Close()
+
+	var k = []byte("k1")
+	var v = make([]byte, 512*1024*1024)
+	var l = len(chars)
+	for i := 0; i < len(v); i++ {
+		v[i] = chars[i%l]
+	}
+
+	ensure.Nil(b, db.Put(k, v))
+
+	b.ResetTimer()
+	value, err := db.Get(k)
+	ensure.Nil(b, err)
+	b.StopTimer()
+
+	ensure.DeepEqual(b, v, value)
+}
+
+func BenchmarkParallelGetData(b *testing.B) {
+	var dbpath = randomPathB(b)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, err = NewRocksDB(dbpath, &o)
+	ensure.Nil(b, err)
+	defer db.Close()
+
+	var k = []byte("k1")
+	var v = make([]byte, 32*1024*1024)
+	var l = len(chars)
+	for i := 0; i < len(v); i++ {
+		v[i] = chars[i%l]
+	}
+
+	ensure.Nil(b, db.Put(k, v))
+
+	b.N = 32
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			value, err := db.Get(k)
+			ensure.Nil(b, err)
+			ensure.DeepEqual(b, len(v), len(value))
+		}
+	})
 }
