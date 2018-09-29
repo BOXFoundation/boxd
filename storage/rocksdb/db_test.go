@@ -40,7 +40,7 @@ func TestDBCreateClose(t *testing.T) {
 	ensure.Nil(t, err)
 }
 
-var testFunc = func(t *testing.T, db storage.Storage, k, v []byte) func(*testing.T) {
+var testFunc = func(db storage.Storage, k, v []byte) func(*testing.T) {
 	return func(t *testing.T) {
 		db.Put(k, v)
 		has, err := db.Has(k)
@@ -67,10 +67,10 @@ func TestDBPut(t *testing.T) {
 	ensure.Nil(t, err)
 	defer db.Close()
 
-	t.Run("put1", testFunc(t, db, []byte("tk1"), []byte("tv1")))
-	t.Run("put2", testFunc(t, db, []byte("tk2"), []byte("tv2")))
-	t.Run("put3", testFunc(t, db, []byte("tk3"), []byte("tv3")))
-	t.Run("put4", testFunc(t, db, []byte("tk4"), []byte("tv4")))
+	t.Run("put1", testFunc(db, []byte("tk1"), []byte("tv1")))
+	t.Run("put2", testFunc(db, []byte("tk2"), []byte("tv2")))
+	t.Run("put3", testFunc(db, []byte("tk3"), []byte("tv3")))
+	t.Run("put4", testFunc(db, []byte("tk4"), []byte("tv4")))
 }
 
 func TestDBDel(t *testing.T) {
@@ -225,16 +225,6 @@ func TestDBPersistent(t *testing.T) {
 			bytes.Equal(v, value),
 			"key "+k+" = "+string(value)+", != expected "+string(v),
 		)
-	}
-}
-
-func dbPutGet(t *testing.T, db storage.Storage, k []byte, v []byte) func(*testing.T) {
-	return func(t *testing.T) {
-		ensure.Nil(t, db.Put(k, v))
-		value, err := db.Get(k)
-		ensure.Nil(t, err)
-		ensure.DeepEqual(t, len(v), len(value))
-		ensure.DeepEqual(t, v, value)
 	}
 }
 
