@@ -8,12 +8,15 @@ require (
 	github.com/acroca/go-symbols v0.0.0-20180523203557-953befd75e22 // indirect
 	github.com/axw/gocov v0.0.0-20170322000131-3a69a0d2a4ef // indirect
 	github.com/btcsuite/btcd v0.0.0-20180903232927-cff30e1d23fc
+	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
+	github.com/btcsuite/btcutil v0.0.0-20180706230648-ab6388e0c60a
+	github.com/btcsuite/goleveldb v1.0.0 // indirect
 	github.com/coreos/go-semver v0.0.0-20180108230905-e214231b295a // indirect
 	github.com/cosiner/argv v0.0.0-20170225145430-13bacc38a0a5 // indirect
 	github.com/derekparker/delve v1.1.0 // indirect
 	github.com/dgraph-io/badger v1.5.3 // indirect
 	github.com/dgryski/go-farm v0.0.0-20180109070241-2de33835d102 // indirect
-	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51 // indirect
+	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
 	github.com/fd/go-nat v1.0.0 // indirect
@@ -127,7 +130,7 @@ require (
 	golang.org/x/arch v0.0.0-20180920145803-b19384d3c130 // indirect
 	golang.org/x/crypto v0.0.0-20180904163835-0709b304e793
 	golang.org/x/net v0.0.0-20180906233101-161cd47e91fd
-	golang.org/x/tools v0.0.0-20180924175601-e93be7f42f9f // indirect
+	golang.org/x/tools v0.0.0-20180927044812-b14f328a6211 // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b
 	google.golang.org/grpc v0.0.0-20180905221542-0150fc5d50cc
 )

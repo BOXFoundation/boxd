@@ -8,12 +8,17 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"time"
 
 	config "github.com/BOXFoundation/Quicksilver/config"
+	"github.com/BOXFoundation/Quicksilver/consensus/dpos"
+	"github.com/BOXFoundation/Quicksilver/core"
 	"github.com/BOXFoundation/Quicksilver/log"
 	p2p "github.com/BOXFoundation/Quicksilver/p2p"
 	grpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
 	storage "github.com/BOXFoundation/Quicksilver/storage"
+	_ "github.com/BOXFoundation/Quicksilver/storage/memdb"   // init memdb
+	_ "github.com/BOXFoundation/Quicksilver/storage/rocksdb" // init rocksdb
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
 )
@@ -52,18 +57,27 @@ func Start(v *viper.Viper) error {
 	// start database life cycle
 	var database, err = storage.NewDatabase(proc, &cfg.Database)
 	if err != nil {
-		logger.Fatal("Failed to initialize database...") // exit in case of error during initialization of database
+		logger.Fatalf("Failed to initialize database: %v", err) // exit in case of error during initialization of database
 	}
 	nodeServer.database = database
 
 	peer, err := p2p.NewBoxPeer(&cfg.P2p, proc)
 	if err != nil {
-		logger.Error("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
+		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 		proc.Close()
-	} else {
-		nodeServer.peer = peer
-		nodeServer.peer.Bootstrap()
 	}
+	nodeServer.peer = peer
+	nodeServer.peer.Bootstrap()
+
+	bc, err := core.NewBlockChain(proc, peer, database.Storage)
+	if err != nil {
+		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
+		proc.Close()
+	}
+	bc.Run()
+	time.Sleep(10 * time.Second)
+	consensus := dpos.NewDpos(bc, peer, proc, &cfg.Dpos)
+	consensus.Run()
 
 	if cfg.RPC.Enabled {
 		nodeServer.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC)

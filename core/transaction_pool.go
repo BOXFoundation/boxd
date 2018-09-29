@@ -67,7 +67,7 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 type TxWrap struct {
 	tx       *types.Transaction
 	added    int64
-	height   int
+	height   int32
 	feePerKB int64
 }
 
@@ -94,6 +94,7 @@ func (tx_pool *TransactionPool) Run() {
 
 // handle new tx message from network.
 func (tx_pool *TransactionPool) loop() {
+	logger.Info("Waitting for new tx message...")
 	for {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
@@ -179,7 +180,7 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool)
 	}
 
 	// verify crypto signatures for each input
-	if err = tx_pool.chain.ValidateTransactionScripts(tx, unspentUtxoCache); err != nil {
+	if err = tx_pool.chain.ValidateTransactionScripts(tx.MsgTx, unspentUtxoCache); err != nil {
 		return err
 	}
 

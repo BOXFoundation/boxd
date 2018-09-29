@@ -10,11 +10,14 @@ import (
 	"github.com/BOXFoundation/Quicksilver/crypto"
 )
 
-// Block defines a block containing msgBlock and height.
+// Block defines a block containing msgBlock and height that provides easier and more efficient
+// manipulation of raw blocks.  It also memoizes hashes for the block and its
+// transactions on their first access so subsequent accesses don't have to
+// repeat the relatively expensive hashing operations.
 type Block struct {
 	Hash     *crypto.HashType
 	MsgBlock *MsgBlock
-	Height   int
+	Height   int32
 }
 
 // NewBlock new a block from parent.
