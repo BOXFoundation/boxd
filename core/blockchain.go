@@ -897,16 +897,8 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 
 	// We're extending (or creating) a side chain, but the new side chain is not long enough to make it the main chain.
 	if block.Height <= chain.longestChainHeight {
-		// Log information about how the block is forking the chain.
-		fork, _, _ := chain.findFork(block)
-		forkHash, _ := fork.BlockHash()
-		if forkHash.IsEqual(parentHash) {
-			logger.Infof("FORK: Block %v forks the chain at height %d, but does not "+
-				"cause a reorganization", blockHash, fork.Height)
-		} else {
-			logger.Infof("EXTEND FORK: Block %v extends a side chain which forks the chain "+
-				"at height %d", blockHash, fork.Height)
-		}
+		logger.Infof("Block %v extends a side chain to height %d, shorter than main chain of height %d",
+			blockHash, block.Height, chain.longestChainHeight)
 		return false, nil
 	}
 
