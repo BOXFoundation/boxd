@@ -399,7 +399,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 // The second indicates if the block is an orphan.
 func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
 	blockHash, _ := block.BlockHash()
-	logger.Infof("Processing block %v", blockHash)
+	logger.Infof("Processing block hash: %v", *blockHash)
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.blockExists(*blockHash); exists {
@@ -422,7 +422,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	// Handle orphan blocks.
 	prevHash := block.MsgBlock.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
-		logger.Infof("Adding orphan block %v with parent %v", blockHash, prevHash)
+		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
 
 		return false, true, nil
@@ -443,7 +443,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, err
 	}
 
-	logger.Infof("Accepted block %v", blockHash)
+	logger.Infof("Accepted block hash: %v", blockHash.String())
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block.MsgBlock)
 	}

@@ -162,11 +162,9 @@ func (p *BoxPeer) Broadcast(code uint32, message Serializable) error {
 		return err
 	}
 	body, err := proto.Marshal(pb)
-	logger.Info("Start broadcast message ", body)
 	for _, v := range p.conns {
 		conn := v.(*Conn)
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
-			logger.Error("-------------------")
 			continue
 		}
 		go conn.Write(code, body)

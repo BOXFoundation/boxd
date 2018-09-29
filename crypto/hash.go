@@ -6,6 +6,7 @@ package crypto
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 
 	"golang.org/x/crypto/ripemd160"
 )
@@ -17,6 +18,15 @@ const (
 
 // HashType is renamed hash type
 type HashType [HashSize]byte
+
+// String returns the Hash as the hexadecimal string of the byte-reversed
+// hash.
+func (hash HashType) String() string {
+	for i := 0; i < HashSize/2; i++ {
+		hash[i], hash[HashSize-1-i] = hash[HashSize-1-i], hash[i]
+	}
+	return hex.EncodeToString(hash[:])
+}
 
 // Ripemd160 calculates the RIPEMD160 digest of buf
 func Ripemd160(buf []byte) []byte {
