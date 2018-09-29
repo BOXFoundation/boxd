@@ -633,6 +633,11 @@ func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.MsgTx) (
 	// that will allow a transaction to be included in a block at any given height or time.
 	sequenceLock := &SequenceLock{Seconds: -1, BlockHeight: -1}
 
+	// Sequence lock does not apply to coinbase tx.
+	if IsCoinBase(tx) {
+		return sequenceLock, nil
+	}
+
 	// Grab the next height from the PoV of the passed block to use for inputs present in the mempool.
 	nextHeight := block.Height + 1
 
@@ -803,22 +808,22 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 
 	// We obtain the MTP of the *previous* block in order to
 	// determine if transactions in the current block are final.
-	// medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
+	medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
 
 	// Enforce the relative sequence number based lock-times within
 	// the inputs of all transactions in this candidate block.
-	// for _, tx := range transactions {
-	// A transaction can only be included within a block
-	// once the sequence locks of *all* its inputs are active.
-	// sequenceLock, err := chain.calcSequenceLock(block, tx)
-	// if err != nil {
-	// 	return err
-	// }
-	// if !sequenceLockActive(sequenceLock, block.Height, medianTime) {
-	// 	logger.Errorf("block contains transaction whose input sequence locks are not met")
-	// 	return ErrUnfinalizedTx
-	// }
-	// }
+	for _, tx := range transactions {
+		// A transaction can only be included within a block
+		// once the sequence locks of *all* its inputs are active.
+		sequenceLock, err := chain.calcSequenceLock(block, tx)
+		if err != nil {
+			return err
+		}
+		if !sequenceLockActive(sequenceLock, block.Height, medianTime) {
+			logger.Errorf("block contains transaction whose input sequence locks are not met")
+			return ErrUnfinalizedTx
+		}
+	}
 
 	// Now that the inexpensive checks are done and have passed, verify the
 	// transactions are actually allowed to spend the coins by running the
