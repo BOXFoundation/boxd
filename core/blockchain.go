@@ -1288,54 +1288,8 @@ func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCac
 	return uup, err
 }
 
-// CheckTransactionInputs check transaction inputs.
-func (chain *BlockChain) CheckTransactionInputs(tx *types.Transaction, unspentUtxo *UtxoUnspentCache) (int64, error) {
-	// Coinbase transactions have no inputs.
-	if IsCoinBase(tx.MsgTx) {
-		return 0, nil
-	}
-
-	var totalFeeIn int64
-	for _, txIn := range tx.MsgTx.Vin {
-		// Ensure the referenced input transaction is available.
-		utxo := unspentUtxo.FindByOutPoint(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsPacked {
-			return 0, errors.New("utxo is not exist or has already been spent")
-		}
-		// if utxo is coinbase
-		if utxo.IsCoinbase {
-			originHeight := utxo.BlockHeight
-			blocksSincePrev := chain.tail.Height - originHeight
-			if blocksSincePrev < CoinbaseLib {
-				return 0, errors.New("tried to spend coinbase tx at height before required lib blocks")
-			}
-		}
-
-		txInFee := utxo.Value
-		if txInFee < 0 || txInFee > totalSupply {
-			return 0, errors.New("Invalid txIn fee")
-		}
-		totalFeeIn += txInFee
-		if totalFeeIn > totalSupply {
-			return 0, errors.New("Invalid totalFeesIn")
-		}
-	}
-
-	var totalFeeOut int64
-	for _, txOut := range tx.MsgTx.Vout {
-		totalFeeOut += txOut.Value
-	}
-
-	if totalFeeIn < totalFeeOut {
-		return 0, errors.New("total value of all transaction inputs is less than the amount spent")
-	}
-
-	txFee := totalFeeIn - totalFeeOut
-	return txFee, nil
-}
-
 // ValidateTransactionScripts verify crypto signatures for each input
-func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx, unspentUtxo *UtxoUnspentCache) error {
+func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx) error {
 	txIns := tx.Vin
 	txValItems := make([]*txValidateItem, 0, len(txIns))
 	for txInIdx, txIn := range txIns {
@@ -1361,7 +1315,7 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx, unspentUtxo
 
 // PackTxs packed txs and add them to block.
 func (chain *BlockChain) PackTxs(block *types.Block, addr types.Address) error {
-	pool := chain.txpool.pool
+	pool := chain.txpool.priorityQueue
 	blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.MsgTx
 	coinbaseTx, err := chain.createCoinbaseTx(addr)

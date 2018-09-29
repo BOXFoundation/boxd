@@ -7,7 +7,6 @@ package core
 import (
 	"container/heap"
 	"errors"
-	"sync/atomic"
 	"time"
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
@@ -34,23 +33,22 @@ var (
 
 // TransactionPool define struct.
 type TransactionPool struct {
-	notifiee   p2p.Net
-	newTxMsgCh chan p2p.Message
-	proc       goprocess.Process
-	chain      *BlockChain
-	pool       *util.PriorityQueue
+	notifiee      p2p.Net
+	newTxMsgCh    chan p2p.Message
+	proc          goprocess.Process
+	chain         *BlockChain
+	priorityQueue *util.PriorityQueue
+
 	// transaction pool
 	hashToTx map[crypto.HashType]*TxWrap
 
 	// orphan transaction pool
 	hashToOrphanTx map[crypto.HashType]*TxWrap
 	// orphan transaction's parent; one parent can have multiple orphan children
-	parentToOrphanTx map[crypto.HashType]*TxWrap
+	orphanTxHashToChildren map[crypto.HashType][]*TxWrap
 
-	outpoints map[types.OutPoint]*TxWrap
-
-	// UTXO set
-	outpointToOutput map[types.OutPoint]types.TxOut
+	// spent tx outputs (STXO) by all txs in the pool
+	stxoSet map[types.OutPoint]*types.Transaction
 }
 
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
@@ -58,27 +56,30 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 	txi := queue.Items(i).(*TxWrap)
 	txj := queue.Items(j).(*TxWrap)
 	if txi.feePerKB == txj.feePerKB {
-		return txi.added < txj.added
+		return txi.addedTimestamp < txj.addedTimestamp
 	}
 	return txi.feePerKB < txj.feePerKB
 }
 
 // TxWrap wrap transaction
 type TxWrap struct {
-	tx       *types.Transaction
-	added    int64
-	height   int32
-	feePerKB int64
+	tx             *types.Transaction
+	addedTimestamp int64
+	height         int32
+	feePerKB       int64
 }
 
 // NewTransactionPool new a transaction pool.
 func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *BlockChain) *TransactionPool {
 	return &TransactionPool{
-		newTxMsgCh: make(chan p2p.Message, TxMsgBufferChSize),
-		proc:       goprocess.WithParent(parent),
-		notifiee:   notifiee,
-		chain:      chain,
-		pool:       util.NewPriorityQueue(lessFunc),
+		newTxMsgCh:             make(chan p2p.Message, TxMsgBufferChSize),
+		proc:                   goprocess.WithParent(parent),
+		notifiee:               notifiee,
+		chain:                  chain,
+		priorityQueue:          util.NewPriorityQueue(lessFunc),
+		hashToTx:               make(map[crypto.HashType]*TxWrap),
+		hashToOrphanTx:         make(map[crypto.HashType]*TxWrap),
+		orphanTxHashToChildren: make(map[crypto.HashType][]*TxWrap),
 	}
 }
 
@@ -123,50 +124,73 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	return tx_pool.processTx(tx, false)
 }
 
+// processTx is the main workhorse for handling insertion of new
+// transactions into the memory pool.  It includes functionality
+// such as rejecting duplicate transactions, ensuring transactions follow all
+// rules, orphan transaction handling, and insertion into the memory pool.
 func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool) error {
+	if err := tx_pool.maybeAcceptTx(tx, broadcast); err != nil {
+		return err
+	}
 
-	if tx_pool.isTransactionInPool(tx.Hash) {
+	// TODO: process orphan
+	return nil
+}
+
+// Potentially accept the transaction to the memory pool.
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast bool) error {
+	txHash := tx.Hash
+
+	// Don't accept the transaction if it already exists in the pool.
+	// This applies to orphan transactions as well
+	if tx_pool.isTransactionInPool(txHash) || tx_pool.isOrphanInPool(txHash) {
+		logger.Debugf("Tx %v already exists", txHash)
 		return ErrDuplicateTxInPool
 	}
 
+	// Perform preliminary sanity checks on the transaction.
 	if err := SanityCheckTransaction(tx.MsgTx); err != nil {
+		logger.Debugf("Tx %v fails sanity check: %v", txHash, err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
 	if IsCoinBase(tx.MsgTx) {
+		logger.Debugf("Tx %v is an individual coinbase", txHash)
 		return ErrCoinbaseTx
 	}
 
-	// ensure it is a "standard" transaction
-	// TODO: is needed?
+	// Get the current height of the main chain. A standalone transaction
+	// will be mined into the next block at best, so its height is at least
+	// one more than the current height.
+	nextBlockHeight := tx_pool.chain.longestChainHeight + 1
+
+	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
+		logger.Debugf("Tx %v is not standard: %v", txHash, err)
 		return ErrNonStandardTransaction
 	}
 
-	if err := tx_pool.checkDoubleSpend(tx.MsgTx); err != nil {
+	// The transaction must not use any of the same outputs as other transactions already in the pool.
+	// This check only detects double spends within the transaction pool itself.
+	// Double spending coins from the main chain will be checked in checkTransactionInputs.
+	if err := tx_pool.checkPoolDoubleSpend(tx.MsgTx); err != nil {
+		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash, err)
 		return err
 	}
 
-	unspentUtxoCache, err := tx_pool.chain.LoadUnspentUtxo(tx)
+	// TODO: check msgTx is already exist in the main chain??
+
+	// TODO: sequence lock
+
+	txFee, err := tx_pool.chain.checkTransactionInputs(tx.MsgTx, nextBlockHeight)
 	if err != nil {
 		return err
 	}
 
-	// check msgTx is already exist in the main chain
-	if err := tx_pool.checkExistInChain(tx, unspentUtxoCache); err != nil {
-		return err
-	}
+	// TODO: checkInputsStandard
 
-	// handle orphan transactions
-	if err := tx_pool.handleOrphan(); err != nil {
-		return err
-	}
-
-	txFee, err := tx_pool.chain.CheckTransactionInputs(tx, unspentUtxoCache)
-	if err != nil {
-		return err
-	}
+	// TODO: GetSigOpCost check
 
 	// TODO: Whether the minfee limit is needed？
 	// how to calc the minfee, or use a fixed value.
@@ -179,27 +203,35 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool)
 		return errors.New("txFee is less than minFee")
 	}
 
+	// TODO: priority check
+
+	// TODO: free-to-relay rate limit
+
 	// verify crypto signatures for each input
-	if err = tx_pool.chain.ValidateTransactionScripts(tx.MsgTx, unspentUtxoCache); err != nil {
+	if err = tx_pool.chain.ValidateTransactionScripts(tx.MsgTx); err != nil {
 		return err
 	}
 
+	feePerKB := txFee * 1000 / (int64)(txSize)
 	// add transaction to pool.
-	tx_pool.push(unspentUtxoCache, tx, txFee, int64(txSize))
+	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
 
-	// Accept any orphan transactions that depend on this tx.
+	logger.Debugf("Accepted transaction %v (pool size: %v)", txHash, len(tx_pool.hashToTx))
+	// Broadcast this tx.
 	if broadcast {
 		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx.MsgTx)
 	}
 	return nil
 }
 
-func (tx_pool *TransactionPool) isTransactionInPool(hash *crypto.HashType) bool {
+func (tx_pool *TransactionPool) isTransactionInPool(txHash *crypto.HashType) bool {
+	_, exists := tx_pool.hashToTx[*txHash]
+	return exists
+}
 
-	if _, exists := tx_pool.hashToTx[*hash]; exists {
-		return true
-	}
-	return false
+func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
+	_, exists := tx_pool.hashToOrphanTx[*txHash]
+	return exists
 }
 
 func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
@@ -207,42 +239,11 @@ func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) 
 	return nil
 }
 
-func (tx_pool *TransactionPool) checkDoubleSpend(msgTx *types.MsgTx) error {
+func (tx_pool *TransactionPool) checkPoolDoubleSpend(msgTx *types.MsgTx) error {
 	for _, txIn := range msgTx.Vin {
-		if _, exists := tx_pool.outpointToOutput[txIn.PrevOutPoint]; exists {
+		if _, exists := tx_pool.stxoSet[txIn.PrevOutPoint]; exists {
 			return ErrOutPutAlreadySpent
 		}
-	}
-	return nil
-}
-
-func (tx_pool *TransactionPool) checkExistInChain(tx *types.Transaction, unspentUtxoCache *UtxoUnspentCache) error {
-
-	msgTx := tx.MsgTx
-	for _, txIn := range msgTx.Vin {
-		prevOut := &txIn.PrevOutPoint
-		utxoWrap := unspentUtxoCache.FindByOutPoint(*prevOut)
-		if utxoWrap != nil && !utxoWrap.IsPacked {
-			continue
-		}
-
-		if _, exists := tx_pool.hashToTx[prevOut.Hash]; exists {
-			// AddTxOut ignores out of range index values, so it is
-			// safe to call without bounds checking here.
-			// utxoView.AddTxOut(poolTxDesc.Tx, prevOut.Index,
-			// 	mining.UnminedHeight)
-		}
-	}
-
-	prevOut := types.OutPoint{Hash: *tx.Hash}
-	for txOutIdx := range msgTx.Vout {
-		prevOut.Index = uint32(txOutIdx)
-		utxoWrap := unspentUtxoCache.FindByOutPoint(prevOut)
-		// There is no outpoint in theory.
-		if utxoWrap != nil && !utxoWrap.IsPacked {
-			return errors.New("Transaction already exists")
-		}
-		unspentUtxoCache.RemoveByOutPoint(prevOut)
 	}
 	return nil
 }
@@ -251,19 +252,22 @@ func (tx_pool *TransactionPool) handleOrphan() error {
 	return nil
 }
 
-func (tx_pool *TransactionPool) push(unspentUtxoCache *UtxoUnspentCache, tx *types.Transaction, txFee int64, txSize int64) *TxWrap {
-	txwrap := &TxWrap{
-		tx:       tx,
-		height:   tx_pool.chain.tail.Height,
-		feePerKB: int64(txFee / txSize),
+// Add transaction into tx pool
+func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePerKB int64) {
+	txWrap := &TxWrap{
+		tx:             tx,
+		addedTimestamp: time.Now().Unix(),
+		height:         height,
+		feePerKB:       feePerKB,
 	}
-	atomic.StoreInt64(&txwrap.added, time.Now().Unix())
-	heap.Push(tx_pool.pool, txwrap)
-	tx_pool.hashToTx[*tx.Hash] = txwrap
+	tx_pool.hashToTx[*tx.Hash] = txWrap
+	// place onto heap sorted by feePerKB
+	heap.Push(tx_pool.priorityQueue, txWrap)
+
+	// outputs spent by this new tx
 	for _, txIn := range tx.MsgTx.Vin {
-		tx_pool.outpoints[txIn.PrevOutPoint] = txwrap
+		tx_pool.stxoSet[txIn.PrevOutPoint] = tx
 	}
-	return txwrap
 }
 
 func calcRequiredMinFee(txSize int) int64 {
