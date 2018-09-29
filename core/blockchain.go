@@ -8,7 +8,6 @@ import (
 	"container/heap"
 	"errors"
 	"math"
-	"math/rand"
 	"sort"
 	"time"
 
@@ -897,16 +896,8 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 
 	// We're extending (or creating) a side chain, but the new side chain is not long enough to make it the main chain.
 	if block.Height <= chain.longestChainHeight {
-		// Log information about how the block is forking the chain.
-		fork, _, _ := chain.findFork(block)
-		forkHash, _ := fork.BlockHash()
-		if forkHash.IsEqual(parentHash) {
-			logger.Infof("FORK: Block %v forks the chain at height %d, but does not "+
-				"cause a reorganization", blockHash, fork.Height)
-		} else {
-			logger.Infof("EXTEND FORK: Block %v extends a side chain which forks the chain "+
-				"at height %d", blockHash, fork.Height)
-		}
+		logger.Infof("Block %v extends a side chain to height %d, shorter than main chain of height %d",
+			blockHash, block.Height, chain.longestChainHeight)
 		return false, nil
 	}
 
@@ -1369,9 +1360,12 @@ func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *type
 
 func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, error) {
 	var pkScript []byte
+	coinbaseScript, err := StandardCoinbaseScript(chain.tail.Height)
+	if err != nil {
+		return nil, err
+	}
 	if addr != nil {
 		var err error
-		// pkScript, err = txscript.PayToAddrScript(addr)
 		pkScript, err = PayToPubKeyHashScript(addr.ScriptAddress())
 		if err != nil {
 			return nil, err
@@ -1385,7 +1379,6 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 		}
 	}
 
-	seq := rand.Intn(99999999)
 	tx := &types.MsgTx{
 		Version: 1,
 		Vin: []*types.TxIn{
@@ -1394,17 +1387,16 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 					Hash:  crypto.HashType{},
 					Index: 0xffffffff,
 				},
-				ScriptSig: []byte{OP0, OP0},
-				Sequence:  uint32(seq),
+				ScriptSig: coinbaseScript,
+				Sequence:  0xffffffff,
 			},
 		},
 		Vout: []*types.TxOut{
 			{
-				Value:        0x12a05f200,
+				Value:        baseSubsidy,
 				ScriptPubKey: pkScript,
 			},
 		},
-		LockTime: 0,
 	}
 	return tx, nil
 }
