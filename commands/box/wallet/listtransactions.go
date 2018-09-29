@@ -7,6 +7,10 @@ package wallet
 import (
 	"fmt"
 
+	"github.com/spf13/viper"
+
+	"github.com/BOXFoundation/Quicksilver/rpc/client"
+
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +20,9 @@ var listtransactionsCmd = &cobra.Command{
 	Short: "List transactions for an account",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("listtransactions called")
+		if len(args) > 0 {
+			client.ListTransactions(viper.GetViper(), args[0])
+		}
 	},
 }
 

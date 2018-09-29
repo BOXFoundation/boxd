@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package controlpb;
+package rpcpb;
 
 import "google/api/annotations.proto";
 

@@ -2,11 +2,11 @@
 // source: control.proto
 
 /*
-Package controlpb is a reverse proxy.
+Package rpcpb is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
 */
-package controlpb
+package rpcpb
 
 import (
 	"io"

@@ -2,11 +2,11 @@
 // source: wallet.proto
 
 /*
-Package walletpb is a reverse proxy.
+Package rpcpb is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
 */
-package walletpb
+package rpcpb
 
 import (
 	"io"
