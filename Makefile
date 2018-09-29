@@ -52,6 +52,7 @@ dependencies:
 	@echo "Installing test dependencies..."
 	go get -u github.com/axw/gocov/gocov
 	go get -u github.com/mattn/goveralls
+	go get -v github.com/cweill/gotests/...
 ifdef SHOULD_LINT
 	@echo "Installing golint..."
 	go get -u github.com/golang/lint/golint
