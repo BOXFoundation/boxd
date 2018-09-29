@@ -61,13 +61,22 @@ func Start(v *viper.Viper) error {
 	}
 	nodeServer.database = database
 
-	peer, err := p2p.NewBoxPeer(&cfg.P2p, proc)
+	// start p2p service
+	peer, err := p2p.NewBoxPeer(proc, &cfg.P2p, database)
 	if err != nil {
 		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
+	peer.Bootstrap() // bootstrap p2p
+	// Add peers configured by user
+	for _, addr := range cfg.P2p.AddPeers {
+		if err := peer.AddAddrToPeerstore(addr); err != nil {
+			logger.Errorf("Add peer error: %v", err)
+		} else {
+			logger.Infof("Peer %s added.", addr)
+		}
+	}
 	nodeServer.peer = peer
-	nodeServer.peer.Bootstrap()
 
 	bc, err := core.NewBlockChain(proc, peer, database.Storage)
 	if err != nil {
@@ -90,18 +99,6 @@ func Start(v *viper.Viper) error {
 	// }
 
 	// connect to other peers passed via commandline
-	// for _, addr := range v.GetStringSlice("node.addpeer") {
-	// 	if maddr, err := ma.NewMultiaddr(addr); err == nil {
-	// 		err := host.ConnectPeer(proc, maddr)
-	// 		if err != nil {
-	// 			logger.Warn(err)
-	// 		} else {
-	// 			logger.Infof("Peer %s connected.", maddr)
-	// 		}
-	// 	} else {
-	// 		logger.Warnf("Invalid multiaddress %s", addr)
-	// 	}
-	// }
 
 	select {
 	case <-proc.Closing():

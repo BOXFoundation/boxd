@@ -17,4 +17,5 @@ type Config struct {
 	Seeds      []string      `mapstructure:"seeds"`
 	Bucketsize int           `mapstructure:"bucket_size"`
 	Latency    time.Duration `mapstructure:"latency"`
+	AddPeers   []string      `mapstructure:"addpeer"`
 }
