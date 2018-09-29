@@ -4,7 +4,11 @@
 
 package core
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/btcsuite/btcd/txscript"
+)
 
 const (
 	// defaultScriptAlloc is the default size used for the backing array
@@ -110,4 +114,10 @@ func PayToPubKeyHashScript(pubKeyHash []byte) ([]byte, error) {
 	return NewScriptBuilder().AddOp(OPDUP).AddOp(OPHASH160).
 		AddData(pubKeyHash).AddOp(OPEQUALVERIFY).AddOp(OPCHECKSIG).
 		Script()
+}
+
+// StandardCoinbaseScript returns a standard script suitable for use as the
+// signature script of the coinbase transaction of a new block.
+func StandardCoinbaseScript(height int32) ([]byte, error) {
+	return txscript.NewScriptBuilder().AddInt64(int64(height)).AddInt64(int64(0)).Script()
 }

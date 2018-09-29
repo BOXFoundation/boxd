@@ -8,7 +8,6 @@ import (
 	"container/heap"
 	"errors"
 	"math"
-	"math/rand"
 	"sort"
 	"time"
 
@@ -1361,9 +1360,12 @@ func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *type
 
 func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, error) {
 	var pkScript []byte
+	coinbaseScript, err := StandardCoinbaseScript(chain.tail.Height)
+	if err != nil {
+		return nil, err
+	}
 	if addr != nil {
 		var err error
-		// pkScript, err = txscript.PayToAddrScript(addr)
 		pkScript, err = PayToPubKeyHashScript(addr.ScriptAddress())
 		if err != nil {
 			return nil, err
@@ -1377,7 +1379,6 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 		}
 	}
 
-	seq := rand.Intn(99999999)
 	tx := &types.MsgTx{
 		Version: 1,
 		Vin: []*types.TxIn{
@@ -1386,17 +1387,16 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 					Hash:  crypto.HashType{},
 					Index: 0xffffffff,
 				},
-				ScriptSig: []byte{OP0, OP0},
-				Sequence:  uint32(seq),
+				ScriptSig: coinbaseScript,
+				Sequence:  0xffffffff,
 			},
 		},
 		Vout: []*types.TxOut{
 			{
-				Value:        0x12a05f200,
+				Value:        baseSubsidy,
 				ScriptPubKey: pkScript,
 			},
 		},
-		LockTime: 0,
 	}
 	return tx, nil
 }
