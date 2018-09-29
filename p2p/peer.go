@@ -91,18 +91,23 @@ func (p *BoxPeer) Bootstrap() {
 	p.notifier.Loop(p.proc)
 }
 
-func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
+func loadNetworkIdentity(filename string) (crypto.PrivKey, error) {
 	var key crypto.PrivKey
-	if path == "" {
-		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
-		return key, err
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) { // file does not exist.
+	if filename == "" {
 		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
 		return key, err
 	}
 
-	data, err := ioutil.ReadFile(path)
+	if _, err := os.Stat(filename); os.IsNotExist(err) { // file does not exist.
+		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
+		if err == nil {
+			// save privKey to file
+			go saveNetworkIdentity(filename, key)
+		}
+		return key, err
+	}
+
+	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +118,15 @@ func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
 	key, err = crypto.UnmarshalPrivateKey(decodeData)
 
 	return key, err
+}
+
+func saveNetworkIdentity(path string, key crypto.PrivKey) error {
+	data, err := crypto.MarshalPrivateKey(key)
+	if err != nil {
+		return err
+	}
+	b64data := base64.StdEncoding.EncodeToString(data)
+	return ioutil.WriteFile(path, []byte(b64data), 0400)
 }
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
