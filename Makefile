@@ -59,6 +59,11 @@ else
 	@echo "Not installing golint, since we don't expect to lint on" $(GO_VERSION)
 endif
 
+.PHONY: vendor
+vendor:
+	@echo "Installing libraries to vendor."
+	go mod vendor
+
 # Disable printf-like invocation checking due to testify.assert.Error()
 VET_RULES := -printf=false
 
