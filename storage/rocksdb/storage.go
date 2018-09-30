@@ -107,10 +107,7 @@ func (db *rocksdb) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	var buf = make([]byte, value.Size())
-	copy(buf, value.Data())
-	value.Free()
-	return buf, nil
+	return data(value), nil
 }
 
 // check if the entry associate with key exists
@@ -137,11 +134,15 @@ func (db *rocksdb) Keys() [][]byte {
 	iter.SeekToFirst()
 	var keys [][]byte
 	for it := iter; it.Valid(); it.Next() {
-		key := it.Key()
-		var buf = make([]byte, key.Size())
-		copy(buf, key.Data())
+		buf := data(it.Key())
 		keys = append(keys, buf)
-		key.Free()
 	}
 	return keys
+}
+
+func data(s *gorocksdb.Slice) []byte {
+	var buf = make([]byte, s.Size())
+	copy(buf, s.Data())
+	s.Free()
+	return buf
 }

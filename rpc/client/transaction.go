@@ -59,10 +59,15 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, err
 		return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
 	})
 	var current int64
-	for i, utxo := range utxoList {
+	resultList := []*rpcpb.Utxo{}
+	for _, utxo := range utxoList {
+		if utxo.IsSpent {
+			continue
+		}
 		current += utxo.GetTxOut().GetValue()
+		resultList = append(resultList, utxo)
 		if current >= amount {
-			return utxoList[:i+1], nil
+			return resultList, nil
 		}
 	}
 	return nil, fmt.Errorf("Not enough balance")
@@ -86,15 +91,23 @@ func wrapTransaction(fromPubKey, toPubKey []byte, utxos []*rpcpb.Utxo, amount in
 	}
 	msgTx.Vin = txIn
 	fmt.Println("wrap vout")
+	toScript, err := getScriptAddress(toPubKey)
+	if err != nil {
+		return nil, err
+	}
+	fromScript, err := getScriptAddress(fromPubKey)
+	if err != nil {
+		return nil, err
+	}
 	msgTx.Vout = []*rpcpb.TxOut{{
 		Value:        amount,
-		ScriptPubKey: toPubKey,
+		ScriptPubKey: toScript,
 	}}
 	fmt.Println("wrap change")
 	if current > amount {
 		msgTx.Vout = append(msgTx.Vout, &rpcpb.TxOut{
 			Value:        current - amount,
-			ScriptPubKey: fromPubKey,
+			ScriptPubKey: fromScript,
 		})
 	}
 	return msgTx, nil

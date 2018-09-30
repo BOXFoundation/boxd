@@ -45,14 +45,9 @@ func NewUtxoSet() *UtxoSet {
 }
 
 // FindUtxo returns information about an outpoint.
-// It returns nil if the outpoint does not exist or has been spent.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *UtxoEntry {
 	logger.Debugf("Find utxo: %+v", outPoint)
-	utxoEntry := u.utxoMap[outPoint]
-	if utxoEntry != nil && !utxoEntry.IsSpent {
-		return utxoEntry
-	}
-	return nil
+	return u.utxoMap[outPoint]
 }
 
 // AddUtxo adds a utxo

@@ -158,9 +158,7 @@ func (txout *TxOut) Deserialize(message proto.Message) error {
 
 // Serialize txin to proto message.
 func (txin *TxIn) Serialize() (proto.Message, error) {
-	if &txin.PrevOutPoint == nil {
-		return nil, ErrSerializeOutPoint
-	}
+
 	prevOutPoint, _ := txin.PrevOutPoint.Serialize()
 	if prevOutPoint, ok := prevOutPoint.(*corepb.OutPoint); ok {
 		return &corepb.TxIn{

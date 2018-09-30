@@ -65,6 +65,7 @@ func (conn *Conn) loop() {
 		}
 		conn.stream = s
 		if err := conn.Ping(); err != nil {
+			logger.Errorf("Failed to ping peer %s, err = %s", conn.remotePeer.Pretty(), err.Error())
 			return
 		}
 	}
@@ -162,7 +163,6 @@ func (conn *Conn) heartBeatService() {
 	for {
 		select {
 		case <-t.C:
-			logger.Info("do heartbeat...")
 			conn.Ping()
 		case <-conn.proc.Closing():
 			t.Stop()
@@ -174,12 +174,10 @@ func (conn *Conn) heartBeatService() {
 // Ping the target node
 func (conn *Conn) Ping() error {
 	body := []byte("ping")
-	logger.Infof("send ping to %s", conn.remotePeer.Pretty())
 	return conn.Write(Ping, body)
 }
 
 func (conn *Conn) onPing(data []byte) error {
-	logger.Infof("receive ping message from %s.", conn.remotePeer.Pretty())
 	if "ping" != string(data) {
 		return ErrMessageDataContent
 	}
@@ -191,7 +189,6 @@ func (conn *Conn) onPing(data []byte) error {
 }
 
 func (conn *Conn) onPong(data []byte) error {
-	logger.Info("reveive pong message.")
 	if "pong" != string(data) {
 		return ErrMessageDataContent
 	}
@@ -210,7 +207,6 @@ func (conn *Conn) PeerDiscover() error {
 		select {
 		case <-conn.establishSucceedCh:
 		case <-establishedTimeout.C:
-			logger.Error("Handshaking timeout")
 			conn.Close()
 			return errors.New("Handshaking timeout")
 		}
@@ -220,7 +216,6 @@ func (conn *Conn) PeerDiscover() error {
 
 // OnPeerDiscover handle PeerDiscover message.
 func (conn *Conn) OnPeerDiscover(body []byte) error {
-	logger.Info("receive peer discover message.")
 	// get random peers from routeTable
 	peers := conn.peer.table.GetRandomPeers(conn.stream.Conn().LocalPeer())
 	msg := &p2ppb.Peers{Peers: make([]*p2ppb.PeerInfo, len(peers))}
@@ -244,14 +239,10 @@ func (conn *Conn) OnPeerDiscover(body []byte) error {
 
 // OnPeerDiscoverReply handle PeerDiscoverReply message.
 func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
-	logger.Info("receive peer discover reply message.")
 	peers := new(p2ppb.Peers)
 	if err := proto.Unmarshal(body, peers); err != nil {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
 		return err
-	}
-	for _, p := range peers.Peers {
-		logger.Infof("receive peer id: %s, addr: %s", p.Id, p.Addrs)
 	}
 
 	conn.peer.table.AddPeers(conn, peers)
@@ -275,7 +266,8 @@ func (conn *Conn) Write(OpCode uint32, body []byte) error {
 // Close connection to remote peer.
 func (conn *Conn) Close() {
 	if conn.stream != nil {
-		delete(conn.peer.conns, conn.stream.Conn().RemotePeer())
+		delete(conn.peer.conns, conn.remotePeer)
+		conn.peer.table.peerStore.ClearAddrs(conn.remotePeer)
 		conn.stream.Close()
 	}
 }

@@ -498,7 +498,7 @@ func (chain *BlockChain) checkTransactionInputs(tx *types.MsgTx, txHeight int32)
 	for txInIndex, txIn := range tx.Vin {
 		// Ensure the referenced input transaction is available.
 		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil {
+		if utxo == nil || utxo.IsSpent {
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
 			return 0, ErrMissingTxOut

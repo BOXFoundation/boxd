@@ -1,7 +1,7 @@
 network: mainnet
 workspace: boxd2
 database:
-    name: memdb
+    name: rocksdb
 log:
     out:
         name: stderr # stdout|stderr|null
@@ -18,7 +18,7 @@ log:
               rotate: true
               level:  4 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
-    magic: 0x11de784a
+    key_path: peer.key
     port: 19197
     seeds:
         - "/ip4/0.0.0.0/tcp/19199/ipfs/12D3KooWAfLnAMKm7MwnpwBN8aEbAVFxZcw4uUaAjMcv6xehmrFg"

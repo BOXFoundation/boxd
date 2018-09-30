@@ -15,16 +15,15 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/libp2p/go-libp2p-peerstore"
-
-	"github.com/multiformats/go-multiaddr"
-
-	"github.com/BOXFoundation/Quicksilver/storage"
+	storage "github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/BOXFoundation/Quicksilver/storage/memdb"
 	"github.com/BOXFoundation/Quicksilver/storage/rocksdb"
 	"github.com/facebookgo/ensure"
+	datastore "github.com/ipfs/go-datastore"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	peer "github.com/libp2p/go-libp2p-peer"
+	peerstore "github.com/libp2p/go-libp2p-peerstore"
+	multiaddr "github.com/multiformats/go-multiaddr"
 )
 
 func randomid() peer.ID {
@@ -68,6 +67,39 @@ func TestRocksdbPeerstoreAddAddr(t *testing.T) {
 		pinfo := ps.PeerInfo(pid)
 		ensure.DeepEqual(t, 1, len(pinfo.Addrs))
 		ensure.DeepEqual(t, maddr, pinfo.Addrs[0])
+	}
+}
+
+func TestRocksdbPeerstoreAddAddrs(t *testing.T) {
+	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, _ = rocksdb.NewRocksDB(dbpath, &o)
+
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	var ps, err = NewDefaultPeerstore(ctx, db)
+	ensure.Nil(t, err)
+	peerstoreAddAddrs(ps)(t)
+}
+
+func TestRocksdbMultiplePeerstoreAddAddrs(t *testing.T) {
+	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, _ = rocksdb.NewRocksDB(dbpath, &o)
+
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	var ps, err = NewDefaultPeerstore(ctx, db)
+	ensure.Nil(t, err)
+
+	for i := 0; i < 32; i++ {
+		t.Run("t"+strconv.FormatInt(int64(i), 16), peerstoreAddAddrs(ps))
 	}
 }
 
@@ -131,4 +163,89 @@ func TestMultiplePeerstoreAddAddrs(t *testing.T) {
 	for i := 0; i < 32; i++ {
 		t.Run("t"+strconv.FormatInt(int64(i), 16), peerstoreAddAddrs(ps))
 	}
+}
+
+func Test_pstore_Delete(t *testing.T) {
+	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, _ = rocksdb.NewRocksDB(dbpath, &o)
+	defer db.Close()
+
+	type fields struct {
+		t storage.Table
+	}
+	type args struct {
+		key datastore.Key
+	}
+
+	table := func(name string) storage.Table {
+		if t, err := db.Table(name); err == nil {
+			return t
+		}
+		return nil
+	}
+
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "t1",
+			fields:  fields{t: table("t1")},
+			args:    args{key: datastore.NewKey("k1")},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &pstore{
+				t: tt.fields.t,
+			}
+			s.Put(tt.args.key, []byte("value"))
+			if err := s.Delete(tt.args.key); (err != nil) != tt.wantErr {
+				t.Errorf("pstore.Delete() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			has, err := s.Has(tt.args.key)
+			ensure.Nil(t, err)
+			ensure.False(t, has)
+		})
+	}
+}
+
+func Test_pstore_GetPutHas(t *testing.T) {
+	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, _ = rocksdb.NewRocksDB(dbpath, &o)
+	defer db.Close()
+
+	ps := func(name string) *pstore {
+		table, _ := db.Table(name)
+		return &pstore{t: table}
+	}
+	ps1 := ps("p1")
+	k1 := datastore.NewKey("k1")
+	v1 := []byte("value")
+	ensure.Nil(t, ps1.Put(k1, v1))
+	has, err := ps1.Has(k1)
+	ensure.Nil(t, err)
+	ensure.True(t, has)
+	value, err := ps1.Get(k1)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, v1, value)
+
+	ps2 := ps("p2")
+	k2 := datastore.NewKey("k2")
+	has, err = ps2.Has(k2)
+	ensure.Nil(t, err)
+	ensure.False(t, has)
+	value, err = ps2.Get(k2)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, 0, len(value))
 }
