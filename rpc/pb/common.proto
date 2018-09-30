@@ -14,12 +14,12 @@ message MsgTx {
     int64 lock_time = 5;
 }
 
-message UtxoWrap {
-    int64 value = 1;
-	bytes script_pubKey = 2;
-	int32 blockHeight = 3;
-	bool is_packed = 4;
-	bool is_coinbase = 5;
+message Utxo {
+    OutPoint out_point = 1;
+    TxOut   tx_out = 2;
+	int32 block_height = 3;
+	bool is_coinbase = 4;
+	bool is_spent = 5;
 }
 
 message TxIn {

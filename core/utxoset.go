@@ -18,7 +18,7 @@ var (
 
 // UtxoEntry contains info about utxo
 type UtxoEntry struct {
-	output types.TxOut
+	Output types.TxOut
 	// height of block containing the tx output
 	BlockHeight int32
 	// is this utxo inside a coinbase tx
@@ -29,7 +29,7 @@ type UtxoEntry struct {
 
 // Value returns utxo amount
 func (u *UtxoEntry) Value() int64 {
-	return u.output.Value
+	return u.Output.Value
 }
 
 // UtxoSet contains all utxos

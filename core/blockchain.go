@@ -1284,15 +1284,20 @@ func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCac
 	return uup, err
 }
 
-func (chain *BlockChain) LoadUtxoByPubkey(pubkey []byte) (map[types.OutPoint]*UtxoEntry, error) {
-	// res := make([]*UtxoEntry, 0)
+// LoadUtxoByPubKey loads utxos of a public key
+func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*UtxoEntry, error) {
 	res := make(map[types.OutPoint]*UtxoEntry)
 	for out, entry := range chain.utxoSet.utxoMap {
-		if bytes.Equal(pubkey, entry.output.ScriptPubKey) {
+		if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
 			res[out] = entry
 		}
 	}
 	return res, nil
+}
+
+//ListAllUtxos list all the available utxos for testing purpose
+func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoEntry {
+	return chain.utxoSet.utxoMap
 }
 
 // ValidateTransactionScripts verify crypto signatures for each input

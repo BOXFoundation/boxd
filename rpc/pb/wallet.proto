@@ -12,7 +12,6 @@ service WalletCommand {
         };
     }
 
-
     rpc GetTransactionCount(GetTransactionCountRequest) returns (GetTransactionCountResponse) {
         option (google.api.http) = {
             post: "/v1/wlt/gettransactioncount"

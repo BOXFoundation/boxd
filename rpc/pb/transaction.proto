@@ -53,5 +53,5 @@ message ListUtxosResponse {
     int32 code = 1;
     string message = 2;
     uint32 count = 3;
-    repeated UtxoWrap utxos = 4;
+    repeated Utxo utxos = 4;
 }

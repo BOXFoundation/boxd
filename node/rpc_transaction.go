@@ -7,9 +7,12 @@ package node
 import (
 	"context"
 
+	"github.com/BOXFoundation/Quicksilver/core"
+
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
+	rpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
 	"google.golang.org/grpc"
 )
 
@@ -17,48 +20,89 @@ func registerTransaction(s *grpc.Server) {
 	rpcpb.RegisterTransactionCommandServer(s, &txServer{})
 }
 
+func init() {
+	rpcserver.RegisterServiceWithGatewayHandler(
+		"tx",
+		registerTransaction,
+		rpcpb.RegisterTransactionCommandHandlerFromEndpoint,
+	)
+}
+
 type txServer struct{}
 
 func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
-	utxos, err := nodeServer.bc.LoadUtxoByPubkey(req.GetPubKey())
-	if err != nil {
-		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
+	utxos := nodeServer.bc.ListAllUtxos()
+	res := &rpcpb.ListUtxosResponse{
+		Code:    0,
+		Message: "ok",
+		Count:   uint32(len(utxos)),
 	}
-	res := &rpcpb.ListUtxosResponse{Code: 0, Message: "ok", Count: uint32(len(utxos))}
-	res.Utxos = make([]*rpcpb.UtxoWrap, len(utxos))
-	// for out, utxo := range utxos {
-	// 	wrap := &rpcpb.UtxoWrap{}
-	// }
+	res.Utxos = []*rpcpb.Utxo{}
+	for out, utxo := range utxos {
+		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
+	}
 	return res, nil
 }
 
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
-	return &rpcpb.ListUtxosResponse{}, nil
+	utxos, err := nodeServer.bc.LoadUtxoByPubKey(req.GetPubKey())
+	if err != nil {
+		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
+	}
+	res := &rpcpb.ListUtxosResponse{
+		Code:    0,
+		Message: "ok",
+		Count:   uint32(len(utxos)),
+	}
+	res.Utxos = []*rpcpb.Utxo{}
+	for out, utxo := range utxos {
+		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
+	}
+	return res, nil
 }
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
-	tx := &types.MsgTx{}
-	tx.Version = req.Tx.Version
-	tx.Magic = req.Tx.Magic
-	tx.LockTime = req.Tx.LockTime
-	tx.Vin = make([]*types.TxIn, len(req.Tx.GetVin()))
-	for _, vin := range req.Tx.GetVin() {
-		prevHash := crypto.HashType{}
-		if err := prevHash.SetBytes(vin.PrevOutPoint.Hash); err != nil {
-			return nil, err
-		}
-		in := &types.TxIn{
-			PrevOutPoint: types.OutPoint{
-				Hash:  prevHash,
-				Index: vin.PrevOutPoint.Index,
-			},
-			ScriptSig: vin.ScriptSig,
-			Sequence:  vin.Sequence,
-		}
-		tx.Vin = append(tx.Vin, in)
+	logger.Debugf("receive transaction: %+v", req.Tx)
+	tx, err := generateTransaction(req.Tx)
+	if err != nil {
+		return nil, err
 	}
-	tx.Vout = make([]*types.TxOut, len(req.Tx.GetVout()))
-	for _, vout := range req.Tx.GetVout() {
+	err = nodeServer.bc.ProcessTx(tx, true)
+	return &rpcpb.BaseResponse{}, err
+}
+
+func generateUtxoMessage(outPoint *types.OutPoint, entry *core.UtxoEntry) *rpcpb.Utxo {
+	return &rpcpb.Utxo{
+		BlockHeight: entry.BlockHeight,
+		IsCoinbase:  entry.IsCoinBase,
+		IsSpent:     entry.IsSpent,
+		OutPoint: &rpcpb.OutPoint{
+			Hash:  outPoint.Hash.GetBytes(),
+			Index: outPoint.Index,
+		},
+		TxOut: &rpcpb.TxOut{
+			Value:        entry.Value(),
+			ScriptPubKey: entry.Output.ScriptPubKey,
+		},
+	}
+}
+
+func generateTransaction(txMsg *rpcpb.MsgTx) (*types.Transaction, error) {
+	tx := &types.MsgTx{
+		Version:  txMsg.Version,
+		Magic:    txMsg.Magic,
+		LockTime: txMsg.LockTime,
+	}
+	tx.Vin = make([]*types.TxIn, len(txMsg.GetVin()))
+	for _, vin := range txMsg.GetVin() {
+		if in, err := generateTxIn(vin); err != nil {
+			return nil, err
+		} else {
+			tx.Vin = append(tx.Vin, in)
+		}
+	}
+	tx.Vout = make([]*types.TxOut, len(txMsg.GetVout()))
+	for _, vout := range txMsg.GetVout() {
 		out := &types.TxOut{
 			Value:        vout.Value,
 			ScriptPubKey: vout.ScriptPubKey,
@@ -73,6 +117,28 @@ func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransacti
 		MsgTx: tx,
 		Hash:  txHash,
 	}
-	err = nodeServer.bc.ProcessTx(transaction, true)
-	return &rpcpb.BaseResponse{}, err
+	return transaction, nil
+}
+
+func generateTxIn(msgTxIn *rpcpb.TxIn) (*types.TxIn, error) {
+	prevHash := crypto.HashType{}
+	if err := prevHash.SetBytes(msgTxIn.PrevOutPoint.Hash); err != nil {
+		return nil, err
+	}
+	return &types.TxIn{
+		PrevOutPoint: types.OutPoint{
+			Hash:  prevHash,
+			Index: msgTxIn.PrevOutPoint.Index,
+		},
+		ScriptSig: msgTxIn.ScriptSig,
+		Sequence:  msgTxIn.Sequence,
+	}, nil
+}
+
+func pubHashToScript(pubHash []byte) ([]byte, error) {
+	addr, err := types.NewAddressPubKeyHash(pubHash, 0x00)
+	if err != nil {
+		return nil, err
+	}
+	return addr.ScriptAddress(), nil
 }

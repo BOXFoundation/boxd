@@ -67,3 +67,10 @@ func (hash *HashType) SetBytes(hashBytes []byte) error {
 	copy(hash[:], hashBytes)
 	return nil
 }
+
+// GetBytes convert type HashType to []byte
+func (hash *HashType) GetBytes() []byte {
+	hashBytes := make([]byte, HashSize)
+	copy(hashBytes, hash[:])
+	return hashBytes
+}
