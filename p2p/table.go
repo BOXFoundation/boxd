@@ -36,7 +36,7 @@ type Table struct {
 func NewTable(peer *BoxPeer) *Table {
 
 	table := &Table{
-		peerStore: peerstore.NewPeerstore(),
+		peerStore: peer.host.Peerstore(),
 		peer:      peer,
 	}
 	table.routeTable = kbucket.NewRoutingTable(
@@ -73,7 +73,6 @@ func (t *Table) Loop(parent goprocess.Process) {
 func (t *Table) peerDiscover() {
 	logger.Info("do peer discover")
 	all := t.routeTable.ListPeers()
-	logger.Info(all)
 	if len(all) <= MaxPeerCountToSyncRouteTable {
 		for _, v := range t.routeTable.ListPeers() {
 			if v.Pretty() == t.peer.id.Pretty() {
@@ -113,7 +112,6 @@ func (t *Table) peerDiscover() {
 }
 
 func (t *Table) lookup(pid peer.ID) {
-
 	var conn *Conn
 	if _, ok := t.peer.conns[pid]; ok {
 		// established peer
@@ -124,7 +122,7 @@ func (t *Table) lookup(pid peer.ID) {
 		go conn.loop()
 	}
 	if err := conn.PeerDiscover(); err != nil {
-		logger.Error("Failed to sync route table from peer ", pid.Pretty, err)
+		logger.Error("Failed to sync route table from peer ", pid.Pretty(), err)
 	}
 }
 
@@ -181,6 +179,7 @@ func (t *Table) addPeerInfo(prettyID string, addrStr []string) error {
 		t.peerStore.SetAddrs(pid, addrs, peerstore.PermanentAddrTTL)
 	} else {
 		t.peerStore.AddAddrs(pid, addrs, peerstore.PermanentAddrTTL)
+
 	}
 	t.routeTable.Update(pid)
 
