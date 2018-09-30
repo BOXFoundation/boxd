@@ -93,15 +93,16 @@ func generateTransaction(txMsg *rpcpb.MsgTx) (*types.Transaction, error) {
 		Magic:    txMsg.Magic,
 		LockTime: txMsg.LockTime,
 	}
-	tx.Vin = make([]*types.TxIn, len(txMsg.GetVin()))
+	tx.Vin = []*types.TxIn{}
 	for _, vin := range txMsg.GetVin() {
-		if in, err := generateTxIn(vin); err != nil {
+		in, err := generateTxIn(vin)
+		if err != nil {
 			return nil, err
-		} else {
-			tx.Vin = append(tx.Vin, in)
 		}
+		tx.Vin = append(tx.Vin, in)
 	}
-	tx.Vout = make([]*types.TxOut, len(txMsg.GetVout()))
+	logger.Debugf("tx.Vin info : %+v", tx.Vin)
+	tx.Vout = []*types.TxOut{}
 	for _, vout := range txMsg.GetVout() {
 		out := &types.TxOut{
 			Value:        vout.Value,
@@ -125,6 +126,7 @@ func generateTxIn(msgTxIn *rpcpb.TxIn) (*types.TxIn, error) {
 	if err := prevHash.SetBytes(msgTxIn.PrevOutPoint.Hash); err != nil {
 		return nil, err
 	}
+	logger.Debugf("Generate TxIn hash: %s, index: %d", prevHash, msgTxIn.PrevOutPoint.Index)
 	return &types.TxIn{
 		PrevOutPoint: types.OutPoint{
 			Hash:  prevHash,

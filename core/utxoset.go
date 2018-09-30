@@ -47,6 +47,7 @@ func NewUtxoSet() *UtxoSet {
 // FindUtxo returns information about an outpoint.
 // It returns nil if the outpoint does not exist or has been spent.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *UtxoEntry {
+	logger.Debugf("Find utxo: %+v", outPoint)
 	utxoEntry := u.utxoMap[outPoint]
 	if utxoEntry != nil && !utxoEntry.IsSpent {
 		return utxoEntry
@@ -56,6 +57,7 @@ func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *UtxoEntry {
 
 // AddUtxo adds a utxo
 func (u *UtxoSet) AddUtxo(tx *types.MsgTx, txOutIdx uint32, blockHeight int32) error {
+	logger.Debugf("Add utxo tx info: %+v, index: %d", tx, txOutIdx)
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return ErrTxOutIndexOob
@@ -74,6 +76,7 @@ func (u *UtxoSet) AddUtxo(tx *types.MsgTx, txOutIdx uint32, blockHeight int32) e
 // RemoveUtxo removes a utxo. We do not actually remove the entry in case it has to be
 // recovered later and we do not have all info, such as block height
 func (u *UtxoSet) RemoveUtxo(outPoint types.OutPoint) {
+	logger.Debugf("Remove utxo: %+v", outPoint)
 	utxoEntry := u.utxoMap[outPoint]
 	if utxoEntry == nil {
 		return

@@ -67,6 +67,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *Block
 		hashToTx:               make(map[crypto.HashType]*TxWrap),
 		hashToOrphanTx:         make(map[crypto.HashType]*TxWrap),
 		orphanTxHashToChildren: make(map[crypto.HashType][]*TxWrap),
+		stxoSet:                make(map[types.OutPoint]*types.Transaction),
 	}
 }
 

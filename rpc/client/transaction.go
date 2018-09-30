@@ -25,15 +25,15 @@ func CreateTransaction(v *viper.Viper, fromPubkey []byte, toPubKey []byte, amoun
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	if utxos, err := selectUtxo(utxoResponse, amount); err != nil {
+	utxos, err := selectUtxo(utxoResponse, amount)
+	if err != nil {
 		return err
-	} else {
-		if msgTx, err := wrapTransaction(fromPubkey, toPubKey, utxos, amount); err != nil {
-			return err
-		} else {
-			txReq.Tx = msgTx
-		}
 	}
+	msgTx, err := wrapTransaction(fromPubkey, toPubKey, utxos, amount)
+	if err != nil {
+		return err
+	}
+	txReq.Tx = msgTx
 
 	var cfg = unmarshalConfig(v)
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port), grpc.WithInsecure())
@@ -86,7 +86,7 @@ func wrapTransaction(fromPubKey, toPubKey []byte, utxos []*rpcpb.Utxo, amount in
 	}
 	msgTx.Vin = txIn
 	fmt.Println("wrap vout")
-	msgTx.Vout = []*rpcpb.TxOut{&rpcpb.TxOut{
+	msgTx.Vout = []*rpcpb.TxOut{{
 		Value:        amount,
 		ScriptPubKey: toPubKey,
 	}}

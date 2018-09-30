@@ -60,7 +60,7 @@ const (
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 
 	// coinbase only spendable after this many blocks
-	coinbaseMaturity = 100
+	coinbaseMaturity = 0
 
 	// SubsidyReductionInterval is the interval of blocks before the subsidy is reduced.
 	SubsidyReductionInterval = 210000
@@ -561,6 +561,7 @@ func (chain *BlockChain) checkTransactionInputs(tx *types.MsgTx, txHeight int32)
 	return txFee, nil
 }
 
+// ProcessTx is a proxy method to add transaction to transaction pool
 func (chain *BlockChain) ProcessTx(tx *types.Transaction, broadcast bool) error {
 	return chain.txpool.processTx(tx, broadcast)
 }
@@ -1381,7 +1382,7 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 func (chain *BlockChain) sortPendingTxs() *util.PriorityQueue {
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := chain.txpool.getAllTxs()
-	for pendingTx := range pendingTxs {
+	for _, pendingTx := range pendingTxs {
 		// place onto heap sorted by feePerKB
 		heap.Push(pool, pendingTx)
 	}
