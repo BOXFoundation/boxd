@@ -115,7 +115,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 // such as rejecting duplicate transactions, ensuring transactions follow all
 // rules, orphan transaction handling, and insertion into the memory pool.
 func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool) error {
-	if err := tx_pool.maybeAcceptTx(tx, broadcast); err != nil {
+	if err := tx_pool.maybeAcceptTx(tx.MsgTx, broadcast); err != nil {
 		return err
 	}
 
@@ -124,8 +124,8 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast bool) error {
-	txHash := tx.Hash
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.MsgTx, broadcast bool) error {
+	txHash, _ := tx.MsgTxHash()
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
@@ -135,13 +135,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	}
 
 	// Perform preliminary sanity checks on the transaction.
-	if err := SanityCheckTransaction(tx.MsgTx); err != nil {
+	if err := SanityCheckTransaction(tx); err != nil {
 		logger.Debugf("Tx %v fails sanity check: %v", txHash, err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
-	if IsCoinBase(tx.MsgTx) {
+	if IsCoinBase(tx) {
 		logger.Debugf("Tx %v is an individual coinbase", txHash)
 		return ErrCoinbaseTx
 	}
@@ -160,16 +160,16 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// The transaction must not use any of the same outputs as other transactions already in the pool.
 	// This check only detects double spends within the transaction pool itself.
 	// Double spending coins from the main chain will be checked in checkTransactionInputs.
-	if err := tx_pool.checkPoolDoubleSpend(tx.MsgTx); err != nil {
+	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
 		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash, err)
 		return err
 	}
 
-	// TODO: check msgTx is already exist in the main chain??
+	// TODO: check tx is already exist in the main chain??
 
 	// TODO: sequence lock
 
-	txFee, err := tx_pool.chain.checkTransactionInputs(tx.MsgTx, nextBlockHeight)
+	txFee, err := tx_pool.chain.checkTransactionInputs(tx, nextBlockHeight)
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 
 	// TODO: Whether the minfee limit is needed？
 	// how to calc the minfee, or use a fixed value.
-	txSize, err := tx.MsgTx.SerializeSize()
+	txSize, err := tx.SerializeSize()
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// TODO: free-to-relay rate limit
 
 	// verify crypto signatures for each input
-	if err = tx_pool.chain.ValidateTransactionScripts(tx.MsgTx); err != nil {
+	if err = tx_pool.chain.ValidateTransactionScripts(tx); err != nil {
 		return err
 	}
 
@@ -205,7 +205,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	logger.Debugf("Accepted transaction %v (pool size: %v)", txHash, len(tx_pool.hashToTx))
 	// Broadcast this tx.
 	if broadcast {
-		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx.MsgTx)
+		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
 	}
 	return nil
 }
@@ -220,7 +220,7 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 	return exists
 }
 
-func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
+func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.MsgTx) error {
 	// TODO:
 	return nil
 }
@@ -239,7 +239,9 @@ func (tx_pool *TransactionPool) handleOrphan() error {
 }
 
 // Add transaction into tx pool
-func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePerKB int64) {
+func (tx_pool *TransactionPool) addTx(msgTx *types.MsgTx, height int32, feePerKB int64) {
+	tx, _ := types.NewTx(msgTx)
+
 	txWrap := &TxWrap{
 		tx:             tx,
 		addedTimestamp: time.Now().Unix(),
@@ -251,6 +253,28 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePe
 	// outputs spent by this new tx
 	for _, txIn := range tx.MsgTx.Vin {
 		tx_pool.stxoSet[txIn.PrevOutPoint] = tx
+	}
+}
+
+// Remove transaction from tx pool
+func (tx_pool *TransactionPool) removeTx(msgTx *types.MsgTx) {
+	txHash, _ := msgTx.MsgTxHash()
+
+	// Unspend the referenced outpoints.
+	for _, txIn := range msgTx.Vin {
+		delete(tx_pool.stxoSet, txIn.PrevOutPoint)
+	}
+	delete(tx_pool.hashToTx, *txHash)
+}
+
+// Remove all transactions which spend outputs spent by the
+// passed transaction from the memory pool. This is necessary when a new main chain
+// tip block may contain transactions which were previously unknown to the memory pool.
+func (tx_pool *TransactionPool) removeDoubleSpends(msgTx *types.MsgTx) {
+	for _, txIn := range msgTx.Vin {
+		if doubleSpentTx, exists := tx_pool.stxoSet[txIn.PrevOutPoint]; exists {
+			tx_pool.removeTx(doubleSpentTx.MsgTx)
+		}
 	}
 }
 
