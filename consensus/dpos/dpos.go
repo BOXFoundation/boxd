@@ -73,6 +73,7 @@ func (dpos *Dpos) Stop() {
 
 func (dpos *Dpos) loop() {
 	logger.Info("Start block mint")
+	time.Sleep(10 * time.Second)
 	timeChan := time.NewTicker(time.Second).C
 	for {
 		select {

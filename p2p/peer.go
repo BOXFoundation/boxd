@@ -82,8 +82,8 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 	return boxPeer, nil
 }
 
-// Bootstrap schedules lookup and discover new peer
-func (p *BoxPeer) Bootstrap() {
+// Run schedules lookup and discover new peer
+func (p *BoxPeer) Run() {
 	if len(p.config.Seeds) > 0 {
 		p.connectSeeds()
 		p.table.Loop(p.proc)

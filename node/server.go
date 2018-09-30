@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"time"
 
 	config "github.com/BOXFoundation/Quicksilver/config"
 	"github.com/BOXFoundation/Quicksilver/consensus/dpos"
@@ -67,7 +66,6 @@ func Start(v *viper.Viper) error {
 		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
-	peer.Bootstrap() // bootstrap p2p
 	// Add peers configured by user
 	for _, addr := range cfg.P2p.AddPeers {
 		if err := peer.AddAddrToPeerstore(addr); err != nil {
@@ -83,14 +81,15 @@ func Start(v *viper.Viper) error {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
-	bc.Run()
-	time.Sleep(20 * time.Second)
 	consensus := dpos.NewDpos(bc, peer, proc, &cfg.Dpos)
-	consensus.Run()
 
 	if cfg.RPC.Enabled {
 		nodeServer.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC)
 	}
+
+	peer.Run()
+	bc.Run()
+	consensus.Run()
 
 	// var host, err = p2p.NewDefaultHost(proc, net.ParseIP(v.GetString("node.listen.address")), uint(v.GetInt("node.listen.port")))
 	// if err != nil {
