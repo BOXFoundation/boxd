@@ -5,7 +5,6 @@
 package core
 
 import (
-	"container/heap"
 	"errors"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/p2p"
-	"github.com/BOXFoundation/Quicksilver/util"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
@@ -33,11 +31,10 @@ var (
 
 // TransactionPool define struct.
 type TransactionPool struct {
-	notifiee      p2p.Net
-	newTxMsgCh    chan p2p.Message
-	proc          goprocess.Process
-	chain         *BlockChain
-	priorityQueue *util.PriorityQueue
+	notifiee   p2p.Net
+	newTxMsgCh chan p2p.Message
+	proc       goprocess.Process
+	chain      *BlockChain
 
 	// transaction pool
 	hashToTx map[crypto.HashType]*TxWrap
@@ -49,16 +46,6 @@ type TransactionPool struct {
 
 	// spent tx outputs (STXO) by all txs in the pool
 	stxoSet map[types.OutPoint]*types.Transaction
-}
-
-func lessFunc(queue *util.PriorityQueue, i, j int) bool {
-
-	txi := queue.Items(i).(*TxWrap)
-	txj := queue.Items(j).(*TxWrap)
-	if txi.feePerKB == txj.feePerKB {
-		return txi.addedTimestamp < txj.addedTimestamp
-	}
-	return txi.feePerKB < txj.feePerKB
 }
 
 // TxWrap wrap transaction
@@ -76,7 +63,6 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *Block
 		proc:                   goprocess.WithParent(parent),
 		notifiee:               notifiee,
 		chain:                  chain,
-		priorityQueue:          util.NewPriorityQueue(lessFunc),
 		hashToTx:               make(map[crypto.HashType]*TxWrap),
 		hashToOrphanTx:         make(map[crypto.HashType]*TxWrap),
 		orphanTxHashToChildren: make(map[crypto.HashType][]*TxWrap),
@@ -261,13 +247,22 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePe
 		feePerKB:       feePerKB,
 	}
 	tx_pool.hashToTx[*tx.Hash] = txWrap
-	// place onto heap sorted by feePerKB
-	heap.Push(tx_pool.priorityQueue, txWrap)
 
 	// outputs spent by this new tx
 	for _, txIn := range tx.MsgTx.Vin {
 		tx_pool.stxoSet[txIn.PrevOutPoint] = tx
 	}
+}
+
+// Returns all transactions in mempool
+func (tx_pool *TransactionPool) getAllTxs() []*TxWrap {
+	txs := make([]*TxWrap, len(tx_pool.hashToTx))
+	i := 0
+	for _, tx := range tx_pool.hashToTx {
+		txs[i] = tx
+		i++
+	}
+	return txs
 }
 
 func calcRequiredMinFee(txSize int) int64 {

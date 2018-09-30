@@ -1304,9 +1304,32 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx) error {
 	return nil
 }
 
+func lessFunc(queue *util.PriorityQueue, i, j int) bool {
+
+	txi := queue.Items(i).(*TxWrap)
+	txj := queue.Items(j).(*TxWrap)
+	if txi.feePerKB == txj.feePerKB {
+		return txi.addedTimestamp < txj.addedTimestamp
+	}
+	return txi.feePerKB < txj.feePerKB
+}
+
+// sort pending transactions in mempool
+func (chain *BlockChain) sortPendingTxs() *util.PriorityQueue {
+	pool := util.NewPriorityQueue(lessFunc)
+	pendingTxs := chain.txpool.getAllTxs()
+	for pendingTx := range pendingTxs {
+		// place onto heap sorted by feePerKB
+		heap.Push(pool, pendingTx)
+	}
+	heap.Init(pool)
+	return pool
+}
+
 // PackTxs packed txs and add them to block.
 func (chain *BlockChain) PackTxs(block *types.Block, addr types.Address) error {
-	pool := chain.txpool.priorityQueue
+	pool := chain.sortPendingTxs()
+
 	blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.MsgTx
 	coinbaseTx, err := chain.createCoinbaseTx(addr)
