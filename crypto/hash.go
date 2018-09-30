@@ -6,6 +6,7 @@ package crypto
 
 import (
 	"crypto/sha256"
+	"fmt"
 
 	"golang.org/x/crypto/ripemd160"
 )
@@ -46,4 +47,13 @@ func (hash *HashType) IsEqual(target *HashType) bool {
 		return false
 	}
 	return *hash == *target
+}
+
+// SetBytes convert type []byte to HashType
+func (hash *HashType) SetBytes(hashBytes []byte) error {
+	if len(hashBytes) != HashSize {
+		return fmt.Errorf("Incorrect hash length : %v", hashBytes)
+	}
+	copy(hash[:], hashBytes)
+	return nil
 }

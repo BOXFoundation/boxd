@@ -27,13 +27,8 @@ func init() {
 type wltServer struct{}
 
 func (s *wltServer) ListTransactions(ctx context.Context, req *rpcpb.ListTransactionsRequest) (*rpcpb.ListTransactionsResponse, error) {
-	nodeServer.
 	return &rpcpb.ListTransactionsResponse{Code: 0, Message: "Ok"}, nil
 }
 func (s *wltServer) GetTransactionCount(context.Context, *rpcpb.GetTransactionCountRequest) (*rpcpb.GetTransactionCountResponse, error) {
 	return &rpcpb.GetTransactionCountResponse{}, nil
-}
-
-func (s *wltServer) ListUtxos(context.Context, *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
-	return &rpcpb.ListUtxosResponse{}, nil
 }

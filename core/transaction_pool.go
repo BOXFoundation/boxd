@@ -7,6 +7,7 @@ package core
 import (
 	"container/heap"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -41,7 +42,7 @@ type TransactionPool struct {
 	pool       *util.PriorityQueue
 	// transaction pool
 	hashToTx map[crypto.HashType]*TxWrap
-
+	txMutex  sync.Mutex
 	// orphan transaction pool
 	hashToOrphanTx map[crypto.HashType]*TxWrap
 	// orphan transaction's parent; one parent can have multiple orphan children
@@ -124,6 +125,9 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 }
 
 func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool) error {
+
+	tx_pool.txMutex.Lock()
+	defer tx_pool.txMutex.Unlock()
 
 	if tx_pool.isTransactionInPool(tx.Hash) {
 		return ErrDuplicateTxInPool

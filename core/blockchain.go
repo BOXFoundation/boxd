@@ -5,6 +5,7 @@
 package core
 
 import (
+	"bytes"
 	"container/heap"
 	"errors"
 	"math"
@@ -559,6 +560,10 @@ func (chain *BlockChain) checkTransactionInputs(tx *types.MsgTx, txHeight int32)
 
 	txFee := totalInputAmount - totalOutputAmount
 	return txFee, nil
+}
+
+func (chain *BlockChain) ProcessTx(tx *types.Transaction, broadcast bool) error {
+	return chain.txpool.processTx(tx, broadcast)
 }
 
 // calcBlockSubsidy returns the subsidy amount a block at the provided height
@@ -1286,6 +1291,17 @@ func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCac
 	err := uup.LoadUtxoFromDB(chain.db, outPointMap)
 
 	return uup, err
+}
+
+func (chain *BlockChain) LoadUtxoByPubkey(pubkey []byte) (map[types.OutPoint]*UtxoEntry, error) {
+	// res := make([]*UtxoEntry, 0)
+	res := make(map[types.OutPoint]*UtxoEntry)
+	for out, entry := range chain.utxoSet.utxoMap {
+		if bytes.Equal(pubkey, entry.output.ScriptPubKey) {
+			res[out] = entry
+		}
+	}
+	return res, nil
 }
 
 // CheckTransactionInputs check transaction inputs.
