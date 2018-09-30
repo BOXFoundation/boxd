@@ -13,6 +13,19 @@ import (
 )
 
 func TestUtxoSet_FindUtxo(t *testing.T) {
+	key := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	value := &(UtxoEntry{
+		output: types.TxOut{
+			Value:        100000000,
+			ScriptPubKey: []byte{},
+		},
+		BlockHeight: 10000,
+		IsCoinBase:  false,
+		IsSpent:     false,
+	})
 	type fields struct {
 		utxoMap map[types.OutPoint]*UtxoEntry
 	}
@@ -26,22 +39,10 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 		want   *UtxoEntry
 	}{
 		{
-			"test",
+			"tests",
 			fields{
 				map[types.OutPoint]*UtxoEntry{
-					types.OutPoint{
-						Hash:  crypto.HashType{0x0010},
-						Index: 1,
-					},
-					&(UtxoEntry{
-						output: types.TxOut{
-							Value:        100000000,
-							ScriptPubKey: []byte{},
-						},
-						BlockHeight: 10000,
-						IsCoinBase:  true,
-						IsSpent:     true,
-					}),
+					key: value,
 				},
 			},
 			args{
@@ -51,13 +52,13 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 				},
 			},
 			&UtxoEntry{
-				utxoEntry: types.TxOut{
+				output: types.TxOut{
 					Value:        100000000,
 					ScriptPubKey: []byte{},
 				},
 				BlockHeight: 10000,
-				IsCoinBase:  true,
-				IsSpent:     true,
+				IsCoinBase:  false,
+				IsSpent:     false,
 			},
 		},
 	}
@@ -74,6 +75,43 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 }
 
 func TestUtxoSet_AddUtxo(t *testing.T) {
+	key := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 12,
+	}
+	value := &(UtxoEntry{
+		output: types.TxOut{
+			Value:        100000000,
+			ScriptPubKey: []byte{},
+		},
+		BlockHeight: 10000,
+		IsCoinBase:  false,
+		IsSpent:     false,
+	})
+	outPoint := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 12,
+	}
+	txin := &types.TxIn{
+		PrevOutPoint: outPoint,
+		ScriptSig:    []byte{},
+		Sequence:     1,
+	}
+	vin := []*types.TxIn{
+		txin,
+	}
+	txout := &types.TxOut{
+		Value:        1,
+		ScriptPubKey: []byte{},
+	}
+	vout := []*types.TxOut{txout}
+	tx := &types.MsgTx{
+		Version:  1,
+		Vin:      vin,
+		Vout:     vout,
+		Magic:    1,
+		LockTime: 1,
+	}
 	type fields struct {
 		utxoMap map[types.OutPoint]*UtxoEntry
 	}
@@ -89,44 +127,18 @@ func TestUtxoSet_AddUtxo(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"test",
+			"tests",
 			fields{
 				map[types.OutPoint]*UtxoEntry{
-					outPoint: types.OutPoint{
-						Hash:  crypto.HashType{0x0010},
-						Index: 1,
-					},
-					&(UtxoEntry{
-						output: types.TxOut{
-							Value:        100000000,
-							ScriptPubKey: []byte{},
-						},
-						BlockHeight: 10000,
-						IsCoinBase:  true,
-						IsSpent:     true,
-					}),
+					key: value,
 				},
 			},
 			args{
-				tx: &types.MsgTx{
-					Version: 1,
-					Vin: []*types.TxIn{
-						PrevOutPoint: types.OutPoint{
-							ScriptSig: crypto.HashType{0x0010},
-							Sequence:  1,
-						},
-					},
-					Vout: []*types.TxOut{
-						Value:        1,
-						ScriptPubKey: []byte{},
-					},
-					Magic:    1,
-					LockTime: 1,
-				},
-				txOutIdx:    1,
+				tx:          tx,
+				txOutIdx:    0,
 				blockHeight: 12345,
 			},
-			true,
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -142,6 +154,19 @@ func TestUtxoSet_AddUtxo(t *testing.T) {
 }
 
 func TestUtxoSet_RemoveUtxo(t *testing.T) {
+	key := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	value := &(UtxoEntry{
+		output: types.TxOut{
+			Value:        100000000,
+			ScriptPubKey: []byte{},
+		},
+		BlockHeight: 10000,
+		IsCoinBase:  false,
+		IsSpent:     false,
+	})
 	type fields struct {
 		utxoMap map[types.OutPoint]*UtxoEntry
 	}
@@ -154,22 +179,10 @@ func TestUtxoSet_RemoveUtxo(t *testing.T) {
 		args   args
 	}{
 		{
-			"test",
+			"tests",
 			fields{
 				map[types.OutPoint]*UtxoEntry{
-					outPoint: types.OutPoint{
-						Hash:  crypto.HashType{0x0010},
-						Index: 1,
-					},
-					&(UtxoEntry{
-						output: types.TxOut{
-							Value:        100000000,
-							ScriptPubKey: []byte{},
-						},
-						BlockHeight: 10000,
-						IsCoinBase:  true,
-						IsSpent:     true,
-					}),
+					key: value,
 				},
 			},
 			args{
@@ -191,6 +204,45 @@ func TestUtxoSet_RemoveUtxo(t *testing.T) {
 }
 
 func TestUtxoSet_ApplyTx(t *testing.T) {
+	key := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	value := &(UtxoEntry{
+		output: types.TxOut{
+			Value:        100000000,
+			ScriptPubKey: []byte{},
+		},
+		BlockHeight: 10000,
+		IsCoinBase:  false,
+		IsSpent:     false,
+	})
+	outpoint := types.OutPoint{
+		Hash:  crypto.HashType{0x0011},
+		Index: 2,
+	}
+	txin := &types.TxIn{
+		PrevOutPoint: outpoint,
+		ScriptSig:    []byte{},
+		Sequence:     2,
+	}
+	vin := []*types.TxIn{
+		txin,
+	}
+	txout := &types.TxOut{
+		Value:        11111,
+		ScriptPubKey: []byte{},
+	}
+	vout := []*types.TxOut{
+		txout,
+	}
+	tx := &types.MsgTx{
+		Version:  2,
+		Vin:      vin,
+		Vout:     vout,
+		Magic:    123,
+		LockTime: 123,
+	}
 	type fields struct {
 		utxoMap map[types.OutPoint]*UtxoEntry
 	}
@@ -205,45 +257,17 @@ func TestUtxoSet_ApplyTx(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"test",
+			"tests",
 			fields{
 				map[types.OutPoint]*UtxoEntry{
-					outPoint: types.OutPoint{
-						Hash:  crypto.HashType{0x0010},
-						Index: 1,
-					},
-					&(UtxoEntry{
-						output: types.TxOut{
-							Value:        100000000,
-							ScriptPubKey: []byte{},
-						},
-						BlockHeight: 10000,
-						IsCoinBase:  true,
-						IsSpent:     true,
-					}),
+					key: value,
 				},
 			},
 			args{
-				tx: &types.MsgTx{
-					Version: 1,
-					Vin: []*types.TxIn{
-						PrevOutPoint: types.OutPoint{
-							Hash:  crypto.HashType{0x0010},
-							Index: 1,
-						},
-						ScriptSig: []byte{},
-						Sequence:  1,
-					},
-					Vout: []*types.TxOut{
-						Value:        1,
-						ScriptPubKey: []byte{},
-					},
-					Magic:    12,
-					LockTime: 1234,
-				},
-				blockHeight: 1,
+				tx:          tx,
+				blockHeight: 1234567,
 			},
-			true,
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -259,6 +283,63 @@ func TestUtxoSet_ApplyTx(t *testing.T) {
 }
 
 func TestUtxoSet_ApplyBlock(t *testing.T) {
+	key := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	value := &(UtxoEntry{
+		output: types.TxOut{
+			Value:        100000000,
+			ScriptPubKey: []byte{},
+		},
+		BlockHeight: 10000,
+		IsCoinBase:  true,
+		IsSpent:     false,
+	})
+	outpoint := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	txin := &types.TxIn{
+		PrevOutPoint: outpoint,
+		ScriptSig:    []byte{},
+		Sequence:     1,
+	}
+	vin := []*types.TxIn{
+		txin,
+	}
+	txout := &types.TxOut{
+		Value:        1,
+		ScriptPubKey: []byte{},
+	}
+	vout := []*types.TxOut{
+		txout,
+	}
+	msgtx := &types.MsgTx{
+		Version:  1,
+		Vin:      vin,
+		Vout:     vout,
+		Magic:    1,
+		LockTime: 1,
+	}
+	txs := []*types.MsgTx{
+		msgtx,
+	}
+	block := &types.Block{
+		Hash: &crypto.HashType{0x0010},
+		MsgBlock: &types.MsgBlock{
+			Header: &types.BlockHeader{
+				Version:       1,
+				PrevBlockHash: crypto.HashType{0x0010},
+				TxsRoot:       crypto.HashType{0x0010},
+				TimeStamp:     123,
+				Magic:         1,
+			},
+			Txs: txs,
+		},
+		Height: 10000,
+	}
+
 	type fields struct {
 		utxoMap map[types.OutPoint]*UtxoEntry
 	}
@@ -272,57 +353,16 @@ func TestUtxoSet_ApplyBlock(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"test",
+			"tests",
 			fields{
 				map[types.OutPoint]*UtxoEntry{
-					outPoint: types.OutPoint{
-						Hash:  crypto.HashType{0x0010},
-						Index: 1,
-					},
-					&(UtxoEntry{
-						output: types.TxOut{
-							Value:        100000000,
-							ScriptPubKey: []byte{},
-						},
-						BlockHeight: 10000,
-						IsCoinBase:  true,
-						IsSpent:     true,
-					}),
+					key: value,
 				},
 			},
 			args{
-				block: types.Block{
-					Hash: &crypto.HashType{0x0010},
-					MsgBlock: &types.MsgBlock{
-						Header: &types.BlockHeader{
-							Version:       1,
-							PrevBlockHash: crypto.HashType{0x0010},
-							TxsRoot:       crypto.HashType{0x0010},
-							TimeStamp:     123,
-							Magic:         1,
-						},
-						Txs: []*types.MsgTx{
-							Version: 1,
-							Vin: []*types.TxIn{
-								PrevOutPoint: types.OutPoint{
-									Hash:  crypto.HashType{0x0010},
-									Index: 1,
-								},
-								ScriptSig: []byte{},
-								Sequence:  12345,
-							},
-							Vout: []*types.TxOut{
-								Value:        1234,
-								ScriptPubKey: []byte{},
-							},
-							Magic:    1,
-							LockTime: 1234,
-						},
-					},
-					Height: 1234,
-				},
+				block,
 			},
-			true,
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -338,6 +378,44 @@ func TestUtxoSet_ApplyBlock(t *testing.T) {
 }
 
 func TestUtxoSet_RevertTx(t *testing.T) {
+	key := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	value := &(UtxoEntry{
+		output: types.TxOut{
+			Value:        100000000,
+			ScriptPubKey: []byte{},
+		},
+		BlockHeight: 10000,
+		IsCoinBase:  true,
+		IsSpent:     false,
+	})
+	outpoint := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	txin := &types.TxIn{
+		PrevOutPoint: outpoint,
+		ScriptSig:    []byte{},
+		Sequence:     1,
+	}
+	vin := []*types.TxIn{txin}
+	txout := &types.TxOut{
+		Value:        1,
+		ScriptPubKey: []byte{},
+	}
+	vout := []*types.TxOut{
+		txout,
+	}
+	tx := &types.MsgTx{
+		Version:  1,
+		Vin:      vin,
+		Vout:     vout,
+		Magic:    1,
+		LockTime: 1,
+	}
+
 	type fields struct {
 		utxoMap map[types.OutPoint]*UtxoEntry
 	}
@@ -352,43 +430,17 @@ func TestUtxoSet_RevertTx(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"test",
+			"tests",
 			fields{
 				map[types.OutPoint]*UtxoEntry{
-					outPoint: types.OutPoint{
-						Hash:  crypto.HashType{0x0010},
-						Index: 1,
-					},
-					&(UtxoEntry{
-						output: types.TxOut{
-							Value:        100000000,
-							ScriptPubKey: []byte{},
-						},
-						BlockHeight: 10000,
-						IsCoinBase:  true,
-						IsSpent:     true,
-					}),
+					key: value,
 				},
 			},
 			args{
-				tx: &types.MsgTx{
-					Version: 1,
-					Vin: []*types.TxIn{
-						PrevOutPoint: types.OutPoint{
-							Hash:  crypto.HashType{0x0010},
-							Index: 1,
-						},
-					},
-					Vout: []*types.TxOut{
-						Value:        1,
-						ScriptPubKey: []byte{},
-					},
-					Magic:    12,
-					LockTime: 1122,
-				},
+				tx:          tx,
 				blockHeight: 111111,
 			},
-			true,
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -404,6 +456,62 @@ func TestUtxoSet_RevertTx(t *testing.T) {
 }
 
 func TestUtxoSet_RevertBlock(t *testing.T) {
+	key := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	value := &(UtxoEntry{
+		output: types.TxOut{
+			Value:        100000000,
+			ScriptPubKey: []byte{},
+		},
+		BlockHeight: 10000,
+		IsCoinBase:  true,
+		IsSpent:     false,
+	})
+	outpoint := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 1,
+	}
+	txin := &types.TxIn{
+		PrevOutPoint: outpoint,
+		ScriptSig:    []byte{},
+		Sequence:     1,
+	}
+	vin := []*types.TxIn{
+		txin,
+	}
+	txout := &types.TxOut{
+		Value:        1,
+		ScriptPubKey: []byte{},
+	}
+	vout := []*types.TxOut{
+		txout,
+	}
+	tx := &types.MsgTx{
+		Version:  1,
+		Vin:      vin,
+		Vout:     vout,
+		Magic:    123,
+		LockTime: 1234,
+	}
+	txs := []*types.MsgTx{
+		tx,
+	}
+	block := &types.Block{
+		Hash: &crypto.HashType{0x0010},
+		MsgBlock: &types.MsgBlock{
+			Header: &types.BlockHeader{
+				Version:       1,
+				PrevBlockHash: crypto.HashType{0x0010},
+				TxsRoot:       crypto.HashType{0x0010},
+				TimeStamp:     1234,
+				Magic:         1,
+			},
+			Txs: txs,
+		},
+		Height: 1234,
+	}
 	type fields struct {
 		utxoMap map[types.OutPoint]*UtxoEntry
 	}
@@ -417,57 +525,16 @@ func TestUtxoSet_RevertBlock(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"test",
+			"tests",
 			fields{
 				map[types.OutPoint]*UtxoEntry{
-					outPoint: types.OutPoint{
-						Hash:  crypto.HashType{0x0010},
-						Index: 1,
-					},
-					&(UtxoEntry{
-						output: types.TxOut{
-							Value:        100000000,
-							ScriptPubKey: []byte{},
-						},
-						BlockHeight: 10000,
-						IsCoinBase:  true,
-						IsSpent:     true,
-					}),
+					key: value,
 				},
 			},
 			args{
-				block: &types.Block{
-					Hash: &crypto.HashType{0x0010},
-					MsgBlock: &types.MsgBlock{
-						Header: &types.BlockHeader{
-							Version:       1,
-							PrevBlockHash: crypto.HashType{0x0010},
-							TxsRoot:       crypto.HashType{0x0010},
-							TimeStamp:     1234,
-							Magic:         1,
-						},
-						Txs: []*types.MsgTx{
-							Version: 1,
-							Vin: []*types.TxIn{
-								PrevOutPoint: types.OutPoint{
-									Hash:  crypto.HashType{0x0010},
-									Index: 1,
-								},
-								ScriptSig: []byte{},
-								Sequence:  1,
-							},
-							Vout: types.TxOut{
-								Value:        1,
-								ScriptPubKey: []byte{},
-							},
-							Magic:    123,
-							LockTime: 1234,
-						},
-					},
-					Height: 1234,
-				},
+				block,
 			},
-			true,
+			false,
 		},
 	}
 	for _, tt := range tests {

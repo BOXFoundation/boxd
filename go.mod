@@ -37,7 +37,7 @@ require (
 	github.com/hoisie/redis v0.0.0-20160730154456-b5c6e81454e0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/ipfs/go-cid v0.0.0-20180830230650-6ddb575a8dbb // indirect
-	github.com/ipfs/go-datastore v0.0.0-20180815173225-bd0caea1845f // indirect
+	github.com/ipfs/go-datastore v0.0.0-20180815173225-bd0caea1845f
 	github.com/ipfs/go-detect-race v1.0.1 // indirect
 	github.com/ipfs/go-ds-badger v1.7.0 // indirect
 	github.com/ipfs/go-ipfs-util v1.2.8 // indirect
