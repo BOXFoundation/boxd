@@ -7,6 +7,10 @@ package pstore
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
+	"io/ioutil"
+	r "math/rand"
+	"os"
 	"sort"
 	"strconv"
 	"testing"
@@ -15,7 +19,9 @@ import (
 
 	"github.com/multiformats/go-multiaddr"
 
+	"github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/BOXFoundation/Quicksilver/storage/memdb"
+	"github.com/BOXFoundation/Quicksilver/storage/rocksdb"
 	"github.com/facebookgo/ensure"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -33,6 +39,36 @@ var addrs = []string{
 	"/ip4/192.168.10.1/tcp/8082",
 	"/ip4/192.168.10.1/tcp/8083",
 	"/ip4/192.168.10.1/tcp/8084",
+}
+
+func randomPath(t *testing.T) string {
+	dir, err := ioutil.TempDir("", fmt.Sprintf("%d", r.Int()))
+	ensure.Nil(t, err)
+	return dir
+}
+
+func TestRocksdbPeerstoreAddAddr(t *testing.T) {
+	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, err = rocksdb.NewRocksDB(dbpath, &o)
+	ensure.Nil(t, err)
+
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	ps, err := NewDefaultPeerstore(ctx, db)
+	ensure.Nil(t, err)
+
+	for _, addr := range addrs {
+		var pid = randomid()
+		var maddr, _ = multiaddr.NewMultiaddr(addr)
+		ps.AddAddr(pid, maddr, peerstore.RecentlyConnectedAddrTTL)
+		pinfo := ps.PeerInfo(pid)
+		ensure.DeepEqual(t, 1, len(pinfo.Addrs))
+		ensure.DeepEqual(t, maddr, pinfo.Addrs[0])
+	}
 }
 
 func TestPeerstoreAddAddr(t *testing.T) {

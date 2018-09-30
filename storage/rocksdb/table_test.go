@@ -151,10 +151,13 @@ func TestTableKeys(t *testing.T) {
 		keys[string(k)] = k
 	}
 
+	var ks [][]byte
 	for _, k := range table.Keys() {
 		_, ok := keys[string(k)]
 		ensure.True(t, ok)
+		ks = append(ks, k)
 	}
+	ensure.DeepEqual(t, len(ks), count)
 }
 
 func TestTablePersistent(t *testing.T) {

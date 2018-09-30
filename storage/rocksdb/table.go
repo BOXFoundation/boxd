@@ -76,10 +76,13 @@ func (t *rtable) Keys() [][]byte {
 	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)
 	defer iter.Close()
 
+	iter.SeekToFirst()
 	var keys [][]byte
 	for it := iter; it.Valid(); it.Next() {
 		key := it.Key()
-		keys = append(keys, key.Data())
+		var buf = make([]byte, key.Size())
+		copy(buf, key.Data())
+		keys = append(keys, buf)
 		key.Free()
 	}
 	return keys
