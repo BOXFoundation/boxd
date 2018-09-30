@@ -1364,7 +1364,6 @@ func (chain *BlockChain) sortPendingTxs() *util.PriorityQueue {
 		// place onto heap sorted by feePerKB
 		heap.Push(pool, pendingTx)
 	}
-	heap.Init(pool)
 	return pool
 }
 
