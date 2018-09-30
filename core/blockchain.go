@@ -9,7 +9,6 @@ import (
 	"container/heap"
 	"errors"
 	"math"
-	"math/rand"
 	"sort"
 	"time"
 
@@ -400,7 +399,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 // The second indicates if the block is an orphan.
 func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
 	blockHash, _ := block.BlockHash()
-	logger.Infof("Processing block %v", blockHash)
+	logger.Infof("Processing block hash: %v", *blockHash)
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.blockExists(*blockHash); exists {
@@ -423,7 +422,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	// Handle orphan blocks.
 	prevHash := block.MsgBlock.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
-		logger.Infof("Adding orphan block %v with parent %v", blockHash, prevHash)
+		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
 
 		return false, true, nil
@@ -444,7 +443,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, err
 	}
 
-	logger.Infof("Accepted block %v", blockHash)
+	logger.Infof("Accepted block hash: %v", blockHash.String())
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block.MsgBlock)
 	}
@@ -902,16 +901,8 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 
 	// We're extending (or creating) a side chain, but the new side chain is not long enough to make it the main chain.
 	if block.Height <= chain.longestChainHeight {
-		// Log information about how the block is forking the chain.
-		fork, _, _ := chain.findFork(block)
-		forkHash, _ := fork.BlockHash()
-		if forkHash.IsEqual(parentHash) {
-			logger.Infof("FORK: Block %v forks the chain at height %d, but does not "+
-				"cause a reorganization", blockHash, fork.Height)
-		} else {
-			logger.Infof("EXTEND FORK: Block %v extends a side chain which forks the chain "+
-				"at height %d", blockHash, fork.Height)
-		}
+		logger.Infof("Block %v extends a side chain to height %d, shorter than main chain of height %d",
+			blockHash, block.Height, chain.longestChainHeight)
 		return false, nil
 	}
 
@@ -1304,54 +1295,8 @@ func (chain *BlockChain) LoadUtxoByPubkey(pubkey []byte) (map[types.OutPoint]*Ut
 	return res, nil
 }
 
-// CheckTransactionInputs check transaction inputs.
-func (chain *BlockChain) CheckTransactionInputs(tx *types.Transaction, unspentUtxo *UtxoUnspentCache) (int64, error) {
-	// Coinbase transactions have no inputs.
-	if IsCoinBase(tx.MsgTx) {
-		return 0, nil
-	}
-
-	var totalFeeIn int64
-	for _, txIn := range tx.MsgTx.Vin {
-		// Ensure the referenced input transaction is available.
-		utxo := unspentUtxo.FindByOutPoint(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsPacked {
-			return 0, errors.New("utxo is not exist or has already been spent")
-		}
-		// if utxo is coinbase
-		if utxo.IsCoinbase {
-			originHeight := utxo.BlockHeight
-			blocksSincePrev := chain.tail.Height - originHeight
-			if blocksSincePrev < CoinbaseLib {
-				return 0, errors.New("tried to spend coinbase tx at height before required lib blocks")
-			}
-		}
-
-		txInFee := utxo.Value
-		if txInFee < 0 || txInFee > totalSupply {
-			return 0, errors.New("Invalid txIn fee")
-		}
-		totalFeeIn += txInFee
-		if totalFeeIn > totalSupply {
-			return 0, errors.New("Invalid totalFeesIn")
-		}
-	}
-
-	var totalFeeOut int64
-	for _, txOut := range tx.MsgTx.Vout {
-		totalFeeOut += txOut.Value
-	}
-
-	if totalFeeIn < totalFeeOut {
-		return 0, errors.New("total value of all transaction inputs is less than the amount spent")
-	}
-
-	txFee := totalFeeIn - totalFeeOut
-	return txFee, nil
-}
-
 // ValidateTransactionScripts verify crypto signatures for each input
-func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx, unspentUtxo *UtxoUnspentCache) error {
+func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx) error {
 	txIns := tx.Vin
 	txValItems := make([]*txValidateItem, 0, len(txIns))
 	for txInIdx, txIn := range txIns {
@@ -1377,7 +1322,7 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx, unspentUtxo
 
 // PackTxs packed txs and add them to block.
 func (chain *BlockChain) PackTxs(block *types.Block, addr types.Address) error {
-	pool := chain.txpool.pool
+	pool := chain.txpool.priorityQueue
 	blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.MsgTx
 	coinbaseTx, err := chain.createCoinbaseTx(addr)
@@ -1431,9 +1376,12 @@ func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *type
 
 func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, error) {
 	var pkScript []byte
+	coinbaseScript, err := StandardCoinbaseScript(chain.tail.Height)
+	if err != nil {
+		return nil, err
+	}
 	if addr != nil {
 		var err error
-		// pkScript, err = txscript.PayToAddrScript(addr)
 		pkScript, err = PayToPubKeyHashScript(addr.ScriptAddress())
 		if err != nil {
 			return nil, err
@@ -1447,7 +1395,6 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 		}
 	}
 
-	seq := rand.Intn(99999999)
 	tx := &types.MsgTx{
 		Version: 1,
 		Vin: []*types.TxIn{
@@ -1456,17 +1403,16 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 					Hash:  crypto.HashType{},
 					Index: 0xffffffff,
 				},
-				ScriptSig: []byte{OP0, OP0},
-				Sequence:  uint32(seq),
+				ScriptSig: coinbaseScript,
+				Sequence:  0xffffffff,
 			},
 		},
 		Vout: []*types.TxOut{
 			{
-				Value:        0x12a05f200,
+				Value:        baseSubsidy,
 				ScriptPubKey: pkScript,
 			},
 		},
-		LockTime: 0,
 	}
 	return tx, nil
 }

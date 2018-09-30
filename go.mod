@@ -13,6 +13,7 @@ require (
 	github.com/btcsuite/goleveldb v1.0.0 // indirect
 	github.com/coreos/go-semver v0.0.0-20180108230905-e214231b295a // indirect
 	github.com/cosiner/argv v0.0.0-20170225145430-13bacc38a0a5 // indirect
+	github.com/cweill/gotests v1.5.2 // indirect
 	github.com/derekparker/delve v1.1.0 // indirect
 	github.com/dgraph-io/badger v1.5.3 // indirect
 	github.com/dgryski/go-farm v0.0.0-20180109070241-2de33835d102 // indirect
@@ -37,7 +38,7 @@ require (
 	github.com/hoisie/redis v0.0.0-20160730154456-b5c6e81454e0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/ipfs/go-cid v0.0.0-20180830230650-6ddb575a8dbb // indirect
-	github.com/ipfs/go-datastore v0.0.0-20180815173225-bd0caea1845f // indirect
+	github.com/ipfs/go-datastore v0.0.0-20180815173225-bd0caea1845f
 	github.com/ipfs/go-detect-race v1.0.1 // indirect
 	github.com/ipfs/go-ds-badger v1.7.0 // indirect
 	github.com/ipfs/go-ipfs-util v1.2.8 // indirect
@@ -63,9 +64,9 @@ require (
 	github.com/libp2p/go-libp2p-circuit v0.0.0-20180904230442-9bb6dd6edd5e // indirect
 	github.com/libp2p/go-libp2p-crypto v0.0.0-20180811164718-137c71cdda7a
 	github.com/libp2p/go-libp2p-host v3.0.8+incompatible
-	github.com/libp2p/go-libp2p-interface-connmgr v0.0.0-20180829193642-36436db7edb1
+	github.com/libp2p/go-libp2p-interface-connmgr v0.0.0-20180829193642-36436db7edb1 // indirect
 	github.com/libp2p/go-libp2p-interface-pnet v0.0.0-20180606072403-86e6fc84b906 // indirect
-	github.com/libp2p/go-libp2p-kad-dht v4.3.8+incompatible
+	github.com/libp2p/go-libp2p-kad-dht v4.3.8+incompatible // indirect
 	github.com/libp2p/go-libp2p-kbucket v2.2.6+incompatible
 	github.com/libp2p/go-libp2p-loggables v1.1.21 // indirect
 	github.com/libp2p/go-libp2p-metrics v2.1.5+incompatible // indirect
@@ -115,7 +116,7 @@ require (
 	github.com/spf13/viper v1.2.0
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
 	github.com/tecbot/gorocksdb v0.0.0-20180907100951-214b6b7bc0f0
-	github.com/uudashr/gopkgs v1.3.2 // indirect
+	github.com/uudashr/gopkgs v2.0.1+incompatible // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc // indirect
@@ -130,7 +131,7 @@ require (
 	golang.org/x/arch v0.0.0-20180920145803-b19384d3c130 // indirect
 	golang.org/x/crypto v0.0.0-20180904163835-0709b304e793
 	golang.org/x/net v0.0.0-20180906233101-161cd47e91fd
-	golang.org/x/tools v0.0.0-20180927044812-b14f328a6211 // indirect
+	golang.org/x/tools v0.0.0-20180928181343-b3c0be4c978b // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b
 	google.golang.org/grpc v0.0.0-20180905221542-0150fc5d50cc
 )

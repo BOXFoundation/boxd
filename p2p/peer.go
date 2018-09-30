@@ -12,6 +12,9 @@ import (
 	"os"
 	"sync"
 
+	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/BOXFoundation/Quicksilver/p2p/pstore"
+	"github.com/BOXFoundation/Quicksilver/storage"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -23,6 +26,8 @@ import (
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	multiaddr "github.com/multiformats/go-multiaddr"
 )
+
+var logger = log.NewLogger("p2p") // logger
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
@@ -38,7 +43,7 @@ type BoxPeer struct {
 }
 
 // NewBoxPeer create a BoxPeer
-func NewBoxPeer(config *Config, parent goprocess.Process) (*BoxPeer, error) {
+func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*BoxPeer, error) {
 	// ctx := context.Background()
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
@@ -53,19 +58,27 @@ func NewBoxPeer(config *Config, parent goprocess.Process) (*BoxPeer, error) {
 		return nil, err
 	}
 
+	ps, err := pstore.NewDefaultPeerstore(ctx, s)
+	if err != nil {
+		return nil, err
+	}
 	opts := []libp2p.Option{
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", config.Address, config.Port)),
 		libp2p.Identity(networkIdentity),
 		libp2p.DefaultTransports,
 		libp2p.DefaultMuxers,
 		libp2p.DefaultSecurity,
+		libp2p.Peerstore(ps),
 		libp2p.NATPortMap(),
 	}
 
 	boxPeer.host, err = libp2p.New(ctx, opts...)
 	boxPeer.host.SetStreamHandler(ProtocolID, boxPeer.handleStream)
 	boxPeer.table = NewTable(boxPeer)
-	logger.Infof("BoxPeer starting...ID: %s listen: %s", boxPeer.id.Pretty(), fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.Port))
+
+	fulladdr, _ := PeerMultiAddr(boxPeer.host)
+	logger.Infof("BoxPeer is now starting at %s", fulladdr)
+
 	return boxPeer, nil
 }
 
@@ -78,18 +91,23 @@ func (p *BoxPeer) Bootstrap() {
 	p.notifier.Loop(p.proc)
 }
 
-func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
+func loadNetworkIdentity(filename string) (crypto.PrivKey, error) {
 	var key crypto.PrivKey
-	if path == "" {
-		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
-		return key, err
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) { // file does not exist.
+	if filename == "" {
 		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
 		return key, err
 	}
 
-	data, err := ioutil.ReadFile(path)
+	if _, err := os.Stat(filename); os.IsNotExist(err) { // file does not exist.
+		key, _, err := crypto.GenerateEd25519Key(rand.Reader)
+		if err == nil {
+			// save privKey to file
+			go saveNetworkIdentity(filename, key)
+		}
+		return key, err
+	}
+
+	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -102,15 +120,23 @@ func loadNetworkIdentity(path string) (crypto.PrivKey, error) {
 	return key, err
 }
 
+func saveNetworkIdentity(path string, key crypto.PrivKey) error {
+	data, err := crypto.MarshalPrivateKey(key)
+	if err != nil {
+		return err
+	}
+	b64data := base64.StdEncoding.EncodeToString(data)
+	return ioutil.WriteFile(path, []byte(b64data), 0400)
+}
+
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	conn := NewConn(s, p, s.Conn().RemotePeer())
 	go conn.loop()
 }
 
 func (p *BoxPeer) connectSeeds() {
-	host := p.host
 	for _, v := range p.config.Seeds {
-		if err := p.addAddrToPeerstore(host, v); err != nil {
+		if err := p.AddAddrToPeerstore(v); err != nil {
 			logger.Warn("Failed to add seed to peerstore.", err)
 		}
 		// conn := NewConn(nil, p, peerID)
@@ -118,26 +144,27 @@ func (p *BoxPeer) connectSeeds() {
 	}
 }
 
-func (p *BoxPeer) addAddrToPeerstore(h host.Host, addr string) error {
-	ipfsaddr, err := multiaddr.NewMultiaddr(addr)
+// AddAddrToPeerstore adds specified address to peerstore
+func (p *BoxPeer) AddAddrToPeerstore(addr string) error {
+	maddr, err := multiaddr.NewMultiaddr(addr)
 	if err != nil {
 		return err
 	}
-	pid, err := ipfsaddr.ValueForProtocol(multiaddr.P_IPFS)
+	return p.AddToPeerstore(maddr)
+}
+
+// AddToPeerstore adds specified multiaddr to peerstore
+func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
+	haddr, pid, err := DecapsulatePeerMultiAddr(maddr)
 	if err != nil {
 		return err
 	}
 
-	peerid, err := peer.IDB58Decode(pid)
-	if err != nil {
-		return err
-	}
-	targetPeerAddr, _ := multiaddr.NewMultiaddr(
-		fmt.Sprintf("/ipfs/%s", peer.IDB58Encode(peerid)))
-	targetAddr := ipfsaddr.Decapsulate(targetPeerAddr)
-
-	h.Peerstore().AddAddr(peerid, targetAddr, peerstore.PermanentAddrTTL)
-	p.table.routeTable.Update(peerid)
+	// TODO, we must consider how long the peer should be in the peerstore,
+	// PermanentAddrTTL should only be for peer configured by user.
+	// Peer that is connected or observed from other peers should have different TTL.
+	p.host.Peerstore().AddAddr(pid, haddr, peerstore.PermanentAddrTTL)
+	p.table.routeTable.Update(pid)
 	return nil
 }
 
@@ -149,11 +176,9 @@ func (p *BoxPeer) Broadcast(code uint32, message Serializable) error {
 		return err
 	}
 	body, err := proto.Marshal(pb)
-	logger.Info("Start broadcast message ", body)
 	for _, v := range p.conns {
 		conn := v.(*Conn)
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
-			logger.Error("-------------------")
 			continue
 		}
 		go conn.Write(code, body)

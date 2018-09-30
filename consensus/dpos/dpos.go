@@ -5,6 +5,7 @@
 package dpos
 
 import (
+	"encoding/hex"
 	"time"
 
 	"github.com/BOXFoundation/Quicksilver/core"
@@ -33,16 +34,30 @@ type Dpos struct {
 	net   p2p.Net
 	proc  goprocess.Process
 	cfg   *Config
+	miner types.Address
 }
 
 // NewDpos new a dpos implement.
 func NewDpos(chain *core.BlockChain, net p2p.Net, parent goprocess.Process, cfg *Config) *Dpos {
-	return &Dpos{
+
+	dpos := &Dpos{
 		chain: chain,
 		net:   net,
 		proc:  goprocess.WithParent(parent),
 		cfg:   cfg,
 	}
+
+	pubkey, err := hex.DecodeString(dpos.cfg.Pubkey)
+	if err != nil {
+		panic("invalid hex in source file: " + dpos.cfg.Pubkey)
+	}
+	addr, err := types.NewAddressPubKeyHash(pubkey, 0x00)
+	if err != nil {
+		panic("invalid public key in test source")
+	}
+	logger.Info("miner addr: ", addr.String())
+	dpos.miner = addr
+	return dpos
 }
 
 // Run start dpos
@@ -76,29 +91,16 @@ func (dpos *Dpos) mint() {
 		return
 	}
 
-	logger.Info("My turn to mint a block")
+	logger.Infof("My turn to mint a block, time: %d", now)
 	dpos.mintBlock()
 }
 
 func (dpos *Dpos) mintBlock() {
-	// serializedPubKey, err := hex.DecodeString(dpos.cfg.Pubkey)
-	// if err != nil {
-	// 	panic("invalid hex in source file: " + dpos.cfg.Pubkey)
-	// }
-	// logger.Info("pubkey ", serializedPubKey)
-	pubkey := []byte{
-		0xe3, 0x4c, 0xce, 0x70, 0xc8, 0x63, 0x73, 0x27, 0x3e, 0xfc,
-		0xc5, 0x4c, 0xe7, 0xd2, 0xa4, 0x91, 0xbb, 0x4a, 0x0e, 0x84}
-	addr, err := types.NewAddressPubKeyHash(pubkey, 0x00)
-	if err != nil {
-		panic("invalid public key in test source")
-	}
-
 	tail, _ := dpos.chain.LoadTailBlock()
-	logger.Info("current tail block: ", tail.Hash, tail.Height)
+	logger.Infof("current tail block: %s height: %d", *tail.Hash, tail.Height)
 
 	block := types.NewBlock(tail)
-	dpos.chain.PackTxs(block, addr)
+	dpos.chain.PackTxs(block, dpos.miner)
 	// block.setMiner()
 	dpos.chain.ProcessBlock(block, true)
 }

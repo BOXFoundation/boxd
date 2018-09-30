@@ -52,12 +52,18 @@ dependencies:
 	@echo "Installing test dependencies..."
 	go get -u github.com/axw/gocov/gocov
 	go get -u github.com/mattn/goveralls
+	go get -v github.com/cweill/gotests/...
 ifdef SHOULD_LINT
 	@echo "Installing golint..."
 	go get -u github.com/golang/lint/golint
 else
 	@echo "Not installing golint, since we don't expect to lint on" $(GO_VERSION)
 endif
+
+.PHONY: vendor
+vendor:
+	@echo "Installing libraries to vendor."
+	go mod vendor
 
 # Disable printf-like invocation checking due to testify.assert.Error()
 VET_RULES := -printf=false
