@@ -1,7 +1,7 @@
 network: mainnet
 workspace: boxd
 database:
-    name: memdb
+    name: rocksdb
 log:
     out:
         name: stderr # stdout|stderr|null

@@ -72,9 +72,9 @@ func (t *Table) Loop(parent goprocess.Process) {
 
 func (t *Table) peerDiscover() {
 	logger.Info("do peer discover")
-	all := t.routeTable.ListPeers()
+	all := t.peerStore.Peers()
 	if len(all) <= MaxPeerCountToSyncRouteTable {
-		for _, v := range t.routeTable.ListPeers() {
+		for _, v := range all {
 			if v.Pretty() == t.peer.id.Pretty() {
 				continue
 			}
