@@ -23,6 +23,9 @@ p2p:
     bucket_size: 16
     latency: 10
 rpc:
-    port: 19181
+    port: 19191
     http:
-        port: 19180
+        port: 19190
+dpos:
+    index: 0
+    pubkey: e34cce70c86373273efcc54ce7d2a491bb4a0e84

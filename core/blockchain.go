@@ -835,7 +835,28 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	// This block is now the end of the best chain.
 	chain.SetTailBlock(block)
 	chain.longestChainHeight = block.Height
+
+	// Notify mempool.
+	chain.removeBlockTxs(block)
 	return nil
+}
+
+// Add all transactions contained in this block into mempool
+func (chain *BlockChain) addBlockTxs(block *types.Block) error {
+	for _, msgTx := range block.MsgBlock.Txs[1:] {
+		if err := chain.txpool.maybeAcceptTx(msgTx, false /* do not broadcast */); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Remove all transactions contained in this block from mempool
+func (chain *BlockChain) removeBlockTxs(block *types.Block) {
+	for _, msgTx := range block.MsgBlock.Txs[1:] {
+		chain.txpool.removeTx(msgTx)
+		chain.txpool.removeDoubleSpends(msgTx)
+	}
 }
 
 // findFork returns final common block between the passed block and the main chain, and blocks to be detached and attached
@@ -914,6 +935,27 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 	return true, err
 }
 
+func (chain *BlockChain) revertBlock(block *types.Block) error {
+	// Revert UTXOs
+	if err := chain.utxoSet.RevertBlock(block); err != nil {
+		return err
+	}
+
+	// Revert mempool: reinsert all of the transactions (except the coinbase) into mempool
+	return chain.addBlockTxs(block)
+}
+
+func (chain *BlockChain) applyBlock(block *types.Block) error {
+	// Update UTXOs
+	if err := chain.utxoSet.ApplyBlock(block); err != nil {
+		return err
+	}
+
+	// Update mempool: remove all contained transactions
+	chain.removeBlockTxs(block)
+	return nil
+}
+
 func (chain *BlockChain) reorganizeChain(block *types.Block) error {
 	// Find the common ancestor of the main chain and side chain
 	_, detachBlocks, attachBlocks := chain.findFork(block)
@@ -921,7 +963,7 @@ func (chain *BlockChain) reorganizeChain(block *types.Block) error {
 	// Detach the blocks that form the (now) old fork from the main chain.
 	// From tip to fork, not including fork
 	for _, detachBlock := range detachBlocks {
-		if err := chain.utxoSet.RevertBlock(detachBlock); err != nil {
+		if err := chain.revertBlock(detachBlock); err != nil {
 			return err
 		}
 	}
@@ -931,7 +973,7 @@ func (chain *BlockChain) reorganizeChain(block *types.Block) error {
 	// From fork to tip, not including fork
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		attachBlock := attachBlocks[blockIdx]
-		if err := chain.utxoSet.ApplyBlock(attachBlock); err != nil {
+		if err := chain.applyBlock(attachBlock); err != nil {
 			return err
 		}
 	}
@@ -1322,7 +1364,6 @@ func (chain *BlockChain) sortPendingTxs() *util.PriorityQueue {
 		// place onto heap sorted by feePerKB
 		heap.Push(pool, pendingTx)
 	}
-	heap.Init(pool)
 	return pool
 }
 
