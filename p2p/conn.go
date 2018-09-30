@@ -60,6 +60,7 @@ func (conn *Conn) loop() {
 		ctx := goprocessctx.OnClosingContext(conn.peer.proc)
 		s, err := conn.peer.host.NewStream(ctx, conn.remotePeer, ProtocolID)
 		if err != nil {
+			logger.Errorf("Failed to new stream to %s, err = %s", conn.remotePeer.Pretty(), err.Error())
 			return
 		}
 		conn.stream = s
@@ -173,11 +174,12 @@ func (conn *Conn) heartBeatService() {
 // Ping the target node
 func (conn *Conn) Ping() error {
 	body := []byte("ping")
+	logger.Infof("send ping to %s", conn.remotePeer.Pretty())
 	return conn.Write(Ping, body)
 }
 
 func (conn *Conn) onPing(data []byte) error {
-	logger.Info("receive ping message.")
+	logger.Infof("receive ping message from %s.", conn.remotePeer.Pretty())
 	if "ping" != string(data) {
 		return ErrMessageDataContent
 	}
@@ -248,6 +250,10 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
 		return err
 	}
+	for _, p := range peers.Peers {
+		logger.Infof("receive peer id: %s, addr: %s", p.Id, p.Addrs)
+	}
+
 	conn.peer.table.AddPeers(conn, peers)
 	return nil
 }
@@ -268,8 +274,10 @@ func (conn *Conn) Write(OpCode uint32, body []byte) error {
 
 // Close connection to remote peer.
 func (conn *Conn) Close() {
-	delete(conn.peer.conns, conn.stream.Conn().RemotePeer())
-	conn.stream.Close()
+	if conn.stream != nil {
+		delete(conn.peer.conns, conn.stream.Conn().RemotePeer())
+		conn.stream.Close()
+	}
 }
 
 func (conn *Conn) checkHeader(header *MessageHeader) error {

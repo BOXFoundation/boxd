@@ -134,10 +134,13 @@ func (db *rocksdb) Keys() [][]byte {
 	var iter = db.rocksdb.NewIterator(db.readOptions)
 	defer iter.Close()
 
+	iter.SeekToFirst()
 	var keys [][]byte
 	for it := iter; it.Valid(); it.Next() {
 		key := it.Key()
-		keys = append(keys, key.Data())
+		var buf = make([]byte, key.Size())
+		copy(buf, key.Data())
+		keys = append(keys, buf)
 		key.Free()
 	}
 	return keys

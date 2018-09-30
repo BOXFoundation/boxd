@@ -190,11 +190,14 @@ func TestDBKeys(t *testing.T) {
 		keys[string(k)] = k
 	}
 
+	var ks [][]byte
 	for _, k := range db.Keys() {
 		if _, ok := keys[string(k)]; !ok {
 			t.Fatalf("key %s is unexpected", string(k))
 		}
+		ks = append(ks, k)
 	}
+	ensure.DeepEqual(t, len(ks), count)
 }
 
 func TestDBPersistent(t *testing.T) {

@@ -62,6 +62,7 @@ func NewPriorityQueue(lessFunc LessFunc) *PriorityQueue {
 	pq := &PriorityQueue{
 		lessFunc: lessFunc,
 	}
-
+	// Initialize here for immediate use, e.g., Push/Pop
+	heap.Init(pq)
 	return pq
 }

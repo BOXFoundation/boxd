@@ -87,7 +87,7 @@ func (dpos *Dpos) loop() {
 
 func (dpos *Dpos) mint() {
 	now := time.Now().Unix()
-	if int(now%10) != dpos.cfg.Index {
+	if int(now%15) != dpos.cfg.Index {
 		return
 	}
 

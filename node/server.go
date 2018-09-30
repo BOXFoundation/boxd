@@ -86,7 +86,7 @@ func Start(v *viper.Viper) error {
 	}
 	nodeServer.bc = bc
 	bc.Run()
-	time.Sleep(10 * time.Second)
+	time.Sleep(20 * time.Second)
 	consensus := dpos.NewDpos(bc, peer, proc, &cfg.Dpos)
 	consensus.Run()
 
