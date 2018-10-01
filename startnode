@@ -34,4 +34,7 @@ elif [ "$#" = 0 ]; then
   ${BIN} start --config=./.devconfig/.box-1.yaml > ./outputs/box1.log 2>&1 &
   ${BIN} start --config=./.devconfig/.box-2.yaml > ./outputs/box2.log 2>&1 &
   ${BIN} start --config=./.devconfig/.box-3.yaml > ./outputs/box3.log 2>&1 &
+  exit 0
 fi
+
+showusage
