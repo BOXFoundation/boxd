@@ -54,10 +54,11 @@ func NewTable(peer *BoxPeer) *Table {
 
 // Loop for discover new peer.
 func (t *Table) Loop(parent goprocess.Process) {
-
 	t.peerDiscover()
+
 	t.proc = parent.Go(func(p goprocess.Process) {
 		loopTicker := time.NewTicker(PeerDiscoverLoopInterval)
+		defer loopTicker.Stop()
 		for {
 			select {
 			case <-loopTicker.C:
