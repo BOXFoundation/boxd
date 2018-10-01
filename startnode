@@ -1,0 +1,37 @@
+#!/bin/sh
+
+export NAME=box
+
+export DIR_WORKSPACE="$(pwd)"
+export DIR_OUTPUTS="${DIR_WORKSPACE}"
+export BIN="${DIR_OUTPUTS}/${NAME}"
+
+if [ ! -f ${BIN} ]; then
+  echo "${BIN} doesn't exist."
+  exit 1
+fi
+
+showusage()
+{
+    cmd='$(basename "$0")'
+    echo "Usage:"
+    echo "\tStart node #1 or #2 or #3:"
+    echo "\t\t${cmd} 1|2|3"
+    echo
+    echo "\tStart all nodes(1, 2, 3):"
+    echo "\t\t${cmd}"
+}
+
+if [ "$#" -eq 1 ]
+then
+  if [[ "$1" -eq "1" || "$1" -eq "2" || "$1" -eq "3" ]]
+  then
+    ${BIN} start --config=./.devconfig/.box-"$1".yaml
+    exit $?
+  fi
+elif [ "$#" = 0 ]; then
+  mkdir -p ./outputs
+  ${BIN} start --config=./.devconfig/.box-1.yaml > ./outputs/box1.log 2>&1 &
+  ${BIN} start --config=./.devconfig/.box-2.yaml > ./outputs/box2.log 2>&1 &
+  ${BIN} start --config=./.devconfig/.box-3.yaml > ./outputs/box3.log 2>&1 &
+fi

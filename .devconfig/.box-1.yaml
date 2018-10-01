@@ -1,5 +1,5 @@
 network: mainnet
-workspace: boxd2
+workspace: .devconfig/ws1
 database:
     name: rocksdb
 log:
@@ -19,15 +19,13 @@ log:
               level:  4 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
     key_path: peer.key
-    port: 19197
-    seeds:
-        - "/ip4/0.0.0.0/tcp/19199/ipfs/12D3KooWAfLnAMKm7MwnpwBN8aEbAVFxZcw4uUaAjMcv6xehmrFg"
+    port: 19199
     bucket_size: 16
     latency: 10
 rpc:
-    port: 19171
+    port: 19191
     http:
-        port: 19170
+        port: 19190
 dpos:
-    index: 10
-    pubkey: 0af020217fd26e0b6bf40912bca223b1dd806a21
+    index: 0
+    pubkey: e34cce70c86373273efcc54ce7d2a491bb4a0e84

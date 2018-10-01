@@ -24,6 +24,6 @@
 .vscode/
 /box
 /outputs
-
+/.devconfig
 .DS_Store
 
