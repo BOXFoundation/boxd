@@ -261,7 +261,6 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 		}
 
 		tail := &types.Block{
-			Hash:     &genesisHash,
 			MsgBlock: tailMsgBlock,
 		}
 		return tail, nil
@@ -900,8 +899,7 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	chain.db.Put([]byte(Tail), data)
-	return nil
+	return chain.db.Put([]byte(Tail), data)
 }
 
 // Add all transactions contained in this block into mempool
@@ -1547,9 +1545,12 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 }
 
 // SetTailBlock sets chain tail block.
-func (chain *BlockChain) SetTailBlock(newTailBlock *types.Block) {
+func (chain *BlockChain) SetTailBlock(tail *types.Block) error {
 
-	chain.StoreTailBlock(newTailBlock)
-	chain.longestChainHeight = newTailBlock.MsgBlock.Height
-	chain.tail = newTailBlock
+	if err := chain.StoreTailBlock(tail); err != nil {
+		return err
+	}
+	chain.longestChainHeight = tail.MsgBlock.Height
+	chain.tail = tail
+	return nil
 }
