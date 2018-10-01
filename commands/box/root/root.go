@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/BOXFoundation/Quicksilver/log"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,6 +37,8 @@ var RootCmd = &cobra.Command{
 	//	Run: func(cmd *cobra.Command, args []string) { },
 }
 
+var logger = log.NewLogger("cmd")
+
 // init sets flags appropriately.
 func init() {
 	cobra.OnInitialize(initConfig)
@@ -53,7 +56,7 @@ func init() {
 	RootCmd.PersistentFlags().String("workspace", "", "work directory for boxd (default ~/.boxd)")
 	viper.BindPFlag("workspace", RootCmd.PersistentFlags().Lookup("workspace"))
 
-	RootCmd.PersistentFlags().String("log-level", "info", "log level [debug|info|warn|error|fatal]")
+	RootCmd.PersistentFlags().String("log-level", "error", "log level [debug|info|warn|error|fatal]")
 	viper.BindPFlag("log.level", RootCmd.PersistentFlags().Lookup("log-level"))
 
 	RootCmd.PersistentFlags().IP("rpc-addr", net.ParseIP("127.0.0.1"), "gRPC listen address.")
@@ -71,6 +74,8 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	logger.SetLogLevel(viper.GetString("log.level"))
+
 	// Find home directory.
 	home, err := homedir.Dir()
 	if err != nil {
@@ -96,6 +101,6 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+		logger.Infof("Using config file: %s", viper.ConfigFileUsed())
 	}
 }
