@@ -5,7 +5,6 @@
 syntax = "proto3";
 package rpcpb;
 
-
 message MsgTx {
     int32 version = 1;
     repeated TxIn vin  = 2;

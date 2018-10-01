@@ -7,19 +7,16 @@ package client
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"time"
 
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
-
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
 )
 
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
-func CreateTransaction(v *viper.Viper, fromPubkey []byte, toPubKey []byte, amount int64) error {
-	utxoResponse, err := FundTransaction(v, fromPubkey, amount)
+func CreateTransaction(v *viper.Viper, fromPubkeyHash []byte, toPubKeyHash []byte, amount int64) error {
+	utxoResponse, err := FundTransaction(v, fromPubkeyHash, amount)
 	if err != nil {
 		return err
 	}
@@ -29,27 +26,23 @@ func CreateTransaction(v *viper.Viper, fromPubkey []byte, toPubKey []byte, amoun
 	if err != nil {
 		return err
 	}
-	msgTx, err := wrapTransaction(fromPubkey, toPubKey, utxos, amount)
+	msgTx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, utxos, amount)
 	if err != nil {
 		return err
 	}
 	txReq.Tx = msgTx
 
-	var cfg = unmarshalConfig(v)
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port), grpc.WithInsecure())
-	if err != nil {
-		return err
-	}
+	conn := mustConnect(v)
 	defer conn.Close()
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	log.Printf("Create transaction from: %v, to : %v", fromPubkey, toPubKey)
+	logger.Debugf("Create transaction from: %v, to : %v", fromPubkeyHash, toPubKeyHash)
 	r, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
 		return err
 	}
-	log.Printf("Result: %+v", r)
+	logger.Infof("Result: %+v", r)
 	return nil
 }
 
@@ -73,11 +66,11 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, err
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKey, toPubKey []byte, utxos []*rpcpb.Utxo, amount int64) (*rpcpb.MsgTx, error) {
+func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, amount int64) (*rpcpb.MsgTx, error) {
 	msgTx := &rpcpb.MsgTx{}
 	var current int64
 	txIn := make([]*rpcpb.TxIn, len(utxos))
-	fmt.Printf("wrap transaction, utxos:%+v\n", utxos)
+	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
 		txIn[i] = &rpcpb.TxIn{
 			PrevOutPoint: &rpcpb.OutPoint{
@@ -90,12 +83,11 @@ func wrapTransaction(fromPubKey, toPubKey []byte, utxos []*rpcpb.Utxo, amount in
 		current += utxo.GetTxOut().GetValue()
 	}
 	msgTx.Vin = txIn
-	fmt.Println("wrap vout")
-	toScript, err := getScriptAddress(toPubKey)
+	toScript, err := getScriptAddress(toPubKeyHash)
 	if err != nil {
 		return nil, err
 	}
-	fromScript, err := getScriptAddress(fromPubKey)
+	fromScript, err := getScriptAddress(fromPubKeyHash)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +95,6 @@ func wrapTransaction(fromPubKey, toPubKey []byte, utxos []*rpcpb.Utxo, amount in
 		Value:        amount,
 		ScriptPubKey: toScript,
 	}}
-	fmt.Println("wrap change")
 	if current > amount {
 		msgTx.Vout = append(msgTx.Vout, &rpcpb.TxOut{
 			Value:        current - amount,
@@ -114,50 +105,41 @@ func wrapTransaction(fromPubKey, toPubKey []byte, utxos []*rpcpb.Utxo, amount in
 }
 
 // FundTransaction gets the utxo of a public key
-func FundTransaction(v *viper.Viper, pubKey []byte, amount int64) (*rpcpb.ListUtxosResponse, error) {
-	var cfg = unmarshalConfig(v)
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port), grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
+func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount int64) (*rpcpb.ListUtxosResponse, error) {
+	conn := mustConnect(v)
 	defer conn.Close()
-	p2pkScript, err := getScriptAddress(pubKey)
+	p2pkScript, err := getScriptAddress(pubKeyHash)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Script Value: %v", p2pkScript)
+	logger.Debugf("Script Value: %v", p2pkScript)
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	log.Printf("Fund transaction from: %v, amount : %v", pubKey, amount)
+	logger.Debugf("Fund transaction from: %v, amount : %v", pubKeyHash, amount)
 
 	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-		PubKey: p2pkScript,
-		Amount: amount,
+		ScriptPubKey: p2pkScript,
+		Amount:       amount,
 	})
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Result: %+v", r)
+	logger.Debugf("Result: %+v", r)
 	return r, nil
 }
 
 //ListUtxos list all utxos
 func ListUtxos(v *viper.Viper) error {
-	var cfg = unmarshalConfig(v)
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port), grpc.WithInsecure())
-	if err != nil {
-		return err
-	}
+	conn := mustConnect(v)
 	defer conn.Close()
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	log.Printf("List Utxos")
 	r, err := c.ListUtxos(ctx, &rpcpb.ListUtxosRequest{})
 	if err != nil {
 		return err
 	}
-	log.Printf("Result: %+v", r)
+	logger.Infof("Result: %+v", r)
 	return nil
 }

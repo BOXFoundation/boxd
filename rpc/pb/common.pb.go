@@ -32,7 +32,7 @@ func (m *MsgTx) Reset()         { *m = MsgTx{} }
 func (m *MsgTx) String() string { return proto.CompactTextString(m) }
 func (*MsgTx) ProtoMessage()    {}
 func (*MsgTx) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_9a744ac4287b430e, []int{0}
+	return fileDescriptor_common_027308789b14160e, []int{0}
 }
 func (m *MsgTx) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -108,7 +108,7 @@ func (m *Utxo) Reset()         { *m = Utxo{} }
 func (m *Utxo) String() string { return proto.CompactTextString(m) }
 func (*Utxo) ProtoMessage()    {}
 func (*Utxo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_9a744ac4287b430e, []int{1}
+	return fileDescriptor_common_027308789b14160e, []int{1}
 }
 func (m *Utxo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -182,7 +182,7 @@ func (m *TxIn) Reset()         { *m = TxIn{} }
 func (m *TxIn) String() string { return proto.CompactTextString(m) }
 func (*TxIn) ProtoMessage()    {}
 func (*TxIn) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_9a744ac4287b430e, []int{2}
+	return fileDescriptor_common_027308789b14160e, []int{2}
 }
 func (m *TxIn) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -241,7 +241,7 @@ func (m *TxOut) Reset()         { *m = TxOut{} }
 func (m *TxOut) String() string { return proto.CompactTextString(m) }
 func (*TxOut) ProtoMessage()    {}
 func (*TxOut) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_9a744ac4287b430e, []int{3}
+	return fileDescriptor_common_027308789b14160e, []int{3}
 }
 func (m *TxOut) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -293,7 +293,7 @@ func (m *OutPoint) Reset()         { *m = OutPoint{} }
 func (m *OutPoint) String() string { return proto.CompactTextString(m) }
 func (*OutPoint) ProtoMessage()    {}
 func (*OutPoint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_9a744ac4287b430e, []int{4}
+	return fileDescriptor_common_027308789b14160e, []int{4}
 }
 func (m *OutPoint) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -345,7 +345,7 @@ func (m *BaseResponse) Reset()         { *m = BaseResponse{} }
 func (m *BaseResponse) String() string { return proto.CompactTextString(m) }
 func (*BaseResponse) ProtoMessage()    {}
 func (*BaseResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_9a744ac4287b430e, []int{5}
+	return fileDescriptor_common_027308789b14160e, []int{5}
 }
 func (m *BaseResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1668,9 +1668,9 @@ var (
 	ErrIntOverflowCommon   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("common.proto", fileDescriptor_common_9a744ac4287b430e) }
+func init() { proto.RegisterFile("common.proto", fileDescriptor_common_027308789b14160e) }
 
-var fileDescriptor_common_9a744ac4287b430e = []byte{
+var fileDescriptor_common_027308789b14160e = []byte{
 	// 464 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x92, 0xb1, 0x6e, 0xd4, 0x4c,
 	0x10, 0xc7, 0xcf, 0xb9, 0x73, 0xe2, 0x1b, 0xfb, 0xf2, 0x49, 0xab, 0xaf, 0x30, 0xa0, 0x18, 0x63,

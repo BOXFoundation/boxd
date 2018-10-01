@@ -36,7 +36,7 @@ func (m *ListTransactionsRequest) Reset()         { *m = ListTransactionsRequest
 func (m *ListTransactionsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTransactionsRequest) ProtoMessage()    {}
 func (*ListTransactionsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wallet_fe907f042cebfb95, []int{0}
+	return fileDescriptor_wallet_e0391748f6b5d9c7, []int{0}
 }
 func (m *ListTransactionsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -97,7 +97,7 @@ func (m *ListTransactionsResponse) Reset()         { *m = ListTransactionsRespon
 func (m *ListTransactionsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTransactionsResponse) ProtoMessage()    {}
 func (*ListTransactionsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wallet_fe907f042cebfb95, []int{1}
+	return fileDescriptor_wallet_e0391748f6b5d9c7, []int{1}
 }
 func (m *ListTransactionsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -163,7 +163,7 @@ func (m *Transaction) Reset()         { *m = Transaction{} }
 func (m *Transaction) String() string { return proto.CompactTextString(m) }
 func (*Transaction) ProtoMessage()    {}
 func (*Transaction) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wallet_fe907f042cebfb95, []int{2}
+	return fileDescriptor_wallet_e0391748f6b5d9c7, []int{2}
 }
 func (m *Transaction) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -214,7 +214,7 @@ func (m *GetTransactionCountRequest) Reset()         { *m = GetTransactionCountR
 func (m *GetTransactionCountRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTransactionCountRequest) ProtoMessage()    {}
 func (*GetTransactionCountRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wallet_fe907f042cebfb95, []int{3}
+	return fileDescriptor_wallet_e0391748f6b5d9c7, []int{3}
 }
 func (m *GetTransactionCountRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -260,7 +260,7 @@ func (m *GetTransactionCountResponse) Reset()         { *m = GetTransactionCount
 func (m *GetTransactionCountResponse) String() string { return proto.CompactTextString(m) }
 func (*GetTransactionCountResponse) ProtoMessage()    {}
 func (*GetTransactionCountResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wallet_fe907f042cebfb95, []int{4}
+	return fileDescriptor_wallet_e0391748f6b5d9c7, []int{4}
 }
 func (m *GetTransactionCountResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1382,9 +1382,9 @@ var (
 	ErrIntOverflowWallet   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("wallet.proto", fileDescriptor_wallet_fe907f042cebfb95) }
+func init() { proto.RegisterFile("wallet.proto", fileDescriptor_wallet_e0391748f6b5d9c7) }
 
-var fileDescriptor_wallet_fe907f042cebfb95 = []byte{
+var fileDescriptor_wallet_e0391748f6b5d9c7 = []byte{
 	// 430 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x92, 0x31, 0x6f, 0xd3, 0x40,
 	0x1c, 0xc5, 0x73, 0x69, 0x93, 0x92, 0x7f, 0x5d, 0x09, 0x1d, 0x88, 0x9e, 0x1c, 0x30, 0xe6, 0x90,

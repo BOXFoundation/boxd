@@ -28,15 +28,15 @@ func init() {
 type ctlserver struct{}
 
 // SetDebugLevel implements SetDebugLevel
-func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.Reply, error) {
+func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
 	logger.SetLogLevel(in.Level)
 	nodeServer.cfg.Log.Level = logger.LogLevel()
 	if in.Level != logger.LogLevel() {
 		var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
 		logger.Info(info)
-		return &rpcpb.Reply{Code: 1, Message: info}, nil
+		return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
 	}
 	var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
 	logger.Infof(info)
-	return &rpcpb.Reply{Code: 0, Message: info}, nil
+	return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 }

@@ -6,23 +6,17 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
 
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
 )
 
 // ListTransactions list transactions of certain address
 func ListTransactions(v *viper.Viper, addr string) error {
-	var cfg = unmarshalConfig(v)
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port), grpc.WithInsecure())
-	if err != nil {
-		return err
-	}
+	conn := mustConnect(v)
 	defer conn.Close()
 	c := rpcpb.NewWalletCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

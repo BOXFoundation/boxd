@@ -45,7 +45,7 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 }
 
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
-	utxos, err := nodeServer.bc.LoadUtxoByPubKey(req.GetPubKey())
+	utxos, err := nodeServer.bc.LoadUtxoByPubKey(req.ScriptPubKey)
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
@@ -135,12 +135,4 @@ func generateTxIn(msgTxIn *rpcpb.TxIn) (*types.TxIn, error) {
 		ScriptSig: msgTxIn.ScriptSig,
 		Sequence:  msgTxIn.Sequence,
 	}, nil
-}
-
-func pubHashToScript(pubHash []byte) ([]byte, error) {
-	addr, err := types.NewAddressPubKeyHash(pubHash, 0x00)
-	if err != nil {
-		return nil, err
-	}
-	return addr.ScriptAddress(), nil
 }

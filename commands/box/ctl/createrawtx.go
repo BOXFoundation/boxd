@@ -19,10 +19,6 @@ var createrawtxCmd = &cobra.Command{
 	},
 }
 
-func createRawTransaction(fromPubKey []byte, toPubKey []byte) error {
-	return nil
-}
-
 func init() {
 	rootCmd.AddCommand(createrawtxCmd)
 

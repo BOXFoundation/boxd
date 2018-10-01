@@ -3,12 +3,10 @@
 // license that can be found in the LICENSE file.
 
 syntax = "proto3";
-
 package rpcpb;
 
 import "google/api/annotations.proto";
 import "common.proto";
-
 
 service TransactionCommand {
     rpc ListUtxos(ListUtxosRequest) returns (ListUtxosResponse) {
@@ -33,15 +31,11 @@ service TransactionCommand {
     }
 }
 
-
 message ListUtxosRequest {
-    bytes pub_key = 1;
-    uint32 offset = 2;
-    uint32 limit = 3;
 }
 
 message FundTransactionRequest {
-    bytes pub_key = 1;
+    bytes script_pub_key = 1;
     int64 amount = 2;
 }
 
