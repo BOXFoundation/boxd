@@ -917,6 +917,7 @@ func (chain *BlockChain) removeBlockTxs(block *types.Block) {
 	for _, msgTx := range block.MsgBlock.Txs[1:] {
 		chain.txpool.removeTx(msgTx)
 		chain.txpool.removeDoubleSpends(msgTx)
+		chain.txpool.removeOrphan(msgTx)
 	}
 }
 

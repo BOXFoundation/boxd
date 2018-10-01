@@ -32,7 +32,7 @@ require (
 	github.com/gxed/GoEndian v0.0.0-20160916112711-0f5c6873267e // indirect
 	github.com/gxed/eventfd v0.0.0-20160916113412-80a92cca79a8 // indirect
 	github.com/gxed/hashland v0.0.0-20180221191214-d9f6b97f8db2 // indirect
-	github.com/hashicorp/golang-lru v0.5.0 // indirect
+	github.com/hashicorp/golang-lru v0.5.0
 	github.com/heirko/go-contrib v0.0.0-20170921174445-82c95aa7d665
 	github.com/heralight/logrus_mate v0.0.0-20170807195635-969b6efb860e
 	github.com/hoisie/redis v0.0.0-20160730154456-b5c6e81454e0 // indirect
