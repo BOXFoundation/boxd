@@ -104,7 +104,7 @@ func (u *UtxoSet) ApplyTx(tx *types.MsgTx, blockHeight int32) error {
 func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 	txs := block.MsgBlock.Txs
 	for _, tx := range txs {
-		if err := u.ApplyTx(tx, block.Height); err != nil {
+		if err := u.ApplyTx(tx, block.MsgBlock.Height); err != nil {
 			return err
 		}
 	}
@@ -145,7 +145,7 @@ func (u *UtxoSet) RevertBlock(block *types.Block) error {
 	txs := block.MsgBlock.Txs
 	for txIdx := len(txs) - 1; txIdx >= 0; txIdx-- {
 		tx := txs[txIdx]
-		if err := u.RevertTx(tx, block.Height); err != nil {
+		if err := u.RevertTx(tx, block.MsgBlock.Height); err != nil {
 			return err
 		}
 	}

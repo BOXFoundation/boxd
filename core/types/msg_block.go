@@ -24,6 +24,7 @@ var (
 type MsgBlock struct {
 	Header *BlockHeader
 	Txs    []*MsgTx
+	Height int32
 }
 
 // BlockHeader defines information about a block and is used in the
@@ -64,6 +65,7 @@ func (msgBlock *MsgBlock) Serialize() (proto.Message, error) {
 		return &corepb.MsgBlock{
 			Header: header,
 			Txs:    txs,
+			Height: msgBlock.Height,
 		}, nil
 	}
 
@@ -89,6 +91,7 @@ func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 			}
 			msgBlock.Header = header
 			msgBlock.Txs = txs
+			msgBlock.Height = message.Height
 			return nil
 		}
 		return ErrEmptyProtoMessage

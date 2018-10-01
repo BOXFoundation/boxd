@@ -76,7 +76,7 @@ func (uw *UtxoWrap) Deserialize(message proto.Message) error {
 }
 
 //LoadUtxoFromDB load related unspent utxo
-func (uup *UtxoUnspentCache) LoadUtxoFromDB(db storage.Storage, outpoints map[types.OutPoint]struct{}) error {
+func (uup *UtxoUnspentCache) LoadUtxoFromDB(db storage.Table, outpoints map[types.OutPoint]struct{}) error {
 	return nil
 }
 

@@ -43,5 +43,6 @@ var genesisBlock = types.MsgBlock{
 		TxsRoot:       genesisMerkleRoot,
 		TimeStamp:     time.Now().UnixNano(),
 	},
-	Txs: []*types.MsgTx{&genesisCoinbaseTx},
+	Txs:    []*types.MsgTx{&genesisCoinbaseTx},
+	Height: 0,
 }
