@@ -5,8 +5,13 @@
 package wallet
 
 import (
+	"encoding/hex"
 	"fmt"
+	"strconv"
 
+	"github.com/spf13/viper"
+
+	rpc "github.com/BOXFoundation/Quicksilver/rpc/client"
 	"github.com/spf13/cobra"
 )
 
@@ -14,8 +19,18 @@ import (
 var sendfromCmd = &cobra.Command{
 	Use:   "sendfrom [fromaccount] [toaddress] [amount]",
 	Short: "Send coins from an account to an address",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("sendfrom called")
+		if len(args) != 3 {
+			return fmt.Errorf("Invalid argument number")
+		}
+		fromPubKey, err1 := hex.DecodeString(args[0])
+		toPubKey, err2 := hex.DecodeString(args[1])
+		amount, err3 := strconv.Atoi(args[2])
+		if err1 != nil || err2 != nil || err3 != nil {
+			return fmt.Errorf("Invalid argument format")
+		}
+		return rpc.CreateTransaction(viper.GetViper(), fromPubKey, toPubKey, int64(amount))
 	},
 }
 

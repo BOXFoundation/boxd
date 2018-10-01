@@ -6,6 +6,7 @@ package core
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
@@ -38,7 +39,7 @@ type TransactionPool struct {
 
 	// transaction pool
 	hashToTx map[crypto.HashType]*TxWrap
-
+	txMutex  sync.Mutex
 	// orphan transaction pool
 	hashToOrphanTx map[crypto.HashType]*TxWrap
 	// orphan transaction's parent; one parent can have multiple orphan children
@@ -66,6 +67,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *Block
 		hashToTx:               make(map[crypto.HashType]*TxWrap),
 		hashToOrphanTx:         make(map[crypto.HashType]*TxWrap),
 		orphanTxHashToChildren: make(map[crypto.HashType][]*TxWrap),
+		stxoSet:                make(map[types.OutPoint]*types.Transaction),
 	}
 }
 
@@ -118,13 +120,14 @@ func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool)
 	if err := tx_pool.maybeAcceptTx(tx.MsgTx, broadcast); err != nil {
 		return err
 	}
-
 	// TODO: process orphan
 	return nil
 }
 
 // Potentially accept the transaction to the memory pool.
 func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.MsgTx, broadcast bool) error {
+	tx_pool.txMutex.Lock()
+	defer tx_pool.txMutex.Unlock()
 	txHash, _ := tx.MsgTxHash()
 
 	// Don't accept the transaction if it already exists in the pool.

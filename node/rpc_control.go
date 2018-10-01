@@ -8,35 +8,35 @@ import (
 	"context"
 	"fmt"
 
-	ctlpb "github.com/BOXFoundation/Quicksilver/rpc/pb"
+	"github.com/BOXFoundation/Quicksilver/rpc/pb"
 	rpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
 	"google.golang.org/grpc"
 )
 
 func registerControl(s *grpc.Server) {
-	ctlpb.RegisterContorlCommandServer(s, &ctlserver{})
+	rpcpb.RegisterContorlCommandServer(s, &ctlserver{})
 }
 
 func init() {
 	rpcserver.RegisterServiceWithGatewayHandler(
 		"control",
 		registerControl,
-		ctlpb.RegisterContorlCommandHandlerFromEndpoint,
+		rpcpb.RegisterContorlCommandHandlerFromEndpoint,
 	)
 }
 
 type ctlserver struct{}
 
 // SetDebugLevel implements SetDebugLevel
-func (s *ctlserver) SetDebugLevel(ctx context.Context, in *ctlpb.DebugLevelRequest) (*ctlpb.Reply, error) {
+func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
 	logger.SetLogLevel(in.Level)
 	nodeServer.cfg.Log.Level = logger.LogLevel()
 	if in.Level != logger.LogLevel() {
 		var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
 		logger.Info(info)
-		return &ctlpb.Reply{Code: 1, Message: info}, nil
+		return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
 	}
 	var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
 	logger.Infof(info)
-	return &ctlpb.Reply{Code: 0, Message: info}, nil
+	return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 }

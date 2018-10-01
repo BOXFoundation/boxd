@@ -1,0 +1,43 @@
+// Copyright (c) 2018 ContentBox Authors. 
+// Use of this source code is governed by a MIT-style 
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+package rpcpb;
+
+message MsgTx {
+    int32 version = 1;
+    repeated TxIn vin  = 2;
+    repeated TxOut vout  = 3;
+    uint32 magic = 4;
+    int64 lock_time = 5;
+}
+
+message Utxo {
+    OutPoint out_point = 1;
+    TxOut   tx_out = 2;
+	int32 block_height = 3;
+	bool is_coinbase = 4;
+	bool is_spent = 5;
+}
+
+message TxIn {
+    OutPoint prev_out_point = 1;
+    bytes script_sig = 2;
+    uint32 sequence = 3;
+}
+
+message TxOut {
+    int64 value = 1;
+    bytes script_pub_key = 2;
+}
+
+message OutPoint {
+    bytes hash = 1;
+    uint32 index =2;
+}
+
+message BaseResponse {
+    int32 code = 1;
+    string message = 2;
+}

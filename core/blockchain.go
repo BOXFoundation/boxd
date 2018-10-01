@@ -5,6 +5,7 @@
 package core
 
 import (
+	"bytes"
 	"container/heap"
 	"errors"
 	"math"
@@ -59,7 +60,7 @@ const (
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 
 	// coinbase only spendable after this many blocks
-	coinbaseMaturity = 100
+	coinbaseMaturity = 0
 
 	// SubsidyReductionInterval is the interval of blocks before the subsidy is reduced.
 	SubsidyReductionInterval = 210000
@@ -558,6 +559,11 @@ func (chain *BlockChain) checkTransactionInputs(tx *types.MsgTx, txHeight int32)
 
 	txFee := totalInputAmount - totalOutputAmount
 	return txFee, nil
+}
+
+// ProcessTx is a proxy method to add transaction to transaction pool
+func (chain *BlockChain) ProcessTx(tx *types.Transaction, broadcast bool) error {
+	return chain.txpool.processTx(tx, broadcast)
 }
 
 // calcBlockSubsidy returns the subsidy amount a block at the provided height
@@ -1321,6 +1327,22 @@ func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCac
 	return uup, err
 }
 
+// LoadUtxoByPubKey loads utxos of a public key
+func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*UtxoEntry, error) {
+	res := make(map[types.OutPoint]*UtxoEntry)
+	for out, entry := range chain.utxoSet.utxoMap {
+		if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
+			res[out] = entry
+		}
+	}
+	return res, nil
+}
+
+//ListAllUtxos list all the available utxos for testing purpose
+func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoEntry {
+	return chain.utxoSet.utxoMap
+}
+
 // ValidateTransactionScripts verify crypto signatures for each input
 func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx) error {
 	txIns := tx.Vin
@@ -1360,7 +1382,7 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 func (chain *BlockChain) sortPendingTxs() *util.PriorityQueue {
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := chain.txpool.getAllTxs()
-	for pendingTx := range pendingTxs {
+	for _, pendingTx := range pendingTxs {
 		// place onto heap sorted by feePerKB
 		heap.Push(pool, pendingTx)
 	}

@@ -34,6 +34,7 @@ var nodeServer = struct {
 	database *storage.Database
 	peer     *p2p.BoxPeer
 	grpcsvr  *grpcserver.Server
+	bc       *core.BlockChain
 }{
 	proc: goprocess.WithSignals(os.Interrupt),
 }
@@ -81,6 +82,7 @@ func Start(v *viper.Viper) error {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
+	nodeServer.bc = bc
 	consensus := dpos.NewDpos(bc, peer, proc, &cfg.Dpos)
 
 	if cfg.RPC.Enabled {

@@ -18,7 +18,7 @@ var (
 
 // UtxoEntry contains info about utxo
 type UtxoEntry struct {
-	output types.TxOut
+	Output types.TxOut
 	// height of block containing the tx output
 	BlockHeight int32
 	// is this utxo inside a coinbase tx
@@ -29,7 +29,7 @@ type UtxoEntry struct {
 
 // Value returns utxo amount
 func (u *UtxoEntry) Value() int64 {
-	return u.output.Value
+	return u.Output.Value
 }
 
 // UtxoSet contains all utxos
@@ -46,11 +46,13 @@ func NewUtxoSet() *UtxoSet {
 
 // FindUtxo returns information about an outpoint.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *UtxoEntry {
+	logger.Debugf("Find utxo: %+v", outPoint)
 	return u.utxoMap[outPoint]
 }
 
 // AddUtxo adds a utxo
 func (u *UtxoSet) AddUtxo(tx *types.MsgTx, txOutIdx uint32, blockHeight int32) error {
+	logger.Debugf("Add utxo tx info: %+v, index: %d", tx, txOutIdx)
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return ErrTxOutIndexOob
@@ -69,6 +71,7 @@ func (u *UtxoSet) AddUtxo(tx *types.MsgTx, txOutIdx uint32, blockHeight int32) e
 // RemoveUtxo removes a utxo. We do not actually remove the entry in case it has to be
 // recovered later and we do not have all info, such as block height
 func (u *UtxoSet) RemoveUtxo(outPoint types.OutPoint) {
+	logger.Debugf("Remove utxo: %+v", outPoint)
 	utxoEntry := u.utxoMap[outPoint]
 	if utxoEntry == nil {
 		return
