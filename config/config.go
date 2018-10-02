@@ -17,6 +17,20 @@ import (
 	"github.com/BOXFoundation/Quicksilver/storage"
 )
 
+////////////////////////////////////////////////////////////////
+// build time variants
+
+// Version number of the build
+var Version string
+
+// GitCommit id of source code
+var GitCommit string
+
+// GitBranch name of source code
+var GitBranch string
+
+////////////////////////////////////////////////////////////////
+
 // Config is a configuration data structure for box blockchain server,
 // which is read from config file or parsed from command line.
 type Config struct {

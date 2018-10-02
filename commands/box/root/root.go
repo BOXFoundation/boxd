@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/BOXFoundation/Quicksilver/config"
 	"github.com/BOXFoundation/Quicksilver/log"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ var RootCmd = &cobra.Command{
 	Short: "BOX Payout command-line interface",
 	Long: `BOX Payout, a lightweight blockchain built for processing
 			multi-party payments on digital content apps.`,
+	Version: fmt.Sprintf("%s-r%s (%s branch)", config.Version, config.GitCommit, config.GitBranch),
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },

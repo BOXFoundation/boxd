@@ -13,7 +13,7 @@ DIR_WORKSPACE=$(shell pwd)
 DIR_OUTPUTS=${DIR_WORKSPACE}
 BIN="${DIR_OUTPUTS}/${NAME}"
 
-LDFLAGS = -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.branch=${BRANCH}"
+LDFLAGS = -ldflags "-X github.com/BOXFoundation/Quicksilver/config.Version=${VERSION} -X github.com/BOXFoundation/Quicksilver/config.GitCommit=${COMMIT} -X github.com/BOXFoundation/Quicksilver/config.GitBranch=${BRANCH}"
 
 export GO15VENDOREXPERIMENT=1
 export GO111MODULE=on
