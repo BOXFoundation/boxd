@@ -470,7 +470,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, err
 	}
 
-	logger.Infof("Accepted block hash: %v", blockHash.String())
+	logger.Infof("Accepted block hash: %v", blockHash)
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block.MsgBlock)
 	}
@@ -923,14 +923,25 @@ func (chain *BlockChain) removeBlockTxs(block *types.Block) {
 
 // findFork returns final common block between the passed block and the main chain, and blocks to be detached and attached
 func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Block, []*types.Block) {
-	if block.MsgBlock.Height != (chain.longestChainHeight + 1) {
-		logger.Panicf("Side chain (height: %d) is more than one block longer than main chain (height: %d) during chain reorg",
+	if block.MsgBlock.Height <= chain.longestChainHeight {
+		logger.Panicf("Side chain (height: %d) is not longer than main chain (height: %d) during chain reorg",
 			block.MsgBlock.Height, chain.longestChainHeight)
 	}
 	detachBlocks := make([]*types.Block, 0)
 	attachBlocks := []*types.Block{block}
-	// Start from the same height by moving side chain one block up
-	mainChainBlock, sideChainBlock, found := chain.TailBlock(), chain.getParentBlock(block), false
+
+	// Start both chain from same height by moving up side chain
+	sideChainBlock := block
+	for i := chain.longestChainHeight; i <= block.MsgBlock.Height; i++ {
+		if sideChainBlock == nil {
+			logger.Panicf("Block on side chain shall not be nil before reaching main chain height during reorg")
+		}
+		attachBlocks = append(attachBlocks, sideChainBlock)
+		sideChainBlock = chain.getParentBlock(sideChainBlock)
+	}
+
+	// Compare two blocks at the same height till they are identical: the fork point
+	mainChainBlock, found := chain.TailBlock(), false
 	for mainChainBlock != nil && sideChainBlock != nil {
 		if mainChainBlock.MsgBlock.Height != sideChainBlock.MsgBlock.Height {
 			logger.Panicf("Expect to compare main chain and side chain block at same height")
