@@ -767,13 +767,9 @@ func checkBlockScripts(block *types.Block) error {
 		numInputs += len(tx.Vin)
 	}
 	txValItems := make([]*txValidateItem, 0, numInputs)
-	for _, tx := range block.MsgBlock.Txs {
+	// Skip coinbases.
+	for _, tx := range block.MsgBlock.Txs[1:] {
 		for txInIdx, txIn := range tx.Vin {
-			// Skip coinbases.
-			if txIn.PrevOutPoint.Index == math.MaxUint32 {
-				continue
-			}
-
 			txVI := &txValidateItem{
 				txInIndex: txInIdx,
 				txIn:      txIn,
