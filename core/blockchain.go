@@ -917,7 +917,8 @@ func (chain *BlockChain) removeBlockTxs(block *types.Block) {
 	}
 }
 
-// findFork returns final common block between the passed block and the main chain, and blocks to be detached and attached
+// findFork returns final common block between the passed block and the main chain (i.e., fork point)
+// and blocks to be detached and attached
 func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Block, []*types.Block) {
 	if block.MsgBlock.Height <= chain.longestChainHeight {
 		logger.Panicf("Side chain (height: %d) is not longer than main chain (height: %d) during chain reorg",
@@ -928,7 +929,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 
 	// Start both chain from same height by moving up side chain
 	sideChainBlock := block
-	for i := chain.longestChainHeight; i <= block.MsgBlock.Height; i++ {
+	for i := block.MsgBlock.Height; i > chain.longestChainHeight; i-- {
 		if sideChainBlock == nil {
 			logger.Panicf("Block on side chain shall not be nil before reaching main chain height during reorg")
 		}
@@ -955,8 +956,8 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	if !found {
 		logger.Panicf("Fork point not found, but main chain and side chain share at least one common block, i.e., genesis")
 	}
-	if len(detachBlocks)+1 != len(attachBlocks) {
-		logger.Panicf("Blocks to be attached should be one block more than ones to be detached")
+	if len(attachBlocks) <= len(detachBlocks) {
+		logger.Panicf("Blocks to be attached (%d) should be strictly more than ones to be detached (%d)", len(attachBlocks), len(detachBlocks))
 	}
 	return mainChainBlock, detachBlocks, attachBlocks
 }
