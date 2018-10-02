@@ -8,7 +8,7 @@ GO = $(PB:.proto=.pb.go)
 all: $(GO)
 
 %.pb.go: %.proto
-	protoc --gogo_out=. $<
+	 protoc --gogofaster_out=plugins=grpc:. $<
 
 clean:
 	rm *.pb.go

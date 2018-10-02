@@ -6,6 +6,7 @@ syntax = "proto3";
 package rpcpb;
 
 import "google/api/annotations.proto";
+import "github.com/BOXFoundation/Quicksilver/core/pb/block.proto";
 import "common.proto";
 
 service TransactionCommand {
@@ -23,7 +24,7 @@ service TransactionCommand {
         };
     }
 
-    rpc sendTransaction(SendTransactionRequest) returns (BaseResponse) {
+    rpc SendTransaction(SendTransactionRequest) returns (BaseResponse) {
         option (google.api.http) = {
             post: "/v1/tx/sendtransaction"
             body: "*"
@@ -40,7 +41,7 @@ message FundTransactionRequest {
 }
 
 message SendTransactionRequest {
-    MsgTx tx = 1;
+    corepb.MsgTx tx = 1;
 }
 
 message ListUtxosResponse {

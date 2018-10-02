@@ -9,6 +9,7 @@ import (
 
 	"github.com/BOXFoundation/Quicksilver/core"
 
+	"github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
@@ -76,18 +77,18 @@ func generateUtxoMessage(outPoint *types.OutPoint, entry *core.UtxoEntry) *rpcpb
 		BlockHeight: entry.BlockHeight,
 		IsCoinbase:  entry.IsCoinBase,
 		IsSpent:     entry.IsSpent,
-		OutPoint: &rpcpb.OutPoint{
+		OutPoint: &corepb.OutPoint{
 			Hash:  outPoint.Hash.GetBytes(),
 			Index: outPoint.Index,
 		},
-		TxOut: &rpcpb.TxOut{
+		TxOut: &corepb.TxOut{
 			Value:        entry.Value(),
 			ScriptPubKey: entry.Output.ScriptPubKey,
 		},
 	}
 }
 
-func generateTransaction(txMsg *rpcpb.MsgTx) (*types.Transaction, error) {
+func generateTransaction(txMsg *corepb.MsgTx) (*types.Transaction, error) {
 	tx := &types.MsgTx{
 		Version:  txMsg.Version,
 		Magic:    txMsg.Magic,
@@ -121,7 +122,7 @@ func generateTransaction(txMsg *rpcpb.MsgTx) (*types.Transaction, error) {
 	return transaction, nil
 }
 
-func generateTxIn(msgTxIn *rpcpb.TxIn) (*types.TxIn, error) {
+func generateTxIn(msgTxIn *corepb.TxIn) (*types.TxIn, error) {
 	prevHash := crypto.HashType{}
 	if err := prevHash.SetBytes(msgTxIn.PrevOutPoint.Hash); err != nil {
 		return nil, err

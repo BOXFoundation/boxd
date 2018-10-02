@@ -5,6 +5,10 @@
 PB = $(wildcard *.proto)
 GO = $(PB:.proto=.pb.go)
 
+ifndef ${GOPATH}
+	GOPATH := $(shell go env GOPATH)
+endif
+
 .PHONY: all
 all: dependencies clean build
 
@@ -21,7 +25,6 @@ build: $(GO)
 .PHONY: %.pb.go
 %.pb.go: %.proto
 	protoc -I. -I$(GOPATH)/src \
-		-I../../core/pb \
 		-I$(GOPATH)/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
 		--gogofaster_out=plugins=grpc:. \
 		--grpc-gateway_out=logtostderr=true:. \

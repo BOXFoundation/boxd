@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
 	"github.com/spf13/viper"
 )
@@ -66,14 +67,14 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, err
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, amount int64) (*rpcpb.MsgTx, error) {
-	msgTx := &rpcpb.MsgTx{}
+func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, amount int64) (*corepb.MsgTx, error) {
+	msgTx := &corepb.MsgTx{}
 	var current int64
-	txIn := make([]*rpcpb.TxIn, len(utxos))
+	txIn := make([]*corepb.TxIn, len(utxos))
 	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
-		txIn[i] = &rpcpb.TxIn{
-			PrevOutPoint: &rpcpb.OutPoint{
+		txIn[i] = &corepb.TxIn{
+			PrevOutPoint: &corepb.OutPoint{
 				Hash:  utxo.GetOutPoint().Hash,
 				Index: utxo.GetOutPoint().GetIndex(),
 			},
@@ -91,12 +92,12 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 	if err != nil {
 		return nil, err
 	}
-	msgTx.Vout = []*rpcpb.TxOut{{
+	msgTx.Vout = []*corepb.TxOut{{
 		Value:        amount,
 		ScriptPubKey: toScript,
 	}}
 	if current > amount {
-		msgTx.Vout = append(msgTx.Vout, &rpcpb.TxOut{
+		msgTx.Vout = append(msgTx.Vout, &corepb.TxOut{
 			Value:        current - amount,
 			ScriptPubKey: fromScript,
 		})
