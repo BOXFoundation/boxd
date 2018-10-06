@@ -16,13 +16,9 @@ import (
 )
 
 func TestTableCreateClose(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	table, err := db.Table("t1")
 	ensure.Nil(t, err)
@@ -32,13 +28,9 @@ func TestTableCreateClose(t *testing.T) {
 }
 
 func TestTableDel(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	var wg sync.WaitGroup
 
@@ -64,13 +56,9 @@ func TestTableDel(t *testing.T) {
 	wg.Wait()
 }
 func TestTableBatch(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	table, err := db.Table("t1")
 	ensure.Nil(t, err)
@@ -131,13 +119,9 @@ func TestTableBatchs(t *testing.T) {
 }
 
 func TestTableKeys(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	db, err := NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	table, err := db.Table("tx")
 	ensure.Nil(t, err)
@@ -161,12 +145,9 @@ func TestTableKeys(t *testing.T) {
 }
 
 func TestTablePersistent(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
 
 	table, err := db.Table("t")
 	ensure.Nil(t, err)
@@ -181,7 +162,7 @@ func TestTablePersistent(t *testing.T) {
 	}
 	db.Close()
 
-	db, err = NewRocksDB(dbpath, &o)
+	db, err = NewRocksDB(dbpath, &storage.Options{})
 	ensure.Nil(t, err)
 	defer db.Close()
 
