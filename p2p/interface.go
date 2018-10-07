@@ -5,7 +5,7 @@
 package p2p
 
 import (
-	se "github.com/BOXFoundation/Quicksilver/p2p/serialize"
+	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
@@ -17,8 +17,8 @@ type Message interface {
 
 // Net Define Net interface
 type Net interface {
-	Broadcast(uint32, se.Serializable) error
-	SendMessageToPeer(uint32, se.Serializable, peer.ID)
+	Broadcast(uint32, conv.Convertible) error
+	SendMessageToPeer(uint32, conv.Convertible, peer.ID)
 	Subscribe(*Notifiee)
 	UnSubscribe(*Notifiee)
 }

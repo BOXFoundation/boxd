@@ -224,7 +224,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return genesis, nil
 	}
 
-	genesispb, err := genesisBlock.Serialize()
+	genesispb, err := genesisBlock.ToProtoMessage()
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 		}
 
 		tailMsgBlock := new(types.MsgBlock)
-		if err := tailMsgBlock.Deserialize(pbblock); err != nil {
+		if err := tailMsgBlock.FromProtoMessage(pbblock); err != nil {
 			return nil, err
 		}
 
@@ -267,7 +267,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 
 	}
 
-	tailpb, err := genesisBlock.Serialize()
+	tailpb, err := genesisBlock.ToProtoMessage()
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +300,7 @@ func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Msg
 	}
 
 	block := new(types.MsgBlock)
-	if err := block.Deserialize(pbblock); err != nil {
+	if err := block.FromProtoMessage(pbblock); err != nil {
 		return nil, err
 	}
 
@@ -309,7 +309,7 @@ func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Msg
 
 // StoreBlockToDb store block to db.
 func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
-	blockpb, err := block.MsgBlock.Serialize()
+	blockpb, err := block.MsgBlock.ToProtoMessage()
 	if err != nil {
 		return err
 	}
@@ -354,7 +354,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 		return err
 	}
 	msgBlock := new(types.MsgBlock)
-	if err := msgBlock.Deserialize(pbblock); err != nil {
+	if err := msgBlock.FromProtoMessage(pbblock); err != nil {
 		return err
 	}
 
@@ -887,7 +887,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 // StoreTailBlock store tail block to db.
 func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 
-	blockpb, err := block.MsgBlock.Serialize()
+	blockpb, err := block.MsgBlock.ToProtoMessage()
 	if err != nil {
 		return err
 	}

@@ -9,7 +9,7 @@ import (
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/crypto"
-	se "github.com/BOXFoundation/Quicksilver/p2p/serialize"
+	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -38,7 +38,7 @@ type MsgTx struct {
 	LockTime int64
 }
 
-var _ se.Serializable = (*MsgTx)(nil)
+var _ conv.Convertible = (*MsgTx)(nil)
 
 // TxOut defines a transaction output.
 type TxOut struct {
@@ -46,7 +46,7 @@ type TxOut struct {
 	ScriptPubKey []byte
 }
 
-var _ se.Serializable = (*TxOut)(nil)
+var _ conv.Convertible = (*TxOut)(nil)
 
 // TxIn defines a transaction input.
 type TxIn struct {
@@ -55,7 +55,7 @@ type TxIn struct {
 	Sequence     uint32
 }
 
-var _ se.Serializable = (*TxIn)(nil)
+var _ conv.Convertible = (*TxIn)(nil)
 
 // OutPoint defines a data type that is used to track previous transaction outputs.
 type OutPoint struct {
@@ -63,7 +63,7 @@ type OutPoint struct {
 	Index uint32
 }
 
-var _ se.Serializable = (*OutPoint)(nil)
+var _ conv.Convertible = (*OutPoint)(nil)
 
 // NewTx a Transaction wrapped by msgTx.
 func NewTx(msgTx *MsgTx) (*Transaction, error) {
@@ -77,12 +77,12 @@ func NewTx(msgTx *MsgTx) (*Transaction, error) {
 	}, nil
 }
 
-// Serialize transaction to proto message.
-func (msgTx *MsgTx) Serialize() (proto.Message, error) {
+// ToProtoMessage converts transaction to proto message.
+func (msgTx *MsgTx) ToProtoMessage() (proto.Message, error) {
 	var vins []*corepb.TxIn
 	var vouts []*corepb.TxOut
 	for _, v := range msgTx.Vin {
-		vin, err := v.Serialize()
+		vin, err := v.ToProtoMessage()
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func (msgTx *MsgTx) Serialize() (proto.Message, error) {
 		}
 	}
 	for _, v := range msgTx.Vout {
-		vout, _ := v.Serialize()
+		vout, _ := v.ToProtoMessage()
 		if vout, ok := vout.(*corepb.TxOut); ok {
 			vouts = append(vouts, vout)
 		}
@@ -105,14 +105,14 @@ func (msgTx *MsgTx) Serialize() (proto.Message, error) {
 	}, nil
 }
 
-// Deserialize convert proto message to transaction.
-func (msgTx *MsgTx) Deserialize(message proto.Message) error {
+// FromProtoMessage converts proto message to transaction.
+func (msgTx *MsgTx) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.MsgTx); ok {
 		if message != nil {
 			var vins []*TxIn
 			for _, v := range message.Vin {
 				txin := new(TxIn)
-				if err := txin.Deserialize(v); err != nil {
+				if err := txin.FromProtoMessage(v); err != nil {
 					return err
 				}
 				vins = append(vins, txin)
@@ -121,7 +121,7 @@ func (msgTx *MsgTx) Deserialize(message proto.Message) error {
 			var vouts []*TxOut
 			for _, v := range message.Vout {
 				txout := new(TxOut)
-				if err := txout.Deserialize(v); err != nil {
+				if err := txout.FromProtoMessage(v); err != nil {
 					return err
 				}
 				vouts = append(vouts, txout)
@@ -139,16 +139,16 @@ func (msgTx *MsgTx) Deserialize(message proto.Message) error {
 	return ErrInvalidTxInProtoMessage
 }
 
-// Serialize txout to proto message.
-func (txout *TxOut) Serialize() (proto.Message, error) {
+// ToProtoMessage converts txout to proto message.
+func (txout *TxOut) ToProtoMessage() (proto.Message, error) {
 	return &corepb.TxOut{
 		Value:        txout.Value,
 		ScriptPubKey: txout.ScriptPubKey,
 	}, nil
 }
 
-// Deserialize convert proto message to txout.
-func (txout *TxOut) Deserialize(message proto.Message) error {
+// FromProtoMessage converts proto message to txout.
+func (txout *TxOut) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.TxOut); ok {
 		if message != nil {
 			txout.ScriptPubKey = message.ScriptPubKey
@@ -161,9 +161,9 @@ func (txout *TxOut) Deserialize(message proto.Message) error {
 	return ErrInvalidTxOutProtoMessage
 }
 
-// Serialize txin to proto message.
-func (txin *TxIn) Serialize() (proto.Message, error) {
-	prevOutPoint, _ := txin.PrevOutPoint.Serialize()
+// ToProtoMessage converts txin to proto message.
+func (txin *TxIn) ToProtoMessage() (proto.Message, error) {
+	prevOutPoint, _ := txin.PrevOutPoint.ToProtoMessage()
 	if prevOutPoint, ok := prevOutPoint.(*corepb.OutPoint); ok {
 		return &corepb.TxIn{
 			PrevOutPoint: prevOutPoint,
@@ -174,12 +174,12 @@ func (txin *TxIn) Serialize() (proto.Message, error) {
 	return nil, ErrSerializeOutPoint
 }
 
-// Deserialize convert proto message to txin.
-func (txin *TxIn) Deserialize(message proto.Message) error {
+// FromProtoMessage converts proto message to txin.
+func (txin *TxIn) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.TxIn); ok {
 		if message != nil {
 			outPoint := new(OutPoint)
-			if err := outPoint.Deserialize(message.PrevOutPoint); err != nil {
+			if err := outPoint.FromProtoMessage(message.PrevOutPoint); err != nil {
 				return err
 			}
 			txin.PrevOutPoint = *outPoint
@@ -192,16 +192,16 @@ func (txin *TxIn) Deserialize(message proto.Message) error {
 	return ErrInvalidTxInProtoMessage
 }
 
-// Serialize out point to proto message.
-func (op *OutPoint) Serialize() (proto.Message, error) {
+// ToProtoMessage converts out point to proto message.
+func (op *OutPoint) ToProtoMessage() (proto.Message, error) {
 	return &corepb.OutPoint{
 		Hash:  op.Hash[:],
 		Index: op.Index,
 	}, nil
 }
 
-// Deserialize convert proto message to out point.
-func (op *OutPoint) Deserialize(message proto.Message) error {
+// FromProtoMessage converts proto message to out point.
+func (op *OutPoint) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.OutPoint); ok {
 		if message != nil {
 			copy(op.Hash[:], message.Hash[:])
@@ -230,7 +230,7 @@ func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 
 // MsgTxHash return msg tx hash
 func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
-	pbtx, err := msgTx.Serialize()
+	pbtx, err := msgTx.ToProtoMessage()
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +244,7 @@ func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
 
 // SerializeSize return msgTx size.
 func (msgTx *MsgTx) SerializeSize() (int, error) {
-	pbtx, err := msgTx.Serialize()
+	pbtx, err := msgTx.ToProtoMessage()
 	if err != nil {
 		return 0, err
 	}

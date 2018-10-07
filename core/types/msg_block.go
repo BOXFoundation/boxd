@@ -9,7 +9,7 @@ import (
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/crypto"
-	se "github.com/BOXFoundation/Quicksilver/p2p/serialize"
+	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -28,7 +28,7 @@ type MsgBlock struct {
 	Height int32
 }
 
-var _ se.Serializable = (*MsgBlock)(nil)
+var _ conv.Convertible = (*MsgBlock)(nil)
 
 // BlockHeader defines information about a block and is used in the
 // block (MsgBlock) and headers (MsgHeaders) messages.
@@ -50,16 +50,16 @@ type BlockHeader struct {
 	Magic uint32
 }
 
-var _ se.Serializable = (*BlockHeader)(nil)
+var _ conv.Convertible = (*BlockHeader)(nil)
 
-// Serialize block to proto message.
-func (msgBlock *MsgBlock) Serialize() (proto.Message, error) {
+// ToProtoMessage converts block to proto message.
+func (msgBlock *MsgBlock) ToProtoMessage() (proto.Message, error) {
 
-	header, _ := msgBlock.Header.Serialize()
+	header, _ := msgBlock.Header.ToProtoMessage()
 	if header, ok := header.(*corepb.BlockHeader); ok {
 		var txs []*corepb.MsgTx
 		for _, v := range msgBlock.Txs {
-			tx, err := v.Serialize()
+			tx, err := v.ToProtoMessage()
 			if err != nil {
 				return nil, err
 			}
@@ -77,19 +77,19 @@ func (msgBlock *MsgBlock) Serialize() (proto.Message, error) {
 	return nil, ErrSerializeHeader
 }
 
-// Deserialize convert proto message to block.
-func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
+// FromProtoMessage converts proto message to block.
+func (msgBlock *MsgBlock) FromProtoMessage(message proto.Message) error {
 
 	if message, ok := message.(*corepb.MsgBlock); ok {
 		if message != nil {
 			header := new(BlockHeader)
-			if err := header.Deserialize(message.Header); err != nil {
+			if err := header.FromProtoMessage(message.Header); err != nil {
 				return err
 			}
 			var txs []*MsgTx
 			for _, v := range message.Txs {
 				tx := new(MsgTx)
-				if err := tx.Deserialize(v); err != nil {
+				if err := tx.FromProtoMessage(v); err != nil {
 					return err
 				}
 				txs = append(txs, tx)
@@ -105,8 +105,8 @@ func (msgBlock *MsgBlock) Deserialize(message proto.Message) error {
 	return ErrInvalidBlockProtoMessage
 }
 
-// Serialize block header to proto message.
-func (header *BlockHeader) Serialize() (proto.Message, error) {
+// ToProtoMessage converts block header to proto message.
+func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 
 	return &corepb.BlockHeader{
 		Version:       header.Version,
@@ -117,8 +117,8 @@ func (header *BlockHeader) Serialize() (proto.Message, error) {
 	}, nil
 }
 
-// Deserialize convert proto message to block header.
-func (header *BlockHeader) Deserialize(message proto.Message) error {
+// FromProtoMessage converts proto message to block header.
+func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 
 	if message, ok := message.(*corepb.BlockHeader); ok {
 		if message != nil {
@@ -138,7 +138,7 @@ func (header *BlockHeader) Deserialize(message proto.Message) error {
 // BlockHash returns the block identifier hash for the Block.
 func (msgBlock *MsgBlock) BlockHash() (*crypto.HashType, error) {
 
-	pbHeader, err := msgBlock.Header.Serialize()
+	pbHeader, err := msgBlock.Header.ToProtoMessage()
 	if err != nil {
 		return nil, err
 	}

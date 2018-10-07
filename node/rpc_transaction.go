@@ -89,7 +89,7 @@ func generateUtxoMessage(outPoint *types.OutPoint, entry *core.UtxoEntry) *rpcpb
 
 func generateTransaction(txMsg *corepb.MsgTx) (*types.Transaction, error) {
 	tx := &types.MsgTx{}
-	if err := tx.Deserialize(txMsg); err != nil {
+	if err := tx.FromProtoMessage(txMsg); err != nil {
 		return nil, err
 	}
 
@@ -98,7 +98,7 @@ func generateTransaction(txMsg *corepb.MsgTx) (*types.Transaction, error) {
 
 func generateTxIn(msgTxIn *corepb.TxIn) (*types.TxIn, error) {
 	txin := &types.TxIn{}
-	if err := txin.Deserialize(msgTxIn); err != nil {
+	if err := txin.FromProtoMessage(msgTxIn); err != nil {
 		return nil, err
 	}
 
