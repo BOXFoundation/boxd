@@ -6,6 +6,7 @@ package rpcpb
 import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
 import math "math"
+import pb "github.com/BOXFoundation/Quicksilver/core/pb"
 
 import io "io"
 
@@ -20,95 +21,19 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
-type MsgTx struct {
-	Version  int32    `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
-	Vin      []*TxIn  `protobuf:"bytes,2,rep,name=vin" json:"vin,omitempty"`
-	Vout     []*TxOut `protobuf:"bytes,3,rep,name=vout" json:"vout,omitempty"`
-	Magic    uint32   `protobuf:"varint,4,opt,name=magic,proto3" json:"magic,omitempty"`
-	LockTime int64    `protobuf:"varint,5,opt,name=lock_time,json=lockTime,proto3" json:"lock_time,omitempty"`
-}
-
-func (m *MsgTx) Reset()         { *m = MsgTx{} }
-func (m *MsgTx) String() string { return proto.CompactTextString(m) }
-func (*MsgTx) ProtoMessage()    {}
-func (*MsgTx) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_027308789b14160e, []int{0}
-}
-func (m *MsgTx) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *MsgTx) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_MsgTx.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (dst *MsgTx) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MsgTx.Merge(dst, src)
-}
-func (m *MsgTx) XXX_Size() int {
-	return m.Size()
-}
-func (m *MsgTx) XXX_DiscardUnknown() {
-	xxx_messageInfo_MsgTx.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_MsgTx proto.InternalMessageInfo
-
-func (m *MsgTx) GetVersion() int32 {
-	if m != nil {
-		return m.Version
-	}
-	return 0
-}
-
-func (m *MsgTx) GetVin() []*TxIn {
-	if m != nil {
-		return m.Vin
-	}
-	return nil
-}
-
-func (m *MsgTx) GetVout() []*TxOut {
-	if m != nil {
-		return m.Vout
-	}
-	return nil
-}
-
-func (m *MsgTx) GetMagic() uint32 {
-	if m != nil {
-		return m.Magic
-	}
-	return 0
-}
-
-func (m *MsgTx) GetLockTime() int64 {
-	if m != nil {
-		return m.LockTime
-	}
-	return 0
-}
-
 type Utxo struct {
-	OutPoint    *OutPoint `protobuf:"bytes,1,opt,name=out_point,json=outPoint" json:"out_point,omitempty"`
-	TxOut       *TxOut    `protobuf:"bytes,2,opt,name=tx_out,json=txOut" json:"tx_out,omitempty"`
-	BlockHeight int32     `protobuf:"varint,3,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
-	IsCoinbase  bool      `protobuf:"varint,4,opt,name=is_coinbase,json=isCoinbase,proto3" json:"is_coinbase,omitempty"`
-	IsSpent     bool      `protobuf:"varint,5,opt,name=is_spent,json=isSpent,proto3" json:"is_spent,omitempty"`
+	OutPoint    *pb.OutPoint `protobuf:"bytes,1,opt,name=out_point,json=outPoint" json:"out_point,omitempty"`
+	TxOut       *pb.TxOut    `protobuf:"bytes,2,opt,name=tx_out,json=txOut" json:"tx_out,omitempty"`
+	BlockHeight int32        `protobuf:"varint,3,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
+	IsCoinbase  bool         `protobuf:"varint,4,opt,name=is_coinbase,json=isCoinbase,proto3" json:"is_coinbase,omitempty"`
+	IsSpent     bool         `protobuf:"varint,5,opt,name=is_spent,json=isSpent,proto3" json:"is_spent,omitempty"`
 }
 
 func (m *Utxo) Reset()         { *m = Utxo{} }
 func (m *Utxo) String() string { return proto.CompactTextString(m) }
 func (*Utxo) ProtoMessage()    {}
 func (*Utxo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_027308789b14160e, []int{1}
+	return fileDescriptor_common_41720900d7f939cd, []int{0}
 }
 func (m *Utxo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -137,14 +62,14 @@ func (m *Utxo) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Utxo proto.InternalMessageInfo
 
-func (m *Utxo) GetOutPoint() *OutPoint {
+func (m *Utxo) GetOutPoint() *pb.OutPoint {
 	if m != nil {
 		return m.OutPoint
 	}
 	return nil
 }
 
-func (m *Utxo) GetTxOut() *TxOut {
+func (m *Utxo) GetTxOut() *pb.TxOut {
 	if m != nil {
 		return m.TxOut
 	}
@@ -172,170 +97,6 @@ func (m *Utxo) GetIsSpent() bool {
 	return false
 }
 
-type TxIn struct {
-	PrevOutPoint *OutPoint `protobuf:"bytes,1,opt,name=prev_out_point,json=prevOutPoint" json:"prev_out_point,omitempty"`
-	ScriptSig    []byte    `protobuf:"bytes,2,opt,name=script_sig,json=scriptSig,proto3" json:"script_sig,omitempty"`
-	Sequence     uint32    `protobuf:"varint,3,opt,name=sequence,proto3" json:"sequence,omitempty"`
-}
-
-func (m *TxIn) Reset()         { *m = TxIn{} }
-func (m *TxIn) String() string { return proto.CompactTextString(m) }
-func (*TxIn) ProtoMessage()    {}
-func (*TxIn) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_027308789b14160e, []int{2}
-}
-func (m *TxIn) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *TxIn) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_TxIn.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (dst *TxIn) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TxIn.Merge(dst, src)
-}
-func (m *TxIn) XXX_Size() int {
-	return m.Size()
-}
-func (m *TxIn) XXX_DiscardUnknown() {
-	xxx_messageInfo_TxIn.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_TxIn proto.InternalMessageInfo
-
-func (m *TxIn) GetPrevOutPoint() *OutPoint {
-	if m != nil {
-		return m.PrevOutPoint
-	}
-	return nil
-}
-
-func (m *TxIn) GetScriptSig() []byte {
-	if m != nil {
-		return m.ScriptSig
-	}
-	return nil
-}
-
-func (m *TxIn) GetSequence() uint32 {
-	if m != nil {
-		return m.Sequence
-	}
-	return 0
-}
-
-type TxOut struct {
-	Value        int64  `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
-	ScriptPubKey []byte `protobuf:"bytes,2,opt,name=script_pub_key,json=scriptPubKey,proto3" json:"script_pub_key,omitempty"`
-}
-
-func (m *TxOut) Reset()         { *m = TxOut{} }
-func (m *TxOut) String() string { return proto.CompactTextString(m) }
-func (*TxOut) ProtoMessage()    {}
-func (*TxOut) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_027308789b14160e, []int{3}
-}
-func (m *TxOut) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *TxOut) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_TxOut.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (dst *TxOut) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TxOut.Merge(dst, src)
-}
-func (m *TxOut) XXX_Size() int {
-	return m.Size()
-}
-func (m *TxOut) XXX_DiscardUnknown() {
-	xxx_messageInfo_TxOut.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_TxOut proto.InternalMessageInfo
-
-func (m *TxOut) GetValue() int64 {
-	if m != nil {
-		return m.Value
-	}
-	return 0
-}
-
-func (m *TxOut) GetScriptPubKey() []byte {
-	if m != nil {
-		return m.ScriptPubKey
-	}
-	return nil
-}
-
-type OutPoint struct {
-	Hash  []byte `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
-	Index uint32 `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`
-}
-
-func (m *OutPoint) Reset()         { *m = OutPoint{} }
-func (m *OutPoint) String() string { return proto.CompactTextString(m) }
-func (*OutPoint) ProtoMessage()    {}
-func (*OutPoint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_027308789b14160e, []int{4}
-}
-func (m *OutPoint) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *OutPoint) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_OutPoint.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (dst *OutPoint) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_OutPoint.Merge(dst, src)
-}
-func (m *OutPoint) XXX_Size() int {
-	return m.Size()
-}
-func (m *OutPoint) XXX_DiscardUnknown() {
-	xxx_messageInfo_OutPoint.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_OutPoint proto.InternalMessageInfo
-
-func (m *OutPoint) GetHash() []byte {
-	if m != nil {
-		return m.Hash
-	}
-	return nil
-}
-
-func (m *OutPoint) GetIndex() uint32 {
-	if m != nil {
-		return m.Index
-	}
-	return 0
-}
-
 type BaseResponse struct {
 	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
@@ -345,7 +106,7 @@ func (m *BaseResponse) Reset()         { *m = BaseResponse{} }
 func (m *BaseResponse) String() string { return proto.CompactTextString(m) }
 func (*BaseResponse) ProtoMessage()    {}
 func (*BaseResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_common_027308789b14160e, []int{5}
+	return fileDescriptor_common_41720900d7f939cd, []int{1}
 }
 func (m *BaseResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -389,70 +150,9 @@ func (m *BaseResponse) GetMessage() string {
 }
 
 func init() {
-	proto.RegisterType((*MsgTx)(nil), "rpcpb.MsgTx")
 	proto.RegisterType((*Utxo)(nil), "rpcpb.Utxo")
-	proto.RegisterType((*TxIn)(nil), "rpcpb.TxIn")
-	proto.RegisterType((*TxOut)(nil), "rpcpb.TxOut")
-	proto.RegisterType((*OutPoint)(nil), "rpcpb.OutPoint")
 	proto.RegisterType((*BaseResponse)(nil), "rpcpb.BaseResponse")
 }
-func (m *MsgTx) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *MsgTx) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Version != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(m.Version))
-	}
-	if len(m.Vin) > 0 {
-		for _, msg := range m.Vin {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintCommon(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	if len(m.Vout) > 0 {
-		for _, msg := range m.Vout {
-			dAtA[i] = 0x1a
-			i++
-			i = encodeVarintCommon(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	if m.Magic != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(m.Magic))
-	}
-	if m.LockTime != 0 {
-		dAtA[i] = 0x28
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(m.LockTime))
-	}
-	return i, nil
-}
-
 func (m *Utxo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -516,103 +216,6 @@ func (m *Utxo) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *TxIn) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *TxIn) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.PrevOutPoint != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(m.PrevOutPoint.Size()))
-		n3, err := m.PrevOutPoint.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n3
-	}
-	if len(m.ScriptSig) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(len(m.ScriptSig)))
-		i += copy(dAtA[i:], m.ScriptSig)
-	}
-	if m.Sequence != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(m.Sequence))
-	}
-	return i, nil
-}
-
-func (m *TxOut) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *TxOut) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Value != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(m.Value))
-	}
-	if len(m.ScriptPubKey) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(len(m.ScriptPubKey)))
-		i += copy(dAtA[i:], m.ScriptPubKey)
-	}
-	return i, nil
-}
-
-func (m *OutPoint) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *OutPoint) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Hash) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(len(m.Hash)))
-		i += copy(dAtA[i:], m.Hash)
-	}
-	if m.Index != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintCommon(dAtA, i, uint64(m.Index))
-	}
-	return i, nil
-}
-
 func (m *BaseResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -651,36 +254,6 @@ func encodeVarintCommon(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
-func (m *MsgTx) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Version != 0 {
-		n += 1 + sovCommon(uint64(m.Version))
-	}
-	if len(m.Vin) > 0 {
-		for _, e := range m.Vin {
-			l = e.Size()
-			n += 1 + l + sovCommon(uint64(l))
-		}
-	}
-	if len(m.Vout) > 0 {
-		for _, e := range m.Vout {
-			l = e.Size()
-			n += 1 + l + sovCommon(uint64(l))
-		}
-	}
-	if m.Magic != 0 {
-		n += 1 + sovCommon(uint64(m.Magic))
-	}
-	if m.LockTime != 0 {
-		n += 1 + sovCommon(uint64(m.LockTime))
-	}
-	return n
-}
-
 func (m *Utxo) Size() (n int) {
 	if m == nil {
 		return 0
@@ -703,58 +276,6 @@ func (m *Utxo) Size() (n int) {
 	}
 	if m.IsSpent {
 		n += 2
-	}
-	return n
-}
-
-func (m *TxIn) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.PrevOutPoint != nil {
-		l = m.PrevOutPoint.Size()
-		n += 1 + l + sovCommon(uint64(l))
-	}
-	l = len(m.ScriptSig)
-	if l > 0 {
-		n += 1 + l + sovCommon(uint64(l))
-	}
-	if m.Sequence != 0 {
-		n += 1 + sovCommon(uint64(m.Sequence))
-	}
-	return n
-}
-
-func (m *TxOut) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Value != 0 {
-		n += 1 + sovCommon(uint64(m.Value))
-	}
-	l = len(m.ScriptPubKey)
-	if l > 0 {
-		n += 1 + l + sovCommon(uint64(l))
-	}
-	return n
-}
-
-func (m *OutPoint) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Hash)
-	if l > 0 {
-		n += 1 + l + sovCommon(uint64(l))
-	}
-	if m.Index != 0 {
-		n += 1 + sovCommon(uint64(m.Index))
 	}
 	return n
 }
@@ -787,175 +308,6 @@ func sovCommon(x uint64) (n int) {
 }
 func sozCommon(x uint64) (n int) {
 	return sovCommon(uint64((x << 1) ^ uint64((int64(x) >> 63))))
-}
-func (m *MsgTx) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowCommon
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: MsgTx: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: MsgTx: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
-			}
-			m.Version = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Version |= (int32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Vin", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthCommon
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Vin = append(m.Vin, &TxIn{})
-			if err := m.Vin[len(m.Vin)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Vout", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthCommon
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Vout = append(m.Vout, &TxOut{})
-			if err := m.Vout[len(m.Vout)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Magic", wireType)
-			}
-			m.Magic = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Magic |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 5:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field LockTime", wireType)
-			}
-			m.LockTime = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.LockTime |= (int64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipCommon(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthCommon
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
 }
 func (m *Utxo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -1013,7 +365,7 @@ func (m *Utxo) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.OutPoint == nil {
-				m.OutPoint = &OutPoint{}
+				m.OutPoint = &pb.OutPoint{}
 			}
 			if err := m.OutPoint.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1046,7 +398,7 @@ func (m *Utxo) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.TxOut == nil {
-				m.TxOut = &TxOut{}
+				m.TxOut = &pb.TxOut{}
 			}
 			if err := m.TxOut.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1111,339 +463,6 @@ func (m *Utxo) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.IsSpent = bool(v != 0)
-		default:
-			iNdEx = preIndex
-			skippy, err := skipCommon(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthCommon
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *TxIn) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowCommon
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: TxIn: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TxIn: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PrevOutPoint", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthCommon
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.PrevOutPoint == nil {
-				m.PrevOutPoint = &OutPoint{}
-			}
-			if err := m.PrevOutPoint.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ScriptSig", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthCommon
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ScriptSig = append(m.ScriptSig[:0], dAtA[iNdEx:postIndex]...)
-			if m.ScriptSig == nil {
-				m.ScriptSig = []byte{}
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Sequence", wireType)
-			}
-			m.Sequence = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Sequence |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipCommon(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthCommon
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *TxOut) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowCommon
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: TxOut: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TxOut: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
-			}
-			m.Value = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Value |= (int64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ScriptPubKey", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthCommon
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ScriptPubKey = append(m.ScriptPubKey[:0], dAtA[iNdEx:postIndex]...)
-			if m.ScriptPubKey == nil {
-				m.ScriptPubKey = []byte{}
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipCommon(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthCommon
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *OutPoint) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowCommon
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: OutPoint: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: OutPoint: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Hash", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthCommon
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Hash = append(m.Hash[:0], dAtA[iNdEx:postIndex]...)
-			if m.Hash == nil {
-				m.Hash = []byte{}
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Index", wireType)
-			}
-			m.Index = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCommon
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Index |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipCommon(dAtA[iNdEx:])
@@ -1668,37 +687,28 @@ var (
 	ErrIntOverflowCommon   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("common.proto", fileDescriptor_common_027308789b14160e) }
+func init() { proto.RegisterFile("common.proto", fileDescriptor_common_41720900d7f939cd) }
 
-var fileDescriptor_common_027308789b14160e = []byte{
-	// 464 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x92, 0xb1, 0x6e, 0xd4, 0x4c,
-	0x10, 0xc7, 0xcf, 0xb9, 0x73, 0xe2, 0x1b, 0xfb, 0xf2, 0x49, 0xab, 0xaf, 0x30, 0xa0, 0x18, 0x63,
-	0x28, 0xae, 0x40, 0x57, 0x04, 0xe8, 0xa8, 0x92, 0x06, 0x84, 0x50, 0xa2, 0xcd, 0x51, 0x5b, 0xb6,
-	0x33, 0xf2, 0xad, 0x12, 0xef, 0x1a, 0xef, 0xda, 0x72, 0xde, 0x82, 0x86, 0x77, 0xe1, 0x11, 0x28,
-	0x53, 0x52, 0xa2, 0xbb, 0x17, 0x41, 0x3b, 0xf6, 0x9d, 0x44, 0x45, 0xe5, 0xf9, 0xff, 0xc7, 0x33,
-	0xf3, 0x9b, 0xd5, 0x40, 0x50, 0xa8, 0xaa, 0x52, 0x72, 0x55, 0x37, 0xca, 0x28, 0xe6, 0x36, 0x75,
-	0x51, 0xe7, 0xc9, 0x77, 0x07, 0xdc, 0xcf, 0xba, 0x5c, 0xf7, 0x2c, 0x84, 0x93, 0x0e, 0x1b, 0x2d,
-	0x94, 0x0c, 0x9d, 0xd8, 0x59, 0xba, 0x7c, 0x2f, 0xd9, 0x19, 0x4c, 0x3b, 0x21, 0xc3, 0xa3, 0x78,
-	0xba, 0xf4, 0xcf, 0xfd, 0x15, 0x15, 0xae, 0xd6, 0xfd, 0x47, 0xc9, 0xad, 0xcf, 0x62, 0x98, 0x75,
-	0xaa, 0x35, 0xe1, 0x94, 0xf2, 0xc1, 0x21, 0x7f, 0xd5, 0x1a, 0x4e, 0x19, 0xf6, 0x3f, 0xb8, 0x55,
-	0x56, 0x8a, 0x22, 0x9c, 0xc5, 0xce, 0x72, 0xc1, 0x07, 0xc1, 0x9e, 0xc1, 0xfc, 0x5e, 0x15, 0x77,
-	0xa9, 0x11, 0x15, 0x86, 0x6e, 0xec, 0x2c, 0xa7, 0xdc, 0xb3, 0xc6, 0x5a, 0x54, 0x98, 0xfc, 0x70,
-	0x60, 0xf6, 0xc5, 0xf4, 0x8a, 0xbd, 0x86, 0xb9, 0x6a, 0x4d, 0x5a, 0x2b, 0x21, 0x0d, 0x81, 0xf9,
-	0xe7, 0xff, 0x8d, 0x23, 0xae, 0x5a, 0x73, 0x6d, 0x6d, 0xee, 0xa9, 0x31, 0x62, 0x2f, 0xe1, 0xd8,
-	0xf4, 0xa9, 0xa5, 0x39, 0xa2, 0x5f, 0xff, 0xa6, 0x71, 0x8d, 0xfd, 0xb0, 0x17, 0x10, 0xe4, 0x34,
-	0x79, 0x83, 0xa2, 0xdc, 0x58, 0x70, 0xbb, 0xae, 0x4f, 0xde, 0x07, 0xb2, 0xd8, 0x73, 0xf0, 0x85,
-	0x4e, 0x0b, 0x25, 0x64, 0x9e, 0x69, 0x24, 0x6e, 0x8f, 0x83, 0xd0, 0x97, 0xa3, 0xc3, 0x9e, 0x80,
-	0x27, 0x74, 0xaa, 0x6b, 0x94, 0x86, 0xd8, 0x3d, 0x7e, 0x22, 0xf4, 0x8d, 0x95, 0x49, 0x0f, 0x33,
-	0xfb, 0x38, 0xec, 0x1d, 0x9c, 0xd6, 0x0d, 0x76, 0xe9, 0x3f, 0xf1, 0x03, 0xfb, 0xdb, 0x5e, 0xb1,
-	0x33, 0x00, 0x5d, 0x34, 0xa2, 0x36, 0xa9, 0x16, 0x25, 0xad, 0x11, 0xf0, 0xf9, 0xe0, 0xdc, 0x88,
-	0x92, 0x3d, 0x05, 0x4f, 0xe3, 0xd7, 0x16, 0x65, 0x81, 0x04, 0xbe, 0xe0, 0x07, 0x9d, 0x5c, 0x82,
-	0x4b, 0x8b, 0xda, 0x07, 0xef, 0xb2, 0xfb, 0x16, 0x69, 0xe2, 0x94, 0x0f, 0x82, 0xbd, 0x82, 0xd3,
-	0xb1, 0x73, 0xdd, 0xe6, 0xe9, 0x1d, 0x3e, 0x8c, 0xdd, 0x83, 0xc1, 0xbd, 0x6e, 0xf3, 0x4f, 0xf8,
-	0x90, 0xbc, 0x05, 0xef, 0xc0, 0xc2, 0x60, 0xb6, 0xc9, 0xf4, 0x86, 0xda, 0x04, 0x9c, 0x62, 0xdb,
-	0x5b, 0xc8, 0x5b, 0xec, 0xa9, 0x78, 0xc1, 0x07, 0x91, 0xbc, 0x87, 0xe0, 0x22, 0xd3, 0xc8, 0x51,
-	0xd7, 0x4a, 0x6a, 0xb4, 0x95, 0x85, 0xba, 0xc5, 0xf1, 0x94, 0x28, 0xb6, 0x17, 0x56, 0xa1, 0xd6,
-	0x59, 0x89, 0x54, 0x3b, 0xe7, 0x7b, 0x79, 0x11, 0xfe, 0xdc, 0x46, 0xce, 0xe3, 0x36, 0x72, 0x7e,
-	0x6f, 0x23, 0xe7, 0xdb, 0x2e, 0x9a, 0x3c, 0xee, 0xa2, 0xc9, 0xaf, 0x5d, 0x34, 0xc9, 0x8f, 0xe9,
-	0x5a, 0xdf, 0xfc, 0x09, 0x00, 0x00, 0xff, 0xff, 0x6b, 0x5a, 0x6f, 0x5a, 0xbd, 0x02, 0x00, 0x00,
+var fileDescriptor_common_41720900d7f939cd = []byte{
+	// 313 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x34, 0x90, 0xbd, 0x4e, 0x23, 0x31,
+	0x14, 0x85, 0xe3, 0xdd, 0x4c, 0x7e, 0x9c, 0xac, 0xb4, 0x72, 0xe5, 0xdd, 0x62, 0x08, 0x11, 0x45,
+	0x1a, 0x66, 0x24, 0x68, 0x28, 0xa8, 0x82, 0x84, 0xe8, 0x02, 0x06, 0x24, 0xba, 0xd1, 0xd8, 0xb1,
+	0x12, 0x2b, 0x19, 0x5f, 0x6b, 0x7c, 0x8d, 0xf2, 0x18, 0x3c, 0x0f, 0x4f, 0x40, 0x99, 0x92, 0x12,
+	0x25, 0x2f, 0x82, 0xc6, 0x24, 0x95, 0xcf, 0xf9, 0x7c, 0xec, 0x7b, 0x74, 0xe9, 0x50, 0x41, 0x55,
+	0x81, 0xcd, 0x5c, 0x0d, 0x08, 0x2c, 0xa9, 0x9d, 0x72, 0xf2, 0xff, 0xd5, 0xc2, 0xe0, 0x32, 0xc8,
+	0x4c, 0x41, 0x95, 0x4f, 0x67, 0x2f, 0xb7, 0x10, 0xec, 0xbc, 0x44, 0x03, 0x36, 0x7f, 0x08, 0x46,
+	0xad, 0xbc, 0x59, 0xbf, 0xea, 0x3a, 0x57, 0x50, 0xeb, 0xdc, 0xc9, 0x5c, 0xae, 0x41, 0xad, 0x7e,
+	0x3e, 0x18, 0xbf, 0x13, 0xda, 0x7e, 0xc6, 0x0d, 0xb0, 0x73, 0xda, 0x87, 0x80, 0x85, 0x03, 0x63,
+	0x91, 0x93, 0x11, 0x99, 0x0c, 0x2e, 0xfe, 0x66, 0xcd, 0x0b, 0x27, 0xb3, 0x59, 0xc0, 0xfb, 0x86,
+	0x8b, 0x1e, 0x1c, 0x14, 0x3b, 0xa3, 0x1d, 0xdc, 0x14, 0x10, 0x90, 0xff, 0x8a, 0xd9, 0x3f, 0xc7,
+	0xec, 0xd3, 0x66, 0x16, 0x50, 0x24, 0xd8, 0x1c, 0xec, 0x94, 0x0e, 0xe3, 0xb0, 0x62, 0xa9, 0xcd,
+	0x62, 0x89, 0xfc, 0xf7, 0x88, 0x4c, 0x12, 0x31, 0x88, 0xec, 0x2e, 0x22, 0x76, 0x42, 0x07, 0xc6,
+	0x17, 0x0a, 0x8c, 0x95, 0xa5, 0xd7, 0xbc, 0x3d, 0x22, 0x93, 0x9e, 0xa0, 0xc6, 0xdf, 0x1c, 0x08,
+	0xfb, 0x47, 0x7b, 0xc6, 0x17, 0xde, 0x69, 0x8b, 0x3c, 0x89, 0xb7, 0x5d, 0xe3, 0x1f, 0x1b, 0x3b,
+	0xbe, 0xa6, 0xc3, 0x69, 0xe9, 0xb5, 0xd0, 0xde, 0x81, 0xf5, 0x9a, 0x31, 0xda, 0x56, 0x30, 0xd7,
+	0xb1, 0x7e, 0x22, 0xa2, 0x66, 0x9c, 0x76, 0x2b, 0xed, 0x7d, 0xb9, 0xd0, 0xb1, 0x69, 0x5f, 0x1c,
+	0xed, 0x94, 0x7f, 0xec, 0x52, 0xb2, 0xdd, 0xa5, 0xe4, 0x6b, 0x97, 0x92, 0xb7, 0x7d, 0xda, 0xda,
+	0xee, 0xd3, 0xd6, 0xe7, 0x3e, 0x6d, 0xc9, 0x4e, 0xdc, 0xcd, 0xe5, 0x77, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0x3b, 0xa2, 0x37, 0x64, 0x6c, 0x01, 0x00, 0x00,
 }

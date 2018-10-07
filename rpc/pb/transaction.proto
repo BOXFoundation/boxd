@@ -5,6 +5,7 @@
 syntax = "proto3";
 package rpcpb;
 
+import "github.com/BOXFoundation/Quicksilver/core/pb/block.proto";
 import "google/api/annotations.proto";
 import "common.proto";
 
@@ -40,7 +41,7 @@ message FundTransactionRequest {
 }
 
 message SendTransactionRequest {
-    MsgTx tx = 1;
+    corepb.MsgTx tx = 1;
 }
 
 message ListUtxosResponse {

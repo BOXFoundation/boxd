@@ -9,6 +9,7 @@ import (
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/crypto"
+	se "github.com/BOXFoundation/Quicksilver/p2p/serialize"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -26,6 +27,8 @@ type MsgBlock struct {
 	Txs    []*MsgTx
 	Height int32
 }
+
+var _ se.Serializable = (*MsgBlock)(nil)
 
 // BlockHeader defines information about a block and is used in the
 // block (MsgBlock) and headers (MsgHeaders) messages.
@@ -46,6 +49,8 @@ type BlockHeader struct {
 	// Distinguish between mainnet and testnet.
 	Magic uint32
 }
+
+var _ se.Serializable = (*BlockHeader)(nil)
 
 // Serialize block to proto message.
 func (msgBlock *MsgBlock) Serialize() (proto.Message, error) {
@@ -118,8 +123,8 @@ func (header *BlockHeader) Deserialize(message proto.Message) error {
 	if message, ok := message.(*corepb.BlockHeader); ok {
 		if message != nil {
 			header.Version = message.Version
-			copy(header.PrevBlockHash[:], message.PrevBlockHash[:])
-			copy(header.TxsRoot[:], message.TxsRoot[:])
+			copy(header.PrevBlockHash[:], message.PrevBlockHash)
+			copy(header.TxsRoot[:], message.TxsRoot)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
 			return nil

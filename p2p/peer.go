@@ -14,6 +14,7 @@ import (
 
 	"github.com/BOXFoundation/Quicksilver/log"
 	"github.com/BOXFoundation/Quicksilver/p2p/pstore"
+	se "github.com/BOXFoundation/Quicksilver/p2p/serialize"
 	"github.com/BOXFoundation/Quicksilver/storage"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
@@ -169,7 +170,7 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 }
 
 // Broadcast business message.
-func (p *BoxPeer) Broadcast(code uint32, message Serializable) error {
+func (p *BoxPeer) Broadcast(code uint32, message se.Serializable) error {
 
 	pb, err := message.Serialize()
 	if err != nil {
@@ -187,7 +188,7 @@ func (p *BoxPeer) Broadcast(code uint32, message Serializable) error {
 }
 
 // SendMessageToPeer send message to a peer.
-func (p *BoxPeer) SendMessageToPeer(code uint32, message Serializable, pid peer.ID) {
+func (p *BoxPeer) SendMessageToPeer(code uint32, message se.Serializable, pid peer.ID) {
 
 }
 

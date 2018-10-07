@@ -9,6 +9,7 @@ import (
 
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/crypto"
+	se "github.com/BOXFoundation/Quicksilver/p2p/serialize"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -37,11 +38,15 @@ type MsgTx struct {
 	LockTime int64
 }
 
+var _ se.Serializable = (*MsgTx)(nil)
+
 // TxOut defines a transaction output.
 type TxOut struct {
 	Value        int64
 	ScriptPubKey []byte
 }
+
+var _ se.Serializable = (*TxOut)(nil)
 
 // TxIn defines a transaction input.
 type TxIn struct {
@@ -50,11 +55,15 @@ type TxIn struct {
 	Sequence     uint32
 }
 
+var _ se.Serializable = (*TxIn)(nil)
+
 // OutPoint defines a data type that is used to track previous transaction outputs.
 type OutPoint struct {
 	Hash  crypto.HashType
 	Index uint32
 }
+
+var _ se.Serializable = (*OutPoint)(nil)
 
 // NewTx a Transaction wrapped by msgTx.
 func NewTx(msgTx *MsgTx) (*Transaction, error) {
@@ -70,7 +79,6 @@ func NewTx(msgTx *MsgTx) (*Transaction, error) {
 
 // Serialize transaction to proto message.
 func (msgTx *MsgTx) Serialize() (proto.Message, error) {
-
 	var vins []*corepb.TxIn
 	var vouts []*corepb.TxOut
 	for _, v := range msgTx.Vin {
@@ -99,7 +107,6 @@ func (msgTx *MsgTx) Serialize() (proto.Message, error) {
 
 // Deserialize convert proto message to transaction.
 func (msgTx *MsgTx) Deserialize(message proto.Message) error {
-
 	if message, ok := message.(*corepb.MsgTx); ok {
 		if message != nil {
 			var vins []*TxIn
@@ -134,7 +141,6 @@ func (msgTx *MsgTx) Deserialize(message proto.Message) error {
 
 // Serialize txout to proto message.
 func (txout *TxOut) Serialize() (proto.Message, error) {
-
 	return &corepb.TxOut{
 		Value:        txout.Value,
 		ScriptPubKey: txout.ScriptPubKey,
@@ -143,7 +149,6 @@ func (txout *TxOut) Serialize() (proto.Message, error) {
 
 // Deserialize convert proto message to txout.
 func (txout *TxOut) Deserialize(message proto.Message) error {
-
 	if message, ok := message.(*corepb.TxOut); ok {
 		if message != nil {
 			txout.ScriptPubKey = message.ScriptPubKey
@@ -158,7 +163,6 @@ func (txout *TxOut) Deserialize(message proto.Message) error {
 
 // Serialize txin to proto message.
 func (txin *TxIn) Serialize() (proto.Message, error) {
-
 	prevOutPoint, _ := txin.PrevOutPoint.Serialize()
 	if prevOutPoint, ok := prevOutPoint.(*corepb.OutPoint); ok {
 		return &corepb.TxIn{
@@ -172,7 +176,6 @@ func (txin *TxIn) Serialize() (proto.Message, error) {
 
 // Deserialize convert proto message to txin.
 func (txin *TxIn) Deserialize(message proto.Message) error {
-
 	if message, ok := message.(*corepb.TxIn); ok {
 		if message != nil {
 			outPoint := new(OutPoint)
@@ -191,7 +194,6 @@ func (txin *TxIn) Deserialize(message proto.Message) error {
 
 // Serialize out point to proto message.
 func (op *OutPoint) Serialize() (proto.Message, error) {
-
 	return &corepb.OutPoint{
 		Hash:  op.Hash[:],
 		Index: op.Index,
@@ -200,7 +202,6 @@ func (op *OutPoint) Serialize() (proto.Message, error) {
 
 // Deserialize convert proto message to out point.
 func (op *OutPoint) Deserialize(message proto.Message) error {
-
 	if message, ok := message.(*corepb.OutPoint); ok {
 		if message != nil {
 			copy(op.Hash[:], message.Hash[:])
