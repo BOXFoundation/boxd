@@ -2,29 +2,29 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package node
+package rpc
 
 import (
 	"context"
 
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
-	rpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
-	"google.golang.org/grpc"
 )
 
-func registerWallet(s *grpc.Server) {
-	rpcpb.RegisterWalletCommandServer(s, &wltServer{})
+func registerWallet(s *Server) {
+	rpcpb.RegisterWalletCommandServer(s.server, &wltServer{server: s})
 }
 
 func init() {
-	rpcserver.RegisterServiceWithGatewayHandler(
+	RegisterServiceWithGatewayHandler(
 		"wlt",
 		registerWallet,
 		rpcpb.RegisterWalletCommandHandlerFromEndpoint,
 	)
 }
 
-type wltServer struct{}
+type wltServer struct {
+	server GRPCServer
+}
 
 func (s *wltServer) ListTransactions(ctx context.Context, req *rpcpb.ListTransactionsRequest) (*rpcpb.ListTransactionsResponse, error) {
 	return &rpcpb.ListTransactionsResponse{Code: 0, Message: "Ok"}, nil

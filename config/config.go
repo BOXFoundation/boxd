@@ -52,6 +52,11 @@ func (c Config) String() string {
 	return fmt.Sprintf(format, c.Workspace, c.Network, c.Log, c.P2p)
 }
 
+// GetLog return log config.
+func (c *Config) GetLog() logtypes.Config {
+	return c.Log
+}
+
 // Prepare function makes sure all configurations are correct.
 func (c *Config) Prepare() {
 	ws, err := filepath.Abs(c.Workspace)
