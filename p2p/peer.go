@@ -16,7 +16,6 @@ import (
 	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
 	"github.com/BOXFoundation/Quicksilver/p2p/pstore"
 	"github.com/BOXFoundation/Quicksilver/storage"
-	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -171,12 +170,11 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 
 // Broadcast business message.
 func (p *BoxPeer) Broadcast(code uint32, message conv.Convertible) error {
-
-	pb, err := message.ToProtoMessage()
+	body, err := conv.MarshalConvertible(message)
 	if err != nil {
 		return err
 	}
-	body, err := proto.Marshal(pb)
+
 	for _, v := range p.conns {
 		conn := v.(*Conn)
 		if p.id.Pretty() == conn.remotePeer.Pretty() {

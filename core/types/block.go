@@ -38,6 +38,7 @@ type Block struct {
 }
 
 var _ conv.Convertible = (*Block)(nil)
+var _ conv.Serializable = (*Block)(nil)
 
 // NewBlock new a block from parent.
 func NewBlock(parent *Block) *Block {
@@ -107,6 +108,20 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 	return ErrInvalidBlockProtoMessage
 }
 
+// Marshal method marshal Block object to binary
+func (block *Block) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(block)
+}
+
+// Unmarshal method unmarshal binary data to Block object
+func (block *Block) Unmarshal(data []byte) error {
+	msg := &corepb.Block{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return block.FromProtoMessage(msg)
+}
+
 // BlockHash returns the block identifier hash for the Block.
 func (block *Block) BlockHash() *crypto.HashType {
 	if block.Hash != nil {
@@ -121,6 +136,16 @@ func (block *Block) BlockHash() *crypto.HashType {
 	}
 	block.Hash = hash
 	return hash
+}
+
+// BlockHash calculates the block identifier hash for the Block.
+func (block *Block) calcBlockHash() (*crypto.HashType, error) {
+	headerBuf, err := block.Header.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	hash := crypto.DoubleHashH(headerBuf) // dhash of header
+	return &hash, nil
 }
 
 // BlockHeader defines information about a block and is used in the
@@ -144,6 +169,7 @@ type BlockHeader struct {
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
+var _ conv.Serializable = (*BlockHeader)(nil)
 
 // ToProtoMessage converts block header to proto message.
 func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
@@ -159,7 +185,6 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 
 // FromProtoMessage converts proto message to block header.
 func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
-
 	if message, ok := message.(*corepb.BlockHeader); ok {
 		if message != nil {
 			header.Version = message.Version
@@ -175,14 +200,16 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 	return ErrInvalidBlockHeaderProtoMessage
 }
 
-// BlockHash calculates the block identifier hash for the Block.
-func (block *Block) calcBlockHash() (*crypto.HashType, error) {
-	// Always succeed
-	pbHeader, _ := block.Header.ToProtoMessage()
-	headerBuf, err := proto.Marshal(pbHeader)
-	if err != nil {
-		return nil, err
+// Marshal method marshal BlockHeader object to binary
+func (header *BlockHeader) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(header)
+}
+
+// Unmarshal method unmarshal binary data to BlockHeader object
+func (header *BlockHeader) Unmarshal(data []byte) error {
+	msg := &corepb.BlockHeader{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
 	}
-	hash := crypto.DoubleHashH(headerBuf)
-	return &hash, nil
+	return header.FromProtoMessage(msg)
 }

@@ -12,7 +12,6 @@ import (
 	"sort"
 	"time"
 
-	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/btcsuite/btcd/txscript"
 	lru "github.com/hashicorp/golang-lru"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/BOXFoundation/Quicksilver/p2p"
 	"github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/BOXFoundation/Quicksilver/util"
-	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
 
@@ -220,11 +218,10 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return genesisBlockFromDb, nil
 	}
 
-	genesispb, err := genesisBlock.ToProtoMessage()
+	genesisBin, err := genesisBlock.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	genesisBin, err := proto.Marshal(genesispb)
 	chain.db.Put(genesisHash[:], genesisBin)
 
 	return &genesisBlock, nil
@@ -242,13 +239,8 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 			return nil, err
 		}
 
-		pbblock := new(corepb.Block)
-		if err := proto.Unmarshal(tailBin, pbblock); err != nil {
-			return nil, err
-		}
-
 		tailBlock := new(types.Block)
-		if err := tailBlock.FromProtoMessage(pbblock); err != nil {
+		if err := tailBlock.Unmarshal(tailBin); err != nil {
 			return nil, err
 		}
 
@@ -256,11 +248,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 
 	}
 
-	tailpb, err := genesisBlock.ToProtoMessage()
-	if err != nil {
-		return nil, err
-	}
-	tailBin, err := proto.Marshal(tailpb)
+	tailBin, err := genesisBlock.Marshal()
 	if err != nil {
 		return nil, err
 	}
@@ -277,13 +265,8 @@ func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Blo
 		return nil, err
 	}
 
-	pbblock := new(corepb.Block)
-	if err := proto.Unmarshal(blockBin, pbblock); err != nil {
-		return nil, err
-	}
-
 	block := new(types.Block)
-	if err := block.FromProtoMessage(pbblock); err != nil {
+	if err := block.Unmarshal(blockBin); err != nil {
 		return nil, err
 	}
 
@@ -292,11 +275,7 @@ func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Blo
 
 // StoreBlockToDb store block to db.
 func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
-	blockpb, err := block.ToProtoMessage()
-	if err != nil {
-		return err
-	}
-	data, err := proto.Marshal(blockpb)
+	data, err := block.Marshal()
 	if err != nil {
 		return err
 	}
@@ -330,14 +309,8 @@ func (chain *BlockChain) loop() {
 }
 
 func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
-
-	body := msg.Body()
-	pbblock := new(corepb.Block)
-	if err := proto.Unmarshal(body, pbblock); err != nil {
-		return err
-	}
 	block := new(types.Block)
-	if err := block.FromProtoMessage(pbblock); err != nil {
+	if err := block.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
 
@@ -865,12 +838,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 
 // StoreTailBlock store tail block to db.
 func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
-
-	blockpb, err := block.ToProtoMessage()
-	if err != nil {
-		return err
-	}
-	data, err := proto.Marshal(blockpb)
+	data, err := block.Marshal()
 	if err != nil {
 		return err
 	}

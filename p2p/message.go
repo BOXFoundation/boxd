@@ -5,9 +5,12 @@
 package p2p
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
+	"hash/crc32"
 
+	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
 	"github.com/BOXFoundation/Quicksilver/p2p/pb"
 	"github.com/BOXFoundation/Quicksilver/util"
 	proto "github.com/gogo/protobuf/proto"
@@ -28,7 +31,7 @@ const (
 	NewBlockMsg       = 0x04
 	TransactionMsg    = 0x05
 
-	MaxNebMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
+	MaxMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
 )
 
 // NetworkNamtToMagic is a map from network name to magic number.
@@ -39,7 +42,9 @@ var NetworkNamtToMagic = map[string]uint32{
 
 // error
 var (
-	ErrMessageHeader           = errors.New("Invalid message header data")
+	ErrMessageHeaderLength     = errors.New("Can not read p2p message header length")
+	ErrMessageHeader           = errors.New("Invalid p2p message header data")
+	ErrMessageDataBody         = errors.New("Invalid p2p message body")
 	ErrFromProtoMessageMessage = errors.New("Invalid proto message")
 )
 
@@ -52,31 +57,104 @@ type MessageHeader struct {
 	Reserved     []byte
 }
 
-// NewMessage return full message in bytes
-func NewMessage(header *MessageHeader, body []byte) ([]byte, error) {
+var _ conv.Convertible = (*MessageHeader)(nil)
+var _ conv.Serializable = (*MessageHeader)(nil)
 
-	pbHeader := header.ToProtoMessage()
-	headerBytes, err := proto.Marshal(pbHeader)
+// MessageData defines the full message content from network.
+type MessageData struct {
+	*MessageHeader
+	Body []byte
+}
+
+var _ conv.Serializable = (*MessageData)(nil)
+
+// NewMessageData returns a message data object
+func NewMessageData(magic uint32, code uint32, reserved []byte, body []byte) *MessageData {
+	return NewMessageDataWithHeader(NewMessageHeader(magic, code, reserved, body), body)
+}
+
+// NewMessageDataWithHeader returns a message data object
+func NewMessageDataWithHeader(header *MessageHeader, body []byte) *MessageData {
+	return &MessageData{
+		MessageHeader: header,
+		Body:          body,
+	}
+}
+
+// NewMessageHeader returns a message header object
+func NewMessageHeader(magic uint32, code uint32, reserved []byte, body []byte) *MessageHeader {
+	return &MessageHeader{
+		Magic:        magic,
+		Code:         code,
+		DataLength:   uint32(len(body)),
+		DataChecksum: crc32.ChecksumIEEE(body),
+		Reserved:     reserved,
+	}
+}
+
+// UnmarshalHeader parse the bytes data into MessageHeader
+func UnmarshalHeader(data []byte) (*MessageHeader, error) {
+	header := &MessageHeader{}
+	if err := header.Unmarshal(data); err != nil {
+		return nil, err
+	}
+	return header, nil
+}
+
+// ReadMessageData reads a MessageData from reader
+func ReadMessageData(r *bufio.Reader) (*MessageData, error) {
+	var lenbuf = make([]byte, 4)
+	if err := readBuffer(r, lenbuf); err != nil {
+		return nil, err
+	}
+	var headerLen = util.Uint32(lenbuf)
+
+	var headerbuf = make([]byte, headerLen)
+	if err := readBuffer(r, headerbuf); err != nil {
+		return nil, err
+	}
+	header, err := UnmarshalHeader(headerbuf)
 	if err != nil {
 		return nil, err
 	}
-	var msg bytes.Buffer
-	msg.Write(util.FromUint32(uint32(len(headerBytes))))
-	msg.Write(headerBytes)
-	msg.Write(body)
-	return msg.Bytes(), nil
+
+	// return error if the data length exceeds the max data length
+	if header.DataLength > MaxMessageDataLength {
+		return nil, ErrExceedMaxDataLength
+	}
+
+	var body = make([]byte, header.DataLength)
+	if err := readBuffer(r, body); err != nil {
+		return nil, err
+	}
+
+	return NewMessageDataWithHeader(header, body), nil
 }
 
-// ToProtoMessage converts header message in proto.
-func (header *MessageHeader) ToProtoMessage() proto.Message {
+func readBuffer(r *bufio.Reader, buf []byte) error {
+	var total = len(buf)
+	var read = 0
+	for read < total {
+		n, err := r.Read(buf[read:])
+		if err != nil {
+			return err
+		}
+		read += n
+	}
+	return nil
+}
 
+////////////////////////////////////////////////////////////////////////////////
+
+// ToProtoMessage converts header message in proto.
+func (header *MessageHeader) ToProtoMessage() (proto.Message, error) {
 	return &p2ppb.MessageHeader{
 		Magic:        header.Magic,
 		Code:         header.Code,
 		DataLength:   header.DataLength,
 		DataChecksum: header.DataChecksum,
 		Reserved:     header.Reserved,
-	}
+	}, nil
 }
 
 // FromProtoMessage header message in proto.
@@ -94,16 +172,58 @@ func (header *MessageHeader) FromProtoMessage(msg proto.Message) error {
 	return ErrFromProtoMessageMessage
 }
 
-// ParseHeader parse the bytes data into MessageHeader
-func ParseHeader(data []byte) (*MessageHeader, error) {
+// Marshal method marshal MessageHeader object to binary
+func (header *MessageHeader) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(header)
+}
 
-	pb := new(p2ppb.MessageHeader)
-	if err := proto.Unmarshal(data, pb); err != nil {
+// Unmarshal method unmarshal binary data to MessageHeader object
+func (header *MessageHeader) Unmarshal(data []byte) error {
+	msg := &p2ppb.MessageHeader{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return header.FromProtoMessage(msg)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Marshal method marshal MessageData object to binary
+func (msg *MessageData) Marshal() (data []byte, err error) {
+	headerData, err := msg.MessageHeader.Marshal()
+	if err != nil {
 		return nil, err
 	}
-	header := &MessageHeader{}
-	if err := header.FromProtoMessage(pb); err != nil {
-		return nil, err
+	var buf bytes.Buffer
+	buf.Write(util.FromUint32(uint32(len(headerData))))
+	buf.Write(headerData)
+	buf.Write(msg.Body)
+	return buf.Bytes(), nil
+}
+
+// Unmarshal method unmarshal binary data to MessageData object
+func (msg *MessageData) Unmarshal(data []byte) error {
+	if len(data) < 4 {
+		return ErrMessageHeaderLength
 	}
-	return header, nil
+	var headerLen = util.Uint32(data[:4])
+
+	data = data[4:]
+	if headerLen > uint32(len(data)) {
+		return ErrMessageHeader
+	}
+	header, err := UnmarshalHeader(data[:headerLen])
+	if err != nil {
+		return err
+	}
+
+	body := data[headerLen:]
+	if uint32(len(body)) != header.DataLength {
+		return ErrMessageDataBody
+	}
+
+	msg.MessageHeader = header
+	msg.Body = body
+
+	return nil
 }

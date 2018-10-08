@@ -10,6 +10,7 @@ import (
 	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
+	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
 	"github.com/BOXFoundation/Quicksilver/storage"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	proto "github.com/gogo/protobuf/proto"
@@ -29,6 +30,9 @@ type UtxoWrap struct {
 	IsPacked     bool
 	IsCoinbase   bool
 }
+
+var _ conv.Convertible = (*UtxoWrap)(nil)
+var _ conv.Serializable = (*UtxoWrap)(nil)
 
 // NewUtxoUnspentCache returns a new empty unspent transaction pool
 func NewUtxoUnspentCache() *UtxoUnspentCache {
@@ -74,6 +78,22 @@ func (uw *UtxoWrap) FromProtoMessage(message proto.Message) error {
 
 	return types.ErrEmptyProtoMessage
 }
+
+// Marshal method marshal UtxoWrap object to binary
+func (uw *UtxoWrap) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(uw)
+}
+
+// Unmarshal method unmarshal binary data to UtxoWrap object
+func (uw *UtxoWrap) Unmarshal(data []byte) error {
+	msg := &corepb.UtxoWrap{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return uw.FromProtoMessage(msg)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 //LoadUtxoFromDB load related unspent utxo
 func (uup *UtxoUnspentCache) LoadUtxoFromDB(db storage.Table, outpoints map[types.OutPoint]struct{}) error {
