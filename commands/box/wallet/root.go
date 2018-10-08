@@ -2,11 +2,16 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package wallet
+package walletcmd
 
 import (
+	"fmt"
+
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+
+	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var cfgFile string
@@ -29,4 +34,97 @@ to quickly create a Cobra application.`,
 // Init adds the sub command to the root command.
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
+	rootCmd.AddCommand(
+		&cobra.Command{
+			Use:   "newaccount [account]",
+			Short: "Create a new account",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("newaccount called")
+			},
+		},
+		&cobra.Command{
+			Use:   "dumpprivkey [address]",
+			Short: "Dump private key for an address",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("dumprivkey called")
+			},
+		},
+		&cobra.Command{
+			Use:   "dumpwallet [filename]",
+			Short: "Dump wallet to a file",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("dumpwallet called")
+			},
+		},
+		&cobra.Command{
+			Use:   "encryptwallet [passphrase]",
+			Short: "Encrypt a wallet with a passphrase",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("encryptwallet called")
+			},
+		},
+		&cobra.Command{
+			Use:   "getbalance [account]",
+			Short: "Get the balance for an account",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("getbalance called")
+			},
+		},
+		&cobra.Command{
+			Use:   "getwalletinfo",
+			Short: "Get the basic informatio for a wallet",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("getwalletinfo called")
+			},
+		},
+		&cobra.Command{
+			Use:   "importprivkey [privatekey]",
+			Short: "Import a private key from other wallets",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("importprivkey called")
+			},
+		},
+		&cobra.Command{
+			Use:   "importwallet [filename]",
+			Short: "Import a wallet from a file",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("importwallet called")
+			},
+		},
+		&cobra.Command{
+			Use:   "listaccounts",
+			Short: "List local accounts",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("listaccounts called")
+			},
+		},
+		&cobra.Command{
+			Use:   "listreceivedbyaccount",
+			Short: "List received transactions groups by account",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("listreceivedbyaccount called")
+			},
+		},
+		&cobra.Command{
+			Use:   "listreceivedbyaddress",
+			Short: "List received transactions grouped by address",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("listreceivedbyaddress called")
+			},
+		},
+		&cobra.Command{
+			Use:   "listtransactions [account] [count] [from]",
+			Short: "List transactions for an account",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Println("listtransactions called")
+				if len(args) > 0 {
+					client.ListTransactions(viper.GetViper(), args[0])
+				}
+			},
+		},
+	)
+}
+
+func newAccountCmdFunc(cmd *cobra.Command, args []string) {
+
 }
