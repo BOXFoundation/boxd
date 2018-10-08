@@ -53,7 +53,7 @@ func (c Config) String() string {
 }
 
 // GetLog return log config.
-func (c *Config) GetLog() logtypes.Config {
+func (c Config) GetLog() logtypes.Config {
 	return c.Log
 }
 

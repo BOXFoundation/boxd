@@ -19,6 +19,6 @@ type BoxdServer interface {
 
 // Config Define config interface
 type Config interface {
-	Prepare()
+	String() string
 	GetLog() logtypes.Config
 }

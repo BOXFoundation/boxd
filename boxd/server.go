@@ -46,7 +46,7 @@ type Server struct {
 	sm   sync.Mutex
 	proc goprocess.Process
 
-	cfg      *config.Config
+	cfg      config.Config
 	database *storage.Database
 	peer     *p2p.BoxPeer
 	grpcsvr  *grpcserver.Server
@@ -75,7 +75,7 @@ func (server *Server) Start(v *viper.Viper) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var proc = server.proc // parent goprocess
-	var cfg = server.cfg
+	var cfg = &server.cfg
 	// init config object from viper
 	if err := v.Unmarshal(cfg); err != nil {
 		logger.Fatal("Failed to read cfg", err) // exit in case of cfg error
