@@ -26,6 +26,7 @@ require (
 	github.com/gogap/env_strings v0.0.0-20171020034610-bdb994cfe093 // indirect
 	github.com/gogo/protobuf v1.1.1
 	github.com/golang/protobuf v1.2.0
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
 	github.com/google/uuid v0.0.0-20180828181555-e704694aed0e // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.5.0
@@ -37,6 +38,7 @@ require (
 	github.com/heralight/logrus_mate v0.0.0-20170807195635-969b6efb860e
 	github.com/hoisie/redis v0.0.0-20160730154456-b5c6e81454e0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/influxdata/influxdb v1.6.3 // indirect
 	github.com/ipfs/go-cid v0.0.0-20180830230650-6ddb575a8dbb // indirect
 	github.com/ipfs/go-datastore v0.0.0-20180815173225-bd0caea1845f
 	github.com/ipfs/go-detect-race v1.0.1 // indirect
@@ -55,6 +57,8 @@ require (
 	github.com/karrick/godirwalk v1.7.3 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v0.0.0-20180402223658-b729f2633dfe // indirect
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/lestrrat/go-file-rotatelogs v0.0.0-20180223000712-d3151e2a480f // indirect
+	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
 	github.com/libp2p/go-addr-util v2.0.5+incompatible // indirect
 	github.com/libp2p/go-conn-security v0.1.8 // indirect
 	github.com/libp2p/go-conn-security-multistream v0.1.8 // indirect
@@ -105,16 +109,21 @@ require (
 	github.com/multiformats/go-multibase v0.3.0 // indirect
 	github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3 // indirect
 	github.com/multiformats/go-multistream v0.3.9 // indirect
+	github.com/nebulasio/go-nebulas v1.0.8
 	github.com/onsi/gomega v1.4.2 // indirect
 	github.com/opentracing/opentracing-go v0.0.0-20180606204148-bd9c31933947 // indirect
 	github.com/peterh/liner v1.1.0 // indirect
 	github.com/ramya-rao-a/go-outline v0.0.0-20170803230019-9e9d089bb61a // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20180503174638-e2704e165165 // indirect
+	github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5 // indirect
 	github.com/rogpeppe/godef v1.0.0 // indirect
+	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/sirupsen/logrus v0.0.0-20180916082035-d23a0f20d429
 	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72 // indirect
 	github.com/spf13/cobra v0.0.0-20180829160745-99dc12355885
 	github.com/spf13/viper v1.2.0
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
+	github.com/syndtr/goleveldb v0.0.0-20180815032940-ae2bd5eed72d // indirect
 	github.com/tecbot/gorocksdb v0.0.0-20180907100951-214b6b7bc0f0
 	github.com/uudashr/gopkgs v2.0.1+incompatible // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect
@@ -128,10 +137,12 @@ require (
 	github.com/whyrusleeping/mafmt v0.0.0-20180627004827-1dc32401ee9f // indirect
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
 	github.com/whyrusleeping/yamux v0.0.0-20180713144751-cb29a700b01d // indirect
+	github.com/willf/bitset v1.1.9 // indirect
+	github.com/willf/bloom v2.0.3+incompatible // indirect
 	golang.org/x/arch v0.0.0-20180920145803-b19384d3c130 // indirect
 	golang.org/x/crypto v0.0.0-20180904163835-0709b304e793
 	golang.org/x/net v0.0.0-20180906233101-161cd47e91fd
-	golang.org/x/tools v0.0.0-20180928181343-b3c0be4c978b // indirect
+	golang.org/x/tools v0.0.0-20181008174144-ae971d722069 // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b
 	google.golang.org/grpc v0.0.0-20180905221542-0150fc5d50cc
 )

@@ -5,7 +5,7 @@
 package types
 
 import (
-	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
 	logtypes "github.com/BOXFoundation/boxd/log/types"
 	"github.com/spf13/viper"
 )
@@ -14,7 +14,7 @@ import (
 type BoxdServer interface {
 	Start(v *viper.Viper) error
 	Cfg() Config
-	BlockChain() *core.BlockChain
+	BlockChain() *chain.BlockChain
 }
 
 // Config Define config interface

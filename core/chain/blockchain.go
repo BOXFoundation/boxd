@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package core
+package chain
 
 import (
 	"bytes"
@@ -12,13 +12,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/btcsuite/btcd/txscript"
 	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
@@ -134,7 +134,7 @@ func isNullOutPoint(outPoint *types.OutPoint) bool {
 	return outPoint.Index == math.MaxUint32 && outPoint.Hash == zeroHash
 }
 
-var logger = log.NewLogger("core") // logger
+var logger = log.NewLogger("chain") // logger
 
 func init() {
 }
@@ -704,7 +704,7 @@ func sequenceLockActive(sequenceLock *SequenceLock, blockHeight int32, medianTim
 }
 
 // Validates the scripts for all of the passed transaction inputs
-func validateTxs(txValidateItems []*txValidateItem) error {
+func validateTxs(txValidateItems []*script.TxValidateItem) error {
 	// TODO: execute and verify script
 	return nil
 }
@@ -718,14 +718,14 @@ func checkBlockScripts(block *types.Block) error {
 	for _, tx := range block.Txs {
 		numInputs += len(tx.Vin)
 	}
-	txValItems := make([]*txValidateItem, 0, numInputs)
+	txValItems := make([]*script.TxValidateItem, 0, numInputs)
 	// Skip coinbases.
 	for _, tx := range block.Txs[1:] {
 		for txInIdx, txIn := range tx.Vin {
-			txVI := &txValidateItem{
-				txInIndex: txInIdx,
-				txIn:      txIn,
-				tx:        tx,
+			txVI := &script.TxValidateItem{
+				TxInIndex: txInIdx,
+				TxIn:      txIn,
+				Tx:        tx,
 			}
 			txValItems = append(txValItems, txVI)
 		}
@@ -1357,18 +1357,17 @@ func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoEntry {
 // ValidateTransactionScripts verify crypto signatures for each input
 func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction) error {
 	txIns := tx.Vin
-	txValItems := make([]*txValidateItem, 0, len(txIns))
+	txValItems := make([]*script.TxValidateItem, 0, len(txIns))
 	for txInIdx, txIn := range txIns {
 		// Skip coinbases.
 		if txIn.PrevOutPoint.Index == math.MaxUint32 {
 			continue
 		}
 
-		txVI := &txValidateItem{
-			txInIndex: txInIdx,
-			txIn:      txIn,
-			tx:        tx,
-			// sigHashes: cachedHashes,
+		txVI := &script.TxValidateItem{
+			TxInIndex: txInIdx,
+			TxIn:      txIn,
+			Tx:        tx,
 		}
 		txValItems = append(txValItems, txVI)
 	}
@@ -1460,18 +1459,18 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.Transactio
 
 	var pkScript []byte
 	var err error
-	coinbaseScript, err := StandardCoinbaseScript(chain.tail.Height)
+	coinbaseScript, err := script.StandardCoinbaseScript(chain.tail.Height)
 	if err != nil {
 		return nil, err
 	}
 	if addr != nil {
-		pkScript, err = PayToPubKeyHashScript(addr.ScriptAddress())
+		pkScript, err = script.PayToPubKeyHashScript(addr.ScriptAddress())
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		scriptBuilder := txscript.NewScriptBuilder()
-		pkScript, err = scriptBuilder.AddOp(txscript.OP_TRUE).Script()
+		scriptBuilder := script.NewBuilder()
+		pkScript, err = scriptBuilder.AddOp(script.OPTRUE).Script()
 		if err != nil {
 			return nil, err
 		}

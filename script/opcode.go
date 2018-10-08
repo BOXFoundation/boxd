@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package core
+package script
 
 // An opcode defines the information related to a txscript opcode.  opfunc, if
 // present, is the function to call to perform the opcode on the script.  The
@@ -23,6 +23,7 @@ const (
 	OPPUSHDATA4   = 0x4e // 78
 	OP1NEGATE     = 0x4f // 79
 	OP1           = 0x51
+	OPTRUE        = 0x51 // 81
 	OPDUP         = 0x76 // 118
 	OPEQUALVERIFY = 0x88 // 136
 	OPHASH160     = 0xa9 // 169

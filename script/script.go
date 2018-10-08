@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package core
+package script
 
 import (
 	"encoding/binary"
@@ -12,15 +12,15 @@ import (
 
 const (
 	// defaultScriptAlloc is the default size used for the backing array
-	// for a script being built by the ScriptBuilder.  The array will
+	// for a script being built by the Builder.  The array will
 	// dynamically grow as needed, but this figure is intended to provide
 	// enough space for vast majority of scripts without needing to grow the
 	// backing array multiple times.
 	defaultScriptAlloc = 500
 )
 
-// ScriptBuilder provides a facility for building custom scripts.
-type ScriptBuilder struct {
+// Builder provides a facility for building custom scripts.
+type Builder struct {
 	script []byte
 	err    error
 }
@@ -28,7 +28,7 @@ type ScriptBuilder struct {
 // AddOp pushes the passed opcode to the end of the script.  The script will not
 // be modified if pushing the opcode would cause the script to exceed the
 // maximum allowed script engine size.
-func (b *ScriptBuilder) AddOp(opcode byte) *ScriptBuilder {
+func (b *Builder) AddOp(opcode byte) *Builder {
 	if b.err != nil {
 		return b
 	}
@@ -37,10 +37,10 @@ func (b *ScriptBuilder) AddOp(opcode byte) *ScriptBuilder {
 	return b
 }
 
-// NewScriptBuilder returns a new instance of a script builder.  See
-// ScriptBuilder for details.
-func NewScriptBuilder() *ScriptBuilder {
-	return &ScriptBuilder{
+// NewBuilder returns a new instance of a script builder.  See
+// Builder for details.
+func NewBuilder() *Builder {
+	return &Builder{
 		script: make([]byte, 0, defaultScriptAlloc),
 	}
 }
@@ -48,12 +48,12 @@ func NewScriptBuilder() *ScriptBuilder {
 // Script returns the currently built script.  When any errors occurred while
 // building the script, the script will be returned up the point of the first
 // error along with the error.
-func (b *ScriptBuilder) Script() ([]byte, error) {
+func (b *Builder) Script() ([]byte, error) {
 	return b.script, b.err
 }
 
 // AddData pushes the passed data to the end of the script.
-func (b *ScriptBuilder) AddData(data []byte) *ScriptBuilder {
+func (b *Builder) AddData(data []byte) *Builder {
 	if b.err != nil {
 		return b
 	}
@@ -65,7 +65,7 @@ func (b *ScriptBuilder) AddData(data []byte) *ScriptBuilder {
 // end of the script.  It automatically chooses canonical opcodes depending on
 // the length of the data.  A zero length buffer will lead to a push of empty
 // data onto the stack (OP_0).  No data limits are enforced with this function.
-func (b *ScriptBuilder) addData(data []byte) *ScriptBuilder {
+func (b *Builder) addData(data []byte) *Builder {
 	dataLen := len(data)
 
 	// When the data consists of a single number that can be represented
@@ -111,7 +111,7 @@ func (b *ScriptBuilder) addData(data []byte) *ScriptBuilder {
 // PayToPubKeyHashScript creates a new script to pay a transaction output to a the
 // specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) ([]byte, error) {
-	return NewScriptBuilder().AddOp(OPDUP).AddOp(OPHASH160).
+	return NewBuilder().AddOp(OPDUP).AddOp(OPHASH160).
 		AddData(pubKeyHash).AddOp(OPEQUALVERIFY).AddOp(OPCHECKSIG).
 		Script()
 }

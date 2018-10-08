@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -30,7 +30,7 @@ type Config struct {
 
 // Dpos define dpos struct
 type Dpos struct {
-	chain *core.BlockChain
+	chain *chain.BlockChain
 	net   p2p.Net
 	proc  goprocess.Process
 	cfg   *Config
@@ -38,7 +38,7 @@ type Dpos struct {
 }
 
 // NewDpos new a dpos implement.
-func NewDpos(chain *core.BlockChain, net p2p.Net, parent goprocess.Process, cfg *Config) *Dpos {
+func NewDpos(chain *chain.BlockChain, net p2p.Net, parent goprocess.Process, cfg *Config) *Dpos {
 
 	dpos := &Dpos{
 		chain: chain,

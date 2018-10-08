@@ -11,7 +11,7 @@ import (
 
 	config "github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/consensus/dpos"
-	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/log"
 	p2p "github.com/BOXFoundation/boxd/p2p"
 	grpcserver "github.com/BOXFoundation/boxd/rpc/server"
@@ -35,7 +35,7 @@ var logger = log.NewLogger("boxd") // logger for node package
 // 	database *storage.Database
 // 	peer     *p2p.BoxPeer
 // 	grpcsvr  *grpcserver.Server
-// 	bc       *core.BlockChain
+// 	bc       *chain.BlockChain
 // }{
 // 	proc: goprocess.WithSignals(os.Interrupt),
 // }
@@ -50,7 +50,7 @@ type Server struct {
 	database *storage.Database
 	peer     *p2p.BoxPeer
 	grpcsvr  *grpcserver.Server
-	bc       *core.BlockChain
+	bc       *chain.BlockChain
 }
 
 // Cfg return server config.
@@ -59,7 +59,7 @@ func (server *Server) Cfg() types.Config {
 }
 
 // BlockChain return block chain ref.
-func (server *Server) BlockChain() *core.BlockChain {
+func (server *Server) BlockChain() *chain.BlockChain {
 	return server.bc
 }
 
@@ -108,7 +108,7 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 	server.peer = peer
 
-	bc, err := core.NewBlockChain(proc, peer, database.Storage)
+	bc, err := chain.NewBlockChain(proc, peer, database.Storage)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 		proc.Close()

@@ -8,9 +8,9 @@ import (
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/config"
-	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
@@ -37,5 +37,5 @@ func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return core.PayToPubKeyHashScript(addr.ScriptAddress())
+	return script.PayToPubKeyHashScript(addr.ScriptAddress())
 }
