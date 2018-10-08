@@ -31,7 +31,7 @@ const (
 	NewBlockMsg       = 0x04
 	TransactionMsg    = 0x05
 
-	MaxNebMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
+	MaxMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
 )
 
 // NetworkNamtToMagic is a map from network name to magic number.
@@ -42,7 +42,9 @@ var NetworkNamtToMagic = map[string]uint32{
 
 // error
 var (
-	ErrMessageHeader           = errors.New("Invalid message header data")
+	ErrMessageHeaderLength     = errors.New("Can not read p2p message header length")
+	ErrMessageHeader           = errors.New("Invalid p2p message header data")
+	ErrMessageDataBody         = errors.New("Invalid p2p message body")
 	ErrFromProtoMessageMessage = errors.New("Invalid proto message")
 )
 
@@ -63,6 +65,8 @@ type MessageData struct {
 	*MessageHeader
 	Body []byte
 }
+
+var _ conv.Serializable = (*MessageData)(nil)
 
 // NewMessageData returns a message data object
 func NewMessageData(magic uint32, code uint32, reserved []byte, body []byte) *MessageData {
@@ -112,6 +116,11 @@ func ReadMessageData(r *bufio.Reader) (*MessageData, error) {
 	header, err := UnmarshalHeader(headerbuf)
 	if err != nil {
 		return nil, err
+	}
+
+	// return error if the data length exceeds the max data length
+	if header.DataLength > MaxMessageDataLength {
+		return nil, ErrExceedMaxDataLength
 	}
 
 	var body = make([]byte, header.DataLength)
@@ -193,10 +202,28 @@ func (msg *MessageData) Marshal() (data []byte, err error) {
 }
 
 // Unmarshal method unmarshal binary data to MessageData object
-// func (msg *MessageData) Unmarshal(data []byte) error {
-// 	msg := &p2ppb.MessageHeader{}
-// 	if err := proto.Unmarshal(data, msg); err != nil {
-// 		return err
-// 	}
-// 	return header.FromProtoMessage(msg)
-// }
+func (msg *MessageData) Unmarshal(data []byte) error {
+	if len(data) < 4 {
+		return ErrMessageHeaderLength
+	}
+	var headerLen = util.Uint32(data[:4])
+
+	data = data[4:]
+	if headerLen > uint32(len(data)) {
+		return ErrMessageHeader
+	}
+	header, err := UnmarshalHeader(data[:headerLen])
+	if err != nil {
+		return err
+	}
+
+	body := data[headerLen:]
+	if uint32(len(body)) != header.DataLength {
+		return ErrMessageDataBody
+	}
+
+	msg.MessageHeader = header
+	msg.Body = body
+
+	return nil
+}

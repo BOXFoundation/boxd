@@ -77,8 +77,8 @@ func (conn *Conn) loop() {
 			conn.Close()
 			return
 		}
-		if err := conn.checkBody(msg.MessageHeader, msg.Body); err != nil {
-			logger.Error("Invalid message body. ", err)
+		if err := conn.checkMessage(msg); err != nil {
+			logger.Error("Invalid message. ", err)
 			conn.Close()
 			return
 		}
@@ -222,24 +222,8 @@ func (conn *Conn) Close() {
 	}
 }
 
-func (conn *Conn) checkHeader(header *MessageHeader) error {
-
-	if conn.peer.config.Magic != header.Magic {
-		return ErrMagic
-	}
-	if header.DataLength > MaxNebMessageDataLength {
-		return ErrExceedMaxDataLength
-	}
-	return nil
-}
-
-func (conn *Conn) checkBody(header *MessageHeader, body []byte) error {
-
-	expectedDataCheckSum := crc32.ChecksumIEEE(body)
-	if expectedDataCheckSum != header.DataChecksum {
-		return ErrBodyCheckSum
-	}
-	return nil
+func (conn *Conn) checkMessage(msg *MessageData) error {
+	return checkMessage(conn.peer.config.Magic, msg)
 }
 
 func (conn *Conn) established() {
@@ -249,4 +233,20 @@ func (conn *Conn) established() {
 	conn.establishSucceedCh <- true
 	conn.peer.conns[conn.remotePeer] = conn
 	logger.Info("Succed to established with peer ", conn.remotePeer.Pretty())
+}
+
+// checkMessage checks whether the message data is valid
+func checkMessage(magic uint32, msg *MessageData) error {
+	if magic != msg.Magic {
+		return ErrMagic
+	}
+	if msg.DataLength > MaxMessageDataLength {
+		return ErrExceedMaxDataLength
+	}
+
+	expectedDataCheckSum := crc32.ChecksumIEEE(msg.Body)
+	if expectedDataCheckSum != msg.DataChecksum {
+		return ErrBodyCheckSum
+	}
+	return nil
 }
