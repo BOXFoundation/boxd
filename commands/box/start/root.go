@@ -7,8 +7,8 @@ package start
 import (
 	"net"
 
+	"github.com/BOXFoundation/Quicksilver/boxd"
 	root "github.com/BOXFoundation/Quicksilver/commands/box/root"
-	"github.com/BOXFoundation/Quicksilver/node"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -21,7 +21,8 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start full node server.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return node.Start(viper.GetViper())
+		boxd := boxd.NewServer()
+		return boxd.Start(viper.GetViper())
 	},
 }
 

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package node
+package boxd
 
 import (
 	"os"
@@ -18,15 +18,31 @@ import (
 	storage "github.com/BOXFoundation/Quicksilver/storage"
 	_ "github.com/BOXFoundation/Quicksilver/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/Quicksilver/storage/rocksdb" // init rocksdb
+	"github.com/BOXFoundation/Quicksilver/types"
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
 )
 
-var logger = log.NewLogger("node") // logger for node package
+var logger = log.NewLogger("boxd") // logger for node package
 
-// nodeServer is the boxd server instance, which contains all services,
+// BoxdServer is the boxd server instance, which contains all services,
 // including grpc, p2p, database...
-var nodeServer = struct {
+// var BoxdServer = struct {
+// 	sm   sync.Mutex
+// 	proc goprocess.Process
+
+// 	cfg      config.Config
+// 	database *storage.Database
+// 	peer     *p2p.BoxPeer
+// 	grpcsvr  *grpcserver.Server
+// 	bc       *core.BlockChain
+// }{
+// 	proc: goprocess.WithSignals(os.Interrupt),
+// }
+
+// Server is the boxd server instance, which contains all services,
+// including grpc, p2p, database...
+type Server struct {
 	sm   sync.Mutex
 	proc goprocess.Process
 
@@ -35,16 +51,31 @@ var nodeServer = struct {
 	peer     *p2p.BoxPeer
 	grpcsvr  *grpcserver.Server
 	bc       *core.BlockChain
-}{
-	proc: goprocess.WithSignals(os.Interrupt),
+}
+
+// Cfg return server config.
+func (server *Server) Cfg() types.Config {
+	return server.cfg
+}
+
+// BlockChain return block chain ref.
+func (server *Server) BlockChain() *core.BlockChain {
+	return server.bc
+}
+
+// NewServer new a boxd server
+func NewServer() *Server {
+	return &Server{
+		proc: goprocess.WithSignals(os.Interrupt),
+	}
 }
 
 // Start function starts node server.
-func Start(v *viper.Viper) error {
+func (server *Server) Start(v *viper.Viper) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var proc = nodeServer.proc // parent goprocess
-	var cfg = &nodeServer.cfg
+	var proc = server.proc // parent goprocess
+	var cfg = &server.cfg
 	// init config object from viper
 	if err := v.Unmarshal(cfg); err != nil {
 		logger.Fatal("Failed to read cfg", err) // exit in case of cfg error
@@ -59,7 +90,7 @@ func Start(v *viper.Viper) error {
 	if err != nil {
 		logger.Fatalf("Failed to initialize database: %v", err) // exit in case of error during initialization of database
 	}
-	nodeServer.database = database
+	server.database = database
 
 	// start p2p service
 	peer, err := p2p.NewBoxPeer(proc, &cfg.P2p, database)
@@ -75,31 +106,23 @@ func Start(v *viper.Viper) error {
 			logger.Infof("Peer %s added.", addr)
 		}
 	}
-	nodeServer.peer = peer
+	server.peer = peer
 
 	bc, err := core.NewBlockChain(proc, peer, database.Storage)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
-	nodeServer.bc = bc
+	server.bc = bc
 	consensus := dpos.NewDpos(bc, peer, proc, &cfg.Dpos)
 
 	if cfg.RPC.Enabled {
-		nodeServer.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC)
+		server.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC, server)
 	}
 
 	peer.Run()
 	bc.Run()
 	consensus.Run()
-
-	// var host, err = p2p.NewDefaultHost(proc, net.ParseIP(v.GetString("node.listen.address")), uint(v.GetInt("node.listen.port")))
-	// if err != nil {
-	// 	logger.Error(err)
-	// 	return err
-	// }
-
-	// connect to other peers passed via commandline
 
 	select {
 	case <-proc.Closing():

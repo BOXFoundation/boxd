@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/BOXFoundation/Quicksilver/types"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -39,6 +40,8 @@ type HTTPConfig struct {
 type Server struct {
 	cfg *Config
 
+	boxdServer types.BoxdServer
+
 	server   *grpc.Server
 	gRPCProc goprocess.Process
 	wggRPC   sync.WaitGroup
@@ -49,7 +52,7 @@ type Server struct {
 }
 
 // Service defines the grpc service func
-type Service func(s *grpc.Server)
+type Service func(s *Server)
 
 var services = make(map[string]Service)
 
@@ -74,10 +77,17 @@ func RegisterServiceWithGatewayHandler(name string, s Service, h GatewayHandler)
 	handlers[name] = h
 }
 
+// GRPCServer interface breaks cycle import dependency
+type GRPCServer interface {
+	BoxdServer() types.BoxdServer
+	Stop()
+}
+
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config) (*Server, error) {
+func NewServer(parent goprocess.Process, cfg *Config, boxdServer types.BoxdServer) (*Server, error) {
 	var server = &Server{
-		cfg: cfg,
+		cfg:        cfg,
+		boxdServer: boxdServer,
 	}
 
 	server.gRPCProc = parent.Go(server.servegRPC)
@@ -98,7 +108,7 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 	// regist all gRPC services for the server
 	for name, service := range services {
 		logger.Debugf("register gRPC service: %s", name)
-		service(s.server)
+		service(s)
 	}
 
 	go func() {
@@ -177,4 +187,9 @@ func (s *Server) serveHTTP(proc goprocess.Process) {
 // Stop the rpc server
 func (s *Server) Stop() {
 	go s.gRPCProc.Close()
+}
+
+// BoxdServer returns reference to boxd server.
+func (s *Server) BoxdServer() types.BoxdServer {
+	return s.boxdServer
 }

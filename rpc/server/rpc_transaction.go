@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package node
+package rpc
 
 import (
 	"context"
@@ -12,26 +12,27 @@ import (
 	"github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
-	rpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
-	"google.golang.org/grpc"
 )
 
-func registerTransaction(s *grpc.Server) {
-	rpcpb.RegisterTransactionCommandServer(s, &txServer{})
+func registerTransaction(s *Server) {
+	rpcpb.RegisterTransactionCommandServer(s.server, &txServer{server: s})
 }
 
 func init() {
-	rpcserver.RegisterServiceWithGatewayHandler(
+	RegisterServiceWithGatewayHandler(
 		"tx",
 		registerTransaction,
 		rpcpb.RegisterTransactionCommandHandlerFromEndpoint,
 	)
 }
 
-type txServer struct{}
+type txServer struct {
+	server GRPCServer
+}
 
 func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
-	utxos := nodeServer.bc.ListAllUtxos()
+	bc := s.server.BoxdServer().BlockChain()
+	utxos := bc.ListAllUtxos()
 	res := &rpcpb.ListUtxosResponse{
 		Code:    0,
 		Message: "ok",
@@ -45,7 +46,8 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 }
 
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
-	utxos, err := nodeServer.bc.LoadUtxoByPubKey(req.ScriptPubKey)
+	bc := s.server.BoxdServer().BlockChain()
+	utxos, err := bc.LoadUtxoByPubKey(req.ScriptPubKey)
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
@@ -63,11 +65,12 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
 	logger.Debugf("receive transaction: %+v", req.Tx)
+	bc := s.server.BoxdServer().BlockChain()
 	tx, err := generateTransaction(req.Tx)
 	if err != nil {
 		return nil, err
 	}
-	err = nodeServer.bc.ProcessTx(tx, true)
+	err = bc.ProcessTx(tx, true)
 	return &rpcpb.BaseResponse{}, err
 }
 
