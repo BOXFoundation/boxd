@@ -140,13 +140,11 @@ func (block *Block) BlockHash() *crypto.HashType {
 
 // BlockHash calculates the block identifier hash for the Block.
 func (block *Block) calcBlockHash() (*crypto.HashType, error) {
-	// Always succeed
-	pbHeader, _ := block.Header.ToProtoMessage()
-	headerBuf, err := proto.Marshal(pbHeader)
+	headerBuf, err := block.Header.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	hash := crypto.DoubleHashH(headerBuf)
+	hash := crypto.DoubleHashH(headerBuf) // dhash of header
 	return &hash, nil
 }
 
