@@ -5,6 +5,7 @@
 package pstore
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	storage "github.com/BOXFoundation/Quicksilver/storage"
@@ -20,6 +22,7 @@ import (
 	"github.com/BOXFoundation/Quicksilver/storage/rocksdb"
 	"github.com/facebookgo/ensure"
 	datastore "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/query"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
@@ -248,4 +251,128 @@ func Test_pstore_GetPutHas(t *testing.T) {
 	value, err = ps2.Get(k2)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, 0, len(value))
+}
+
+type filter struct{}
+
+func (f filter) Filter(e query.Entry) bool {
+	return bytes.Contains(e.Value, []byte("v-02"))
+}
+
+func setupDatestore(t *testing.T, ps datastore.Batching) {
+	for i := 0; i < 100; i++ {
+		k1 := datastore.NewKey(fmt.Sprintf("k1-%03d", i))
+		v1 := []byte(fmt.Sprintf("v-%03d", i))
+		ensure.Nil(t, ps.Put(k1, v1))
+
+		k2 := datastore.NewKey(fmt.Sprintf("k2-%03d", i))
+		v2 := []byte(fmt.Sprintf("v-%03d", i))
+		ensure.Nil(t, ps.Put(k2, v2))
+	}
+}
+
+func Test_pstore_QueryFilter(t *testing.T) {
+	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, _ = rocksdb.NewRocksDB(dbpath, &o)
+	defer db.Close()
+
+	newps := func(name string) *pstore {
+		table, _ := db.Table(name)
+		return &pstore{t: table}
+	}
+	ps := newps("ps")
+	setupDatestore(t, ps)
+
+	var q = query.Query{
+		Prefix:  "/k1",
+		Filters: []query.Filter{filter{}},
+	}
+	results, err := ps.Query(q)
+	ensure.Nil(t, err)
+	var count = 0
+	for r := range results.Next() {
+		count++
+		ensure.DeepEqual(t, r.Value[:4], []byte("v-02"))
+	}
+	ensure.DeepEqual(t, count, 10)
+
+	q = query.Query{
+		Prefix:  "/k2",
+		Filters: []query.Filter{filter{}},
+	}
+	results, err = ps.Query(q)
+	ensure.Nil(t, err)
+	count = 0
+	for r := range results.Next() {
+		count++
+		ensure.DeepEqual(t, r.Value[:4], []byte("v-02"))
+	}
+	ensure.DeepEqual(t, count, 10)
+
+	q = query.Query{
+		Filters: []query.Filter{filter{}},
+	}
+	results, err = ps.Query(q)
+	ensure.Nil(t, err)
+	count = 0
+	for r := range results.Next() {
+		count++
+		ensure.DeepEqual(t, r.Value[:4], []byte("v-02"))
+	}
+	ensure.DeepEqual(t, count, 20)
+}
+
+func Test_pstore_LimitOffset(t *testing.T) {
+	var dbpath = randomPath(t)
+	defer os.RemoveAll(dbpath)
+
+	var o storage.Options
+	var db, _ = rocksdb.NewRocksDB(dbpath, &o)
+	defer db.Close()
+
+	newps := func(name string) *pstore {
+		table, _ := db.Table(name)
+		return &pstore{t: table}
+	}
+	ps := newps("ps")
+	setupDatestore(t, ps)
+
+	var q = query.Query{
+		Prefix: "/k1",
+		Limit:  20,
+		Offset: 87,
+	}
+	results, err := ps.Query(q)
+	ensure.Nil(t, err)
+	var count = 0
+	for r := range results.Next() {
+		count++
+		ensure.True(t, strings.HasPrefix(r.Key, "/k1"))
+	}
+	ensure.DeepEqual(t, count, 13)
+
+	for i := range []int{3, 27, 45, 67, 87, 90, 99, 97, 100, 103} {
+		q = query.Query{
+			Prefix: "/k2",
+			Limit:  10,
+			Offset: i,
+		}
+		results, err = ps.Query(q)
+		ensure.Nil(t, err)
+		count = 0
+		for r := range results.Next() {
+			count++
+			ensure.True(t, strings.HasPrefix(r.Key, "/k2"))
+		}
+		if i < 90 {
+			ensure.DeepEqual(t, count, 10)
+		} else if i < 100 {
+			ensure.DeepEqual(t, count, 100-i)
+		} else {
+			ensure.DeepEqual(t, count, 0)
+		}
+	}
 }

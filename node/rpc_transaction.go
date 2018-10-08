@@ -11,7 +11,6 @@ import (
 
 	"github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/rpc/pb"
 	rpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
 	"google.golang.org/grpc"
@@ -89,51 +88,19 @@ func generateUtxoMessage(outPoint *types.OutPoint, entry *core.UtxoEntry) *rpcpb
 }
 
 func generateTransaction(txMsg *corepb.MsgTx) (*types.Transaction, error) {
-	tx := &types.MsgTx{
-		Version:  txMsg.Version,
-		Magic:    txMsg.Magic,
-		LockTime: txMsg.LockTime,
-	}
-	tx.Vin = []*types.TxIn{}
-	for _, vin := range txMsg.GetVin() {
-		in, err := generateTxIn(vin)
-		if err != nil {
-			return nil, err
-		}
-		tx.Vin = append(tx.Vin, in)
-	}
-	logger.Debugf("tx.Vin info : %+v", tx.Vin)
-	tx.Vout = []*types.TxOut{}
-	for _, vout := range txMsg.GetVout() {
-		out := &types.TxOut{
-			Value:        vout.Value,
-			ScriptPubKey: vout.ScriptPubKey,
-		}
-		tx.Vout = append(tx.Vout, out)
-	}
-	txHash, err := tx.MsgTxHash()
-	if err != nil {
+	tx := &types.MsgTx{}
+	if err := tx.FromProtoMessage(txMsg); err != nil {
 		return nil, err
 	}
-	transaction := &types.Transaction{
-		MsgTx: tx,
-		Hash:  txHash,
-	}
-	return transaction, nil
+
+	return types.NewTx(tx)
 }
 
 func generateTxIn(msgTxIn *corepb.TxIn) (*types.TxIn, error) {
-	prevHash := crypto.HashType{}
-	if err := prevHash.SetBytes(msgTxIn.PrevOutPoint.Hash); err != nil {
+	txin := &types.TxIn{}
+	if err := txin.FromProtoMessage(msgTxIn); err != nil {
 		return nil, err
 	}
-	logger.Debugf("Generate TxIn hash: %s, index: %d", prevHash, msgTxIn.PrevOutPoint.Index)
-	return &types.TxIn{
-		PrevOutPoint: types.OutPoint{
-			Hash:  prevHash,
-			Index: msgTxIn.PrevOutPoint.Index,
-		},
-		ScriptSig: msgTxIn.ScriptSig,
-		Sequence:  msgTxIn.Sequence,
-	}, nil
+
+	return txin, nil
 }

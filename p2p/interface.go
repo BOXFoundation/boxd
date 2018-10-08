@@ -5,15 +5,9 @@
 package p2p
 
 import (
-	proto "github.com/gogo/protobuf/proto"
+	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
-
-// Serializable Define serialize interface
-type Serializable interface {
-	Serialize() (proto.Message, error)
-	Deserialize(proto.Message) error
-}
 
 // Message Define message interface
 type Message interface {
@@ -23,8 +17,8 @@ type Message interface {
 
 // Net Define Net interface
 type Net interface {
-	Broadcast(uint32, Serializable) error
-	SendMessageToPeer(uint32, Serializable, peer.ID)
+	Broadcast(uint32, conv.Convertible) error
+	SendMessageToPeer(uint32, conv.Convertible, peer.ID)
 	Subscribe(*Notifiee)
 	UnSubscribe(*Notifiee)
 }

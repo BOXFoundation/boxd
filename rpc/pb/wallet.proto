@@ -5,8 +5,8 @@
 syntax = "proto3";
 package rpcpb;
 
-import "google/api/annotations.proto";
 import "github.com/BOXFoundation/Quicksilver/core/pb/block.proto";
+import "google/api/annotations.proto";
 
 service WalletCommand {
     rpc ListTransactions (ListTransactionsRequest) returns (ListTransactionsResponse) {

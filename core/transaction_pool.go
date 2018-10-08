@@ -105,7 +105,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 	msgTx := new(types.MsgTx)
-	if err := msgTx.Deserialize(pbtx); err != nil {
+	if err := msgTx.FromProtoMessage(pbtx); err != nil {
 		return err
 	}
 	tx, err := types.NewTx(msgTx)

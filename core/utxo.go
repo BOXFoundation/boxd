@@ -46,8 +46,8 @@ var UtxoUnspentCachePool = sync.Pool{
 	},
 }
 
-// Serialize utxo wrap to proto message.
-func (uw *UtxoWrap) Serialize() (proto.Message, error) {
+// ToProtoMessage converts utxo wrap to proto message.
+func (uw *UtxoWrap) ToProtoMessage() (proto.Message, error) {
 	return &corepb.UtxoWrap{
 		Value:        uw.Value,
 		ScriptPubKey: uw.ScriptPubKey,
@@ -57,8 +57,8 @@ func (uw *UtxoWrap) Serialize() (proto.Message, error) {
 	}, nil
 }
 
-// Deserialize convert proto message to utxo wrap.
-func (uw *UtxoWrap) Deserialize(message proto.Message) error {
+// FromProtoMessage convert proto message to utxo wrap.
+func (uw *UtxoWrap) FromProtoMessage(message proto.Message) error {
 
 	if message, ok := message.(*corepb.UtxoWrap); ok {
 		if message != nil {
@@ -130,7 +130,7 @@ func (uup *UtxoUnspentCache) storeUnspentUtxo(db storage.Storage) error {
 			continue
 		}
 		// Serialize and store the utxo.
-		serialized, err := v.Serialize()
+		serialized, err := v.ToProtoMessage()
 		if err != nil {
 			return err
 		}

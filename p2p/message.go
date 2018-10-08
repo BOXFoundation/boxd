@@ -39,8 +39,8 @@ var NetworkNamtToMagic = map[string]uint32{
 
 // error
 var (
-	ErrMessageHeader      = errors.New("Invalid message header data")
-	ErrDeserializeMessage = errors.New("Invalid proto message")
+	ErrMessageHeader           = errors.New("Invalid message header data")
+	ErrFromProtoMessageMessage = errors.New("Invalid proto message")
 )
 
 // MessageHeader message header info from network.
@@ -55,7 +55,7 @@ type MessageHeader struct {
 // NewMessage return full message in bytes
 func NewMessage(header *MessageHeader, body []byte) ([]byte, error) {
 
-	pbHeader := header.Serialize()
+	pbHeader := header.ToProtoMessage()
 	headerBytes, err := proto.Marshal(pbHeader)
 	if err != nil {
 		return nil, err
@@ -67,8 +67,8 @@ func NewMessage(header *MessageHeader, body []byte) ([]byte, error) {
 	return msg.Bytes(), nil
 }
 
-// Serialize header message in proto.
-func (header *MessageHeader) Serialize() proto.Message {
+// ToProtoMessage converts header message in proto.
+func (header *MessageHeader) ToProtoMessage() proto.Message {
 
 	return &p2ppb.MessageHeader{
 		Magic:        header.Magic,
@@ -79,8 +79,8 @@ func (header *MessageHeader) Serialize() proto.Message {
 	}
 }
 
-// Deserialize header message in proto.
-func (header *MessageHeader) Deserialize(msg proto.Message) error {
+// FromProtoMessage header message in proto.
+func (header *MessageHeader) FromProtoMessage(msg proto.Message) error {
 
 	pb := msg.(*p2ppb.MessageHeader)
 	if pb != nil {
@@ -91,7 +91,7 @@ func (header *MessageHeader) Deserialize(msg proto.Message) error {
 		header.Reserved = pb.Reserved
 		return nil
 	}
-	return ErrDeserializeMessage
+	return ErrFromProtoMessageMessage
 }
 
 // ParseHeader parse the bytes data into MessageHeader
@@ -102,7 +102,7 @@ func ParseHeader(data []byte) (*MessageHeader, error) {
 		return nil, err
 	}
 	header := &MessageHeader{}
-	if err := header.Deserialize(pb); err != nil {
+	if err := header.FromProtoMessage(pb); err != nil {
 		return nil, err
 	}
 	return header, nil

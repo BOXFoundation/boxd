@@ -29,10 +29,25 @@ func randomPath(t *testing.T) string {
 	return dir
 }
 
+func getDatabase() (string, storage.Storage, error) {
+	dbpath, err := ioutil.TempDir("", fmt.Sprintf("%d", rand.Int()))
+	if err != nil {
+		return "", nil, err
+	}
+
+	db, err := NewRocksDB(dbpath, &storage.Options{})
+	if err != nil {
+		return dbpath, nil, err
+	}
+	return dbpath, db, nil
+}
+
+func releaseDatabase(dbpath string, db storage.Storage) {
+	db.Close()
+}
+
 func TestDBCreateClose(t *testing.T) {
-	var dbpath = randomPath(t)
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
 	defer os.RemoveAll(dbpath)
 
@@ -40,7 +55,7 @@ func TestDBCreateClose(t *testing.T) {
 	ensure.Nil(t, err)
 }
 
-var testFunc = func(db storage.Storage, k, v []byte) func(*testing.T) {
+var dbPutReadOnceTest = func(db storage.Storage, k, v []byte) func(*testing.T) {
 	return func(t *testing.T) {
 		db.Put(k, v)
 		has, err := db.Has(k)
@@ -59,28 +74,20 @@ var testFunc = func(db storage.Storage, k, v []byte) func(*testing.T) {
 }
 
 func TestDBPut(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
-	t.Run("put1", testFunc(db, []byte("tk1"), []byte("tv1")))
-	t.Run("put2", testFunc(db, []byte("tk2"), []byte("tv2")))
-	t.Run("put3", testFunc(db, []byte("tk3"), []byte("tv3")))
-	t.Run("put4", testFunc(db, []byte("tk4"), []byte("tv4")))
+	t.Run("put1", dbPutReadOnceTest(db, []byte("tk1"), []byte("tv1")))
+	t.Run("put2", dbPutReadOnceTest(db, []byte("tk2"), []byte("tv2")))
+	t.Run("put3", dbPutReadOnceTest(db, []byte("tk3"), []byte("tv3")))
+	t.Run("put4", dbPutReadOnceTest(db, []byte("tk4"), []byte("tv4")))
 }
 
 func TestDBDel(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	var wg sync.WaitGroup
 
@@ -96,7 +103,15 @@ func TestDBDel(t *testing.T) {
 
 	for _, k := range keys {
 		go func(k []byte) {
+			has, err := db.Has(k)
+			ensure.Nil(t, err)
+			ensure.True(t, has)
+
 			ensure.Nil(t, db.Del(k))
+
+			has, err = db.Has(k)
+			ensure.Nil(t, err)
+			ensure.False(t, has)
 			wg.Done()
 		}([]byte(k))
 	}
@@ -104,13 +119,9 @@ func TestDBDel(t *testing.T) {
 }
 
 func TestDBBatch(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	var count = 500
 	var kvs = map[string][]byte{}
@@ -173,13 +184,9 @@ func TestDBBatchs(t *testing.T) {
 }
 
 func TestDBKeys(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	var count = 10000
 	var keys = map[string][]byte{}
@@ -201,12 +208,9 @@ func TestDBKeys(t *testing.T) {
 }
 
 func TestDBPersistent(t *testing.T) {
-	var dbpath = randomPath(t)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
 
 	var count = 100 // TODO the test may fail in case the count is greate than 10000
 	var kvs = map[string][]byte{}
@@ -218,8 +222,9 @@ func TestDBPersistent(t *testing.T) {
 	}
 	db.Close()
 
-	db, err = NewRocksDB(dbpath, &o)
+	db, err = NewRocksDB(dbpath, &storage.Options{})
 	ensure.Nil(t, err)
+	defer db.Close()
 
 	for k, v := range kvs {
 		value, err := db.Get([]byte(k))
@@ -231,16 +236,53 @@ func TestDBPersistent(t *testing.T) {
 	}
 }
 
+func dbPutsFunc(t *testing.T, count int, db storage.Storage, prefix string) {
+	for i := 0; i < count; i++ {
+		k := fmt.Sprintf("%s-key-%05d", prefix, i)
+		v := fmt.Sprintf("%s-value-%05d", prefix, i)
+		err := db.Put([]byte(k), []byte(v))
+		ensure.Nil(t, err)
+		// t.Logf("%s: Put %s=%s", prefix, k, v)
+	}
+}
+
+func dbGetsFunc(t *testing.T, count int, db storage.Storage, prefix string) {
+	for i := 0; i < count; i++ {
+		k := fmt.Sprintf("%s-key-%05d", prefix, i)
+		v, err := db.Get([]byte(k))
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, v, []byte(fmt.Sprintf("%s-value-%05d", prefix, i)))
+	}
+}
+
+func TestParallelPuts(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	var wg sync.WaitGroup
+	const count = 100
+	for i := 0; i < count; i++ {
+		prefix := fmt.Sprintf("pre%05d", i)
+		wg.Add(1)
+		go func(p string) {
+			dbPutsFunc(t, 1000, db, p)
+			go func() {
+				dbGetsFunc(t, 1000, db, p)
+				wg.Done()
+			}()
+		}(prefix)
+	}
+	wg.Wait()
+}
+
+////////////////////////////////////////////////////////////////////////////////
 const chars = "1234567890abcdefhijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ"
 
 func BenchmarkPutData(b *testing.B) {
-	var dbpath = randomPathB(b)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(b, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	var k = []byte("k1")
 	var v = make([]byte, 512*1024*1024)
@@ -254,13 +296,9 @@ func BenchmarkPutData(b *testing.B) {
 }
 
 func BenchmarkGetData(b *testing.B) {
-	var dbpath = randomPathB(b)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(b, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	var k = []byte("k1")
 	var v = make([]byte, 512*1024*1024)
@@ -280,13 +318,9 @@ func BenchmarkGetData(b *testing.B) {
 }
 
 func BenchmarkParallelGetData(b *testing.B) {
-	var dbpath = randomPathB(b)
-	defer os.RemoveAll(dbpath)
-
-	var o storage.Options
-	var db, err = NewRocksDB(dbpath, &o)
+	dbpath, db, err := getDatabase()
 	ensure.Nil(b, err)
-	defer db.Close()
+	defer releaseDatabase(dbpath, db)
 
 	var k = []byte("k1")
 	var v = make([]byte, 32*1024*1024)
