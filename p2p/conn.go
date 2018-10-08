@@ -5,12 +5,12 @@
 package p2p
 
 import (
+	"bufio"
 	"errors"
 	"hash/crc32"
 	"time"
 
 	"github.com/BOXFoundation/Quicksilver/p2p/pb"
-	"github.com/BOXFoundation/Quicksilver/util"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -70,58 +70,24 @@ func (conn *Conn) loop() {
 		}
 	}
 
-	buf := make([]byte, 1024)
-	messageBuffer := make([]byte, 0)
-	var header *MessageHeader
+	var r = bufio.NewReader(conn.stream)
 	for {
-		n, err := conn.stream.Read(buf)
+		msg, err := ReadMessageData(r)
 		if err != nil {
 			conn.Close()
 			return
 		}
-		messageBuffer = append(messageBuffer, buf[:n]...)
-		for {
-			if header == nil {
-				var err error
-				if len(messageBuffer) < FixHeaderLength {
-					break
-				}
-				headerLength := util.Uint32(messageBuffer[:FixHeaderLength])
-				if len(messageBuffer) < FixHeaderLength+int(headerLength) {
-					break
-				}
-				headerBytes := messageBuffer[FixHeaderLength : headerLength+FixHeaderLength]
-				header, err = ParseHeader(headerBytes)
-				if err != nil {
-					conn.Close()
-					return
-				}
-				if err := conn.checkHeader(header); err != nil {
-					logger.Error("Invalid message header. ", err)
-					conn.Close()
-					return
-				}
-				messageBuffer = messageBuffer[FixHeaderLength+int(headerLength):]
-			}
-			if len(messageBuffer) < int(header.DataLength) {
-				break
-			}
-			body := messageBuffer[:header.DataLength]
-			if err := conn.checkBody(header, body); err != nil {
-				logger.Error("Invalid message body. ", err)
-				conn.Close()
-				return
-			}
-			messageBuffer = messageBuffer[header.DataLength:]
-			if err := conn.handle(header.Code, body); err != nil {
-				logger.Error("Failed to handle message. ", err)
-				conn.Close()
-				return
-			}
-			header = nil
+		if err := conn.checkBody(msg.MessageHeader, msg.Body); err != nil {
+			logger.Error("Invalid message body. ", err)
+			conn.Close()
+			return
+		}
+		if err := conn.handle(msg.Code, msg.Body); err != nil {
+			logger.Error("Failed to handle message. ", err)
+			conn.Close()
+			return
 		}
 	}
-
 }
 
 func (conn *Conn) handle(messageCode uint32, body []byte) error {
@@ -147,18 +113,7 @@ func (conn *Conn) handle(messageCode uint32, body []byte) error {
 	return nil
 }
 
-func (conn *Conn) buildMessageHeader(code uint32, body []byte, reserved []byte) *MessageHeader {
-	header := &MessageHeader{}
-	header.Magic = conn.peer.config.Magic
-	header.Code = code
-	header.DataLength = uint32(len(body))
-	header.DataChecksum = crc32.ChecksumIEEE(body)
-	header.Reserved = reserved
-	return header
-}
-
 func (conn *Conn) heartBeatService() {
-
 	t := time.NewTicker(time.Second * PeriodTime)
 	for {
 		select {
@@ -249,18 +204,13 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 	return nil
 }
 
-func (conn *Conn) Write(OpCode uint32, body []byte) error {
-
-	header := conn.buildMessageHeader(OpCode, body, nil)
-	msg, err := NewMessage(header, body)
+func (conn *Conn) Write(opcode uint32, body []byte) error {
+	data, err := NewMessageData(conn.peer.config.Magic, opcode, nil, body).Marshal()
 	if err != nil {
 		return err
 	}
-	_, err = conn.stream.Write(msg)
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err = conn.stream.Write(data)
+	return err // error or nil
 }
 
 // Close connection to remote peer.

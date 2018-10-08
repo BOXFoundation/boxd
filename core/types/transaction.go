@@ -39,6 +39,7 @@ type MsgTx struct {
 }
 
 var _ conv.Convertible = (*MsgTx)(nil)
+var _ conv.Serializable = (*MsgTx)(nil)
 
 // TxOut defines a transaction output.
 type TxOut struct {
@@ -47,6 +48,7 @@ type TxOut struct {
 }
 
 var _ conv.Convertible = (*TxOut)(nil)
+var _ conv.Serializable = (*TxOut)(nil)
 
 // TxIn defines a transaction input.
 type TxIn struct {
@@ -56,6 +58,7 @@ type TxIn struct {
 }
 
 var _ conv.Convertible = (*TxIn)(nil)
+var _ conv.Serializable = (*TxIn)(nil)
 
 // OutPoint defines a data type that is used to track previous transaction outputs.
 type OutPoint struct {
@@ -64,6 +67,7 @@ type OutPoint struct {
 }
 
 var _ conv.Convertible = (*OutPoint)(nil)
+var _ conv.Serializable = (*OutPoint)(nil)
 
 // NewTx a Transaction wrapped by msgTx.
 func NewTx(msgTx *MsgTx) (*Transaction, error) {
@@ -76,6 +80,8 @@ func NewTx(msgTx *MsgTx) (*Transaction, error) {
 		MsgTx: msgTx,
 	}, nil
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 // ToProtoMessage converts transaction to proto message.
 func (msgTx *MsgTx) ToProtoMessage() (proto.Message, error) {
@@ -139,6 +145,41 @@ func (msgTx *MsgTx) FromProtoMessage(message proto.Message) error {
 	return ErrInvalidTxInProtoMessage
 }
 
+// Marshal method marshal MsgTx object to binary
+func (msgTx *MsgTx) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(msgTx)
+}
+
+// Unmarshal method unmarshal binary data to MsgTx object
+func (msgTx *MsgTx) Unmarshal(data []byte) error {
+	msg := &corepb.MsgTx{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return msgTx.FromProtoMessage(msg)
+}
+
+// MsgTxHash return msg tx hash
+func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
+	rawMsgTx, err := msgTx.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	hash := crypto.DoubleHashH(rawMsgTx)
+	return &hash, nil
+}
+
+// SerializeSize return msgTx size.
+func (msgTx *MsgTx) SerializeSize() (int, error) {
+	rawMsgTx, err := msgTx.Marshal()
+	if err != nil {
+		return 0, err
+	}
+	return len(rawMsgTx), nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // ToProtoMessage converts txout to proto message.
 func (txout *TxOut) ToProtoMessage() (proto.Message, error) {
 	return &corepb.TxOut{
@@ -160,6 +201,22 @@ func (txout *TxOut) FromProtoMessage(message proto.Message) error {
 
 	return ErrInvalidTxOutProtoMessage
 }
+
+// Marshal method marshal TxOut object to binary
+func (txout *TxOut) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(txout)
+}
+
+// Unmarshal method unmarshal binary data to TxOut object
+func (txout *TxOut) Unmarshal(data []byte) error {
+	msg := &corepb.TxOut{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return txout.FromProtoMessage(msg)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 // ToProtoMessage converts txin to proto message.
 func (txin *TxIn) ToProtoMessage() (proto.Message, error) {
@@ -192,6 +249,22 @@ func (txin *TxIn) FromProtoMessage(message proto.Message) error {
 	return ErrInvalidTxInProtoMessage
 }
 
+// Marshal method marshal TxIn object to binary
+func (txin *TxIn) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(txin)
+}
+
+// Unmarshal method unmarshal binary data to TxIn object
+func (txin *TxIn) Unmarshal(data []byte) error {
+	msg := &corepb.TxIn{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return txin.FromProtoMessage(msg)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // ToProtoMessage converts out point to proto message.
 func (op *OutPoint) ToProtoMessage() (proto.Message, error) {
 	return &corepb.OutPoint{
@@ -214,6 +287,22 @@ func (op *OutPoint) FromProtoMessage(message proto.Message) error {
 	return ErrInvalidOutPointProtoMessage
 }
 
+// Marshal method marshal OutPoint object to binary
+func (op *OutPoint) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(op)
+}
+
+// Unmarshal method unmarshal binary data to OutPoint object
+func (op *OutPoint) Unmarshal(data []byte) error {
+	msg := &corepb.OutPoint{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return op.FromProtoMessage(msg)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TxHash returns tx hash
 func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	if tx.Hash != nil {
@@ -226,31 +315,4 @@ func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	// cache it
 	tx.Hash = hash
 	return hash, nil
-}
-
-// MsgTxHash return msg tx hash
-func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
-	pbtx, err := msgTx.ToProtoMessage()
-	if err != nil {
-		return nil, err
-	}
-	rawMsgTx, err := proto.Marshal(pbtx)
-	if err != nil {
-		return nil, err
-	}
-	hash := crypto.DoubleHashH(rawMsgTx)
-	return &hash, nil
-}
-
-// SerializeSize return msgTx size.
-func (msgTx *MsgTx) SerializeSize() (int, error) {
-	pbtx, err := msgTx.ToProtoMessage()
-	if err != nil {
-		return 0, err
-	}
-	rawMsgTx, err := proto.Marshal(pbtx)
-	if err != nil {
-		return 0, err
-	}
-	return len(rawMsgTx), nil
 }

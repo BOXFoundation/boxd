@@ -9,11 +9,9 @@ import (
 	"sync"
 	"time"
 
-	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
 	"github.com/BOXFoundation/Quicksilver/core/types"
 	"github.com/BOXFoundation/Quicksilver/crypto"
 	"github.com/BOXFoundation/Quicksilver/p2p"
-	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 )
 
@@ -99,13 +97,8 @@ func (tx_pool *TransactionPool) loop() {
 }
 
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
-	body := msg.Body()
-	pbtx := new(corepb.MsgTx)
-	if err := proto.Unmarshal(body, pbtx); err != nil {
-		return err
-	}
 	msgTx := new(types.MsgTx)
-	if err := msgTx.FromProtoMessage(pbtx); err != nil {
+	if err := msgTx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
 	tx, err := types.NewTx(msgTx)
