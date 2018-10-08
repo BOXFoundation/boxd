@@ -6,7 +6,7 @@ package rpcpb
 import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import pb "github.com/BOXFoundation/Quicksilver/core/pb"
+import pb "github.com/BOXFoundation/boxd/core/pb"
 
 import io "io"
 

@@ -5,8 +5,8 @@
 package logruslog
 
 import (
-	source "github.com/BOXFoundation/Quicksilver/log/logrus/hooks/source"
-	log "github.com/BOXFoundation/Quicksilver/log/types"
+	source "github.com/BOXFoundation/boxd/log/logrus/hooks/source"
+	log "github.com/BOXFoundation/boxd/log/types"
 	"github.com/heirko/go-contrib/logrusHelper"
 	mate "github.com/heralight/logrus_mate"
 	_ "github.com/heralight/logrus_mate/hooks/file"              // file log hook

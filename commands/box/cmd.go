@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"os"
 
-	_ "github.com/BOXFoundation/Quicksilver/commands/box/ctl" // init ctl cmd
-	root "github.com/BOXFoundation/Quicksilver/commands/box/root"
-	_ "github.com/BOXFoundation/Quicksilver/commands/box/start"       // init start cmd
-	_ "github.com/BOXFoundation/Quicksilver/commands/box/transaction" // init transaction cmd
-	_ "github.com/BOXFoundation/Quicksilver/commands/box/wallet"      // init wallet cmd
+	_ "github.com/BOXFoundation/boxd/commands/box/ctl" // init ctl cmd
+	root "github.com/BOXFoundation/boxd/commands/box/root"
+	_ "github.com/BOXFoundation/boxd/commands/box/start"       // init start cmd
+	_ "github.com/BOXFoundation/boxd/commands/box/transaction" // init transaction cmd
+	_ "github.com/BOXFoundation/boxd/commands/box/wallet"      // init wallet cmd
 )
 
 // Execute is called by main.main(). It only needs to happen once to the rootCmd.

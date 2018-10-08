@@ -5,8 +5,8 @@
 package memdb
 
 import (
-	"github.com/BOXFoundation/Quicksilver/log"
-	storage "github.com/BOXFoundation/Quicksilver/storage"
+	"github.com/BOXFoundation/boxd/log"
+	storage "github.com/BOXFoundation/boxd/storage"
 )
 
 var logger = log.NewLogger("memdb")

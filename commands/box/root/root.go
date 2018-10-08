@@ -11,8 +11,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/BOXFoundation/Quicksilver/config"
-	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/log"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

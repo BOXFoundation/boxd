@@ -7,11 +7,11 @@ package rpc
 import (
 	"context"
 
-	"github.com/BOXFoundation/Quicksilver/core"
+	"github.com/BOXFoundation/boxd/core"
 
-	"github.com/BOXFoundation/Quicksilver/core/pb"
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/rpc/pb"
+	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 )
 
 func registerTransaction(s *Server) {

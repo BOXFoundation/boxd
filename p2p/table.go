@@ -8,8 +8,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/p2p/pb"
-	"github.com/BOXFoundation/Quicksilver/util"
+	"github.com/BOXFoundation/boxd/p2p/pb"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 	kbucket "github.com/libp2p/go-libp2p-kbucket"
 	peer "github.com/libp2p/go-libp2p-peer"

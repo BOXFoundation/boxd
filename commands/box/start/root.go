@@ -7,8 +7,8 @@ package start
 import (
 	"net"
 
-	"github.com/BOXFoundation/Quicksilver/boxd"
-	root "github.com/BOXFoundation/Quicksilver/commands/box/root"
+	"github.com/BOXFoundation/boxd/boxd"
+	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

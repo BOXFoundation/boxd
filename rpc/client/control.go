@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	pb "github.com/BOXFoundation/Quicksilver/rpc/pb"
+	pb "github.com/BOXFoundation/boxd/rpc/pb"
 )
 
 // SetDebugLevel calls the DebugLevel gRPC methods.

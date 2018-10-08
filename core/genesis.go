@@ -7,8 +7,8 @@ package core
 import (
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/crypto"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 var genesisCoinbaseTx = types.Transaction{

@@ -5,7 +5,7 @@
 package core
 
 import (
-	"github.com/BOXFoundation/Quicksilver/core/types"
+	"github.com/BOXFoundation/boxd/core/types"
 )
 
 // txValidateItem holds a transaction along with which input to validate.

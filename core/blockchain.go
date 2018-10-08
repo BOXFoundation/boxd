@@ -15,12 +15,12 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	lru "github.com/hashicorp/golang-lru"
 
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/crypto"
-	"github.com/BOXFoundation/Quicksilver/log"
-	"github.com/BOXFoundation/Quicksilver/p2p"
-	"github.com/BOXFoundation/Quicksilver/storage"
-	"github.com/BOXFoundation/Quicksilver/util"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 )
 

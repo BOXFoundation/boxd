@@ -1,4 +1,4 @@
-module github.com/BOXFoundation/Quicksilver
+module github.com/BOXFoundation/boxd
 
 require (
 	9fans.net/go v0.0.0-20180727211846-5d4fa602e1e8 // indirect
@@ -115,7 +115,6 @@ require (
 	github.com/spf13/cobra v0.0.0-20180829160745-99dc12355885
 	github.com/spf13/viper v1.2.0
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
-	github.com/stretchr/testify v1.2.2
 	github.com/tecbot/gorocksdb v0.0.0-20180907100951-214b6b7bc0f0
 	github.com/uudashr/gopkgs v2.0.1+incompatible // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect

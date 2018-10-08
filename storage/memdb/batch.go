@@ -7,7 +7,7 @@ package memdb
 import (
 	"sync"
 
-	storage "github.com/BOXFoundation/Quicksilver/storage"
+	storage "github.com/BOXFoundation/boxd/storage"
 )
 
 type mbatch struct {

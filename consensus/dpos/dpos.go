@@ -8,10 +8,10 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/core"
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/log"
-	"github.com/BOXFoundation/Quicksilver/p2p"
+	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/jbenet/goprocess"
 )
 

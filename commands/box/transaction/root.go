@@ -5,7 +5,7 @@
 package transaction
 
 import (
-	root "github.com/BOXFoundation/Quicksilver/commands/box/root"
+	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/spf13/cobra"
 )
 

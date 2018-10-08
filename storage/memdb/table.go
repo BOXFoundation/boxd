@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 
-	storage "github.com/BOXFoundation/Quicksilver/storage"
+	storage "github.com/BOXFoundation/boxd/storage"
 )
 
 type mtable struct {

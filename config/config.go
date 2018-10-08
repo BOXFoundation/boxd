@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/BOXFoundation/Quicksilver/consensus/dpos"
-	logtypes "github.com/BOXFoundation/Quicksilver/log/types"
-	"github.com/BOXFoundation/Quicksilver/p2p"
-	rpc "github.com/BOXFoundation/Quicksilver/rpc/server"
-	"github.com/BOXFoundation/Quicksilver/storage"
+	"github.com/BOXFoundation/boxd/consensus/dpos"
+	logtypes "github.com/BOXFoundation/boxd/log/types"
+	"github.com/BOXFoundation/boxd/p2p"
+	rpc "github.com/BOXFoundation/boxd/rpc/server"
+	"github.com/BOXFoundation/boxd/storage"
 )
 
 ////////////////////////////////////////////////////////////////

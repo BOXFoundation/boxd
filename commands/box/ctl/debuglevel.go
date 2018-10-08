@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	rpc "github.com/BOXFoundation/Quicksilver/rpc/client"
+	rpc "github.com/BOXFoundation/boxd/rpc/client"
 )
 
 // debuglevelCmd represents the debuglevel command

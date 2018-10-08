@@ -5,7 +5,7 @@
 package log
 
 import "testing"
-import log "github.com/BOXFoundation/Quicksilver/log/types"
+import log "github.com/BOXFoundation/boxd/log/types"
 
 func TestLogrusInit(t *testing.T) {
 	var logger = NewLogger("test")

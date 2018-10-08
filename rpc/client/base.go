@@ -7,10 +7,10 @@ package client
 import (
 	"fmt"
 
-	"github.com/BOXFoundation/Quicksilver/config"
-	"github.com/BOXFoundation/Quicksilver/core"
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )

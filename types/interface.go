@@ -5,8 +5,8 @@
 package types
 
 import (
-	"github.com/BOXFoundation/Quicksilver/core"
-	logtypes "github.com/BOXFoundation/Quicksilver/log/types"
+	"github.com/BOXFoundation/boxd/core"
+	logtypes "github.com/BOXFoundation/boxd/log/types"
 	"github.com/spf13/viper"
 )
 

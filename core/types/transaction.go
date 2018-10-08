@@ -7,9 +7,9 @@ package types
 import (
 	"errors"
 
-	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
-	"github.com/BOXFoundation/Quicksilver/crypto"
-	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/crypto"
+	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
 )
 

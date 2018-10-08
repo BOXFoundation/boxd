@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/BOXFoundation/Quicksilver/crypto"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 const (

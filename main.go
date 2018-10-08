@@ -5,7 +5,7 @@
 package main
 
 import (
-	"github.com/BOXFoundation/Quicksilver/commands/box"
+	"github.com/BOXFoundation/boxd/commands/box"
 )
 
 func main() {

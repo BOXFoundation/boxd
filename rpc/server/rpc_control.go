@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/BOXFoundation/Quicksilver/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 )
 
 func registerControl(s *Server) {

@@ -7,7 +7,7 @@ package rpc
 import (
 	"context"
 
-	"github.com/BOXFoundation/Quicksilver/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 )
 
 func registerWallet(s *Server) {

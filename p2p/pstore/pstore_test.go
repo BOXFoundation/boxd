@@ -17,9 +17,9 @@ import (
 	"strings"
 	"testing"
 
-	storage "github.com/BOXFoundation/Quicksilver/storage"
-	"github.com/BOXFoundation/Quicksilver/storage/memdb"
-	"github.com/BOXFoundation/Quicksilver/storage/rocksdb"
+	storage "github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/memdb"
+	"github.com/BOXFoundation/boxd/storage/rocksdb"
 	"github.com/facebookgo/ensure"
 	datastore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"

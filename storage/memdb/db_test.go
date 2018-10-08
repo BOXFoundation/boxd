@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	storage "github.com/BOXFoundation/Quicksilver/storage"
+	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/facebookgo/ensure"
 )
 

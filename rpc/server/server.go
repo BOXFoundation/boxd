@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/log"
-	"github.com/BOXFoundation/Quicksilver/types"
+	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/types"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"

@@ -7,8 +7,8 @@ package util
 import (
 	"math"
 
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/crypto"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 // BuildMerkleRoot build transaction merkle tree

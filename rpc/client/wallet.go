@@ -9,7 +9,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 
 	"github.com/spf13/viper"
 )

@@ -1,27 +1,35 @@
-# Copyright (C) 2018 ContentBox Authors
-#
-# This file is part of the go-contentbox library.
-#
-# the go-contentbox library is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# the go-contentbox library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with the go-contentbox library.  If not, see <http://www.gnu.org/licenses/>.
-#
+# Copyright (c) 2018 ContentBox Authors.
+# Use of this source code is governed by a MIT-style
+# license that can be found in the LICENSE file.
+
 PB = $(wildcard *.proto)
 GO = $(PB:.proto=.pb.go)
 
-all: $(GO)
+ifndef ${GOPATH}
+	GOPATH := $(shell go env GOPATH)
+endif
 
+.PHONY: all
+all: dependencies clean build
+
+.PHONY: dependencies
+dependencies:
+	@echo "Installing gRPC tools..." # TODO work around build error on GO111MODULE=on...
+	@-GO111MODULE=off go get -u github.com/gogo/protobuf/protoc-gen-gogofaster &>/dev/null
+	@-GO111MODULE=off go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway &>/dev/null
+	@-GO111MODULE=off go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger &>/dev/null
+
+.PHONY: build
+build: $(GO)
+
+.PHONY: %.pb.go
 %.pb.go: %.proto
-	protoc --gogo_out=. $<
+	protoc -I. -I$(GOPATH)/src \
+		-I$(GOPATH)/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+		--gogofaster_out=plugins=grpc:. \
+		--grpc-gateway_out=logtostderr=true:. \
+		$<
 
+.PHONY: clean
 clean:
-	rm *.pb.go
+	@rm -f *.pb.go *.pb.gw.go

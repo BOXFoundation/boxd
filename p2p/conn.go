@@ -10,7 +10,7 @@ import (
 	"hash/crc32"
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/p2p/pb"
+	"github.com/BOXFoundation/boxd/p2p/pb"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"

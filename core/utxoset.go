@@ -7,7 +7,7 @@ package core
 import (
 	"errors"
 
-	"github.com/BOXFoundation/Quicksilver/core/types"
+	"github.com/BOXFoundation/boxd/core/types"
 )
 
 // error

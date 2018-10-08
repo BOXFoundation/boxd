@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"context"
 
-	storage "github.com/BOXFoundation/Quicksilver/storage"
+	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	"github.com/libp2p/go-libp2p-peerstore"

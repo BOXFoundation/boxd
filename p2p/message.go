@@ -10,9 +10,9 @@ import (
 	"errors"
 	"hash/crc32"
 
-	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
-	"github.com/BOXFoundation/Quicksilver/p2p/pb"
-	"github.com/BOXFoundation/Quicksilver/util"
+	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/p2p/pb"
+	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
 )
 

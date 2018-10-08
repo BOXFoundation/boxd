@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/BOXFoundation/Quicksilver/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/client"
 
 	"github.com/spf13/cobra"
 )

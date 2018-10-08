@@ -7,11 +7,11 @@ package core
 import (
 	"sync"
 
-	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/crypto"
-	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
-	"github.com/BOXFoundation/Quicksilver/storage"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/storage"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	proto "github.com/gogo/protobuf/proto"
 )

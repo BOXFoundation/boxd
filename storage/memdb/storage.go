@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"sync"
 
-	storage "github.com/BOXFoundation/Quicksilver/storage"
+	storage "github.com/BOXFoundation/boxd/storage"
 )
 
 type memorydb struct {

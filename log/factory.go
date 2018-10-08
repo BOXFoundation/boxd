@@ -5,8 +5,8 @@
 package log
 
 import (
-	ll "github.com/BOXFoundation/Quicksilver/log/logrus"
-	log "github.com/BOXFoundation/Quicksilver/log/types"
+	ll "github.com/BOXFoundation/boxd/log/logrus"
+	log "github.com/BOXFoundation/boxd/log/types"
 )
 
 // Setup loggers globally

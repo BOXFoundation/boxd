@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/core/types"
-	"github.com/BOXFoundation/Quicksilver/crypto"
-	"github.com/BOXFoundation/Quicksilver/p2p"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/jbenet/goprocess"
 )
 

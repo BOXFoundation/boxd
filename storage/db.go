@@ -7,7 +7,7 @@ package storage
 import (
 	"sync"
 
-	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/jbenet/goprocess"
 )
 

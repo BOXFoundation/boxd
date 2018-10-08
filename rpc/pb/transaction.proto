@@ -5,7 +5,7 @@
 syntax = "proto3";
 package rpcpb;
 
-import "github.com/BOXFoundation/Quicksilver/core/pb/block.proto";
+import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 import "google/api/annotations.proto";
 import "common.proto";
 

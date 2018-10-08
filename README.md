@@ -31,4 +31,4 @@ make
 
 # License
 
-BOX Payout is released under the MIT License. Please refer to the [LICENSE](https://github.com/BOXFoundation/Quicksilver/blob/master/LICENSE) file that accompanies this project for more information including complete terms and conditions.
+BOX Payout is released under the MIT License. Please refer to the [LICENSE](https://github.com/BOXFoundation/boxd/blob/master/LICENSE) file that accompanies this project for more information including complete terms and conditions.

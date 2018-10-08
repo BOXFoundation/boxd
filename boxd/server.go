@@ -9,16 +9,16 @@ import (
 	"runtime"
 	"sync"
 
-	config "github.com/BOXFoundation/Quicksilver/config"
-	"github.com/BOXFoundation/Quicksilver/consensus/dpos"
-	"github.com/BOXFoundation/Quicksilver/core"
-	"github.com/BOXFoundation/Quicksilver/log"
-	p2p "github.com/BOXFoundation/Quicksilver/p2p"
-	grpcserver "github.com/BOXFoundation/Quicksilver/rpc/server"
-	storage "github.com/BOXFoundation/Quicksilver/storage"
-	_ "github.com/BOXFoundation/Quicksilver/storage/memdb"   // init memdb
-	_ "github.com/BOXFoundation/Quicksilver/storage/rocksdb" // init rocksdb
-	"github.com/BOXFoundation/Quicksilver/types"
+	config "github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/log"
+	p2p "github.com/BOXFoundation/boxd/p2p"
+	grpcserver "github.com/BOXFoundation/boxd/rpc/server"
+	storage "github.com/BOXFoundation/boxd/storage"
+	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
+	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
+	"github.com/BOXFoundation/boxd/types"
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
 )

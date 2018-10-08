@@ -7,7 +7,7 @@ package transaction
 import (
 	"fmt"
 
-	"github.com/BOXFoundation/Quicksilver/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

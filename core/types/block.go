@@ -8,10 +8,10 @@ import (
 	"errors"
 	"time"
 
-	corepb "github.com/BOXFoundation/Quicksilver/core/pb"
-	"github.com/BOXFoundation/Quicksilver/crypto"
-	"github.com/BOXFoundation/Quicksilver/log"
-	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
+	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
 )
 

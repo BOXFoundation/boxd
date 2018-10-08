@@ -7,8 +7,8 @@ package rocksdb
 import (
 	"io/ioutil"
 
-	"github.com/BOXFoundation/Quicksilver/log"
-	storage "github.com/BOXFoundation/Quicksilver/storage"
+	"github.com/BOXFoundation/boxd/log"
+	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/tecbot/gorocksdb"
 )
 

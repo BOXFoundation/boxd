@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BOXFoundation/Quicksilver/log"
+	"github.com/BOXFoundation/boxd/log"
 )
 
 var logger = log.NewLogger("mediantime") // logger

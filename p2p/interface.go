@@ -5,7 +5,7 @@
 package p2p
 
 import (
-	conv "github.com/BOXFoundation/Quicksilver/p2p/convert"
+	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
