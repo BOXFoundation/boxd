@@ -6,6 +6,7 @@ package types
 
 import (
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/txpool"
 	logtypes "github.com/BOXFoundation/boxd/log/types"
 	"github.com/spf13/viper"
 )
@@ -15,6 +16,7 @@ type BoxdServer interface {
 	Start(v *viper.Viper) error
 	Cfg() Config
 	BlockChain() *chain.BlockChain
+	TxPool() *txpool.TransactionPool
 }
 
 // Config Define config interface

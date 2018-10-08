@@ -2,39 +2,48 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package chain
+package txpool
 
 import (
 	"errors"
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/jbenet/goprocess"
 )
 
 // const defines constants
 const (
-	TxMsgBufferChSize = 65536
+	TxMsgBufferChSize          = 65536
+	ChainUpdateMsgBufferChSize = 65536
 )
 
 // define error message
 var (
-	ErrDuplicateTxInPool      = errors.New("Duplicate transactions in tx pool")
-	ErrCoinbaseTx             = errors.New("Transaction must not be a coinbase transaction")
-	ErrNonStandardTransaction = errors.New("Transaction is not a standard transaction")
-	ErrOutPutAlreadySpent     = errors.New("Output already spent by transaction in the pool")
-	ErrOrphanTransaction      = errors.New("Orphan transaction cannot be admitted into the pool")
+	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
+	ErrCoinbaseTx                 = errors.New("Transaction must not be a coinbase transaction")
+	ErrNonStandardTransaction     = errors.New("Transaction is not a standard transaction")
+	ErrOutPutAlreadySpent         = errors.New("Output already spent by transaction in the pool")
+	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
+	ErrNonLocalMessage            = errors.New("Received non-local message")
+	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
 )
+
+var logger = log.NewLogger("txpool") // logger
 
 // TransactionPool define struct.
 type TransactionPool struct {
-	notifiee   p2p.Net
-	newTxMsgCh chan p2p.Message
-	proc       goprocess.Process
-	chain      *BlockChain
+	notifiee            p2p.Net
+	newTxMsgCh          chan p2p.Message
+	newChainUpdateMsgCh chan p2p.Message
+	proc                goprocess.Process
+	chain               *chain.BlockChain
 
 	// transaction pool
 	hashToTx map[crypto.HashType]*TxWrap
@@ -52,28 +61,30 @@ type TransactionPool struct {
 
 // TxWrap wrap transaction
 type TxWrap struct {
-	tx             *types.Transaction
-	addedTimestamp int64
+	Tx             *types.Transaction
+	AddedTimestamp int64
 	height         int32
-	feePerKB       int64
+	FeePerKB       int64
 }
 
 // NewTransactionPool new a transaction pool.
-func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *BlockChain) *TransactionPool {
+func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *chain.BlockChain) *TransactionPool {
 	return &TransactionPool{
-		newTxMsgCh:       make(chan p2p.Message, TxMsgBufferChSize),
-		proc:             goprocess.WithParent(parent),
-		notifiee:         notifiee,
-		chain:            chain,
-		hashToTx:         make(map[crypto.HashType]*TxWrap),
-		hashToOrphanTx:   make(map[crypto.HashType]*types.Transaction),
-		outPointToOrphan: make(map[types.OutPoint]map[crypto.HashType]*types.Transaction),
-		stxoSet:          make(map[types.OutPoint]*types.Transaction),
+		newTxMsgCh:          make(chan p2p.Message, TxMsgBufferChSize),
+		newChainUpdateMsgCh: make(chan p2p.Message, ChainUpdateMsgBufferChSize),
+		proc:                goprocess.WithParent(parent),
+		notifiee:            notifiee,
+		chain:               chain,
+		hashToTx:            make(map[crypto.HashType]*TxWrap),
+		hashToOrphanTx:      make(map[crypto.HashType]*types.Transaction),
+		outPointToOrphan:    make(map[types.OutPoint]map[crypto.HashType]*types.Transaction),
+		stxoSet:             make(map[types.OutPoint]*types.Transaction),
 	}
 }
 
 func (tx_pool *TransactionPool) subscribeMessageNotifiee(notifiee p2p.Net) {
 	notifiee.Subscribe(p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh))
+	notifiee.Subscribe(p2p.NewNotifiee(p2p.ChainUpdateMsg, tx_pool.newChainUpdateMsgCh))
 }
 
 // Run launch transaction pool.
@@ -89,6 +100,8 @@ func (tx_pool *TransactionPool) loop() {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
 			tx_pool.processTxMsg(msg)
+		case msg := <-tx_pool.newChainUpdateMsgCh:
+			tx_pool.processChainUpdateMsg(msg)
 		case <-tx_pool.proc.Closing():
 			logger.Info("Quit transaction pool loop.")
 			return
@@ -96,19 +109,61 @@ func (tx_pool *TransactionPool) loop() {
 	}
 }
 
+// chain update message from blockchain: block connection/disconnection
+func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
+	localMessage, ok := msg.(*core.LocalMessage)
+	if !ok {
+		logger.Errorf("Received non-local message")
+		return ErrNonLocalMessage
+	}
+	chainUpdateMsg, ok := localMessage.Data().(core.ChainUpdateMsg)
+	if !ok {
+		logger.Errorf("Received local message is not a chain update")
+		return ErrLocalMessageNotChainUpdate
+	}
+
+	block := chainUpdateMsg.Block
+	if chainUpdateMsg.Connected {
+		logger.Infof("Block %v connects to main chain", block.BlockHash())
+		return tx_pool.addBlockTxs(block)
+	}
+	logger.Infof("Block %v disconnects from main chain", block.BlockHash())
+	return tx_pool.removeBlockTxs(block)
+}
+
+// Add all transactions contained in this block into mempool
+func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
+	for _, tx := range block.Txs[1:] {
+		if err := tx_pool.maybeAcceptTx(tx, false /* do not broadcast */); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Remove all transactions contained in this block from mempool
+func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
+	for _, tx := range block.Txs[1:] {
+		tx_pool.removeTx(tx)
+		tx_pool.removeDoubleSpends(tx)
+		tx_pool.removeOrphan(tx)
+	}
+	return nil
+}
+
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
-	return tx_pool.processTx(tx, false)
+	return tx_pool.ProcessTx(tx, false)
 }
 
-// processTx is the main workhorse for handling insertion of new
+// ProcessTx is the main workhorse for handling insertion of new
 // transactions into the memory pool.  It includes functionality
 // such as rejecting duplicate transactions, ensuring transactions follow all
 // rules, orphan transaction handling, and insertion into the memory pool.
-func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool) error {
+func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool) error {
 	if err := tx_pool.maybeAcceptTx(tx, broadcast); err != nil {
 		return err
 	}
@@ -132,13 +187,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	}
 
 	// Perform preliminary sanity checks on the transaction.
-	if err := SanityCheckTransaction(tx); err != nil {
+	if err := tx_pool.chain.SanityCheckTransactionWrapper(tx); err != nil {
 		logger.Debugf("Tx %v fails sanity check: %v", txHash, err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
-	if IsCoinBase(tx) {
+	if tx_pool.chain.IsCoinBaseWrapper(tx) {
 		logger.Debugf("Tx %v is an individual coinbase", txHash)
 		return ErrCoinbaseTx
 	}
@@ -146,7 +201,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// Get the current height of the main chain. A standalone transaction
 	// will be mined into the next block at best, so its height is at least
 	// one more than the current height.
-	nextBlockHeight := tx_pool.chain.longestChainHeight + 1
+	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
 	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
@@ -163,7 +218,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	}
 
 	// TODO: check tx is already exist in the main chain??
-	utxoSet, err := LoadTxUtxos(tx, tx_pool.chain.dbTx)
+	utxoSet, err := chain.LoadTxUtxos(tx, tx_pool.chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -176,7 +231,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 
 	// TODO: sequence lock
 
-	txFee, err := tx_pool.chain.checkTransactionInputs(utxoSet, tx, nextBlockHeight)
+	txFee, err := tx_pool.chain.CheckTransactionInputs(utxoSet, tx, nextBlockHeight)
 	if err != nil {
 		return err
 	}
@@ -228,7 +283,7 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 }
 
 // A tx is an orphan if any of its spending utxo does not exist
-func (tx_pool *TransactionPool) isOrphan(utxoSet *UtxoSet, tx *types.Transaction) bool {
+func (tx_pool *TransactionPool) isOrphan(utxoSet *chain.UtxoSet, tx *types.Transaction) bool {
 	for _, txIn := range tx.Vin {
 		// Spend main chain UTXOs
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
@@ -313,10 +368,10 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePe
 	txHash, _ := tx.TxHash()
 
 	txWrap := &TxWrap{
-		tx:             tx,
-		addedTimestamp: time.Now().Unix(),
+		Tx:             tx,
+		AddedTimestamp: time.Now().Unix(),
 		height:         height,
-		feePerKB:       feePerKB,
+		FeePerKB:       feePerKB,
 	}
 	tx_pool.hashToTx[*txHash] = txWrap
 
@@ -413,8 +468,8 @@ func (tx_pool *TransactionPool) removeOrphanDoubleSpends(tx *types.Transaction) 
 	}
 }
 
-// Returns all transactions in mempool
-func (tx_pool *TransactionPool) getAllTxs() []*TxWrap {
+// GetAllTxs returns all transactions in mempool
+func (tx_pool *TransactionPool) GetAllTxs() []*TxWrap {
 	txs := make([]*TxWrap, len(tx_pool.hashToTx))
 	i := 0
 	for _, tx := range tx_pool.hashToTx {

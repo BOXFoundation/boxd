@@ -5,7 +5,6 @@
 package chain
 
 import (
-	"container/heap"
 	"errors"
 	"math"
 	"sort"
@@ -13,6 +12,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -143,15 +143,14 @@ func init() {
 type BlockChain struct {
 	notifiee      p2p.Net
 	newblockMsgCh chan p2p.Message
-	txpool        *TransactionPool
 	dbBlock       storage.Table
-	dbTx          storage.Table
+	DbTx          storage.Table
 	genesis       *types.Block
 	tail          *types.Block
 	proc          goprocess.Process
 
 	// longest chain
-	longestChainHeight int32
+	LongestChainHeight int32
 	longestChainTip    *types.Block
 
 	// Actually a tree-shaped structure where any block can have
@@ -167,7 +166,7 @@ type BlockChain struct {
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 
 	// all utxos for main chain
-	// utxoSet *UtxoSet
+	// UtxoSet *UtxoSet
 }
 
 // NewBlockChain return a blockchain.
@@ -179,7 +178,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
-		// utxoSet:                   NewUtxoSet(),
+		// UtxoSet:                   NewUtxoSet(),
 	}
 	var err error
 	b.cache, err = lru.New(512)
@@ -191,12 +190,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 
-	b.dbTx, err = db.Table(TxTableName)
+	b.DbTx, err = db.Table(TxTableName)
 	if err != nil {
 		return nil, err
 	}
 
-	b.txpool = NewTransactionPool(parent, notifiee, b)
 	genesis, err := b.loadGenesis()
 	if err != nil {
 		logger.Error("Failed to load genesis block ", err)
@@ -210,7 +208,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 	b.tail = tail
-	b.longestChainHeight = tail.Height
+	b.LongestChainHeight = tail.Height
 
 	return b, nil
 }
@@ -292,10 +290,8 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 
 // Run launch blockchain.
 func (chain *BlockChain) Run() {
-
 	chain.subscribeMessageNotifiee(chain.notifiee)
 	go chain.loop()
-	chain.txpool.Run()
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee(notifiee p2p.Net) {
@@ -469,7 +465,7 @@ func countSpentOutputs(block *types.Block) int {
 	return numSpent
 }
 
-// checkTransactionInputs performs a series of checks on the inputs to a
+// CheckTransactionInputs performs a series of checks on the inputs to a
 // transaction to ensure they are valid.  An example of some of the checks
 // include verifying all inputs exist, ensuring the coinbase seasoning
 // requirements are met, detecting double spends, validating all values and fees
@@ -477,7 +473,7 @@ func countSpentOutputs(block *types.Block) int {
 // amount, and verifying the signatures to prove the spender was the owner of
 // the bitcoins and therefore allowed to spend them.  As it checks the inputs,
 // it also calculates the total fees for the transaction and returns that value.
-func (chain *BlockChain) checkTransactionInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
+func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
 	// Coinbase transactions have no inputs.
 	if IsCoinBase(tx) {
 		return 0, nil
@@ -551,11 +547,6 @@ func (chain *BlockChain) checkTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 	return txFee, nil
 }
 
-// ProcessTx is a proxy method to add transaction to transaction pool
-func (chain *BlockChain) ProcessTx(tx *types.Transaction, broadcast bool) error {
-	return chain.txpool.processTx(tx, broadcast)
-}
-
 // calcBlockSubsidy returns the subsidy amount a block at the provided height
 // should have. This is mainly used for determining how much the coinbase for
 // newly generated blocks awards as well as validating the coinbase for blocks
@@ -566,6 +557,12 @@ func (chain *BlockChain) ProcessTx(tx *types.Transaction, broadcast bool) error 
 func calcBlockSubsidy(height int32) int64 {
 	// Equivalent to: baseSubsidy / 2^(height/subsidyHalvingInterval)
 	return baseSubsidy >> uint(height/SubsidyReductionInterval)
+}
+
+// CalcBlockSubsidyWrapper is a proxy of calcBlockSubsidy
+// TODO: remove
+func (chain *BlockChain) CalcBlockSubsidyWrapper(height int32) int64 {
+	return calcBlockSubsidy(height)
 }
 
 // Finds the parent of a block. Return nil if nonexistent
@@ -770,7 +767,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 
 	transactions := block.Txs
 
-	utxoSet, err := LoadBlockUtxos(block, chain.dbTx)
+	utxoSet, err := LoadBlockUtxos(block, chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -779,7 +776,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	// accumulate the total fees.
 	var totalFees int64
 	for _, tx := range transactions {
-		txFee, err := chain.checkTransactionInputs(utxoSet, tx, block.Height)
+		txFee, err := chain.CheckTransactionInputs(utxoSet, tx, block.Height)
 		if err != nil {
 			return err
 		}
@@ -844,8 +841,8 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	// This block is now the end of the best chain.
 	chain.SetTailBlock(block)
 
-	// Notify mempool.
-	chain.removeBlockTxs(block)
+	// Notify others such as mempool.
+	chain.notifyBlockConnectionUpdate(block, true)
 	return nil
 }
 
@@ -858,38 +855,19 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 	return chain.dbBlock.Put([]byte(Tail), data)
 }
 
-// Add all transactions contained in this block into mempool
-func (chain *BlockChain) addBlockTxs(block *types.Block) error {
-	for _, tx := range block.Txs[1:] {
-		if err := chain.txpool.maybeAcceptTx(tx, false /* do not broadcast */); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Remove all transactions contained in this block from mempool
-func (chain *BlockChain) removeBlockTxs(block *types.Block) {
-	for _, tx := range block.Txs[1:] {
-		chain.txpool.removeTx(tx)
-		chain.txpool.removeDoubleSpends(tx)
-		chain.txpool.removeOrphan(tx)
-	}
-}
-
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
 // and blocks to be detached and attached
 func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Block, []*types.Block) {
-	if block.Height <= chain.longestChainHeight {
+	if block.Height <= chain.LongestChainHeight {
 		logger.Panicf("Side chain (height: %d) is not longer than main chain (height: %d) during chain reorg",
-			block.Height, chain.longestChainHeight)
+			block.Height, chain.LongestChainHeight)
 	}
 	detachBlocks := make([]*types.Block, 0)
 	attachBlocks := []*types.Block{block}
 
 	// Start both chain from same height by moving up side chain
 	sideChainBlock := block
-	for i := block.Height; i > chain.longestChainHeight; i-- {
+	for i := block.Height; i > chain.LongestChainHeight; i-- {
 		if sideChainBlock == nil {
 			logger.Panicf("Block on side chain shall not be nil before reaching main chain height during reorg")
 		}
@@ -946,9 +924,9 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 	}
 
 	// We're extending (or creating) a side chain, but the new side chain is not long enough to make it the main chain.
-	if block.Height <= chain.longestChainHeight {
+	if block.Height <= chain.LongestChainHeight {
 		logger.Infof("Block %v extends a side chain to height %d, shorter than main chain of height %d",
-			blockHash, block.Height, chain.longestChainHeight)
+			blockHash, block.Height, chain.LongestChainHeight)
 		return false, nil
 	}
 
@@ -966,7 +944,7 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 
 func (chain *BlockChain) revertBlock(block *types.Block) error {
 
-	utxoSet, err := LoadBlockUtxos(block, chain.dbTx)
+	utxoSet, err := LoadBlockUtxos(block, chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -976,13 +954,12 @@ func (chain *BlockChain) revertBlock(block *types.Block) error {
 		return err
 	}
 
-	// Revert mempool: reinsert all of the transactions (except the coinbase) into mempool
-	return chain.addBlockTxs(block)
+	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block) error {
 
-	utxoSet, err := LoadBlockUtxos(block, chain.dbTx)
+	utxoSet, err := LoadBlockUtxos(block, chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -991,8 +968,15 @@ func (chain *BlockChain) applyBlock(block *types.Block) error {
 		return err
 	}
 
-	// Update mempool: remove all contained transactions
-	chain.removeBlockTxs(block)
+	return chain.notifyBlockConnectionUpdate(block, true)
+}
+
+func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connected bool) error {
+	chainUpdateMsg := core.ChainUpdateMsg{
+		Connected: connected,
+		Block:     block,
+	}
+	chain.notifiee.Notify(core.NewLocalMessage(p2p.ChainUpdateMsg, chainUpdateMsg))
 	return nil
 }
 
@@ -1135,6 +1119,12 @@ func IsCoinBase(tx *types.Transaction) bool {
 	return isNullOutPoint(&tx.Vin[0].PrevOutPoint)
 }
 
+// IsCoinBaseWrapper is a proxy of IsCoinbase
+// TODO: remove
+func (chain *BlockChain) IsCoinBaseWrapper(tx *types.Transaction) bool {
+	return IsCoinBase(tx)
+}
+
 // SanityCheckTransaction performs some preliminary checks on a transaction to
 // ensure it is sane. These checks are context free.
 func SanityCheckTransaction(tx *types.Transaction) error {
@@ -1219,6 +1209,12 @@ func SanityCheckTransaction(tx *types.Transaction) error {
 	}
 
 	return nil
+}
+
+// SanityCheckTransactionWrapper is a proxy of SanityCheckTransaction
+// TODO: remove
+func (chain *BlockChain) SanityCheckTransactionWrapper(tx *types.Transaction) error {
+	return SanityCheckTransaction(tx)
 }
 
 // return number of transactions in a script
@@ -1402,61 +1398,6 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction) error
 	return nil
 }
 
-func lessFunc(queue *util.PriorityQueue, i, j int) bool {
-
-	txi := queue.Items(i).(*TxWrap)
-	txj := queue.Items(j).(*TxWrap)
-	if txi.feePerKB == txj.feePerKB {
-		return txi.addedTimestamp < txj.addedTimestamp
-	}
-	return txi.feePerKB < txj.feePerKB
-}
-
-// sort pending transactions in mempool
-func (chain *BlockChain) sortPendingTxs() *util.PriorityQueue {
-	pool := util.NewPriorityQueue(lessFunc)
-	pendingTxs := chain.txpool.getAllTxs()
-	for _, pendingTx := range pendingTxs {
-		// place onto heap sorted by feePerKB
-		heap.Push(pool, pendingTx)
-	}
-	return pool
-}
-
-// PackTxs packed txs and add them to block.
-func (chain *BlockChain) PackTxs(block *types.Block, addr types.Address) error {
-
-	// TODO: @Leon Each time you packtxs, a new queue is generated.
-	pool := chain.sortPendingTxs()
-	// blockUtxos := NewUtxoUnspentCache()
-	var blockTxns []*types.Transaction
-	coinbaseTx, err := chain.createCoinbaseTx(addr)
-	if err != nil || coinbaseTx == nil {
-		logger.Error("Failed to create coinbaseTx")
-		return errors.New("Failed to create coinbaseTx")
-	}
-	blockTxns = append(blockTxns, coinbaseTx)
-	for pool.Len() > 0 {
-		txwrap := heap.Pop(pool).(*TxWrap)
-		tx := txwrap.tx
-		// unspentUtxoCache, err := chain.LoadUnspentUtxo(tx)
-		// if err != nil {
-		// 	continue
-		// }
-		// mergeUtxoCache(blockUtxos, unspentUtxoCache)
-		// spent tx
-		// chain.spendTransaction(blockUtxos, tx, chain.tail.Height)
-		blockTxns = append(blockTxns, tx)
-	}
-
-	merkles := util.CalcTxsHash(blockTxns)
-	block.Header.TxsRoot = *merkles
-	for _, tx := range blockTxns {
-		block.Txs = append(block.Txs, tx)
-	}
-	return nil
-}
-
 func mergeUtxoCache(cacheA *UtxoUnspentCache, cacheB *UtxoUnspentCache) {
 	viewAEntries := cacheA.outPointMap
 	for outpoint, entryB := range cacheB.outPointMap {
@@ -1479,56 +1420,13 @@ func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *type
 	return nil
 }
 
-func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.Transaction, error) {
-
-	var pkScript []byte
-	var err error
-	coinbaseScript, err := script.StandardCoinbaseScript(chain.tail.Height)
-	if err != nil {
-		return nil, err
-	}
-	if addr != nil {
-		pkScript, err = script.PayToPubKeyHashScript(addr.ScriptAddress())
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		scriptBuilder := script.NewBuilder()
-		pkScript, err = scriptBuilder.AddOp(script.OPTRUE).Script()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	tx := &types.Transaction{
-		Version: 1,
-		Vin: []*types.TxIn{
-			{
-				PrevOutPoint: types.OutPoint{
-					Hash:  crypto.HashType{},
-					Index: 0xffffffff,
-				},
-				ScriptSig: coinbaseScript,
-				Sequence:  0xffffffff,
-			},
-		},
-		Vout: []*types.TxOut{
-			{
-				Value:        baseSubsidy,
-				ScriptPubKey: pkScript,
-			},
-		},
-	}
-	return tx, nil
-}
-
 // SetTailBlock sets chain tail block.
 func (chain *BlockChain) SetTailBlock(tail *types.Block) error {
 
 	if err := chain.StoreTailBlock(tail); err != nil {
 		return err
 	}
-	chain.longestChainHeight = tail.Height
+	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
 	return nil

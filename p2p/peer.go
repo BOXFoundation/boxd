@@ -203,3 +203,8 @@ func (p *BoxPeer) Subscribe(notifiee *Notifiee) {
 func (p *BoxPeer) UnSubscribe(notifiee *Notifiee) {
 	p.notifier.UnSubscribe(notifiee)
 }
+
+// Notify publishes a message notification.
+func (p *BoxPeer) Notify(msg Message) {
+	p.notifier.Notify(msg)
+}

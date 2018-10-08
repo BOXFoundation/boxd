@@ -64,12 +64,12 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
 	logger.Debugf("receive transaction: %+v", req.Tx)
-	bc := s.server.BoxdServer().BlockChain()
+	txpool := s.server.BoxdServer().TxPool()
 	tx, err := generateTransaction(req.Tx)
 	if err != nil {
 		return nil, err
 	}
-	err = bc.ProcessTx(tx, true)
+	err = txpool.ProcessTx(tx, true /* relay */)
 	return &rpcpb.BaseResponse{}, err
 }
 

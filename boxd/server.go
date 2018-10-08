@@ -12,6 +12,7 @@ import (
 	config "github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/consensus/dpos"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
 	p2p "github.com/BOXFoundation/boxd/p2p"
 	grpcserver "github.com/BOXFoundation/boxd/rpc/server"
@@ -51,6 +52,7 @@ type Server struct {
 	peer     *p2p.BoxPeer
 	grpcsvr  *grpcserver.Server
 	bc       *chain.BlockChain
+	tp       *txpool.TransactionPool
 }
 
 // Cfg return server config.
@@ -61,6 +63,11 @@ func (server *Server) Cfg() types.Config {
 // BlockChain return block chain ref.
 func (server *Server) BlockChain() *chain.BlockChain {
 	return server.bc
+}
+
+// TxPool returns tx pool ref.
+func (server *Server) TxPool() *txpool.TransactionPool {
+	return server.tp
 }
 
 // NewServer new a boxd server
@@ -114,7 +121,11 @@ func (server *Server) Start(v *viper.Viper) error {
 		proc.Close()
 	}
 	server.bc = bc
-	consensus := dpos.NewDpos(bc, peer, proc, &cfg.Dpos)
+
+	tp := txpool.NewTransactionPool(proc, peer, bc)
+	server.tp = tp
+
+	consensus := dpos.NewDpos(bc, tp, peer, proc, &cfg.Dpos)
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC, server)
@@ -122,6 +133,7 @@ func (server *Server) Start(v *viper.Viper) error {
 
 	peer.Run()
 	bc.Run()
+	tp.Run()
 	consensus.Run()
 
 	select {

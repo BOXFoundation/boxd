@@ -22,4 +22,5 @@ type Net interface {
 	SendMessageToPeer(uint32, conv.Convertible, peer.ID)
 	Subscribe(*Notifiee)
 	UnSubscribe(*Notifiee)
+	Notify(Message)
 }

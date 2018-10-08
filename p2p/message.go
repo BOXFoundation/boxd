@@ -31,6 +31,8 @@ const (
 	PeerDiscoverReply = 0x03
 	NewBlockMsg       = 0x04
 	TransactionMsg    = 0x05
+	// chain update: block connects to / disconnects from main chain
+	ChainUpdateMsg = 0x06
 
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
 )
@@ -110,11 +112,11 @@ func readMessageData(r *bufio.Reader) (*message, error) {
 	}
 	var headerLen = util.Uint32(lenbuf)
 
-	var headerbuf = make([]byte, headerLen)
-	if err := readBuffer(r, headerbuf); err != nil {
+	var headerBuf = make([]byte, headerLen)
+	if err := readBuffer(r, headerBuf); err != nil {
 		return nil, err
 	}
-	header, err := unmarshalHeader(headerbuf)
+	header, err := unmarshalHeader(headerBuf)
 	if err != nil {
 		return nil, err
 	}
