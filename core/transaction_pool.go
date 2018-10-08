@@ -40,11 +40,11 @@ type TransactionPool struct {
 	hashToTx map[crypto.HashType]*TxWrap
 	txMutex  sync.Mutex
 	// orphan transaction pool
-	hashToOrphanTx map[crypto.HashType]*types.MsgTx
+	hashToOrphanTx map[crypto.HashType]*types.Transaction
 	// Transaction output point to orphan transactions spending it.
 	// One outpoint can have multiple spending txs, only one can be legit
 	// Note: use map here, not slice, so we don't have to delete from slice
-	outPointToOrphan map[types.OutPoint]map[crypto.HashType]*types.MsgTx
+	outPointToOrphan map[types.OutPoint]map[crypto.HashType]*types.Transaction
 
 	// spent tx outputs (STXO) by all txs in the pool
 	stxoSet map[types.OutPoint]*types.Transaction
@@ -66,8 +66,8 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *Block
 		notifiee:         notifiee,
 		chain:            chain,
 		hashToTx:         make(map[crypto.HashType]*TxWrap),
-		hashToOrphanTx:   make(map[crypto.HashType]*types.MsgTx),
-		outPointToOrphan: make(map[types.OutPoint]map[crypto.HashType]*types.MsgTx),
+		hashToOrphanTx:   make(map[crypto.HashType]*types.Transaction),
+		outPointToOrphan: make(map[types.OutPoint]map[crypto.HashType]*types.Transaction),
 		stxoSet:          make(map[types.OutPoint]*types.Transaction),
 	}
 }
@@ -97,12 +97,8 @@ func (tx_pool *TransactionPool) loop() {
 }
 
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
-	msgTx := new(types.MsgTx)
-	if err := msgTx.Unmarshal(msg.Body()); err != nil {
-		return err
-	}
-	tx, err := types.NewTx(msgTx)
-	if err != nil {
+	tx := new(types.Transaction)
+	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
 	return tx_pool.processTx(tx, false)
@@ -113,20 +109,20 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 // such as rejecting duplicate transactions, ensuring transactions follow all
 // rules, orphan transaction handling, and insertion into the memory pool.
 func (tx_pool *TransactionPool) processTx(tx *types.Transaction, broadcast bool) error {
-	if err := tx_pool.maybeAcceptTx(tx.MsgTx, broadcast); err != nil {
+	if err := tx_pool.maybeAcceptTx(tx, broadcast); err != nil {
 		return err
 	}
 
 	// Accept any orphan transactions that depend on this transaction
 	// and repeat for those accepted transactions until there are no more.
-	return tx_pool.processOrphans(tx.MsgTx)
+	return tx_pool.processOrphans(tx)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.MsgTx, broadcast bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast bool) error {
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
-	txHash, _ := tx.MsgTxHash()
+	txHash, _ := tx.TxHash()
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
@@ -228,7 +224,7 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 }
 
 // A tx is an orphan if any of its spending utxo does not exist
-func (tx_pool *TransactionPool) isOrphan(tx *types.MsgTx) bool {
+func (tx_pool *TransactionPool) isOrphan(tx *types.Transaction) bool {
 	for _, txIn := range tx.Vin {
 		// Spend main chain UTXOs
 		utxo := tx_pool.chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
@@ -247,13 +243,13 @@ func (tx_pool *TransactionPool) isOrphan(tx *types.MsgTx) bool {
 	return false
 }
 
-func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.MsgTx) error {
+func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
 	// TODO:
 	return nil
 }
 
-func (tx_pool *TransactionPool) checkPoolDoubleSpend(msgTx *types.MsgTx) error {
-	for _, txIn := range msgTx.Vin {
+func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
+	for _, txIn := range tx.Vin {
 		if _, exists := tx_pool.stxoSet[txIn.PrevOutPoint]; exists {
 			return ErrOutPutAlreadySpent
 		}
@@ -264,14 +260,14 @@ func (tx_pool *TransactionPool) checkPoolDoubleSpend(msgTx *types.MsgTx) error {
 // ProcessOrphans determines if there are any orphans which depend on the passed
 // transaction and potentially accepts them to the memory pool.
 // It repeats the process for the newly accepted transactions until there are no more.
-func (tx_pool *TransactionPool) processOrphans(tx *types.MsgTx) error {
+func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 	// Start with processing at least the passed tx.
-	acceptedTxs := []*types.MsgTx{tx}
+	acceptedTxs := []*types.Transaction{tx}
 
 	// Note: use index here instead of range because acceptedTxs can be extended inside the loop
 	for i := 0; i < len(acceptedTxs); i++ {
 		acceptedTx := acceptedTxs[i]
-		acceptedTxHash, _ := acceptedTx.MsgTxHash()
+		acceptedTxHash, _ := acceptedTx.TxHash()
 
 		// Look up all txs that spend output from the tx we just accepted.
 		outPoint := types.OutPoint{Hash: *acceptedTxHash}
@@ -309,9 +305,8 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.MsgTx) error {
 }
 
 // Add transaction into tx pool
-func (tx_pool *TransactionPool) addTx(msgTx *types.MsgTx, height int32, feePerKB int64) {
-	txHash, _ := msgTx.MsgTxHash()
-	tx, _ := types.NewTx(msgTx)
+func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePerKB int64) {
+	txHash, _ := tx.TxHash()
 
 	txWrap := &TxWrap{
 		tx:             tx,
@@ -322,34 +317,34 @@ func (tx_pool *TransactionPool) addTx(msgTx *types.MsgTx, height int32, feePerKB
 	tx_pool.hashToTx[*txHash] = txWrap
 
 	// outputs spent by this new tx
-	for _, txIn := range tx.MsgTx.Vin {
+	for _, txIn := range tx.Vin {
 		tx_pool.stxoSet[txIn.PrevOutPoint] = tx
 	}
 }
 
 // Remove transaction from tx pool
-func (tx_pool *TransactionPool) removeTx(msgTx *types.MsgTx) {
-	txHash, _ := msgTx.MsgTxHash()
+func (tx_pool *TransactionPool) removeTx(tx *types.Transaction) {
+	txHash, _ := tx.TxHash()
 
 	// Unspend the referenced outpoints.
-	for _, txIn := range msgTx.Vin {
+	for _, txIn := range tx.Vin {
 		delete(tx_pool.stxoSet, txIn.PrevOutPoint)
 	}
 	delete(tx_pool.hashToTx, *txHash)
 }
 
 // Add orphan
-func (tx_pool *TransactionPool) addOrphan(tx *types.MsgTx) {
+func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
 	// TODO: limit orphan pool size
 
-	txHash, _ := tx.MsgTxHash()
+	txHash, _ := tx.TxHash()
 	tx_pool.hashToOrphanTx[*txHash] = tx
 
 	for _, txIn := range tx.Vin {
 		// Indexing
 		if _, exists := tx_pool.outPointToOrphan[txIn.PrevOutPoint]; !exists {
 			tx_pool.outPointToOrphan[txIn.PrevOutPoint] =
-				make(map[crypto.HashType]*types.MsgTx)
+				make(map[crypto.HashType]*types.Transaction)
 		}
 		tx_pool.outPointToOrphan[txIn.PrevOutPoint][*txHash] = tx
 	}
@@ -358,8 +353,8 @@ func (tx_pool *TransactionPool) addOrphan(tx *types.MsgTx) {
 }
 
 // Remove orphan
-func (tx_pool *TransactionPool) removeOrphan(tx *types.MsgTx) {
-	txHash, _ := tx.MsgTxHash()
+func (tx_pool *TransactionPool) removeOrphan(tx *types.Transaction) {
+	txHash, _ := tx.TxHash()
 	// Orphans whose output this orphan spends
 	for _, txIn := range tx.Vin {
 		siblingOrphans, exists := tx_pool.outPointToOrphan[txIn.PrevOutPoint]
@@ -391,10 +386,10 @@ func (tx_pool *TransactionPool) removeOrphan(tx *types.MsgTx) {
 // Remove all transactions which spend outputs spent by the
 // passed transaction from the memory pool. This is necessary when a new main chain
 // tip block may contain transactions which were previously unknown to the memory pool.
-func (tx_pool *TransactionPool) removeDoubleSpends(msgTx *types.MsgTx) {
-	for _, txIn := range msgTx.Vin {
+func (tx_pool *TransactionPool) removeDoubleSpends(tx *types.Transaction) {
+	for _, txIn := range tx.Vin {
 		if doubleSpentTx, exists := tx_pool.stxoSet[txIn.PrevOutPoint]; exists {
-			tx_pool.removeTx(doubleSpentTx.MsgTx)
+			tx_pool.removeTx(doubleSpentTx)
 		}
 	}
 }
@@ -404,8 +399,8 @@ func (tx_pool *TransactionPool) removeDoubleSpends(msgTx *types.MsgTx) {
 // to removing all orphans which rely on them, recursively.  This is necessary
 // when a transaction is added to the main pool because it may spend outputs
 // that orphans also spend.
-func (tx_pool *TransactionPool) removeOrphanDoubleSpends(msgTx *types.MsgTx) {
-	for _, txIn := range msgTx.Vin {
+func (tx_pool *TransactionPool) removeOrphanDoubleSpends(tx *types.Transaction) {
+	for _, txIn := range tx.Vin {
 		for _, orphan := range tx_pool.outPointToOrphan[txIn.PrevOutPoint] {
 			tx_pool.removeOrphan(orphan)
 		}

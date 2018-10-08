@@ -34,7 +34,7 @@ message ListTransactionsResponse {
     int32 code = 1;
     string message = 2;
     uint32 count = 3;
-    repeated corepb.MsgTx transactions = 4;
+    repeated corepb.Transaction transactions = 4;
 }
 
 message Transaction {

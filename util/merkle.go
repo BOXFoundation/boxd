@@ -22,13 +22,13 @@ import (
 // The above stored as a linear array is as follows:
 //
 // 	[h1 h2 h3 h4 h12 h34 root]
-func BuildMerkleRoot(txs []*types.MsgTx) []*crypto.HashType {
+func BuildMerkleRoot(txs []*types.Transaction) []*crypto.HashType {
 
 	leafSize := calcLowestHierarchyCount(len(txs))
 	arraySize := leafSize*2 - 1
 	merkles := make([]*crypto.HashType, arraySize)
 	for i, tx := range txs {
-		hash, err := tx.MsgTxHash()
+		hash, err := tx.TxHash()
 		if err != nil {
 			return nil
 		}
@@ -63,7 +63,7 @@ func calcLowestHierarchyCount(n int) int {
 }
 
 // CalcTxsHash calculate txsHash in block.
-func CalcTxsHash(txs []*types.MsgTx) *crypto.HashType {
+func CalcTxsHash(txs []*types.Transaction) *crypto.HashType {
 	txsHash := BuildMerkleRoot(txs)
 	// TODO: txsHash can be nil
 	return txsHash[len(txsHash)-1]

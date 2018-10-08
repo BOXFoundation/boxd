@@ -24,13 +24,7 @@ var (
 
 // Transaction defines a transaction.
 type Transaction struct {
-	Hash    *crypto.HashType
-	MsgTx   *MsgTx
-	TxIndex int // Position within a block or TxIndexUnknown
-}
-
-// MsgTx is used to deliver transaction information.
-type MsgTx struct {
+	Hash     *crypto.HashType
 	Version  int32
 	Vin      []*TxIn
 	Vout     []*TxOut
@@ -38,8 +32,8 @@ type MsgTx struct {
 	LockTime int64
 }
 
-var _ conv.Convertible = (*MsgTx)(nil)
-var _ conv.Serializable = (*MsgTx)(nil)
+var _ conv.Convertible = (*Transaction)(nil)
+var _ conv.Serializable = (*Transaction)(nil)
 
 // TxOut defines a transaction output.
 type TxOut struct {
@@ -68,115 +62,6 @@ type OutPoint struct {
 
 var _ conv.Convertible = (*OutPoint)(nil)
 var _ conv.Serializable = (*OutPoint)(nil)
-
-// NewTx a Transaction wrapped by msgTx.
-func NewTx(msgTx *MsgTx) (*Transaction, error) {
-	hash, err := msgTx.MsgTxHash()
-	if err != nil {
-		return nil, err
-	}
-	return &Transaction{
-		Hash:  hash,
-		MsgTx: msgTx,
-	}, nil
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// ToProtoMessage converts transaction to proto message.
-func (msgTx *MsgTx) ToProtoMessage() (proto.Message, error) {
-	var vins []*corepb.TxIn
-	var vouts []*corepb.TxOut
-	for _, v := range msgTx.Vin {
-		vin, err := v.ToProtoMessage()
-		if err != nil {
-			return nil, err
-		}
-		if vin, ok := vin.(*corepb.TxIn); ok {
-			vins = append(vins, vin)
-		}
-	}
-	for _, v := range msgTx.Vout {
-		vout, _ := v.ToProtoMessage()
-		if vout, ok := vout.(*corepb.TxOut); ok {
-			vouts = append(vouts, vout)
-		}
-	}
-	return &corepb.MsgTx{
-		Version:  msgTx.Version,
-		Vin:      vins,
-		Vout:     vouts,
-		Magic:    msgTx.Magic,
-		LockTime: msgTx.LockTime,
-	}, nil
-}
-
-// FromProtoMessage converts proto message to transaction.
-func (msgTx *MsgTx) FromProtoMessage(message proto.Message) error {
-	if message, ok := message.(*corepb.MsgTx); ok {
-		if message != nil {
-			var vins []*TxIn
-			for _, v := range message.Vin {
-				txin := new(TxIn)
-				if err := txin.FromProtoMessage(v); err != nil {
-					return err
-				}
-				vins = append(vins, txin)
-			}
-
-			var vouts []*TxOut
-			for _, v := range message.Vout {
-				txout := new(TxOut)
-				if err := txout.FromProtoMessage(v); err != nil {
-					return err
-				}
-				vouts = append(vouts, txout)
-			}
-
-			msgTx.Version = message.Version
-			msgTx.Vin = vins
-			msgTx.Vout = vouts
-			msgTx.Magic = message.Magic
-			msgTx.LockTime = message.LockTime
-			return nil
-		}
-		return ErrEmptyProtoMessage
-	}
-	return ErrInvalidTxInProtoMessage
-}
-
-// Marshal method marshal MsgTx object to binary
-func (msgTx *MsgTx) Marshal() (data []byte, err error) {
-	return conv.MarshalConvertible(msgTx)
-}
-
-// Unmarshal method unmarshal binary data to MsgTx object
-func (msgTx *MsgTx) Unmarshal(data []byte) error {
-	msg := &corepb.MsgTx{}
-	if err := proto.Unmarshal(data, msg); err != nil {
-		return err
-	}
-	return msgTx.FromProtoMessage(msg)
-}
-
-// MsgTxHash return msg tx hash
-func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
-	rawMsgTx, err := msgTx.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	hash := crypto.DoubleHashH(rawMsgTx)
-	return &hash, nil
-}
-
-// SerializeSize return msgTx size.
-func (msgTx *MsgTx) SerializeSize() (int, error) {
-	rawMsgTx, err := msgTx.Marshal()
-	if err != nil {
-		return 0, err
-	}
-	return len(rawMsgTx), nil
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -308,11 +193,118 @@ func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	if tx.Hash != nil {
 		return tx.Hash, nil
 	}
-	hash, err := tx.MsgTx.MsgTxHash()
+
+	data, err := tx.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := calcDoubleHash(data)
 	if err != nil {
 		return nil, err
 	}
 	// cache it
 	tx.Hash = hash
 	return hash, nil
+}
+
+// ToProtoMessage converts transaction to proto message.
+func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
+	var vins []*corepb.TxIn
+	var vouts []*corepb.TxOut
+	for _, v := range tx.Vin {
+		vin, err := v.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if vin, ok := vin.(*corepb.TxIn); ok {
+			vins = append(vins, vin)
+		}
+	}
+	for _, v := range tx.Vout {
+		vout, _ := v.ToProtoMessage()
+		if vout, ok := vout.(*corepb.TxOut); ok {
+			vouts = append(vouts, vout)
+		}
+	}
+	return &corepb.Transaction{
+		Version:  tx.Version,
+		Vin:      vins,
+		Vout:     vouts,
+		Magic:    tx.Magic,
+		LockTime: tx.LockTime,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to transaction.
+func (tx *Transaction) FromProtoMessage(message proto.Message) error {
+	if message, ok := message.(*corepb.Transaction); ok {
+		if message != nil {
+			var vins []*TxIn
+			for _, v := range message.Vin {
+				txin := new(TxIn)
+				if err := txin.FromProtoMessage(v); err != nil {
+					return err
+				}
+				vins = append(vins, txin)
+			}
+
+			var vouts []*TxOut
+			for _, v := range message.Vout {
+				txout := new(TxOut)
+				if err := txout.FromProtoMessage(v); err != nil {
+					return err
+				}
+				vouts = append(vouts, txout)
+			}
+
+			// fill in hash
+			tx.Hash, _ = calcProtoMsgDoubleHash(message)
+			tx.Version = message.Version
+			tx.Vin = vins
+			tx.Vout = vouts
+			tx.Magic = message.Magic
+			tx.LockTime = message.LockTime
+			return nil
+		}
+		return ErrEmptyProtoMessage
+	}
+	return ErrInvalidTxInProtoMessage
+}
+
+// Marshal method marshal tx object to binary
+func (tx *Transaction) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(tx)
+}
+
+// Unmarshal method unmarshal binary data to tx object
+func (tx *Transaction) Unmarshal(data []byte) error {
+	msg := &corepb.Transaction{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return tx.FromProtoMessage(msg)
+}
+
+// SerializeSize return tx size.
+func (tx *Transaction) SerializeSize() (int, error) {
+	serializedTx, err := tx.Marshal()
+	if err != nil {
+		return 0, err
+	}
+	return len(serializedTx), nil
+}
+
+// calcProtoMsgDoubleHash calculates double hash of proto msg
+func calcProtoMsgDoubleHash(pb proto.Message) (*crypto.HashType, error) {
+	data, err := proto.Marshal(pb)
+	if err != nil {
+		return nil, err
+	}
+	return calcDoubleHash(data)
+}
+
+// calcDoubleHash calculates double hash of bytes
+func calcDoubleHash(data []byte) (*crypto.HashType, error) {
+	hash := crypto.DoubleHashH(data)
+	return &hash, nil
 }

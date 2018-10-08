@@ -87,18 +87,18 @@ func generateUtxoMessage(outPoint *types.OutPoint, entry *core.UtxoEntry) *rpcpb
 	}
 }
 
-func generateTransaction(txMsg *corepb.MsgTx) (*types.Transaction, error) {
-	tx := &types.MsgTx{}
+func generateTransaction(txMsg *corepb.Transaction) (*types.Transaction, error) {
+	tx := &types.Transaction{}
 	if err := tx.FromProtoMessage(txMsg); err != nil {
 		return nil, err
 	}
 
-	return types.NewTx(tx)
+	return tx, nil
 }
 
-func generateTxIn(msgTxIn *corepb.TxIn) (*types.TxIn, error) {
+func generateTxIn(txIn *corepb.TxIn) (*types.TxIn, error) {
 	txin := &types.TxIn{}
-	if err := txin.FromProtoMessage(msgTxIn); err != nil {
+	if err := txin.FromProtoMessage(txIn); err != nil {
 		return nil, err
 	}
 

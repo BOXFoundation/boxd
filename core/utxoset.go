@@ -51,14 +51,14 @@ func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *UtxoEntry {
 }
 
 // AddUtxo adds a utxo
-func (u *UtxoSet) AddUtxo(tx *types.MsgTx, txOutIdx uint32, blockHeight int32) error {
+func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight int32) error {
 	logger.Debugf("Add utxo tx info: %+v, index: %d", tx, txOutIdx)
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return ErrTxOutIndexOob
 	}
 
-	txHash, _ := tx.MsgTxHash()
+	txHash, _ := tx.TxHash()
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
 	if utxoEntry := u.utxoMap[outPoint]; utxoEntry != nil {
 		return ErrAddExistingUtxo
@@ -80,7 +80,7 @@ func (u *UtxoSet) RemoveUtxo(outPoint types.OutPoint) {
 }
 
 // ApplyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) ApplyTx(tx *types.MsgTx, blockHeight int32) error {
+func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight int32) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
 		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
@@ -102,9 +102,9 @@ func (u *UtxoSet) ApplyTx(tx *types.MsgTx, blockHeight int32) error {
 
 // ApplyBlock updates utxos with all transactions in the passed block
 func (u *UtxoSet) ApplyBlock(block *types.Block) error {
-	txs := block.MsgBlock.Txs
+	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.ApplyTx(tx, block.MsgBlock.Height); err != nil {
+		if err := u.ApplyTx(tx, block.Height); err != nil {
 			return err
 		}
 	}
@@ -113,8 +113,8 @@ func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 
 // RevertTx updates utxos with the passed tx: delete all utxos in outputs and add all utxos in inputs.
 // It undoes the effect of ApplyTx on utxo set
-func (u *UtxoSet) RevertTx(tx *types.MsgTx, blockHeight int32) error {
-	txHash, _ := tx.MsgTxHash()
+func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight int32) error {
+	txHash, _ := tx.TxHash()
 
 	// Remove added utxos
 	for txOutIdx := range tx.Vout {
@@ -142,10 +142,10 @@ func (u *UtxoSet) RevertTx(tx *types.MsgTx, blockHeight int32) error {
 func (u *UtxoSet) RevertBlock(block *types.Block) error {
 	// Loop backwards through all transactions so everything is unspent in reverse order.
 	// This is necessary since transactions later in a block can spend from previous ones.
-	txs := block.MsgBlock.Txs
+	txs := block.Txs
 	for txIdx := len(txs) - 1; txIdx >= 0; txIdx-- {
 		tx := txs[txIdx]
-		if err := u.RevertTx(tx, block.MsgBlock.Height); err != nil {
+		if err := u.RevertTx(tx, block.Height); err != nil {
 			return err
 		}
 	}
