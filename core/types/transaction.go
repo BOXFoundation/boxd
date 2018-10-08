@@ -24,13 +24,7 @@ var (
 
 // Transaction defines a transaction.
 type Transaction struct {
-	Hash    *crypto.HashType
-	MsgTx   *MsgTx
-	TxIndex int // Position within a block or TxIndexUnknown
-}
-
-// MsgTx is used to deliver transaction information.
-type MsgTx struct {
+	Hash     *crypto.HashType
 	Version  int32
 	Vin      []*TxIn
 	Vout     []*TxOut
@@ -38,7 +32,7 @@ type MsgTx struct {
 	LockTime int64
 }
 
-var _ conv.Convertible = (*MsgTx)(nil)
+var _ conv.Convertible = (*Transaction)(nil)
 
 // TxOut defines a transaction output.
 type TxOut struct {
@@ -65,23 +59,11 @@ type OutPoint struct {
 
 var _ conv.Convertible = (*OutPoint)(nil)
 
-// NewTx a Transaction wrapped by msgTx.
-func NewTx(msgTx *MsgTx) (*Transaction, error) {
-	hash, err := msgTx.MsgTxHash()
-	if err != nil {
-		return nil, err
-	}
-	return &Transaction{
-		Hash:  hash,
-		MsgTx: msgTx,
-	}, nil
-}
-
 // ToProtoMessage converts transaction to proto message.
-func (msgTx *MsgTx) ToProtoMessage() (proto.Message, error) {
+func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 	var vins []*corepb.TxIn
 	var vouts []*corepb.TxOut
-	for _, v := range msgTx.Vin {
+	for _, v := range tx.Vin {
 		vin, err := v.ToProtoMessage()
 		if err != nil {
 			return nil, err
@@ -90,24 +72,24 @@ func (msgTx *MsgTx) ToProtoMessage() (proto.Message, error) {
 			vins = append(vins, vin)
 		}
 	}
-	for _, v := range msgTx.Vout {
+	for _, v := range tx.Vout {
 		vout, _ := v.ToProtoMessage()
 		if vout, ok := vout.(*corepb.TxOut); ok {
 			vouts = append(vouts, vout)
 		}
 	}
-	return &corepb.MsgTx{
-		Version:  msgTx.Version,
+	return &corepb.Transaction{
+		Version:  tx.Version,
 		Vin:      vins,
 		Vout:     vouts,
-		Magic:    msgTx.Magic,
-		LockTime: msgTx.LockTime,
+		Magic:    tx.Magic,
+		LockTime: tx.LockTime,
 	}, nil
 }
 
 // FromProtoMessage converts proto message to transaction.
-func (msgTx *MsgTx) FromProtoMessage(message proto.Message) error {
-	if message, ok := message.(*corepb.MsgTx); ok {
+func (tx *Transaction) FromProtoMessage(message proto.Message) error {
+	if message, ok := message.(*corepb.Transaction); ok {
 		if message != nil {
 			var vins []*TxIn
 			for _, v := range message.Vin {
@@ -127,11 +109,13 @@ func (msgTx *MsgTx) FromProtoMessage(message proto.Message) error {
 				vouts = append(vouts, txout)
 			}
 
-			msgTx.Version = message.Version
-			msgTx.Vin = vins
-			msgTx.Vout = vouts
-			msgTx.Magic = message.Magic
-			msgTx.LockTime = message.LockTime
+			// fill in hash
+			tx.Hash, _ = calcTxHash(message)
+			tx.Version = message.Version
+			tx.Vin = vins
+			tx.Vout = vouts
+			tx.Magic = message.Magic
+			tx.LockTime = message.LockTime
 			return nil
 		}
 		return ErrEmptyProtoMessage
@@ -219,7 +203,12 @@ func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	if tx.Hash != nil {
 		return tx.Hash, nil
 	}
-	hash, err := tx.MsgTx.MsgTxHash()
+
+	pbtx, err := tx.ToProtoMessage()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := calcTxHash(pbtx)
 	if err != nil {
 		return nil, err
 	}
@@ -228,29 +217,25 @@ func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	return hash, nil
 }
 
-// MsgTxHash return msg tx hash
-func (msgTx *MsgTx) MsgTxHash() (*crypto.HashType, error) {
-	pbtx, err := msgTx.ToProtoMessage()
+// calcTxHash calculates tx hash without Hash filed
+func calcTxHash(pbtx proto.Message) (*crypto.HashType, error) {
+	serializedTx, err := proto.Marshal(pbtx)
 	if err != nil {
 		return nil, err
 	}
-	rawMsgTx, err := proto.Marshal(pbtx)
-	if err != nil {
-		return nil, err
-	}
-	hash := crypto.DoubleHashH(rawMsgTx)
+	hash := crypto.DoubleHashH(serializedTx)
 	return &hash, nil
 }
 
-// SerializeSize return msgTx size.
-func (msgTx *MsgTx) SerializeSize() (int, error) {
-	pbtx, err := msgTx.ToProtoMessage()
+// SerializeSize return tx size.
+func (tx *Transaction) SerializeSize() (int, error) {
+	pbtx, err := tx.ToProtoMessage()
 	if err != nil {
 		return 0, err
 	}
-	rawMsgTx, err := proto.Marshal(pbtx)
+	serializedTx, err := proto.Marshal(pbtx)
 	if err != nil {
 		return 0, err
 	}
-	return len(rawMsgTx), nil
+	return len(serializedTx), nil
 }

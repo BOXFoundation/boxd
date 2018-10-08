@@ -27,11 +27,11 @@ func CreateTransaction(v *viper.Viper, fromPubkeyHash []byte, toPubKeyHash []byt
 	if err != nil {
 		return err
 	}
-	msgTx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, utxos, amount)
+	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, utxos, amount)
 	if err != nil {
 		return err
 	}
-	txReq.Tx = msgTx
+	txReq.Tx = tx
 
 	conn := mustConnect(v)
 	defer conn.Close()
@@ -67,8 +67,8 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, err
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, amount int64) (*corepb.MsgTx, error) {
-	msgTx := &corepb.MsgTx{}
+func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, amount int64) (*corepb.Transaction, error) {
+	tx := &corepb.Transaction{}
 	var current int64
 	txIn := make([]*corepb.TxIn, len(utxos))
 	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
@@ -83,7 +83,7 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 		}
 		current += utxo.GetTxOut().GetValue()
 	}
-	msgTx.Vin = txIn
+	tx.Vin = txIn
 	toScript, err := getScriptAddress(toPubKeyHash)
 	if err != nil {
 		return nil, err
@@ -92,17 +92,17 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 	if err != nil {
 		return nil, err
 	}
-	msgTx.Vout = []*corepb.TxOut{{
+	tx.Vout = []*corepb.TxOut{{
 		Value:        amount,
 		ScriptPubKey: toScript,
 	}}
 	if current > amount {
-		msgTx.Vout = append(msgTx.Vout, &corepb.TxOut{
+		tx.Vout = append(tx.Vout, &corepb.TxOut{
 			Value:        current - amount,
 			ScriptPubKey: fromScript,
 		})
 	}
-	return msgTx, nil
+	return tx, nil
 }
 
 // FundTransaction gets the utxo of a public key

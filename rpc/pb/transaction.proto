@@ -41,7 +41,7 @@ message FundTransactionRequest {
 }
 
 message SendTransactionRequest {
-    corepb.MsgTx tx = 1;
+    corepb.Transaction tx = 1;
 }
 
 message ListUtxosResponse {

@@ -213,15 +213,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 	if ok, _ := chain.db.Has(genesisHash[:]); ok {
-		genesisMsgBlock, err := chain.LoadBlockByHashFromDb(genesisHash)
+		genesisBlockFromDb, err := chain.LoadBlockByHashFromDb(genesisHash)
 		if err != nil {
 			return nil, err
 		}
-		genesis := &types.Block{
-			Hash:     &genesisHash,
-			MsgBlock: genesisMsgBlock,
-		}
-		return genesis, nil
+		return genesisBlockFromDb, nil
 	}
 
 	genesispb, err := genesisBlock.ToProtoMessage()
@@ -231,11 +227,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	genesisBin, err := proto.Marshal(genesispb)
 	chain.db.Put(genesisHash[:], genesisBin)
 
-	genesis := &types.Block{
-		Hash:     &genesisHash,
-		MsgBlock: &genesisBlock,
-	}
-	return genesis, nil
+	return &genesisBlock, nil
 
 }
 
@@ -250,20 +242,17 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 			return nil, err
 		}
 
-		pbblock := new(corepb.MsgBlock)
+		pbblock := new(corepb.Block)
 		if err := proto.Unmarshal(tailBin, pbblock); err != nil {
 			return nil, err
 		}
 
-		tailMsgBlock := new(types.MsgBlock)
-		if err := tailMsgBlock.FromProtoMessage(pbblock); err != nil {
+		tailBlock := new(types.Block)
+		if err := tailBlock.FromProtoMessage(pbblock); err != nil {
 			return nil, err
 		}
 
-		tail := &types.Block{
-			MsgBlock: tailMsgBlock,
-		}
-		return tail, nil
+		return tailBlock, nil
 
 	}
 
@@ -277,29 +266,23 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	}
 	chain.db.Put([]byte(Tail), tailBin)
 
-	tail := &types.Block{
-		Hash:     &genesisHash,
-		MsgBlock: &genesisBlock,
-	}
-
-	return tail, nil
-
+	return &genesisBlock, nil
 }
 
 // LoadBlockByHashFromDb load block by hash from db.
-func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.MsgBlock, error) {
+func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Block, error) {
 
 	blockBin, err := chain.db.Get(hash[:])
 	if err != nil {
 		return nil, err
 	}
 
-	pbblock := new(corepb.MsgBlock)
+	pbblock := new(corepb.Block)
 	if err := proto.Unmarshal(blockBin, pbblock); err != nil {
 		return nil, err
 	}
 
-	block := new(types.MsgBlock)
+	block := new(types.Block)
 	if err := block.FromProtoMessage(pbblock); err != nil {
 		return nil, err
 	}
@@ -309,7 +292,7 @@ func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Msg
 
 // StoreBlockToDb store block to db.
 func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
-	blockpb, err := block.MsgBlock.ToProtoMessage()
+	blockpb, err := block.ToProtoMessage()
 	if err != nil {
 		return err
 	}
@@ -349,17 +332,17 @@ func (chain *BlockChain) loop() {
 func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 	body := msg.Body()
-	pbblock := new(corepb.MsgBlock)
+	pbblock := new(corepb.Block)
 	if err := proto.Unmarshal(body, pbblock); err != nil {
 		return err
 	}
-	msgBlock := new(types.MsgBlock)
-	if err := msgBlock.FromProtoMessage(pbblock); err != nil {
+	block := new(types.Block)
+	if err := block.FromProtoMessage(pbblock); err != nil {
 		return err
 	}
 
 	// process block
-	chain.ProcessBlock(&types.Block{MsgBlock: msgBlock}, false)
+	chain.ProcessBlock(block, false)
 
 	return nil
 }
@@ -447,7 +430,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	}
 
 	// Handle orphan blocks.
-	prevHash := block.MsgBlock.Header.PrevBlockHash
+	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
@@ -472,7 +455,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 
 	logger.Infof("Accepted block hash: %v", blockHash)
 	if broadcast {
-		chain.notifiee.Broadcast(p2p.NewBlockMsg, block.MsgBlock)
+		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
 	return isMainChain, false, nil
 }
@@ -482,12 +465,12 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 func (chain *BlockChain) checkBlockContext(block *types.Block) error {
 	// using the current median time past of the past block's
 	// timestamps for all lock-time based checks.
-	blockTime := block.MsgBlock.Header.TimeStamp
+	blockTime := block.Header.TimeStamp
 
 	// Ensure all transactions in the block are finalized.
-	for _, tx := range block.MsgBlock.Txs {
-		if !IsFinalizedTransaction(tx, block.MsgBlock.Height, blockTime) {
-			txHash, _ := tx.MsgTxHash()
+	for _, tx := range block.Txs {
+		if !IsFinalizedTransaction(tx, block.Height, blockTime) {
+			txHash, _ := tx.TxHash()
 			logger.Errorf("block contains unfinalized transaction %v", txHash)
 			return ErrUnfinalizedTx
 		}
@@ -500,7 +483,7 @@ func (chain *BlockChain) checkBlockContext(block *types.Block) error {
 func countSpentOutputs(block *types.Block) int {
 	// Exclude the coinbase transaction since it can't spend anything.
 	var numSpent int
-	for _, tx := range block.MsgBlock.Txs[1:] {
+	for _, tx := range block.Txs[1:] {
 		numSpent += len(tx.Vin)
 	}
 	return numSpent
@@ -514,13 +497,13 @@ func countSpentOutputs(block *types.Block) int {
 // amount, and verifying the signatures to prove the spender was the owner of
 // the bitcoins and therefore allowed to spend them.  As it checks the inputs,
 // it also calculates the total fees for the transaction and returns that value.
-func (chain *BlockChain) checkTransactionInputs(tx *types.MsgTx, txHeight int32) (int64, error) {
+func (chain *BlockChain) checkTransactionInputs(tx *types.Transaction, txHeight int32) (int64, error) {
 	// Coinbase transactions have no inputs.
 	if IsCoinBase(tx) {
 		return 0, nil
 	}
 
-	txHash, _ := tx.MsgTxHash()
+	txHash, _ := tx.TxHash()
 	var totalInputAmount int64
 	for txInIndex, txIn := range tx.Vin {
 		// Ensure the referenced input transaction is available.
@@ -612,18 +595,14 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 	if block.BlockHash().IsEqual(chain.genesis.BlockHash()) {
 		return chain.genesis
 	}
-	if target, ok := chain.cache.Get(block.MsgBlock.Header.PrevBlockHash); ok {
+	if target, ok := chain.cache.Get(block.Header.PrevBlockHash); ok {
 		return target.(*types.Block)
 	}
-	target, err := chain.LoadBlockByHashFromDb(block.MsgBlock.Header.PrevBlockHash)
+	target, err := chain.LoadBlockByHashFromDb(block.Header.PrevBlockHash)
 	if err != nil {
 		return nil
 	}
-	parent := &types.Block{
-		MsgBlock: target,
-	}
-	return parent
-
+	return target
 }
 
 // calcPastMedianTime calculates the median time of the previous few blocks
@@ -634,7 +613,7 @@ func (chain *BlockChain) calcPastMedianTime(block *types.Block) time.Time {
 	timestamps := make([]int64, medianTimeBlocks)
 	i := 0
 	for iterBlock := block; i < medianTimeBlocks && iterBlock != nil; i++ {
-		timestamps[i] = iterBlock.MsgBlock.Header.TimeStamp
+		timestamps[i] = iterBlock.Header.TimeStamp
 		iterBlock = chain.getParentBlock(iterBlock)
 	}
 
@@ -654,12 +633,12 @@ func (chain *BlockChain) calcPastMedianTime(block *types.Block) time.Time {
 // the chain backwards from this block.  The returned block will be nil when a
 // height is requested that is after the height of the passed block or is less than zero.
 func (chain *BlockChain) ancestor(block *types.Block, height int32) *types.Block {
-	if height < 0 || height > block.MsgBlock.Height {
+	if height < 0 || height > block.Height {
 		return nil
 	}
 
 	iterBlock := block
-	for iterBlock != nil && iterBlock.MsgBlock.Height != height {
+	for iterBlock != nil && iterBlock.Height != height {
 		iterBlock = chain.getParentBlock(iterBlock)
 	}
 	return iterBlock
@@ -676,7 +655,7 @@ type SequenceLock struct {
 }
 
 // calcSequenceLock computes the relative lock-times for the passed transaction.
-func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.MsgTx) (*SequenceLock, error) {
+func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.Transaction) (*SequenceLock, error) {
 	// A value of -1 for each relative lock type represents a relative time lock value
 	// that will allow a transaction to be included in a block at any given height or time.
 	sequenceLock := &SequenceLock{Seconds: -1, BlockHeight: -1}
@@ -687,10 +666,10 @@ func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.MsgTx) (
 	}
 
 	// Grab the next height from the PoV of the passed block to use for inputs present in the mempool.
-	nextHeight := block.MsgBlock.Height + 1
+	nextHeight := block.Height + 1
 
 	for txInIndex, txIn := range tx.Vin {
-		txHash, _ := tx.MsgTxHash()
+		txHash, _ := tx.TxHash()
 		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
 			logger.Errorf("output %v referenced from transaction %v:%d either does not exist or "+
@@ -763,12 +742,12 @@ func checkBlockScripts(block *types.Block) error {
 	// Collect all of the transaction inputs and required information for
 	// validation for all transactions in the block into a single slice.
 	numInputs := 0
-	for _, tx := range block.MsgBlock.Txs {
+	for _, tx := range block.Txs {
 		numInputs += len(tx.Vin)
 	}
 	txValItems := make([]*txValidateItem, 0, numInputs)
 	// Skip coinbases.
-	for _, tx := range block.MsgBlock.Txs[1:] {
+	for _, tx := range block.Txs[1:] {
 		for txInIdx, txIn := range tx.Vin {
 			txVI := &txValidateItem{
 				txInIndex: txInIdx,
@@ -804,17 +783,17 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	// // TODO: needed?
 	// // The coinbase for the Genesis block is not spendable, so just return
 	// // an error now.
-	// if block.MsgBlock.BlockHash.IsEqual(genesisHash) {
+	// if block.BlockHash.IsEqual(genesisHash) {
 	// 	str := "the coinbase for the genesis block is not spendable"
 	// 	return ErrMissingTxOut
 	// }
 
-	transactions := block.MsgBlock.Txs
+	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.  Also
 	// accumulate the total fees.
 	var totalFees int64
 	for _, tx := range transactions {
-		txFee, err := chain.checkTransactionInputs(tx, block.MsgBlock.Height)
+		txFee, err := chain.checkTransactionInputs(tx, block.Height)
 		if err != nil {
 			return err
 		}
@@ -828,7 +807,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 		}
 
 		// Update utxos by applying this tx
-		if err := chain.utxoSet.ApplyTx(tx, block.MsgBlock.Height); err != nil {
+		if err := chain.utxoSet.ApplyTx(tx, block.Height); err != nil {
 			return err
 		}
 	}
@@ -842,7 +821,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	for _, txOut := range transactions[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
-	expectedCoinbaseOutput := calcBlockSubsidy(block.MsgBlock.Height) + totalFees
+	expectedCoinbaseOutput := calcBlockSubsidy(block.Height) + totalFees
 	if totalCoinbaseOutput > expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
 			totalCoinbaseOutput, expectedCoinbaseOutput)
@@ -862,7 +841,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 		if err != nil {
 			return err
 		}
-		if !sequenceLockActive(sequenceLock, block.MsgBlock.Height, medianTime) {
+		if !sequenceLockActive(sequenceLock, block.Height, medianTime) {
 			logger.Errorf("block contains transaction whose input sequence locks are not met")
 			return ErrUnfinalizedTx
 		}
@@ -887,7 +866,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 // StoreTailBlock store tail block to db.
 func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 
-	blockpb, err := block.MsgBlock.ToProtoMessage()
+	blockpb, err := block.ToProtoMessage()
 	if err != nil {
 		return err
 	}
@@ -900,8 +879,8 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 
 // Add all transactions contained in this block into mempool
 func (chain *BlockChain) addBlockTxs(block *types.Block) error {
-	for _, msgTx := range block.MsgBlock.Txs[1:] {
-		if err := chain.txpool.maybeAcceptTx(msgTx, false /* do not broadcast */); err != nil {
+	for _, tx := range block.Txs[1:] {
+		if err := chain.txpool.maybeAcceptTx(tx, false /* do not broadcast */); err != nil {
 			return err
 		}
 	}
@@ -910,26 +889,26 @@ func (chain *BlockChain) addBlockTxs(block *types.Block) error {
 
 // Remove all transactions contained in this block from mempool
 func (chain *BlockChain) removeBlockTxs(block *types.Block) {
-	for _, msgTx := range block.MsgBlock.Txs[1:] {
-		chain.txpool.removeTx(msgTx)
-		chain.txpool.removeDoubleSpends(msgTx)
-		chain.txpool.removeOrphan(msgTx)
+	for _, tx := range block.Txs[1:] {
+		chain.txpool.removeTx(tx)
+		chain.txpool.removeDoubleSpends(tx)
+		chain.txpool.removeOrphan(tx)
 	}
 }
 
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
 // and blocks to be detached and attached
 func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Block, []*types.Block) {
-	if block.MsgBlock.Height <= chain.longestChainHeight {
+	if block.Height <= chain.longestChainHeight {
 		logger.Panicf("Side chain (height: %d) is not longer than main chain (height: %d) during chain reorg",
-			block.MsgBlock.Height, chain.longestChainHeight)
+			block.Height, chain.longestChainHeight)
 	}
 	detachBlocks := make([]*types.Block, 0)
 	attachBlocks := []*types.Block{block}
 
 	// Start both chain from same height by moving up side chain
 	sideChainBlock := block
-	for i := block.MsgBlock.Height; i > chain.longestChainHeight; i-- {
+	for i := block.Height; i > chain.longestChainHeight; i-- {
 		if sideChainBlock == nil {
 			logger.Panicf("Block on side chain shall not be nil before reaching main chain height during reorg")
 		}
@@ -940,7 +919,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	// Compare two blocks at the same height till they are identical: the fork point
 	mainChainBlock, found := chain.TailBlock(), false
 	for mainChainBlock != nil && sideChainBlock != nil {
-		if mainChainBlock.MsgBlock.Height != sideChainBlock.MsgBlock.Height {
+		if mainChainBlock.Height != sideChainBlock.Height {
 			logger.Panicf("Expect to compare main chain and side chain block at same height")
 		}
 		mainChainHash := mainChainBlock.BlockHash()
@@ -972,7 +951,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 // a reorganization to become the main chain).
 func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 	blockHash := block.BlockHash()
-	parentHash := &block.MsgBlock.Header.PrevBlockHash
+	parentHash := &block.Header.PrevBlockHash
 	tailHash := chain.TailBlock().BlockHash()
 	if parentHash.IsEqual(tailHash) {
 		// We are extending the main (best) chain with a new block. This is the most common case.
@@ -986,9 +965,9 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 	}
 
 	// We're extending (or creating) a side chain, but the new side chain is not long enough to make it the main chain.
-	if block.MsgBlock.Height <= chain.longestChainHeight {
+	if block.Height <= chain.longestChainHeight {
 		logger.Infof("Block %v extends a side chain to height %d, shorter than main chain of height %d",
-			blockHash, block.MsgBlock.Height, chain.longestChainHeight)
+			blockHash, block.Height, chain.longestChainHeight)
 		return false, nil
 	}
 
@@ -1051,9 +1030,9 @@ func (chain *BlockChain) reorganizeChain(block *types.Block) error {
 }
 
 // IsFinalizedTransaction determines whether or not a transaction is finalized.
-func IsFinalizedTransaction(msgTx *types.MsgTx, blockHeight int32, blockTime int64) bool {
+func IsFinalizedTransaction(tx *types.Transaction, blockHeight int32, blockTime int64) bool {
 	// Lock time of zero means the transaction is finalized.
-	lockTime := msgTx.LockTime
+	lockTime := tx.LockTime
 	if lockTime == 0 {
 		return true
 	}
@@ -1075,7 +1054,7 @@ func IsFinalizedTransaction(msgTx *types.MsgTx, blockHeight int32, blockTime int
 	// At this point, the transaction's lock time hasn't occurred yet, but
 	// the transaction might still be finalized if the sequence number
 	// for all transaction inputs is maxed out.
-	for _, txIn := range msgTx.Vin {
+	for _, txIn := range tx.Vin {
 		if txIn.Sequence != math.MaxUint32 {
 			return false
 		}
@@ -1093,7 +1072,7 @@ func (chain *BlockChain) maybeAcceptBlock(block *types.Block) (bool, error) {
 	parentBlock := chain.getParentBlock(block)
 
 	// The height of this block is one more than the referenced previous block.
-	block.MsgBlock.Height = parentBlock.MsgBlock.Height + 1
+	block.Height = parentBlock.Height + 1
 
 	// The block must pass all of the validation rules which depend on the
 	// position of the block within the block chain.
@@ -1154,7 +1133,7 @@ func sanityCheckBlockHeader(header *types.BlockHeader, timeSource util.MedianTim
 //
 // This function only differs from IsCoinBase in that it works with a raw wire
 // transaction as opposed to a higher level util transaction.
-func IsCoinBase(tx *types.MsgTx) bool {
+func IsCoinBase(tx *types.Transaction) bool {
 	// A coin base must only have one transaction input.
 	if len(tx.Vin) != 1 {
 		return false
@@ -1166,7 +1145,7 @@ func IsCoinBase(tx *types.MsgTx) bool {
 
 // SanityCheckTransaction performs some preliminary checks on a transaction to
 // ensure it is sane. These checks are context free.
-func SanityCheckTransaction(tx *types.MsgTx) error {
+func SanityCheckTransaction(tx *types.Transaction) error {
 	// A transaction must have at least one input.
 	if len(tx.Vin) == 0 {
 		return ErrNoTxInputs
@@ -1258,7 +1237,7 @@ func getSigOpCount(script []byte) int {
 
 // return the number of signature operations for all transaction
 // input and output scripts in the provided transaction.
-func countSigOps(tx *types.MsgTx) int {
+func countSigOps(tx *types.Transaction) int {
 	// Accumulate the number of signature operations in all transaction inputs.
 	totalSigOps := 0
 	for _, txIn := range tx.Vin {
@@ -1278,14 +1257,14 @@ func countSigOps(tx *types.MsgTx) int {
 // sanityCheckBlock performs some preliminary checks on a block to ensure it is
 // sane before continuing with block processing.  These checks are context free.
 func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) error {
-	header := block.MsgBlock.Header
+	header := block.Header
 
 	if err := sanityCheckBlockHeader(header, timeSource); err != nil {
 		return err
 	}
 
 	// A block must have at least one transaction.
-	numTx := len(block.MsgBlock.Txs)
+	numTx := len(block.Txs)
 	if numTx == 0 {
 		logger.Errorf("block does not contain any transactions")
 		return ErrNoTransactions
@@ -1301,7 +1280,7 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 	// }
 
 	// The first transaction in a block must be a coinbase.
-	transactions := block.MsgBlock.Txs
+	transactions := block.Txs
 	if !IsCoinBase(transactions[0]) {
 		logger.Errorf("first transaction in block is not a coinbase")
 		return ErrFirstTxNotCoinbase
@@ -1337,8 +1316,7 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 	// Check for duplicate transactions.
 	existingTxHashes := make(map[*crypto.HashType]struct{})
 	for _, tx := range transactions {
-		transaction := types.Transaction{MsgTx: tx}
-		txHash, _ := transaction.TxHash()
+		txHash, _ := tx.TxHash()
 		if _, exists := existingTxHashes[txHash]; exists {
 			logger.Errorf("block contains duplicate transaction %v", txHash)
 			return ErrDuplicateTx
@@ -1371,12 +1349,12 @@ func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCac
 
 	outPointMap := make(map[types.OutPoint]struct{})
 	prevOut := types.OutPoint{Hash: *tx.Hash}
-	for txOutIdx := range tx.MsgTx.Vout {
+	for txOutIdx := range tx.Vout {
 		prevOut.Index = uint32(txOutIdx)
 		outPointMap[prevOut] = struct{}{}
 	}
-	if !IsCoinBase(tx.MsgTx) {
-		for _, txIn := range tx.MsgTx.Vin {
+	if !IsCoinBase(tx) {
+		for _, txIn := range tx.Vin {
 			outPointMap[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
@@ -1409,7 +1387,7 @@ func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoEntry {
 }
 
 // ValidateTransactionScripts verify crypto signatures for each input
-func (chain *BlockChain) ValidateTransactionScripts(tx *types.MsgTx) error {
+func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction) error {
 	txIns := tx.Vin
 	txValItems := make([]*txValidateItem, 0, len(txIns))
 	for txInIdx, txIn := range txIns {
@@ -1460,7 +1438,7 @@ func (chain *BlockChain) PackTxs(block *types.Block, addr types.Address) error {
 	// TODO: @Leon Each time you packtxs, a new queue is generated.
 	pool := chain.sortPendingTxs()
 	// blockUtxos := NewUtxoUnspentCache()
-	var blockTxns []*types.MsgTx
+	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.createCoinbaseTx(addr)
 	if err != nil || coinbaseTx == nil {
 		logger.Error("Failed to create coinbaseTx")
@@ -1476,14 +1454,14 @@ func (chain *BlockChain) PackTxs(block *types.Block, addr types.Address) error {
 		// }
 		// mergeUtxoCache(blockUtxos, unspentUtxoCache)
 		// spent tx
-		// chain.spendTransaction(blockUtxos, tx, chain.tail.MsgBlock.Height)
-		blockTxns = append(blockTxns, tx.MsgTx)
+		// chain.spendTransaction(blockUtxos, tx, chain.tail.Height)
+		blockTxns = append(blockTxns, tx)
 	}
 
 	merkles := util.CalcTxsHash(blockTxns)
-	block.MsgBlock.Header.TxsRoot = *merkles
+	block.Header.TxsRoot = *merkles
 	for _, tx := range blockTxns {
-		block.MsgBlock.Txs = append(block.MsgBlock.Txs, tx)
+		block.Txs = append(block.Txs, tx)
 	}
 	return nil
 }
@@ -1499,7 +1477,7 @@ func mergeUtxoCache(cacheA *UtxoUnspentCache, cacheB *UtxoUnspentCache) {
 }
 
 func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *types.Transaction, height int32) error {
-	for _, txIn := range tx.MsgTx.Vin {
+	for _, txIn := range tx.Vin {
 		utxowrap := blockUtxos.FindByOutPoint(txIn.PrevOutPoint)
 		if utxowrap != nil {
 			utxowrap.IsPacked = true
@@ -1510,11 +1488,11 @@ func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *type
 	return nil
 }
 
-func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, error) {
+func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.Transaction, error) {
 
 	var pkScript []byte
 	var err error
-	coinbaseScript, err := StandardCoinbaseScript(chain.tail.MsgBlock.Height)
+	coinbaseScript, err := StandardCoinbaseScript(chain.tail.Height)
 	if err != nil {
 		return nil, err
 	}
@@ -1531,7 +1509,7 @@ func (chain *BlockChain) createCoinbaseTx(addr types.Address) (*types.MsgTx, err
 		}
 	}
 
-	tx := &types.MsgTx{
+	tx := &types.Transaction{
 		Version: 1,
 		Vin: []*types.TxIn{
 			{
@@ -1559,7 +1537,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block) error {
 	if err := chain.StoreTailBlock(tail); err != nil {
 		return err
 	}
-	chain.longestChainHeight = tail.MsgBlock.Height
+	chain.longestChainHeight = tail.Height
 	chain.tail = tail
 	return nil
 }

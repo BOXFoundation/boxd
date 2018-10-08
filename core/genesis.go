@@ -11,7 +11,7 @@ import (
 	"github.com/BOXFoundation/Quicksilver/crypto"
 )
 
-var genesisCoinbaseTx = types.MsgTx{
+var genesisCoinbaseTx = types.Transaction{
 	Version: 1,
 	Vin: []*types.TxIn{
 		{
@@ -36,13 +36,13 @@ var genesisHash = crypto.HashType([crypto.HashSize]byte{})
 
 var genesisMerkleRoot = crypto.HashType([crypto.HashSize]byte{})
 
-var genesisBlock = types.MsgBlock{
+var genesisBlock = types.Block{
 	Header: &types.BlockHeader{
 		Version:       1,
 		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
 		TxsRoot:       genesisMerkleRoot,
 		TimeStamp:     time.Now().UnixNano(),
 	},
-	Txs:    []*types.MsgTx{&genesisCoinbaseTx},
+	Txs:    []*types.Transaction{&genesisCoinbaseTx},
 	Height: 0,
 }

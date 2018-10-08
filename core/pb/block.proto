@@ -14,13 +14,13 @@ message BlockHeader {
     uint32 magic = 5;
 }
 
-message MsgBlock {
+message Block {
     BlockHeader header = 1;
-    repeated MsgTx txs = 2;
+    repeated Transaction txs = 2;
     int32 height = 3;
 }
 
-message MsgTx {
+message Transaction {
     int32 version = 1;
     repeated TxIn vin  = 2;
     repeated TxOut vout  = 3;

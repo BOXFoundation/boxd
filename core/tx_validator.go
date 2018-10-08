@@ -12,7 +12,7 @@ import (
 type txValidateItem struct {
 	txInIndex int
 	txIn      *types.TxIn
-	tx        *types.MsgTx
+	tx        *types.Transaction
 	// sigHashes *txscript.TxSigHashes
 }
 

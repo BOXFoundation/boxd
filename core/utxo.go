@@ -92,9 +92,8 @@ func (uup *UtxoUnspentCache) RemoveByOutPoint(outpoint types.OutPoint) {
 
 // AddTxOuts adds all outputs in the passed transaction.
 func (uup *UtxoUnspentCache) AddTxOuts(tx *types.Transaction, height int32) {
-	// isCoinBase := IsCoinBase(tx.MsgTx)
 	prevOut := types.OutPoint{Hash: *tx.Hash}
-	for txOutIdx, txOut := range tx.MsgTx.Vout {
+	for txOutIdx, txOut := range tx.Vout {
 		prevOut.Index = uint32(txOutIdx)
 		uup.addTxOut(prevOut, txOut, height)
 	}
