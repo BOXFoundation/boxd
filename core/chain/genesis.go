@@ -39,7 +39,7 @@ var genesisBlock = types.Block{
 		Version:       1,
 		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
 		TxsRoot:       genesisMerkleRoot,
-		TimeStamp:     time.Now().UnixNano(),
+		TimeStamp:     time.Date(2018, 1, 31, 0, 0, 0, 0, time.UTC).Unix(),
 	},
 	Txs:    []*types.Transaction{&genesisCoinbaseTx},
 	Height: 0,
