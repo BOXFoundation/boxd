@@ -70,24 +70,3 @@ func (notifier *Notifier) Loop(parent goprocess.Process) {
 func (notifier *Notifier) Notify(msg Message) {
 	notifier.receiveCh <- msg
 }
-
-// NotifierMessage define the notifier message struct and implements Message interface.
-type NotifierMessage struct {
-	code uint32
-	body []byte
-}
-
-// NewNotifierMessage new a notifier message
-func NewNotifierMessage(code uint32, body []byte) *NotifierMessage {
-	return &NotifierMessage{code: code, body: body}
-}
-
-// Code return notifier message code
-func (msg *NotifierMessage) Code() uint32 {
-	return msg.code
-}
-
-// Body return notifier message body
-func (msg *NotifierMessage) Body() []byte {
-	return msg.body
-}

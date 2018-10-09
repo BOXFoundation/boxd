@@ -72,7 +72,7 @@ func (conn *Conn) loop() {
 
 	var r = bufio.NewReader(conn.stream)
 	for {
-		msg, err := ReadMessageData(r)
+		msg, err := conn.readMessage(r)
 		if err != nil {
 			conn.Close()
 			return
@@ -82,7 +82,7 @@ func (conn *Conn) loop() {
 			conn.Close()
 			return
 		}
-		if err := conn.handle(msg.Code, msg.Body); err != nil {
+		if err := conn.handle(msg); err != nil {
 			logger.Error("Failed to handle message. ", err)
 			conn.Close()
 			return
@@ -90,25 +90,37 @@ func (conn *Conn) loop() {
 	}
 }
 
-func (conn *Conn) handle(messageCode uint32, body []byte) error {
+// readMessage returns the next message, with remote peer id
+func (conn *Conn) readMessage(r *bufio.Reader) (*remoteMessage, error) {
+	msg, err := readMessageData(r)
+	if err != nil {
+		return nil, err
+	}
+	return &remoteMessage{message: msg, from: conn.remotePeer}, nil
+}
 
-	switch messageCode {
+func (conn *Conn) handle(msg *remoteMessage) error {
+	// handle handshake messages
+	switch msg.code {
 	case Ping:
-		return conn.onPing(body)
+		return conn.onPing(msg.body)
 	case Pong:
-		return conn.onPong(body)
+		return conn.onPong(msg.body)
 	}
 	if !conn.establish {
+		// return error in case no handshake with remote peer
 		return ErrNoConnectionEstablished
 	}
 
-	switch messageCode {
+	// handle discovery messages
+	switch msg.code {
 	case PeerDiscover:
-		return conn.OnPeerDiscover(body)
+		return conn.OnPeerDiscover(msg.body)
 	case PeerDiscoverReply:
-		return conn.OnPeerDiscoverReply(body)
+		return conn.OnPeerDiscoverReply(msg.body)
 	default:
-		conn.peer.notifier.Notify(NewNotifierMessage(messageCode, body))
+		// others, notify its subscriber
+		conn.peer.notifier.Notify(msg)
 	}
 	return nil
 }
@@ -205,7 +217,7 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 }
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
-	data, err := NewMessageData(conn.peer.config.Magic, opcode, nil, body).Marshal()
+	data, err := newMessageData(conn.peer.config.Magic, opcode, nil, body).Marshal()
 	if err != nil {
 		return err
 	}
@@ -222,7 +234,7 @@ func (conn *Conn) Close() {
 	}
 }
 
-func (conn *Conn) checkMessage(msg *MessageData) error {
+func (conn *Conn) checkMessage(msg *remoteMessage) error {
 	return checkMessage(conn.peer.config.Magic, msg)
 }
 
@@ -236,16 +248,16 @@ func (conn *Conn) established() {
 }
 
 // checkMessage checks whether the message data is valid
-func checkMessage(magic uint32, msg *MessageData) error {
-	if magic != msg.Magic {
+func checkMessage(magic uint32, msg *remoteMessage) error {
+	if magic != msg.magic {
 		return ErrMagic
 	}
-	if msg.DataLength > MaxMessageDataLength {
+	if msg.dataLength > MaxMessageDataLength {
 		return ErrExceedMaxDataLength
 	}
 
-	expectedDataCheckSum := crc32.ChecksumIEEE(msg.Body)
-	if expectedDataCheckSum != msg.DataChecksum {
+	expectedDataCheckSum := crc32.ChecksumIEEE(msg.body)
+	if expectedDataCheckSum != msg.dataChecksum {
 		return ErrBodyCheckSum
 	}
 	return nil

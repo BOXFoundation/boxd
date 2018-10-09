@@ -14,6 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p/pb"
 	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 // const
@@ -48,62 +49,62 @@ var (
 	ErrFromProtoMessageMessage = errors.New("Invalid proto message")
 )
 
-// MessageHeader message header info from network.
-type MessageHeader struct {
-	Magic        uint32
-	Code         uint32
-	DataLength   uint32
-	DataChecksum uint32
-	Reserved     []byte
+// messageHeader message header info from network.
+type messageHeader struct {
+	magic        uint32
+	code         uint32
+	dataLength   uint32
+	dataChecksum uint32
+	reserved     []byte
 }
 
-var _ conv.Convertible = (*MessageHeader)(nil)
-var _ conv.Serializable = (*MessageHeader)(nil)
+var _ conv.Convertible = (*messageHeader)(nil)
+var _ conv.Serializable = (*messageHeader)(nil)
 
-// MessageData defines the full message content from network.
-type MessageData struct {
-	*MessageHeader
-	Body []byte
+// message defines the full message content from network.
+type message struct {
+	*messageHeader
+	body []byte
 }
 
-var _ conv.Serializable = (*MessageData)(nil)
+var _ conv.Serializable = (*message)(nil)
 
-// NewMessageData returns a message data object
-func NewMessageData(magic uint32, code uint32, reserved []byte, body []byte) *MessageData {
-	return NewMessageDataWithHeader(NewMessageHeader(magic, code, reserved, body), body)
+// newMessageData returns a message data object
+func newMessageData(magic uint32, code uint32, reserved []byte, body []byte) *message {
+	return newMessageDataWithHeader(newMessageHeader(magic, code, reserved, body), body)
 }
 
-// NewMessageDataWithHeader returns a message data object
-func NewMessageDataWithHeader(header *MessageHeader, body []byte) *MessageData {
-	return &MessageData{
-		MessageHeader: header,
-		Body:          body,
+// newMessageDataWithHeader returns a message data object
+func newMessageDataWithHeader(header *messageHeader, body []byte) *message {
+	return &message{
+		messageHeader: header,
+		body:          body,
 	}
 }
 
-// NewMessageHeader returns a message header object
-func NewMessageHeader(magic uint32, code uint32, reserved []byte, body []byte) *MessageHeader {
-	return &MessageHeader{
-		Magic:        magic,
-		Code:         code,
-		DataLength:   uint32(len(body)),
-		DataChecksum: crc32.ChecksumIEEE(body),
-		Reserved:     reserved,
+// newMessageHeader returns a message header object
+func newMessageHeader(magic uint32, code uint32, reserved []byte, body []byte) *messageHeader {
+	return &messageHeader{
+		magic:        magic,
+		code:         code,
+		dataLength:   uint32(len(body)),
+		dataChecksum: crc32.ChecksumIEEE(body),
+		reserved:     reserved,
 	}
 }
 
-// UnmarshalHeader parse the bytes data into MessageHeader
-func UnmarshalHeader(data []byte) (*MessageHeader, error) {
-	header := &MessageHeader{}
+// unmarshalHeader parse the bytes data into messageHeader
+func unmarshalHeader(data []byte) (*messageHeader, error) {
+	header := &messageHeader{}
 	if err := header.Unmarshal(data); err != nil {
 		return nil, err
 	}
 	return header, nil
 }
 
-// ReadMessageData reads a MessageData from reader
-func ReadMessageData(r *bufio.Reader) (*MessageData, error) {
-	var lenbuf = make([]byte, 4)
+// readMessageData reads a message from reader
+func readMessageData(r *bufio.Reader) (*message, error) {
+	var lenbuf = make([]byte, FixHeaderLength)
 	if err := readBuffer(r, lenbuf); err != nil {
 		return nil, err
 	}
@@ -113,22 +114,22 @@ func ReadMessageData(r *bufio.Reader) (*MessageData, error) {
 	if err := readBuffer(r, headerbuf); err != nil {
 		return nil, err
 	}
-	header, err := UnmarshalHeader(headerbuf)
+	header, err := unmarshalHeader(headerbuf)
 	if err != nil {
 		return nil, err
 	}
 
 	// return error if the data length exceeds the max data length
-	if header.DataLength > MaxMessageDataLength {
+	if header.dataLength > MaxMessageDataLength {
 		return nil, ErrExceedMaxDataLength
 	}
 
-	var body = make([]byte, header.DataLength)
+	var body = make([]byte, header.dataLength)
 	if err := readBuffer(r, body); err != nil {
 		return nil, err
 	}
 
-	return NewMessageDataWithHeader(header, body), nil
+	return newMessageDataWithHeader(header, body), nil
 }
 
 func readBuffer(r *bufio.Reader, buf []byte) error {
@@ -147,38 +148,38 @@ func readBuffer(r *bufio.Reader, buf []byte) error {
 ////////////////////////////////////////////////////////////////////////////////
 
 // ToProtoMessage converts header message in proto.
-func (header *MessageHeader) ToProtoMessage() (proto.Message, error) {
+func (header *messageHeader) ToProtoMessage() (proto.Message, error) {
 	return &p2ppb.MessageHeader{
-		Magic:        header.Magic,
-		Code:         header.Code,
-		DataLength:   header.DataLength,
-		DataChecksum: header.DataChecksum,
-		Reserved:     header.Reserved,
+		Magic:        header.magic,
+		Code:         header.code,
+		DataLength:   header.dataLength,
+		DataChecksum: header.dataChecksum,
+		Reserved:     header.reserved,
 	}, nil
 }
 
 // FromProtoMessage header message in proto.
-func (header *MessageHeader) FromProtoMessage(msg proto.Message) error {
+func (header *messageHeader) FromProtoMessage(msg proto.Message) error {
 
 	pb := msg.(*p2ppb.MessageHeader)
 	if pb != nil {
-		header.Magic = pb.Magic
-		header.Code = pb.Code
-		header.DataLength = pb.DataLength
-		header.DataChecksum = pb.DataChecksum
-		header.Reserved = pb.Reserved
+		header.magic = pb.Magic
+		header.code = pb.Code
+		header.dataLength = pb.DataLength
+		header.dataChecksum = pb.DataChecksum
+		header.reserved = pb.Reserved
 		return nil
 	}
 	return ErrFromProtoMessageMessage
 }
 
-// Marshal method marshal MessageHeader object to binary
-func (header *MessageHeader) Marshal() (data []byte, err error) {
+// Marshal method marshal messageHeader object to binary
+func (header *messageHeader) Marshal() (data []byte, err error) {
 	return conv.MarshalConvertible(header)
 }
 
-// Unmarshal method unmarshal binary data to MessageHeader object
-func (header *MessageHeader) Unmarshal(data []byte) error {
+// Unmarshal method unmarshal binary data to messageHeader object
+func (header *messageHeader) Unmarshal(data []byte) error {
 	msg := &p2ppb.MessageHeader{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
@@ -187,43 +188,69 @@ func (header *MessageHeader) Unmarshal(data []byte) error {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// implements conv.Serializable interface
 
-// Marshal method marshal MessageData object to binary
-func (msg *MessageData) Marshal() (data []byte, err error) {
-	headerData, err := msg.MessageHeader.Marshal()
+// Marshal method marshal message object to binary
+func (msg *message) Marshal() (data []byte, err error) {
+	headerData, err := msg.messageHeader.Marshal()
 	if err != nil {
 		return nil, err
 	}
 	var buf bytes.Buffer
 	buf.Write(util.FromUint32(uint32(len(headerData))))
 	buf.Write(headerData)
-	buf.Write(msg.Body)
+	buf.Write(msg.body)
 	return buf.Bytes(), nil
 }
 
-// Unmarshal method unmarshal binary data to MessageData object
-func (msg *MessageData) Unmarshal(data []byte) error {
-	if len(data) < 4 {
+// Unmarshal method unmarshal binary data to message object
+func (msg *message) Unmarshal(data []byte) error {
+	if len(data) < FixHeaderLength {
 		return ErrMessageHeaderLength
 	}
-	var headerLen = util.Uint32(data[:4])
+	var headerLen = util.Uint32(data[:FixHeaderLength])
 
-	data = data[4:]
+	data = data[FixHeaderLength:]
 	if headerLen > uint32(len(data)) {
 		return ErrMessageHeader
 	}
-	header, err := UnmarshalHeader(data[:headerLen])
+	header, err := unmarshalHeader(data[:headerLen])
 	if err != nil {
 		return err
 	}
 
 	body := data[headerLen:]
-	if uint32(len(body)) != header.DataLength {
+	if uint32(len(body)) != header.dataLength {
 		return ErrMessageDataBody
 	}
 
-	msg.MessageHeader = header
-	msg.Body = body
+	msg.messageHeader = header
+	msg.body = body
 
 	return nil
+}
+
+// p2p message with remote peer ID
+type remoteMessage struct {
+	*message
+	from peer.ID
+}
+
+var _ Message = (*remoteMessage)(nil)
+
+// implement Message interface
+
+// Code returns the message code
+func (msg *remoteMessage) Code() uint32 {
+	return msg.messageHeader.code
+}
+
+// Body returns the message body data as bytes
+func (msg *remoteMessage) Body() []byte {
+	return msg.body
+}
+
+// From returns the remote peer id from which the message was received
+func (msg *remoteMessage) From() peer.ID {
+	return msg.from
 }

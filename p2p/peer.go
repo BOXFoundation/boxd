@@ -42,6 +42,8 @@ type BoxPeer struct {
 	mu              sync.Mutex
 }
 
+var _ Net = (*BoxPeer)(nil) // BoxPeer implements Net interface
+
 // NewBoxPeer create a BoxPeer
 func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*BoxPeer, error) {
 	// ctx := context.Background()
@@ -168,9 +170,11 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 	return nil
 }
 
+////////// implements Net interface //////////
+
 // Broadcast business message.
-func (p *BoxPeer) Broadcast(code uint32, message conv.Convertible) error {
-	body, err := conv.MarshalConvertible(message)
+func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
+	body, err := conv.MarshalConvertible(msg)
 	if err != nil {
 		return err
 	}
@@ -186,7 +190,7 @@ func (p *BoxPeer) Broadcast(code uint32, message conv.Convertible) error {
 }
 
 // SendMessageToPeer send message to a peer.
-func (p *BoxPeer) SendMessageToPeer(code uint32, message conv.Convertible, pid peer.ID) {
+func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible, pid peer.ID) {
 
 }
 
