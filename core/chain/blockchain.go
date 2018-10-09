@@ -204,6 +204,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 	b.tail = tail
+	b.longestChainHeight = tail.Height
 
 	return b, nil
 }
@@ -1506,5 +1507,6 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block) error {
 	}
 	chain.longestChainHeight = tail.Height
 	chain.tail = tail
+	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
 	return nil
 }

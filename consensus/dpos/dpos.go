@@ -97,9 +97,8 @@ func (dpos *Dpos) mint() {
 }
 
 func (dpos *Dpos) mintBlock() {
-	tail, _ := dpos.chain.LoadTailBlock()
-	logger.Infof("current tail block: %s height: %d", tail.BlockHash().String(), tail.Height)
 
+	tail, _ := dpos.chain.LoadTailBlock()
 	block := types.NewBlock(tail)
 	dpos.chain.PackTxs(block, dpos.miner)
 	// block.setMiner()
