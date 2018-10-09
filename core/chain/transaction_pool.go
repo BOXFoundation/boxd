@@ -163,16 +163,20 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	}
 
 	// TODO: check tx is already exist in the main chain??
+	utxoSet, err := LoadTxUtxos(tx, tx_pool.chain.dbTx)
+	if err != nil {
+		return err
+	}
 
 	// Add orphan transaction
-	if tx_pool.isOrphan(tx) {
+	if tx_pool.isOrphan(utxoSet, tx) {
 		tx_pool.addOrphan(tx)
 		return ErrOrphanTransaction
 	}
 
 	// TODO: sequence lock
 
-	txFee, err := tx_pool.chain.checkTransactionInputs(tx, nextBlockHeight)
+	txFee, err := tx_pool.chain.checkTransactionInputs(utxoSet, tx, nextBlockHeight)
 	if err != nil {
 		return err
 	}
@@ -224,10 +228,10 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 }
 
 // A tx is an orphan if any of its spending utxo does not exist
-func (tx_pool *TransactionPool) isOrphan(tx *types.Transaction) bool {
+func (tx_pool *TransactionPool) isOrphan(utxoSet *UtxoSet, tx *types.Transaction) bool {
 	for _, txIn := range tx.Vin {
 		// Spend main chain UTXOs
-		utxo := tx_pool.chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
+		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo != nil && !utxo.IsSpent {
 			continue
 		}
@@ -320,6 +324,8 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePe
 	for _, txIn := range tx.Vin {
 		tx_pool.stxoSet[txIn.PrevOutPoint] = tx
 	}
+
+	// TODO: build address - tx index.
 }
 
 // Remove transaction from tx pool

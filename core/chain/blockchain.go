@@ -5,7 +5,6 @@
 package chain
 
 import (
-	"bytes"
 	"container/heap"
 	"errors"
 	"math"
@@ -30,7 +29,8 @@ const (
 
 	Tail = "tail_block"
 
-	CoreTableName = "core"
+	BlockTableName = "core_block"
+	TxTableName    = "core_tx"
 
 	// MaxTimeOffsetSeconds is the maximum number of seconds a block time
 	// is allowed to be ahead of the current time.  This is currently 2 hours.
@@ -144,7 +144,8 @@ type BlockChain struct {
 	notifiee      p2p.Net
 	newblockMsgCh chan p2p.Message
 	txpool        *TransactionPool
-	db            storage.Table
+	dbBlock       storage.Table
+	dbTx          storage.Table
 	genesis       *types.Block
 	tail          *types.Block
 	proc          goprocess.Process
@@ -166,7 +167,7 @@ type BlockChain struct {
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 
 	// all utxos for main chain
-	utxoSet *UtxoSet
+	// utxoSet *UtxoSet
 }
 
 // NewBlockChain return a blockchain.
@@ -178,14 +179,19 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
-		utxoSet:                   NewUtxoSet(),
+		// utxoSet:                   NewUtxoSet(),
 	}
 	var err error
 	b.cache, err = lru.New(512)
 	if err != nil {
 		return nil, err
 	}
-	b.db, err = db.Table(CoreTableName)
+	b.dbBlock, err = db.Table(BlockTableName)
+	if err != nil {
+		return nil, err
+	}
+
+	b.dbTx, err = db.Table(TxTableName)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +217,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
-	if ok, _ := chain.db.Has(genesisHash[:]); ok {
+	if ok, _ := chain.dbBlock.Has(genesisHash[:]); ok {
 		genesisBlockFromDb, err := chain.LoadBlockByHashFromDb(genesisHash)
 		if err != nil {
 			return nil, err
@@ -223,7 +229,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put(genesisHash[:], genesisBin)
+	chain.dbBlock.Put(genesisHash[:], genesisBin)
 
 	return &genesisBlock, nil
 
@@ -234,8 +240,8 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if chain.tail != nil {
 		return chain.tail, nil
 	}
-	if ok, _ := chain.db.Has([]byte(Tail)); ok {
-		tailBin, err := chain.db.Get([]byte(Tail))
+	if ok, _ := chain.dbBlock.Has([]byte(Tail)); ok {
+		tailBin, err := chain.dbBlock.Get([]byte(Tail))
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +259,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put([]byte(Tail), tailBin)
+	chain.dbBlock.Put([]byte(Tail), tailBin)
 
 	return &genesisBlock, nil
 }
@@ -261,7 +267,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 // LoadBlockByHashFromDb load block by hash from db.
 func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Block, error) {
 
-	blockBin, err := chain.db.Get(hash[:])
+	blockBin, err := chain.dbBlock.Get(hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +287,7 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 		return err
 	}
 	hash := block.BlockHash()
-	return chain.db.Put((*hash)[:], data)
+	return chain.dbBlock.Put((*hash)[:], data)
 }
 
 // Run launch blockchain.
@@ -471,7 +477,7 @@ func countSpentOutputs(block *types.Block) int {
 // amount, and verifying the signatures to prove the spender was the owner of
 // the bitcoins and therefore allowed to spend them.  As it checks the inputs,
 // it also calculates the total fees for the transaction and returns that value.
-func (chain *BlockChain) checkTransactionInputs(tx *types.Transaction, txHeight int32) (int64, error) {
+func (chain *BlockChain) checkTransactionInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
 	// Coinbase transactions have no inputs.
 	if IsCoinBase(tx) {
 		return 0, nil
@@ -481,7 +487,7 @@ func (chain *BlockChain) checkTransactionInputs(tx *types.Transaction, txHeight 
 	var totalInputAmount int64
 	for txInIndex, txIn := range tx.Vin {
 		// Ensure the referenced input transaction is available.
-		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
+		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil || utxo.IsSpent {
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
@@ -629,7 +635,7 @@ type SequenceLock struct {
 }
 
 // calcSequenceLock computes the relative lock-times for the passed transaction.
-func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.Transaction) (*SequenceLock, error) {
+func (chain *BlockChain) calcSequenceLock(utxoSet *UtxoSet, block *types.Block, tx *types.Transaction) (*SequenceLock, error) {
 	// A value of -1 for each relative lock type represents a relative time lock value
 	// that will allow a transaction to be included in a block at any given height or time.
 	sequenceLock := &SequenceLock{Seconds: -1, BlockHeight: -1}
@@ -644,7 +650,7 @@ func (chain *BlockChain) calcSequenceLock(block *types.Block, tx *types.Transact
 
 	for txInIndex, txIn := range tx.Vin {
 		txHash, _ := tx.TxHash()
-		utxo := chain.utxoSet.FindUtxo(txIn.PrevOutPoint)
+		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
 			logger.Errorf("output %v referenced from transaction %v:%d either does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
@@ -763,11 +769,17 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	// }
 
 	transactions := block.Txs
+
+	utxoSet, err := LoadBlockUtxos(block, chain.dbTx)
+	if err != nil {
+		return err
+	}
+
 	// Perform several checks on the inputs for each transaction.  Also
 	// accumulate the total fees.
 	var totalFees int64
 	for _, tx := range transactions {
-		txFee, err := chain.checkTransactionInputs(tx, block.Height)
+		txFee, err := chain.checkTransactionInputs(utxoSet, tx, block.Height)
 		if err != nil {
 			return err
 		}
@@ -781,7 +793,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 		}
 
 		// Update utxos by applying this tx
-		if err := chain.utxoSet.ApplyTx(tx, block.Height); err != nil {
+		if err := utxoSet.ApplyTx(tx, block.Height); err != nil {
 			return err
 		}
 	}
@@ -811,7 +823,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	for _, tx := range transactions {
 		// A transaction can only be included within a block
 		// once the sequence locks of *all* its inputs are active.
-		sequenceLock, err := chain.calcSequenceLock(block, tx)
+		sequenceLock, err := chain.calcSequenceLock(utxoSet, block, tx)
 		if err != nil {
 			return err
 		}
@@ -843,7 +855,7 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	return chain.db.Put([]byte(Tail), data)
+	return chain.dbBlock.Put([]byte(Tail), data)
 }
 
 // Add all transactions contained in this block into mempool
@@ -953,8 +965,14 @@ func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
 }
 
 func (chain *BlockChain) revertBlock(block *types.Block) error {
+
+	utxoSet, err := LoadBlockUtxos(block, chain.dbTx)
+	if err != nil {
+		return err
+	}
+
 	// Revert UTXOs
-	if err := chain.utxoSet.RevertBlock(block); err != nil {
+	if err := utxoSet.RevertBlock(block); err != nil {
 		return err
 	}
 
@@ -963,8 +981,13 @@ func (chain *BlockChain) revertBlock(block *types.Block) error {
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block) error {
-	// Update UTXOs
-	if err := chain.utxoSet.ApplyBlock(block); err != nil {
+
+	utxoSet, err := LoadBlockUtxos(block, chain.dbTx)
+	if err != nil {
+		return err
+	}
+
+	if err := utxoSet.ApplyBlock(block); err != nil {
 		return err
 	}
 
@@ -1314,45 +1337,45 @@ func (chain *BlockChain) TailBlock() *types.Block {
 }
 
 //LoadUnspentUtxo load related unspent utxo
-func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCache, error) {
+// func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCache, error) {
 
-	outPointMap := make(map[types.OutPoint]struct{})
-	prevOut := types.OutPoint{Hash: *tx.Hash}
-	for txOutIdx := range tx.Vout {
-		prevOut.Index = uint32(txOutIdx)
-		outPointMap[prevOut] = struct{}{}
-	}
-	if !IsCoinBase(tx) {
-		for _, txIn := range tx.Vin {
-			outPointMap[txIn.PrevOutPoint] = struct{}{}
-		}
-	}
+// 	outPointMap := make(map[types.OutPoint]struct{})
+// 	prevOut := types.OutPoint{Hash: *tx.Hash}
+// 	for txOutIdx := range tx.Vout {
+// 		prevOut.Index = uint32(txOutIdx)
+// 		outPointMap[prevOut] = struct{}{}
+// 	}
+// 	if !IsCoinBase(tx) {
+// 		for _, txIn := range tx.Vin {
+// 			outPointMap[txIn.PrevOutPoint] = struct{}{}
+// 		}
+// 	}
 
-	// Request the utxos from the point of view of the end of the main
-	// chain.
-	// uup := NewUtxoUnspentCache()
-	uup := UtxoUnspentCachePool.Get().(*UtxoUnspentCache)
-	UtxoUnspentCachePool.Put(uup)
-	// TODO: add mutex?
-	err := uup.LoadUtxoFromDB(chain.db, outPointMap)
+// 	// Request the utxos from the point of view of the end of the main
+// 	// chain.
+// 	// uup := NewUtxoUnspentCache()
+// 	uup := UtxoUnspentCachePool.Get().(*UtxoUnspentCache)
+// 	UtxoUnspentCachePool.Put(uup)
+// 	// TODO: add mutex?
+// 	err := uup.LoadUtxoFromDB(chain.db, outPointMap)
 
-	return uup, err
-}
+// 	return uup, err
+// }
 
 // LoadUtxoByPubKey loads utxos of a public key
 func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*UtxoEntry, error) {
 	res := make(map[types.OutPoint]*UtxoEntry)
-	for out, entry := range chain.utxoSet.utxoMap {
-		if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
-			res[out] = entry
-		}
-	}
+	// for out, entry := range chain.utxoSet.utxoMap {
+	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
+	// 		res[out] = entry
+	// 	}
+	// }
 	return res, nil
 }
 
 //ListAllUtxos list all the available utxos for testing purpose
 func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoEntry {
-	return chain.utxoSet.utxoMap
+	return nil
 }
 
 // ValidateTransactionScripts verify crypto signatures for each input

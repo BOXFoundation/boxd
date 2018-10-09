@@ -8,6 +8,8 @@ import (
 	"errors"
 
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/storage"
 )
 
 // error
@@ -150,4 +152,82 @@ func (u *UtxoSet) RevertBlock(block *types.Block) error {
 		}
 	}
 	return nil
+}
+
+// LoadTxUtxos loads the unspent transaction outputs related to tx
+func LoadTxUtxos(tx *types.Transaction, db storage.Table) (*UtxoSet, error) {
+
+	utxoset := NewUtxoSet()
+	emptySet := make(map[types.OutPoint]struct{})
+
+	prevOut := types.OutPoint{Hash: *tx.Hash}
+	for idx := range tx.Vout {
+		prevOut.Index = uint32(idx)
+		emptySet[prevOut] = struct{}{}
+	}
+	if !IsCoinBase(tx) {
+		for _, txIn := range tx.Vin {
+			emptySet[txIn.PrevOutPoint] = struct{}{}
+		}
+	}
+
+	if len(emptySet) > 0 {
+		if err := utxoset.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
+			return nil, err
+		}
+	}
+	return utxoset, nil
+}
+
+// LoadBlockUtxos loads the unspent transaction outputs related to block
+func LoadBlockUtxos(block *types.Block, db storage.Table) (*UtxoSet, error) {
+
+	utxoset := NewUtxoSet()
+	txs := map[crypto.HashType]int{}
+	emptySet := make(map[types.OutPoint]struct{})
+
+	for index, tx := range block.Txs {
+		txs[*tx.Hash] = index
+	}
+
+	for i, tx := range block.Txs[1:] {
+		for _, txIn := range tx.Vin {
+			preHash := &txIn.PrevOutPoint.Hash
+			if index, ok := txs[*preHash]; ok && i >= index {
+				originTx := block.Txs[index]
+				for idx := range tx.Vout {
+					utxoset.AddUtxo(originTx, uint32(idx), block.Height)
+				}
+				continue
+			}
+			if _, ok := utxoset.utxoMap[txIn.PrevOutPoint]; ok {
+				continue
+			}
+			emptySet[txIn.PrevOutPoint] = struct{}{}
+		}
+	}
+
+	if len(emptySet) > 0 {
+		if err := utxoset.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
+			return nil, err
+		}
+	}
+	return utxoset, nil
+
+}
+
+func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{}, db storage.Table) error {
+	for outpoint := range outPoints {
+		entry, err := u.LoadUtxoEntryFromDB(db, outpoint)
+		if err != nil {
+			return err
+		}
+		u.utxoMap[outpoint] = entry
+	}
+	return nil
+}
+
+// LoadUtxoEntryFromDB load utxo entry from database.
+func (u *UtxoSet) LoadUtxoEntryFromDB(db storage.Table, key types.OutPoint) (*UtxoEntry, error) {
+	return nil, nil
 }
