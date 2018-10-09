@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -111,12 +111,12 @@ func (tx_pool *TransactionPool) loop() {
 
 // chain update message from blockchain: block connection/disconnection
 func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
-	localMessage, ok := msg.(*core.LocalMessage)
+	localMessage, ok := msg.(*utils.LocalMessage)
 	if !ok {
 		logger.Errorf("Received non-local message")
 		return ErrNonLocalMessage
 	}
-	chainUpdateMsg, ok := localMessage.Data().(core.ChainUpdateMsg)
+	chainUpdateMsg, ok := localMessage.Data().(utils.ChainUpdateMsg)
 	if !ok {
 		logger.Errorf("Received local message is not a chain update")
 		return ErrLocalMessageNotChainUpdate
@@ -187,13 +187,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	}
 
 	// Perform preliminary sanity checks on the transaction.
-	if err := tx_pool.chain.SanityCheckTransactionWrapper(tx); err != nil {
+	if err := utils.SanityCheckTransaction(tx); err != nil {
 		logger.Debugf("Tx %v fails sanity check: %v", txHash, err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
-	if tx_pool.chain.IsCoinBaseWrapper(tx) {
+	if utils.IsCoinBase(tx) {
 		logger.Debugf("Tx %v is an individual coinbase", txHash)
 		return ErrCoinbaseTx
 	}

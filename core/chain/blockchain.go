@@ -12,8 +12,8 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 
-	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -42,15 +42,6 @@ const (
 	// CoinbaseLib is the number of blocks required before newly mined coins (coinbase transactions) can be spent.
 	CoinbaseLib int32 = 100
 
-	// decimals is the number of digits after decimal point of value/amount
-	decimals = 8
-
-	// MinCoinbaseScriptLen is the minimum length a coinbase script can be.
-	MinCoinbaseScriptLen = 2
-
-	// MaxCoinbaseScriptLen is the maximum length a coinbase script can be.
-	MaxCoinbaseScriptLen = 1000
-
 	// MaxBlockSigOps is the maximum number of signature operations
 	// allowed for a block.
 	MaxBlockSigOps = 80000
@@ -62,9 +53,6 @@ const (
 
 	// coinbase only spendable after this many blocks
 	coinbaseMaturity = 0
-
-	// SubsidyReductionInterval is the interval of blocks before the subsidy is reduced.
-	SubsidyReductionInterval = 210000
 
 	// medianTimeBlocks is the number of previous blocks which should be
 	// used to calculate the median time used to validate block timestamps.
@@ -91,48 +79,25 @@ const (
 	unminedHeight = 0x7fffffff
 )
 
-var (
-	// zeroHash is the zero value for a hash
-	zeroHash crypto.HashType
-
-	// totalSupply is the total supply of box: 3 billion
-	totalSupply = (int64)(3e9 * math.Pow10(decimals))
-
-	// baseSubsidy is the starting subsidy amount for mined blocks.
-	// This value is halved every SubsidyReductionInterval blocks.
-	baseSubsidy = (int64)(50 * math.Pow10(decimals))
-)
-
 // error
 var (
-	ErrBlockExists          = errors.New("Block already exists")
-	ErrInvalidTime          = errors.New("Invalid time")
-	ErrTimeTooNew           = errors.New("Block time too new")
-	ErrNoTransactions       = errors.New("Block does not contain any transaction")
-	ErrBlockTooBig          = errors.New("Block too big")
-	ErrFirstTxNotCoinbase   = errors.New("First transaction in block is not a coinbase")
-	ErrMultipleCoinbases    = errors.New("Block contains multiple coinbase transactions")
-	ErrNoTxInputs           = errors.New("Transaction has no inputs")
-	ErrNoTxOutputs          = errors.New("Transaction has no outputs")
-	ErrBadTxOutValue        = errors.New("Invalid output value")
-	ErrDuplicateTxInputs    = errors.New("Transaction contains duplicate inputs")
-	ErrBadCoinbaseScriptLen = errors.New("Coinbase scriptSig out of range")
-	ErrBadTxInput           = errors.New("Transaction input refers to null out point")
-	ErrBadMerkleRoot        = errors.New("Merkel root mismatch")
-	ErrDuplicateTx          = errors.New("Duplicate transactions in a block")
-	ErrTooManySigOps        = errors.New("Too many signature operations in a block")
-	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
-	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
-	ErrBadFees              = errors.New("total fees for block overflows accumulator")
-	ErrBadCoinbaseValue     = errors.New("Coinbase pays more than expected value")
-	ErrUnfinalizedTx        = errors.New("Transaction has not been finalized")
-	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
+	ErrBlockExists        = errors.New("Block already exists")
+	ErrInvalidTime        = errors.New("Invalid time")
+	ErrTimeTooNew         = errors.New("Block time too new")
+	ErrNoTransactions     = errors.New("Block does not contain any transaction")
+	ErrBlockTooBig        = errors.New("Block too big")
+	ErrFirstTxNotCoinbase = errors.New("First transaction in block is not a coinbase")
+	ErrMultipleCoinbases  = errors.New("Block contains multiple coinbase transactions")
+	ErrBadMerkleRoot      = errors.New("Merkel root mismatch")
+	ErrDuplicateTx        = errors.New("Duplicate transactions in a block")
+	ErrTooManySigOps      = errors.New("Too many signature operations in a block")
+	ErrImmatureSpend      = errors.New("Attempting to spend an immature coinbase")
+	ErrSpendTooHigh       = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
+	ErrBadFees            = errors.New("total fees for block overflows accumulator")
+	ErrBadCoinbaseValue   = errors.New("Coinbase pays more than expected value")
+	ErrUnfinalizedTx      = errors.New("Transaction has not been finalized")
+	ErrMissingTxOut       = errors.New("Referenced utxo does not exist")
 )
-
-// isNullOutPoint determines whether or not a previous transaction output point is set.
-func isNullOutPoint(outPoint *types.OutPoint) bool {
-	return outPoint.Index == math.MaxUint32 && outPoint.Hash == zeroHash
-}
 
 var logger = log.NewLogger("chain") // logger
 
@@ -455,16 +420,6 @@ func (chain *BlockChain) checkBlockContext(block *types.Block) error {
 	return nil
 }
 
-// countSpentOutputs returns the number of utxos the passed block spends.
-func countSpentOutputs(block *types.Block) int {
-	// Exclude the coinbase transaction since it can't spend anything.
-	var numSpent int
-	for _, tx := range block.Txs[1:] {
-		numSpent += len(tx.Vin)
-	}
-	return numSpent
-}
-
 // CheckTransactionInputs performs a series of checks on the inputs to a
 // transaction to ensure they are valid.  An example of some of the checks
 // include verifying all inputs exist, ensuring the coinbase seasoning
@@ -475,7 +430,7 @@ func countSpentOutputs(block *types.Block) int {
 // it also calculates the total fees for the transaction and returns that value.
 func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
 	// Coinbase transactions have no inputs.
-	if IsCoinBase(tx) {
+	if utils.IsCoinBase(tx) {
 		return 0, nil
 	}
 
@@ -509,21 +464,21 @@ func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 		utxoAmount := utxo.Value()
 		if utxoAmount < 0 {
 			logger.Errorf("transaction output has negative value of %v", utxoAmount)
-			return 0, ErrBadTxOutValue
+			return 0, utils.ErrBadTxOutValue
 		}
-		if utxoAmount > totalSupply {
-			logger.Errorf("transaction output value of %v is higher than max allowed value of %v", utxoAmount, totalSupply)
-			return 0, ErrBadTxOutValue
+		if utxoAmount > utils.TotalSupply {
+			logger.Errorf("transaction output value of %v is higher than max allowed value of %v", utxoAmount, utils.TotalSupply)
+			return 0, utils.ErrBadTxOutValue
 		}
 
 		// The total of all outputs must not be more than the max allowed per transaction.
 		// Also, we could potentially overflow the accumulator so check for overflow.
 		lastAmount := totalInputAmount
 		totalInputAmount += utxoAmount
-		if totalInputAmount < lastAmount || totalInputAmount > totalSupply {
+		if totalInputAmount < lastAmount || totalInputAmount > utils.TotalSupply {
 			logger.Errorf("total value of all transaction inputs is %v which is higher than max "+
-				"allowed value of %v", totalInputAmount, totalSupply)
-			return 0, ErrBadTxOutValue
+				"allowed value of %v", totalInputAmount, utils.TotalSupply)
+			return 0, utils.ErrBadTxOutValue
 		}
 	}
 
@@ -545,24 +500,6 @@ func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 
 	txFee := totalInputAmount - totalOutputAmount
 	return txFee, nil
-}
-
-// calcBlockSubsidy returns the subsidy amount a block at the provided height
-// should have. This is mainly used for determining how much the coinbase for
-// newly generated blocks awards as well as validating the coinbase for blocks
-// has the expected value.
-//
-// The subsidy is halved every SubsidyReductionInterval blocks.  Mathematically
-// this is: baseSubsidy / 2^(height/SubsidyReductionInterval)
-func calcBlockSubsidy(height int32) int64 {
-	// Equivalent to: baseSubsidy / 2^(height/subsidyHalvingInterval)
-	return baseSubsidy >> uint(height/SubsidyReductionInterval)
-}
-
-// CalcBlockSubsidyWrapper is a proxy of calcBlockSubsidy
-// TODO: remove
-func (chain *BlockChain) CalcBlockSubsidyWrapper(height int32) int64 {
-	return calcBlockSubsidy(height)
 }
 
 // Finds the parent of a block. Return nil if nonexistent
@@ -638,7 +575,7 @@ func (chain *BlockChain) calcSequenceLock(utxoSet *UtxoSet, block *types.Block, 
 	sequenceLock := &SequenceLock{Seconds: -1, BlockHeight: -1}
 
 	// Sequence lock does not apply to coinbase tx.
-	if IsCoinBase(tx) {
+	if utils.IsCoinBase(tx) {
 		return sequenceLock, nil
 	}
 
@@ -804,7 +741,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 	for _, txOut := range transactions[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
-	expectedCoinbaseOutput := calcBlockSubsidy(block.Height) + totalFees
+	expectedCoinbaseOutput := utils.CalcBlockSubsidy(block.Height) + totalFees
 	if totalCoinbaseOutput > expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
 			totalCoinbaseOutput, expectedCoinbaseOutput)
@@ -972,11 +909,11 @@ func (chain *BlockChain) applyBlock(block *types.Block) error {
 }
 
 func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connected bool) error {
-	chainUpdateMsg := core.ChainUpdateMsg{
+	chainUpdateMsg := utils.ChainUpdateMsg{
 		Connected: connected,
 		Block:     block,
 	}
-	chain.notifiee.Notify(core.NewLocalMessage(p2p.ChainUpdateMsg, chainUpdateMsg))
+	chain.notifiee.Notify(utils.NewLocalMessage(p2p.ChainUpdateMsg, chainUpdateMsg))
 	return nil
 }
 
@@ -1102,121 +1039,6 @@ func sanityCheckBlockHeader(header *types.BlockHeader, timeSource util.MedianTim
 	return nil
 }
 
-// IsCoinBase determines whether or not a transaction is a coinbase.  A coinbase
-// is a special transaction created by miners that has no inputs.  This is
-// represented in the block chain by a transaction with a single input that has
-// a previous output transaction index set to the maximum value along with a zero hash.
-//
-// This function only differs from IsCoinBase in that it works with a raw wire
-// transaction as opposed to a higher level util transaction.
-func IsCoinBase(tx *types.Transaction) bool {
-	// A coin base must only have one transaction input.
-	if len(tx.Vin) != 1 {
-		return false
-	}
-
-	// The previous output of a coin base must have a max value index and a zero hash.
-	return isNullOutPoint(&tx.Vin[0].PrevOutPoint)
-}
-
-// IsCoinBaseWrapper is a proxy of IsCoinbase
-// TODO: remove
-func (chain *BlockChain) IsCoinBaseWrapper(tx *types.Transaction) bool {
-	return IsCoinBase(tx)
-}
-
-// SanityCheckTransaction performs some preliminary checks on a transaction to
-// ensure it is sane. These checks are context free.
-func SanityCheckTransaction(tx *types.Transaction) error {
-	// A transaction must have at least one input.
-	if len(tx.Vin) == 0 {
-		return ErrNoTxInputs
-	}
-
-	// A transaction must have at least one output.
-	if len(tx.Vout) == 0 {
-		return ErrNoTxOutputs
-	}
-
-	// TOOD: check before deserialization
-	// // A transaction must not exceed the maximum allowed block payload when
-	// // serialized.
-	// serializedTxSize := tx.MsgTx().SerializeSizeStripped()
-	// if serializedTxSize > MaxBlockBaseSize {
-	// 	str := fmt.Sprintf("serialized transaction is too big - got "+
-	// 		"%d, max %d", serializedTxSize, MaxBlockBaseSize)
-	// 	return ruleError(ErrTxTooBig, str)
-	// }
-
-	// Ensure the transaction amounts are in range. Each transaction
-	// output must not be negative or more than the max allowed per
-	// transaction. Also, the total of all outputs must abide by the same
-	// restrictions.
-	var totalValue int64
-	for _, txOut := range tx.Vout {
-		value := txOut.Value
-		if value < 0 {
-			logger.Errorf("transaction output has negative value of %v", value)
-			return ErrBadTxOutValue
-		}
-		if value > totalSupply {
-			logger.Errorf("transaction output value of %v is "+
-				"higher than max allowed value of %v", totalSupply)
-			return ErrBadTxOutValue
-		}
-
-		// Two's complement int64 overflow guarantees that any overflow
-		// is detected and reported.
-		totalValue += value
-		if totalValue < 0 {
-			logger.Errorf("total value of all transaction outputs overflows %v", totalValue)
-			return ErrBadTxOutValue
-		}
-		if totalValue > totalSupply {
-			logger.Errorf("total value of all transaction "+
-				"outputs is %v which is higher than max "+
-				"allowed value of %v", totalValue, totalSupply)
-			return ErrBadTxOutValue
-		}
-	}
-
-	// Check for duplicate transaction inputs.
-	existingOutPoints := make(map[types.OutPoint]struct{})
-	for _, txIn := range tx.Vin {
-		if _, exists := existingOutPoints[txIn.PrevOutPoint]; exists {
-			return ErrDuplicateTxInputs
-		}
-		existingOutPoints[txIn.PrevOutPoint] = struct{}{}
-	}
-
-	if IsCoinBase(tx) {
-		// Coinbase script length must be between min and max length.
-		slen := len(tx.Vin[0].ScriptSig)
-		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
-			logger.Errorf("coinbase transaction script length "+
-				"of %d is out of range (min: %d, max: %d)",
-				slen, MinCoinbaseScriptLen, MaxCoinbaseScriptLen)
-			return ErrBadCoinbaseScriptLen
-		}
-	} else {
-		// Previous transaction outputs referenced by the inputs to this
-		// transaction must not be null.
-		for _, txIn := range tx.Vin {
-			if isNullOutPoint(&txIn.PrevOutPoint) {
-				return ErrBadTxInput
-			}
-		}
-	}
-
-	return nil
-}
-
-// SanityCheckTransactionWrapper is a proxy of SanityCheckTransaction
-// TODO: remove
-func (chain *BlockChain) SanityCheckTransactionWrapper(tx *types.Transaction) error {
-	return SanityCheckTransaction(tx)
-}
-
 // return number of transactions in a script
 func getSigOpCount(script []byte) int {
 	// TODO after adding script
@@ -1269,14 +1091,14 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 
 	// The first transaction in a block must be a coinbase.
 	transactions := block.Txs
-	if !IsCoinBase(transactions[0]) {
+	if !utils.IsCoinBase(transactions[0]) {
 		logger.Errorf("first transaction in block is not a coinbase")
 		return ErrFirstTxNotCoinbase
 	}
 
 	// A block must not have more than one coinbase.
 	for i, tx := range transactions[1:] {
-		if IsCoinBase(tx) {
+		if utils.IsCoinBase(tx) {
 			logger.Errorf("block contains second coinbase at index %d", i+1)
 			return ErrMultipleCoinbases
 		}
@@ -1285,7 +1107,7 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 	// Do some preliminary checks on each transaction to ensure they are
 	// sane before continuing.
 	for _, tx := range transactions {
-		err := SanityCheckTransaction(tx)
+		err := utils.SanityCheckTransaction(tx)
 		if err != nil {
 			return err
 		}
@@ -1341,7 +1163,7 @@ func (chain *BlockChain) TailBlock() *types.Block {
 // 		prevOut.Index = uint32(txOutIdx)
 // 		outPointMap[prevOut] = struct{}{}
 // 	}
-// 	if !IsCoinBase(tx) {
+// 	if !utils.IsCoinBase(tx) {
 // 		for _, txIn := range tx.Vin {
 // 			outPointMap[txIn.PrevOutPoint] = struct{}{}
 // 		}

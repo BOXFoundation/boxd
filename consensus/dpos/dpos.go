@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -172,7 +173,7 @@ func (dpos *Dpos) createCoinbaseTx(addr types.Address) (*types.Transaction, erro
 	var pkScript []byte
 	var err error
 	nextBlockHeight := dpos.chain.LongestChainHeight + 1
-	blockReward := dpos.chain.CalcBlockSubsidyWrapper(nextBlockHeight)
+	blockReward := utils.CalcBlockSubsidy(nextBlockHeight)
 	coinbaseScript, err := script.StandardCoinbaseScript(nextBlockHeight)
 	if err != nil {
 		return nil, err

@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
 )
@@ -65,7 +66,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight in
 	if utxoEntry := u.utxoMap[outPoint]; utxoEntry != nil {
 		return ErrAddExistingUtxo
 	}
-	utxoEntry := UtxoEntry{*tx.Vout[txOutIdx], blockHeight, IsCoinBase(tx), false}
+	utxoEntry := UtxoEntry{*tx.Vout[txOutIdx], blockHeight, utils.IsCoinBase(tx), false}
 	u.utxoMap[outPoint] = &utxoEntry
 	return nil
 }
@@ -91,7 +92,7 @@ func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight int32) error {
 	}
 
 	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) {
+	if utils.IsCoinBase(tx) {
 		return nil
 	}
 
@@ -124,7 +125,7 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight int32) error {
 	}
 
 	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) {
+	if utils.IsCoinBase(tx) {
 		return nil
 	}
 
@@ -165,7 +166,7 @@ func LoadTxUtxos(tx *types.Transaction, db storage.Table) (*UtxoSet, error) {
 		prevOut.Index = uint32(idx)
 		emptySet[prevOut] = struct{}{}
 	}
-	if !IsCoinBase(tx) {
+	if !utils.IsCoinBase(tx) {
 		for _, txIn := range tx.Vin {
 			emptySet[txIn.PrevOutPoint] = struct{}{}
 		}
