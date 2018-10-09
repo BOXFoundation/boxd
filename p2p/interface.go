@@ -13,6 +13,7 @@ import (
 type Message interface {
 	Code() uint32
 	Body() []byte
+	From() peer.ID
 }
 
 // Net Define Net interface
