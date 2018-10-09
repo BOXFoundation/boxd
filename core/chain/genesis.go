@@ -32,8 +32,6 @@ var genesisCoinbaseTx = types.Transaction{
 	LockTime: 0,
 }
 
-var genesisHash = crypto.HashType([crypto.HashSize]byte{})
-
 var genesisMerkleRoot = crypto.HashType([crypto.HashSize]byte{})
 
 var genesisBlock = types.Block{
@@ -46,3 +44,5 @@ var genesisBlock = types.Block{
 	Txs:    []*types.Transaction{&genesisCoinbaseTx},
 	Height: 0,
 }
+
+var genesisHash = *(genesisBlock.BlockHash())
