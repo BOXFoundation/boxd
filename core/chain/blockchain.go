@@ -99,32 +99,18 @@ func init() {
 
 // BlockChain define chain struct
 type BlockChain struct {
-	notifiee      p2p.Net
-	newblockMsgCh chan p2p.Message
-	dbBlock       storage.Table
-	DbTx          storage.Table
-	genesis       *types.Block
-	tail          *types.Block
-	proc          goprocess.Process
-
-	// longest chain
-	LongestChainHeight int32
-	longestChainTip    *types.Block
-
-	// Actually a tree-shaped structure where any block can have
-	// multiple children.  However, there can only be one active branch (longest) which does
-	// indeed form a chain from the tip all the way back to the genesis block.
-	// It includes main chain and side chains, but not orphan blocks
-	// hashToBlock map[crypto.HashType]*types.Block
-	cache *lru.Cache
-
-	// orphan block pool
-	hashToOrphanBlock map[crypto.HashType]*types.Block
-	// orphan block's children; one parent can have multiple orphan children
+	notifiee                  p2p.Net
+	newblockMsgCh             chan p2p.Message
+	dbBlock                   storage.Table
+	DbTx                      storage.Table
+	genesis                   *types.Block
+	tail                      *types.Block
+	proc                      goprocess.Process
+	LongestChainHeight        int32
+	longestChainTip           *types.Block
+	cache                     *lru.Cache
+	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
-
-	// all utxos for main chain
-	// UtxoSet *UtxoSet
 }
 
 // NewBlockChain return a blockchain.
@@ -136,7 +122,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
-		// UtxoSet:                   NewUtxoSet(),
 	}
 	var err error
 	b.cache, err = lru.New(512)
@@ -281,8 +266,6 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	return nil
 }
 
-// blockExists determines whether a block with the given hash exists either in
-// the main chain or any side chains.
 func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
 	if chain.cache.Contains(blockHash) {
 		return true
@@ -300,14 +283,11 @@ func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.H
 	chain.orphanBlockHashToChildren[parentHash] = append(chain.orphanBlockHashToChildren[parentHash], orphan)
 }
 
-// processOrphans determines if there are any orphans which depend on the accepted
-// block hash (they are no longer orphans if true) and potentially accepts them.
-// It repeats the process for the newly accepted blocks (to detect further
-// orphans which may no longer be orphans) until there are no more.
 func (chain *BlockChain) processOrphans(block *types.Block) error {
 	// Start with processing at least the passed block.
 	acceptedBlocks := []*types.Block{block}
 
+	// TODO: @XIAOHUI determines whether the length of an array can be changed while traversing an array?
 	// Note: use index here instead of range because acceptedBlocks can be extended inside the loop
 	for i := 0; i < len(acceptedBlocks); i++ {
 		acceptedBlock := acceptedBlocks[i]
@@ -334,13 +314,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 	return nil
 }
 
-// ProcessBlock is the main workhorse for handling insertion of new blocks into
-// the block chain. It includes functionality such as rejecting duplicate
-// blocks, ensuring blocks follow all rules, orphan handling, and insertion into
-// the block chain along with best chain selection and reorganization.
-//
-// The first return value indicates if the block is on the main chain.
-// The second indicates if the block is an orphan.
+// ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
 	blockHash := block.BlockHash()
 	logger.Infof("Processing block hash: %v", *blockHash)
@@ -378,8 +352,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, err
 	}
 
-	// Accept any orphan blocks that depend on this block (they are no longer orphans)
-	// and repeat for those accepted blocks until there are no more.
 	if err := chain.processOrphans(block); err != nil {
 		logger.Error(err)
 		return false, false, err
@@ -425,33 +397,20 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 	return target
 }
 
-// calcPastMedianTime calculates the median time of the previous few blocks
-// prior to, and including, the block.
 func (chain *BlockChain) calcPastMedianTime(block *types.Block) time.Time {
-	// Create a slice of the previous few block timestamps used to calculate
-	// the median per the number defined by the constant medianTimeBlocks.
+
 	timestamps := make([]int64, medianTimeBlocks)
 	i := 0
 	for iterBlock := block; i < medianTimeBlocks && iterBlock != nil; i++ {
 		timestamps[i] = iterBlock.Header.TimeStamp
 		iterBlock = chain.getParentBlock(iterBlock)
 	}
-
-	// Prune the slice to the actual number of available timestamps which
-	// will be fewer than desired near the beginning of the block chain and sort them.
 	timestamps = timestamps[:i]
 	sort.Sort(timeSorter(timestamps))
-
-	// NOTE: The consensus rules incorrectly calculate the median for even
-	// numbers of blocks. A true median averages the middle two elements
-	// for a set with an even number of elements in it.
 	medianTimestamp := timestamps[i/2]
 	return time.Unix(medianTimestamp, 0)
 }
 
-// ancestor returns the ancestor block at the provided height by following
-// the chain backwards from this block.  The returned block will be nil when a
-// height is requested that is after the height of the passed block or is less than zero.
 func (chain *BlockChain) ancestor(block *types.Block, height int32) *types.Block {
 	if height < 0 || height > block.Height {
 		return nil
@@ -543,24 +502,17 @@ func (chain *BlockChain) calcSequenceLock(utxoSet *utils.UtxoSet, block *types.B
 	return sequenceLock, nil
 }
 
-// SequenceLockActive determines if a transaction's sequence locks have been
-// met, meaning that all the inputs of a given transaction have reached a
-// height or time sufficient for their relative lock-time maturity.
 func sequenceLockActive(sequenceLock *SequenceLock, blockHeight int32, medianTimePast time.Time) bool {
 	return sequenceLock.Seconds < medianTimePast.Unix() && sequenceLock.BlockHeight < blockHeight
 }
 
-// Validates the scripts for all of the passed transaction inputs
 func validateTxs(txValidateItems []*script.TxValidateItem) error {
 	// TODO: execute and verify script
 	return nil
 }
 
-// checkBlockScripts executes and validates the scripts for all transactions in
-// the passed block using multiple goroutines.
 func checkBlockScripts(block *types.Block) error {
-	// Collect all of the transaction inputs and required information for
-	// validation for all transactions in the block into a single slice.
+
 	numInputs := 0
 	for _, tx := range block.Txs {
 		numInputs += len(tx.Vin)
