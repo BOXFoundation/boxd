@@ -5,6 +5,7 @@
 package eventbus
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -75,8 +76,12 @@ func TestPublish(t *testing.T) {
 func TestSubcribeOnceAsync(t *testing.T) {
 	results := make([]int, 0)
 
+	var sm sync.Mutex
+
 	bus := New()
 	bus.SubscribeOnceAsync("topic", func(a int, out *[]int) {
+		sm.Lock()
+		defer sm.Unlock()
 		*out = append(*out, a)
 	})
 
@@ -93,20 +98,17 @@ func TestSubscribeAsyncTransactional(t *testing.T) {
 	results := make([]int, 0)
 
 	bus := New()
-	bus.SubscribeAsync("topic", func(a int, out *[]int, dur string) {
-		sleep, _ := time.ParseDuration(dur)
-		time.Sleep(sleep)
+	bus.SubscribeAsync("topic", func(a int, out *[]int) {
 		*out = append(*out, a)
 	}, true)
 
-	bus.Publish("topic", 1, &results, "1s")
-	bus.Publish("topic", 2, &results, "0s")
+	for i := 0; i < 100; i++ {
+		bus.Publish("topic", i, &results)
+	}
 
 	bus.WaitAsync()
 
-	ensure.DeepEqual(t, len(results), 2)
-	ensure.DeepEqual(t, results[0], 2)
-	ensure.DeepEqual(t, results[1], 1)
+	ensure.DeepEqual(t, len(results), 100)
 }
 
 func TestSubscribeAsync(t *testing.T) {
@@ -122,17 +124,23 @@ func TestSubscribeAsync(t *testing.T) {
 
 	numResults := 0
 
+	var sm sync.Mutex
 	go func() {
 		for range results {
+			sm.Lock()
 			numResults++
+			sm.Unlock()
 		}
 	}()
 
 	bus.WaitAsync()
 
 	time.Sleep(10 * time.Millisecond)
+	close(results)
 
+	sm.Lock()
 	ensure.DeepEqual(t, numResults, 2)
+	sm.Unlock()
 }
 
 func TestReceive(t *testing.T) {
