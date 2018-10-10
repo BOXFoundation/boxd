@@ -148,16 +148,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
 	for pool.Len() > 0 {
-		txwrap := heap.Pop(pool).(*txpool.TxWrap)
-		tx := txwrap.Tx
-		// unspentUtxoCache, err := chain.LoadUnspentUtxo(tx)
-		// if err != nil {
-		// 	continue
-		// }
-		// mergeUtxoCache(blockUtxos, unspentUtxoCache)
-		// spent tx
-		// chain.spendTransaction(blockUtxos, tx, chain.tail.Height)
-		blockTxns = append(blockTxns, tx)
+		txWrap := heap.Pop(pool).(*txpool.TxWrap)
+		blockTxns = append(blockTxns, txWrap.Tx)
 	}
 
 	merkles := util.CalcTxsHash(blockTxns)

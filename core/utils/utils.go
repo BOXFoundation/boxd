@@ -35,6 +35,9 @@ var (
 	// TotalSupply is the total supply of box: 3 billion
 	TotalSupply = (int64)(3e9 * math.Pow10(decimals))
 
+	// coinbase only spendable after this many blocks
+	coinbaseMaturity = (int32)(0)
+
 	// baseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
 	baseSubsidy = (int64)(50 * math.Pow10(decimals))
@@ -48,6 +51,9 @@ var (
 	ErrDuplicateTxInputs    = errors.New("Transaction contains duplicate inputs")
 	ErrBadCoinbaseScriptLen = errors.New("Coinbase scriptSig out of range")
 	ErrBadTxInput           = errors.New("Transaction input refers to null out point")
+	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
+	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
+	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
 )
 
 var logger = log.NewLogger("utils") // logger
@@ -167,4 +173,74 @@ func SanityCheckTransaction(tx *types.Transaction) error {
 	}
 
 	return nil
+}
+
+// ValidateTxInputs validates the inputs of a tx.
+// Returns the total tx fee.
+func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
+	// Coinbase tx needs no inputs.
+	if IsCoinBase(tx) {
+		return 0, nil
+	}
+
+	txHash, _ := tx.TxHash()
+	var totalInputAmount int64
+	for txInIndex, txIn := range tx.Vin {
+		// Ensure the referenced input transaction exists and is not spent.
+		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
+		if utxo == nil || utxo.IsSpent {
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
+				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
+			return 0, ErrMissingTxOut
+		}
+
+		// Immature coinbase coins cannot be spent.
+		if utxo.IsCoinBase {
+			originHeight := utxo.BlockHeight
+			blocksSincePrev := txHeight - originHeight
+			if blocksSincePrev < coinbaseMaturity {
+				logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
+					"at height %v before required maturity of %v blocks", txIn.PrevOutPoint,
+					originHeight, txHeight, coinbaseMaturity)
+				return 0, ErrImmatureSpend
+			}
+		}
+
+		// Tx amount must be in range.
+		utxoAmount := utxo.Value()
+		if utxoAmount < 0 {
+			logger.Errorf("transaction output has negative value of %v", utxoAmount)
+			return 0, ErrBadTxOutValue
+		}
+		if utxoAmount > TotalSupply {
+			logger.Errorf("transaction output value of %v is higher than max allowed value of %v", utxoAmount, TotalSupply)
+			return 0, ErrBadTxOutValue
+		}
+
+		// Total tx amount must also be in range. Also, we check for overflow.
+		lastAmount := totalInputAmount
+		totalInputAmount += utxoAmount
+		if totalInputAmount < lastAmount || totalInputAmount > TotalSupply {
+			logger.Errorf("total value of all transaction inputs is %v which is higher than max "+
+				"allowed value of %v", totalInputAmount, TotalSupply)
+			return 0, ErrBadTxOutValue
+		}
+	}
+
+	// Sum the total output amount.
+	var totalOutputAmount int64
+	for _, txOut := range tx.Vout {
+		totalOutputAmount += txOut.Value
+	}
+
+	// Tx total outputs must not exceed total inputs.
+	if totalInputAmount < totalOutputAmount {
+		logger.Errorf("total value of all transaction outputs for "+
+			"transaction %v is %v, which exceeds the input amount "+
+			"of %v", txHash, totalOutputAmount, totalInputAmount)
+		return 0, ErrSpendTooHigh
+	}
+
+	txFee := totalInputAmount - totalOutputAmount
+	return txFee, nil
 }

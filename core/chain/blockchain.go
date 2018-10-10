@@ -50,9 +50,6 @@ const (
 	// is generated per 10 minutes, this allows blocks for about 9,512 years.
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 
-	// coinbase only spendable after this many blocks
-	coinbaseMaturity = 0
-
 	// medianTimeBlocks is the number of previous blocks which should be
 	// used to calculate the median time used to validate block timestamps.
 	medianTimeBlocks = 11
@@ -90,12 +87,9 @@ var (
 	ErrBadMerkleRoot      = errors.New("Merkel root mismatch")
 	ErrDuplicateTx        = errors.New("Duplicate transactions in a block")
 	ErrTooManySigOps      = errors.New("Too many signature operations in a block")
-	ErrImmatureSpend      = errors.New("Attempting to spend an immature coinbase")
-	ErrSpendTooHigh       = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
 	ErrBadFees            = errors.New("total fees for block overflows accumulator")
 	ErrBadCoinbaseValue   = errors.New("Coinbase pays more than expected value")
 	ErrUnfinalizedTx      = errors.New("Transaction has not been finalized")
-	ErrMissingTxOut       = errors.New("Referenced utxo does not exist")
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -414,76 +408,6 @@ func (chain *BlockChain) checkBlockWithContext(block *types.Block) error {
 	return nil
 }
 
-// ValidateTxInputs validates the inputs of a tx.
-// Returns the total tx fee.
-func (chain *BlockChain) ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
-	// Coinbase tx needs no inputs.
-	if utils.IsCoinBase(tx) {
-		return 0, nil
-	}
-
-	txHash, _ := tx.TxHash()
-	var totalInputAmount int64
-	for txInIndex, txIn := range tx.Vin {
-		// Ensure the referenced input transaction exists and is not spent.
-		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsSpent {
-			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
-				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
-			return 0, ErrMissingTxOut
-		}
-
-		// Immature coinbase coins cannot be spent.
-		if utxo.IsCoinBase {
-			originHeight := utxo.BlockHeight
-			blocksSincePrev := txHeight - originHeight
-			if blocksSincePrev < coinbaseMaturity {
-				logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
-					"at height %v before required maturity of %v blocks", txIn.PrevOutPoint,
-					originHeight, txHeight, coinbaseMaturity)
-				return 0, ErrImmatureSpend
-			}
-		}
-
-		// Tx amount must be in range.
-		utxoAmount := utxo.Value()
-		if utxoAmount < 0 {
-			logger.Errorf("transaction output has negative value of %v", utxoAmount)
-			return 0, utils.ErrBadTxOutValue
-		}
-		if utxoAmount > utils.TotalSupply {
-			logger.Errorf("transaction output value of %v is higher than max allowed value of %v", utxoAmount, utils.TotalSupply)
-			return 0, utils.ErrBadTxOutValue
-		}
-
-		// Total tx amount must also be in range. Also, we check for overflow.
-		lastAmount := totalInputAmount
-		totalInputAmount += utxoAmount
-		if totalInputAmount < lastAmount || totalInputAmount > utils.TotalSupply {
-			logger.Errorf("total value of all transaction inputs is %v which is higher than max "+
-				"allowed value of %v", totalInputAmount, utils.TotalSupply)
-			return 0, utils.ErrBadTxOutValue
-		}
-	}
-
-	// Sum the total output amount.
-	var totalOutputAmount int64
-	for _, txOut := range tx.Vout {
-		totalOutputAmount += txOut.Value
-	}
-
-	// Tx total outputs must not exceed total inputs.
-	if totalInputAmount < totalOutputAmount {
-		logger.Errorf("total value of all transaction outputs for "+
-			"transaction %v is %v, which exceeds the input amount "+
-			"of %v", txHash, totalOutputAmount, totalInputAmount)
-		return 0, ErrSpendTooHigh
-	}
-
-	txFee := totalInputAmount - totalOutputAmount
-	return txFee, nil
-}
-
 // Finds the parent of a block. Return nil if nonexistent
 func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 
@@ -551,7 +475,7 @@ type SequenceLock struct {
 }
 
 // calcSequenceLock computes the relative lock-times for the passed transaction.
-func (chain *BlockChain) calcSequenceLock(utxoSet *UtxoSet, block *types.Block, tx *types.Transaction) (*SequenceLock, error) {
+func (chain *BlockChain) calcSequenceLock(utxoSet *utils.UtxoSet, block *types.Block, tx *types.Transaction) (*SequenceLock, error) {
 	// A value of -1 for each relative lock type represents a relative time lock value
 	// that will allow a transaction to be included in a block at any given height or time.
 	sequenceLock := &SequenceLock{Seconds: -1, BlockHeight: -1}
@@ -570,7 +494,7 @@ func (chain *BlockChain) calcSequenceLock(utxoSet *UtxoSet, block *types.Block, 
 		if utxo == nil {
 			logger.Errorf("output %v referenced from transaction %v:%d either does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
-			return sequenceLock, ErrMissingTxOut
+			return sequenceLock, utils.ErrMissingTxOut
 		}
 
 		// Referenced utxo's block height
@@ -678,7 +602,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 
 	transactions := block.Txs
 
-	utxoSet, err := LoadBlockUtxos(block, chain.DbTx)
+	utxoSet, err := utils.LoadBlockUtxos(block, chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -687,7 +611,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	// Also accumulate the total fees.
 	var totalFees int64
 	for _, tx := range transactions {
-		txFee, err := chain.ValidateTxInputs(utxoSet, tx, block.Height)
+		txFee, err := utils.ValidateTxInputs(utxoSet, tx, block.Height)
 		if err != nil {
 			return err
 		}
@@ -802,7 +726,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 
 func (chain *BlockChain) revertBlock(block *types.Block) error {
 
-	utxoSet, err := LoadBlockUtxos(block, chain.DbTx)
+	utxoSet, err := utils.LoadBlockUtxos(block, chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -817,7 +741,7 @@ func (chain *BlockChain) revertBlock(block *types.Block) error {
 
 func (chain *BlockChain) applyBlock(block *types.Block) error {
 
-	utxoSet, err := LoadBlockUtxos(block, chain.DbTx)
+	utxoSet, err := utils.LoadBlockUtxos(block, chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -1083,7 +1007,7 @@ func (chain *BlockChain) TailBlock() *types.Block {
 }
 
 //LoadUnspentUtxo load related unspent utxo
-// func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*UtxoUnspentCache, error) {
+// func (chain *BlockChain) LoadUnspentUtxo(tx *types.Transaction) (*utils.UtxoUnspentCache, error) {
 
 // 	outPointMap := make(map[types.OutPoint]struct{})
 // 	prevOut := types.OutPoint{Hash: *tx.Hash}
@@ -1109,8 +1033,8 @@ func (chain *BlockChain) TailBlock() *types.Block {
 // }
 
 // LoadUtxoByPubKey loads utxos of a public key
-func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*UtxoEntry, error) {
-	res := make(map[types.OutPoint]*UtxoEntry)
+func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*utils.UtxoEntry, error) {
+	res := make(map[types.OutPoint]*utils.UtxoEntry)
 	// for out, entry := range chain.utxoSet.utxoMap {
 	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
 	// 		res[out] = entry
@@ -1120,7 +1044,7 @@ func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*Ut
 }
 
 //ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoEntry {
+func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*utils.UtxoEntry {
 	return nil
 }
 
@@ -1148,17 +1072,7 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction) error
 	return nil
 }
 
-func mergeUtxoCache(cacheA *UtxoUnspentCache, cacheB *UtxoUnspentCache) {
-	viewAEntries := cacheA.outPointMap
-	for outpoint, entryB := range cacheB.outPointMap {
-		if entryA, exists := viewAEntries[outpoint]; !exists ||
-			entryA == nil || entryA.IsPacked {
-			viewAEntries[outpoint] = entryB
-		}
-	}
-}
-
-func (chain *BlockChain) spendTransaction(blockUtxos *UtxoUnspentCache, tx *types.Transaction, height int32) error {
+func (chain *BlockChain) spendTransaction(blockUtxos *utils.UtxoUnspentCache, tx *types.Transaction, height int32) error {
 	for _, txIn := range tx.Vin {
 		utxowrap := blockUtxos.FindByOutPoint(txIn.PrevOutPoint)
 		if utxowrap != nil {

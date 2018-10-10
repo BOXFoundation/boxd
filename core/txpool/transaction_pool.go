@@ -218,7 +218,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	}
 
 	// TODO: check tx is already exist in the main chain??
-	utxoSet, err := chain.LoadTxUtxos(tx, tx_pool.chain.DbTx)
+	utxoSet, err := utils.LoadTxUtxos(tx, tx_pool.chain.DbTx)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 
 	// TODO: sequence lock
 
-	txFee, err := tx_pool.chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
+	txFee, err := utils.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
 	if err != nil {
 		return err
 	}
@@ -283,7 +283,7 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 }
 
 // A tx is an orphan if any of its spending utxo does not exist
-func (tx_pool *TransactionPool) isOrphan(utxoSet *chain.UtxoSet, tx *types.Transaction) bool {
+func (tx_pool *TransactionPool) isOrphan(utxoSet *utils.UtxoSet, tx *types.Transaction) bool {
 	for _, txIn := range tx.Vin {
 		// Spend main chain UTXOs
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
