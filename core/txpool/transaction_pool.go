@@ -211,7 +211,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 
 	// The transaction must not use any of the same outputs as other transactions already in the pool.
 	// This check only detects double spends within the transaction pool itself.
-	// Double spending coins from the main chain will be checked in checkTransactionInputs.
+	// Double spending coins from the main chain will be checked in ValidateTxInputs.
 	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
 		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash, err)
 		return err
@@ -231,7 +231,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 
 	// TODO: sequence lock
 
-	txFee, err := tx_pool.chain.CheckTransactionInputs(utxoSet, tx, nextBlockHeight)
+	txFee, err := tx_pool.chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
 	if err != nil {
 		return err
 	}

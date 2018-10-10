@@ -42,9 +42,8 @@ const (
 	// CoinbaseLib is the number of blocks required before newly mined coins (coinbase transactions) can be spent.
 	CoinbaseLib int32 = 100
 
-	// MaxBlockSigOps is the maximum number of signature operations
-	// allowed for a block.
-	MaxBlockSigOps = 80000
+	// maxBlockSigOpCnt is the maximum number of signature operations in a block.
+	maxBlockSigOpCnt = 80000
 
 	// LockTimeThreshold is the number below which a lock time is
 	// interpreted to be a block number. Since an average of one block
@@ -328,7 +327,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 			// since it will not be accepted later if rejected once.
 			delete(chain.hashToOrphanBlock, *orphanHash)
 			// Potentially accept the block into the block chain.
-			if _, err := chain.maybeAcceptBlock(orphan); err != nil {
+			if _, err := chain.tryAcceptBlock(orphan); err != nil {
 				return err
 			}
 			// Add this block to the list of blocks to process so any orphan
@@ -365,23 +364,21 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	}
 
 	// Perform preliminary sanity checks on the block and its transactions.
-	if err := sanityCheckBlock(block, util.NewMedianTime()); err != nil {
+	if err := checkBlockWithoutContext(block, util.NewMedianTime()); err != nil {
 		logger.Error(err)
 		return false, false, err
 	}
 
-	// Handle orphan blocks.
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
+		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
-
 		return false, true, nil
 	}
 
-	// The block has passed all context independent checks and appears sane
-	// enough to potentially accept it into the block chain.
-	isMainChain, err := chain.maybeAcceptBlock(block)
+	// All context-free checks pass, try to accept the block into the chain.
+	isMainChain, err := chain.tryAcceptBlock(block)
 	if err != nil {
 		logger.Error(err)
 		return false, false, err
@@ -401,16 +398,13 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	return isMainChain, false, nil
 }
 
-// checkBlockContext peforms several validation checks on the block which depend
-// on its position within the block chain.
-func (chain *BlockChain) checkBlockContext(block *types.Block) error {
-	// using the current median time past of the past block's
-	// timestamps for all lock-time based checks.
+// checkBlockWithContext validates the block, taking into account its position relative to the chain.
+func (chain *BlockChain) checkBlockWithContext(block *types.Block) error {
 	blockTime := block.Header.TimeStamp
 
-	// Ensure all transactions in the block are finalized.
+	// Ensure all transactions are finalized.
 	for _, tx := range block.Txs {
-		if !IsFinalizedTransaction(tx, block.Height, blockTime) {
+		if !IsTxFinalized(tx, block.Height, blockTime) {
 			txHash, _ := tx.TxHash()
 			logger.Errorf("block contains unfinalized transaction %v", txHash)
 			return ErrUnfinalizedTx
@@ -420,16 +414,10 @@ func (chain *BlockChain) checkBlockContext(block *types.Block) error {
 	return nil
 }
 
-// CheckTransactionInputs performs a series of checks on the inputs to a
-// transaction to ensure they are valid.  An example of some of the checks
-// include verifying all inputs exist, ensuring the coinbase seasoning
-// requirements are met, detecting double spends, validating all values and fees
-// are in the legal range and the total output amount doesn't exceed the input
-// amount, and verifying the signatures to prove the spender was the owner of
-// the bitcoins and therefore allowed to spend them.  As it checks the inputs,
-// it also calculates the total fees for the transaction and returns that value.
-func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
-	// Coinbase transactions have no inputs.
+// ValidateTxInputs validates the inputs of a tx.
+// Returns the total tx fee.
+func (chain *BlockChain) ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
+	// Coinbase tx needs no inputs.
 	if utils.IsCoinBase(tx) {
 		return 0, nil
 	}
@@ -437,7 +425,7 @@ func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 	txHash, _ := tx.TxHash()
 	var totalInputAmount int64
 	for txInIndex, txIn := range tx.Vin {
-		// Ensure the referenced input transaction is available.
+		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil || utxo.IsSpent {
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
@@ -445,8 +433,7 @@ func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 			return 0, ErrMissingTxOut
 		}
 
-		// Ensure the transaction is not spending coins which have not
-		// yet reached the required coinbase maturity.
+		// Immature coinbase coins cannot be spent.
 		if utxo.IsCoinBase {
 			originHeight := utxo.BlockHeight
 			blocksSincePrev := txHeight - originHeight
@@ -458,9 +445,7 @@ func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 			}
 		}
 
-		// Ensure the transaction amounts are in range. Each of the
-		// output values of the input transactions must not be negative
-		// or more than the max allowed per transaction.
+		// Tx amount must be in range.
 		utxoAmount := utxo.Value()
 		if utxoAmount < 0 {
 			logger.Errorf("transaction output has negative value of %v", utxoAmount)
@@ -471,8 +456,7 @@ func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 			return 0, utils.ErrBadTxOutValue
 		}
 
-		// The total of all outputs must not be more than the max allowed per transaction.
-		// Also, we could potentially overflow the accumulator so check for overflow.
+		// Total tx amount must also be in range. Also, we check for overflow.
 		lastAmount := totalInputAmount
 		totalInputAmount += utxoAmount
 		if totalInputAmount < lastAmount || totalInputAmount > utils.TotalSupply {
@@ -482,19 +466,17 @@ func (chain *BlockChain) CheckTransactionInputs(utxoSet *UtxoSet, tx *types.Tran
 		}
 	}
 
-	// Calculate the total output amount for this transaction.  It is safe
-	// to ignore overflow and out of range errors here because those error
-	// conditions would have already been caught by SanityCheckTransaction.
+	// Sum the total output amount.
 	var totalOutputAmount int64
 	for _, txOut := range tx.Vout {
 		totalOutputAmount += txOut.Value
 	}
 
-	// Ensure the transaction does not spend more than its inputs.
+	// Tx total outputs must not exceed total inputs.
 	if totalInputAmount < totalOutputAmount {
-		logger.Errorf("total value of all transaction inputs for "+
-			"transaction %v is %v which is less than the amount "+
-			"spent of %v", txHash, totalInputAmount, totalOutputAmount)
+		logger.Errorf("total value of all transaction outputs for "+
+			"transaction %v is %v, which exceeds the input amount "+
+			"of %v", txHash, totalOutputAmount, totalInputAmount)
 		return 0, ErrSpendTooHigh
 	}
 
@@ -683,17 +665,9 @@ func checkBlockScripts(block *types.Block) error {
 	return nil
 }
 
-// maybeConnectBlock performs several checks to confirm connecting the passed
-// block to the chain does not violate any rules.
-// In addition, the utxo set is updated to spend all of the referenced
-// outputs and add all of the new utxos created by block.
-//
-// An example of some of the checks performed are ensuring connecting the block
-// would not cause any duplicate transaction hashes for old transactions that
-// aren't already fully spent, double spends, exceeding the maximum allowed
-// signature operations per block, invalid values in relation to the expected
-// block subsidy, or fail transaction script validation.
-func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
+// tryConnectBlockToMainChain tries to append the passed block to the main chain.
+// It enforces multiple rules such as double spends and script verification.
+func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	// // TODO: needed?
 	// // The coinbase for the Genesis block is not spendable, so just return
 	// // an error now.
@@ -709,17 +683,16 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 		return err
 	}
 
-	// Perform several checks on the inputs for each transaction.  Also
-	// accumulate the total fees.
+	// Perform several checks on the inputs for each transaction.
+	// Also accumulate the total fees.
 	var totalFees int64
 	for _, tx := range transactions {
-		txFee, err := chain.CheckTransactionInputs(utxoSet, tx, block.Height)
+		txFee, err := chain.ValidateTxInputs(utxoSet, tx, block.Height)
 		if err != nil {
 			return err
 		}
 
-		// Sum the total fees and ensure we don't overflow the
-		// accumulator.
+		// Check for overflow.
 		lastTotalFees := totalFees
 		totalFees += txFee
 		if totalFees < lastTotalFees {
@@ -732,11 +705,7 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 		}
 	}
 
-	// The total output values of the coinbase transaction must not exceed
-	// the expected subsidy value plus total transaction fees gained from
-	// mining the block. It is safe to ignore overflow and out of range
-	// errors here because those error conditions would have already been
-	// caught by SanityCheckTransaction.
+	// Ensure coinbase does not output more than block reward.
 	var totalCoinbaseOutput int64
 	for _, txOut := range transactions[0].Vout {
 		totalCoinbaseOutput += txOut.Value
@@ -748,15 +717,11 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 		return ErrBadCoinbaseValue
 	}
 
-	// We obtain the MTP of the *previous* block in order to
-	// determine if transactions in the current block are final.
+	// Enforce the sequence number based relative lock-times.
 	medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
-
-	// Enforce the relative sequence number based lock-times within
-	// the inputs of all transactions in this candidate block.
 	for _, tx := range transactions {
-		// A transaction can only be included within a block
-		// once the sequence locks of *all* its inputs are active.
+		// A transaction can only be included in a block
+		// if all of its input sequence locks are active.
 		sequenceLock, err := chain.calcSequenceLock(utxoSet, block, tx)
 		if err != nil {
 			return err
@@ -767,10 +732,8 @@ func (chain *BlockChain) maybeConnectBlock(block *types.Block) error {
 		}
 	}
 
-	// Now that the inexpensive checks are done and have passed, verify the
-	// transactions are actually allowed to spend the coins by running the
-	// expensive ECDSA signature check scripts. Doing this last helps
-	// prevent CPU exhaustion attacks.
+	// Verify script evaluates to true.
+	// Doing this last helps since it's CPU intensive.
 	if err := checkBlockScripts(block); err != nil {
 		return err
 	}
@@ -837,48 +800,6 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-// connectBlockToChain handles connecting the passed block to the chain while
-// respecting proper chain selection according to the longest chain.
-// In the typical case, the new block simply extends the main
-// chain. However, it may also be extending (or creating) a side chain (fork)
-// which may or may not end up becoming the main chain depending on which fork
-// cumulatively has the most proof of work.  It returns whether or not the block
-// ended up on the main chain (either due to extending the main chain or causing
-// a reorganization to become the main chain).
-func (chain *BlockChain) connectBlockToChain(block *types.Block) (bool, error) {
-	blockHash := block.BlockHash()
-	parentHash := &block.Header.PrevBlockHash
-	tailHash := chain.TailBlock().BlockHash()
-	if parentHash.IsEqual(tailHash) {
-		// We are extending the main (best) chain with a new block. This is the most common case.
-		// Perform several checks to verify the block can be connected to the
-		// main chain without violating any rules before actually connecting the block.
-		err := chain.maybeConnectBlock(block)
-		if err != nil {
-			return false, err
-		}
-		return true, nil
-	}
-
-	// We're extending (or creating) a side chain, but the new side chain is not long enough to make it the main chain.
-	if block.Height <= chain.LongestChainHeight {
-		logger.Infof("Block %v extends a side chain to height %d, shorter than main chain of height %d",
-			blockHash, block.Height, chain.LongestChainHeight)
-		return false, nil
-	}
-
-	// We're extending a side chain longer than the old best chain, so this side
-	// chain needs to become the main chain.
-	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash)
-	err := chain.reorganizeChain(block)
-	if err != nil {
-		return false, err
-	}
-	// This block is now the end of the best chain.
-	chain.SetTailBlock(block)
-	return true, err
-}
-
 func (chain *BlockChain) revertBlock(block *types.Block) error {
 
 	utxoSet, err := LoadBlockUtxos(block, chain.DbTx)
@@ -917,7 +838,7 @@ func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connect
 	return nil
 }
 
-func (chain *BlockChain) reorganizeChain(block *types.Block) error {
+func (chain *BlockChain) reorganize(block *types.Block) error {
 	// Find the common ancestor of the main chain and side chain
 	_, detachBlocks, attachBlocks := chain.findFork(block)
 
@@ -942,18 +863,16 @@ func (chain *BlockChain) reorganizeChain(block *types.Block) error {
 	return nil
 }
 
-// IsFinalizedTransaction determines whether or not a transaction is finalized.
-func IsFinalizedTransaction(tx *types.Transaction, blockHeight int32, blockTime int64) bool {
-	// Lock time of zero means the transaction is finalized.
+// IsTxFinalized checks if a transaction is finalized.
+func IsTxFinalized(tx *types.Transaction, blockHeight int32, blockTime int64) bool {
+	// The tx is finalized if lock time is 0.
 	lockTime := tx.LockTime
 	if lockTime == 0 {
 		return true
 	}
 
-	// The lock time field of a transaction is either a block height at
-	// which the transaction is finalized or a timestamp depending on if the
-	// value is before the LockTimeThreshold.  When it is under the
-	// threshold it is a block height.
+	// When lock time field is less than the threshold, it is a block height.
+	// Otherwise it is a timestamp.
 	blockTimeOrHeight := int64(0)
 	if lockTime < LockTimeThreshold {
 		blockTimeOrHeight = int64(blockHeight)
@@ -964,9 +883,7 @@ func IsFinalizedTransaction(tx *types.Transaction, blockHeight int32, blockTime 
 		return true
 	}
 
-	// At this point, the transaction's lock time hasn't occurred yet, but
-	// the transaction might still be finalized if the sequence number
-	// for all transaction inputs is maxed out.
+	// A tx is still considered finalized if all input sequence numbers are maxed out.
 	for _, txIn := range tx.Vin {
 		if txIn.Sequence != math.MaxUint32 {
 			return false
@@ -975,35 +892,50 @@ func IsFinalizedTransaction(tx *types.Transaction, blockHeight int32, blockTime 
 	return true
 }
 
-// maybeAcceptBlock potentially accepts a block into the block chain and, if
-// accepted, returns whether or not it is on the main chain.  It performs
-// several validation checks which depend on its position within the block chain
-// before adding it. The block is expected to have already gone through
-// ProcessBlock before calling this function with it.
-func (chain *BlockChain) maybeAcceptBlock(block *types.Block) (bool, error) {
-	// must not be orphan block if reaching here
+// tryAcceptBlock validates block within the chain context and see if it can be accepted.
+// Return whether it is on the main chain or not.
+func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
+	// must not be orphan if reaching here
 	parentBlock := chain.getParentBlock(block)
 
-	// The height of this block is one more than the referenced previous block.
+	// The height of this block is one more than the referenced parent block.
 	block.Height = parentBlock.Height + 1
 
-	// The block must pass all of the validation rules which depend on the
-	// position of the block within the block chain.
-	if err := chain.checkBlockContext(block); err != nil {
+	// Validate the block within chain context.
+	if err := chain.checkBlockWithContext(block); err != nil {
 		return false, err
 	}
 
-	blockHash := block.BlockHash()
 	if err := chain.StoreBlockToDb(block); err != nil {
 		return false, err
 	}
+	blockHash := block.BlockHash()
 	chain.cache.Add(*blockHash, block)
 
-	// Connect the passed block to the chain while respecting proper chain
-	// selection according to the longest chain.
-	// This also handles validation of the transaction scripts.
-	isMainChain, err := chain.connectBlockToChain(block)
-	if err != nil {
+	// Connect the passed block to the main or side chain.
+	// There are 3 cases.
+	parentHash := &block.Header.PrevBlockHash
+	tailHash := chain.TailBlock().BlockHash()
+
+	// Case 1): The new block extends the main chain.
+	// We expect this to be the most common case.
+	if parentHash.IsEqual(tailHash) {
+		if err := chain.tryConnectBlockToMainChain(block); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
+	if block.Height <= chain.LongestChainHeight {
+		logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
+			blockHash, block.Height, chain.LongestChainHeight)
+		return false, nil
+	}
+
+	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
+	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash)
+	if err := chain.reorganize(block); err != nil {
 		return false, err
 	}
 
@@ -1012,13 +944,13 @@ func (chain *BlockChain) maybeAcceptBlock(block *types.Block) (bool, error) {
 	// TODO
 	// chain.sendNotification(NTBlockAccepted, block)
 
-	return isMainChain, nil
+	// This block is now the end of the best chain.
+	chain.SetTailBlock(block)
+	return true, nil
 }
 
-// sanityCheckBlockHeader performs some preliminary checks on a block header to
-// ensure it is sane before continuing with processing.  These checks are
-// context free.
-func sanityCheckBlockHeader(header *types.BlockHeader, timeSource util.MedianTimeSource) error {
+// checkBlockHeaderWithoutContext performs context-free checks on a block header.
+func checkBlockHeaderWithoutContext(header *types.BlockHeader, timeSource util.MedianTimeSource) error {
 	// TODO: PoW check here
 	// err := checkProofOfWork(header, powLimit, flags)
 
@@ -1064,16 +996,15 @@ func countSigOps(tx *types.Transaction) int {
 	return totalSigOps
 }
 
-// sanityCheckBlock performs some preliminary checks on a block to ensure it is
-// sane before continuing with block processing.  These checks are context free.
-func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) error {
+// checkBlockWithoutContext performs context-free checks on a block.
+func checkBlockWithoutContext(block *types.Block, timeSource util.MedianTimeSource) error {
 	header := block.Header
 
-	if err := sanityCheckBlockHeader(header, timeSource); err != nil {
+	if err := checkBlockHeaderWithoutContext(header, timeSource); err != nil {
 		return err
 	}
 
-	// A block must have at least one transaction.
+	// Can't have no tx
 	numTx := len(block.Txs)
 	if numTx == 0 {
 		logger.Errorf("block does not contain any transactions")
@@ -1089,14 +1020,14 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 	// 	return ErrBlockTooBig
 	// }
 
-	// The first transaction in a block must be a coinbase.
+	// First tx must be coinbase.
 	transactions := block.Txs
 	if !utils.IsCoinBase(transactions[0]) {
 		logger.Errorf("first transaction in block is not a coinbase")
 		return ErrFirstTxNotCoinbase
 	}
 
-	// A block must not have more than one coinbase.
+	// There should be only one coinbase.
 	for i, tx := range transactions[1:] {
 		if utils.IsCoinBase(tx) {
 			logger.Errorf("block contains second coinbase at index %d", i+1)
@@ -1104,16 +1035,14 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 		}
 	}
 
-	// Do some preliminary checks on each transaction to ensure they are
-	// sane before continuing.
+	// Sanity checks each transaction.
 	for _, tx := range transactions {
-		err := utils.SanityCheckTransaction(tx)
-		if err != nil {
+		if err := utils.SanityCheckTransaction(tx); err != nil {
 			return err
 		}
 	}
 
-	// Build merkle tree and ensure the calculated merkle root matches the entry in the block header.
+	// Calculate merkle tree root and ensure it matches with the block header.
 	// TODO: caching all of the transaction hashes in the block to speed up future hashing
 	calculatedMerkleRoot := util.CalcTxsHash(transactions)
 	if !header.TxsRoot.IsEqual(calculatedMerkleRoot) {
@@ -1123,7 +1052,7 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 		return ErrBadMerkleRoot
 	}
 
-	// Check for duplicate transactions.
+	// Detect duplicate transactions.
 	existingTxHashes := make(map[*crypto.HashType]struct{})
 	for _, tx := range transactions {
 		txHash, _ := tx.TxHash()
@@ -1134,14 +1063,13 @@ func sanityCheckBlock(block *types.Block, timeSource util.MedianTimeSource) erro
 		existingTxHashes[txHash] = struct{}{}
 	}
 
-	// The number of signature operations must be less than the maximum
-	// allowed per block.
-	totalSigOps := 0
+	// Enforce number of signature operations.
+	totalSigOpCnt := 0
 	for _, tx := range transactions {
-		totalSigOps += countSigOps(tx)
-		if totalSigOps > MaxBlockSigOps {
+		totalSigOpCnt += countSigOps(tx)
+		if totalSigOpCnt > maxBlockSigOpCnt {
 			logger.Errorf("block contains too many signature "+
-				"operations - got %v, max %v", totalSigOps, MaxBlockSigOps)
+				"operations - got %v, max %v", totalSigOpCnt, maxBlockSigOpCnt)
 			return ErrTooManySigOps
 		}
 	}
