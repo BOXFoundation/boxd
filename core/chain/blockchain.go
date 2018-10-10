@@ -543,7 +543,7 @@ func checkBlockScripts(block *types.Block) error {
 
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
-func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
+func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet *utils.UtxoSet) error {
 	// // TODO: needed?
 	// // The coinbase for the Genesis block is not spendable, so just return
 	// // an error now.
@@ -551,14 +551,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	// 	str := "the coinbase for the genesis block is not spendable"
 	// 	return ErrMissingTxOut
 	// }
-
 	transactions := block.Txs
-
-	utxoSet, err := utils.LoadBlockUtxos(block, chain.DbTx)
-	if err != nil {
-		return err
-	}
-
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
 	var totalFees int64
@@ -614,8 +607,10 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 		return err
 	}
 
+	// utxoSet.StoreToDB()
+
 	// This block is now the end of the best chain.
-	chain.SetTailBlock(block)
+	chain.SetTailBlock(block, utxoSet)
 
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
@@ -676,14 +671,12 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) revertBlock(block *types.Block) error {
+func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *utils.UtxoSet) error {
 
-	utxoSet, err := utils.LoadBlockUtxos(block, chain.DbTx)
-	if err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, chain.DbTx); err != nil {
 		return err
 	}
 
-	// Revert UTXOs
 	if err := utxoSet.RevertBlock(block); err != nil {
 		return err
 	}
@@ -691,10 +684,9 @@ func (chain *BlockChain) revertBlock(block *types.Block) error {
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
-func (chain *BlockChain) applyBlock(block *types.Block) error {
+func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *utils.UtxoSet) error {
 
-	utxoSet, err := utils.LoadBlockUtxos(block, chain.DbTx)
-	if err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, chain.DbTx); err != nil {
 		return err
 	}
 
@@ -714,14 +706,14 @@ func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connect
 	return nil
 }
 
-func (chain *BlockChain) reorganize(block *types.Block) error {
+func (chain *BlockChain) reorganize(block *types.Block, utxoSet *utils.UtxoSet) error {
 	// Find the common ancestor of the main chain and side chain
 	_, detachBlocks, attachBlocks := chain.findFork(block)
 
 	// Detach the blocks that form the (now) old fork from the main chain.
 	// From tip to fork, not including fork
 	for _, detachBlock := range detachBlocks {
-		if err := chain.revertBlock(detachBlock); err != nil {
+		if err := chain.revertBlock(detachBlock, utxoSet); err != nil {
 			return err
 		}
 	}
@@ -731,7 +723,7 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 	// From fork to tip, not including fork
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		attachBlock := attachBlocks[blockIdx]
-		if err := chain.applyBlock(attachBlock); err != nil {
+		if err := chain.applyBlock(attachBlock, utxoSet); err != nil {
 			return err
 		}
 	}
@@ -792,11 +784,14 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	// There are 3 cases.
 	parentHash := &block.Header.PrevBlockHash
 	tailHash := chain.TailBlock().BlockHash()
-
+	utxoSet := utils.NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, chain.DbTx); err != nil {
+		return false, err
+	}
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		if err := chain.tryConnectBlockToMainChain(block); err != nil {
+		if err := chain.tryConnectBlockToMainChain(block, utxoSet); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -811,7 +806,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash)
-	if err := chain.reorganize(block); err != nil {
+	if err := chain.reorganize(block, utxoSet); err != nil {
 		return false, err
 	}
 
@@ -821,7 +816,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	// chain.sendNotification(NTBlockAccepted, block)
 
 	// This block is now the end of the best chain.
-	chain.SetTailBlock(block)
+	chain.SetTailBlock(block, utxoSet)
 	return true, nil
 }
 
@@ -985,8 +980,8 @@ func (chain *BlockChain) TailBlock() *types.Block {
 // }
 
 // LoadUtxoByPubKey loads utxos of a public key
-func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*utils.UtxoEntry, error) {
-	res := make(map[types.OutPoint]*utils.UtxoEntry)
+func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*utils.UtxoWrap, error) {
+	res := make(map[types.OutPoint]*utils.UtxoWrap)
 	// for out, entry := range chain.utxoSet.utxoMap {
 	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
 	// 		res[out] = entry
@@ -996,7 +991,7 @@ func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*ut
 }
 
 //ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*utils.UtxoEntry {
+func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*utils.UtxoWrap {
 	return nil
 }
 
@@ -1024,21 +1019,15 @@ func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction) error
 	return nil
 }
 
-func (chain *BlockChain) spendTransaction(blockUtxos *utils.UtxoUnspentCache, tx *types.Transaction, height int32) error {
-	for _, txIn := range tx.Vin {
-		utxowrap := blockUtxos.FindByOutPoint(txIn.PrevOutPoint)
-		if utxowrap != nil {
-			utxowrap.IsPacked = true
-		}
+// SetTailBlock sets chain tail block.
+func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *utils.UtxoSet) error {
+
+	// save utxoset to database
+	if err := utxoSet.WriteUtxoSetToDB(chain.DbTx); err != nil {
+		return err
 	}
 
-	blockUtxos.AddTxOuts(tx, height)
-	return nil
-}
-
-// SetTailBlock sets chain tail block.
-func (chain *BlockChain) SetTailBlock(tail *types.Block) error {
-
+	// save current tail to database
 	if err := chain.StoreTailBlock(tail); err != nil {
 		return err
 	}

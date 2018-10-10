@@ -268,7 +268,7 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 		}
 		return ErrEmptyProtoMessage
 	}
-	return ErrInvalidTxInProtoMessage
+	return ErrInvalidTxProtoMessage
 }
 
 // Marshal method marshal tx object to binary

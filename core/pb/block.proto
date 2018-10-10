@@ -45,9 +45,9 @@ message OutPoint {
 }
 
 message UtxoWrap {
-    int64 value = 1;
-	bytes script_pubKey = 2;
-	int32 block_height = 3;
-	bool is_packed = 4;
-	bool is_coinbase = 5;
+    TxOut output = 1;
+	int32 block_height = 2;
+	bool is_spent = 3;
+	bool is_coinbase = 4;
+    bool is_modifie = 5;
 }

@@ -218,8 +218,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	}
 
 	// TODO: check tx is already exist in the main chain??
-	utxoSet, err := utils.LoadTxUtxos(tx, tx_pool.chain.DbTx)
-	if err != nil {
+	utxoSet := utils.NewUtxoSet()
+	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
 		return err
 	}
 

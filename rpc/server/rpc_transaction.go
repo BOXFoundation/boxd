@@ -73,7 +73,7 @@ func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransacti
 	return &rpcpb.BaseResponse{}, err
 }
 
-func generateUtxoMessage(outPoint *types.OutPoint, entry *utils.UtxoEntry) *rpcpb.Utxo {
+func generateUtxoMessage(outPoint *types.OutPoint, entry *utils.UtxoWrap) *rpcpb.Utxo {
 	return &rpcpb.Utxo{
 		BlockHeight: entry.BlockHeight,
 		IsCoinbase:  entry.IsCoinBase,
