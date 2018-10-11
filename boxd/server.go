@@ -5,10 +5,13 @@
 package boxd
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"sync"
+	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	config "github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/consensus/dpos"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -32,6 +35,7 @@ type Server struct {
 	sm   sync.Mutex
 	proc goprocess.Process
 
+	bus        eventbus.Bus
 	cfg        config.Config
 	database   *storage.Database
 	peer       *p2p.BoxPeer
@@ -55,11 +59,35 @@ func (server *Server) TxPool() *txpool.TransactionPool {
 	return server.txPool
 }
 
+// teardown
+func (server *Server) teardown() error {
+	done := make(chan int)
+	defer close(done)
+
+	timer := time.NewTimer(15 * time.Second)
+	go func() {
+		server.bus.WaitAsync() // get all async msgs processed
+		done <- 0
+	}()
+
+	select {
+	case <-timer.C:
+		logger.Warn("Box server teardown timeout.")
+		return fmt.Errorf("timeout to shutdown eventbus")
+	case <-done:
+		logger.Info("Box server teardown finished.")
+		return nil
+	}
+}
+
 // NewServer new a boxd server
 func NewServer() *Server {
-	return &Server{
+	server := &Server{
 		proc: goprocess.WithSignals(os.Interrupt),
+		bus:  eventbus.Default(),
 	}
+	server.proc.SetTeardown(server.teardown)
+	return server
 }
 
 // Start function starts node server.
