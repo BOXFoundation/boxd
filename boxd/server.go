@@ -26,33 +26,18 @@ import (
 
 var logger = log.NewLogger("boxd") // logger for node package
 
-// BoxdServer is the boxd server instance, which contains all services,
-// including grpc, p2p, database...
-// var BoxdServer = struct {
-// 	sm   sync.Mutex
-// 	proc goprocess.Process
-
-// 	cfg      config.Config
-// 	database *storage.Database
-// 	peer     *p2p.BoxPeer
-// 	grpcsvr  *grpcserver.Server
-// 	bc       *chain.BlockChain
-// }{
-// 	proc: goprocess.WithSignals(os.Interrupt),
-// }
-
 // Server is the boxd server instance, which contains all services,
 // including grpc, p2p, database...
 type Server struct {
 	sm   sync.Mutex
 	proc goprocess.Process
 
-	cfg      config.Config
-	database *storage.Database
-	peer     *p2p.BoxPeer
-	grpcsvr  *grpcserver.Server
-	bc       *chain.BlockChain
-	tp       *txpool.TransactionPool
+	cfg        config.Config
+	database   *storage.Database
+	peer       *p2p.BoxPeer
+	grpcsvr    *grpcserver.Server
+	blockChain *chain.BlockChain
+	txPool     *txpool.TransactionPool
 }
 
 // Cfg return server config.
@@ -62,12 +47,12 @@ func (server *Server) Cfg() types.Config {
 
 // BlockChain return block chain ref.
 func (server *Server) BlockChain() *chain.BlockChain {
-	return server.bc
+	return server.blockChain
 }
 
 // TxPool returns tx pool ref.
 func (server *Server) TxPool() *txpool.TransactionPool {
-	return server.tp
+	return server.txPool
 }
 
 // NewServer new a boxd server
@@ -115,25 +100,25 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 	server.peer = peer
 
-	bc, err := chain.NewBlockChain(proc, peer, database.Storage)
+	blockChain, err := chain.NewBlockChain(proc, peer, database.Storage)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
-	server.bc = bc
+	server.blockChain = blockChain
 
-	tp := txpool.NewTransactionPool(proc, peer, bc)
-	server.tp = tp
+	txPool := txpool.NewTransactionPool(proc, peer, blockChain)
+	server.txPool = txPool
 
-	consensus := dpos.NewDpos(bc, tp, peer, proc, &cfg.Dpos)
+	consensus := dpos.NewDpos(blockChain, txPool, peer, proc, &cfg.Dpos)
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC, server)
 	}
 
 	peer.Run()
-	bc.Run()
-	tp.Run()
+	blockChain.Run()
+	txPool.Run()
 	consensus.Run()
 
 	select {
