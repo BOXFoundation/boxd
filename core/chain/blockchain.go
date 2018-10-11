@@ -90,6 +90,7 @@ var (
 	ErrBadFees            = errors.New("total fees for block overflows accumulator")
 	ErrBadCoinbaseValue   = errors.New("Coinbase pays more than expected value")
 	ErrUnfinalizedTx      = errors.New("Transaction has not been finalized")
+	ErrWrongBlockHeight   = errors.New("Wrong block height")
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -763,11 +764,15 @@ func IsTxFinalized(tx *types.Transaction, blockHeight int32, blockTime int64) bo
 // tryAcceptBlock validates block within the chain context and see if it can be accepted.
 // Return whether it is on the main chain or not.
 func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
+	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
 	parentBlock := chain.getParentBlock(block)
 
-	// The height of this block is one more than the referenced parent block.
-	block.Height = parentBlock.Height + 1
+	// The height of this block must be one more than the referenced parent block.
+	if block.Height != parentBlock.Height+1 {
+		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash, block.Height, parentBlock.Height)
+		return false, ErrWrongBlockHeight
+	}
 
 	// Validate the block within chain context.
 	if err := chain.checkBlockWithContext(block); err != nil {
@@ -777,7 +782,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	if err := chain.StoreBlockToDb(block); err != nil {
 		return false, err
 	}
-	blockHash := block.BlockHash()
 	chain.cache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
