@@ -44,26 +44,18 @@ type TransactionPool struct {
 	newChainUpdateMsgCh chan p2p.Message
 	proc                goprocess.Process
 	chain               *chain.BlockChain
-
-	// transaction pool
-	hashToTx map[crypto.HashType]*TxWrap
-	txMutex  sync.Mutex
-	// orphan transaction pool
-	hashToOrphanTx map[crypto.HashType]*types.Transaction
-	// Transaction output point to orphan transactions spending it.
-	// One outpoint can have multiple spending txs, only one can be legit
-	// Note: use map here, not slice, so we don't have to delete from slice
-	outPointToOrphan map[types.OutPoint]map[crypto.HashType]*types.Transaction
-
-	// spent tx outputs (STXO) by all txs in the pool
-	stxoSet map[types.OutPoint]*types.Transaction
+	hashToTx            map[crypto.HashType]*TxWrap
+	txMutex             sync.Mutex
+	hashToOrphanTx      map[crypto.HashType]*types.Transaction
+	outPointToOrphan    map[types.OutPoint]map[crypto.HashType]*types.Transaction
+	stxoSet             map[types.OutPoint]*types.Transaction
 }
 
 // TxWrap wrap transaction
 type TxWrap struct {
 	Tx             *types.Transaction
 	AddedTimestamp int64
-	height         int32
+	Height         int32
 	FeePerKB       int64
 }
 
@@ -159,17 +151,13 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	return tx_pool.ProcessTx(tx, false)
 }
 
-// ProcessTx is the main workhorse for handling insertion of new
-// transactions into the memory pool.  It includes functionality
-// such as rejecting duplicate transactions, ensuring transactions follow all
-// rules, orphan transaction handling, and insertion into the memory pool.
+// ProcessTx is used to handle new transactions.
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool) error {
+
 	if err := tx_pool.maybeAcceptTx(tx, broadcast); err != nil {
 		return err
 	}
 
-	// Accept any orphan transactions that depend on this transaction
-	// and repeat for those accepted transactions until there are no more.
 	return tx_pool.processOrphans(tx)
 }
 
@@ -198,9 +186,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 		return ErrCoinbaseTx
 	}
 
-	// Get the current height of the main chain. A standalone transaction
-	// will be mined into the next block at best, so its height is at least
-	// one more than the current height.
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
 	// ensure it is a standard transaction
@@ -316,9 +301,7 @@ func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) erro
 	return nil
 }
 
-// ProcessOrphans determines if there are any orphans which depend on the passed
-// transaction and potentially accepts them to the memory pool.
-// It repeats the process for the newly accepted transactions until there are no more.
+// ProcessOrphans used to handle orphan transactions
 func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 	// Start with processing at least the passed tx.
 	acceptedTxs := []*types.Transaction{tx}
@@ -343,12 +326,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 					continue
 				}
 				tx_pool.removeOrphan(orphan)
-				// Add this tx to the list of txs to process so any orphan
-				// txs that depend on this tx are handled too.
 				acceptedTxs = append(acceptedTxs, orphan)
-
-				// Only one transaction for this outpoint can be accepted,
-				// so the rest are now double spends and are removed later.
 				break
 			}
 		}
@@ -370,7 +348,7 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePe
 	txWrap := &TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
-		height:         height,
+		Height:         height,
 		FeePerKB:       feePerKB,
 	}
 	tx_pool.hashToTx[*txHash] = txWrap

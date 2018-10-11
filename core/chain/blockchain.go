@@ -424,87 +424,60 @@ func (chain *BlockChain) ancestor(block *types.Block, height int32) *types.Block
 	return iterBlock
 }
 
-// SequenceLock represents the converted relative lock-time in seconds, and
-// absolute block-height for a transaction input's relative lock-times.
-// According to SequenceLock, after the referenced input has been confirmed within a block,
-// a transaction spending that input can be included into a block either after 'seconds'
-// (according to past median time), or once the 'BlockHeight' has been reached.
-type SequenceLock struct {
+// LockTime represents the relative lock-time in seconds
+type LockTime struct {
 	Seconds     int64
 	BlockHeight int32
 }
 
-// calcSequenceLock computes the relative lock-times for the passed transaction.
-func (chain *BlockChain) calcSequenceLock(utxoSet *utils.UtxoSet, block *types.Block, tx *types.Transaction) (*SequenceLock, error) {
-	// A value of -1 for each relative lock type represents a relative time lock value
-	// that will allow a transaction to be included in a block at any given height or time.
-	sequenceLock := &SequenceLock{Seconds: -1, BlockHeight: -1}
+func (chain *BlockChain) calcLockTime(utxoSet *utils.UtxoSet, block *types.Block, tx *types.Transaction) (*LockTime, error) {
 
-	// Sequence lock does not apply to coinbase tx.
+	lockTime := &LockTime{Seconds: -1, BlockHeight: -1}
+
+	// lock-time does not apply to coinbase tx.
 	if utils.IsCoinBase(tx) {
-		return sequenceLock, nil
+		return lockTime, nil
 	}
 
-	// Grab the next height from the PoV of the passed block to use for inputs present in the mempool.
-	nextHeight := block.Height + 1
-
-	for txInIndex, txIn := range tx.Vin {
-		txHash, _ := tx.TxHash()
+	for _, txIn := range tx.Vin {
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
-			logger.Errorf("output %v referenced from transaction %v:%d either does not exist or "+
-				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
-			return sequenceLock, utils.ErrMissingTxOut
+			logger.Errorf("Failed to calc lockTime, output %+v does not exist or has already been spent", txIn.PrevOutPoint)
+			return lockTime, utils.ErrMissingTxOut
 		}
 
-		// Referenced utxo's block height
-		inputHeight := utxo.BlockHeight
-		// If the input height is set to the mempool height, then we assume the transaction makes it
-		// into the next block when evaluating its sequence blocks.
-		if inputHeight == unminedHeight {
-			inputHeight = nextHeight
-		}
-
-		// Given a sequence number, we apply the relative time lock mask in order to obtain the time lock delta
-		// required before this input can be spent.
+		utxoHeight := utxo.BlockHeight
 		sequenceNum := txIn.Sequence
 		relativeLock := int64(sequenceNum & sequenceLockTimeMask)
 
 		if sequenceNum&sequenceLockTimeIsSeconds == sequenceLockTimeIsSeconds {
-			// This input requires a relative time lock expressed in seconds before it can be spent.
-			// Therefore, we need to query for the block prior to the one in which this input was included within so
-			// we can compute the past median time for the block prior to the one which included this referenced output.
-			prevInputHeight := inputHeight - 1
+
+			prevInputHeight := utxoHeight - 1
 			if prevInputHeight < 0 {
 				prevInputHeight = 0
 			}
 			ancestor := chain.ancestor(block, prevInputHeight)
 			medianTime := chain.calcPastMedianTime(ancestor)
 
-			// Time based relative time-locks have a time granularity of 512 seconds,
-			// so we shift left by this amount to convert to the proper relative time-lock.
-			// We also subtract one from the relative lock to maintain the original lockTime semantics.
 			timeLockSeconds := (relativeLock << sequenceLockTimeGranularity) - 1
 			timeLock := medianTime.Unix() + timeLockSeconds
-			if timeLock > sequenceLock.Seconds {
-				sequenceLock.Seconds = timeLock
+			if timeLock > lockTime.Seconds {
+				lockTime.Seconds = timeLock
 			}
 		} else {
-			// The relative lock-time for this input is expressed in blocks so we calculate
-			// the relative offset from the input's height as its converted absolute lock-time.
-			// We subtract one from the relative lock to maintain the original lockTime semantics.
-			blockHeight := inputHeight + int32(relativeLock-1)
-			if blockHeight > sequenceLock.BlockHeight {
-				sequenceLock.BlockHeight = blockHeight
+
+			blockHeight := utxoHeight + int32(relativeLock-1)
+			if blockHeight > lockTime.BlockHeight {
+				lockTime.BlockHeight = blockHeight
 			}
 		}
 	}
 
-	return sequenceLock, nil
+	return lockTime, nil
 }
 
-func sequenceLockActive(sequenceLock *SequenceLock, blockHeight int32, medianTimePast time.Time) bool {
-	return sequenceLock.Seconds < medianTimePast.Unix() && sequenceLock.BlockHeight < blockHeight
+func sequenceLockActive(timeLock *LockTime, blockHeight int32, medianTimePast time.Time) bool {
+	return timeLock.Seconds < medianTimePast.Unix() && timeLock.BlockHeight < blockHeight
 }
 
 func validateTxs(txValidateItems []*script.TxValidateItem) error {
@@ -592,11 +565,11 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	for _, tx := range transactions {
 		// A transaction can only be included in a block
 		// if all of its input sequence locks are active.
-		sequenceLock, err := chain.calcSequenceLock(utxoSet, block, tx)
+		lockTime, err := chain.calcLockTime(utxoSet, block, tx)
 		if err != nil {
 			return err
 		}
-		if !sequenceLockActive(sequenceLock, block.Height, medianTime) {
+		if !sequenceLockActive(lockTime, block.Height, medianTime) {
 			logger.Errorf("block contains transaction whose input sequence locks are not met")
 			return ErrUnfinalizedTx
 		}
