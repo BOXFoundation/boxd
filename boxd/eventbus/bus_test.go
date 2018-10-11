@@ -181,6 +181,9 @@ func TestSend(t *testing.T) {
 	out := make(chan int)
 	bus.Send("topic", 10, 10, out)
 	r := <-out
+
+	bus.WaitAsync()
+
 	ensure.DeepEqual(t, r, 20)
 }
 
