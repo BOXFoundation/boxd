@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-// Modify https://github.com/asaskevich/EventBus to support Send/Receive
+// Modify https://github.com/asaskevich/EventBus to support Send/Reply
 
 package eventbus
 
@@ -26,13 +26,13 @@ type BusPublisher interface {
 	Publish(topic string, args ...interface{})
 }
 
-//MsgReceiver defines worker behavior for message sent by sender
-type MsgReceiver interface {
-	Receive(topic string, fn interface{}, transactional bool) error
-	Unreceive(topic string, fn interface{}) error
+//MsgReplier defines worker behavior for message sent by sender
+type MsgReplier interface {
+	Reply(topic string, fn interface{}, transactional bool) error
+	StopReply(topic string, fn interface{}) error
 }
 
-//MsgSender sends message to worker which should consume message on the topic
+//MsgSender sends message to replier who should reply the message
 type MsgSender interface {
 	Send(topic string, args ...interface{})
 }
@@ -40,7 +40,7 @@ type MsgSender interface {
 //BusController defines bus control behavior (checking handler's presence, synchronization)
 type BusController interface {
 	HasSubscriber(topic string) bool
-	HasReceiver(topic string) bool
+	HasReplier(topic string) bool
 	WaitAsync()
 }
 
@@ -49,17 +49,17 @@ type Bus interface {
 	BusController
 	BusSubscriber
 	BusPublisher
-	MsgReceiver
+	MsgReplier
 	MsgSender
 }
 
 // EventBus - box for handlers and callbacks.
 type EventBus struct {
 	pubHandlers map[string][]*eventHandler
-	pubLock     sync.Mutex // a lock for the map
+	subLock     sync.Mutex // a lock for the map
 
-	msgHandlers map[string]*eventHandler
-	msgLock     sync.Mutex // a lock for the map
+	sendHandlers map[string]*eventHandler
+	replyLock    sync.Mutex // a lock for the map
 
 	wg sync.WaitGroup
 }
@@ -75,18 +75,18 @@ type eventHandler struct {
 // New returns new EventBus with empty handlers.
 func New() Bus {
 	return &EventBus{
-		pubHandlers: make(map[string][]*eventHandler),
-		pubLock:     sync.Mutex{},
-		msgHandlers: make(map[string]*eventHandler),
-		msgLock:     sync.Mutex{},
-		wg:          sync.WaitGroup{},
+		pubHandlers:  make(map[string][]*eventHandler),
+		subLock:      sync.Mutex{},
+		sendHandlers: make(map[string]*eventHandler),
+		replyLock:    sync.Mutex{},
+		wg:           sync.WaitGroup{},
 	}
 }
 
 // doSubscribe handles the subscription logic and is utilized by the public Subscribe functions
 func (bus *EventBus) doSubscribe(topic string, fn interface{}, handler *eventHandler) error {
-	bus.pubLock.Lock()
-	defer bus.pubLock.Unlock()
+	bus.subLock.Lock()
+	defer bus.subLock.Unlock()
 	if !(reflect.TypeOf(fn).Kind() == reflect.Func) {
 		return fmt.Errorf("%s is not of type reflect.Func", reflect.TypeOf(fn).Kind())
 	}
@@ -131,8 +131,8 @@ func (bus *EventBus) SubscribeOnceAsync(topic string, fn interface{}) error {
 
 // HasSubscriber returns true if exists any callback subscribed to the topic.
 func (bus *EventBus) HasSubscriber(topic string) bool {
-	bus.pubLock.Lock()
-	defer bus.pubLock.Unlock()
+	bus.subLock.Lock()
+	defer bus.subLock.Unlock()
 	_, ok := bus.pubHandlers[topic]
 	if ok {
 		return len(bus.pubHandlers[topic]) > 0
@@ -140,19 +140,19 @@ func (bus *EventBus) HasSubscriber(topic string) bool {
 	return false
 }
 
-// HasReceiver returns true if exists a receiver on the topic.
-func (bus *EventBus) HasReceiver(topic string) bool {
-	bus.msgLock.Lock()
-	defer bus.msgLock.Unlock()
-	_, ok := bus.msgHandlers[topic]
+// HasReplier returns true if exists a receiver on the topic.
+func (bus *EventBus) HasReplier(topic string) bool {
+	bus.replyLock.Lock()
+	defer bus.replyLock.Unlock()
+	_, ok := bus.sendHandlers[topic]
 	return ok
 }
 
 // Unsubscribe removes callback defined for a topic.
 // Returns error if there are no callbacks subscribed to the topic.
 func (bus *EventBus) Unsubscribe(topic string, handler interface{}) error {
-	bus.pubLock.Lock()
-	defer bus.pubLock.Unlock()
+	bus.subLock.Lock()
+	defer bus.subLock.Unlock()
 	if _, ok := bus.pubHandlers[topic]; ok && len(bus.pubHandlers[topic]) > 0 {
 		bus.removeHandler(topic, reflect.ValueOf(handler))
 		return nil
@@ -162,8 +162,8 @@ func (bus *EventBus) Unsubscribe(topic string, handler interface{}) error {
 
 // Publish executes callback defined for a topic. Any additional argument will be transferred to the callback.
 func (bus *EventBus) Publish(topic string, args ...interface{}) {
-	bus.pubLock.Lock() // will unlock if handler is not found or always after setUpPublish
-	defer bus.pubLock.Unlock()
+	bus.subLock.Lock() // will unlock if handler is not found or always after setUpPublish
+	defer bus.subLock.Unlock()
 	if handlers, ok := bus.pubHandlers[topic]; ok && 0 < len(handlers) {
 		// Handlers slice may be changed by removeHandler and Unsubscribe during iteration,
 		// so make a copy and iterate the copied slice.
@@ -217,14 +217,14 @@ func (bus *EventBus) setUpPublish(args ...interface{}) []reflect.Value {
 	return passedArguments
 }
 
-// Receive receives sender-worker message on a topic.
-// There should have only one function receives message on one topic.
+// Reply receives send-reply message on a topic.
+// There should be only one function receiving message on one topic.
 // Transactional determines whether subsequent callbacks for a topic are
 // run serially (true) or concurrently (false)
 // Returns error if `fn` is not a function.
-func (bus *EventBus) Receive(topic string, fn interface{}, transactional bool) error {
-	bus.msgLock.Lock()
-	defer bus.msgLock.Unlock()
+func (bus *EventBus) Reply(topic string, fn interface{}, transactional bool) error {
+	bus.replyLock.Lock()
+	defer bus.replyLock.Unlock()
 
 	v := reflect.ValueOf(fn)
 	if v.Kind() != reflect.Func {
@@ -235,38 +235,38 @@ func (bus *EventBus) Receive(topic string, fn interface{}, transactional bool) e
 		return fmt.Errorf("%s should have at least one chan parameter to receive result", t.Kind())
 	}
 
-	if _, ok := bus.msgHandlers[topic]; ok {
+	if _, ok := bus.sendHandlers[topic]; ok {
 		return fmt.Errorf("topic %s already has a receiver", topic)
 	}
 
-	bus.msgHandlers[topic] = &eventHandler{
+	bus.sendHandlers[topic] = &eventHandler{
 		v, false, false, transactional, sync.Mutex{},
 	}
 	return nil
 }
 
-// Unreceive removes worker callback defined for a topic.
+// StopReply removes replier callback defined for a topic.
 // Returns error if there is no callback is receiving the topic.
-func (bus *EventBus) Unreceive(topic string, fn interface{}) error {
-	bus.msgLock.Lock()
-	defer bus.msgLock.Unlock()
+func (bus *EventBus) StopReply(topic string, fn interface{}) error {
+	bus.replyLock.Lock()
+	defer bus.replyLock.Unlock()
 
-	handler, ok := bus.msgHandlers[topic]
-	if ok {
+	if handler, ok := bus.sendHandlers[topic]; ok {
 		if handler.callBack == reflect.ValueOf(fn) {
-			delete(bus.msgHandlers, topic)
+			delete(bus.sendHandlers, topic)
 		}
 		return nil
 	}
-	return fmt.Errorf("the function is not receiving on topoc %s", topic)
+	return fmt.Errorf("topic %s doesn't exist", topic)
+
 }
 
-// Send sends a message on a topic to worker
+// Send sends a send-reply message on a topic to replier
 func (bus *EventBus) Send(topic string, args ...interface{}) {
-	bus.msgLock.Lock()
-	defer bus.msgLock.Unlock()
+	bus.replyLock.Lock()
+	defer bus.replyLock.Unlock()
 
-	if handler, ok := bus.msgHandlers[topic]; ok {
+	if handler, ok := bus.sendHandlers[topic]; ok {
 		bus.wg.Add(1)
 		go bus.doPublishAsync(handler, args...)
 	}

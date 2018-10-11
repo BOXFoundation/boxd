@@ -145,37 +145,37 @@ func TestSubscribeAsync(t *testing.T) {
 
 func TestReceive(t *testing.T) {
 	bus := New()
-	ensure.Nil(t, bus.Receive("topic", func(_ int, out chan<- int) {}, false))
-	ensure.NotNil(t, bus.Receive("topic", func(_ int, out chan<- int) {}, false))
+	ensure.Nil(t, bus.Reply("topic", func(_ int, out chan<- int) {}, false))
+	ensure.NotNil(t, bus.Reply("topic", func(_ int, out chan<- int) {}, false))
 
-	ensure.NotNil(t, bus.Receive("topic1", func() {}, false))
-	ensure.NotNil(t, bus.Receive("topic2", "string", false))
+	ensure.NotNil(t, bus.Reply("topic1", func() {}, false))
+	ensure.NotNil(t, bus.Reply("topic2", "string", false))
 }
 
-func TestUnreceive(t *testing.T) {
+func TestStopReply(t *testing.T) {
 	bus := New()
 	handler := func(_ int, out chan<- int) {}
-	ensure.Nil(t, bus.Receive("topic", handler, false))
-	ensure.True(t, bus.HasReceiver("topic"))
+	ensure.Nil(t, bus.Reply("topic", handler, false))
+	ensure.True(t, bus.HasReplier("topic"))
 
-	ensure.Nil(t, bus.Unreceive("topic", handler))
-	ensure.NotNil(t, bus.Unreceive("topic", func() {}))
-	ensure.False(t, bus.HasReceiver("topic"))
-	ensure.NotNil(t, bus.Unreceive("topic", handler))
+	ensure.Nil(t, bus.StopReply("topic", handler))
+	ensure.NotNil(t, bus.StopReply("topic", func() {}))
+	ensure.False(t, bus.HasReplier("topic"))
+	ensure.NotNil(t, bus.StopReply("topic", handler))
 
-	ensure.NotNil(t, bus.Unreceive("topic2", handler))
+	ensure.NotNil(t, bus.StopReply("topic2", handler))
 }
 
-func TestHasReceiver(t *testing.T) {
+func TestHasReplier(t *testing.T) {
 	bus := New()
-	bus.Receive("topic", func(_ int) {}, false)
-	ensure.False(t, bus.HasReceiver("topic_topic"))
-	ensure.True(t, bus.HasReceiver("topic"))
+	bus.Reply("topic", func(_ int) {}, false)
+	ensure.False(t, bus.HasReplier("topic_topic"))
+	ensure.True(t, bus.HasReplier("topic"))
 }
 
 func TestSend(t *testing.T) {
 	bus := New()
-	bus.Receive("topic", func(a int, b int, out chan<- int) {
+	bus.Reply("topic", func(a int, b int, out chan<- int) {
 		out <- a + b
 	}, false)
 	out := make(chan int)
@@ -192,17 +192,17 @@ func (o O) work(a int, b int, out chan<- int) {
 
 func TestSendObject(t *testing.T) {
 	bus := New()
-	bus.Receive("topic", O{}.work, false)
+	bus.Reply("topic", O{}.work, false)
 	out := make(chan int)
 	bus.Send("topic", 10, 10, out)
 	r := <-out
 	ensure.DeepEqual(t, r, 20)
 }
 
-func TestTransactionalReceiver(t *testing.T) {
+func TestTransactionalReplier(t *testing.T) {
 	bus := New()
 	var i = 0
-	bus.Receive("topic", func(out chan<- int) {
+	bus.Reply("topic", func(out chan<- int) {
 		time.Sleep(10 * time.Millisecond)
 		out <- i
 		i++

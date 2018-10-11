@@ -76,20 +76,20 @@ func (server *Server) TxPool() *txpool.TransactionPool {
 
 // teardown
 func (server *Server) teardown() error {
-	quit := make(chan int)
-	defer close(quit)
+	done := make(chan int)
+	defer close(done)
 
 	timer := time.NewTimer(15 * time.Second)
 	go func() {
-		server.bus.WaitAsync()
-		quit <- 0
+		server.bus.WaitAsync() // get all async msgs processed
+		done <- 0
 	}()
 
 	select {
 	case <-timer.C:
 		logger.Warn("Box server teardown timeout.")
 		return fmt.Errorf("timeout to shutdown eventbus")
-	case <-quit:
+	case <-done:
 		logger.Info("Box server teardown finished.")
 		return nil
 	}
