@@ -11,7 +11,8 @@ import (
 // PublicKey is a btcec.PublicKey wrapper
 type PublicKey btcec.PublicKey
 
-func (p *PublicKey) Bytes() []byte {
+// Serialize get the serialized format of public key
+func (p *PublicKey) Serialize() []byte {
 	b := make([]byte, 0)
 	b = append(b, p.X.Bytes()...)
 	b = append(b, p.Y.Bytes()...)

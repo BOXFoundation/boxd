@@ -206,6 +206,7 @@ func aesCtr(key, text, iv []byte) ([]byte, error) {
 	return output, err
 }
 
+// GetKeystoreAddress gets the address info from a keystore json file
 func GetKeystoreAddress(path string) (string, error) {
 	ksJSON, err := readKeystoreJSON(path)
 	if err != nil {

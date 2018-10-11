@@ -33,7 +33,7 @@ func NewAddressPubKeyHash(pkHash []byte, netID byte) (*AddressPubKeyHash, error)
 
 // NewAddressFromPubKey returns a new AddressPubKeyHash derived from an ecdsa public key
 func NewAddressFromPubKey(pubKey *crypto.PublicKey, netID byte) (*AddressPubKeyHash, error) {
-	pkHash := crypto.Ripemd160(crypto.Sha256(pubKey.Bytes()))
+	pkHash := crypto.Ripemd160(crypto.Sha256(pubKey.Serialize()))
 	return newAddressPubKeyHash(pkHash, netID)
 }
 

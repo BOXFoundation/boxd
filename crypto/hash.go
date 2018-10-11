@@ -42,6 +42,7 @@ func Sha256(buf []byte) []byte {
 	return digest[:]
 }
 
+// Sha256Multi calculates the sha256 digest of buf array
 func Sha256Multi(data ...[]byte) []byte {
 	h := sha256.New()
 	h.Reset()
