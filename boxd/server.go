@@ -99,7 +99,7 @@ func (server *Server) teardown() error {
 func NewServer() *Server {
 	server := &Server{
 		proc: goprocess.WithSignals(os.Interrupt),
-		bus:  eventbus.New(),
+		bus:  eventbus.Default(),
 	}
 	server.proc.SetTeardown(server.teardown)
 	return server
