@@ -49,5 +49,4 @@
 //   var c = make(chan int)
 //   bus.Send("task:add", 11, 11, c)
 //   fmt.Print(<-c) // 22, replier is triggerred async
-
 package eventbus
