@@ -6,15 +6,23 @@ package walletcmd
 
 import (
 	"fmt"
+	"path"
+	"strings"
+
+	"github.com/BOXFoundation/boxd/util"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 
 	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var cfgFile string
+var walletDir string
+
+var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -34,20 +42,17 @@ to quickly create a Cobra application.`,
 // Init adds the sub command to the root command.
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "newaccount [account]",
 			Short: "Create a new account",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("newaccount called")
-			},
+			Run:   newAccountCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "dumpprivkey [address]",
 			Short: "Dump private key for an address",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("dumprivkey called")
-			},
+			Run:   dumpPrivKeyCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "dumpwallet [filename]",
@@ -94,9 +99,7 @@ func init() {
 		&cobra.Command{
 			Use:   "listaccounts",
 			Short: "List local accounts",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("listaccounts called")
-			},
+			Run:   listAccountCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "listreceivedbyaccount",
@@ -115,16 +118,69 @@ func init() {
 		&cobra.Command{
 			Use:   "listtransactions [account] [count] [from]",
 			Short: "List transactions for an account",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("listtransactions called")
-				if len(args) > 0 {
-					client.ListTransactions(viper.GetViper(), args[0])
-				}
-			},
+			Run:   listTransactionsCmdFunc,
 		},
 	)
 }
 
 func newAccountCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("newaccount called")
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	acc, err := wltMgr.NewAccount(passphrase)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Printf("Create new account: %s", acc)
+}
 
+func listAccountCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("listaccounts called")
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	addrs := wltMgr.ListAccounts()
+	fmt.Println("Managed Addresses:\n" + strings.Join(addrs, "\n"))
+}
+
+func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("dumprivkey called")
+	if len(args) < 0 {
+		fmt.Println("address needed")
+		return
+	}
+	addr := args[0]
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	privateKey, err := wltMgr.DumpPrivKey(addr, passphrase)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("Address: %s\nPrivate Key: %s", addr, privateKey)
+}
+
+func listTransactionsCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("listtransactions called")
+	if len(args) > 0 {
+		client.ListTransactions(viper.GetViper(), args[0])
+	}
 }

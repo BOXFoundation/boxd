@@ -4,7 +4,12 @@
 
 package util
 
-import "reflect"
+import (
+	"os"
+	"os/user"
+	"reflect"
+	"runtime"
+)
 
 // InArray return if there is an element in the array
 func InArray(obj interface{}, array interface{}) bool {
@@ -17,4 +22,22 @@ func InArray(obj interface{}, array interface{}) bool {
 		}
 	}
 	return false
+}
+
+// HomeDir returns home directory of current user
+func HomeDir() string {
+	if runtime.GOOS == "windows" {
+		home := os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
+		if home == "" {
+			home = os.Getenv("USERPROFILE")
+		}
+		return home
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		return home
+	}
+	if usr, err := user.Current(); err == nil {
+		return usr.HomeDir
+	}
+	return ""
 }

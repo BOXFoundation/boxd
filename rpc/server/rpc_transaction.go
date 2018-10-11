@@ -41,6 +41,7 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 	for out, utxo := range utxos {
 		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
 	}
+	logger.Debugf("List Utxo called, utxos: %+v", utxos)
 	return res, nil
 }
 
