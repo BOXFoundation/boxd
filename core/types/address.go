@@ -5,8 +5,7 @@
 package types
 
 import (
-	"errors"
-
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/btcsuite/btcutil/base58"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -32,7 +31,7 @@ func NewAddressPubKeyHash(pkHash []byte, netID byte) (*AddressPubKeyHash, error)
 func newAddressPubKeyHash(pkHash []byte, netID byte) (*AddressPubKeyHash, error) {
 	// Check for a valid pubkey hash length.
 	if len(pkHash) != ripemd160.Size {
-		return nil, errors.New("pkHash must be 20 bytes")
+		return nil, core.ErrInvalidPKHash
 	}
 
 	addr := &AddressPubKeyHash{netID: netID}

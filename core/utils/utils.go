@@ -5,9 +5,9 @@
 package utils
 
 import (
-	"errors"
 	"math"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -41,19 +41,6 @@ var (
 	// baseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
 	baseSubsidy = (int64)(50 * math.Pow10(decimals))
-)
-
-// error
-var (
-	ErrNoTxInputs           = errors.New("Transaction has no inputs")
-	ErrNoTxOutputs          = errors.New("Transaction has no outputs")
-	ErrBadTxOutValue        = errors.New("Invalid output value")
-	ErrDuplicateTxInputs    = errors.New("Transaction contains duplicate inputs")
-	ErrBadCoinbaseScriptLen = errors.New("Coinbase scriptSig out of range")
-	ErrBadTxInput           = errors.New("Transaction input refers to null out point")
-	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
-	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
-	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
 )
 
 var logger = log.NewLogger("utils") // logger
@@ -94,12 +81,12 @@ func CalcBlockSubsidy(height int32) int64 {
 func SanityCheckTransaction(tx *types.Transaction) error {
 	// A transaction must have at least one input.
 	if len(tx.Vin) == 0 {
-		return ErrNoTxInputs
+		return core.ErrNoTxInputs
 	}
 
 	// A transaction must have at least one output.
 	if len(tx.Vout) == 0 {
-		return ErrNoTxOutputs
+		return core.ErrNoTxOutputs
 	}
 
 	// TOOD: check before deserialization
@@ -121,12 +108,12 @@ func SanityCheckTransaction(tx *types.Transaction) error {
 		value := txOut.Value
 		if value < 0 {
 			logger.Errorf("transaction output has negative value of %v", value)
-			return ErrBadTxOutValue
+			return core.ErrBadTxOutValue
 		}
 		if value > TotalSupply {
 			logger.Errorf("transaction output value of %v is "+
 				"higher than max allowed value of %v", TotalSupply)
-			return ErrBadTxOutValue
+			return core.ErrBadTxOutValue
 		}
 
 		// Two's complement int64 overflow guarantees that any overflow
@@ -134,13 +121,13 @@ func SanityCheckTransaction(tx *types.Transaction) error {
 		totalValue += value
 		if totalValue < 0 {
 			logger.Errorf("total value of all transaction outputs overflows %v", totalValue)
-			return ErrBadTxOutValue
+			return core.ErrBadTxOutValue
 		}
 		if totalValue > TotalSupply {
 			logger.Errorf("total value of all transaction "+
 				"outputs is %v which is higher than max "+
 				"allowed value of %v", totalValue, TotalSupply)
-			return ErrBadTxOutValue
+			return core.ErrBadTxOutValue
 		}
 	}
 
@@ -148,7 +135,7 @@ func SanityCheckTransaction(tx *types.Transaction) error {
 	existingOutPoints := make(map[types.OutPoint]struct{})
 	for _, txIn := range tx.Vin {
 		if _, exists := existingOutPoints[txIn.PrevOutPoint]; exists {
-			return ErrDuplicateTxInputs
+			return core.ErrDuplicateTxInputs
 		}
 		existingOutPoints[txIn.PrevOutPoint] = struct{}{}
 	}
@@ -160,14 +147,14 @@ func SanityCheckTransaction(tx *types.Transaction) error {
 			logger.Errorf("coinbase transaction script length "+
 				"of %d is out of range (min: %d, max: %d)",
 				slen, MinCoinbaseScriptLen, MaxCoinbaseScriptLen)
-			return ErrBadCoinbaseScriptLen
+			return core.ErrBadCoinbaseScriptLen
 		}
 	} else {
 		// Previous transaction outputs referenced by the inputs to this
 		// transaction must not be null.
 		for _, txIn := range tx.Vin {
 			if isNullOutPoint(&txIn.PrevOutPoint) {
-				return ErrBadTxInput
+				return core.ErrBadTxInput
 			}
 		}
 	}
@@ -191,7 +178,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (
 		if utxo == nil || utxo.IsSpent {
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
-			return 0, ErrMissingTxOut
+			return 0, core.ErrMissingTxOut
 		}
 
 		// Immature coinbase coins cannot be spent.
@@ -202,7 +189,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (
 				logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
 					"at height %v before required maturity of %v blocks", txIn.PrevOutPoint,
 					originHeight, txHeight, coinbaseMaturity)
-				return 0, ErrImmatureSpend
+				return 0, core.ErrImmatureSpend
 			}
 		}
 
@@ -210,11 +197,11 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (
 		utxoAmount := utxo.Value()
 		if utxoAmount < 0 {
 			logger.Errorf("transaction output has negative value of %v", utxoAmount)
-			return 0, ErrBadTxOutValue
+			return 0, core.ErrBadTxOutValue
 		}
 		if utxoAmount > TotalSupply {
 			logger.Errorf("transaction output value of %v is higher than max allowed value of %v", utxoAmount, TotalSupply)
-			return 0, ErrBadTxOutValue
+			return 0, core.ErrBadTxOutValue
 		}
 
 		// Total tx amount must also be in range. Also, we check for overflow.
@@ -223,7 +210,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (
 		if totalInputAmount < lastAmount || totalInputAmount > TotalSupply {
 			logger.Errorf("total value of all transaction inputs is %v which is higher than max "+
 				"allowed value of %v", totalInputAmount, TotalSupply)
-			return 0, ErrBadTxOutValue
+			return 0, core.ErrBadTxOutValue
 		}
 	}
 
@@ -238,7 +225,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (
 		logger.Errorf("total value of all transaction outputs for "+
 			"transaction %v is %v, which exceeds the input amount "+
 			"of %v", txHash, totalOutputAmount, totalInputAmount)
-		return 0, ErrSpendTooHigh
+		return 0, core.ErrSpendTooHigh
 	}
 
 	txFee := totalInputAmount - totalOutputAmount

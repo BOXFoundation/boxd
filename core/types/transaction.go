@@ -5,21 +5,11 @@
 package types
 
 import (
-	"errors"
-
+	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
-)
-
-// Define error message
-var (
-	ErrSerializeOutPoint           = errors.New("serialize outPoint error")
-	ErrInvalidOutPointProtoMessage = errors.New("Invalid OutPoint proto message")
-	ErrInvalidTxInProtoMessage     = errors.New("Invalid TxIn proto message")
-	ErrInvalidTxOutProtoMessage    = errors.New("Invalid TxOut proto message")
-	ErrInvalidTxProtoMessage       = errors.New("Invalid tx proto message")
 )
 
 // Transaction defines a transaction.
@@ -81,10 +71,10 @@ func (txout *TxOut) FromProtoMessage(message proto.Message) error {
 			txout.Value = message.Value
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return core.ErrEmptyProtoMessage
 	}
 
-	return ErrInvalidTxOutProtoMessage
+	return core.ErrInvalidTxOutProtoMessage
 }
 
 // Marshal method marshal TxOut object to binary
@@ -113,7 +103,7 @@ func (txin *TxIn) ToProtoMessage() (proto.Message, error) {
 			Sequence:     txin.Sequence,
 		}, nil
 	}
-	return nil, ErrSerializeOutPoint
+	return nil, core.ErrSerializeOutPoint
 }
 
 // FromProtoMessage converts proto message to txin.
@@ -129,9 +119,9 @@ func (txin *TxIn) FromProtoMessage(message proto.Message) error {
 			txin.Sequence = message.Sequence
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return core.ErrEmptyProtoMessage
 	}
-	return ErrInvalidTxInProtoMessage
+	return core.ErrInvalidTxInProtoMessage
 }
 
 // Marshal method marshal TxIn object to binary
@@ -166,10 +156,10 @@ func (op *OutPoint) FromProtoMessage(message proto.Message) error {
 			op.Index = message.Index
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return core.ErrEmptyProtoMessage
 	}
 
-	return ErrInvalidOutPointProtoMessage
+	return core.ErrInvalidOutPointProtoMessage
 }
 
 // Marshal method marshal OutPoint object to binary
@@ -266,9 +256,9 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 			tx.LockTime = message.LockTime
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return core.ErrEmptyProtoMessage
 	}
-	return ErrInvalidTxProtoMessage
+	return core.ErrInvalidTxProtoMessage
 }
 
 // Marshal method marshal tx object to binary

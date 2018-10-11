@@ -23,16 +23,6 @@ const (
 	PeriodTime = 5
 )
 
-// error defined
-var (
-	ErrMagic                   = errors.New("magic is error")
-	ErrHeaderCheckSum          = errors.New("header checksum is error")
-	ErrExceedMaxDataLength     = errors.New("exceed max data length")
-	ErrBodyCheckSum            = errors.New("body checksum is error")
-	ErrMessageDataContent      = errors.New("Invalid message data content")
-	ErrNoConnectionEstablished = errors.New("No connection established")
-)
-
 // Conn represents a connection to a remote node
 type Conn struct {
 	stream             libp2pnet.Stream
