@@ -109,7 +109,6 @@ require (
 	github.com/multiformats/go-multibase v0.3.0 // indirect
 	github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3 // indirect
 	github.com/multiformats/go-multistream v0.3.9 // indirect
-	github.com/nebulasio/go-nebulas v1.0.8
 	github.com/onsi/gomega v1.4.2 // indirect
 	github.com/opentracing/opentracing-go v0.0.0-20180606204148-bd9c31933947 // indirect
 	github.com/peterh/liner v1.1.0 // indirect

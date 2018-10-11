@@ -248,8 +248,6 @@ github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3 h1:nHZyP
 github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3/go.mod h1:sT17phG+xVgnrZc8ht/ZoCIV0sKRwvmZkXk46UfSxM4=
 github.com/multiformats/go-multistream v0.3.9 h1:ZqVaUxtVzjRUCGaO3596vk/rj9UXheIGAdKXXo/VKUA=
 github.com/multiformats/go-multistream v0.3.9/go.mod h1:fJTiDfXJVmItycydCnNx4+wSzZ5NwG2FEVAI30fiovg=
-github.com/nebulasio/go-nebulas v1.0.8 h1:iXUGjVc7W0V8sHSkxTRecdJD5O02AAVNjySeeIUn7xA=
-github.com/nebulasio/go-nebulas v1.0.8/go.mod h1:kBv9zMmRtx3n2bJBn1vxqe7gaf4MNFsJVTZ9rQqJ/PE=
 github.com/onsi/ginkgo v1.6.0 h1:Ix8l273rp3QzYgXSR+c8d1fTG7UPgYkOSELPhiY/YGw=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/gomega v1.4.1/go.mod h1:C1qb7wdrVGGVU+Z6iS04AVkA3Q65CEZX59MT0QO5uiA=
