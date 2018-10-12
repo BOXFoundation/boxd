@@ -6,6 +6,8 @@ package types
 
 import (
 	"github.com/BOXFoundation/boxd/core"
+	"errors"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/btcsuite/btcutil/base58"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -25,6 +27,12 @@ type AddressPubKeyHash struct {
 
 // NewAddressPubKeyHash returns a new AddressPubKeyHash.  pkHash mustbe 20 bytes.
 func NewAddressPubKeyHash(pkHash []byte, netID byte) (*AddressPubKeyHash, error) {
+	return newAddressPubKeyHash(pkHash, netID)
+}
+
+// NewAddressFromPubKey returns a new AddressPubKeyHash derived from an ecdsa public key
+func NewAddressFromPubKey(pubKey *crypto.PublicKey, netID byte) (*AddressPubKeyHash, error) {
+	pkHash := crypto.Ripemd160(crypto.Sha256(pubKey.Serialize()))
 	return newAddressPubKeyHash(pkHash, netID)
 }
 

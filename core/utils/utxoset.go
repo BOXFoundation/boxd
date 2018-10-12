@@ -23,7 +23,7 @@ type UtxoWrap struct {
 	BlockHeight int32
 	IsCoinBase  bool
 	IsSpent     bool
-	IsModifie   bool
+	IsModified  bool
 }
 
 // ToProtoMessage converts utxo wrap to proto message.
@@ -34,7 +34,7 @@ func (utxoWrap *UtxoWrap) ToProtoMessage() (proto.Message, error) {
 		BlockHeight: utxoWrap.BlockHeight,
 		IsCoinbase:  utxoWrap.IsCoinBase,
 		IsSpent:     utxoWrap.IsSpent,
-		IsModifie:   utxoWrap.IsModifie,
+		IsModified:  utxoWrap.IsModified,
 	}, nil
 }
 
@@ -48,7 +48,7 @@ func (utxoWrap *UtxoWrap) FromProtoMessage(message proto.Message) error {
 		utxoWrap.Output = txout
 		utxoWrap.BlockHeight = message.BlockHeight
 		utxoWrap.IsCoinBase = message.IsCoinbase
-		utxoWrap.IsModifie = message.IsModifie
+		utxoWrap.IsModified = message.IsModified
 		utxoWrap.IsSpent = message.IsSpent
 	}
 	return core.ErrInvalidUtxoWrapProtoMessage
@@ -196,7 +196,7 @@ func (u *UtxoSet) RevertBlock(block *types.Block) error {
 func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 
 	for outpoint, utxoWrap := range u.utxoMap {
-		if utxoWrap == nil || !utxoWrap.IsModifie {
+		if utxoWrap == nil || !utxoWrap.IsModified {
 			continue
 		}
 		// Remove the utxo entry if it is spent.

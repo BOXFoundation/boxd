@@ -36,7 +36,20 @@ func NewKeyPair() (*PrivateKey, *PublicKey, error) {
 	return privKey, privKey.PubKey(), nil
 }
 
+// Serialize convert private key into byte array
+func (p *PrivateKey) Serialize() []byte {
+	return ((*btcec.PrivateKey)(p)).Serialize()
+}
+
 // PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
 	return (*PublicKey)((*btcec.PrivateKey)(p).PubKey())
+}
+
+// Erase destroys the private info of private key, and leaves only public info
+func (p *PrivateKey) Erase() {
+	bits := p.D.Bits()
+	for i := 0; i < len(bits); i++ {
+		bits[i] = 0
+	}
 }
