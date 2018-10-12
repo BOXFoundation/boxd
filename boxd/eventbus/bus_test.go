@@ -168,7 +168,7 @@ func TestStopReply(t *testing.T) {
 
 func TestHasReplier(t *testing.T) {
 	bus := New()
-	bus.Reply("topic", func(_ int) {}, false)
+	bus.Reply("topic", func(_ chan<- int) {}, false)
 	ensure.False(t, bus.HasReplier("topic_topic"))
 	ensure.True(t, bus.HasReplier("topic"))
 }
@@ -224,4 +224,17 @@ func TestTransactionalReplier(t *testing.T) {
 			close(out)
 		}
 	}
+}
+
+func TestChanParamsReplier(t *testing.T) {
+	bus := New()
+
+	err := bus.Reply("topic", func() {}, false)
+	ensure.NotNil(t, err)
+
+	err = bus.Reply("topic", func(out chan<- int) {}, false)
+	ensure.Nil(t, err)
+
+	err = bus.Reply("topic1", func(out1 chan<- int, out2 chan<- int) {}, false)
+	ensure.Nil(t, err)
 }

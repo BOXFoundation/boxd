@@ -241,8 +241,19 @@ func (bus *EventBus) Reply(topic string, fn interface{}, transactional bool) err
 	if v.Kind() != reflect.Func {
 		return fmt.Errorf("%s is not of type reflect.Func", v.Kind())
 	}
+
+	// See if there is at least one chan parameter
+	chanParamFound := false
 	t := reflect.TypeOf(fn)
-	if t.NumIn() < 1 {
+	for i := 0; i < t.NumIn(); i++ {
+		// i-th parameter's type
+		paramType := t.In(i)
+		if paramType.Kind() == reflect.Chan {
+			chanParamFound = true
+			break
+		}
+	}
+	if !chanParamFound {
 		return fmt.Errorf("%s should have at least one chan parameter to receive result", t.Kind())
 	}
 
