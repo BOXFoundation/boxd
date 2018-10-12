@@ -6,7 +6,6 @@ package types
 
 import (
 	"github.com/BOXFoundation/boxd/core"
-	"errors"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/btcsuite/btcutil/base58"
 	"golang.org/x/crypto/ripemd160"

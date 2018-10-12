@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb" // init memdb
@@ -59,5 +60,5 @@ func TestBlockProcessing(t *testing.T) {
 	isMainChain, isOrphan, err := blockChain.ProcessBlock(&genesisBlock, false)
 	ensure.False(t, isMainChain)
 	ensure.False(t, isOrphan)
-	ensure.DeepEqual(t, err, ErrBlockExists)
+	ensure.DeepEqual(t, err, core.ErrBlockExists)
 }
