@@ -208,3 +208,28 @@ func (p *BoxPeer) UnSubscribe(notifiee *Notifiee) {
 func (p *BoxPeer) Notify(msg Message) {
 	p.notifier.Notify(msg)
 }
+
+// DummyPeer implements Net interface for testing
+type DummyPeer struct{}
+
+// NewDummyPeer creates a new DummyPeer
+func NewDummyPeer() *DummyPeer {
+	return &DummyPeer{}
+}
+
+// Broadcast for testing
+func (d *DummyPeer) Broadcast(uint32, conv.Convertible) error {
+	return nil
+}
+
+// SendMessageToPeer for testing
+func (d *DummyPeer) SendMessageToPeer(uint32, conv.Convertible, peer.ID) {}
+
+// Subscribe for testing
+func (d *DummyPeer) Subscribe(*Notifiee) {}
+
+// UnSubscribe for testing
+func (d *DummyPeer) UnSubscribe(*Notifiee) {}
+
+// Notify for testing
+func (d *DummyPeer) Notify(Message) {}

@@ -11,6 +11,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/script"
 )
 
 // const defines constants
@@ -243,4 +244,48 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (
 
 	txFee := totalInputAmount - totalOutputAmount
 	return txFee, nil
+}
+
+// CreateCoinbaseTx creates a coinbase give miner address and block height
+func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction, error) {
+	var pkScript []byte
+	var err error
+	blockReward := CalcBlockSubsidy(blockHeight)
+	coinbaseScript, err := script.StandardCoinbaseScript(blockHeight)
+	if err != nil {
+		return nil, err
+	}
+	if addr != nil {
+		pkScript, err = script.PayToPubKeyHashScript(addr.ScriptAddress())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		scriptBuilder := script.NewBuilder()
+		pkScript, err = scriptBuilder.AddOp(script.OPTRUE).Script()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	tx := &types.Transaction{
+		Version: 1,
+		Vin: []*types.TxIn{
+			{
+				PrevOutPoint: types.OutPoint{
+					Hash:  crypto.HashType{},
+					Index: 0xffffffff,
+				},
+				ScriptSig: coinbaseScript,
+				Sequence:  0xffffffff,
+			},
+		},
+		Vout: []*types.TxOut{
+			{
+				Value:        blockReward,
+				ScriptPubKey: pkScript,
+			},
+		},
+	}
+	return tx, nil
 }

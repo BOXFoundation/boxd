@@ -14,10 +14,8 @@ import (
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/core/utils"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 )
@@ -141,7 +139,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 	pool := dpos.sortPendingTxs()
 	// blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.Transaction
-	coinbaseTx, err := dpos.createCoinbaseTx(addr)
+	coinbaseTx, err := utils.CreateCoinbaseTx(addr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
 		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
@@ -158,49 +156,4 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 		block.Txs = append(block.Txs, tx)
 	}
 	return nil
-}
-
-func (dpos *Dpos) createCoinbaseTx(addr types.Address) (*types.Transaction, error) {
-
-	var pkScript []byte
-	var err error
-	nextBlockHeight := dpos.chain.LongestChainHeight + 1
-	blockReward := utils.CalcBlockSubsidy(nextBlockHeight)
-	coinbaseScript, err := script.StandardCoinbaseScript(nextBlockHeight)
-	if err != nil {
-		return nil, err
-	}
-	if addr != nil {
-		pkScript, err = script.PayToPubKeyHashScript(addr.ScriptAddress())
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		scriptBuilder := script.NewBuilder()
-		pkScript, err = scriptBuilder.AddOp(script.OPTRUE).Script()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	tx := &types.Transaction{
-		Version: 1,
-		Vin: []*types.TxIn{
-			{
-				PrevOutPoint: types.OutPoint{
-					Hash:  crypto.HashType{},
-					Index: 0xffffffff,
-				},
-				ScriptSig: coinbaseScript,
-				Sequence:  0xffffffff,
-			},
-		},
-		Vout: []*types.TxOut{
-			{
-				Value:        blockReward,
-				ScriptPubKey: pkScript,
-			},
-		},
-	}
-	return tx, nil
 }
