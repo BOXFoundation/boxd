@@ -197,9 +197,5 @@ func (bf *filter) Unmarshal(data []byte) error {
 	}
 
 	bf.filter = make([]byte, l)
-	if err := binary.Read(r, binary.LittleEndian, bf.filter); err != nil {
-		return err
-	}
-
-	return nil
+	return binary.Read(r, binary.LittleEndian, bf.filter)
 }
