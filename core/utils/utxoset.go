@@ -5,9 +5,9 @@
 package utils
 
 import (
-	"errors"
 	"sync"
 
+	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -15,13 +15,6 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	proto "github.com/gogo/protobuf/proto"
-)
-
-// error
-var (
-	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
-	ErrAddExistingUtxo             = errors.New("Trying to add utxo already existed")
-	ErrInvalidUtxoWrapProtoMessage = errors.New("Invalid utxo wrap proto message")
 )
 
 // UtxoWrap contains info about utxo
@@ -58,7 +51,7 @@ func (utxoWrap *UtxoWrap) FromProtoMessage(message proto.Message) error {
 		utxoWrap.IsModified = message.IsModified
 		utxoWrap.IsSpent = message.IsSpent
 	}
-	return ErrInvalidUtxoWrapProtoMessage
+	return core.ErrInvalidUtxoWrapProtoMessage
 }
 
 // Marshal method marshal UtxoWrap object to binary
@@ -103,13 +96,13 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight in
 	logger.Debugf("Add utxo tx info: %+v, index: %d", tx, txOutIdx)
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
-		return ErrTxOutIndexOob
+		return core.ErrTxOutIndexOob
 	}
 
 	txHash, _ := tx.TxHash()
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
 	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
-		return ErrAddExistingUtxo
+		return core.ErrAddExistingUtxo
 	}
 	utxoWrap := UtxoWrap{tx.Vout[txOutIdx], blockHeight, IsCoinBase(tx), false, false}
 	u.utxoMap[outPoint] = &utxoWrap

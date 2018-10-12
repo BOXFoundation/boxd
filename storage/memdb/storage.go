@@ -6,7 +6,6 @@ package memdb
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -93,7 +92,7 @@ func (db *memorydb) Get(key []byte) ([]byte, error) {
 		return value, nil
 	}
 
-	return nil, errors.New("specified key does not exists")
+	return nil, storage.ErrKeyNotExists
 }
 
 // check if the entry associate with key exists

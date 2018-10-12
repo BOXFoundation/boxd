@@ -1,0 +1,67 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+package core
+
+import "errors"
+
+// error
+var (
+	//blockchain.go
+	ErrBlockExists        = errors.New("Block already exists")
+	ErrInvalidTime        = errors.New("Invalid time")
+	ErrTimeTooNew         = errors.New("Block time too new")
+	ErrNoTransactions     = errors.New("Block does not contain any transaction")
+	ErrBlockTooBig        = errors.New("Block too big")
+	ErrFirstTxNotCoinbase = errors.New("First transaction in block is not a coinbase")
+	ErrMultipleCoinbases  = errors.New("Block contains multiple coinbase transactions")
+	ErrBadMerkleRoot      = errors.New("Merkel root mismatch")
+	ErrDuplicateTx        = errors.New("Duplicate transactions in a block")
+	ErrTooManySigOps      = errors.New("Too many signature operations in a block")
+	ErrBadFees            = errors.New("total fees for block overflows accumulator")
+	ErrBadCoinbaseValue   = errors.New("Coinbase pays more than expected value")
+	ErrUnfinalizedTx      = errors.New("Transaction has not been finalized")
+	ErrWrongBlockHeight   = errors.New("Wrong block height")
+
+	//transaciton_pool.go
+	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
+	ErrCoinbaseTx                 = errors.New("Transaction must not be a coinbase transaction")
+	ErrNonStandardTransaction     = errors.New("Transaction is not a standard transaction")
+	ErrOutPutAlreadySpent         = errors.New("Output already spent by transaction in the pool")
+	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
+	ErrNonLocalMessage            = errors.New("Received non-local message")
+	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
+
+	//block.go
+	ErrSerializeHeader                = errors.New("Serialize block header error")
+	ErrEmptyProtoMessage              = errors.New("Empty proto message")
+	ErrInvalidBlockHeaderProtoMessage = errors.New("Invalid block header proto message")
+	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
+
+	//transaction.go
+	ErrSerializeOutPoint           = errors.New("serialize outPoint error")
+	ErrInvalidOutPointProtoMessage = errors.New("Invalid OutPoint proto message")
+	ErrInvalidTxInProtoMessage     = errors.New("Invalid TxIn proto message")
+	ErrInvalidTxOutProtoMessage    = errors.New("Invalid TxOut proto message")
+	ErrInvalidTxProtoMessage       = errors.New("Invalid tx proto message")
+
+	//address.go
+	ErrInvalidPKHash = errors.New("pkHash must be 20 bytes")
+
+	//utils.go
+	ErrNoTxInputs           = errors.New("Transaction has no inputs")
+	ErrNoTxOutputs          = errors.New("Transaction has no outputs")
+	ErrBadTxOutValue        = errors.New("Invalid output value")
+	ErrDuplicateTxInputs    = errors.New("Transaction contains duplicate inputs")
+	ErrBadCoinbaseScriptLen = errors.New("Coinbase scriptSig out of range")
+	ErrBadTxInput           = errors.New("Transaction input refers to null out point")
+	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
+	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
+	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
+
+	//utxoset.go
+	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
+	ErrAddExistingUtxo             = errors.New("Trying to add utxo already existed")
+	ErrInvalidUtxoWrapProtoMessage = errors.New("Invalid utxo wrap proto message")
+)

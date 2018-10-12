@@ -5,7 +5,6 @@
 package memdb
 
 import (
-	"errors"
 	"strings"
 
 	storage "github.com/BOXFoundation/boxd/storage"
@@ -63,7 +62,7 @@ func (t *mtable) Get(key []byte) ([]byte, error) {
 	if value, ok := t.db[string(t.realkey(key))]; ok {
 		return value, nil
 	}
-	return nil, errors.New("key not found")
+	return nil, storage.ErrKeyNotFound
 }
 
 // check if the entry associate with key exists

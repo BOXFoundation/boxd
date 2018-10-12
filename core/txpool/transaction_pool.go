@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/core/utils"
@@ -22,17 +23,6 @@ import (
 const (
 	TxMsgBufferChSize          = 65536
 	ChainUpdateMsgBufferChSize = 65536
-)
-
-// define error message
-var (
-	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
-	ErrCoinbaseTx                 = errors.New("Transaction must not be a coinbase transaction")
-	ErrNonStandardTransaction     = errors.New("Transaction is not a standard transaction")
-	ErrOutPutAlreadySpent         = errors.New("Output already spent by transaction in the pool")
-	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
-	ErrNonLocalMessage            = errors.New("Received non-local message")
-	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
 )
 
 var logger = log.NewLogger("txpool") // logger
@@ -106,12 +96,12 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
 	localMessage, ok := msg.(*utils.LocalMessage)
 	if !ok {
 		logger.Errorf("Received non-local message")
-		return ErrNonLocalMessage
+		return core.ErrNonLocalMessage
 	}
 	chainUpdateMsg, ok := localMessage.Data().(utils.ChainUpdateMsg)
 	if !ok {
 		logger.Errorf("Received local message is not a chain update")
-		return ErrLocalMessageNotChainUpdate
+		return core.ErrLocalMessageNotChainUpdate
 	}
 
 	block := chainUpdateMsg.Block
@@ -171,7 +161,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// This applies to orphan transactions as well
 	if tx_pool.isTransactionInPool(txHash) || tx_pool.isOrphanInPool(txHash) {
 		logger.Debugf("Tx %v already exists", txHash)
-		return ErrDuplicateTxInPool
+		return core.ErrDuplicateTxInPool
 	}
 
 	// Perform preliminary sanity checks on the transaction.
@@ -183,7 +173,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// A standalone transaction must not be a coinbase transaction.
 	if utils.IsCoinBase(tx) {
 		logger.Debugf("Tx %v is an individual coinbase", txHash)
-		return ErrCoinbaseTx
+		return core.ErrCoinbaseTx
 	}
 
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
@@ -191,7 +181,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
 		logger.Debugf("Tx %v is not standard: %v", txHash, err)
-		return ErrNonStandardTransaction
+		return core.ErrNonStandardTransaction
 	}
 
 	// The transaction must not use any of the same outputs as other transactions already in the pool.
@@ -211,7 +201,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// Add orphan transaction
 	if tx_pool.isOrphan(utxoSet, tx) {
 		tx_pool.addOrphan(tx)
-		return ErrOrphanTransaction
+		return core.ErrOrphanTransaction
 	}
 
 	// TODO: sequence lock
@@ -295,7 +285,7 @@ func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
 	for _, txIn := range tx.Vin {
 		if _, exists := tx_pool.stxoSet[txIn.PrevOutPoint]; exists {
-			return ErrOutPutAlreadySpent
+			return core.ErrOutPutAlreadySpent
 		}
 	}
 	return nil

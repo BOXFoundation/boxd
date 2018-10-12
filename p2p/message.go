@@ -7,7 +7,6 @@ package p2p
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"hash/crc32"
 
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
@@ -42,14 +41,6 @@ var NetworkNamtToMagic = map[string]uint32{
 	"mainnet": Mainnet,
 	"testnet": Testnet,
 }
-
-// error
-var (
-	ErrMessageHeaderLength     = errors.New("Can not read p2p message header length")
-	ErrMessageHeader           = errors.New("Invalid p2p message header data")
-	ErrMessageDataBody         = errors.New("Invalid p2p message body")
-	ErrFromProtoMessageMessage = errors.New("Invalid proto message")
-)
 
 // messageHeader message header info from network.
 type messageHeader struct {

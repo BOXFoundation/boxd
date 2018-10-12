@@ -5,9 +5,9 @@
 package types
 
 import (
-	"errors"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -16,14 +16,6 @@ import (
 )
 
 var logger = log.NewLogger("core:types") // logger
-
-// Define error
-var (
-	ErrSerializeHeader                = errors.New("Serialize block header error")
-	ErrEmptyProtoMessage              = errors.New("Empty proto message")
-	ErrInvalidBlockHeaderProtoMessage = errors.New("Invalid block header proto message")
-	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
-)
 
 // Block defines a block containing block and height that provides easier and more efficient
 // manipulation of raw blocks.  It also memoizes hashes for the block and its
@@ -75,7 +67,7 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 		}, nil
 	}
 
-	return nil, ErrSerializeHeader
+	return nil, core.ErrSerializeHeader
 }
 
 // FromProtoMessage converts proto message to block.
@@ -102,10 +94,10 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			block.Height = message.Height
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return core.ErrEmptyProtoMessage
 	}
 
-	return ErrInvalidBlockProtoMessage
+	return core.ErrInvalidBlockProtoMessage
 }
 
 // Marshal method marshal Block object to binary
@@ -194,10 +186,10 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			header.Magic = message.Magic
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return core.ErrEmptyProtoMessage
 	}
 
-	return ErrInvalidBlockHeaderProtoMessage
+	return core.ErrInvalidBlockHeaderProtoMessage
 }
 
 // Marshal method marshal BlockHeader object to binary

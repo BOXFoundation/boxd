@@ -5,13 +5,13 @@
 package chain
 
 import (
-	"errors"
 	"math"
 	"sort"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -73,24 +73,6 @@ const (
 	// contextual transaction information provided in a transaction store
 	// when it has not yet been mined into a block.
 	unminedHeight = 0x7fffffff
-)
-
-// error
-var (
-	ErrBlockExists        = errors.New("Block already exists")
-	ErrInvalidTime        = errors.New("Invalid time")
-	ErrTimeTooNew         = errors.New("Block time too new")
-	ErrNoTransactions     = errors.New("Block does not contain any transaction")
-	ErrBlockTooBig        = errors.New("Block too big")
-	ErrFirstTxNotCoinbase = errors.New("First transaction in block is not a coinbase")
-	ErrMultipleCoinbases  = errors.New("Block contains multiple coinbase transactions")
-	ErrBadMerkleRoot      = errors.New("Merkel root mismatch")
-	ErrDuplicateTx        = errors.New("Duplicate transactions in a block")
-	ErrTooManySigOps      = errors.New("Too many signature operations in a block")
-	ErrBadFees            = errors.New("total fees for block overflows accumulator")
-	ErrBadCoinbaseValue   = errors.New("Coinbase pays more than expected value")
-	ErrUnfinalizedTx      = errors.New("Transaction has not been finalized")
-	ErrWrongBlockHeight   = errors.New("Wrong block height")
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -323,13 +305,13 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.blockExists(*blockHash); exists {
 		logger.Warnf("already have block %v", blockHash)
-		return false, false, ErrBlockExists
+		return false, false, core.ErrBlockExists
 	}
 
 	// The block must not already exist as an orphan.
 	if _, exists := chain.hashToOrphanBlock[*blockHash]; exists {
 		logger.Warnf("already have block (orphan) %v", blockHash)
-		return false, false, ErrBlockExists
+		return false, false, core.ErrBlockExists
 	}
 
 	// Perform preliminary sanity checks on the block and its transactions.
@@ -374,7 +356,7 @@ func (chain *BlockChain) checkBlockWithContext(block *types.Block) error {
 		if !IsTxFinalized(tx, block.Height, blockTime) {
 			txHash, _ := tx.TxHash()
 			logger.Errorf("block contains unfinalized transaction %v", txHash)
-			return ErrUnfinalizedTx
+			return core.ErrUnfinalizedTx
 		}
 	}
 
@@ -443,7 +425,7 @@ func (chain *BlockChain) calcLockTime(utxoSet *utils.UtxoSet, block *types.Block
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
 			logger.Errorf("Failed to calc lockTime, output %+v does not exist or has already been spent", txIn.PrevOutPoint)
-			return lockTime, utils.ErrMissingTxOut
+			return lockTime, core.ErrMissingTxOut
 		}
 
 		utxoHeight := utxo.BlockHeight
@@ -539,7 +521,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		lastTotalFees := totalFees
 		totalFees += txFee
 		if totalFees < lastTotalFees {
-			return ErrBadFees
+			return core.ErrBadFees
 		}
 
 		// Update utxos by applying this tx
@@ -557,7 +539,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	if totalCoinbaseOutput > expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
 			totalCoinbaseOutput, expectedCoinbaseOutput)
-		return ErrBadCoinbaseValue
+		return core.ErrBadCoinbaseValue
 	}
 
 	// Enforce the sequence number based relative lock-times.
@@ -571,7 +553,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		}
 		if !sequenceLockActive(lockTime, block.Height, medianTime) {
 			logger.Errorf("block contains transaction whose input sequence locks are not met")
-			return ErrUnfinalizedTx
+			return core.ErrUnfinalizedTx
 		}
 	}
 
@@ -744,7 +726,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
 		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash, block.Height, parentBlock.Height)
-		return false, ErrWrongBlockHeight
+		return false, core.ErrWrongBlockHeight
 	}
 
 	// Validate the block within chain context.
@@ -813,7 +795,7 @@ func checkBlockHeaderWithoutContext(header *types.BlockHeader, timeSource util.M
 	maxTimestamp := timeSource.AdjustedTime().Add(time.Second * MaxTimeOffsetSeconds)
 	if timestamp.After(maxTimestamp) {
 		logger.Errorf("block timestamp of %v is too far in the future", header.TimeStamp)
-		return ErrTimeTooNew
+		return core.ErrTimeTooNew
 	}
 
 	return nil
@@ -856,7 +838,7 @@ func checkBlockWithoutContext(block *types.Block, timeSource util.MedianTimeSour
 	numTx := len(block.Txs)
 	if numTx == 0 {
 		logger.Errorf("block does not contain any transactions")
-		return ErrNoTransactions
+		return core.ErrNoTransactions
 	}
 
 	// TODO: check before deserialization
@@ -872,14 +854,14 @@ func checkBlockWithoutContext(block *types.Block, timeSource util.MedianTimeSour
 	transactions := block.Txs
 	if !utils.IsCoinBase(transactions[0]) {
 		logger.Errorf("first transaction in block is not a coinbase")
-		return ErrFirstTxNotCoinbase
+		return core.ErrFirstTxNotCoinbase
 	}
 
 	// There should be only one coinbase.
 	for i, tx := range transactions[1:] {
 		if utils.IsCoinBase(tx) {
 			logger.Errorf("block contains second coinbase at index %d", i+1)
-			return ErrMultipleCoinbases
+			return core.ErrMultipleCoinbases
 		}
 	}
 
@@ -897,7 +879,7 @@ func checkBlockWithoutContext(block *types.Block, timeSource util.MedianTimeSour
 		logger.Errorf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
 			header.TxsRoot, *calculatedMerkleRoot)
-		return ErrBadMerkleRoot
+		return core.ErrBadMerkleRoot
 	}
 
 	// Detect duplicate transactions.
@@ -906,7 +888,7 @@ func checkBlockWithoutContext(block *types.Block, timeSource util.MedianTimeSour
 		txHash, _ := tx.TxHash()
 		if _, exists := existingTxHashes[txHash]; exists {
 			logger.Errorf("block contains duplicate transaction %v", txHash)
-			return ErrDuplicateTx
+			return core.ErrDuplicateTx
 		}
 		existingTxHashes[txHash] = struct{}{}
 	}
@@ -918,7 +900,7 @@ func checkBlockWithoutContext(block *types.Block, timeSource util.MedianTimeSour
 		if totalSigOpCnt > maxBlockSigOpCnt {
 			logger.Errorf("block contains too many signature "+
 				"operations - got %v, max %v", totalSigOpCnt, maxBlockSigOpCnt)
-			return ErrTooManySigOps
+			return core.ErrTooManySigOps
 		}
 	}
 
