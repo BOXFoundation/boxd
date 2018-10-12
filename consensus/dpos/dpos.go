@@ -152,8 +152,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 
 	merkles := util.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
-	for _, tx := range blockTxns {
-		block.Txs = append(block.Txs, tx)
-	}
+	block.Txs = blockTxns
 	return nil
 }
