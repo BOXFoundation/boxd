@@ -1,4 +1,4 @@
-# Quicksivler
+# Boxd
 
 A Go implementation of BOX Payout blockchain. 
 
