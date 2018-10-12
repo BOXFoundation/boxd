@@ -42,6 +42,16 @@ func Sha256(buf []byte) []byte {
 	return digest[:]
 }
 
+// Sha256Multi calculates the sha256 digest of buf array
+func Sha256Multi(data ...[]byte) []byte {
+	h := sha256.New()
+	h.Reset()
+	for _, d := range data {
+		h.Write(d)
+	}
+	return h.Sum(nil)
+}
+
 // DoubleHashH calculates hash(hash(b)) and returns the resulting bytes as a hash.
 func DoubleHashH(b []byte) HashType {
 	first := sha256.Sum256(b)
