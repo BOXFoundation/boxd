@@ -590,7 +590,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 			block.Height, chain.LongestChainHeight)
 	}
 	detachBlocks := make([]*types.Block, 0)
-	attachBlocks := []*types.Block{block}
+	attachBlocks := make([]*types.Block, 0)
 
 	// Start both chain from same height by moving up side chain
 	sideChainBlock := block
