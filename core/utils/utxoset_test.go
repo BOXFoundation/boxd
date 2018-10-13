@@ -43,7 +43,7 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 		BlockHeight: 10000,
 		IsCoinBase:  false,
 		IsSpent:     false,
-		IsModifie:   false,
+		IsModified:  false,
 	}
 
 	txHash, _ := tx.TxHash()
@@ -82,7 +82,7 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 		BlockHeight: int32(20000),
 		IsCoinBase:  false,
 		IsSpent:     false,
-		IsModifie:   false,
+		IsModified:  false,
 	}
 
 	tx1Hash, _ := tx1.TxHash()
