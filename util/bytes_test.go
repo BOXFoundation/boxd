@@ -56,6 +56,14 @@ func TestReadWriteVarint(t *testing.T) {
 		0xacf3514de,
 		0x152dac09f,
 		0,
+		126,
+		127,
+		128,
+		256,
+		-256 * 256,
+		256 * 256 * 256,
+		-256 * 256 * 256 * 256,
+		256 * 256 * 256 * 256 * 256,
 	}
 	for _, v := range tests {
 		ensure.Nil(t, WriteVarint(w, v))
@@ -303,6 +311,7 @@ func TestReadWriteBytes(t *testing.T) {
 		[]byte("_=ld,.a}[[,.;😀🤣"),
 		[]byte("中文汉字"),
 		[]byte(""),
+		{},
 	}
 	for _, v := range tests {
 		ensure.Nil(t, WriteBytes(w, v))
@@ -327,6 +336,7 @@ func TestReadWriteVarBytes(t *testing.T) {
 		[]byte("_=ld,.a}[[,.;😀🤣"),
 		[]byte("中文汉字"),
 		[]byte(""),
+		{},
 	}
 	for _, v := range tests {
 		ensure.Nil(t, WriteVarBytes(w, v))
@@ -350,6 +360,7 @@ func TestReadWriteHex(t *testing.T) {
 		"fc3a5db8e0",
 		"ABCDEF1234567890",
 		"abcdefABCDEF1234567890",
+		"",
 	}
 	for _, v := range tests {
 		ensure.Nil(t, WriteHex(w, v))
