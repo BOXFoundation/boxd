@@ -69,15 +69,21 @@ func nextBlock(parentBlock *types.Block) *types.Block {
 	return newBlock
 }
 
-type resultStruct struct {
-	isMainChain bool
-	isOrphan    bool
-	err         error
-}
-
 func getTailBlock() *types.Block {
 	tailBlock, _ := blockChain.LoadTailBlock()
 	return tailBlock
+}
+
+func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedIsMainChain bool,
+	expectedIsOrphan bool, expectedErr error, expectedChainHeight int32, expectedChainTail *types.Block) {
+
+	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */)
+
+	ensure.DeepEqual(t, isMainChain, expectedIsMainChain)
+	ensure.DeepEqual(t, isOrphan, expectedIsOrphan)
+	ensure.DeepEqual(t, err, expectedErr)
+	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)
+	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
 }
 
 // Test blockchain block processing
@@ -88,42 +94,28 @@ func TestBlockProcessing(t *testing.T) {
 	b0 := getTailBlock()
 	ensure.DeepEqual(t, b0, &genesisBlock)
 
-	var r resultStruct
 	// try to append an existing block: genesis block
-	r.isMainChain, r.isOrphan, r.err = blockChain.ProcessBlock(b0, false)
-	ensure.DeepEqual(t, r, resultStruct{false, false, core.ErrBlockExists})
+	verifyProcessBlock(t, b0, false, false, core.ErrBlockExists, 0, b0)
 
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
-	r.isMainChain, r.isOrphan, r.err = blockChain.ProcessBlock(b1, false)
-	ensure.DeepEqual(t, r, resultStruct{true, false, nil})
-	ensure.True(t, blockChain.LongestChainHeight == 1)
-	ensure.DeepEqual(t, b1, getTailBlock())
+	verifyProcessBlock(t, b1, true, false, nil, 1, b1)
 
 	// extend main chain
 	// b0 -> b1 -> b2
 	b2 := nextBlock(b1)
-	r.isMainChain, r.isOrphan, r.err = blockChain.ProcessBlock(b2, false)
-	ensure.DeepEqual(t, r, resultStruct{true, false, nil})
-	ensure.True(t, blockChain.LongestChainHeight == 2)
-	ensure.DeepEqual(t, b2, getTailBlock())
+	verifyProcessBlock(t, b2, true, false, nil, 2, b2)
 
 	// extend side chain: fork from b1
 	// b0 -> b1 -> b2
 	//		   \-> b2A
 	b2A := nextBlock(b1)
-	r.isMainChain, r.isOrphan, r.err = blockChain.ProcessBlock(b2A, false)
-	ensure.DeepEqual(t, r, resultStruct{false /* sidechain */, false, nil})
-	ensure.True(t, blockChain.LongestChainHeight == 2)
-	ensure.DeepEqual(t, b2, getTailBlock())
+	verifyProcessBlock(t, b2A, false, false, nil, 2, b2)
 
 	// reorg: side chain grows longer than main chain
 	// b0 -> b1 -> b2
 	//		   \-> b2A -> b3A
 	b3A := nextBlock(b2A)
-	r.isMainChain, r.isOrphan, r.err = blockChain.ProcessBlock(b3A, false)
-	ensure.DeepEqual(t, r, resultStruct{true, false, nil})
-	ensure.True(t, blockChain.LongestChainHeight == 3)
-	ensure.DeepEqual(t, b3A, getTailBlock())
+	verifyProcessBlock(t, b3A, true, false, nil, 3, b3A)
 }
