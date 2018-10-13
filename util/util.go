@@ -9,7 +9,11 @@ import (
 	"os/user"
 	"reflect"
 	"runtime"
+
+	"github.com/BOXFoundation/boxd/log"
 )
+
+var logger = log.NewLogger("mediantime") // logger
 
 // InArray return if there is an element in the array
 func InArray(obj interface{}, array interface{}) bool {

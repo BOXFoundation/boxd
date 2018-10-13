@@ -9,14 +9,7 @@ import (
 	"sort"
 	"sync"
 	"time"
-
-	"github.com/BOXFoundation/boxd/log"
 )
-
-var logger = log.NewLogger("mediantime") // logger
-
-func init() {
-}
 
 const (
 	// maxAllowedOffsetSeconds is the maximum number of seconds in either

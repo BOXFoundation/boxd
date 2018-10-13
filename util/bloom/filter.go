@@ -5,14 +5,13 @@
 package bloom
 
 import (
-	"bufio"
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"math"
 	"sync"
 
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/util/murmur3"
 )
 
@@ -265,45 +264,36 @@ func (bf *filter) FPRate() float64 {
 
 // Marshal marshals the bloom filter to a binary representation of it.
 func (bf *filter) Marshal() (data []byte, err error) {
-	var buf bytes.Buffer
-	var w = bufio.NewWriter(&buf)
-	if err := binary.Write(w, binary.LittleEndian, bf.elements); err != nil {
+	var w bytes.Buffer
+	if err := util.WriteUint32(&w, bf.elements); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(w, binary.LittleEndian, bf.hashFuncs); err != nil {
+	if err := util.WriteUint32(&w, bf.hashFuncs); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(w, binary.LittleEndian, bf.tweak); err != nil {
+	if err := util.WriteUint32(&w, bf.tweak); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(bf.filter))); err != nil {
+	if err := util.WriteVarBytes(&w, bf.filter); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(w, binary.LittleEndian, bf.filter); err != nil {
-		return nil, err
-	}
-	w.Flush()
-	return buf.Bytes(), nil
+
+	return w.Bytes(), nil
 }
 
 // Unmarshal unmarshals a bloom filter from binary data.
 func (bf *filter) Unmarshal(data []byte) error {
-	var buf = bytes.NewBuffer(data)
-	var r = bufio.NewReader(buf)
-	var l uint32
-	if err := binary.Read(r, binary.LittleEndian, &bf.elements); err != nil {
+	var err error
+	var r = bytes.NewBuffer(data)
+	if bf.elements, err = util.ReadUint32(r); err != nil {
 		return err
 	}
-	if err := binary.Read(r, binary.LittleEndian, &bf.hashFuncs); err != nil {
+	if bf.hashFuncs, err = util.ReadUint32(r); err != nil {
 		return err
 	}
-	if err := binary.Read(r, binary.LittleEndian, &bf.tweak); err != nil {
+	if bf.tweak, err = util.ReadUint32(r); err != nil {
 		return err
 	}
-	if err := binary.Read(r, binary.LittleEndian, &l); err != nil {
-		return err
-	}
-
-	bf.filter = make([]byte, l)
-	return binary.Read(r, binary.LittleEndian, bf.filter)
+	bf.filter, err = util.ReadVarBytes(r)
+	return err
 }
