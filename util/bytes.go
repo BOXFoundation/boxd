@@ -14,8 +14,6 @@ import (
 	base58 "github.com/jbenet/go-base58"
 )
 
-var endian = binary.BigEndian
-
 func init() {
 	ReadByte = ReadUint8
 	WriteByte = WriteUint8
@@ -67,73 +65,73 @@ func FromHex(data string) ([]byte, error) {
 
 // Uint64 encodes []byte.
 func Uint64(data []byte) uint64 {
-	return endian.Uint64(data)
+	return defaultEndian.Uint64(data)
 }
 
 // FromUint64 decodes unit64 value.
 func FromUint64(v uint64) []byte {
 	b := make([]byte, 8)
-	endian.PutUint64(b, v)
+	defaultEndian.PutUint64(b, v)
 	return b
 }
 
 // Uint32 encodes []byte.
 func Uint32(data []byte) uint32 {
-	return endian.Uint32(data)
+	return defaultEndian.Uint32(data)
 }
 
 // FromUint32 decodes uint32.
 func FromUint32(v uint32) []byte {
 	b := make([]byte, 4)
-	endian.PutUint32(b, v)
+	defaultEndian.PutUint32(b, v)
 	return b
 }
 
 // Uint16 encodes []byte.
 func Uint16(data []byte) uint16 {
-	return endian.Uint16(data)
+	return defaultEndian.Uint16(data)
 }
 
 // FromUint16 decodes uint16.
 func FromUint16(v uint16) []byte {
 	b := make([]byte, 2)
-	endian.PutUint16(b, v)
+	defaultEndian.PutUint16(b, v)
 	return b
 }
 
 // Int64 encodes []byte.
 func Int64(data []byte) int64 {
-	return int64(endian.Uint64(data))
+	return int64(defaultEndian.Uint64(data))
 }
 
 // FromInt64 decodes int64 v.
 func FromInt64(v int64) []byte {
 	b := make([]byte, 8)
-	endian.PutUint64(b, uint64(v))
+	defaultEndian.PutUint64(b, uint64(v))
 	return b
 }
 
 // Int32 encodes []byte.
 func Int32(data []byte) int32 {
-	return int32(endian.Uint32(data))
+	return int32(defaultEndian.Uint32(data))
 }
 
 // FromInt32 decodes int32 v.
 func FromInt32(v int32) []byte {
 	b := make([]byte, 4)
-	endian.PutUint32(b, uint32(v))
+	defaultEndian.PutUint32(b, uint32(v))
 	return b
 }
 
 // Int16 encode []byte.
 func Int16(data []byte) int16 {
-	return int16(endian.Uint16(data))
+	return int16(defaultEndian.Uint16(data))
 }
 
 // FromInt16 decodes int16 v.
 func FromInt16(v int16) []byte {
 	b := make([]byte, 2)
-	endian.PutUint16(b, uint16(v))
+	defaultEndian.PutUint16(b, uint16(v))
 	return b
 }
 
@@ -219,32 +217,32 @@ func WriteVarint(w io.Writer, v int64) error {
 
 // ReadUint64 read uint64.
 func ReadUint64(r io.Reader) (uint64, error) {
-	return binarySerializer.Uint64(r, endian)
+	return binarySerializer.Uint64(r, defaultEndian)
 }
 
 // WriteUint64 writes unit64 value.
 func WriteUint64(w io.Writer, v uint64) error {
-	return binarySerializer.PutUint64(w, endian, v)
+	return binarySerializer.PutUint64(w, defaultEndian, v)
 }
 
 // ReadUint32 reads uint32.
 func ReadUint32(r io.Reader) (uint32, error) {
-	return binarySerializer.Uint32(r, endian)
+	return binarySerializer.Uint32(r, defaultEndian)
 }
 
 // WriteUint32 writes uint32.
 func WriteUint32(w io.Writer, v uint32) error {
-	return binarySerializer.PutUint32(w, endian, v)
+	return binarySerializer.PutUint32(w, defaultEndian, v)
 }
 
 // ReadUint16 reads uint16.
 func ReadUint16(r io.Reader) (uint16, error) {
-	return binarySerializer.Uint16(r, endian)
+	return binarySerializer.Uint16(r, defaultEndian)
 }
 
 // WriteUint16 wtires uint16 v.
 func WriteUint16(w io.Writer, v uint16) error {
-	return binarySerializer.PutUint16(w, endian, v)
+	return binarySerializer.PutUint16(w, defaultEndian, v)
 }
 
 // ReadUint8 reads uint8.
@@ -265,35 +263,35 @@ var WriteByte func(io.Writer, byte) error
 
 // ReadInt64 reads int64.
 func ReadInt64(r io.Reader) (int64, error) {
-	v, err := binarySerializer.Uint64(r, endian)
+	v, err := binarySerializer.Uint64(r, defaultEndian)
 	return int64(v), err
 }
 
 // WriteInt64 writes int64 v.
 func WriteInt64(w io.Writer, v int64) error {
-	return binarySerializer.PutUint64(w, endian, uint64(v))
+	return binarySerializer.PutUint64(w, defaultEndian, uint64(v))
 }
 
 // ReadInt32 reads int32.
 func ReadInt32(r io.Reader) (int32, error) {
-	v, err := binarySerializer.Uint32(r, endian)
+	v, err := binarySerializer.Uint32(r, defaultEndian)
 	return int32(v), err
 }
 
 // WriteInt32 writes int32 v.
 func WriteInt32(w io.Writer, v int32) error {
-	return binarySerializer.PutUint32(w, endian, uint32(v))
+	return binarySerializer.PutUint32(w, defaultEndian, uint32(v))
 }
 
 // ReadInt16 reads int16 value.
 func ReadInt16(r io.Reader) (int16, error) {
-	v, err := binarySerializer.Uint16(r, endian)
+	v, err := binarySerializer.Uint16(r, defaultEndian)
 	return int16(v), err
 }
 
 // WriteInt16 writes int16 v.
 func WriteInt16(w io.Writer, v int16) error {
-	return binarySerializer.PutUint16(w, endian, uint16(v))
+	return binarySerializer.PutUint16(w, defaultEndian, uint16(v))
 }
 
 // ReadInt8 reads int8 value.
@@ -313,8 +311,8 @@ func ReadBytes(r io.Reader, data []byte) error {
 	return err
 }
 
-// ReadBytesWithLength reads specified length of []byte via reader.
-func ReadBytesWithLength(r io.Reader, l uint32) ([]byte, error) {
+// ReadBytesOfLength reads specified length of []byte via reader.
+func ReadBytesOfLength(r io.Reader, l uint32) ([]byte, error) {
 	buf := make([]byte, l)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return nil, err

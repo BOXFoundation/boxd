@@ -5,9 +5,9 @@
 package p2p
 
 import (
-	"bufio"
 	"errors"
 	"hash/crc32"
+	"io"
 	"time"
 
 	"github.com/BOXFoundation/boxd/p2p/pb"
@@ -60,9 +60,8 @@ func (conn *Conn) loop() {
 		}
 	}
 
-	var r = bufio.NewReader(conn.stream)
 	for {
-		msg, err := conn.readMessage(r)
+		msg, err := conn.readMessage(conn.stream)
 		if err != nil {
 			conn.Close()
 			return
@@ -81,7 +80,7 @@ func (conn *Conn) loop() {
 }
 
 // readMessage returns the next message, with remote peer id
-func (conn *Conn) readMessage(r *bufio.Reader) (*remoteMessage, error) {
+func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	msg, err := readMessageData(r)
 	if err != nil {
 		return nil, err

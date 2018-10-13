@@ -5,9 +5,9 @@
 package p2p
 
 import (
-	"bufio"
 	"bytes"
 	"hash/crc32"
+	"io"
 
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/p2p/pb"
@@ -96,15 +96,13 @@ func unmarshalHeader(data []byte) (*messageHeader, error) {
 }
 
 // readMessageData reads a message from reader
-func readMessageData(r *bufio.Reader) (*message, error) {
-	var lenbuf = make([]byte, FixHeaderLength)
-	if err := readBuffer(r, lenbuf); err != nil {
+func readMessageData(r io.Reader) (*message, error) {
+	headerLen, err := util.ReadUint32(r)
+	if err != nil {
 		return nil, err
 	}
-	var headerLen = util.Uint32(lenbuf)
-
-	var headerBuf = make([]byte, headerLen)
-	if err := readBuffer(r, headerBuf); err != nil {
+	headerBuf, err := util.ReadBytesOfLength(r, headerLen)
+	if err != nil {
 		return nil, err
 	}
 	header, err := unmarshalHeader(headerBuf)
@@ -117,25 +115,12 @@ func readMessageData(r *bufio.Reader) (*message, error) {
 		return nil, ErrExceedMaxDataLength
 	}
 
-	var body = make([]byte, header.dataLength)
-	if err := readBuffer(r, body); err != nil {
+	body, err := util.ReadBytesOfLength(r, header.dataLength)
+	if err != nil {
 		return nil, err
 	}
 
 	return newMessageDataWithHeader(header, body), nil
-}
-
-func readBuffer(r *bufio.Reader, buf []byte) error {
-	var total = len(buf)
-	var read = 0
-	for read < total {
-		n, err := r.Read(buf[read:])
-		if err != nil {
-			return err
-		}
-		read += n
-	}
-	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,21 +174,29 @@ func (msg *message) Marshal() (data []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var buf bytes.Buffer
-	buf.Write(util.FromUint32(uint32(len(headerData))))
-	buf.Write(headerData)
-	buf.Write(msg.body)
+	if err := util.WriteUint32(&buf, uint32(len(headerData))); err != nil {
+		return nil, err
+	}
+	if err := util.WriteBytes(&buf, headerData); err != nil {
+		return nil, err
+	}
+	if err := util.WriteBytes(&buf, msg.body); err != nil {
+		return nil, err
+	}
+
 	return buf.Bytes(), nil
 }
 
 // Unmarshal method unmarshal binary data to message object
 func (msg *message) Unmarshal(data []byte) error {
-	if len(data) < FixHeaderLength {
+	if len(data) < 4 {
 		return ErrMessageHeaderLength
 	}
-	var headerLen = util.Uint32(data[:FixHeaderLength])
+	var headerLen = util.Uint32(data[:4])
 
-	data = data[FixHeaderLength:]
+	data = data[4:]
 	if headerLen > uint32(len(data)) {
 		return ErrMessageHeader
 	}

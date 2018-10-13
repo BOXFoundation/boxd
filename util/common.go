@@ -30,6 +30,9 @@ var (
 	// bigEndian is a convenience variable since binary.BigEndian is quite
 	// long.
 	bigEndian = binary.BigEndian
+
+	// default endian
+	defaultEndian = binary.BigEndian
 )
 
 // binaryFreeList defines a concurrent safe free list of byte slices (up to the
@@ -169,34 +172,34 @@ func (l binaryFreeList) PutUint64(w io.Writer, byteOrder binary.ByteOrder, val u
 // deserializing primitive integer values to and from io.Readers and io.Writers.
 var binarySerializer binaryFreeList = make(chan []byte, binaryFreeListMaxItems)
 
-// writeElement writes the little endian representation of element to w.
+// writeElement writes the default endian representation of element to w.
 func writeElement(w io.Writer, element interface{}) error {
 	// Attempt to write the element based on the concrete type via fast
 	// type assertions first.
 	switch e := element.(type) {
 	case int32:
-		err := binarySerializer.PutUint32(w, littleEndian, uint32(e))
+		err := binarySerializer.PutUint32(w, defaultEndian, uint32(e))
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case uint32:
-		err := binarySerializer.PutUint32(w, littleEndian, e)
+		err := binarySerializer.PutUint32(w, defaultEndian, e)
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case int64:
-		err := binarySerializer.PutUint64(w, littleEndian, uint64(e))
+		err := binarySerializer.PutUint64(w, defaultEndian, uint64(e))
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case uint64:
-		err := binarySerializer.PutUint64(w, littleEndian, e)
+		err := binarySerializer.PutUint64(w, defaultEndian, e)
 		if err != nil {
 			return err
 		}
@@ -242,7 +245,7 @@ func writeElement(w io.Writer, element interface{}) error {
 	}
 	// Fall back to the slower binary.Write if a fast path was not available
 	// above.
-	return binary.Write(w, littleEndian, element)
+	return binary.Write(w, defaultEndian, element)
 }
 
 // WriteElements writes multiple items to w.  It is equivalent to multiple

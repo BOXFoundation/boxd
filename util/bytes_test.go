@@ -311,7 +311,7 @@ func TestReadWriteBytes(t *testing.T) {
 
 	var r = bufio.NewReader(bytes.NewBuffer(buf.Bytes()))
 	for _, v := range tests {
-		value, err := ReadBytesWithLength(r, uint32(len(v)))
+		value, err := ReadBytesOfLength(r, uint32(len(v)))
 		ensure.Nil(t, err)
 		ensure.DeepEqual(t, value, v)
 	}
@@ -500,7 +500,7 @@ func testReadWrite(t *testing.T) {
 	hex, _ := ReadHex(r)
 	ensure.DeepEqual(t, hex, thex)
 
-	fs, _ := ReadBytesWithLength(r, 8)
+	fs, _ := ReadBytesOfLength(r, 8)
 	ensure.DeepEqual(t, fs, tfs[:])
 
 	vi0, _ := ReadVarint(r)
