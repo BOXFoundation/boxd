@@ -789,7 +789,7 @@ func checkBlockHeaderWithoutContext(header *types.BlockHeader, timeSource util.M
 	// nanosecond precision whereas the consensus rules only apply to
 	// seconds and it's much nicer to deal with standard Go time values
 	// instead of converting to seconds everywhere.
-	timestamp := time.Unix(header.TimeStamp, 0)
+	timestamp := time.Unix(0, header.TimeStamp)
 
 	// Ensure the block time is not too far in the future.
 	maxTimestamp := timeSource.AdjustedTime().Add(time.Second * MaxTimeOffsetSeconds)
