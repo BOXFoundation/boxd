@@ -169,6 +169,26 @@ func TestFilterInserts(t *testing.T) {
 	}
 }
 
+func TestFilterFPRate(t *testing.T) {
+	var size uint32 = 1000
+	bf := NewFilter(size, 0.0001)
+	for i := uint32(0); i < size; i++ {
+		bf.Add(util.FromUint32(i))
+	}
+
+	var fprate = bf.FPRate()
+
+	var tests = uint32(100. / fprate)
+	var fails = 0
+	for i := size; i < size+tests; i++ {
+		if bf.Matches(util.FromUint32(i)) {
+			fails++
+		}
+	}
+	var rate = float64(fails) / float64(tests) / fprate
+	ensure.True(t, rate < 1.1 && rate > 0.9)
+}
+
 func TestFilterMerge(t *testing.T) {
 	bf0 := NewFilter(1000, 0.0001)
 	for i := uint32(0); i < 2000; i++ {

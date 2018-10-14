@@ -46,7 +46,6 @@ type filter struct {
 	filter    []byte
 	hashFuncs uint32
 	tweak     uint32
-	elements  uint32
 }
 
 // NewFilterWithMK returns a Filter.
