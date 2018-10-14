@@ -34,7 +34,6 @@ type Filter interface {
 
 	Size() uint32
 	K() uint32
-	Elements() uint32
 	Tweak() uint32
 	FPRate() float64
 
@@ -86,7 +85,6 @@ func newFilter(m uint32, k uint32, tweak uint32) Filter {
 		filter:    data,
 		hashFuncs: hashFuncs,
 		tweak:     tweak,
-		elements:  0,
 	}
 }
 
@@ -160,7 +158,6 @@ func (bf *filter) add(data []byte) {
 		idx := bf.hash(i, data)
 		bf.filter[idx>>3] |= (1 << (7 & idx))
 	}
-	bf.elements++
 }
 
 // Add adds the passed byte slice to the bloom filter.
@@ -179,9 +176,6 @@ func (bf *filter) matchesAndAdd(data []byte) (r bool) {
 			bf.filter[idx>>3] |= (1 << (7 & idx))
 			r = false
 		}
-	}
-	if !r {
-		bf.elements++
 	}
 	return r
 }
@@ -217,8 +211,6 @@ func (bf *filter) merge(f Filter) error {
 	for i := 0; i < len(bf.filter); i++ {
 		bf.filter[i] |= rf.filter[i]
 	}
-	// TODO: total elements
-	bf.elements += rf.elements
 
 	return nil
 }
@@ -229,14 +221,6 @@ func (bf *filter) Merge(f Filter) error {
 	err := bf.merge(f)
 	bf.sm.Unlock()
 	return err
-}
-
-// Elements returns the number of elements inserted to the filter.
-func (bf *filter) Elements() uint32 {
-	bf.sm.Lock()
-	e := bf.elements
-	bf.sm.Unlock()
-	return e
 }
 
 // Size returns the length of filter in bits.
@@ -259,15 +243,35 @@ func (bf *filter) Tweak() uint32 {
 
 // FPRate returns the false positive probability
 func (bf *filter) FPRate() float64 {
-	return math.Exp(-ln2Squared * float64(bf.Size()) / float64(bf.Elements()))
+	bf.sm.Lock()
+	var size = uint32(len(bf.filter)) << 3
+	var bits = bf.bitsFilled()
+	var frate = float64(bits) / float64(size)
+	var fprate = frate
+	for i := uint32(1); i < bf.hashFuncs; i++ {
+		fprate *= frate
+	}
+	bf.sm.Unlock()
+	return fprate
+}
+
+// bitsFilled returns how many bits were set
+func (bf *filter) bitsFilled() uint32 {
+	var bits uint32
+	for i := 0; i < len(bf.filter); i++ {
+		b := bf.filter[i]
+		for idx := uint8(0); idx < 8; idx++ {
+			if b&(1<<idx) != 0 {
+				bits++
+			}
+		}
+	}
+	return bits
 }
 
 // Marshal marshals the bloom filter to a binary representation of it.
 func (bf *filter) Marshal() (data []byte, err error) {
 	var w bytes.Buffer
-	if err := util.WriteUint32(&w, bf.elements); err != nil {
-		return nil, err
-	}
 	if err := util.WriteUint32(&w, bf.hashFuncs); err != nil {
 		return nil, err
 	}
@@ -285,9 +289,6 @@ func (bf *filter) Marshal() (data []byte, err error) {
 func (bf *filter) Unmarshal(data []byte) error {
 	var err error
 	var r = bytes.NewBuffer(data)
-	if bf.elements, err = util.ReadUint32(r); err != nil {
-		return err
-	}
 	if bf.hashFuncs, err = util.ReadUint32(r); err != nil {
 		return err
 	}

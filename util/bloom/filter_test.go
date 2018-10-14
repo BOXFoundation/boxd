@@ -125,7 +125,6 @@ func TestFilterInsert(t *testing.T) {
 			c++
 		}
 	}
-	ensure.DeepEqual(t, bf.Elements(), c)
 }
 
 func TestFilterMatchesAndAdd(t *testing.T) {
@@ -142,7 +141,6 @@ func TestFilterMatchesAndAdd(t *testing.T) {
 		}
 		c++
 	}
-	ensure.DeepEqual(t, bf.Elements(), c)
 }
 
 func TestFilterK(t *testing.T) {
@@ -151,18 +149,18 @@ func TestFilterK(t *testing.T) {
 }
 
 func TestFilterInserts(t *testing.T) {
-	bf := NewFilter(66, 0.001)
+	bf := NewFilter(1000, 0.0001)
 	fprate := bf.FPRate()
-	for i := uint32(0); i < 100; i++ {
+	for i := uint32(0); i < 1000; i++ {
 		if i%3 != 0 {
 			bf.Add(util.FromUint32(i))
 			nfp := bf.FPRate()
-			ensure.True(t, nfp >= fprate)
+			ensure.True(t, nfp > fprate)
 			fprate = nfp
 		}
 	}
 
-	for i := uint32(0); i < 100; i++ {
+	for i := uint32(0); i < 1000; i++ {
 		if i%3 != 0 {
 			ensure.True(t, bf.Matches(util.FromUint32(i)))
 		} else {
@@ -196,15 +194,17 @@ func TestFilterMerge(t *testing.T) {
 
 }
 
-func TestFilterElements(t *testing.T) {
-	bf := setupBloomFilter(t)
-	var c uint32
-	for _, test := range tests {
-		if test.insert {
-			c++
-		}
-	}
-	ensure.DeepEqual(t, bf.Elements(), c)
+func TestFilterMergeError(t *testing.T) {
+	bf0 := NewFilterWithMK(1000, 23)
+
+	bf1 := NewFilterWithMK(1000, 22)
+	ensure.NotNil(t, bf0.Merge(bf1))
+
+	bf2 := NewFilterWithMK(1001, 23)
+	ensure.NotNil(t, bf0.Merge(bf2))
+
+	bf3 := NewFilterWithMKAndTweak(1000, 23, 0x1111)
+	ensure.NotNil(t, bf0.Merge(bf3))
 }
 
 func TestFilterSerialize(t *testing.T) {
