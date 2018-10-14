@@ -116,7 +116,11 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
 // Add all transactions contained in this block into mempool
 func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
-		if err := tx_pool.maybeAcceptTx(tx, false /* do not broadcast */); err != nil {
+		utxoSet := utils.NewUtxoSet()
+		if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+			return err
+		}
+		if err := tx_pool.maybeAcceptTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, false /* do not broadcast */); err != nil {
 			return err
 		}
 	}
@@ -138,13 +142,28 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
+
 	return tx_pool.ProcessTx(tx, false)
 }
 
 // ProcessTx is used to handle new transactions.
+// utxoSet: utxos associated with the tx
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool) error {
 
-	if err := tx_pool.maybeAcceptTx(tx, broadcast); err != nil {
+	// TODO: check tx is already exist in the main chain??
+	utxoSet := utils.NewUtxoSet()
+	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+		return err
+
+	}
+	// Note: put actual implementation in doProcessTx() for unit test purpose
+	return tx_pool.doProcessTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, broadcast)
+}
+
+func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeight int32,
+	utxoSet *utils.UtxoSet, broadcast bool) error {
+
+	if err := tx_pool.maybeAcceptTx(tx, currChainHeight, utxoSet, broadcast); err != nil {
 		return err
 	}
 
@@ -152,7 +171,9 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHeight int32,
+	utxoSet *utils.UtxoSet, broadcast bool) error {
+
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
 	txHash, _ := tx.TxHash()
@@ -176,7 +197,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 		return core.ErrCoinbaseTx
 	}
 
-	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
+	nextBlockHeight := currChainHeight + 1
 
 	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
@@ -189,12 +210,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast b
 	// Double spending coins from the main chain will be checked in ValidateTxInputs.
 	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
 		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash, err)
-		return err
-	}
-
-	// TODO: check tx is already exist in the main chain??
-	utxoSet := utils.NewUtxoSet()
-	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
 		return err
 	}
 
@@ -312,7 +327,11 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			}
 
 			for _, orphan := range orphans {
-				if err := tx_pool.maybeAcceptTx(orphan, false); err != nil {
+				utxoSet := utils.NewUtxoSet()
+				if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+					return err
+				}
+				if err := tx_pool.maybeAcceptTx(orphan, tx_pool.chain.LongestChainHeight, utxoSet, false); err != nil {
 					continue
 				}
 				tx_pool.removeOrphan(orphan)
