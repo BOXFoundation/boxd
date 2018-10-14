@@ -32,7 +32,7 @@ var (
 	bigEndian = binary.BigEndian
 
 	// default endian
-	defaultEndian = binary.BigEndian
+	defaultEndian = binary.LittleEndian
 )
 
 // binaryFreeList defines a concurrent safe free list of byte slices (up to the
