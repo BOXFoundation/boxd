@@ -163,6 +163,30 @@ func SanityCheckTransaction(tx *types.Transaction) error {
 	return nil
 }
 
+// ValidateTransactionScripts verify crypto signatures for each input
+func ValidateTransactionScripts(tx *types.Transaction) error {
+	txIns := tx.Vin
+	txValItems := make([]*script.TxValidateItem, 0, len(txIns))
+	for txInIdx, txIn := range txIns {
+		// Skip coinbases.
+		if txIn.PrevOutPoint.Index == math.MaxUint32 {
+			continue
+		}
+
+		txVI := &script.TxValidateItem{
+			TxInIndex: txInIdx,
+			TxIn:      txIn,
+			Tx:        tx,
+		}
+		txValItems = append(txValItems, txVI)
+	}
+
+	// Validate all of the inputs.
+	// validator := NewTxValidator(unspentUtxo, flags, sigCache, hashCache)
+	// return validator.Validate(txValItems)
+	return nil
+}
+
 // ValidateTxInputs validates the inputs of a tx.
 // Returns the total tx fee.
 func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {

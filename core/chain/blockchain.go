@@ -954,30 +954,6 @@ func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*utils.UtxoWrap {
 	return nil
 }
 
-// ValidateTransactionScripts verify crypto signatures for each input
-func (chain *BlockChain) ValidateTransactionScripts(tx *types.Transaction) error {
-	txIns := tx.Vin
-	txValItems := make([]*script.TxValidateItem, 0, len(txIns))
-	for txInIdx, txIn := range txIns {
-		// Skip coinbases.
-		if txIn.PrevOutPoint.Index == math.MaxUint32 {
-			continue
-		}
-
-		txVI := &script.TxValidateItem{
-			TxInIndex: txInIdx,
-			TxIn:      txIn,
-			Tx:        tx,
-		}
-		txValItems = append(txValItems, txVI)
-	}
-
-	// Validate all of the inputs.
-	// validator := NewTxValidator(unspentUtxo, flags, sigCache, hashCache)
-	// return validator.Validate(txValItems)
-	return nil
-}
-
 // SetTailBlock sets chain tail block.
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *utils.UtxoSet) error {
 
