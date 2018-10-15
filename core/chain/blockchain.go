@@ -216,12 +216,12 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 
 // Run launch blockchain.
 func (chain *BlockChain) Run() {
-	chain.subscribeMessageNotifiee(chain.notifiee)
+	chain.subscribeMessageNotifiee()
 	go chain.loop()
 }
 
-func (chain *BlockChain) subscribeMessageNotifiee(notifiee p2p.Net) {
-	notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
+func (chain *BlockChain) subscribeMessageNotifiee() {
+	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
 }
 
 func (chain *BlockChain) loop() {

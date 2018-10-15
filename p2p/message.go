@@ -33,6 +33,12 @@ const (
 	// chain update: block connects to / disconnects from main chain
 	ChainUpdateMsg = 0x06
 
+	// Sync Manager
+	LocateForkPointRequest  = 0x10
+	LocateForkPointResponse = 0x11
+	BlockChunkRequest       = 0x12
+	BlockChunkResponse      = 0x13
+
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
 )
 
