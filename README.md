@@ -1,17 +1,28 @@
-# Quicksivler
+# Boxd
 
 A Go implementation of BOX Payout blockchain. 
 
+# Prerequisite
+## OS X:
+
+Install Go 1.11 or higher version.
+
+Install homebrew.
+
+Install rocksdb.
+
+`brew install rocksdb`
+
 # Building the Source
 
-```sh
-brew install dep
-cd /path/to/Quicksilver
-dep ensure
-```
+## Dependencies
+
+Run `make dependencies` to install dependencies.
+
+## Build
 
 ```sh
-make fullnode
+make
 ```
 
 # Contribution
@@ -20,4 +31,4 @@ make fullnode
 
 # License
 
-BOX Payout is released under the MIT License. Please refer to the [LICENSE](https://github.com/BOXFoundation/Quicksilver/blob/master/LICENSE) file that accompanies this project for more information including complete terms and conditions.
+BOX Payout is released under the MIT License. Please refer to the [LICENSE](https://github.com/BOXFoundation/boxd/blob/master/LICENSE) file that accompanies this project for more information including complete terms and conditions.

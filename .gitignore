@@ -16,3 +16,14 @@
 
 # Vendor 
 /vendor
+
+# Log
+*.log
+
+# workspace
+.vscode/
+/box
+/outputs
+/.devconfig
+.DS_Store
+

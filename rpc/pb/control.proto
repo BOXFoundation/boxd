@@ -1,0 +1,25 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+package rpcpb;
+
+import "common.proto";
+import "google/api/annotations.proto";
+
+// The box control command service definition.
+service ContorlCommand {
+    // set boxd debug level
+    rpc SetDebugLevel (DebugLevelRequest) returns (BaseResponse) {
+      option (google.api.http) = {
+        post: "/v1/ctl/debuglevel"
+        body: "*"
+      };
+    }
+  }
+  
+  // The request message containing debug level.
+  message DebugLevelRequest {
+    string level = 1;
+  }
