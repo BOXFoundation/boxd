@@ -112,8 +112,9 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 	server.database = database
 
+	// TODO: fix the proc dependency issue
 	// start p2p service
-	peer, err := p2p.NewBoxPeer(proc, &cfg.P2p, database)
+	peer, err := p2p.NewBoxPeer(database.Proc, &cfg.P2p, database)
 	if err != nil {
 		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 		proc.Close()
@@ -128,17 +129,17 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 	server.peer = peer
 
-	blockChain, err := chain.NewBlockChain(proc, peer, database.Storage)
+	blockChain, err := chain.NewBlockChain(database.Proc, peer, database.Storage)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 		proc.Close()
 	}
 	server.blockChain = blockChain
 
-	txPool := txpool.NewTransactionPool(proc, peer, blockChain)
+	txPool := txpool.NewTransactionPool(database.Proc, peer, blockChain)
 	server.txPool = txPool
 
-	consensus := dpos.NewDpos(blockChain, txPool, peer, proc, &cfg.Dpos)
+	consensus := dpos.NewDpos(blockChain, txPool, peer, database.Proc, &cfg.Dpos)
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(proc, &cfg.RPC, server)
