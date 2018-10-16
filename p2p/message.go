@@ -24,14 +24,13 @@ const (
 	Testnet         uint32 = 0x54455354
 	FixHeaderLength        = 4
 
-	Ping              = 0x00
-	Pong              = 0x01
-	PeerDiscover      = 0x02
-	PeerDiscoverReply = 0x03
-	NewBlockMsg       = 0x04
-	TransactionMsg    = 0x05
-	// chain update: block connects to / disconnects from main chain
-	ChainUpdateMsg = 0x06
+	Ping              uint32 = 0x00
+	Pong              uint32 = 0x01
+	PeerDiscover      uint32 = 0x02
+	PeerDiscoverReply uint32 = 0x03
+	NewBlockMsg       uint32 = 0x04
+	TransactionMsg    uint32 = 0x05
+	ChainUpdateMsg    uint32 = 0x06 // chain update: block connects to / disconnects from main chain
 
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
 )
@@ -191,28 +190,27 @@ func (msg *message) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to message object
 func (msg *message) Unmarshal(data []byte) error {
-	if len(data) < 4 {
-		return ErrMessageHeaderLength
-	}
-	var headerLen = util.Uint32(data[:4])
-
-	data = data[4:]
-	if headerLen > uint32(len(data)) {
-		return ErrMessageHeader
-	}
-	header, err := unmarshalHeader(data[:headerLen])
+	var buf = bytes.NewBuffer(data)
+	m, err := readMessageData(buf)
 	if err != nil {
 		return err
 	}
+	msg.messageHeader = m.messageHeader
+	msg.body = m.body
 
-	body := data[headerLen:]
-	if uint32(len(body)) != header.dataLength {
-		return ErrMessageDataBody
+	return nil
+}
+
+// check checks whether the message data is valid
+func (msg *message) check() error {
+	if msg.dataLength > MaxMessageDataLength {
+		return ErrExceedMaxDataLength
 	}
 
-	msg.messageHeader = header
-	msg.body = body
-
+	expectedDataCheckSum := crc32.ChecksumIEEE(msg.body)
+	if expectedDataCheckSum != msg.dataChecksum {
+		return ErrBodyCheckSum
+	}
 	return nil
 }
 
