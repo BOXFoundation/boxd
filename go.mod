@@ -68,7 +68,7 @@ require (
 	github.com/libp2p/go-libp2p-circuit v0.0.0-20180904230442-9bb6dd6edd5e // indirect
 	github.com/libp2p/go-libp2p-crypto v0.0.0-20180811164718-137c71cdda7a
 	github.com/libp2p/go-libp2p-host v3.0.8+incompatible
-	github.com/libp2p/go-libp2p-interface-connmgr v0.0.0-20180829193642-36436db7edb1 // indirect
+	github.com/libp2p/go-libp2p-interface-connmgr v0.0.0-20180829193642-36436db7edb1
 	github.com/libp2p/go-libp2p-interface-pnet v0.0.0-20180606072403-86e6fc84b906 // indirect
 	github.com/libp2p/go-libp2p-kad-dht v4.3.8+incompatible // indirect
 	github.com/libp2p/go-libp2p-kbucket v2.2.6+incompatible
