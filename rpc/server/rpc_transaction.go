@@ -7,9 +7,9 @@ package rpc
 import (
 	"context"
 
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 )
 
@@ -74,7 +74,7 @@ func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransacti
 	return &rpcpb.BaseResponse{}, err
 }
 
-func generateUtxoMessage(outPoint *types.OutPoint, entry *utils.UtxoWrap) *rpcpb.Utxo {
+func generateUtxoMessage(outPoint *types.OutPoint, entry *chain.UtxoWrap) *rpcpb.Utxo {
 	return &rpcpb.Utxo{
 		BlockHeight: entry.BlockHeight,
 		IsCoinbase:  entry.IsCoinBase,

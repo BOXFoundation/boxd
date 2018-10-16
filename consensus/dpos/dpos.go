@@ -13,7 +13,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/util"
@@ -139,7 +138,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 	pool := dpos.sortPendingTxs()
 	// blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.Transaction
-	coinbaseTx, err := utils.CreateCoinbaseTx(addr, dpos.chain.LongestChainHeight+1)
+	coinbaseTx, err := chain.CreateCoinbaseTx(addr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
 		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package utils
+package chain
 
 import (
 	"github.com/BOXFoundation/boxd/core/types"
@@ -52,8 +52,8 @@ func (msg *LocalMessage) Data() interface{} {
 	return msg.data
 }
 
-// ChainUpdateMsg sent from blockchain to, e.g., mempool
-type ChainUpdateMsg struct {
+// UpdateMsg sent from blockchain to, e.g., mempool
+type UpdateMsg struct {
 	// block connected/disconnected from main chain
 	Connected bool
 	Block     *types.Block

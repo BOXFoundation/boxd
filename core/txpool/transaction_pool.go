@@ -12,7 +12,6 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -93,12 +92,12 @@ func (tx_pool *TransactionPool) loop() {
 
 // chain update message from blockchain: block connection/disconnection
 func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
-	localMessage, ok := msg.(*utils.LocalMessage)
+	localMessage, ok := msg.(*chain.LocalMessage)
 	if !ok {
 		logger.Errorf("Received non-local message")
 		return core.ErrNonLocalMessage
 	}
-	chainUpdateMsg, ok := localMessage.Data().(utils.ChainUpdateMsg)
+	chainUpdateMsg, ok := localMessage.Data().(chain.UpdateMsg)
 	if !ok {
 		logger.Errorf("Received local message is not a chain update")
 		return core.ErrLocalMessageNotChainUpdate
@@ -116,7 +115,7 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
 // Add all transactions contained in this block into mempool
 func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
-		utxoSet := utils.NewUtxoSet()
+		utxoSet := chain.NewUtxoSet()
 		if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
 			return err
 		}
@@ -151,7 +150,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool) error {
 
 	// TODO: check tx is already exist in the main chain??
-	utxoSet := utils.NewUtxoSet()
+	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
 		return err
 
@@ -161,7 +160,7 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool)
 }
 
 func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeight int32,
-	utxoSet *utils.UtxoSet, broadcast bool) error {
+	utxoSet *chain.UtxoSet, broadcast bool) error {
 
 	if err := tx_pool.maybeAcceptTx(tx, currChainHeight, utxoSet, broadcast); err != nil {
 		return err
@@ -172,7 +171,7 @@ func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeig
 
 // Potentially accept the transaction to the memory pool.
 func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHeight int32,
-	utxoSet *utils.UtxoSet, broadcast bool) error {
+	utxoSet *chain.UtxoSet, broadcast bool) error {
 
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
@@ -186,13 +185,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 	}
 
 	// Perform preliminary sanity checks on the transaction.
-	if err := utils.SanityCheckTransaction(tx); err != nil {
+	if err := chain.ValidateTransactionPreliminary(tx); err != nil {
 		logger.Debugf("Tx %v fails sanity check: %v", txHash, err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
-	if utils.IsCoinBase(tx) {
+	if chain.IsCoinBase(tx) {
 		logger.Debugf("Tx %v is an individual coinbase", txHash)
 		return core.ErrCoinbaseTx
 	}
@@ -221,7 +220,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 
 	// TODO: sequence lock
 
-	txFee, err := utils.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
+	txFee, err := chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
 	if err != nil {
 		return err
 	}
@@ -246,7 +245,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 	// TODO: free-to-relay rate limit
 
 	// verify crypto signatures for each input
-	if err = utils.ValidateTransactionScripts(tx); err != nil {
+	if err = chain.ValidateTransactionScripts(tx); err != nil {
 		return err
 	}
 
@@ -273,7 +272,7 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 }
 
 // A tx is an orphan if any of its spending utxo does not exist
-func (tx_pool *TransactionPool) isOrphan(utxoSet *utils.UtxoSet, tx *types.Transaction) bool {
+func (tx_pool *TransactionPool) isOrphan(utxoSet *chain.UtxoSet, tx *types.Transaction) bool {
 	for _, txIn := range tx.Vin {
 		// Spend main chain UTXOs
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
@@ -327,7 +326,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			}
 
 			for _, orphan := range orphans {
-				utxoSet := utils.NewUtxoSet()
+				utxoSet := chain.NewUtxoSet()
 				if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
 					return err
 				}

@@ -215,3 +215,8 @@ func (p *BoxPeer) UnSubscribe(notifiee *Notifiee) {
 func (p *BoxPeer) Notify(msg Message) {
 	p.notifier.Notify(msg)
 }
+
+// Conns return peer connections.
+func (p *BoxPeer) Conns() map[peer.ID]interface{} {
+	return p.conns
+}

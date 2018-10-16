@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/facebookgo/ensure"
@@ -22,7 +22,7 @@ var (
 	proc        = goprocess.WithSignals(os.Interrupt)
 	txpool      = NewTransactionPool(proc, p2p.NewDummyPeer(), nil)
 	chainHeight = int32(0)
-	utxoSet     = utils.NewUtxoSet()
+	utxoSet     = chain.NewUtxoSet()
 
 	txOutIdx = uint32(0)
 	value    = int64(1)

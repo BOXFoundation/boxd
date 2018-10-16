@@ -10,7 +10,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/core/utils"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
@@ -63,7 +62,7 @@ func genNewChain() *BlockChain {
 func nextBlock(parentBlock *types.Block) *types.Block {
 	newBlock := types.NewBlock(parentBlock)
 
-	coinbaseTx, _ := utils.CreateCoinbaseTx(minerAddr, parentBlock.Height+1)
+	coinbaseTx, _ := CreateCoinbaseTx(minerAddr, parentBlock.Height+1)
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *util.CalcTxsHash(newBlock.Txs)
 	return newBlock
