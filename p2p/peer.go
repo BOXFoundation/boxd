@@ -39,6 +39,7 @@ type BoxPeer struct {
 	table           *Table
 	networkIdentity crypto.PrivKey
 	notifier        *Notifier
+	connmgr         *ConnManager
 	mu              sync.Mutex
 }
 
@@ -64,6 +65,8 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 	if err != nil {
 		return nil, err
 	}
+	boxPeer.connmgr = NewConnManager(ps)
+
 	opts := []libp2p.Option{
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", config.Address, config.Port)),
 		libp2p.Identity(networkIdentity),
@@ -71,6 +74,7 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 		libp2p.DefaultMuxers,
 		libp2p.DefaultSecurity,
 		libp2p.Peerstore(ps),
+		libp2p.ConnectionManager(boxPeer.connmgr),
 		libp2p.NATPortMap(),
 	}
 
@@ -86,6 +90,9 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 
 // Run schedules lookup and discover new peer
 func (p *BoxPeer) Run() {
+	// libp2p conn manager
+	p.connmgr.Loop(p.proc)
+
 	if len(p.config.Seeds) > 0 {
 		p.connectSeeds()
 		p.table.Loop(p.proc)
@@ -207,4 +214,9 @@ func (p *BoxPeer) UnSubscribe(notifiee *Notifiee) {
 // Notify publishes a message notification.
 func (p *BoxPeer) Notify(msg Message) {
 	p.notifier.Notify(msg)
+}
+
+// Conns return peer connections.
+func (p *BoxPeer) Conns() map[peer.ID]interface{} {
+	return p.conns
 }

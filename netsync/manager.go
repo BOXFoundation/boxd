@@ -110,7 +110,6 @@ func (sm *SyncManager) onLocateForkPointRequest(message p2p.Message) {
 }
 
 func (sm *SyncManager) onLocateForkPointResponse(message p2p.Message) {
-
 }
 
 func (sm *SyncManager) onBlockChunkRequest(message p2p.Message) {

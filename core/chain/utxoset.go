@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package utils
+package chain
 
 import (
 	"sync"
@@ -13,7 +13,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/storage"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -357,8 +356,8 @@ func putVLQ(target []byte, n uint64) int {
 func generateKey(outpoint types.OutPoint) *[]byte {
 	key := keyPool.Get().(*[]byte)
 	idx := uint64(outpoint.Index)
-	*key = (*key)[:chainhash.HashSize+serializeSizeVLQ(idx)]
+	*key = (*key)[:crypto.HashSize+serializeSizeVLQ(idx)]
 	copy(*key, outpoint.Hash[:])
-	putVLQ((*key)[chainhash.HashSize:], idx)
+	putVLQ((*key)[crypto.HashSize:], idx)
 	return key
 }

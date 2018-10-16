@@ -6,7 +6,6 @@ package p2p
 
 import (
 	"errors"
-	"hash/crc32"
 	"io"
 	"time"
 
@@ -224,7 +223,11 @@ func (conn *Conn) Close() {
 }
 
 func (conn *Conn) checkMessage(msg *remoteMessage) error {
-	return checkMessage(conn.peer.config.Magic, msg)
+	if conn.peer.config.Magic != msg.magic {
+		return ErrMagic
+	}
+
+	return msg.check()
 }
 
 func (conn *Conn) established() {
@@ -234,20 +237,4 @@ func (conn *Conn) established() {
 	conn.establishSucceedCh <- true
 	conn.peer.conns[conn.remotePeer] = conn
 	logger.Info("Succed to established with peer ", conn.remotePeer.Pretty())
-}
-
-// checkMessage checks whether the message data is valid
-func checkMessage(magic uint32, msg *remoteMessage) error {
-	if magic != msg.magic {
-		return ErrMagic
-	}
-	if msg.dataLength > MaxMessageDataLength {
-		return ErrExceedMaxDataLength
-	}
-
-	expectedDataCheckSum := crc32.ChecksumIEEE(msg.body)
-	if expectedDataCheckSum != msg.dataChecksum {
-		return ErrBodyCheckSum
-	}
-	return nil
 }
