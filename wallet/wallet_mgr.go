@@ -47,7 +47,7 @@ func (wlt *Manager) loadAccounts() error {
 	files := getKeystoreFilePaths(wlt.path)
 	accounts := make([]*Account, 0)
 	for _, filePath := range files {
-		account, err := newAccountFromFile(filePath)
+		account, err := NewAccountFromFile(filePath)
 		if err == nil {
 			accounts = append(accounts, account)
 		}
@@ -131,7 +131,8 @@ type Account struct {
 	unlocked bool
 }
 
-func newAccountFromFile(filePath string) (*Account, error) {
+// NewAccountFromFile create account from file.
+func NewAccountFromFile(filePath string) (*Account, error) {
 	addr, err := GetKeystoreAddress(filePath)
 	if err != nil {
 		return nil, err
@@ -142,6 +143,11 @@ func newAccountFromFile(filePath string) (*Account, error) {
 		unlocked: false,
 	}
 	return acc, nil
+}
+
+// Addr return addr
+func (acc *Account) Addr() string {
+	return acc.addr
 }
 
 func (acc *Account) saveWithPassphrase(passphrase string) error {
