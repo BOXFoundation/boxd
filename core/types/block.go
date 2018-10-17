@@ -158,6 +158,8 @@ type BlockHeader struct {
 
 	// Distinguish between mainnet and testnet.
 	Magic uint32
+
+	ConsensusRoot crypto.HashType
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
@@ -172,6 +174,7 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		TxsRoot:       header.TxsRoot[:],
 		TimeStamp:     header.TimeStamp,
 		Magic:         header.Magic,
+		ConsensusRoot: header.ConsensusRoot[:],
 	}, nil
 }
 
@@ -184,6 +187,7 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			copy(header.TxsRoot[:], message.TxsRoot)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
+			copy(header.ConsensusRoot[:], message.ConsensusRoot)
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

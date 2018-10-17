@@ -9,6 +9,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/util"
 )
 
 var genesisCoinbaseTx = types.Transaction{
@@ -46,3 +47,17 @@ var genesisBlock = types.Block{
 }
 
 var genesisHash = *(genesisBlock.BlockHash())
+
+var genesisPeriod = []string{
+	"b1xxxxxxxxxx",
+	"b2xxxxxxxxxx",
+}
+
+func initGenesisConsensusRoot() []*crypto.HashType {
+	hashs := make([]*crypto.HashType, len(genesisPeriod))
+	for index := range genesisPeriod {
+		hash := crypto.DoubleHashH([]byte(genesisPeriod[index]))
+		hashs[index] = &hash
+	}
+	return util.BuildMerkleRoot(hashs)
+}

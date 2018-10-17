@@ -12,6 +12,7 @@ message BlockHeader {
     bytes txs_root = 3;
     int64 time_stamp = 4;
     uint32 magic = 5;
+    bytes consensus_root = 6;
 }
 
 message Block {

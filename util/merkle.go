@@ -22,16 +22,12 @@ import (
 // The above stored as a linear array is as follows:
 //
 // 	[h1 h2 h3 h4 h12 h34 root]
-func BuildMerkleRoot(txs []*types.Transaction) []*crypto.HashType {
+func BuildMerkleRoot(hashs []*crypto.HashType) []*crypto.HashType {
 
-	leafSize := calcLowestHierarchyCount(len(txs))
+	leafSize := calcLowestHierarchyCount(len(hashs))
 	arraySize := leafSize*2 - 1
 	merkles := make([]*crypto.HashType, arraySize)
-	for i, tx := range txs {
-		hash, err := tx.TxHash()
-		if err != nil {
-			return nil
-		}
+	for i, hash := range hashs {
 		merkles[i] = hash
 	}
 
@@ -64,14 +60,18 @@ func calcLowestHierarchyCount(n int) int {
 
 // CalcTxsHash calculate txsHash in block.
 func CalcTxsHash(txs []*types.Transaction) *crypto.HashType {
-	txsHash := BuildMerkleRoot(txs)
-	// TODO: txsHash can be nil
+
+	hashs := make([]*crypto.HashType, len(txs))
+	for index := range txs {
+		hash, _ := txs[index].TxHash()
+		hashs[index] = hash
+	}
+	txsHash := BuildMerkleRoot(hashs)
 	return txsHash[len(txsHash)-1]
 }
 
 // CombineHash takes two hashes, and returns the hash of their concatenation.
 func CombineHash(left *crypto.HashType, right *crypto.HashType) *crypto.HashType {
-	// Concatenate the left and right nodes.
 	var hash [crypto.HashSize * 2]byte
 	copy(hash[:crypto.HashSize], left[:])
 	copy(hash[crypto.HashSize:], right[:])
