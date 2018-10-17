@@ -100,6 +100,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	return b, nil
 }
 
+// Proc returns the goprocess of the BlockChain
+func (chain *BlockChain) Proc() goprocess.Process {
+	return chain.proc
+}
+
 // Run launch blockchain.
 func (chain *BlockChain) Run() {
 	chain.subscribeMessageNotifiee()

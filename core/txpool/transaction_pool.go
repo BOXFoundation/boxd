@@ -74,6 +74,11 @@ func (tx_pool *TransactionPool) Run() {
 	go tx_pool.loop()
 }
 
+// Proc returns the goprocess of the TransactionPool
+func (tx_pool *TransactionPool) Proc() goprocess.Process {
+	return tx_pool.proc
+}
+
 // handle new tx message from network.
 func (tx_pool *TransactionPool) loop() {
 	logger.Info("Waitting for new tx message...")

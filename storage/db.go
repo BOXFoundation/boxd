@@ -23,7 +23,7 @@ type Config struct {
 // Database is a wrapper of Storage, implementing the database life cycle
 type Database struct {
 	Storage
-	Proc goprocess.Process
+	proc goprocess.Process
 	sm   sync.Mutex
 }
 
@@ -36,19 +36,24 @@ func NewDatabase(parent goprocess.Process, cfg *Config) (*Database, error) {
 
 	var database = &Database{
 		Storage: storage,
-		Proc:    goprocess.WithParent(parent),
+		proc:    goprocess.WithParent(parent),
 	}
-	database.Proc.SetTeardown(database.shutdown)
+	database.proc.SetTeardown(database.shutdown)
 	return database, nil
+}
+
+// Proc returns the gopreocess of database
+func (db *Database) Proc() goprocess.Process {
+	return db.proc
 }
 
 // Close closes the database
 func (db *Database) Close() error {
 	db.sm.Lock()
 
-	if db.Proc != nil {
+	if db.proc != nil {
 		defer db.sm.Unlock()
-		return db.Proc.Close()
+		return db.proc.Close()
 	}
 	db.sm.Unlock()
 	return db.shutdown()
