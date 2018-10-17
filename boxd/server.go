@@ -147,10 +147,9 @@ func (server *Server) Start(v *viper.Viper) error {
 	peer.Run()
 	blockChain.Run()
 	txPool.Run()
-	// if cfg.Dpos.EnableMint {
-	// 	consensus.Run()
-	// }
-	consensus.Run()
+	if cfg.Dpos.EnableMint {
+		consensus.Run()
+	}
 
 	// goprocesses dependencies
 	//            root
