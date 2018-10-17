@@ -120,7 +120,7 @@ func (t *Table) lookup(pid peer.ID) {
 	} else {
 		// unestablished peer
 		conn = NewConn(nil, t.peer, pid)
-		go conn.loop()
+		conn.Loop(t.peer.proc)
 	}
 	if err := conn.PeerDiscover(); err != nil {
 		logger.Errorf("Failed to sync route table from peer: %s err: %s", pid.Pretty(), err.Error())
