@@ -57,7 +57,7 @@ func NewDpos(chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Ne
 	if err != nil {
 		panic("invalid hex in source file: " + dpos.cfg.Pubkey)
 	}
-	addr, err := types.NewAddressPubKeyHash(pubkey, 0x00)
+	addr, err := types.NewAddressPubKeyHash(pubkey)
 	if err != nil {
 		panic("invalid public key in test source")
 	}

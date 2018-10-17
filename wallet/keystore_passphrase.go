@@ -63,7 +63,7 @@ type kdfParamsJSON struct {
 }
 
 func savePrivateKeyWithPassphrase(privatekey *bcrypto.PrivateKey, passphrase, path string) error {
-	addr, err := btypes.NewAddressFromPubKey(privatekey.PubKey(), 0x00)
+	addr, err := btypes.NewAddressFromPubKey(privatekey.PubKey())
 	if err != nil {
 		return err
 	}
