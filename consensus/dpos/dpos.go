@@ -6,6 +6,7 @@ package dpos
 
 import (
 	"container/heap"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/util"
-	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/jbenet/goprocess"
 )
 
@@ -28,20 +28,21 @@ var (
 
 // Config defines the configurations of dpos
 type Config struct {
-	// Index   int    `mapstructure:"index"`
-	// Pubkey  string `mapstructure:"pubkey"`
-	Keypath    string `mapstructure:"keypath"`
-	EnableMint bool   `mapstructure:"enable_mint"`
+	Index  int    `mapstructure:"index"`
+	Pubkey string `mapstructure:"pubkey"`
+	// Keypath    string `mapstructure:"keypath"`
+	// EnableMint bool   `mapstructure:"enable_mint"`
 }
 
 // Dpos define dpos struct
 type Dpos struct {
-	chain      *chain.BlockChain
-	txpool     *txpool.TransactionPool
-	net        p2p.Net
-	proc       goprocess.Process
-	cfg        *Config
-	miner      *wallet.Account
+	chain  *chain.BlockChain
+	txpool *txpool.TransactionPool
+	net    p2p.Net
+	proc   goprocess.Process
+	cfg    *Config
+	// miner      *wallet.Account
+	miner      types.Address
 	enableMint bool
 }
 
@@ -56,29 +57,29 @@ func NewDpos(chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Ne
 		cfg:    cfg,
 	}
 
-	// pubkey, err := hex.DecodeString(dpos.cfg.Pubkey)
-	// if err != nil {
-	// 	panic("invalid hex in source file: " + dpos.cfg.Pubkey)
-	// }
-	// addr, err := types.NewAddressPubKeyHash(pubkey, 0x00)
-	// if err != nil {
-	// 	panic("invalid public key in test source")
-	// }
-	// logger.Info("miner addr: ", addr.String())
-	// dpos.miner = addr
+	pubkey, err := hex.DecodeString(dpos.cfg.Pubkey)
+	if err != nil {
+		panic("invalid hex in source file: " + dpos.cfg.Pubkey)
+	}
+	addr, err := types.NewAddressPubKeyHash(pubkey)
+	if err != nil {
+		panic("invalid public key in test source")
+	}
+	logger.Info("miner addr: ", addr.String())
+	dpos.miner = addr
 	return dpos
 }
 
 // Setup setup dpos
-func (dpos *Dpos) Setup() error {
-	account, err := wallet.NewAccountFromFile(dpos.cfg.Keypath)
-	if err != nil {
-		return err
-	}
-	dpos.miner = account
+// func (dpos *Dpos) Setup() error {
+// 	account, err := wallet.NewAccountFromFile(dpos.cfg.Keypath)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	dpos.miner = account
 
-	return nil
-}
+// 	return nil
+// }
 
 // Run start dpos
 func (dpos *Dpos) Run() {
@@ -108,12 +109,12 @@ func (dpos *Dpos) loop() {
 
 func (dpos *Dpos) mint() error {
 	now := time.Now().Unix()
-	// if int(now%15) != dpos.cfg.Index {
-	// 	return
-	// }
-	if !dpos.enableMint {
+	if int(now%15) != dpos.cfg.Index {
 		return ErrNoLegalPowerToMint
 	}
+	// if !dpos.enableMint {
+	// 	return ErrNoLegalPowerToMint
+	// }
 
 	logger.Infof("My turn to mint a block, time: %d", now)
 	dpos.mintBlock()
