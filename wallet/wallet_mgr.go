@@ -95,7 +95,7 @@ func (wlt *Manager) NewAccount(passphrase string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	address, err := btypes.NewAddressFromPubKey(publicKey, 0x00)
+	address, err := btypes.NewAddressFromPubKey(publicKey)
 	if err != nil {
 		return "", err
 	}
@@ -167,7 +167,7 @@ func (acc *Account) unlockWithPassphrase(passphrase string) error {
 	if err != nil {
 		return err
 	}
-	addr, err := btypes.NewAddressFromPubKey(acc.privKey.PubKey(), 0x00)
+	addr, err := btypes.NewAddressFromPubKey(acc.privKey.PubKey())
 	if err != nil {
 		return err
 	}

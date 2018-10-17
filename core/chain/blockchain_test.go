@@ -22,7 +22,7 @@ import (
 // test setup
 var (
 	_, publicKey, _ = crypto.NewKeyPair()
-	minerAddr, _    = types.NewAddressFromPubKey(publicKey, 0x00 /* net ID */)
+	minerAddr, _    = types.NewAddressFromPubKey(publicKey)
 	blockChain      = genNewChain()
 )
 

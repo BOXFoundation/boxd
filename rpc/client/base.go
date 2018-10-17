@@ -33,7 +33,7 @@ func mustConnect(v *viper.Viper) *grpc.ClientConn {
 }
 
 func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
-	addr, err := types.NewAddressPubKeyHash(pubKeyHash, 0x00)
+	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
 	if err != nil {
 		return nil, err
 	}

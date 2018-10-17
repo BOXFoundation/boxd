@@ -68,6 +68,7 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 	boxPeer.connmgr = NewConnManager(ps)
 
 	opts := []libp2p.Option{
+		// TODO: to support ipv6
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", config.Address, config.Port)),
 		libp2p.Identity(networkIdentity),
 		libp2p.DefaultTransports,
@@ -88,18 +89,7 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 	return boxPeer, nil
 }
 
-// Run schedules lookup and discover new peer
-func (p *BoxPeer) Run() {
-	// libp2p conn manager
-	p.connmgr.Loop(p.proc)
-
-	if len(p.config.Seeds) > 0 {
-		p.connectSeeds()
-		p.table.Loop(p.proc)
-	}
-	p.notifier.Loop(p.proc)
-}
-
+// load network identity from local filesystem or create a new one.
 func loadNetworkIdentity(filename string) (crypto.PrivKey, error) {
 	var key crypto.PrivKey
 	if filename == "" {
@@ -129,6 +119,7 @@ func loadNetworkIdentity(filename string) (crypto.PrivKey, error) {
 	return key, err
 }
 
+// save network identity
 func saveNetworkIdentity(path string, key crypto.PrivKey) error {
 	data, err := crypto.MarshalPrivateKey(key)
 	if err != nil {
@@ -140,7 +131,24 @@ func saveNetworkIdentity(path string, key crypto.PrivKey) error {
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	conn := NewConn(s, p, s.Conn().RemotePeer())
-	go conn.loop()
+	conn.Loop(p.proc)
+}
+
+// Run schedules lookup and discover new peer
+func (p *BoxPeer) Run() {
+	// libp2p conn manager
+	p.connmgr.Loop(p.proc)
+
+	if len(p.config.Seeds) > 0 {
+		p.connectSeeds()
+		p.table.Loop(p.proc)
+	}
+	p.notifier.Loop(p.proc)
+}
+
+// Proc returns the gopreocess of database
+func (p *BoxPeer) Proc() goprocess.Process {
+	return p.proc
 }
 
 func (p *BoxPeer) connectSeeds() {
@@ -175,6 +183,20 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 	p.host.Peerstore().AddAddr(pid, haddr, peerstore.PermanentAddrTTL)
 	p.table.routeTable.Update(pid)
 	return nil
+}
+
+// AddConn adds the conn associates with the passed peerID
+func (p *BoxPeer) AddConn(pid peer.ID, conn *Conn) {
+	p.mu.Lock()
+	p.conns[pid] = conn
+	p.mu.Unlock()
+}
+
+// RemoveConn removes the conn associates with the passed peerID
+func (p *BoxPeer) RemoveConn(pid peer.ID) {
+	p.mu.Lock()
+	delete(p.conns, pid)
+	p.mu.Unlock()
 }
 
 ////////// implements Net interface //////////
