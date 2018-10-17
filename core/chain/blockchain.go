@@ -5,6 +5,8 @@
 package chain
 
 import (
+	"errors"
+
 	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -34,9 +36,10 @@ const (
 	medianTimeBlocks     = 11
 	sequenceLockTimeMask = 0x0000ffff
 
-	sequenceLockTimeIsSeconds   = 1 << 22
-	sequenceLockTimeGranularity = 9
-	unminedHeight               = 0x7fffffff
+	sequenceLockTimeIsSeconds     = 1 << 22
+	sequenceLockTimeGranularity   = 9
+	unminedHeight                 = 0x7fffffff
+	MaxBlockHeaderCountInSyncTask = 1024
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -193,7 +196,7 @@ func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
 	if chain.cache.Contains(blockHash) {
 		return true
 	}
-	block, err := chain.LoadBlockByHashFromDb(blockHash)
+	block, err := chain.LoadBlockByHash(blockHash)
 	if err != nil || block == nil {
 		return false
 	}
@@ -305,7 +308,7 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 	if target, ok := chain.cache.Get(block.Header.PrevBlockHash); ok {
 		return target.(*types.Block)
 	}
-	target, err := chain.LoadBlockByHashFromDb(block.Header.PrevBlockHash)
+	target, err := chain.LoadBlockByHash(block.Header.PrevBlockHash)
 	if err != nil {
 		return nil
 	}
@@ -547,7 +550,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 	if ok, _ := chain.dbBlock.Has(genesisHash[:]); ok {
-		genesisBlockFromDb, err := chain.LoadBlockByHashFromDb(genesisHash)
+		genesisBlockFromDb, err := chain.LoadBlockByHash(genesisHash)
 		if err != nil {
 			return nil, err
 		}
@@ -593,10 +596,26 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	return &genesisBlock, nil
 }
 
-// LoadBlockByHashFromDb load block by hash from db.
-func (chain *BlockChain) LoadBlockByHashFromDb(hash crypto.HashType) (*types.Block, error) {
+// LoadBlockByHash load block by hash from db.
+func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, error) {
 
 	blockBin, err := chain.dbBlock.Get(hash[:])
+	if err != nil {
+		return nil, err
+	}
+
+	block := new(types.Block)
+	if err := block.Unmarshal(blockBin); err != nil {
+		return nil, err
+	}
+
+	return block, nil
+}
+
+// LoadBlockByHeight load block by height from db.
+func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
+
+	blockBin, err := chain.dbBlock.Get(util.FromInt32(height))
 	if err != nil {
 		return nil, err
 	}
@@ -616,5 +635,99 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 		return err
 	}
 	hash := block.BlockHash()
+	if err := chain.dbBlock.Put(util.FromInt32(block.Height), data); err != nil {
+		return err
+	}
 	return chain.dbBlock.Put((*hash)[:], data)
+}
+
+// LocateForkPointAndFetchHeaders return block headers when get locate fork point request for sync service.
+func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashs []crypto.HashType) ([]*crypto.HashType, error) {
+	tailHeight := chain.tail.Height
+	for index := range hashs {
+		block, err := chain.LoadBlockByHash(hashs[index])
+		if err != nil {
+			return nil, err
+		}
+		if block != nil {
+			result := []*crypto.HashType{}
+			currentHeight := block.Height + 1
+			if tailHeight-block.Height < MaxBlockHeaderCountInSyncTask {
+				for currentHeight <= tailHeight {
+					block, err := chain.LoadBlockByHeight(currentHeight)
+					if err != nil {
+						return nil, err
+					}
+					result = append(result, block.BlockHash())
+					currentHeight++
+				}
+				return result, nil
+			}
+
+			var idx int32
+			for idx < MaxBlockHeaderCountInSyncTask {
+				block, err := chain.LoadBlockByHeight(currentHeight + idx)
+				if err != nil {
+					return nil, err
+				}
+				result = append(result, block.BlockHash())
+				idx++
+			}
+			return result, nil
+		}
+
+	}
+	return nil, nil
+}
+
+// CalcRootHashForNBlocks return root hash for N blocks.
+func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32) (*crypto.HashType, error) {
+
+	block, err := chain.LoadBlockByHash(hash)
+	if err != nil {
+		return nil, err
+	}
+	tailHeight := chain.tail.Height
+	currentHeight := block.Height + 1
+	if tailHeight-currentHeight < num {
+		return nil, errors.New("Invalid params num")
+	}
+
+	var idx int32
+	hashs := make([]*crypto.HashType, num)
+	for idx < num {
+		block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		if err != nil {
+			return nil, err
+		}
+		hashs[idx] = block.BlockHash()
+		idx++
+	}
+	merkleRoot := util.BuildMerkleRoot(hashs)
+	rootHash := merkleRoot[len(merkleRoot)-1]
+	return rootHash, nil
+}
+
+// FetchNBlockAfterSpecificHash get N block after specific hash.
+func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num int32) ([]*types.Block, error) {
+	block, err := chain.LoadBlockByHash(hash)
+	if err != nil {
+		return nil, err
+	}
+	tailHeight := chain.tail.Height
+	currentHeight := block.Height + 1
+	if tailHeight-currentHeight < num {
+		return nil, errors.New("Invalid params num")
+	}
+	var idx int32
+	blocks := make([]*types.Block, num)
+	for idx < num {
+		block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		if err != nil {
+			return nil, err
+		}
+		blocks[idx] = block
+		idx++
+	}
+	return blocks, nil
 }
