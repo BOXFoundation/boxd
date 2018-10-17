@@ -7,6 +7,7 @@ package p2p
 import (
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/p2p/pb"
@@ -20,6 +21,9 @@ import (
 // const
 const (
 	PeriodTime = 5
+
+	PingBody = "ping"
+	PongBody = "pong"
 )
 
 // Conn represents a connection to a remote node
@@ -27,9 +31,11 @@ type Conn struct {
 	stream             libp2pnet.Stream
 	peer               *BoxPeer
 	remotePeer         peer.ID
-	establish          bool
+	isEstablished      bool
 	establishSucceedCh chan bool
 	proc               goprocess.Process
+	procHeartbeat      goprocess.Process
+	mutex              sync.Mutex
 }
 
 // NewConn create a stream to remote peer.
@@ -38,15 +44,24 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 		stream:             stream,
 		peer:               peer,
 		remotePeer:         peerID,
-		establish:          false,
+		isEstablished:      false,
 		establishSucceedCh: make(chan bool, 1),
-		proc:               goprocess.WithParent(peer.proc),
 	}
 }
 
-func (conn *Conn) loop() {
+// Loop start
+func (conn *Conn) Loop(parent goprocess.Process) {
+	conn.mutex.Lock()
+	if conn.proc == nil {
+		conn.proc = parent.Go(conn.loop)
+		conn.proc.SetTeardown(conn.Close)
+	}
+	conn.mutex.Unlock()
+}
+
+func (conn *Conn) loop(proc goprocess.Process) {
 	if conn.stream == nil {
-		ctx := goprocessctx.OnClosingContext(conn.peer.proc)
+		ctx := goprocessctx.OnClosingContext(proc)
 		s, err := conn.peer.host.NewStream(ctx, conn.remotePeer, ProtocolID)
 		if err != nil {
 			logger.Errorf("Failed to new stream to %s, err = %s", conn.remotePeer.Pretty(), err.Error())
@@ -59,20 +74,26 @@ func (conn *Conn) loop() {
 		}
 	}
 
+	defer logger.Debug("Quit conn message loop with ", conn.remotePeer.Pretty())
 	for {
+		select {
+		case <-proc.Closing():
+			logger.Debug("Closing connection with peer ", conn.remotePeer.Pretty())
+			return
+		default:
+		}
+
 		msg, err := conn.readMessage(conn.stream)
 		if err != nil {
-			conn.Close()
 			return
 		}
 		if err := conn.checkMessage(msg); err != nil {
 			logger.Error("Invalid message. ", err)
-			conn.Close()
 			return
 		}
-		if err := conn.handle(msg); err != nil {
+		logger.Debugf("Receiving message %02x from peer %s", msg.Code(), conn.remotePeer.Pretty())
+		if err := conn.Handle(msg); err != nil {
 			logger.Error("Failed to handle message. ", err)
-			conn.Close()
 			return
 		}
 	}
@@ -87,15 +108,16 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	return &remoteMessage{message: msg, from: conn.remotePeer}, nil
 }
 
-func (conn *Conn) handle(msg *remoteMessage) error {
+// Handle is called on loop
+func (conn *Conn) Handle(msg *remoteMessage) error {
 	// handle handshake messages
 	switch msg.code {
 	case Ping:
-		return conn.onPing(msg.body)
+		return conn.OnPing(msg.body)
 	case Pong:
-		return conn.onPong(msg.body)
+		return conn.OnPong(msg.body)
 	}
-	if !conn.establish {
+	if !conn.Established() {
 		// return error in case no handshake with remote peer
 		return ErrNoConnectionEstablished
 	}
@@ -113,56 +135,66 @@ func (conn *Conn) handle(msg *remoteMessage) error {
 	return nil
 }
 
-func (conn *Conn) heartBeatService() {
+func (conn *Conn) heartBeatService(p goprocess.Process) {
 	t := time.NewTicker(time.Second * PeriodTime)
+	defer t.Stop()
+
 	for {
 		select {
 		case <-t.C:
 			conn.Ping()
-		case <-conn.proc.Closing():
-			t.Stop()
-			break
+		case <-p.Closing():
+			logger.Debug("closing heart beat service with ", conn.remotePeer.Pretty())
+			return
 		}
 	}
 }
 
 // Ping the target node
 func (conn *Conn) Ping() error {
-	body := []byte("ping")
-	return conn.Write(Ping, body)
+	return conn.Write(Ping, []byte(PingBody))
 }
 
-func (conn *Conn) onPing(data []byte) error {
-	if "ping" != string(data) {
+// OnPing respond the ping message
+func (conn *Conn) OnPing(data []byte) error {
+	if PingBody != string(data) {
 		return ErrMessageDataContent
 	}
-	body := []byte("pong")
-	if !conn.establish {
-		conn.established()
-	}
-	return conn.Write(Pong, body)
+
+	conn.Establish() // establish connection
+
+	return conn.Write(Pong, []byte(PongBody))
 }
 
-func (conn *Conn) onPong(data []byte) error {
-	if "pong" != string(data) {
+// OnPong respond the pong message
+func (conn *Conn) OnPong(data []byte) error {
+	if PongBody != string(data) {
 		return ErrMessageDataContent
 	}
-	if !conn.establish {
-		conn.established()
-		go conn.heartBeatService()
+	if !conn.Establish() {
+		conn.mutex.Lock()
+		if conn.procHeartbeat == nil {
+			conn.procHeartbeat = conn.proc.Go(conn.heartBeatService)
+		}
+		conn.mutex.Unlock()
 	}
 
 	return nil
 }
 
 // PeerDiscover discover new peers from remoute peer.
+// TODO: we should discover other peers periodly via randomly
+// selected remote active peers. Now we only send peer discovery
+// msg once after connections is established.
 func (conn *Conn) PeerDiscover() error {
-	if !conn.establish {
+	if !conn.Established() {
 		establishedTimeout := time.NewTicker(30 * time.Second)
+		defer establishedTimeout.Stop()
+
 		select {
 		case <-conn.establishSucceedCh:
 		case <-establishedTimeout.C:
-			conn.Close()
+			conn.proc.Close()
 			return errors.New("Handshaking timeout")
 		}
 	}
@@ -214,27 +246,51 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 }
 
 // Close connection to remote peer.
-func (conn *Conn) Close() {
+func (conn *Conn) Close() error {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
+	logger.Info("Closing connection with ", conn.remotePeer.Pretty())
 	if conn.stream != nil {
-		delete(conn.peer.conns, conn.remotePeer)
+		conn.peer.RemoveConn(conn.remotePeer)
 		conn.peer.table.peerStore.ClearAddrs(conn.remotePeer)
-		conn.stream.Close()
+		return conn.stream.Close()
 	}
+	return nil
 }
 
+// Established returns whether the connection is established.
+func (conn *Conn) Established() bool {
+	conn.mutex.Lock()
+	r := conn.isEstablished
+	conn.mutex.Unlock()
+	return r
+}
+
+// Establish means establishing the connection. It returns the previous status.
+func (conn *Conn) Establish() bool {
+	conn.mutex.Lock()
+	r := conn.isEstablished
+	if !conn.isEstablished {
+		conn.establish()
+	}
+	conn.mutex.Unlock()
+	return r
+}
+
+func (conn *Conn) establish() {
+	conn.peer.table.AddPeerToTable(conn)
+	conn.isEstablished = true
+	conn.establishSucceedCh <- true
+	conn.peer.AddConn(conn.remotePeer, conn)
+	logger.Info("Succed to establish connection with peer ", conn.remotePeer.Pretty())
+}
+
+// check if the message is valid. Called immediately after receiving a new message.
 func (conn *Conn) checkMessage(msg *remoteMessage) error {
 	if conn.peer.config.Magic != msg.magic {
 		return ErrMagic
 	}
 
 	return msg.check()
-}
-
-func (conn *Conn) established() {
-	// TODO: need mutex?
-	conn.peer.table.AddPeerToTable(conn)
-	conn.establish = true
-	conn.establishSucceedCh <- true
-	conn.peer.conns[conn.remotePeer] = conn
-	logger.Info("Succed to established with peer ", conn.remotePeer.Pretty())
 }
