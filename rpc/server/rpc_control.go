@@ -30,8 +30,9 @@ type ctlserver struct {
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
 	logger.SetLogLevel(in.Level)
-	log := s.server.BoxdServer().Cfg().GetLog()
-	log.Level = logger.LogLevel()
+	// TODO enable log level switch
+	// log := s.server.BoxdServer().Cfg().GetLog()
+	// log.Level = logger.LogLevel()
 	if in.Level != logger.LogLevel() {
 		var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
 		logger.Info(info)

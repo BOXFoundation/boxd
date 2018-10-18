@@ -9,6 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -43,6 +44,8 @@ const (
 )
 
 var logger = log.NewLogger("chain") // logger
+
+var _ service.ChainReader = (*BlockChain)(nil)
 
 // BlockChain define chain struct
 type BlockChain struct {
@@ -514,8 +517,8 @@ func (chain *BlockChain) TailBlock() *types.Block {
 }
 
 // LoadUtxoByPubKey loads utxos of a public key
-func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*UtxoWrap, error) {
-	res := make(map[types.OutPoint]*UtxoWrap)
+func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
+	res := make(map[types.OutPoint]*types.UtxoWrap)
 	// for out, entry := range chain.utxoSet.utxoMap {
 	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
 	// 		res[out] = entry
@@ -524,9 +527,14 @@ func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*Ut
 	return res, nil
 }
 
-//ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoWrap {
+// ListAllUtxos list all the available utxos for testing purpose
+func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*types.UtxoWrap {
 	return nil
+}
+
+// LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes
+func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
+	return nil, nil
 }
 
 // SetTailBlock sets chain tail block.

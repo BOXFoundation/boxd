@@ -7,7 +7,6 @@ package rpc
 import (
 	"context"
 
-	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/pb"
@@ -30,7 +29,7 @@ type txServer struct {
 }
 
 func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
-	bc := s.server.BoxdServer().BlockChain()
+	bc := s.server.GetChainReader()
 	utxos := bc.ListAllUtxos()
 	res := &rpcpb.ListUtxosResponse{
 		Code:    0,
@@ -46,8 +45,8 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 }
 
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
-	bc := s.server.BoxdServer().BlockChain()
-	utxos, err := bc.LoadUtxoByPubKey(req.ScriptPubKey)
+	bc := s.server.GetChainReader()
+	utxos, err := bc.LoadUtxoByPubKeyScript(req.ScriptPubKey)
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
@@ -65,7 +64,7 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
 	logger.Debugf("receive transaction: %+v", req.Tx)
-	txpool := s.server.BoxdServer().TxPool()
+	txpool := s.server.GetTxHandler()
 	tx, err := generateTransaction(req.Tx)
 	if err != nil {
 		return nil, err
@@ -74,7 +73,7 @@ func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransacti
 	return &rpcpb.BaseResponse{}, err
 }
 
-func generateUtxoMessage(outPoint *types.OutPoint, entry *chain.UtxoWrap) *rpcpb.Utxo {
+func generateUtxoMessage(outPoint *types.OutPoint, entry *types.UtxoWrap) *rpcpb.Utxo {
 	return &rpcpb.Utxo{
 		BlockHeight: entry.BlockHeight,
 		IsCoinbase:  entry.IsCoinBase,
