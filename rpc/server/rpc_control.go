@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 )
 
@@ -29,16 +30,13 @@ type ctlserver struct {
 
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
-	logger.SetLogLevel(in.Level)
-	// TODO enable log level switch
-	// log := s.server.BoxdServer().Cfg().GetLog()
-	// log.Level = logger.LogLevel()
-	if in.Level != logger.LogLevel() {
-		var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
-		logger.Info(info)
-		return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+	var ok bool
+	bus := s.server.GetEventBus()
+	bus.Publish(eventbus.TopicSetDebugLevel, in.Level, &ok)
+	if ok {
+		var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
+		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 	}
-	var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
-	logger.Infof(info)
-	return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
+	var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
+	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -42,10 +43,10 @@ type Server struct {
 
 	ChainReader service.ChainReader
 	TxHandler   service.TxHandler
-
-	server   *grpc.Server
-	gRPCProc goprocess.Process
-	wggRPC   sync.WaitGroup
+	eventBus    eventbus.Bus
+	server      *grpc.Server
+	gRPCProc    goprocess.Process
+	wggRPC      sync.WaitGroup
 
 	httpserver *http.Server
 	httpProc   goprocess.Process
@@ -82,15 +83,17 @@ func RegisterServiceWithGatewayHandler(name string, s Service, h GatewayHandler)
 type GRPCServer interface {
 	GetChainReader() service.ChainReader
 	GetTxHandler() service.TxHandler
+	GetEventBus() eventbus.Bus
 	Stop()
 }
 
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, txh service.TxHandler) (*Server, error) {
+func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, txh service.TxHandler, bus eventbus.Bus) (*Server, error) {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
 		TxHandler:   txh,
+		eventBus:    bus,
 	}
 
 	server.gRPCProc = parent.Go(server.servegRPC)
@@ -106,6 +109,11 @@ func (s *Server) GetChainReader() service.ChainReader {
 // GetTxHandler returns a handler to deal with transactions
 func (s *Server) GetTxHandler() service.TxHandler {
 	return s.TxHandler
+}
+
+// GetEventBus returns a interface to publish events
+func (s *Server) GetEventBus() eventbus.Bus {
+	return s.eventBus
 }
 
 func (s *Server) servegRPC(proc goprocess.Process) {

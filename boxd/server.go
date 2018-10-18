@@ -70,6 +70,7 @@ func NewServer() *Server {
 		proc: goprocess.WithSignals(os.Interrupt),
 		bus:  eventbus.Default(),
 	}
+	server.initEventListener()
 	server.proc.SetTeardown(server.teardown)
 	return server
 }
@@ -125,7 +126,7 @@ func (server *Server) Start(v *viper.Viper) error {
 	consensus := dpos.NewDpos(blockChain, txPool, peer, txPool.Proc(), &cfg.Dpos)
 
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool)
+		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
 
 	peer.Run()
@@ -160,4 +161,10 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 
 	return nil
+}
+
+func (server *Server) initEventListener() {
+	server.bus.Subscribe(eventbus.TopicSetDebugLevel, func(newLevel string, ok *bool) {
+		*ok = log.SetLogLevel(newLevel)
+	})
 }
