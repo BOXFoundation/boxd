@@ -5,13 +5,27 @@
 package netsync
 
 import (
+	"errors"
+	"math/rand"
+	"time"
+
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/jbenet/goprocess"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 var logger = log.NewLogger("sync") // logger
+
+// ErrNoPeerToSync indicate no peer to sync
+var ErrNoPeerToSync = errors.New("no peer to sync")
+
+const (
+	maxSyncPeers          = 8
+	maxLocateBlocksPerMsg = 500
+)
 
 // SyncManager use to manage blocks and main chains to stay in sync
 type SyncManager struct {
@@ -20,6 +34,7 @@ type SyncManager struct {
 	messageCh             chan p2p.Message
 	proc                  goprocess.Process
 	locateForkPointDoneCh chan bool
+	alertCh               chan error
 	syncBlockChunkDoneCh  chan bool
 }
 
@@ -84,6 +99,8 @@ func (sm *SyncManager) startSync() {
 	Sync_Locate_Fork_Point:
 		for {
 			select {
+			case <-sm.alertCh:
+				return
 			case <-sm.locateForkPointDoneCh:
 				break Sync_Locate_Fork_Point
 			}
@@ -102,7 +119,13 @@ func (sm *SyncManager) startSync() {
 }
 
 func (sm *SyncManager) locateForkPointRequest() {
-
+	var serializedMsg convert.Convertible
+	pid, err := sm.selectOnePeer()
+	if err == ErrNoPeerToSync {
+		sm.alertCh <- err
+		return
+	}
+	sm.notifiee.SendMessageToPeer(p2p.LocateForkPointRequest, serializedMsg, pid)
 }
 
 func (sm *SyncManager) onLocateForkPointRequest(message p2p.Message) {
@@ -118,4 +141,18 @@ func (sm *SyncManager) onBlockChunkRequest(message p2p.Message) {
 
 func (sm *SyncManager) onBlockChunkResponse(message p2p.Message) {
 
+}
+
+// TODO: need to implement a method to improve sync effience and not to sync
+// melicious peers' blocks
+func (sm *SyncManager) selectOnePeer() (peer.ID, error) {
+	var peers []peer.ID
+	var id peer.ID
+	//peers = sm.notifiee.GetPeers()
+	if len(peers) == 0 {
+		return peer.ID(""), ErrNoPeerToSync
+	}
+	rand.Seed(time.Now().UnixNano())
+	id = peers[rand.Intn(len(peers))]
+	return id, nil
 }
