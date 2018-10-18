@@ -30,17 +30,17 @@ var (
 	_ conv.Serializable = (*SyncBlocks)(nil)
 )
 
-// LocateHeaders includes headers sended to a peer to locate checkpoint
+// LocateHeaders includes hashes sended to a peer to locate checkpoint
 // in the peer's chain
 type LocateHeaders struct {
-	Headers []*crypto.HashType
+	Hashes []*crypto.HashType
 }
 
-// SyncHeaders includes the headers that local node need to sync with the
-// peer's chain. SyncHeaders may contains overlapped block headers
+// SyncHeaders includes the hashes that local node need to sync with the
+// peer's chain. SyncHeaders may contain overlapped block hashes
 // with local chain
 type SyncHeaders struct {
-	Headers []*coreTypes.BlockHeader
+	LocateHeaders
 }
 
 // CheckHash defines information about synchronizing check hash with
@@ -71,7 +71,7 @@ type SyncBlocks struct {
 // ToProtoMessage converts LocateHeaders to proto message.
 func (lh *LocateHeaders) ToProtoMessage() (proto.Message, error) {
 	return &netsyncpb.LocateHeaders{
-		Headers: ConvHashesToBytesArray(lh.Headers),
+		Hashes: ConvHashesToBytesArray(lh.Hashes),
 	}, nil
 }
 
@@ -80,7 +80,7 @@ func (lh *LocateHeaders) FromProtoMessage(message proto.Message) error {
 	if m, ok := message.(*netsyncpb.LocateHeaders); ok {
 		if m != nil {
 			var err error
-			lh.Headers, err = ConvBytesArrayToHashes(m.Headers)
+			lh.Hashes, err = ConvBytesArrayToHashes(m.Hashes)
 			if err != nil {
 				logger.Info(err.Error())
 				return ErrInvalidProtoMessage
@@ -104,48 +104,6 @@ func (lh *LocateHeaders) Unmarshal(data []byte) error {
 		return err
 	}
 	return lh.FromProtoMessage(msg)
-}
-
-// ToProtoMessage converts SyncHeaders to proto message.
-func (sh *SyncHeaders) ToProtoMessage() (proto.Message, error) {
-	headers, err := ConvHeadersToPbHeaders(sh.Headers)
-	if err != nil {
-		return nil, err
-	}
-	return &netsyncpb.SyncHeaders{
-		Headers: headers,
-	}, nil
-}
-
-// FromProtoMessage converts proto message to SyncHeaders
-func (sh *SyncHeaders) FromProtoMessage(message proto.Message) error {
-	if m, ok := message.(*netsyncpb.SyncHeaders); ok {
-		if m != nil {
-			var err error
-			sh.Headers, err = ConvPbHeadersToHeaders(m.Headers)
-			if err != nil {
-				logger.Info(err.Error())
-				return ErrInvalidProtoMessage
-			}
-			return nil
-		}
-		return ErrEmptyProtoMessage
-	}
-	return ErrInvalidProtoMessage
-}
-
-// Marshal method marshal SyncHeaders object to binary
-func (sh *SyncHeaders) Marshal() (data []byte, err error) {
-	return conv.MarshalConvertible(sh)
-}
-
-// Unmarshal method unmarshal binary data to SyncHeaders object
-func (sh *SyncHeaders) Unmarshal(data []byte) error {
-	msg := &netsyncpb.SyncHeaders{}
-	if err := proto.Unmarshal(data, msg); err != nil {
-		return err
-	}
-	return sh.FromProtoMessage(msg)
 }
 
 // ToProtoMessage converts CheckHash to proto message.

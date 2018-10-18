@@ -24,11 +24,11 @@ import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 
 message LocateHeaders {
     // n, n-1, ... n-k, n-k-2, n-k-5, n-k-10, ... n-k-(2^m+m), ... genesis
-    repeated bytes headers = 1;
+    repeated bytes hashes = 1;
 }
 
 message SyncHeaders {
-    repeated corepb.BlockHeader headers = 1;
+    repeated bytes hashes = 1;
 }
 
 message CheckHash {
@@ -42,7 +42,7 @@ message SyncCheckHash {
 }
 
 message FetchBlocksHeaders {
-    repeated bytes headers = 1;
+    repeated bytes hashes = 1;
 }
 
 message SyncBlocks {

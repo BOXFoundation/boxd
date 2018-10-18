@@ -23,14 +23,14 @@ const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type LocateHeaders struct {
 	// n, n-1, ... n-k, n-k-2, n-k-5, n-k-10, ... n-k-(2^m+m), ... genesis
-	Headers [][]byte `protobuf:"bytes,1,rep,name=headers" json:"headers,omitempty"`
+	Hashes [][]byte `protobuf:"bytes,1,rep,name=hashes" json:"hashes,omitempty"`
 }
 
 func (m *LocateHeaders) Reset()         { *m = LocateHeaders{} }
 func (m *LocateHeaders) String() string { return proto.CompactTextString(m) }
 func (*LocateHeaders) ProtoMessage()    {}
 func (*LocateHeaders) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sync_ccce83f9e4f49420, []int{0}
+	return fileDescriptor_sync_35c0b4edbaa73b6f, []int{0}
 }
 func (m *LocateHeaders) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -59,22 +59,22 @@ func (m *LocateHeaders) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_LocateHeaders proto.InternalMessageInfo
 
-func (m *LocateHeaders) GetHeaders() [][]byte {
+func (m *LocateHeaders) GetHashes() [][]byte {
 	if m != nil {
-		return m.Headers
+		return m.Hashes
 	}
 	return nil
 }
 
 type SyncHeaders struct {
-	Headers []*pb.BlockHeader `protobuf:"bytes,1,rep,name=headers" json:"headers,omitempty"`
+	Hashes [][]byte `protobuf:"bytes,1,rep,name=hashes" json:"hashes,omitempty"`
 }
 
 func (m *SyncHeaders) Reset()         { *m = SyncHeaders{} }
 func (m *SyncHeaders) String() string { return proto.CompactTextString(m) }
 func (*SyncHeaders) ProtoMessage()    {}
 func (*SyncHeaders) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sync_ccce83f9e4f49420, []int{1}
+	return fileDescriptor_sync_35c0b4edbaa73b6f, []int{1}
 }
 func (m *SyncHeaders) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -103,9 +103,9 @@ func (m *SyncHeaders) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SyncHeaders proto.InternalMessageInfo
 
-func (m *SyncHeaders) GetHeaders() []*pb.BlockHeader {
+func (m *SyncHeaders) GetHashes() [][]byte {
 	if m != nil {
-		return m.Headers
+		return m.Hashes
 	}
 	return nil
 }
@@ -119,7 +119,7 @@ func (m *CheckHash) Reset()         { *m = CheckHash{} }
 func (m *CheckHash) String() string { return proto.CompactTextString(m) }
 func (*CheckHash) ProtoMessage()    {}
 func (*CheckHash) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sync_ccce83f9e4f49420, []int{2}
+	return fileDescriptor_sync_35c0b4edbaa73b6f, []int{2}
 }
 func (m *CheckHash) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -171,7 +171,7 @@ func (m *SyncCheckHash) Reset()         { *m = SyncCheckHash{} }
 func (m *SyncCheckHash) String() string { return proto.CompactTextString(m) }
 func (*SyncCheckHash) ProtoMessage()    {}
 func (*SyncCheckHash) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sync_ccce83f9e4f49420, []int{3}
+	return fileDescriptor_sync_35c0b4edbaa73b6f, []int{3}
 }
 func (m *SyncCheckHash) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -208,14 +208,14 @@ func (m *SyncCheckHash) GetRootHash() []byte {
 }
 
 type FetchBlocksHeaders struct {
-	Headers [][]byte `protobuf:"bytes,1,rep,name=headers" json:"headers,omitempty"`
+	Hashes [][]byte `protobuf:"bytes,1,rep,name=hashes" json:"hashes,omitempty"`
 }
 
 func (m *FetchBlocksHeaders) Reset()         { *m = FetchBlocksHeaders{} }
 func (m *FetchBlocksHeaders) String() string { return proto.CompactTextString(m) }
 func (*FetchBlocksHeaders) ProtoMessage()    {}
 func (*FetchBlocksHeaders) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sync_ccce83f9e4f49420, []int{4}
+	return fileDescriptor_sync_35c0b4edbaa73b6f, []int{4}
 }
 func (m *FetchBlocksHeaders) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -244,9 +244,9 @@ func (m *FetchBlocksHeaders) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_FetchBlocksHeaders proto.InternalMessageInfo
 
-func (m *FetchBlocksHeaders) GetHeaders() [][]byte {
+func (m *FetchBlocksHeaders) GetHashes() [][]byte {
 	if m != nil {
-		return m.Headers
+		return m.Hashes
 	}
 	return nil
 }
@@ -259,7 +259,7 @@ func (m *SyncBlocks) Reset()         { *m = SyncBlocks{} }
 func (m *SyncBlocks) String() string { return proto.CompactTextString(m) }
 func (*SyncBlocks) ProtoMessage()    {}
 func (*SyncBlocks) Descriptor() ([]byte, []int) {
-	return fileDescriptor_sync_ccce83f9e4f49420, []int{5}
+	return fileDescriptor_sync_35c0b4edbaa73b6f, []int{5}
 }
 func (m *SyncBlocks) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -318,8 +318,8 @@ func (m *LocateHeaders) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.Headers) > 0 {
-		for _, b := range m.Headers {
+	if len(m.Hashes) > 0 {
+		for _, b := range m.Hashes {
 			dAtA[i] = 0xa
 			i++
 			i = encodeVarintSync(dAtA, i, uint64(len(b)))
@@ -344,16 +344,12 @@ func (m *SyncHeaders) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.Headers) > 0 {
-		for _, msg := range m.Headers {
+	if len(m.Hashes) > 0 {
+		for _, b := range m.Hashes {
 			dAtA[i] = 0xa
 			i++
-			i = encodeVarintSync(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
+			i = encodeVarintSync(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
 		}
 	}
 	return i, nil
@@ -427,8 +423,8 @@ func (m *FetchBlocksHeaders) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.Headers) > 0 {
-		for _, b := range m.Headers {
+	if len(m.Hashes) > 0 {
+		for _, b := range m.Hashes {
 			dAtA[i] = 0xa
 			i++
 			i = encodeVarintSync(dAtA, i, uint64(len(b)))
@@ -483,8 +479,8 @@ func (m *LocateHeaders) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.Headers) > 0 {
-		for _, b := range m.Headers {
+	if len(m.Hashes) > 0 {
+		for _, b := range m.Hashes {
 			l = len(b)
 			n += 1 + l + sovSync(uint64(l))
 		}
@@ -498,9 +494,9 @@ func (m *SyncHeaders) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.Headers) > 0 {
-		for _, e := range m.Headers {
-			l = e.Size()
+	if len(m.Hashes) > 0 {
+		for _, b := range m.Hashes {
+			l = len(b)
 			n += 1 + l + sovSync(uint64(l))
 		}
 	}
@@ -542,8 +538,8 @@ func (m *FetchBlocksHeaders) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.Headers) > 0 {
-		for _, b := range m.Headers {
+	if len(m.Hashes) > 0 {
+		for _, b := range m.Hashes {
 			l = len(b)
 			n += 1 + l + sovSync(uint64(l))
 		}
@@ -610,7 +606,7 @@ func (m *LocateHeaders) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Headers", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Hashes", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -634,8 +630,8 @@ func (m *LocateHeaders) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Headers = append(m.Headers, make([]byte, postIndex-iNdEx))
-			copy(m.Headers[len(m.Headers)-1], dAtA[iNdEx:postIndex])
+			m.Hashes = append(m.Hashes, make([]byte, postIndex-iNdEx))
+			copy(m.Hashes[len(m.Hashes)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -689,9 +685,9 @@ func (m *SyncHeaders) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Headers", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Hashes", wireType)
 			}
-			var msglen int
+			var byteLen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowSync
@@ -701,22 +697,20 @@ func (m *SyncHeaders) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			if byteLen < 0 {
 				return ErrInvalidLengthSync
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + byteLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Headers = append(m.Headers, &pb.BlockHeader{})
-			if err := m.Headers[len(m.Headers)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
+			m.Hashes = append(m.Hashes, make([]byte, postIndex-iNdEx))
+			copy(m.Hashes[len(m.Hashes)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -951,7 +945,7 @@ func (m *FetchBlocksHeaders) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Headers", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Hashes", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -975,8 +969,8 @@ func (m *FetchBlocksHeaders) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Headers = append(m.Headers, make([]byte, postIndex-iNdEx))
-			copy(m.Headers[len(m.Headers)-1], dAtA[iNdEx:postIndex])
+			m.Hashes = append(m.Hashes, make([]byte, postIndex-iNdEx))
+			copy(m.Hashes[len(m.Hashes)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1185,27 +1179,26 @@ var (
 	ErrIntOverflowSync   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("sync.proto", fileDescriptor_sync_ccce83f9e4f49420) }
+func init() { proto.RegisterFile("sync.proto", fileDescriptor_sync_35c0b4edbaa73b6f) }
 
-var fileDescriptor_sync_ccce83f9e4f49420 = []byte{
-	// 297 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x50, 0x41, 0x4b, 0xf3, 0x40,
-	0x14, 0xec, 0x7e, 0x1f, 0x54, 0xf3, 0xda, 0x5c, 0x22, 0x48, 0x50, 0x5c, 0x42, 0x40, 0x88, 0xa0,
-	0x09, 0xda, 0xab, 0xa7, 0x08, 0xa5, 0x07, 0x41, 0x88, 0x17, 0x6f, 0x92, 0xdd, 0x2c, 0xd9, 0xd0,
-	0xba, 0x2f, 0x24, 0x5b, 0xb0, 0xff, 0xc2, 0x9f, 0xe5, 0xb1, 0x47, 0x8f, 0x92, 0xfc, 0x11, 0xd9,
-	0xa4, 0xa1, 0xf6, 0xe4, 0x6d, 0xe7, 0xcd, 0xbc, 0xd9, 0x37, 0x03, 0x50, 0x6f, 0x14, 0x0f, 0xcb,
-	0x0a, 0x35, 0x3a, 0x96, 0x12, 0xda, 0xc0, 0x92, 0x9d, 0xdd, 0xe6, 0x85, 0x96, 0x6b, 0x16, 0x72,
-	0x7c, 0x8b, 0xe2, 0xa7, 0x97, 0x39, 0xae, 0x55, 0x96, 0xea, 0x02, 0x55, 0xc4, 0xf0, 0x3d, 0x8b,
-	0x38, 0x56, 0x22, 0x2a, 0x59, 0xc4, 0x56, 0xc8, 0x97, 0xfd, 0xb6, 0x7f, 0x05, 0xf6, 0x23, 0xf2,
-	0x54, 0x8b, 0x85, 0x48, 0x33, 0x51, 0xd5, 0x8e, 0x0b, 0x47, 0xb2, 0x7f, 0xba, 0xc4, 0xfb, 0x1f,
-	0x4c, 0x93, 0x01, 0xfa, 0xf7, 0x30, 0x79, 0xde, 0x28, 0x3e, 0x08, 0x6f, 0x0e, 0x85, 0x93, 0xbb,
-	0x93, 0xd0, 0x7c, 0x50, 0xb2, 0x30, 0x36, 0xfe, 0xbd, 0x6c, 0xbf, 0x1d, 0x83, 0xf5, 0x20, 0x05,
-	0x5f, 0x2e, 0xd2, 0x5a, 0x3a, 0x17, 0x00, 0x4c, 0xe4, 0x85, 0x7a, 0x95, 0x69, 0x2d, 0x5d, 0xe2,
-	0x91, 0x60, 0x9a, 0x58, 0xdd, 0xa4, 0xa3, 0x4f, 0x61, 0xbc, 0x12, 0x2a, 0xd7, 0xd2, 0xfd, 0xe7,
-	0x91, 0xc0, 0x4e, 0x76, 0xc8, 0xbf, 0x06, 0xdb, 0x5c, 0xb0, 0xf7, 0x39, 0x07, 0xab, 0x42, 0xd4,
-	0xbf, 0x6d, 0x8e, 0xcd, 0xc0, 0x90, 0x7e, 0x08, 0xce, 0x5c, 0x68, 0x2e, 0xbb, 0x73, 0xea, 0xbf,
-	0xf3, 0xcd, 0x00, 0x8c, 0x7b, 0x2f, 0x77, 0x2e, 0x61, 0xdc, 0xf5, 0x34, 0xa4, 0xb3, 0x0f, 0xd2,
-	0x25, 0x3b, 0x32, 0x76, 0x3f, 0x1b, 0x4a, 0xb6, 0x0d, 0x25, 0xdf, 0x0d, 0x25, 0x1f, 0x2d, 0x1d,
-	0x6d, 0x5b, 0x3a, 0xfa, 0x6a, 0xe9, 0x88, 0x8d, 0xbb, 0x82, 0x67, 0x3f, 0x01, 0x00, 0x00, 0xff,
-	0xff, 0xae, 0xf9, 0x58, 0x4b, 0xac, 0x01, 0x00, 0x00,
+var fileDescriptor_sync_35c0b4edbaa73b6f = []byte{
+	// 284 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x90, 0x41, 0x4b, 0xc3, 0x30,
+	0x1c, 0xc5, 0x17, 0x85, 0x62, 0xff, 0x5b, 0x2f, 0x3d, 0x8c, 0xa2, 0x18, 0x46, 0x61, 0xd8, 0xc3,
+	0x68, 0xd1, 0x7d, 0x83, 0x0a, 0x63, 0x07, 0x41, 0xa8, 0x17, 0x6f, 0xd2, 0xa4, 0xa1, 0x29, 0x9b,
+	0xf9, 0x97, 0x26, 0x03, 0xf7, 0x2d, 0xfc, 0x58, 0x1e, 0x77, 0xf4, 0x28, 0xed, 0x17, 0x91, 0xb4,
+	0x05, 0xbd, 0xed, 0xf8, 0xde, 0xef, 0xe5, 0x25, 0x79, 0x00, 0xfa, 0xa8, 0x78, 0x5c, 0x37, 0x68,
+	0xd0, 0x77, 0x95, 0x30, 0x56, 0xd6, 0xec, 0xfa, 0xbe, 0xac, 0x8c, 0x3c, 0xb0, 0x98, 0xe3, 0x7b,
+	0x92, 0x3e, 0xbf, 0x6e, 0xf0, 0xa0, 0x8a, 0xdc, 0x54, 0xa8, 0x12, 0x86, 0x1f, 0x45, 0xc2, 0xb1,
+	0x11, 0x49, 0xcd, 0x12, 0xb6, 0x47, 0xbe, 0x1b, 0x4e, 0x87, 0x77, 0xe0, 0x3d, 0x21, 0xcf, 0x8d,
+	0xd8, 0x8a, 0xbc, 0x10, 0x8d, 0xf6, 0xe7, 0xe0, 0xc8, 0x5c, 0x4b, 0xa1, 0x03, 0xb2, 0xb8, 0x8c,
+	0x66, 0xd9, 0xa8, 0xc2, 0x25, 0x4c, 0x5f, 0x8e, 0x8a, 0x9f, 0x8b, 0xa5, 0xe0, 0x3e, 0x4a, 0xc1,
+	0x77, 0xdb, 0x5c, 0x4b, 0xff, 0x16, 0x80, 0x89, 0xb2, 0x52, 0x6f, 0x16, 0x06, 0x64, 0x41, 0xa2,
+	0x59, 0xe6, 0xf6, 0x4e, 0x8f, 0xe7, 0xe0, 0xec, 0x85, 0x2a, 0x8d, 0x0c, 0x2e, 0x16, 0x24, 0xf2,
+	0xb2, 0x51, 0x85, 0x2b, 0xf0, 0xec, 0x55, 0x7f, 0x3d, 0x37, 0xe0, 0x36, 0x88, 0xe6, 0x7f, 0xcd,
+	0x95, 0x35, 0x2c, 0x0c, 0x57, 0xe0, 0x6f, 0x84, 0xe1, 0x32, 0xb5, 0xbf, 0xd2, 0xe7, 0xde, 0xb7,
+	0x06, 0xb0, 0xdd, 0x43, 0xd8, 0x5f, 0x82, 0xd3, 0x8f, 0x31, 0xa4, 0xa6, 0x0f, 0x5e, 0x6c, 0x37,
+	0xaa, 0x59, 0xdc, 0xf3, 0x6c, 0x84, 0x69, 0xf0, 0xd5, 0x52, 0x72, 0x6a, 0x29, 0xf9, 0x69, 0x29,
+	0xf9, 0xec, 0xe8, 0xe4, 0xd4, 0xd1, 0xc9, 0x77, 0x47, 0x27, 0xcc, 0xe9, 0x57, 0x5c, 0xff, 0x06,
+	0x00, 0x00, 0xff, 0xff, 0xc5, 0x04, 0xc5, 0xf0, 0x91, 0x01, 0x00, 0x00,
 }
