@@ -642,10 +642,10 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 }
 
 // LocateForkPointAndFetchHeaders return block headers when get locate fork point request for sync service.
-func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashs []crypto.HashType) ([]*crypto.HashType, error) {
+func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashType) ([]*crypto.HashType, error) {
 	tailHeight := chain.tail.Height
-	for index := range hashs {
-		block, err := chain.LoadBlockByHash(hashs[index])
+	for index := range hashes {
+		block, err := chain.LoadBlockByHash(*hashes[index])
 		if err != nil {
 			return nil, err
 		}
@@ -694,16 +694,16 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32)
 	}
 
 	var idx int32
-	hashs := make([]*crypto.HashType, num)
+	hashes := make([]*crypto.HashType, num)
 	for idx < num {
 		block, err := chain.LoadBlockByHeight(currentHeight + idx)
 		if err != nil {
 			return nil, err
 		}
-		hashs[idx] = block.BlockHash()
+		hashes[idx] = block.BlockHash()
 		idx++
 	}
-	merkleRoot := util.BuildMerkleRoot(hashs)
+	merkleRoot := util.BuildMerkleRoot(hashes)
 	rootHash := merkleRoot[len(merkleRoot)-1]
 	return rootHash, nil
 }
