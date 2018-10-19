@@ -68,6 +68,18 @@ type SyncBlocks struct {
 	Blocks []*coreTypes.Block
 }
 
+func newLocateHeaders(hashes ...*crypto.HashType) *LocateHeaders {
+	return &LocateHeaders{Hashes: hashes}
+}
+
+func newCheckHash(hash *crypto.HashType, len int) *CheckHash {
+	return &CheckHash{BeginHash: hash, Length: uint32(len)}
+}
+
+func newFetchBlockHeaders(hashes ...*crypto.HashType) *FetchBlocksHeaders {
+	return &FetchBlocksHeaders{LocateHeaders: LocateHeaders{hashes}}
+}
+
 // ToProtoMessage converts LocateHeaders to proto message.
 func (lh *LocateHeaders) ToProtoMessage() (proto.Message, error) {
 	return &netsyncpb.LocateHeaders{
