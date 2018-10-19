@@ -21,28 +21,35 @@ import (
 
 var logger = log.NewLogger("dpos") // logger
 
+// Define const
+const (
+	NewBlockTimeInterval = int64(5)
+)
+
 // Define err message
 var (
 	ErrNoLegalPowerToMint = errors.New("No legal power to mint")
+	ErrNotMyTurnToMint    = errors.New("Not my turn to mint")
 )
 
 // Config defines the configurations of dpos
 type Config struct {
 	// Index  int    `mapstructure:"index"`
 	// Pubkey string `mapstructure:"pubkey"`
-	Keypath    string `mapstructure:"keypath"`
-	EnableMint bool   `mapstructure:"enable_mint"`
+	keypath    string `mapstructure:"keypath"`
+	enableMint bool   `mapstructure:"enable_mint"`
+	passphrase string `mapstructure:"passphrase"`
 }
 
 // Dpos define dpos struct
 type Dpos struct {
-	chain  *chain.BlockChain
-	txpool *txpool.TransactionPool
-	net    p2p.Net
-	proc   goprocess.Process
-	cfg    *Config
-	miner  *wallet.Account
-	// miner      types.Address
+	chain      *chain.BlockChain
+	txpool     *txpool.TransactionPool
+	context    *ConsensusContext
+	net        p2p.Net
+	proc       goprocess.Process
+	cfg        *Config
+	miner      *wallet.Account
 	enableMint bool
 }
 
@@ -70,9 +77,14 @@ func NewDpos(chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Ne
 	return dpos
 }
 
+// EnableMint return the peer mint status
+func (dpos *Dpos) EnableMint() bool {
+	return dpos.cfg.enableMint
+}
+
 // Setup setup dpos
 func (dpos *Dpos) Setup() error {
-	account, err := wallet.NewAccountFromFile(dpos.cfg.Keypath)
+	account, err := wallet.NewAccountFromFile(dpos.cfg.keypath)
 	if err != nil {
 		return err
 	}
@@ -84,6 +96,10 @@ func (dpos *Dpos) Setup() error {
 // Run start dpos
 func (dpos *Dpos) Run() {
 	logger.Info("Dpos run")
+	if !dpos.validateMiner() {
+		logger.Warn("You have no authority to mint block")
+		return
+	}
 	go dpos.loop()
 }
 
@@ -108,17 +124,29 @@ func (dpos *Dpos) loop() {
 }
 
 func (dpos *Dpos) mint() error {
-	now := time.Now().Unix()
+	timestamp := time.Now().Unix()
+	tail := dpos.chain.TailBlock()
 	// if int(now%15) != dpos.cfg.Index {
 	// 	return ErrNoLegalPowerToMint
 	// }
-	if !dpos.enableMint {
-		return ErrNoLegalPowerToMint
+	target := FindMinerWithTimeStamp(tail, timestamp)
+	if target != dpos.miner.Addr() {
+		return ErrNotMyTurnToMint
 	}
-
-	logger.Infof("My turn to mint a block, time: %d", now)
+	logger.Infof("My turn to mint a block, time: %d", timestamp)
 	dpos.mintBlock()
 	return nil
+}
+
+func (dpos *Dpos) validateMiner() bool {
+
+	if !util.InArray(dpos.miner.Addr(), dpos.context.period) {
+		return false
+	}
+	if err := dpos.miner.UnlockWithPassphrase(dpos.cfg.passphrase); err != nil {
+		return false
+	}
+	return true
 }
 
 func (dpos *Dpos) mintBlock() {
@@ -168,7 +196,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 		blockTxns = append(blockTxns, txWrap.Tx)
 	}
 
-	merkles := util.CalcTxsHash(blockTxns)
+	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
 	return nil

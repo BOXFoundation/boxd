@@ -41,6 +41,7 @@ var genesisBlock = types.Block{
 		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
 		TxsRoot:       genesisMerkleRoot,
 		TimeStamp:     time.Date(2018, 1, 31, 0, 0, 0, 0, time.UTC).Unix(),
+		// ConsensusRoot: initGenesisConsensusContext(),
 	},
 	Txs:    []*types.Transaction{&genesisCoinbaseTx},
 	Height: 0,
@@ -53,11 +54,13 @@ var genesisPeriod = []string{
 	"b2xxxxxxxxxx",
 }
 
-func initGenesisConsensusRoot() []*crypto.HashType {
+func initGenesisConsensusContext() crypto.HashType {
 	hashs := make([]*crypto.HashType, len(genesisPeriod))
 	for index := range genesisPeriod {
 		hash := crypto.DoubleHashH([]byte(genesisPeriod[index]))
 		hashs[index] = &hash
 	}
-	return util.BuildMerkleRoot(hashs)
+	merkRootHashs := util.BuildMerkleRoot(hashs)
+	rootHash := merkRootHashs[len(merkRootHashs)-1]
+	return *rootHash
 }

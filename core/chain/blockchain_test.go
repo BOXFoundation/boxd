@@ -14,7 +14,6 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb" // init memdb
-	"github.com/BOXFoundation/boxd/util"
 	"github.com/facebookgo/ensure"
 	"github.com/jbenet/goprocess"
 )
@@ -64,7 +63,7 @@ func nextBlock(parentBlock *types.Block) *types.Block {
 
 	coinbaseTx, _ := CreateCoinbaseTx(minerAddr, parentBlock.Height+1)
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
-	newBlock.Header.TxsRoot = *util.CalcTxsHash(newBlock.Txs)
+	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock
 }
 

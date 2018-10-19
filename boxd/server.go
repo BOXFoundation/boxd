@@ -147,7 +147,7 @@ func (server *Server) Start(v *viper.Viper) error {
 	peer.Run()
 	blockChain.Run()
 	txPool.Run()
-	if cfg.Dpos.EnableMint {
+	if consensus.EnableMint() {
 		consensus.Run()
 	}
 

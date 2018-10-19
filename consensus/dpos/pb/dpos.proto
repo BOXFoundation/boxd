@@ -1,0 +1,25 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package dpospb;
+
+message ConsensusContext {
+    repeated bytes period = 1;
+    repeated bytes next_period = 2;
+}
+
+
+message Candidates {
+    int32 height = 1;
+    repeated Candidate candidates = 2;
+}
+
+
+message Candidate {
+    bytes addr = 1;
+    int32 votes = 2;
+    string peer = 3;
+}

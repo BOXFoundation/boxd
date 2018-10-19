@@ -117,7 +117,7 @@ func (wlt *Manager) DumpPrivKey(address, passphrase string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("Address not found: %s", address)
 	}
-	if err := acc.unlockWithPassphrase(passphrase); err != nil {
+	if err := acc.UnlockWithPassphrase(passphrase); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(acc.privKey.Serialize()), nil
@@ -155,7 +155,8 @@ func (acc *Account) saveWithPassphrase(passphrase string) error {
 	return nil
 }
 
-func (acc *Account) unlockWithPassphrase(passphrase string) error {
+// UnlockWithPassphrase unlock account with passphrase.
+func (acc *Account) UnlockWithPassphrase(passphrase string) error {
 	privateKeyBytes, err := unlockPrivateKeyWithPassphrase(acc.path, passphrase)
 	if err != nil {
 		return err

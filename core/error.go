@@ -47,7 +47,8 @@ var (
 	ErrInvalidTxProtoMessage       = errors.New("Invalid tx proto message")
 
 	//address.go
-	ErrInvalidPKHash = errors.New("pkHash must be 20 bytes")
+	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")
+	ErrInvalidAddressString = errors.New("invalid box address format")
 
 	//utils.go
 	ErrNoTxInputs           = errors.New("Transaction has no inputs")
