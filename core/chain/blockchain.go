@@ -537,6 +537,20 @@ func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoi
 	return nil, nil
 }
 
+// GetBlockHeight returns current height of main chain
+func (chain *BlockChain) GetBlockHeight() int32 {
+	return chain.LongestChainHeight
+}
+
+// GetBlockHash finds the block in target height of main chain and returns it's hash
+func (chain *BlockChain) GetBlockHash(blockHeight int32) (*crypto.HashType, error) {
+	block, err := chain.LoadBlockByHeight(blockHeight)
+	if err != nil {
+		return nil, err
+	}
+	return block.BlockHash(), nil
+}
+
 // SetTailBlock sets chain tail block.
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 

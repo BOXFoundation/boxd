@@ -7,7 +7,10 @@ package ctl
 import (
 	"fmt"
 
+	rpc "github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // getblockCmd represents the getblock command
@@ -16,6 +19,17 @@ var getblockCmd = &cobra.Command{
 	Short: "Get the block with a specific hash",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("getblock called")
+		if len(args) == 0 {
+			fmt.Println("Parameter block hash required")
+			return
+		}
+		hash := args[0]
+		block, err := rpc.GetBlock(viper.GetViper(), hash)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Printf("Block info of hash %s is\n%s\n", hash, util.PrettyPrint(block))
+		}
 	},
 }
 

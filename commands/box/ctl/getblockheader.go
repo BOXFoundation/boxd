@@ -7,6 +7,10 @@ package ctl
 import (
 	"fmt"
 
+	"github.com/spf13/viper"
+
+	rpc "github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +20,17 @@ var getblockheaderCmd = &cobra.Command{
 	Short: "Get the block header for a hash",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("getblockheader called")
+		if len(args) == 0 {
+			fmt.Println("Parameter block hash required")
+			return
+		}
+		hash := args[0]
+		header, err := rpc.GetBlockHeader(viper.GetViper(), hash)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Printf("Block Header of hash %s is\n%s\n", hash, util.PrettyPrint(header))
+		}
 	},
 }
 

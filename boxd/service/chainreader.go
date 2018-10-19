@@ -6,10 +6,17 @@ package service
 
 import (
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 // ChainReader defines basic operations blockchain exposes
 type ChainReader interface {
+	// interface to reader utxos
 	ListAllUtxos() map[types.OutPoint]*types.UtxoWrap
-	LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error)
+	LoadUtxoByPubKeyScript([]byte) (map[types.OutPoint]*types.UtxoWrap, error)
+
+	//interface to reader block status
+	GetBlockHeight() int32
+	GetBlockHash(int32) (*crypto.HashType, error)
+	LoadBlockByHash(crypto.HashType) (*types.Block, error)
 }
