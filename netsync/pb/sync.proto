@@ -33,7 +33,7 @@ message SyncHeaders {
 
 message CheckHash {
     bytes begin_hash = 1;    // begin hash
-    uint32 length = 2;
+    int32 length = 2;
 }
 
 message SyncCheckHash {

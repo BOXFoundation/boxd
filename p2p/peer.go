@@ -242,3 +242,24 @@ func (p *BoxPeer) Notify(msg Message) {
 func (p *BoxPeer) Conns() map[peer.ID]interface{} {
 	return p.conns
 }
+
+// PickOnePeer pick a peer not in peersExclusive and return peer id
+func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
+	peersInfo := p.table.GetRandomPeers("")
+	nullPeer := peer.ID("")
+	if len(peersInfo) == 0 {
+		return nullPeer
+	}
+	// although here at most O(n^2) time complexity,
+	// but the probability that cost n^2 is very low
+out:
+	for _, info := range peersInfo {
+		for _, pid := range peersExclusive {
+			if pid == info.ID {
+				continue out
+			}
+		}
+		return info.ID
+	}
+	return nullPeer
+}
