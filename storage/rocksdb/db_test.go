@@ -12,6 +12,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/facebookgo/ensure"
@@ -207,6 +208,34 @@ func TestDBKeys(t *testing.T) {
 	ensure.DeepEqual(t, len(ks), count)
 }
 
+func TestDBKeysWithPrefix(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	var count = 10000
+	var keys = map[string][]byte{}
+	prefix := []byte("key-0000")
+	for i := 0; i < count; i++ {
+		k := []byte(fmt.Sprintf("key-%06d", i))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		db.Put(k, v)
+		if bytes.HasPrefix(k, prefix) {
+			keys[string(k)] = k
+		}
+	}
+
+	var ks [][]byte
+	for _, k := range db.KeysWithPrefix(prefix) {
+		ensure.True(t, bytes.HasPrefix(k, prefix))
+		if _, ok := keys[string(k)]; !ok {
+			t.Fatalf("key %s is unexpected", string(k))
+		}
+		ks = append(ks, k)
+	}
+	ensure.DeepEqual(t, len(ks), len(keys))
+}
+
 func TestDBPersistent(t *testing.T) {
 	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
@@ -274,6 +303,263 @@ func TestParallelPuts(t *testing.T) {
 		}(prefix)
 	}
 	wg.Wait()
+}
+
+func TestDBTransaction(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
+	defer db.Close()
+
+	var kk = []byte("kkk")
+	var vv = []byte("vvv")
+	db.Put(kk, vv)
+
+	var count = 10
+	tx, err := db.NewTransaction()
+	ensure.Nil(t, err)
+
+	var kvs = map[string][]byte{}
+	for i := 0; i < count; i++ {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		v := []byte(fmt.Sprintf("v-%d", i))
+		ensure.Nil(t, tx.Put(k, v))
+		kvs[string(k)] = v
+	}
+
+	val, err := tx.Get(kk)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, val, vv)
+
+	for i := 0; i < count; i += 3 {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		v := []byte(fmt.Sprintf("v3-%d", i))
+		ensure.Nil(t, tx.Put(k, v))
+		kvs[string(k)] = v
+	}
+
+	exists, err := tx.Has(kk)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, exists, true)
+
+	for i := 0; i < count; i += 5 {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		ensure.Nil(t, tx.Del(k))
+		delete(kvs, string(k))
+	}
+
+	keys := tx.Keys()
+	ensure.DeepEqual(t, keys, [][]byte{kk})
+
+	for i := 0; i < count; i += 3 {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		_, err := tx.Get(k)
+		ensure.Nil(t, err)
+	}
+	ensure.Nil(t, tx.Commit())
+
+	for k, v := range kvs {
+		value, err := db.Get([]byte(k))
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, value, v)
+	}
+}
+
+func TestDBMulTransactions(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
+	defer db.Close()
+
+	tx, err := db.NewTransaction()
+	ensure.Nil(t, err)
+	ensure.NotNil(t, tx)
+	defer tx.Discard()
+
+	tx2, err := db.NewTransaction()
+	ensure.DeepEqual(t, err, storage.ErrTransactionExists)
+	ensure.Nil(t, tx2)
+}
+
+func TestDBTransactionsClose(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
+
+	tx, err := db.NewTransaction()
+	ensure.Nil(t, err)
+	ensure.NotNil(t, tx)
+
+	c := make(chan struct{})
+	go func() {
+		db.Close()
+		c <- struct{}{}
+	}()
+
+	t1 := time.NewTimer(1 * time.Second)
+	defer t1.Stop()
+
+	select {
+	case <-t1.C:
+	case <-c:
+		t.Error("not timeout...")
+	}
+
+	t2 := time.NewTimer(5 * time.Second)
+	defer t2.Stop()
+
+	select {
+	case <-t2.C:
+		t.Error("timeout...")
+	case <-c:
+	}
+	tx.Discard()
+}
+
+func TestDBSyncTransaction(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
+	defer db.Close()
+
+	const (
+		kk = "kkk"
+		vv = "vvv"
+	)
+	db.Put([]byte(kk), []byte(vv))
+
+	c := make(chan [][]byte)
+	go func(c chan<- [][]byte) {
+		var tx, err = db.NewTransaction()
+		defer tx.Discard()
+		ensure.Nil(t, err)
+		for i := 0; i < 20; i++ {
+			k := []byte(fmt.Sprintf("k-%d", i))
+			v := []byte(fmt.Sprintf("v-%d", i))
+			ensure.Nil(t, tx.Put(k, v))
+			c <- [][]byte{k, v}
+		}
+		ensure.Nil(t, tx.Commit())
+
+		close(c)
+	}(c)
+
+	var keys [][]byte
+	var values [][]byte
+	for k := range c {
+		keys = append(keys, k[0])
+		values = append(values, k[1])
+		v, _ := db.Get([]byte(kk))
+		ensure.DeepEqual(t, []byte(vv), v)
+
+		v2, err := db.Get(k[0])
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, len(v2), 0)
+	}
+
+	for i, k := range keys {
+		v, err := db.Get(k)
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, v, values[i])
+	}
+}
+
+func TestDBTransactionKeysWithPrefix(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	var count = 10000
+	var keys = map[string][]byte{}
+	var prefix = []byte("key-0000")
+	for i := 0; i < count; i++ {
+		k := []byte(fmt.Sprintf("key-%06d", i))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		db.Put(k, v)
+		if bytes.HasPrefix(k, prefix) {
+			keys[string(k)] = k
+		}
+	}
+
+	tx, err := db.NewTransaction()
+	ensure.Nil(t, err)
+	ensure.NotNil(t, tx)
+	defer tx.Discard()
+
+	var ks [][]byte
+	for _, k := range tx.KeysWithPrefix(prefix) {
+		ensure.True(t, bytes.HasPrefix(k, prefix))
+		_, ok := keys[string(k)]
+		ensure.True(t, ok)
+		ks = append(ks, k)
+	}
+	ensure.DeepEqual(t, len(ks), len(keys))
+}
+
+func TestDBBatchAndTransaction(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
+	defer db.Close()
+
+	const (
+		kk = "kkk"
+		vv = "vvv"
+	)
+	db.Put([]byte(kk), []byte(vv))
+
+	c := make(chan [][]byte)
+	go func(c chan<- [][]byte) {
+		var tx, err = db.NewTransaction()
+		defer tx.Discard()
+		ensure.Nil(t, err)
+		for i := 0; i < 20; i++ {
+			k := []byte(fmt.Sprintf("k-%d", i))
+			v := []byte(fmt.Sprintf("v-%d", i))
+			ensure.Nil(t, tx.Put(k, v))
+			c <- [][]byte{k, v}
+		}
+		ensure.Nil(t, tx.Commit())
+
+		close(c)
+	}(c)
+
+	var batch = db.NewBatch()
+	var keys [][]byte
+	var values [][]byte
+	for k := range c {
+		keys = append(keys, k[0])
+		v := append(k[1], 0x00, 0x01, 0x02)
+		values = append(values, v)
+		batch.Put(k[0], v)
+	}
+	ensure.Nil(t, batch.Write())
+
+	for i, k := range keys {
+		v, err := db.Get(k)
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, v, values[i])
+	}
+}
+
+func TestDBTransactionsClosed(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer os.RemoveAll(dbpath)
+
+	tx, err := db.NewTransaction()
+	ensure.Nil(t, err)
+	ensure.NotNil(t, tx)
+	tx.Discard()
+
+	ensure.DeepEqual(t, tx.Put([]byte{0x00}, []byte{0x00}), storage.ErrTransactionClosed)
+	_, err = tx.Get([]byte{0x00})
+	ensure.DeepEqual(t, err, storage.ErrTransactionClosed)
+	_, err = tx.Has([]byte{0x00})
+	ensure.DeepEqual(t, err, storage.ErrTransactionClosed)
+	keys := tx.Keys()
+	ensure.DeepEqual(t, keys, [][]byte{})
+	ensure.DeepEqual(t, tx.Commit(), storage.ErrTransactionClosed)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

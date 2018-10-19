@@ -162,3 +162,144 @@ func TestDBKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestDBKeysWithPrefix(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	var count = 10000
+	var keys = map[string][]byte{}
+	var prefix = []byte("key-0000")
+	for i := 0; i < count; i++ {
+		k := []byte(fmt.Sprintf("key-%06d", i))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		db.Put(k, v)
+		if bytes.HasPrefix(k, prefix) {
+			keys[string(k)] = k
+		}
+	}
+
+	var ks [][]byte
+	for _, k := range db.KeysWithPrefix(prefix) {
+		ensure.True(t, bytes.HasPrefix(k, prefix))
+		_, ok := keys[string(k)]
+		ensure.True(t, ok)
+		ks = append(ks, k)
+	}
+	ensure.DeepEqual(t, len(ks), len(keys))
+}
+
+func TestDBTransaction(t *testing.T) {
+	db, _ := NewMemoryDB("", nil)
+	defer db.Close()
+
+	var kk = []byte("kkk")
+	var vv = []byte("vvv")
+	db.Put(kk, vv)
+
+	var count = 10
+	tx, err := db.NewTransaction()
+	ensure.Nil(t, err)
+	defer tx.Discard()
+
+	var kvs = map[string][]byte{}
+	for i := 0; i < count; i++ {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		v := []byte(fmt.Sprintf("v-%d", i))
+		ensure.Nil(t, tx.Put(k, v))
+		kvs[string(k)] = v
+	}
+
+	val, err := tx.Get(kk)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, val, vv)
+
+	for i := 0; i < count; i += 3 {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		v := []byte(fmt.Sprintf("v3-%d", i))
+		ensure.Nil(t, tx.Put(k, v))
+		kvs[string(k)] = v
+	}
+
+	exists, err := tx.Has(kk)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, exists, true)
+
+	for i := 0; i < count; i += 5 {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		ensure.Nil(t, tx.Del(k))
+		delete(kvs, string(k))
+	}
+
+	keys := tx.Keys()
+	ensure.DeepEqual(t, keys, [][]byte{kk})
+
+	for i := 0; i < count; i += 3 {
+		k := []byte(fmt.Sprintf("k-%d", i))
+		_, err := tx.Get(k)
+		ensure.Nil(t, err)
+	}
+	ensure.Nil(t, tx.Commit())
+
+	for k, v := range kvs {
+		value, err := db.Get([]byte(k))
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, value, v)
+	}
+}
+
+func TestDBTransactionsClose(t *testing.T) {
+	db, _ := NewMemoryDB("", nil)
+	defer db.Close()
+
+	tx, err := db.NewTransaction()
+	ensure.Nil(t, err)
+	ensure.NotNil(t, tx)
+	defer tx.Discard()
+}
+
+func TestDBSyncTransaction(t *testing.T) {
+	db, _ := NewMemoryDB("", nil)
+	defer db.Close()
+
+	var kk = "kkk"
+	var vv = "vvv"
+
+	db.Put([]byte(kk), []byte(vv))
+
+	c := make(chan [][]byte)
+	go func(c chan<- [][]byte) {
+		var tx, err = db.NewTransaction()
+		defer tx.Discard()
+		ensure.Nil(t, err)
+		for i := 0; i < 20; i++ {
+			k := []byte(fmt.Sprintf("k-%d", i))
+			v := []byte(fmt.Sprintf("v-%d", i))
+			ensure.Nil(t, tx.Put(k, v))
+			c <- [][]byte{k, v}
+		}
+		ensure.Nil(t, tx.Commit())
+
+		close(c)
+	}(c)
+
+	var keys [][]byte
+	var values [][]byte
+	for k := range c {
+		keys = append(keys, k[0])
+		values = append(values, k[1])
+		v, _ := db.Get([]byte(kk))
+		ensure.DeepEqual(t, []byte(vv), v)
+
+		v2, err := db.Get(k[0])
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, len(v2), 0)
+	}
+
+	for i, k := range keys {
+		v, err := db.Get(k)
+		ensure.Nil(t, err)
+		ensure.DeepEqual(t, v, values[i])
+	}
+}

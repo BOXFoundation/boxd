@@ -83,8 +83,19 @@ func (b *mbatch) Count() int {
 
 // atomic writes all enqueued put/delete
 func (b *mbatch) Write() error {
+	return b.write(true)
+}
+
+func (b *mbatch) write(wlock bool) error {
 	b.bsm.Lock()
 	defer b.bsm.Unlock()
+
+	if wlock {
+		b.writeLock <- struct{}{}
+		defer func() {
+			<-b.writeLock
+		}()
+	}
 
 	b.sm.Lock()
 	defer b.sm.Unlock()

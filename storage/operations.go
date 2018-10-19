@@ -23,6 +23,9 @@ type Reader interface {
 
 	// return a set of keys in the Storage
 	Keys() [][]byte
+
+	// return a set of keys with specified prefix in the Storage
+	KeysWithPrefix(prefix []byte) [][]byte
 }
 
 // Operations defines common data operations on database/table
