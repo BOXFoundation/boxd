@@ -38,7 +38,7 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 		LockTime: 0,
 	}
 
-	utxoWrapOrigin := UtxoWrap{
+	utxoWrapOrigin := types.UtxoWrap{
 		Output:      txOut,
 		BlockHeight: 10000,
 		IsCoinBase:  false,
@@ -77,7 +77,7 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 		LockTime: 0,
 	}
 
-	utxoWrapNew := UtxoWrap{
+	utxoWrapNew := types.UtxoWrap{
 		Output:      txOut1,
 		BlockHeight: int32(20000),
 		IsCoinBase:  false,

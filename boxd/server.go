@@ -17,12 +17,12 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/netsync"
 	p2p "github.com/BOXFoundation/boxd/p2p"
 	grpcserver "github.com/BOXFoundation/boxd/rpc/server"
 	storage "github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
-	"github.com/BOXFoundation/boxd/types"
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
 )
@@ -35,28 +35,14 @@ type Server struct {
 	sm   sync.Mutex
 	proc goprocess.Process
 
-	bus        eventbus.Bus
-	cfg        config.Config
-	database   *storage.Database
-	peer       *p2p.BoxPeer
-	grpcsvr    *grpcserver.Server
-	blockChain *chain.BlockChain
-	txPool     *txpool.TransactionPool
-}
-
-// Cfg return server config.
-func (server *Server) Cfg() types.Config {
-	return server.cfg
-}
-
-// BlockChain return block chain ref.
-func (server *Server) BlockChain() *chain.BlockChain {
-	return server.blockChain
-}
-
-// TxPool returns tx pool ref.
-func (server *Server) TxPool() *txpool.TransactionPool {
-	return server.txPool
+	bus         eventbus.Bus
+	cfg         config.Config
+	database    *storage.Database
+	peer        *p2p.BoxPeer
+	grpcsvr     *grpcserver.Server
+	blockChain  *chain.BlockChain
+	txPool      *txpool.TransactionPool
+	syncManager *netsync.SyncManager
 }
 
 // teardown
@@ -86,6 +72,7 @@ func NewServer() *Server {
 		proc: goprocess.WithSignals(os.Interrupt),
 		bus:  eventbus.Default(),
 	}
+	server.initEventListener()
 	server.proc.SetTeardown(server.teardown)
 	return server
 }
@@ -141,14 +128,25 @@ func (server *Server) Start(v *viper.Viper) error {
 	consensus := dpos.NewDpos(blockChain, txPool, peer, txPool.Proc(), &cfg.Dpos)
 
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, server)
+		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
+
+	syncManager := netsync.NewSyncManager(blockChain, peer, blockChain.Proc())
+	server.syncManager = syncManager
 
 	peer.Run()
 	blockChain.Run()
 	txPool.Run()
 	if consensus.EnableMint() {
 		consensus.Run()
+	}
+
+	// if cfg.Dpos.EnableMint {
+	// 	consensus.Run()
+	// }
+	syncManager.Run()
+	if len(cfg.P2p.Seeds) > 0 {
+		syncManager.StartSync()
 	}
 
 	// goprocesses dependencies
@@ -175,4 +173,10 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 
 	return nil
+}
+
+func (server *Server) initEventListener() {
+	server.bus.Reply(eventbus.TopicSetDebugLevel, func(newLevel string, out chan<- bool) {
+		out <- log.SetLogLevel(newLevel)
+	}, false)
 }

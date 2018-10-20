@@ -15,11 +15,13 @@ import (
 type rtable struct {
 	sm sync.Mutex
 
-	rocksdb *gorocksdb.DB
-	cf      *gorocksdb.ColumnFamilyHandle
-
+	rocksdb      *gorocksdb.DB
+	cf           *gorocksdb.ColumnFamilyHandle
 	readOptions  *gorocksdb.ReadOptions
 	writeOptions *gorocksdb.WriteOptions
+
+	tr        *dbtx
+	writeLock chan struct{}
 }
 
 // create a new write batch
@@ -32,9 +34,36 @@ func (t *rtable) NewBatch() storage.Batch {
 	}
 }
 
+func (t *rtable) NewTransaction() (storage.Transaction, error) {
+	t.sm.Lock()
+	defer t.sm.Unlock()
+
+	if t.tr != nil {
+		t.tr.sm.Lock()
+		defer t.tr.sm.Unlock()
+		if !t.tr.closed {
+			return nil, storage.ErrTransactionExists
+		}
+	}
+
+	// lock all write operations
+	t.writeLock <- struct{}{}
+	t.tr = &dbtx{
+		db:        t,
+		batch:     t.NewBatch(),
+		closed:    false,
+		writeLock: t.writeLock,
+	}
+
+	return t.tr, nil
+}
+
 // put the value to entry associate with the key
 func (t *rtable) Put(key, value []byte) error {
-	return t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
+	t.writeLock <- struct{}{}
+	err := t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
+	<-t.writeLock
+	return err
 }
 
 // delete the entry associate with the key in the Storage
@@ -77,6 +106,21 @@ func (t *rtable) Keys() [][]byte {
 	var keys [][]byte
 	for it := iter; it.Valid(); it.Next() {
 		keys = append(keys, data(it.Key()))
+	}
+	return keys
+}
+
+func (t *rtable) KeysWithPrefix(prefix []byte) [][]byte {
+	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)
+	defer iter.Close()
+
+	iter.SeekToFirst()
+	var keys [][]byte
+	for it := iter; it.Valid(); it.Next() {
+		key := it.Key()
+		if bytes.HasPrefix(key.Data(), prefix) {
+			keys = append(keys, data(key))
+		}
 	}
 	return keys
 }

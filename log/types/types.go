@@ -40,16 +40,16 @@ type LoggerEntry struct {
 	NewLogger newLoggerFunc
 }
 
-var loggers = map[string]*LoggerEntry{}
+var loggerEntryMap = map[string]*LoggerEntry{}
 
 // Register registers a logger
 func Register(name string, entry *LoggerEntry) {
-	loggers[name] = entry
+	loggerEntryMap[name] = entry
 }
 
 // Setup loggers globally
 func Setup(name string, cfg *Config) {
-	if entry, ok := loggers[name]; ok {
+	if entry, ok := loggerEntryMap[name]; ok {
 		entry.Setup(cfg)
 	} else {
 		fmt.Printf("Invalid logger: %s", name)
@@ -58,7 +58,7 @@ func Setup(name string, cfg *Config) {
 
 // NewLogger creates a new logger.
 func NewLogger(name, tag string) Logger {
-	if entry, ok := loggers[name]; ok {
+	if entry, ok := loggerEntryMap[name]; ok {
 		return entry.NewLogger(tag)
 	}
 

@@ -20,6 +20,7 @@ func init() {
 func NewMemoryDB(_ string, _ *storage.Options) (storage.Storage, error) {
 	logger.Debug("Creating memdb")
 	return &memorydb{
-		db: make(map[string][]byte),
+		db:        make(map[string][]byte),
+		writeLock: make(chan struct{}, 1),
 	}, nil
 }

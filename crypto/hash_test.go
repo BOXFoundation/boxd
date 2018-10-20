@@ -28,3 +28,13 @@ func TestSha256(t *testing.T) {
 		t.Errorf("Sha256 digest = %v, expects %v", emptyStringDigest, expectDigest)
 	}
 }
+
+func TestSetString(t *testing.T) {
+	hexString := "7c3040dcb540cc57f8c4ed08dbcfba807434dc861c94a1c161b099f58d9ebe6d"
+	hash := &HashType{}
+	hash.SetString(hexString)
+	if hash.String() != hexString {
+		t.Errorf("Error setting string to hash\nexpected: %s\nactual: %s", hexString, hash.String())
+	}
+
+}

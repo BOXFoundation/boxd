@@ -6,16 +6,36 @@ package ctl
 
 import (
 	"fmt"
+	"strconv"
 
+	"github.com/spf13/viper"
+
+	rpc "github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/spf13/cobra"
 )
 
 // getblockhashCmd represents the getblockhash command
 var getblockhashCmd = &cobra.Command{
-	Use:   "getblockhash [index]",
+	Use:   "getblockhash [height]",
 	Short: "Get the hash of a block at a given index",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("getblockhash called")
+		if len(args) == 0 {
+			fmt.Println("Parameter block height required")
+			return
+		}
+		height64, err := strconv.ParseInt(args[0], 10, 32)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		height := int32(height64)
+		hash, err := rpc.GetBlockHash(viper.GetViper(), height)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Printf("Block hash of height %d is %s\n", height, hash)
+		}
 	},
 }
 

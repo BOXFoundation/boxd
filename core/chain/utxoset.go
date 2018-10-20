@@ -8,84 +8,25 @@ import (
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/storage"
-	proto "github.com/gogo/protobuf/proto"
 )
-
-// UtxoWrap contains info about utxo
-type UtxoWrap struct {
-	Output      *types.TxOut
-	BlockHeight int32
-	IsCoinBase  bool
-	IsSpent     bool
-	IsModified  bool
-}
-
-// ToProtoMessage converts utxo wrap to proto message.
-func (utxoWrap *UtxoWrap) ToProtoMessage() (proto.Message, error) {
-	output, _ := utxoWrap.Output.ToProtoMessage()
-	return &corepb.UtxoWrap{
-		Output:      output.(*corepb.TxOut),
-		BlockHeight: utxoWrap.BlockHeight,
-		IsCoinbase:  utxoWrap.IsCoinBase,
-		IsSpent:     utxoWrap.IsSpent,
-		IsModified:  utxoWrap.IsModified,
-	}, nil
-}
-
-// FromProtoMessage converts proto message to utxo wrap.
-func (utxoWrap *UtxoWrap) FromProtoMessage(message proto.Message) error {
-	if message, ok := message.(*corepb.UtxoWrap); ok {
-		txout := new(types.TxOut)
-		if err := txout.FromProtoMessage(message.Output); err != nil {
-			return err
-		}
-		utxoWrap.Output = txout
-		utxoWrap.BlockHeight = message.BlockHeight
-		utxoWrap.IsCoinBase = message.IsCoinbase
-		utxoWrap.IsModified = message.IsModified
-		utxoWrap.IsSpent = message.IsSpent
-	}
-	return core.ErrInvalidUtxoWrapProtoMessage
-}
-
-// Marshal method marshal UtxoWrap object to binary
-func (utxoWrap *UtxoWrap) Marshal() (data []byte, err error) {
-	return conv.MarshalConvertible(utxoWrap)
-}
-
-// Unmarshal method unmarshal binary data to UtxoWrap object
-func (utxoWrap *UtxoWrap) Unmarshal(data []byte) error {
-	msg := &corepb.UtxoWrap{}
-	if err := proto.Unmarshal(data, msg); err != nil {
-		return err
-	}
-	return utxoWrap.FromProtoMessage(msg)
-}
-
-// Value returns utxo amount
-func (utxoWrap *UtxoWrap) Value() int64 {
-	return utxoWrap.Output.Value
-}
 
 // UtxoSet contains all utxos
 type UtxoSet struct {
-	utxoMap map[types.OutPoint]*UtxoWrap
+	utxoMap map[types.OutPoint]*types.UtxoWrap
 }
 
 // NewUtxoSet new utxo set
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
-		utxoMap: make(map[types.OutPoint]*UtxoWrap),
+		utxoMap: make(map[types.OutPoint]*types.UtxoWrap),
 	}
 }
 
 // FindUtxo returns information about an outpoint.
-func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *UtxoWrap {
+func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 	logger.Debugf("Find utxo: %+v", outPoint)
 	return u.utxoMap[outPoint]
 }
@@ -103,7 +44,13 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight in
 	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
 	}
-	utxoWrap := UtxoWrap{tx.Vout[txOutIdx], blockHeight, IsCoinBase(tx), false, false}
+	utxoWrap := types.UtxoWrap{
+		Output:      tx.Vout[txOutIdx],
+		BlockHeight: blockHeight,
+		IsCoinBase:  IsCoinBase(tx),
+		IsModified:  false,
+		IsSpent:     false,
+	}
 	u.utxoMap[outPoint] = &utxoWrap
 	return nil
 }
@@ -296,7 +243,7 @@ func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{
 	return nil
 }
 
-func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint) (*UtxoWrap, error) {
+func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint) (*types.UtxoWrap, error) {
 
 	key := generateKey(outpoint)
 	serializedUtxoWrap, err := db.Get(*key)
@@ -307,7 +254,7 @@ func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint)
 	if serializedUtxoWrap == nil {
 		return nil, nil
 	}
-	utxoWrap := new(UtxoWrap)
+	utxoWrap := new(types.UtxoWrap)
 	if err := utxoWrap.Unmarshal(serializedUtxoWrap); err != nil {
 		return nil, err
 	}

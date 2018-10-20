@@ -7,6 +7,9 @@ package ctl
 import (
 	"fmt"
 
+	"github.com/spf13/viper"
+
+	rpc "github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +19,11 @@ var getblockcountCmd = &cobra.Command{
 	Short: "Get the total block count",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("getblockcount called")
+		height, err := rpc.GetBlockCount(viper.GetViper())
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("Current Height: ", height)
 	},
 }
 
