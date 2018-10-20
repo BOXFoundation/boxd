@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -25,6 +26,8 @@ const (
 )
 
 var logger = log.NewLogger("txpool") // logger
+
+var _ service.TxHandler = (*TransactionPool)(nil)
 
 // TransactionPool define struct.
 type TransactionPool struct {

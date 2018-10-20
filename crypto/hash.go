@@ -23,10 +23,31 @@ type HashType [HashSize]byte
 // String returns the Hash as the hexadecimal string of the byte-reversed
 // hash.
 func (hash HashType) String() string {
-	for i := 0; i < HashSize/2; i++ {
-		hash[i], hash[HashSize-1-i] = hash[HashSize-1-i], hash[i]
+	buf := hash.GetBytes()
+	reverseBytes(buf)
+	return hex.EncodeToString(buf)
+}
+
+// SetString sets hash using bytes parsed from string
+// returns error if input string is not valid hex string
+func (hash *HashType) SetString(str string) error {
+	buf, err := hex.DecodeString(str)
+	if err != nil {
+		return err
 	}
-	return hex.EncodeToString(hash[:])
+	if len(buf) != HashSize {
+		return fmt.Errorf("Invalid hash length")
+	}
+	reverseBytes(buf)
+	hash.SetBytes(buf)
+	return nil
+}
+
+func reverseBytes(buf []byte) {
+	length := len(buf)
+	for i := 0; i < length/2; i++ {
+		buf[i], buf[length-i-1] = buf[length-i-1], buf[i]
+	}
 }
 
 // Ripemd160 calculates the RIPEMD160 digest of buf

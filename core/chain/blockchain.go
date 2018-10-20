@@ -9,6 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -43,6 +44,8 @@ const (
 )
 
 var logger = log.NewLogger("chain") // logger
+
+var _ service.ChainReader = (*BlockChain)(nil)
 
 // BlockChain define chain struct
 type BlockChain struct {
@@ -514,8 +517,8 @@ func (chain *BlockChain) TailBlock() *types.Block {
 }
 
 // LoadUtxoByPubKey loads utxos of a public key
-func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*UtxoWrap, error) {
-	res := make(map[types.OutPoint]*UtxoWrap)
+func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
+	res := make(map[types.OutPoint]*types.UtxoWrap)
 	// for out, entry := range chain.utxoSet.utxoMap {
 	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
 	// 		res[out] = entry
@@ -524,9 +527,28 @@ func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*Ut
 	return res, nil
 }
 
-//ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*UtxoWrap {
+// ListAllUtxos list all the available utxos for testing purpose
+func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*types.UtxoWrap {
 	return nil
+}
+
+// LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes
+func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
+	return nil, nil
+}
+
+// GetBlockHeight returns current height of main chain
+func (chain *BlockChain) GetBlockHeight() int32 {
+	return chain.LongestChainHeight
+}
+
+// GetBlockHash finds the block in target height of main chain and returns it's hash
+func (chain *BlockChain) GetBlockHash(blockHeight int32) (*crypto.HashType, error) {
+	block, err := chain.LoadBlockByHeight(blockHeight)
+	if err != nil {
+		return nil, err
+	}
+	return block.BlockHash(), nil
 }
 
 // SetTailBlock sets chain tail block.

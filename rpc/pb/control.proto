@@ -5,6 +5,7 @@
 syntax = "proto3";
 package rpcpb;
 
+import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 import "common.proto";
 import "google/api/annotations.proto";
 
@@ -17,9 +18,73 @@ service ContorlCommand {
         body: "*"
       };
     }
+
+    rpc GetBlockHeight (GetBlockHeightRequest) returns (GetBlockHeightResponse) {
+      option (google.api.http) = {
+        post: "/v1/ctl/getblockheight"
+        body: "*"
+      };
+    }
+
+    rpc GetBlockHash (GetBlockHashRequest) returns (GetBlockHashResponse) {
+      option (google.api.http) = {
+        post: "/v1/ctl/getblockhash"
+        body: "*"
+      };
+    }
+
+    rpc GetBlockHeader (GetBlockRequest) returns (GetBlockHeaderResponse) {
+      option (google.api.http) = {
+        post: "/v1/ctl/getblockheader"
+        body: "*"
+      };
+    }
+
+    rpc GetBlock (GetBlockRequest) returns (GetBlockResponse) {
+      option (google.api.http) = {
+        post: "/v1/ctl/getblock"
+        body: "*"
+      };
+    }
   }
   
   // The request message containing debug level.
   message DebugLevelRequest {
     string level = 1;
   }
+
+  message GetBlockHeightRequest {
+  }
+
+  message GetBlockHeightResponse {
+    int32 code = 1;
+    string message = 2;
+    int32 height = 3;
+  }
+
+  message GetBlockHashRequest {
+    int32 height = 1;
+  }
+
+  message GetBlockHashResponse {
+    int32 code = 1;
+    string message = 2;
+    string hash = 3;
+  }
+
+  message GetBlockRequest {
+    string block_hash = 1;
+  }
+
+  message GetBlockHeaderResponse {
+    int32 code = 1;
+    string message = 2;
+    corepb.BlockHeader header = 3;
+  }
+
+  message GetBlockResponse {
+    int32 code = 1;
+    string message = 2;
+    corepb.Block block = 3;
+  }
+

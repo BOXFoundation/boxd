@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/BOXFoundation/boxd/core/types"
 	pb "github.com/BOXFoundation/boxd/rpc/pb"
 )
 
@@ -32,4 +33,81 @@ func SetDebugLevel(v *viper.Viper, level string) error {
 	logger.Infof("Result: %d, Message: %s", r.Code, r.Message)
 
 	return nil
+}
+
+// GetBlockCount query chain height
+func GetBlockCount(v *viper.Viper) (int32, error) {
+	conn := mustConnect(v)
+	defer conn.Close()
+
+	c := pb.NewContorlCommandClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger.Info("Querying block count")
+	r, err := c.GetBlockHeight(ctx, &pb.GetBlockHeightRequest{})
+	if err != nil {
+		return 0, err
+	}
+	logger.Infof("Block info: %+v", r)
+	return r.Height, nil
+}
+
+// GetBlockHash returns block hash of a height
+func GetBlockHash(v *viper.Viper, height int32) (string, error) {
+	conn := mustConnect(v)
+	defer conn.Close()
+
+	c := pb.NewContorlCommandClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger.Infof("Query block hash of height: %d", height)
+	r, err := c.GetBlockHash(ctx, &pb.GetBlockHashRequest{Height: height})
+	if err != nil {
+		return "", err
+	}
+	return r.Hash, nil
+}
+
+// GetBlockHeader returns header info of a block
+func GetBlockHeader(v *viper.Viper, hash string) (*types.BlockHeader, error) {
+	conn := mustConnect(v)
+	defer conn.Close()
+
+	c := pb.NewContorlCommandClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger.Infof("Query block header of a hash: %s", hash)
+	r, err := c.GetBlockHeader(ctx, &pb.GetBlockRequest{BlockHash: hash})
+	if err != nil {
+		return nil, err
+	}
+	header := &types.BlockHeader{}
+	err = header.FromProtoMessage(r.Header)
+	return header, err
+}
+
+// GetBlock returns block info of a block hash
+func GetBlock(v *viper.Viper, hash string) (*types.Block, error) {
+	conn := mustConnect(v)
+	defer conn.Close()
+
+	c := pb.NewContorlCommandClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	logger.Infof("Query block info of a hash :%s", hash)
+	r, err := c.GetBlock(ctx, &pb.GetBlockRequest{BlockHash: hash})
+	if err != nil {
+		return nil, err
+	}
+
+	block := &types.Block{}
+	err = block.FromProtoMessage(r.Block)
+	return block, err
 }

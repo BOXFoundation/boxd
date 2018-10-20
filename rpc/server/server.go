@@ -12,8 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/types"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -40,11 +41,12 @@ type HTTPConfig struct {
 type Server struct {
 	cfg *Config
 
-	boxdServer types.BoxdServer
-
-	server   *grpc.Server
-	gRPCProc goprocess.Process
-	wggRPC   sync.WaitGroup
+	ChainReader service.ChainReader
+	TxHandler   service.TxHandler
+	eventBus    eventbus.Bus
+	server      *grpc.Server
+	gRPCProc    goprocess.Process
+	wggRPC      sync.WaitGroup
 
 	httpserver *http.Server
 	httpProc   goprocess.Process
@@ -79,20 +81,39 @@ func RegisterServiceWithGatewayHandler(name string, s Service, h GatewayHandler)
 
 // GRPCServer interface breaks cycle import dependency
 type GRPCServer interface {
-	BoxdServer() types.BoxdServer
+	GetChainReader() service.ChainReader
+	GetTxHandler() service.TxHandler
+	GetEventBus() eventbus.Bus
 	Stop()
 }
 
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config, boxdServer types.BoxdServer) (*Server, error) {
+func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, txh service.TxHandler, bus eventbus.Bus) (*Server, error) {
 	var server = &Server{
-		cfg:        cfg,
-		boxdServer: boxdServer,
+		cfg:         cfg,
+		ChainReader: cr,
+		TxHandler:   txh,
+		eventBus:    bus,
 	}
 
 	server.gRPCProc = parent.Go(server.servegRPC)
 
 	return server, nil
+}
+
+// GetChainReader returns an interface to observe chain state
+func (s *Server) GetChainReader() service.ChainReader {
+	return s.ChainReader
+}
+
+// GetTxHandler returns a handler to deal with transactions
+func (s *Server) GetTxHandler() service.TxHandler {
+	return s.TxHandler
+}
+
+// GetEventBus returns a interface to publish events
+func (s *Server) GetEventBus() eventbus.Bus {
+	return s.eventBus
 }
 
 func (s *Server) servegRPC(proc goprocess.Process) {
@@ -187,9 +208,4 @@ func (s *Server) serveHTTP(proc goprocess.Process) {
 // Stop the rpc server
 func (s *Server) Stop() {
 	go s.gRPCProc.Close()
-}
-
-// BoxdServer returns reference to boxd server.
-func (s *Server) BoxdServer() types.BoxdServer {
-	return s.boxdServer
 }

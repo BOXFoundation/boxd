@@ -22,7 +22,6 @@ import (
 	storage "github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
-	"github.com/BOXFoundation/boxd/types"
 	"github.com/jbenet/goprocess"
 	"github.com/spf13/viper"
 )
@@ -42,21 +41,6 @@ type Server struct {
 	grpcsvr    *grpcserver.Server
 	blockChain *chain.BlockChain
 	txPool     *txpool.TransactionPool
-}
-
-// Cfg return server config.
-func (server *Server) Cfg() types.Config {
-	return server.cfg
-}
-
-// BlockChain return block chain ref.
-func (server *Server) BlockChain() *chain.BlockChain {
-	return server.blockChain
-}
-
-// TxPool returns tx pool ref.
-func (server *Server) TxPool() *txpool.TransactionPool {
-	return server.txPool
 }
 
 // teardown
@@ -86,6 +70,7 @@ func NewServer() *Server {
 		proc: goprocess.WithSignals(os.Interrupt),
 		bus:  eventbus.Default(),
 	}
+	server.initEventListener()
 	server.proc.SetTeardown(server.teardown)
 	return server
 }
@@ -141,7 +126,7 @@ func (server *Server) Start(v *viper.Viper) error {
 	consensus := dpos.NewDpos(blockChain, txPool, peer, txPool.Proc(), &cfg.Dpos)
 
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, server)
+		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
 
 	peer.Run()
@@ -176,4 +161,10 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 
 	return nil
+}
+
+func (server *Server) initEventListener() {
+	server.bus.Subscribe(eventbus.TopicSetDebugLevel, func(newLevel string, ok *bool) {
+		*ok = log.SetLogLevel(newLevel)
+	})
 }
