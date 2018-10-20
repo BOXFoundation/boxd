@@ -94,11 +94,30 @@ func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, tx
 		ChainReader: cr,
 		TxHandler:   txh,
 		eventBus:    bus,
+		gRPCProc:    goprocess.WithParent(parent),
 	}
 
-	server.gRPCProc = parent.Go(server.servegRPC)
-
 	return server, nil
+}
+
+// implement interface service.Server
+var _ service.Server = (*Server)(nil)
+
+// Run gRPC service
+func (s *Server) Run() error {
+	s.gRPCProc.Go(s.servegRPC)
+
+	return nil
+}
+
+// Proc returns the goprocess
+func (s *Server) Proc() goprocess.Process {
+	return s.gRPCProc
+}
+
+// Stop gRPC service
+func (s *Server) Stop() {
+	s.gRPCProc.Close()
 }
 
 // GetChainReader returns an interface to observe chain state
@@ -203,9 +222,4 @@ func (s *Server) serveHTTP(proc goprocess.Process) {
 
 	s.wgHTTP.Wait()
 	logger.Info("RPC:http server is down.")
-}
-
-// Stop the rpc server
-func (s *Server) Stop() {
-	go s.gRPCProc.Close()
 }
