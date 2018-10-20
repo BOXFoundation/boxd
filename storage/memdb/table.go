@@ -6,6 +6,7 @@ package memdb
 
 import (
 	"strings"
+	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 )
@@ -34,8 +35,29 @@ func (t *mtable) realkey(key []byte) []byte {
 	return k
 }
 
+func (t *mtable) NewTransaction() (storage.Transaction, error) {
+	timer := time.NewTimer(time.Millisecond * 100)
+	select {
+	case <-timer.C:
+		return nil, storage.ErrTransactionExists
+	case t.writeLock <- struct{}{}:
+	}
+
+	return &mtx{
+		db:        t,
+		closed:    false,
+		batch:     &mbatch{memorydb: t.memorydb, prefix: t.prefix},
+		writeLock: t.writeLock,
+	}, nil
+}
+
 // put the value to entry associate with the key
 func (t *mtable) Put(key, value []byte) error {
+	t.writeLock <- struct{}{}
+	defer func() {
+		<-t.writeLock
+	}()
+
 	t.sm.Lock()
 	defer t.sm.Unlock()
 
@@ -46,6 +68,11 @@ func (t *mtable) Put(key, value []byte) error {
 
 // delete the entry associate with the key in the Storage
 func (t *mtable) Del(key []byte) error {
+	t.writeLock <- struct{}{}
+	defer func() {
+		<-t.writeLock
+	}()
+
 	t.sm.Lock()
 	defer t.sm.Unlock()
 
@@ -56,19 +83,19 @@ func (t *mtable) Del(key []byte) error {
 
 // return value associate with the key in the Storage
 func (t *mtable) Get(key []byte) ([]byte, error) {
-	t.sm.Lock()
-	defer t.sm.Unlock()
+	t.sm.RLock()
+	defer t.sm.RUnlock()
 
 	if value, ok := t.db[string(t.realkey(key))]; ok {
 		return value, nil
 	}
-	return nil, storage.ErrKeyNotFound
+	return nil, nil
 }
 
 // check if the entry associate with key exists
 func (t *mtable) Has(key []byte) (bool, error) {
-	t.sm.Lock()
-	defer t.sm.Unlock()
+	t.sm.RLock()
+	defer t.sm.RUnlock()
 
 	_, ok := t.db[string(t.realkey(key))]
 
@@ -77,12 +104,26 @@ func (t *mtable) Has(key []byte) (bool, error) {
 
 // return a set of keys in the Storage
 func (t *mtable) Keys() [][]byte {
-	t.sm.Lock()
-	defer t.sm.Unlock()
+	t.sm.RLock()
+	defer t.sm.RUnlock()
 
 	var keys [][]byte
 	for key := range t.db {
 		if strings.HasPrefix(key, t.prefix) {
+			keys = append(keys, []byte(key)[len(t.prefix):])
+		}
+	}
+
+	return keys
+}
+
+func (t *mtable) KeysWithPrefix(prefix []byte) [][]byte {
+	t.sm.RLock()
+	defer t.sm.RUnlock()
+
+	var keys [][]byte
+	for key := range t.db {
+		if strings.HasPrefix(key, t.prefix+string(prefix)) {
 			keys = append(keys, []byte(key)[len(t.prefix):])
 		}
 	}
