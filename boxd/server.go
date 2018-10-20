@@ -131,7 +131,7 @@ func (server *Server) Start(v *viper.Viper) error {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
 
-	syncManager := netsync.NewSyncManager(blockChain, peer, blockChain.Proc())
+	syncManager := netsync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
 	server.syncManager = syncManager
 
 	peer.Run()

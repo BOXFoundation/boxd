@@ -8,4 +8,6 @@ package consensus
 type Consensus interface {
 	Run()
 	Stop()
+	StopMint()
+	RecoverMint()
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/BOXFoundation/boxd/consensus"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -62,9 +63,10 @@ type SyncManager struct {
 	stalePeers    map[peer.ID]peerStatus
 	hasSyncBlocks int
 
-	proc   goprocess.Process
-	chain  *chain.BlockChain
-	p2pNet p2p.Net
+	proc      goprocess.Process
+	chain     *chain.BlockChain
+	consensus consensus.Consensus
+	p2pNet    p2p.Net
 
 	messageCh            chan p2p.Message
 	locateWrongCh        chan struct{}
@@ -89,10 +91,11 @@ func (sm *SyncManager) resetAll() {
 }
 
 // NewSyncManager return new block sync manager.
-func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
+func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net, consensus consensus.Consensus,
 	parent goprocess.Process) *SyncManager {
 	return &SyncManager{
 		chain:      blockChain,
+		consensus:  consensus,
 		p2pNet:     p2pNet,
 		messageCh:  make(chan p2p.Message, 512),
 		proc:       goprocess.WithParent(parent),
@@ -108,6 +111,7 @@ func (sm *SyncManager) Run() {
 
 // StartSync start sync block message from remote peers.
 func (sm *SyncManager) StartSync() {
+	sm.consensus.StopMint()
 	go sm.startSync()
 }
 
@@ -175,7 +179,6 @@ func (sm *SyncManager) startSync() {
 		}
 
 		logger.Infof("start to sync %d blocks", len(sm.fetchHashes))
-	out_sync_block:
 		for {
 			select {
 			case <-sm.syncBlocksDoneCh:
