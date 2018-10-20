@@ -73,10 +73,12 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	d := &rocksdb{
 		rocksdb:      db,
 		cfs:          map[string]*gorocksdb.ColumnFamilyHandle{},
+		tables:       map[string]*rtable{},
 		dboptions:    options,
 		readOptions:  gorocksdb.NewDefaultReadOptions(),
 		writeOptions: gorocksdb.NewDefaultWriteOptions(),
 		flushOptions: gorocksdb.NewDefaultFlushOptions(),
+		writeLock:    make(chan struct{}, 1),
 	}
 	// d.flushOptions.SetWait(true)
 	// d.writeOptions.SetSync(true)

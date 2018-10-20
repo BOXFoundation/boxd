@@ -1,0 +1,120 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+package memdb
+
+import (
+	"sync"
+
+	"github.com/BOXFoundation/boxd/storage"
+)
+
+type mtx struct {
+	txsm      sync.Mutex
+	db        storage.Operations
+	batch     *mbatch
+	closed    bool
+	writeLock chan struct{}
+}
+
+// put the value to entry associate with the key
+func (tx *mtx) Put(key, value []byte) error {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return storage.ErrTransactionClosed
+	}
+
+	tx.batch.Put(key, value)
+	return nil
+}
+
+// delete the entry associate with the key in the Storage
+func (tx *mtx) Del(key []byte) error {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return storage.ErrTransactionClosed
+	}
+
+	tx.batch.Del(key)
+	return nil
+}
+
+// return value associate with the key in the Storage
+func (tx *mtx) Get(key []byte) ([]byte, error) {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return nil, storage.ErrTransactionClosed
+	}
+
+	return tx.db.Get(key)
+}
+
+// check if the entry associate with key exists
+func (tx *mtx) Has(key []byte) (bool, error) {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return false, storage.ErrTransactionClosed
+	}
+
+	return tx.db.Has(key)
+}
+
+// return a set of keys in the Storage
+func (tx *mtx) Keys() [][]byte {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return nil
+	}
+
+	return tx.db.Keys()
+}
+
+func (tx *mtx) KeysWithPrefix(prefix []byte) [][]byte {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return nil
+	}
+
+	return tx.db.KeysWithPrefix(prefix)
+}
+
+func (tx *mtx) Commit() error {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return storage.ErrTransactionClosed
+	}
+
+	defer func() {
+		tx.closed = true
+		<-tx.writeLock
+	}()
+
+	return tx.batch.write(false)
+}
+
+func (tx *mtx) Discard() {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return
+	}
+
+	tx.closed = true
+	<-tx.writeLock
+}

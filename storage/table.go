@@ -10,4 +10,7 @@ type Table interface {
 
 	// create a new write batch
 	NewBatch() Batch
+
+	// NewTransaction creates a new transaction on the Storage.
+	NewTransaction() (Transaction, error)
 }

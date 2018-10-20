@@ -8,13 +8,15 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 )
 
 type memorydb struct {
-	sm sync.Mutex
-	db map[string][]byte
+	sm        sync.RWMutex
+	writeLock chan struct{}
+	db        map[string][]byte
 }
 
 var _ storage.Storage = (*memorydb)(nil)
@@ -29,6 +31,11 @@ func (db *memorydb) Table(name string) (storage.Table, error) {
 
 // Create or Get the table associate with the name
 func (db *memorydb) DropTable(name string) error {
+	db.writeLock <- struct{}{}
+	defer func() {
+		<-db.writeLock
+	}()
+
 	db.sm.Lock()
 	defer db.sm.Unlock()
 
@@ -38,9 +45,8 @@ func (db *memorydb) DropTable(name string) error {
 	}
 
 	var prefix = fmt.Sprintf("%s.", name)
-	var l = len(prefix)
 	for _, key := range keys {
-		if bytes.Equal(key[:l], []byte(prefix)) {
+		if bytes.HasPrefix(key, []byte(prefix)) {
 			delete(db.db, string(key))
 		}
 	}
@@ -55,7 +61,28 @@ func (db *memorydb) NewBatch() storage.Batch {
 	}
 }
 
+func (db *memorydb) NewTransaction() (storage.Transaction, error) {
+	timer := time.NewTimer(time.Millisecond * 100)
+	select {
+	case <-timer.C:
+		return nil, storage.ErrTransactionExists
+	case db.writeLock <- struct{}{}:
+	}
+
+	return &mtx{
+		db:        db,
+		closed:    false,
+		batch:     &mbatch{memorydb: db},
+		writeLock: db.writeLock,
+	}, nil
+}
+
 func (db *memorydb) Close() error {
+	db.writeLock <- struct{}{}
+	defer func() {
+		<-db.writeLock
+	}()
+
 	db.sm.Lock()
 	defer db.sm.Unlock()
 
@@ -66,6 +93,11 @@ func (db *memorydb) Close() error {
 
 // put the value to entry associate with the key
 func (db *memorydb) Put(key, value []byte) error {
+	db.writeLock <- struct{}{}
+	defer func() {
+		<-db.writeLock
+	}()
+
 	db.sm.Lock()
 	defer db.sm.Unlock()
 
@@ -75,6 +107,11 @@ func (db *memorydb) Put(key, value []byte) error {
 
 // delete the entry associate with the key in the Storage
 func (db *memorydb) Del(key []byte) error {
+	db.writeLock <- struct{}{}
+	defer func() {
+		<-db.writeLock
+	}()
+
 	db.sm.Lock()
 	defer db.sm.Unlock()
 
@@ -85,20 +122,20 @@ func (db *memorydb) Del(key []byte) error {
 
 // return value associate with the key in the Storage
 func (db *memorydb) Get(key []byte) ([]byte, error) {
-	db.sm.Lock()
-	defer db.sm.Unlock()
+	db.sm.RLock()
+	defer db.sm.RUnlock()
 
 	if value, ok := db.db[string(key)]; ok {
 		return value, nil
 	}
 
-	return nil, storage.ErrKeyNotExists
+	return nil, nil
 }
 
 // check if the entry associate with key exists
 func (db *memorydb) Has(key []byte) (bool, error) {
-	db.sm.Lock()
-	defer db.sm.Unlock()
+	db.sm.RLock()
+	defer db.sm.RUnlock()
 
 	_, ok := db.db[string(key)]
 	return ok, nil
@@ -106,12 +143,27 @@ func (db *memorydb) Has(key []byte) (bool, error) {
 
 // return a set of keys in the Storage
 func (db *memorydb) Keys() [][]byte {
-	db.sm.Lock()
-	defer db.sm.Unlock()
+	db.sm.RLock()
+	defer db.sm.RUnlock()
 
 	var keys [][]byte
 	for key := range db.db {
 		keys = append(keys, []byte(key))
+	}
+
+	return keys
+}
+
+func (db *memorydb) KeysWithPrefix(prefix []byte) [][]byte {
+	db.sm.RLock()
+	defer db.sm.RUnlock()
+
+	var keys [][]byte
+	for key := range db.db {
+		k := []byte(key)
+		if bytes.HasPrefix(k, prefix) {
+			keys = append(keys, k)
+		}
 	}
 
 	return keys
