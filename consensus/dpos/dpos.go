@@ -24,12 +24,15 @@ var logger = log.NewLogger("dpos") // logger
 // Define const
 const (
 	NewBlockTimeInterval = int64(5)
+	PeriodSize           = 21
 )
 
 // Define err message
 var (
 	ErrNoLegalPowerToMint = errors.New("No legal power to mint")
 	ErrNotMyTurnToMint    = errors.New("Not my turn to mint")
+	ErrWrongTimeToMint    = errors.New("Wrong time to mint")
+	ErrNotFoundMiner      = errors.New("Failed to find miner")
 )
 
 // Config defines the configurations of dpos
@@ -125,12 +128,15 @@ func (dpos *Dpos) loop() {
 
 func (dpos *Dpos) mint() error {
 	timestamp := time.Now().Unix()
-	tail := dpos.chain.TailBlock()
+	// tail := dpos.chain.TailBlock()
 	// if int(now%15) != dpos.cfg.Index {
 	// 	return ErrNoLegalPowerToMint
 	// }
-	target := FindMinerWithTimeStamp(tail, timestamp)
-	if target != dpos.miner.Addr() {
+	miner, err := dpos.context.FindMinerWithTimeStamp(timestamp)
+	if err != nil {
+		return err
+	}
+	if miner != dpos.miner.Addr() {
 		return ErrNotMyTurnToMint
 	}
 	logger.Infof("My turn to mint a block, time: %d", timestamp)

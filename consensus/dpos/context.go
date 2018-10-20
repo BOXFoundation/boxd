@@ -96,6 +96,26 @@ func (context *ConsensusContext) Unmarshal(data []byte) error {
 	return context.FromProtoMessage(msg)
 }
 
+// FindMinerWithTimeStamp find miner in given timestamp
+func (context *ConsensusContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
+
+	period := context.period
+	offsetPeriod := timestamp % (NewBlockTimeInterval * PeriodSize)
+	if (offsetPeriod % NewBlockTimeInterval) != 0 {
+		return nil, ErrWrongTimeToMint
+	}
+	offset := offsetPeriod / NewBlockTimeInterval
+	offset = offset % PeriodSize
+
+	var miner *types.AddressHash
+	if offset >= 0 && int(offset) < len(period) {
+		miner = &period[offset]
+	} else {
+		return nil, ErrNotFoundMiner
+	}
+	return miner, nil
+}
+
 // Candidates represent possible to be the miner.
 type Candidates struct {
 	height     int64
@@ -147,9 +167,4 @@ func (candidate *Candidate) Unmarshal(data []byte) error {
 		return err
 	}
 	return candidate.FromProtoMessage(msg)
-}
-
-// FindMinerWithTimeStamp find miner in given timestamp
-func FindMinerWithTimeStamp(block *types.Block, timestamp int64) string {
-	return ""
 }
