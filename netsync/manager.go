@@ -61,10 +61,9 @@ type SyncManager struct {
 	stalePeers    map[peer.ID]peerStatus
 	hasSyncBlocks int
 
-	proc     goprocess.Process
-	chain    *chain.BlockChain
-	notifiee p2p.Net
-	peer     *p2p.BoxPeer
+	proc   goprocess.Process
+	chain  *chain.BlockChain
+	p2pNet p2p.Net
 
 	messageCh            chan p2p.Message
 	locateWrongCh        chan struct{}
@@ -89,12 +88,11 @@ func (sm *SyncManager) resetAll() {
 }
 
 // NewSyncManager return new block sync manager.
-func NewSyncManager(blockChain *chain.BlockChain, notifiee p2p.Net,
-	boxPeer *p2p.BoxPeer, parent goprocess.Process) *SyncManager {
+func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
+	parent goprocess.Process) *SyncManager {
 	return &SyncManager{
-		peer:       boxPeer,
 		chain:      blockChain,
-		notifiee:   notifiee,
+		p2pNet:     p2pNet,
 		messageCh:  make(chan p2p.Message, 512),
 		proc:       goprocess.WithParent(parent),
 		stalePeers: make(map[peer.ID]peerStatus),
@@ -113,12 +111,12 @@ func (sm *SyncManager) StartSync() {
 }
 
 func (sm *SyncManager) subscribeMessageNotifiee() {
-	sm.notifiee.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, sm.messageCh))
-	sm.notifiee.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, sm.messageCh))
-	sm.notifiee.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, sm.messageCh))
-	sm.notifiee.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, sm.messageCh))
-	sm.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, sm.messageCh))
-	sm.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, sm.messageCh))
 }
 
 func (sm *SyncManager) handleSyncMessage() {
@@ -197,7 +195,7 @@ func (sm *SyncManager) locateRequest() {
 		return
 	}
 	sm.stalePeers[pid] = locatePeerStatus
-	err = sm.notifiee.SendMessageToPeer(p2p.LocateForkPointRequest, lh, pid)
+	err = sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointRequest, lh, pid)
 	if err != nil {
 		logger.Warn("SendMessageToPeer LocateForkPointRequest error: ", err)
 	}
@@ -217,7 +215,7 @@ func (sm *SyncManager) onLocateForkPointRequest(msg p2p.Message) error {
 	}
 	// send SyncHeaders hashes to active end
 	sh := newSyncHeaders(hashes...)
-	err = sm.notifiee.SendMessageToPeer(p2p.LocateForkPointRequest, sh, msg.From())
+	err = sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointRequest, sh, msg.From())
 	if err != nil {
 		logger.Warn("SendMessageToPeer LocateForkPointRequest error: ", err)
 	}
@@ -260,7 +258,7 @@ func (sm *SyncManager) onLocateForkPointResponse(msg p2p.Message) error {
 	sm.checkHash = newCheckHash(hashes[0], len(hashes))
 	for _, pid := range peers {
 		sm.stalePeers[pid] = checkedPeerStatus
-		err := sm.notifiee.SendMessageToPeer(p2p.LocateCheckRequest, sm.checkHash, pid)
+		err := sm.p2pNet.SendMessageToPeer(p2p.LocateCheckRequest, sm.checkHash, pid)
 		if err != nil {
 			logger.Warn("SendMessageToPeer LocateCheckRequest error: ", err)
 		}
@@ -282,7 +280,7 @@ func (sm *SyncManager) onLocateCheckRequest(msg p2p.Message) error {
 	}
 	// if hashes == nil {}
 	sh := newSyncCheckHash(hash)
-	err = sm.notifiee.SendMessageToPeer(p2p.LocateForkPointRequest, sh, msg.From())
+	err = sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointRequest, sh, msg.From())
 	if err != nil {
 		logger.Warn("SendMessageToPeer LocateForkPointRequest error: ", err)
 	}
@@ -318,7 +316,7 @@ func (sm *SyncManager) onLocateCheckResponse(msg p2p.Message) error {
 			return nil
 		}
 		sm.stalePeers[pid] = checkedPeerStatus
-		err = sm.notifiee.SendMessageToPeer(p2p.LocateCheckRequest, sm.checkHash, pid)
+		err = sm.p2pNet.SendMessageToPeer(p2p.LocateCheckRequest, sm.checkHash, pid)
 		if err != nil {
 			logger.Warn("SendMessageToPeer LocateCheckRequest error: ", err)
 		}
@@ -341,7 +339,7 @@ func (sm *SyncManager) onBlockChunkRequest(msg p2p.Message) error {
 	}
 	//
 	sb := newSyncBlocks(blocks...)
-	err = sm.notifiee.SendMessageToPeer(p2p.BlockChunkResponse, sb, msg.From())
+	err = sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse, sb, msg.From())
 	if err != nil {
 		logger.Warn("SendMessageToPeer BlockChunkResponse error: ", err)
 	}
@@ -469,7 +467,7 @@ func (sm *SyncManager) fetchBlocks(hashes []*crypto.HashType) error {
 		} else {
 			fbh = newFetchBlockHeaders(hashes[i:]...)
 		}
-		err = sm.notifiee.SendMessageToPeer(p2p.BlockChunkRequest, fbh, pid)
+		err = sm.p2pNet.SendMessageToPeer(p2p.BlockChunkRequest, fbh, pid)
 		if err != nil {
 			logger.Warn("SendMessageToPeer BlockChunkRequest error: ", err)
 		}
@@ -495,7 +493,7 @@ func (sm *SyncManager) pickOnePeer() (peer.ID, error) {
 	for k := range sm.stalePeers {
 		ids = append(ids, k)
 	}
-	pid := sm.peer.PickOnePeer(ids...)
+	pid := sm.p2pNet.PickOnePeer(ids...)
 	if pid == peer.ID("") {
 		return pid, errNoPeerToSync
 	}

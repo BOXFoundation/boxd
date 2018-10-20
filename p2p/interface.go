@@ -23,4 +23,5 @@ type Net interface {
 	Subscribe(*Notifiee)
 	UnSubscribe(*Notifiee)
 	Notify(Message)
+	PickOnePeer(peersExclusive ...peer.ID) peer.ID
 }
