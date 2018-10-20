@@ -87,7 +87,7 @@ func (b *Builder) addData(data []byte) *Builder {
 	// Otherwise, choose the smallest possible OP_PUSHDATA# opcode that
 	// can represent the length of the data.
 	if dataLen < OPPUSHDATA1 {
-		b.script = append(b.script, byte((OPDATA1-1)+dataLen))
+		b.script = append(b.script, byte(dataLen))
 	} else if dataLen <= 0xff {
 		b.script = append(b.script, OPPUSHDATA1, byte(dataLen))
 	} else if dataLen <= 0xffff {
