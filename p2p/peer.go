@@ -228,11 +228,11 @@ func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible,
 
 	c, ok := p.conns[pid]
 	if !ok {
-		return fmt.Errorf("peer[%d] not exists", pid)
+		return fmt.Errorf("peer[%s] not exists", pid)
 	}
 	conn := c.(*Conn)
 	if p.id.Pretty() == conn.remotePeer.Pretty() {
-		return fmt.Errorf("peer[%d] is self", pid)
+		return fmt.Errorf("peer[%s] is self", pid)
 	}
 	go conn.Write(code, body)
 	return nil

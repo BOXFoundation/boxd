@@ -1,3 +1,7 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
 package netsync
 
 import (
@@ -13,9 +17,9 @@ import (
 )
 
 var (
-	ErrEmptyProtoMessage   = errors.New("Empty proto message")
-	ErrInvalidProtoMessage = errors.New("Invalid proto message")
-	ErrNilReceiver         = errors.New("Nil receiver")
+	errEmptyProtoMessage   = errors.New("Empty proto message")
+	errInvalidProtoMessage = errors.New("Invalid proto message")
+	errNilReceiver         = errors.New("Nil receiver")
 
 	_ conv.Convertible  = (*LocateHeaders)(nil)
 	_ conv.Serializable = (*LocateHeaders)(nil)
@@ -132,13 +136,13 @@ func (lh *LocateHeaders) FromProtoMessage(message proto.Message) error {
 			lh.Hashes, err = ConvBytesArrayToHashes(m.Hashes)
 			if err != nil {
 				logger.Info(err.Error())
-				return ErrInvalidProtoMessage
+				return errInvalidProtoMessage
 			}
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return errEmptyProtoMessage
 	}
-	return ErrInvalidProtoMessage
+	return errInvalidProtoMessage
 }
 
 // Marshal method marshal LocateHeaders object to binary
@@ -181,9 +185,9 @@ func (ch *CheckHash) FromProtoMessage(message proto.Message) error {
 			ch.Length = m.Length
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return errEmptyProtoMessage
 	}
-	return ErrInvalidProtoMessage
+	return errInvalidProtoMessage
 }
 
 // Marshal method marshal CheckHash object to binary
@@ -227,9 +231,9 @@ func (sch *SyncCheckHash) FromProtoMessage(message proto.Message) error {
 			copy((sch.RootHash)[:], m.RootHash[:])
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return errEmptyProtoMessage
 	}
-	return ErrInvalidProtoMessage
+	return errInvalidProtoMessage
 }
 
 // Marshal method marshal SyncCheckHash object to binary
@@ -272,13 +276,13 @@ func (sb *SyncBlocks) FromProtoMessage(message proto.Message) error {
 			sb.Blocks, err = ConvPbBlocksToBlocks(m.Blocks)
 			if err != nil {
 				logger.Info(err.Error())
-				return ErrInvalidProtoMessage
+				return errInvalidProtoMessage
 			}
 			return nil
 		}
-		return ErrEmptyProtoMessage
+		return errEmptyProtoMessage
 	}
-	return ErrInvalidProtoMessage
+	return errInvalidProtoMessage
 }
 
 // Marshal method marshal SyncBlocks object to binary
