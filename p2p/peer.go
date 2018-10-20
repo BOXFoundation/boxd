@@ -219,8 +219,23 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 }
 
 // SendMessageToPeer send message to a peer.
-func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible, pid peer.ID) {
+func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible,
+	pid peer.ID) error {
+	body, err := conv.MarshalConvertible(msg)
+	if err != nil {
+		return err
+	}
 
+	c, ok := p.conns[pid]
+	if !ok {
+		return fmt.Errorf("peer[%d] not exists", pid)
+	}
+	conn := c.(*Conn)
+	if p.id.Pretty() == conn.remotePeer.Pretty() {
+		return fmt.Errorf("peer[%d] is self", pid)
+	}
+	go conn.Write(code, body)
+	return nil
 }
 
 // Subscribe a message notification.

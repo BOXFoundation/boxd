@@ -23,7 +23,9 @@ func (d *DummyPeer) Broadcast(uint32, conv.Convertible) error {
 }
 
 // SendMessageToPeer for testing
-func (d *DummyPeer) SendMessageToPeer(uint32, conv.Convertible, peer.ID) {}
+func (d *DummyPeer) SendMessageToPeer(uint32, conv.Convertible, peer.ID) error {
+	return nil
+}
 
 // Subscribe for testing
 func (d *DummyPeer) Subscribe(*Notifiee) {}

@@ -19,7 +19,7 @@ type Message interface {
 // Net Define Net interface
 type Net interface {
 	Broadcast(uint32, conv.Convertible) error
-	SendMessageToPeer(uint32, conv.Convertible, peer.ID)
+	SendMessageToPeer(uint32, conv.Convertible, peer.ID) error
 	Subscribe(*Notifiee)
 	UnSubscribe(*Notifiee)
 	Notify(Message)
