@@ -7,8 +7,6 @@ package chain
 import (
 	"errors"
 
-	lru "github.com/hashicorp/golang-lru"
-
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -17,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -637,6 +636,9 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 // LoadBlockByHeight load block by height from db.
 func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
 
+	if height == 0 {
+		return chain.genesis, nil
+	}
 	blockBin, err := chain.dbBlock.Get(util.FromInt32(height))
 	if err != nil {
 		return nil, err

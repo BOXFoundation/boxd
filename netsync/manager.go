@@ -7,6 +7,7 @@ package netsync
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
@@ -147,58 +148,62 @@ func (sm *SyncManager) handleSyncMessage() {
 }
 
 func (sm *SyncManager) startSync() {
+	logger.Info("start sync...")
 	for {
 		// start block sync.
-		sm.locateRequest()
+		if err := sm.locateRequest(); err != nil {
+			//logger.Warn("locateRequest error: ", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
 
 	out_locate_and_check:
 		for {
 			select {
 			case <-sm.locateAndcheckDoneCh:
+				logger.Info("success to locate and check")
 				break out_locate_and_check
 			case <-sm.locateWrongCh:
 				logger.Infof("SyncManager locate wrong")
 				sm.resetStatus()
 				sm.locateRequest()
 			case <-sm.checkWrongCh:
-				logger.Infof("SyncManager check hash failed %+v hashes", sm.checkHash)
+				logger.Infof("SyncManager check hash failed, checkHash: %+v", sm.checkHash)
 				sm.resetStatus()
 				sm.locateRequest()
 			}
 		}
 
-		logger.Infof("SyncManager starts to sync %d blocks", len(sm.fetchHashes))
+		logger.Infof("start to sync %d blocks", len(sm.fetchHashes))
 	out_sync_block:
 		for {
 			select {
 			case <-sm.syncBlocksDoneCh:
+				logger.Infof("success to sync %d blocks", len(sm.fetchHashes))
 				sm.resetAll()
-				break out_sync_block
+				return
 			}
 		}
-
 	}
 }
 
-func (sm *SyncManager) locateRequest() {
+func (sm *SyncManager) locateRequest() error {
 	// get block locator hashes
 	hashes, err := sm.getLatestBlockLocator()
 	if err != nil {
-		logger.Warn("locateRequest error: ", err)
-		return
+		return err
 	}
+	logger.Infof("locateRequest get lastestBlockLocator %d hashes", len(hashes))
 	lh := newLocateHeaders(hashes...)
 	// select one peer to sync
 	pid, err := sm.pickOnePeer()
 	if err == errNoPeerToSync {
-		logger.Warn("locateRequest error: ", err)
-		return
+		return err
 	}
 	sm.stalePeers[pid] = locatePeerStatus
-	err = sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointRequest, lh, pid)
-	if err != nil {
-		logger.Warn("SendMessageToPeer LocateForkPointRequest error: ", err)
-	}
+	logger.Infof("locateRequest send message[%d hashes] to peer[%s]",
+		len(hashes), pid)
+	return sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointRequest, lh, pid)
 }
 
 func (sm *SyncManager) onLocateForkPointRequest(msg p2p.Message) error {
@@ -395,9 +400,11 @@ func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 	hashes := make([]*crypto.HashType, 0)
 	tailHeight := sm.chain.TailBlock().Height
 	heights := heightLocator(tailHeight)
+	logger.Warnf("heights: %v", heights)
 	for _, h := range heights {
 		b, err := sm.chain.LoadBlockByHeight(h)
 		if err != nil {
+			logger.Warn("locateRequest error: ", err)
 			return nil, err
 		}
 		hashes = append(hashes, b.Hash)
@@ -493,7 +500,8 @@ func (sm *SyncManager) pickOnePeer() (peer.ID, error) {
 	for k := range sm.stalePeers {
 		ids = append(ids, k)
 	}
-	pid := sm.p2pNet.PickOnePeer(ids...)
+	//pid := sm.p2pNet.PickOnePeer(ids...)
+	pid := sm.p2pNet.PickOnePeer()
 	if pid == peer.ID("") {
 		return pid, errNoPeerToSync
 	}
