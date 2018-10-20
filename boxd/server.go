@@ -17,6 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/netsync"
 	p2p "github.com/BOXFoundation/boxd/p2p"
 	grpcserver "github.com/BOXFoundation/boxd/rpc/server"
 	storage "github.com/BOXFoundation/boxd/storage"
@@ -34,13 +35,14 @@ type Server struct {
 	sm   sync.Mutex
 	proc goprocess.Process
 
-	bus        eventbus.Bus
-	cfg        config.Config
-	database   *storage.Database
-	peer       *p2p.BoxPeer
-	grpcsvr    *grpcserver.Server
-	blockChain *chain.BlockChain
-	txPool     *txpool.TransactionPool
+	bus         eventbus.Bus
+	cfg         config.Config
+	database    *storage.Database
+	peer        *p2p.BoxPeer
+	grpcsvr     *grpcserver.Server
+	blockChain  *chain.BlockChain
+	txPool      *txpool.TransactionPool
+	syncManager *netsync.SyncManager
 }
 
 // teardown
@@ -129,6 +131,9 @@ func (server *Server) Start(v *viper.Viper) error {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
 
+	syncManager := netsync.NewSyncManager(blockChain, peer, blockChain.Proc())
+	server.syncManager = syncManager
+
 	peer.Run()
 	blockChain.Run()
 	txPool.Run()
@@ -136,6 +141,10 @@ func (server *Server) Start(v *viper.Viper) error {
 	// 	consensus.Run()
 	// }
 	consensus.Run()
+	syncManager.Run()
+	if len(cfg.P2p.Seeds) > 0 {
+		syncManager.StartSync()
+	}
 
 	// goprocesses dependencies
 	//            root
