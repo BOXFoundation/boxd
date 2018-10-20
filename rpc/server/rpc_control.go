@@ -32,10 +32,10 @@ type ctlserver struct {
 
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
-	var ok bool
 	bus := s.server.GetEventBus()
-	bus.Publish(eventbus.TopicSetDebugLevel, in.Level, &ok)
-	if ok {
+	ch := make(chan bool)
+	bus.Send(eventbus.TopicSetDebugLevel, in.Level, ch)
+	if <-ch {
 		var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
 		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 	}

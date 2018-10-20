@@ -6,5 +6,5 @@ package eventbus
 
 const (
 	// TopicSetDebugLevel is topic for changing debug level
-	TopicSetDebugLevel = "setdebuglevel"
+	TopicSetDebugLevel = "rpc:setdebuglevel"
 )

@@ -164,7 +164,7 @@ func (server *Server) Start(v *viper.Viper) error {
 }
 
 func (server *Server) initEventListener() {
-	server.bus.Subscribe(eventbus.TopicSetDebugLevel, func(newLevel string, ok *bool) {
-		*ok = log.SetLogLevel(newLevel)
-	})
+	server.bus.Reply(eventbus.TopicSetDebugLevel, func(newLevel string, out chan<- bool) {
+		out <- log.SetLogLevel(newLevel)
+	}, false)
 }
