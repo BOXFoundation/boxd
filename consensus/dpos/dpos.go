@@ -12,6 +12,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/util"
@@ -57,7 +58,7 @@ type Dpos struct {
 }
 
 // NewDpos new a dpos implement.
-func NewDpos(chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, parent goprocess.Process, cfg *Config) *Dpos {
+func NewDpos(chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, parent goprocess.Process, cfg *Config) (*Dpos, error) {
 
 	dpos := &Dpos{
 		chain:  chain,
@@ -67,17 +68,15 @@ func NewDpos(chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Ne
 		cfg:    cfg,
 	}
 
-	// pubkey, err := hex.DecodeString(dpos.cfg.Pubkey)
-	// if err != nil {
-	// 	panic("invalid hex in source file: " + dpos.cfg.Pubkey)
-	// }
-	// addr, err := types.NewAddressPubKeyHash(pubkey)
-	// if err != nil {
-	// 	panic("invalid public key in test source")
-	// }
-	// logger.Info("miner addr: ", addr.String())
-	// dpos.miner = addr
-	return dpos
+	tail := chain.TailBlock()
+	context := &ConsensusContext{}
+	period, err := dpos.LoadPeriodContext(tail.Header.PeriodHash)
+	if err != nil {
+		return nil, err
+	}
+	context.periodContext = period
+	dpos.context = context
+	return dpos, nil
 }
 
 // EnableMint return the peer mint status
@@ -127,26 +126,45 @@ func (dpos *Dpos) loop() {
 }
 
 func (dpos *Dpos) mint() error {
+
 	timestamp := time.Now().Unix()
-	// tail := dpos.chain.TailBlock()
-	// if int(now%15) != dpos.cfg.Index {
-	// 	return ErrNoLegalPowerToMint
-	// }
-	miner, err := dpos.context.FindMinerWithTimeStamp(timestamp)
+
+	if err := dpos.checkMiner(timestamp); err != nil {
+		return err
+	}
+
+	logger.Infof("My turn to mint a block, time: %d", timestamp)
+
+	if err := dpos.LoadCandidates(); err != nil {
+		return err
+	}
+	dpos.mintBlock()
+	return nil
+}
+
+func (dpos *Dpos) checkMiner(timestamp int64) error {
+
+	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(timestamp)
 	if err != nil {
 		return err
 	}
-	if miner != dpos.miner.Addr() {
+	addr, err := types.ParseAddress(dpos.miner.Addr())
+	if err != nil {
+		return err
+	}
+	if *miner != *addr.Hash160() {
 		return ErrNotMyTurnToMint
 	}
-	logger.Infof("My turn to mint a block, time: %d", timestamp)
-	dpos.mintBlock()
 	return nil
 }
 
 func (dpos *Dpos) validateMiner() bool {
 
-	if !util.InArray(dpos.miner.Addr(), dpos.context.period) {
+	addr, err := types.ParseAddress(dpos.miner.Addr())
+	if err != nil {
+		return false
+	}
+	if !util.InArray(*addr.Hash160(), dpos.context.periodContext) {
 		return false
 	}
 	if err := dpos.miner.UnlockWithPassphrase(dpos.cfg.passphrase); err != nil {
@@ -205,5 +223,67 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
+	return nil
+}
+
+// LoadPeriodContext load period context
+func (dpos *Dpos) LoadPeriodContext(hash crypto.HashType) (*PeriodContext, error) {
+
+	db := dpos.chain.GetChainDB()
+	period, err := db.Get(hash[:])
+	if err != nil {
+		return nil, err
+	}
+	if period != nil {
+		periodContext := new(PeriodContext)
+		if err := periodContext.Unmarshal(period); err != nil {
+			return nil, err
+		}
+		return periodContext, nil
+	}
+	periodContext, err := InitPeriodContext()
+	if err != nil {
+		return nil, err
+	}
+	dpos.context.periodContext = periodContext
+	if err := dpos.StorePeriodContext(); err != nil {
+		return nil, err
+	}
+	return periodContext, nil
+}
+
+// StorePeriodContext store period context
+func (dpos *Dpos) StorePeriodContext() error {
+
+	db := dpos.chain.GetChainDB()
+	context, err := dpos.context.periodContext.Marshal()
+	if err != nil {
+		return err
+	}
+	hash := crypto.DoubleHashH(context)
+	return db.Put(hash[:], context)
+}
+
+// LoadCandidates load candidates info.
+func (dpos *Dpos) LoadCandidates() error {
+
+	tail := dpos.chain.TailBlock()
+	db := dpos.chain.GetChainDB()
+
+	candidates, err := db.Get(tail.Header.CandidatesHash[:])
+	if err != nil {
+		return err
+	}
+	if candidates != nil {
+		candidatesContext := new(CandidateContext)
+		if err := candidatesContext.Unmarshal(candidates); err != nil {
+			return err
+		}
+		dpos.context.candidateContext = candidatesContext
+		return nil
+	}
+
+	candidatesContext := InitCandidateContext()
+	dpos.context.candidateContext = candidatesContext
 	return nil
 }

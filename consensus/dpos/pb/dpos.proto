@@ -6,13 +6,13 @@ syntax = "proto3";
 
 package dpospb;
 
-message ConsensusContext {
+message PeriodContext {
     repeated bytes period = 1;
     repeated bytes next_period = 2;
 }
 
 
-message Candidates {
+message candidateContext {
     int32 height = 1;
     repeated Candidate candidates = 2;
 }

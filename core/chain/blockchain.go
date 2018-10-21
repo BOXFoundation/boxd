@@ -542,6 +542,11 @@ func (chain *BlockChain) GetBlockHeight() int32 {
 	return chain.LongestChainHeight
 }
 
+// GetChainDB returns chain db
+func (chain *BlockChain) GetChainDB() storage.Table {
+	return chain.dbBlock
+}
+
 // GetBlockHash finds the block in target height of main chain and returns it's hash
 func (chain *BlockChain) GetBlockHash(blockHeight int32) (*crypto.HashType, error) {
 	block, err := chain.LoadBlockByHeight(blockHeight)

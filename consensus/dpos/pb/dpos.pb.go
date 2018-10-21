@@ -20,23 +20,23 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
-type ConsensusContext struct {
+type PeriodContext struct {
 	Period     [][]byte `protobuf:"bytes,1,rep,name=period" json:"period,omitempty"`
 	NextPeriod [][]byte `protobuf:"bytes,2,rep,name=next_period,json=nextPeriod" json:"next_period,omitempty"`
 }
 
-func (m *ConsensusContext) Reset()         { *m = ConsensusContext{} }
-func (m *ConsensusContext) String() string { return proto.CompactTextString(m) }
-func (*ConsensusContext) ProtoMessage()    {}
-func (*ConsensusContext) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dpos_27c63fa2cdfa2a33, []int{0}
+func (m *PeriodContext) Reset()         { *m = PeriodContext{} }
+func (m *PeriodContext) String() string { return proto.CompactTextString(m) }
+func (*PeriodContext) ProtoMessage()    {}
+func (*PeriodContext) Descriptor() ([]byte, []int) {
+	return fileDescriptor_dpos_c5a3ff7a262bc942, []int{0}
 }
-func (m *ConsensusContext) XXX_Unmarshal(b []byte) error {
+func (m *PeriodContext) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *ConsensusContext) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *PeriodContext) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_ConsensusContext.Marshal(b, m, deterministic)
+		return xxx_messageInfo_PeriodContext.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -46,49 +46,49 @@ func (m *ConsensusContext) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return b[:n], nil
 	}
 }
-func (dst *ConsensusContext) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConsensusContext.Merge(dst, src)
+func (dst *PeriodContext) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PeriodContext.Merge(dst, src)
 }
-func (m *ConsensusContext) XXX_Size() int {
+func (m *PeriodContext) XXX_Size() int {
 	return m.Size()
 }
-func (m *ConsensusContext) XXX_DiscardUnknown() {
-	xxx_messageInfo_ConsensusContext.DiscardUnknown(m)
+func (m *PeriodContext) XXX_DiscardUnknown() {
+	xxx_messageInfo_PeriodContext.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ConsensusContext proto.InternalMessageInfo
+var xxx_messageInfo_PeriodContext proto.InternalMessageInfo
 
-func (m *ConsensusContext) GetPeriod() [][]byte {
+func (m *PeriodContext) GetPeriod() [][]byte {
 	if m != nil {
 		return m.Period
 	}
 	return nil
 }
 
-func (m *ConsensusContext) GetNextPeriod() [][]byte {
+func (m *PeriodContext) GetNextPeriod() [][]byte {
 	if m != nil {
 		return m.NextPeriod
 	}
 	return nil
 }
 
-type Candidates struct {
+type CandidateContext struct {
 	Height     int32        `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
 	Candidates []*Candidate `protobuf:"bytes,2,rep,name=candidates" json:"candidates,omitempty"`
 }
 
-func (m *Candidates) Reset()         { *m = Candidates{} }
-func (m *Candidates) String() string { return proto.CompactTextString(m) }
-func (*Candidates) ProtoMessage()    {}
-func (*Candidates) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dpos_27c63fa2cdfa2a33, []int{1}
+func (m *CandidateContext) Reset()         { *m = CandidateContext{} }
+func (m *CandidateContext) String() string { return proto.CompactTextString(m) }
+func (*CandidateContext) ProtoMessage()    {}
+func (*CandidateContext) Descriptor() ([]byte, []int) {
+	return fileDescriptor_dpos_c5a3ff7a262bc942, []int{1}
 }
-func (m *Candidates) XXX_Unmarshal(b []byte) error {
+func (m *CandidateContext) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Candidates) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *CandidateContext) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Candidates.Marshal(b, m, deterministic)
+		return xxx_messageInfo_CandidateContext.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -98,26 +98,26 @@ func (m *Candidates) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (dst *Candidates) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Candidates.Merge(dst, src)
+func (dst *CandidateContext) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CandidateContext.Merge(dst, src)
 }
-func (m *Candidates) XXX_Size() int {
+func (m *CandidateContext) XXX_Size() int {
 	return m.Size()
 }
-func (m *Candidates) XXX_DiscardUnknown() {
-	xxx_messageInfo_Candidates.DiscardUnknown(m)
+func (m *CandidateContext) XXX_DiscardUnknown() {
+	xxx_messageInfo_CandidateContext.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Candidates proto.InternalMessageInfo
+var xxx_messageInfo_CandidateContext proto.InternalMessageInfo
 
-func (m *Candidates) GetHeight() int32 {
+func (m *CandidateContext) GetHeight() int32 {
 	if m != nil {
 		return m.Height
 	}
 	return 0
 }
 
-func (m *Candidates) GetCandidates() []*Candidate {
+func (m *CandidateContext) GetCandidates() []*Candidate {
 	if m != nil {
 		return m.Candidates
 	}
@@ -134,7 +134,7 @@ func (m *Candidate) Reset()         { *m = Candidate{} }
 func (m *Candidate) String() string { return proto.CompactTextString(m) }
 func (*Candidate) ProtoMessage()    {}
 func (*Candidate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dpos_27c63fa2cdfa2a33, []int{2}
+	return fileDescriptor_dpos_c5a3ff7a262bc942, []int{2}
 }
 func (m *Candidate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -185,11 +185,11 @@ func (m *Candidate) GetPeer() string {
 }
 
 func init() {
-	proto.RegisterType((*ConsensusContext)(nil), "dpospb.ConsensusContext")
-	proto.RegisterType((*Candidates)(nil), "dpospb.Candidates")
+	proto.RegisterType((*PeriodContext)(nil), "dpospb.PeriodContext")
+	proto.RegisterType((*CandidateContext)(nil), "dpospb.candidateContext")
 	proto.RegisterType((*Candidate)(nil), "dpospb.Candidate")
 }
-func (m *ConsensusContext) Marshal() (dAtA []byte, err error) {
+func (m *PeriodContext) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -199,7 +199,7 @@ func (m *ConsensusContext) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *ConsensusContext) MarshalTo(dAtA []byte) (int, error) {
+func (m *PeriodContext) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -223,7 +223,7 @@ func (m *ConsensusContext) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *Candidates) Marshal() (dAtA []byte, err error) {
+func (m *CandidateContext) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -233,7 +233,7 @@ func (m *Candidates) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Candidates) MarshalTo(dAtA []byte) (int, error) {
+func (m *CandidateContext) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -302,7 +302,7 @@ func encodeVarintDpos(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
-func (m *ConsensusContext) Size() (n int) {
+func (m *PeriodContext) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -323,7 +323,7 @@ func (m *ConsensusContext) Size() (n int) {
 	return n
 }
 
-func (m *Candidates) Size() (n int) {
+func (m *CandidateContext) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -374,7 +374,7 @@ func sovDpos(x uint64) (n int) {
 func sozDpos(x uint64) (n int) {
 	return sovDpos(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *ConsensusContext) Unmarshal(dAtA []byte) error {
+func (m *PeriodContext) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -397,10 +397,10 @@ func (m *ConsensusContext) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ConsensusContext: wiretype end group for non-group")
+			return fmt.Errorf("proto: PeriodContext: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ConsensusContext: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PeriodContext: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -482,7 +482,7 @@ func (m *ConsensusContext) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Candidates) Unmarshal(dAtA []byte) error {
+func (m *CandidateContext) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -505,10 +505,10 @@ func (m *Candidates) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Candidates: wiretype end group for non-group")
+			return fmt.Errorf("proto: candidateContext: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Candidates: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: candidateContext: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -816,23 +816,22 @@ var (
 	ErrIntOverflowDpos   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("dpos.proto", fileDescriptor_dpos_27c63fa2cdfa2a33) }
+func init() { proto.RegisterFile("dpos.proto", fileDescriptor_dpos_c5a3ff7a262bc942) }
 
-var fileDescriptor_dpos_27c63fa2cdfa2a33 = []byte{
-	// 229 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x4c, 0x90, 0xbd, 0x4e, 0x85, 0x30,
-	0x14, 0xc7, 0xa9, 0xd7, 0x4b, 0x72, 0x0f, 0x0c, 0xda, 0x18, 0xd3, 0xa9, 0x12, 0x26, 0x26, 0x12,
-	0xf5, 0x0d, 0x64, 0x32, 0x2e, 0xa6, 0x8b, 0xa3, 0x01, 0x7b, 0x22, 0x2c, 0x6d, 0xd3, 0x56, 0xc3,
-	0x63, 0xf8, 0x58, 0x8e, 0x8c, 0x8e, 0x06, 0x5e, 0xc4, 0xb4, 0x10, 0xe2, 0xf6, 0xff, 0xea, 0xaf,
-	0x4d, 0x01, 0xa4, 0xd1, 0xae, 0x36, 0x56, 0x7b, 0x4d, 0xd3, 0xa0, 0x4d, 0x57, 0x3e, 0xc1, 0x45,
-	0xa3, 0x95, 0x43, 0xe5, 0x3e, 0x5c, 0xa3, 0x95, 0xc7, 0xd1, 0xd3, 0x6b, 0x48, 0x0d, 0xda, 0x41,
-	0x4b, 0x46, 0x8a, 0x43, 0x95, 0x8b, 0xcd, 0xd1, 0x1b, 0xc8, 0x14, 0x8e, 0xfe, 0x75, 0x2b, 0xcf,
-	0x62, 0x09, 0x21, 0x7a, 0x8e, 0x49, 0xf9, 0x02, 0xd0, 0xb4, 0x4a, 0x0e, 0xb2, 0xf5, 0xe8, 0x02,
-	0xa6, 0xc7, 0xe1, 0xbd, 0xf7, 0x8c, 0x14, 0xa4, 0x3a, 0x8a, 0xcd, 0xd1, 0x5b, 0x80, 0xb7, 0x7d,
-	0x15, 0x29, 0xd9, 0xdd, 0x65, 0xbd, 0xbe, 0xa7, 0xde, 0xcf, 0x8b, 0x7f, 0xa3, 0xf2, 0x11, 0x4e,
-	0x7b, 0x41, 0x29, 0x9c, 0xb7, 0x52, 0xda, 0x48, 0xcd, 0x45, 0xd4, 0xf4, 0x0a, 0x8e, 0x9f, 0x7a,
-	0xc5, 0x85, 0xab, 0x56, 0x13, 0x96, 0x06, 0xd1, 0xb2, 0x43, 0x41, 0xaa, 0x93, 0x88, 0xfa, 0x81,
-	0x7d, 0xcf, 0x9c, 0x4c, 0x33, 0x27, 0xbf, 0x33, 0x27, 0x5f, 0x0b, 0x4f, 0xa6, 0x85, 0x27, 0x3f,
-	0x0b, 0x4f, 0xba, 0x34, 0xfe, 0xcc, 0xfd, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x4c, 0x88, 0x20,
-	0x9d, 0x27, 0x01, 0x00, 0x00,
+var fileDescriptor_dpos_c5a3ff7a262bc942 = []byte{
+	// 223 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x4c, 0x90, 0x4f, 0x4b, 0x86, 0x30,
+	0x1c, 0xc7, 0x5d, 0xa6, 0xe0, 0x4f, 0x83, 0x1a, 0x11, 0x3b, 0x2d, 0xf1, 0xe4, 0x49, 0xa8, 0xde,
+	0x41, 0x5e, 0xea, 0x16, 0xbb, 0x47, 0x68, 0x1b, 0xe9, 0xc5, 0x8d, 0x39, 0xc2, 0x97, 0xd1, 0xcb,
+	0xea, 0xe8, 0xb1, 0x63, 0xe8, 0x1b, 0x79, 0xd8, 0xe6, 0x23, 0xde, 0xbe, 0xff, 0xf6, 0xd9, 0x18,
+	0x00, 0x57, 0x72, 0xac, 0x94, 0x96, 0x46, 0xe2, 0xd8, 0x6a, 0xd5, 0x16, 0x2f, 0x70, 0xf5, 0x26,
+	0x74, 0x2f, 0x79, 0x2d, 0x07, 0x23, 0x26, 0x83, 0xef, 0x20, 0x56, 0x2e, 0x20, 0x28, 0x0f, 0xcb,
+	0x8c, 0x6d, 0x0e, 0xdf, 0x43, 0x3a, 0x88, 0xc9, 0x7c, 0x6c, 0xe5, 0x85, 0x2b, 0xc1, 0x46, 0xfe,
+	0x7c, 0xf1, 0x0e, 0xd7, 0x9f, 0xcd, 0xc0, 0x7b, 0xde, 0x18, 0x71, 0x80, 0x75, 0xa2, 0xff, 0xea,
+	0x0c, 0x41, 0x39, 0x2a, 0x23, 0xb6, 0x39, 0xfc, 0x00, 0xb0, 0x6f, 0x47, 0xc7, 0x4a, 0x1f, 0x6f,
+	0x2a, 0xff, 0xa4, 0xaa, 0x3e, 0x37, 0xec, 0x30, 0x2a, 0x5e, 0x21, 0xd9, 0x0b, 0x8c, 0xe1, 0xb2,
+	0xe1, 0x5c, 0x3b, 0x6a, 0xc6, 0x9c, 0xc6, 0xb7, 0x10, 0x7d, 0x4b, 0x8f, 0xb3, 0x57, 0x79, 0x63,
+	0x97, 0x4a, 0x08, 0x4d, 0xc2, 0x1c, 0x95, 0x09, 0x73, 0xfa, 0x99, 0xfc, 0x2e, 0x14, 0xcd, 0x0b,
+	0x45, 0xff, 0x0b, 0x45, 0x3f, 0x2b, 0x0d, 0xe6, 0x95, 0x06, 0x7f, 0x2b, 0x0d, 0xda, 0xd8, 0x7d,
+	0xce, 0xd3, 0x29, 0x00, 0x00, 0xff, 0xff, 0x14, 0x0e, 0x69, 0xac, 0x2a, 0x01, 0x00, 0x00,
 }

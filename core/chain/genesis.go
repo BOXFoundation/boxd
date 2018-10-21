@@ -49,15 +49,16 @@ var genesisBlock = types.Block{
 
 var genesisHash = *(genesisBlock.BlockHash())
 
-var genesisPeriod = []string{
+// GenesisPeriod genesis period
+var GenesisPeriod = []string{
 	"b1xxxxxxxxxx",
 	"b2xxxxxxxxxx",
 }
 
 func initGenesisConsensusContext() crypto.HashType {
-	hashs := make([]*crypto.HashType, len(genesisPeriod))
-	for index := range genesisPeriod {
-		hash := crypto.DoubleHashH([]byte(genesisPeriod[index]))
+	hashs := make([]*crypto.HashType, len(GenesisPeriod))
+	for index := range GenesisPeriod {
+		hash := crypto.DoubleHashH([]byte(GenesisPeriod[index]))
 		hashs[index] = &hash
 	}
 	merkRootHashs := util.BuildMerkleRoot(hashs)

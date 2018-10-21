@@ -103,7 +103,6 @@ func (server *Server) Start(v *viper.Viper) error {
 	peer, err := p2p.NewBoxPeer(database.Proc(), &cfg.P2p, database)
 	if err != nil {
 		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
-		proc.Close()
 	}
 	// Add peers configured by user
 	for _, addr := range cfg.P2p.AddPeers {
@@ -118,14 +117,16 @@ func (server *Server) Start(v *viper.Viper) error {
 	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
-		proc.Close()
 	}
 	server.blockChain = blockChain
 
 	txPool := txpool.NewTransactionPool(blockChain.Proc(), peer, blockChain)
 	server.txPool = txPool
 
-	consensus := dpos.NewDpos(blockChain, txPool, peer, txPool.Proc(), &cfg.Dpos)
+	consensus, err := dpos.NewDpos(blockChain, txPool, peer, txPool.Proc(), &cfg.Dpos)
+	if err != nil {
+		logger.Fatalf("Failed to new Dpos, error: %v", err)
+	}
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)

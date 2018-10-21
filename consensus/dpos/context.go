@@ -5,6 +5,8 @@
 package dpos
 
 import (
+	"errors"
+
 	"github.com/BOXFoundation/boxd/consensus/dpos/pb"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -14,29 +16,46 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
+// Define error
+var (
+	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")
+	ErrInvalidConsensusContextProtoMessage = errors.New("Invalid consensusContext proto message")
+	ErrInvalidCandidateContextProtoMessage = errors.New("Invalid condidate Context proto message")
+)
+
 // ConsensusContext represent consensus context info.
 type ConsensusContext struct {
-	chain      *chain.BlockChain
-	height     int32
+	periodContext    *PeriodContext
+	candidateContext *CandidateContext
+}
+
+// PeriodContext represent period context info.
+type PeriodContext struct {
 	period     []types.AddressHash
 	nextPeriod []types.AddressHash
-	candidates []*Candidate
 }
 
-// NewContext new consensus context.
-func NewContext(chain *chain.BlockChain) *ConsensusContext {
-	tail := chain.TailBlock()
-	return &ConsensusContext{
-		chain:  chain,
-		height: tail.Height,
+// InitPeriodContext init period context.
+func InitPeriodContext() (*PeriodContext, error) {
+
+	period := make([]types.AddressHash, PeriodSize)
+	for k, v := range chain.GenesisPeriod {
+		addr, err := types.ParseAddress(v)
+		if err != nil {
+			return nil, err
+		}
+		period[k] = *addr.Hash160()
 	}
+	return &PeriodContext{
+		period: period,
+	}, nil
 }
 
-var _ conv.Convertible = (*ConsensusContext)(nil)
-var _ conv.Serializable = (*ConsensusContext)(nil)
+var _ conv.Convertible = (*PeriodContext)(nil)
+var _ conv.Serializable = (*PeriodContext)(nil)
 
-// ToProtoMessage converts ConsensusContext to proto message.
-func (context *ConsensusContext) ToProtoMessage() (proto.Message, error) {
+// ToProtoMessage converts PeriodContext to proto message.
+func (context *PeriodContext) ToProtoMessage() (proto.Message, error) {
 
 	var period [][]byte
 	for _, v := range context.period {
@@ -48,15 +67,15 @@ func (context *ConsensusContext) ToProtoMessage() (proto.Message, error) {
 		nextPeriod = append(nextPeriod, v[:])
 	}
 
-	return &dpospb.ConsensusContext{
+	return &dpospb.PeriodContext{
 		Period:     period,
 		NextPeriod: nextPeriod,
 	}, nil
 }
 
-// FromProtoMessage converts proto message to ConsensusContext.
-func (context *ConsensusContext) FromProtoMessage(message proto.Message) error {
-	if message, ok := message.(*dpospb.ConsensusContext); ok {
+// FromProtoMessage converts proto message to PeriodContext.
+func (context *PeriodContext) FromProtoMessage(message proto.Message) error {
+	if message, ok := message.(*dpospb.PeriodContext); ok {
 		if message != nil {
 			var period []types.AddressHash
 			for _, v := range message.Period {
@@ -79,16 +98,16 @@ func (context *ConsensusContext) FromProtoMessage(message proto.Message) error {
 		return core.ErrEmptyProtoMessage
 	}
 
-	return core.ErrInvalidBlockHeaderProtoMessage
+	return ErrInvalidConsensusContextProtoMessage
 }
 
 // Marshal method marshal ConsensusContext object to binary
-func (context *ConsensusContext) Marshal() (data []byte, err error) {
+func (context *PeriodContext) Marshal() (data []byte, err error) {
 	return conv.MarshalConvertible(context)
 }
 
 // Unmarshal method unmarshal binary data to ConsensusContext object
-func (context *ConsensusContext) Unmarshal(data []byte) error {
+func (context *PeriodContext) Unmarshal(data []byte) error {
 	msg := &dpospb.Candidate{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
@@ -97,7 +116,7 @@ func (context *ConsensusContext) Unmarshal(data []byte) error {
 }
 
 // FindMinerWithTimeStamp find miner in given timestamp
-func (context *ConsensusContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
+func (context *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
 
 	period := context.period
 	offsetPeriod := timestamp % (NewBlockTimeInterval * PeriodSize)
@@ -116,11 +135,85 @@ func (context *ConsensusContext) FindMinerWithTimeStamp(timestamp int64) (*types
 	return miner, nil
 }
 
-// Candidates represent possible to be the miner.
-type Candidates struct {
-	height     int64
+///////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
+
+// CandidateContext represent possible to be the miner.
+type CandidateContext struct {
+	height     int32
 	candidates []*Candidate
 }
+
+// InitCandidateContext init candidate context
+func InitCandidateContext() *CandidateContext {
+	return &CandidateContext{
+		height:     0,
+		candidates: []*Candidate{},
+	}
+}
+
+var _ conv.Convertible = (*CandidateContext)(nil)
+var _ conv.Serializable = (*CandidateContext)(nil)
+
+// ToProtoMessage converts block header to proto message.
+func (candidateContext *CandidateContext) ToProtoMessage() (proto.Message, error) {
+
+	candidates := make([]*dpospb.Candidate, len(candidateContext.candidates))
+	for k, v := range candidateContext.candidates {
+		candidate, err := v.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if candidate, ok := candidate.(*dpospb.Candidate); ok {
+			candidates[k] = candidate
+		}
+	}
+
+	return &dpospb.CandidateContext{
+		Height:     candidateContext.height,
+		Candidates: candidates,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to candidate.
+func (candidateContext *CandidateContext) FromProtoMessage(message proto.Message) error {
+
+	if message, ok := message.(*dpospb.CandidateContext); ok {
+		if message != nil {
+			candidates := make([]*Candidate, len(message.Candidates))
+			for k, v := range message.Candidates {
+				candidate := new(Candidate)
+				if err := candidate.FromProtoMessage(v); err != nil {
+					return err
+				}
+				candidates[k] = candidate
+			}
+			candidateContext.height = message.Height
+			candidateContext.candidates = candidates
+			return nil
+		}
+		return core.ErrEmptyProtoMessage
+	}
+
+	return ErrInvalidCandidateContextProtoMessage
+}
+
+// Marshal method marshal CandidateContext object to binary
+func (candidateContext *CandidateContext) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(candidateContext)
+}
+
+// Unmarshal method unmarshal binary data to CandidateContext object
+func (candidateContext *CandidateContext) Unmarshal(data []byte) error {
+	msg := &dpospb.CandidateContext{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return candidateContext.FromProtoMessage(msg)
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
 // Candidate represent possible to be the miner.
 type Candidate struct {
@@ -152,7 +245,7 @@ func (candidate *Candidate) FromProtoMessage(message proto.Message) error {
 		return core.ErrEmptyProtoMessage
 	}
 
-	return core.ErrInvalidBlockHeaderProtoMessage
+	return ErrInvalidCandidateProtoMessage
 }
 
 // Marshal method marshal Candidate object to binary
