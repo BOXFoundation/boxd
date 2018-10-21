@@ -6,34 +6,34 @@ package crypto
 
 import (
 	"testing"
+
+	"github.com/facebookgo/ensure"
 )
 
 func TestSignMessage(t *testing.T) {
 	privKey, pubKey, err := NewKeyPair()
-	if err != nil {
-		t.Errorf("Error generating new key pair: %s", err)
-		return
-	}
+	ensure.Nil(t, err)
+
+	// serialize & deserialize
+	pubKeyBytes := pubKey.Serialize()
+	pubKey2, _ := PublicKeyFromBytes(pubKeyBytes)
+	ensure.DeepEqual(t, pubKey, pubKey2)
 
 	message := "dummy test message"
-	messageHash := Sha256(Sha256([]byte(message)))
+	msgHash := DoubleHashH([]byte(message))
+	messageHash := &msgHash
 	sig, err := Sign(privKey, messageHash)
+	ensure.Nil(t, err)
 
-	if err != nil {
-		t.Errorf("Error signing: %s", err)
-		return
-	}
-	if !sig.VerifySignature(pubKey, messageHash) {
-		t.Error("Signature verification failed")
-	}
+	ensure.True(t, sig.VerifySignature(pubKey, messageHash))
 
 	// use another public key
-	_, pubKey2, err := NewKeyPair()
-	if err != nil {
-		t.Errorf("Error generating new key pair: %s", err)
-		return
-	}
-	if sig.VerifySignature(pubKey2, messageHash) {
-		t.Error("Signature verification succeeded, but should have failed because of wrong public key")
-	}
+	_, pubKeyNew, err := NewKeyPair()
+	ensure.Nil(t, err)
+	ensure.False(t, sig.VerifySignature(pubKeyNew, messageHash))
+
+	// serialize & deserialize
+	sigBytes := sig.Serialize()
+	sig2, _ := SigFromBytes(sigBytes)
+	ensure.DeepEqual(t, sig, sig2)
 }

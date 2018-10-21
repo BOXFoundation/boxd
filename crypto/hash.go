@@ -58,6 +58,11 @@ func DoubleHashH(b []byte) HashType {
 	return HashType(sha256.Sum256(first[:]))
 }
 
+// Hash160 calculates the hash ripemd160(sha256(b)).
+func Hash160(b []byte) []byte {
+	return Ripemd160(Sha256(b))
+}
+
 // IsEqual returns true if target is the same as hash.
 func (hash *HashType) IsEqual(target *HashType) bool {
 	if hash == nil && target == nil {
