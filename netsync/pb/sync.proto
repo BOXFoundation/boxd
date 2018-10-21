@@ -41,7 +41,7 @@ message SyncCheckHash {
     bytes root_hash = 1;
 }
 
-message FetchBlocksHeaders {
+message FetchBlockHeaders {
     repeated bytes hashes = 1;
 }
 

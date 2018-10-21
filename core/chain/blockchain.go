@@ -6,6 +6,7 @@ package chain
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -712,9 +713,10 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32)
 		return nil, err
 	}
 	tailHeight := chain.tail.Height
-	currentHeight := block.Height + 1
+	currentHeight := block.Height - 1
 	if tailHeight-currentHeight < num {
-		return nil, errors.New("Invalid params num")
+		return nil, fmt.Errorf("Invalid params num[%d] (tailHeight[%d], "+
+			"currentHeight[%d])", num, tailHeight, currentHeight)
 	}
 
 	var idx int32
