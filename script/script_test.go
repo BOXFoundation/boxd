@@ -7,31 +7,80 @@ package script
 import (
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/facebookgo/ensure"
 )
 
-func newScript(opCodes []OpCode) *Script {
-	var script Script
-	for _, op := range opCodes {
-		script = append(script, byte(op))
-	}
-	return &script
-}
-
-func TestScriptEvaluation(t *testing.T) {
-	script := newScript([]OpCode{OP8, OP6, OPADD, OP14, OPEQUAL})
-	err := script.Evaluate()
+// test script not dependent on a tx
+func TestNonTxScriptEvaluation(t *testing.T) {
+	script := NewScript()
+	script.AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPADD).AddOpCode(OP14).AddOpCode(OPEQUAL)
+	err := script.Evaluate(nil, 0)
 	ensure.Nil(t, err)
 
-	script = newScript([]OpCode{OP8, OP6, OPADD, OP11, OPEQUAL})
-	err = script.Evaluate()
+	script = NewScript()
+	script.AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPADD).AddOpCode(OP11).AddOpCode(OPEQUAL)
+	err = script.Evaluate(nil, 0)
 	ensure.NotNil(t, err)
 
-	script = newScript([]OpCode{OP8, OP6, OPADD, OP11, OPEQUALVERIFY})
-	err = script.Evaluate()
+	script = NewScript()
+	script.AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPADD).AddOpCode(OP11).AddOpCode(OPEQUALVERIFY)
+	err = script.Evaluate(nil, 0)
 	ensure.NotNil(t, err)
 
-	script = newScript([]OpCode{OP8, OP6, OPSUB, OP2, OPEQUAL})
-	err = script.Evaluate()
+	script = NewScript()
+	script.AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPSUB).AddOpCode(OP2).AddOpCode(OPEQUAL)
+	err = script.Evaluate(nil, 0)
+	ensure.Nil(t, err)
+
+	script = NewScript()
+	script.AddOpCode(OP6).AddOpCode(OPDUP).AddOpCode(OPSUB).AddOpCode(OP0).AddOpCode(OPEQUAL)
+	err = script.Evaluate(nil, 0)
+	ensure.Nil(t, err)
+}
+
+// test p2pkh script
+func TestP2PKH(t *testing.T) {
+	// TODO: to be wrapped in a helper function
+	outPoint := types.OutPoint{
+		Hash:  crypto.HashType{0x0010},
+		Index: 0,
+	}
+	txIn := &types.TxIn{
+		PrevOutPoint: outPoint,
+		ScriptSig:    []byte{},
+		Sequence:     0,
+	}
+	vIn := []*types.TxIn{
+		txIn,
+	}
+	txOut := &types.TxOut{
+		Value:        1,
+		ScriptPubKey: []byte{},
+	}
+	vOut := []*types.TxOut{txOut}
+	tx := &types.Transaction{
+		Version:  1,
+		Vin:      vIn,
+		Vout:     vOut,
+		Magic:    1,
+		LockTime: 0,
+	}
+
+	privKey, pubKey, _ := crypto.NewKeyPair()
+	pubKeyStr := pubKey.Serialize()
+	pubKeyHash := crypto.Hash160(pubKeyStr)
+
+	scriptPubKey := NewScript()
+	scriptPubKey.AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	hash, _ := CalcTxHashForSig([]byte(*scriptPubKey), tx, 0)
+	sig, _ := crypto.Sign(privKey, hash)
+	sigStr := sig.Serialize()
+
+	// P2PKH script: sig, pubKey, OPCODESEPARATOR, OPDUP, OPHASH160, pubKeyHash, OPEQUALVERIFY, OPCHECKSIG
+	script := NewScript()
+	script.AddOperand(sigStr).AddOperand(pubKeyStr).AddOpCode(OPCODESEPARATOR).AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	err := script.Evaluate(tx, 0)
 	ensure.Nil(t, err)
 }
