@@ -336,7 +336,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	// // TODO: needed?
 	// // The coinbase for the Genesis block is not spendable, so just return
 	// // an error now.
-	// if block.BlockHash.IsEqual(genesisHash) {
+	// if block.BlockHash.IsEqual(GenesisHash) {
 	// 	str := "the coinbase for the genesis block is not spendable"
 	// 	return ErrMissingTxOut
 	// }
@@ -571,8 +571,8 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
-	if ok, _ := chain.dbBlock.Has(genesisHash[:]); ok {
-		genesisBlockFromDb, err := chain.LoadBlockByHash(genesisHash)
+	if ok, _ := chain.dbBlock.Has(GenesisHash[:]); ok {
+		genesisBlockFromDb, err := chain.LoadBlockByHash(GenesisHash)
 		if err != nil {
 			return nil, err
 		}
@@ -583,7 +583,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.dbBlock.Put(genesisHash[:], genesisBin)
+	chain.dbBlock.Put(GenesisHash[:], genesisBin)
 
 	return &genesisBlock, nil
 
@@ -677,7 +677,7 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 		if block != nil {
 			result := []*crypto.HashType{}
 			currentHeight := block.Height + 1
-			if tailHeight-block.Height < MaxBlockHeaderCountInSyncTask {
+			if tailHeight-block.Height+1 < MaxBlockHeaderCountInSyncTask {
 				for currentHeight <= tailHeight {
 					block, err := chain.LoadBlockByHeight(currentHeight)
 					if err != nil {
@@ -712,17 +712,14 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32)
 	if err != nil {
 		return nil, err
 	}
-	tailHeight := chain.tail.Height
-	currentHeight := block.Height - 1
-	if tailHeight-currentHeight < num {
+	if chain.tail.Height-block.Height+1 < num {
 		return nil, fmt.Errorf("Invalid params num[%d] (tailHeight[%d], "+
-			"currentHeight[%d])", num, tailHeight, currentHeight)
+			"currentHeight[%d])", num, chain.tail.Height, block.Height)
 	}
-
 	var idx int32
 	hashes := make([]*crypto.HashType, num)
 	for idx < num {
-		block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		block, err := chain.LoadBlockByHeight(block.Height + idx)
 		if err != nil {
 			return nil, err
 		}
@@ -740,15 +737,13 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	if err != nil {
 		return nil, err
 	}
-	tailHeight := chain.tail.Height
-	currentHeight := block.Height + 1
-	if tailHeight-currentHeight < num {
+	if chain.tail.Height-block.Height+1 < num {
 		return nil, errors.New("Invalid params num")
 	}
 	var idx int32
 	blocks := make([]*types.Block, num)
 	for idx < num {
-		block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		block, err := chain.LoadBlockByHeight(block.Height + idx)
 		if err != nil {
 			return nil, err
 		}

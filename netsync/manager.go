@@ -269,6 +269,7 @@ func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
 		logger.Infof("onLocateRequest fetch headers error: %s", err)
 		return err
 	}
+	logger.Debugf("onLocateRequest send %d hashes", len(hashes))
 	// send SyncHeaders hashes to active end
 	sh := newSyncHeaders(hashes...)
 	logger.Infof("send message[0x%X] (%d hashes) to peer %s",
@@ -295,13 +296,14 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 		sm.locateWrongCh <- struct{}{}
 		return nil
 	}
+	logger.Debugf("onLocateResponse receive %d hashes", len(sh.Hashes))
 	// get headers hashes needed to sync
 	hashes, err := sm.getSyncHeaders(sh.Hashes)
 	if err != nil {
 		logger.Infof("getSyncHeaders error: %s", err)
 		return err
 	}
-	logger.Debugf("getSyncHeaders hashes[%d]", len(hashes))
+	logger.Debugf("onLocateResponse getSyncHeaders %d hashes", len(hashes))
 	sm.fetchHashes = hashes
 	merkleRoot := util.BuildMerkleRoot(hashes)
 	sm.checkRootHash = merkleRoot[len(merkleRoot)-1]
@@ -380,8 +382,8 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 	}
 	// check rootHash
 	if *sm.checkRootHash != *sch.RootHash {
-		logger.Warnf("check RootHash mismatch from peer[%s], recv: %v, want: %v, msg body: %+v",
-			msg.From().Pretty(), sch.RootHash, sm.checkRootHash, msg.Body())
+		logger.Warnf("check RootHash mismatch from peer[%s], recv: %v, want: %v",
+			msg.From().Pretty(), sch.RootHash, sm.checkRootHash)
 		sm.checkWrongCh <- struct{}{}
 		return nil
 	}
@@ -449,7 +451,7 @@ func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 	hashes := make([]*crypto.HashType, 0)
 	tailHeight := sm.chain.TailBlock().Height
 	if tailHeight == 0 {
-		return nil, nil
+		return []*crypto.HashType{&chain.GenesisHash}, nil
 	}
 	heights := heightLocator(tailHeight)
 	for _, h := range heights {
