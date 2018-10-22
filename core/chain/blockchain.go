@@ -7,8 +7,6 @@ package chain
 import (
 	"errors"
 
-	lru "github.com/hashicorp/golang-lru"
-
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -17,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -106,28 +105,38 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	return b, nil
 }
 
+// implement interface service.Server
+var _ service.Server = (*BlockChain)(nil)
+
+// Run launch blockchain.
+func (chain *BlockChain) Run() error {
+	chain.subscribeMessageNotifiee()
+	chain.proc.Go(chain.loop)
+
+	return nil
+}
+
 // Proc returns the goprocess of the BlockChain
 func (chain *BlockChain) Proc() goprocess.Process {
 	return chain.proc
 }
 
-// Run launch blockchain.
-func (chain *BlockChain) Run() {
-	chain.subscribeMessageNotifiee()
-	go chain.loop()
+// Stop the blockchain service
+func (chain *BlockChain) Stop() {
+	chain.proc.Close()
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
 	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
 }
 
-func (chain *BlockChain) loop() {
+func (chain *BlockChain) loop(p goprocess.Process) {
 	logger.Info("Waitting for new block message...")
 	for {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
-		case <-chain.proc.Closing():
+		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
 		}

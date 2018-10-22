@@ -52,24 +52,34 @@ func TestTableDel(t *testing.T) {
 	table, err := db.Table("t1")
 	ensure.Nil(t, err)
 
-	var keys = []string{}
-	for i := 0; i < 10000; i++ {
-		k := fmt.Sprintf("key-%d", i)
-		v := fmt.Sprintf("value-%d", i)
+	var keys = [][]byte{}
+	for i := 0; i < 100; i++ {
+		k := []byte(fmt.Sprintf("key-%d", i))
+		v := []byte(fmt.Sprintf("value-%d", i))
 
-		ensure.Nil(t, table.Put([]byte(k), []byte(v)))
-		wg.Add(1)
+		ensure.Nil(t, table.Put(k, v))
+
+		has, err := db.Has(k)
+		ensure.Nil(t, err)
+		ensure.False(t, has)
+
 		keys = append(keys, k)
+		wg.Add(1)
 	}
 
 	for _, k := range keys {
 		go func(k []byte) {
+			defer wg.Done()
 			ensure.Nil(t, db.Del(k))
-			wg.Done()
-		}([]byte(k))
+
+			has, err := db.Has(k)
+			ensure.Nil(t, err)
+			ensure.False(t, has)
+		}(k)
 	}
 	wg.Wait()
 }
+
 func TestTableBatch(t *testing.T) {
 	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)

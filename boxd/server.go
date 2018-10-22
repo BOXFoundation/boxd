@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/boxd/service"
 	config "github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/consensus/dpos"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -24,7 +25,6 @@ import (
 	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
 	"github.com/jbenet/goprocess"
-	"github.com/spf13/viper"
 )
 
 var logger = log.NewLogger("boxd") // logger for node package
@@ -36,13 +36,25 @@ type Server struct {
 	proc goprocess.Process
 
 	bus         eventbus.Bus
-	cfg         config.Config
+	cfg         *config.Config
 	database    *storage.Database
 	peer        *p2p.BoxPeer
 	grpcsvr     *grpcserver.Server
 	blockChain  *chain.BlockChain
 	txPool      *txpool.TransactionPool
 	syncManager *netsync.SyncManager
+}
+
+// NewServer new a boxd server
+func NewServer(cfg *config.Config) *Server {
+	server := &Server{
+		proc: goprocess.WithSignals(os.Interrupt),
+		bus:  eventbus.Default(),
+		cfg:  cfg,
+	}
+	server.initEventListener()
+	server.proc.SetTeardown(server.teardown)
+	return server
 }
 
 // teardown
@@ -66,34 +78,25 @@ func (server *Server) teardown() error {
 	}
 }
 
-// NewServer new a boxd server
-func NewServer() *Server {
-	server := &Server{
-		proc: goprocess.WithSignals(os.Interrupt),
-		bus:  eventbus.Default(),
-	}
-	server.initEventListener()
-	server.proc.SetTeardown(server.teardown)
-	return server
-}
-
-// Start function starts node server.
-func (server *Server) Start(v *viper.Viper) error {
+// Prepare to run the boxd server
+func (server *Server) Prepare() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	// make sure the cfg is correct and all directories are ok.
+	server.cfg.Prepare()
+	// setup logger
+	log.Setup(&server.cfg.Log)
+}
+
+var _ service.Server = (*Server)(nil)
+
+// Run to start node server.
+func (server *Server) Run() error {
 	var proc = server.proc // parent goprocess
-	var cfg = &server.cfg
-	// init config object from viper
-	if err := v.Unmarshal(cfg); err != nil {
-		logger.Fatal("Failed to read cfg", err) // exit in case of cfg error
-	}
-
-	cfg.Prepare() // make sure the cfg is correct and all directories are ok.
-
-	log.Setup(&cfg.Log) // setup logger
+	var cfg = server.cfg
 
 	// start database life cycle
-	var database, err = storage.NewDatabase(proc, &cfg.Database)
+	database, err := storage.NewDatabase(proc, &cfg.Database)
 	if err != nil {
 		logger.Fatalf("Failed to initialize database: %v", err) // exit in case of error during initialization of database
 	}
@@ -123,7 +126,7 @@ func (server *Server) Start(v *viper.Viper) error {
 	txPool := txpool.NewTransactionPool(blockChain.Proc(), peer, blockChain)
 	server.txPool = txPool
 
-	consensus, err := dpos.NewDpos(blockChain, txPool, peer, txPool.Proc(), &cfg.Dpos)
+	consensus, err := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
 	if err != nil {
 		logger.Fatalf("Failed to new Dpos, error: %v", err)
 	}
@@ -150,6 +153,11 @@ func (server *Server) Start(v *viper.Viper) error {
 		syncManager.StartSync()
 	}
 
+	if cfg.RPC.Enabled {
+		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
+		server.grpcsvr.Run()
+	}
+
 	// goprocesses dependencies
 	//            root
 	//              |
@@ -174,6 +182,16 @@ func (server *Server) Start(v *viper.Viper) error {
 	}
 
 	return nil
+}
+
+// Proc returns the goprocess to run the server
+func (server *Server) Proc() goprocess.Process {
+	return server.proc
+}
+
+// Stop the server
+func (server *Server) Stop() {
+	server.proc.Close()
 }
 
 func (server *Server) initEventListener() {

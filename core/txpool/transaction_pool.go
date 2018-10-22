@@ -71,10 +71,15 @@ func (tx_pool *TransactionPool) subscribeMessageNotifiee(notifiee p2p.Net) {
 	notifiee.Subscribe(p2p.NewNotifiee(p2p.ChainUpdateMsg, tx_pool.newChainUpdateMsgCh))
 }
 
+// implement interface service.Server
+var _ service.Server = (*TransactionPool)(nil)
+
 // Run launch transaction pool.
-func (tx_pool *TransactionPool) Run() {
+func (tx_pool *TransactionPool) Run() error {
 	tx_pool.subscribeMessageNotifiee(tx_pool.notifiee)
-	go tx_pool.loop()
+	tx_pool.proc.Go(tx_pool.loop)
+
+	return nil
 }
 
 // Proc returns the goprocess of the TransactionPool
@@ -82,8 +87,13 @@ func (tx_pool *TransactionPool) Proc() goprocess.Process {
 	return tx_pool.proc
 }
 
+// Stop the server
+func (tx_pool *TransactionPool) Stop() {
+	tx_pool.proc.Close()
+}
+
 // handle new tx message from network.
-func (tx_pool *TransactionPool) loop() {
+func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	logger.Info("Waitting for new tx message...")
 	for {
 		select {
@@ -91,7 +101,7 @@ func (tx_pool *TransactionPool) loop() {
 			tx_pool.processTxMsg(msg)
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
-		case <-tx_pool.proc.Closing():
+		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			return
 		}

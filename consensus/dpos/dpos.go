@@ -9,6 +9,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -58,8 +59,7 @@ type Dpos struct {
 }
 
 // NewDpos new a dpos implement.
-func NewDpos(chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, parent goprocess.Process, cfg *Config) (*Dpos, error) {
-
+func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Dpos, error) {
 	dpos := &Dpos{
 		chain:  chain,
 		txpool: txpool,
@@ -95,22 +95,32 @@ func (dpos *Dpos) Setup() error {
 	return nil
 }
 
+// implement interface service.Server
+var _ service.Server = (*Dpos)(nil)
+
 // Run start dpos
-func (dpos *Dpos) Run() {
+func (dpos *Dpos) Run() error {
 	logger.Info("Dpos run")
 	if !dpos.validateMiner() {
 		logger.Warn("You have no authority to mint block")
-		return
+		return ErrNoLegalPowerToMint
 	}
-	go dpos.loop()
+	dpos.proc.Go(dpos.loop)
+
+	return nil
+}
+
+// Proc returns the goprocess running the service
+func (dpos *Dpos) Proc() goprocess.Process {
+	return dpos.proc
 }
 
 // Stop dpos
 func (dpos *Dpos) Stop() {
-
+	dpos.proc.Close()
 }
 
-func (dpos *Dpos) loop() {
+func (dpos *Dpos) loop(p goprocess.Process) {
 	logger.Info("Start block mint")
 	time.Sleep(10 * time.Second)
 	timeChan := time.NewTicker(time.Second).C
@@ -118,7 +128,7 @@ func (dpos *Dpos) loop() {
 		select {
 		case <-timeChan:
 			dpos.mint()
-		case <-dpos.proc.Closing():
+		case <-p.Closing():
 			logger.Info("Stopped Dpos Mining.")
 			return
 		}

@@ -92,29 +92,30 @@ func TestDBDel(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	var keys = []string{}
-	for i := 0; i < 10000; i++ {
-		k := fmt.Sprintf("key-%d", i)
-		v := fmt.Sprintf("value-%d", i)
+	var keys = [][]byte{}
+	for i := 0; i < 100; i++ {
+		k := []byte(fmt.Sprintf("key-%d", i))
+		v := []byte(fmt.Sprintf("value-%d", i))
 
-		ensure.Nil(t, db.Put([]byte(k), []byte(v)))
-		wg.Add(1)
+		ensure.Nil(t, db.Put(k, v))
+
+		has, err := db.Has(k)
+		ensure.Nil(t, err)
+		ensure.True(t, has)
+
 		keys = append(keys, k)
+		wg.Add(1)
 	}
 
 	for _, k := range keys {
 		go func(k []byte) {
-			has, err := db.Has(k)
-			ensure.Nil(t, err)
-			ensure.True(t, has)
-
+			defer wg.Done()
 			ensure.Nil(t, db.Del(k))
 
-			has, err = db.Has(k)
+			has, err := db.Has(k)
 			ensure.Nil(t, err)
 			ensure.False(t, has)
-			wg.Done()
-		}([]byte(k))
+		}(k)
 	}
 	wg.Wait()
 }
