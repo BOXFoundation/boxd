@@ -12,10 +12,9 @@ import (
 	"path"
 	"strings"
 
-	"golang.org/x/crypto/ssh/terminal"
-
 	btypes "github.com/BOXFoundation/boxd/core/types"
 	bcrypto "github.com/BOXFoundation/boxd/crypto"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Manager is a directory based type to manipulate account
@@ -90,14 +89,15 @@ func (wlt *Manager) ListAccounts() []string {
 
 // NewAccount creates a ecdsa key pair and store them in a file encrypted
 // by the passphrase user entered
-func (wlt *Manager) NewAccount(passphrase string) (string, error) {
+// returns a hexstring format public key hash, address and error
+func (wlt *Manager) NewAccount(passphrase string) (string, string, error) {
 	privateKey, publicKey, err := bcrypto.NewKeyPair()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	address, err := btypes.NewAddressFromPubKey(publicKey)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	account := &Account{
 		path:     path.Join(wlt.path, fmt.Sprintf("%x.keystore", address.ScriptAddress())),
@@ -106,9 +106,9 @@ func (wlt *Manager) NewAccount(passphrase string) (string, error) {
 		unlocked: true,
 	}
 	if err := account.saveWithPassphrase(passphrase); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return account.addr, nil
+	return account.addr, address.String(), nil
 }
 
 // DumpPrivKey returns an account's private key bytes in hex string format

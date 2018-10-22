@@ -9,11 +9,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/BOXFoundation/boxd/util"
-
 	root "github.com/BOXFoundation/boxd/commands/box/root"
-
 	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -124,7 +122,6 @@ func init() {
 }
 
 func newAccountCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("newaccount called")
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -135,11 +132,11 @@ func newAccountCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	acc, err := wltMgr.NewAccount(passphrase)
+	acc, addr, err := wltMgr.NewAccount(passphrase)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("Create new account: %s", acc)
+	fmt.Printf("Created new account: %s\nAddress:%s", acc, addr)
 }
 
 func listAccountCmdFunc(cmd *cobra.Command, args []string) {
