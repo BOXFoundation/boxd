@@ -123,7 +123,7 @@ func (dpos *Dpos) mint() error {
 	if dpos.disableMint {
 		return ErrNoLegalPowerToMint
 	}
-	if int(now%15) != dpos.cfg.Index {
+	if int(now%2) != dpos.cfg.Index {
 		return ErrNoLegalPowerToMint
 	}
 	// if !dpos.enableMint {

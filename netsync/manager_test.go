@@ -27,7 +27,13 @@ func TestHeightLocator(t *testing.T) {
 	hh = heightLocator(5)
 	expect = []int32{5, 4, 3, 2, 1, 0}
 	runTestHeightLocator(t, hh, expect)
+	hh = heightLocator(6)
+	expect = []int32{6, 5, 4, 3, 2, 1, 0}
+	runTestHeightLocator(t, hh, expect)
 	hh = heightLocator(100)
 	expect = []int32{100, 99, 98, 97, 96, 95, 93, 90, 85, 76, 59, 26, 0}
+	runTestHeightLocator(t, hh, expect)
+	hh = heightLocator(9)
+	expect = []int32{9, 8, 7, 6, 5, 4, 2, 0}
 	runTestHeightLocator(t, hh, expect)
 }
