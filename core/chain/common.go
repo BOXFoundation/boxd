@@ -67,7 +67,7 @@ func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction
 		}
 	} else {
 		scriptBuilder := script.NewBuilder()
-		pkScript, err = scriptBuilder.AddOp(script.OPTRUE).Script()
+		pkScript, err = scriptBuilder.AddOp(byte(script.OPTRUE)).Script()
 		if err != nil {
 			return nil, err
 		}
