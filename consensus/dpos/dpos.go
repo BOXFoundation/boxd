@@ -25,7 +25,9 @@ var logger = log.NewLogger("dpos") // logger
 
 // Define const
 const (
-	NewBlockTimeInterval = int64(5)
+	SecondInMs           = int64(1000)
+	NewBlockTimeInterval = int64(5000)
+	MaxPackedTxTime      = int64(2000)
 	PeriodSize           = 21
 )
 
@@ -148,6 +150,7 @@ func (dpos *Dpos) mint() error {
 	if err := dpos.LoadCandidates(); err != nil {
 		return err
 	}
+	dpos.context.timestamp = timestamp
 	dpos.mintBlock()
 	return nil
 }
@@ -184,8 +187,15 @@ func (dpos *Dpos) validateMiner() bool {
 }
 
 func (dpos *Dpos) mintBlock() {
-	tail, _ := dpos.chain.LoadTailBlock()
+	// tail, _ := dpos.chain.LoadTailBlock()
+	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
+	block.Header.TimeStamp = dpos.context.timestamp
+	if block.Height > 0 && block.Height%chain.PeriodDuration == 0 {
+		// TODO: period changed
+	} else {
+		block.Header.PeriodHash = tail.Header.PeriodHash
+	}
 	dpos.PackTxs(block, nil)
 	// block.setMiner()
 	dpos.chain.ProcessBlock(block, true)
@@ -215,9 +225,7 @@ func (dpos *Dpos) sortPendingTxs() *util.PriorityQueue {
 // PackTxs packed txs and add them to block.
 func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 
-	// TODO: @Leon Each time you packtxs, a new queue is generated.
 	pool := dpos.sortPendingTxs()
-	// blockUtxos := NewUtxoUnspentCache()
 	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.CreateCoinbaseTx(addr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
@@ -225,9 +233,22 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
-	for pool.Len() > 0 {
-		txWrap := heap.Pop(pool).(*txpool.TxWrap)
-		blockTxns = append(blockTxns, txWrap.Tx)
+
+	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
+	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
+
+	//TODO: validte & execute tx & calc candidates hash.
+PackingTxs:
+	for {
+		select {
+		case <-remainTimer.C:
+			break PackingTxs
+		default:
+			for pool.Len() > 0 {
+				txWrap := heap.Pop(pool).(*txpool.TxWrap)
+				blockTxns = append(blockTxns, txWrap.Tx)
+			}
+		}
 	}
 
 	merkles := chain.CalcTxsHash(blockTxns)

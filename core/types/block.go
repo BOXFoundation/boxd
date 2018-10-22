@@ -5,8 +5,6 @@
 package types
 
 import (
-	"time"
-
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -38,7 +36,6 @@ func NewBlock(parent *Block) *Block {
 		Header: &BlockHeader{
 			Magic:         parent.Header.Magic,
 			PrevBlockHash: *parent.Hash,
-			TimeStamp:     time.Now().UnixNano(),
 		},
 		Txs:    make([]*Transaction, 0),
 		Height: parent.Height + 1,

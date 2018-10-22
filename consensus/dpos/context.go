@@ -25,6 +25,7 @@ var (
 
 // ConsensusContext represent consensus context info.
 type ConsensusContext struct {
+	timestamp        int64
 	periodContext    *PeriodContext
 	candidateContext *CandidateContext
 }
@@ -119,7 +120,7 @@ func (context *PeriodContext) Unmarshal(data []byte) error {
 func (context *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
 
 	period := context.period
-	offsetPeriod := timestamp % (NewBlockTimeInterval * PeriodSize)
+	offsetPeriod := (timestamp * SecondInMs) % (NewBlockTimeInterval * PeriodSize)
 	if (offsetPeriod % NewBlockTimeInterval) != 0 {
 		return nil, ErrWrongTimeToMint
 	}

@@ -109,7 +109,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2
 	//		   \-> b2A
 	b2A := nextBlock(b1)
-	verifyProcessBlock(t, b2A, false, false, nil, 2, b2)
+	verifyProcessBlock(t, b2A, false, false, core.ErrBlockExists, 2, b2)
 
 	// reorg: side chain grows longer than main chain
 	// b0 -> b1 -> b2

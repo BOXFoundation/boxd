@@ -35,6 +35,7 @@ const (
 	LockTimeThreshold    = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 	medianTimeBlocks     = 11
 	sequenceLockTimeMask = 0x0000ffff
+	PeriodDuration       = 3600 * 24 * 100 / 5
 
 	sequenceLockTimeIsSeconds     = 1 << 22
 	sequenceLockTimeGranularity   = 9
