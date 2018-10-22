@@ -183,10 +183,10 @@ func (k Key) IsTopLevel() bool {
 	return len(k.List()) == 1
 }
 
-// KeySlice attaches the methods of sort.Interface to []Key,
+// Slice attaches the methods of sort.Interface to []Key,
 // sorting in increasing order.
-type KeySlice []Key
+type Slice []Key
 
-func (p KeySlice) Len() int           { return len(p) }
-func (p KeySlice) Less(i, j int) bool { return p[i].Less(p[j]) }
-func (p KeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p Slice) Len() int           { return len(p) }
+func (p Slice) Less(i, j int) bool { return p[i].Less(p[j]) }
+func (p Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }

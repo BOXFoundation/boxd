@@ -64,7 +64,7 @@ require (
 	github.com/lestrrat/go-file-rotatelogs v0.0.0-20180223000712-d3151e2a480f // indirect
 	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
 	github.com/libp2p/go-addr-util v2.0.6+incompatible // indirect
-	github.com/libp2p/go-buffer-pool v0.1.1 // indirect
+	github.com/libp2p/go-buffer-pool v0.1.1
 	github.com/libp2p/go-conn-security v0.1.14 // indirect
 	github.com/libp2p/go-conn-security-multistream v0.1.14 // indirect
 	github.com/libp2p/go-flow-metrics v0.0.0-20171227170445-3b3bcfcf78f2 // indirect
@@ -131,7 +131,7 @@ require (
 	github.com/spf13/viper v1.2.1
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
 	github.com/syndtr/goleveldb v0.0.0-20181012014443-6b91fda63f2e // indirect
-	github.com/tecbot/gorocksdb v0.0.0-20181010114359-8752a9433481
+	github.com/tecbot/gorocksdb v0.0.0-20180907100951-214b6b7bc0f0
 	github.com/uudashr/gopkgs v2.0.1+incompatible // indirect
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect

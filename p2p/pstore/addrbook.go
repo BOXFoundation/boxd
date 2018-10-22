@@ -6,6 +6,7 @@ package pstore
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -30,6 +31,8 @@ var ttlBase = key.NewKey("/ttl")
 // year 146138514283. We're safe.
 var maxTime = time.Unix(1<<62, 0)
 
+var defaultTTLInterval = time.Minute * 1
+
 type cacheEntry struct {
 	expiration time.Time
 	addrs      []ma.Multiaddr
@@ -40,10 +43,11 @@ var _ peerstore.AddrBook = (*addrBook)(nil)
 // addrBook is an address book backed by a storage.Table with both an
 // in-memory TTL manager and an in-memory address stream manager.
 type addrBook struct {
-	cache cache
-	bus   eventbus.Bus
-	proc  goprocess.Process
-	store storage.Table
+	cache    cache
+	bus      eventbus.Bus
+	proc     goprocess.Process
+	store    storage.Table
+	interval time.Duration
 }
 
 type ttlWriteMode int
@@ -88,9 +92,10 @@ func ttlKey(k key.Key) key.Key {
 // NewAddrBook creates a new instance of AddrBook
 func NewAddrBook(parent goprocess.Process, s storage.Table, bus eventbus.Bus, cacheSize int) peerstore.AddrBook {
 	ab := &addrBook{
-		proc:  goprocess.WithParent(parent),
-		store: s,
-		bus:   bus,
+		proc:     goprocess.WithParent(parent),
+		store:    s,
+		bus:      bus,
+		interval: defaultTTLInterval,
 	}
 	if cacheSize > 0 {
 		ab.cache, _ = lru.NewARC(cacheSize)
@@ -98,6 +103,36 @@ func NewAddrBook(parent goprocess.Process, s storage.Table, bus eventbus.Bus, ca
 
 	return ab
 }
+
+func (ab *addrBook) Run() error {
+	ab.proc.Go(func(p goprocess.Process) {
+		ticker := time.NewTicker(ab.interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				logger.Debug("checking expired peers......")
+				if err := ab.dbRemoveExpired(); err != nil {
+					logger.Errorf("failed to remove expired addr.")
+				}
+			case <-p.Closing():
+				logger.Info("quit loop of address book")
+				return
+			}
+		}
+	})
+	return nil
+}
+
+func (ab *addrBook) Stop() {
+	ab.proc.Close()
+}
+
+func (ab *addrBook) Proc() goprocess.Process {
+	return ab.proc
+}
+
+//////////////////////// impl peerstore.AddrBook ////////////////////////
 
 // AddAddr will add a new address if it's not already in the AddrBook.
 func (ab *addrBook) AddAddr(p peer.ID, addr ma.Multiaddr, ttl time.Duration) {
@@ -293,26 +328,11 @@ func (ab *addrBook) ClearAddrs(p peer.ID) {
 
 // Peers returns all of the peer IDs stored in the AddrBook
 func (ab *addrBook) PeersWithAddrs() peer.IDSlice {
-	txn, err := ab.store.NewTransaction()
+	pids, err := uniquePeerIDs(ab.store, abBase.Bytes(), func(k key.Key) string {
+		return k.Parent().BaseName()
+	})
 	if err != nil {
-		return nil
-	}
-	defer txn.Discard()
-
-	idset := make(map[peer.ID]struct{})
-	// get all peer addrs in database
-	for _, k := range txn.KeysWithPrefix(abBase.Bytes()) {
-		pk := key.NewKeyFromBytes(k)
-		if pid, err := peer.IDB58Decode(pk.Parent().BaseName()); err == nil {
-			idset[pid] = struct{}{}
-		}
-	}
-
-	pids := make([]peer.ID, len(idset))
-	i := 0
-	for k := range idset {
-		pids[i] = k
-		i++
+		logger.Errorf("failed to get peers: %v", err)
 	}
 	return pids
 }
@@ -397,7 +417,7 @@ func (ab *addrBook) dbInsert(keys []key.Key, addrs []ma.Multiaddr, ttl time.Dura
 			}
 		case ttlExtend:
 			var curr time.Time
-			if buf, err = txn.Get(ttlkey.Bytes()); err != nil && len(buf) != 0 {
+			if buf, err = txn.Get(ttlkey.Bytes()); err == nil && len(buf) != 0 {
 				if err = curr.UnmarshalBinary(buf); err != nil {
 					break
 				}
@@ -502,6 +522,45 @@ func (ab *addrBook) dbDeleteIter(prefix key.Key) error {
 		ttlkey := ttlBase.Child(key.NewKeyFromBytes(k))
 		if err := txn.Del(ttlkey.Bytes()); err != nil {
 			return err
+		}
+	}
+
+	return txn.Commit()
+}
+
+// dbRemoveExpired removes expired peers
+func (ab *addrBook) dbRemoveExpired() error {
+	var err error
+
+	txn, err := ab.store.NewTransaction()
+	if err != nil {
+		return err
+	}
+	defer txn.Discard()
+
+	now := time.Now()
+	for _, k := range txn.KeysWithPrefix(ttlBase.Bytes()) {
+		if buf, err := txn.Get(k); err == nil && len(buf) > 0 {
+			var exp time.Time
+			if err := exp.UnmarshalBinary(buf); err == nil {
+				if !exp.IsZero() && exp.Before(now) {
+					logger.Debug("removing ttl key of addrbook %s", string(k))
+					if err = txn.Del(k); err != nil {
+						return err
+					}
+
+					// del key of multiaddr
+					ttlKey := key.NewKeyFromBytes(k)
+					n := ttlKey.List()
+					if len(n) > 1 {
+						addKey := key.NewKey(strings.Join(n[1:], "/"))
+						logger.Debug("removing key of addrbook %s", addKey)
+						if err = txn.Del(addKey.Bytes()); err != nil {
+							return err
+						}
+					}
+				}
+			}
 		}
 	}
 

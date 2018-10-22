@@ -12,9 +12,11 @@ import (
 	"os"
 	"sync"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -40,13 +42,15 @@ type BoxPeer struct {
 	networkIdentity crypto.PrivKey
 	notifier        *Notifier
 	connmgr         *ConnManager
+	addrbook        service.Server
+	bus             eventbus.Bus
 	mu              sync.Mutex
 }
 
 var _ Net = (*BoxPeer)(nil) // BoxPeer implements Net interface
 
 // NewBoxPeer create a BoxPeer
-func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*BoxPeer, error) {
+func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus eventbus.Bus) (*BoxPeer, error) {
 	// ctx := context.Background()
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
@@ -61,11 +65,17 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 		return nil, err
 	}
 
-	// ps, err := pstore.NewDefaultPeerstore(ctx, s)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// boxPeer.connmgr = NewConnManager(ps)
+	addrbook, err := pstore.NewDefaultAddrBook(proc, s, bus)
+	if err != nil {
+		return nil, err
+	}
+	boxPeer.addrbook = addrbook.(service.Server)
+
+	ps, err := pstore.NewDefaultPeerstoreWithAddrBook(proc, s, addrbook)
+	if err != nil {
+		return nil, err
+	}
+	boxPeer.connmgr = NewConnManager(ps)
 
 	opts := []libp2p.Option{
 		// TODO: to support ipv6
@@ -74,8 +84,8 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 		libp2p.DefaultTransports,
 		libp2p.DefaultMuxers,
 		libp2p.DefaultSecurity,
-		// libp2p.Peerstore(ps),
-		// libp2p.ConnectionManager(boxPeer.connmgr),
+		libp2p.Peerstore(ps),
+		libp2p.ConnectionManager(boxPeer.connmgr),
 		libp2p.NATPortMap(),
 	}
 
@@ -140,7 +150,8 @@ var _ service.Server = (*BoxPeer)(nil)
 // Run schedules lookup and discover new peer
 func (p *BoxPeer) Run() error {
 	// libp2p conn manager
-	// p.connmgr.Loop(p.proc)
+	p.connmgr.Loop(p.proc)
+	p.addrbook.Run()
 
 	if len(p.config.Seeds) > 0 {
 		p.connectSeeds()
