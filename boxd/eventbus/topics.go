@@ -7,4 +7,7 @@ package eventbus
 const (
 	// TopicSetDebugLevel is topic for changing debug level
 	TopicSetDebugLevel = "rpc:setdebuglevel"
+
+	//TopicP2PPeerAddr is a event topic for new peer addr found or peer addr updated
+	TopicP2PPeerAddr = "p2p:peeraddr"
 )

@@ -85,6 +85,14 @@ func TestDBPut(t *testing.T) {
 	t.Run("put4", dbPutReadOnceTest(db, []byte("tk4"), []byte("tv4")))
 }
 
+func TestDBDelNotExists(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	ensure.Nil(t, db.Del([]byte{0x00, 0x01}))
+}
+
 func TestDBDel(t *testing.T) {
 	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)

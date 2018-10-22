@@ -109,12 +109,12 @@ require (
 	github.com/minio/sha256-simd v0.0.0-20181005183134-51976451ce19 // indirect
 	github.com/mitchellh/go-homedir v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
-	github.com/mr-tron/base58 v1.0.0 // indirect
+	github.com/mr-tron/base58 v1.0.0
 	github.com/multiformats/go-multiaddr v0.0.0-20180721003118-d6ad8896def6
 	github.com/multiformats/go-multiaddr-dns v0.0.0-20180623005149-78f39e8892d4 // indirect
 	github.com/multiformats/go-multiaddr-net v1.6.3 // indirect
 	github.com/multiformats/go-multibase v0.3.0 // indirect
-	github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3 // indirect
+	github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3
 	github.com/multiformats/go-multistream v0.3.9 // indirect
 	github.com/onsi/gomega v1.4.2 // indirect
 	github.com/opentracing/opentracing-go v0.0.0-20180606204148-bd9c31933947 // indirect

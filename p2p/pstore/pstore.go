@@ -6,40 +6,41 @@ package pstore
 
 import (
 	"bytes"
-	"context"
 
+	log "github.com/BOXFoundation/boxd/log"
 	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
-	"github.com/libp2p/go-libp2p-peerstore"
 )
+
+var logger = log.NewLogger("p2p/pstore")
 
 // DefaultTableName is the default table name for peer storage
 const DefaultTableName = "peer"
 
-// NewDefaultPeerstore creates a default peerstore for P2P
-func NewDefaultPeerstore(ctx context.Context, s storage.Storage) (peerstore.Peerstore, error) {
-	return NewPeerstore(ctx, s, DefaultTableName)
-}
+// // NewDefaultPeerstore creates a default peerstore for P2P
+// func NewDefaultPeerstore(ctx context.Context, s storage.Storage) (peerstore.Peerstore, error) {
+// 	return NewPeerstore(ctx, s, DefaultTableName)
+// }
 
-// NewPeerstore creates a new peerstore for P2P from a named table
-func NewPeerstore(ctx context.Context, s storage.Storage, name string) (peerstore.Peerstore, error) {
-	t, err := s.Table(name)
-	if err != nil {
-		return nil, err
-	}
-	return newPeerstoreTable(ctx, t)
-}
+// // NewPeerstore creates a new peerstore for P2P from a named table
+// func NewPeerstore(ctx context.Context, s storage.Storage, name string) (peerstore.Peerstore, error) {
+// 	t, err := s.Table(name)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return newPeerstoreTable(ctx, t)
+// }
 
-// newPeerstoreTable creates a new peerstore for P2P from a table
-func newPeerstoreTable(ctx context.Context, t storage.Table) (peerstore.Peerstore, error) {
-	return peerstore.NewPeerstoreDatastore(ctx, NewDatastoreFromTable(t))
-}
+// // newPeerstoreTable creates a new peerstore for P2P from a table
+// func newPeerstoreTable(ctx context.Context, t storage.Table) (peerstore.Peerstore, error) {
+// 	return peerstore.NewPeerstoreDatastore(ctx, NewDatastoreFromTable(t))
+// }
 
-// NewDatastoreFromTable creates a datastore from a storage table
-func NewDatastoreFromTable(t storage.Table) datastore.Batching {
-	return &pstore{t: t}
-}
+// // NewDatastoreFromTable creates a datastore from a storage table
+// func NewDatastoreFromTable(t storage.Table) datastore.Batching {
+// 	return &pstore{t: t}
+// }
 
 type pstore struct {
 	t storage.Table

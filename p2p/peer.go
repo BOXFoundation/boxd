@@ -15,7 +15,6 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
-	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -62,11 +61,11 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 		return nil, err
 	}
 
-	ps, err := pstore.NewDefaultPeerstore(ctx, s)
-	if err != nil {
-		return nil, err
-	}
-	boxPeer.connmgr = NewConnManager(ps)
+	// ps, err := pstore.NewDefaultPeerstore(ctx, s)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// boxPeer.connmgr = NewConnManager(ps)
 
 	opts := []libp2p.Option{
 		// TODO: to support ipv6
@@ -75,8 +74,8 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 		libp2p.DefaultTransports,
 		libp2p.DefaultMuxers,
 		libp2p.DefaultSecurity,
-		libp2p.Peerstore(ps),
-		libp2p.ConnectionManager(boxPeer.connmgr),
+		// libp2p.Peerstore(ps),
+		// libp2p.ConnectionManager(boxPeer.connmgr),
 		libp2p.NATPortMap(),
 	}
 
@@ -141,7 +140,7 @@ var _ service.Server = (*BoxPeer)(nil)
 // Run schedules lookup and discover new peer
 func (p *BoxPeer) Run() error {
 	// libp2p conn manager
-	p.connmgr.Loop(p.proc)
+	// p.connmgr.Loop(p.proc)
 
 	if len(p.config.Seeds) > 0 {
 		p.connectSeeds()
