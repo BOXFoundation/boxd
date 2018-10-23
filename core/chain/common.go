@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -98,7 +99,7 @@ func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction
 				Sequence:  0xffffffff,
 			},
 		},
-		Vout: []*types.TxOut{
+		Vout: []*corepb.TxOut{
 			{
 				Value:        blockReward,
 				ScriptPubKey: pkScript,

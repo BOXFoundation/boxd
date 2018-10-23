@@ -11,37 +11,37 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
-func TestTxOutConvertWithProtoMessage(t *testing.T) {
-	var value int64 = 123456
-	txOut := NewTxOut(value)
-	var txOut1 = &TxOut{}
-	msg, err := txOut.ToProtoMessage()
-	ensure.Nil(t, err)
-	err = txOut1.FromProtoMessage(msg)
-	ensure.Nil(t, err)
-	ensure.DeepEqual(t, txOut, txOut1)
-}
+// func TestTxOutConvertWithProtoMessage(t *testing.T) {
+// 	var value int64 = 123456
+// 	txOut := NewTxOut(value)
+// 	var txOut1 = &TxOut{}
+// 	msg, err := txOut.ToProtoMessage()
+// 	ensure.Nil(t, err)
+// 	err = txOut1.FromProtoMessage(msg)
+// 	ensure.Nil(t, err)
+// 	ensure.DeepEqual(t, txOut, txOut1)
+// }
 
-func TestTxInConvertWithProtoMessage(t *testing.T) {
-	var prevOutPoint = NewOutPoint(crypto.HashType{0x0010})
-	txIn := NewTxIn(*prevOutPoint)
-	var txIn1 = &TxIn{}
-	msg, err := txIn.ToProtoMessage()
-	ensure.Nil(t, err)
-	err = txIn1.FromProtoMessage(msg)
-	ensure.Nil(t, err)
-	ensure.DeepEqual(t, txIn, txIn1)
-}
+// func TestTxInConvertWithProtoMessage(t *testing.T) {
+// 	var prevOutPoint = NewOutPoint(crypto.HashType{0x0010})
+// 	txIn := NewTxIn(*prevOutPoint)
+// 	var txIn1 = &TxIn{}
+// 	msg, err := txIn.ToProtoMessage()
+// 	ensure.Nil(t, err)
+// 	err = txIn1.FromProtoMessage(msg)
+// 	ensure.Nil(t, err)
+// 	ensure.DeepEqual(t, txIn, txIn1)
+// }
 
-func TestOutPointConvertWithProtoMessage(t *testing.T) {
-	outPoint := NewOutPoint(crypto.HashType{0x0011})
-	var outPoint1 = &OutPoint{}
-	msg, err := outPoint.ToProtoMessage()
-	ensure.Nil(t, err)
-	err = outPoint1.FromProtoMessage(msg)
-	ensure.Nil(t, err)
-	ensure.DeepEqual(t, outPoint, outPoint1)
-}
+// func TestOutPointConvertWithProtoMessage(t *testing.T) {
+// 	outPoint := NewOutPoint(crypto.HashType{0x0011})
+// 	var outPoint1 = &OutPoint{}
+// 	msg, err := outPoint.ToProtoMessage()
+// 	ensure.Nil(t, err)
+// 	err = outPoint1.FromProtoMessage(msg)
+// 	ensure.Nil(t, err)
+// 	ensure.DeepEqual(t, outPoint, outPoint1)
+// }
 
 func TestTxConvertWithProtoMessage(t *testing.T) {
 	var prevOutPoint = NewOutPoint(crypto.HashType{0x0012})
