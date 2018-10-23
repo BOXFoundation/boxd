@@ -42,10 +42,12 @@ message SyncCheckHash {
 }
 
 message FetchBlockHeaders {
-    bytes begin_hash = 1;    // begin hash
-    int32 length = 2;
+    int32 idx = 1; 
+    bytes begin_hash = 2;    // begin hash
+    int32 length = 3;
 }
 
 message SyncBlocks {
-    repeated corepb.Block blocks = 1;
+    int32 idx = 1;
+    repeated corepb.Block blocks = 2;
 }

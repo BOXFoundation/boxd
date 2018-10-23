@@ -65,11 +65,13 @@ type SyncCheckHash struct {
 // FetchBlockHeaders includes headers sended to a sync peer to
 // fetch blocks
 type FetchBlockHeaders struct {
+	Idx int32
 	CheckHash
 }
 
 // SyncBlocks includes blocks sended from synchronized peer to local node
 type SyncBlocks struct {
+	Idx    int32
 	Blocks []*coreTypes.Block
 }
 
@@ -98,15 +100,15 @@ func newSyncCheckHash(hash *crypto.HashType) *SyncCheckHash {
 	return &SyncCheckHash{RootHash: hash}
 }
 
-func newFetchBlockHeaders(hash *crypto.HashType, len int) *FetchBlockHeaders {
-	return &FetchBlockHeaders{CheckHash: *newCheckHash(hash, len)}
+func newFetchBlockHeaders(idx int32, hash *crypto.HashType, len int) *FetchBlockHeaders {
+	return &FetchBlockHeaders{Idx: idx, CheckHash: *newCheckHash(hash, len)}
 }
 
-func newSyncBlocks(blocks ...*coreTypes.Block) *SyncBlocks {
+func newSyncBlocks(idx int32, blocks ...*coreTypes.Block) *SyncBlocks {
 	if blocks == nil {
 		blocks = make([]*coreTypes.Block, 0)
 	}
-	return &SyncBlocks{Blocks: blocks}
+	return &SyncBlocks{Idx: idx, Blocks: blocks}
 }
 
 // ToProtoMessage converts LocateHeaders to proto message.
@@ -132,12 +134,13 @@ func (sh *SyncHeaders) ToProtoMessage() (proto.Message, error) {
 // ToProtoMessage converts LocateHeaders to proto message.
 func (fbh *FetchBlockHeaders) ToProtoMessage() (proto.Message, error) {
 	if fbh == nil {
-		fbh = newFetchBlockHeaders(nil, 0)
+		fbh = newFetchBlockHeaders(0, nil, 0)
 	}
 	pbFbh := new(netsyncpb.FetchBlockHeaders)
 	pbFbh.BeginHash = make([]byte, crypto.HashSize)
 	copy(pbFbh.BeginHash[:], (*fbh.BeginHash)[:])
 	pbFbh.Length = fbh.Length
+	pbFbh.Idx = fbh.Idx
 	return pbFbh, nil
 }
 
@@ -184,13 +187,14 @@ func (sh *SyncHeaders) FromProtoMessage(message proto.Message) error {
 // FromProtoMessage converts proto message to FetchBlockHeaders
 func (fbh *FetchBlockHeaders) FromProtoMessage(message proto.Message) error {
 	if fbh == nil {
-		fbh = newFetchBlockHeaders(nil, 0)
+		fbh = newFetchBlockHeaders(0, nil, 0)
 	}
 	if fbh.BeginHash == nil {
 		fbh.BeginHash = &crypto.HashType{}
 	}
 	if m, ok := message.(*netsyncpb.FetchBlockHeaders); ok {
 		if m != nil {
+			fbh.Idx = m.Idx
 			copy(fbh.BeginHash[:], m.BeginHash[:])
 			fbh.Length = m.Length
 			return nil
@@ -336,7 +340,7 @@ func (sch *SyncCheckHash) Unmarshal(data []byte) error {
 // ToProtoMessage converts SyncBlocks to proto message.
 func (sb *SyncBlocks) ToProtoMessage() (proto.Message, error) {
 	if sb == nil {
-		sb = newSyncBlocks()
+		sb = newSyncBlocks(0)
 	}
 	if sb.Blocks == nil {
 		sb.Blocks = make([]*coreTypes.Block, 0)
@@ -345,13 +349,13 @@ func (sb *SyncBlocks) ToProtoMessage() (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &netsyncpb.SyncBlocks{Blocks: blocks}, nil
+	return &netsyncpb.SyncBlocks{Idx: sb.Idx, Blocks: blocks}, nil
 }
 
 // FromProtoMessage converts proto message to SyncBlocks
 func (sb *SyncBlocks) FromProtoMessage(message proto.Message) error {
 	if sb == nil {
-		sb = newSyncBlocks()
+		sb = newSyncBlocks(0)
 	}
 	if m, ok := message.(*netsyncpb.SyncBlocks); ok {
 		if m != nil {
@@ -361,6 +365,7 @@ func (sb *SyncBlocks) FromProtoMessage(message proto.Message) error {
 				logger.Info(err.Error())
 				return errInvalidProtoMessage
 			}
+			sb.Idx = m.Idx
 			return nil
 		}
 		return errEmptyProtoMessage
