@@ -203,7 +203,19 @@ func (acc *Account) UnlockWithPassphrase(passphrase string) error {
 	if hex.EncodeToString(addr.ScriptAddress()) != acc.addr {
 		return fmt.Errorf("Private key doesn't match address, the keystore file may be broken")
 	}
+	acc.unlocked = true
 	return nil
+}
+
+var _ crypto.Signer = (*Account)(nil)
+
+// Sign calculates an ECDSA signature of messageHash using privateKey.
+// returns error if account is locked or sign process failed
+func (acc *Account) Sign(messageHash *crypto.HashType) (*crypto.Signature, error) {
+	if acc.unlocked == false || acc.privKey == nil {
+		return nil, fmt.Errorf("Address unlocked")
+	}
+	return crypto.Sign(acc.privKey, messageHash)
 }
 
 // ReadPassphraseStdin reads passphrase from stdin without echo passphrase

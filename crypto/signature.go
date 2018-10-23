@@ -11,6 +11,11 @@ import (
 // Signature is a btcec.Signature wrapper
 type Signature btcec.Signature
 
+// Signer is the interface which will generate a Signature from HashType
+type Signer interface {
+	Sign(messageHash *HashType) (*Signature, error)
+}
+
 // Sign calculates an ECDSA signature of messageHash using privateKey.
 func Sign(privKey *PrivateKey, messageHash *HashType) (*Signature, error) {
 	btcecSig, err := (*btcec.PrivateKey)(privKey).Sign(messageHash[:])
