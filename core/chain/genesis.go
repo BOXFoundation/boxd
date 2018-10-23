@@ -7,6 +7,7 @@ package chain
 import (
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
@@ -24,7 +25,7 @@ var genesisCoinbaseTx = types.Transaction{
 			Sequence:  0xffffffff,
 		},
 	},
-	Vout: []*types.TxOut{
+	Vout: []*corepb.TxOut{
 		{
 			Value:        0x12a05f200,
 			ScriptPubKey: []byte{},

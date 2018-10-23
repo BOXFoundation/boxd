@@ -5,6 +5,7 @@
 package types
 
 import (
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
@@ -30,8 +31,8 @@ func NewBlocks(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp
 }
 
 // NewTxOut generates a new TxOut
-func NewTxOut(value int64) *TxOut {
-	return &TxOut{
+func NewTxOut(value int64) *corepb.TxOut {
+	return &corepb.TxOut{
 		Value:        value,
 		ScriptPubKey: []byte{0},
 	}
@@ -59,7 +60,7 @@ func NewTransaction(prevOutPoint OutPoint, value int64, lockTime int64) *Transac
 	return &Transaction{
 		Version:  0,
 		Vin:      []*TxIn{NewTxIn(prevOutPoint)},
-		Vout:     []*TxOut{NewTxOut(value)},
+		Vout:     []*corepb.TxOut{NewTxOut(value)},
 		Magic:    0,
 		LockTime: lockTime,
 	}

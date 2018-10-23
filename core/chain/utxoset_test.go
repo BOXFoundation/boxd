@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 )
@@ -25,11 +26,11 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 	vIn := []*types.TxIn{
 		txIn,
 	}
-	txOut := &types.TxOut{
+	txOut := &corepb.TxOut{
 		Value:        1,
 		ScriptPubKey: []byte{},
 	}
-	vOut := []*types.TxOut{txOut}
+	vOut := []*corepb.TxOut{txOut}
 	tx := &types.Transaction{
 		Version:  1,
 		Vin:      vIn,
@@ -64,11 +65,11 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 	vIn1 := []*types.TxIn{
 		txIn1,
 	}
-	txOut1 := &types.TxOut{
+	txOut1 := &corepb.TxOut{
 		Value:        2,
 		ScriptPubKey: []byte{},
 	}
-	vOut1 := []*types.TxOut{txOut1}
+	vOut1 := []*corepb.TxOut{txOut1}
 	tx1 := &types.Transaction{
 		Version:  1,
 		Vin:      vIn1,
