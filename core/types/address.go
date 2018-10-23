@@ -5,6 +5,8 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
@@ -31,6 +33,7 @@ type AddressHash [ripemd160.Size]byte
 // Address is an interface type for any type of destination a transaction output may spend to.
 type Address interface {
 	String() string
+	SetString(string) error
 	EncodeAddress() string
 	ScriptAddress() []byte
 }
@@ -77,6 +80,25 @@ func (a *AddressPubKeyHash) String() string {
 	return a.EncodeAddress()
 }
 
+// SetString sets the Address's internal byte array using byte array decoded from input
+// base58 format string, returns error if input string is invalid
+func (a *AddressPubKeyHash) SetString(in string) error {
+	rawBytes, err := crypto.Base58CheckDecode(in)
+	if err != nil {
+		return err
+	}
+	if len(rawBytes) != 22 {
+		return fmt.Errorf("Invalid address length: %s", in)
+	}
+	var prefix [2]byte
+	copy(prefix[:], rawBytes[:2])
+	if prefix != addressTypeP2PKHPrefix && prefix != addressTypeP2SHPrefix {
+		return fmt.Errorf("Invalid address prefix")
+	}
+	copy(a.hash[:], rawBytes[2:])
+	return nil
+}
+
 // Hash160 returns the underlying array of the pubkey hash.
 func (a *AddressPubKeyHash) Hash160() *AddressHash {
 	return &a.hash
@@ -86,21 +108,7 @@ func encodeAddress(hash []byte) string {
 	b := make([]byte, 0, len(hash)+2)
 	b = append(b, addressTypeP2PKHPrefix[:]...)
 	b = append(b, hash[:]...)
-	return base58CheckEncode(b)
-}
-
-func checksum(input []byte) (cksum [4]byte) {
-	h := crypto.Sha256(crypto.Sha256(input))
-	copy(cksum[:], h[:4])
-	return
-}
-
-func base58CheckEncode(input []byte) string {
-	b := make([]byte, 0, len(input)+4)
-	b = append(b, input[:]...)
-	checksum := checksum(input)
-	b = append(b, checksum[:]...)
-	return base58.Encode(b)
+	return crypto.Base58CheckEncode(b)
 }
 
 // ParseAddress parse address from string.
@@ -118,7 +126,7 @@ func ParseFromBytes(b []byte) (*AddressPubKeyHash, error) {
 		return nil, core.ErrInvalidAddressString
 	}
 
-	checksum := checksum(b[:22])
+	checksum := crypto.Checksum(b[:22])
 	if !util.Equal(checksum[:], b[22:]) {
 		return nil, core.ErrInvalidAddressString
 	}

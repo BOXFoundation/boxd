@@ -116,4 +116,70 @@ func TestBlockProcessing(t *testing.T) {
 	//		   \-> b2A -> b3A
 	b3A := nextBlock(b2A)
 	verifyProcessBlock(t, b3A, true, false, nil, 3, b3A)
+
+	// Extend b2 fork twice to make first chain longer and force reorg
+	// b0 -> b1 -> b2  -> b3  -> b4
+	//		   \-> b2A -> b3A
+	b3 := nextBlock(b2)
+	verifyProcessBlock(t, b3, false, false, nil, 3, b3A)
+	b4 := nextBlock(b3)
+	verifyProcessBlock(t, b4, true, false, nil, 4, b4)
+
+	// Third fork
+	// b0 -> b1 -> b2  -> b3  ->  b4
+	//						  \-> b4B -> b5B
+	//		   \-> b2A -> b3A
+	b4B := nextBlock(b3)
+	verifyProcessBlock(t, b4B, false, false, nil, 4, b4)
+	b5B := nextBlock(b4B)
+	verifyProcessBlock(t, b5B, true, false, nil, 5, b5B)
+
+	// add b7 -> b8 -> b9 -> b10: added them to orphan pool
+	// b0 -> b1 -> b2  -> b3  ->  b4
+	//						  \-> b4B -> b5B
+	//		   \-> b2A -> b3A
+	// b7 -> b8 -> b9 -> b10
+	// withhold b6 for now and add it later
+	b6 := nextBlock(b5B)
+	b7 := nextBlock(b6)
+	verifyProcessBlock(t, b7, false, true, nil, 5, b5B)
+	b8 := nextBlock(b7)
+	verifyProcessBlock(t, b8, false, true, nil, 5, b5B)
+	b9 := nextBlock(b8)
+	verifyProcessBlock(t, b9, false, true, nil, 5, b5B)
+	b10 := nextBlock(b9)
+	verifyProcessBlock(t, b10, false, true, nil, 5, b5B)
+
+	// add b7: already exists
+	verifyProcessBlock(t, b7, false, false, core.ErrBlockExists, 5, b5B)
+
+	// add b6:
+	// b0 -> b1 -> b2  -> b3  ->  b4
+	//						  \-> b4B -> b5B -> b6 -> b7 -> b8 -> b9 -> b10
+	//		   \-> b2A -> b3A
+	verifyProcessBlock(t, b6, true, false, nil, 10, b10)
+
+	// add b11:
+	// b0 -> b1 -> b2  -> b3  ->  b4
+	//						  \-> b4B -> b5B -> b6 -> b7 -> b8 -> b9 -> b10 -> b11
+	//		   \-> b2A -> b3A
+	b11 := nextBlock(b10)
+	verifyProcessBlock(t, b11, true, false, nil, 11, b11)
+
+	// Double spend
+
+	// Create a fork that ends with block that generates too much coinbase
+
+	// Create block that spends a transaction from a block that failed to connect (due to containing a double spend)
+
+	// Create block with an otherwise valid transaction in place of where the coinbase must be
+
+	// Create block with no transactions
+
+	// Create block with two coinbase transactions
+
+	// Create block with duplicate transactions
+
+	// Create a block that spends a transaction that does not exist
+
 }
