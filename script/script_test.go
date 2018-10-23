@@ -7,6 +7,7 @@ package script
 import (
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/facebookgo/ensure"
@@ -55,11 +56,11 @@ func TestP2PKH(t *testing.T) {
 	vIn := []*types.TxIn{
 		txIn,
 	}
-	txOut := &types.TxOut{
+	txOut := &corepb.TxOut{
 		Value:        1,
 		ScriptPubKey: []byte{},
 	}
-	vOut := []*types.TxOut{txOut}
+	vOut := []*corepb.TxOut{txOut}
 	tx := &types.Transaction{
 		Version:  1,
 		Vin:      vIn,
