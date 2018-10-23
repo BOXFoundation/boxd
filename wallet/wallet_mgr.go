@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	btypes "github.com/BOXFoundation/boxd/core/types"
-	bcrypto "github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/crypto"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -91,7 +91,7 @@ func (wlt *Manager) ListAccounts() []string {
 // by the passphrase user entered
 // returns a hexstring format public key hash, address and error
 func (wlt *Manager) NewAccount(passphrase string) (string, string, error) {
-	privateKey, publicKey, err := bcrypto.NewKeyPair()
+	privateKey, publicKey, err := crypto.NewKeyPair()
 	if err != nil {
 		return "", "", err
 	}
@@ -117,17 +117,45 @@ func (wlt *Manager) DumpPrivKey(address, passphrase string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("Address not found: %s", address)
 	}
-	if err := acc.unlockWithPassphrase(passphrase); err != nil {
+	if err := acc.UnlockWithPassphrase(passphrase); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(acc.privKey.Serialize()), nil
+}
+
+// GetAccount checks if this Manager contains this public key
+// and returns the related account if it exists
+func (wlt *Manager) GetAccount(pubKeyHash string) (account *Account, exist bool) {
+	account, exist = wlt.accounts[pubKeyHash]
+	return
+}
+
+// Sign create signature of message bytes using private key related to input public key
+func (wlt *Manager) Sign(msg []byte, pubKeyHash, passphrase string) ([]byte, error) {
+	account, exist := wlt.GetAccount(pubKeyHash)
+	if !exist {
+		return nil, fmt.Errorf("Not managed account: %s", pubKeyHash)
+	}
+	if len(msg) != crypto.HashSize {
+		return nil, fmt.Errorf("Invalid message digest length, must be %d bytes", crypto.HashSize)
+	}
+	hash := &crypto.HashType{}
+	hash.SetBytes(msg)
+
+	account.UnlockWithPassphrase(passphrase)
+
+	sig, err := crypto.Sign(account.privKey, hash)
+	if err != nil {
+		return nil, err
+	}
+	return sig.Serialize(), nil
 }
 
 // Account offers method to operate ecdsa keys stored in a keystore file path
 type Account struct {
 	path     string
 	addr     string
-	privKey  *bcrypto.PrivateKey
+	privKey  *crypto.PrivateKey
 	unlocked bool
 }
 
@@ -155,15 +183,16 @@ func (acc *Account) saveWithPassphrase(passphrase string) error {
 	return nil
 }
 
-func (acc *Account) unlockWithPassphrase(passphrase string) error {
+// UnlockWithPassphrase unlocks an account and generate its private key
+func (acc *Account) UnlockWithPassphrase(passphrase string) error {
 	privateKeyBytes, err := unlockPrivateKeyWithPassphrase(acc.path, passphrase)
 	if err != nil {
 		return err
 	}
 	if acc.privKey == nil {
-		acc.privKey = &bcrypto.PrivateKey{}
+		acc.privKey = &crypto.PrivateKey{}
 	}
-	acc.privKey, _, err = bcrypto.KeyPairFromBytes(privateKeyBytes)
+	acc.privKey, _, err = crypto.KeyPairFromBytes(privateKeyBytes)
 	if err != nil {
 		return err
 	}

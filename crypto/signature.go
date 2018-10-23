@@ -37,3 +37,12 @@ func SigFromBytes(sigStr []byte) (*Signature, error) {
 	sig, err := btcec.ParseDERSignature(sigStr, secp256k1Curve)
 	return (*Signature)(sig), err
 }
+
+// Recover tries to recover public key from message digest and signatures
+func (sig *Signature) Recover(digest []byte) (*PublicKey, bool) {
+	publicKey, onCurve, err := btcec.RecoverCompact(secp256k1Curve, sig.Serialize(), digest)
+	if !onCurve || err != nil {
+		return nil, false
+	}
+	return (*PublicKey)(publicKey), true
+}
