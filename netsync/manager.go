@@ -26,6 +26,7 @@ var (
 	logger          = log.NewLogger("sync") // logger
 	errNoPeerToSync = errors.New("no peer to sync")
 	errCheckFailed  = errors.New("check failed")
+	errNoResponding = errors.New("no responding when node is in sync")
 	zeroHash        = &crypto.HashType{}
 )
 
@@ -434,6 +435,10 @@ func (sm *SyncManager) fetchRemoteBlocks(fbh *FetchBlockHeaders) (peer.ID, error
 }
 
 func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
+	// not to been sync when the node is in sync status
+	if sm.getStatus() != freeStatus {
+		return errNoResponding
+	}
 	// parse response
 	lh := new(LocateHeaders)
 	if err := lh.Unmarshal(msg.Body()); err != nil {
@@ -494,6 +499,10 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
+	// not to been sync when the node is in sync status
+	if sm.getStatus() != freeStatus {
+		return errNoResponding
+	}
 	// parse response
 	ch := new(CheckHash)
 	if err := ch.Unmarshal(msg.Body()); err != nil {
@@ -547,6 +556,11 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
+	// not to been sync when the node is in sync status
+	if sm.getStatus() != freeStatus {
+		return errNoResponding
+	}
+	//
 	sb := newSyncBlocks(0)
 	defer func() {
 		logger.Infof("send message[0x%X] %d blocks to peer %s",
