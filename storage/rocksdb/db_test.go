@@ -43,6 +43,7 @@ func getDatabase() (string, storage.Storage, error) {
 
 func releaseDatabase(dbpath string, db storage.Storage) {
 	db.Close()
+	os.RemoveAll(dbpath)
 }
 
 func TestDBCreateClose(t *testing.T) {
@@ -63,6 +64,14 @@ func TestDBPut(t *testing.T) {
 	t.Run("put2", storagePutGetDelTest(db, []byte("tk2"), []byte("tv2")))
 	t.Run("put3", storagePutGetDelTest(db, []byte("tk3"), []byte("tv3")))
 	t.Run("put4", storagePutGetDelTest(db, []byte("tk4"), []byte("tv4")))
+}
+
+func TestDBDelNotExists(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	ensure.Nil(t, db.Del([]byte{0x00, 0x01}))
 }
 
 func TestDBDel(t *testing.T) {

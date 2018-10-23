@@ -11,6 +11,11 @@ import (
 // Signature is a btcec.Signature wrapper
 type Signature btcec.Signature
 
+// Signer is the interface which will generate a Signature from HashType
+type Signer interface {
+	Sign(messageHash *HashType) (*Signature, error)
+}
+
 // Sign calculates an ECDSA signature of messageHash using privateKey.
 func Sign(privKey *PrivateKey, messageHash *HashType) (*Signature, error) {
 	btcecSig, err := (*btcec.PrivateKey)(privKey).Sign(messageHash[:])
@@ -36,4 +41,13 @@ func (sig *Signature) Serialize() []byte {
 func SigFromBytes(sigStr []byte) (*Signature, error) {
 	sig, err := btcec.ParseDERSignature(sigStr, secp256k1Curve)
 	return (*Signature)(sig), err
+}
+
+// Recover tries to recover public key from message digest and signatures
+func (sig *Signature) Recover(digest []byte) (*PublicKey, bool) {
+	publicKey, onCurve, err := btcec.RecoverCompact(secp256k1Curve, sig.Serialize(), digest)
+	if !onCurve || err != nil {
+		return nil, false
+	}
+	return (*PublicKey)(publicKey), true
 }

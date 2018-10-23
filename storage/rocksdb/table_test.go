@@ -13,7 +13,7 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
-func TestTableCreateClose(t *testing.T) {
+func TestTableCreateDrop(t *testing.T) {
 	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
@@ -21,8 +21,15 @@ func TestTableCreateClose(t *testing.T) {
 	table, err := db.Table("t1")
 	ensure.Nil(t, err)
 
+	ensure.Nil(t, table.Put([]byte("1234"), []byte("4321")))
 	ensure.Nil(t, table.Put([]byte("!&@%hdg"), []byte("djksfusm, dl")))
 	ensure.Nil(t, db.DropTable("t1"))
+
+	table, err = db.Table("t1")
+	ensure.Nil(t, err)
+	has, err := table.Has([]byte("1234"))
+	ensure.Nil(t, err)
+	ensure.False(t, has)
 }
 
 func TestTableCreate(t *testing.T) {
@@ -51,6 +58,16 @@ func TestTablePutGetDel(t *testing.T) {
 	t.Run("put2", storagePutGetDelTest(t1, []byte("tk2"), []byte("tv2")))
 	t.Run("put3", storagePutGetDelTest(t1, []byte("tk3"), []byte("tv3")))
 	t.Run("put4", storagePutGetDelTest(t1, []byte("tk4"), []byte("tv4")))
+}
+
+func TestTableDelNotExists(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	table, err := db.Table("t1")
+	ensure.Nil(t, err)
+	ensure.Nil(t, table.Del([]byte{0x00, 0x01}))
 }
 
 func TestTableDel(t *testing.T) {
