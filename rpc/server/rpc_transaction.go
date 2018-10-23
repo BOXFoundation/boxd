@@ -9,6 +9,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 )
 
@@ -71,6 +72,19 @@ func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransacti
 	}
 	err = txpool.ProcessTx(tx, true /* relay */)
 	return &rpcpb.BaseResponse{}, err
+}
+
+func (s *txServer) GetRawTransaction(ctx context.Context, req *rpcpb.GetRawTransactionRequest) (*rpcpb.GetRawTransactionResponse, error) {
+	hash := crypto.HashType{}
+	if err := hash.SetBytes(req.Hash); err != nil {
+		return &rpcpb.GetRawTransactionResponse{}, err
+	}
+	tx, err := s.server.GetChainReader().LoadTxByHash(hash)
+	if err != nil {
+		return &rpcpb.GetRawTransactionResponse{}, err
+	}
+	rpcTx, err := tx.ToProtoMessage()
+	return &rpcpb.GetRawTransactionResponse{Tx: rpcTx.(*corepb.Transaction)}, err
 }
 
 func generateUtxoMessage(outPoint *types.OutPoint, entry *types.UtxoWrap) *rpcpb.Utxo {
