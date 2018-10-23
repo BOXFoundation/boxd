@@ -140,8 +140,8 @@ func TestBlockProcessing(t *testing.T) {
 	//						  \-> b4B -> b5B
 	//		   \-> b2A -> b3A
 	// b7 -> b8 -> b9 -> b10
+	// withhold b6 for now and add it later
 	b6 := nextBlock(b5B)
-	//*b6.Hash = *b6.BlockHash()
 	b7 := nextBlock(b6)
 	verifyProcessBlock(t, b7, false, true, nil, 5, b5B)
 	b8 := nextBlock(b7)
