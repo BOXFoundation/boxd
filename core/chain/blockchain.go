@@ -525,20 +525,11 @@ func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
 }
 
-// LoadUtxoByPubKey loads utxos of a public key
-func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	res := make(map[types.OutPoint]*types.UtxoWrap)
-	// for out, entry := range chain.utxoSet.utxoMap {
-	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
-	// 		res[out] = entry
-	// 	}
-	// }
-	return res, nil
-}
-
 // ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*types.UtxoWrap {
-	return nil
+func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
+	utxoSet := NewUtxoSet()
+	err := utxoSet.ApplyBlock(chain.tail)
+	return utxoSet.utxoMap, err
 }
 
 // LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes

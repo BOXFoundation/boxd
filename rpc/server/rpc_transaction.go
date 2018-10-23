@@ -30,7 +30,13 @@ type txServer struct {
 
 func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
 	bc := s.server.GetChainReader()
-	utxos := bc.ListAllUtxos()
+	utxos, err := bc.ListAllUtxos()
+	if err != nil {
+		return &rpcpb.ListUtxosResponse{
+			Code:    1,
+			Message: err.Error(),
+		}, err
+	}
 	res := &rpcpb.ListUtxosResponse{
 		Code:    0,
 		Message: "ok",

@@ -94,6 +94,7 @@ func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 			return err
 		}
 	}
+	logger.Debugf("UTXO: apply block with %d transactions", len(block.Txs))
 	return nil
 }
 

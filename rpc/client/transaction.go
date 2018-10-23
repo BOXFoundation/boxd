@@ -19,20 +19,21 @@ import (
 )
 
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
-func CreateTransaction(v *viper.Viper, fromPubkeyHash []byte, toPubKeyHash []byte, amount int64) error {
+func CreateTransaction(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes []byte, amount int64, signer crypto.Signer) (*types.Transaction, error) {
 	utxoResponse, err := FundTransaction(v, fromPubkeyHash, amount)
+
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
 	utxos, err := selectUtxo(utxoResponse, amount)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, utxos, amount)
+	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, utxos, amount, signer)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	txReq.Tx = tx
 
@@ -44,10 +45,12 @@ func CreateTransaction(v *viper.Viper, fromPubkeyHash []byte, toPubKeyHash []byt
 	logger.Debugf("Create transaction from: %v, to : %v", fromPubkeyHash, toPubKeyHash)
 	r, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logger.Infof("Result: %+v", r)
-	return nil
+	transaction := &types.Transaction{}
+	transaction.FromProtoMessage(tx)
+	return transaction, nil
 }
 
 func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, error) {
@@ -70,7 +73,7 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, err
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, amount int64) (*corepb.Transaction, error) {
+func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, amount int64, signer crypto.Signer) (*corepb.Transaction, error) {
 	tx := &corepb.Transaction{}
 	var current int64
 	txIn := make([]*corepb.TxIn, len(utxos))
@@ -91,13 +94,7 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 	if err != nil {
 		return nil, err
 	}
-	privKey, pubKey, err := findKeyPair(fromPubKeyHash)
-	if err != nil {
-		return nil, err
-	}
-	pubKeyStr := pubKey.Serialize()
-	// TODO: hack just to make signature work. To be removed
-	fromPubKeyHash = crypto.Hash160(pubKeyStr)
+
 	fromScript, err := getScriptAddress(fromPubKeyHash)
 	if err != nil {
 		return nil, err
@@ -123,12 +120,12 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 		if err != nil {
 			return nil, err
 		}
-		sig, err := crypto.Sign(privKey, sigHash)
+		sig, err := signer.Sign(sigHash)
 		if err != nil {
 			return nil, err
 		}
 		scriptSig := script.NewScript()
-		scriptSig.AddOperand(sig.Serialize()).AddOperand(pubKeyStr)
+		scriptSig.AddOperand(sig.Serialize()).AddOperand(fromPubKeyBytes)
 		txIn.ScriptSig = *scriptSig
 		tx.Vin[i].ScriptSig = *scriptSig
 
@@ -142,11 +139,6 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 	}
 
 	return tx, nil
-}
-
-// TODO: @jiaruijiang use real keys from wallet. Just a dummy for testing
-func findKeyPair(pubKeyHash []byte) (*crypto.PrivateKey, *crypto.PublicKey, error) {
-	return crypto.NewKeyPair()
 }
 
 // FundTransaction gets the utxo of a public key
@@ -175,7 +167,7 @@ func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount int64) (*rpcpb.Li
 }
 
 //ListUtxos list all utxos
-func ListUtxos(v *viper.Viper) error {
+func ListUtxos(v *viper.Viper) (*rpcpb.ListUtxosResponse, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
 	c := rpcpb.NewTransactionCommandClient(conn)
@@ -183,8 +175,7 @@ func ListUtxos(v *viper.Viper) error {
 	defer cancel()
 	r, err := c.ListUtxos(ctx, &rpcpb.ListUtxosRequest{})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	logger.Infof("Result: %+v", r)
-	return nil
+	return r, nil
 }
