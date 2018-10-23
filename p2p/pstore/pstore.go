@@ -49,15 +49,15 @@ func NewDefaultPeerstoreWithAddrBook(proc goprocess.Process, s storage.Storage, 
 }
 
 func uniquePeerIDs(store storage.Table, prefix []byte, parse func(key.Key) string) (peer.IDSlice, error) {
-	txn, err := store.NewTransaction()
-	if err != nil {
-		return nil, err
-	}
-	defer txn.Discard()
+	// txn, err := store.NewTransaction()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// defer txn.Discard()
 
 	idset := make(map[peer.ID]struct{})
 	// get all peer addrs in database
-	for _, k := range txn.KeysWithPrefix(prefix) {
+	for _, k := range store.KeysWithPrefix(prefix) {
 		pk := key.NewKeyFromBytes(k)
 		pid, err := peer.IDB58Decode(parse(pk))
 		if err != nil {

@@ -456,8 +456,6 @@ func (ab *addrBook) dbInsert(keys []key.Key, addrs []ma.Multiaddr, ttl time.Dura
 
 // dbDelete transactionally deletes the provided keys.
 func (ab *addrBook) dbDelete(keys []key.Key) error {
-	var err error
-
 	txn, err := ab.store.NewTransaction()
 	if err != nil {
 		return err
