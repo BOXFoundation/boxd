@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/consensus"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -77,6 +78,8 @@ type blockCheckInfo struct {
 type SyncManager struct {
 	status  syncStatus
 	statMtx sync.RWMutex
+	// ProcessBlock mutex
+	processMtx sync.Mutex
 	// peers number that need to check headers
 	checkNum int32
 	// root hash for check hashes
@@ -612,12 +615,18 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
+			sm.processMtx.Lock()
 			_, _, err := sm.chain.ProcessBlock(b, false)
+			sm.processMtx.Unlock()
 			if err != nil {
-				err = fmt.Errorf("onBlocksResponse ProcessBlock from peer[%s] error: %s",
-					pid.Pretty(), err)
-				logger.Warn(err)
-				//panic(err)
+				if err == core.ErrBlockExists {
+					err = fmt.Errorf("onBlocksResponse ProcessBlock from peer[%s] error: %s",
+						pid.Pretty(), err)
+					logger.Warn(err)
+					continue
+				} else {
+					panic(err)
+				}
 			}
 		}
 	}()
