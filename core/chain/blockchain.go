@@ -399,7 +399,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		}
 	}
 
-	if err := validateBlockScripts(block); err != nil {
+	if err := validateBlockScripts(utxoSet, block); err != nil {
 		return err
 	}
 	chain.SetTailBlock(block, utxoSet)

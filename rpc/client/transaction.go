@@ -11,7 +11,10 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/spf13/viper"
 )
 
@@ -88,6 +91,13 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 	if err != nil {
 		return nil, err
 	}
+	privKey, pubKey, err := findKeyPair(fromPubKeyHash)
+	if err != nil {
+		return nil, err
+	}
+	pubKeyStr := pubKey.Serialize()
+	// TODO: hack just to make signature work. To be removed
+	fromPubKeyHash = crypto.Hash160(pubKeyStr)
 	fromScript, err := getScriptAddress(fromPubKeyHash)
 	if err != nil {
 		return nil, err
@@ -102,7 +112,41 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash []byte, utxos []*rpcpb.Utxo, a
 			ScriptPubKey: fromScript,
 		})
 	}
+
+	// Sign the tx inputs
+	typedTx := &types.Transaction{}
+	if err = typedTx.FromProtoMessage(tx); err != nil {
+		return nil, err
+	}
+	for i, txIn := range typedTx.Vin {
+		sigHash, err := script.CalcTxHashForSig(fromScript, typedTx, i)
+		if err != nil {
+			return nil, err
+		}
+		sig, err := crypto.Sign(privKey, sigHash)
+		if err != nil {
+			return nil, err
+		}
+		scriptSig := script.NewScript()
+		scriptSig.AddOperand(sig.Serialize()).AddOperand(pubKeyStr)
+		txIn.ScriptSig = *scriptSig
+		tx.Vin[i].ScriptSig = *scriptSig
+
+		// test to ensure
+		catScript := script.NewScript()
+		// concatenate unlocking & locking scripts
+		catScript.AddOperand(txIn.ScriptSig).AddOpCode(script.OPCODESEPARATOR).AddOperand(fromScript)
+		if err = catScript.Evaluate(typedTx, i); err != nil {
+			return nil, err
+		}
+	}
+
 	return tx, nil
+}
+
+// TODO: @jiaruijiang use real keys from wallet. Just a dummy for testing
+func findKeyPair(pubKeyHash []byte) (*crypto.PrivateKey, *crypto.PublicKey, error) {
+	return crypto.NewKeyPair()
 }
 
 // FundTransaction gets the utxo of a public key

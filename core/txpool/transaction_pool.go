@@ -263,7 +263,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 	// TODO: free-to-relay rate limit
 
 	// verify crypto signatures for each input
-	if err = chain.ValidateTransactionScripts(tx); err != nil {
+	if err = chain.ValidateTxScripts(utxoSet, tx); err != nil {
 		return err
 	}
 
