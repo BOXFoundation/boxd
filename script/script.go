@@ -116,13 +116,14 @@ func (b *Builder) addData(data []byte) *Builder {
 	return b
 }
 
-// PayToPubKeyHashScript creates a new script to pay a transaction output to a the
-// specified address.
-func PayToPubKeyHashScript(pubKeyHash []byte) ([]byte, error) {
-	return nil, nil
-	// return NewBuilder().AddOp(OPDUP).AddOp(OPHASH160).
-	// 	AddData(pubKeyHash).AddOp(OPEQUALVERIFY).AddOp(OPCHECKSIG).
-	// 	Script()
+// PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
+func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
+	return NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+}
+
+// SignatureScript creates a script to unlock a utxo.
+func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
+	return NewScript().AddOperand(sig.Serialize()).AddOperand(pubKey)
 }
 
 // StandardCoinbaseScript returns a standard script suitable for use as the
@@ -138,6 +139,12 @@ type Script []byte
 func NewScript() *Script {
 	emptyBytes := make([]byte, 0)
 	return (*Script)(&emptyBytes)
+}
+
+// NewScriptFromBytes returns a script from byte slice
+func NewScriptFromBytes(scriptBytes []byte) *Script {
+	script := Script(scriptBytes)
+	return &script
 }
 
 // AddOpCode adds an opcode to the script
@@ -171,10 +178,17 @@ func (s *Script) AddOperand(operand []byte) *Script {
 	return s
 }
 
+// AddScript appends a script to the script
+func (s *Script) AddScript(script *Script) *Script {
+	*s = append(*s, (*script)...)
+	return s
+}
+
 // Evaluate interprets the script and returns error if it fails
 func (s *Script) Evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
+	logger.Debugf("script len: %d", scriptLen)
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
@@ -248,7 +262,7 @@ func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 // Execute an operation
 func (s *Script) execOp(opCode OpCode, op Operand, tx *types.Transaction,
 	txInIdx int, pc int, scriptPubKeyStart *int, stack *Stack) error {
-
+	logger.Debugf("opcode: %d, operand: %d, pc: %d", opCode, len(op), pc)
 	if opCode <= OPPUSHDATA4 {
 		stack.push(op)
 		return nil

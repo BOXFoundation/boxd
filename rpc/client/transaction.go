@@ -115,8 +115,8 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos
 	if err = typedTx.FromProtoMessage(tx); err != nil {
 		return nil, err
 	}
-	for i, txIn := range typedTx.Vin {
-		sigHash, err := script.CalcTxHashForSig(fromScript, typedTx, i)
+	for txInIdx, txIn := range typedTx.Vin {
+		sigHash, err := script.CalcTxHashForSig(fromScript, typedTx, txInIdx)
 		if err != nil {
 			return nil, err
 		}
@@ -124,16 +124,15 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos
 		if err != nil {
 			return nil, err
 		}
-		scriptSig := script.NewScript()
-		scriptSig.AddOperand(sig.Serialize()).AddOperand(fromPubKeyBytes)
+		scriptSig := script.SignatureScript(sig, fromPubKeyBytes)
 		txIn.ScriptSig = *scriptSig
-		tx.Vin[i].ScriptSig = *scriptSig
+		tx.Vin[txInIdx].ScriptSig = *scriptSig
 
 		// test to ensure
 		catScript := script.NewScript()
 		// concatenate unlocking & locking scripts
 		catScript.AddOperand(txIn.ScriptSig).AddOpCode(script.OPCODESEPARATOR).AddOperand(fromScript)
-		if err = catScript.Evaluate(typedTx, i); err != nil {
+		if err = catScript.Evaluate(typedTx, txInIdx); err != nil {
 			return nil, err
 		}
 	}

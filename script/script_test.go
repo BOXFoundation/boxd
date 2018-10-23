@@ -18,6 +18,8 @@ func TestNonTxScriptEvaluation(t *testing.T) {
 	script.AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPADD).AddOpCode(OP14).AddOpCode(OPEQUAL)
 	err := script.Evaluate(nil, 0)
 	ensure.Nil(t, err)
+	script2 := NewScriptFromBytes(*script)
+	ensure.DeepEqual(t, script2, script)
 
 	script = NewScript()
 	script.AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPADD).AddOpCode(OP11).AddOpCode(OPEQUAL)
@@ -72,15 +74,14 @@ func TestP2PKH(t *testing.T) {
 	pubKeyStr := pubKey.Serialize()
 	pubKeyHash := crypto.Hash160(pubKeyStr)
 
-	scriptPubKey := NewScript()
-	scriptPubKey.AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	scriptPubKey := NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 	hash, _ := CalcTxHashForSig([]byte(*scriptPubKey), tx, 0)
 	sig, _ := crypto.Sign(privKey, hash)
 	sigStr := sig.Serialize()
 
 	// P2PKH script: sig, pubKey, OPCODESEPARATOR, OPDUP, OPHASH160, pubKeyHash, OPEQUALVERIFY, OPCHECKSIG
 	script := NewScript()
-	script.AddOperand(sigStr).AddOperand(pubKeyStr).AddOpCode(OPCODESEPARATOR).AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	script.AddOperand(sigStr).AddOperand(pubKeyStr).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
 	err := script.Evaluate(tx, 0)
 	ensure.Nil(t, err)
 }

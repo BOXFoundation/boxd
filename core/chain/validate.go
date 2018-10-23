@@ -174,11 +174,11 @@ func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 			return core.ErrMissingTxOut
 		}
 
-		prevScriptPubKey := utxo.Output.ScriptPubKey
+		prevScriptPubKey := script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+		scriptSig := script.NewScriptFromBytes(txIn.ScriptSig)
 
-		catScript := script.NewScript()
 		// concatenate unlocking & locking scripts
-		catScript.AddOperand(txIn.ScriptSig).AddOpCode(script.OPCODESEPARATOR).AddOperand(prevScriptPubKey)
+		catScript := script.NewScript().AddScript(scriptSig).AddOpCode(script.OPCODESEPARATOR).AddScript(prevScriptPubKey)
 		if err := catScript.Evaluate(tx, txInIdx); err != nil {
 			return err
 		}

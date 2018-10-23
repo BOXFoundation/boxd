@@ -61,10 +61,7 @@ func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction
 		return nil, err
 	}
 	if addr != nil {
-		pkScript, err = script.PayToPubKeyHashScript(addr.ScriptAddress())
-		if err != nil {
-			return nil, err
-		}
+		pkScript = *script.PayToPubKeyHashScript(addr.ScriptAddress())
 	} else {
 		scriptBuilder := script.NewBuilder()
 		pkScript, err = scriptBuilder.AddOp(byte(script.OPTRUE)).Script()
