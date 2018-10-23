@@ -5,6 +5,8 @@
 package chain
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -105,28 +107,38 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	return b, nil
 }
 
+// implement interface service.Server
+var _ service.Server = (*BlockChain)(nil)
+
+// Run launch blockchain.
+func (chain *BlockChain) Run() error {
+	chain.subscribeMessageNotifiee()
+	chain.proc.Go(chain.loop)
+
+	return nil
+}
+
 // Proc returns the goprocess of the BlockChain
 func (chain *BlockChain) Proc() goprocess.Process {
 	return chain.proc
 }
 
-// Run launch blockchain.
-func (chain *BlockChain) Run() {
-	chain.subscribeMessageNotifiee()
-	go chain.loop()
+// Stop the blockchain service
+func (chain *BlockChain) Stop() {
+	chain.proc.Close()
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
 	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
 }
 
-func (chain *BlockChain) loop() {
+func (chain *BlockChain) loop(p goprocess.Process) {
 	logger.Info("Waitting for new block message...")
 	for {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
-		case <-chain.proc.Closing():
+		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
 		}
@@ -562,6 +574,11 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	if err := chain.StoreTailBlock(tail); err != nil {
 		return err
 	}
+
+	// save tx index
+	if err := chain.WirteTxIndex(tail); err != nil {
+		return err
+	}
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
@@ -667,6 +684,63 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 		return err
 	}
 	return chain.dbBlock.Put((*hash)[:], data)
+}
+
+// LoadTxByHash load transaction with hash.
+func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
+
+	txIndex, err := chain.dbBlock.Get(hash[:])
+	if err != nil {
+		return nil, err
+	}
+	buf := bytes.NewBuffer(txIndex)
+	height, err := util.ReadInt32(buf)
+	if err != nil {
+		return nil, err
+	}
+	idx, err := util.ReadInt32(buf)
+	if err != nil {
+		return nil, err
+	}
+	block, err := chain.LoadBlockByHeight(height)
+	if err != nil {
+		return nil, err
+	}
+	if block != nil {
+		tx := block.Txs[idx]
+		target, err := tx.TxHash()
+		if err != nil {
+			return nil, err
+		}
+		if *target == hash {
+			return tx, nil
+		}
+	}
+	return nil, errors.New("Failed to load tx with hash")
+}
+
+// WirteTxIndex build tx index in block
+func (chain *BlockChain) WirteTxIndex(block *types.Block) error {
+
+	height := block.Height
+	batch := chain.dbBlock.NewBatch()
+	defer batch.Close()
+	for idx, v := range block.Txs {
+		var buf bytes.Buffer
+		if err := util.WriteInt32(&buf, height); err != nil {
+			return err
+		}
+		if err := util.WriteInt32(&buf, int32(idx)); err != nil {
+			return err
+		}
+		hash, err := v.TxHash()
+		if err != nil {
+			return err
+		}
+		batch.Put(hash[:], buf.Bytes())
+	}
+
+	return batch.Write()
 }
 
 // LocateForkPointAndFetchHeaders return block headers when get locate fork point request for sync service.

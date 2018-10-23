@@ -13,7 +13,7 @@ import (
 
 // UtxoWrap contains info about utxo
 type UtxoWrap struct {
-	Output      *TxOut
+	Output      *corepb.TxOut
 	BlockHeight int32
 	IsCoinBase  bool
 	IsSpent     bool
@@ -22,9 +22,8 @@ type UtxoWrap struct {
 
 // ToProtoMessage converts utxo wrap to proto message.
 func (utxoWrap *UtxoWrap) ToProtoMessage() (proto.Message, error) {
-	output, _ := utxoWrap.Output.ToProtoMessage()
 	return &corepb.UtxoWrap{
-		Output:      output.(*corepb.TxOut),
+		Output:      utxoWrap.Output,
 		BlockHeight: utxoWrap.BlockHeight,
 		IsCoinbase:  utxoWrap.IsCoinBase,
 		IsSpent:     utxoWrap.IsSpent,
@@ -35,11 +34,7 @@ func (utxoWrap *UtxoWrap) ToProtoMessage() (proto.Message, error) {
 // FromProtoMessage converts proto message to utxo wrap.
 func (utxoWrap *UtxoWrap) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.UtxoWrap); ok {
-		txout := new(TxOut)
-		if err := txout.FromProtoMessage(message.Output); err != nil {
-			return err
-		}
-		utxoWrap.Output = txout
+		utxoWrap.Output = message.Output
 		utxoWrap.BlockHeight = message.BlockHeight
 		utxoWrap.IsCoinBase = message.IsCoinbase
 		utxoWrap.IsModified = message.IsModified

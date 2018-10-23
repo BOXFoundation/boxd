@@ -38,13 +38,13 @@ func (t *rtable) NewTransaction() (storage.Transaction, error) {
 	t.sm.Lock()
 	defer t.sm.Unlock()
 
-	if t.tr != nil {
-		t.tr.sm.Lock()
-		defer t.tr.sm.Unlock()
-		if !t.tr.closed {
-			return nil, storage.ErrTransactionExists
-		}
-	}
+	// if t.tr != nil {
+	// 	t.tr.sm.Lock()
+	// 	defer t.tr.sm.Unlock()
+	// 	if !t.tr.closed {
+	// 		return nil, storage.ErrTransactionExists
+	// 	}
+	// }
 
 	// lock all write operations
 	t.writeLock <- struct{}{}
@@ -68,7 +68,10 @@ func (t *rtable) Put(key, value []byte) error {
 
 // delete the entry associate with the key in the Storage
 func (t *rtable) Del(key []byte) error {
-	return t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
+	t.writeLock <- struct{}{}
+	err := t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
+	<-t.writeLock
+	return err
 }
 
 // return value associate with the key in the Storage

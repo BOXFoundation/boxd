@@ -17,22 +17,13 @@ type Transaction struct {
 	Hash     *crypto.HashType
 	Version  int32
 	Vin      []*TxIn
-	Vout     []*TxOut
+	Vout     []*corepb.TxOut
 	Magic    uint32
 	LockTime int64
 }
 
 var _ conv.Convertible = (*Transaction)(nil)
 var _ conv.Serializable = (*Transaction)(nil)
-
-// TxOut defines a transaction output.
-type TxOut struct {
-	Value        int64
-	ScriptPubKey []byte
-}
-
-var _ conv.Convertible = (*TxOut)(nil)
-var _ conv.Serializable = (*TxOut)(nil)
 
 // TxIn defines a transaction input.
 type TxIn struct {
@@ -52,44 +43,6 @@ type OutPoint struct {
 
 var _ conv.Convertible = (*OutPoint)(nil)
 var _ conv.Serializable = (*OutPoint)(nil)
-
-////////////////////////////////////////////////////////////////////////////////
-
-// ToProtoMessage converts txout to proto message.
-func (txout *TxOut) ToProtoMessage() (proto.Message, error) {
-	return &corepb.TxOut{
-		Value:        txout.Value,
-		ScriptPubKey: txout.ScriptPubKey,
-	}, nil
-}
-
-// FromProtoMessage converts proto message to txout.
-func (txout *TxOut) FromProtoMessage(message proto.Message) error {
-	if message, ok := message.(*corepb.TxOut); ok {
-		if message != nil {
-			txout.ScriptPubKey = message.ScriptPubKey
-			txout.Value = message.Value
-			return nil
-		}
-		return core.ErrEmptyProtoMessage
-	}
-
-	return core.ErrInvalidTxOutProtoMessage
-}
-
-// Marshal method marshal TxOut object to binary
-func (txout *TxOut) Marshal() (data []byte, err error) {
-	return conv.MarshalConvertible(txout)
-}
-
-// Unmarshal method unmarshal binary data to TxOut object
-func (txout *TxOut) Unmarshal(data []byte) error {
-	msg := &corepb.TxOut{}
-	if err := proto.Unmarshal(data, msg); err != nil {
-		return err
-	}
-	return txout.FromProtoMessage(msg)
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +153,6 @@ func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 // ToProtoMessage converts transaction to proto message.
 func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 	var vins []*corepb.TxIn
-	var vouts []*corepb.TxOut
 	for _, v := range tx.Vin {
 		vin, err := v.ToProtoMessage()
 		if err != nil {
@@ -210,16 +162,11 @@ func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 			vins = append(vins, vin)
 		}
 	}
-	for _, v := range tx.Vout {
-		vout, _ := v.ToProtoMessage()
-		if vout, ok := vout.(*corepb.TxOut); ok {
-			vouts = append(vouts, vout)
-		}
-	}
+
 	return &corepb.Transaction{
 		Version:  tx.Version,
 		Vin:      vins,
-		Vout:     vouts,
+		Vout:     tx.Vout,
 		Magic:    tx.Magic,
 		LockTime: tx.LockTime,
 	}, nil
@@ -238,20 +185,11 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 				vins = append(vins, txin)
 			}
 
-			var vouts []*TxOut
-			for _, v := range message.Vout {
-				txout := new(TxOut)
-				if err := txout.FromProtoMessage(v); err != nil {
-					return err
-				}
-				vouts = append(vouts, txout)
-			}
-
 			// fill in hash
 			tx.Hash, _ = calcProtoMsgDoubleHash(message)
 			tx.Version = message.Version
 			tx.Vin = vins
-			tx.Vout = vouts
+			tx.Vout = message.Vout
 			tx.Magic = message.Magic
 			tx.LockTime = message.LockTime
 			return nil

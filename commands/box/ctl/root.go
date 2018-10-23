@@ -5,9 +5,15 @@
 package ctl
 
 import (
+	"path"
+
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/spf13/cobra"
 )
+
+var walletDir string
+var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -20,4 +26,5 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 }
