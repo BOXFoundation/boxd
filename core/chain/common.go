@@ -92,6 +92,7 @@ func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction
 			},
 		},
 	}
+	tx.Hash, _ = tx.TxHash()
 	return tx, nil
 }
 
