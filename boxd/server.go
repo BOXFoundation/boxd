@@ -103,7 +103,7 @@ func (server *Server) Run() error {
 	server.database = database
 
 	// start p2p service
-	peer, err := p2p.NewBoxPeer(database.Proc(), &cfg.P2p, database)
+	peer, err := p2p.NewBoxPeer(database.Proc(), &cfg.P2p, database, server.bus)
 	if err != nil {
 		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
 	}

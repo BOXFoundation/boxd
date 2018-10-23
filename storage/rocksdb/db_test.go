@@ -45,6 +45,7 @@ func getDatabase() (string, storage.Storage, error) {
 
 func releaseDatabase(dbpath string, db storage.Storage) {
 	db.Close()
+	os.RemoveAll(dbpath)
 }
 
 func TestDBCreateClose(t *testing.T) {
@@ -83,6 +84,14 @@ func TestDBPut(t *testing.T) {
 	t.Run("put2", dbPutReadOnceTest(db, []byte("tk2"), []byte("tv2")))
 	t.Run("put3", dbPutReadOnceTest(db, []byte("tk3"), []byte("tv3")))
 	t.Run("put4", dbPutReadOnceTest(db, []byte("tk4"), []byte("tv4")))
+}
+
+func TestDBDelNotExists(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	ensure.Nil(t, db.Del([]byte{0x00, 0x01}))
 }
 
 func TestDBDel(t *testing.T) {
@@ -377,9 +386,9 @@ func TestDBMulTransactions(t *testing.T) {
 	ensure.NotNil(t, tx)
 	defer tx.Discard()
 
-	tx2, err := db.NewTransaction()
-	ensure.DeepEqual(t, err, storage.ErrTransactionExists)
-	ensure.Nil(t, tx2)
+	// tx2, err := db.NewTransaction()
+	// ensure.DeepEqual(t, err, storage.ErrTransactionExists)
+	// ensure.Nil(t, tx2)
 }
 
 func TestDBTransactionsClose(t *testing.T) {
@@ -423,11 +432,11 @@ func TestDBSyncTransaction(t *testing.T) {
 	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
-	const (
-		kk = "kkk"
-		vv = "vvv"
+	var (
+		kk = []byte("kkk")
+		vv = []byte("vvv")
 	)
-	db.Put([]byte(kk), []byte(vv))
+	db.Put(kk, vv)
 
 	c := make(chan [][]byte)
 	go func(c chan<- [][]byte) {
@@ -450,8 +459,8 @@ func TestDBSyncTransaction(t *testing.T) {
 	for k := range c {
 		keys = append(keys, k[0])
 		values = append(values, k[1])
-		v, _ := db.Get([]byte(kk))
-		ensure.DeepEqual(t, []byte(vv), v)
+		v, _ := db.Get(kk)
+		ensure.DeepEqual(t, vv, v)
 
 		v2, err := db.Get(k[0])
 		ensure.Nil(t, err)
