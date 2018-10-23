@@ -42,7 +42,8 @@ message SyncCheckHash {
 }
 
 message FetchBlockHeaders {
-    repeated bytes hashes = 1;
+    bytes begin_hash = 1;    // begin hash
+    int32 length = 2;
 }
 
 message SyncBlocks {

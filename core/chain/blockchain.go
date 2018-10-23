@@ -5,7 +5,6 @@
 package chain
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -759,8 +758,9 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	if block == nil {
 		return nil, fmt.Errorf("block is not existed for hash: %+v", hash)
 	}
-	if chain.tail.Height-block.Height+1 < num {
-		return nil, errors.New("Invalid params num")
+	if num <= 0 || chain.tail.Height-block.Height+1 < num {
+		return nil, fmt.Errorf("Invalid params num[%d], tail.Height[%d],"+
+			" block height[%d]", num, chain.tail.Height, block.Height)
 	}
 	var idx int32
 	blocks := make([]*types.Block, num)

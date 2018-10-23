@@ -65,7 +65,7 @@ type SyncCheckHash struct {
 // FetchBlockHeaders includes headers sended to a sync peer to
 // fetch blocks
 type FetchBlockHeaders struct {
-	LocateHeaders
+	CheckHash
 }
 
 // SyncBlocks includes blocks sended from synchronized peer to local node
@@ -81,10 +81,7 @@ func newLocateHeaders(hashes ...*crypto.HashType) *LocateHeaders {
 }
 
 func newSyncHeaders(hashes ...*crypto.HashType) *SyncHeaders {
-	if hashes == nil {
-		hashes = make([]*crypto.HashType, 0)
-	}
-	return &SyncHeaders{LocateHeaders: LocateHeaders{hashes}}
+	return &SyncHeaders{LocateHeaders: *newLocateHeaders(hashes...)}
 }
 
 func newCheckHash(hash *crypto.HashType, len int) *CheckHash {
@@ -101,11 +98,8 @@ func newSyncCheckHash(hash *crypto.HashType) *SyncCheckHash {
 	return &SyncCheckHash{RootHash: hash}
 }
 
-func newFetchBlockHeaders(hashes ...*crypto.HashType) *FetchBlockHeaders {
-	if hashes == nil {
-		hashes = make([]*crypto.HashType, 0)
-	}
-	return &FetchBlockHeaders{LocateHeaders: LocateHeaders{hashes}}
+func newFetchBlockHeaders(hash *crypto.HashType, len int) *FetchBlockHeaders {
+	return &FetchBlockHeaders{CheckHash: *newCheckHash(hash, len)}
 }
 
 func newSyncBlocks(blocks ...*coreTypes.Block) *SyncBlocks {
@@ -138,11 +132,13 @@ func (sh *SyncHeaders) ToProtoMessage() (proto.Message, error) {
 // ToProtoMessage converts LocateHeaders to proto message.
 func (fbh *FetchBlockHeaders) ToProtoMessage() (proto.Message, error) {
 	if fbh == nil {
-		fbh = newFetchBlockHeaders()
+		fbh = newFetchBlockHeaders(nil, 0)
 	}
-	return &netsyncpb.FetchBlockHeaders{
-		Hashes: ConvHashesToBytesArray(fbh.Hashes),
-	}, nil
+	pbFbh := new(netsyncpb.FetchBlockHeaders)
+	pbFbh.BeginHash = make([]byte, crypto.HashSize)
+	copy(pbFbh.BeginHash[:], (*fbh.BeginHash)[:])
+	pbFbh.Length = fbh.Length
+	return pbFbh, nil
 }
 
 // FromProtoMessage converts proto message to LocateHeaders
@@ -185,19 +181,18 @@ func (sh *SyncHeaders) FromProtoMessage(message proto.Message) error {
 	return errInvalidProtoMessage
 }
 
-// FromProtoMessage converts proto message to LocateHeaders
+// FromProtoMessage converts proto message to FetchBlockHeaders
 func (fbh *FetchBlockHeaders) FromProtoMessage(message proto.Message) error {
 	if fbh == nil {
-		fbh = newFetchBlockHeaders()
+		fbh = newFetchBlockHeaders(nil, 0)
+	}
+	if fbh.BeginHash == nil {
+		fbh.BeginHash = &crypto.HashType{}
 	}
 	if m, ok := message.(*netsyncpb.FetchBlockHeaders); ok {
 		if m != nil {
-			var err error
-			fbh.Hashes, err = ConvBytesArrayToHashes(m.Hashes)
-			if err != nil {
-				logger.Info(err.Error())
-				return errInvalidProtoMessage
-			}
+			copy(fbh.BeginHash[:], m.BeginHash[:])
+			fbh.Length = m.Length
 			return nil
 		}
 		return errEmptyProtoMessage
@@ -269,7 +264,7 @@ func (ch *CheckHash) FromProtoMessage(message proto.Message) error {
 	}
 	if m, ok := message.(*netsyncpb.CheckHash); ok {
 		if m != nil {
-			copy((ch.BeginHash)[:], m.BeginHash[:])
+			copy(ch.BeginHash[:], m.BeginHash[:])
 			ch.Length = m.Length
 			return nil
 		}

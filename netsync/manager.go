@@ -13,7 +13,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/consensus"
 	"github.com/BOXFoundation/boxd/core/chain"
-	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -39,9 +38,9 @@ func (s syncStatus) String() string {
 	case locateStatus:
 		return "locateStatus"
 	case checkStatus:
-		return "blockStatus"
-	case blockStatus:
-		return "blockStatus"
+		return "checkStatus"
+	case blocksStatus:
+		return "blocksStatus"
 	default:
 		return "unknown syncStatus"
 	}
@@ -56,14 +55,14 @@ const (
 	availablePeerStatus peerStatus = iota
 	locatePeerStatus
 	checkedPeerStatus
-	syncPeerStatus
+	blocksPeerStatus
 	errPeerStatus
 	timeoutPeerStatus
 
 	freeStatus syncStatus = iota
 	locateStatus
 	checkStatus
-	blockStatus
+	blocksStatus
 )
 
 // SyncManager use to manage blocks and main chains to stay in sync
@@ -202,7 +201,7 @@ func (sm *SyncManager) handleSyncMessage() {
 
 func (sm *SyncManager) startSync() {
 	// sleep 2s to wait connections established
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 	//
 	defer func() {
 		sm.consensus.RecoverMint()
@@ -267,7 +266,7 @@ out_sync:
 			}
 		}
 
-		sm.setStatus(blockStatus)
+		sm.setStatus(blocksStatus)
 		sm.fetchBlocks(sm.fetchHashes)
 		logger.Infof("wait sync %d blocks done", len(sm.fetchHashes))
 		for {
@@ -349,12 +348,12 @@ func (sm *SyncManager) fetchBlocks(hashes []*crypto.HashType) error {
 		}
 		var fbh *FetchBlockHeaders
 		if i+syncBlockChunkSize <= len(hashes) {
-			fbh = newFetchBlockHeaders(hashes[i : i+syncBlockChunkSize]...)
+			fbh = newFetchBlockHeaders(hashes[i], syncBlockChunkSize)
 		} else {
-			fbh = newFetchBlockHeaders(hashes[i:]...)
+			fbh = newFetchBlockHeaders(hashes[i], len(hashes)-i)
 		}
-		logger.Infof("send message[0x%X] %d hashes to peer %s",
-			p2p.BlockChunkRequest, len(fbh.Hashes), pid.Pretty())
+		logger.Infof("send message[0x%X] body:%+v to peer %s",
+			p2p.BlockChunkRequest, fbh, pid.Pretty())
 		err = sm.p2pNet.SendMessageToPeer(p2p.BlockChunkRequest, fbh, pid)
 		if err != nil {
 			logger.Warn("SendMessageToPeer BlockChunkRequest error: ", err)
@@ -426,12 +425,6 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
-	//if sm.isPeerStatusFor(checkedPeerStatus, msg.From()) {
-	if sm.isPeerStatusFor(availablePeerStatus, msg.From()) {
-		sm.syncErrCh <- struct{}{}
-		return fmt.Errorf("receive BlockChunkResponse from non-check peer[%s]",
-			msg.From().Pretty())
-	}
 	// parse response
 	ch := new(CheckHash)
 	if err := ch.Unmarshal(msg.Body()); err != nil {
@@ -443,7 +436,6 @@ func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
 	if err != nil {
 		logger.Infof("onCheckRequest calc root hash for %+v error: %s", ch, err)
 	}
-	// if hashes == nil {}
 	sh := newSyncCheckHash(hash)
 	logger.Infof("send message[0x%X] body[%+v] to peer %s", p2p.LocateCheckResponse,
 		sh, msg.From().Pretty())
@@ -493,22 +485,23 @@ func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
 		err = sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse, sb, msg.From())
 	}()
 	// parse response
-	fbh := newFetchBlockHeaders()
+	fbh := newFetchBlockHeaders(nil, 0)
 	err = fbh.Unmarshal(msg.Body())
 	if err != nil {
 		logger.Infof("onBlocksRequest error: %s", err)
 	}
 	// fetch blocks from local main chain
-	blocks, err := sm.fetchLocalBlocks(fbh.Hashes)
+	blocks, err := sm.chain.FetchNBlockAfterSpecificHash(*fbh.BeginHash, fbh.Length)
 	if err != nil {
-		logger.Infof("onBlocksRequest fetchLocalBlocks error: %s", err)
+		logger.Infof("onBlocksRequest fetchLocalBlocks FetchBlockHeaders: %+v"+
+			" error: %s", fbh, err)
 	}
 	sb = newSyncBlocks(blocks...)
 	return
 }
 
 func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
-	if sm.getStatus() != blockStatus {
+	if sm.getStatus() != blocksStatus {
 		return fmt.Errorf("onBlocksResponse return since now status is %s",
 			sm.getStatus())
 	}
@@ -523,6 +516,10 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	if err := sb.Unmarshal(msg.Body()); err != nil {
 		sm.syncErrCh <- struct{}{}
 		return err
+	}
+	// check blocks merkle root hash
+	if ok := sm.checkBlocks(); !ok {
+
 	}
 	// process blocks
 	for _, b := range sb.Blocks {
@@ -600,21 +597,6 @@ func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) (
 	return nil, errors.New("no header needed to sync")
 }
 
-func (sm *SyncManager) fetchLocalBlocks(hashes []*crypto.HashType) ([]*coreTypes.Block, error) {
-	blocks := make([]*coreTypes.Block, 0, len(hashes))
-	for _, h := range hashes {
-		b, err := sm.chain.LoadBlockByHash(*h)
-		if err != nil {
-			return nil, err
-		}
-		if b == nil {
-			return nil, fmt.Errorf("fetchLocalBlocks] block not existed for hash: %+v", h)
-		}
-		blocks = append(blocks, b)
-	}
-	return blocks, nil
-}
-
 func (sm *SyncManager) pickOnePeer() (peer.ID, error) {
 	ids := make([]peer.ID, 0, len(sm.stalePeers))
 	for k := range sm.stalePeers {
@@ -638,4 +620,9 @@ func (sm *SyncManager) completed() bool {
 
 func (sm *SyncManager) moreSync() bool {
 	return !sm.completed() && len(sm.fetchHashes) == chain.MaxBlockHeaderCountInSyncTask
+}
+
+func (sm *SyncManager) checkBlocks() bool {
+
+	return true
 }
