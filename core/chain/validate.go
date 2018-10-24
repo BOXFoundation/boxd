@@ -168,9 +168,12 @@ func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 	for txInIdx, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsSpent {
-			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
-				"has already been spent", txIn.PrevOutPoint, txHash, txInIdx)
+		if utxo == nil {
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist", txIn.PrevOutPoint, txHash, txInIdx)
+			return core.ErrMissingTxOut
+		}
+		if utxo.IsSpent {
+			logger.Errorf("output %v referenced from transaction %s:%d has already been spent", txIn.PrevOutPoint, txHash, txInIdx)
 			return core.ErrMissingTxOut
 		}
 

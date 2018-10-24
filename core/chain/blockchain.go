@@ -177,7 +177,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		logger.Error(err)
 		return false, false, err
 	}
-
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 		// Orphan block.
@@ -350,6 +349,11 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	// 	str := "the coinbase for the genesis block is not spendable"
 	// 	return ErrMissingTxOut
 	// }
+	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
+	if err := validateBlockScripts(utxoSet, block); err != nil {
+		return err
+	}
+
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -400,9 +404,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		}
 	}
 
-	if err := validateBlockScripts(utxoSet, block); err != nil {
-		return err
-	}
 	chain.SetTailBlock(block, utxoSet)
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
