@@ -48,7 +48,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight in
 		Output:      tx.Vout[txOutIdx],
 		BlockHeight: blockHeight,
 		IsCoinBase:  IsCoinBase(tx),
-		IsModified:  false,
+		IsModified:  true,
 		IsSpent:     false,
 	}
 	u.utxoMap[outPoint] = &utxoWrap
@@ -141,7 +141,6 @@ func (u *UtxoSet) RevertBlock(block *types.Block) error {
 
 // WriteUtxoSetToDB store utxo set to database.
 func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
-
 	for outpoint, utxoWrap := range u.utxoMap {
 		if utxoWrap == nil || !utxoWrap.IsModified {
 			continue
@@ -154,9 +153,9 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			if err != nil {
 				return err
 			}
+			utxoWrap.IsModified = false
 			continue
 		}
-
 		// Serialize and store the utxo entry.
 		serialized, err := utxoWrap.Marshal()
 		if err != nil {
@@ -167,6 +166,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		if err != nil {
 			return err
 		}
+		utxoWrap.IsModified = false
 	}
 	return nil
 }
