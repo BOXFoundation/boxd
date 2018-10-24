@@ -90,13 +90,13 @@ func (db *rocksdb) NewTransaction() (storage.Transaction, error) {
 	db.sm.Lock()
 	defer db.sm.Unlock()
 
-	if db.tr != nil {
-		db.tr.sm.Lock()
-		defer db.tr.sm.Unlock()
-		if !db.tr.closed {
-			return nil, storage.ErrTransactionExists
-		}
-	}
+	// if db.tr != nil {
+	// 	db.tr.sm.Lock()
+	// 	defer db.tr.sm.Unlock()
+	// 	if !db.tr.closed {
+	// 		return nil, storage.ErrTransactionExists
+	// 	}
+	// }
 
 	// lock all write operations
 	db.writeLock <- struct{}{}

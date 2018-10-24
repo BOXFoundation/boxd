@@ -5,17 +5,47 @@
 package ctl
 
 import (
+	"encoding/hex"
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 )
 
 // signmessageCmd represents the signmessage command
 var signmessageCmd = &cobra.Command{
-	Use:   "signmessage [message] [privatekey]",
-	Short: "Sign a message with a privatekey",
+	Use:   "signmessage [message] [optional publickey]",
+	Short: "Sign a message with a publickey",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("signmessage called")
+		if len(args) < 2 {
+			fmt.Println("Please input the hex format of signature and publickey hash")
+			return
+		}
+		msg, err := hex.DecodeString(args[0])
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		wltMgr, err := wallet.NewWalletManager(walletDir)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		if _, exists := wltMgr.GetAccount(args[1]); !exists {
+			fmt.Println(args[1], " is not a managed account")
+			return
+		}
+		passphrase, err := wallet.ReadPassphraseStdin()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		sig, err := wltMgr.Sign(msg, args[1], passphrase)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("Signature: ", hex.EncodeToString(sig))
 	},
 }
 

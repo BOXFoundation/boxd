@@ -12,6 +12,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
@@ -40,13 +42,15 @@ type BoxPeer struct {
 	networkIdentity crypto.PrivKey
 	notifier        *Notifier
 	connmgr         *ConnManager
+	addrbook        service.Server
+	bus             eventbus.Bus
 	mu              sync.Mutex
 }
 
 var _ Net = (*BoxPeer)(nil) // BoxPeer implements Net interface
 
 // NewBoxPeer create a BoxPeer
-func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*BoxPeer, error) {
+func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus eventbus.Bus) (*BoxPeer, error) {
 	// ctx := context.Background()
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
@@ -61,7 +65,13 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage) (*B
 		return nil, err
 	}
 
-	ps, err := pstore.NewDefaultPeerstore(ctx, s)
+	addrbook, err := pstore.NewDefaultAddrBook(proc, s, bus)
+	if err != nil {
+		return nil, err
+	}
+	boxPeer.addrbook = addrbook.(service.Server)
+
+	ps, err := pstore.NewDefaultPeerstoreWithAddrBook(proc, s, addrbook)
 	if err != nil {
 		return nil, err
 	}
@@ -134,21 +144,32 @@ func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	conn.Loop(p.proc)
 }
 
+// implement interface service.Server
+var _ service.Server = (*BoxPeer)(nil)
+
 // Run schedules lookup and discover new peer
-func (p *BoxPeer) Run() {
+func (p *BoxPeer) Run() error {
 	// libp2p conn manager
 	p.connmgr.Loop(p.proc)
+	p.addrbook.Run()
 
 	if len(p.config.Seeds) > 0 {
 		p.connectSeeds()
 		p.table.Loop(p.proc)
 	}
 	p.notifier.Loop(p.proc)
+
+	return nil
 }
 
 // Proc returns the gopreocess of database
 func (p *BoxPeer) Proc() goprocess.Process {
 	return p.proc
+}
+
+// Stop box peer service
+func (p *BoxPeer) Stop() {
+	p.proc.Close()
 }
 
 func (p *BoxPeer) connectSeeds() {

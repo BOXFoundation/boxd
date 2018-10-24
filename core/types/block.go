@@ -37,7 +37,7 @@ func NewBlock(parent *Block) *Block {
 	return &Block{
 		Header: &BlockHeader{
 			Magic:         parent.Header.Magic,
-			PrevBlockHash: *parent.Hash,
+			PrevBlockHash: *parent.BlockHash(),
 			TimeStamp:     time.Now().UnixNano(),
 		},
 		Txs:    make([]*Transaction, 0),

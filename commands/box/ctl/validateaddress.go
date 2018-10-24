@@ -7,6 +7,7 @@ package ctl
 import (
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +16,17 @@ var validateaddressCmd = &cobra.Command{
 	Use:   "validateaddress [address]",
 	Short: "Check if an address is valid",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("validateaddress called")
+		if len(args) < 1 {
+			fmt.Println("Please specify the address to validate")
+			return
+		}
+		fmt.Println("validateing address", args[0])
+		addr := &types.AddressPubKeyHash{}
+		if err := addr.SetString(args[0]); err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(args[0], " is a valid address")
+		}
 	},
 }
 

@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	curve = btcec.S256()
+	secp256k1Curve = btcec.S256()
 )
 
 // PrivateKey is a btcec.PrivateKey wrapper
@@ -22,13 +22,13 @@ func KeyPairFromBytes(privKeyBytes []byte) (*PrivateKey, *PublicKey, error) {
 	if len(privKeyBytes) != btcec.PrivKeyBytesLen {
 		return nil, nil, fmt.Errorf("Private key must be be exactly %d bytes (%d)", btcec.PrivKeyBytesLen, len(privKeyBytes))
 	}
-	privKey, pubKey := btcec.PrivKeyFromBytes(curve, privKeyBytes)
+	privKey, pubKey := btcec.PrivKeyFromBytes(secp256k1Curve, privKeyBytes)
 	return (*PrivateKey)(privKey), (*PublicKey)(pubKey), nil
 }
 
 // NewKeyPair returns a new private and public key pair
 func NewKeyPair() (*PrivateKey, *PublicKey, error) {
-	btcecPrivKey, err := btcec.NewPrivateKey(curve)
+	btcecPrivKey, err := btcec.NewPrivateKey(secp256k1Curve)
 	if err != nil {
 		return nil, nil, err
 	}

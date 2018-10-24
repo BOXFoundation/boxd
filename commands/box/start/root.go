@@ -5,10 +5,12 @@
 package start
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/BOXFoundation/boxd/boxd"
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -21,8 +23,16 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start full node server.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		boxd := boxd.NewServer()
-		return boxd.Start(viper.GetViper())
+		cfg := &config.Config{}
+		// init config object from viper
+		if err := viper.Unmarshal(cfg); err != nil {
+			// exit in case of cfg error
+			fmt.Print("Failed to read config ", err)
+			return nil
+		}
+		boxd := boxd.NewServer(cfg)
+		boxd.Prepare()
+		return boxd.Run()
 	},
 }
 
