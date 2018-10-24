@@ -456,7 +456,8 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 		}
 	}
 
-	sigHash, err := tx.TxHash()
+	// force to recompute hash instead of getting from cached hash since tx has changed
+	sigHash, err := tx.CalcTxHash()
 
 	// recover script sig
 	for i, txIn := range tx.Vin {
