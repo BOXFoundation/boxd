@@ -58,7 +58,7 @@ const (
 	blocksTimeout      = 20 * time.Second
 	retryTimes         = 20
 	retryInterval      = 2 * time.Second
-	maxSyncRetries     = 100
+	maxSyncTries       = 100
 
 	availablePeerStatus peerStatus = iota
 	locatePeerStatus
@@ -231,12 +231,12 @@ func (sm *SyncManager) startSync() {
 
 	// timer for locate, check and sync
 	timer := time.NewTimer(syncTimeout)
-	retries := 0
+	tries := 0
 out_sync:
 	for {
-		retries++
-		if retries == maxSyncRetries {
-			logger.Warnf("exceed max retry times(%d)", maxSyncRetries)
+		tries++
+		if tries == maxSyncTries {
+			logger.Warnf("exceed max retry times(%d)", maxSyncTries)
 			return
 		}
 		// start block sync.
