@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"bytes"
 	"errors"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -534,7 +535,17 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 
 // LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes
 func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	return nil, nil
+	allUtxos, err := chain.ListAllUtxos()
+	if err != nil {
+		return nil, err
+	}
+	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
+	for entry, utxo := range allUtxos {
+		if bytes.Equal(utxo.Output.ScriptPubKey, pubkey) {
+			utxoMap[entry] = utxo
+		}
+	}
+	return utxoMap, nil
 }
 
 // GetBlockHeight returns current height of main chain
