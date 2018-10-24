@@ -10,6 +10,7 @@ import (
 	"path"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -82,9 +83,7 @@ func init() {
 		&cobra.Command{
 			Use:   "importprivkey [privatekey]",
 			Short: "Import a private key from other wallets",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("importprivkey called")
-			},
+			Run:   importPrivateKeyCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "importwallet [filename]",
@@ -134,6 +133,40 @@ func newAccountCmdFunc(cmd *cobra.Command, args []string) {
 	acc, addr, err := wltMgr.NewAccount(passphrase)
 	if err != nil {
 		fmt.Println(err)
+		return
+	}
+	fmt.Printf("Created new account: %s\nAddress:%s", acc, addr)
+}
+
+func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fmt.Println("Missing param private key")
+		return
+	}
+	privKeyBytes, err := hex.DecodeString(args[0])
+	if err != nil {
+		fmt.Println("Invalid private key", err)
+		return
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	privKey, _, err := crypto.KeyPairFromBytes(privKeyBytes)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	acc, addr, err := wltMgr.NewAccountWithPrivKey(privKey, passphrase)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 	fmt.Printf("Created new account: %s\nAddress:%s", acc, addr)
 }
