@@ -177,7 +177,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		logger.Error(err)
 		return false, false, err
 	}
-
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 		// Orphan block.
@@ -350,6 +349,11 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	// 	str := "the coinbase for the genesis block is not spendable"
 	// 	return ErrMissingTxOut
 	// }
+	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
+	if err := validateBlockScripts(utxoSet, block); err != nil {
+		return err
+	}
+
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -400,9 +404,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		}
 	}
 
-	if err := validateBlockScripts(block); err != nil {
-		return err
-	}
 	chain.SetTailBlock(block, utxoSet)
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
@@ -526,25 +527,26 @@ func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
 }
 
-// LoadUtxoByPubKey loads utxos of a public key
-func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	res := make(map[types.OutPoint]*types.UtxoWrap)
-	// for out, entry := range chain.utxoSet.utxoMap {
-	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
-	// 		res[out] = entry
-	// 	}
-	// }
-	return res, nil
-}
-
 // ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*types.UtxoWrap {
-	return nil
+func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
+	utxoSet := NewUtxoSet()
+	err := utxoSet.ApplyBlock(chain.tail)
+	return utxoSet.utxoMap, err
 }
 
 // LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes
 func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	return nil, nil
+	allUtxos, err := chain.ListAllUtxos()
+	if err != nil {
+		return nil, err
+	}
+	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
+	for entry, utxo := range allUtxos {
+		if bytes.Equal(utxo.Output.ScriptPubKey, pubkey) {
+			utxoMap[entry] = utxo
+		}
+	}
+	return utxoMap, nil
 }
 
 // GetBlockHeight returns current height of main chain

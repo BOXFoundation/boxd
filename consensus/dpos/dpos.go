@@ -134,7 +134,7 @@ func (dpos *Dpos) mint() error {
 func (dpos *Dpos) mintBlock() {
 	tail, _ := dpos.chain.LoadTailBlock()
 	block := types.NewBlock(tail)
-	dpos.PackTxs(block, nil)
+	dpos.PackTxs(block, dpos.miner)
 	// block.setMiner()
 	dpos.chain.ProcessBlock(block, true)
 }

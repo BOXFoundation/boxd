@@ -131,23 +131,29 @@ func (op *OutPoint) Unmarshal(data []byte) error {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TxHash returns tx hash
+// TxHash returns tx hash; return cached hash if it exists
 func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	if tx.Hash != nil {
 		return tx.Hash, nil
 	}
 
+	hash, err := tx.CalcTxHash()
+	if err != nil {
+		return nil, err
+	}
+
+	// cache it
+	tx.Hash = hash
+	return hash, nil
+}
+
+// CalcTxHash calculates tx hash
+func (tx *Transaction) CalcTxHash() (*crypto.HashType, error) {
 	data, err := tx.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	hash, err := calcDoubleHash(data)
-	if err != nil {
-		return nil, err
-	}
-	// cache it
-	tx.Hash = hash
-	return hash, nil
+	return calcDoubleHash(data)
 }
 
 // ToProtoMessage converts transaction to proto message.

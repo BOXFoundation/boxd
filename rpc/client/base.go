@@ -37,5 +37,5 @@ func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return script.PayToPubKeyHashScript(addr.ScriptAddress())
+	return *script.PayToPubKeyHashScript(addr.ScriptAddress()), nil
 }
