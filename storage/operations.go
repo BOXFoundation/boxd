@@ -4,6 +4,10 @@
 
 package storage
 
+import (
+	"context"
+)
+
 // Writer defines the write operations on database/table
 type Writer interface {
 	// put the value to entry associate with the key
@@ -24,8 +28,14 @@ type Reader interface {
 	// return a set of keys in the Storage
 	Keys() [][]byte
 
+	// return a chan to iter all keys
+	IterKeys(ctx context.Context) <-chan []byte
+
 	// return a set of keys with specified prefix in the Storage
 	KeysWithPrefix(prefix []byte) [][]byte
+
+	// return a chan to iter all keys with specified prefix
+	IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte
 }
 
 // Operations defines common data operations on database/table

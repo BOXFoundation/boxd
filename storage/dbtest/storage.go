@@ -2,11 +2,13 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package rocksdb
+package dbtest
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -15,7 +17,8 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
-func storageSyncTransaction(t *testing.T, s storage.Table) {
+// StorageSyncTransaction is a dbtest helper method
+func StorageSyncTransaction(t *testing.T, s storage.Table) {
 	var (
 		kk = "kkk"
 		vv = "vvv"
@@ -64,7 +67,8 @@ func storageSyncTransaction(t *testing.T, s storage.Table) {
 	}
 }
 
-func storageBatchAndTrans(t *testing.T, s storage.Table) {
+// StorageBatchAndTrans is a dbtest helper method
+func StorageBatchAndTrans(t *testing.T, s storage.Table) {
 	kk := []byte("kkk")
 	vv := []byte("vvv")
 	s.Put(kk, vv)
@@ -102,7 +106,8 @@ func storageBatchAndTrans(t *testing.T, s storage.Table) {
 	}
 }
 
-func storageTransClosed(t *testing.T, s storage.Table) {
+// StorageTransClosed is a dbtest helper method
+func StorageTransClosed(t *testing.T, s storage.Table) {
 	tx, err := s.NewTransaction()
 	ensure.Nil(t, err)
 	ensure.NotNil(t, tx)
@@ -118,9 +123,42 @@ func storageTransClosed(t *testing.T, s storage.Table) {
 	ensure.DeepEqual(t, tx.Commit(), storage.ErrTransactionClosed)
 }
 
-func storageTransKeysWithPrefix(t *testing.T, s storage.Table) {
+// StorageTransKeysWithPrefixRand is a dbtest helper method
+func StorageTransKeysWithPrefixRand(t *testing.T, s storage.Table) {
+	var kmap = make(map[string]interface{})
+	prefix := []byte("key-1")
+	for i := 0; i < 10000; i++ {
+		n := rand.Intn(10000)
+		k := []byte(fmt.Sprintf("key-%04d", n))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		s.Put(k, v)
+		if bytes.HasPrefix(k, prefix) {
+			kmap[string(k)] = nil
+		}
+	}
 	var keys [][]byte
-	prefix := []byte("key-0000")
+	for k := range kmap {
+		keys = append(keys, []byte(k))
+	}
+
+	tx, err := s.NewTransaction()
+	ensure.Nil(t, err)
+	ensure.NotNil(t, tx)
+	defer tx.Discard()
+
+	var keyset [][]byte
+	for _, k := range tx.KeysWithPrefix(prefix) {
+		ensure.True(t, bytes.HasPrefix(k, prefix))
+		keyset = append(keyset, k)
+	}
+
+	ensureBytesEqual(t, keyset, keys)
+}
+
+// StorageTransKeysWithPrefix is a dbtest helper method
+func StorageTransKeysWithPrefix(t *testing.T, s storage.Table) {
+	var keys [][]byte
+	prefix := []byte("key-0001")
 	for i := 0; i < 10000; i++ {
 		k := []byte(fmt.Sprintf("key-%06d", i))
 		v := []byte(fmt.Sprintf("value-%d", i))
@@ -159,7 +197,8 @@ func ensureBytesEqual(t *testing.T, ks1 [][]byte, ks2 [][]byte) {
 	}
 }
 
-func storageDBCloseForTransOpen(t *testing.T, s storage.Table, db storage.Storage) {
+// StorageDBCloseForTransOpen is a dbtest helper method
+func StorageDBCloseForTransOpen(t *testing.T, s storage.Table, db storage.Storage) {
 	tx, _ := s.NewTransaction()
 	ensure.NotNil(t, tx)
 	defer tx.Discard()
@@ -189,7 +228,8 @@ func storageDBCloseForTransOpen(t *testing.T, s storage.Table, db storage.Storag
 	}
 }
 
-func storageMultiTrans(t *testing.T, s storage.Storage) {
+// StorageMultiTrans is a dbtest helper method
+func StorageMultiTrans(t *testing.T, s storage.Storage) {
 	tx, err := s.NewTransaction()
 	ensure.Nil(t, err)
 	ensure.NotNil(t, tx)
@@ -277,7 +317,8 @@ Loop:
 	ensure.DeepEqual(t, returns, goroutines)
 }
 
-func storageMultiTransTable(t *testing.T, s storage.Table) {
+// StorageMultiTransTable is a dbtest helper method
+func StorageMultiTransTable(t *testing.T, s storage.Table) {
 	out := make(chan int)
 	defer close(out)
 
@@ -370,7 +411,8 @@ Loop:
 	ensure.DeepEqual(t, returns, goroutines)
 }
 
-func storageTransOps(t *testing.T, s storage.Table) {
+// StorageTransOps is a dbtest helper method
+func StorageTransOps(t *testing.T, s storage.Table) {
 	var kk = []byte("kkk")
 	var vv = []byte("vvv")
 	s.Put(kk, vv)
@@ -426,11 +468,13 @@ func storageTransOps(t *testing.T, s storage.Table) {
 	}
 }
 
-func storageFillData(t *testing.T, s storage.Table, count int) func(storage.Table) {
-	return storageGenDataWithVerification(t, s, "test", count)
+// StorageFillData is a dbtest helper method
+func StorageFillData(t *testing.T, s storage.Table, count int) func(storage.Table) {
+	return StorageGenDataWithVerification(t, s, "test", count)
 }
 
-func storageGenDataWithVerification(t *testing.T, s storage.Table, name string, count int) func(storage.Table) {
+// StorageGenDataWithVerification is a dbtest helper method
+func StorageGenDataWithVerification(t *testing.T, s storage.Table, name string, count int) func(storage.Table) {
 	var kvs = map[string][]byte{}
 	for i := 0; i < count; i++ {
 		k := []byte(fmt.Sprintf("key-%s-%d", name, i))
@@ -453,9 +497,10 @@ func storageGenDataWithVerification(t *testing.T, s storage.Table, name string, 
 	return verify
 }
 
-func storagePrefixKeys(t *testing.T, s storage.Table, count int) {
+// StoragePrefixKeys is a dbtest helper method
+func StoragePrefixKeys(t *testing.T, s storage.Operations, count int) func(*testing.T, storage.Operations) {
 	var keys [][]byte
-	prefix := []byte("key-0000")
+	prefix := []byte("key-0001")
 	for i := 0; i < count; i++ {
 		k := []byte(fmt.Sprintf("key-%06d", i))
 		v := []byte(fmt.Sprintf("value-%d", i))
@@ -465,32 +510,67 @@ func storagePrefixKeys(t *testing.T, s storage.Table, count int) {
 		}
 	}
 
-	var keyset [][]byte
-	for _, k := range s.KeysWithPrefix(prefix) {
-		ensure.True(t, bytes.HasPrefix(k, prefix))
-		keyset = append(keyset, k)
-	}
+	return func(t *testing.T, s storage.Operations) {
+		var keyset [][]byte
+		for _, k := range s.KeysWithPrefix(prefix) {
+			ensure.True(t, bytes.HasPrefix(k, prefix))
+			keyset = append(keyset, k)
+		}
 
-	ensureBytesEqual(t, keyset, keys)
+		ensureBytesEqual(t, keyset, keys)
+	}
 }
 
-func storageKeys(t *testing.T, s storage.Table, count int) {
+// StoragePrefixKeysRand is a dbtest helper method
+func StoragePrefixKeysRand(t *testing.T, s storage.Operations) func(*testing.T, storage.Operations) {
+	var kmap = make(map[string]interface{})
+	prefix := []byte("key-1")
+	for i := 0; i < 10000; i++ {
+		n := rand.Intn(10000)
+		k := []byte(fmt.Sprintf("key-%04d", n))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		s.Put(k, v)
+		if bytes.HasPrefix(k, prefix) {
+			kmap[string(k)] = nil
+		}
+	}
 	var keys [][]byte
-	for i := 0; i < count; i++ {
+	for k := range kmap {
+		keys = append(keys, []byte(k))
+	}
+
+	return func(t *testing.T, s storage.Operations) {
+		var keyset [][]byte
+		for _, k := range s.KeysWithPrefix(prefix) {
+			ensure.True(t, bytes.HasPrefix(k, prefix))
+			keyset = append(keyset, k)
+		}
+
+		ensureBytesEqual(t, keyset, keys)
+	}
+}
+
+// StorageKeys is a dbtest helper method
+func StorageKeys(t *testing.T, s storage.Operations) func(*testing.T, storage.Operations) {
+	var keys [][]byte
+	for i := 0; i < 10000; i++ {
 		k := []byte(fmt.Sprintf("key-%d", i))
 		v := []byte(fmt.Sprintf("value-%d", i))
 		ensure.Nil(t, s.Put(k, v))
 		keys = append(keys, k)
 	}
 
-	var ks [][]byte
-	for _, k := range s.Keys() {
-		ks = append(ks, k)
+	return func(t *testing.T, s storage.Operations) {
+		var ks [][]byte
+		for _, k := range s.Keys() {
+			ks = append(ks, k)
+		}
+		ensureBytesEqual(t, keys, ks)
 	}
-	ensureBytesEqual(t, keys, ks)
 }
 
-func storageBatch(t *testing.T, s storage.Table) {
+// StorageBatch is a dbtest helper method
+func StorageBatch(t *testing.T, s storage.Table) {
 	var count = 100
 	var kvs = map[string][]byte{}
 	var delkeys = []string{}
@@ -532,7 +612,8 @@ func storageBatch(t *testing.T, s storage.Table) {
 	}
 }
 
-func storageDel(t *testing.T, s storage.Table) {
+// StorageDel is a dbtest helper method
+func StorageDel(t *testing.T, s storage.Table) {
 	var keys = [][]byte{}
 	for i := 0; i < 100; i++ {
 		k := []byte(fmt.Sprintf("key-%d", i))
@@ -562,7 +643,8 @@ func storageDel(t *testing.T, s storage.Table) {
 	wg.Wait()
 }
 
-func storagePutGetDelTest(s storage.Table, k, v []byte) func(*testing.T) {
+// StoragePutGetDelTest is a dbtest helper method
+func StoragePutGetDelTest(s storage.Table, k, v []byte) func(*testing.T) {
 	return func(t *testing.T) {
 		s.Put(k, v)
 		has, err := s.Has(k)
@@ -577,5 +659,65 @@ func storagePutGetDelTest(s storage.Table, k, v []byte) func(*testing.T) {
 		has, err = s.Has(k)
 		ensure.Nil(t, err)
 		ensure.False(t, has)
+	}
+}
+
+// StorageIterKeysWithPrefix is a dbtest helper method
+func StorageIterKeysWithPrefix(t *testing.T, s storage.Operations) func(*testing.T, storage.Operations) {
+	var kmap = make(map[string]interface{})
+	prefix := []byte("key-1")
+	for i := 0; i < 10000; i++ {
+		n := rand.Intn(10000)
+		k := []byte(fmt.Sprintf("key-%04d", n))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		s.Put(k, v)
+		if bytes.HasPrefix(k, prefix) {
+			kmap[string(k)] = nil
+		}
+	}
+	var keys [][]byte
+	for k := range kmap {
+		keys = append(keys, []byte(k))
+	}
+
+	return func(t *testing.T, s storage.Operations) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var keyset [][]byte
+		for k := range s.IterKeysWithPrefix(ctx, prefix) {
+			ensure.True(t, bytes.HasPrefix(k, prefix))
+			keyset = append(keyset, k)
+		}
+
+		ensureBytesEqual(t, keyset, keys)
+	}
+}
+
+// StorageIterKeys is a dbtest helper method
+func StorageIterKeys(t *testing.T, s storage.Operations) func(*testing.T, storage.Operations) {
+	var kmap = make(map[string]interface{})
+	for i := 0; i < 10000; i++ {
+		n := rand.Intn(10000)
+		k := []byte(fmt.Sprintf("key-%04d", n))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		s.Put(k, v)
+		kmap[string(k)] = nil
+	}
+	var keys [][]byte
+	for k := range kmap {
+		keys = append(keys, []byte(k))
+	}
+
+	return func(t *testing.T, s storage.Operations) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var keyset [][]byte
+		for k := range s.IterKeys(ctx) {
+			keyset = append(keyset, k)
+		}
+
+		ensureBytesEqual(t, keyset, keys)
 	}
 }
