@@ -44,6 +44,7 @@ func (utxoWrap *UtxoWrap) FromProtoMessage(message proto.Message) error {
 		utxoWrap.IsCoinBase = message.IsCoinbase
 		utxoWrap.IsModified = message.IsModified
 		utxoWrap.IsSpent = message.IsSpent
+		return nil
 	}
 	return core.ErrInvalidUtxoWrapProtoMessage
 }
