@@ -95,22 +95,25 @@ type SyncManager struct {
 	// contain begin hash and length indicate the check hashes
 	checkHash *CheckHash
 	// peers who local peer has checked to or synchronized to
-	stalePeers    map[peer.ID]peerStatus
-	hasSyncBlocks int32
+	stalePeers   map[peer.ID]peerStatus
+	blocksSynced int32
+	// server started only once
+	svrStarted int32
 
 	proc      goprocess.Process
 	chain     *chain.BlockChain
 	consensus consensus.Consensus
 	p2pNet    p2p.Net
 
-	messageCh    chan p2p.Message
-	locateErrCh  chan struct{}
-	locateDoneCh chan struct{}
-	checkErrCh   chan struct{}
-	checkOkCh    chan struct{}
-	syncErrCh    chan struct{}
-	blocksDoneCh chan struct{}
-	blocksErrCh  chan FetchBlockHeaders
+	messageCh         chan p2p.Message
+	locateErrCh       chan struct{}
+	locateDoneCh      chan struct{}
+	checkErrCh        chan struct{}
+	checkOkCh         chan struct{}
+	syncErrCh         chan struct{}
+	blocksDoneCh      chan struct{}
+	blocksErrCh       chan FetchBlockHeaders
+	blocksProcessedCh chan struct{}
 }
 
 func (sm *SyncManager) reset() {
@@ -120,7 +123,7 @@ func (sm *SyncManager) reset() {
 	sm.fetchHashes = make([]*crypto.HashType, 0)
 	sm.peerBlockCheckInfo = make(map[peer.ID][]*blockCheckInfo)
 	sm.checkHash = nil
-	sm.hasSyncBlocks = 0
+	sm.blocksSynced = 0
 }
 
 func (sm *SyncManager) resetAll() {
@@ -158,11 +161,18 @@ func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
 		syncErrCh:    make(chan struct{}),
 		blocksDoneCh: make(chan struct{}),
 		blocksErrCh:  make(chan FetchBlockHeaders),
+		blocksProcessedCh: make(chan struct{},
+			chain.MaxBlocksPerSync/syncBlockChunkSize),
 	}
 }
 
 // Run start sync task and handle sync message
 func (sm *SyncManager) Run() {
+	// Already started?
+	if i := atomic.AddInt32(&sm.svrStarted, 1); i != 1 {
+		logger.Infof("SyncManager server has started. no tried %d", i)
+		return
+	}
 	logger.Info("start Run")
 	sm.subscribeMessageNotifiee()
 	go sm.handleSyncMessage()
@@ -231,14 +241,18 @@ func (sm *SyncManager) startSync() {
 
 	// timer for locate, check and sync
 	timer := time.NewTimer(syncTimeout)
+	needMore := false
 	tries := 0
 out_sync:
 	for {
-		tries++
-		if tries == maxSyncTries {
-			logger.Warnf("exceed max retry times(%d)", maxSyncTries)
-			return
+		if !needMore {
+			tries++
+			if tries == maxSyncTries {
+				logger.Warnf("exceed max retry times(%d)", maxSyncTries)
+				return
+			}
 		}
+		needMore = false
 		// start block sync.
 		sm.reset()
 		sm.setStatus(locateStatus)
@@ -246,11 +260,6 @@ out_sync:
 			logger.Warn("locateHashes error: ", err)
 			time.Sleep(retryInterval)
 			continue
-		}
-
-		// initial timer
-		if !timer.Stop() {
-			<-timer.C
 		}
 		logger.Info("wait locateHashes done")
 		timer.Reset(syncTimeout)
@@ -313,9 +322,12 @@ out_sync:
 			case <-sm.blocksDoneCh:
 				if sm.completed() {
 					logger.Infof("complete to sync %d blocks", len(sm.fetchHashes))
+					sm.waitAllBlocksProcessed()
+					logger.Infof("complete to process %d blocks", len(sm.fetchHashes))
 					timer.Stop()
 					if sm.moreSync() {
 						logger.Info("start next sync ...")
+						needMore = true
 						continue out_sync
 					} else {
 						return
@@ -412,10 +424,11 @@ func (sm *SyncManager) fetchAllBlocks(hashes []*crypto.HashType) error {
 		fbh := newFetchBlockHeaders(int32(idx), hashes[i], length)
 		pid, err := sm.fetchRemoteBlocksWithRetry(fbh, retryTimes, retryInterval)
 		if err != nil {
-			return fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry times(%d)",
-				fbh, retryTimes)
+			panic(fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry times(%d)",
+				fbh, retryTimes))
 		}
-		rootHash := util.BuildMerkleRoot(hashes[i : i+length])[0]
+		merkleRoot := util.BuildMerkleRoot(hashes[i : i+length])
+		rootHash := merkleRoot[len(merkleRoot)-1]
 		sm.peerBlockCheckInfo[pid] = append(sm.peerBlockCheckInfo[pid],
 			&blockCheckInfo{fbh: fbh, rootHash: rootHash})
 	}
@@ -461,7 +474,7 @@ func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
 			err, lh.Hashes)
 		return err
 	}
-	logger.Debugf("onLocateRequest send %d hashes", len(hashes))
+	logger.Infof("onLocateRequest send %d hashes", len(hashes))
 	// send SyncHeaders hashes to active end
 	sh := newSyncHeaders(hashes...)
 	logger.Infof("send message[0x%X] (%d hashes) to peer %s",
@@ -493,14 +506,14 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 		sm.locateErrCh <- struct{}{}
 		return nil
 	}
-	logger.Debugf("onLocateResponse receive %d hashes", len(sh.Hashes))
+	logger.Infof("onLocateResponse receive %d hashes", len(sh.Hashes))
 	// get headers hashes needed to sync
 	hashes, err := sm.rmOverlap(sh.Hashes)
 	if err != nil {
 		logger.Infof("rmOverlap error: %s", err)
 		return err
 	}
-	logger.Debugf("onLocateResponse get syncHeaders %d hashes", len(hashes))
+	logger.Infof("onLocateResponse get syncHeaders %d hashes", len(hashes))
 	sm.fetchHashes = hashes
 	merkleRoot := util.BuildMerkleRoot(hashes)
 	sm.checkRootHash = merkleRoot[len(merkleRoot)-1]
@@ -636,8 +649,9 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 				}
 			}
 		}
+		sm.blocksProcessedCh <- struct{}{}
 	}()
-	count := atomic.AddInt32(&sm.hasSyncBlocks, int32(len(sb.Blocks)))
+	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
 	logger.Infof("has sync %d/(%d) blocks, current peer[%s]",
 		count, len(sm.fetchHashes), pid.Pretty())
 	sm.blocksDoneCh <- struct{}{}
@@ -727,11 +741,17 @@ func (sm *SyncManager) checkPass() bool {
 }
 
 func (sm *SyncManager) completed() bool {
-	return atomic.LoadInt32(&sm.hasSyncBlocks) == int32(len(sm.fetchHashes))
+	return atomic.LoadInt32(&sm.blocksSynced) == int32(len(sm.fetchHashes))
+}
+
+func (sm *SyncManager) waitAllBlocksProcessed() {
+	for i := 0; i < len(sm.fetchHashes); i += syncBlockChunkSize {
+		<-sm.blocksProcessedCh
+	}
 }
 
 func (sm *SyncManager) moreSync() bool {
-	return !sm.completed() && len(sm.fetchHashes) == chain.MaxBlockHeaderCountInSyncTask
+	return len(sm.fetchHashes) == chain.MaxBlocksPerSync
 }
 
 func (sm *SyncManager) checkBlocksAndClearInfo(sb *SyncBlocks, pid peer.ID) (
@@ -767,5 +787,6 @@ func merkleRootHashForBlocks(blocks []*coreTypes.Block) *crypto.HashType {
 	for _, b := range blocks {
 		hashes = append(hashes, b.BlockHash())
 	}
-	return util.BuildMerkleRoot(hashes)[0]
+	merkleRoot := util.BuildMerkleRoot(hashes)
+	return merkleRoot[len(merkleRoot)-1]
 }

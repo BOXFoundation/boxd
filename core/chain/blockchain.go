@@ -38,10 +38,10 @@ const (
 	medianTimeBlocks     = 11
 	sequenceLockTimeMask = 0x0000ffff
 
-	sequenceLockTimeIsSeconds     = 1 << 22
-	sequenceLockTimeGranularity   = 9
-	unminedHeight                 = 0x7fffffff
-	MaxBlockHeaderCountInSyncTask = 1024
+	sequenceLockTimeIsSeconds   = 1 << 22
+	sequenceLockTimeGranularity = 9
+	unminedHeight               = 0x7fffffff
+	MaxBlocksPerSync            = 1024
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -754,7 +754,7 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 		if block != nil {
 			result := []*crypto.HashType{}
 			currentHeight := block.Height + 1
-			if tailHeight-block.Height+1 < MaxBlockHeaderCountInSyncTask {
+			if tailHeight-block.Height+1 < MaxBlocksPerSync {
 				for currentHeight <= tailHeight {
 					block, err := chain.LoadBlockByHeight(currentHeight)
 					if err != nil {
@@ -771,7 +771,7 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 			}
 
 			var idx int32
-			for idx < MaxBlockHeaderCountInSyncTask {
+			for idx < MaxBlocksPerSync {
 				block, err := chain.LoadBlockByHeight(currentHeight + idx)
 				if err != nil {
 					return nil, err
