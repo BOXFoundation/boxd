@@ -54,7 +54,11 @@ const (
 	maxCheckPeers      = 2
 	syncBlockChunkSize = 16
 	beginSeqHashes     = 6
-	timeout            = 5 * time.Second
+	syncTimeout        = 5 * time.Second
+	blocksTimeout      = 20 * time.Second
+	retryTimes         = 20
+	retryInterval      = 2 * time.Second
+	maxSyncRetries     = 100
 
 	availablePeerStatus peerStatus = iota
 	locatePeerStatus
@@ -224,15 +228,15 @@ func (sm *SyncManager) startSync() {
 		sm.resetAll()
 		logger.Info("sync completed and exit!")
 	}()
-	// timer for locate, check and sync
-	timer := time.NewTimer(timeout)
 
+	// timer for locate, check and sync
+	timer := time.NewTimer(syncTimeout)
 	retries := 0
 out_sync:
 	for {
 		retries++
-		if retries == 100 {
-			logger.Warn("exceed max retry times(100)")
+		if retries == maxSyncRetries {
+			logger.Warnf("exceed max retry times(%d)", maxSyncRetries)
 			return
 		}
 		// start block sync.
@@ -240,7 +244,7 @@ out_sync:
 		sm.setStatus(locateStatus)
 		if err := sm.locateHashes(); err != nil {
 			logger.Warn("locateHashes error: ", err)
-			time.Sleep(3 * time.Second)
+			time.Sleep(retryInterval)
 			continue
 		}
 
@@ -249,7 +253,7 @@ out_sync:
 			<-timer.C
 		}
 		logger.Info("wait locateHashes done")
-		timer.Reset(timeout)
+		timer.Reset(syncTimeout)
 	out_locate:
 		for {
 			select {
@@ -276,7 +280,7 @@ out_sync:
 			continue out_sync
 		}
 		logger.Info("wait checkHashes done")
-		timer.Reset(timeout)
+		timer.Reset(syncTimeout)
 	out_check:
 		for {
 			select {
@@ -303,7 +307,7 @@ out_sync:
 		sm.setStatus(blocksStatus)
 		sm.fetchAllBlocks(sm.fetchHashes)
 		logger.Infof("wait sync %d blocks done", len(sm.fetchHashes))
-		timer.Reset(6 * timeout)
+		timer.Reset(blocksTimeout)
 		for {
 			select {
 			case <-sm.blocksDoneCh:
@@ -320,27 +324,29 @@ out_sync:
 			case fbh := <-sm.blocksErrCh:
 				logger.Warnf("fetch blocks error, retry for %+v", fbh)
 				timer.Stop()
-				if _, err := sm.fetchRemoteBlocksWithRetry(&fbh, 20); err != nil {
+				_, err := sm.fetchRemoteBlocksWithRetry(&fbh, retryTimes, retryInterval)
+				if err != nil {
 					logger.Warn(err)
 					return
 				}
-				timer.Reset(2 * timeout)
+				timer.Reset(blocksTimeout)
 			case <-timer.C:
 				logger.Info("timeout for sync blocks and exit sync!")
-				timer.Stop()
 				// retry uncompleted FetchBlockHeaders
 				for _, infos := range sm.peerBlockCheckInfo {
 					for _, v := range infos {
 						if v == nil {
 							continue
 						}
-						if _, err := sm.fetchRemoteBlocksWithRetry(v.fbh, 20); err != nil {
+						_, err := sm.fetchRemoteBlocksWithRetry(v.fbh, retryTimes,
+							retryInterval)
+						if err != nil {
 							logger.Warn(err)
 							return
 						}
 					}
 				}
-				timer.Reset(4 * timeout)
+				timer.Reset(blocksTimeout)
 			case <-sm.proc.Closing():
 				logger.Info("Quit handle sync msg loop.")
 				timer.Stop()
@@ -404,9 +410,10 @@ func (sm *SyncManager) fetchAllBlocks(hashes []*crypto.HashType) error {
 		}
 		idx := i / syncBlockChunkSize
 		fbh := newFetchBlockHeaders(int32(idx), hashes[i], length)
-		pid, err := sm.fetchRemoteBlocksWithRetry(fbh, 20)
+		pid, err := sm.fetchRemoteBlocksWithRetry(fbh, retryTimes, retryInterval)
 		if err != nil {
-			return fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry times(30)", fbh)
+			return fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry times(%d)",
+				fbh, retryTimes)
 		}
 		rootHash := util.BuildMerkleRoot(hashes[i : i+length])[0]
 		sm.peerBlockCheckInfo[pid] = append(sm.peerBlockCheckInfo[pid],
@@ -416,12 +423,12 @@ func (sm *SyncManager) fetchAllBlocks(hashes []*crypto.HashType) error {
 }
 
 func (sm *SyncManager) fetchRemoteBlocksWithRetry(fbh *FetchBlockHeaders,
-	times int) (peer.ID, error) {
+	times int, interval time.Duration) (peer.ID, error) {
 	for i := 0; i < times; i++ {
 		if pid, err := sm.fetchRemoteBlocks(fbh); err == nil {
 			return pid, nil
 		}
-		time.Sleep(time.Second)
+		time.Sleep(interval)
 	}
 	return peer.ID(""), fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry "+
 		"times(%d)", fbh, times)
