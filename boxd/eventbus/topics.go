@@ -10,4 +10,11 @@ const (
 
 	//TopicP2PPeerAddr is a event topic for new peer addr found or peer addr updated
 	TopicP2PPeerAddr = "p2p:peeraddr"
+
+	////////////////////////////// db /////////////////////////////
+
+	// TopicGetDatabaseKeys is topic for get keys of a specified storage
+	TopicGetDatabaseKeys = "rpc:database:keys"
+	// TopicGetDatabaseValue is topic for get value of specified key
+	TopicGetDatabaseValue = "rpc:database:get"
 )
