@@ -441,11 +441,12 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 		return nil, errors.New("input index out of bound")
 	}
 
-	// We do not change the original tx, so make a deep copy
-	txCopy := new(types.Transaction)
-	*txCopy = *tx
+	// We do not want to change the original tx script sig, so make a copy
+	oldScriptSigs := make([][]byte, 0, len(tx.Vin))
 
-	for i, txIn := range txCopy.Vin {
+	for i, txIn := range tx.Vin {
+		oldScriptSigs = append(oldScriptSigs, txIn.ScriptSig)
+
 		if i != txInIdx {
 			// Blank out other inputs' signatures
 			txIn.ScriptSig = nil
@@ -455,5 +456,11 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 		}
 	}
 
-	return txCopy.TxHash()
+	sigHash, err := tx.TxHash()
+
+	// recover script sig
+	for i, txIn := range tx.Vin {
+		txIn.ScriptSig = oldScriptSigs[i]
+	}
+	return sigHash, err
 }
