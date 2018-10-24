@@ -17,7 +17,7 @@ func NewBlockHeader(prevBlockHash crypto.HashType, txsRoot crypto.HashType, time
 		TxsRoot:       txsRoot,
 		TimeStamp:     timestamp,
 		Magic:         0,
-		ConsensusRoot: crypto.HashType{byte(0)},
+		// ConsensusRoot: crypto.HashType{byte(0)},
 	}
 }
 

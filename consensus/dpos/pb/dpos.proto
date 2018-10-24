@@ -20,6 +20,6 @@ message candidateContext {
 
 message Candidate {
     bytes addr = 1;
-    int32 votes = 2;
+    int64 votes = 2;
     string peer = 3;
 }

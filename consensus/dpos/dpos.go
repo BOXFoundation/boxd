@@ -7,6 +7,7 @@ package dpos
 import (
 	"container/heap"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -37,6 +38,8 @@ var (
 	ErrNotMyTurnToMint    = errors.New("Not my turn to mint")
 	ErrWrongTimeToMint    = errors.New("Wrong time to mint")
 	ErrNotFoundMiner      = errors.New("Failed to find miner")
+	ErrDuplicateSignUpTx  = errors.New("duplicate sign up tx")
+	ErrCandidateNotFound  = errors.New("candidate not found")
 )
 
 // Config defines the configurations of dpos
@@ -247,6 +250,7 @@ PackingTxs:
 			for pool.Len() > 0 {
 				txWrap := heap.Pop(pool).(*txpool.TxWrap)
 				blockTxns = append(blockTxns, txWrap.Tx)
+
 			}
 		}
 	}
@@ -316,5 +320,41 @@ func (dpos *Dpos) LoadCandidates() error {
 
 	candidatesContext := InitCandidateContext()
 	dpos.context.candidateContext = candidatesContext
+	return nil
+}
+
+// PrepareCandidateContext prepare to update CandidateContext.
+func (dpos *Dpos) PrepareCandidateContext(tx *types.Transaction, candidateContext *CandidateContext) error {
+
+	content := tx.Data.Content
+	switch int(tx.Data.Type) {
+	case types.SignUpTx:
+		signUpContent := new(types.SignUpContent)
+		if err := signUpContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if util.InArray(signUpContent.Addr(), dpos.context.candidateContext.addrs) {
+			return ErrDuplicateSignUpTx
+		}
+		candidate := &Candidate{
+			addr:  signUpContent.Addr(),
+			votes: 0,
+		}
+		dpos.context.candidateContext.candidates = append(dpos.context.candidateContext.candidates, candidate)
+	case types.VotesTx:
+		votesContent := new(types.VoteContent)
+		if err := votesContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if !util.InArray(votesContent.Addr(), dpos.context.candidateContext.addrs) {
+			return ErrCandidateNotFound
+		}
+		for _, v := range dpos.context.candidateContext.candidates {
+			if v.addr == votesContent.Addr() {
+				atomic.AddInt64(&v.votes, votesContent.Votes())
+			}
+		}
+	default:
+	}
 	return nil
 }

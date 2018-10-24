@@ -143,6 +143,7 @@ func (context *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.Ad
 type CandidateContext struct {
 	height     int32
 	candidates []*Candidate
+	addrs      []types.AddressHash
 }
 
 // InitCandidateContext init candidate context
@@ -182,15 +183,18 @@ func (candidateContext *CandidateContext) FromProtoMessage(message proto.Message
 	if message, ok := message.(*dpospb.CandidateContext); ok {
 		if message != nil {
 			candidates := make([]*Candidate, len(message.Candidates))
+			addrs := make([]types.AddressHash, len(message.Candidates))
 			for k, v := range message.Candidates {
 				candidate := new(Candidate)
 				if err := candidate.FromProtoMessage(v); err != nil {
 					return err
 				}
 				candidates[k] = candidate
+				addrs[k] = candidate.addr
 			}
 			candidateContext.height = message.Height
 			candidateContext.candidates = candidates
+			candidateContext.addrs = addrs
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
@@ -219,7 +223,7 @@ func (candidateContext *CandidateContext) Unmarshal(data []byte) error {
 // Candidate represent possible to be the miner.
 type Candidate struct {
 	addr  types.AddressHash
-	votes int32
+	votes int64
 	peer  peer.ID
 }
 

@@ -12,12 +12,20 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 )
 
+// Define const
+const (
+	GeneralTx = iota
+	SignUpTx
+	VotesTx
+)
+
 // Transaction defines a transaction.
 type Transaction struct {
 	Hash     *crypto.HashType
 	Version  int32
 	Vin      []*TxIn
 	Vout     []*corepb.TxOut
+	Data     *corepb.Data
 	Magic    uint32
 	LockTime int64
 }
@@ -167,6 +175,7 @@ func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 		Version:  tx.Version,
 		Vin:      vins,
 		Vout:     tx.Vout,
+		Data:     tx.Data,
 		Magic:    tx.Magic,
 		LockTime: tx.LockTime,
 	}, nil
@@ -190,6 +199,7 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 			tx.Version = message.Version
 			tx.Vin = vins
 			tx.Vout = message.Vout
+			tx.Data = message.Data
 			tx.Magic = message.Magic
 			tx.LockTime = message.LockTime
 			return nil

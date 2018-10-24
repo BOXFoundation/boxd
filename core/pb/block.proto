@@ -26,8 +26,9 @@ message Transaction {
     int32 version = 1;
     repeated TxIn vin  = 2;
     repeated TxOut vout  = 3;
-    uint32 magic = 4;
-    int64 lock_time = 5;
+    Data data = 4;
+    uint32 magic = 5;
+    int64 lock_time = 6;
 }
 
 message TxIn {
@@ -44,6 +45,11 @@ message TxOut {
 message OutPoint {
     bytes hash = 1;
     uint32 index =2;
+}
+
+message Data {
+    int32 type = 1;
+    bytes content = 2;
 }
 
 message UtxoWrap {
