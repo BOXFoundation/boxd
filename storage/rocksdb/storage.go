@@ -276,10 +276,10 @@ func (db *rocksdb) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan
 				return
 			}
 			select {
-			case out <- data(key):
-				iter.Next()
 			case <-ctx.Done():
 				return
+			case out <- data(key):
+				iter.Next()
 			}
 		}
 	}()

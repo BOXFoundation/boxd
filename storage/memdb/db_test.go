@@ -77,6 +77,38 @@ func TestDBKeysWithPrefixRand(t *testing.T) {
 	dbtest.StoragePrefixKeysRand(t, db)(t, db)
 }
 
+func TestDBIterKeys(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	dbtest.StorageIterKeys(t, db)(t, db)
+}
+
+func TestDBIterKeysCancel(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	dbtest.StorageIterKeysCancel(t, db)(t, db)
+}
+
+func TestDBIterKeysWithPrefix(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	dbtest.StorageIterKeysWithPrefix(t, db)(t, db)
+}
+
+func TestDBIterKeysWithPrefixCancel(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	dbtest.StorageIterKeysWithPrefixCancel(t, db)(t, db)
+}
+
 func TestDBTransaction(t *testing.T) {
 	db, _ := NewMemoryDB("", nil)
 	defer db.Close()

@@ -721,3 +721,54 @@ func StorageIterKeys(t *testing.T, s storage.Operations) func(*testing.T, storag
 		ensureBytesEqual(t, keyset, keys)
 	}
 }
+
+// StorageIterKeysCancel is a dbtest helper method
+func StorageIterKeysCancel(t *testing.T, s storage.Operations) func(*testing.T, storage.Operations) {
+	for i := 0; i < 1000; i++ {
+		k := []byte(fmt.Sprintf("key-%04d", i))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		s.Put(k, v)
+	}
+
+	return func(t *testing.T, s storage.Operations) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var i = 0
+		for range s.IterKeys(ctx) {
+			i++
+			if i == 100 {
+				cancel()
+				time.Sleep(time.Microsecond * 10)
+			}
+		}
+
+		ensure.True(t, i == 100)
+	}
+}
+
+// StorageIterKeysWithPrefixCancel is a dbtest helper method
+func StorageIterKeysWithPrefixCancel(t *testing.T, s storage.Operations) func(*testing.T, storage.Operations) {
+	for i := 0; i < 1000; i++ {
+		k := []byte(fmt.Sprintf("key-%04d", i))
+		v := []byte(fmt.Sprintf("value-%d", i))
+		s.Put(k, v)
+	}
+
+	return func(t *testing.T, s storage.Operations) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var prefix = []byte("key-00")
+		var i = 0
+		for range s.IterKeysWithPrefix(ctx, prefix) {
+			i++
+			if i == 10 {
+				cancel()
+				time.Sleep(time.Microsecond * 10)
+			}
+		}
+
+		ensure.True(t, i == 10)
+	}
+}

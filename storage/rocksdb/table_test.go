@@ -104,7 +104,7 @@ func TestTableKeys(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	table, err := db.Table("tx")
+	table, err := db.Table("t1")
 	ensure.Nil(t, err)
 
 	dbtest.StorageKeys(t, table)(t, table)
@@ -115,10 +115,19 @@ func TestTableIterKeys(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	table, _ := db.Table("trans")
+	table, _ := db.Table("t1")
 	verify := dbtest.StorageIterKeys(t, table)
 
 	verify(t, table)
+}
+
+func TestTableIterKeysCancel(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	table, _ := db.Table("t1")
+	dbtest.StorageIterKeysCancel(t, table)(t, table)
 }
 
 func TestTableKeysWithPrefix(t *testing.T) {
@@ -126,7 +135,7 @@ func TestTableKeysWithPrefix(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	table, err := db.Table("tx")
+	table, err := db.Table("t1")
 	ensure.Nil(t, err)
 
 	dbtest.StoragePrefixKeys(t, table, 10000)(t, table)
@@ -137,7 +146,7 @@ func TestTableKeysWithPrefixRand(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	table, err := db.Table("tx")
+	table, err := db.Table("t1")
 	ensure.Nil(t, err)
 
 	dbtest.StoragePrefixKeysRand(t, table)(t, table)
@@ -148,10 +157,17 @@ func TestTableIterKeysWithPrefix(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	table, _ := db.Table("trans")
-	verify := dbtest.StorageIterKeysWithPrefix(t, table)
+	table, _ := db.Table("t1")
+	dbtest.StorageIterKeysWithPrefix(t, table)(t, table)
+}
 
-	verify(t, table)
+func TestTableIterKeysWithPrefixCancel(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	table, _ := db.Table("t1")
+	dbtest.StorageIterKeysWithPrefixCancel(t, table)(t, table)
 }
 
 func TestTablePersistent(t *testing.T) {

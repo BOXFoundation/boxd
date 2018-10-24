@@ -146,10 +146,10 @@ func (t *rtable) IterKeys(ctx context.Context) <-chan []byte {
 				return
 			}
 			select {
-			case out <- data(iter.Key()):
-				iter.Next()
 			case <-ctx.Done():
 				return
+			case out <- data(iter.Key()):
+				iter.Next()
 			}
 		}
 	}()

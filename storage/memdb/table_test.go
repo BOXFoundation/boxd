@@ -62,6 +62,28 @@ func TestTableKeys(t *testing.T) {
 	dbtest.StorageKeys(t, table)(t, table)
 }
 
+func TestTableIterKeys(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	table, err := db.Table("tx")
+	ensure.Nil(t, err)
+
+	dbtest.StorageIterKeys(t, table)(t, table)
+}
+
+func TestTableIterKeysCancel(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	table, err := db.Table("tx")
+	ensure.Nil(t, err)
+
+	dbtest.StorageIterKeysCancel(t, table)(t, table)
+}
+
 func TestTableKeysWithPrefix(t *testing.T) {
 	var db, err = NewMemoryDB("", nil)
 	ensure.Nil(t, err)
@@ -82,6 +104,28 @@ func TestTableKeysWithPrefixRand(t *testing.T) {
 	ensure.Nil(t, err)
 
 	dbtest.StoragePrefixKeysRand(t, table)(t, table)
+}
+
+func TestTableIterKeysWithPrefix(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	table, err := db.Table("tx")
+	ensure.Nil(t, err)
+
+	dbtest.StorageIterKeysWithPrefix(t, table)(t, table)
+}
+
+func TestTableIterKeysWithPrefixCancel(t *testing.T) {
+	var db, err = NewMemoryDB("", nil)
+	ensure.Nil(t, err)
+	defer db.Close()
+
+	table, err := db.Table("tx")
+	ensure.Nil(t, err)
+
+	dbtest.StorageIterKeysWithPrefixCancel(t, table)(t, table)
 }
 
 func TestTableTransaction(t *testing.T) {

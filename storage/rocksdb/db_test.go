@@ -113,6 +113,14 @@ func TestDBIterKeys(t *testing.T) {
 	dbtest.StorageIterKeys(t, db)(t, db)
 }
 
+func TestDBIterKeysCancel(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	dbtest.StorageIterKeysCancel(t, db)(t, db)
+}
+
 func TestDBKeysWithPrefix(t *testing.T) {
 	dbpath, db, err := getDatabase()
 	ensure.Nil(t, err)
@@ -135,6 +143,14 @@ func TestDBIterKeysWithPrefix(t *testing.T) {
 	defer releaseDatabase(dbpath, db)
 
 	dbtest.StorageIterKeysWithPrefix(t, db)(t, db)
+}
+
+func TestDBIterKeysWithPrefixCancel(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	dbtest.StorageIterKeysWithPrefixCancel(t, db)(t, db)
 }
 
 func TestDBPersistent(t *testing.T) {

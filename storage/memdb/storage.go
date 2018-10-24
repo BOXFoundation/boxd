@@ -180,9 +180,9 @@ func (db *memorydb) IterKeys(ctx context.Context) <-chan []byte {
 
 		for _, k := range keys {
 			select {
-			case out <- k:
 			case <-ctx.Done():
 				return
+			case out <- k:
 			}
 		}
 	}()
