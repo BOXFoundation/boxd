@@ -174,7 +174,6 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 // LoadTxUtxos loads the unspent transaction outputs related to tx
 func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 
-	utxoset := NewUtxoSet()
 	emptySet := make(map[types.OutPoint]struct{})
 
 	prevOut := types.OutPoint{Hash: *tx.Hash}
@@ -189,7 +188,7 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 	}
 
 	if len(emptySet) > 0 {
-		if err := utxoset.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
+		if err := u.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
 			return err
 		}
 	}
