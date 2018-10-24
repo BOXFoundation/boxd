@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/spf13/viper"
 )
@@ -128,6 +129,24 @@ func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount int64) (*rpcpb.Li
 	}
 	logger.Debugf("Result: %+v", r)
 	return r, nil
+}
+
+// GetRawTransaction get the transaction info of given hash
+func GetRawTransaction(v *viper.Viper, hash []byte) (*types.Transaction, error) {
+	conn := mustConnect(v)
+	defer conn.Close()
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	logger.Debugf("Get transaction of hash: %x", hash)
+
+	r, err := c.GetRawTransaction(ctx, &rpcpb.GetRawTransactionRequest{Hash: hash})
+	if err != nil {
+		return nil, err
+	}
+	tx := &types.Transaction{}
+	err = tx.FromProtoMessage(r.Tx)
+	return tx, err
 }
 
 //ListUtxos list all utxos

@@ -7,15 +7,31 @@ package ctl
 import (
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // getrawtxCmd represents the getrawtx command
 var getrawtxCmd = &cobra.Command{
-	Use:   "getrawtx [txid]",
+	Use:   "getrawtx [txhash]",
 	Short: "Get the raw transaction for a txid",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("getrawtx called")
+		if len(args) < 1 {
+			fmt.Println("Param txhash required")
+			return
+		}
+		hash := crypto.HashType{}
+		hash.SetString(args[0])
+		tx, err := client.GetRawTransaction(viper.GetViper(), hash.GetBytes())
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(util.PrettyPrint(tx))
+		}
 	},
 }
 
