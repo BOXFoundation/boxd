@@ -10,111 +10,12 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/btcsuite/btcd/txscript"
 
 	"encoding/binary"
 	"errors"
 )
 
-const (
-	// defaultScriptAlloc is the default size used for the backing array
-	// for a script being built by the Builder.  The array will
-	// dynamically grow as needed, but this figure is intended to provide
-	// enough space for vast majority of scripts without needing to grow the
-	// backing array multiple times.
-	defaultScriptAlloc = 500
-)
-
 var logger = log.NewLogger("script") // logger
-
-// Builder provides a facility for building custom scripts.
-type Builder struct {
-	script []byte
-	err    error
-}
-
-// AddOp pushes the passed opcode to the end of the script.  The script will not
-// be modified if pushing the opcode would cause the script to exceed the
-// maximum allowed script engine size.
-func (b *Builder) AddOp(opcode byte) *Builder {
-	if b.err != nil {
-		return b
-	}
-
-	b.script = append(b.script, opcode)
-	return b
-}
-
-// NewBuilder returns a new instance of a script builder.  See
-// Builder for details.
-func NewBuilder() *Builder {
-	return &Builder{
-		script: make([]byte, 0, defaultScriptAlloc),
-	}
-}
-
-// Script returns the currently built script.  When any errors occurred while
-// building the script, the script will be returned up the point of the first
-// error along with the error.
-func (b *Builder) Script() ([]byte, error) {
-	return b.script, b.err
-}
-
-// AddData pushes the passed data to the end of the script.
-func (b *Builder) AddData(data []byte) *Builder {
-	if b.err != nil {
-		return b
-	}
-
-	return b.addData(data)
-}
-
-// addData is the internal function that actually pushes the passed data to the
-// end of the script.  It automatically chooses canonical opcodes depending on
-// the length of the data.  A zero length buffer will lead to a push of empty
-// data onto the stack (OP_0).  No data limits are enforced with this function.
-func (b *Builder) addData(data []byte) *Builder {
-	dataLen := len(data)
-
-	// When the data consists of a single number that can be represented
-	// by one of the "small integer" opcodes, use that opcode instead of
-	// a data push opcode followed by the number.
-	if dataLen == 0 || dataLen == 1 && data[0] == 0 {
-		b.script = append(b.script, byte(OP0))
-		return b
-	} else if dataLen == 1 && data[0] <= 16 {
-		b.script = append(b.script, (byte(OP1)-1)+data[0])
-		return b
-	} else if dataLen == 1 && data[0] == 0x81 {
-		b.script = append(b.script, byte(OP1NEGATE))
-		return b
-	}
-
-	// Use one of the OP_DATA_# opcodes if the length of the data is small
-	// enough so the data push instruction is only a single byte.
-	// Otherwise, choose the smallest possible OP_PUSHDATA# opcode that
-	// can represent the length of the data.
-	if dataLen < int(OPPUSHDATA1) {
-		b.script = append(b.script, byte(dataLen))
-	} else if dataLen <= 0xff {
-		b.script = append(b.script, byte(OPPUSHDATA1), byte(dataLen))
-	} else if dataLen <= 0xffff {
-		buf := make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, uint16(dataLen))
-		b.script = append(b.script, byte(OPPUSHDATA2))
-		b.script = append(b.script, buf...)
-	} else {
-		buf := make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, uint32(dataLen))
-		b.script = append(b.script, byte(OPPUSHDATA4))
-		b.script = append(b.script, buf...)
-	}
-
-	// Append the actual data.
-	b.script = append(b.script, data...)
-
-	return b
-}
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
@@ -126,10 +27,9 @@ func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
 	return NewScript().AddOperand(sig.Serialize()).AddOperand(pubKey)
 }
 
-// StandardCoinbaseScript returns a standard script suitable for use as the
-// signature script of the coinbase transaction of a new block.
-func StandardCoinbaseScript(height int32) ([]byte, error) {
-	return txscript.NewScriptBuilder().AddInt64(int64(height)).AddInt64(int64(0)).Script()
+// StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
+func StandardCoinbaseSignatureScript(height int32) *Script {
+	return NewScript().AddOperand(scriptNum(height).Bytes()).AddOperand(scriptNum(0).Bytes())
 }
 
 // Script represents scripts

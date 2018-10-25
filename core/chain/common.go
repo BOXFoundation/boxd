@@ -68,12 +68,8 @@ func CalcBlockSubsidy(height int32) int64 {
 // CreateCoinbaseTx creates a coinbase give miner address and block height
 func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction, error) {
 	var pkScript []byte
-	var err error
 	blockReward := CalcBlockSubsidy(blockHeight)
-	coinbaseScript, err := script.StandardCoinbaseScript(blockHeight)
-	if err != nil {
-		return nil, err
-	}
+	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
 	pkScript = *script.PayToPubKeyHashScript(addr.ScriptAddress())
 
 	tx := &types.Transaction{
@@ -81,11 +77,11 @@ func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction
 		Vin: []*types.TxIn{
 			{
 				PrevOutPoint: types.OutPoint{
-					Hash:  crypto.HashType{},
-					Index: 0xffffffff,
+					Hash:  zeroHash,
+					Index: math.MaxUint32,
 				},
-				ScriptSig: coinbaseScript,
-				Sequence:  0xffffffff,
+				ScriptSig: *coinbaseScriptSig,
+				Sequence:  math.MaxUint32,
 			},
 		},
 		Vout: []*corepb.TxOut{
