@@ -178,7 +178,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 		blockTxns = append(blockTxns, txWrap.Tx)
 	}
 
-	merkles := util.CalcTxsHash(blockTxns)
+	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
 	return nil
