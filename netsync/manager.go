@@ -330,6 +330,8 @@ out_sync:
 						needMore = true
 						continue out_sync
 					} else {
+						sm.blocksProcessedCh = make(chan struct{},
+							chain.MaxBlocksPerSync/syncBlockChunkSize)
 						return
 					}
 				}
@@ -339,6 +341,8 @@ out_sync:
 				_, err := sm.fetchRemoteBlocksWithRetry(&fbh, retryTimes, retryInterval)
 				if err != nil {
 					logger.Warn(err)
+					sm.blocksProcessedCh = make(chan struct{},
+						chain.MaxBlocksPerSync/syncBlockChunkSize)
 					return
 				}
 				timer.Reset(blocksTimeout)
@@ -354,6 +358,8 @@ out_sync:
 							retryInterval)
 						if err != nil {
 							logger.Warn(err)
+							sm.blocksProcessedCh = make(chan struct{},
+								chain.MaxBlocksPerSync/syncBlockChunkSize)
 							return
 						}
 					}
