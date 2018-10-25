@@ -14,6 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/util"
 )
 
 var (
@@ -45,6 +46,18 @@ func IsCoinBase(tx *types.Transaction) bool {
 
 	// The previous output of a coin base must have a max value index and a zero hash.
 	return isNullOutPoint(&tx.Vin[0].PrevOutPoint)
+}
+
+// CalcTxsHash calculate txsHash in block.
+func CalcTxsHash(txs []*types.Transaction) *crypto.HashType {
+
+	hashs := make([]*crypto.HashType, len(txs))
+	for index := range txs {
+		hash, _ := txs[index].TxHash()
+		hashs[index] = hash
+	}
+	txsHash := util.BuildMerkleRoot(hashs)
+	return txsHash[len(txsHash)-1]
 }
 
 // CalcBlockSubsidy returns the subsidy amount a block at the provided height should have.
@@ -82,6 +95,7 @@ func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction
 			},
 		},
 	}
+	tx.Hash, _ = tx.TxHash()
 	return tx, nil
 }
 

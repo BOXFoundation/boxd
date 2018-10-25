@@ -74,7 +74,7 @@ func validateBlock(block *types.Block, timeSource util.MedianTimeSource) error {
 
 	// Calculate merkle tree root and ensure it matches with the block header.
 	// TODO: caching all of the transaction hashes in the block to speed up future hashing
-	calculatedMerkleRoot := util.CalcTxsHash(transactions)
+	calculatedMerkleRoot := CalcTxsHash(transactions)
 	if !header.TxsRoot.IsEqual(calculatedMerkleRoot) {
 		logger.Errorf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
