@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package netsync
+package blocksync
 
 import (
 	"errors"
@@ -719,12 +719,11 @@ func heightLocator(height int32) []int32 {
 func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) (
 	[]*crypto.HashType, error) {
 	for i, h := range locateHashes {
-		b, err := sm.chain.LoadBlockByHash(*h)
-		if err != nil {
-			return nil, err
-		}
-		if b == nil {
+		_, err := sm.chain.LoadBlockByHash(*h)
+		if err == core.ErrBlockIsNil {
 			return locateHashes[i:], nil
+		} else if err != nil {
+			return nil, err
 		}
 	}
 	return nil, errors.New("no header needed to sync")

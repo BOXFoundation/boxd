@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package netsyncpb;
+package pb;
 
 import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 

@@ -651,7 +651,7 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 		return nil, err
 	}
 	if blockBin == nil {
-		return nil, fmt.Errorf("Block does not exist for hash %v", hash)
+		return nil, core.ErrBlockIsNil
 	}
 	block := new(types.Block)
 	if err := block.Unmarshal(blockBin); err != nil {
@@ -672,7 +672,7 @@ func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
 		return nil, err
 	}
 	if blockBin == nil {
-		return nil, fmt.Errorf("Block does not exist for height %v", height)
+		return nil, core.ErrBlockIsNil
 	}
 	block := new(types.Block)
 	if err := block.Unmarshal(blockBin); err != nil {

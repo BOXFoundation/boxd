@@ -2,16 +2,16 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package netsync
+package blocksync
 
 import (
 	"errors"
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/blocksync/pb"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	netsyncpb "github.com/BOXFoundation/boxd/netsync/pb"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/gogo/protobuf/proto"
 )
@@ -121,7 +121,7 @@ func (lh *LocateHeaders) ToProtoMessage() (proto.Message, error) {
 	if lh == nil {
 		lh = newLocateHeaders()
 	}
-	return &netsyncpb.LocateHeaders{
+	return &pb.LocateHeaders{
 		Hashes: ConvHashesToBytesArray(lh.Hashes),
 	}, nil
 }
@@ -131,7 +131,7 @@ func (sh *SyncHeaders) ToProtoMessage() (proto.Message, error) {
 	if sh == nil {
 		sh = newSyncHeaders()
 	}
-	return &netsyncpb.SyncHeaders{
+	return &pb.SyncHeaders{
 		Hashes: ConvHashesToBytesArray(sh.Hashes),
 	}, nil
 }
@@ -141,7 +141,7 @@ func (fbh *FetchBlockHeaders) ToProtoMessage() (proto.Message, error) {
 	if fbh == nil {
 		fbh = newFetchBlockHeaders(0, nil, 0)
 	}
-	pbFbh := new(netsyncpb.FetchBlockHeaders)
+	pbFbh := new(pb.FetchBlockHeaders)
 	pbFbh.BeginHash = make([]byte, crypto.HashSize)
 	copy(pbFbh.BeginHash[:], (*fbh.BeginHash)[:])
 	pbFbh.Length = fbh.Length
@@ -154,7 +154,7 @@ func (lh *LocateHeaders) FromProtoMessage(message proto.Message) error {
 	if lh == nil {
 		lh = newLocateHeaders()
 	}
-	if m, ok := message.(*netsyncpb.LocateHeaders); ok {
+	if m, ok := message.(*pb.LocateHeaders); ok {
 		if m != nil {
 			var err error
 			lh.Hashes, err = ConvBytesArrayToHashes(m.Hashes)
@@ -174,7 +174,7 @@ func (sh *SyncHeaders) FromProtoMessage(message proto.Message) error {
 	if sh == nil {
 		sh = newSyncHeaders()
 	}
-	if m, ok := message.(*netsyncpb.SyncHeaders); ok {
+	if m, ok := message.(*pb.SyncHeaders); ok {
 		if m != nil {
 			var err error
 			sh.Hashes, err = ConvBytesArrayToHashes(m.Hashes)
@@ -197,7 +197,7 @@ func (fbh *FetchBlockHeaders) FromProtoMessage(message proto.Message) error {
 	if fbh.BeginHash == nil {
 		fbh.BeginHash = &crypto.HashType{}
 	}
-	if m, ok := message.(*netsyncpb.FetchBlockHeaders); ok {
+	if m, ok := message.(*pb.FetchBlockHeaders); ok {
 		if m != nil {
 			fbh.Idx = m.Idx
 			copy(fbh.BeginHash[:], m.BeginHash[:])
@@ -226,7 +226,7 @@ func (fbh *FetchBlockHeaders) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to LocateHeaders object
 func (lh *LocateHeaders) Unmarshal(data []byte) error {
-	msg := &netsyncpb.LocateHeaders{}
+	msg := &pb.LocateHeaders{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -235,7 +235,7 @@ func (lh *LocateHeaders) Unmarshal(data []byte) error {
 
 // Unmarshal method unmarshal binary data to SyncHeaders object
 func (sh *SyncHeaders) Unmarshal(data []byte) error {
-	msg := &netsyncpb.SyncHeaders{}
+	msg := &pb.SyncHeaders{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (sh *SyncHeaders) Unmarshal(data []byte) error {
 
 // Unmarshal method unmarshal binary data to FetchBlockHeaders object
 func (fbh *FetchBlockHeaders) Unmarshal(data []byte) error {
-	msg := &netsyncpb.FetchBlockHeaders{}
+	msg := &pb.FetchBlockHeaders{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -256,7 +256,7 @@ func (ch *CheckHash) ToProtoMessage() (proto.Message, error) {
 	if ch == nil {
 		ch = newCheckHash(nil, 0)
 	}
-	pbCh := new(netsyncpb.CheckHash)
+	pbCh := new(pb.CheckHash)
 	pbCh.BeginHash = make([]byte, crypto.HashSize)
 	copy(pbCh.BeginHash[:], (*ch.BeginHash)[:])
 	pbCh.Length = ch.Length
@@ -271,7 +271,7 @@ func (ch *CheckHash) FromProtoMessage(message proto.Message) error {
 	if ch.BeginHash == nil {
 		ch.BeginHash = &crypto.HashType{}
 	}
-	if m, ok := message.(*netsyncpb.CheckHash); ok {
+	if m, ok := message.(*pb.CheckHash); ok {
 		if m != nil {
 			copy(ch.BeginHash[:], m.BeginHash[:])
 			ch.Length = m.Length
@@ -289,7 +289,7 @@ func (ch *CheckHash) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to CheckHash object
 func (ch *CheckHash) Unmarshal(data []byte) error {
-	msg := &netsyncpb.CheckHash{}
+	msg := &pb.CheckHash{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -304,7 +304,7 @@ func (sch *SyncCheckHash) ToProtoMessage() (proto.Message, error) {
 	if sch.RootHash == nil {
 		sch.RootHash = &crypto.HashType{}
 	}
-	pbSch := new(netsyncpb.SyncCheckHash)
+	pbSch := new(pb.SyncCheckHash)
 	pbSch.RootHash = make([]byte, crypto.HashSize)
 	copy(pbSch.RootHash[:], (*sch.RootHash)[:])
 	return pbSch, nil
@@ -318,7 +318,7 @@ func (sch *SyncCheckHash) FromProtoMessage(message proto.Message) error {
 	if sch.RootHash == nil {
 		sch.RootHash = &crypto.HashType{}
 	}
-	if m, ok := message.(*netsyncpb.SyncCheckHash); ok {
+	if m, ok := message.(*pb.SyncCheckHash); ok {
 		if m != nil {
 			copy((sch.RootHash)[:], m.RootHash[:])
 			return nil
@@ -335,7 +335,7 @@ func (sch *SyncCheckHash) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to SyncCheckHash object
 func (sch *SyncCheckHash) Unmarshal(data []byte) error {
-	msg := &netsyncpb.SyncCheckHash{}
+	msg := &pb.SyncCheckHash{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -354,7 +354,7 @@ func (sb *SyncBlocks) ToProtoMessage() (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &netsyncpb.SyncBlocks{Idx: sb.Idx, Blocks: blocks}, nil
+	return &pb.SyncBlocks{Idx: sb.Idx, Blocks: blocks}, nil
 }
 
 // FromProtoMessage converts proto message to SyncBlocks
@@ -362,7 +362,7 @@ func (sb *SyncBlocks) FromProtoMessage(message proto.Message) error {
 	if sb == nil {
 		sb = newSyncBlocks(0)
 	}
-	if m, ok := message.(*netsyncpb.SyncBlocks); ok {
+	if m, ok := message.(*pb.SyncBlocks); ok {
 		if m != nil {
 			var err error
 			sb.Blocks, err = ConvPbBlocksToBlocks(m.Blocks)
@@ -385,7 +385,7 @@ func (sb *SyncBlocks) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to SyncBlocks object
 func (sb *SyncBlocks) Unmarshal(data []byte) error {
-	msg := &netsyncpb.SyncBlocks{}
+	msg := &pb.SyncBlocks{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -407,7 +407,7 @@ func ConvBytesArrayToHashes(bytesArray [][]byte) ([]*crypto.HashType, error) {
 	hashes := make([]*crypto.HashType, len(bytesArray))
 	for i, v := range bytesArray {
 		if len(v) != crypto.HashSize {
-			return nil, fmt.Errorf("netsync FromProtoMessage] LocateHeaders contains " +
+			return nil, fmt.Errorf("FromProtoMessage] LocateHeaders contains " +
 				"hash whoes length is not HashSize(32) bytes")
 		}
 		hashes[i] = &crypto.HashType{}
