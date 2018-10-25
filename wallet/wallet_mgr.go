@@ -178,6 +178,11 @@ func (acc *Account) Addr() string {
 	return acc.addr
 }
 
+// PublicKey returns the accounts public key in compressed byte format
+func (acc *Account) PublicKey() []byte {
+	return acc.privKey.PubKey().Serialize()
+}
+
 func (acc *Account) saveWithPassphrase(passphrase string) error {
 	savePrivateKeyWithPassphrase(acc.privKey, passphrase, acc.path)
 	return nil

@@ -48,7 +48,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight in
 		Output:      tx.Vout[txOutIdx],
 		BlockHeight: blockHeight,
 		IsCoinBase:  IsCoinBase(tx),
-		IsModified:  false,
+		IsModified:  true,
 		IsSpent:     false,
 	}
 	u.utxoMap[outPoint] = &utxoWrap
@@ -94,6 +94,7 @@ func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 			return err
 		}
 	}
+	logger.Debugf("UTXO: apply block with %d transactions", len(block.Txs))
 	return nil
 }
 
@@ -140,7 +141,6 @@ func (u *UtxoSet) RevertBlock(block *types.Block) error {
 
 // WriteUtxoSetToDB store utxo set to database.
 func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
-
 	for outpoint, utxoWrap := range u.utxoMap {
 		if utxoWrap == nil || !utxoWrap.IsModified {
 			continue
@@ -153,9 +153,9 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			if err != nil {
 				return err
 			}
+			utxoWrap.IsModified = false
 			continue
 		}
-
 		// Serialize and store the utxo entry.
 		serialized, err := utxoWrap.Marshal()
 		if err != nil {
@@ -166,6 +166,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		if err != nil {
 			return err
 		}
+		utxoWrap.IsModified = false
 	}
 	return nil
 }
@@ -173,7 +174,6 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 // LoadTxUtxos loads the unspent transaction outputs related to tx
 func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 
-	utxoset := NewUtxoSet()
 	emptySet := make(map[types.OutPoint]struct{})
 
 	prevOut := types.OutPoint{Hash: *tx.Hash}
@@ -188,7 +188,7 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 	}
 
 	if len(emptySet) > 0 {
-		if err := utxoset.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
+		if err := u.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
 			return err
 		}
 	}
