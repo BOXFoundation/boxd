@@ -11,6 +11,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -217,6 +218,16 @@ func (candidateContext *CandidateContext) Unmarshal(data []byte) error {
 	return candidateContext.FromProtoMessage(msg)
 }
 
+// CandidateContextHash calc candidate context hash.
+func (candidateContext *CandidateContext) CandidateContextHash() (*crypto.HashType, error) {
+	bytes, err := candidateContext.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	hash := crypto.DoubleHashH(bytes) // dhash of header
+	return &hash, nil
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -235,7 +246,7 @@ func (candidate *Candidate) ToProtoMessage() (proto.Message, error) {
 	return &dpospb.Candidate{
 		Addr:  candidate.addr[:],
 		Votes: candidate.votes,
-		Peer:  candidate.peer.Pretty(),
+		// Peer:  candidate.peer.Pretty(),
 	}, nil
 }
 

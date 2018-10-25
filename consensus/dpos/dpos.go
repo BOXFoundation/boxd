@@ -249,12 +249,19 @@ PackingTxs:
 		default:
 			for pool.Len() > 0 {
 				txWrap := heap.Pop(pool).(*txpool.TxWrap)
+				if err := dpos.PrepareCandidateContext(txWrap.Tx); err != nil {
+					// TODO: abandon the error tx
+					continue
+				}
 				blockTxns = append(blockTxns, txWrap.Tx)
-
 			}
 		}
 	}
-
+	candidateHash, err := dpos.context.candidateContext.CandidateContextHash()
+	if err != nil {
+		return err
+	}
+	block.Header.CandidatesHash = *candidateHash
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
@@ -314,6 +321,7 @@ func (dpos *Dpos) LoadCandidates() error {
 		if err := candidatesContext.Unmarshal(candidates); err != nil {
 			return err
 		}
+		candidatesContext.height = tail.Height + 1
 		dpos.context.candidateContext = candidatesContext
 		return nil
 	}
@@ -323,24 +331,36 @@ func (dpos *Dpos) LoadCandidates() error {
 	return nil
 }
 
+// StoreCandidateContext store candidate context
+func (dpos *Dpos) StoreCandidateContext(hash crypto.HashType) error {
+
+	bytes, err := dpos.context.candidateContext.Marshal()
+	if err != nil {
+		return err
+	}
+	db := dpos.chain.GetChainDB()
+	return db.Put(hash[:], bytes)
+}
+
 // PrepareCandidateContext prepare to update CandidateContext.
-func (dpos *Dpos) PrepareCandidateContext(tx *types.Transaction, candidateContext *CandidateContext) error {
+func (dpos *Dpos) PrepareCandidateContext(tx *types.Transaction) error {
 
 	content := tx.Data.Content
+	candidateContext := dpos.context.candidateContext
 	switch int(tx.Data.Type) {
 	case types.SignUpTx:
 		signUpContent := new(types.SignUpContent)
 		if err := signUpContent.Unmarshal(content); err != nil {
 			return err
 		}
-		if util.InArray(signUpContent.Addr(), dpos.context.candidateContext.addrs) {
+		if util.InArray(signUpContent.Addr(), candidateContext.addrs) {
 			return ErrDuplicateSignUpTx
 		}
 		candidate := &Candidate{
 			addr:  signUpContent.Addr(),
 			votes: 0,
 		}
-		dpos.context.candidateContext.candidates = append(dpos.context.candidateContext.candidates, candidate)
+		candidateContext.candidates = append(candidateContext.candidates, candidate)
 	case types.VotesTx:
 		votesContent := new(types.VoteContent)
 		if err := votesContent.Unmarshal(content); err != nil {
@@ -349,7 +369,7 @@ func (dpos *Dpos) PrepareCandidateContext(tx *types.Transaction, candidateContex
 		if !util.InArray(votesContent.Addr(), dpos.context.candidateContext.addrs) {
 			return ErrCandidateNotFound
 		}
-		for _, v := range dpos.context.candidateContext.candidates {
+		for _, v := range candidateContext.candidates {
 			if v.addr == votesContent.Addr() {
 				atomic.AddInt64(&v.votes, votesContent.Votes())
 			}

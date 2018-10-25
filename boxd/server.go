@@ -131,6 +131,7 @@ func (server *Server) Run() error {
 	if err != nil {
 		logger.Fatalf("Failed to new Dpos, error: %v", err)
 	}
+	blockChain.SetConsensus(consensus)
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)

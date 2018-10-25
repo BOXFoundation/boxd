@@ -54,6 +54,7 @@ type BlockChain struct {
 	newblockMsgCh             chan p2p.Message
 	dbBlock                   storage.Table
 	DbTx                      storage.Table
+	consensus                 core.Consensus
 	genesis                   *types.Block
 	tail                      *types.Block
 	proc                      goprocess.Process
@@ -109,6 +110,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 
 // implement interface service.Server
 var _ service.Server = (*BlockChain)(nil)
+
+// SetConsensus set consensus to chain.
+func (chain *BlockChain) SetConsensus(consensus core.Consensus) {
+	chain.consensus = consensus
+}
 
 // Run launch blockchain.
 func (chain *BlockChain) Run() error {
