@@ -210,8 +210,7 @@ func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
 	if chain.cache.Contains(blockHash) {
 		return true
 	}
-	block, err := chain.LoadBlockByHash(blockHash)
-	if err != nil || block == nil {
+	if _, err := chain.LoadBlockByHash(blockHash); err != nil {
 		return false
 	}
 	return true
@@ -223,6 +222,9 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
 	parentBlock := chain.getParentBlock(block)
+	if parentBlock == nil {
+		return false, fmt.Errorf("parent block does not exist")
+	}
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
@@ -337,6 +339,9 @@ func (chain *BlockChain) ancestor(block *types.Block, height int32) *types.Block
 	iterBlock := block
 	for iterBlock != nil && iterBlock.Height != height {
 		iterBlock = chain.getParentBlock(iterBlock)
+		if iterBlock == nil {
+			return nil
+		}
 	}
 	return iterBlock
 }
@@ -387,7 +392,11 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	}
 
 	// Enforce the sequence number based relative lock-times.
-	medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
+	parent := chain.getParentBlock(block)
+	if parent == nil {
+		return fmt.Errorf("parent does not exist")
+	}
+	medianTime := chain.calcPastMedianTime(parent)
 	for _, tx := range transactions {
 		// A transaction can only be included in a block
 		// if all of its input sequence locks are active.
@@ -642,7 +651,7 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 		return nil, err
 	}
 	if blockBin == nil {
-		return nil, nil
+		return nil, fmt.Errorf("Block does not exist for hash %v", hash)
 	}
 	block := new(types.Block)
 	if err := block.Unmarshal(blockBin); err != nil {
@@ -663,7 +672,7 @@ func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
 		return nil, err
 	}
 	if blockBin == nil {
-		return nil, nil
+		return nil, fmt.Errorf("Block does not exist for height %v", height)
 	}
 	block := new(types.Block)
 	if err := block.Unmarshal(blockBin); err != nil {
@@ -706,15 +715,13 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	if err != nil {
 		return nil, err
 	}
-	if block != nil {
-		tx := block.Txs[idx]
-		target, err := tx.TxHash()
-		if err != nil {
-			return nil, err
-		}
-		if *target == hash {
-			return tx, nil
-		}
+	tx := block.Txs[idx]
+	target, err := tx.TxHash()
+	if err != nil {
+		return nil, err
+	}
+	if *target == hash {
+		return tx, nil
 	}
 	return nil, errors.New("Failed to load tx with hash")
 }
@@ -751,41 +758,30 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 		if err != nil {
 			return nil, err
 		}
-		if block != nil {
-			result := []*crypto.HashType{}
-			currentHeight := block.Height + 1
-			if tailHeight-block.Height+1 < MaxBlocksPerSync {
-				for currentHeight <= tailHeight {
-					block, err := chain.LoadBlockByHeight(currentHeight)
-					if err != nil {
-						return nil, err
-					}
-					if block == nil {
-						return nil, fmt.Errorf("block is not existed for height: %d",
-							currentHeight)
-					}
-					result = append(result, block.BlockHash())
-					currentHeight++
-				}
-				return result, nil
-			}
-
-			var idx int32
-			for idx < MaxBlocksPerSync {
-				block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		result := []*crypto.HashType{}
+		currentHeight := block.Height + 1
+		if tailHeight-block.Height+1 < MaxBlocksPerSync {
+			for currentHeight <= tailHeight {
+				block, err := chain.LoadBlockByHeight(currentHeight)
 				if err != nil {
 					return nil, err
 				}
-				if block == nil {
-					return nil, fmt.Errorf("block is not existed for height: %d",
-						currentHeight+idx)
-				}
 				result = append(result, block.BlockHash())
-				idx++
+				currentHeight++
 			}
 			return result, nil
 		}
 
+		var idx int32
+		for idx < MaxBlocksPerSync {
+			block, err := chain.LoadBlockByHeight(currentHeight + idx)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, block.BlockHash())
+			idx++
+		}
+		return result, nil
 	}
 	return nil, nil
 }
@@ -797,9 +793,6 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32)
 	if err != nil {
 		return nil, err
 	}
-	if block == nil {
-		return nil, fmt.Errorf("block is not existed for hash: %+v", hash)
-	}
 	if chain.tail.Height-block.Height+1 < num {
 		return nil, fmt.Errorf("Invalid params num[%d] (tailHeight[%d], "+
 			"currentHeight[%d])", num, chain.tail.Height, block.Height)
@@ -810,10 +803,6 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32)
 		block, err := chain.LoadBlockByHeight(block.Height + idx)
 		if err != nil {
 			return nil, err
-		}
-		if block == nil {
-			return nil, fmt.Errorf("block is not existed for height: %d",
-				block.Height+idx)
 		}
 		hashes[idx] = block.BlockHash()
 		idx++
@@ -829,9 +818,6 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	if err != nil {
 		return nil, err
 	}
-	if block == nil {
-		return nil, fmt.Errorf("block is not existed for hash: %+v", hash)
-	}
 	if num <= 0 || chain.tail.Height-block.Height+1 < num {
 		return nil, fmt.Errorf("Invalid params num[%d], tail.Height[%d],"+
 			" block height[%d]", num, chain.tail.Height, block.Height)
@@ -842,10 +828,6 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 		block, err := chain.LoadBlockByHeight(block.Height + idx)
 		if err != nil {
 			return nil, err
-		}
-		if block == nil {
-			return nil, fmt.Errorf("block is not existed for height: %d",
-				block.Height+idx)
 		}
 		blocks[idx] = block
 		idx++

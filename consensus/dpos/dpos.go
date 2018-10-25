@@ -103,12 +103,12 @@ func (dpos *Dpos) Stop() {
 	dpos.proc.Close()
 }
 
-// StopMint stop to generate blocks.
+// StopMint stops generating blocks.
 func (dpos *Dpos) StopMint() {
 	dpos.disableMint = true
 }
 
-// RecoverMint recover to generate blocks.
+// RecoverMint resumes generating blocks.
 func (dpos *Dpos) RecoverMint() {
 	dpos.disableMint = false
 }
@@ -129,10 +129,11 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 }
 
 func (dpos *Dpos) mint() error {
-	now := time.Now().Unix()
+	// disableMint might be set true by sync business or others
 	if dpos.disableMint {
 		return ErrNoLegalPowerToMint
 	}
+	now := time.Now().Unix()
 	if int(now%2) != dpos.cfg.Index {
 		return ErrNoLegalPowerToMint
 	}

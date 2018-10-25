@@ -35,13 +35,13 @@ var (
 	_ conv.Serializable = (*SyncBlocks)(nil)
 )
 
-// LocateHeaders includes hashes sended to a peer to locate checkpoint
+// LocateHeaders includes hashes sent to a peer to locate fork point
 // in the peer's chain
 type LocateHeaders struct {
 	Hashes []*crypto.HashType
 }
 
-// SyncHeaders includes the hashes that local node need to sync with the
+// SyncHeaders includes the hashes that local node needs to sync with the
 // peer's chain. SyncHeaders may contain overlapped block hashes
 // with local chain
 type SyncHeaders struct {
@@ -49,8 +49,8 @@ type SyncHeaders struct {
 }
 
 // CheckHash defines information about synchronizing check hash with
-// the peer's chain, it only need to check Length headers.
-// remote peer will send a root hash from the corresponding Headers
+// the peer's chain, it only needs to check Length headers.
+// Remote peer will send a root hash from the corresponding Headers
 type CheckHash struct {
 	BeginHash *crypto.HashType
 	Length    int32
@@ -62,15 +62,20 @@ type SyncCheckHash struct {
 	RootHash *crypto.HashType
 }
 
-// FetchBlockHeaders includes headers sended to a sync peer to
-// fetch blocks
+// FetchBlockHeaders includes headers sent to a sync peer to fetch blocks
 type FetchBlockHeaders struct {
+	// the index to indicate which hashes chunk in sync hashes
+	// it is used to find out which hashes chunk needed to re-sync when
+	// error happen in the sync with some remote peer
 	Idx int32
 	CheckHash
 }
 
-// SyncBlocks includes blocks sended from synchronized peer to local node
+// SyncBlocks includes blocks sent from synchronized peer to local node
 type SyncBlocks struct {
+	// the index to indicate which hashes chunk in sync hashes
+	// it is used to find out which hashes chunk needed to re-sync when
+	// error happen in the sync with some remote peer
 	Idx    int32
 	Blocks []*coreTypes.Block
 }
@@ -121,7 +126,7 @@ func (lh *LocateHeaders) ToProtoMessage() (proto.Message, error) {
 	}, nil
 }
 
-// ToProtoMessage converts LocateHeaders to proto message.
+// ToProtoMessage converts SyncHeaders to proto message.
 func (sh *SyncHeaders) ToProtoMessage() (proto.Message, error) {
 	if sh == nil {
 		sh = newSyncHeaders()
@@ -131,7 +136,7 @@ func (sh *SyncHeaders) ToProtoMessage() (proto.Message, error) {
 	}, nil
 }
 
-// ToProtoMessage converts LocateHeaders to proto message.
+// ToProtoMessage converts FetchBlockHeaders to proto message.
 func (fbh *FetchBlockHeaders) ToProtoMessage() (proto.Message, error) {
 	if fbh == nil {
 		fbh = newFetchBlockHeaders(0, nil, 0)
@@ -154,7 +159,7 @@ func (lh *LocateHeaders) FromProtoMessage(message proto.Message) error {
 			var err error
 			lh.Hashes, err = ConvBytesArrayToHashes(m.Hashes)
 			if err != nil {
-				logger.Info(err.Error())
+				logger.Error(err.Error())
 				return errInvalidProtoMessage
 			}
 			return nil
@@ -164,7 +169,7 @@ func (lh *LocateHeaders) FromProtoMessage(message proto.Message) error {
 	return errInvalidProtoMessage
 }
 
-// FromProtoMessage converts proto message to LocateHeaders
+// FromProtoMessage converts proto message to SyncHeaders
 func (sh *SyncHeaders) FromProtoMessage(message proto.Message) error {
 	if sh == nil {
 		sh = newSyncHeaders()
@@ -174,7 +179,7 @@ func (sh *SyncHeaders) FromProtoMessage(message proto.Message) error {
 			var err error
 			sh.Hashes, err = ConvBytesArrayToHashes(m.Hashes)
 			if err != nil {
-				logger.Info(err.Error())
+				logger.Error(err.Error())
 				return errInvalidProtoMessage
 			}
 			return nil
@@ -214,7 +219,7 @@ func (sh *SyncHeaders) Marshal() (data []byte, err error) {
 	return conv.MarshalConvertible(sh)
 }
 
-// Marshal method marshal LocateHeaders object to binary
+// Marshal method marshal FetchBlockHeaders object to binary
 func (fbh *FetchBlockHeaders) Marshal() (data []byte, err error) {
 	return conv.MarshalConvertible(fbh)
 }
@@ -228,7 +233,7 @@ func (lh *LocateHeaders) Unmarshal(data []byte) error {
 	return lh.FromProtoMessage(msg)
 }
 
-// Unmarshal method unmarshal binary data to LocateHeaders object
+// Unmarshal method unmarshal binary data to SyncHeaders object
 func (sh *SyncHeaders) Unmarshal(data []byte) error {
 	msg := &netsyncpb.SyncHeaders{}
 	if err := proto.Unmarshal(data, msg); err != nil {
@@ -237,7 +242,7 @@ func (sh *SyncHeaders) Unmarshal(data []byte) error {
 	return sh.FromProtoMessage(msg)
 }
 
-// Unmarshal method unmarshal binary data to LocateHeaders object
+// Unmarshal method unmarshal binary data to FetchBlockHeaders object
 func (fbh *FetchBlockHeaders) Unmarshal(data []byte) error {
 	msg := &netsyncpb.FetchBlockHeaders{}
 	if err := proto.Unmarshal(data, msg); err != nil {
@@ -362,7 +367,7 @@ func (sb *SyncBlocks) FromProtoMessage(message proto.Message) error {
 			var err error
 			sb.Blocks, err = ConvPbBlocksToBlocks(m.Blocks)
 			if err != nil {
-				logger.Info(err.Error())
+				logger.Error(err.Error())
 				return errInvalidProtoMessage
 			}
 			sb.Idx = m.Idx

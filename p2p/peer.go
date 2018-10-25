@@ -239,20 +239,20 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 	return nil
 }
 
-// SendMessageToPeer send message to a peer.
+// SendMessageToPeer sends message to a peer.
 func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible,
 	pid peer.ID) error {
 	body, err := conv.MarshalConvertible(msg)
 	if err != nil {
-		return fmt.Errorf("SendMessageToPeer] peer[%s] error: %s", pid.Pretty(), err)
+		return fmt.Errorf("SendMessageToPeer: peer[%s] error %s", pid.Pretty(), err)
 	}
 	c, ok := p.conns[pid]
 	if !ok {
-		return fmt.Errorf("SendMessageToPeer] peer[%s] not exists", pid.Pretty())
+		return fmt.Errorf("SendMessageToPeer: peer[%s] not exists", pid.Pretty())
 	}
 	conn := c.(*Conn)
 	if p.id.Pretty() == conn.remotePeer.Pretty() {
-		return fmt.Errorf("SendMessageToPeer] peer[%s] is self", pid.Pretty())
+		return fmt.Errorf("SendMessageToPeer: peer[%s] is self", pid.Pretty())
 	}
 	go conn.Write(code, body)
 	return nil
@@ -278,15 +278,15 @@ func (p *BoxPeer) Conns() map[peer.ID]interface{} {
 	return p.conns
 }
 
-// PickOnePeer pick a peer not in peersExclusive and return peer id
+// PickOnePeer picks a peer not in peersExclusive and return its id
 func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 	peersInfo := p.table.GetRandomPeers("")
 	nullPeer := peer.ID("")
 	if len(peersInfo) == 0 {
 		return nullPeer
 	}
-	// although here at most O(n^2) time complexity,
-	// but the probability that cost n^2 is very low
+	// although here the worst case O(n^2) time complexity,
+	// the probability that cost n^2 is very low
 out:
 	for _, info := range peersInfo {
 		for _, pid := range peersExclusive {

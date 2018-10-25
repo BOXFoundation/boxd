@@ -23,8 +23,9 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
+var logger = log.NewLogger("sync") // logger
+
 var (
-	logger          = log.NewLogger("sync") // logger
 	errNoPeerToSync = errors.New("no peer to sync")
 	errCheckFailed  = errors.New("check failed")
 	errNoResponding = errors.New("no responding when node is in sync")
@@ -53,7 +54,7 @@ const (
 	maxSyncFailedTimes = 100
 	maxCheckPeers      = 2
 	syncBlockChunkSize = 16
-	beginSeqHashes     = 6
+	locatorSeqPartLen  = 6
 	syncTimeout        = 5 * time.Second
 	blocksTimeout      = 20 * time.Second
 	retryTimes         = 20
@@ -78,7 +79,7 @@ type blockCheckInfo struct {
 	fbh      *FetchBlockHeaders
 }
 
-// SyncManager use to manage blocks and main chains to stay in sync
+// SyncManager syncs blocks with peers
 type SyncManager struct {
 	status  syncStatus
 	statMtx sync.RWMutex
@@ -143,7 +144,7 @@ func (sm *SyncManager) getStatus() syncStatus {
 	return sm.status
 }
 
-// NewSyncManager return new block sync manager.
+// NewSyncManager returns new block sync manager.
 func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
 	consensus consensus.Consensus, parent goprocess.Process) *SyncManager {
 	return &SyncManager{
@@ -230,7 +231,7 @@ func (sm *SyncManager) handleSyncMessage() {
 }
 
 func (sm *SyncManager) startSync() {
-	// sleep 5s to wait connections established
+	// sleep 5s to wait for connections to establish
 	time.Sleep(5 * time.Second)
 	//
 	defer func() {
@@ -490,7 +491,7 @@ func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
 
 func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	if sm.getStatus() != locateStatus {
-		return fmt.Errorf("onLocateResponse return since now status is %s",
+		return fmt.Errorf("onLocateResponse returns since now status is %s",
 			sm.getStatus())
 	}
 	//if !sm.isPeerStatusFor(locatePeerStatus, msg.From()) {
@@ -551,7 +552,7 @@ func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
 
 func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 	if sm.getStatus() != checkStatus {
-		return fmt.Errorf("onCheckResponse return since now status is %s",
+		return fmt.Errorf("onCheckResponse returns since now status is %s",
 			sm.getStatus())
 	}
 	//if !sm.isPeerStatusFor(checkPeerStatus, msg.From()) {
@@ -614,7 +615,7 @@ func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
 
 func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	if sm.getStatus() != blocksStatus {
-		return fmt.Errorf("onBlocksResponse return since now status is %s",
+		return fmt.Errorf("onBlocksResponse returns since now status is %s",
 			sm.getStatus())
 	}
 	pid := msg.From()
@@ -695,8 +696,8 @@ func heightLocator(height int32) []int32 {
 	if height < 0 {
 		return heights
 	}
-	// get sequence headers portion
-	for i := int32(0); i < beginSeqHashes; i++ {
+	// get sequential portion
+	for i := int32(0); i < locatorSeqPartLen; i++ {
 		h = height - i
 		if h < 0 {
 			return heights
@@ -704,7 +705,7 @@ func heightLocator(height int32) []int32 {
 		heights = append(heights, h)
 	}
 	// get skip portion
-	for step := int32(1); h-step-1 > 0; step = step * 2 {
+	for step := int32(1); h > step+1; step = step * 2 {
 		h -= step + 1
 		heights = append(heights, h)
 	}

@@ -40,7 +40,7 @@ const (
 	BlockChunkRequest       = 0x14
 	BlockChunkResponse      = 0x15
 
-	MaxMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
+	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
 
 // NetworkNamtToMagic is a map from network name to magic number.

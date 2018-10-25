@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -166,6 +167,9 @@ func (chain *BlockChain) calcLockTime(utxoSet *UtxoSet, block *types.Block, tx *
 				prevInputHeight = 0
 			}
 			ancestor := chain.ancestor(block, prevInputHeight)
+			if ancestor != nil {
+				return nil, fmt.Errorf("ancestor does not exist")
+			}
 			medianTime := chain.calcPastMedianTime(ancestor)
 
 			timeLockSeconds := (relativeLock << sequenceLockTimeGranularity) - 1
