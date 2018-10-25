@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	storage "github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/dbtest"
 	"github.com/facebookgo/ensure"
 )
 
@@ -60,10 +61,10 @@ func TestDBPut(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	t.Run("put1", storagePutGetDelTest(db, []byte("tk1"), []byte("tv1")))
-	t.Run("put2", storagePutGetDelTest(db, []byte("tk2"), []byte("tv2")))
-	t.Run("put3", storagePutGetDelTest(db, []byte("tk3"), []byte("tv3")))
-	t.Run("put4", storagePutGetDelTest(db, []byte("tk4"), []byte("tv4")))
+	t.Run("put1", dbtest.StoragePutGetDelTest(db, []byte("tk1"), []byte("tv1")))
+	t.Run("put2", dbtest.StoragePutGetDelTest(db, []byte("tk2"), []byte("tv2")))
+	t.Run("put3", dbtest.StoragePutGetDelTest(db, []byte("tk3"), []byte("tv3")))
+	t.Run("put4", dbtest.StoragePutGetDelTest(db, []byte("tk4"), []byte("tv4")))
 }
 
 func TestDBDelNotExists(t *testing.T) {
@@ -79,7 +80,7 @@ func TestDBDel(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	storageDel(t, db)
+	dbtest.StorageDel(t, db)
 }
 
 func TestDBBatch(t *testing.T) {
@@ -87,7 +88,7 @@ func TestDBBatch(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	storageBatch(t, db)
+	dbtest.StorageBatch(t, db)
 }
 
 func TestDBBatchs(t *testing.T) {
@@ -101,7 +102,23 @@ func TestDBKeys(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	storageKeys(t, db, 10000)
+	dbtest.StorageKeys(t, db)(t, db)
+}
+
+func TestDBIterKeys(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	dbtest.StorageIterKeys(t, db)(t, db)
+}
+
+func TestDBIterKeysCancel(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	dbtest.StorageIterKeysCancel(t, db)(t, db)
 }
 
 func TestDBKeysWithPrefix(t *testing.T) {
@@ -109,7 +126,31 @@ func TestDBKeysWithPrefix(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	storagePrefixKeys(t, db, 10000)
+	dbtest.StoragePrefixKeys(t, db, 10000)(t, db)
+}
+
+func TestDBKeysWithPrefixRand(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	dbtest.StoragePrefixKeysRand(t, db)(t, db)
+}
+
+func TestDBIterKeysWithPrefix(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	dbtest.StorageIterKeysWithPrefix(t, db)(t, db)
+}
+
+func TestDBIterKeysWithPrefixCancel(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	dbtest.StorageIterKeysWithPrefixCancel(t, db)(t, db)
 }
 
 func TestDBPersistent(t *testing.T) {
@@ -117,7 +158,7 @@ func TestDBPersistent(t *testing.T) {
 	ensure.Nil(t, err)
 	defer os.RemoveAll(dbpath)
 
-	verify := storageFillData(t, db, 1000)
+	verify := dbtest.StorageFillData(t, db, 1000)
 	db.Close()
 
 	db, err = NewRocksDB(dbpath, &storage.Options{})
@@ -139,7 +180,7 @@ func TestParallelPuts(t *testing.T) {
 		wg.Add(1)
 		go func(name string) {
 			defer wg.Done()
-			storageGenDataWithVerification(t, db, name, 3000)(db)
+			dbtest.StorageGenDataWithVerification(t, db, name, 3000)(db)
 		}(name)
 	}
 	wg.Wait()
@@ -151,7 +192,7 @@ func TestDBTransaction(t *testing.T) {
 	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
-	storageTransOps(t, db)
+	dbtest.StorageTransOps(t, db)
 }
 
 func TestDBMulTransactions(t *testing.T) {
@@ -160,7 +201,7 @@ func TestDBMulTransactions(t *testing.T) {
 	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
-	storageMultiTrans(t, db)
+	dbtest.StorageMultiTrans(t, db)
 }
 
 func TestDBTransactionsClose(t *testing.T) {
@@ -168,7 +209,7 @@ func TestDBTransactionsClose(t *testing.T) {
 	ensure.Nil(t, err)
 	defer os.RemoveAll(dbpath)
 
-	storageDBCloseForTransOpen(t, db, db)
+	dbtest.StorageDBCloseForTransOpen(t, db, db)
 }
 
 func TestDBSyncTransaction(t *testing.T) {
@@ -177,7 +218,7 @@ func TestDBSyncTransaction(t *testing.T) {
 	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
-	storageSyncTransaction(t, db)
+	dbtest.StorageSyncTransaction(t, db)
 }
 
 func TestDBBatchAndTransaction(t *testing.T) {
@@ -186,7 +227,30 @@ func TestDBBatchAndTransaction(t *testing.T) {
 	defer os.RemoveAll(dbpath)
 	defer db.Close()
 
-	storageBatchAndTrans(t, db)
+	dbtest.StorageBatchAndTrans(t, db)
+}
+
+func TestDBTransactionKeys(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	verify := dbtest.StorageKeys(t, db)
+
+	tx, _ := db.NewTransaction()
+	defer tx.Discard()
+	verify(t, tx)
+}
+
+func TestDBTransactionIterKeys(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	verify := dbtest.StorageIterKeys(t, db)
+	tx, _ := db.NewTransaction()
+	defer tx.Discard()
+	verify(t, tx)
 }
 
 func TestDBTransactionKeysWithPrefix(t *testing.T) {
@@ -194,7 +258,29 @@ func TestDBTransactionKeysWithPrefix(t *testing.T) {
 	ensure.Nil(t, err)
 	defer releaseDatabase(dbpath, db)
 
-	storageTransKeysWithPrefix(t, db)
+	dbtest.StorageTransKeysWithPrefix(t, db)
+}
+
+func TestDBTransactionKeysWithPrefixRand(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	verify := dbtest.StoragePrefixKeysRand(t, db)
+	tx, _ := db.NewTransaction()
+	defer tx.Discard()
+	verify(t, tx)
+}
+
+func TestDBTransactionIterKeysWithPrefix(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	verify := dbtest.StorageIterKeysWithPrefix(t, db)
+	tx, _ := db.NewTransaction()
+	defer tx.Discard()
+	verify(t, tx)
 }
 
 func TestDBTransactionsClosed(t *testing.T) {
@@ -202,7 +288,7 @@ func TestDBTransactionsClosed(t *testing.T) {
 	ensure.Nil(t, err)
 	defer os.RemoveAll(dbpath)
 
-	storageTransClosed(t, db)
+	dbtest.StorageTransClosed(t, db)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

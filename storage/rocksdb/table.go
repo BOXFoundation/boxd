@@ -6,6 +6,7 @@ package rocksdb
 
 import (
 	"bytes"
+	"context"
 	"sync"
 
 	storage "github.com/BOXFoundation/boxd/storage"
@@ -117,13 +118,70 @@ func (t *rtable) KeysWithPrefix(prefix []byte) [][]byte {
 	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)
 	defer iter.Close()
 
-	iter.SeekToFirst()
+	iter.Seek(prefix)
 	var keys [][]byte
 	for it := iter; it.Valid(); it.Next() {
 		key := it.Key()
 		if bytes.HasPrefix(key.Data(), prefix) {
 			keys = append(keys, data(key))
+		} else {
+			break
 		}
 	}
 	return keys
+}
+
+// return a chan to iter all keys
+func (t *rtable) IterKeys(ctx context.Context) <-chan []byte {
+	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)
+
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+		defer iter.Close()
+
+		iter.SeekToFirst()
+		for {
+			if !iter.Valid() {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case out <- data(iter.Key()):
+				iter.Next()
+			}
+		}
+	}()
+	return out
+}
+
+// return a set of keys with specified prefix in the Storage
+func (t *rtable) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
+	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)
+
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+		defer iter.Close()
+
+		iter.Seek(prefix)
+		for {
+			if !iter.Valid() {
+				return
+			}
+
+			key := iter.Key()
+			if !bytes.HasPrefix(key.Data(), prefix) {
+				return
+			}
+			select {
+			case out <- data(key):
+				iter.Next()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return out
 }

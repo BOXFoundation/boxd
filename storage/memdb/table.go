@@ -5,6 +5,7 @@
 package memdb
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -104,17 +105,7 @@ func (t *mtable) Has(key []byte) (bool, error) {
 
 // return a set of keys in the Storage
 func (t *mtable) Keys() [][]byte {
-	t.sm.RLock()
-	defer t.sm.RUnlock()
-
-	var keys [][]byte
-	for key := range t.db {
-		if strings.HasPrefix(key, t.prefix) {
-			keys = append(keys, []byte(key)[len(t.prefix):])
-		}
-	}
-
-	return keys
+	return t.KeysWithPrefix([]byte{})
 }
 
 func (t *mtable) KeysWithPrefix(prefix []byte) [][]byte {
@@ -129,4 +120,42 @@ func (t *mtable) KeysWithPrefix(prefix []byte) [][]byte {
 	}
 
 	return keys
+}
+
+// return a chan to iter all keys
+func (t *mtable) IterKeys(ctx context.Context) <-chan []byte {
+	keys := t.Keys()
+
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+
+		for _, k := range keys {
+			select {
+			case <-ctx.Done():
+				return
+			case out <- k:
+			}
+		}
+	}()
+	return out
+}
+
+// return a set of keys with specified prefix in the Storage
+func (t *mtable) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
+	keys := t.KeysWithPrefix(prefix)
+
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+
+		for _, k := range keys {
+			select {
+			case out <- k:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return out
 }

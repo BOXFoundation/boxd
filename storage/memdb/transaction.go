@@ -5,6 +5,7 @@
 package memdb
 
 import (
+	"context"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/storage"
@@ -89,6 +90,30 @@ func (tx *mtx) KeysWithPrefix(prefix []byte) [][]byte {
 	}
 
 	return tx.db.KeysWithPrefix(prefix)
+}
+
+// return a chan to iter all keys
+func (tx *mtx) IterKeys(ctx context.Context) <-chan []byte {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return nil
+	}
+
+	return tx.db.IterKeys(ctx)
+}
+
+// return a set of keys with specified prefix in the Storage
+func (tx *mtx) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
+	tx.txsm.Lock()
+	defer tx.txsm.Unlock()
+
+	if tx.closed {
+		return nil
+	}
+
+	return tx.db.IterKeysWithPrefix(ctx, prefix)
 }
 
 func (tx *mtx) Commit() error {

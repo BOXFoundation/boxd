@@ -6,6 +6,7 @@ package memdb
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -167,4 +168,42 @@ func (db *memorydb) KeysWithPrefix(prefix []byte) [][]byte {
 	}
 
 	return keys
+}
+
+// return a chan to iter all keys
+func (db *memorydb) IterKeys(ctx context.Context) <-chan []byte {
+	keys := db.Keys()
+
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+
+		for _, k := range keys {
+			select {
+			case <-ctx.Done():
+				return
+			case out <- k:
+			}
+		}
+	}()
+	return out
+}
+
+// return a set of keys with specified prefix in the Storage
+func (db *memorydb) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
+	keys := db.KeysWithPrefix(prefix)
+
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+
+		for _, k := range keys {
+			select {
+			case out <- k:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return out
 }
