@@ -135,7 +135,7 @@ func opCodeToName(opCode OpCode) string {
 	switch opCode {
 	// push value
 	case OP0:
-		return "0"
+		return "OP_0"
 	case OPPUSHDATA1:
 		return "OP_PUSHDATA1"
 	case OPPUSHDATA2:
@@ -147,37 +147,37 @@ func opCodeToName(opCode OpCode) string {
 	case OPRESERVED:
 		return "OP_RESERVED"
 	case OP1:
-		return "1"
+		return "OP_1"
 	case OP2:
-		return "2"
+		return "OP_2"
 	case OP3:
-		return "3"
+		return "OP_3"
 	case OP4:
-		return "4"
+		return "OP_4"
 	case OP5:
-		return "5"
+		return "OP_5"
 	case OP6:
-		return "6"
+		return "OP_6"
 	case OP7:
-		return "7"
+		return "OP_7"
 	case OP8:
-		return "8"
+		return "OP_8"
 	case OP9:
-		return "9"
+		return "OP_9"
 	case OP10:
-		return "10"
+		return "OP_10"
 	case OP11:
-		return "11"
+		return "OP_11"
 	case OP12:
-		return "12"
+		return "OP_12"
 	case OP13:
-		return "13"
+		return "OP_13"
 	case OP14:
-		return "14"
+		return "OP_14"
 	case OP15:
-		return "15"
+		return "OP_15"
 	case OP16:
-		return "16"
+		return "OP_16"
 
 		// control
 	case OPNOP:

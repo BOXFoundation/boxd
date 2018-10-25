@@ -6,6 +6,8 @@ package script
 
 import (
 	"bytes"
+	"encoding/hex"
+	"strings"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -88,7 +90,7 @@ func (s *Script) AddScript(script *Script) *Script {
 func (s *Script) Evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
-	logger.Debugf("script len: %d", scriptLen)
+	logger.Debugf("script len %d: %s", scriptLen, s.disasm())
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
@@ -339,4 +341,26 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 		txIn.ScriptSig = oldScriptSigs[i]
 	}
 	return sigHash, err
+}
+
+// diaasm disassembles script in human readable format. If the script fails to parse, the returned string will
+// contain the disassembled script up to the failure point, appended by the string '[Error: error info]'
+func (s *Script) disasm() string {
+	var str []string
+
+	for pc := 0; pc < len(*s); {
+		opCode, operand, newPc, err := s.parseNextOp(pc)
+		if err != nil {
+			str = append(str, "[Error: "+err.Error()+"]")
+			return strings.Join(str, " ")
+		}
+		if operand != nil {
+			str = append(str, hex.EncodeToString(operand))
+		} else {
+			str = append(str, opCodeToName(opCode))
+		}
+		pc = newPc
+	}
+
+	return strings.Join(str, " ")
 }
