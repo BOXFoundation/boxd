@@ -92,7 +92,6 @@ func (s *Script) Evaluate(tx *types.Transaction, txInIdx int) error {
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
-		logger.Debugf("pc: %d, script length: %d", pc, scriptLen)
 		opCode, operand, newPc, err := s.parseNextOp(pc)
 		if err != nil {
 			return err
@@ -108,7 +107,7 @@ func (s *Script) Evaluate(tx *types.Transaction, txInIdx int) error {
 	return stack.validateTop()
 }
 
-// Get the next opcode & operand. Also return incremented pc.
+// Get the next opcode & operand. Operand only applies to data push opcodes. Also return incremented pc.
 func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 	script := *s
 	scriptLen := len(script)
@@ -160,51 +159,27 @@ func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 }
 
 // Execute an operation
-func (s *Script) execOp(opCode OpCode, op Operand, tx *types.Transaction,
+func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 	txInIdx int, pc int, scriptPubKeyStart *int, stack *Stack) error {
-	logger.Debugf("opcode: %d, operand: %d, pc: %d", opCode, len(op), pc)
+
+	// Push value
 	if opCode <= OPPUSHDATA4 {
-		stack.push(op)
+		if opCode < OPPUSHDATA1 {
+			logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
+		} else {
+			logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
+		}
+		stack.push(pushData)
+		return nil
+	} else if opCode <= OP16 && opCode != OPRESERVED {
+		sn := scriptNum(opCode) - scriptNum(OP1) + 1
+		logger.Debugf("opcode: %s, push data: %d, pc: %d", opCodeToName(opCode), sn, pc)
+		stack.push(Operand(sn.Bytes()))
 		return nil
 	}
-	switch opCode {
-	// Push value
-	case OP1NEGATE:
-		fallthrough
-	case OP1:
-		fallthrough
-	case OP2:
-		fallthrough
-	case OP3:
-		fallthrough
-	case OP4:
-		fallthrough
-	case OP5:
-		fallthrough
-	case OP6:
-		fallthrough
-	case OP7:
-		fallthrough
-	case OP8:
-		fallthrough
-	case OP9:
-		fallthrough
-	case OP10:
-		fallthrough
-	case OP11:
-		fallthrough
-	case OP12:
-		fallthrough
-	case OP13:
-		fallthrough
-	case OP14:
-		fallthrough
-	case OP15:
-		fallthrough
-	case OP16:
-		sn := scriptNum(opCode) - scriptNum(OP1-1)
-		stack.push(Operand(sn.Bytes()))
 
+	logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
+	switch opCode {
 	case OPDUP:
 		if stack.size() < 1 {
 			return errors.New("ScriptErrInvalidStackOperation")
@@ -269,9 +244,9 @@ func (s *Script) execOp(opCode OpCode, op Operand, tx *types.Transaction,
 		if stack.size() < 1 {
 			return errors.New("ScriptErrInvalidStackOperation")
 		}
-		op := Operand(crypto.Hash160(stack.topN(1)))
+		hash160 := Operand(crypto.Hash160(stack.topN(1)))
 		stack.pop()
-		stack.push(op)
+		stack.push(hash160)
 
 	case OPCODESEPARATOR:
 		// scriptPubKey starts after the code separator; pc points to the next byte
