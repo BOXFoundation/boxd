@@ -192,19 +192,22 @@ func (server *Server) initEventListener() {
 	}, false)
 
 	// TopicGetDatabaseKeys
-	server.bus.Reply(eventbus.TopicGetDatabaseKeys, func(ctx context.Context, table string, prefix string, skip int32, limit int32, out chan<- []byte) {
+	server.bus.Reply(eventbus.TopicGetDatabaseKeys, func(parent context.Context, table string, prefix string, skip int32, limit int32, out chan<- []string) {
+		var result []string
+		defer func() {
+			out <- result
+		}()
+
 		var s storage.Table
 		var err error
-		defer close(out)
-
 		if len(table) == 0 {
 			s = server.database
-		} else {
-			s, err = server.database.Table(table)
-			if err != nil {
-				return
-			}
+		} else if s, err = server.database.Table(table); err != nil {
+			return
 		}
+
+		ctx, cancel := context.WithTimeout(parent, time.Second*5)
+		defer cancel()
 
 		var keys <-chan []byte
 		if len(prefix) == 0 {
@@ -215,11 +218,10 @@ func (server *Server) initEventListener() {
 		var i = 0
 		for k := range keys {
 			if i >= int(skip) {
-				if i < int(skip+limit) {
-					out <- k
-				} else {
-					return
+				if i >= int(skip+limit) {
+					break
 				}
+				result = append(result, string(k))
 			}
 			i++
 		}
@@ -227,9 +229,13 @@ func (server *Server) initEventListener() {
 
 	// TopicGetDatabaseValue
 	server.bus.Reply(eventbus.TopicGetDatabaseValue, func(table string, key string, out chan<- []byte) {
+		var result []byte
+		defer func() {
+			out <- result
+		}()
+
 		var s storage.Table
 		var err error
-		defer close(out)
 
 		if len(table) == 0 {
 			s = server.database
@@ -240,8 +246,7 @@ func (server *Server) initEventListener() {
 			}
 		}
 		if v, err := s.Get([]byte(key)); err == nil {
-			out <- v
+			result = v
 		}
-
 	}, false)
 }

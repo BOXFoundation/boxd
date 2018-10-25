@@ -35,41 +35,31 @@ func (svr *dbserver) GetDatabaseKeys(ctx context.Context, in *rpcpb.GetDatabaseK
 	if in.Limit <= 0 {
 		in.Limit = 20
 	}
-	var out = make(chan []byte)
+
+	out := make(chan []string)
+	defer close(out)
+
 	svr.server.GetEventBus().Send(eventbus.TopicGetDatabaseKeys, ctx, in.Table, in.Prefix, in.Skip, in.Limit, out)
 
-	var keys []string
-Loop:
-	for {
-		select {
-		case k := <-out:
-			if k != nil {
-				keys = append(keys, string(k))
-			} else {
-				break Loop
-			}
-		case <-ctx.Done():
-			break Loop
-		}
+	select {
+	case <-ctx.Done():
+		return &rpcpb.GetDatabaseKeysResponse{Code: 1, Message: "timeout"}, nil
+	case result := <-out:
+		return &rpcpb.GetDatabaseKeysResponse{Code: 0, Message: "ok", Skip: in.Skip, Keys: result}, nil
 	}
-	return &rpcpb.GetDatabaseKeysResponse{Code: 0, Message: "ok", Skip: in.Skip, Keys: keys}, nil
 }
 
 // get value of associate with passed key in database
 func (svr *dbserver) GetDatabaseValue(ctx context.Context, in *rpcpb.GetDatabaseValueRequest) (*rpcpb.GetDatabaseValueResponse, error) {
-	var out = make(chan []byte)
+	out := make(chan []byte)
+	defer close(out)
+
 	svr.server.GetEventBus().Send(eventbus.TopicGetDatabaseValue, in.Table, in.Key, out)
+
 	select {
-	case v := <-out:
-		return &rpcpb.GetDatabaseValueResponse{
-			Code:    0,
-			Message: "ok",
-			Value:   v,
-		}, nil
 	case <-ctx.Done():
-		return &rpcpb.GetDatabaseValueResponse{
-			Code:    1,
-			Message: "Timeout",
-		}, nil
+		return &rpcpb.GetDatabaseValueResponse{Code: 1, Message: "Timeout"}, nil
+	case v := <-out:
+		return &rpcpb.GetDatabaseValueResponse{Code: 0, Message: "ok", Value: v}, nil
 	}
 }
