@@ -2,10 +2,16 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package core
+package types
+
+import (
+	"github.com/BOXFoundation/boxd/crypto"
+)
 
 // Consensus define consensus interface
 type Consensus interface {
 	Run() error
 	Stop()
+	StoreCandidateContext(crypto.HashType) error
+	VerifySign(*Block) (bool, error)
 }

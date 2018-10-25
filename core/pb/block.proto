@@ -14,6 +14,7 @@ message BlockHeader {
     uint32 magic = 5;
     bytes period_hash = 6;
     bytes candidates_hash = 7;
+    bytes signature = 8;
 }
 
 message Block {

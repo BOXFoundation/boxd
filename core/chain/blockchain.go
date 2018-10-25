@@ -54,7 +54,7 @@ type BlockChain struct {
 	newblockMsgCh             chan p2p.Message
 	dbBlock                   storage.Table
 	DbTx                      storage.Table
-	consensus                 core.Consensus
+	consensus                 types.Consensus
 	genesis                   *types.Block
 	tail                      *types.Block
 	proc                      goprocess.Process
@@ -112,7 +112,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 var _ service.Server = (*BlockChain)(nil)
 
 // SetConsensus set consensus to chain.
-func (chain *BlockChain) SetConsensus(consensus core.Consensus) {
+func (chain *BlockChain) SetConsensus(consensus types.Consensus) {
 	chain.consensus = consensus
 }
 
@@ -178,6 +178,11 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	if _, exists := chain.hashToOrphanBlock[*blockHash]; exists {
 		logger.Warnf("already have block (orphan) %v", blockHash)
 		return false, false, core.ErrBlockExists
+	}
+
+	ok, err := chain.consensus.VerifySign(block)
+	if err != nil || !ok {
+		return false, false, core.ErrInvalidBlockSignature
 	}
 
 	if err := validateBlock(block, util.NewMedianTime()); err != nil {
@@ -588,6 +593,10 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 		return err
 	}
 
+	// save candidate context
+	if err := chain.consensus.StoreCandidateContext(*tail.BlockHash()); err != nil {
+		return err
+	}
 	// save tx index
 	if err := chain.WirteTxIndex(tail); err != nil {
 		return err

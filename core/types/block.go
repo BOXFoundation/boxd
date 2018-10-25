@@ -159,6 +159,8 @@ type BlockHeader struct {
 	PeriodHash crypto.HashType
 
 	CandidatesHash crypto.HashType
+
+	Signature []byte
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
@@ -175,6 +177,7 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		Magic:          header.Magic,
 		PeriodHash:     header.PeriodHash[:],
 		CandidatesHash: header.CandidatesHash[:],
+		Signature:      header.Signature,
 	}, nil
 }
 
@@ -189,6 +192,7 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			header.Magic = message.Magic
 			copy(header.PeriodHash[:], message.PeriodHash)
 			copy(header.CandidatesHash[:], message.CandidatesHash)
+			header.Signature = message.Signature
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

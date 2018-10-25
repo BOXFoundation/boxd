@@ -200,7 +200,9 @@ func (dpos *Dpos) mintBlock() {
 		block.Header.PeriodHash = tail.Header.PeriodHash
 	}
 	dpos.PackTxs(block, nil)
-	// block.setMiner()
+	if err := dpos.signBlock(block); err != nil {
+		return
+	}
 	dpos.chain.ProcessBlock(block, true)
 }
 
@@ -240,7 +242,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
 	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
 
-	//TODO: validte & execute tx & calc candidates hash.
 PackingTxs:
 	for {
 		select {
@@ -249,7 +250,7 @@ PackingTxs:
 		default:
 			for pool.Len() > 0 {
 				txWrap := heap.Pop(pool).(*txpool.TxWrap)
-				if err := dpos.PrepareCandidateContext(txWrap.Tx); err != nil {
+				if err := dpos.prepareCandidateContext(txWrap.Tx); err != nil {
 					// TODO: abandon the error tx
 					continue
 				}
@@ -342,8 +343,8 @@ func (dpos *Dpos) StoreCandidateContext(hash crypto.HashType) error {
 	return db.Put(hash[:], bytes)
 }
 
-// PrepareCandidateContext prepare to update CandidateContext.
-func (dpos *Dpos) PrepareCandidateContext(tx *types.Transaction) error {
+// prepareCandidateContext prepare to update CandidateContext.
+func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 
 	content := tx.Data.Content
 	candidateContext := dpos.context.candidateContext
@@ -377,4 +378,44 @@ func (dpos *Dpos) PrepareCandidateContext(tx *types.Transaction) error {
 	default:
 	}
 	return nil
+}
+
+func (dpos *Dpos) signBlock(block *types.Block) error {
+
+	hash := block.BlockHash()
+	signature, err := crypto.Sign(dpos.miner.PrivateKey(), hash)
+	if err != nil {
+		return err
+	}
+	block.Header.Signature = signature.Serialize()
+	return nil
+}
+
+// VerifySign consensus verify sign info.
+func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
+
+	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
+	if err != nil {
+		return false, err
+	}
+	if miner == nil {
+		return false, ErrNotFoundMiner
+	}
+
+	signature, err := crypto.SigFromBytes(block.Header.Signature)
+	if err != nil {
+		return false, err
+	}
+
+	pubkey, ok := signature.Recover(block.BlockHash()[:])
+	if ok {
+		addr, err := types.NewAddressFromPubKey(pubkey)
+		if err != nil {
+			return false, err
+		}
+		if *addr.Hash160() == *miner {
+			return true, nil
+		}
+	}
+	return false, nil
 }

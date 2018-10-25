@@ -54,6 +54,8 @@ func genNewChain() *BlockChain {
 	proc := goprocess.WithSignals(os.Interrupt)
 	db, _ := storage.NewDatabase(proc, dbCfg)
 	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
+	dummyDpos := &DummyDpos{}
+	blockChain.SetConsensus(dummyDpos)
 	return blockChain
 }
 
@@ -182,4 +184,19 @@ func TestBlockProcessing(t *testing.T) {
 
 	// Create a block that spends a transaction that does not exist
 
+}
+
+type DummyDpos struct {
+}
+
+func (dpos *DummyDpos) Run() error {
+	return nil
+}
+
+func (dpos *DummyDpos) Stop() {
+
+}
+
+func (dpos *DummyDpos) StoreCandidateContext(crypto.HashType) error {
+	return nil
 }

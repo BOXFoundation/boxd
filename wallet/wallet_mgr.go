@@ -183,6 +183,11 @@ func (acc *Account) PublicKey() []byte {
 	return acc.privKey.PubKey().Serialize()
 }
 
+// PrivateKey returns the accounts private key in compressed byte format
+func (acc *Account) PrivateKey() *crypto.PrivateKey {
+	return acc.privKey
+}
+
 func (acc *Account) saveWithPassphrase(passphrase string) error {
 	savePrivateKeyWithPassphrase(acc.privKey, passphrase, acc.path)
 	return nil
