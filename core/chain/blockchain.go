@@ -473,6 +473,9 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := utxoSet.ApplyBlock(block); err != nil {
 		return err
 	}
+	if err := chain.StoreBlockToDb(block); err != nil {
+		return err
+	}
 
 	return chain.notifyBlockConnectionUpdate(block, true)
 }
@@ -652,13 +655,14 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 // LoadBlockByHeight load block by height from db.
 func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
 
-	blockBin, err := chain.db.Get(util.FromInt32(height))
+	bytes, err := chain.db.Get(util.FromInt32(height))
 	if err != nil {
 		return nil, err
 	}
-
-	block := new(types.Block)
-	if err := block.Unmarshal(blockBin); err != nil {
+	hash := new(crypto.HashType)
+	copy(hash[:], bytes)
+	block, err := chain.LoadBlockByHash(*hash)
+	if err != nil {
 		return nil, err
 	}
 
@@ -672,7 +676,7 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 		return err
 	}
 	hash := block.BlockHash()
-	if err := chain.db.Put(util.FromInt32(block.Height), data); err != nil {
+	if err := chain.db.Put(util.FromInt32(block.Height), hash[:]); err != nil {
 		return err
 	}
 	return chain.db.Put((*hash)[:], data)
