@@ -5,6 +5,7 @@
 package wallet
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -53,7 +54,7 @@ func (wlt *Manager) loadAccounts() error {
 	}
 	wlt.accounts = make(map[string]*Account)
 	for _, account := range accounts {
-		wlt.accounts[account.addr] = account
+		wlt.accounts[account.addr.String()] = account
 	}
 	return nil
 }
@@ -102,13 +103,13 @@ func (wlt *Manager) NewAccount(passphrase string) (string, string, error) {
 	account := &Account{
 		path:     path.Join(wlt.path, fmt.Sprintf("%x.keystore", address.ScriptAddress())),
 		privKey:  privateKey,
-		addr:     hex.EncodeToString(address.ScriptAddress()),
+		addr:     address,
 		unlocked: true,
 	}
 	if err := account.saveWithPassphrase(passphrase); err != nil {
 		return "", "", err
 	}
-	return account.addr, address.String(), nil
+	return hex.EncodeToString(address.ScriptAddress()), address.String(), nil
 }
 
 // DumpPrivKey returns an account's private key bytes in hex string format
@@ -154,14 +155,22 @@ func (wlt *Manager) Sign(msg []byte, pubKeyHash, passphrase string) ([]byte, err
 // Account offers method to operate ecdsa keys stored in a keystore file path
 type Account struct {
 	path     string
-	addr     string
+	addr     btypes.Address
 	privKey  *crypto.PrivateKey
 	unlocked bool
 }
 
 // NewAccountFromFile create account from file.
 func NewAccountFromFile(filePath string) (*Account, error) {
-	addr, err := GetKeystoreAddress(filePath)
+	pubKeyHashString, err := GetKeystoreAddress(filePath)
+	if err != nil {
+		return nil, err
+	}
+	pubKeyHashBytes, err := hex.DecodeString(pubKeyHashString)
+	if err != nil {
+		return nil, err
+	}
+	addr, err := btypes.NewAddressPubKeyHash(pubKeyHashBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +184,7 @@ func NewAccountFromFile(filePath string) (*Account, error) {
 
 // Addr return addr
 func (acc *Account) Addr() string {
-	return acc.addr
+	return acc.addr.String()
 }
 
 // PublicKey returns the accounts public key in compressed byte format
@@ -210,7 +219,7 @@ func (acc *Account) UnlockWithPassphrase(passphrase string) error {
 	if err != nil {
 		return err
 	}
-	if hex.EncodeToString(addr.ScriptAddress()) != acc.addr {
+	if !bytes.Equal(addr.ScriptAddress(), acc.addr.ScriptAddress()) {
 		return fmt.Errorf("Private key doesn't match address, the keystore file may be broken")
 	}
 	acc.unlocked = true
