@@ -134,7 +134,7 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
 func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
 		utxoSet := chain.NewUtxoSet()
-		if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+		if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
 			return err
 		}
 		if err := tx_pool.maybeAcceptTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, false /* do not broadcast */); err != nil {
@@ -169,7 +169,7 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool)
 
 	// TODO: check tx is already exist in the main chain??
 	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
 		return err
 	}
 	// Note: put actual implementation in doProcessTx() for unit test purpose
@@ -344,7 +344,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 
 			for _, orphan := range orphans {
 				utxoSet := chain.NewUtxoSet()
-				if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+				if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
 					return err
 				}
 				if err := tx_pool.maybeAcceptTx(orphan, tx_pool.chain.LongestChainHeight, utxoSet, false); err != nil {

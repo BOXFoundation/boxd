@@ -272,7 +272,7 @@ PackingTxs:
 // LoadPeriodContext load period context
 func (dpos *Dpos) LoadPeriodContext(hash crypto.HashType) (*PeriodContext, error) {
 
-	db := dpos.chain.GetChainDB()
+	db := dpos.chain.DB()
 	period, err := db.Get(hash[:])
 	if err != nil {
 		return nil, err
@@ -298,7 +298,7 @@ func (dpos *Dpos) LoadPeriodContext(hash crypto.HashType) (*PeriodContext, error
 // StorePeriodContext store period context
 func (dpos *Dpos) StorePeriodContext() error {
 
-	db := dpos.chain.GetChainDB()
+	db := dpos.chain.DB()
 	context, err := dpos.context.periodContext.Marshal()
 	if err != nil {
 		return err
@@ -311,7 +311,7 @@ func (dpos *Dpos) StorePeriodContext() error {
 func (dpos *Dpos) LoadCandidates() error {
 
 	tail := dpos.chain.TailBlock()
-	db := dpos.chain.GetChainDB()
+	db := dpos.chain.DB()
 
 	candidates, err := db.Get(tail.Header.CandidatesHash[:])
 	if err != nil {
@@ -339,7 +339,7 @@ func (dpos *Dpos) StoreCandidateContext(hash crypto.HashType) error {
 	if err != nil {
 		return err
 	}
-	db := dpos.chain.GetChainDB()
+	db := dpos.chain.DB()
 	return db.Put(hash[:], bytes)
 }
 
