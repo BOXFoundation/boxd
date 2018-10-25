@@ -6,6 +6,7 @@ package rocksdb
 
 import (
 	"bytes"
+	"context"
 	"sync"
 	"time"
 
@@ -217,25 +218,70 @@ func (db *rocksdb) KeysWithPrefix(prefix []byte) [][]byte {
 	var iter = db.rocksdb.NewIterator(db.readOptions)
 	defer iter.Close()
 
-	iter.SeekToFirst()
+	iter.Seek(prefix)
 	var keys [][]byte
 	for it := iter; it.Valid(); it.Next() {
 		if bytes.HasPrefix(it.Key().Data(), prefix) {
 			buf := data(it.Key())
 			keys = append(keys, buf)
+		} else {
+			break
 		}
 	}
 	return keys
 }
 
-func data(s *gorocksdb.Slice) []byte {
-	if s.Size() == 0 {
-		s.Free()
-		return nil
-	}
+// return a chan to iter all keys
+func (db *rocksdb) IterKeys(ctx context.Context) <-chan []byte {
+	var iter = db.rocksdb.NewIterator(db.readOptions)
 
-	var buf = make([]byte, s.Size())
-	copy(buf, s.Data())
-	s.Free()
-	return buf
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+		defer iter.Close()
+
+		iter.SeekToFirst()
+		for {
+			if !iter.Valid() {
+				return
+			}
+			select {
+			case out <- data(iter.Key()):
+				iter.Next()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return out
+}
+
+// return a set of keys with specified prefix in the Storage
+func (db *rocksdb) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
+	var iter = db.rocksdb.NewIterator(db.readOptions)
+
+	out := make(chan []byte)
+	go func() {
+		defer close(out)
+		defer iter.Close()
+
+		iter.Seek(prefix)
+		for {
+			if !iter.Valid() {
+				return
+			}
+
+			key := iter.Key()
+			if !bytes.HasPrefix(key.Data(), prefix) {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case out <- data(key):
+				iter.Next()
+			}
+		}
+	}()
+	return out
 }
