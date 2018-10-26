@@ -104,3 +104,39 @@ func TestDisasm(t *testing.T) {
 		"OP_DUP", "OP_HASH160", hex.EncodeToString(pubKeyHash), "OP_EQUALVERIFY", "OP_CHECKSIG"}
 	ensure.DeepEqual(t, script.disasm(), strings.Join(expectedScriptStrs, " "))
 }
+
+func TestIsPayToScriptHash(t *testing.T) {
+	p2SHScriptBytes := []byte{
+		byte(OPHASH160),
+		0x14,                         // 160-bit redeemp script hash length: 20 bytes
+		0x00, 0x01, 0x02, 0x03, 0x04, // 160-bit redeemp script hash: begining
+		0x05, 0x06, 0x07, 0x08, 0x09,
+		0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+		0x0F, 0x10, 0x11, 0x12, 0x13, // 160-bit redeemp script hash: end
+		byte(OPEQUAL),
+	}
+	p2SHScript := NewScriptFromBytes(p2SHScriptBytes)
+	ensure.True(t, p2SHScript.IsPayToScriptHash())
+
+	p2SHScriptBytes[0] = byte(OPHASH256)
+	p2SHScript = NewScriptFromBytes(p2SHScriptBytes)
+	ensure.False(t, p2SHScript.IsPayToScriptHash())
+	// recover
+	p2SHScriptBytes[0] = byte(OPHASH160)
+
+	p2SHScriptBytes[len(p2SHScriptBytes)-1] = byte(OPEQUALVERIFY)
+	p2SHScript = NewScriptFromBytes(p2SHScriptBytes)
+	ensure.False(t, p2SHScript.IsPayToScriptHash())
+	// recover
+	p2SHScriptBytes[len(p2SHScriptBytes)-1] = byte(OPEQUAL)
+
+	p2SHScriptBytes[1] = 0x15
+	p2SHScript = NewScriptFromBytes(p2SHScriptBytes)
+	ensure.False(t, p2SHScript.IsPayToScriptHash())
+	// recover
+	p2SHScriptBytes[1] = 0x14
+
+	p2SHScriptBytes = append(p2SHScriptBytes[:5], p2SHScriptBytes[6:]...)
+	p2SHScript = NewScriptFromBytes(p2SHScriptBytes)
+	ensure.False(t, p2SHScript.IsPayToScriptHash())
+}

@@ -364,3 +364,10 @@ func (s *Script) disasm() string {
 
 	return strings.Join(str, " ")
 }
+
+// IsPayToScriptHash returns if the script is p2sh
+func (s *Script) IsPayToScriptHash() bool {
+	// OP_HASH160 <160-bit redeemp script hash> OP_EQUAL
+	script := *s
+	return len(script) == 23 && OpCode(script[0]) == OPHASH160 && script[1] == 20 && OpCode(script[22]) == OPEQUAL
+}
