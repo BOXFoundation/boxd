@@ -6,6 +6,8 @@ package consensus
 
 // Consensus define consensus interface
 type Consensus interface {
-	Run()
+	Run() error
 	Stop()
+	StopMint()
+	RecoverMint()
 }

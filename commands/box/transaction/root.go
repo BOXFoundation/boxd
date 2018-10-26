@@ -5,12 +5,12 @@
 package transactioncmd
 
 import (
-	"encoding/hex"
 	"fmt"
 	"path"
 	"strconv"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -92,10 +92,10 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	fromPubKeyHash, err1 := hex.DecodeString(args[0])
-	toPubKeyHash, err2 := hex.DecodeString(args[1])
-	amount, err3 := strconv.Atoi(args[2])
-	if err1 != nil || err2 != nil || err3 != nil {
+	toAddr := &types.AddressPubKeyHash{}
+	err1 := toAddr.SetString(args[1])
+	amount, err2 := strconv.Atoi(args[2])
+	if err1 != nil || err2 != nil {
 		fmt.Println("Invalid argument format")
 		return
 	}
@@ -118,7 +118,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	tx, err := client.CreateTransaction(viper.GetViper(), fromPubKeyHash, toPubKeyHash, account.PublicKey(), int64(amount), account)
+	tx, err := client.CreateTransaction(viper.GetViper(), account.PubKeyHash(), toAddr.ScriptAddress(), account.PublicKey(), int64(amount), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {

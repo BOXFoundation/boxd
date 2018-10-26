@@ -78,14 +78,14 @@ func getKeystoreFilePaths(baseDir string) (files []string) {
 }
 
 // ListAccounts returns all the addresses of keystore files in directory
-func (wlt *Manager) ListAccounts() []string {
-	addrs := make([]string, len(wlt.accounts))
+func (wlt *Manager) ListAccounts() []*Account {
+	accounts := make([]*Account, len(wlt.accounts))
 	i := 0
-	for addr := range wlt.accounts {
-		addrs[i] = addr
+	for _, acc := range wlt.accounts {
+		accounts[i] = acc
 		i++
 	}
-	return addrs
+	return accounts
 }
 
 // NewAccount creates a ecdsa key pair and store them in a file encrypted
@@ -185,6 +185,11 @@ func NewAccountFromFile(filePath string) (*Account, error) {
 // Addr return addr
 func (acc *Account) Addr() string {
 	return acc.addr.String()
+}
+
+// PubKeyHash returns Public Key Hash of the account
+func (acc *Account) PubKeyHash() []byte {
+	return acc.addr.ScriptAddress()
 }
 
 // PublicKey returns the accounts public key in compressed byte format

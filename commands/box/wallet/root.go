@@ -5,9 +5,9 @@
 package walletcmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"path"
-	"strings"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/rpc/client"
@@ -145,8 +145,9 @@ func listAccountCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	addrs := wltMgr.ListAccounts()
-	fmt.Println("Managed Addresses:\n" + strings.Join(addrs, "\n"))
+	for _, acc := range wltMgr.ListAccounts() {
+		fmt.Println("Managed Address:", acc.Addr(), "Public Key Hash:", hex.EncodeToString(acc.PubKeyHash()))
+	}
 }
 
 func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
