@@ -14,7 +14,6 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 
 	"encoding/binary"
-	"errors"
 )
 
 var logger = log.NewLogger("script") // logger
@@ -114,7 +113,7 @@ func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 	script := *s
 	scriptLen := len(script)
 	if pc >= scriptLen {
-		return 0, nil, pc, errors.New("Program counter out of script bound")
+		return 0, nil, pc, ErrScriptBound
 	}
 
 	opCode := OpCode(script[pc])
@@ -130,21 +129,21 @@ func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 		operandSize = int(opCode)
 	} else if opCode == OPPUSHDATA1 {
 		if scriptLen-pc < 1 {
-			return opCode, nil, pc, errors.New("OP_PUSHDATA1 has not enough data")
+			return opCode, nil, pc, ErrNoEnoughDataOPPUSHDATA1
 		}
 		// 1 byte after opcode encodes operand size
 		operandSize = int(script[pc])
 		pc++
 	} else if opCode == OPPUSHDATA2 {
 		if scriptLen-pc < 2 {
-			return opCode, nil, pc, errors.New("OP_PUSHDATA2 has not enough data")
+			return opCode, nil, pc, ErrNoEnoughDataOPPUSHDATA2
 		}
 		// 2 bytes after opcode encodes operand size
 		operandSize = int(binary.LittleEndian.Uint16(script[pc : pc+2]))
 		pc += 2
 	} else if opCode == OPPUSHDATA4 {
 		if scriptLen-pc < 4 {
-			return opCode, nil, pc, errors.New("OP_PUSHDATA4 has not enough data")
+			return opCode, nil, pc, ErrNoEnoughDataOPPUSHDATA4
 		}
 		// 4 bytes after opcode encodes operand size
 		operandSize = int(binary.LittleEndian.Uint16(script[pc : pc+4]))
@@ -152,7 +151,7 @@ func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 	}
 
 	if scriptLen-pc < operandSize {
-		return opCode, nil, pc, errors.New("Program counter out of script bound")
+		return opCode, nil, pc, ErrScriptBound
 	}
 	// Read operand
 	operand := Operand(script[pc : pc+operandSize])
@@ -184,7 +183,7 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 	switch opCode {
 	case OPDUP:
 		if stack.size() < 1 {
-			return errors.New("ScriptErrInvalidStackOperation")
+			return ErrInvalidStackOperation
 		}
 		stack.push(stack.topN(1))
 
@@ -192,7 +191,7 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		fallthrough
 	case OPSUB:
 		if stack.size() < 2 {
-			return errors.New("ScriptErrInvalidStackOperation")
+			return ErrInvalidStackOperation
 		}
 		op1 := stack.topN(2)
 		sn1, err := newScriptNum(op1)
@@ -211,7 +210,7 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		case OPSUB:
 			sn = sn1 - sn2
 		default:
-			return errors.New("Bad opcode")
+			return ErrBadOpcode
 		}
 		stack.pop()
 		stack.pop()
@@ -221,7 +220,7 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		fallthrough
 	case OPEQUALVERIFY:
 		if stack.size() < 2 {
-			return errors.New("ScriptErrInvalidStackOperation")
+			return ErrInvalidStackOperation
 		}
 		op1 := stack.topN(2)
 		op2 := stack.topN(1)
@@ -238,13 +237,13 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 			if isEqual {
 				stack.pop()
 			} else {
-				return errors.New("ScriptErrEqualVerify")
+				return ErrScriptEqualVerify
 			}
 		}
 
 	case OPHASH160:
 		if stack.size() < 1 {
-			return errors.New("ScriptErrInvalidStackOperation")
+			return ErrInvalidStackOperation
 		}
 		hash160 := Operand(crypto.Hash160(stack.topN(1)))
 		stack.pop()
@@ -258,7 +257,7 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		fallthrough
 	case OPCHECKSIGVERIFY:
 		if stack.size() < 2 {
-			return errors.New("ScriptErrInvalidStackOperation")
+			return ErrInvalidStackOperation
 		}
 		signature := stack.topN(2)
 		publicKey := stack.topN(1)
@@ -279,12 +278,12 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 			if isVerified {
 				stack.pop()
 			} else {
-				return errors.New("ScriptErrSignatureVerifyFail")
+				return ErrScriptSignatureVerifyFail
 			}
 		}
 
 	default:
-		return errors.New("Bad opcode")
+		return ErrBadOpcode
 	}
 	return nil
 }
@@ -315,7 +314,7 @@ func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *type
 // CalcTxHashForSig calculates the hash of a tx input, used for signature
 func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (*crypto.HashType, error) {
 	if txInIdx >= len(tx.Vin) {
-		return nil, errors.New("input index out of bound")
+		return nil, ErrInputIndexOutOfBound
 	}
 
 	// We do not want to change the original tx script sig, so make a copy
