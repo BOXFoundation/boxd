@@ -194,8 +194,46 @@ func TestDoProcessTx(t *testing.T) {
 	// get all transactions in tx pool after tx6 removal
 	txs1 := txpool.GetAllTxs()
 
+	// test for length
 	ensure.DeepEqual(t, len(txs)-1, len(txs1))
 
-	//TODO: Test more than length. Test txs/txs1 contain exactly these transactions we put in.
+	// test txs/txs1 contains exactly the removal transaction, i.e., tx6 removed
+	for i := range txs {
+		count := 0
+		for j := range txs1 {
+			if txs[i].Tx.Hash.IsEqual(txs1[j].Tx.Hash) {
+				break
+			}
+			count++
+		}
+		if count == len(txs1) {
+			ensure.DeepEqual(t, txs[i].Tx.Hash, tx6.Hash)
+			break
+		}
+	}
 
+	verifyDoProcessTx(t, tx7, core.ErrDuplicateTxInPool, true, false)
+
+	// tx7(o) <- tx8(o)
+	// after tx6 removed from main pool, tx7 moved to orphan pool, tx8 is an orphan transaction also
+	tx8 := createChildTx(tx7)
+	ensure.NotNil(t, tx8)
+	verifyDoProcessTx(t, tx8, core.ErrMissingTxOut, false, false)
+
+	txs2 := txpool.GetAllTxs()
+
+	// add tx6 back to txpool
+	txpool.addTx(tx6, chainHeight, 0)
+
+	txs3 := txpool.GetAllTxs()
+
+	ensure.DeepEqual(t, len(txs2)+1, len(txs3))
+
+	// mark tx8's output as unspent
+	utxoSet.AddUtxo(tx8, 0, chainHeight)
+
+	// tx8(m) <- tx9(m)
+	tx9 := createChildTx(tx8)
+	ensure.NotNil(t, tx9)
+	verifyDoProcessTx(t, tx9, nil, true, false)
 }

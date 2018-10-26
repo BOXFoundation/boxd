@@ -14,4 +14,6 @@ type Consensus interface {
 	Stop()
 	StoreCandidateContext(crypto.HashType) error
 	VerifySign(*Block) (bool, error)
+	StopMint()
+	RecoverMint()
 }

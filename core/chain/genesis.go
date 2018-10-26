@@ -48,7 +48,8 @@ var genesisBlock = types.Block{
 	Height: 0,
 }
 
-var genesisHash = *(genesisBlock.BlockHash())
+// GenesisHash is the hash of genesis block
+var GenesisHash = *(genesisBlock.BlockHash())
 
 // GenesisPeriod genesis period
 var GenesisPeriod = []string{

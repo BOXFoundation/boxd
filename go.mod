@@ -43,7 +43,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/influxdb v1.6.4 // indirect
 	github.com/ipfs/go-cid v0.9.0 // indirect
-	github.com/ipfs/go-datastore v3.2.0+incompatible
+	github.com/ipfs/go-datastore v3.2.0+incompatible // indirect
 	github.com/ipfs/go-detect-race v1.0.1 // indirect
 	github.com/ipfs/go-ds-badger v1.7.0 // indirect
 	github.com/ipfs/go-ipfs-util v1.2.8 // indirect

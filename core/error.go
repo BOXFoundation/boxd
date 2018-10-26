@@ -24,6 +24,7 @@ var (
 	ErrUnfinalizedTx         = errors.New("Transaction has not been finalized")
 	ErrWrongBlockHeight      = errors.New("Wrong block height")
 	ErrInvalidBlockSignature = errors.New("Invalid block signature")
+	ErrBlockIsNil            = errors.New("Block is nil")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")

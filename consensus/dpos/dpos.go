@@ -51,13 +51,15 @@ type Config struct {
 
 // Dpos define dpos struct
 type Dpos struct {
-	chain   *chain.BlockChain
-	txpool  *txpool.TransactionPool
-	context *ConsensusContext
-	net     p2p.Net
-	proc    goprocess.Process
-	cfg     *Config
-	miner   *wallet.Account
+	chain       *chain.BlockChain
+	txpool      *txpool.TransactionPool
+	context     *ConsensusContext
+	net         p2p.Net
+	proc        goprocess.Process
+	cfg         *Config
+	miner       *wallet.Account
+	enableMint  bool
+	disableMint bool
 }
 
 // NewDpos new a dpos implement.
@@ -123,6 +125,16 @@ func (dpos *Dpos) Stop() {
 	dpos.proc.Close()
 }
 
+// StopMint stops generating blocks.
+func (dpos *Dpos) StopMint() {
+	dpos.disableMint = true
+}
+
+// RecoverMint resumes generating blocks.
+func (dpos *Dpos) RecoverMint() {
+	dpos.disableMint = false
+}
+
 func (dpos *Dpos) loop(p goprocess.Process) {
 	logger.Info("Start block mint")
 	time.Sleep(10 * time.Second)
@@ -140,6 +152,11 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 }
 
 func (dpos *Dpos) mint() error {
+
+	// disableMint might be set true by sync business or others
+	if dpos.disableMint {
+		return ErrNoLegalPowerToMint
+	}
 
 	timestamp := time.Now().Unix()
 	if err := dpos.checkMiner(timestamp); err != nil {

@@ -35,10 +35,12 @@ const (
 	// Sync Manager
 	LocateForkPointRequest  = 0x10
 	LocateForkPointResponse = 0x11
-	BlockChunkRequest       = 0x12
-	BlockChunkResponse      = 0x13
+	LocateCheckRequest      = 0x12
+	LocateCheckResponse     = 0x13
+	BlockChunkRequest       = 0x14
+	BlockChunkResponse      = 0x15
 
-	MaxMessageDataLength = 1024 * 1024 * 1024 // 1G bytes
+	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
 
 // NetworkNamtToMagic is a map from network name to magic number.

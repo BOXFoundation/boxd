@@ -204,3 +204,7 @@ func (dpos *DummyDpos) StoreCandidateContext(crypto.HashType) error {
 func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) {
 	return true, nil
 }
+
+func (dpos *DummyDpos) RecoverMint() {}
+
+func (dpos *DummyDpos) StopMint() {}
