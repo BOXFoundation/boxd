@@ -9,11 +9,11 @@ package pb;
 import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 
 message LocateHeaders {
-    // locate hashes, normally it is as following:
+    // locate hashes, formally it is as follows:
     // n, n-1, ... n-k, n-k-2, n-k-5, n-k-10, ... n-k-(2^m+m-1), ... genesis
     // n is tail height, k is sequence part length, m is distance factor
     // n-k-(2^m+m-1) is the (k+m)th element
-    // to ensure hash elements that the more near to genesis the more looser
+    // to ensure the closer blocks get to genesis, the sparser the locator becomes
     repeated bytes hashes = 1;
 }
 

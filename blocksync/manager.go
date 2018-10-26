@@ -23,7 +23,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
-var logger = log.NewLogger("sync") // logger
+var logger = log.NewLogger("blocksync") // logger
 
 var (
 	errNoPeerToSync = errors.New("no peer to sync")
@@ -379,7 +379,6 @@ func (sm *SyncManager) locateHashes() error {
 	// get block locator hashes
 	hashes, err := sm.getLatestBlockLocator()
 	if err != nil {
-		logger.Infof("getLatestBlockLocator error: %s", err)
 		return err
 	}
 	logger.Infof("locateHashes get lastestBlockLocator %d hashes", len(hashes))

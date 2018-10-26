@@ -336,9 +336,6 @@ func (chain *BlockChain) ancestor(block *types.Block, height int32) *types.Block
 	iterBlock := block
 	for iterBlock != nil && iterBlock.Height != height {
 		iterBlock = chain.getParentBlock(iterBlock)
-		if iterBlock == nil {
-			return nil
-		}
 	}
 	return iterBlock
 }
@@ -394,11 +391,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	}
 
 	// Enforce the sequence number based relative lock-times.
-	parent := chain.getParentBlock(block)
-	if parent == nil {
-		return fmt.Errorf("parent does not exist")
-	}
-	medianTime := chain.calcPastMedianTime(parent)
+	medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
 	for _, tx := range transactions {
 		// A transaction can only be included in a block
 		// if all of its input sequence locks are active.
