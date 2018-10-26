@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/blocksync"
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	config "github.com/BOXFoundation/boxd/config"
@@ -19,7 +20,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/netsync"
 	p2p "github.com/BOXFoundation/boxd/p2p"
 	grpcserver "github.com/BOXFoundation/boxd/rpc/server"
 	storage "github.com/BOXFoundation/boxd/storage"
@@ -43,7 +43,7 @@ type Server struct {
 	grpcsvr     *grpcserver.Server
 	blockChain  *chain.BlockChain
 	txPool      *txpool.TransactionPool
-	syncManager *netsync.SyncManager
+	syncManager *blocksync.SyncManager
 }
 
 // NewServer new a boxd server
@@ -129,7 +129,7 @@ func (server *Server) Run() error {
 
 	consensus := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
 
-	syncManager := netsync.NewSyncManager(blockChain, peer, blockChain.Proc())
+	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
 	server.syncManager = syncManager
 
 	peer.Run()

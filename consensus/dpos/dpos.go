@@ -43,8 +43,9 @@ type Dpos struct {
 	proc   goprocess.Process
 	cfg    *Config
 	// miner      *wallet.Account
-	miner      types.Address
-	enableMint bool
+	miner       types.Address
+	enableMint  bool
+	disableMint bool
 }
 
 // NewDpos new a dpos implement.
@@ -102,6 +103,16 @@ func (dpos *Dpos) Stop() {
 	dpos.proc.Close()
 }
 
+// StopMint stops generating blocks.
+func (dpos *Dpos) StopMint() {
+	dpos.disableMint = true
+}
+
+// RecoverMint resumes generating blocks.
+func (dpos *Dpos) RecoverMint() {
+	dpos.disableMint = false
+}
+
 func (dpos *Dpos) loop(p goprocess.Process) {
 	logger.Info("Start block mint")
 	time.Sleep(10 * time.Second)
@@ -118,8 +129,12 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 }
 
 func (dpos *Dpos) mint() error {
+	// disableMint might be set true by sync business or others
+	if dpos.disableMint {
+		return ErrNoLegalPowerToMint
+	}
 	now := time.Now().Unix()
-	if int(now%15) != dpos.cfg.Index {
+	if int(now%2) != dpos.cfg.Index {
 		return ErrNoLegalPowerToMint
 	}
 	// if !dpos.enableMint {
