@@ -5,6 +5,7 @@
 package rocksdb
 
 import (
+	"context"
 	"sync"
 
 	storage "github.com/BOXFoundation/boxd/storage"
@@ -89,6 +90,30 @@ func (tr *dbtx) KeysWithPrefix(prefix []byte) [][]byte {
 	}
 
 	return tr.db.KeysWithPrefix(prefix)
+}
+
+// return a chan to iter all keys
+func (tr *dbtx) IterKeys(ctx context.Context) <-chan []byte {
+	tr.sm.Lock()
+	defer tr.sm.Unlock()
+
+	if tr.closed {
+		return nil
+	}
+
+	return tr.db.IterKeys(ctx)
+}
+
+// return a set of keys with specified prefix in the Storage
+func (tr *dbtx) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
+	tr.sm.Lock()
+	defer tr.sm.Unlock()
+
+	if tr.closed {
+		return nil
+	}
+
+	return tr.db.IterKeysWithPrefix(ctx, prefix)
 }
 
 // Commit to commit the transaction

@@ -28,7 +28,6 @@ const (
 	Tail = "tail_block"
 
 	BlockTableName = "core_block"
-	TxTableName    = "core_tx"
 
 	MaxTimeOffsetSeconds = 2 * 60 * 60
 	MaxBlockSize         = 32000000
@@ -52,8 +51,7 @@ var _ service.ChainReader = (*BlockChain)(nil)
 type BlockChain struct {
 	notifiee                  p2p.Net
 	newblockMsgCh             chan p2p.Message
-	dbBlock                   storage.Table
-	DbTx                      storage.Table
+	db                        storage.Table
 	genesis                   *types.Block
 	tail                      *types.Block
 	proc                      goprocess.Process
@@ -79,12 +77,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	if err != nil {
 		return nil, err
 	}
-	b.dbBlock, err = db.Table(BlockTableName)
-	if err != nil {
-		return nil, err
-	}
-
-	b.DbTx, err = db.Table(TxTableName)
+	b.db, err = db.Table(BlockTableName)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +109,11 @@ func (chain *BlockChain) Run() error {
 	chain.proc.Go(chain.loop)
 
 	return nil
+}
+
+// DB return chain db storage.
+func (chain *BlockChain) DB() storage.Table {
+	return chain.db
 }
 
 // Proc returns the goprocess of the BlockChain
@@ -178,7 +176,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		logger.Error(err)
 		return false, false, err
 	}
-
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 		// Orphan block.
@@ -242,7 +239,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	parentHash := &block.Header.PrevBlockHash
 	tailHash := chain.TailBlock().BlockHash()
 	utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, chain.DbTx); err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return false, err
 	}
 	// Case 1): The new block extends the main chain.
@@ -356,6 +353,11 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	// 	str := "the coinbase for the genesis block is not spendable"
 	// 	return ErrMissingTxOut
 	// }
+	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
+	if err := validateBlockScripts(utxoSet, block); err != nil {
+		return err
+	}
+
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -410,9 +412,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		}
 	}
 
-	if err := validateBlockScripts(block); err != nil {
-		return err
-	}
 	chain.SetTailBlock(block, utxoSet)
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
@@ -466,7 +465,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 
 func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error {
 
-	if err := utxoSet.LoadBlockUtxos(block, chain.DbTx); err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
 	}
 	if err := utxoSet.RevertBlock(block); err != nil {
@@ -478,10 +477,13 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
 
-	if err := utxoSet.LoadBlockUtxos(block, chain.DbTx); err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
 	}
 	if err := utxoSet.ApplyBlock(block); err != nil {
+		return err
+	}
+	if err := chain.StoreBlockToDb(block); err != nil {
 		return err
 	}
 
@@ -528,7 +530,7 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	return chain.dbBlock.Put([]byte(Tail), data)
+	return chain.db.Put([]byte(Tail), data)
 }
 
 // TailBlock return chain tail block.
@@ -536,25 +538,26 @@ func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
 }
 
-// LoadUtxoByPubKey loads utxos of a public key
-func (chain *BlockChain) LoadUtxoByPubKey(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	res := make(map[types.OutPoint]*types.UtxoWrap)
-	// for out, entry := range chain.utxoSet.utxoMap {
-	// 	if bytes.Equal(pubkey, entry.Output.ScriptPubKey) {
-	// 		res[out] = entry
-	// 	}
-	// }
-	return res, nil
-}
-
 // ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() map[types.OutPoint]*types.UtxoWrap {
-	return nil
+func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
+	utxoSet := NewUtxoSet()
+	err := utxoSet.ApplyBlock(chain.tail)
+	return utxoSet.utxoMap, err
 }
 
 // LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes
 func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	return nil, nil
+	allUtxos, err := chain.ListAllUtxos()
+	if err != nil {
+		return nil, err
+	}
+	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
+	for entry, utxo := range allUtxos {
+		if bytes.Equal(utxo.Output.ScriptPubKey, pubkey) {
+			utxoMap[entry] = utxo
+		}
+	}
+	return utxoMap, nil
 }
 
 // GetBlockHeight returns current height of main chain
@@ -575,7 +578,7 @@ func (chain *BlockChain) GetBlockHash(blockHeight int32) (*crypto.HashType, erro
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 
 	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(chain.DbTx); err != nil {
+	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
 		return err
 	}
 
@@ -596,8 +599,8 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
-	if ok, _ := chain.dbBlock.Has(GenesisHash[:]); ok {
-		genesisBlockFromDb, err := chain.LoadBlockByHash(GenesisHash)
+	if ok, _ := chain.db.Has(genesisHash[:]); ok {
+		genesisBlockFromDb, err := chain.LoadBlockByHash(genesisHash)
 		if err != nil {
 			return nil, err
 		}
@@ -608,7 +611,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.dbBlock.Put(GenesisHash[:], genesisBin)
+	chain.db.Put(genesisHash[:], genesisBin)
 
 	return &genesisBlock, nil
 
@@ -619,8 +622,8 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if chain.tail != nil {
 		return chain.tail, nil
 	}
-	if ok, _ := chain.dbBlock.Has([]byte(Tail)); ok {
-		tailBin, err := chain.dbBlock.Get([]byte(Tail))
+	if ok, _ := chain.db.Has([]byte(Tail)); ok {
+		tailBin, err := chain.db.Get([]byte(Tail))
 		if err != nil {
 			return nil, err
 		}
@@ -638,7 +641,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.dbBlock.Put([]byte(Tail), tailBin)
+	chain.db.Put([]byte(Tail), tailBin)
 
 	return &genesisBlock, nil
 }
@@ -646,7 +649,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 // LoadBlockByHash load block by hash from db.
 func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, error) {
 
-	blockBin, err := chain.dbBlock.Get(hash[:])
+	blockBin, err := chain.db.Get(hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -667,15 +670,17 @@ func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
 	if height == 0 {
 		return chain.genesis, nil
 	}
-	blockBin, err := chain.dbBlock.Get(util.FromInt32(height))
+	bytes, err := chain.db.Get(util.FromInt32(height))
 	if err != nil {
 		return nil, err
 	}
-	if blockBin == nil {
+	if bytes == nil {
 		return nil, core.ErrBlockIsNil
 	}
-	block := new(types.Block)
-	if err := block.Unmarshal(blockBin); err != nil {
+	hash := new(crypto.HashType)
+	copy(hash[:], bytes)
+	block, err := chain.LoadBlockByHash(*hash)
+	if err != nil {
 		return nil, err
 	}
 
@@ -689,16 +694,16 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 		return err
 	}
 	hash := block.BlockHash()
-	if err := chain.dbBlock.Put(util.FromInt32(block.Height), data); err != nil {
+	if err := chain.db.Put(util.FromInt32(block.Height), hash[:]); err != nil {
 		return err
 	}
-	return chain.dbBlock.Put((*hash)[:], data)
+	return chain.db.Put((*hash)[:], data)
 }
 
 // LoadTxByHash load transaction with hash.
 func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
 
-	txIndex, err := chain.dbBlock.Get(hash[:])
+	txIndex, err := chain.db.Get(hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -730,7 +735,7 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 func (chain *BlockChain) WirteTxIndex(block *types.Block) error {
 
 	height := block.Height
-	batch := chain.dbBlock.NewBatch()
+	batch := chain.db.NewBatch()
 	defer batch.Close()
 	for idx, v := range block.Txs {
 		var buf bytes.Buffer

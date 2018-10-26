@@ -124,17 +124,17 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
 	block := chainUpdateMsg.Block
 	if chainUpdateMsg.Connected {
 		logger.Infof("Block %v connects to main chain", block.BlockHash())
-		return tx_pool.addBlockTxs(block)
+		return tx_pool.removeBlockTxs(block)
 	}
 	logger.Infof("Block %v disconnects from main chain", block.BlockHash())
-	return tx_pool.removeBlockTxs(block)
+	return tx_pool.addBlockTxs(block)
 }
 
 // Add all transactions contained in this block into mempool
 func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
 		utxoSet := chain.NewUtxoSet()
-		if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+		if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
 			return err
 		}
 		if err := tx_pool.maybeAcceptTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, false /* do not broadcast */); err != nil {
@@ -169,9 +169,8 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool)
 
 	// TODO: check tx is already exist in the main chain??
 	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
 		return err
-
 	}
 	// Note: put actual implementation in doProcessTx() for unit test purpose
 	return tx_pool.doProcessTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, broadcast)
@@ -263,7 +262,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 	// TODO: free-to-relay rate limit
 
 	// verify crypto signatures for each input
-	if err = chain.ValidateTransactionScripts(tx); err != nil {
+	if err = chain.ValidateTxScripts(utxoSet, tx); err != nil {
 		return err
 	}
 
@@ -345,7 +344,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 
 			for _, orphan := range orphans {
 				utxoSet := chain.NewUtxoSet()
-				if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DbTx); err != nil {
+				if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
 					return err
 				}
 				if err := tx_pool.maybeAcceptTx(orphan, tx_pool.chain.LongestChainHeight, utxoSet, false); err != nil {

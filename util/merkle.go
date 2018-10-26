@@ -7,7 +7,6 @@ package util
 import (
 	"math"
 
-	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
@@ -56,18 +55,6 @@ func calcLowestHierarchyCount(n int) int {
 	}
 	hierarchy := uint(math.Log2(float64(n))) + 1
 	return 1 << hierarchy
-}
-
-// CalcTxsHash calculate txsHash in block.
-func CalcTxsHash(txs []*types.Transaction) *crypto.HashType {
-
-	hashs := make([]*crypto.HashType, len(txs))
-	for index := range txs {
-		hash, _ := txs[index].TxHash()
-		hashs[index] = hash
-	}
-	txsHash := BuildMerkleRoot(hashs)
-	return txsHash[len(txsHash)-1]
 }
 
 // CombineHash takes two hashes, and returns the hash of their concatenation.

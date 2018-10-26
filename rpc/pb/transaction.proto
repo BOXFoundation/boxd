@@ -30,9 +30,23 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc GetRawTransaction(GetRawTransactionRequest) returns (GetRawTransactionResponse) {
+        option (google.api.http) = {
+            post: "/v1/tx/getrawtransaction"
+            body: "*"
+        };
+    }
 }
 
 message ListUtxosRequest {
+}
+
+message GetRawTransactionRequest {
+    bytes hash = 1;
+}
+message GetRawTransactionResponse {
+    corepb.Transaction tx = 1;
 }
 
 message FundTransactionRequest {

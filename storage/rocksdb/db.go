@@ -89,3 +89,16 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 
 	return d, nil
 }
+
+// helper function to make memcopy and free object
+func data(s *gorocksdb.Slice) []byte {
+	if s.Size() == 0 {
+		s.Free()
+		return nil
+	}
+
+	var buf = make([]byte, s.Size())
+	copy(buf, s.Data())
+	s.Free()
+	return buf
+}

@@ -27,12 +27,14 @@ var (
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
+	ErrDuplicateTxInOrphanPool    = errors.New("Duplicate transactions in orphan pool")
 	ErrCoinbaseTx                 = errors.New("Transaction must not be a coinbase transaction")
 	ErrNonStandardTransaction     = errors.New("Transaction is not a standard transaction")
 	ErrOutPutAlreadySpent         = errors.New("Output already spent by transaction in the pool")
 	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
 	ErrNonLocalMessage            = errors.New("Received non-local message")
 	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
+	ErrDoubleSpendTx              = errors.New("transaction must not use any of the same outputs as other transactions already in the pool")
 
 	//block.go
 	ErrSerializeHeader                = errors.New("Serialize block header error")

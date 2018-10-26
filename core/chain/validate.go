@@ -74,7 +74,7 @@ func validateBlock(block *types.Block, timeSource util.MedianTimeSource) error {
 
 	// Calculate merkle tree root and ensure it matches with the block header.
 	// TODO: caching all of the transaction hashes in the block to speed up future hashing
-	calculatedMerkleRoot := util.CalcTxsHash(transactions)
+	calculatedMerkleRoot := CalcTxsHash(transactions)
 	if !header.TxsRoot.IsEqual(calculatedMerkleRoot) {
 		logger.Errorf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
@@ -150,57 +150,43 @@ func IsTxFinalized(tx *types.Transaction, blockHeight int32, blockTime int64) bo
 	return true
 }
 
-func validateBlockScripts(block *types.Block) error {
-
-	numInputs := 0
-	for _, tx := range block.Txs {
-		numInputs += len(tx.Vin)
-	}
-	txValItems := make([]*script.TxValidateItem, 0, numInputs)
+func validateBlockScripts(utxoSet *UtxoSet, block *types.Block) error {
 	// Skip coinbases.
 	for _, tx := range block.Txs[1:] {
-		for txInIdx, txIn := range tx.Vin {
-			txVI := &script.TxValidateItem{
-				TxInIndex: txInIdx,
-				TxIn:      txIn,
-				Tx:        tx,
-			}
-			txValItems = append(txValItems, txVI)
+		if err := ValidateTxScripts(utxoSet, tx); err != nil {
+			return err
 		}
 	}
 
-	// Validate all of the inputs.
-	start := time.Now()
-	if err := validateTxs(txValItems); err != nil {
-		return err
-	}
-	elapsed := time.Since(start)
-
-	logger.Debugf("block %v took %v to verify", block.BlockHash(), elapsed)
 	return nil
 }
 
-// ValidateTransactionScripts verify crypto signatures for each input
-func ValidateTransactionScripts(tx *types.Transaction) error {
-	txIns := tx.Vin
-	txValItems := make([]*script.TxValidateItem, 0, len(txIns))
-	for txInIdx, txIn := range txIns {
-		// Skip coinbases.
-		if txIn.PrevOutPoint.Index == math.MaxUint32 {
-			continue
+// ValidateTxScripts verifies unlocking script for each input to ensure it is authorized to spend the utxo
+// Coinbase tx will not reach here
+func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
+	txHash, _ := tx.TxHash()
+	for txInIdx, txIn := range tx.Vin {
+		// Ensure the referenced input transaction exists and is not spent.
+		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
+		if utxo == nil {
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist", txIn.PrevOutPoint, txHash, txInIdx)
+			return core.ErrMissingTxOut
+		}
+		if utxo.IsSpent {
+			logger.Errorf("output %v referenced from transaction %s:%d has already been spent", txIn.PrevOutPoint, txHash, txInIdx)
+			return core.ErrMissingTxOut
 		}
 
-		txVI := &script.TxValidateItem{
-			TxInIndex: txInIdx,
-			TxIn:      txIn,
-			Tx:        tx,
+		prevScriptPubKey := script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+		scriptSig := script.NewScriptFromBytes(txIn.ScriptSig)
+
+		// concatenate unlocking & locking scripts
+		catScript := script.NewScript().AddScript(scriptSig).AddOpCode(script.OPCODESEPARATOR).AddScript(prevScriptPubKey)
+		if err := catScript.Evaluate(tx, txInIdx); err != nil {
+			return err
 		}
-		txValItems = append(txValItems, txVI)
 	}
 
-	// Validate all of the inputs.
-	// validator := NewTxValidator(unspentUtxo, flags, sigCache, hashCache)
-	// return validator.Validate(txValItems)
 	return nil
 }
 
@@ -357,10 +343,5 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 		}
 	}
 
-	return nil
-}
-
-func validateTxs(txValidateItems []*script.TxValidateItem) error {
-	// TODO: execute and verify script
 	return nil
 }

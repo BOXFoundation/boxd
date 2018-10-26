@@ -5,6 +5,7 @@
 package boxd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime"
@@ -185,7 +186,67 @@ func (server *Server) Stop() {
 }
 
 func (server *Server) initEventListener() {
+	// TopicSetDebugLevel
 	server.bus.Reply(eventbus.TopicSetDebugLevel, func(newLevel string, out chan<- bool) {
 		out <- log.SetLogLevel(newLevel)
+	}, false)
+
+	// TopicGetDatabaseKeys
+	server.bus.Reply(eventbus.TopicGetDatabaseKeys, func(parent context.Context, table string, prefix string, skip int32, limit int32, out chan<- []string) {
+		var result []string
+		defer func() {
+			out <- result
+		}()
+
+		var s storage.Table
+		var err error
+		if len(table) == 0 {
+			s = server.database
+		} else if s, err = server.database.Table(table); err != nil {
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(parent, time.Second*5)
+		defer cancel()
+
+		var keys <-chan []byte
+		if len(prefix) == 0 {
+			keys = s.IterKeys(ctx)
+		} else {
+			keys = s.IterKeysWithPrefix(ctx, []byte(prefix))
+		}
+		var i = 0
+		for k := range keys {
+			if i >= int(skip) {
+				if i >= int(skip+limit) {
+					break
+				}
+				result = append(result, string(k))
+			}
+			i++
+		}
+	}, false)
+
+	// TopicGetDatabaseValue
+	server.bus.Reply(eventbus.TopicGetDatabaseValue, func(table string, key string, out chan<- []byte) {
+		var result []byte
+		defer func() {
+			out <- result
+		}()
+
+		var s storage.Table
+		var err error
+
+		if len(table) == 0 {
+			s = server.database
+		} else {
+			s, err = server.database.Table(table)
+			if err != nil {
+				return
+			}
+		}
+		if v, err := s.Get([]byte(key)); err == nil {
+			result = v
+		}
 	}, false)
 }

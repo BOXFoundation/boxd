@@ -19,7 +19,6 @@ import (
 
 var cfgFile string
 var walletDir string
-
 var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 
 // rootCmd represents the base command when called without any subcommands
