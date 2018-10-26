@@ -599,8 +599,8 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
-	if ok, _ := chain.db.Has(genesisHash[:]); ok {
-		genesisBlockFromDb, err := chain.LoadBlockByHash(genesisHash)
+	if ok, _ := chain.db.Has(GenesisHash[:]); ok {
+		genesisBlockFromDb, err := chain.LoadBlockByHash(GenesisHash)
 		if err != nil {
 			return nil, err
 		}
@@ -611,7 +611,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put(genesisHash[:], genesisBin)
+	chain.db.Put(GenesisHash[:], genesisBin)
 
 	return &genesisBlock, nil
 
