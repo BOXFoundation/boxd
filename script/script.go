@@ -6,115 +6,18 @@ package script
 
 import (
 	"bytes"
+	"encoding/hex"
+	"strings"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/btcsuite/btcd/txscript"
 
 	"encoding/binary"
 	"errors"
 )
 
-const (
-	// defaultScriptAlloc is the default size used for the backing array
-	// for a script being built by the Builder.  The array will
-	// dynamically grow as needed, but this figure is intended to provide
-	// enough space for vast majority of scripts without needing to grow the
-	// backing array multiple times.
-	defaultScriptAlloc = 500
-)
-
 var logger = log.NewLogger("script") // logger
-
-// Builder provides a facility for building custom scripts.
-type Builder struct {
-	script []byte
-	err    error
-}
-
-// AddOp pushes the passed opcode to the end of the script.  The script will not
-// be modified if pushing the opcode would cause the script to exceed the
-// maximum allowed script engine size.
-func (b *Builder) AddOp(opcode byte) *Builder {
-	if b.err != nil {
-		return b
-	}
-
-	b.script = append(b.script, opcode)
-	return b
-}
-
-// NewBuilder returns a new instance of a script builder.  See
-// Builder for details.
-func NewBuilder() *Builder {
-	return &Builder{
-		script: make([]byte, 0, defaultScriptAlloc),
-	}
-}
-
-// Script returns the currently built script.  When any errors occurred while
-// building the script, the script will be returned up the point of the first
-// error along with the error.
-func (b *Builder) Script() ([]byte, error) {
-	return b.script, b.err
-}
-
-// AddData pushes the passed data to the end of the script.
-func (b *Builder) AddData(data []byte) *Builder {
-	if b.err != nil {
-		return b
-	}
-
-	return b.addData(data)
-}
-
-// addData is the internal function that actually pushes the passed data to the
-// end of the script.  It automatically chooses canonical opcodes depending on
-// the length of the data.  A zero length buffer will lead to a push of empty
-// data onto the stack (OP_0).  No data limits are enforced with this function.
-func (b *Builder) addData(data []byte) *Builder {
-	dataLen := len(data)
-
-	// When the data consists of a single number that can be represented
-	// by one of the "small integer" opcodes, use that opcode instead of
-	// a data push opcode followed by the number.
-	if dataLen == 0 || dataLen == 1 && data[0] == 0 {
-		b.script = append(b.script, byte(OP0))
-		return b
-	} else if dataLen == 1 && data[0] <= 16 {
-		b.script = append(b.script, (byte(OP1)-1)+data[0])
-		return b
-	} else if dataLen == 1 && data[0] == 0x81 {
-		b.script = append(b.script, byte(OP1NEGATE))
-		return b
-	}
-
-	// Use one of the OP_DATA_# opcodes if the length of the data is small
-	// enough so the data push instruction is only a single byte.
-	// Otherwise, choose the smallest possible OP_PUSHDATA# opcode that
-	// can represent the length of the data.
-	if dataLen < int(OPPUSHDATA1) {
-		b.script = append(b.script, byte(dataLen))
-	} else if dataLen <= 0xff {
-		b.script = append(b.script, byte(OPPUSHDATA1), byte(dataLen))
-	} else if dataLen <= 0xffff {
-		buf := make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, uint16(dataLen))
-		b.script = append(b.script, byte(OPPUSHDATA2))
-		b.script = append(b.script, buf...)
-	} else {
-		buf := make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, uint32(dataLen))
-		b.script = append(b.script, byte(OPPUSHDATA4))
-		b.script = append(b.script, buf...)
-	}
-
-	// Append the actual data.
-	b.script = append(b.script, data...)
-
-	return b
-}
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
@@ -126,10 +29,9 @@ func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
 	return NewScript().AddOperand(sig.Serialize()).AddOperand(pubKey)
 }
 
-// StandardCoinbaseScript returns a standard script suitable for use as the
-// signature script of the coinbase transaction of a new block.
-func StandardCoinbaseScript(height int32) ([]byte, error) {
-	return txscript.NewScriptBuilder().AddInt64(int64(height)).AddInt64(int64(0)).Script()
+// StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
+func StandardCoinbaseSignatureScript(height int32) *Script {
+	return NewScript().AddOperand(scriptNum(height).Bytes()).AddOperand(scriptNum(0).Bytes())
 }
 
 // Script represents scripts
@@ -188,11 +90,10 @@ func (s *Script) AddScript(script *Script) *Script {
 func (s *Script) Evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
-	logger.Debugf("script len: %d", scriptLen)
+	logger.Debugf("script len %d: %s", scriptLen, s.disasm())
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
-		logger.Debugf("pc: %d, script length: %d", pc, scriptLen)
 		opCode, operand, newPc, err := s.parseNextOp(pc)
 		if err != nil {
 			return err
@@ -208,7 +109,7 @@ func (s *Script) Evaluate(tx *types.Transaction, txInIdx int) error {
 	return stack.validateTop()
 }
 
-// Get the next opcode & operand. Also return incremented pc.
+// Get the next opcode & operand. Operand only applies to data push opcodes. Also return incremented pc.
 func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 	script := *s
 	scriptLen := len(script)
@@ -260,51 +161,27 @@ func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
 }
 
 // Execute an operation
-func (s *Script) execOp(opCode OpCode, op Operand, tx *types.Transaction,
+func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 	txInIdx int, pc int, scriptPubKeyStart *int, stack *Stack) error {
-	logger.Debugf("opcode: %d, operand: %d, pc: %d", opCode, len(op), pc)
+
+	// Push value
 	if opCode <= OPPUSHDATA4 {
-		stack.push(op)
+		if opCode < OPPUSHDATA1 {
+			logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
+		} else {
+			logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
+		}
+		stack.push(pushData)
+		return nil
+	} else if opCode <= OP16 && opCode != OPRESERVED {
+		sn := scriptNum(opCode) - scriptNum(OP1) + 1
+		logger.Debugf("opcode: %s, push data: %d, pc: %d", opCodeToName(opCode), sn, pc)
+		stack.push(Operand(sn.Bytes()))
 		return nil
 	}
-	switch opCode {
-	// Push value
-	case OP1NEGATE:
-		fallthrough
-	case OP1:
-		fallthrough
-	case OP2:
-		fallthrough
-	case OP3:
-		fallthrough
-	case OP4:
-		fallthrough
-	case OP5:
-		fallthrough
-	case OP6:
-		fallthrough
-	case OP7:
-		fallthrough
-	case OP8:
-		fallthrough
-	case OP9:
-		fallthrough
-	case OP10:
-		fallthrough
-	case OP11:
-		fallthrough
-	case OP12:
-		fallthrough
-	case OP13:
-		fallthrough
-	case OP14:
-		fallthrough
-	case OP15:
-		fallthrough
-	case OP16:
-		sn := scriptNum(opCode) - scriptNum(OP1-1)
-		stack.push(Operand(sn.Bytes()))
 
+	logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
+	switch opCode {
 	case OPDUP:
 		if stack.size() < 1 {
 			return errors.New("ScriptErrInvalidStackOperation")
@@ -369,9 +246,9 @@ func (s *Script) execOp(opCode OpCode, op Operand, tx *types.Transaction,
 		if stack.size() < 1 {
 			return errors.New("ScriptErrInvalidStackOperation")
 		}
-		op := Operand(crypto.Hash160(stack.topN(1)))
+		hash160 := Operand(crypto.Hash160(stack.topN(1)))
 		stack.pop()
-		stack.push(op)
+		stack.push(hash160)
 
 	case OPCODESEPARATOR:
 		// scriptPubKey starts after the code separator; pc points to the next byte
@@ -464,4 +341,26 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 		txIn.ScriptSig = oldScriptSigs[i]
 	}
 	return sigHash, err
+}
+
+// diaasm disassembles script in human readable format. If the script fails to parse, the returned string will
+// contain the disassembled script up to the failure point, appended by the string '[Error: error info]'
+func (s *Script) disasm() string {
+	var str []string
+
+	for pc := 0; pc < len(*s); {
+		opCode, operand, newPc, err := s.parseNextOp(pc)
+		if err != nil {
+			str = append(str, "[Error: "+err.Error()+"]")
+			return strings.Join(str, " ")
+		}
+		if operand != nil {
+			str = append(str, hex.EncodeToString(operand))
+		} else {
+			str = append(str, opCodeToName(opCode))
+		}
+		pc = newPc
+	}
+
+	return strings.Join(str, " ")
 }

@@ -43,9 +43,15 @@ func SigFromBytes(sigStr []byte) (*Signature, error) {
 	return (*Signature)(sig), err
 }
 
-// Recover tries to recover public key from message digest and signatures
-func (sig *Signature) Recover(digest []byte) (*PublicKey, bool) {
-	publicKey, onCurve, err := btcec.RecoverCompact(secp256k1Curve, sig.Serialize(), digest)
+// SignCompact sign a byte array message using private key, and generate
+// a signature with recover params, which can be used to recover public key
+func SignCompact(privKey *PrivateKey, digest []byte) ([]byte, error) {
+	return btcec.SignCompact(secp256k1Curve, (*btcec.PrivateKey)(privKey), digest, true)
+}
+
+// RecoverCompact tries to recover public key from message digest and signatures
+func RecoverCompact(digest, sig []byte) (*PublicKey, bool) {
+	publicKey, onCurve, err := btcec.RecoverCompact(secp256k1Curve, sig, digest)
 	if !onCurve || err != nil {
 		return nil, false
 	}
