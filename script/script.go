@@ -86,8 +86,38 @@ func (s *Script) AddScript(script *Script) *Script {
 	return s
 }
 
+// Validate verifies the script
+func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx int) error {
+	// concatenate unlocking & locking scripts
+	catScript := NewScript().AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
+	if err := catScript.evaluate(tx, txInIdx); err != nil {
+		return err
+	}
+
+	if !scriptPubKey.IsPayToScriptHash() {
+		return nil
+	}
+
+	// Handle p2sh
+	// scriptSig: signature <serialized redeemScript>
+	//
+
+	// First operand is signature
+	_, sig, newPc, _ := scriptSig.parseNextOp(0)
+	newScriptSig := NewScript().AddOperand(sig)
+
+	// Second operand is serialized redeem script
+	_, redeemScriptBytes, _, _ := scriptSig.parseNextOp(newPc)
+	redeemScript := NewScriptFromBytes(redeemScriptBytes)
+
+	// signature becomes the new scriptSig, redeemScript becomes the new scriptPubKey
+	catScript = NewScript().AddScript(newScriptSig).AddOpCode(OPCODESEPARATOR).AddScript(redeemScript)
+	return catScript.evaluate(tx, txInIdx)
+}
+
 // Evaluate interprets the script and returns error if it fails
-func (s *Script) Evaluate(tx *types.Transaction, txInIdx int) error {
+// It succeeds if the script runs to completion and the top stack element exists and is true
+func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
 	logger.Debugf("script len %d: %s", scriptLen, s.disasm())

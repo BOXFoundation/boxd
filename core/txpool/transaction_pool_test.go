@@ -76,10 +76,8 @@ func createChildTx(parentTx *types.Transaction) *types.Transaction {
 		scriptSig := script.SignatureScript(sig, pubKey.Serialize())
 		txIn.ScriptSig = *scriptSig
 
-		// concatenate unlocking & locking scripts
-		catScript := script.NewScript().AddScript(scriptSig).AddOpCode(script.OPCODESEPARATOR).AddScript(scriptPubKey)
 		// test to ensure
-		if err = catScript.Evaluate(tx, txInIdx); err != nil {
+		if err = script.Validate(scriptSig, scriptPubKey, tx, txInIdx); err != nil {
 			return nil
 		}
 	}
