@@ -742,7 +742,7 @@ func StorageIterKeysCancel(t *testing.T, s storage.Operations) func(*testing.T, 
 			}
 		}
 
-		ensure.True(t, i >= 100 && i <= 101)
+		ensure.True(t, i < 1000)
 	}
 }
 
@@ -762,11 +762,11 @@ func StorageIterKeysWithPrefixCancel(t *testing.T, s storage.Operations) func(*t
 		var i = 0
 		for range s.IterKeysWithPrefix(ctx, prefix) {
 			i++
-			if i == 10 {
+			if i == 50 {
 				cancel()
 			}
 		}
 
-		ensure.True(t, i >= 10 && i <= 11)
+		ensure.True(t, i < 100)
 	}
 }
