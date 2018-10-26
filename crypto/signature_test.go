@@ -5,6 +5,8 @@
 package crypto
 
 import (
+	"crypto/rand"
+	"io"
 	"testing"
 
 	"github.com/facebookgo/ensure"
@@ -36,4 +38,20 @@ func TestSignMessage(t *testing.T) {
 	sigBytes := sig.Serialize()
 	sig2, _ := SigFromBytes(sigBytes)
 	ensure.DeepEqual(t, sig, sig2)
+}
+
+func TestRecoverCompact(t *testing.T) {
+	buf := make([]byte, 256)
+	count, err := io.ReadFull(rand.Reader, buf)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, count, len(buf))
+
+	privKey, pubKey, err := NewKeyPair()
+	ensure.Nil(t, err)
+	sig, err := SignCompact(privKey, buf)
+	ensure.Nil(t, err)
+
+	pubKeyRecovered, ok := RecoverCompact(buf, sig)
+	ensure.True(t, ok)
+	ensure.DeepEqual(t, pubKey, pubKeyRecovered)
 }
