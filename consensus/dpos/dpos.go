@@ -29,7 +29,7 @@ const (
 	SecondInMs           = int64(1000)
 	NewBlockTimeInterval = int64(5000)
 	MaxPackedTxTime      = int64(2000)
-	PeriodSize           = 21
+	PeriodSize           = 2
 )
 
 // Define err message
@@ -46,21 +46,20 @@ var (
 type Config struct {
 	// Index  int    `mapstructure:"index"`
 	// Pubkey string `mapstructure:"pubkey"`
-	keypath    string `mapstructure:"keypath"`
-	enableMint bool   `mapstructure:"enable_mint"`
-	passphrase string `mapstructure:"passphrase"`
+	Keypath    string `mapstructure:"keypath"`
+	EnableMint bool   `mapstructure:"enable_mint"`
+	Passphrase string `mapstructure:"passphrase"`
 }
 
 // Dpos define dpos struct
 type Dpos struct {
-	chain      *chain.BlockChain
-	txpool     *txpool.TransactionPool
-	context    *ConsensusContext
-	net        p2p.Net
-	proc       goprocess.Process
-	cfg        *Config
-	miner      *wallet.Account
-	enableMint bool
+	chain   *chain.BlockChain
+	txpool  *txpool.TransactionPool
+	context *ConsensusContext
+	net     p2p.Net
+	proc    goprocess.Process
+	cfg     *Config
+	miner   *wallet.Account
 }
 
 // NewDpos new a dpos implement.
@@ -75,23 +74,24 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 
 	tail := chain.TailBlock()
 	context := &ConsensusContext{}
+	dpos.context = context
 	period, err := dpos.LoadPeriodContext(tail.Header.PeriodHash)
 	if err != nil {
 		return nil, err
 	}
 	context.periodContext = period
-	dpos.context = context
+
 	return dpos, nil
 }
 
 // EnableMint return the peer mint status
 func (dpos *Dpos) EnableMint() bool {
-	return dpos.cfg.enableMint
+	return dpos.cfg.EnableMint
 }
 
 // Setup setup dpos
 func (dpos *Dpos) Setup() error {
-	account, err := wallet.NewAccountFromFile(dpos.cfg.keypath)
+	account, err := wallet.NewAccountFromFile(dpos.cfg.Keypath)
 	if err != nil {
 		return err
 	}
@@ -128,10 +128,11 @@ func (dpos *Dpos) Stop() {
 func (dpos *Dpos) loop(p goprocess.Process) {
 	logger.Info("Start block mint")
 	time.Sleep(10 * time.Second)
-	timeChan := time.NewTicker(time.Second).C
+	timeChan := time.NewTicker(time.Second)
+	defer timeChan.Stop()
 	for {
 		select {
-		case <-timeChan:
+		case <-timeChan.C:
 			dpos.mint()
 		case <-p.Closing():
 			logger.Info("Stopped Dpos Mining.")
@@ -145,6 +146,7 @@ func (dpos *Dpos) mint() error {
 	timestamp := time.Now().Unix()
 
 	if err := dpos.checkMiner(timestamp); err != nil {
+		logger.Error(err)
 		return err
 	}
 
@@ -175,15 +177,15 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 }
 
 func (dpos *Dpos) validateMiner() bool {
-
 	addr, err := types.ParseAddress(dpos.miner.Addr())
 	if err != nil {
 		return false
 	}
-	if !util.InArray(*addr.Hash160(), dpos.context.periodContext) {
+	if !util.InArray(*addr.Hash160(), dpos.context.periodContext.period) {
 		return false
 	}
-	if err := dpos.miner.UnlockWithPassphrase(dpos.cfg.passphrase); err != nil {
+	if err := dpos.miner.UnlockWithPassphrase(dpos.cfg.Passphrase); err != nil {
+		logger.Error(err)
 		return false
 	}
 	return true
@@ -199,11 +201,14 @@ func (dpos *Dpos) mintBlock() {
 	} else {
 		block.Header.PeriodHash = tail.Header.PeriodHash
 	}
-	dpos.PackTxs(block, nil)
+	dpos.PackTxs(block, dpos.miner.PubKeyHash())
 	if err := dpos.signBlock(block); err != nil {
 		return
 	}
-	dpos.chain.ProcessBlock(block, true)
+	_, _, err := dpos.chain.ProcessBlock(block, true)
+	if err != nil {
+		logger.Error(err)
+	}
 }
 
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
@@ -228,11 +233,11 @@ func (dpos *Dpos) sortPendingTxs() *util.PriorityQueue {
 }
 
 // PackTxs packed txs and add them to block.
-func (dpos *Dpos) PackTxs(block *types.Block, addr types.Address) error {
+func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	pool := dpos.sortPendingTxs()
 	var blockTxns []*types.Transaction
-	coinbaseTx, err := chain.CreateCoinbaseTx(addr, dpos.chain.LongestChainHeight+1)
+	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
 		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
@@ -383,11 +388,11 @@ func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 func (dpos *Dpos) signBlock(block *types.Block) error {
 
 	hash := block.BlockHash()
-	signature, err := crypto.Sign(dpos.miner.PrivateKey(), hash)
+	signature, err := crypto.SignCompact(dpos.miner.PrivateKey(), hash[:])
 	if err != nil {
 		return err
 	}
-	block.Header.Signature = signature.Serialize()
+	block.Header.Signature = signature
 	return nil
 }
 
@@ -402,13 +407,14 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 		return false, ErrNotFoundMiner
 	}
 
-	signature, err := crypto.SigFromBytes(block.Header.Signature)
-	if err != nil {
-		return false, err
-	}
+	// signature, err := crypto.SigFromBytes(block.Header.Signature)
+	// if err != nil {
+	// 	return false, err
+	// }
 
-	pubkey, ok := signature.Recover(block.BlockHash()[:])
+	pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Header.Signature)
 	if ok {
+		logger.Info("ok")
 		addr, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
 			return false, err
@@ -417,5 +423,6 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 			return true, nil
 		}
 	}
+	logger.Info("recover")
 	return false, nil
 }

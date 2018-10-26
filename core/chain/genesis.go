@@ -52,8 +52,7 @@ var genesisHash = *(genesisBlock.BlockHash())
 
 // GenesisPeriod genesis period
 var GenesisPeriod = []string{
-	"b1xxxxxxxxxx",
-	"b2xxxxxxxxxx",
+	"b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
 }
 
 func initGenesisConsensusContext() crypto.HashType {

@@ -5,6 +5,8 @@
 package crypto
 
 import (
+	"fmt"
+
 	"github.com/btcsuite/btcd/btcec"
 )
 
@@ -53,6 +55,7 @@ func SignCompact(privKey *PrivateKey, digest []byte) ([]byte, error) {
 func RecoverCompact(digest, sig []byte) (*PublicKey, bool) {
 	publicKey, onCurve, err := btcec.RecoverCompact(secp256k1Curve, sig, digest)
 	if !onCurve || err != nil {
+		fmt.Printf("recover err: %v", err)
 		return nil, false
 	}
 	return (*PublicKey)(publicKey), true

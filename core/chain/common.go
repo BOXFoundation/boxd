@@ -66,11 +66,11 @@ func CalcBlockSubsidy(height int32) int64 {
 }
 
 // CreateCoinbaseTx creates a coinbase give miner address and block height
-func CreateCoinbaseTx(addr types.Address, blockHeight int32) (*types.Transaction, error) {
+func CreateCoinbaseTx(addr []byte, blockHeight int32) (*types.Transaction, error) {
 	var pkScript []byte
 	blockReward := CalcBlockSubsidy(blockHeight)
 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
-	pkScript = *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	pkScript = *script.PayToPubKeyHashScript(addr)
 
 	tx := &types.Transaction{
 		Version: 1,

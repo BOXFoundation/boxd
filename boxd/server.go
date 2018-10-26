@@ -131,6 +131,9 @@ func (server *Server) Run() error {
 	if err != nil {
 		logger.Fatalf("Failed to new Dpos, error: %v", err)
 	}
+	if err := consensus.Setup(); err != nil {
+		logger.Fatalf("Failed to Setup dpos, error: %v", err)
+	}
 	blockChain.SetConsensus(consensus)
 
 	if cfg.RPC.Enabled {
@@ -143,6 +146,7 @@ func (server *Server) Run() error {
 	peer.Run()
 	blockChain.Run()
 	txPool.Run()
+	logger.Info(consensus.EnableMint())
 	if consensus.EnableMint() {
 		consensus.Run()
 	}

@@ -33,7 +33,7 @@ var (
 	addr, _            = types.NewAddressFromPubKey(pubKey)
 	scriptAddr         = addr.ScriptAddress()
 	scriptPubKey       = script.PayToPubKeyHashScript(scriptAddr)
-	coinbaseTx, _      = chain.CreateCoinbaseTx(addr, chainHeight)
+	coinbaseTx, _      = chain.CreateCoinbaseTx(addr.ScriptAddress(), chainHeight)
 )
 
 // create a child tx spending parent tx's output
@@ -153,7 +153,7 @@ func TestDoProcessTx(t *testing.T) {
 	verifyDoProcessTx(t, tx3, nil, true, false)
 
 	// tx4 is a coinbase transaction
-	tx4, _ := chain.CreateCoinbaseTx(addr, chainHeight+1)
+	tx4, _ := chain.CreateCoinbaseTx(addr.ScriptAddress(), chainHeight+1)
 	errTx4 := txpool.doProcessTx(tx4, chainHeight, utxoSet, false /* do not broadcast */)
 	ensure.DeepEqual(t, errTx4, core.ErrCoinbaseTx)
 	verifyTxInPool(t, tx4, false, false)

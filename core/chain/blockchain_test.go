@@ -63,7 +63,7 @@ func genNewChain() *BlockChain {
 func nextBlock(parentBlock *types.Block) *types.Block {
 	newBlock := types.NewBlock(parentBlock)
 
-	coinbaseTx, _ := CreateCoinbaseTx(minerAddr, parentBlock.Height+1)
+	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.ScriptAddress(), parentBlock.Height+1)
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock
@@ -199,4 +199,8 @@ func (dpos *DummyDpos) Stop() {
 
 func (dpos *DummyDpos) StoreCandidateContext(crypto.HashType) error {
 	return nil
+}
+
+func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) {
+	return true, nil
 }
