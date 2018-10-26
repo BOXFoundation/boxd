@@ -44,8 +44,6 @@ var (
 
 // Config defines the configurations of dpos
 type Config struct {
-	// Index  int    `mapstructure:"index"`
-	// Pubkey string `mapstructure:"pubkey"`
 	Keypath    string `mapstructure:"keypath"`
 	EnableMint bool   `mapstructure:"enable_mint"`
 	Passphrase string `mapstructure:"passphrase"`
@@ -144,14 +142,11 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 func (dpos *Dpos) mint() error {
 
 	timestamp := time.Now().Unix()
-
 	if err := dpos.checkMiner(timestamp); err != nil {
 		logger.Error(err)
 		return err
 	}
-
 	logger.Infof("My turn to mint a block, time: %d", timestamp)
-
 	if err := dpos.LoadCandidates(); err != nil {
 		return err
 	}
@@ -160,6 +155,7 @@ func (dpos *Dpos) mint() error {
 	return nil
 }
 
+// checkMiner check to verify if miner can mint at the timestamp
 func (dpos *Dpos) checkMiner(timestamp int64) error {
 
 	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(timestamp)
@@ -176,7 +172,9 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 	return nil
 }
 
+// validateMiner verify whether the miner had authority to mint.
 func (dpos *Dpos) validateMiner() bool {
+
 	addr, err := types.ParseAddress(dpos.miner.Addr())
 	if err != nil {
 		return false
@@ -192,7 +190,7 @@ func (dpos *Dpos) validateMiner() bool {
 }
 
 func (dpos *Dpos) mintBlock() {
-	// tail, _ := dpos.chain.LoadTailBlock()
+
 	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
 	block.Header.TimeStamp = dpos.context.timestamp
@@ -201,13 +199,17 @@ func (dpos *Dpos) mintBlock() {
 	} else {
 		block.Header.PeriodHash = tail.Header.PeriodHash
 	}
-	dpos.PackTxs(block, dpos.miner.PubKeyHash())
+	if err := dpos.PackTxs(block, dpos.miner.PubKeyHash()); err != nil {
+		logger.Warnf("Failed to pack txs. err: %s", err.Error())
+		return
+	}
 	if err := dpos.signBlock(block); err != nil {
+		logger.Warnf("Failed to sign block. err: %s", err.Error())
 		return
 	}
 	_, _, err := dpos.chain.ProcessBlock(block, true)
 	if err != nil {
-		logger.Error(err)
+		logger.Warnf("Failed to process block. err: %s", err.Error())
 	}
 }
 
@@ -243,7 +245,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
-
 	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
 
@@ -407,14 +408,8 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 		return false, ErrNotFoundMiner
 	}
 
-	// signature, err := crypto.SigFromBytes(block.Header.Signature)
-	// if err != nil {
-	// 	return false, err
-	// }
-
 	pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Header.Signature)
 	if ok {
-		logger.Info("ok")
 		addr, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
 			return false, err
@@ -423,6 +418,5 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 			return true, nil
 		}
 	}
-	logger.Info("recover")
 	return false, nil
 }
