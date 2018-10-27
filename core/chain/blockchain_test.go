@@ -193,25 +193,20 @@ func TestBlockProcessing(t *testing.T) {
 
 }
 
-type DummyDpos struct {
-}
+type DummyDpos struct{}
 
-func (dpos *DummyDpos) Run() error {
-	return nil
-}
+func (dpos *DummyDpos) Run() error { return nil }
 
-func (dpos *DummyDpos) Stop() {
+func (dpos *DummyDpos) Stop() {}
 
-}
+func (dpos *DummyDpos) StoreCandidateContext(crypto.HashType) error { return nil }
 
-func (dpos *DummyDpos) StoreCandidateContext(crypto.HashType) error {
-	return nil
-}
-
-func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) {
-	return true, nil
-}
+func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) { return true, nil }
 
 func (dpos *DummyDpos) RecoverMint() {}
 
 func (dpos *DummyDpos) StopMint() {}
+
+func (dpos *DummyDpos) UpdateEternalBlock(string, []byte) {}
+
+func (dpos *DummyDpos) BroadcastEternalMsgToMiners(block *types.Block) error { return nil }

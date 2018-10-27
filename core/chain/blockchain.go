@@ -23,7 +23,8 @@ import (
 
 // const defines constants
 const (
-	BlockMsgChBufferSize = 1024
+	BlockMsgChBufferSize        = 1024
+	EternalBlockMsgChBufferSize = 65536
 
 	MaxTimeOffsetSeconds = 2 * 60 * 60
 	MaxBlockSize         = 32000000
@@ -48,6 +49,7 @@ var _ service.ChainReader = (*BlockChain)(nil)
 type BlockChain struct {
 	notifiee                  p2p.Net
 	newblockMsgCh             chan p2p.Message
+	eternalBlockMsgCh         chan p2p.Message
 	consensus                 types.Consensus
 	db                        storage.Table
 	genesis                   *types.Block
@@ -62,37 +64,13 @@ type BlockChain struct {
 	syncManager               types.SyncManager
 }
 
-// MarshalTxIndex writes Tx height and index to bytes
-func MarshalTxIndex(height, index uint32) (data []byte, err error) {
-	buf := bytes.NewBuffer(make([]byte, 8))
-	if err := util.WriteUint32(buf, height); err != nil {
-		return nil, err
-	}
-	if err := util.WriteUint32(buf, index); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-// UnmarshalTxIndex return tx index from bytes
-func UnmarshalTxIndex(data []byte) (height uint32, index uint32, err error) {
-	buf := bytes.NewBuffer(data)
-	if height, err = util.ReadUint32(buf); err != nil {
-		return
-	}
-	if index, err = util.ReadUint32(buf); err != nil {
-		return
-	}
-	return
-}
-
 // NewBlockChain return a blockchain.
 func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage) (*BlockChain, error) {
 
 	b := &BlockChain{
 		notifiee:                  notifiee,
 		newblockMsgCh:             make(chan p2p.Message, BlockMsgChBufferSize),
+		eternalBlockMsgCh:         make(chan p2p.Message, EternalBlockMsgChBufferSize),
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
@@ -159,6 +137,7 @@ func (chain *BlockChain) Stop() {
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
 	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
+	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.EternalBlockMsg, chain.eternalBlockMsgCh))
 }
 
 func (chain *BlockChain) loop(p goprocess.Process) {
@@ -167,6 +146,8 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
+		case msg := <-chain.eternalBlockMsgCh:
+			chain.handleEternalBlock(msg)
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
@@ -184,6 +165,10 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	chain.ProcessBlock(block, false)
 
 	return nil
+}
+
+func (chain *BlockChain) handleEternalBlock(msg p2p.Message) {
+	chain.consensus.UpdateEternalBlock(msg.From().Pretty(), msg.Body())
 }
 
 // ProcessBlock is used to handle new blocks.
@@ -237,6 +222,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	logger.Infof("Accepted block hash: %v", blockHash)
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
+		chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
 	return isMainChain, false, nil
 }
@@ -655,7 +641,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	}
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
-	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
+	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash(), tail.Height)
 	return nil
 }
 

@@ -28,3 +28,8 @@ message Candidate {
     int64 votes = 2;
     string peer = 3;
 }
+
+message EternalBlockMsg {
+    bytes hash =1;
+    bytes signature = 2;
+}

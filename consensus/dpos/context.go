@@ -24,6 +24,7 @@ var (
 	ErrInvalidCandidateContextProtoMessage = errors.New("Invalid condidate context proto message")
 	ErrInvalidPeriodContextProtoMessage    = errors.New("Invalid period contex proto message")
 	ErrInvalidPeriodProtoMessage           = errors.New("Invalid period proto message")
+	ErrInvalidEternalBlockMsgProtoMessage  = errors.New("Invalid eternalBlockMsg proto message")
 )
 
 // ConsensusContext represent consensus context info.
@@ -38,6 +39,7 @@ type PeriodContext struct {
 	period      []*Period
 	nextPeriod  []*Period
 	periodAddrs []types.AddressHash
+	periodPeers []string
 }
 
 // InitPeriodContext init period context.
@@ -349,4 +351,52 @@ func (candidate *Candidate) Unmarshal(data []byte) error {
 		return err
 	}
 	return candidate.FromProtoMessage(msg)
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
+
+// EternalBlockMsg represent eternal block msg.
+type EternalBlockMsg struct {
+	hash      crypto.HashType
+	signature []byte
+}
+
+var _ conv.Convertible = (*Candidate)(nil)
+var _ conv.Serializable = (*Candidate)(nil)
+
+// ToProtoMessage converts EternalBlockMsg to proto message.
+func (ebm *EternalBlockMsg) ToProtoMessage() (proto.Message, error) {
+	return &dpospb.EternalBlockMsg{
+		Hash:      ebm.hash[:],
+		Signature: ebm.signature,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to EternalBlockMsg.
+func (ebm *EternalBlockMsg) FromProtoMessage(message proto.Message) error {
+	if message, ok := message.(*dpospb.EternalBlockMsg); ok {
+		if message != nil {
+			copy(ebm.hash[:], message.Hash)
+			ebm.signature = message.Signature
+			return nil
+		}
+		return core.ErrEmptyProtoMessage
+	}
+
+	return ErrInvalidEternalBlockMsgProtoMessage
+}
+
+// Marshal method marshal Candidate object to binary
+func (ebm *EternalBlockMsg) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(ebm)
+}
+
+// Unmarshal method unmarshal binary data to Candidate object
+func (ebm *EternalBlockMsg) Unmarshal(data []byte) error {
+	msg := &dpospb.EternalBlockMsg{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return ebm.FromProtoMessage(msg)
 }

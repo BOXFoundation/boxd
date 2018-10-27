@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sort"
@@ -185,4 +186,29 @@ func (chain *BlockChain) calcLockTime(utxoSet *UtxoSet, block *types.Block, tx *
 	}
 
 	return lockTime, nil
+}
+
+// MarshalTxIndex writes Tx height and index to bytes
+func MarshalTxIndex(height, index uint32) (data []byte, err error) {
+	buf := bytes.NewBuffer(make([]byte, 8))
+	if err := util.WriteUint32(buf, height); err != nil {
+		return nil, err
+	}
+	if err := util.WriteUint32(buf, index); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalTxIndex return tx index from bytes
+func UnmarshalTxIndex(data []byte) (height uint32, index uint32, err error) {
+	buf := bytes.NewBuffer(data)
+	if height, err = util.ReadUint32(buf); err != nil {
+		return
+	}
+	if index, err = util.ReadUint32(buf); err != nil {
+		return
+	}
+	return
 }
