@@ -2,29 +2,67 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package p2p
+package pscore
 
 import (
+	"container/list"
 	"fmt"
 	"math"
 	"sync"
 	"time"
-)
 
-const (
-	// punishment indicates that the peer need to be punished
-	punishment = iota
-
-	// achievement indicates that the peer need to be awarded
-	achievement
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 const (
 	// baseScore indicates the default score of the peer
 	baseScore = 100
+
+	// HeartBeatLatencyTime sadfa
+	HeartBeatLatencyTime int64 = 10
+
+	// DisconnTimesThreshold hgkjh
+	DisconnTimesThreshold = 30
+
+	// DisconnMinTime hgkjh
+	DisconnMinTime = 5
+
+	// PunishConnTimeOut sdafa
+	PunishConnTimeOut ScoreEvent = 40
+
+	// PunishBadBlock sdafa
+	PunishBadBlock ScoreEvent = 60
+
+	// PunishBadTx sdafa
+	PunishBadTx ScoreEvent = 30
+
+	// PunishSyncMsg sdafa
+	PunishSyncMsg ScoreEvent = 25
+
+	// PunishNoHeartBeat sdafa
+	PunishNoHeartBeat ScoreEvent = 90
+
+	// PunishConnUnsteadiness sdafa
+	PunishConnUnsteadiness ScoreEvent = 100
+
+	// AwardNewBlock sdafa
+	AwardNewBlock ScoreEvent = 80
+
+	// AwardNewTx sdafa
+	AwardNewTx ScoreEvent = 20
 )
 
-type Factors struct {
+// ScoreEvent sadf
+type ScoreEvent uint32
+
+var (
+	// PunishFactors sadf
+	PunishFactors = newFactors(60, 1800, 64)
+	// AchieveFactors sadf
+	AchieveFactors = newFactors(600, 18000, 512)
+)
+
+type factors struct {
 
 	// halflife defines the time (in seconds) by which the transient part
 	// of the ban score decays to one half of it's original value.
@@ -44,15 +82,13 @@ type Factors struct {
 	// precomputedFactor stores precomputed exponential decay factors for the first
 	// 'precomputedLen' seconds starting from t == 0.
 	precomputedFactor []float64
+
+	scoreCh chan uint32
 }
 
-var (
-	punishFactors  = NewFactors(60, 1800, 64)
-	achieveFactors = NewFactors(600, 18000, 512)
-)
-
-func NewFactors(halflife, lifetime, precomputedLen int) *Factors {
-	factors := new(Factors)
+// NewFactors asdfas
+func newFactors(halflife, lifetime, precomputedLen int) *factors {
+	factors := new(factors)
 	factors.halflife = halflife
 	factors.lambda = math.Ln2 / float64(halflife)
 	factors.lifetime = lifetime
@@ -61,12 +97,13 @@ func NewFactors(halflife, lifetime, precomputedLen int) *Factors {
 	for i := range factors.precomputedFactor {
 		factors.precomputedFactor[i] = math.Exp(-1.0 * float64(i) * factors.lambda)
 	}
+	factors.scoreCh = make(chan uint32, 65536)
 	return factors
 }
 
 // decayRate returns the decay rate at t seconds, using precalculated values
 // if available, or calculating the rate if needed.
-func (factors *Factors) decayRate(t int64) float64 {
+func (factors *factors) decayRate(t int64) float64 {
 	if t < int64(factors.precomputedLen) {
 		return factors.precomputedFactor[t]
 	}
@@ -86,14 +123,30 @@ func (factors *Factors) decayRate(t int64) float64 {
 // Zero value: Values of type DynamicPeerScore are immediately ready for use upon
 // declaration.
 type DynamicPeerScore struct {
+	pid         peer.ID
 	lastUnix    int64
 	punishment  float64
 	achievement float64
+	connRecords *list.List
 	mtx         sync.Mutex
+}
+
+// NewDynamicPeerScore asda
+func NewDynamicPeerScore(pid peer.ID) *DynamicPeerScore {
+	return &DynamicPeerScore{
+		pid:         pid,
+		connRecords: list.New(),
+	}
+}
+
+// ConnRecords saf
+func (s *DynamicPeerScore) ConnRecords() *list.List {
+	return s.connRecords
 }
 
 // String returns the ban score as a human-readable string.
 func (s *DynamicPeerScore) String() string {
+	list.New()
 	s.mtx.Lock()
 	r := fmt.Sprintf("achievement %v + punishment %v at %v = %v as of now",
 		s.achievement, s.punishment, s.lastUnix, s.Int())
@@ -112,32 +165,39 @@ func (s *DynamicPeerScore) Int() uint32 {
 	return r
 }
 
-// Increase increases both the persistent and decaying scores by the values
+// Award increases both the persistent and decaying scores by the values
 // passed as parameters. The resulting score is returned.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Award(achievement uint32) uint32 {
+func (s *DynamicPeerScore) Award(achievement ScoreEvent) uint32 {
 	s.mtx.Lock()
-	r := s.award(achievement, time.Now())
+	r := s.award(uint32(achievement), time.Now())
 	s.mtx.Unlock()
 	return r
 }
 
-func (s *DynamicPeerScore) Punish(punishment uint32) uint32 {
+// Punish asdfas
+func (s *DynamicPeerScore) Punish(punishment ScoreEvent) uint32 {
 	s.mtx.Lock()
-	r := s.punish(punishment, time.Now())
+	r := s.punish(uint32(punishment), time.Now())
 	s.mtx.Unlock()
 	return r
+}
+
+// Disconnect asdfas
+func (s *DynamicPeerScore) Disconnect() {
+	t := time.Now().Unix()
+	s.connRecords.PushBack(t)
+	s.Reset(t)
 }
 
 // Reset set both persistent and decaying scores to zero.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Reset() {
+func (s *DynamicPeerScore) Reset(t int64) {
 	s.mtx.Lock()
-	s.punishment = 0
 	s.achievement = 0
-	s.lastUnix = 0
+	s.lastUnix = t
 	s.mtx.Unlock()
 }
 
@@ -149,15 +209,15 @@ func (s *DynamicPeerScore) Reset() {
 func (s *DynamicPeerScore) int(t time.Time) uint32 {
 	dt := t.Unix() - s.lastUnix
 	s.verifyLifeTime(dt)
-	return baseScore + uint32(s.achievement*achieveFactors.decayRate(dt)) - uint32(s.punishment*punishFactors.decayRate(dt))
+	return baseScore + uint32(s.achievement*AchieveFactors.decayRate(dt)) - uint32(s.punishment*PunishFactors.decayRate(dt))
 }
 
 // verifyLifeTime reset punishment or achievement when lifetime < dt
 func (s *DynamicPeerScore) verifyLifeTime(dt int64) {
-	if punishFactors.lifetime < int(dt) {
+	if PunishFactors.lifetime < int(dt) {
 		s.punishment = 0
 	}
-	if achieveFactors.lifetime < int(dt) {
+	if AchieveFactors.lifetime < int(dt) {
 		s.achievement = 0
 	}
 }
@@ -176,10 +236,10 @@ func (s *DynamicPeerScore) award(achievement uint32, t time.Time) uint32 {
 
 	if dt > 0 {
 		if s.achievement > 1 {
-			s.achievement *= achieveFactors.decayRate(dt)
+			s.achievement *= AchieveFactors.decayRate(dt)
 		}
 		if s.punishment > 1 {
-			s.punishment *= punishFactors.decayRate(dt)
+			s.punishment *= PunishFactors.decayRate(dt)
 		}
 		s.achievement += float64(achievement)
 		s.lastUnix = tu
@@ -195,10 +255,10 @@ func (s *DynamicPeerScore) punish(punishment uint32, t time.Time) uint32 {
 
 	if dt > 0 {
 		if s.achievement > 1 {
-			s.achievement *= achieveFactors.decayRate(dt)
+			s.achievement *= AchieveFactors.decayRate(dt)
 		}
 		if s.punishment > 1 {
-			s.punishment *= punishFactors.decayRate(dt)
+			s.punishment *= PunishFactors.decayRate(dt)
 		}
 		s.punishment += float64(punishment)
 		s.lastUnix = tu

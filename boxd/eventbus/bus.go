@@ -10,7 +10,11 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+
+	"github.com/BOXFoundation/boxd/log"
 )
+
+var logger = log.NewLogger("boxd") // logger for node package
 
 //BusSubscriber defines subscription-related bus behavior
 type BusSubscriber interface {
@@ -173,6 +177,7 @@ func (bus *EventBus) Unsubscribe(topic string, handler interface{}) error {
 
 // Publish executes callback defined for a topic. Any additional argument will be transferred to the callback.
 func (bus *EventBus) Publish(topic string, args ...interface{}) {
+	logger.Errorf("Publish invoked, %s, %s", topic, &bus)
 	bus.subLock.Lock() // will unlock if handler is not found or always after setUpPublish
 	defer bus.subLock.Unlock()
 	if handlers, ok := bus.pubHandlers[topic]; ok && 0 < len(handlers) {

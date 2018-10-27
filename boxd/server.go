@@ -53,6 +53,7 @@ func NewServer(cfg *config.Config) *Server {
 		bus:  eventbus.Default(),
 		cfg:  cfg,
 	}
+	logger.Errorf("bus addr server = %v", &(server.bus))
 	server.initEventListener()
 	server.proc.SetTeardown(server.teardown)
 	return server
@@ -118,7 +119,7 @@ func (server *Server) Run() error {
 	}
 	server.peer = peer
 
-	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database)
+	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 	}

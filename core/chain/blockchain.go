@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	lru "github.com/hashicorp/golang-lru"
@@ -58,12 +60,13 @@ type BlockChain struct {
 	LongestChainHeight        int32
 	longestChainTip           *types.Block
 	cache                     *lru.Cache
+	bus                       eventbus.Bus
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 }
 
 // NewBlockChain return a blockchain.
-func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage) (*BlockChain, error) {
+func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus) (*BlockChain, error) {
 
 	b := &BlockChain{
 		notifiee:                  notifiee,
@@ -71,7 +74,10 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
+		bus:                       eventbus.Default(),
 	}
+	logger.Errorf("bus addr new chain = %v", &(b.bus))
+
 	var err error
 	b.cache, err = lru.New(512)
 	if err != nil {
@@ -121,6 +127,12 @@ func (chain *BlockChain) Proc() goprocess.Process {
 	return chain.proc
 }
 
+// Bus returns the goprocess of the BlockChain
+func (chain *BlockChain) Bus() eventbus.Bus {
+	logger.Errorf("bus addr chain %v", &(chain.bus))
+	return chain.bus
+}
+
 // Stop the blockchain service
 func (chain *BlockChain) Stop() {
 	chain.proc.Close()
@@ -150,8 +162,12 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	chain.ProcessBlock(block, false)
-
+	if _, _, err := chain.ProcessBlock(block, false); err != nil {
+		// TODO 上面判断err是否是需要扣分的那些
+		chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From, pscore.PunishBadBlock)
+		return err
+	}
+	chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From, pscore.AwardNewBlock)
 	return nil
 }
 

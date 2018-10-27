@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -16,6 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/jbenet/goprocess"
 )
 
@@ -160,7 +162,12 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 
-	return tx_pool.ProcessTx(tx, false)
+	if err := tx_pool.ProcessTx(tx, false); err != nil {
+		tx_pool.chain.Bus().Publish(eventbus.TopicChainScoreEvent, pscore.PunishBadTx)
+		return err
+	}
+	tx_pool.chain.Bus().Publish(eventbus.TopicChainScoreEvent, pscore.AwardNewTx)
+	return nil
 }
 
 // ProcessTx is used to handle new transactions.

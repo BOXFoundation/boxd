@@ -53,7 +53,7 @@ func genNewChain() *BlockChain {
 
 	proc := goprocess.WithSignals(os.Interrupt)
 	db, _ := storage.NewDatabase(proc, dbCfg)
-	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
+	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db, nil)
 	return blockChain
 }
 

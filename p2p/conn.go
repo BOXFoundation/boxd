@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/p2p/pb"
+	"github.com/BOXFoundation/boxd/p2p/pscore"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -33,6 +34,7 @@ type Conn struct {
 	remotePeer         peer.ID
 	isEstablished      bool
 	establishSucceedCh chan bool
+	lastUnix           int64
 	proc               goprocess.Process
 	procHeartbeat      goprocess.Process
 	mutex              sync.Mutex
@@ -178,6 +180,7 @@ func (conn *Conn) OnPong(data []byte) error {
 		}
 		conn.mutex.Unlock()
 	}
+	conn.lastUnix = time.Now().Unix()
 
 	return nil
 }
@@ -194,6 +197,7 @@ func (conn *Conn) PeerDiscover() error {
 		select {
 		case <-conn.establishSucceedCh:
 		case <-establishedTimeout.C:
+			conn.peer.Punish(conn.remotePeer, pscore.PunishConnTimeOut)
 			conn.proc.Close()
 			return errors.New("Handshaking timeout")
 		}
@@ -250,13 +254,20 @@ func (conn *Conn) Close() error {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
-	logger.Info("Closing connection with ", conn.remotePeer.Pretty())
+	pid := conn.remotePeer
+	logger.Info("Closing connection with ", pid.Pretty())
 	if conn.stream != nil {
-		conn.peer.RemoveConn(conn.remotePeer)
-		conn.peer.table.peerStore.ClearAddrs(conn.remotePeer)
+		conn.peer.RemoveConn(pid)
+		conn.peer.table.peerStore.ClearAddrs(pid)
+		conn.peer.scoremgr.Scores[pid].Disconnect()
 		return conn.stream.Close()
 	}
 	return nil
+}
+
+// LastUnix 为啥下面的方法去一个值需要lock
+func (conn *Conn) LastUnix() int64 {
+	return conn.lastUnix
 }
 
 // Established returns whether the connection is established.
@@ -274,6 +285,7 @@ func (conn *Conn) Establish() bool {
 	if !conn.isEstablished {
 		conn.establish()
 	}
+	conn.lastUnix = time.Now().Unix()
 	conn.mutex.Unlock()
 	return r
 }
@@ -282,7 +294,9 @@ func (conn *Conn) establish() {
 	conn.peer.table.AddPeerToTable(conn)
 	conn.isEstablished = true
 	conn.establishSucceedCh <- true
-	conn.peer.AddConn(conn.remotePeer, conn)
+	pid := conn.remotePeer
+	conn.peer.AddConn(pid, conn)
+	conn.peer.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
 	logger.Info("Succed to establish connection with peer ", conn.remotePeer.Pretty())
 }
 

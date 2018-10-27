@@ -49,6 +49,14 @@ const (
 	ConnStatusDisconnected ConnStatus = 2
 )
 
+const (
+	// ConnMaxCapacity 最大容量
+	ConnMaxCapacity = 200
+
+	// ConnLoadFactor 负载因子
+	ConnLoadFactor = 0.8
+)
+
 func (cs ConnStatus) String() string {
 	switch cs {
 	case ConnStatusConnected:

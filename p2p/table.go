@@ -74,7 +74,9 @@ func (t *Table) Loop(parent goprocess.Process) {
 func (t *Table) peerDiscover() {
 	logger.Info("do peer discover")
 	all := t.peerStore.Peers()
+	// TODO 应该是存在的连接数小于 每起一个都判断 还需加阈值
 	if len(all) <= MaxPeerCountToSyncRouteTable {
+		// TODO 按分排序
 		for _, v := range all {
 			if v.Pretty() == t.peer.id.Pretty() {
 				continue

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/consensus"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -18,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -464,6 +466,9 @@ func (sm *SyncManager) fetchRemoteBlocks(fbh *FetchBlockHeaders) (peer.ID, error
 }
 
 func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
+	sm.chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From, pscore.PunishSyncMsg)
+	logger.Errorf("publish finish")
+
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
 		return errNoResponding
@@ -528,6 +533,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
+	sm.chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From, pscore.PunishSyncMsg)
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
 		return errNoResponding
@@ -585,6 +591,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
+	sm.chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From, pscore.PunishSyncMsg)
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
 		return errNoResponding

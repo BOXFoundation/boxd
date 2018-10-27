@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/jbenet/goprocess"
@@ -42,6 +44,7 @@ type BoxPeer struct {
 	networkIdentity crypto.PrivKey
 	notifier        *Notifier
 	connmgr         *ConnManager
+	scoremgr        *ScoreManager
 	addrbook        service.Server
 	bus             eventbus.Bus
 	mu              sync.Mutex
@@ -54,7 +57,8 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 	// ctx := context.Background()
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
-	boxPeer := &BoxPeer{conns: make(map[peer.ID]interface{}), config: config, notifier: NewNotifier(), proc: proc}
+	boxPeer := &BoxPeer{conns: make(map[peer.ID]interface{}), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
+	logger.Errorf("bus addr peer = %v", &(boxPeer.bus))
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -76,6 +80,7 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 		return nil, err
 	}
 	boxPeer.connmgr = NewConnManager(ps)
+	boxPeer.scoremgr = NewScoreManager(proc, bus, boxPeer)
 
 	opts := []libp2p.Option{
 		// TODO: to support ipv6
@@ -297,4 +302,36 @@ out:
 		return info.ID
 	}
 	return nullPeer
+}
+
+// Award sadfa
+func (p *BoxPeer) Award(pid peer.ID, amount pscore.ScoreEvent) {
+	p.scoremgr.Scores[pid].Award(amount)
+}
+
+// Punish sdafasd
+func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
+	p.scoremgr.Scores[pid].Punish(amount)
+}
+
+// Gc conns gc
+func (p *BoxPeer) Gc() {
+	var queue scoreSorter
+	scoreMap := p.scoremgr.Scores
+	for pid, v := range p.conns {
+		conn := v.(*Conn)
+		score := scoreMap[pid].Int()
+		peerScore := peerScore{
+			score: score,
+			conn:  conn,
+		}
+		queue = append(queue, peerScore)
+	}
+
+	sort.Sort(queue)
+	if size := len(queue) - ConnMaxCapacity*ConnLoadFactor; size > 0 {
+		for i := 0; i < size; i++ {
+			queue[i].conn.Close()
+		}
+	}
 }
