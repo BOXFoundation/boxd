@@ -130,9 +130,7 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos
 		tx.Vin[txInIdx].ScriptSig = *scriptSig
 
 		// test to ensure
-		// concatenate unlocking & locking scripts
-		catScript := script.NewScript().AddScript(scriptSig).AddOpCode(script.OPCODESEPARATOR).AddScript(prevScriptPubKey)
-		if err = catScript.Evaluate(typedTx, txInIdx); err != nil {
+		if err = script.Validate(scriptSig, prevScriptPubKey, typedTx, txInIdx); err != nil {
 			return nil, err
 		}
 	}
