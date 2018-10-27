@@ -23,14 +23,14 @@ var (
 	zeroHash crypto.HashType
 
 	// TotalSupply is the total supply of box: 3 billion
-	TotalSupply = (int64)(3e9 * math.Pow10(core.Decimals))
+	TotalSupply = (uint64)(3e9 * math.Pow10(core.Decimals))
 
 	// CoinbaseMaturity coinbase only spendable after this many blocks
-	CoinbaseMaturity = (int32)(0)
+	CoinbaseMaturity = (uint32)(0)
 
 	// BaseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
-	BaseSubsidy = (int64)(50 * math.Pow10(core.Decimals))
+	BaseSubsidy = (uint64)(50 * math.Pow10(core.Decimals))
 )
 
 // isNullOutPoint determines whether or not a previous transaction output point is set.
@@ -62,12 +62,12 @@ func CalcTxsHash(txs []*types.Transaction) *crypto.HashType {
 }
 
 // CalcBlockSubsidy returns the subsidy amount a block at the provided height should have.
-func CalcBlockSubsidy(height int32) int64 {
+func CalcBlockSubsidy(height uint32) uint64 {
 	return BaseSubsidy >> uint(height/core.SubsidyReductionInterval)
 }
 
 // CreateCoinbaseTx creates a coinbase give miner address and block height
-func CreateCoinbaseTx(addr []byte, blockHeight int32) (*types.Transaction, error) {
+func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, error) {
 	var pkScript []byte
 	blockReward := CalcBlockSubsidy(blockHeight)
 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
@@ -134,13 +134,13 @@ func (chain *BlockChain) calcPastMedianTime(block *types.Block) time.Time {
 	return time.Unix(medianTimestamp, 0)
 }
 
-func sequenceLockActive(timeLock *LockTime, blockHeight int32, medianTimePast time.Time) bool {
+func sequenceLockActive(timeLock *LockTime, blockHeight uint32, medianTimePast time.Time) bool {
 	return timeLock.Seconds < medianTimePast.Unix() && timeLock.BlockHeight < blockHeight
 }
 
 func (chain *BlockChain) calcLockTime(utxoSet *UtxoSet, block *types.Block, tx *types.Transaction) (*LockTime, error) {
 
-	lockTime := &LockTime{Seconds: -1, BlockHeight: -1}
+	lockTime := &LockTime{Seconds: -1, BlockHeight: 0}
 
 	// lock-time does not apply to coinbase tx.
 	if IsCoinBase(tx) {
@@ -177,7 +177,7 @@ func (chain *BlockChain) calcLockTime(utxoSet *UtxoSet, block *types.Block, tx *
 			}
 		} else {
 
-			blockHeight := utxoHeight + int32(relativeLock-1)
+			blockHeight := utxoHeight + uint32(relativeLock-1)
 			if blockHeight > lockTime.BlockHeight {
 				lockTime.BlockHeight = blockHeight
 			}

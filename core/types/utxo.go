@@ -14,7 +14,7 @@ import (
 // UtxoWrap contains info about utxo
 type UtxoWrap struct {
 	Output      *corepb.TxOut
-	BlockHeight int32
+	BlockHeight uint32
 	IsCoinBase  bool
 	IsSpent     bool
 	IsModified  bool
@@ -59,6 +59,6 @@ func (utxoWrap *UtxoWrap) Unmarshal(data []byte) error {
 }
 
 // Value returns utxo amount
-func (utxoWrap *UtxoWrap) Value() int64 {
+func (utxoWrap *UtxoWrap) Value() uint64 {
 	return utxoWrap.Output.Value
 }

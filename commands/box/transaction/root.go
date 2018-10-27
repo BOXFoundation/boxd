@@ -118,7 +118,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	tx, err := client.CreateTransaction(viper.GetViper(), account.PubKeyHash(), toAddr.ScriptAddress(), account.PublicKey(), int64(amount), account)
+	tx, err := client.CreateTransaction(viper.GetViper(), account.PubKeyHash(), toAddr.ScriptAddress(), account.PublicKey(), uint64(amount), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {

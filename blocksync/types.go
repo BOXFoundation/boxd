@@ -53,7 +53,7 @@ type SyncHeaders struct {
 // Remote peer will send a root hash from the corresponding Headers
 type CheckHash struct {
 	BeginHash *crypto.HashType
-	Length    int32
+	Length    uint32
 }
 
 // SyncCheckHash defines information about root hash for check in sync
@@ -67,7 +67,7 @@ type FetchBlockHeaders struct {
 	// the index to indicate which hashes chunk in sync hashes
 	// it is used to find out which hashes chunk needed to re-sync when
 	// error happen in the sync with some remote peer
-	Idx int32
+	Idx uint32
 	CheckHash
 }
 
@@ -76,7 +76,7 @@ type SyncBlocks struct {
 	// the index to indicate which hashes chunk in sync hashes
 	// it is used to find out which hashes chunk needed to re-sync when
 	// error happen in the sync with some remote peer
-	Idx    int32
+	Idx    uint32
 	Blocks []*coreTypes.Block
 }
 
@@ -91,11 +91,11 @@ func newSyncHeaders(hashes ...*crypto.HashType) *SyncHeaders {
 	return &SyncHeaders{LocateHeaders: *newLocateHeaders(hashes...)}
 }
 
-func newCheckHash(hash *crypto.HashType, len int) *CheckHash {
+func newCheckHash(hash *crypto.HashType, len uint32) *CheckHash {
 	if hash == nil {
 		hash = &crypto.HashType{}
 	}
-	return &CheckHash{BeginHash: hash, Length: int32(len)}
+	return &CheckHash{BeginHash: hash, Length: len}
 }
 
 func newSyncCheckHash(hash *crypto.HashType) *SyncCheckHash {
@@ -105,11 +105,11 @@ func newSyncCheckHash(hash *crypto.HashType) *SyncCheckHash {
 	return &SyncCheckHash{RootHash: hash}
 }
 
-func newFetchBlockHeaders(idx int32, hash *crypto.HashType, len int) *FetchBlockHeaders {
+func newFetchBlockHeaders(idx uint32, hash *crypto.HashType, len uint32) *FetchBlockHeaders {
 	return &FetchBlockHeaders{Idx: idx, CheckHash: *newCheckHash(hash, len)}
 }
 
-func newSyncBlocks(idx int32, blocks ...*coreTypes.Block) *SyncBlocks {
+func newSyncBlocks(idx uint32, blocks ...*coreTypes.Block) *SyncBlocks {
 	if blocks == nil {
 		blocks = make([]*coreTypes.Block, 0)
 	}

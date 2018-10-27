@@ -215,7 +215,7 @@ func (period *Period) Unmarshal(data []byte) error {
 
 // CandidateContext represent possible to be the miner.
 type CandidateContext struct {
-	height     int32
+	height     uint32
 	candidates []*Candidate
 	addrs      []types.AddressHash
 }

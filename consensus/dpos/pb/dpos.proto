@@ -18,7 +18,7 @@ message Period {
 
 
 message candidateContext {
-    int32 height = 1;
+    uint32 height = 1;
     repeated Candidate candidates = 2;
 }
 

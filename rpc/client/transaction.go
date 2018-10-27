@@ -19,7 +19,7 @@ import (
 )
 
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
-func CreateTransaction(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes []byte, amount int64, signer crypto.Signer) (*types.Transaction, error) {
+func CreateTransaction(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes []byte, amount uint64, signer crypto.Signer) (*types.Transaction, error) {
 	utxoResponse, err := FundTransaction(v, fromPubkeyHash, amount)
 
 	if err != nil {
@@ -53,12 +53,12 @@ func CreateTransaction(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes
 	return transaction, nil
 }
 
-func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, error) {
+func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, error) {
 	utxoList := resp.GetUtxos()
 	sort.Slice(utxoList, func(i, j int) bool {
 		return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
 	})
-	var current int64
+	var current uint64
 	resultList := []*rpcpb.Utxo{}
 	for _, utxo := range utxoList {
 		if utxo.IsSpent {
@@ -73,9 +73,9 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount int64) ([]*rpcpb.Utxo, err
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, amount int64, signer crypto.Signer) (*corepb.Transaction, error) {
+func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, amount uint64, signer crypto.Signer) (*corepb.Transaction, error) {
 	tx := &corepb.Transaction{}
-	var current int64
+	var current uint64
 	txIn := make([]*corepb.TxIn, len(utxos))
 	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
@@ -139,7 +139,7 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos
 }
 
 // FundTransaction gets the utxo of a public key
-func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount int64) (*rpcpb.ListUtxosResponse, error) {
+func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount uint64) (*rpcpb.ListUtxosResponse, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
 	p2pkScript, err := getScriptAddress(pubKeyHash)
