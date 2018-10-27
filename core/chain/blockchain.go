@@ -187,6 +187,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
+		// trigger sync
+		chain.syncManager.StartSync()
 		return false, true, nil
 	}
 
