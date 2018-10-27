@@ -26,6 +26,7 @@ var (
 	ErrInvalidBlockSignature = errors.New("Invalid block signature")
 	ErrBlockIsNil            = errors.New("Block is nil")
 	ErrOrphanBlockExists     = errors.New("Orphan block already exists")
+	ErrFailedToSetEternal    = errors.New("Failed to set eternal block")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")

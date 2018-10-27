@@ -20,8 +20,10 @@ import (
 // Define error
 var (
 	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")
-	ErrInvalidConsensusContextProtoMessage = errors.New("Invalid consensusContext proto message")
-	ErrInvalidCandidateContextProtoMessage = errors.New("Invalid condidate Context proto message")
+	ErrInvalidConsensusContextProtoMessage = errors.New("Invalid consensus context proto message")
+	ErrInvalidCandidateContextProtoMessage = errors.New("Invalid condidate context proto message")
+	ErrInvalidPeriodContextProtoMessage    = errors.New("Invalid period contex proto message")
+	ErrInvalidPeriodProtoMessage           = errors.New("Invalid period proto message")
 )
 
 // ConsensusContext represent consensus context info.
@@ -33,23 +35,30 @@ type ConsensusContext struct {
 
 // PeriodContext represent period context info.
 type PeriodContext struct {
-	period     []types.AddressHash
-	nextPeriod []types.AddressHash
+	period      []*Period
+	nextPeriod  []*Period
+	periodAddrs []types.AddressHash
 }
 
 // InitPeriodContext init period context.
 func InitPeriodContext() (*PeriodContext, error) {
 
-	period := make([]types.AddressHash, PeriodSize)
+	periods := make([]*Period, len(chain.GenesisPeriod))
+	periodAddrs := make([]types.AddressHash, len(chain.GenesisPeriod))
 	for k, v := range chain.GenesisPeriod {
-		addr, err := types.ParseAddress(v)
+		period := new(Period)
+		addr, err := types.ParseAddress(v["addr"])
 		if err != nil {
 			return nil, err
 		}
-		period[k] = *addr.Hash160()
+		period.addr = *addr.Hash160()
+		period.peerID = v["peerID"]
+		periods[k] = period
+		periodAddrs[k] = period.addr
 	}
 	return &PeriodContext{
-		period: period,
+		period:      periods,
+		periodAddrs: periodAddrs,
 	}, nil
 }
 
@@ -57,70 +66,89 @@ var _ conv.Convertible = (*PeriodContext)(nil)
 var _ conv.Serializable = (*PeriodContext)(nil)
 
 // ToProtoMessage converts PeriodContext to proto message.
-func (context *PeriodContext) ToProtoMessage() (proto.Message, error) {
+func (pc *PeriodContext) ToProtoMessage() (proto.Message, error) {
 
-	var period [][]byte
-	for _, v := range context.period {
-		period = append(period, v[:])
+	periods := make([]*dpospb.Period, len(pc.period))
+	for k, v := range pc.period {
+		period, err := v.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if period, ok := period.(*dpospb.Period); ok {
+			periods[k] = period
+		}
 	}
 
-	var nextPeriod [][]byte
-	for _, v := range context.nextPeriod {
-		nextPeriod = append(nextPeriod, v[:])
+	nextPeriods := make([]*dpospb.Period, len(pc.nextPeriod))
+	for k, v := range pc.nextPeriod {
+		period, err := v.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if period, ok := period.(*dpospb.Period); ok {
+			nextPeriods[k] = period
+		}
 	}
 
 	return &dpospb.PeriodContext{
-		Period:     period,
-		NextPeriod: nextPeriod,
+		Period:     periods,
+		NextPeriod: nextPeriods,
 	}, nil
 }
 
 // FromProtoMessage converts proto message to PeriodContext.
-func (context *PeriodContext) FromProtoMessage(message proto.Message) error {
+func (pc *PeriodContext) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*dpospb.PeriodContext); ok {
 		if message != nil {
-			var period []types.AddressHash
-			for _, v := range message.Period {
-				var temp types.AddressHash
-				copy(temp[:], v)
-				period = append(period, temp)
+			periods := make([]*Period, len(message.Period))
+			periodAddrs := make([]types.AddressHash, len(message.Period))
+			for k, v := range message.Period {
+				period := new(Period)
+				if err := period.FromProtoMessage(v); err != nil {
+					return err
+				}
+				periods[k] = period
+				periodAddrs[k] = period.addr
 			}
 
-			var nextPeriod []types.AddressHash
-			for _, v := range message.Period {
-				var temp types.AddressHash
-				copy(temp[:], v)
-				nextPeriod = append(nextPeriod, temp)
+			nextPeriods := make([]*Period, len(message.NextPeriod))
+			for k, v := range message.NextPeriod {
+				period := new(Period)
+				if err := period.FromProtoMessage(v); err != nil {
+					return err
+				}
+				nextPeriods[k] = period
 			}
 
-			context.period = period
-			context.nextPeriod = nextPeriod
+			pc.period = periods
+			pc.nextPeriod = nextPeriods
+			pc.periodAddrs = periodAddrs
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
 	}
 
-	return ErrInvalidConsensusContextProtoMessage
+	return ErrInvalidPeriodContextProtoMessage
 }
 
 // Marshal method marshal ConsensusContext object to binary
-func (context *PeriodContext) Marshal() (data []byte, err error) {
-	return conv.MarshalConvertible(context)
+func (pc *PeriodContext) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(pc)
 }
 
 // Unmarshal method unmarshal binary data to ConsensusContext object
-func (context *PeriodContext) Unmarshal(data []byte) error {
+func (pc *PeriodContext) Unmarshal(data []byte) error {
 	msg := &dpospb.Candidate{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
-	return context.FromProtoMessage(msg)
+	return pc.FromProtoMessage(msg)
 }
 
 // FindMinerWithTimeStamp find miner in given timestamp
-func (context *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
+func (pc *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
 
-	period := context.period
+	period := pc.period
 	offsetPeriod := (timestamp * SecondInMs) % (NewBlockTimeInterval * PeriodSize)
 	if (offsetPeriod % NewBlockTimeInterval) != 0 {
 		return nil, ErrWrongTimeToMint
@@ -130,11 +158,56 @@ func (context *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.Ad
 
 	var miner *types.AddressHash
 	if offset >= 0 && int(offset) < len(period) {
-		miner = &period[offset]
+		miner = &period[offset].addr
 	} else {
 		return nil, ErrNotFoundMiner
 	}
 	return miner, nil
+}
+
+// Period represent period info.
+type Period struct {
+	addr   types.AddressHash
+	peerID string
+}
+
+var _ conv.Convertible = (*Period)(nil)
+var _ conv.Serializable = (*Period)(nil)
+
+// ToProtoMessage converts candidate to proto message.
+func (period *Period) ToProtoMessage() (proto.Message, error) {
+	return &dpospb.Period{
+		Addr:   period.addr[:],
+		PeerId: period.peerID,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to candidate.
+func (period *Period) FromProtoMessage(message proto.Message) error {
+	if message, ok := message.(*dpospb.Period); ok {
+		if message != nil {
+			copy(period.addr[:], message.Addr)
+			period.peerID = message.PeerId
+			return nil
+		}
+		return core.ErrEmptyProtoMessage
+	}
+
+	return ErrInvalidPeriodProtoMessage
+}
+
+// Marshal method marshal Period object to binary
+func (period *Period) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(period)
+}
+
+// Unmarshal method unmarshal binary data to Period object
+func (period *Period) Unmarshal(data []byte) error {
+	msg := &dpospb.CandidateContext{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return period.FromProtoMessage(msg)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////

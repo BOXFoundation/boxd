@@ -134,7 +134,6 @@ func (server *Server) Run() error {
 	if err := consensus.Setup(); err != nil {
 		logger.Fatalf("Failed to Setup dpos, error: %v", err)
 	}
-	blockChain.SetConsensus(consensus)
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
@@ -142,7 +141,8 @@ func (server *Server) Run() error {
 
 	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
 	server.syncManager = syncManager
-	blockChain.Setup(syncManager)
+
+	blockChain.Setup(consensus, syncManager)
 
 	peer.Run()
 	blockChain.Run()

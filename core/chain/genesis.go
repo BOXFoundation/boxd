@@ -10,7 +10,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/util"
 )
 
 var genesisCoinbaseTx = types.Transaction{
@@ -51,18 +50,25 @@ var genesisBlock = types.Block{
 // GenesisHash is the hash of genesis block
 var GenesisHash = *(genesisBlock.BlockHash())
 
+// var GenesisPeriod = []string{
+// 	"b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
+// }
+
 // GenesisPeriod genesis period
-var GenesisPeriod = []string{
-	"b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
+var GenesisPeriod = []map[string]string{
+	{
+		"addr":   "b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
+		"peerID": "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
+	},
 }
 
-func initGenesisConsensusContext() crypto.HashType {
-	hashs := make([]*crypto.HashType, len(GenesisPeriod))
-	for index := range GenesisPeriod {
-		hash := crypto.DoubleHashH([]byte(GenesisPeriod[index]))
-		hashs[index] = &hash
-	}
-	merkRootHashs := util.BuildMerkleRoot(hashs)
-	rootHash := merkRootHashs[len(merkRootHashs)-1]
-	return *rootHash
-}
+// func initGenesisConsensusContext() crypto.HashType {
+// 	hashs := make([]*crypto.HashType, len(GenesisPeriod))
+// 	for index := range GenesisPeriod {
+// 		hash := crypto.DoubleHashH([]byte(GenesisPeriod[index]))
+// 		hashs[index] = &hash
+// 	}
+// 	merkRootHashs := util.BuildMerkleRoot(hashs)
+// 	rootHash := merkRootHashs[len(merkRootHashs)-1]
+// 	return *rootHash
+// }

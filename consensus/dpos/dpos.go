@@ -196,7 +196,7 @@ func (dpos *Dpos) validateMiner() bool {
 	if err != nil {
 		return false
 	}
-	if !util.InArray(*addr.Hash160(), dpos.context.periodContext.period) {
+	if !util.InArray(*addr.Hash160(), dpos.context.periodContext.periodAddrs) {
 		return false
 	}
 	if err := dpos.miner.UnlockWithPassphrase(dpos.cfg.Passphrase); err != nil {
@@ -228,11 +228,6 @@ func (dpos *Dpos) mintBlock() {
 	if err != nil {
 		logger.Warnf("Failed to process block. err: %s", err.Error())
 	}
-}
-
-// SetEternal set block eternal status.
-func (dpos *Dpos) SetEternal() {
-
 }
 
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {

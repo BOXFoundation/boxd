@@ -55,7 +55,7 @@ func genNewChain() *BlockChain {
 	db, _ := storage.NewDatabase(proc, dbCfg)
 	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
 	dummyDpos := &DummyDpos{}
-	blockChain.SetConsensus(dummyDpos)
+	blockChain.Setup(dummyDpos, nil)
 	return blockChain
 }
 

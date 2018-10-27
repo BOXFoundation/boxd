@@ -25,7 +25,8 @@ import (
 const (
 	BlockMsgChBufferSize = 1024
 
-	Tail = "tail_block"
+	Tail    = "tail_block"
+	Eternal = "eternal_block"
 
 	BlockTableName = "core_block"
 
@@ -105,17 +106,13 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 }
 
 // Setup prepare blockchain.
-func (chain *BlockChain) Setup(syncManager types.SyncManager) {
+func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.SyncManager) {
+	chain.consensus = consensus
 	chain.syncManager = syncManager
 }
 
 // implement interface service.Server
 var _ service.Server = (*BlockChain)(nil)
-
-// SetConsensus set consensus to chain.
-func (chain *BlockChain) SetConsensus(consensus types.Consensus) {
-	chain.consensus = consensus
-}
 
 // Run launch blockchain.
 func (chain *BlockChain) Run() error {
@@ -548,6 +545,33 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 // TailBlock return chain tail block.
 func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
+}
+
+// SetEternal set block eternal status.
+func (chain *BlockChain) SetEternal(block *types.Block) error {
+	eternal := chain.eternal
+	if eternal.Height < block.Height {
+		if err := chain.StoreEternalBlock(block); err != nil {
+			return err
+		}
+		chain.eternal = block
+		return nil
+	}
+	return core.ErrFailedToSetEternal
+}
+
+// StoreEternalBlock store eternal block to db.
+func (chain *BlockChain) StoreEternalBlock(block *types.Block) error {
+	eternal, err := block.Marshal()
+	if err != nil {
+		return err
+	}
+	return chain.db.Put([]byte(Eternal), eternal)
+}
+
+// EternalBlock return chain eternal block.
+func (chain *BlockChain) EternalBlock() *types.Block {
+	return chain.eternal
 }
 
 // ListAllUtxos list all the available utxos for testing purpose

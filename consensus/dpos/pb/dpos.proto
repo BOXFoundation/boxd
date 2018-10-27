@@ -7,8 +7,13 @@ syntax = "proto3";
 package dpospb;
 
 message PeriodContext {
-    repeated bytes period = 1;
-    repeated bytes next_period = 2;
+    repeated Period period = 1;
+    repeated Period next_period = 2;
+}
+
+message Period {
+    bytes addr = 1;
+    string peer_id = 2;
 }
 
 
