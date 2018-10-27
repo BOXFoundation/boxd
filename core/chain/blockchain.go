@@ -167,9 +167,9 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	}
 
 	// The block must not already exist as an orphan.
-	if _, exists := chain.hashToOrphanBlock[*blockHash]; exists {
+	if chain.isInOrphanPool(blockHash) {
 		logger.Warnf("already have block (orphan) %v", blockHash)
-		return false, false, core.ErrBlockExists
+		return false, false, core.ErrOrphanBlockExists
 	}
 
 	if err := validateBlock(block, util.NewMedianTime()); err != nil {
@@ -831,4 +831,10 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 		idx++
 	}
 	return blocks, nil
+}
+
+// isInOrphanPool checks if block already exists in orphan pool
+func (chain *BlockChain) isInOrphanPool(blockHash *crypto.HashType) bool {
+	_, exists := chain.hashToOrphanBlock[*blockHash]
+	return exists
 }
