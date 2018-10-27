@@ -659,9 +659,6 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 			sm.processMtx.Unlock()
 			if err != nil {
 				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
-					err = fmt.Errorf("onBlocksResponse ProcessBlock from peer[%s] error: %s",
-						pid.Pretty(), err)
-					logger.Warn(err)
 					continue
 				} else {
 					panic(err)
@@ -705,9 +702,6 @@ func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 func heightLocator(height uint32) []uint32 {
 	var h uint32
 	heights := make([]uint32, 0)
-	if height == 0 {
-		return heights
-	}
 	// get sequential portion
 	for i := uint32(0); i < locatorSeqPartLen; i++ {
 		h = height - i
