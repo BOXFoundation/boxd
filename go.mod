@@ -26,7 +26,7 @@ require (
 	github.com/gogap/env_json v0.0.0-20150503135429-86150085ddbe // indirect
 	github.com/gogap/env_strings v0.0.0-20171020034610-bdb994cfe093 // indirect
 	github.com/gogo/protobuf v1.1.1
-	github.com/golang/lint v0.0.0-20181011164241-5906bd5c48cd // indirect
+	github.com/golang/lint v0.0.0-20181026193005-c67002cb31c3 // indirect
 	github.com/golang/protobuf v1.2.0
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
 	github.com/google/uuid v0.0.0-20180828181555-e704694aed0e // indirect
@@ -104,7 +104,7 @@ require (
 	github.com/mattn/go-colorable v0.0.0-20180310133214-efa589957cd0 // indirect
 	github.com/mattn/go-isatty v0.0.0-20180830101745-3fb116b82035 // indirect
 	github.com/mattn/goveralls v0.0.2 // indirect
-	github.com/mdempsky/gocode v0.0.0-20181016185935-22f3bf7a9256 // indirect
+	github.com/mdempsky/gocode v0.0.0-20181026172611-5d5a61bb99f0 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/minio/sha256-simd v0.0.0-20181005183134-51976451ce19 // indirect
 	github.com/mitchellh/go-homedir v1.0.0
@@ -152,7 +152,7 @@ require (
 	golang.org/x/net v0.0.0-20181017193950-04a2e542c03f
 	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4 // indirect
 	golang.org/x/sys v0.0.0-20181019160139-8e24a49d80f8 // indirect
-	golang.org/x/tools v0.0.0-20181019201213-3e7aa9e59977 // indirect
+	golang.org/x/tools v0.0.0-20181026183834-f60e5f99f081 // indirect
 	google.golang.org/appengine v1.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e
 	google.golang.org/grpc v1.15.0
