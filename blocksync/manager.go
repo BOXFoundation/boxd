@@ -34,6 +34,7 @@ var (
 
 type peerStatus int
 type syncStatus int
+type errFlag int
 
 func (s syncStatus) String() string {
 	switch s {
@@ -72,6 +73,12 @@ const (
 	locateStatus
 	checkStatus
 	blocksStatus
+	// err falg
+	errFlagNoHash errFlag = iota
+	errFlagUnmarshal
+	errFlagWrongPeerStatus
+	errFlagCheckNumTooBig
+	errFlagRootHashMismatch
 )
 
 type blockCheckInfo struct {
@@ -107,7 +114,7 @@ type SyncManager struct {
 	p2pNet    p2p.Net
 
 	messageCh         chan p2p.Message
-	locateErrCh       chan struct{}
+	locateErrCh       chan errFlag
 	locateDoneCh      chan struct{}
 	checkErrCh        chan struct{}
 	checkOkCh         chan struct{}
@@ -118,7 +125,6 @@ type SyncManager struct {
 }
 
 func (sm *SyncManager) reset() {
-	sm.setStatus(freeStatus)
 	atomic.StoreInt32(&sm.checkNum, 0)
 	sm.checkRootHash = &crypto.HashType{}
 	sm.fetchHashes = make([]*crypto.HashType, 0)
@@ -129,6 +135,7 @@ func (sm *SyncManager) reset() {
 
 func (sm *SyncManager) resetAll() {
 	sm.reset()
+	sm.setStatus(freeStatus)
 	sm.stalePeers = make(map[peer.ID]peerStatus)
 }
 
@@ -155,7 +162,7 @@ func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
 		proc:         goprocess.WithParent(parent),
 		stalePeers:   make(map[peer.ID]peerStatus),
 		messageCh:    make(chan p2p.Message, 512),
-		locateErrCh:  make(chan struct{}),
+		locateErrCh:  make(chan errFlag),
 		locateDoneCh: make(chan struct{}),
 		checkErrCh:   make(chan struct{}),
 		checkOkCh:    make(chan struct{}),
@@ -181,10 +188,10 @@ func (sm *SyncManager) Run() {
 
 // StartSync start sync block message from remote peers.
 func (sm *SyncManager) StartSync() {
-	logger.Info("StartSync")
 	if sm.getStatus() != freeStatus {
 		return
 	}
+	logger.Info("StartSync")
 	sm.consensus.StopMint()
 	go sm.startSync()
 }
@@ -231,6 +238,8 @@ func (sm *SyncManager) handleSyncMessage() {
 }
 
 func (sm *SyncManager) startSync() {
+	// prevent startSync being executed again
+	sm.setStatus(locateStatus)
 	// sleep 5s to wait for connections to establish
 	time.Sleep(5 * time.Second)
 	//
@@ -271,7 +280,11 @@ out_sync:
 				logger.Info("success to locate, start check")
 				timer.Stop()
 				break out_locate
-			case <-sm.locateErrCh:
+			case ef := <-sm.locateErrCh:
+				// no hash sent from locate peer, no need to sync
+				if ef == errFlagNoHash {
+					return
+				}
 				logger.Infof("SyncManager locate wrong, restart sync")
 				continue out_sync
 			case <-timer.C:
@@ -503,13 +516,13 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	if err := sh.Unmarshal(msg.Body()); err != nil {
 		logger.Infof("onLocateResponse unmarshal msg.Body[%+v] error: %s",
 			msg.Body(), err)
-		sm.locateErrCh <- struct{}{}
+		sm.locateErrCh <- errFlagUnmarshal
 		return err
 	}
 	if len(sh.Hashes) == 0 {
 		logger.Infof("onLocateResponse receive no Header from peer[%s], "+
 			"try another peer to sync", msg.From().Pretty())
-		sm.locateErrCh <- struct{}{}
+		sm.locateErrCh <- errFlagNoHash
 		return nil
 	}
 	logger.Infof("onLocateResponse receive %d hashes", len(sh.Hashes))
@@ -645,7 +658,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 			_, _, err := sm.chain.ProcessBlock(b, false)
 			sm.processMtx.Unlock()
 			if err != nil {
-				if err == core.ErrBlockExists {
+				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
 					err = fmt.Errorf("onBlocksResponse ProcessBlock from peer[%s] error: %s",
 						pid.Pretty(), err)
 					logger.Warn(err)
