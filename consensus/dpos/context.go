@@ -241,7 +241,7 @@ type Candidate struct {
 var _ conv.Convertible = (*Candidate)(nil)
 var _ conv.Serializable = (*Candidate)(nil)
 
-// ToProtoMessage converts block header to proto message.
+// ToProtoMessage converts candidate to proto message.
 func (candidate *Candidate) ToProtoMessage() (proto.Message, error) {
 	return &dpospb.Candidate{
 		Addr:  candidate.addr[:],

@@ -230,6 +230,11 @@ func (dpos *Dpos) mintBlock() {
 	}
 }
 
+// SetEternal set block eternal status.
+func (dpos *Dpos) SetEternal() {
+
+}
+
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 
 	txi := queue.Items(i).(*txpool.TxWrap)

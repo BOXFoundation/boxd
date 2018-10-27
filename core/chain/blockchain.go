@@ -56,6 +56,7 @@ type BlockChain struct {
 	db                        storage.Table
 	genesis                   *types.Block
 	tail                      *types.Block
+	eternal                   *types.Block
 	proc                      goprocess.Process
 	LongestChainHeight        int32
 	longestChainTip           *types.Block
