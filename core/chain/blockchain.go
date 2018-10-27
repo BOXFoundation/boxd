@@ -63,6 +63,7 @@ type BlockChain struct {
 	cache                     *lru.Cache
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
+	syncManager               types.SyncManager
 }
 
 // NewBlockChain return a blockchain.
@@ -101,6 +102,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.LongestChainHeight = tail.Height
 
 	return b, nil
+}
+
+// Setup prepare blockchain.
+func (chain *BlockChain) Setup(syncManager types.SyncManager) {
+	chain.syncManager = syncManager
 }
 
 // implement interface service.Server
@@ -175,9 +181,9 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	}
 
 	// The block must not already exist as an orphan.
-	if _, exists := chain.hashToOrphanBlock[*blockHash]; exists {
+	if chain.isInOrphanPool(blockHash) {
 		logger.Warnf("already have block (orphan) %v", blockHash)
-		return false, false, core.ErrBlockExists
+		return false, false, core.ErrOrphanBlockExists
 	}
 
 	ok, err := chain.consensus.VerifySign(block)
@@ -848,4 +854,10 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 		idx++
 	}
 	return blocks, nil
+}
+
+// isInOrphanPool checks if block already exists in orphan pool
+func (chain *BlockChain) isInOrphanPool(blockHash *crypto.HashType) bool {
+	_, exists := chain.hashToOrphanBlock[*blockHash]
+	return exists
 }

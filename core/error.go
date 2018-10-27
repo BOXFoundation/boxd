@@ -25,6 +25,7 @@ var (
 	ErrWrongBlockHeight      = errors.New("Wrong block height")
 	ErrInvalidBlockSignature = errors.New("Invalid block signature")
 	ErrBlockIsNil            = errors.New("Block is nil")
+	ErrOrphanBlockExists     = errors.New("Orphan block already exists")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")

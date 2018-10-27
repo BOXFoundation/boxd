@@ -180,9 +180,7 @@ func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 		prevScriptPubKey := script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
 		scriptSig := script.NewScriptFromBytes(txIn.ScriptSig)
 
-		// concatenate unlocking & locking scripts
-		catScript := script.NewScript().AddScript(scriptSig).AddOpCode(script.OPCODESEPARATOR).AddScript(prevScriptPubKey)
-		if err := catScript.Evaluate(tx, txInIdx); err != nil {
+		if err := script.Validate(scriptSig, prevScriptPubKey, tx, txInIdx); err != nil {
 			return err
 		}
 	}

@@ -42,6 +42,6 @@ func TestTxConvertWithProtoMessage(t *testing.T) {
 	ensure.Nil(t, err)
 	err = tx1.FromProtoMessage(msg)
 	ensure.Nil(t, err)
-	tx.Hash, _ = calcProtoMsgDoubleHash(msg)
+	tx.hash, _ = calcProtoMsgDoubleHash(msg)
 	ensure.DeepEqual(t, tx, tx1)
 }

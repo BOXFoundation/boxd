@@ -17,3 +17,9 @@ type Consensus interface {
 	StopMint()
 	RecoverMint()
 }
+
+// SyncManager define sync manager interface
+type SyncManager interface {
+	StartSync()
+	Run()
+}

@@ -192,10 +192,10 @@ func makeScriptNum(v []byte, requireMinimal bool, scriptNumLen int) (scriptNum, 
 	// Interpreting data requires that it is not larger than
 	// the the passed scriptNumLen value.
 	if len(v) > scriptNumLen {
-		str := fmt.Sprintf("numeric value encoded as %x is %d bytes "+
+		errNumberTooBig := fmt.Errorf("ErrNumberTooBig : numeric value encoded as %x is %d bytes "+
 			"which exceeds the max allowed of %d", v, len(v),
 			scriptNumLen)
-		return 0, scriptError(ErrNumberTooBig, str)
+		return 0, errNumberTooBig
 	}
 
 	// Enforce minimal encoded if requested.

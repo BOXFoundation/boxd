@@ -76,10 +76,8 @@ func createChildTx(parentTx *types.Transaction) *types.Transaction {
 		scriptSig := script.SignatureScript(sig, pubKey.Serialize())
 		txIn.ScriptSig = *scriptSig
 
-		// concatenate unlocking & locking scripts
-		catScript := script.NewScript().AddScript(scriptSig).AddOpCode(script.OPCODESEPARATOR).AddScript(scriptPubKey)
 		// test to ensure
-		if err = catScript.Evaluate(tx, txInIdx); err != nil {
+		if err = script.Validate(scriptSig, scriptPubKey, tx, txInIdx); err != nil {
 			return nil
 		}
 	}
@@ -201,13 +199,18 @@ func TestDoProcessTx(t *testing.T) {
 	for i := range txs {
 		count := 0
 		for j := range txs1 {
-			if txs[i].Tx.Hash.IsEqual(txs1[j].Tx.Hash) {
+			hash1, _ := txs[i].Tx.TxHash()
+			hash2, _ := txs1[j].Tx.TxHash()
+			if hash1.IsEqual(hash2) {
 				break
 			}
 			count++
 		}
+
 		if count == len(txs1) {
-			ensure.DeepEqual(t, txs[i].Tx.Hash, tx6.Hash)
+			hash1, _ := txs[i].Tx.TxHash()
+			hash6, _ := tx6.TxHash()
+			ensure.DeepEqual(t, hash1, hash6)
 			break
 		}
 	}

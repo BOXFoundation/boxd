@@ -142,6 +142,7 @@ func (server *Server) Run() error {
 
 	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
 	server.syncManager = syncManager
+	blockChain.Setup(syncManager)
 
 	peer.Run()
 	blockChain.Run()
