@@ -14,7 +14,7 @@ import (
 
 // Transaction defines a transaction.
 type Transaction struct {
-	Hash     *crypto.HashType
+	hash     *crypto.HashType
 	Version  int32
 	Vin      []*TxIn
 	Vout     []*corepb.TxOut
@@ -133,8 +133,8 @@ func (op *OutPoint) Unmarshal(data []byte) error {
 
 // TxHash returns tx hash; return cached hash if it exists
 func (tx *Transaction) TxHash() (*crypto.HashType, error) {
-	if tx.Hash != nil {
-		return tx.Hash, nil
+	if tx.hash != nil {
+		return tx.hash, nil
 	}
 
 	hash, err := tx.CalcTxHash()
@@ -143,7 +143,7 @@ func (tx *Transaction) TxHash() (*crypto.HashType, error) {
 	}
 
 	// cache it
-	tx.Hash = hash
+	tx.hash = hash
 	return hash, nil
 }
 
@@ -192,7 +192,7 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 			}
 
 			// fill in hash
-			tx.Hash, _ = calcProtoMsgDoubleHash(message)
+			tx.hash, _ = calcProtoMsgDoubleHash(message)
 			tx.Version = message.Version
 			tx.Vin = vins
 			tx.Vout = message.Vout

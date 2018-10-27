@@ -199,13 +199,18 @@ func TestDoProcessTx(t *testing.T) {
 	for i := range txs {
 		count := 0
 		for j := range txs1 {
-			if txs[i].Tx.Hash.IsEqual(txs1[j].Tx.Hash) {
+			hash1, _ := txs[i].Tx.TxHash()
+			hash2, _ := txs1[j].Tx.TxHash()
+			if hash1.IsEqual(hash2) {
 				break
 			}
 			count++
 		}
+
 		if count == len(txs1) {
-			ensure.DeepEqual(t, txs[i].Tx.Hash, tx6.Hash)
+			hash1, _ := txs[i].Tx.TxHash()
+			hash6, _ := tx6.TxHash()
+			ensure.DeepEqual(t, hash1, hash6)
 			break
 		}
 	}
