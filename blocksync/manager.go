@@ -432,15 +432,16 @@ func (sm *SyncManager) checkHashes() error {
 }
 
 func (sm *SyncManager) fetchAllBlocks(hashes []*crypto.HashType) error {
-	for i := uint32(0); i < uint32(len(hashes)); i += syncBlockChunkSize {
+	total := uint32(len(hashes))
+	for i := uint32(0); i < total; i += syncBlockChunkSize {
 		var length uint32
-		if i+syncBlockChunkSize <= uint32(len(hashes)) {
+		if i+syncBlockChunkSize <= total {
 			length = syncBlockChunkSize
 		} else {
-			length = uint32(len(hashes)) - i
+			length = total - i
 		}
 		idx := i / syncBlockChunkSize
-		fbh := newFetchBlockHeaders(uint32(idx), hashes[i], length)
+		fbh := newFetchBlockHeaders(idx, hashes[i], length)
 		pid, err := sm.fetchRemoteBlocksWithRetry(fbh, retryTimes, retryInterval)
 		if err != nil {
 			panic(fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry times(%d)",
