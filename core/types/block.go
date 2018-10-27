@@ -26,7 +26,7 @@ type Block struct {
 	Header *BlockHeader
 	Txs    []*Transaction
 
-	Height int32
+	Height uint32
 }
 
 var _ conv.Convertible = (*Block)(nil)

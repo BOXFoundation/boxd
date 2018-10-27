@@ -23,11 +23,11 @@ import (
 var (
 	proc        = goprocess.WithSignals(os.Interrupt)
 	txpool      = NewTransactionPool(proc, p2p.NewDummyPeer(), nil)
-	chainHeight = int32(0)
+	chainHeight = uint32(0)
 	utxoSet     = chain.NewUtxoSet()
 
 	txOutIdx = uint32(0)
-	value    = int64(1)
+	value    = uint64(1)
 
 	privKey, pubKey, _ = crypto.NewKeyPair()
 	addr, _            = types.NewAddressFromPubKey(pubKey)

@@ -34,7 +34,7 @@ func TestOutPointConvertWithProtoMessage(t *testing.T) {
 
 func TestTxConvertWithProtoMessage(t *testing.T) {
 	var prevOutPoint = NewOutPoint(crypto.HashType{0x0012})
-	var value int64 = 111222
+	var value uint64 = 111222
 	var lockTime int64 = 12345678900000000
 	tx := NewTransaction(*prevOutPoint, value, lockTime)
 	tx1 := &Transaction{}

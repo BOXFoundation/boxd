@@ -6,14 +6,13 @@ package script
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"strings"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
-
-	"encoding/binary"
 )
 
 var logger = log.NewLogger("script") // logger
@@ -29,7 +28,7 @@ func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
 }
 
 // StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
-func StandardCoinbaseSignatureScript(height int32) *Script {
+func StandardCoinbaseSignatureScript(height uint32) *Script {
 	return NewScript().AddOperand(scriptNum(height).Bytes()).AddOperand(scriptNum(0).Bytes())
 }
 

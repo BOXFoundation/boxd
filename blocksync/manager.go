@@ -418,7 +418,7 @@ func (sm *SyncManager) checkHashes() error {
 		peers = append(peers, pid)
 	}
 	// send msg to checking peers
-	sm.checkHash = newCheckHash(sm.fetchHashes[0], len(sm.fetchHashes))
+	sm.checkHash = newCheckHash(sm.fetchHashes[0], uint32(len(sm.fetchHashes)))
 	for _, pid := range peers {
 		sm.stalePeers[pid] = checkedPeerStatus
 		logger.Infof("send message[0x%X] body[%+v] to peer %s",
@@ -432,15 +432,16 @@ func (sm *SyncManager) checkHashes() error {
 }
 
 func (sm *SyncManager) fetchAllBlocks(hashes []*crypto.HashType) error {
-	for i := 0; i < len(hashes); i += syncBlockChunkSize {
-		var length int
-		if i+syncBlockChunkSize <= len(hashes) {
+	total := uint32(len(hashes))
+	for i := uint32(0); i < total; i += syncBlockChunkSize {
+		var length uint32
+		if i+syncBlockChunkSize <= total {
 			length = syncBlockChunkSize
 		} else {
-			length = len(hashes) - i
+			length = total - i
 		}
 		idx := i / syncBlockChunkSize
-		fbh := newFetchBlockHeaders(int32(idx), hashes[i], length)
+		fbh := newFetchBlockHeaders(idx, hashes[i], length)
 		pid, err := sm.fetchRemoteBlocksWithRetry(fbh, retryTimes, retryInterval)
 		if err != nil {
 			panic(fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry times(%d)",
@@ -702,22 +703,22 @@ func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 	return hashes, nil
 }
 
-func heightLocator(height int32) []int32 {
-	var h int32
-	heights := make([]int32, 0)
-	if height < 0 {
+func heightLocator(height uint32) []uint32 {
+	var h uint32
+	heights := make([]uint32, 0)
+	if height == 0 {
 		return heights
 	}
 	// get sequential portion
-	for i := int32(0); i < locatorSeqPartLen; i++ {
+	for i := uint32(0); i < locatorSeqPartLen; i++ {
 		h = height - i
-		if h < 0 {
+		heights = append(heights, h)
+		if h == 0 {
 			return heights
 		}
-		heights = append(heights, h)
 	}
 	// get skip portion
-	for step := int32(1); h > step+1; step = step * 2 {
+	for step := uint32(1); h > step+1; step = step * 2 {
 		h -= step + 1
 		heights = append(heights, h)
 	}

@@ -19,7 +19,7 @@ type ChainReader interface {
 	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
 
 	//interface to reader block status
-	GetBlockHeight() int32
-	GetBlockHash(int32) (*crypto.HashType, error)
+	GetBlockHeight() uint32
+	GetBlockHash(uint32) (*crypto.HashType, error)
 	LoadBlockByHash(crypto.HashType) (*types.Block, error)
 }
