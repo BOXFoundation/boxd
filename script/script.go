@@ -6,14 +6,13 @@ package script
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/btcsuite/btcd/txscript"
-
-	"encoding/binary"
-	"errors"
 )
 
 const (
@@ -128,7 +127,7 @@ func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
 
 // StandardCoinbaseScript returns a standard script suitable for use as the
 // signature script of the coinbase transaction of a new block.
-func StandardCoinbaseScript(height int32) ([]byte, error) {
+func StandardCoinbaseScript(height uint32) ([]byte, error) {
 	return txscript.NewScriptBuilder().AddInt64(int64(height)).AddInt64(int64(0)).Script()
 }
 

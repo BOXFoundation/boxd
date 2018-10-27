@@ -59,11 +59,11 @@ service ContorlCommand {
   message GetBlockHeightResponse {
     int32 code = 1;
     string message = 2;
-    int32 height = 3;
+    uint32 height = 3;
   }
 
   message GetBlockHashRequest {
-    int32 height = 1;
+    uint32 height = 1;
   }
 
   message GetBlockHashResponse {

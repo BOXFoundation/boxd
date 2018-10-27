@@ -8,10 +8,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/spf13/viper"
-
 	rpc "github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // getblockhashCmd represents the getblockhash command
@@ -24,12 +23,12 @@ var getblockhashCmd = &cobra.Command{
 			fmt.Println("Parameter block height required")
 			return
 		}
-		height64, err := strconv.ParseInt(args[0], 10, 32)
+		height64, err := strconv.ParseUint(args[0], 10, 32)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		height := int32(height64)
+		height := uint32(height64)
 		hash, err := rpc.GetBlockHash(viper.GetViper(), height)
 		if err != nil {
 			fmt.Println(err)

@@ -80,7 +80,7 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 
 	utxoWrapNew := types.UtxoWrap{
 		Output:      txOut1,
-		BlockHeight: int32(20000),
+		BlockHeight: uint32(20000),
 		IsCoinBase:  false,
 		IsSpent:     false,
 		IsModified:  true,

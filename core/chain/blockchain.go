@@ -24,10 +24,6 @@ import (
 const (
 	BlockMsgChBufferSize = 1024
 
-	Tail = "tail_block"
-
-	BlockTableName = "core_block"
-
 	MaxTimeOffsetSeconds = 2 * 60 * 60
 	MaxBlockSize         = 32000000
 	CoinbaseLib          = 100
@@ -54,11 +50,36 @@ type BlockChain struct {
 	genesis                   *types.Block
 	tail                      *types.Block
 	proc                      goprocess.Process
-	LongestChainHeight        int32
+	LongestChainHeight        uint32
 	longestChainTip           *types.Block
 	cache                     *lru.Cache
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
+}
+
+// MarshalTxIndex writes Tx height and index to bytes
+func MarshalTxIndex(height, index uint32) (data []byte, err error) {
+	buf := bytes.NewBuffer(make([]byte, 8))
+	if err := util.WriteUint32(buf, height); err != nil {
+		return nil, err
+	}
+	if err := util.WriteUint32(buf, index); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalTxIndex return tx index from bytes
+func UnmarshalTxIndex(data []byte) (height uint32, index uint32, err error) {
+	buf := bytes.NewBuffer(data)
+	if height, err = util.ReadUint32(buf); err != nil {
+		return
+	}
+	if index, err = util.ReadUint32(buf); err != nil {
+		return
+	}
+	return
 }
 
 // NewBlockChain return a blockchain.
@@ -325,7 +346,7 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 	return target
 }
 
-func (chain *BlockChain) ancestor(block *types.Block, height int32) *types.Block {
+func (chain *BlockChain) ancestor(block *types.Block, height uint32) *types.Block {
 	if height < 0 || height > block.Height {
 		return nil
 	}
@@ -355,7 +376,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
-	var totalFees int64
+	var totalFees uint64
 	for _, tx := range transactions {
 		txFee, err := ValidateTxInputs(utxoSet, tx, block.Height)
 		if err != nil {
@@ -376,7 +397,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	}
 
 	// Ensure coinbase does not output more than block reward.
-	var totalCoinbaseOutput int64
+	var totalCoinbaseOutput uint64
 	for _, txOut := range transactions[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
@@ -520,7 +541,7 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	return chain.db.Put([]byte(Tail), data)
+	return chain.db.Put(TailKey, data)
 }
 
 // TailBlock return chain tail block.
@@ -551,12 +572,12 @@ func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoi
 }
 
 // GetBlockHeight returns current height of main chain
-func (chain *BlockChain) GetBlockHeight() int32 {
+func (chain *BlockChain) GetBlockHeight() uint32 {
 	return chain.LongestChainHeight
 }
 
 // GetBlockHash finds the block in target height of main chain and returns it's hash
-func (chain *BlockChain) GetBlockHash(blockHeight int32) (*crypto.HashType, error) {
+func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, error) {
 	block, err := chain.LoadBlockByHeight(blockHeight)
 	if err != nil {
 		return nil, err
@@ -588,8 +609,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 }
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
-
-	if ok, _ := chain.db.Has(genesisHash[:]); ok {
+	if ok, _ := chain.db.Has(genesisBlockKey); ok {
 		genesisBlockFromDb, err := chain.LoadBlockByHash(genesisHash)
 		if err != nil {
 			return nil, err
@@ -601,7 +621,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put(genesisHash[:], genesisBin)
+	chain.db.Put(genesisBlockKey, genesisBin)
 
 	return &genesisBlock, nil
 
@@ -612,8 +632,8 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if chain.tail != nil {
 		return chain.tail, nil
 	}
-	if ok, _ := chain.db.Has([]byte(Tail)); ok {
-		tailBin, err := chain.db.Get([]byte(Tail))
+	if ok, _ := chain.db.Has(TailKey); ok {
+		tailBin, err := chain.db.Get(TailKey)
 		if err != nil {
 			return nil, err
 		}
@@ -631,7 +651,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put([]byte(Tail), tailBin)
+	chain.db.Put(TailKey, tailBin)
 
 	return &genesisBlock, nil
 }
@@ -639,7 +659,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 // LoadBlockByHash load block by hash from db.
 func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, error) {
 
-	blockBin, err := chain.db.Get(hash[:])
+	blockBin, err := chain.db.Get(BlockKey(&hash))
 	if err != nil {
 		return nil, err
 	}
@@ -653,9 +673,8 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 }
 
 // LoadBlockByHeight load block by height from db.
-func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
-
-	bytes, err := chain.db.Get(util.FromInt32(height))
+func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) {
+	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {
 		return nil, err
 	}
@@ -671,37 +690,37 @@ func (chain *BlockChain) LoadBlockByHeight(height int32) (*types.Block, error) {
 
 // StoreBlockToDb store block to db.
 func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
+	batch := chain.db.NewBatch()
+	defer batch.Close()
+
+	hash := block.BlockHash()
+	batch.Put(BlockHashKey(block.Height), hash[:])
+
 	data, err := block.Marshal()
 	if err != nil {
 		return err
 	}
-	hash := block.BlockHash()
-	if err := chain.db.Put(util.FromInt32(block.Height), hash[:]); err != nil {
-		return err
-	}
-	return chain.db.Put((*hash)[:], data)
+	batch.Put(BlockKey(hash), data)
+
+	return batch.Write()
 }
 
 // LoadTxByHash load transaction with hash.
 func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
+	txIndex, err := chain.db.Get(TxIndexKey(&hash))
+	if err != nil {
+		return nil, err
+	}
+	height, idx, err := UnmarshalTxIndex(txIndex)
+	if err != nil {
+		return nil, err
+	}
 
-	txIndex, err := chain.db.Get(hash[:])
-	if err != nil {
-		return nil, err
-	}
-	buf := bytes.NewBuffer(txIndex)
-	height, err := util.ReadInt32(buf)
-	if err != nil {
-		return nil, err
-	}
-	idx, err := util.ReadInt32(buf)
-	if err != nil {
-		return nil, err
-	}
 	block, err := chain.LoadBlockByHeight(height)
 	if err != nil {
 		return nil, err
 	}
+
 	if block != nil {
 		tx := block.Txs[idx]
 		target, err := tx.TxHash()
@@ -712,28 +731,25 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 			return tx, nil
 		}
 	}
+
 	return nil, errors.New("Failed to load tx with hash")
 }
 
 // WirteTxIndex build tx index in block
 func (chain *BlockChain) WirteTxIndex(block *types.Block) error {
-
-	height := block.Height
 	batch := chain.db.NewBatch()
 	defer batch.Close()
+
 	for idx, v := range block.Txs {
-		var buf bytes.Buffer
-		if err := util.WriteInt32(&buf, height); err != nil {
-			return err
-		}
-		if err := util.WriteInt32(&buf, int32(idx)); err != nil {
-			return err
-		}
-		hash, err := v.TxHash()
+		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
 		if err != nil {
 			return err
 		}
-		batch.Put(hash[:], buf.Bytes())
+		txHash, err := v.TxHash()
+		if err != nil {
+			return err
+		}
+		batch.Put(TxIndexKey(txHash), tiBuf)
 	}
 
 	return batch.Write()
@@ -762,7 +778,7 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 				return result, nil
 			}
 
-			var idx int32
+			var idx uint32
 			for idx < MaxBlockHeaderCountInSyncTask {
 				block, err := chain.LoadBlockByHeight(currentHeight + idx)
 				if err != nil {
@@ -779,7 +795,7 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 }
 
 // CalcRootHashForNBlocks return root hash for N blocks.
-func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32) (*crypto.HashType, error) {
+func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num uint32) (*crypto.HashType, error) {
 
 	block, err := chain.LoadBlockByHash(hash)
 	if err != nil {
@@ -787,11 +803,11 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32)
 	}
 	tailHeight := chain.tail.Height
 	currentHeight := block.Height + 1
-	if tailHeight-currentHeight < num {
+	if tailHeight < currentHeight+num {
 		return nil, errors.New("Invalid params num")
 	}
 
-	var idx int32
+	var idx uint32
 	hashes := make([]*crypto.HashType, num)
 	for idx < num {
 		block, err := chain.LoadBlockByHeight(currentHeight + idx)
@@ -807,7 +823,7 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num int32)
 }
 
 // FetchNBlockAfterSpecificHash get N block after specific hash.
-func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num int32) ([]*types.Block, error) {
+func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num uint32) ([]*types.Block, error) {
 	block, err := chain.LoadBlockByHash(hash)
 	if err != nil {
 		return nil, err
@@ -817,7 +833,7 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	if tailHeight-currentHeight < num {
 		return nil, errors.New("Invalid params num")
 	}
-	var idx int32
+	var idx uint32
 	blocks := make([]*types.Block, num)
 	for idx < num {
 		block, err := chain.LoadBlockByHeight(currentHeight + idx)

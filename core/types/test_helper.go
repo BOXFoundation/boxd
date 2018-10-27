@@ -22,7 +22,7 @@ func NewBlockHeader(prevBlockHash crypto.HashType, txsRoot crypto.HashType, time
 }
 
 // NewBlocks generates a new Block
-func NewBlocks(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp int64, prevOutPoint OutPoint, value int64, lockTime int64, height int32) *Block {
+func NewBlocks(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp int64, prevOutPoint OutPoint, value uint64, lockTime int64, height uint32) *Block {
 	return &Block{
 		Header: NewBlockHeader(prevBlockHash, txsRoot, timestamp),
 		Txs:    []*Transaction{NewTransaction(prevOutPoint, value, lockTime)},
@@ -31,7 +31,7 @@ func NewBlocks(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp
 }
 
 // NewTxOut generates a new TxOut
-func NewTxOut(value int64) *corepb.TxOut {
+func NewTxOut(value uint64) *corepb.TxOut {
 	return &corepb.TxOut{
 		Value:        value,
 		ScriptPubKey: []byte{0},
@@ -56,7 +56,7 @@ func NewOutPoint(hash crypto.HashType) *OutPoint {
 }
 
 // NewTransaction generates a new Transaction
-func NewTransaction(prevOutPoint OutPoint, value int64, lockTime int64) *Transaction {
+func NewTransaction(prevOutPoint OutPoint, value uint64, lockTime int64) *Transaction {
 	return &Transaction{
 		Version:  0,
 		Vin:      []*TxIn{NewTxIn(prevOutPoint)},
