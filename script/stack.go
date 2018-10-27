@@ -4,8 +4,6 @@
 
 package script
 
-import "errors"
-
 // Operand represents stack operand when interpretting script
 type Operand []byte
 
@@ -54,14 +52,14 @@ func (s *Stack) topN(n int) Operand {
 // validateTop succeeds if top stack item is true
 func (s *Stack) validateTop() error {
 	if s.empty() {
-		return errors.New("Final stack empty")
+		return ErrFinalStackEmpty
 	}
 	snTop, err := newScriptNum(s.topN(1))
 	if err != nil {
 		return err
 	}
 	if snTop == scriptNumZero {
-		return errors.New("Final top stack element false")
+		return ErrFinalTopStackEleFalse
 	}
 	return nil
 }
