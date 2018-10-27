@@ -60,6 +60,7 @@ type BlockChain struct {
 	cache                     *lru.Cache
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
+	syncManager               types.SyncManager
 }
 
 // NewBlockChain return a blockchain.
@@ -98,6 +99,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.LongestChainHeight = tail.Height
 
 	return b, nil
+}
+
+// Setup prepare blockchain.
+func (chain *BlockChain) Setup(syncManager types.SyncManager) {
+	chain.syncManager = syncManager
 }
 
 // implement interface service.Server
