@@ -71,9 +71,9 @@ func checkMinimalDataEncoding(v []byte) error {
 		// is +-255, which encode to 0xff00 and 0xff80 respectively.
 		// (big-endian).
 		if len(v) == 1 || v[len(v)-2]&0x80 == 0 {
-			str := fmt.Sprintf("numeric value encoded as %x is "+
+			errMinimalData := fmt.Errorf("numeric value encoded as %x is "+
 				"not minimally encoded", v)
-			return scriptError(ErrMinimalData, str)
+			return errMinimalData
 		}
 	}
 
