@@ -151,7 +151,7 @@ func TestBlockProcessing(t *testing.T) {
 	verifyProcessBlock(t, b10, false, true, nil, 5, b5B)
 
 	// add b7: already exists
-	verifyProcessBlock(t, b7, false, false, core.ErrBlockExists, 5, b5B)
+	verifyProcessBlock(t, b7, false, false, core.ErrOrphanBlockExists, 5, b5B)
 
 	// add b6:
 	// b0 -> b1 -> b2  -> b3  ->  b4

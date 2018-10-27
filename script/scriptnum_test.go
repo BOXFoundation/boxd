@@ -95,8 +95,6 @@ func TestMakeScriptNum(t *testing.T) {
 
 	// Errors used in the tests below defined here for convenience and to
 	// keep the horizontal test size shorter.
-	errNumTooBig := scriptError(ErrNumberTooBig, "")
-	errMinimalData := scriptError(ErrMinimalData, "")
 
 	tests := []struct {
 		serialized      []byte
@@ -106,7 +104,7 @@ func TestMakeScriptNum(t *testing.T) {
 		err             error
 	}{
 		// Minimal encoding must reject negative 0.
-		{hexToBytes("80"), 0, defaultScriptNumLen, true, errMinimalData},
+		{hexToBytes("80"), 0, defaultScriptNumLen, true, ErrMinimalData},
 
 		// Minimally encoded valid values with minimal encoding flag.
 		// Should not error and return expected integral number.
@@ -147,35 +145,35 @@ func TestMakeScriptNum(t *testing.T) {
 		// Minimally encoded values that are out of range for data that
 		// is interpreted as script numbers with the minimal encoding
 		// flag set.  Should error and return 0.
-		{hexToBytes("0000008000"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("0000008080"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("0000009000"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("0000009080"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffff00"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffff80"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("0000000001"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("0000000081"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffffffff00"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffffffff80"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffffffffff00"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffffffffff80"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffffffffff7f"), 0, defaultScriptNumLen, true, errNumTooBig},
-		{hexToBytes("ffffffffffffffff"), 0, defaultScriptNumLen, true, errNumTooBig},
+		{hexToBytes("0000008000"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("0000008080"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("0000009000"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("0000009080"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffff00"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffff80"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("0000000001"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("0000000081"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffffffff00"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffffffff80"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffffffffff00"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffffffffff80"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffffffffff7f"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
+		{hexToBytes("ffffffffffffffff"), 0, defaultScriptNumLen, true, ErrNumberTooBig},
 
 		// Non-minimally encoded, but otherwise valid values with
 		// minimal encoding flag.  Should error and return 0.
-		{hexToBytes("00"), 0, defaultScriptNumLen, true, errMinimalData},       // 0
-		{hexToBytes("0100"), 0, defaultScriptNumLen, true, errMinimalData},     // 1
-		{hexToBytes("7f00"), 0, defaultScriptNumLen, true, errMinimalData},     // 127
-		{hexToBytes("800000"), 0, defaultScriptNumLen, true, errMinimalData},   // 128
-		{hexToBytes("810000"), 0, defaultScriptNumLen, true, errMinimalData},   // 129
-		{hexToBytes("000100"), 0, defaultScriptNumLen, true, errMinimalData},   // 256
-		{hexToBytes("ff7f00"), 0, defaultScriptNumLen, true, errMinimalData},   // 32767
-		{hexToBytes("00800000"), 0, defaultScriptNumLen, true, errMinimalData}, // 32768
-		{hexToBytes("ffff0000"), 0, defaultScriptNumLen, true, errMinimalData}, // 65535
-		{hexToBytes("00000800"), 0, defaultScriptNumLen, true, errMinimalData}, // 524288
-		{hexToBytes("00007000"), 0, defaultScriptNumLen, true, errMinimalData}, // 7340032
-		{hexToBytes("0009000100"), 0, 5, true, errMinimalData},                 // 16779520
+		{hexToBytes("00"), 0, defaultScriptNumLen, true, ErrMinimalData},       // 0
+		{hexToBytes("0100"), 0, defaultScriptNumLen, true, ErrMinimalData},     // 1
+		{hexToBytes("7f00"), 0, defaultScriptNumLen, true, ErrMinimalData},     // 127
+		{hexToBytes("800000"), 0, defaultScriptNumLen, true, ErrMinimalData},   // 128
+		{hexToBytes("810000"), 0, defaultScriptNumLen, true, ErrMinimalData},   // 129
+		{hexToBytes("000100"), 0, defaultScriptNumLen, true, ErrMinimalData},   // 256
+		{hexToBytes("ff7f00"), 0, defaultScriptNumLen, true, ErrMinimalData},   // 32767
+		{hexToBytes("00800000"), 0, defaultScriptNumLen, true, ErrMinimalData}, // 32768
+		{hexToBytes("ffff0000"), 0, defaultScriptNumLen, true, ErrMinimalData}, // 65535
+		{hexToBytes("00000800"), 0, defaultScriptNumLen, true, ErrMinimalData}, // 524288
+		{hexToBytes("00007000"), 0, defaultScriptNumLen, true, ErrMinimalData}, // 7340032
+		{hexToBytes("0009000100"), 0, 5, true, ErrMinimalData},                 // 16779520
 
 		// Non-minimally encoded, but otherwise valid values without
 		// minimal encoding flag.  Should not error and return expected

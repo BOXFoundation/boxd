@@ -25,4 +25,8 @@ var (
 	// stack.go
 	ErrFinalStackEmpty       = errors.New("Final stack empty")
 	ErrFinalTopStackEleFalse = errors.New("Final top stack element false")
+
+	// scriptnum.go
+	ErrNumberTooBig = errors.New("Number too big error")
+	ErrMinimalData  = errors.New("Minimal data error")
 )
