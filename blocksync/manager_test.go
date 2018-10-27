@@ -16,8 +16,12 @@ func runTestHeightLocator(t *testing.T, got, expect []uint32) {
 }
 
 func TestHeightLocator(t *testing.T) {
-	hh := heightLocator(20)
-	expect := []uint32{20, 19, 18, 17, 16, 15, 13, 10, 5, 0}
+	hh := heightLocator(0)
+	expect := []uint32{0}
+	runTestHeightLocator(t, hh, expect)
+
+	hh = heightLocator(20)
+	expect = []uint32{20, 19, 18, 17, 16, 15, 13, 10, 5, 0}
 	runTestHeightLocator(t, hh, expect)
 
 	hh = heightLocator(3)
