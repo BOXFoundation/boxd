@@ -1,0 +1,43 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package pb;
+
+import "github.com/BOXFoundation/boxd/core/pb/block.proto";
+
+message LocateHeaders {
+    // locate hashes, formally it is as follows:
+    // n, n-1, ... n-k, n-k-2, n-k-5, n-k-10, ... n-k-(2^m+m-1), ... genesis
+    // n is tail height, k is sequence part length, m is distance factor
+    // n-k-(2^m+m-1) is the (k+m)th element
+    // to ensure the closer blocks get to genesis, the sparser the locator becomes
+    repeated bytes hashes = 1;
+}
+
+message SyncHeaders {
+    repeated bytes hashes = 1;
+}
+
+message CheckHash {
+    bytes begin_hash = 1;    // begin hash
+    uint32 length = 2;
+}
+
+message SyncCheckHash {
+    // it is a root hash for headers between start header and end header
+    bytes root_hash = 1;
+}
+
+message FetchBlockHeaders {
+    uint32 idx = 1; 
+    bytes begin_hash = 2;    // begin hash
+    uint32 length = 3;
+}
+
+message SyncBlocks {
+    uint32 idx = 1;
+    repeated corepb.Block blocks = 2;
+}

@@ -10,6 +10,8 @@ import "errors"
 var (
 	//blockchain.go
 	ErrBlockExists        = errors.New("Block already exists")
+	ErrOrphanBlockExists  = errors.New("Orphan block already exists")
+	ErrBlockIsNil         = errors.New("Block is nil")
 	ErrInvalidTime        = errors.New("Invalid time")
 	ErrTimeTooNew         = errors.New("Block time too new")
 	ErrNoTransactions     = errors.New("Block does not contain any transaction")

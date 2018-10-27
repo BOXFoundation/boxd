@@ -4,16 +4,6 @@
 
 package script
 
-// An opcode defines the information related to a txscript opcode.  opfunc, if
-// present, is the function to call to perform the opcode on the script.  The
-// current script is passed in as a slice with the first member being the opcode
-// itself.
-type opcode struct {
-	value  byte
-	name   string
-	length int
-}
-
 // OpCode enum
 type OpCode byte
 
@@ -139,3 +129,227 @@ const (
 	OPCHECKMULTISIG       OpCode = 0xae // 174
 	OPCHECKMULTISIGVERIFY OpCode = 0xaf // 175
 )
+
+// opCodeToName maps op code to name
+func opCodeToName(opCode OpCode) string {
+	switch opCode {
+	// push value
+	case OP0:
+		return "OP_0"
+	case OPPUSHDATA1:
+		return "OP_PUSHDATA1"
+	case OPPUSHDATA2:
+		return "OP_PUSHDATA2"
+	case OPPUSHDATA4:
+		return "OP_PUSHDATA4"
+	case OP1NEGATE:
+		return "-1"
+	case OPRESERVED:
+		return "OP_RESERVED"
+	case OP1:
+		return "OP_1"
+	case OP2:
+		return "OP_2"
+	case OP3:
+		return "OP_3"
+	case OP4:
+		return "OP_4"
+	case OP5:
+		return "OP_5"
+	case OP6:
+		return "OP_6"
+	case OP7:
+		return "OP_7"
+	case OP8:
+		return "OP_8"
+	case OP9:
+		return "OP_9"
+	case OP10:
+		return "OP_10"
+	case OP11:
+		return "OP_11"
+	case OP12:
+		return "OP_12"
+	case OP13:
+		return "OP_13"
+	case OP14:
+		return "OP_14"
+	case OP15:
+		return "OP_15"
+	case OP16:
+		return "OP_16"
+
+		// control
+	case OPNOP:
+		return "OP_NOP"
+	case OPVER:
+		return "OP_VER"
+	case OPIF:
+		return "OP_IF"
+	case OPNOTIF:
+		return "OP_NOTIF"
+	case OPVERIF:
+		return "OP_VERIF"
+	case OPVERNOTIF:
+		return "OP_VERNOTIF"
+	case OPELSE:
+		return "OP_ELSE"
+	case OPENDIF:
+		return "OP_ENDIF"
+	case OPVERIFY:
+		return "OP_VERIFY"
+	case OPRETURN:
+		return "OP_RETURN"
+
+		// stack ops
+	case OPTOALTSTACK:
+		return "OP_TOALTSTACK"
+	case OPFROMALTSTACK:
+		return "OP_FROMALTSTACK"
+	case OP2DROP:
+		return "OP_2DROP"
+	case OP2DUP:
+		return "OP_2DUP"
+	case OP3DUP:
+		return "OP_3DUP"
+	case OP2OVER:
+		return "OP_2OVER"
+	case OP2ROT:
+		return "OP_2ROT"
+	case OP2SWAP:
+		return "OP_2SWAP"
+	case OPIFDUP:
+		return "OP_IFDUP"
+	case OPDEPTH:
+		return "OP_DEPTH"
+	case OPDROP:
+		return "OP_DROP"
+	case OPDUP:
+		return "OP_DUP"
+	case OPNIP:
+		return "OP_NIP"
+	case OPOVER:
+		return "OP_OVER"
+	case OPPICK:
+		return "OP_PICK"
+	case OPROLL:
+		return "OP_ROLL"
+	case OPROT:
+		return "OP_ROT"
+	case OPSWAP:
+		return "OP_SWAP"
+	case OPTUCK:
+		return "OP_TUCK"
+
+		// splice ops
+	case OPCAT:
+		return "OP_CAT"
+	case OPSUBSTR:
+		return "OP_SUBSTR"
+	case OPLEFT:
+		return "OP_LEFT"
+	case OPRIGHT:
+		return "OP_RIGHT"
+	case OPSIZE:
+		return "OP_SIZE"
+
+		// bit logic
+	case OPINVERT:
+		return "OP_INVERT"
+	case OPAND:
+		return "OP_AND"
+	case OPOR:
+		return "OP_OR"
+	case OPXOR:
+		return "OP_XOR"
+	case OPEQUAL:
+		return "OP_EQUAL"
+	case OPEQUALVERIFY:
+		return "OP_EQUALVERIFY"
+	case OPRESERVED1:
+		return "OP_RESERVED1"
+	case OPRESERVED2:
+		return "OP_RESERVED2"
+
+		// numeric
+	case OP1ADD:
+		return "OP_1ADD"
+	case OP1SUB:
+		return "OP_1SUB"
+	case OP2MUL:
+		return "OP_2MUL"
+	case OP2DIV:
+		return "OP_2DIV"
+	case OPNEGATE:
+		return "OP_NEGATE"
+	case OPABS:
+		return "OP_ABS"
+	case OPNOT:
+		return "OP_NOT"
+	case OP0NOTEQUAL:
+		return "OP_0NOTEQUAL"
+	case OPADD:
+		return "OP_ADD"
+	case OPSUB:
+		return "OP_SUB"
+	case OPMUL:
+		return "OP_MUL"
+	case OPDIV:
+		return "OP_DIV"
+	case OPMOD:
+		return "OP_MOD"
+	case OPLSHIFT:
+		return "OP_LSHIFT"
+	case OPRSHIFT:
+		return "OP_RSHIFT"
+	case OPBOOLAND:
+		return "OP_BOOLAND"
+	case OPBOOLOR:
+		return "OP_BOOLOR"
+	case OPNUMEQUAL:
+		return "OP_NUMEQUAL"
+	case OPNUMEQUALVERIFY:
+		return "OP_NUMEQUALVERIFY"
+	case OPNUMNOTEQUAL:
+		return "OP_NUMNOTEQUAL"
+	case OPLESSTHAN:
+		return "OP_LESSTHAN"
+	case OPGREATERTHAN:
+		return "OP_GREATERTHAN"
+	case OPLESSTHANOREQUAL:
+		return "OP_LESSTHANOREQUAL"
+	case OPGREATERTHANOREQUAL:
+		return "OP_GREATERTHANOREQUAL"
+	case OPMIN:
+		return "OP_MIN"
+	case OPMAX:
+		return "OP_MAX"
+	case OPWITHIN:
+		return "OP_WITHIN"
+
+		// crypto
+	case OPRIPEMD160:
+		return "OP_RIPEMD160"
+	case OPSHA1:
+		return "OP_SHA1"
+	case OPSHA256:
+		return "OP_SHA256"
+	case OPHASH160:
+		return "OP_HASH160"
+	case OPHASH256:
+		return "OP_HASH256"
+	case OPCODESEPARATOR:
+		return "OP_CODESEPARATOR"
+	case OPCHECKSIG:
+		return "OP_CHECKSIG"
+	case OPCHECKSIGVERIFY:
+		return "OP_CHECKSIGVERIFY"
+	case OPCHECKMULTISIG:
+		return "OP_CHECKMULTISIG"
+	case OPCHECKMULTISIGVERIFY:
+		return "OP_CHECKMULTISIGVERIFY"
+
+	default:
+		return "OP_UNKNOWN"
+	}
+}

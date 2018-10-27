@@ -25,6 +25,13 @@ var (
 	blockChain      = genNewChain()
 )
 
+// dummySyncManager only is used to test BlockChain
+type dummySyncManager struct{}
+
+func (dm *dummySyncManager) StartSync() {}
+
+func (dm *dummySyncManager) Run() {}
+
 // Test if appending a slice while looping over it using index works.
 // Just to make sure compiler is not optimizing len() condition away.
 func TestAppendInLoop(t *testing.T) {
@@ -54,6 +61,8 @@ func genNewChain() *BlockChain {
 	proc := goprocess.WithSignals(os.Interrupt)
 	db, _ := storage.NewDatabase(proc, dbCfg)
 	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
+	// set sync manager
+	blockChain.Setup(&dummySyncManager{})
 	return blockChain
 }
 
@@ -151,7 +160,7 @@ func TestBlockProcessing(t *testing.T) {
 	verifyProcessBlock(t, b10, false, true, nil, 5, b5B)
 
 	// add b7: already exists
-	verifyProcessBlock(t, b7, false, false, core.ErrBlockExists, 5, b5B)
+	verifyProcessBlock(t, b7, false, false, core.ErrOrphanBlockExists, 5, b5B)
 
 	// add b6:
 	// b0 -> b1 -> b2  -> b3  ->  b4

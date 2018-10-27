@@ -179,7 +179,8 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 
 	emptySet := make(map[types.OutPoint]struct{})
 
-	prevOut := types.OutPoint{Hash: *tx.Hash}
+	hash, _ := tx.TxHash()
+	prevOut := types.OutPoint{Hash: *hash}
 	for idx := range tx.Vout {
 		prevOut.Index = uint32(idx)
 		emptySet[prevOut] = struct{}{}
@@ -206,7 +207,8 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 	emptySet := make(map[types.OutPoint]struct{})
 
 	for index, tx := range block.Txs {
-		txs[*tx.Hash] = index
+		hash, _ := tx.TxHash()
+		txs[*hash] = index
 	}
 
 	for i, tx := range block.Txs[1:] {

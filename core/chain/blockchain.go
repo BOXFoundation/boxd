@@ -7,6 +7,7 @@ package chain
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -32,10 +33,10 @@ const (
 	medianTimeBlocks     = 11
 	sequenceLockTimeMask = 0x0000ffff
 
-	sequenceLockTimeIsSeconds     = 1 << 22
-	sequenceLockTimeGranularity   = 9
-	unminedHeight                 = 0x7fffffff
-	MaxBlockHeaderCountInSyncTask = 1024
+	sequenceLockTimeIsSeconds   = 1 << 22
+	sequenceLockTimeGranularity = 9
+	unminedHeight               = 0x7fffffff
+	MaxBlocksPerSync            = 1024
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -55,6 +56,7 @@ type BlockChain struct {
 	cache                     *lru.Cache
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
+	syncManager               types.SyncManager
 }
 
 // MarshalTxIndex writes Tx height and index to bytes
@@ -118,6 +120,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.LongestChainHeight = tail.Height
 
 	return b, nil
+}
+
+// Setup prepare blockchain.
+func (chain *BlockChain) Setup(syncManager types.SyncManager) {
+	chain.syncManager = syncManager
 }
 
 // implement interface service.Server
@@ -187,9 +194,9 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	}
 
 	// The block must not already exist as an orphan.
-	if _, exists := chain.hashToOrphanBlock[*blockHash]; exists {
+	if chain.isInOrphanPool(blockHash) {
 		logger.Warnf("already have block (orphan) %v", blockHash)
-		return false, false, core.ErrBlockExists
+		return false, false, core.ErrOrphanBlockExists
 	}
 
 	if err := validateBlock(block, util.NewMedianTime()); err != nil {
@@ -201,6 +208,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
+		// trigger sync
+		chain.syncManager.StartSync()
 		return false, true, nil
 	}
 
@@ -227,8 +236,7 @@ func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
 	if chain.cache.Contains(blockHash) {
 		return true
 	}
-	block, err := chain.LoadBlockByHash(blockHash)
-	if err != nil || block == nil {
+	if _, err := chain.LoadBlockByHash(blockHash); err != nil {
 		return false
 	}
 	return true
@@ -240,6 +248,9 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
 	parentBlock := chain.getParentBlock(block)
+	if parentBlock == nil {
+		return false, fmt.Errorf("parent block does not exist")
+	}
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
@@ -364,7 +375,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	// // TODO: needed?
 	// // The coinbase for the Genesis block is not spendable, so just return
 	// // an error now.
-	// if block.BlockHash.IsEqual(genesisHash) {
+	// if block.BlockHash.IsEqual(GenesisHash) {
 	// 	str := "the coinbase for the genesis block is not spendable"
 	// 	return ErrMissingTxOut
 	// }
@@ -610,7 +621,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if ok, _ := chain.db.Has(genesisBlockKey); ok {
-		genesisBlockFromDb, err := chain.LoadBlockByHash(genesisHash)
+		genesisBlockFromDb, err := chain.LoadBlockByHash(GenesisHash)
 		if err != nil {
 			return nil, err
 		}
@@ -663,7 +674,9 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 	if err != nil {
 		return nil, err
 	}
-
+	if blockBin == nil {
+		return nil, core.ErrBlockIsNil
+	}
 	block := new(types.Block)
 	if err := block.Unmarshal(blockBin); err != nil {
 		return nil, err
@@ -674,9 +687,15 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 
 // LoadBlockByHeight load block by height from db.
 func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) {
+	if height == 0 {
+		return chain.genesis, nil
+	}
 	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {
 		return nil, err
+	}
+	if bytes == nil {
+		return nil, core.ErrBlockIsNil
 	}
 	hash := new(crypto.HashType)
 	copy(hash[:], bytes)
@@ -721,15 +740,13 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 		return nil, err
 	}
 
-	if block != nil {
-		tx := block.Txs[idx]
-		target, err := tx.TxHash()
-		if err != nil {
-			return nil, err
-		}
-		if *target == hash {
-			return tx, nil
-		}
+	tx := block.Txs[idx]
+	target, err := tx.TxHash()
+	if err != nil {
+		return nil, err
+	}
+	if *target == hash {
+		return tx, nil
 	}
 
 	return nil, errors.New("Failed to load tx with hash")
@@ -763,33 +780,31 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 		if err != nil {
 			return nil, err
 		}
-		if block != nil {
-			result := []*crypto.HashType{}
-			currentHeight := block.Height + 1
-			if tailHeight-block.Height < MaxBlockHeaderCountInSyncTask {
-				for currentHeight <= tailHeight {
-					block, err := chain.LoadBlockByHeight(currentHeight)
-					if err != nil {
-						return nil, err
-					}
-					result = append(result, block.BlockHash())
-					currentHeight++
-				}
-				return result, nil
-			}
 
-			var idx uint32
-			for idx < MaxBlockHeaderCountInSyncTask {
-				block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		result := []*crypto.HashType{}
+		currentHeight := block.Height + 1
+		if tailHeight-block.Height+1 < MaxBlocksPerSync {
+			for currentHeight <= tailHeight {
+				block, err := chain.LoadBlockByHeight(currentHeight)
 				if err != nil {
 					return nil, err
 				}
 				result = append(result, block.BlockHash())
-				idx++
+				currentHeight++
 			}
 			return result, nil
 		}
 
+		var idx uint32
+		for idx < MaxBlocksPerSync {
+			block, err := chain.LoadBlockByHeight(currentHeight + idx)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, block.BlockHash())
+			idx++
+		}
+		return result, nil
 	}
 	return nil, nil
 }
@@ -801,16 +816,14 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num uint32
 	if err != nil {
 		return nil, err
 	}
-	tailHeight := chain.tail.Height
-	currentHeight := block.Height + 1
-	if tailHeight < currentHeight+num {
-		return nil, errors.New("Invalid params num")
+	if chain.tail.Height-block.Height+1 < num {
+		return nil, fmt.Errorf("Invalid params num[%d] (tailHeight[%d], "+
+			"currentHeight[%d])", num, chain.tail.Height, block.Height)
 	}
-
 	var idx uint32
 	hashes := make([]*crypto.HashType, num)
 	for idx < num {
-		block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		block, err := chain.LoadBlockByHeight(block.Height + idx)
 		if err != nil {
 			return nil, err
 		}
@@ -828,15 +841,14 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	if err != nil {
 		return nil, err
 	}
-	tailHeight := chain.tail.Height
-	currentHeight := block.Height + 1
-	if tailHeight-currentHeight < num {
-		return nil, errors.New("Invalid params num")
+	if num <= 0 || chain.tail.Height-block.Height+1 < num {
+		return nil, fmt.Errorf("Invalid params num[%d], tail.Height[%d],"+
+			" block height[%d]", num, chain.tail.Height, block.Height)
 	}
 	var idx uint32
 	blocks := make([]*types.Block, num)
 	for idx < num {
-		block, err := chain.LoadBlockByHeight(currentHeight + idx)
+		block, err := chain.LoadBlockByHeight(block.Height + idx)
 		if err != nil {
 			return nil, err
 		}
@@ -844,4 +856,10 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 		idx++
 	}
 	return blocks, nil
+}
+
+// isInOrphanPool checks if block already exists in orphan pool
+func (chain *BlockChain) isInOrphanPool(blockHash *crypto.HashType) bool {
+	_, exists := chain.hashToOrphanBlock[*blockHash]
+	return exists
 }
