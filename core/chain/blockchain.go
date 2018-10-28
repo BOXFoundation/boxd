@@ -49,7 +49,6 @@ var _ service.ChainReader = (*BlockChain)(nil)
 type BlockChain struct {
 	notifiee                  p2p.Net
 	newblockMsgCh             chan p2p.Message
-	eternalBlockMsgCh         chan p2p.Message
 	consensus                 types.Consensus
 	db                        storage.Table
 	genesis                   *types.Block
@@ -70,7 +69,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b := &BlockChain{
 		notifiee:                  notifiee,
 		newblockMsgCh:             make(chan p2p.Message, BlockMsgChBufferSize),
-		eternalBlockMsgCh:         make(chan p2p.Message, EternalBlockMsgChBufferSize),
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
@@ -137,7 +135,6 @@ func (chain *BlockChain) Stop() {
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
 	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
-	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.EternalBlockMsg, chain.eternalBlockMsgCh))
 }
 
 func (chain *BlockChain) loop(p goprocess.Process) {
@@ -146,8 +143,6 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
-		case msg := <-chain.eternalBlockMsgCh:
-			chain.handleEternalBlock(msg)
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
@@ -165,10 +160,6 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	chain.ProcessBlock(block, false)
 
 	return nil
-}
-
-func (chain *BlockChain) handleEternalBlock(msg p2p.Message) {
-	chain.consensus.UpdateEternalBlock(msg.From().Pretty(), msg.Body())
 }
 
 // ProcessBlock is used to handle new blocks.

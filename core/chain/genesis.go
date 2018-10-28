@@ -60,6 +60,10 @@ var GenesisPeriod = []map[string]string{
 		"addr":   "b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
 		"peerID": "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
 	},
+	{
+		"addr":   "b1ZF5VWYdHv5RrRzP3SD5huGFyqWNq8rquJ",
+		"peerID": "12D3KooWDyVN22wTKTe77pvqSwBuAquPzPvK2NvxUjeYo8SNe6WA",
+	},
 }
 
 // func initGenesisConsensusContext() crypto.HashType {

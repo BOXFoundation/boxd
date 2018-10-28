@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
-	"github.com/BOXFoundation/boxd/consensus/dpos/pb"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -111,7 +110,11 @@ func (dpos *Dpos) Run() error {
 		logger.Warn("You have no authority to mint block")
 		return ErrNoLegalPowerToMint
 	}
+
 	dpos.proc.Go(dpos.loop)
+	// if mint peer, start bftService.
+	bftService := NewBftService(dpos)
+	bftService.Start()
 
 	return nil
 }
@@ -333,49 +336,6 @@ func (dpos *Dpos) BroadcastEternalMsgToMiners(block *types.Block) error {
 	miners := dpos.context.periodContext.periodPeers
 
 	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg, miners)
-}
-
-// UpdateEternalBlock update eternal block
-func (dpos *Dpos) UpdateEternalBlock(peerID string, msg []byte) {
-
-	eternalBlockMsg := new(dpospb.EternalBlockMsg)
-	if err := eternalBlockMsg.Unmarshal(msg); err != nil {
-		return
-	}
-
-	pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.Hash, eternalBlockMsg.Signature)
-	if ok {
-		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
-		if err != nil {
-			return
-		}
-		addr := *addrPubKeyHash.Hash160()
-		var period *Period
-		for _, v := range dpos.context.periodContext.period {
-			if v.addr == addr && peerID == v.peerID {
-				period = v
-			}
-		}
-		if period == nil {
-			return
-		}
-		// update eternal block
-		hash := new(crypto.HashType)
-		copy(hash[:], eternalBlockMsg.Hash)
-		block, err := dpos.chain.LoadBlockByHash(*hash)
-		if err != nil {
-			return
-		}
-		if block.Height <= dpos.chain.EternalBlock().Height {
-			return
-		}
-		if err := dpos.chain.SetEternal(block); err != nil {
-			return
-		}
-		logger.Info("Eternal block has changed! Hash: %s Height: %d", block.BlockHash(), block.Height)
-	}
-
-	return
 }
 
 // StorePeriodContext store period context
