@@ -37,6 +37,13 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse) {
+        option (google.api.http) = {
+            post: "/v1/tx/getbalance"
+            body: "*"
+        };
+    }
 }
 
 message ListUtxosRequest {
@@ -50,7 +57,7 @@ message GetRawTransactionResponse {
 }
 
 message FundTransactionRequest {
-    bytes script_pub_key = 1;
+    string addr = 1;
     uint64 amount = 2;
 }
 
@@ -63,4 +70,14 @@ message ListUtxosResponse {
     string message = 2;
     uint32 count = 3;
     repeated Utxo utxos = 4;
+}
+
+message GetBalanceRequest {
+    string addr = 1;
+}
+
+message GetBalanceResponse {
+    int32 code = 1;
+    string message = 2;
+    uint64 amount = 3;
 }

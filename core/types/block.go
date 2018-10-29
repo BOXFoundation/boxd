@@ -10,6 +10,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -140,6 +141,30 @@ func (block *Block) calcBlockHash() (*crypto.HashType, error) {
 	return &hash, nil
 }
 
+// GetFilterForTransactionScript returns the bloom filter for all the script address
+// of the transactions in the block, it will use the pre-calculated filter is there
+// are any
+func (block *Block) GetFilterForTransactionScript() bloom.Filter {
+	var vin, vout [][]byte
+	for _, tx := range block.Txs {
+		for _, in := range tx.Vin {
+			vin = append(vin, in.ScriptSig)
+		}
+		for _, out := range tx.Vout {
+			vout = append(vout, out.ScriptPubKey)
+		}
+	}
+	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)
+	for _, script := range vin {
+		filter.Add(script)
+	}
+	for _, script := range vout {
+		filter.Add(script)
+	}
+	return filter
+
+}
+
 // BlockHeader defines information about a block and is used in the
 // block (Block) and headers (MsgHeaders) messages.
 type BlockHeader struct {
@@ -170,6 +195,7 @@ var _ conv.Serializable = (*BlockHeader)(nil)
 // ToProtoMessage converts block header to proto message.
 func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 
+	// todo check error if necessary
 	return &corepb.BlockHeader{
 		Version:        header.Version,
 		PrevBlockHash:  header.PrevBlockHash[:],

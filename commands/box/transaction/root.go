@@ -92,8 +92,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	toAddr := &types.AddressPubKeyHash{}
-	err1 := toAddr.SetString(args[1])
+	toAddr, err1 := types.NewAddress(args[1])
 	amount, err2 := strconv.Atoi(args[2])
 	if err1 != nil || err2 != nil {
 		fmt.Println("Invalid argument format")
@@ -118,7 +117,11 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	tx, err := client.CreateTransaction(viper.GetViper(), account.PubKeyHash(), toAddr.ScriptAddress(), account.PublicKey(), uint64(amount), account)
+	fromAddr, err := types.NewAddress(args[0])
+	if err != nil {
+		fmt.Println("Invalid address: ", args[0])
+	}
+	tx, err := client.CreateTransaction(viper.GetViper(), fromAddr, toAddr, account.PublicKey(), uint64(amount), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {

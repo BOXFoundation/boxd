@@ -51,9 +51,29 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 	return res, nil
 }
 
+func (s *txServer) GetBalance(ctx context.Context, req *rpcpb.GetBalanceRequest) (*rpcpb.GetBalanceResponse, error) {
+	addr, err := types.NewAddress(req.Addr)
+	if err != nil {
+		return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
+	}
+	utxos, err := s.server.GetChainReader().LoadUtxoByAddress(addr)
+	if err != nil {
+		return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
+	}
+	var amount uint64
+	for _, value := range utxos {
+		amount += value.Output.Value
+	}
+	return &rpcpb.GetBalanceResponse{Code: 0, Message: "ok", Amount: amount}, nil
+}
+
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
 	bc := s.server.GetChainReader()
-	utxos, err := bc.LoadUtxoByPubKeyScript(req.ScriptPubKey)
+	addr, err := types.NewAddress(req.Addr)
+	if err != nil {
+		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
+	}
+	utxos, err := bc.LoadUtxoByAddress(addr)
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}

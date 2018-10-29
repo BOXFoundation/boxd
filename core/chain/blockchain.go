@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	lru "github.com/hashicorp/golang-lru"
@@ -39,6 +40,7 @@ const (
 	sequenceLockTimeGranularity = 9
 	unminedHeight               = 0x7fffffff
 	MaxBlocksPerSync            = 1024
+	BlockFilterCapacity         = 100000
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -61,6 +63,7 @@ type BlockChain struct {
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               types.SyncManager
+	filterHolder              BloomFilterHolder
 }
 
 // NewBlockChain return a blockchain.
@@ -72,6 +75,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
+		filterHolder:              NewFilterHolder(),
 	}
 	var err error
 	b.cache, err = lru.New(512)
@@ -105,6 +109,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.tail = tail
 	b.LongestChainHeight = tail.Height
 
+	err = b.loadFilters()
+	if err != nil {
+		logger.Error("Fail to load filters", err)
+	}
+
 	return b, nil
 }
 
@@ -112,6 +121,43 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.SyncManager) {
 	chain.consensus = consensus
 	chain.syncManager = syncManager
+}
+
+func (chain *BlockChain) loadFilters() error {
+	var i uint32 = 1
+	for ; i < chain.LongestChainHeight; i++ {
+		block, err := chain.LoadBlockByHeight(i)
+		if err != nil {
+			logger.Error("Error try to load block at height", i, err)
+			return core.ErrWrongBlockHeight
+		}
+		chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(), i, *block.Hash)
+	}
+	return nil
+}
+
+// GetTransactions search the main chain about transaction relate to give address
+func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transaction, error) {
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
+	logger.Info(len(hashes), " blocks searched as related to address ", addr.String())
+	var txs []*types.Transaction
+	for _, hash := range hashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		for _, tx := range block.Txs {
+			for _, vout := range tx.Vout {
+				if bytes.Equal(vout.ScriptPubKey, payToPubKeyHashScript) {
+					txs = append(txs, tx)
+					break
+				}
+			}
+		}
+	}
+	logger.Info(len(txs), " transactions found")
+	return txs, nil
 }
 
 // implement interface service.Server
@@ -226,6 +272,9 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
 
+	if isMainChain {
+		chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(), block.Height, *block.Hash)
+	}
 	return isMainChain, false, nil
 }
 
@@ -528,6 +577,7 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.revertBlock(detachBlock, utxoSet); err != nil {
 			return err
 		}
+		chain.filterHolder.ResetFilters(detachBlock.Height)
 	}
 
 	// Attach the blocks that form the new chain to the main chain starting at the
@@ -604,6 +654,30 @@ func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoi
 		}
 	}
 	return utxoMap, nil
+}
+
+// LoadUtxoByAddress list all the available utxos owned by an address
+func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
+	utxos := make(map[types.OutPoint]*types.UtxoWrap)
+	utxoSet := NewUtxoSet()
+	for _, hash := range blockHashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		if err = utxoSet.ApplyBlock(block); err != nil {
+			return nil, err
+		}
+	}
+	logger.Debugf("%+v", utxoSet)
+	for key, value := range utxoSet.utxoMap {
+		if bytes.Equal(value.Output.ScriptPubKey, payToPubKeyHashScript) {
+			utxos[key] = value
+		}
+	}
+	return utxos, nil
 }
 
 // GetBlockHeight returns current height of main chain

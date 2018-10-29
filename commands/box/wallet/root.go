@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
+	"strconv"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -112,7 +113,7 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "listtransactions [account] [count] [from]",
+			Use:   "listtransactions [account] [offset] [limit]",
 			Short: "List transactions for an account",
 			Run:   listTransactionsCmdFunc,
 		},
@@ -209,8 +210,37 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func listTransactionsCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("listtransactions called")
-	if len(args) > 0 {
-		client.ListTransactions(viper.GetViper(), args[0])
+	var addr string
+	var offset, limit uint32
+	if len(args) < 1 {
+		fmt.Println("Param address required")
+		return
 	}
+	addr = args[0]
+	if len(args) > 2 {
+		uint64Val, err := strconv.ParseUint(args[2], 10, 32)
+		if err != nil {
+			fmt.Println("Invalid param limit", err)
+			return
+		}
+		offset = uint32(uint64Val)
+	} else {
+		limit = 20
+	}
+	if len(args) > 1 {
+		uint64Val, err := strconv.ParseUint(args[1], 10, 32)
+		if err != nil {
+			fmt.Println("Invalid param offset", err)
+			return
+		}
+		limit = uint32(uint64Val)
+	} else {
+		offset = 0
+	}
+	txs, err := client.ListTransactions(viper.GetViper(), addr, offset, limit)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(util.PrettyPrint(txs))
 }
