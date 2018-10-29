@@ -202,7 +202,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil || utxo.IsSpent {
-			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
 			return 0, core.ErrMissingTxOut
 		}

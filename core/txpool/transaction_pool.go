@@ -179,6 +179,14 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool)
 func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeight uint32,
 	utxoSet *chain.UtxoSet, broadcast bool) error {
 
+	// Outputs of existing txs in main pool can also be spent
+	for _, txWrap := range tx_pool.hashToTx {
+		poolTx := txWrap.Tx
+		for i := 0; i < len(poolTx.Vout); i++ {
+			utxoSet.AddUtxo(poolTx, uint32(i), txWrap.Height)
+		}
+	}
+
 	if err := tx_pool.maybeAcceptTx(tx, currChainHeight, utxoSet, broadcast); err != nil {
 		return err
 	}

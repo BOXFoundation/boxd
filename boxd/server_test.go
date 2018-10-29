@@ -1,3 +1,7 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
 package boxd
 
 import (
@@ -20,7 +24,7 @@ const (
       "name": "stderr",
       "options": null
     },
-    "level": "debug",
+    "level": "warning",
     "hooks": [
       {
         "name": "filewithformatter",
@@ -98,8 +102,8 @@ func genCfg(tc *testCfg) *config.Config {
 	cfg.P2p.Port = tc.p2pPort
 	cfg.RPC.Port = tc.rpcPort
 	cfg.RPC.HTTP.Port = tc.rpcHTTPPort
-	cfg.Dpos.Index = tc.dposIdx
-	cfg.Dpos.Pubkey = tc.dposPubKey
+	// cfg.Dpos.Index = tc.dposIdx
+	// cfg.Dpos.Pubkey = tc.dposPubKey
 	cfg.P2p.Seeds = tc.seeds
 
 	return cfg
@@ -126,13 +130,11 @@ func cleanWs(ws string) error {
 	if err := os.RemoveAll(ws + "/database"); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(ws + "/logs"); err != nil {
-		return err
-	}
-	return nil
+
+	return os.RemoveAll(ws + "/logs")
 }
 
-func TestSyncManager(t *testing.T) {
+func NoTestSyncManager(t *testing.T) {
 	ws1, ws2 := ".devconfig/ws1", ".devconfig/ws2"
 	cleanWs(ws1)
 	cleanWs(ws2)
@@ -176,9 +178,25 @@ func TestSyncManager(t *testing.T) {
 func verifyChainTail(t *testing.T, svr1, svr2 *Server) {
 	tail1, tail2 := svr1.blockChain.TailBlock(), svr2.blockChain.TailBlock()
 	h1, h2 := tail1.Height, tail2.Height
-	hash1, hash2 := tail1.BlockHash(), tail2.BlockHash()
-	if h1 != h2 || *hash1 != *hash2 {
-		t.Fatalf("tail height and hash for server1 is %d, %v, for server2 is %d, %v",
-			h1, hash1, h2, hash2)
+	if h1 == h2 {
+		hash1, hash2 := tail1.BlockHash(), tail2.BlockHash()
+		if *hash1 != *hash2 {
+			t.Fatalf("tail height and hash for server1 is %d, %v, for server2 is %d, %v",
+				h1, hash1, h2, hash2)
+		}
+	} else if h1 > h2 {
+		hash1, hash2 := tail1.Header.PrevBlockHash, tail2.BlockHash()
+		if hash1 != *hash2 {
+			t.Fatalf("tail height for server1 is %d, for server2 is %d, "+
+				"hash for block height %d for server1 is %v, for server2 is %v",
+				h1, h2, h2, hash1, hash2)
+		}
+	} else {
+		hash1, hash2 := tail1.BlockHash(), tail2.Header.PrevBlockHash
+		if *hash1 != hash2 {
+			t.Fatalf("tail height for server1 is %d, for server2 is %d, "+
+				"hash for block height %d for server1 is %v, for server2 is %v",
+				h1, h2, h1, hash1, hash2)
+		}
 	}
 }

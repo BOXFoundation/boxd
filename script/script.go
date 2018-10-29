@@ -399,3 +399,15 @@ func (s *Script) IsPayToScriptHash() bool {
 	script := *s
 	return len(script) == 23 && OpCode(script[0]) == OPHASH160 && script[1] == 20 && OpCode(script[22]) == OPEQUAL
 }
+
+// ExtractAddress returns address within the script
+func (s *Script) ExtractAddress() (types.Address, error) {
+	//TODO: only applies to p2pkh
+	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG
+	_, _, newPc, _ := s.parseNextOp(0)
+	_, _, newPc, _ = s.parseNextOp(newPc)
+	// Third operand is pubKeyHash
+	_, pubKeyHash, _, _ := s.parseNextOp(newPc)
+
+	return types.NewAddressPubKeyHash(pubKeyHash)
+}
