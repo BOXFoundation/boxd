@@ -168,3 +168,10 @@ func TestIsPayToScriptHash(t *testing.T) {
 	p2SHScript = NewScriptFromBytes(p2SHScriptBytes)
 	ensure.False(t, p2SHScript.IsPayToScriptHash())
 }
+
+func TestExtractAddress(t *testing.T) {
+	_, scriptPubKey, _ := genP2PKHScript()
+	addr, _ := scriptPubKey.ExtractAddress()
+	expectedAddr, _ := types.NewAddressFromPubKey(pubKey)
+	ensure.DeepEqual(t, expectedAddr, addr)
+}
