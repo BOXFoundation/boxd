@@ -34,7 +34,7 @@ func (m *ListUtxosRequest) Reset()         { *m = ListUtxosRequest{} }
 func (m *ListUtxosRequest) String() string { return proto.CompactTextString(m) }
 func (*ListUtxosRequest) ProtoMessage()    {}
 func (*ListUtxosRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_c647e5602f6989bf, []int{0}
+	return fileDescriptor_transaction_916dc84d9bd2144c, []int{0}
 }
 func (m *ListUtxosRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -71,7 +71,7 @@ func (m *GetRawTransactionRequest) Reset()         { *m = GetRawTransactionReque
 func (m *GetRawTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*GetRawTransactionRequest) ProtoMessage()    {}
 func (*GetRawTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_c647e5602f6989bf, []int{1}
+	return fileDescriptor_transaction_916dc84d9bd2144c, []int{1}
 }
 func (m *GetRawTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -115,7 +115,7 @@ func (m *GetRawTransactionResponse) Reset()         { *m = GetRawTransactionResp
 func (m *GetRawTransactionResponse) String() string { return proto.CompactTextString(m) }
 func (*GetRawTransactionResponse) ProtoMessage()    {}
 func (*GetRawTransactionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_c647e5602f6989bf, []int{2}
+	return fileDescriptor_transaction_916dc84d9bd2144c, []int{2}
 }
 func (m *GetRawTransactionResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -153,14 +153,14 @@ func (m *GetRawTransactionResponse) GetTx() *pb.Transaction {
 
 type FundTransactionRequest struct {
 	ScriptPubKey []byte `protobuf:"bytes,1,opt,name=script_pub_key,json=scriptPubKey,proto3" json:"script_pub_key,omitempty"`
-	Amount       int64  `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	Amount       uint64 `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
 }
 
 func (m *FundTransactionRequest) Reset()         { *m = FundTransactionRequest{} }
 func (m *FundTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*FundTransactionRequest) ProtoMessage()    {}
 func (*FundTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_c647e5602f6989bf, []int{3}
+	return fileDescriptor_transaction_916dc84d9bd2144c, []int{3}
 }
 func (m *FundTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -196,7 +196,7 @@ func (m *FundTransactionRequest) GetScriptPubKey() []byte {
 	return nil
 }
 
-func (m *FundTransactionRequest) GetAmount() int64 {
+func (m *FundTransactionRequest) GetAmount() uint64 {
 	if m != nil {
 		return m.Amount
 	}
@@ -211,7 +211,7 @@ func (m *SendTransactionRequest) Reset()         { *m = SendTransactionRequest{}
 func (m *SendTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*SendTransactionRequest) ProtoMessage()    {}
 func (*SendTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_c647e5602f6989bf, []int{4}
+	return fileDescriptor_transaction_916dc84d9bd2144c, []int{4}
 }
 func (m *SendTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -258,7 +258,7 @@ func (m *ListUtxosResponse) Reset()         { *m = ListUtxosResponse{} }
 func (m *ListUtxosResponse) String() string { return proto.CompactTextString(m) }
 func (*ListUtxosResponse) ProtoMessage()    {}
 func (*ListUtxosResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_c647e5602f6989bf, []int{5}
+	return fileDescriptor_transaction_916dc84d9bd2144c, []int{5}
 }
 func (m *ListUtxosResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1067,7 +1067,7 @@ func (m *FundTransactionRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Amount |= (int64(b) & 0x7F) << shift
+				m.Amount |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1429,9 +1429,9 @@ var (
 	ErrIntOverflowTransaction   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("transaction.proto", fileDescriptor_transaction_c647e5602f6989bf) }
+func init() { proto.RegisterFile("transaction.proto", fileDescriptor_transaction_916dc84d9bd2144c) }
 
-var fileDescriptor_transaction_c647e5602f6989bf = []byte{
+var fileDescriptor_transaction_916dc84d9bd2144c = []byte{
 	// 516 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xcd, 0x6e, 0xd3, 0x40,
 	0x14, 0x85, 0xeb, 0xfc, 0x14, 0xf5, 0x26, 0xd0, 0x66, 0x0a, 0xc1, 0xa4, 0xd4, 0xa4, 0x2e, 0x8b,
@@ -1450,7 +1450,7 @@ var fileDescriptor_transaction_c647e5602f6989bf = []byte{
 	0x9c, 0x79, 0x61, 0x4d, 0xe6, 0xf6, 0x2b, 0xe8, 0x1e, 0x66, 0x2c, 0xa8, 0xe0, 0xdd, 0x86, 0x2b,
 	0xc2, 0x4f, 0xa3, 0x44, 0x1e, 0x25, 0x99, 0x77, 0x74, 0x4c, 0x4f, 0x35, 0xb9, 0x5d, 0x3e, 0x7d,
 	0x96, 0x79, 0x8f, 0xe9, 0x29, 0xea, 0xc2, 0x3a, 0x89, 0x79, 0xc6, 0xa4, 0x59, 0xeb, 0x1b, 0x83,
-	0xba, 0xab, 0x6f, 0xf6, 0x7d, 0xe8, 0x3e, 0xa7, 0x95, 0x73, 0xff, 0xcb, 0xd6, 0x07, 0xe8, 0xcc,
+	0x86, 0xab, 0x6f, 0xf6, 0x7d, 0xe8, 0x3e, 0xa7, 0x95, 0x73, 0xff, 0xcb, 0xd6, 0x07, 0xe8, 0xcc,
 	0x7d, 0x1c, 0xfd, 0x42, 0x08, 0x1a, 0x3e, 0x0f, 0xa8, 0xea, 0x6d, 0xba, 0xea, 0x8c, 0x4c, 0xb8,
 	0x14, 0x53, 0x21, 0x48, 0x48, 0x95, 0x81, 0x0d, 0xf7, 0xfc, 0x8a, 0xae, 0x42, 0xd3, 0x57, 0xc6,
 	0xea, 0x7d, 0x63, 0x70, 0xd9, 0x2d, 0x2f, 0x68, 0x0f, 0x9a, 0x59, 0x31, 0xd4, 0x6c, 0xf4, 0xeb,
@@ -1464,6 +1464,6 @@ var fileDescriptor_transaction_c647e5602f6989bf = []byte{
 	0x0d, 0x45, 0xb7, 0xf4, 0xb0, 0x55, 0xbb, 0xde, 0xeb, 0xaf, 0x16, 0x68, 0xf4, 0xbe, 0x42, 0xef,
 	0xda, 0xa6, 0x46, 0x87, 0x54, 0xa6, 0xe4, 0xe4, 0x6f, 0xf8, 0xc8, 0xfc, 0x36, 0xb5, 0x8c, 0xb3,
 	0xa9, 0x65, 0xfc, 0x9c, 0x5a, 0xc6, 0xe7, 0x99, 0xb5, 0x76, 0x36, 0xb3, 0xd6, 0x7e, 0xcc, 0xac,
-	0x35, 0x6f, 0x5d, 0xfd, 0x83, 0x77, 0x7f, 0x07, 0x00, 0x00, 0xff, 0xff, 0xc7, 0x26, 0x8f, 0x19,
+	0x35, 0x6f, 0x5d, 0xfd, 0x83, 0x77, 0x7f, 0x07, 0x00, 0x00, 0xff, 0xff, 0xbd, 0x0c, 0xbf, 0x29,
 	0xfe, 0x03, 0x00, 0x00,
 }

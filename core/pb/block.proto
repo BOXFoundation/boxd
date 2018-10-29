@@ -18,7 +18,7 @@ message BlockHeader {
 message Block {
     BlockHeader header = 1;
     repeated Transaction txs = 2;
-    int32 height = 3;
+    uint32 height = 3;
 }
 
 message Transaction {
@@ -36,7 +36,7 @@ message TxIn {
 }
 
 message TxOut {
-    int64 value = 1;
+    uint64 value = 1;
     bytes script_pub_key = 2;
 }
 
@@ -47,7 +47,7 @@ message OutPoint {
 
 message UtxoWrap {
     TxOut output = 1;
-	int32 block_height = 2;
+	uint32 block_height = 2;
 	bool is_spent = 3;
 	bool is_coinbase = 4;
     bool is_modified = 5;

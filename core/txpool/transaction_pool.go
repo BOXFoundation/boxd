@@ -49,8 +49,8 @@ type TransactionPool struct {
 type TxWrap struct {
 	Tx             *types.Transaction
 	AddedTimestamp int64
-	Height         int32
-	FeePerKB       int64
+	Height         uint32
+	FeePerKB       uint64
 }
 
 // NewTransactionPool new a transaction pool.
@@ -183,8 +183,16 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool)
 	return tx_pool.doProcessTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, broadcast)
 }
 
-func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeight int32,
+func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeight uint32,
 	utxoSet *chain.UtxoSet, broadcast bool) error {
+
+	// Outputs of existing txs in main pool can also be spent
+	for _, txWrap := range tx_pool.hashToTx {
+		poolTx := txWrap.Tx
+		for i := 0; i < len(poolTx.Vout); i++ {
+			utxoSet.AddUtxo(poolTx, uint32(i), txWrap.Height)
+		}
+	}
 
 	if err := tx_pool.maybeAcceptTx(tx, currChainHeight, utxoSet, broadcast); err != nil {
 		return err
@@ -194,7 +202,7 @@ func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeig
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHeight int32,
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHeight uint32,
 	utxoSet *chain.UtxoSet, broadcast bool) error {
 
 	tx_pool.txMutex.Lock()
@@ -273,7 +281,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 		return err
 	}
 
-	feePerKB := txFee * 1000 / (int64)(txSize)
+	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
 
@@ -374,7 +382,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 }
 
 // Add transaction into tx pool
-func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height int32, feePerKB int64) {
+func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feePerKB uint64) {
 	txHash, _ := tx.TxHash()
 
 	txWrap := &TxWrap{
@@ -489,6 +497,6 @@ func (tx_pool *TransactionPool) GetAllTxs() []*TxWrap {
 	return txs
 }
 
-func calcRequiredMinFee(txSize int) int64 {
+func calcRequiredMinFee(txSize int) uint64 {
 	return 0
 }

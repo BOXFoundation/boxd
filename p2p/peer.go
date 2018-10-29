@@ -20,6 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -285,23 +286,12 @@ func (p *BoxPeer) Conns() map[peer.ID]interface{} {
 
 // PickOnePeer picks a peer not in peersExclusive and return its id
 func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
-	peersInfo := p.table.GetRandomPeers("")
-	nullPeer := peer.ID("")
-	if len(peersInfo) == 0 {
-		return nullPeer
-	}
-	// although here the worst case O(n^2) time complexity,
-	// the probability that cost n^2 is very low
-out:
-	for _, info := range peersInfo {
-		for _, pid := range peersExclusive {
-			if pid == info.ID {
-				continue out
-			}
+	for pid := range p.Conns() {
+		if !util.InArray(pid, peersExclusive) {
+			return pid
 		}
-		return info.ID
 	}
-	return nullPeer
+	return peer.ID("")
 }
 
 // Award sadfa

@@ -32,7 +32,7 @@ func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 }
 
 // AddUtxo adds a utxo
-func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight int32) error {
+func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
 	logger.Debugf("Add utxo tx info: %+v, index: %d", tx, txOutIdx)
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
@@ -66,7 +66,7 @@ func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 }
 
 // ApplyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight int32) error {
+func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
 		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
@@ -100,7 +100,7 @@ func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 
 // RevertTx updates utxos with the passed tx: delete all utxos in outputs and add all utxos in inputs.
 // It undoes the effect of ApplyTx on utxo set
-func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight int32) error {
+func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight uint32) error {
 	txHash, _ := tx.TxHash()
 
 	// Remove added utxos
@@ -145,11 +145,13 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		if utxoWrap == nil || !utxoWrap.IsModified {
 			continue
 		}
+		utxoKey := UtxoKey(&outpoint)
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent {
-			key := generateKey(outpoint)
-			err := db.Del(*key)
-			keyPool.Put(key)
+			// key := generateKey(outpoint)
+			//err := db.Del(*key)
+			// keyPool.Put(key)
+			err := db.Del(utxoKey)
 			if err != nil {
 				return err
 			}
@@ -161,8 +163,9 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		if err != nil {
 			return err
 		}
-		key := generateKey(outpoint)
-		err = db.Put(*key, serialized)
+		// key := generateKey(outpoint)
+		// err = db.Put(*key, serialized)
+		err = db.Put(utxoKey, serialized)
 		if err != nil {
 			return err
 		}
@@ -246,10 +249,11 @@ func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{
 }
 
 func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint) (*types.UtxoWrap, error) {
-
-	key := generateKey(outpoint)
-	serializedUtxoWrap, err := db.Get(*key)
-	keyPool.Put(key)
+	// key := generateKey(outpoint)
+	// serializedUtxoWrap, err := db.Get(*key)
+	// keyPool.Put(key)
+	utxoKey := UtxoKey(&outpoint)
+	serializedUtxoWrap, err := db.Get(utxoKey)
 	if err != nil {
 		return nil, err
 	}
@@ -302,11 +306,11 @@ func putVLQ(target []byte, n uint64) int {
 	return offset + 1
 }
 
-func generateKey(outpoint types.OutPoint) *[]byte {
-	key := keyPool.Get().(*[]byte)
-	idx := uint64(outpoint.Index)
-	*key = (*key)[:crypto.HashSize+serializeSizeVLQ(idx)]
-	copy(*key, outpoint.Hash[:])
-	putVLQ((*key)[crypto.HashSize:], idx)
-	return key
-}
+// func generateKey(outpoint *types.OutPoint) *[]byte {
+// 	key := keyPool.Get().(*[]byte)
+// 	idx := uint64(outpoint.Index)
+// 	*key = (*key)[:crypto.HashSize+serializeSizeVLQ(idx)]
+// 	copy(*key, outpoint.Hash[:])
+// 	putVLQ((*key)[crypto.HashSize:], idx)
+// 	return key
+// }

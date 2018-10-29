@@ -18,7 +18,7 @@ import (
 // LockTime represents the relative lock-time in seconds
 type LockTime struct {
 	Seconds     int64
-	BlockHeight int32
+	BlockHeight uint32
 }
 
 func validateBlock(block *types.Block, timeSource util.MedianTimeSource) error {
@@ -122,7 +122,7 @@ func validateBlockHeader(header *types.BlockHeader, timeSource util.MedianTimeSo
 }
 
 // IsTxFinalized checks if a transaction is finalized.
-func IsTxFinalized(tx *types.Transaction, blockHeight int32, blockTime int64) bool {
+func IsTxFinalized(tx *types.Transaction, blockHeight uint32, blockTime int64) bool {
 	// The tx is finalized if lock time is 0.
 	lockTime := tx.LockTime
 	if lockTime == 0 {
@@ -190,19 +190,19 @@ func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 
 // ValidateTxInputs validates the inputs of a tx.
 // Returns the total tx fee.
-func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (int64, error) {
+func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) (uint64, error) {
 	// Coinbase tx needs no inputs.
 	if IsCoinBase(tx) {
 		return 0, nil
 	}
 
 	txHash, _ := tx.TxHash()
-	var totalInputAmount int64
+	var totalInputAmount uint64
 	for txInIndex, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil || utxo.IsSpent {
-			logger.Errorf("output %v referenced from transaction %s:%d does not exist or"+
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
 			return 0, core.ErrMissingTxOut
 		}
@@ -241,7 +241,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight int32) (
 	}
 
 	// Sum the total output amount.
-	var totalOutputAmount int64
+	var totalOutputAmount uint64
 	for _, txOut := range tx.Vout {
 		totalOutputAmount += txOut.Value
 	}
@@ -285,7 +285,7 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 	// output must not be negative or more than the max allowed per
 	// transaction. Also, the total of all outputs must abide by the same
 	// restrictions.
-	var totalValue int64
+	var totalValue uint64
 	for _, txOut := range tx.Vout {
 		value := txOut.Value
 		if value < 0 {

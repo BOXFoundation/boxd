@@ -8,10 +8,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/spf13/viper"
-
 	"github.com/BOXFoundation/boxd/core/types"
 	pb "github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/spf13/viper"
 )
 
 // SetDebugLevel calls the DebugLevel gRPC methods.
@@ -36,7 +35,7 @@ func SetDebugLevel(v *viper.Viper, level string) error {
 }
 
 // GetBlockCount query chain height
-func GetBlockCount(v *viper.Viper) (int32, error) {
+func GetBlockCount(v *viper.Viper) (uint32, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
 
@@ -55,7 +54,7 @@ func GetBlockCount(v *viper.Viper) (int32, error) {
 }
 
 // GetBlockHash returns block hash of a height
-func GetBlockHash(v *viper.Viper, height int32) (string, error) {
+func GetBlockHash(v *viper.Viper, height uint32) (string, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
 
