@@ -16,7 +16,7 @@ import (
 var scoreMgr *ScoreManager
 
 type peerScore struct {
-	score uint32
+	score int64
 	conn  *Conn
 }
 
@@ -78,11 +78,11 @@ func NewScoreManager(parent goprocess.Process, bus eventbus.Bus, boxPeer *BoxPee
 // checkConnLastUnix check last ping/pong time
 func (sm *ScoreManager) checkConnLastUnix() {
 	p := sm.peer
-	t := time.Now().Unix()
+	t := time.Now().UnixNano() / 1e6
 	for pid, v := range p.conns {
 		conn := v.(*Conn)
-		if conn.Established() && t-conn.LastUnix() > pscore.HeartBeatLatencyTime {
-			logger.Errorf("Punish peer %v because %v seconds no hb", pid.Pretty(), t-conn.LastUnix(), pscore.DisconnMinTime)
+		if conn.Established() && conn.LastUnix() != 0 && t-conn.LastUnix() > pscore.HeartBeatLatencyTime {
+			logger.Errorf("Punish peer %v because %v milliseconds no hb", pid.Pretty(), t-conn.LastUnix())
 			p.Punish(pid, pscore.PunishNoHeartBeat)
 		}
 	}
@@ -90,7 +90,7 @@ func (sm *ScoreManager) checkConnLastUnix() {
 
 func (sm *ScoreManager) checkConnStability() {
 	p := sm.peer
-	t := time.Now().Unix()
+	t := time.Now().UnixNano() / 1e6
 	limit := t - pscore.DisconnTimesThreshold
 	for pid, v := range p.conns {
 		if v.(*Conn).Established() {

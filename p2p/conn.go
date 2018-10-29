@@ -284,7 +284,7 @@ func (conn *Conn) Establish() bool {
 	if !conn.isEstablished {
 		conn.establish()
 	}
-	conn.lastUnix = time.Now().Unix()
+	conn.lastUnix = time.Now().UnixNano() / 1e6
 	conn.mutex.Unlock()
 	return r
 }

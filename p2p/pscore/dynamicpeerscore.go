@@ -19,13 +19,15 @@ const (
 	// baseScore indicates the default score of the peer
 	baseScore = 100
 
-	upperLimit = 1000
+	punishLimit = 150
+
+	awardLimit = 900
 
 	// HeartBeatLatencyTime sadfa
-	HeartBeatLatencyTime int64 = 10
+	HeartBeatLatencyTime int64 = 10000
 
 	// DisconnTimesThreshold hgkjh
-	DisconnTimesThreshold = 30
+	DisconnTimesThreshold = 30000
 
 	// DisconnMinTime hgkjh
 	DisconnMinTime = 5
@@ -56,7 +58,7 @@ const (
 )
 
 // ScoreEvent sadf
-type ScoreEvent uint32
+type ScoreEvent int64
 
 var (
 	// PunishFactors sadf
@@ -88,7 +90,7 @@ type factors struct {
 	// 'precomputedLen' seconds starting from t == 0.
 	precomputedFactor []float64
 
-	scoreCh chan uint32
+	scoreCh chan int64
 }
 
 // NewFactors asdfas
@@ -102,13 +104,14 @@ func newFactors(halflife, lifetime, precomputedLen int) *factors {
 	for i := range factors.precomputedFactor {
 		factors.precomputedFactor[i] = math.Exp(-1.0 * float64(i) * factors.lambda)
 	}
-	factors.scoreCh = make(chan uint32, 65536)
+	factors.scoreCh = make(chan int64, 65536)
 	return factors
 }
 
 // decayRate returns the decay rate at t seconds, using precalculated values
 // if available, or calculating the rate if needed.
 func (factors *factors) decayRate(t int64) float64 {
+	t = int64(t / 1000)
 	if t < int64(factors.precomputedLen) {
 		return factors.precomputedFactor[t]
 	}
@@ -163,7 +166,7 @@ func (s *DynamicPeerScore) String() string {
 // scores.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Int() uint32 {
+func (s *DynamicPeerScore) Int() int64 {
 	s.mtx.Lock()
 	r := s.int(time.Now())
 	s.mtx.Unlock()
@@ -174,24 +177,24 @@ func (s *DynamicPeerScore) Int() uint32 {
 // passed as parameters. The resulting score is returned.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Award(achievement ScoreEvent) uint32 {
+func (s *DynamicPeerScore) Award(achievement ScoreEvent) int64 {
 	s.mtx.Lock()
-	r := s.award(uint32(achievement), time.Now())
+	r := s.award(int64(achievement), time.Now())
 	s.mtx.Unlock()
 	return r
 }
 
 // Punish asdfas
-func (s *DynamicPeerScore) Punish(punishment ScoreEvent) uint32 {
+func (s *DynamicPeerScore) Punish(punishment ScoreEvent) int64 {
 	s.mtx.Lock()
-	r := s.punish(uint32(punishment), time.Now())
+	r := s.punish(int64(punishment), time.Now())
 	s.mtx.Unlock()
 	return r
 }
 
 // Disconnect asdfas
 func (s *DynamicPeerScore) Disconnect() {
-	t := time.Now().Unix()
+	t := time.Now().UnixNano() / 1e6
 	s.connRecords.PushBack(t)
 	s.Reset(t)
 }
@@ -211,18 +214,19 @@ func (s *DynamicPeerScore) Reset(t int64) {
 //
 // This function is not safe for concurrent access. It is intended to be used
 // internally and during testing.
-func (s *DynamicPeerScore) int(t time.Time) uint32 {
-	dt := t.Unix() - s.lastUnix
+func (s *DynamicPeerScore) int(t time.Time) int64 {
+	dt := t.UnixNano()/1e6 - s.lastUnix
 	s.verifyLifeTime(dt)
-	return baseScore + uint32(s.achievement*AchieveFactors.decayRate(dt)) - uint32(s.punishment*PunishFactors.decayRate(dt))
+	a := baseScore + int64(s.achievement*AchieveFactors.decayRate(dt)) - int64(s.punishment*PunishFactors.decayRate(dt))
+	return a
 }
 
 // verifyLifeTime reset punishment or achievement when lifetime < dt
 func (s *DynamicPeerScore) verifyLifeTime(dt int64) {
-	if PunishFactors.lifetime < int(dt) {
+	if PunishFactors.lifetime < int(dt/1000) {
 		s.punishment = 0
 	}
-	if AchieveFactors.lifetime < int(dt) {
+	if AchieveFactors.lifetime < int(dt/1000) {
 		s.achievement = 0
 	}
 }
@@ -233,10 +237,10 @@ func (s *DynamicPeerScore) verifyLifeTime(dt int64) {
 // resulting score is returned.
 //
 // This function is not safe for concurrent access.
-func (s *DynamicPeerScore) award(achievement uint32, t time.Time) uint32 {
-	tu := t.Unix()
+func (s *DynamicPeerScore) award(achievement int64, t time.Time) int64 {
+	tu := t.UnixNano() / 1e6
 	dt := tu - s.lastUnix
-	
+
 	if s.lastUnix != 0 {
 		s.verifyLifeTime(dt)
 	}
@@ -249,23 +253,22 @@ func (s *DynamicPeerScore) award(achievement uint32, t time.Time) uint32 {
 			s.punishment *= PunishFactors.decayRate(dt)
 		}
 		s.achievement += float64(achievement)
-		if (s.achievement > upperLimit) {
-			s.achievement = upperLimit
+		if s.achievement > awardLimit {
+			s.achievement = awardLimit
 		}
 		s.lastUnix = tu
 	}
-	return baseScore + uint32(s.achievement) - uint32(s.punishment)
+	return baseScore + int64(s.achievement) - int64(s.punishment)
 }
 
-func (s *DynamicPeerScore) punish(punishment uint32, t time.Time) uint32 {
-	tu := t.Unix()
+func (s *DynamicPeerScore) punish(punishment int64, t time.Time) int64 {
+	tu := t.UnixNano() / 1e6
 	dt := tu - s.lastUnix
-	
+
 	if s.lastUnix != 0 {
 		s.verifyLifeTime(dt)
 	}
 
-	logger.Errorf("punish log 1 %v", s.punishment)
 	if dt > 0 {
 		if s.achievement > 1 {
 			s.achievement *= AchieveFactors.decayRate(dt)
@@ -273,11 +276,12 @@ func (s *DynamicPeerScore) punish(punishment uint32, t time.Time) uint32 {
 		if s.punishment > 1 {
 			s.punishment *= PunishFactors.decayRate(dt)
 		}
-		logger.Errorf("punish log 2 %v, %v", s.punishment, PunishFactors.decayRate(dt))
 		s.punishment += float64(punishment)
+		if s.punishment > punishLimit {
+			s.punishment = punishLimit
+		}
 		s.lastUnix = tu
 	}
-	logger.Errorf("punish log 3 %v", s.punishment)
 
-	return baseScore + uint32(s.achievement) - uint32(s.punishment)
+	return baseScore + int64(s.achievement) - int64(s.punishment)
 }

@@ -310,7 +310,7 @@ func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
 }
 
 // Score sdafasd
-func (p *BoxPeer) Score(pid peer.ID) uint32 {
+func (p *BoxPeer) Score(pid peer.ID) int64 {
 	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
 		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
 	}
@@ -323,6 +323,9 @@ func (p *BoxPeer) Gc() {
 	var queue scoreSorter
 	for pid, v := range p.conns {
 		conn := v.(*Conn)
+		if !conn.Established() {
+			continue
+		}
 		score := p.Score(pid)
 		peerScore := peerScore{
 			score: score,
