@@ -264,7 +264,7 @@ func (conn *Conn) Close() error {
 	return nil
 }
 
-// LastUnix 为啥下面的方法去一个值需要lock
+// LastUnix returns last disconn unix time
 func (conn *Conn) LastUnix() int64 {
 	return conn.lastUnix
 }
