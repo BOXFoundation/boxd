@@ -180,6 +180,8 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 	}
 }
 
+var evilBehavior = []interface{}{core.ErrInvalidTime, core.ErrNoTransactions, core.ErrBlockTooBig, core.ErrFirstTxNotCoinbase, core.ErrMultipleCoinbases, core.ErrBadMerkleRoot, core.ErrDuplicateTx, core.ErrTooManySigOps, core.ErrBadFees, core.ErrBadCoinbaseValue, core.ErrUnfinalizedTx, core.ErrWrongBlockHeight}
+
 func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	block := new(types.Block)
 	if err := block.Unmarshal(msg.Body()); err != nil {
@@ -187,8 +189,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if _, _, err := chain.ProcessBlock(block, false); err != nil {
-		// TODO 上面判断err是否是需要扣分的那些
+	if _, _, err := chain.ProcessBlock(block, false); err != nil && util.InArray(err, evilBehavior) {
 		chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.PunishBadBlock)
 		return err
 	}

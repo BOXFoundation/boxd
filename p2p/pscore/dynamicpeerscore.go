@@ -24,7 +24,7 @@ const (
 	awardLimit = 900
 
 	// HeartBeatLatencyTime sadfa
-	HeartBeatLatencyTime int64 = 10000
+	HeartBeatLatencyTime = 10000
 
 	// DisconnTimesThreshold hgkjh
 	DisconnTimesThreshold = 30000
