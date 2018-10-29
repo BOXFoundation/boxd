@@ -15,12 +15,13 @@ import (
 
 var scoreMgr *ScoreManager
 
-type peerScore struct {
+// peerConnScore is used for peer.Gc to score the conn
+type peerConnScore struct {
 	score int64
 	conn  *Conn
 }
 
-// ScoreManager sadfasd
+// ScoreManager is an object to maitian all scores of peers
 type ScoreManager struct {
 	Scores map[peer.ID]*pscore.DynamicPeerScore
 	bus    eventbus.Bus
@@ -38,7 +39,7 @@ func newScoreManager() *ScoreManager {
 	return scoreMgr
 }
 
-// NewScoreManager 对外
+// NewScoreManager returns new ScoreManager.
 func NewScoreManager(parent goprocess.Process, bus eventbus.Bus, boxPeer *BoxPeer) *ScoreManager {
 	scoreMgr.bus = bus
 	scoreMgr.peer = boxPeer
@@ -88,10 +89,11 @@ func (sm *ScoreManager) checkConnLastUnix() {
 	}
 }
 
+// checkConnStability check whether the peers' disconn times > DisconnMinTime in DisconnTimesPeriod milliseconds
 func (sm *ScoreManager) checkConnStability() {
 	p := sm.peer
 	t := time.Now().UnixNano() / 1e6
-	limit := t - pscore.DisconnTimesThreshold
+	limit := t - pscore.DisconnTimesPeriod
 	for pid, v := range p.conns {
 		if v.(*Conn).Established() {
 			records := sm.Scores[pid].ConnRecords()
@@ -105,7 +107,7 @@ func (sm *ScoreManager) checkConnStability() {
 				}
 			}
 			if cnt > pscore.DisconnMinTime {
-				logger.Errorf("Punish peer %v because %v times disconnection last %v seconds ", pid.Pretty(), pscore.DisconnTimesThreshold, pscore.DisconnMinTime)
+				logger.Errorf("Punish peer %v because %v times disconnection last %v seconds ", pid.Pretty(), pscore.DisconnTimesPeriod, pscore.DisconnMinTime)
 				p.Punish(pid, pscore.PunishConnUnsteadiness)
 			}
 		}

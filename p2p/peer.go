@@ -293,7 +293,8 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 	return peer.ID("")
 }
 
-// Award sadfa
+// Award increases the achievement.
+// Init the peer score in score map when it is nil.
 func (p *BoxPeer) Award(pid peer.ID, amount pscore.ScoreEvent) {
 	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
 		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
@@ -301,7 +302,8 @@ func (p *BoxPeer) Award(pid peer.ID, amount pscore.ScoreEvent) {
 	p.scoremgr.Scores[pid].Award(amount)
 }
 
-// Punish sdafasd
+// Punish increases the punishment.
+// Init the peer score in score map when it is nil.
 func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
 	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
 		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
@@ -309,7 +311,8 @@ func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
 	p.scoremgr.Scores[pid].Punish(amount)
 }
 
-// Score sdafasd
+// Score calculate the immediate score of the peer.
+// Init the peer score in score map when it is nil.
 func (p *BoxPeer) Score(pid peer.ID) int64 {
 	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
 		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
@@ -317,7 +320,7 @@ func (p *BoxPeer) Score(pid peer.ID) int64 {
 	return p.scoremgr.Scores[pid].Int()
 }
 
-// Gc conns gc
+// Gc close the lowest grade peers' conn on time when conn pool is almost full
 func (p *BoxPeer) Gc() {
 	logger.Errorf("Gc invoked")
 	var queue scoreSorter
@@ -327,7 +330,7 @@ func (p *BoxPeer) Gc() {
 			continue
 		}
 		score := p.Score(pid)
-		peerScore := peerScore{
+		peerScore := peerConnScore{
 			score: score,
 			conn:  conn,
 		}

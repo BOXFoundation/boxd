@@ -50,10 +50,10 @@ const (
 )
 
 const (
-	// ConnMaxCapacity 最大容量
+	// ConnMaxCapacity means the max capacity of the conn pool
 	ConnMaxCapacity = 200
 
-	// ConnLoadFactor 负载因子
+	// ConnLoadFactor means the threshold of gc
 	ConnLoadFactor = 0.8
 )
 
