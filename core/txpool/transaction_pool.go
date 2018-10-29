@@ -180,10 +180,13 @@ func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeig
 	utxoSet *chain.UtxoSet, broadcast bool) error {
 
 	// Outputs of existing txs in main pool can also be spent
-	for _, txWrap := range tx_pool.hashToTx {
-		poolTx := txWrap.Tx
-		for i := 0; i < len(poolTx.Vout); i++ {
-			utxoSet.AddUtxo(poolTx, uint32(i), txWrap.Height)
+	for _, txIn := range tx.Vin {
+		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
+		if utxo != nil && !utxo.IsSpent {
+			continue
+		}
+		if poolTxWrap, exists := tx_pool.hashToTx[txIn.PrevOutPoint.Hash]; exists {
+			utxoSet.AddUtxo(poolTxWrap.Tx, txIn.PrevOutPoint.Index, poolTxWrap.Height)
 		}
 	}
 
@@ -221,8 +224,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 		return core.ErrCoinbaseTx
 	}
 
-	nextBlockHeight := currChainHeight + 1
-
 	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
 		logger.Debugf("Tx %v is not standard: %v", txHash, err)
@@ -244,6 +245,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 	}
 
 	// TODO: sequence lock
+
+	nextBlockHeight := currChainHeight + 1
 
 	txFee, err := chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
 	if err != nil {
@@ -299,16 +302,8 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 // A tx is an orphan if any of its spending utxo does not exist
 func (tx_pool *TransactionPool) isOrphan(utxoSet *chain.UtxoSet, tx *types.Transaction) bool {
 	for _, txIn := range tx.Vin {
-		// Spend main chain UTXOs
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo != nil && !utxo.IsSpent {
-			continue
-		}
-
-		// Spend mempool tx outputs
-		// Note: we do not check double spends within mempool,
-		// which will be checked when an orphan is allowed into mempool
-		if _, exists := tx_pool.hashToTx[txIn.PrevOutPoint.Hash]; !exists {
+		if utxo == nil || utxo.IsSpent {
 			return true
 		}
 	}
