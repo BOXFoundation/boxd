@@ -53,7 +53,6 @@ func NewServer(cfg *config.Config) *Server {
 		bus:  eventbus.Default(),
 		cfg:  cfg,
 	}
-	logger.Errorf("bus addr server = %v", &(server.bus))
 	server.initEventListener()
 	server.proc.SetTeardown(server.teardown)
 	return server

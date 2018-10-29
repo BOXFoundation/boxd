@@ -163,10 +163,10 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	}
 
 	if err := tx_pool.ProcessTx(tx, false); err != nil {
-		tx_pool.chain.Bus().Publish(eventbus.TopicChainScoreEvent, pscore.PunishBadTx)
+		tx_pool.chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.PunishBadTx)
 		return err
 	}
-	tx_pool.chain.Bus().Publish(eventbus.TopicChainScoreEvent, pscore.AwardNewTx)
+	tx_pool.chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.AwardNewTx)
 	return nil
 }
 

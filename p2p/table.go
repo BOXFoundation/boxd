@@ -19,7 +19,7 @@ import (
 
 // const
 const (
-	PeerDiscoverLoopInterval        = 30 * time.Second
+	PeerDiscoverLoopInterval        = 3 * time.Second
 	MaxPeerCountToSyncRouteTable    = 16
 	MaxPeerCountToReplyPeerDiscover = 16
 )

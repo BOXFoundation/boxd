@@ -11,12 +11,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/log"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 const (
 	// baseScore indicates the default score of the peer
 	baseScore = 100
+
+	upperLimit = 1000
 
 	// HeartBeatLatencyTime sadfa
 	HeartBeatLatencyTime int64 = 10
@@ -61,6 +64,8 @@ var (
 	// AchieveFactors sadf
 	AchieveFactors = newFactors(600, 18000, 512)
 )
+
+var logger = log.NewLogger("pscore") // logger
 
 type factors struct {
 
@@ -231,8 +236,10 @@ func (s *DynamicPeerScore) verifyLifeTime(dt int64) {
 func (s *DynamicPeerScore) award(achievement uint32, t time.Time) uint32 {
 	tu := t.Unix()
 	dt := tu - s.lastUnix
-
-	s.verifyLifeTime(dt)
+	
+	if s.lastUnix != 0 {
+		s.verifyLifeTime(dt)
+	}
 
 	if dt > 0 {
 		if s.achievement > 1 {
@@ -242,6 +249,9 @@ func (s *DynamicPeerScore) award(achievement uint32, t time.Time) uint32 {
 			s.punishment *= PunishFactors.decayRate(dt)
 		}
 		s.achievement += float64(achievement)
+		if (s.achievement > upperLimit) {
+			s.achievement = upperLimit
+		}
 		s.lastUnix = tu
 	}
 	return baseScore + uint32(s.achievement) - uint32(s.punishment)
@@ -250,9 +260,12 @@ func (s *DynamicPeerScore) award(achievement uint32, t time.Time) uint32 {
 func (s *DynamicPeerScore) punish(punishment uint32, t time.Time) uint32 {
 	tu := t.Unix()
 	dt := tu - s.lastUnix
+	
+	if s.lastUnix != 0 {
+		s.verifyLifeTime(dt)
+	}
 
-	s.verifyLifeTime(dt)
-
+	logger.Errorf("punish log 1 %v", s.punishment)
 	if dt > 0 {
 		if s.achievement > 1 {
 			s.achievement *= AchieveFactors.decayRate(dt)
@@ -260,8 +273,11 @@ func (s *DynamicPeerScore) punish(punishment uint32, t time.Time) uint32 {
 		if s.punishment > 1 {
 			s.punishment *= PunishFactors.decayRate(dt)
 		}
+		logger.Errorf("punish log 2 %v, %v", s.punishment, PunishFactors.decayRate(dt))
 		s.punishment += float64(punishment)
 		s.lastUnix = tu
 	}
+	logger.Errorf("punish log 3 %v", s.punishment)
+
 	return baseScore + uint32(s.achievement) - uint32(s.punishment)
 }

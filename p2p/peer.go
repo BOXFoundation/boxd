@@ -59,7 +59,6 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
 	boxPeer := &BoxPeer{conns: make(map[peer.ID]interface{}), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
-	logger.Errorf("bus addr peer = %v", &(boxPeer.bus))
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -296,26 +295,44 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 
 // Award sadfa
 func (p *BoxPeer) Award(pid peer.ID, amount pscore.ScoreEvent) {
+	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
+		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
+	}
 	p.scoremgr.Scores[pid].Award(amount)
 }
 
 // Punish sdafasd
 func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
+	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
+		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
+	}
 	p.scoremgr.Scores[pid].Punish(amount)
+}
+
+// Score sdafasd
+func (p *BoxPeer) Score(pid peer.ID) uint32 {
+	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
+		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
+	}
+	return p.scoremgr.Scores[pid].Int()
 }
 
 // Gc conns gc
 func (p *BoxPeer) Gc() {
+	logger.Errorf("Gc invoked")
 	var queue scoreSorter
-	scoreMap := p.scoremgr.Scores
 	for pid, v := range p.conns {
 		conn := v.(*Conn)
-		score := scoreMap[pid].Int()
+		score := p.Score(pid)
 		peerScore := peerScore{
 			score: score,
 			conn:  conn,
 		}
 		queue = append(queue, peerScore)
+	}
+
+	for _, v := range queue {
+		logger.Errorf("score = %v", v.score)
 	}
 
 	sort.Sort(queue)

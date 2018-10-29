@@ -98,7 +98,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
 		bus:                       eventbus.Default(),
 	}
-	logger.Errorf("bus addr new chain = %v", &(b.bus))
 
 	var err error
 	b.cache, err = lru.New(512)
@@ -156,7 +155,6 @@ func (chain *BlockChain) Proc() goprocess.Process {
 
 // Bus returns the goprocess of the BlockChain
 func (chain *BlockChain) Bus() eventbus.Bus {
-	logger.Errorf("bus addr chain %v", &(chain.bus))
 	return chain.bus
 }
 
@@ -191,10 +189,10 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	// process block
 	if _, _, err := chain.ProcessBlock(block, false); err != nil {
 		// TODO 上面判断err是否是需要扣分的那些
-		chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From, pscore.PunishBadBlock)
+		chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.PunishBadBlock)
 		return err
 	}
-	chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From, pscore.AwardNewBlock)
+	chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.AwardNewBlock)
 	return nil
 }
 

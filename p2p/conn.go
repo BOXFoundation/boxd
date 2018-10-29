@@ -235,7 +235,6 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
 		return err
 	}
-
 	conn.peer.table.AddPeers(conn, peers)
 	return nil
 }

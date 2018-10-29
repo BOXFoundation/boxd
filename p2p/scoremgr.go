@@ -42,21 +42,20 @@ func newScoreManager() *ScoreManager {
 func NewScoreManager(parent goprocess.Process, bus eventbus.Bus, boxPeer *BoxPeer) *ScoreManager {
 	scoreMgr.bus = bus
 	scoreMgr.peer = boxPeer
-	logger.Errorf("bus addr p2p = %v", &bus)
 	score := func(pid peer.ID, score pscore.ScoreEvent) {
-		logger.Errorf("peer = %v, score = %v", pid, score)
 		peerScore := scoreMgr.Scores[pid]
 		switch score {
 		case pscore.PunishConnTimeOut, pscore.PunishBadBlock, pscore.PunishBadTx, pscore.PunishSyncMsg:
+			logger.Errorf("Punish peer %v because %v", pid.Pretty(), score)
 			peerScore.Punish(score)
 		case pscore.AwardNewBlock, pscore.AwardNewTx:
+			logger.Errorf("Award peer %v because %v", pid.Pretty(), score)
 			peerScore.Award(score)
 		default:
 			logger.Error("No such event found: %v", score)
 		}
 	}
-	scoreMgr.bus.SubscribeAsync(eventbus.TopicChainScoreEvent, score, false)
-	defer scoreMgr.bus.Unsubscribe(eventbus.TopicChainScoreEvent, score)
+	scoreMgr.bus.Subscribe(eventbus.TopicChainScoreEvent, score)
 
 	scoreMgr.proc = parent.Go(func(p goprocess.Process) {
 		loopTicker := time.NewTicker(PeerDiscoverLoopInterval)
@@ -83,6 +82,7 @@ func (sm *ScoreManager) checkConnLastUnix() {
 	for pid, v := range p.conns {
 		conn := v.(*Conn)
 		if conn.Established() && t-conn.LastUnix() > pscore.HeartBeatLatencyTime {
+			logger.Errorf("Punish peer %v because %v seconds no hb", pid.Pretty(), t-conn.LastUnix(), pscore.DisconnMinTime)
 			p.Punish(pid, pscore.PunishNoHeartBeat)
 		}
 	}
@@ -105,6 +105,7 @@ func (sm *ScoreManager) checkConnStability() {
 				}
 			}
 			if cnt > pscore.DisconnMinTime {
+				logger.Errorf("Punish peer %v because %v times disconnection last %v seconds ", pid.Pretty(), pscore.DisconnTimesThreshold, pscore.DisconnMinTime)
 				p.Punish(pid, pscore.PunishConnUnsteadiness)
 			}
 		}
