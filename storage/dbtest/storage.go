@@ -14,6 +14,7 @@ import (
 	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/facebookgo/ensure"
 )
 
@@ -228,72 +229,91 @@ func StorageDBCloseForTransOpen(t *testing.T, s storage.Table, db storage.Storag
 	}
 }
 
-// StorageMultiTrans is a dbtest helper method
-func StorageMultiTrans(t *testing.T, s storage.Storage) {
+func txci(t *testing.T, s storage.Table, out chan<- int) {
+	var result int
+	defer func() {
+		out <- result
+	}()
+
 	tx, err := s.NewTransaction()
-	ensure.Nil(t, err)
-	ensure.NotNil(t, tx)
+	if err != nil {
+		return
+	}
 	defer tx.Discard()
 
+	for i := uint16(0); i <= uint16(1024); i++ {
+		if err := tx.Put(util.FromUint16(i), []byte{0x00, uint8(i), 0x10}); err != nil {
+			return
+		}
+		if _, err := tx.Get(util.FromUint16(1024 - i)); err != nil {
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return
+	}
+
+	tx2, err := s.NewTransaction()
+	if err != nil {
+		return
+	}
+	defer tx2.Discard()
+
+	for i := uint16(0); i <= uint16(1024); i++ {
+		value, err := tx2.Get(util.FromUint16(i))
+		if err != nil || !bytes.Equal(value, []byte{0x00, uint8(i), 0x10}) {
+			return
+		}
+	}
+
+	if err := tx2.Commit(); err != nil {
+		return
+	}
+	result = 1
+}
+
+func txdiscard(t *testing.T, s storage.Table, out chan<- int) {
+	var result int
+	defer func() {
+		out <- result
+	}()
+
+	tx, err := s.NewTransaction()
+	if err != nil {
+		return
+	}
+	defer tx.Discard()
+
+	for i := uint16(0); i <= uint16(1024); i++ {
+		if err := tx.Put(util.FromUint16(i), []byte{0x00, uint8(i), 0x10}); err != nil {
+			return
+		}
+		if _, err := tx.Get(util.FromUint16(1024 - i)); err != nil {
+			return
+		}
+	}
+	result = 1
+}
+
+// StorageMultiTrans is a dbtest helper method
+func StorageMultiTrans(t *testing.T, s storage.Storage) {
 	out := make(chan int)
 	defer close(out)
 
-	done := func(i int) {
-		out <- i
-	}
-
-	txci := func(name string) {
-		var table storage.Table
-		if len(name) == 0 {
-			table = s
-		} else {
-			table, _ = s.Table(name)
-		}
-		tx, err := table.NewTransaction()
-		if err != nil {
-			done(0)
-			return
-		}
-		defer tx.Discard()
-
-		for i := uint(0); i <= uint(1024); i++ {
-			tx.Put([]byte{0x00, uint8(i % 256), uint8(i % 13)}, []byte{0x00, uint8(i), 0x10})
-			tx.Get([]byte{uint8(i)})
-		}
-
-		if err := tx.Commit(); err == nil {
-			done(1)
-		} else {
-			done(0)
-		}
-	}
-
-	txdiscard := func(name string) {
-		var table storage.Table
-		if len(name) == 0 {
-			table = s
-		} else {
-			table, _ = s.Table(name)
-		}
-		tx, err := table.NewTransaction()
-		if err != nil {
-			done(0)
-			return
-		}
-		defer tx.Discard()
-
-		for i := uint(0); i <= uint(1024); i++ {
-			tx.Put([]byte{0x00, uint8(i % 256), uint8(i % 13)}, []byte{0x00, uint8(i), 0x10})
-			tx.Get([]byte{uint8(i)})
-		}
-		done(1)
-	}
-
 	goroutines := 0
-	for i := 0; i < 256; i++ {
+	for i := 0; i < 16; i++ {
+		var t1, t2 storage.Table
+		if i%7 != 0 {
+			t1, _ = s.Table(fmt.Sprintf("%04d", i%5))
+			t2, _ = s.Table(fmt.Sprintf("%04d", 4-(i%5)))
+		} else {
+			t1 = s
+			t2 = s
+		}
 		goroutines += 2
-		go txci(fmt.Sprintf("%04d", i%24))
-		go txdiscard(fmt.Sprintf("%04d", i%25))
+		go txci(t, t1, out)
+		go txdiscard(t, t2, out)
 	}
 
 	timer := time.NewTimer(time.Second * 5)
@@ -322,72 +342,11 @@ func StorageMultiTransTable(t *testing.T, s storage.Table) {
 	out := make(chan int)
 	defer close(out)
 
-	done := func(i int) {
-		out <- i
-	}
-
-	txci := func() {
-		tx, err := s.NewTransaction()
-		if err != nil {
-			done(0)
-			return
-		}
-		defer tx.Discard()
-
-		for i := uint(0); i <= uint(1024); i++ {
-			tx.Put([]byte{0x00, uint8(i % 256), uint8(i % 13)}, []byte{0x00, uint8(i), 0x10})
-		}
-
-		if err := tx.Commit(); err != nil {
-			done(0)
-			return
-		}
-
-		tx2, err := s.NewTransaction()
-		if err != nil {
-			done(0)
-			return
-		}
-		defer tx2.Discard()
-
-		for i := uint(0); i <= uint(1024); i++ {
-			value, err := tx2.Get([]byte{0x00, uint8(i % 256), uint8(i % 13)})
-			if err != nil {
-				done(0)
-				return
-			}
-			if !bytes.Equal(value, []byte{0x00, uint8(i), 0x10}) {
-				done(0)
-				return
-			}
-		}
-
-		if err := tx.Commit(); err != nil {
-			done(0)
-			return
-		}
-	}
-
-	txdiscard := func() {
-		tx, err := s.NewTransaction()
-		if err != nil {
-			done(0)
-			return
-		}
-		defer tx.Discard()
-
-		for i := uint(0); i <= uint(1024); i++ {
-			tx.Put([]byte{0x00, uint8(i % 256), uint8(i % 13)}, []byte{0x00, uint8(i), 0x10})
-			tx.Get([]byte{uint8(i)})
-		}
-		done(1)
-	}
-
 	goroutines := 0
-	for i := 0; i < 256; i++ {
+	for i := 0; i < 16; i++ {
 		goroutines += 2
-		go txci()
-		go txdiscard()
+		go txci(t, s, out)
+		go txdiscard(t, s, out)
 	}
 
 	timer := time.NewTimer(time.Second * 5)
