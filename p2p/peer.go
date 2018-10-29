@@ -252,7 +252,6 @@ func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []
 			continue
 		}
 		pid, err := peer.IDB58Decode(v)
-		logger.Errorf("BroadcastToMiners miners: %v, pid: %s", miners, pid.Pretty())
 		if err != nil {
 			return err
 		}
