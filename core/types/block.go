@@ -20,9 +20,10 @@ var logger = log.NewLogger("core:types") // logger
 // transactions on their first access so subsequent accesses don't have to
 // repeat the relatively expensive hashing operations.
 type Block struct {
-	Hash   *crypto.HashType
-	Header *BlockHeader
-	Txs    []*Transaction
+	Hash      *crypto.HashType
+	Header    *BlockHeader
+	Txs       []*Transaction
+	Signature []byte
 
 	Height uint32
 }
@@ -58,9 +59,10 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 			}
 		}
 		return &corepb.Block{
-			Header: header,
-			Txs:    txs,
-			Height: block.Height,
+			Header:    header,
+			Txs:       txs,
+			Signature: block.Signature,
+			Height:    block.Height,
 		}, nil
 	}
 
@@ -89,6 +91,7 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			block.Hash = block.BlockHash()
 			block.Txs = txs
 			block.Height = message.Height
+			block.Signature = message.Signature
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
@@ -159,8 +162,6 @@ type BlockHeader struct {
 	PeriodHash crypto.HashType
 
 	CandidatesHash crypto.HashType
-
-	Signature []byte
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
@@ -177,7 +178,6 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		Magic:          header.Magic,
 		PeriodHash:     header.PeriodHash[:],
 		CandidatesHash: header.CandidatesHash[:],
-		Signature:      header.Signature,
 	}, nil
 }
 
@@ -192,7 +192,6 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			header.Magic = message.Magic
 			copy(header.PeriodHash[:], message.PeriodHash)
 			copy(header.CandidatesHash[:], message.CandidatesHash)
-			header.Signature = message.Signature
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

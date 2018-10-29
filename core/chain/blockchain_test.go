@@ -199,7 +199,7 @@ func (dpos *DummyDpos) Run() error { return nil }
 
 func (dpos *DummyDpos) Stop() {}
 
-func (dpos *DummyDpos) StoreCandidateContext(crypto.HashType) error { return nil }
+func (dpos *DummyDpos) StoreCandidateContext(*crypto.HashType) error { return nil }
 
 func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) { return true, nil }
 

@@ -31,5 +31,6 @@ message Candidate {
 
 message EternalBlockMsg {
     bytes hash =1;
-    bytes signature = 2;
+    int64 timestamp = 2;
+    bytes signature = 3;
 }

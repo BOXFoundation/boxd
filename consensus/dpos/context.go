@@ -47,6 +47,7 @@ func InitPeriodContext() (*PeriodContext, error) {
 
 	periods := make([]*Period, len(chain.GenesisPeriod))
 	periodAddrs := make([]types.AddressHash, len(chain.GenesisPeriod))
+	periodPeers := make([]string, len(chain.GenesisPeriod))
 	for k, v := range chain.GenesisPeriod {
 		period := new(Period)
 		addr, err := types.ParseAddress(v["addr"])
@@ -57,10 +58,12 @@ func InitPeriodContext() (*PeriodContext, error) {
 		period.peerID = v["peerID"]
 		periods[k] = period
 		periodAddrs[k] = period.addr
+		periodPeers[k] = period.peerID
 	}
 	return &PeriodContext{
 		period:      periods,
 		periodAddrs: periodAddrs,
+		periodPeers: periodPeers,
 	}, nil
 }
 
@@ -360,15 +363,17 @@ func (candidate *Candidate) Unmarshal(data []byte) error {
 type EternalBlockMsg struct {
 	hash      crypto.HashType
 	signature []byte
+	timestamp int64
 }
 
-var _ conv.Convertible = (*Candidate)(nil)
-var _ conv.Serializable = (*Candidate)(nil)
+var _ conv.Convertible = (*EternalBlockMsg)(nil)
+var _ conv.Serializable = (*EternalBlockMsg)(nil)
 
 // ToProtoMessage converts EternalBlockMsg to proto message.
 func (ebm *EternalBlockMsg) ToProtoMessage() (proto.Message, error) {
 	return &dpospb.EternalBlockMsg{
 		Hash:      ebm.hash[:],
+		Timestamp: ebm.timestamp,
 		Signature: ebm.signature,
 	}, nil
 }
@@ -378,6 +383,7 @@ func (ebm *EternalBlockMsg) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*dpospb.EternalBlockMsg); ok {
 		if message != nil {
 			copy(ebm.hash[:], message.Hash)
+			ebm.timestamp = message.Timestamp
 			ebm.signature = message.Signature
 			return nil
 		}

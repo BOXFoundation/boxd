@@ -5,13 +5,11 @@
 package chain
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage/key"
-	"github.com/BOXFoundation/boxd/util"
 )
 
 const (
@@ -55,12 +53,16 @@ const (
 	// key: /ut/1113b8bdad74cdc045e64e09b3e2f0502d1b7f9bd8123b28239a3360bd3a8757/2
 	// value: utxo wrapper
 	UtxoPrefix = "/ut"
+
+	// CandidatesPrefix is the key prefix of database key to store candidates
+	CandidatesPrefix = "/candidates"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
 var blkHashBase = key.NewKey(BlockHashPrefix)
 var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
+var candidatesBase = key.NewKey(CandidatesPrefix)
 
 var genesisBlockKey = BlockKey(genesisBlock.BlockHash())
 
@@ -72,36 +74,25 @@ var EternalKey = []byte(Eternal)
 
 // BlockKey returns the db key to stoare block content of the hash
 func BlockKey(h *crypto.HashType) []byte {
-	if readable {
-		return blkBase.ChildString(h.String()).Bytes()
-	}
-	return h[:]
+	return blkBase.ChildString(h.String()).Bytes()
 }
 
 // BlockHashKey returns the db key to stoare block hash content of the height
 func BlockHashKey(height uint32) []byte {
-	if readable {
-		return blkHashBase.ChildString(fmt.Sprintf("%x", height)).Bytes()
-	}
-	return util.FromUint32(height)
+	return blkHashBase.ChildString(fmt.Sprintf("%x", height)).Bytes()
 }
 
 // TxIndexKey returns the db key to stoare tx index of the hash
 func TxIndexKey(h *crypto.HashType) []byte {
-	if readable {
-		return txixBase.ChildString(h.String()).Bytes()
-	}
-	return h[:]
+	return txixBase.ChildString(h.String()).Bytes()
 }
 
 // UtxoKey returns the db key to stoare utxo content of the Outpoint
 func UtxoKey(op *types.OutPoint) []byte {
-	if readable {
-		return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
-	}
-	buf := make([]byte, crypto.HashSize+4)
-	copy(buf, op.Hash[:])
-	w := bytes.NewBuffer(buf[crypto.HashSize:])
-	util.WriteUint32(w, op.Index)
-	return buf
+	return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
+}
+
+// CandidatesKey returns the db key to stoare candidates.
+func CandidatesKey(h *crypto.HashType) []byte {
+	return candidatesBase.ChildString(h.String()).Bytes()
 }

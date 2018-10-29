@@ -12,7 +12,7 @@ import (
 type Consensus interface {
 	Run() error
 	Stop()
-	StoreCandidateContext(crypto.HashType) error
+	StoreCandidateContext(*crypto.HashType) error
 	VerifySign(*Block) (bool, error)
 	StopMint()
 	RecoverMint()

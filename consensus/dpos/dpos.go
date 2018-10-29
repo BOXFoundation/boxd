@@ -111,10 +111,13 @@ func (dpos *Dpos) Run() error {
 		return ErrNoLegalPowerToMint
 	}
 
-	dpos.proc.Go(dpos.loop)
 	// if mint peer, start bftService.
-	bftService := NewBftService(dpos)
+	bftService, err := NewBftService(dpos)
+	if err != nil {
+		return err
+	}
 	bftService.Start()
+	dpos.proc.Go(dpos.loop)
 
 	return nil
 }
@@ -164,7 +167,6 @@ func (dpos *Dpos) mint() error {
 
 	timestamp := time.Now().Unix()
 	if err := dpos.checkMiner(timestamp); err != nil {
-		logger.Error(err)
 		return err
 	}
 	logger.Infof("My turn to mint a block, time: %d", timestamp)
@@ -333,6 +335,7 @@ func (dpos *Dpos) BroadcastEternalMsgToMiners(block *types.Block) error {
 	}
 	eternalBlockMsg.hash = *hash
 	eternalBlockMsg.signature = signature
+	eternalBlockMsg.timestamp = block.Header.TimeStamp
 	miners := dpos.context.periodContext.periodPeers
 
 	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg, miners)
@@ -376,14 +379,18 @@ func (dpos *Dpos) LoadCandidates() error {
 }
 
 // StoreCandidateContext store candidate context
-func (dpos *Dpos) StoreCandidateContext(hash crypto.HashType) error {
-
+func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
+	if dpos.context.candidateContext == nil {
+		if err := dpos.LoadCandidates(); err != nil {
+			return err
+		}
+	}
 	bytes, err := dpos.context.candidateContext.Marshal()
 	if err != nil {
 		return err
 	}
 	db := dpos.chain.DB()
-	return db.Put(hash[:], bytes)
+	return db.Put(chain.CandidatesKey(hash), bytes)
 }
 
 // prepareCandidateContext prepare to update CandidateContext.
@@ -430,7 +437,7 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	block.Header.Signature = signature
+	block.Signature = signature
 	return nil
 }
 
@@ -445,7 +452,7 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 		return false, ErrNotFoundMiner
 	}
 
-	pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Header.Signature)
+	pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature)
 	if ok {
 		addr, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {

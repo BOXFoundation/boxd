@@ -90,6 +90,13 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 	b.genesis = genesis
 
+	eternal, err := b.loadEternalBlock()
+	if err != nil {
+		logger.Error("Failed to load eternal block ", err)
+		return nil, err
+	}
+	b.eternal = eternal
+
 	tail, err := b.LoadTailBlock()
 	if err != nil {
 		logger.Error("Failed to load tail block ", err)
@@ -165,7 +172,8 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
 	blockHash := block.BlockHash()
-	logger.Infof("Processing block hash: %v", *blockHash)
+	logger.Infof("Processing block hash: %s", blockHash.String())
+	logger.Infof("Processing block header : %+v", block.Header)
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.blockExists(*blockHash); exists {
@@ -181,6 +189,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 
 	ok, err := chain.consensus.VerifySign(block)
 	if err != nil || !ok {
+		logger.Infof("Failed to verifySign block : %v", *block)
+		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash(), block.Height)
 		return false, false, core.ErrInvalidBlockSignature
 	}
 
@@ -213,8 +223,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	logger.Infof("Accepted block hash: %v", blockHash)
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
-		chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
+	chain.consensus.BroadcastEternalMsgToMiners(block)
 	return isMainChain, false, nil
 }
 
@@ -623,7 +633,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	}
 
 	// save candidate context
-	if err := chain.consensus.StoreCandidateContext(*tail.BlockHash()); err != nil {
+	if err := chain.consensus.StoreCandidateContext(tail.BlockHash()); err != nil {
 		return err
 	}
 	// save tx index
@@ -655,6 +665,26 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 }
 
+func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
+	if chain.eternal != nil {
+		return chain.eternal, nil
+	}
+	if ok, _ := chain.db.Has(EternalKey); ok {
+		eternalBin, err := chain.db.Get(EternalKey)
+		if err != nil {
+			return nil, err
+		}
+
+		eternal := new(types.Block)
+		if err := eternal.Unmarshal(eternalBin); err != nil {
+			return nil, err
+		}
+
+		return eternal, nil
+	}
+	return &genesisBlock, nil
+}
+
 // LoadTailBlock load tail block
 func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if chain.tail != nil {
@@ -672,15 +702,13 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 		}
 
 		return tailBlock, nil
-
 	}
 
-	tailBin, err := genesisBlock.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	chain.db.Put(TailKey, tailBin)
-
+	// tailBin, err := genesisBlock.Marshal()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// chain.db.Put(TailKey, tailBin)
 	return &genesisBlock, nil
 }
 
