@@ -180,7 +180,7 @@ func (conn *Conn) OnPong(data []byte) error {
 		}
 		conn.mutex.Unlock()
 	}
-	conn.lastUnix = time.Now().Unix()
+	conn.lastUnix = time.Now().UnixNano() / 1e6
 
 	return nil
 }
@@ -197,7 +197,7 @@ func (conn *Conn) PeerDiscover() error {
 		select {
 		case <-conn.establishSucceedCh:
 		case <-establishedTimeout.C:
-			conn.peer.Punish(conn.remotePeer, pscore.PunishConnTimeOut)
+			conn.peer.Punish(conn.remotePeer, pscore.PunishConnTimeOutEvent)
 			conn.proc.Close()
 			return errors.New("Handshaking timeout")
 		}

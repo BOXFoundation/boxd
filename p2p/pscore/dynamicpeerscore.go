@@ -15,6 +15,8 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
+var logger = log.NewLogger("pscore")
+
 const (
 	// baseScore indicates the default score of the peer.
 	baseScore = 100
@@ -33,30 +35,49 @@ const (
 
 	// DisconnMinTime indicates the threshold of disconn time through DisconnTimesPeriod.
 	DisconnMinTime = 5
+)
 
-	// PunishConnTimeOut indicates the punishment if the conn time out.
-	PunishConnTimeOut ScoreEvent = 40
+const (
 
-	// PunishBadBlock indicates the punishment if process new block throwing err.
-	PunishBadBlock ScoreEvent = 60
+	// PunishConnTimeOutEvent indicates the punishment if the conn time out.
+	PunishConnTimeOutEvent ScoreEvent = iota
 
-	// PunishBadTx indicates the punishment if process new tx throwing err.
-	PunishBadTx ScoreEvent = 30
+	// PunishBadBlockEvent indicates the punishment if process new block throwing err.
+	PunishBadBlockEvent
 
-	// PunishSyncMsg indicates the punishment when receive sync msg.
-	PunishSyncMsg ScoreEvent = 25
+	// PunishBadTxEvent indicates the punishment if process new tx throwing err.
+	PunishBadTxEvent
 
-	// PunishNoHeartBeat indicates the punishment when long time no receive hb.
-	PunishNoHeartBeat ScoreEvent = 90
+	// PunishSyncMsgEvent indicates the punishment when receive sync msg.
+	PunishSyncMsgEvent
 
-	// PunishConnUnsteadiness indicates the punishment when conn is not steady.
-	PunishConnUnsteadiness ScoreEvent = 100
+	// PunishNoHeartBeatEvent indicates the punishment when long time no receive hb.
+	PunishNoHeartBeatEvent
 
-	// AwardNewBlock indicates the award for new block.
-	AwardNewBlock ScoreEvent = 80
+	// PunishConnUnsteadinessEvent indicates the punishment when conn is not steady.
+	PunishConnUnsteadinessEvent
 
-	// AwardNewTx indicates the award for new tx.
-	AwardNewTx ScoreEvent = 20
+	// AwardNewBlockEvent indicates the award for new block.
+	AwardNewBlockEvent
+
+	// AwardNewTxEvent indicates the award for new tx.
+	AwardNewTxEvent
+
+	punishConnTimeOutScore = 40
+
+	punishBadBlockScore = 100
+
+	punishBadTxScore = 30
+
+	punishSyncMsgScore = 20
+
+	punishNoHeartBeatScore = 60
+
+	punishConnUnsteadinessScore = 100
+
+	awardNewBlockScore = 80
+
+	awardNewTxScore = 10
 )
 
 // ScoreEvent means events happened to change score.
@@ -69,7 +90,16 @@ var (
 	AchieveFactors = newFactors(600, 18000, 512)
 )
 
-var logger = log.NewLogger("pscore")
+func init() {
+	PunishFactors.eventToScore[PunishConnTimeOutEvent] = punishConnTimeOutScore
+	PunishFactors.eventToScore[PunishBadBlockEvent] = punishBadBlockScore
+	PunishFactors.eventToScore[PunishBadTxEvent] = punishBadTxScore
+	PunishFactors.eventToScore[PunishSyncMsgEvent] = punishSyncMsgScore
+	PunishFactors.eventToScore[PunishNoHeartBeatEvent] = punishNoHeartBeatScore
+	PunishFactors.eventToScore[PunishConnUnsteadinessEvent] = punishConnUnsteadinessScore
+	AchieveFactors.eventToScore[AwardNewBlockEvent] = awardNewBlockScore
+	AchieveFactors.eventToScore[AwardNewTxEvent] = awardNewTxScore
+}
 
 type factors struct {
 
@@ -91,6 +121,9 @@ type factors struct {
 	// precomputedFactor stores precomputed exponential decay factors for the first
 	// 'precomputedLen' seconds starting from t == 0.
 	precomputedFactor []float64
+
+	// eventToScore stores the map about specific score to event
+	eventToScore map[ScoreEvent]int
 }
 
 func newFactors(halflife, lifetime, precomputedLen int) *factors {
@@ -103,6 +136,7 @@ func newFactors(halflife, lifetime, precomputedLen int) *factors {
 	for i := range factors.precomputedFactor {
 		factors.precomputedFactor[i] = math.Exp(-1.0 * float64(i) * factors.lambda)
 	}
+	factors.eventToScore = make(map[ScoreEvent]int)
 	return factors
 }
 
@@ -116,8 +150,8 @@ func (factors *factors) decayRate(t int64) float64 {
 	return math.Exp(-1.0 * float64(t) * factors.lambda)
 }
 
-// DynamicPeerScore provides dynamic ban scores consisting of a punishment, a achievement 
-// and a decaying component. The punished score and the achieved score could be utilized 
+// DynamicPeerScore provides dynamic ban scores consisting of a punishment, a achievement
+// and a decaying component. The punished score and the achieved score could be utilized
 // to create simple additive banning policies similar to those found in other node implementations.
 //
 // The decaying score enables the creation of evasive logic which handles
@@ -154,18 +188,18 @@ func (s *DynamicPeerScore) String() string {
 	list.New()
 	s.mtx.Lock()
 	r := fmt.Sprintf("achievement %v + punishment %v at %v = %v as of now",
-		s.achievement, s.punishment, s.lastUnix, s.Int())
+		s.achievement, s.punishment, s.lastUnix, s.Score())
 	s.mtx.Unlock()
 	return r
 }
 
-// Int returns the current peer score, the sum of the achieved and 
+// Score returns the current peer score, the sum of the achieved and
 // punished scores.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Int() int64 {
+func (s *DynamicPeerScore) Score() int64 {
 	s.mtx.Lock()
-	r := s.int(time.Now())
+	r := s.score(time.Now())
 	s.mtx.Unlock()
 	return r
 }
@@ -174,7 +208,8 @@ func (s *DynamicPeerScore) Int() int64 {
 // passed as parameters. The resulting score is returned.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Award(achievement ScoreEvent) int64 {
+func (s *DynamicPeerScore) Award(event ScoreEvent) int64 {
+	achievement := AchieveFactors.eventToScore[event]
 	s.mtx.Lock()
 	r := s.award(int64(achievement), time.Now())
 	s.mtx.Unlock()
@@ -185,7 +220,8 @@ func (s *DynamicPeerScore) Award(achievement ScoreEvent) int64 {
 // passed as parameters. The resulting score is returned.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Punish(punishment ScoreEvent) int64 {
+func (s *DynamicPeerScore) Punish(event ScoreEvent) int64 {
+	punishment := PunishFactors.eventToScore[event]
 	s.mtx.Lock()
 	r := s.punish(int64(punishment), time.Now())
 	s.mtx.Unlock()
@@ -196,11 +232,11 @@ func (s *DynamicPeerScore) Punish(punishment ScoreEvent) int64 {
 func (s *DynamicPeerScore) Disconnect() {
 	t := time.Now().UnixNano() / 1e6
 	s.connRecords.PushBack(t)
-	s.Reset(t)
+	// s.Reset(t)
 }
 
-// Reset achieved scores to zero but not punished
-//
+// Reset achieved scores to zero but not punished @deprecated
+// 
 // This function is safe for concurrent access.
 func (s *DynamicPeerScore) Reset(t int64) {
 	s.mtx.Lock()
@@ -209,12 +245,12 @@ func (s *DynamicPeerScore) Reset(t int64) {
 	s.mtx.Unlock()
 }
 
-// int returns the peer score, the sum of the achieved and punished scores at a
+// score returns the peer score, the sum of the achieved and punished scores at a
 // given point in time.
 //
 // This function is not safe for concurrent access. It is intended to be used
 // internally and during testing.
-func (s *DynamicPeerScore) int(t time.Time) int64 {
+func (s *DynamicPeerScore) score(t time.Time) int64 {
 	dt := t.UnixNano()/1e6 - s.lastUnix
 	s.verifyLifeTime(dt)
 	a := baseScore + int64(s.achievement*AchieveFactors.decayRate(dt)) - int64(s.punishment*PunishFactors.decayRate(dt))
@@ -231,8 +267,8 @@ func (s *DynamicPeerScore) verifyLifeTime(dt int64) {
 	}
 }
 
-// award increases the achievement. The resulting score is calculated 
-// as if the action was carried out at the point time. The resulting 
+// award increases the achievement. The resulting score is calculated
+// as if the action was carried out at the point time. The resulting
 // score is returned.
 //
 // This function is not safe for concurrent access.
@@ -260,8 +296,8 @@ func (s *DynamicPeerScore) award(achievement int64, t time.Time) int64 {
 	return baseScore + int64(s.achievement) - int64(s.punishment)
 }
 
-// punish increases the punishment. The resulting score is calculated 
-// as if the action was carried out at the point time. The resulting 
+// punish increases the punishment. The resulting score is calculated
+// as if the action was carried out at the point time. The resulting
 // score is returned.
 //
 // This function is not safe for concurrent access.

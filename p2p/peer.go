@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"sort"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -296,19 +295,23 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 // Award increases the achievement.
 // Init the peer score in score map when it is nil.
 func (p *BoxPeer) Award(pid peer.ID, amount pscore.ScoreEvent) {
+	p.scoremgr.Mutex.Lock()
 	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
 		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
 	}
 	p.scoremgr.Scores[pid].Award(amount)
+	p.scoremgr.Mutex.Unlock()
 }
 
 // Punish increases the punishment.
 // Init the peer score in score map when it is nil.
 func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
+	p.scoremgr.Mutex.Lock()
 	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
 		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
 	}
 	p.scoremgr.Scores[pid].Punish(amount)
+	p.scoremgr.Mutex.Unlock()
 }
 
 // Score calculate the immediate score of the peer.
@@ -317,34 +320,6 @@ func (p *BoxPeer) Score(pid peer.ID) int64 {
 	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
 		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
 	}
-	return p.scoremgr.Scores[pid].Int()
+	return p.scoremgr.Scores[pid].Score()
 }
 
-// Gc close the lowest grade peers' conn on time when conn pool is almost full
-func (p *BoxPeer) Gc() {
-	logger.Errorf("Gc invoked")
-	var queue scoreSorter
-	for pid, v := range p.conns {
-		conn := v.(*Conn)
-		if !conn.Established() {
-			continue
-		}
-		score := p.Score(pid)
-		peerScore := peerConnScore{
-			score: score,
-			conn:  conn,
-		}
-		queue = append(queue, peerScore)
-	}
-
-	for _, v := range queue {
-		logger.Errorf("score = %v", v.score)
-	}
-
-	sort.Sort(queue)
-	if size := len(queue) - ConnMaxCapacity*ConnLoadFactor; size > 0 {
-		for i := 0; i < size; i++ {
-			queue[i].conn.Close()
-		}
-	}
-}

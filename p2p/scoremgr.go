@@ -5,6 +5,8 @@
 package p2p
 
 import (
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -12,8 +14,6 @@ import (
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
-
-var scoreMgr *ScoreManager
 
 // peerConnScore is used for peer.Gc to score the conn
 type peerConnScore struct {
@@ -26,34 +26,27 @@ type ScoreManager struct {
 	Scores map[peer.ID]*pscore.DynamicPeerScore
 	bus    eventbus.Bus
 	peer   *BoxPeer
+	Mutex  sync.Mutex
 	proc   goprocess.Process
-}
-
-func init() {
-	scoreMgr = newScoreManager()
-}
-
-func newScoreManager() *ScoreManager {
-	scoreMgr := new(ScoreManager)
-	scoreMgr.Scores = make(map[peer.ID]*pscore.DynamicPeerScore)
-	return scoreMgr
 }
 
 // NewScoreManager returns new ScoreManager.
 func NewScoreManager(parent goprocess.Process, bus eventbus.Bus, boxPeer *BoxPeer) *ScoreManager {
+	scoreMgr := new(ScoreManager)
+	scoreMgr.Scores = make(map[peer.ID]*pscore.DynamicPeerScore)
 	scoreMgr.bus = bus
 	scoreMgr.peer = boxPeer
-	score := func(pid peer.ID, score pscore.ScoreEvent) {
+	score := func(pid peer.ID, event pscore.ScoreEvent) {
 		peerScore := scoreMgr.Scores[pid]
-		switch score {
-		case pscore.PunishConnTimeOut, pscore.PunishBadBlock, pscore.PunishBadTx, pscore.PunishSyncMsg:
-			logger.Errorf("Punish peer %v because %v", pid.Pretty(), score)
-			peerScore.Punish(score)
-		case pscore.AwardNewBlock, pscore.AwardNewTx:
-			logger.Errorf("Award peer %v because %v", pid.Pretty(), score)
-			peerScore.Award(score)
+		switch event {
+		case pscore.PunishConnTimeOutEvent, pscore.PunishBadBlockEvent, pscore.PunishBadTxEvent, pscore.PunishSyncMsgEvent:
+			logger.Errorf("Punish peer %v because %v", pid.Pretty(), event)
+			peerScore.Punish(event)
+		case pscore.AwardNewBlockEvent, pscore.AwardNewTxEvent:
+			logger.Errorf("Award peer %v because %v", pid.Pretty(), event)
+			peerScore.Award(event)
 		default:
-			logger.Error("No such event found: %v", score)
+			logger.Error("No such event found: %v", event)
 		}
 	}
 	scoreMgr.bus.Subscribe(eventbus.TopicChainScoreEvent, score)
@@ -66,7 +59,7 @@ func NewScoreManager(parent goprocess.Process, bus eventbus.Bus, boxPeer *BoxPee
 			case <-loopTicker.C:
 				scoreMgr.checkConnLastUnix()
 				scoreMgr.checkConnStability()
-				boxPeer.Gc()
+				scoreMgr.clearUp()
 			case <-p.Closing():
 				logger.Info("Quit route table loop.")
 				return
@@ -84,7 +77,7 @@ func (sm *ScoreManager) checkConnLastUnix() {
 		conn := v.(*Conn)
 		if conn.Established() && conn.LastUnix() != 0 && t-conn.LastUnix() > pscore.HeartBeatLatencyTime {
 			logger.Errorf("Punish peer %v because %v milliseconds no hb", pid.Pretty(), t-conn.LastUnix())
-			p.Punish(pid, pscore.PunishNoHeartBeat)
+			p.Punish(pid, pscore.PunishNoHeartBeatEvent)
 		}
 	}
 }
@@ -108,8 +101,37 @@ func (sm *ScoreManager) checkConnStability() {
 			}
 			if cnt > pscore.DisconnMinTime {
 				logger.Errorf("Punish peer %v because %v times disconnection last %v seconds ", pid.Pretty(), pscore.DisconnTimesPeriod, pscore.DisconnMinTime)
-				p.Punish(pid, pscore.PunishConnUnsteadiness)
+				p.Punish(pid, pscore.PunishConnUnsteadinessEvent)
 			}
+		}
+	}
+}
+
+// Gc close the lowest grade peers' conn on time when conn pool is almost full
+func (sm *ScoreManager) clearUp() {
+	logger.Errorf("clearUp invoked")
+	var queue []peerConnScore
+	for pid, v := range sm.peer.conns {
+		conn := v.(*Conn)
+		score := sm.peer.Score(pid)
+		peerScore := peerConnScore{
+			score: score,
+			conn:  conn,
+		}
+		queue = append(queue, peerScore)
+	}
+
+	for _, v := range queue {
+		logger.Errorf("score = %v", v.score)
+	}
+	// Sorting by scores desc
+	sort.Slice(queue, func(i, j int) bool {
+		return queue[i].score <= queue[j].score
+	})
+
+	if size := len(queue) - ConnMaxCapacity*ConnLoadFactor; size > 0 {
+		for i := 0; i < size; i++ {
+			queue[i].conn.Close()
 		}
 	}
 }

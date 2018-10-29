@@ -190,10 +190,10 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 	// process block
 	if _, _, err := chain.ProcessBlock(block, false); err != nil && util.InArray(err, evilBehavior) {
-		chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.PunishBadBlock)
+		chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.PunishBadBlockEvent)
 		return err
 	}
-	chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.AwardNewBlock)
+	chain.Bus().Publish(eventbus.TopicChainScoreEvent, msg.From(), pscore.AwardNewBlockEvent)
 	return nil
 }
 
