@@ -18,6 +18,7 @@ import (
 	"github.com/jbenet/goprocess"
 )
 
+// bft check eternal status
 type status int
 
 // EternalBlockMsgKeyType is renamed EternalBlockMsgKey type
@@ -86,7 +87,7 @@ func (bft *BftService) loop(p goprocess.Process) {
 	for {
 		select {
 		case msg := <-bft.eternalBlockMsgCh:
-			if err := bft.handleEternalBlock(msg); err != nil {
+			if err := bft.handleEternalBlockMsg(msg); err != nil {
 				logger.Warnf("Failed to handle eternalBlockMsg. Err: %s", err.Error())
 			}
 		case <-p.Closing():
@@ -96,6 +97,7 @@ func (bft *BftService) loop(p goprocess.Process) {
 	}
 }
 
+// checkEternalBlock check to update eternal block.
 func (bft *BftService) checkEternalBlock(p goprocess.Process) {
 	logger.Info("Start to check eternalBlock...")
 	timerChan := time.NewTicker(time.Second)
@@ -163,7 +165,7 @@ func (bft *BftService) generateKey(hash crypto.HashType, timestamp int64) *Etern
 	return result
 }
 
-func (bft *BftService) handleEternalBlock(msg p2p.Message) error {
+func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 
 	// quick check
 	peerID := msg.From().Pretty()
@@ -212,33 +214,6 @@ func (bft *BftService) handleEternalBlock(msg p2p.Message) error {
 			}
 		}
 		bft.cache[*key] = []*EternalBlockMsg{eternalBlockMsg}
-
-		// update eternal block
-		// block, err := bft.chain.LoadBlockByHash(eternalBlockMsg.hash)
-		// if err != nil {
-		// 	if err == core.ErrBlockIsNil {
-		// 		// cache the ternalBlockMsg
-		// 		msg, ok := bft.cache[*key]
-		// 		if ok {
-		// 			msg := append(msg, eternalBlockMsg)
-		// 			bft.cache[*key] = msg
-		// 			if len(bft.cache[*key]) > 2/3*PeriodSize {
-		// 				bft.existEternalBlockMsgKey.Add(*key, *key)
-		// 			}
-		// 		}
-		// 		bft.cache[*key] = []*EternalBlockMsg{eternalBlockMsg}
-		// 		return nil
-		// 	}
-		// 	return err
-		// }
-
-		// if block.Height <= bft.chain.EternalBlock().Height {
-		// 	return ErrNoNeedToUpdateEternalBlock
-		// }
-		// if err := bft.chain.SetEternal(block); err != nil {
-		// 	return err
-		// }
-		// logger.Info("Eternal block has changed! Hash: %s Height: %d", block.BlockHash(), block.Height)
 	}
 
 	return nil
