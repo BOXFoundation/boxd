@@ -208,3 +208,5 @@ func (dpos *DummyDpos) RecoverMint() {}
 func (dpos *DummyDpos) StopMint() {}
 
 func (dpos *DummyDpos) BroadcastEternalMsgToMiners(block *types.Block) error { return nil }
+
+func (dpos *DummyDpos) ValidateMiner() bool { return true }

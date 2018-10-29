@@ -106,7 +106,7 @@ var _ service.Server = (*Dpos)(nil)
 // Run start dpos
 func (dpos *Dpos) Run() error {
 	logger.Info("Dpos run")
-	if !dpos.validateMiner() {
+	if !dpos.ValidateMiner() {
 		logger.Warn("You have no authority to mint block")
 		return ErrNoLegalPowerToMint
 	}
@@ -195,8 +195,8 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 	return nil
 }
 
-// validateMiner verify whether the miner had authority to mint.
-func (dpos *Dpos) validateMiner() bool {
+// ValidateMiner verify whether the miner had authority to mint.
+func (dpos *Dpos) ValidateMiner() bool {
 
 	addr, err := types.ParseAddress(dpos.miner.Addr())
 	if err != nil {

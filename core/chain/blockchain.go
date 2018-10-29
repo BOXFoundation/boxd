@@ -173,7 +173,6 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
 	blockHash := block.BlockHash()
 	logger.Infof("Processing block hash: %s", blockHash.String())
-	logger.Infof("Processing block header : %+v", block.Header)
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.blockExists(*blockHash); exists {
@@ -189,7 +188,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 
 	ok, err := chain.consensus.VerifySign(block)
 	if err != nil || !ok {
-		logger.Infof("Failed to verifySign block : %v", *block)
 		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash(), block.Height)
 		return false, false, core.ErrInvalidBlockSignature
 	}
@@ -224,7 +222,10 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
-	chain.consensus.BroadcastEternalMsgToMiners(block)
+	if chain.consensus.ValidateMiner() {
+		chain.consensus.BroadcastEternalMsgToMiners(block)
+	}
+
 	return isMainChain, false, nil
 }
 
