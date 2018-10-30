@@ -130,10 +130,7 @@ func cleanWs(ws string) error {
 	if err := os.RemoveAll(ws + "/database"); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(ws + "/logs"); err != nil {
-		return err
-	}
-	return nil
+	return os.RemoveAll(ws + "/logs")
 }
 
 func NoTestSyncManager(t *testing.T) {
