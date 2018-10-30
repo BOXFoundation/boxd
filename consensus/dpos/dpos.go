@@ -32,16 +32,6 @@ const (
 	PeriodSize           = 2
 )
 
-// Define err message
-var (
-	ErrNoLegalPowerToMint = errors.New("No legal power to mint")
-	ErrNotMyTurnToMint    = errors.New("Not my turn to mint")
-	ErrWrongTimeToMint    = errors.New("Wrong time to mint")
-	ErrNotFoundMiner      = errors.New("Failed to find miner")
-	ErrDuplicateSignUpTx  = errors.New("duplicate sign up tx")
-	ErrCandidateNotFound  = errors.New("candidate not found")
-)
-
 // Config defines the configurations of dpos
 type Config struct {
 	Keypath    string `mapstructure:"keypath"`
@@ -111,7 +101,7 @@ func (dpos *Dpos) Run() error {
 		return ErrNoLegalPowerToMint
 	}
 
-	// if mint peer, start bftService.
+	// peer can mint, start bftService.
 	bftService, err := NewBftService(dpos)
 	if err != nil {
 		return err
@@ -195,7 +185,7 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 	return nil
 }
 
-// ValidateMiner verify whether the miner had authority to mint.
+// ValidateMiner verifies whether the miner has authority to mint.
 func (dpos *Dpos) ValidateMiner() bool {
 
 	addr, err := types.ParseAddress(dpos.miner.Addr())
@@ -399,7 +389,7 @@ func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 	content := tx.Data.Content
 	candidateContext := dpos.context.candidateContext
 	switch int(tx.Data.Type) {
-	case types.SignUpTx:
+	case types.RegisterCandidateTx:
 		signUpContent := new(types.SignUpContent)
 		if err := signUpContent.Unmarshal(content); err != nil {
 			return err
@@ -412,7 +402,7 @@ func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 			votes: 0,
 		}
 		candidateContext.candidates = append(candidateContext.candidates, candidate)
-	case types.VotesTx:
+	case types.VoteTx:
 		votesContent := new(types.VoteContent)
 		if err := votesContent.Unmarshal(content); err != nil {
 			return err
@@ -441,7 +431,7 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 	return nil
 }
 
-// VerifySign consensus verify sign info.
+// VerifySign consensus verifies signature info.
 func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 
 	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)

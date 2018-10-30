@@ -5,8 +5,6 @@
 package dpos
 
 import (
-	"errors"
-
 	"github.com/BOXFoundation/boxd/consensus/dpos/pb"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -17,24 +15,14 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
-// Define error
-var (
-	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")
-	ErrInvalidConsensusContextProtoMessage = errors.New("Invalid consensus context proto message")
-	ErrInvalidCandidateContextProtoMessage = errors.New("Invalid condidate context proto message")
-	ErrInvalidPeriodContextProtoMessage    = errors.New("Invalid period contex proto message")
-	ErrInvalidPeriodProtoMessage           = errors.New("Invalid period proto message")
-	ErrInvalidEternalBlockMsgProtoMessage  = errors.New("Invalid eternalBlockMsg proto message")
-)
-
-// ConsensusContext represent consensus context info.
+// ConsensusContext represents consensus context info.
 type ConsensusContext struct {
 	timestamp        int64
 	periodContext    *PeriodContext
 	candidateContext *CandidateContext
 }
 
-// PeriodContext represent period context info.
+// PeriodContext represents period context info.
 type PeriodContext struct {
 	period      []*Period
 	nextPeriod  []*Period
@@ -42,7 +30,7 @@ type PeriodContext struct {
 	periodPeers []string
 }
 
-// InitPeriodContext init period context.
+// InitPeriodContext initializes period context.
 func InitPeriodContext() (*PeriodContext, error) {
 
 	periods := make([]*Period, len(chain.GenesisPeriod))
@@ -170,7 +158,7 @@ func (pc *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.Address
 	return miner, nil
 }
 
-// Period represent period info.
+// Period represents period info.
 type Period struct {
 	addr   types.AddressHash
 	peerID string
@@ -218,7 +206,7 @@ func (period *Period) Unmarshal(data []byte) error {
 ///////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
-// CandidateContext represent possible to be the miner.
+// CandidateContext represents possible to be the miner.
 type CandidateContext struct {
 	height     uint32
 	candidates []*Candidate
@@ -309,7 +297,7 @@ func (candidateContext *CandidateContext) CandidateContextHash() (*crypto.HashTy
 ///////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
-// Candidate represent possible to be the miner.
+// Candidate represents possible to be the miner.
 type Candidate struct {
 	addr  types.AddressHash
 	votes int64
@@ -359,7 +347,7 @@ func (candidate *Candidate) Unmarshal(data []byte) error {
 ///////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
-// EternalBlockMsg represent eternal block msg.
+// EternalBlockMsg represents eternal block msg.
 type EternalBlockMsg struct {
 	hash      crypto.HashType
 	signature []byte

@@ -15,8 +15,8 @@ import (
 // Define const
 const (
 	GeneralTx = iota
-	SignUpTx
-	VotesTx
+	RegisterCandidateTx
+	VoteTx
 )
 
 // Transaction defines a transaction.

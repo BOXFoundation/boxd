@@ -6,7 +6,6 @@ package dpos
 
 import (
 	"bytes"
-	"errors"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -22,23 +21,17 @@ import (
 type status int
 
 // EternalBlockMsgKeyType is renamed EternalBlockMsgKey type
-type EternalBlockMsgKeyType [crypto.HashSize + 8]byte
+type EternalBlockMsgKeyType [EternalBlockMsgKeySize]byte
 
 // Define const.
 const (
 	EternalBlockMsgChBufferSize        = 65536
 	MaxEternalBlockMsgCacheTime        = 10 * 60
 	MinConfirmMsgNumberForEternalBlock = 2 * PeriodSize / 3
+	EternalBlockMsgKeySize             = crypto.HashSize + 8
 
 	free status = iota
 	underway
-)
-
-// Define error msg.
-var (
-	ErrNoNeedToUpdateEternalBlock = errors.New("No need to update Eternal block")
-	ErrIllegalMsg                 = errors.New("Illegal message from remote peer")
-	ErrEternalBlockMsgHashIsExist = errors.New("EternalBlockMsgHash is already exist")
 )
 
 // BftService use for quick identification of eternal block.
@@ -207,8 +200,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 			return err
 		}
 
-		msg, ok := bft.cache[*key]
-		if ok {
+		if msg, ok := bft.cache[*key]; ok {
 			msg := append(msg, eternalBlockMsg)
 			bft.cache[*key] = msg
 			if len(bft.cache[*key]) > MinConfirmMsgNumberForEternalBlock {
