@@ -27,5 +27,6 @@ rpc:
     http:
         port: 19190
 dpos:
-    index: 0
-    pubkey: e34cce70c86373273efcc54ce7d2a491bb4a0e84
+    keypath: keyfile/key.keystore
+    enable_mint: true
+    passphrase: zaq12wsx

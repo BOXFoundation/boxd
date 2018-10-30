@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -24,7 +23,8 @@ import (
 
 // const defines constants
 const (
-	BlockMsgChBufferSize = 1024
+	BlockMsgChBufferSize        = 1024
+	EternalBlockMsgChBufferSize = 65536
 
 	MaxTimeOffsetSeconds = 2 * 60 * 60
 	MaxBlockSize         = 32000000
@@ -33,6 +33,7 @@ const (
 	LockTimeThreshold    = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 	medianTimeBlocks     = 11
 	sequenceLockTimeMask = 0x0000ffff
+	PeriodDuration       = 3600 * 24 * 100 / 5
 
 	sequenceLockTimeIsSeconds   = 1 << 22
 	sequenceLockTimeGranularity = 9
@@ -48,9 +49,11 @@ var _ service.ChainReader = (*BlockChain)(nil)
 type BlockChain struct {
 	notifiee                  p2p.Net
 	newblockMsgCh             chan p2p.Message
+	consensus                 types.Consensus
 	db                        storage.Table
 	genesis                   *types.Block
 	tail                      *types.Block
+	eternal                   *types.Block
 	proc                      goprocess.Process
 	LongestChainHeight        uint32
 	longestChainTip           *types.Block
@@ -58,31 +61,6 @@ type BlockChain struct {
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               types.SyncManager
-}
-
-// MarshalTxIndex writes Tx height and index to bytes
-func MarshalTxIndex(height, index uint32) (data []byte, err error) {
-	buf := bytes.NewBuffer(make([]byte, 8))
-	if err := util.WriteUint32(buf, height); err != nil {
-		return nil, err
-	}
-	if err := util.WriteUint32(buf, index); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-// UnmarshalTxIndex return tx index from bytes
-func UnmarshalTxIndex(data []byte) (height uint32, index uint32, err error) {
-	buf := bytes.NewBuffer(data)
-	if height, err = util.ReadUint32(buf); err != nil {
-		return
-	}
-	if index, err = util.ReadUint32(buf); err != nil {
-		return
-	}
-	return
 }
 
 // NewBlockChain return a blockchain.
@@ -112,6 +90,13 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 	b.genesis = genesis
 
+	eternal, err := b.loadEternalBlock()
+	if err != nil {
+		logger.Error("Failed to load eternal block ", err)
+		return nil, err
+	}
+	b.eternal = eternal
+
 	tail, err := b.LoadTailBlock()
 	if err != nil {
 		logger.Error("Failed to load tail block ", err)
@@ -124,7 +109,8 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 }
 
 // Setup prepare blockchain.
-func (chain *BlockChain) Setup(syncManager types.SyncManager) {
+func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.SyncManager) {
+	chain.consensus = consensus
 	chain.syncManager = syncManager
 }
 
@@ -186,7 +172,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
 	blockHash := block.BlockHash()
-	logger.Infof("Processing block hash: %v", *blockHash)
+	logger.Infof("Processing block hash: %s", blockHash.String())
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.blockExists(*blockHash); exists {
@@ -198,6 +184,12 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	if chain.isInOrphanPool(blockHash) {
 		logger.Warnf("already have block (orphan) %v", blockHash)
 		return false, false, core.ErrOrphanBlockExists
+	}
+
+	ok, err := chain.consensus.VerifySign(block)
+	if err != nil || !ok {
+		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash(), block.Height)
+		return false, false, core.ErrInvalidBlockSignature
 	}
 
 	if err := validateBlock(block, util.NewMedianTime()); err != nil {
@@ -230,6 +222,10 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
+	if chain.consensus.ValidateMiner() {
+		chain.consensus.BroadcastEternalMsgToMiners(block)
+	}
+
 	return isMainChain, false, nil
 }
 
@@ -561,6 +557,33 @@ func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
 }
 
+// SetEternal set block eternal status.
+func (chain *BlockChain) SetEternal(block *types.Block) error {
+	eternal := chain.eternal
+	if eternal.Height < block.Height {
+		if err := chain.StoreEternalBlock(block); err != nil {
+			return err
+		}
+		chain.eternal = block
+		return nil
+	}
+	return core.ErrFailedToSetEternal
+}
+
+// StoreEternalBlock store eternal block to db.
+func (chain *BlockChain) StoreEternalBlock(block *types.Block) error {
+	eternal, err := block.Marshal()
+	if err != nil {
+		return err
+	}
+	return chain.db.Put(EternalKey, eternal)
+}
+
+// EternalBlock return chain eternal block.
+func (chain *BlockChain) EternalBlock() *types.Block {
+	return chain.eternal
+}
+
 // ListAllUtxos list all the available utxos for testing purpose
 func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
 	utxoSet := NewUtxoSet()
@@ -610,13 +633,17 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 		return err
 	}
 
+	// save candidate context
+	if err := chain.consensus.StoreCandidateContext(tail.BlockHash()); err != nil {
+		return err
+	}
 	// save tx index
 	if err := chain.WirteTxIndex(tail); err != nil {
 		return err
 	}
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
-	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
+	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash(), tail.Height)
 	return nil
 }
 
@@ -639,6 +666,26 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 }
 
+func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
+	if chain.eternal != nil {
+		return chain.eternal, nil
+	}
+	if ok, _ := chain.db.Has(EternalKey); ok {
+		eternalBin, err := chain.db.Get(EternalKey)
+		if err != nil {
+			return nil, err
+		}
+
+		eternal := new(types.Block)
+		if err := eternal.Unmarshal(eternalBin); err != nil {
+			return nil, err
+		}
+
+		return eternal, nil
+	}
+	return &genesisBlock, nil
+}
+
 // LoadTailBlock load tail block
 func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 	if chain.tail != nil {
@@ -656,14 +703,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 		}
 
 		return tailBlock, nil
-
 	}
-
-	tailBin, err := genesisBlock.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	chain.db.Put(TailKey, tailBin)
 
 	return &genesisBlock, nil
 }
@@ -863,19 +903,4 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 func (chain *BlockChain) isInOrphanPool(blockHash *crypto.HashType) bool {
 	_, exists := chain.hashToOrphanBlock[*blockHash]
 	return exists
-}
-
-// NewTestBlockChain generate a chain for testing
-func NewTestBlockChain() *BlockChain {
-	dbCfg := &storage.Config{
-		Name: "memdb",
-		Path: "~/tmp",
-	}
-
-	proc := goprocess.WithSignals(os.Interrupt)
-	db, _ := storage.NewDatabase(proc, dbCfg)
-	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
-	// set sync manager
-	blockChain.Setup(NewDummySyncManager())
-	return blockChain
 }

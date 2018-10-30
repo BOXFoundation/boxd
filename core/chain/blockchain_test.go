@@ -44,7 +44,7 @@ func TestAppendInLoop(t *testing.T) {
 func nextBlock(parentBlock *types.Block) *types.Block {
 	newBlock := types.NewBlock(parentBlock)
 
-	coinbaseTx, _ := CreateCoinbaseTx(minerAddr, parentBlock.Height+1)
+	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.ScriptAddress(), parentBlock.Height+1)
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock
@@ -92,7 +92,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2
 	//		   \-> b2A
 	b2A := nextBlock(b1)
-	verifyProcessBlock(t, b2A, false, false, nil, 2, b2)
+	verifyProcessBlock(t, b2A, false, false, core.ErrBlockExists, 2, b2)
 
 	// reorg: side chain grows longer than main chain
 	// b0 -> b1 -> b2
@@ -104,7 +104,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2  -> b3  -> b4
 	//		   \-> b2A -> b3A
 	b3 := nextBlock(b2)
-	verifyProcessBlock(t, b3, false, false, nil, 3, b3A)
+	verifyProcessBlock(t, b3, false, false, core.ErrBlockExists, 3, b3A)
 	b4 := nextBlock(b3)
 	verifyProcessBlock(t, b4, true, false, nil, 4, b4)
 
@@ -113,7 +113,7 @@ func TestBlockProcessing(t *testing.T) {
 	//						  \-> b4B -> b5B
 	//		   \-> b2A -> b3A
 	b4B := nextBlock(b3)
-	verifyProcessBlock(t, b4B, false, false, nil, 4, b4)
+	verifyProcessBlock(t, b4B, false, false, core.ErrBlockExists, 4, b4)
 	b5B := nextBlock(b4B)
 	verifyProcessBlock(t, b5B, true, false, nil, 5, b5B)
 

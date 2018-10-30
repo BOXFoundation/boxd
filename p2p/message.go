@@ -40,6 +40,8 @@ const (
 	BlockChunkRequest       = 0x14
 	BlockChunkResponse      = 0x15
 
+	EternalBlockMsg = 0x16
+
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
 

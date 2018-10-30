@@ -240,6 +240,30 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 	return nil
 }
 
+// BroadcastToMiners business message to miners.
+func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []string) error {
+	body, err := conv.MarshalConvertible(msg)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range miners {
+		if p.id.Pretty() == v {
+			continue
+		}
+		pid, err := peer.IDB58Decode(v)
+		if err != nil {
+			return err
+		}
+		if conn, ok := p.conns[pid]; ok {
+			conn := conn.(*Conn)
+			go conn.Write(code, body)
+		}
+
+	}
+	return nil
+}
+
 // SendMessageToPeer sends message to a peer.
 func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible,
 	pid peer.ID) error {

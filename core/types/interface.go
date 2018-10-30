@@ -4,6 +4,22 @@
 
 package types
 
+import (
+	"github.com/BOXFoundation/boxd/crypto"
+)
+
+// Consensus define consensus interface
+type Consensus interface {
+	Run() error
+	Stop()
+	StoreCandidateContext(*crypto.HashType) error
+	VerifySign(*Block) (bool, error)
+	StopMint()
+	RecoverMint()
+	BroadcastEternalMsgToMiners(*Block) error
+	ValidateMiner() bool
+}
+
 // SyncManager define sync manager interface
 type SyncManager interface {
 	StartSync()

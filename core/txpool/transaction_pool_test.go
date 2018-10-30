@@ -33,7 +33,7 @@ var (
 	addr, _            = types.NewAddressFromPubKey(pubKey)
 	scriptAddr         = addr.ScriptAddress()
 	scriptPubKey       = script.PayToPubKeyHashScript(scriptAddr)
-	tx0, _             = chain.CreateCoinbaseTx(addr, chainHeight)
+	tx0, _             = chain.CreateCoinbaseTx(addr.ScriptAddress(), chainHeight)
 )
 
 // create a child tx spending parent tx's output

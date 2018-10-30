@@ -9,22 +9,24 @@ import "errors"
 // error
 var (
 	//blockchain.go
-	ErrBlockExists        = errors.New("Block already exists")
-	ErrOrphanBlockExists  = errors.New("Orphan block already exists")
-	ErrBlockIsNil         = errors.New("Block is nil")
-	ErrInvalidTime        = errors.New("Invalid time")
-	ErrTimeTooNew         = errors.New("Block time too new")
-	ErrNoTransactions     = errors.New("Block does not contain any transaction")
-	ErrBlockTooBig        = errors.New("Block too big")
-	ErrFirstTxNotCoinbase = errors.New("First transaction in block is not a coinbase")
-	ErrMultipleCoinbases  = errors.New("Block contains multiple coinbase transactions")
-	ErrBadMerkleRoot      = errors.New("Merkel root mismatch")
-	ErrDuplicateTx        = errors.New("Duplicate transactions in a block")
-	ErrTooManySigOps      = errors.New("Too many signature operations in a block")
-	ErrBadFees            = errors.New("total fees for block overflows accumulator")
-	ErrBadCoinbaseValue   = errors.New("Coinbase pays more than expected value")
-	ErrUnfinalizedTx      = errors.New("Transaction has not been finalized")
-	ErrWrongBlockHeight   = errors.New("Wrong block height")
+	ErrBlockExists           = errors.New("Block already exists")
+	ErrInvalidTime           = errors.New("Invalid time")
+	ErrTimeTooNew            = errors.New("Block time too new")
+	ErrNoTransactions        = errors.New("Block does not contain any transaction")
+	ErrBlockTooBig           = errors.New("Block too big")
+	ErrFirstTxNotCoinbase    = errors.New("First transaction in block is not a coinbase")
+	ErrMultipleCoinbases     = errors.New("Block contains multiple coinbase transactions")
+	ErrBadMerkleRoot         = errors.New("Merkel root mismatch")
+	ErrDuplicateTx           = errors.New("Duplicate transactions in a block")
+	ErrTooManySigOps         = errors.New("Too many signature operations in a block")
+	ErrBadFees               = errors.New("total fees for block overflows accumulator")
+	ErrBadCoinbaseValue      = errors.New("Coinbase pays more than expected value")
+	ErrUnfinalizedTx         = errors.New("Transaction has not been finalized")
+	ErrWrongBlockHeight      = errors.New("Wrong block height")
+	ErrInvalidBlockSignature = errors.New("Invalid block signature")
+	ErrBlockIsNil            = errors.New("Block is nil")
+	ErrOrphanBlockExists     = errors.New("Orphan block already exists")
+	ErrFailedToSetEternal    = errors.New("Failed to set eternal block")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
@@ -51,7 +53,8 @@ var (
 	ErrInvalidTxProtoMessage       = errors.New("Invalid tx proto message")
 
 	//address.go
-	ErrInvalidPKHash = errors.New("pkHash must be 20 bytes")
+	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")
+	ErrInvalidAddressString = errors.New("invalid box address format")
 
 	//utils.go
 	ErrNoTxInputs           = errors.New("Transaction has no inputs")

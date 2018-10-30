@@ -5,8 +5,11 @@
 package crypto
 
 import (
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/btcsuite/btcd/btcec"
 )
+
+var logger = log.NewLogger("crypto") // logger
 
 // Signature is a btcec.Signature wrapper
 type Signature btcec.Signature
@@ -53,6 +56,7 @@ func SignCompact(privKey *PrivateKey, digest []byte) ([]byte, error) {
 func RecoverCompact(digest, sig []byte) (*PublicKey, bool) {
 	publicKey, onCurve, err := btcec.RecoverCompact(secp256k1Curve, sig, digest)
 	if !onCurve || err != nil {
+		logger.Errorf("Failed to recover. err: %s", err.Error())
 		return nil, false
 	}
 	return (*PublicKey)(publicKey), true
