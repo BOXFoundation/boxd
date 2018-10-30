@@ -22,6 +22,8 @@ p2p:
     port: 19199
     bucket_size: 16
     latency: 10
+    conn_max_capacity: 200
+    conn_load_factor: 0.8
 rpc:
     port: 19191
     http:

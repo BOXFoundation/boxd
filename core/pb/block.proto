@@ -50,5 +50,4 @@ message UtxoWrap {
 	uint32 block_height = 2;
 	bool is_spent = 3;
 	bool is_coinbase = 4;
-    bool is_modified = 5;
 }

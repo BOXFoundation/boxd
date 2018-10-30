@@ -24,6 +24,8 @@ p2p:
         - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
     bucket_size: 16
     latency: 10
+    conn_max_capacity: 200
+    conn_load_factor: 0.8
 rpc:
     port: 19181
     http:

@@ -125,7 +125,9 @@ func (sm *ScoreManager) clearUp() {
 		return queue[i].score <= queue[j].score
 	})
 
-	if size := len(queue) - ConnMaxCapacity*ConnLoadFactor; size > 0 {
+	logger.Errorf("aaaaa %v %v", sm.peer.config.ConnMaxCapacity, sm.peer.config.ConnLoadFactor)
+
+	if size := len(queue) - int(float32(sm.peer.config.ConnMaxCapacity)*sm.peer.config.ConnLoadFactor); size > 0 {
 		for i := 0; i < size; i++ {
 			logger.Infof("Close conn %v because of low score %v", queue[i].conn.remotePeer.Pretty(), queue[i].score)
 			queue[i].conn.Close()
