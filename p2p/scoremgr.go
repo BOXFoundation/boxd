@@ -40,13 +40,13 @@ func NewScoreManager(parent goprocess.Process, bus eventbus.Bus, boxPeer *BoxPee
 		peerScore := scoreMgr.Scores[pid]
 		switch event {
 		case pscore.PunishConnTimeOutEvent, pscore.PunishBadBlockEvent, pscore.PunishBadTxEvent, pscore.PunishSyncMsgEvent:
-			logger.Errorf("Punish peer %v because %v", pid.Pretty(), event)
+			logger.Debugf("Punish peer %v because %v", pid.Pretty(), event)
 			peerScore.Punish(event)
 		case pscore.AwardNewBlockEvent, pscore.AwardNewTxEvent:
-			logger.Errorf("Award peer %v because %v", pid.Pretty(), event)
+			logger.Debugf("Award peer %v because %v", pid.Pretty(), event)
 			peerScore.Award(event)
 		default:
-			logger.Error("No such event found: %v", event)
+			logger.Debugf("No such event found: %v", event)
 		}
 	}
 	scoreMgr.bus.Subscribe(eventbus.TopicChainScoreEvent, score)
@@ -109,7 +109,6 @@ func (sm *ScoreManager) checkConnStability() {
 
 // Gc close the lowest grade peers' conn on time when conn pool is almost full
 func (sm *ScoreManager) clearUp() {
-	logger.Errorf("clearUp invoked")
 	var queue []peerConnScore
 	for pid, v := range sm.peer.conns {
 		conn := v.(*Conn)
@@ -121,9 +120,6 @@ func (sm *ScoreManager) clearUp() {
 		queue = append(queue, peerScore)
 	}
 
-	for _, v := range queue {
-		logger.Errorf("score = %v", v.score)
-	}
 	// Sorting by scores desc
 	sort.Slice(queue, func(i, j int) bool {
 		return queue[i].score <= queue[j].score
@@ -131,6 +127,7 @@ func (sm *ScoreManager) clearUp() {
 
 	if size := len(queue) - ConnMaxCapacity*ConnLoadFactor; size > 0 {
 		for i := 0; i < size; i++ {
+			logger.Infof("Close conn %v because of low score %v", queue[i].conn.remotePeer.Pretty(), queue[i].score)
 			queue[i].conn.Close()
 		}
 	}
