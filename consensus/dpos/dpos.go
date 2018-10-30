@@ -29,7 +29,7 @@ const (
 	SecondInMs           = int64(1000)
 	NewBlockTimeInterval = int64(5000)
 	MaxPackedTxTime      = int64(2000)
-	PeriodSize           = 2
+	PeriodSize           = 3
 )
 
 // Config defines the configurations of dpos
@@ -134,7 +134,7 @@ func (dpos *Dpos) RecoverMint() {
 
 func (dpos *Dpos) loop(p goprocess.Process) {
 	logger.Info("Start block mint")
-	time.Sleep(10 * time.Second)
+	time.Sleep(30 * time.Second)
 	timeChan := time.NewTicker(time.Second)
 	defer timeChan.Stop()
 	for {

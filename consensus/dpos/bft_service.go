@@ -151,7 +151,7 @@ func (bft *BftService) updateEternal(msg *EternalBlockMsg) bool {
 }
 
 func (bft *BftService) generateKey(hash crypto.HashType, timestamp int64) *EternalBlockMsgKeyType {
-	buf := make([]byte, crypto.HashSize+8)
+	buf := make([]byte, EternalBlockMsgKeySize)
 	copy(buf, hash[:])
 	w := bytes.NewBuffer(buf[crypto.HashSize:])
 	util.WriteInt64(w, timestamp)
@@ -183,8 +183,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		return ErrIllegalMsg
 	}
 
-	pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.hash[:], eternalBlockMsg.signature)
-	if ok {
+	if pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.hash[:], eternalBlockMsg.signature); ok {
 		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
 			return err
@@ -203,11 +202,12 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		if msg, ok := bft.cache[*key]; ok {
 			msg := append(msg, eternalBlockMsg)
 			bft.cache[*key] = msg
-			if len(bft.cache[*key]) > MinConfirmMsgNumberForEternalBlock {
+			if len(bft.cache[*key]) >= MinConfirmMsgNumberForEternalBlock {
 				bft.existEternalBlockMsgKey.Add(*key, *key)
 			}
+		} else {
+			bft.cache[*key] = []*EternalBlockMsg{eternalBlockMsg}
 		}
-		bft.cache[*key] = []*EternalBlockMsg{eternalBlockMsg}
 	}
 
 	return nil
