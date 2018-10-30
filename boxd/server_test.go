@@ -130,7 +130,6 @@ func cleanWs(ws string) error {
 	if err := os.RemoveAll(ws + "/database"); err != nil {
 		return err
 	}
-
 	return os.RemoveAll(ws + "/logs")
 }
 

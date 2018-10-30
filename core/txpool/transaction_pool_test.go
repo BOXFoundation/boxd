@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
+	_ "github.com/BOXFoundation/boxd/storage/memdb" // init memdb
 	"github.com/facebookgo/ensure"
 	"github.com/jbenet/goprocess"
 )
@@ -22,9 +23,8 @@ import (
 // test setup
 var (
 	proc        = goprocess.WithSignals(os.Interrupt)
-	txpool      = NewTransactionPool(proc, p2p.NewDummyPeer(), nil)
+	txpool      = NewTransactionPool(proc, p2p.NewDummyPeer(), chain.NewTestBlockChain())
 	chainHeight = uint32(0)
-	utxoSet     = chain.NewUtxoSet()
 
 	txOutIdx = uint32(0)
 	value    = uint64(1)
@@ -33,7 +33,7 @@ var (
 	addr, _            = types.NewAddressFromPubKey(pubKey)
 	scriptAddr         = addr.ScriptAddress()
 	scriptPubKey       = script.PayToPubKeyHashScript(scriptAddr)
-	coinbaseTx, _      = chain.CreateCoinbaseTx(addr.ScriptAddress(), chainHeight)
+	tx0, _             = chain.CreateCoinbaseTx(addr.ScriptAddress(), chainHeight)
 )
 
 // create a child tx spending parent tx's output
@@ -89,15 +89,12 @@ func getTxHash(tx *types.Transaction) *crypto.HashType {
 	return txHash
 }
 
-// return new child tx
-func verifyDoProcessTx(t *testing.T, tx *types.Transaction, expectedErr error,
-	isTransactionInPool, isOrphanInPool bool) *types.Transaction {
+func verifyProcessTx(t *testing.T, tx *types.Transaction, expectedErr error,
+	isTransactionInPool, isOrphanInPool bool) {
 
-	err := txpool.doProcessTx(tx, chainHeight, utxoSet, false /* do not broadcast */)
+	err := txpool.ProcessTx(tx, false /* do not broadcast */)
 	ensure.DeepEqual(t, err, expectedErr)
 	verifyTxInPool(t, tx, isTransactionInPool, isOrphanInPool)
-
-	return tx
 }
 
 func verifyTxInPool(t *testing.T, tx *types.Transaction, isTransactionInPool, isOrphanInPool bool) {
@@ -106,109 +103,77 @@ func verifyTxInPool(t *testing.T, tx *types.Transaction, isTransactionInPool, is
 	ensure.DeepEqual(t, isOrphanInPool, txpool.isOrphanInPool(txHash))
 }
 
-func TestDoProcessTx(t *testing.T) {
+func TestProcessTx(t *testing.T) {
 	// Notations
 	// txi <- txj: txj spends output of txi, i.e., is a child tx of txi
 	// txi(m): txi is in main pool
 	// txi(o): txi is in orphan pool
 	// txi(): txi is in neither pool. This can happen, e.g., if a tx is a coinbase and rejected
 
-	// tx0(o)
-	// tx0 is not admitted into main pool since its referenced outpoint does not exist
-	tx0 := createChildTx(coinbaseTx)
-	ensure.NotNil(t, tx0)
-	verifyDoProcessTx(t, tx0, core.ErrOrphanTransaction, false, true)
+	// tx0(): coinbase transaction cannot be accepted
+	verifyProcessTx(t, tx0, core.ErrCoinbaseTx, false, false)
 
-	// a duplicate tx0, already exists in tx pool
-	verifyDoProcessTx(t, tx0, core.ErrDuplicateTxInPool, false, true)
+	// manually add tx0 into pool as utxo to bootstrap; otherwise no tx can be accepted
+	txpool.addTx(tx0, chainHeight, 0)
 
-	// manually mark tx0's output as unspent to bootstrap; otherwise no tx can be accepted
-	utxoSet.AddUtxo(tx0, 0, chainHeight)
-
-	// tx0(o) <- tx1(m)
-	// tx1 is admitted into main pool since it spends from a valid UTXO, i.e., tx0
+	// tx0(m) <- tx1(m)
+	// tx1 is admitted into main pool since it spends from a valid UTXO, i.e., coinbaseTx
 	tx1 := createChildTx(tx0)
-	verifyDoProcessTx(t, tx1, nil, true, false)
+	verifyProcessTx(t, tx1, nil, true, false)
 
-	// tx1A(m) <- tx2(m)
+	// a duplicate tx1, already exists in tx pool
+	verifyProcessTx(t, tx1, core.ErrDuplicateTxInPool, true, false)
+
+	// tx0(m) <- tx1(m) <- tx2(m)
 	tx2 := createChildTx(tx1)
-	verifyDoProcessTx(t, tx2, nil, true, false)
+	verifyProcessTx(t, tx2, nil, true, false)
 
 	// tx2 is already in the main pool. Ignore.
-	verifyDoProcessTx(t, tx2, core.ErrDuplicateTxInPool, true, false)
+	verifyProcessTx(t, tx2, core.ErrDuplicateTxInPool, true, false)
 
-	// coinbase transaction cannot be accepted
-	verifyDoProcessTx(t, coinbaseTx, core.ErrCoinbaseTx, false, false)
-
-	// tx2(m) <- tx3(m)
-	// tx3(m) is admitted into main pool since it spends from a valid UTXO, i.e., tx2
+	// Withhold tx3 for now
 	tx3 := createChildTx(tx2)
-	verifyDoProcessTx(t, tx3, nil, true, false)
 
-	// keep adding
+	// tx4 is orphaned since tx3 is missing
+	// tx0(m) <- tx1(m) <- tx2(m)
+	// tx4(o)
 	tx4 := createChildTx(tx3)
-	verifyDoProcessTx(t, tx4, nil, true, false)
+	verifyProcessTx(t, tx4, core.ErrOrphanTransaction, false, true)
 
+	// tx5 is orphaned since tx4 is missing
+	// tx0(m) <- tx1(m) <- tx2(m)
+	// tx4(o) <- tx5(o)
 	tx5 := createChildTx(tx4)
-	verifyDoProcessTx(t, tx5, nil, true, false)
+	verifyProcessTx(t, tx5, core.ErrOrphanTransaction, false, true)
 
+	// tx6 is orphaned since tx5 is missing
+	// tx0(m) <- tx1(m) <- tx2(m)
+	// tx4(o) <- tx5(o) <- tx6(o)
 	tx6 := createChildTx(tx5)
-	verifyDoProcessTx(t, tx6, nil, true, false)
+	verifyProcessTx(t, tx6, core.ErrOrphanTransaction, false, true)
 
-	tx7 := createChildTx(tx6)
-	verifyDoProcessTx(t, tx7, nil, true, false)
+	ensure.DeepEqual(t, len(txpool.GetAllTxs()), 3)
 
-	// get all transactions in the tx pool
-	txs := txpool.GetAllTxs()
+	// Add missing tx3
+	verifyProcessTx(t, tx3, nil, true, false)
 
-	// tx6(m) removal
-	txpool.removeTx(tx6)
+	// tx0(m) <- tx1(m) <- tx2(m) <- tx3(m) <- tx4(m) <- tx5(m) <- tx6(m)
+	ensure.DeepEqual(t, len(txpool.GetAllTxs()), 7)
 
-	// get all transactions in tx pool after tx6 removal
-	txs1 := txpool.GetAllTxs()
+	// recursively remove tx4 and its children
+	txpool.removeTx(tx4, true /* recursive */)
+	// tx0(m) <- tx1(m) <- tx2(m) <- tx3(m)
+	// tx5(o) <- tx6(o)
+	ensure.DeepEqual(t, len(txpool.GetAllTxs()), 4)
+	verifyTxInPool(t, tx4, false, false)
+	verifyTxInPool(t, tx5, false, true)
+	verifyTxInPool(t, tx6, false, true)
 
-	// test for length
-	ensure.DeepEqual(t, len(txs)-1, len(txs1))
-
-	// test txs/txs1 contains exactly the removal transaction, i.e., tx6 removed
-	for i := range txs {
-		count := 0
-		for j := range txs1 {
-			hash1, _ := txs[i].Tx.TxHash()
-			hash2, _ := txs1[j].Tx.TxHash()
-			if hash1.IsEqual(hash2) {
-				break
-			}
-			count++
-		}
-
-		if count == len(txs1) {
-			hash1, _ := txs[i].Tx.TxHash()
-			hash6, _ := tx6.TxHash()
-			ensure.DeepEqual(t, hash1, hash6)
-			break
-		}
-	}
-
-	verifyDoProcessTx(t, tx7, core.ErrDuplicateTxInPool, true, false)
-
-	// tx7(o) <- tx8(o)
-	// after tx6 removed from main pool, tx7 moved to orphan pool, tx8 is an orphan transaction also
-	tx8 := createChildTx(tx7)
-	// TODO: fix, should not be accepted
-	verifyDoProcessTx(t, tx8, nil, true, false)
-
-	txs2 := txpool.GetAllTxs()
-
-	// add tx6 back to txpool
-	txpool.addTx(tx6, chainHeight, 0)
-
-	txs3 := txpool.GetAllTxs()
-
-	ensure.DeepEqual(t, len(txs2)+1, len(txs3))
-
-	// tx8(m) <- tx9(m)
-	tx9 := createChildTx(tx8)
-	ensure.NotNil(t, tx9)
-	verifyDoProcessTx(t, tx9, nil, true, false)
+	// non-recursively remove tx1: its children remain in main pool
+	txpool.removeTx(tx1, false /* recursive */)
+	// tx0(m)
+	// tx2(m) <- tx3(m)
+	// tx5(o) <- tx6(o)
+	ensure.DeepEqual(t, len(txpool.GetAllTxs()), 3)
+	verifyTxInPool(t, tx1, false, false)
 }

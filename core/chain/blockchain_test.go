@@ -5,32 +5,21 @@
 package chain
 
 import (
-	"os"
 	"testing"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb" // init memdb
 	"github.com/facebookgo/ensure"
-	"github.com/jbenet/goprocess"
 )
 
 // test setup
 var (
 	_, publicKey, _ = crypto.NewKeyPair()
 	minerAddr, _    = types.NewAddressFromPubKey(publicKey)
-	blockChain      = genNewChain()
+	blockChain      = NewTestBlockChain()
 )
-
-// dummySyncManager only is used to test BlockChain
-type dummySyncManager struct{}
-
-func (dm *dummySyncManager) StartSync() {}
-
-func (dm *dummySyncManager) Run() {}
 
 // Test if appending a slice while looping over it using index works.
 // Just to make sure compiler is not optimizing len() condition away.
@@ -49,21 +38,6 @@ func TestAppendInLoop(t *testing.T) {
 	if num != 2*n {
 		t.Errorf("Expect looping %d times, but got %d times instead", n, num)
 	}
-}
-
-// utility function to generate a chain
-func genNewChain() *BlockChain {
-	dbCfg := &storage.Config{
-		Name: "memdb",
-		Path: "~/tmp",
-	}
-
-	proc := goprocess.WithSignals(os.Interrupt)
-	db, _ := storage.NewDatabase(proc, dbCfg)
-	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
-	dummyDpos := &DummyDpos{}
-	blockChain.Setup(dummyDpos, &dummySyncManager{})
-	return blockChain
 }
 
 // generate a child block
@@ -192,21 +166,3 @@ func TestBlockProcessing(t *testing.T) {
 	// Create a block that spends a transaction that does not exist
 
 }
-
-type DummyDpos struct{}
-
-func (dpos *DummyDpos) Run() error { return nil }
-
-func (dpos *DummyDpos) Stop() {}
-
-func (dpos *DummyDpos) StoreCandidateContext(*crypto.HashType) error { return nil }
-
-func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) { return true, nil }
-
-func (dpos *DummyDpos) RecoverMint() {}
-
-func (dpos *DummyDpos) StopMint() {}
-
-func (dpos *DummyDpos) BroadcastEternalMsgToMiners(block *types.Block) error { return nil }
-
-func (dpos *DummyDpos) ValidateMiner() bool { return true }
