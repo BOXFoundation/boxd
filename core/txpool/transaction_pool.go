@@ -151,7 +151,8 @@ func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 // Remove all transactions contained in this block and their double spends from main and orphan pool
 func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
-		tx_pool.removeTx(tx)
+		// Since the passed tx is confirmed in a new block, all its childrent remain valid, thus no recursive removal.
+		tx_pool.removeTx(tx, false /* non-recursive */)
 		tx_pool.removeDoubleSpendTxs(tx)
 		tx_pool.removeOrphan(tx)
 		tx_pool.removeDoubleSpendOrphans(tx)
@@ -351,10 +352,12 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 
 			for _, orphan := range orphans {
 				utxoSet := chain.NewUtxoSet()
-				if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
-					return err
-				}
-				if err := tx_pool.maybeAcceptTx(orphan, tx_pool.chain.LongestChainHeight, utxoSet, false); err != nil {
+				// if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
+				// 	return err
+				// }
+				// if err := tx_pool.maybeAcceptTx(orphan, tx_pool.chain.LongestChainHeight, utxoSet, false); err != nil {
+				// Do not reject tx simply because it's already in orphan pool since it may be acceptable now
+				if err := tx_pool.maybeAcceptTx(orphan, 0, utxoSet, false); err != nil {
 					continue
 				}
 				tx_pool.removeOrphan(orphan)
@@ -394,8 +397,8 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 	// TODO: build address - tx index.
 }
 
-// Remove transaction from tx pool
-func (tx_pool *TransactionPool) removeTx(tx *types.Transaction) {
+// Remove transaction from tx pool. Note we do not recursively remove dependent txs here
+func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) {
 	txHash, _ := tx.TxHash()
 
 	// Unspend the referenced outpoints.
@@ -403,13 +406,41 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction) {
 		delete(tx_pool.outPointToTx, txIn.PrevOutPoint)
 	}
 	delete(tx_pool.hashToTx, *txHash)
+
+	if !recursive {
+		return
+	}
+	// Start with processing at least the passed tx.
+	removedTxs := []*types.Transaction{tx}
+	// Note: use index here instead of range because removedTxs can be extended inside the loop
+	for i := 0; i < len(removedTxs); i++ {
+		removedTx := removedTxs[i]
+		removedTxHash, _ := removedTx.TxHash()
+		// Look up all txs that spend output from the tx we just removed.
+		outPoint := types.OutPoint{Hash: *removedTxHash}
+		for txOutIdx := range removedTx.Vout {
+			outPoint.Index = uint32(txOutIdx)
+
+			childTx, exists := tx_pool.outPointToTx[outPoint]
+			if !exists {
+				continue
+			}
+
+			// Move the child tx from main pool to orphan pool
+			// The outer loop is already a recursion, so no more recursion within
+			tx_pool.removeTx(childTx, false /* non-recursive */)
+			tx_pool.addOrphan(childTx)
+
+			removedTxs = append(removedTxs, childTx)
+		}
+	}
 }
 
 // removeDoubleSpendTxs removes all txs from the main pool, which double spend the passed transaction.
 func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 	for _, txIn := range tx.Vin {
 		if doubleSpentTx, exists := tx_pool.outPointToTx[txIn.PrevOutPoint]; exists {
-			tx_pool.removeTx(doubleSpentTx)
+			tx_pool.removeTx(doubleSpentTx, true /* recursive */)
 		}
 	}
 }
