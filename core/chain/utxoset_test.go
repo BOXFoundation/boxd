@@ -5,12 +5,13 @@
 package chain
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/facebookgo/ensure"
 )
 
 func TestUtxoSet_FindUtxo(t *testing.T) {
@@ -99,44 +100,33 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 
 	utxoSet := NewUtxoSet()
 
-	if err := utxoSet.AddUtxo(tx, 0, 10000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err := utxoSet.AddUtxo(tx, 0, 10000)
+	ensure.Nil(t, err)
 
-	if err := utxoSet.AddUtxo(tx1, 0, 20000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err2 := utxoSet.AddUtxo(tx1, 0, 20000)
+	ensure.Nil(t, err2)
 
 	// test for ErrTxOutIndexOob
-	if err := utxoSet.AddUtxo(tx1, 1, 10000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err3 := utxoSet.AddUtxo(tx1, 1, 10000)
+	ensure.NotNil(t, err3)
+	ensure.DeepEqual(t, err3, core.ErrTxOutIndexOob)
 
 	// test for ErrAddExistingUtxo
-	if err := utxoSet.AddUtxo(tx, 0, 10000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err4 := utxoSet.AddUtxo(tx, 0, 10000)
+	ensure.NotNil(t, err4)
+	ensure.DeepEqual(t, err4, core.ErrAddExistingUtxo)
 
 	result := *utxoSet.FindUtxo(outPointReq)
-
-	if !reflect.DeepEqual(result, utxoWrapOrigin) {
-		t.Errorf("expected utxoentry is %+v, got %+v", utxoWrapOrigin, result)
-	}
+	ensure.DeepEqual(t, result, utxoWrapOrigin)
 
 	result1 := *utxoSet.FindUtxo(outPointNew)
-
-	if !reflect.DeepEqual(result1, utxoWrapNew) {
-		t.Errorf("expected utxoWrapNew is %+v, got %+v", utxoWrapNew, result1)
-	}
+	ensure.DeepEqual(t, result1, utxoWrapNew)
 
 	// test for non-existing utxoSet
-	if utxoSet.FindUtxo(outPointErr) == nil {
-		t.Logf("there is no such utxoset exists.")
-	}
+	errRes := utxoSet.FindUtxo(outPointErr)
+	ensure.DeepEqual(t, errRes, (*types.UtxoWrap)(nil))
 
 	utxoSet.SpendUtxo(outPointReq)
 	spendResult := utxoSet.FindUtxo(outPointReq)
-	if !spendResult.IsSpent {
-		t.Errorf("expect IsSpent value is %+v, but got %+v", true, spendResult.IsSpent)
-	}
+	ensure.DeepEqual(t, true, spendResult.IsSpent)
 }
