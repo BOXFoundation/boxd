@@ -48,7 +48,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 		Output:      tx.Vout[txOutIdx],
 		BlockHeight: blockHeight,
 		IsCoinBase:  IsCoinBase(tx),
-		IsModified:  true,
+		IsModified:  false,
 		IsSpent:     false,
 	}
 	u.utxoMap[outPoint] = &utxoWrap
@@ -63,6 +63,7 @@ func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 		return
 	}
 	utxoWrap.IsSpent = true
+	utxoWrap.IsModified = true
 }
 
 // ApplyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
@@ -120,6 +121,7 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight uint32) error {
 			logger.Panicf("Trying to unspend non-existing spent output %v", txIn.PrevOutPoint)
 		}
 		utxoWrap.IsSpent = false
+		utxoWrap.IsModified = true
 	}
 	return nil
 }
@@ -148,29 +150,25 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		utxoKey := UtxoKey(&outpoint)
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent {
-			// key := generateKey(outpoint)
-			//err := db.Del(*key)
-			// keyPool.Put(key)
 			err := db.Del(utxoKey)
 			if err != nil {
 				return err
 			}
-			utxoWrap.IsModified = false
 			continue
+		} else if utxoWrap.IsModified {
+			// Serialize and store the utxo entry.
+			serialized, err := utxoWrap.Marshal()
+			if err != nil {
+				return err
+			}
+			err = db.Put(utxoKey, serialized)
+			if err != nil {
+				return err
+			}
 		}
-		// Serialize and store the utxo entry.
-		serialized, err := utxoWrap.Marshal()
-		if err != nil {
-			return err
-		}
-		// key := generateKey(outpoint)
-		// err = db.Put(*key, serialized)
-		err = db.Put(utxoKey, serialized)
-		if err != nil {
-			return err
-		}
-		utxoWrap.IsModified = false
 	}
+	// free memory
+	u.utxoMap = nil
 	return nil
 }
 
@@ -202,7 +200,6 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 // LoadBlockUtxos loads the unspent transaction outputs related to block
 func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 
-	// utxoset := NewUtxoSet()
 	txs := map[crypto.HashType]int{}
 	emptySet := make(map[types.OutPoint]struct{})
 

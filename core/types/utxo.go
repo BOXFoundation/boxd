@@ -27,7 +27,6 @@ func (utxoWrap *UtxoWrap) ToProtoMessage() (proto.Message, error) {
 		BlockHeight: utxoWrap.BlockHeight,
 		IsCoinbase:  utxoWrap.IsCoinBase,
 		IsSpent:     utxoWrap.IsSpent,
-		IsModified:  utxoWrap.IsModified,
 	}, nil
 }
 
@@ -37,8 +36,8 @@ func (utxoWrap *UtxoWrap) FromProtoMessage(message proto.Message) error {
 		utxoWrap.Output = message.Output
 		utxoWrap.BlockHeight = message.BlockHeight
 		utxoWrap.IsCoinBase = message.IsCoinbase
-		utxoWrap.IsModified = message.IsModified
 		utxoWrap.IsSpent = message.IsSpent
+		utxoWrap.IsModified = false
 		return nil
 	}
 	return core.ErrInvalidUtxoWrapProtoMessage
