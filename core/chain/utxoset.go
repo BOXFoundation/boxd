@@ -27,13 +27,12 @@ func NewUtxoSet() *UtxoSet {
 
 // FindUtxo returns information about an outpoint.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
-	logger.Debugf("Find utxo: %+v", outPoint)
+	logger.Debugf("Find utxo: %+v", u.utxoMap[outPoint])
 	return u.utxoMap[outPoint]
 }
 
 // AddUtxo adds a utxo
 func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
-	logger.Debugf("Add utxo tx info: %+v, index: %d", tx, txOutIdx)
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
@@ -48,7 +47,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 		Output:      tx.Vout[txOutIdx],
 		BlockHeight: blockHeight,
 		IsCoinBase:  IsCoinBase(tx),
-		IsModified:  false,
+		IsModified:  true,
 		IsSpent:     false,
 	}
 	u.utxoMap[outPoint] = &utxoWrap
@@ -143,6 +142,7 @@ func (u *UtxoSet) RevertBlock(block *types.Block) error {
 
 // WriteUtxoSetToDB store utxo set to database.
 func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
+
 	for outpoint, utxoWrap := range u.utxoMap {
 		if utxoWrap == nil || !utxoWrap.IsModified {
 			continue
