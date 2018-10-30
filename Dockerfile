@@ -30,12 +30,12 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflag
 FROM rocksdb_shared
 
 WORKDIR /app/boxd/
-RUN /sbin/ldconfig && mkdir -p .devconfig/ws{1,2,3}
+RUN /sbin/ldconfig && mkdir .devconfig
 
 COPY --from=builder /app/boxd/box .
 COPY startnode .
-COPY .devconfig/.box-*.yaml .devconfig/
-COPY .devconfig/ws* .devconfig/
+#COPY .devconfig/.box-*.yaml .devconfig/
+#COPY .devconfig/ws* .devconfig/
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["startnode", "1"]
+#ENTRYPOINT ["/bin/bash"]
+CMD ["/bin/bash", "startnode", "1"]
