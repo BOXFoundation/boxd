@@ -130,6 +130,7 @@ require (
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spf13/viper v1.2.1
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
+	github.com/stathat/go v1.0.0 // indirect
 	github.com/syndtr/goleveldb v0.0.0-20181012014443-6b91fda63f2e // indirect
 	github.com/tecbot/gorocksdb v0.0.0-20180907100951-214b6b7bc0f0
 	github.com/uudashr/gopkgs v2.0.1+incompatible // indirect
