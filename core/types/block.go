@@ -144,14 +144,17 @@ func (block *Block) calcBlockHash() (*crypto.HashType, error) {
 // GetFilterForTransactionScript returns the bloom filter for all the script address
 // of the transactions in the block, it will use the pre-calculated filter is there
 // are any
-func (block *Block) GetFilterForTransactionScript() bloom.Filter {
+func (block *Block) GetFilterForTransactionScript(utxoUsed map[OutPoint]*UtxoWrap) bloom.Filter {
 	var vin, vout [][]byte
 	for _, tx := range block.Txs {
-		for _, in := range tx.Vin {
-			vin = append(vin, in.ScriptSig)
-		}
 		for _, out := range tx.Vout {
 			vout = append(vout, out.ScriptPubKey)
+		}
+	}
+	for _, utxo := range utxoUsed {
+		if utxo != nil && utxo.Output != nil {
+			logger.Debug("previous utxo added")
+			vin = append(vin, utxo.Output.ScriptPubKey)
 		}
 	}
 	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)
@@ -161,8 +164,8 @@ func (block *Block) GetFilterForTransactionScript() bloom.Filter {
 	for _, script := range vout {
 		filter.Add(script)
 	}
+	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
 	return filter
-
 }
 
 // BlockHeader defines information about a block and is used in the

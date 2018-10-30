@@ -131,7 +131,13 @@ func (chain *BlockChain) loadFilters() error {
 			logger.Error("Error try to load block at height", i, err)
 			return core.ErrWrongBlockHeight
 		}
-		chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(), i, *block.Hash)
+		utxoSet := NewUtxoSet()
+		err = utxoSet.LoadBlockUtxos(block, chain.db)
+		if err != nil {
+			logger.Error("Error Loading block utxo", err)
+			return err
+		}
+		chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(utxoSet.utxoMap), i, *block.Hash)
 	}
 	return nil
 }
@@ -273,7 +279,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	}
 
 	if isMainChain {
-		chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(), block.Height, *block.Hash)
+		// chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(), block.Height, *block.Hash)
 	}
 	return isMainChain, false, nil
 }
@@ -641,25 +647,11 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 	return utxoSet.utxoMap, err
 }
 
-// LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes
-func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	allUtxos, err := chain.ListAllUtxos()
-	if err != nil {
-		return nil, err
-	}
-	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
-	for entry, utxo := range allUtxos {
-		if bytes.Equal(utxo.Output.ScriptPubKey, pubkey) {
-			utxoMap[entry] = utxo
-		}
-	}
-	return utxoMap, nil
-}
-
 // LoadUtxoByAddress list all the available utxos owned by an address
 func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
+	logger.Debug(addr.String(), " related blocks", util.PrettyPrint(blockHashes))
 	utxos := make(map[types.OutPoint]*types.UtxoWrap)
 	utxoSet := NewUtxoSet()
 	for _, hash := range blockHashes {
@@ -671,9 +663,9 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 			return nil, err
 		}
 	}
-	logger.Debugf("%+v", utxoSet)
 	for key, value := range utxoSet.utxoMap {
-		if bytes.Equal(value.Output.ScriptPubKey, payToPubKeyHashScript) {
+		if bytes.Equal(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
+			logger.Info("utxo: ", util.PrettyPrint(value))
 			utxos[key] = value
 		}
 	}
@@ -697,6 +689,7 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 // SetTailBlock sets chain tail block.
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 
+	chain.filterHolder.AddFilter(tail.GetFilterForTransactionScript(utxoSet.utxoMap), tail.Height, *tail.BlockHash())
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
 		return err

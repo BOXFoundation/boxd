@@ -25,7 +25,6 @@ func NewUtxoSet() *UtxoSet {
 
 // FindUtxo returns information about an outpoint.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
-	logger.Debugf("Find utxo: %+v", u.utxoMap[outPoint])
 	return u.utxoMap[outPoint]
 }
 
@@ -215,7 +214,7 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 				}
 				continue
 			}
-			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
+			if val, ok := u.utxoMap[txIn.PrevOutPoint]; ok && val != nil {
 				continue
 			}
 			emptySet[txIn.PrevOutPoint] = struct{}{}
