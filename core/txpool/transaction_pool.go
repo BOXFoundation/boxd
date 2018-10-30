@@ -141,7 +141,7 @@ func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 		if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
 			return err
 		}
-		if err := tx_pool.maybeAcceptTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, false /* do not broadcast */); err != nil {
+		if err := tx_pool.maybeAcceptTx(tx, tx_pool.chain.LongestChainHeight, utxoSet, false /* do not broadcast */, true); err != nil {
 			return err
 		}
 	}
@@ -185,7 +185,7 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool)
 func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeight uint32,
 	utxoSet *chain.UtxoSet, broadcast bool) error {
 
-	if err := tx_pool.maybeAcceptTx(tx, currChainHeight, utxoSet, broadcast); err != nil {
+	if err := tx_pool.maybeAcceptTx(tx, currChainHeight, utxoSet, broadcast, true); err != nil {
 		return err
 	}
 
@@ -194,7 +194,7 @@ func (tx_pool *TransactionPool) doProcessTx(tx *types.Transaction, currChainHeig
 
 // Potentially accept the transaction to the memory pool.
 func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHeight uint32,
-	utxoSet *chain.UtxoSet, broadcast bool) error {
+	utxoSet *chain.UtxoSet, broadcast bool, detectDupOrphan bool) error {
 
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
@@ -202,7 +202,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, currChainHe
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
-	if tx_pool.isTransactionInPool(txHash) || tx_pool.isOrphanInPool(txHash) {
+	if tx_pool.isTransactionInPool(txHash) || detectDupOrphan && tx_pool.isOrphanInPool(txHash) {
 		logger.Debugf("Tx %v already exists", txHash)
 		return core.ErrDuplicateTxInPool
 	}
@@ -357,7 +357,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 				// }
 				// if err := tx_pool.maybeAcceptTx(orphan, tx_pool.chain.LongestChainHeight, utxoSet, false); err != nil {
 				// Do not reject tx simply because it's already in orphan pool since it may be acceptable now
-				if err := tx_pool.maybeAcceptTx(orphan, 0, utxoSet, false); err != nil {
+				if err := tx_pool.maybeAcceptTx(orphan, 0, utxoSet, false, false /* no duplicate orphan check */); err != nil {
 					continue
 				}
 				tx_pool.removeOrphan(orphan)
