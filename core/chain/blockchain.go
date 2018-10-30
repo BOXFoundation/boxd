@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -862,4 +863,19 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 func (chain *BlockChain) isInOrphanPool(blockHash *crypto.HashType) bool {
 	_, exists := chain.hashToOrphanBlock[*blockHash]
 	return exists
+}
+
+// NewTestBlockChain generate a chain for testing
+func NewTestBlockChain() *BlockChain {
+	dbCfg := &storage.Config{
+		Name: "memdb",
+		Path: "~/tmp",
+	}
+
+	proc := goprocess.WithSignals(os.Interrupt)
+	db, _ := storage.NewDatabase(proc, dbCfg)
+	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
+	// set sync manager
+	blockChain.Setup(NewDummySyncManager())
+	return blockChain
 }
