@@ -705,11 +705,6 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 		return tailBlock, nil
 	}
 
-	// tailBin, err := genesisBlock.Marshal()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// chain.db.Put(TailKey, tailBin)
 	return &genesisBlock, nil
 }
 

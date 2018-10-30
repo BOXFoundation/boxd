@@ -192,7 +192,7 @@ func (acc *Account) PubKeyHash() []byte {
 	return acc.addr.ScriptAddress()
 }
 
-// PublicKey returns the accounts public key in compressed byte format
+// PublicKey returns the account's public key in compressed byte format
 func (acc *Account) PublicKey() []byte {
 	return acc.privKey.PubKey().Serialize()
 }

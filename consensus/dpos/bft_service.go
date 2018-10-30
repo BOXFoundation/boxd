@@ -28,7 +28,9 @@ type EternalBlockMsgKeyType [crypto.HashSize + 8]byte
 const (
 	EternalBlockMsgChBufferSize        = 65536
 	MaxEternalBlockMsgCacheTime        = 10 * 60
-	free                        status = iota
+	MinConfirmMsgNumberForEternalBlock = 2 * PeriodSize / 3
+
+	free status = iota
 	underway
 )
 
@@ -130,7 +132,7 @@ func (bft *BftService) tryToUpdateEternal() {
 		if v[0].timestamp > now || now-v[0].timestamp > MaxEternalBlockMsgCacheTime {
 			delete(bft.cache, k)
 		}
-		if len(v) < 2/3*PeriodSize {
+		if len(v) < MinConfirmMsgNumberForEternalBlock {
 			continue
 		}
 		if bft.updateEternal(v[0]) {
@@ -209,7 +211,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		if ok {
 			msg := append(msg, eternalBlockMsg)
 			bft.cache[*key] = msg
-			if len(bft.cache[*key]) > 2/3*PeriodSize {
+			if len(bft.cache[*key]) > MinConfirmMsgNumberForEternalBlock {
 				bft.existEternalBlockMsgKey.Add(*key, *key)
 			}
 		}

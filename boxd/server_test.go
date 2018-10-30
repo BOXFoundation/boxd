@@ -102,8 +102,6 @@ func genCfg(tc *testCfg) *config.Config {
 	cfg.P2p.Port = tc.p2pPort
 	cfg.RPC.Port = tc.rpcPort
 	cfg.RPC.HTTP.Port = tc.rpcHTTPPort
-	// cfg.Dpos.Index = tc.dposIdx
-	// cfg.Dpos.Pubkey = tc.dposPubKey
 	cfg.P2p.Seeds = tc.seeds
 
 	return cfg
