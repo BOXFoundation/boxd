@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
@@ -137,7 +138,9 @@ func (chain *BlockChain) loadFilters() error {
 			logger.Error("Error Loading block utxo", err)
 			return err
 		}
-		chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(utxoSet.utxoMap), i, *block.Hash)
+		chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), func() bloom.Filter {
+			return block.GetFilterForTransactionScript(utxoSet.utxoMap)
+		})
 	}
 	return nil
 }
@@ -147,6 +150,7 @@ func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transacti
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
 	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
 	logger.Info(len(hashes), " blocks searched as related to address ", addr.String())
+	utxoSet := NewUtxoSet()
 	var txs []*types.Transaction
 	for _, hash := range hashes {
 		block, err := chain.LoadBlockByHash(hash)
@@ -154,11 +158,21 @@ func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transacti
 			return nil, err
 		}
 		for _, tx := range block.Txs {
-			for _, vout := range tx.Vout {
+			isRelated := false
+			for index, vout := range tx.Vout {
 				if bytes.Equal(vout.ScriptPubKey, payToPubKeyHashScript) {
-					txs = append(txs, tx)
-					break
+					utxoSet.AddUtxo(tx, uint32(index), block.Height)
+					isRelated = true
 				}
+			}
+			for _, vin := range tx.Vin {
+				if utxoSet.FindUtxo(vin.PrevOutPoint) != nil {
+					utxoSet.SpendUtxo(vin.PrevOutPoint)
+					isRelated = true
+				}
+			}
+			if isRelated {
+				txs = append(txs, tx)
 			}
 		}
 	}
@@ -689,7 +703,9 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 // SetTailBlock sets chain tail block.
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 
-	chain.filterHolder.AddFilter(tail.GetFilterForTransactionScript(utxoSet.utxoMap), tail.Height, *tail.BlockHash())
+	chain.filterHolder.AddFilter(tail.Height, *tail.BlockHash(), chain.DB(), func() bloom.Filter {
+		return tail.GetFilterForTransactionScript(utxoSet.utxoMap)
+	})
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
 		return err

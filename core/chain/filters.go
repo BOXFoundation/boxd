@@ -9,6 +9,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util/bloom"
 )
 
@@ -21,9 +22,9 @@ type FilterEntry struct {
 
 // BloomFilterHolder holds all bloom filters in main chain
 type BloomFilterHolder interface {
-	AddFilter(bloom.Filter, uint32, crypto.HashType) error
 	ResetFilters(uint32) error
 	ListMatchedBlockHashes([]byte) []crypto.HashType
+	AddFilter(uint32, crypto.HashType, storage.Table, func() bloom.Filter) error
 }
 
 // NewFilterHolder creates an holder instance
@@ -40,14 +41,42 @@ type MemoryBloomFilterHolder struct {
 	mux     *sync.Mutex
 }
 
-// AddFilter adds a filter of block at height
-func (holder *MemoryBloomFilterHolder) AddFilter(filte bloom.Filter, height uint32, hash crypto.HashType) error {
+// AddFilter adds a filter of block at height. Filter is loaded from db instance if it is
+// stored, otherwise, it's calculated using onCacheMiss function
+func (holder *MemoryBloomFilterHolder) AddFilter(
+	height uint32,
+	hash crypto.HashType,
+	db storage.Table,
+	onCacheMiss func() bloom.Filter) error {
 	holder.mux.Lock()
 	defer holder.mux.Unlock()
 
 	if len(holder.entries) != int(height-1) {
 		return core.ErrInvalidFilterHeight
 	}
+	filterKey := FilterKey(hash)
+
+	// filter stored in db
+	if buf, err := db.Get(filterKey); err == nil && buf != nil {
+		if filter, err := bloom.LoadFilter(buf); err == nil {
+			return holder.addFilterInternal(filter, height, hash)
+		}
+	}
+
+	// recalculate filter
+	filter := onCacheMiss()
+	holder.addFilterInternal(filter, height, hash)
+
+	if filterBytes, err := filter.Marshal(); err != nil {
+		logger.Error("Error marshal filter for block ", hash.String())
+	} else {
+		db.Put(filterKey, filterBytes)
+	}
+	return nil
+}
+
+// AddFilter adds a filter of block at height
+func (holder *MemoryBloomFilterHolder) addFilterInternal(filte bloom.Filter, height uint32, hash crypto.HashType) error {
 	holder.entries = append(holder.entries, &FilterEntry{
 		Filter:    filte,
 		Height:    height,
