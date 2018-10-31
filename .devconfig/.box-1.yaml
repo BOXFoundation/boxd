@@ -32,6 +32,6 @@ rpc:
         address: 172.27.1.11
         port: 19190
 dpos:
-    keypath: keyfile/key.keystore
+    keypath: keyfile/key1.keystore
     enable_mint: true
     passphrase: zaq12wsx

@@ -29,11 +29,15 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflag
 
 FROM rocksdb_shared
 
+RUN apt-get install -y vim expect
+
 WORKDIR /app/boxd/
-RUN /sbin/ldconfig && mkdir .devconfig
+RUN /sbin/ldconfig && mkdir .devconfig && mkdir keyfile
 
 COPY --from=builder /app/boxd/box .
 COPY startnode .
+COPY keyfile/* keyfile/
+COPY tests/newaccount.sh .
 #COPY .devconfig/.box-*.yaml .devconfig/
 #COPY .devconfig/ws* .devconfig/
 

@@ -26,4 +26,4 @@
 /outputs
 /.devconfig
 .DS_Store
-
+tests/tests
