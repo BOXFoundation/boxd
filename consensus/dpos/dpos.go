@@ -134,7 +134,6 @@ func (dpos *Dpos) RecoverMint() {
 
 func (dpos *Dpos) loop(p goprocess.Process) {
 	logger.Info("Start block mint")
-	time.Sleep(30 * time.Second)
 	timeChan := time.NewTicker(time.Second)
 	defer timeChan.Stop()
 	for {

@@ -5,6 +5,7 @@
 package p2p
 
 import (
+	"math"
 	"math/rand"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 
 // const
 const (
-	PeerDiscoverLoopInterval        = 10 * time.Second
+	PeerDiscoverLoopInterval        = 120 * 1000
 	MaxPeerCountToSyncRouteTable    = 16
 	MaxPeerCountToReplyPeerDiscover = 16
 )
@@ -54,21 +55,34 @@ func NewTable(peer *BoxPeer) *Table {
 
 // Loop for discover new peer.
 func (t *Table) Loop(parent goprocess.Process) {
+	var cnt float64
 	t.peerDiscover()
-
 	t.proc = parent.Go(func(p goprocess.Process) {
-		loopTicker := time.NewTicker(PeerDiscoverLoopInterval)
-		defer loopTicker.Stop()
+		interval := time.Duration(calcTimeInterval(cnt) * 1000)
+		timer := time.NewTimer(interval * time.Millisecond)
+		defer timer.Stop()
 		for {
 			select {
-			case <-loopTicker.C:
+			case <-timer.C:
 				t.peerDiscover()
+				if cnt < 100 {
+					cnt++
+					interval = time.Duration(calcTimeInterval(float64(cnt)) * 1000)
+				} else {
+					interval = PeerDiscoverLoopInterval
+				}
+				timer.Reset(interval * time.Millisecond)
 			case <-p.Closing():
 				logger.Info("Quit route table loop.")
 				return
 			}
 		}
 	})
+}
+
+func calcTimeInterval(val float64) float64 {
+	temp := float64(-(val) / 3.0)
+	return math.Trunc(math.Pow(2-math.Exp2(temp), math.Log2(120))*1e2+0.5) * 1e-2
 }
 
 func (t *Table) peerDiscover() {
