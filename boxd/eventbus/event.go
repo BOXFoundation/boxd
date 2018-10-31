@@ -20,6 +20,9 @@ const (
 	// SyncMsgEvent indicates the event when receive sync msg.
 	SyncMsgEvent
 
+	// HeartBeatEvent indicates the event when receive hb.
+	HeartBeatEvent
+
 	// NoHeartBeatEvent indicates the event when long time no receive hb.
 	NoHeartBeatEvent
 

@@ -28,35 +28,34 @@ const (
 	// awardLimit indicates the upper limit of achievement.
 	rewardLimit = 900
 
-	// HeartBeatLatencyTime indicates the max latency time of hb.
-	HeartBeatLatencyTime = 10000
-
-	// DisconnTimesPeriod indicates the period of the peer's disconn queue.
-	DisconnTimesPeriod = 30000
-
-	// DisconnMinTime indicates the threshold of disconn time through DisconnTimesPeriod.
-	DisconnMinTime = 5
-
 	// ConnCleanupLoopInterval indicates the loop interval for conn cleaning up
-	ConnCleanupLoopInterval = 3 * time.Second
+	ConnCleanupLoopInterval = 30 * time.Second
 )
 
 const (
-	punishConnTimeOutScore = 40
+	punishConnTimeOutScore     = 40
+	punishConnTimeOutThreshold = 0
 
-	punishBadBlockScore = 100
+	punishBadBlockScore     = 100
+	punishBadBlockThreshold = 0
 
-	punishBadTxScore = 30
+	punishBadTxScore     = 30
+	punishBadTxThreshold = 0
 
-	punishSyncMsgScore = 20
+	punishSyncMsgScore     = 20
+	punishSyncMsgThreshold = 0
 
 	punishNoHeartBeatScore = 60
+	punishHeartBeatCeiling = 5
 
 	punishConnUnsteadinessScore = 100
+	punishDisconnThreshold      = 3
 
-	rewardNewBlockScore = 80
+	rewardNewBlockScore     = 80
+	rewardNewBlockThreshold = 0
 
-	rewardNewTxScore = 10
+	rewardNewTxScore     = 10
+	rewardNewTxThreshold = 0
 )
 
 var (
@@ -65,17 +64,6 @@ var (
 	// RechieveFactors contains factors of achievement.
 	RechieveFactors = newFactors(600, 18000, 512)
 )
-
-func init() {
-	PunishFactors.eventToScore[eventbus.ConnTimeOutEvent] = punishConnTimeOutScore
-	PunishFactors.eventToScore[eventbus.BadBlockEvent] = punishBadBlockScore
-	PunishFactors.eventToScore[eventbus.BadTxEvent] = punishBadTxScore
-	PunishFactors.eventToScore[eventbus.SyncMsgEvent] = punishSyncMsgScore
-	PunishFactors.eventToScore[eventbus.NoHeartBeatEvent] = punishNoHeartBeatScore
-	PunishFactors.eventToScore[eventbus.ConnUnsteadinessEvent] = punishConnUnsteadinessScore
-	RechieveFactors.eventToScore[eventbus.NewBlockEvent] = rewardNewBlockScore
-	RechieveFactors.eventToScore[eventbus.NewTxEvent] = rewardNewTxScore
-}
 
 type factors struct {
 
@@ -98,8 +86,6 @@ type factors struct {
 	// 'precomputedLen' seconds starting from t == 0.
 	precomputedFactor []float64
 
-	// eventToScore stores the map about specific score to event
-	eventToScore map[eventbus.BusEvent]int
 }
 
 func newFactors(halflife, lifetime, precomputedLen int) *factors {
@@ -112,7 +98,6 @@ func newFactors(halflife, lifetime, precomputedLen int) *factors {
 	for i := range factors.precomputedFactor {
 		factors.precomputedFactor[i] = math.Exp(-1.0 * float64(i) * factors.lambda)
 	}
-	factors.eventToScore = make(map[eventbus.BusEvent]int)
 	return factors
 }
 
@@ -142,30 +127,32 @@ type DynamicPeerScore struct {
 	lastUnix    int64
 	punishment  float64
 	achievement float64
-	// FIXME: to slice
-	connRecords *list.List
-	mtx         sync.Mutex
+
+	timeOutCounter  int
+	badBlockCounter int
+	badTxCounter    int
+	syncCounter     int
+	hbCounter       int
+	disconnCounter  int
+	newBlockCounter int
+	newTxCounter    int
+
+	mtx sync.Mutex
 }
 
 // NewDynamicPeerScore returns new DynamicPeerScore.
 func NewDynamicPeerScore(pid peer.ID) *DynamicPeerScore {
 	return &DynamicPeerScore{
-		pid:         pid,
-		connRecords: list.New(),
+		pid: pid,
 	}
 }
 
-// ConnRecords returns DynamicPeerScore.connRecords
-func (s *DynamicPeerScore) ConnRecords() *list.List {
-	return s.connRecords
-}
-
 // String returns the peer score as a human-readable string.
-func (s *DynamicPeerScore) String() string {
+func (s *DynamicPeerScore) String(t time.Time) string {
 	list.New()
 	s.mtx.Lock()
 	r := fmt.Sprintf("achievement %v + punishment %v at %v = %v as of now",
-		s.achievement, s.punishment, s.lastUnix, s.Score())
+		s.achievement, s.punishment, s.lastUnix, s.Score(t))
 	s.mtx.Unlock()
 	return r
 }
@@ -174,52 +161,11 @@ func (s *DynamicPeerScore) String() string {
 // punished scores.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Score() int64 {
+func (s *DynamicPeerScore) Score(t time.Time) int64 {
 	s.mtx.Lock()
-	r := s.score(time.Now())
+	r := s.score(t)
 	s.mtx.Unlock()
 	return r
-}
-
-// Reward increases achieved scores by the values
-// passed as parameters. The resulting score is returned.
-//
-// This function is safe for concurrent access.
-func (s *DynamicPeerScore) Reward(event eventbus.BusEvent) int64 {
-	achievement := RechieveFactors.eventToScore[event]
-	s.mtx.Lock()
-	r := s.reward(int64(achievement), time.Now())
-	s.mtx.Unlock()
-	return r
-}
-
-// Punish increases achieved scores by the values
-// passed as parameters. The resulting score is returned.
-//
-// This function is safe for concurrent access.
-func (s *DynamicPeerScore) Punish(event eventbus.BusEvent) int64 {
-	punishment := PunishFactors.eventToScore[event]
-	s.mtx.Lock()
-	r := s.punish(int64(punishment), time.Now())
-	s.mtx.Unlock()
-	return r
-}
-
-// Disconnect reset the peer's DynamicPeerScore
-func (s *DynamicPeerScore) Disconnect() {
-	t := time.Now().UnixNano() / 1e6
-	s.connRecords.PushBack(t)
-	// s.Reset(t)
-}
-
-// Reset achieved scores to zero but not punished @deprecated
-//
-// This function is safe for concurrent access.
-func (s *DynamicPeerScore) Reset(t int64) {
-	s.mtx.Lock()
-	s.achievement = 0
-	s.lastUnix = t
-	s.mtx.Unlock()
 }
 
 // score returns the peer score, the sum of the achieved and punished scores at a
@@ -228,10 +174,60 @@ func (s *DynamicPeerScore) Reset(t int64) {
 // This function is not safe for concurrent access. It is intended to be used
 // internally and during testing.
 func (s *DynamicPeerScore) score(t time.Time) int64 {
+
 	dt := t.UnixNano()/1e6 - s.lastUnix
 	s.verifyLifeTime(dt)
-	a := baseScore + int64(s.achievement*RechieveFactors.decayRate(dt)) - int64(s.punishment*PunishFactors.decayRate(dt))
-	return a
+
+	if dt > 0 {
+		var punishment, achievement int
+		if s.timeOutCounter > punishConnTimeOutThreshold {
+			logger.Errorf("timeOutCounter %v", s.timeOutCounter)
+			punishment += punishConnTimeOutScore * s.timeOutCounter
+			s.timeOutCounter = 0
+		}
+		if s.badBlockCounter > punishBadBlockThreshold {
+			logger.Errorf(" badBlockCounter %v", s.badBlockCounter)
+			punishment += punishBadBlockScore * s.badBlockCounter
+			s.badBlockCounter = 0
+		}
+		if s.badTxCounter > punishBadTxThreshold {
+			logger.Errorf("badTxCounter %v", s.badTxCounter)
+			punishment += punishBadTxScore * s.badTxCounter
+			s.badTxCounter = 0
+		}
+		if s.syncCounter > punishSyncMsgThreshold {
+			logger.Errorf("syncCounter %v", s.syncCounter)
+			punishment += punishSyncMsgScore * s.syncCounter
+			s.syncCounter = 0
+		}
+		if s.hbCounter < punishHeartBeatCeiling {
+			logger.Errorf("hbCounter %v", s.hbCounter)
+			punishment += punishNoHeartBeatScore
+			s.hbCounter = 0
+		}
+		if s.disconnCounter > punishDisconnThreshold {
+			logger.Errorf("disconnCounter %v", s.disconnCounter)
+			punishment += punishConnUnsteadinessScore
+			s.disconnCounter = 0
+		}
+		if s.newBlockCounter > rewardNewBlockThreshold {
+			logger.Errorf("newBlockCounter %v", s.newBlockCounter)
+			achievement += rewardNewBlockScore * s.newBlockCounter
+			s.newBlockCounter = 0
+		}
+		if s.newTxCounter > rewardNewTxThreshold {
+			logger.Errorf("newTxCounter %v", s.newTxCounter)
+			achievement += rewardNewTxScore * s.newTxCounter
+			s.newTxCounter = 0
+		}
+		logger.Errorf("punishment = %v, achievement = %v", punishment, achievement)
+		s.punish(int64(punishment), t)
+		s.reward(int64(achievement), t)
+
+		return baseScore + int64(s.achievement) - int64(s.punishment)
+	}
+
+	return baseScore + int64(s.achievement*RechieveFactors.decayRate(dt)) - int64(s.punishment*PunishFactors.decayRate(dt))
 }
 
 // verifyLifeTime reset punishment or achievement when lifetime < dt
@@ -301,4 +297,28 @@ func (s *DynamicPeerScore) punish(punishment int64, t time.Time) int64 {
 	}
 
 	return baseScore + int64(s.achievement) - int64(s.punishment)
+}
+
+// Record record event
+func (s *DynamicPeerScore) Record(event eventbus.BusEvent) {
+	switch event {
+	case eventbus.ConnTimeOutEvent:
+		s.timeOutCounter++
+	case eventbus.BadBlockEvent:
+		s.badBlockCounter++
+	case eventbus.BadTxEvent:
+		s.badTxCounter++
+	case eventbus.SyncMsgEvent:
+		s.syncCounter++
+	case eventbus.HeartBeatEvent:
+		s.hbCounter++
+	case eventbus.NewBlockEvent:
+		s.newBlockCounter++
+	case eventbus.NewTxEvent:
+		s.newTxCounter++
+	case eventbus.PeerDisconnEvent:
+		s.disconnCounter++
+	default:
+		logger.Debugf("No such event found: %v", event)
+	}
 }

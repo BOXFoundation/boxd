@@ -37,7 +37,7 @@ func NewScoreManager(parent goprocess.Process, bus eventbus.Bus, boxPeer *BoxPee
 	scoreMgr.bus = bus
 	scoreMgr.peer = boxPeer
 
-	scoreMgr.bus.Subscribe(eventbus.TopicConnEvent, scoreMgr.scoreForEvent)
+	scoreMgr.bus.Subscribe(eventbus.TopicConnEvent, scoreMgr.record)
 	scoreMgr.run(parent)
 
 	return scoreMgr
@@ -50,8 +50,6 @@ func (sm *ScoreManager) run(parent goprocess.Process) {
 		for {
 			select {
 			case <-loopTicker.C:
-				sm.checkConnLastUnix()
-				sm.checkConnStability()
 				sm.clearUp()
 			case <-p.Closing():
 				logger.Info("Quit score manager loop.")
@@ -61,83 +59,35 @@ func (sm *ScoreManager) run(parent goprocess.Process) {
 	})
 }
 
-func (sm *ScoreManager) scoreForEvent(pid peer.ID, event eventbus.BusEvent) {
+func (sm *ScoreManager) record(pid peer.ID, event eventbus.BusEvent) {
 	peerScore, _ := sm.scores.Load(pid)
 	if peerScore == nil {
 		peerScore = pscore.NewDynamicPeerScore(pid)
 		sm.scores.Store(pid, peerScore)
 	}
-
-	switch event {
-	case eventbus.ConnTimeOutEvent, eventbus.BadBlockEvent, eventbus.BadTxEvent, eventbus.SyncMsgEvent, eventbus.NoHeartBeatEvent, eventbus.ConnUnsteadinessEvent:
-		logger.Debugf("Punish peer %v because %v", pid.Pretty(), event)
-		peerScore.(*pscore.DynamicPeerScore).Punish(event)
-	case eventbus.NewBlockEvent, eventbus.NewTxEvent:
-		logger.Debugf("Reward peer %v because %v", pid.Pretty(), event)
-		peerScore.(*pscore.DynamicPeerScore).Reward(event)
-	case eventbus.PeerConnEvent:
-	case eventbus.PeerDisconnEvent:
-		peerScore.(*pscore.DynamicPeerScore).Disconnect()
-	default:
-		logger.Debugf("No such event found: %v", event)
-	}
+	peerScore.(*pscore.DynamicPeerScore).Record(event)
 }
 
-// checkConnLastUnix check last ping/pong time
-func (sm *ScoreManager) checkConnLastUnix() {
-	p := sm.peer
-	t := time.Now().UnixNano() / 1e6
-	p.conns.Range(func(k, v interface{}) bool {
-		conn := v.(*Conn)
-		if conn.Established() && conn.LastUnix() != 0 && t-conn.LastUnix() > pscore.HeartBeatLatencyTime {
-			logger.Errorf("Punish peer %v because %v milliseconds no hb", k.(peer.ID).Pretty(), t-conn.LastUnix())
-			p.bus.Publish(eventbus.TopicConnEvent, k.(peer.ID), eventbus.NoHeartBeatEvent)
-		}
-		return true
-	})
-}
-
-// checkConnStability check whether the peers' disconn times > DisconnMinTime in DisconnTimesPeriod milliseconds
-func (sm *ScoreManager) checkConnStability() {
-	p := sm.peer
-	t := time.Now().UnixNano() / 1e6
-	limit := t - pscore.DisconnTimesPeriod
-	p.conns.Range(func(k, v interface{}) bool {
-		pid := k.(peer.ID)
-		if v.(*Conn).Established() {
-			peerScore, _ := sm.scores.Load(pid)
-			records := peerScore.(*pscore.DynamicPeerScore).ConnRecords()
-
-			var cnt int
-			for ts := records.Back(); ts != nil; ts = ts.Prev() {
-				if ts.Value.(int64) > limit {
-					cnt++
-				} else {
-					break
-				}
-			}
-			if cnt > pscore.DisconnMinTime {
-				logger.Errorf("Punish peer %v because %v times disconnection last %v seconds ", pid.Pretty(), pscore.DisconnTimesPeriod, pscore.DisconnMinTime)
-				p.bus.Publish(eventbus.TopicConnEvent, p.id, eventbus.ConnUnsteadinessEvent)
-			}
-		}
-		return true
-	})
-}
-
-// Gc close the lowest grade peers' conn on time when conn pool is almost full
+// clearUp close the lowest grade peers' conn on time when conn pool is almost full
 func (sm *ScoreManager) clearUp() {
 	logger.Errorf("cleanup invoked")
 	var queue []peerConnScore
+	t := time.Now()
 	sm.peer.conns.Range(func(k, v interface{}) bool {
 		pid := k.(peer.ID)
 		conn := v.(*Conn)
-		score := sm.peer.Score(pid)
-		peerScore := peerConnScore{
-			score: score,
+		peerScore, _ := sm.scores.Load(pid)
+		// to prevent nil when no msg receive but ticker arrive
+		if peerScore == nil {
+			peerScore = pscore.NewDynamicPeerScore(pid)
+			sm.scores.Store(pid, peerScore)
+		}
+
+		connScore := peerConnScore{
+			score: peerScore.(*pscore.DynamicPeerScore).Score(t),
 			conn:  conn,
 		}
-		queue = append(queue, peerScore)
+		queue = append(queue, connScore)
 		return true
 	})
 
@@ -146,8 +96,8 @@ func (sm *ScoreManager) clearUp() {
 		return queue[i].score <= queue[j].score
 	})
 
-	for _,v := range queue {
-		logger.Errorf("aaaaa %v %v", v.conn.remotePeer.Pretty(), v.score)
+	for _, v := range queue {
+		logger.Errorf("%v %v", v.score, v.conn.remotePeer.Pretty())
 	}
 
 	if size := len(queue) - int(float32(sm.peer.config.ConnMaxCapacity)*sm.peer.config.ConnLoadFactor); size > 0 {

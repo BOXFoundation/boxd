@@ -16,7 +16,6 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
-	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
@@ -304,38 +303,3 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 	})
 	return pid
 }
-
-// Reward increases the reward.
-// Init the peer score in score map when it is nil.
-func (p *BoxPeer) Reward(pid peer.ID, amount eventbus.BusEvent) {
-	p.scoremgr.Mutex.Lock()
-	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
-		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))
-	}
-	v,_ := p.scoremgr.scores.Load(pid)
-	v.(*pscore.DynamicPeerScore).Reward(amount)
-	p.scoremgr.Mutex.Unlock()
-}
-
-// Punish increases the punishment.
-// Init the peer score in score map when it is nil.
-func (p *BoxPeer) Punish(pid peer.ID, amount eventbus.BusEvent) {
-	p.scoremgr.Mutex.Lock()
-	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
-		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))
-	}
-	v,_ := p.scoremgr.scores.Load(pid)
-	v.(*pscore.DynamicPeerScore).Punish(amount)
-	p.scoremgr.Mutex.Unlock()
-}
-
-// Score calculate the immediate score of the peer.
-// Init the peer score in score map when it is nil.
-func (p *BoxPeer) Score(pid peer.ID) int64 {
-	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
-		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))
-	}
-	v,_ := p.scoremgr.scores.Load(pid)
-	return v.(*pscore.DynamicPeerScore).Score()
-}
-

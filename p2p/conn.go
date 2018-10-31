@@ -34,7 +34,6 @@ type Conn struct {
 	remotePeer         peer.ID
 	isEstablished      bool
 	establishSucceedCh chan bool
-	lastUnix           int64
 	proc               goprocess.Process
 	procHeartbeat      goprocess.Process
 	mutex              sync.Mutex
@@ -163,6 +162,7 @@ func (conn *Conn) OnPing(data []byte) error {
 		return ErrMessageDataContent
 	}
 
+	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	conn.Establish() // establish connection
 
 	return conn.Write(Pong, []byte(PongBody))
@@ -173,6 +173,7 @@ func (conn *Conn) OnPong(data []byte) error {
 	if PongBody != string(data) {
 		return ErrMessageDataContent
 	}
+	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	if !conn.Establish() {
 		conn.mutex.Lock()
 		if conn.procHeartbeat == nil {
@@ -180,7 +181,6 @@ func (conn *Conn) OnPong(data []byte) error {
 		}
 		conn.mutex.Unlock()
 	}
-	conn.lastUnix = time.Now().UnixNano() / 1e6
 
 	return nil
 }
@@ -264,11 +264,6 @@ func (conn *Conn) Close() error {
 	return nil
 }
 
-// LastUnix returns last disconn unix time
-func (conn *Conn) LastUnix() int64 {
-	return conn.lastUnix
-}
-
 // Established returns whether the connection is established.
 func (conn *Conn) Established() bool {
 	conn.mutex.Lock()
@@ -284,7 +279,6 @@ func (conn *Conn) Establish() bool {
 	if !conn.isEstablished {
 		conn.establish()
 	}
-	conn.lastUnix = time.Now().UnixNano() / 1e6
 	conn.mutex.Unlock()
 	return r
 }
