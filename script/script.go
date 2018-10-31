@@ -210,6 +210,12 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 
 	logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
 	switch opCode {
+	case OPDROP:
+		if stack.size() < 1 {
+			return ErrInvalidStackOperation
+		}
+		stack.pop()
+
 	case OPDUP:
 		if stack.size() < 1 {
 			return ErrInvalidStackOperation
