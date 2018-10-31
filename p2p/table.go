@@ -87,9 +87,10 @@ func (t *Table) peerDiscover() {
 	// Randomly select some peer to do sync routes from the established and unconnected peers
 	// 3/4 from established peers, and 1/4 from unconnected peers
 	var establishedID []peer.ID
-	for k := range t.peer.conns {
-		establishedID = append(establishedID, k)
-	}
+	t.peer.conns.Range(func(k, v interface{}) bool {
+		establishedID = append(establishedID, k.(peer.ID))
+		return true
+	})
 
 	var unestablishedID []peer.ID
 	for _, v := range all {
@@ -114,14 +115,15 @@ func (t *Table) peerDiscover() {
 
 func (t *Table) lookup(pid peer.ID) {
 	var conn *Conn
-	if _, ok := t.peer.conns[pid]; ok {
+	if c, ok := t.peer.conns.Load(pid); ok {
 		// established peer
-		conn = t.peer.conns[pid].(*Conn)
+		conn = c.(*Conn)
 	} else {
 		// unestablished peer
 		conn = NewConn(nil, t.peer, pid)
 		conn.Loop(t.peer.proc)
 	}
+
 	if err := conn.PeerDiscover(); err != nil {
 		logger.Errorf("Failed to sync route table from peer: %s err: %s", pid.Pretty(), err.Error())
 	}

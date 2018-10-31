@@ -252,7 +252,7 @@ func (conn *Conn) Close() error {
 
 	logger.Info("Closing connection with ", conn.remotePeer.Pretty())
 	if conn.stream != nil {
-		conn.peer.RemoveConn(conn.remotePeer)
+		conn.peer.conns.Delete(conn.remotePeer)
 		conn.peer.table.peerStore.ClearAddrs(conn.remotePeer)
 		return conn.stream.Close()
 	}
@@ -282,7 +282,7 @@ func (conn *Conn) establish() {
 	conn.peer.table.AddPeerToTable(conn)
 	conn.isEstablished = true
 	conn.establishSucceedCh <- true
-	conn.peer.AddConn(conn.remotePeer, conn)
+	conn.peer.conns.Store(conn.remotePeer, conn)
 	logger.Info("Succed to establish connection with peer ", conn.remotePeer.Pretty())
 }
 
