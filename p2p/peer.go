@@ -35,7 +35,7 @@ var logger = log.NewLogger("p2p") // logger
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
-	conns           map[peer.ID]interface{}
+	conns           *sync.Map
 	config          *Config
 	host            host.Host
 	proc            goprocess.Process
@@ -57,7 +57,7 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 	// ctx := context.Background()
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
-	boxPeer := &BoxPeer{conns: make(map[peer.ID]interface{}), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
+	boxPeer := &BoxPeer{conns: new(sync.Map), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -210,56 +210,66 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 	return nil
 }
 
-// AddConn adds the conn associates with the passed peerID
-func (p *BoxPeer) AddConn(pid peer.ID, conn *Conn) {
-	p.mu.Lock()
-	p.conns[pid] = conn
-	p.mu.Unlock()
-}
-
-// RemoveConn removes the conn associates with the passed peerID
-func (p *BoxPeer) RemoveConn(pid peer.ID) {
-	p.mu.Lock()
-	delete(p.conns, pid)
-	p.mu.Unlock()
-}
-
 ////////// implements Net interface //////////
 
 // Broadcast business message.
 func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
+
 	body, err := conv.MarshalConvertible(msg)
 	if err != nil {
 		return err
 	}
 
-	for _, v := range p.conns {
+	p.conns.Range(func(k, v interface{}) bool {
 		conn := v.(*Conn)
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
-			continue
+			return true
 		}
 		go conn.Write(code, body)
+		return true
+	})
+	return nil
+}
+
+// BroadcastToMiners business message to miners.
+func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []string) error {
+
+	body, err := conv.MarshalConvertible(msg)
+	if err != nil {
+		return err
+	}
+	for _, v := range miners {
+		if p.id.Pretty() == v {
+			continue
+		}
+		pid, err := peer.IDB58Decode(v)
+		if err != nil {
+			return err
+		}
+		if c, ok := p.conns.Load(pid); ok {
+			conn := c.(*Conn)
+			go conn.Write(code, body)
+		}
 	}
 	return nil
 }
 
 // SendMessageToPeer sends message to a peer.
-func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible,
-	pid peer.ID) error {
+func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible, pid peer.ID) error {
+
 	body, err := conv.MarshalConvertible(msg)
 	if err != nil {
-		return fmt.Errorf("SendMessageToPeer: peer[%s] error %s", pid.Pretty(), err)
+		return err
 	}
-	c, ok := p.conns[pid]
-	if !ok {
-		return fmt.Errorf("SendMessageToPeer: peer[%s] not exists", pid.Pretty())
+	if c, ok := p.conns.Load(pid); ok {
+		conn := c.(*Conn)
+		if p.id.Pretty() == conn.remotePeer.Pretty() {
+			return ErrFailedToSendMessageToPeer
+		}
+		go conn.Write(code, body)
+		return nil
 	}
-	conn := c.(*Conn)
-	if p.id.Pretty() == conn.remotePeer.Pretty() {
-		return fmt.Errorf("SendMessageToPeer: peer[%s] is self", pid.Pretty())
-	}
-	go conn.Write(code, body)
-	return nil
+	return ErrFailedToSendMessageToPeer
 }
 
 // Subscribe a message notification.
@@ -278,28 +288,32 @@ func (p *BoxPeer) Notify(msg Message) {
 }
 
 // Conns return peer connections.
-func (p *BoxPeer) Conns() map[peer.ID]interface{} {
+func (p *BoxPeer) Conns() *sync.Map {
 	return p.conns
 }
 
 // PickOnePeer picks a peer not in peersExclusive and return its id
 func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
-	for pid := range p.Conns() {
-		if !util.InArray(pid, peersExclusive) {
-			return pid
+	var pid peer.ID
+	p.conns.Range(func(k, v interface{}) bool {
+		if !util.InArray(k, peersExclusive) {
+			pid = k.(peer.ID)
+			return false
 		}
-	}
-	return peer.ID("")
+		return true
+	})
+	return pid
 }
 
-// Award increases the achievement.
+// Reward increases the reward.
 // Init the peer score in score map when it is nil.
-func (p *BoxPeer) Award(pid peer.ID, amount pscore.ScoreEvent) {
+func (p *BoxPeer) Reward(pid peer.ID, amount pscore.ScoreEvent) {
 	p.scoremgr.Mutex.Lock()
-	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
-		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
+	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
+		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))
 	}
-	p.scoremgr.Scores[pid].Award(amount)
+	v,_ := p.scoremgr.scores.Load(pid)
+	v.(*pscore.DynamicPeerScore).Reward(amount)
 	p.scoremgr.Mutex.Unlock()
 }
 
@@ -307,19 +321,21 @@ func (p *BoxPeer) Award(pid peer.ID, amount pscore.ScoreEvent) {
 // Init the peer score in score map when it is nil.
 func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
 	p.scoremgr.Mutex.Lock()
-	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
-		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
+	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
+		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))
 	}
-	p.scoremgr.Scores[pid].Punish(amount)
+	v,_ := p.scoremgr.scores.Load(pid)
+	v.(*pscore.DynamicPeerScore).Punish(amount)
 	p.scoremgr.Mutex.Unlock()
 }
 
 // Score calculate the immediate score of the peer.
 // Init the peer score in score map when it is nil.
 func (p *BoxPeer) Score(pid peer.ID) int64 {
-	if peerScore := p.scoremgr.Scores[pid]; peerScore == nil {
-		p.scoremgr.Scores[pid] = pscore.NewDynamicPeerScore(pid)
+	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
+		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))
 	}
-	return p.scoremgr.Scores[pid].Score()
+	v,_ := p.scoremgr.scores.Load(pid)
+	return v.(*pscore.DynamicPeerScore).Score()
 }
 

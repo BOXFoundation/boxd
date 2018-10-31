@@ -10,7 +10,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/util"
 )
 
 var genesisCoinbaseTx = types.Transaction{
@@ -42,6 +41,7 @@ var genesisBlock = types.Block{
 		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
 		TxsRoot:       genesisMerkleRoot,
 		TimeStamp:     time.Date(2018, 1, 31, 0, 0, 0, 0, time.UTC).Unix(),
+		// ConsensusRoot: initGenesisConsensusContext(),
 	},
 	Txs:    []*types.Transaction{&genesisCoinbaseTx},
 	Height: 0,
@@ -50,16 +50,33 @@ var genesisBlock = types.Block{
 // GenesisHash is the hash of genesis block
 var GenesisHash = *(genesisBlock.BlockHash())
 
-var genesisPeriod = []string{
-	"b1xxxxxxxxxx",
-	"b2xxxxxxxxxx",
+// var GenesisPeriod = []string{
+// 	"b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
+// }
+
+// GenesisPeriod genesis period
+var GenesisPeriod = []map[string]string{
+	{
+		"addr":   "b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
+		"peerID": "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
+	},
+	{
+		"addr":   "b1ZF5VWYdHv5RrRzP3SD5huGFyqWNq8rquJ",
+		"peerID": "12D3KooWDyVN22wTKTe77pvqSwBuAquPzPvK2NvxUjeYo8SNe6WA",
+	},
+	{
+		"addr":   "b1UHbLVzeFfwzEQyEbkpXCjjRPnCVxvCvZd",
+		"peerID": "12D3KooWJXvwqT1X3FNkC1f2fkvMQyWAZDcmXDGKP3swnSLJDCjm",
+	},
 }
 
-func initGenesisConsensusRoot() []*crypto.HashType {
-	hashs := make([]*crypto.HashType, len(genesisPeriod))
-	for index := range genesisPeriod {
-		hash := crypto.DoubleHashH([]byte(genesisPeriod[index]))
-		hashs[index] = &hash
-	}
-	return util.BuildMerkleRoot(hashs)
-}
+// func initGenesisConsensusContext() crypto.HashType {
+// 	hashs := make([]*crypto.HashType, len(GenesisPeriod))
+// 	for index := range GenesisPeriod {
+// 		hash := crypto.DoubleHashH([]byte(GenesisPeriod[index]))
+// 		hashs[index] = &hash
+// 	}
+// 	merkRootHashs := util.BuildMerkleRoot(hashs)
+// 	rootHash := merkRootHashs[len(merkRootHashs)-1]
+// 	return *rootHash
+// }

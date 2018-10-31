@@ -25,7 +25,7 @@ const (
 	punishLimit = 1000
 
 	// awardLimit indicates the upper limit of achievement.
-	awardLimit = 900
+	rewardLimit = 900
 
 	// HeartBeatLatencyTime indicates the max latency time of hb.
 	HeartBeatLatencyTime = 10000
@@ -35,33 +35,43 @@ const (
 
 	// DisconnMinTime indicates the threshold of disconn time through DisconnTimesPeriod.
 	DisconnMinTime = 5
+
+	// ConnCleanupLoopInterval indicates the loop interval for conn cleaning up
+	ConnCleanupLoopInterval = 3 * time.Second
 )
 
 const (
 
-	// PunishConnTimeOutEvent indicates the punishment if the conn time out.
-	PunishConnTimeOutEvent ScoreEvent = iota
+	// ConnTimeOutEvent indicates the event if the conn time out.
+	// FIXME: replace
+	ConnTimeOutEvent ScoreEvent = iota
 
-	// PunishBadBlockEvent indicates the punishment if process new block throwing err.
-	PunishBadBlockEvent
+	// BadBlockEvent indicates the event if process new block throwing err.
+	BadBlockEvent
 
-	// PunishBadTxEvent indicates the punishment if process new tx throwing err.
-	PunishBadTxEvent
+	// BadTxEvent indicates the event if process new tx throwing err.
+	BadTxEvent
 
-	// PunishSyncMsgEvent indicates the punishment when receive sync msg.
-	PunishSyncMsgEvent
+	// SyncMsgEvent indicates the event when receive sync msg.
+	SyncMsgEvent
 
-	// PunishNoHeartBeatEvent indicates the punishment when long time no receive hb.
-	PunishNoHeartBeatEvent
+	// NoHeartBeatEvent indicates the event when long time no receive hb.
+	NoHeartBeatEvent
 
-	// PunishConnUnsteadinessEvent indicates the punishment when conn is not steady.
-	PunishConnUnsteadinessEvent
+	// ConnUnsteadinessEvent indicates the event when conn is not steady.
+	ConnUnsteadinessEvent
 
-	// AwardNewBlockEvent indicates the award for new block.
-	AwardNewBlockEvent
+	// NewBlockEvent indicates the event for new block.
+	NewBlockEvent
 
-	// AwardNewTxEvent indicates the award for new tx.
-	AwardNewTxEvent
+	// NewTxEvent indicates the event for new tx.
+	NewTxEvent
+
+	// PeerConnEvent indicates the event for conn.
+	PeerConnEvent
+
+	// PeerDisconnEvent indicates the event for disconn.
+	PeerDisconnEvent
 
 	punishConnTimeOutScore = 40
 
@@ -75,9 +85,9 @@ const (
 
 	punishConnUnsteadinessScore = 100
 
-	awardNewBlockScore = 80
+	rewardNewBlockScore = 80
 
-	awardNewTxScore = 10
+	rewardNewTxScore = 10
 )
 
 // ScoreEvent means events happened to change score.
@@ -86,19 +96,19 @@ type ScoreEvent int64
 var (
 	// PunishFactors contains factors of punishment.
 	PunishFactors = newFactors(60, 1800, 64)
-	// AchieveFactors contains factors of achievement.
-	AchieveFactors = newFactors(600, 18000, 512)
+	// RechieveFactors contains factors of achievement.
+	RechieveFactors = newFactors(600, 18000, 512)
 )
 
 func init() {
-	PunishFactors.eventToScore[PunishConnTimeOutEvent] = punishConnTimeOutScore
-	PunishFactors.eventToScore[PunishBadBlockEvent] = punishBadBlockScore
-	PunishFactors.eventToScore[PunishBadTxEvent] = punishBadTxScore
-	PunishFactors.eventToScore[PunishSyncMsgEvent] = punishSyncMsgScore
-	PunishFactors.eventToScore[PunishNoHeartBeatEvent] = punishNoHeartBeatScore
-	PunishFactors.eventToScore[PunishConnUnsteadinessEvent] = punishConnUnsteadinessScore
-	AchieveFactors.eventToScore[AwardNewBlockEvent] = awardNewBlockScore
-	AchieveFactors.eventToScore[AwardNewTxEvent] = awardNewTxScore
+	PunishFactors.eventToScore[ConnTimeOutEvent] = punishConnTimeOutScore
+	PunishFactors.eventToScore[BadBlockEvent] = punishBadBlockScore
+	PunishFactors.eventToScore[BadTxEvent] = punishBadTxScore
+	PunishFactors.eventToScore[SyncMsgEvent] = punishSyncMsgScore
+	PunishFactors.eventToScore[NoHeartBeatEvent] = punishNoHeartBeatScore
+	PunishFactors.eventToScore[ConnUnsteadinessEvent] = punishConnUnsteadinessScore
+	RechieveFactors.eventToScore[NewBlockEvent] = rewardNewBlockScore
+	RechieveFactors.eventToScore[NewTxEvent] = rewardNewTxScore
 }
 
 type factors struct {
@@ -166,6 +176,7 @@ type DynamicPeerScore struct {
 	lastUnix    int64
 	punishment  float64
 	achievement float64
+	// FIXME: to slice
 	connRecords *list.List
 	mtx         sync.Mutex
 }
@@ -204,14 +215,14 @@ func (s *DynamicPeerScore) Score() int64 {
 	return r
 }
 
-// Award increases achieved scores by the values
+// Reward increases achieved scores by the values
 // passed as parameters. The resulting score is returned.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Award(event ScoreEvent) int64 {
-	achievement := AchieveFactors.eventToScore[event]
+func (s *DynamicPeerScore) Reward(event ScoreEvent) int64 {
+	achievement := RechieveFactors.eventToScore[event]
 	s.mtx.Lock()
-	r := s.award(int64(achievement), time.Now())
+	r := s.reward(int64(achievement), time.Now())
 	s.mtx.Unlock()
 	return r
 }
@@ -236,7 +247,7 @@ func (s *DynamicPeerScore) Disconnect() {
 }
 
 // Reset achieved scores to zero but not punished @deprecated
-// 
+//
 // This function is safe for concurrent access.
 func (s *DynamicPeerScore) Reset(t int64) {
 	s.mtx.Lock()
@@ -253,7 +264,7 @@ func (s *DynamicPeerScore) Reset(t int64) {
 func (s *DynamicPeerScore) score(t time.Time) int64 {
 	dt := t.UnixNano()/1e6 - s.lastUnix
 	s.verifyLifeTime(dt)
-	a := baseScore + int64(s.achievement*AchieveFactors.decayRate(dt)) - int64(s.punishment*PunishFactors.decayRate(dt))
+	a := baseScore + int64(s.achievement*RechieveFactors.decayRate(dt)) - int64(s.punishment*PunishFactors.decayRate(dt))
 	return a
 }
 
@@ -262,17 +273,17 @@ func (s *DynamicPeerScore) verifyLifeTime(dt int64) {
 	if PunishFactors.lifetime < int(dt/1000) {
 		s.punishment = 0
 	}
-	if AchieveFactors.lifetime < int(dt/1000) {
+	if RechieveFactors.lifetime < int(dt/1000) {
 		s.achievement = 0
 	}
 }
 
-// award increases the achievement. The resulting score is calculated
+// reward increases the achievement. The resulting score is calculated
 // as if the action was carried out at the point time. The resulting
 // score is returned.
 //
 // This function is not safe for concurrent access.
-func (s *DynamicPeerScore) award(achievement int64, t time.Time) int64 {
+func (s *DynamicPeerScore) reward(achievement int64, t time.Time) int64 {
 	tu := t.UnixNano() / 1e6
 	dt := tu - s.lastUnix
 
@@ -282,14 +293,14 @@ func (s *DynamicPeerScore) award(achievement int64, t time.Time) int64 {
 
 	if dt > 0 {
 		if s.achievement > 1 {
-			s.achievement *= AchieveFactors.decayRate(dt)
+			s.achievement *= RechieveFactors.decayRate(dt)
 		}
 		if s.punishment > 1 {
 			s.punishment *= PunishFactors.decayRate(dt)
 		}
 		s.achievement += float64(achievement)
-		if s.achievement > awardLimit {
-			s.achievement = awardLimit
+		if s.achievement > rewardLimit {
+			s.achievement = rewardLimit
 		}
 		s.lastUnix = tu
 	}
@@ -311,7 +322,7 @@ func (s *DynamicPeerScore) punish(punishment int64, t time.Time) int64 {
 
 	if dt > 0 {
 		if s.achievement > 1 {
-			s.achievement *= AchieveFactors.decayRate(dt)
+			s.achievement *= RechieveFactors.decayRate(dt)
 		}
 		if s.punishment > 1 {
 			s.punishment *= PunishFactors.decayRate(dt)

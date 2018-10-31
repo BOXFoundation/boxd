@@ -127,19 +127,34 @@ func (server *Server) Run() error {
 	txPool := txpool.NewTransactionPool(blockChain.Proc(), peer, blockChain)
 	server.txPool = txPool
 
-	consensus := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
+	consensus, err := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
+	if err != nil {
+		logger.Fatalf("Failed to new Dpos, error: %v", err)
+	}
+	if err := consensus.Setup(); err != nil {
+		logger.Fatalf("Failed to Setup dpos, error: %v", err)
+	}
+
+	if cfg.RPC.Enabled {
+		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
+	}
 
 	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
 	server.syncManager = syncManager
-	blockChain.Setup(syncManager)
+
+	blockChain.Setup(consensus, syncManager)
 
 	peer.Run()
 	blockChain.Run()
 	txPool.Run()
+	logger.Info(consensus.EnableMint())
+	if consensus.EnableMint() {
+		consensus.Run()
+	}
+
 	// if cfg.Dpos.EnableMint {
 	// 	consensus.Run()
 	// }
-	consensus.Run()
 	syncManager.Run()
 	if len(cfg.P2p.Seeds) > 0 {
 		syncManager.StartSync()
