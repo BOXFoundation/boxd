@@ -12,7 +12,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/p2p/pb"
-	"github.com/BOXFoundation/boxd/p2p/pscore"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -198,7 +197,7 @@ func (conn *Conn) PeerDiscover() error {
 		select {
 		case <-conn.establishSucceedCh:
 		case <-establishedTimeout.C:
-			conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.peer.id, pscore.ConnTimeOutEvent)
+			conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.peer.id, eventbus.ConnTimeOutEvent)
 			conn.proc.Close()
 			return errors.New("Handshaking timeout")
 		}
@@ -257,7 +256,7 @@ func (conn *Conn) Close() error {
 	pid := conn.remotePeer
 	logger.Info("Closing connection with ", pid.Pretty())
 	if conn.stream != nil {
-		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, pscore.PeerDisconnEvent)
+		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
 		conn.peer.conns.Delete(conn.remotePeer)
 		conn.peer.table.peerStore.ClearAddrs(conn.remotePeer)
 		return conn.stream.Close()
@@ -295,7 +294,7 @@ func (conn *Conn) establish() {
 	conn.isEstablished = true
 	conn.establishSucceedCh <- true
 	conn.peer.conns.Store(conn.remotePeer, conn)
-	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, pscore.PeerConnEvent)
+	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.PeerConnEvent)
 	logger.Info("Succed to establish connection with peer ", conn.remotePeer.Pretty())
 }
 

@@ -307,7 +307,7 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 
 // Reward increases the reward.
 // Init the peer score in score map when it is nil.
-func (p *BoxPeer) Reward(pid peer.ID, amount pscore.ScoreEvent) {
+func (p *BoxPeer) Reward(pid peer.ID, amount eventbus.BusEvent) {
 	p.scoremgr.Mutex.Lock()
 	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
 		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))
@@ -319,7 +319,7 @@ func (p *BoxPeer) Reward(pid peer.ID, amount pscore.ScoreEvent) {
 
 // Punish increases the punishment.
 // Init the peer score in score map when it is nil.
-func (p *BoxPeer) Punish(pid peer.ID, amount pscore.ScoreEvent) {
+func (p *BoxPeer) Punish(pid peer.ID, amount eventbus.BusEvent) {
 	p.scoremgr.Mutex.Lock()
 	if peerScore,_ := p.scoremgr.scores.Load(pid); peerScore == nil {
 		p.scoremgr.scores.Store(pid, pscore.NewDynamicPeerScore(pid))

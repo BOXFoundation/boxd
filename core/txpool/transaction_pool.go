@@ -17,7 +17,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 )
@@ -168,10 +167,10 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	}
 
 	if err := tx_pool.ProcessTx(tx, false); err != nil && util.InArray(err, evilBehavior) {
-		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), pscore.BadTxEvent)
+		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
 		return err
 	}
-	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), pscore.NewTxEvent)
+	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
 	return nil
 }
 

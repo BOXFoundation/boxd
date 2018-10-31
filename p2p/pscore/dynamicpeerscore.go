@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/log"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
@@ -41,38 +42,6 @@ const (
 )
 
 const (
-
-	// ConnTimeOutEvent indicates the event if the conn time out.
-	// FIXME: replace
-	ConnTimeOutEvent ScoreEvent = iota
-
-	// BadBlockEvent indicates the event if process new block throwing err.
-	BadBlockEvent
-
-	// BadTxEvent indicates the event if process new tx throwing err.
-	BadTxEvent
-
-	// SyncMsgEvent indicates the event when receive sync msg.
-	SyncMsgEvent
-
-	// NoHeartBeatEvent indicates the event when long time no receive hb.
-	NoHeartBeatEvent
-
-	// ConnUnsteadinessEvent indicates the event when conn is not steady.
-	ConnUnsteadinessEvent
-
-	// NewBlockEvent indicates the event for new block.
-	NewBlockEvent
-
-	// NewTxEvent indicates the event for new tx.
-	NewTxEvent
-
-	// PeerConnEvent indicates the event for conn.
-	PeerConnEvent
-
-	// PeerDisconnEvent indicates the event for disconn.
-	PeerDisconnEvent
-
 	punishConnTimeOutScore = 40
 
 	punishBadBlockScore = 100
@@ -90,9 +59,6 @@ const (
 	rewardNewTxScore = 10
 )
 
-// ScoreEvent means events happened to change score.
-type ScoreEvent int64
-
 var (
 	// PunishFactors contains factors of punishment.
 	PunishFactors = newFactors(60, 1800, 64)
@@ -101,14 +67,14 @@ var (
 )
 
 func init() {
-	PunishFactors.eventToScore[ConnTimeOutEvent] = punishConnTimeOutScore
-	PunishFactors.eventToScore[BadBlockEvent] = punishBadBlockScore
-	PunishFactors.eventToScore[BadTxEvent] = punishBadTxScore
-	PunishFactors.eventToScore[SyncMsgEvent] = punishSyncMsgScore
-	PunishFactors.eventToScore[NoHeartBeatEvent] = punishNoHeartBeatScore
-	PunishFactors.eventToScore[ConnUnsteadinessEvent] = punishConnUnsteadinessScore
-	RechieveFactors.eventToScore[NewBlockEvent] = rewardNewBlockScore
-	RechieveFactors.eventToScore[NewTxEvent] = rewardNewTxScore
+	PunishFactors.eventToScore[eventbus.ConnTimeOutEvent] = punishConnTimeOutScore
+	PunishFactors.eventToScore[eventbus.BadBlockEvent] = punishBadBlockScore
+	PunishFactors.eventToScore[eventbus.BadTxEvent] = punishBadTxScore
+	PunishFactors.eventToScore[eventbus.SyncMsgEvent] = punishSyncMsgScore
+	PunishFactors.eventToScore[eventbus.NoHeartBeatEvent] = punishNoHeartBeatScore
+	PunishFactors.eventToScore[eventbus.ConnUnsteadinessEvent] = punishConnUnsteadinessScore
+	RechieveFactors.eventToScore[eventbus.NewBlockEvent] = rewardNewBlockScore
+	RechieveFactors.eventToScore[eventbus.NewTxEvent] = rewardNewTxScore
 }
 
 type factors struct {
@@ -133,7 +99,7 @@ type factors struct {
 	precomputedFactor []float64
 
 	// eventToScore stores the map about specific score to event
-	eventToScore map[ScoreEvent]int
+	eventToScore map[eventbus.BusEvent]int
 }
 
 func newFactors(halflife, lifetime, precomputedLen int) *factors {
@@ -146,7 +112,7 @@ func newFactors(halflife, lifetime, precomputedLen int) *factors {
 	for i := range factors.precomputedFactor {
 		factors.precomputedFactor[i] = math.Exp(-1.0 * float64(i) * factors.lambda)
 	}
-	factors.eventToScore = make(map[ScoreEvent]int)
+	factors.eventToScore = make(map[eventbus.BusEvent]int)
 	return factors
 }
 
@@ -219,7 +185,7 @@ func (s *DynamicPeerScore) Score() int64 {
 // passed as parameters. The resulting score is returned.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Reward(event ScoreEvent) int64 {
+func (s *DynamicPeerScore) Reward(event eventbus.BusEvent) int64 {
 	achievement := RechieveFactors.eventToScore[event]
 	s.mtx.Lock()
 	r := s.reward(int64(achievement), time.Now())
@@ -231,7 +197,7 @@ func (s *DynamicPeerScore) Reward(event ScoreEvent) int64 {
 // passed as parameters. The resulting score is returned.
 //
 // This function is safe for concurrent access.
-func (s *DynamicPeerScore) Punish(event ScoreEvent) int64 {
+func (s *DynamicPeerScore) Punish(event eventbus.BusEvent) int64 {
 	punishment := PunishFactors.eventToScore[event]
 	s.mtx.Lock()
 	r := s.punish(int64(punishment), time.Now())

@@ -16,7 +16,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/p2p/pscore"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	lru "github.com/hashicorp/golang-lru"
@@ -177,10 +176,10 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 	// process block
 	if _, _, err := chain.ProcessBlock(block, false); err != nil && util.InArray(err, evilBehavior) {
-		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), pscore.BadBlockEvent)
+		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
-	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), pscore.NewBlockEvent)
+	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil
 }
 

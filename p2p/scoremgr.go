@@ -61,7 +61,7 @@ func (sm *ScoreManager) run(parent goprocess.Process) {
 	})
 }
 
-func (sm *ScoreManager) scoreForEvent(pid peer.ID, event pscore.ScoreEvent) {
+func (sm *ScoreManager) scoreForEvent(pid peer.ID, event eventbus.BusEvent) {
 	peerScore, _ := sm.scores.Load(pid)
 	if peerScore == nil {
 		peerScore = pscore.NewDynamicPeerScore(pid)
@@ -69,14 +69,14 @@ func (sm *ScoreManager) scoreForEvent(pid peer.ID, event pscore.ScoreEvent) {
 	}
 
 	switch event {
-	case pscore.ConnTimeOutEvent, pscore.BadBlockEvent, pscore.BadTxEvent, pscore.SyncMsgEvent, pscore.NoHeartBeatEvent, pscore.ConnUnsteadinessEvent:
+	case eventbus.ConnTimeOutEvent, eventbus.BadBlockEvent, eventbus.BadTxEvent, eventbus.SyncMsgEvent, eventbus.NoHeartBeatEvent, eventbus.ConnUnsteadinessEvent:
 		logger.Debugf("Punish peer %v because %v", pid.Pretty(), event)
 		peerScore.(*pscore.DynamicPeerScore).Punish(event)
-	case pscore.NewBlockEvent, pscore.NewTxEvent:
+	case eventbus.NewBlockEvent, eventbus.NewTxEvent:
 		logger.Debugf("Reward peer %v because %v", pid.Pretty(), event)
 		peerScore.(*pscore.DynamicPeerScore).Reward(event)
-	case pscore.PeerConnEvent:
-	case pscore.PeerDisconnEvent:
+	case eventbus.PeerConnEvent:
+	case eventbus.PeerDisconnEvent:
 		peerScore.(*pscore.DynamicPeerScore).Disconnect()
 	default:
 		logger.Debugf("No such event found: %v", event)
@@ -91,7 +91,7 @@ func (sm *ScoreManager) checkConnLastUnix() {
 		conn := v.(*Conn)
 		if conn.Established() && conn.LastUnix() != 0 && t-conn.LastUnix() > pscore.HeartBeatLatencyTime {
 			logger.Errorf("Punish peer %v because %v milliseconds no hb", k.(peer.ID).Pretty(), t-conn.LastUnix())
-			p.bus.Publish(eventbus.TopicConnEvent, k.(peer.ID), pscore.NoHeartBeatEvent)
+			p.bus.Publish(eventbus.TopicConnEvent, k.(peer.ID), eventbus.NoHeartBeatEvent)
 		}
 		return true
 	})
@@ -118,7 +118,7 @@ func (sm *ScoreManager) checkConnStability() {
 			}
 			if cnt > pscore.DisconnMinTime {
 				logger.Errorf("Punish peer %v because %v times disconnection last %v seconds ", pid.Pretty(), pscore.DisconnTimesPeriod, pscore.DisconnMinTime)
-				p.bus.Publish(eventbus.TopicConnEvent, p.id, pscore.ConnUnsteadinessEvent)
+				p.bus.Publish(eventbus.TopicConnEvent, p.id, eventbus.ConnUnsteadinessEvent)
 			}
 		}
 		return true
