@@ -195,3 +195,38 @@ func TestExtractAddress(t *testing.T) {
 	expectedAddr, _ := types.NewAddressFromPubKey(pubKey)
 	ensure.DeepEqual(t, expectedAddr, addr)
 }
+
+func TestGetNthOp(t *testing.T) {
+	// OPDUP, OPHASH160, pubKeyHash, OPEQUALVERIFY, OPCHECKSIG
+	_, scriptPubKey, _ := genP2PKHScript(false)
+
+	// pc starts from 0
+	opCode, _, _, _ := scriptPubKey.getNthOp(0 /* start pc */, 0 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPDUP)
+	opCode, _, _, _ = scriptPubKey.getNthOp(0 /* start pc */, 1 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPHASH160)
+	_, operand, _, _ := scriptPubKey.getNthOp(0 /* start pc */, 2 /* n-th */)
+	ensure.DeepEqual(t, len(operand), 20)
+	opCode, _, _, _ = scriptPubKey.getNthOp(0 /* start pc */, 3 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPEQUALVERIFY)
+	opCode, _, _, _ = scriptPubKey.getNthOp(0 /* start pc */, 4 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPCHECKSIG)
+	opCode, _, _, err := scriptPubKey.getNthOp(0 /* start pc */, 5 /* n-th */)
+	ensure.NotNil(t, err)
+
+	// moves pc
+	opCode, _, pc, _ := scriptPubKey.getNthOp(0 /* start pc */, 0 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPDUP)
+	opCode, _, pc, _ = scriptPubKey.getNthOp(pc /* start pc */, 0 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPHASH160)
+
+	// pc stays
+	_, operand, _, _ = scriptPubKey.getNthOp(pc /* start pc */, 0 /* n-th */)
+	ensure.DeepEqual(t, len(operand), 20)
+	opCode, _, _, _ = scriptPubKey.getNthOp(pc /* start pc */, 1 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPEQUALVERIFY)
+	opCode, _, _, _ = scriptPubKey.getNthOp(pc /* start pc */, 2 /* n-th */)
+	ensure.DeepEqual(t, opCode, OPCHECKSIG)
+	opCode, _, _, err = scriptPubKey.getNthOp(pc /* start pc */, 3 /* n-th */)
+	ensure.NotNil(t, err)
+}
