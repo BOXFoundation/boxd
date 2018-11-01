@@ -1,17 +1,9 @@
 version: "3.3"
 
 services:
-  node_1:
+  p1:
     image: boxd:latest
     command: "./box start --config=./.devconfig/.box-1.yaml"
-    #deploy:
-    #  replicas: 1
-    #    resources:
-    #     limits:
-    #       cpus: "0.1"
-    #       memory: 50M
-    #  restart_policy:
-    #    condition: none
     ports:
       - "19199:19199"
       - "19191:19191"
@@ -22,9 +14,11 @@ services:
       boxdnet:
         ipv4_address: 172.27.1.11
 
-  node_2:
+  p2:
     image: boxd:latest
     command: "./box start --config=./.devconfig/.box-2.yaml"
+    depends_on:
+      - p1
     ports:
       - "19189:19189"
       - "19181:19181"
@@ -35,9 +29,11 @@ services:
       boxdnet:
         ipv4_address: 172.27.1.12
 
-  node_3:
+  p3:
     image: boxd:latest
     command: "./box start --config=./.devconfig/.box-3.yaml"
+    depends_on:
+      - p1
     ports:
       - "19179:19179"
       - "19171:19171"

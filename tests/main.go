@@ -14,6 +14,7 @@ const (
 	workDir   = "../.devconfig/"
 	keyDir    = "../keyfile/"
 	walletDir = "./wallet/"
+	rpcAddr   = "127.0.0.1:19191"
 
 	dockerComposeFile = "../docker-compose.yml"
 )
@@ -39,6 +40,7 @@ func txTest() {
 	}
 
 	// wait for nodes to be ready
+	logger.Info("wait node running for 3 seconds")
 	time.Sleep(3 * time.Second)
 
 	// get pub keys, priv keys and addresses of miners and two test account(T1, T2)
@@ -61,19 +63,42 @@ func txTest() {
 	}
 	logger.Infof("testsAddr: %v", testsAddr)
 
-	//// wait for some blocks to generate
-	//time.Sleep(15 * time.Second)
+	// wait for some blocks to generate
+	logger.Info("wait mining for 5 seconds")
+	time.Sleep(5 * time.Second)
 
-	//// get balance of each miners
+	// get balance of miners
+	logger.Info("start getting balance of miners")
+	var minersBalance []uint64
+	for i := 0; i < nodeCount; i++ {
+		amount, err := balanceFor(minersAddr[i], rpcAddr)
+		if err != nil {
+			logger.Fatal(err)
+		}
+		minersBalance = append(minersBalance, amount)
+	}
+	logger.Infof("minersBalance: %v", minersBalance)
 
 	//// wait some time
 	//time.Sleep(15 * time.Second)
 
-	//// check balance of each miners
+	// check balance of each miners
 
-	//// check miners' balances
+	// check miners' balances
 
-	//// create a transaction
+	// get initial balance of test accounts
+	logger.Info("start getting balance of test accounts")
+	var testsBalance []uint64
+	for i := 0; i < testCount; i++ {
+		amount, err := balanceFor(testsAddr[i], rpcAddr)
+		if err != nil {
+			logger.Fatal(err)
+		}
+		testsBalance = append(testsBalance, amount)
+	}
+	logger.Infof("testsBalance: %v", testsBalance)
+
+	// create a transaction
 	//createTx()
 
 	//// transfer some boxes from a miner(M1) to a test count(T1)
