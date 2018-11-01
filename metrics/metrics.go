@@ -5,7 +5,6 @@
 package metrics
 
 import (
-	"fmt"
 	"os"
 	"runtime"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	metrics "github.com/rcrowley/go-metrics"
 	"github.com/rcrowley/go-metrics/exp"
 )
+
 var logger = log.NewLogger("metrics")
 
 const (
@@ -28,11 +28,6 @@ var (
 	enable = false
 	quitCh chan (bool)
 )
-
-// Neblet interface breaks cycle import dependency.
-type Neblet interface {
-	Config() *nebletpb.Config
-}
 
 func init() {
 	for _, arg := range os.Args {
@@ -49,23 +44,23 @@ func EnableMetrics() {
 	exp.Exp(metrics.DefaultRegistry)
 }
 
-// Start metrics monitor
-func Start(neb Neblet) {
+// Run metrics monitor
+func Run(config *Config) {
 	logger.Info("Starting Metrics...")
 
 	go (func() {
 		tags := make(map[string]string)
-		metricsConfig := neb.Config().Stats.MetricsTags
-		for _, v := range metricsConfig {
-			values := strings.Split(v, ":")
-			if len(values) != 2 {
-				continue
-			}
-			tags[values[0]] = values[1]
-		}
-		tags[chainID] = fmt.Sprintf("%d", neb.Config().Chain.ChainId)
+		// metricsConfig := neb.Config().Stats.MetricsTags
+		// for _, v := range metricsConfig {
+		// 	values := strings.Split(v, ":")
+		// 	if len(values) != 2 {
+		// 		continue
+		// 	}
+		// 	tags[values[0]] = values[1]
+		// }
+		// tags[chainID] = fmt.Sprintf("%d", neb.Config().Chain.ChainId)
 		go collectSystemMetrics()
-		InfluxDBWithTags(metrics.DefaultRegistry, interval, neb.Config().Stats.Influxdb.Host, neb.Config().Stats.Influxdb.Db, neb.Config().Stats.Influxdb.User, neb.Config().Stats.Influxdb.Password, tags)
+		InfluxDBWithTags(metrics.DefaultRegistry, interval, config.Host, config.Port, config.Db, config.User, config.Password, tags)
 
 		logger.Info("Started Metrics.")
 

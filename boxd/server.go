@@ -20,6 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/metrics"
 	p2p "github.com/BOXFoundation/boxd/p2p"
 	grpcserver "github.com/BOXFoundation/boxd/rpc/server"
 	storage "github.com/BOXFoundation/boxd/storage"
@@ -141,6 +142,7 @@ func (server *Server) Run() error {
 	// }
 	consensus.Run()
 	syncManager.Run()
+	metrics.Run(&cfg.Influxdb)
 	if len(cfg.P2p.Seeds) > 0 {
 		syncManager.StartSync()
 	}

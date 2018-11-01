@@ -29,3 +29,9 @@ rpc:
 dpos:
     index: 0
     pubkey: e34cce70c86373273efcc54ce7d2a491bb4a0e84
+influxdb:
+    host: http://localhost
+    port: 8086
+    db: box
+    user: 
+    password: 

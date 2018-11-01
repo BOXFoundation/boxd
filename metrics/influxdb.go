@@ -34,13 +34,13 @@ type reporter struct {
 }
 
 // InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
-func InfluxDB(r metrics.Registry, d time.Duration, url, database, username, password string) {
-	InfluxDBWithTags(r, d, url, database, username, password, nil)
+func InfluxDB(r metrics.Registry, d time.Duration, url string, port uint32, database, username, password string) {
+	InfluxDBWithTags(r, d, url, port, database, username, password, nil)
 }
 
 // InfluxDBWithTags starts a InfluxDB reporter which will post the metrics from the given registry at each d interval with the specified tags
-func InfluxDBWithTags(r metrics.Registry, d time.Duration, url, database, username, password string, tags map[string]string) {
-	u, err := uurl.Parse(url)
+func InfluxDBWithTags(r metrics.Registry, d time.Duration, url string, port uint32, database, username, password string, tags map[string]string) {
+	u, err := uurl.Parse(fmt.Sprintf("%s%s%v", url, ":", port))
 	if err != nil {
 		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
 		return
@@ -82,6 +82,7 @@ func (r *reporter) run() {
 	for {
 		select {
 		case <-intervalTicker:
+			fmt.Println("asdfasd")
 			if err := r.send(); err != nil {
 				log.Printf("unable to send metrics to InfluxDB. err=%v", err)
 			}
@@ -204,7 +205,6 @@ func (r *reporter) send() error {
 		Points:   pts,
 		Database: r.database,
 	}
-
 	_, err := r.client.Write(bps)
 	return err
 }

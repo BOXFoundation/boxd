@@ -12,6 +12,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/consensus/dpos"
 	logtypes "github.com/BOXFoundation/boxd/log/types"
+	"github.com/BOXFoundation/boxd/metrics"
 	"github.com/BOXFoundation/boxd/p2p"
 	rpc "github.com/BOXFoundation/boxd/rpc/server"
 	"github.com/BOXFoundation/boxd/storage"
@@ -41,6 +42,7 @@ type Config struct {
 	RPC       rpc.Config      `mapstructure:"rpc"`
 	Database  storage.Config  `mapstructure:"database"`
 	Dpos      dpos.Config     `mapstructure:"dpos"`
+	Influxdb  metrics.Config  `mapstructure:"influxdb"`
 }
 
 var format = `workspace: %s
