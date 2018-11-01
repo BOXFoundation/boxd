@@ -46,14 +46,13 @@ type BoxPeer struct {
 	scoremgr        *ScoreManager
 	addrbook        service.Server
 	bus             eventbus.Bus
-	mu              sync.Mutex
 }
 
 var _ Net = (*BoxPeer)(nil) // BoxPeer implements Net interface
 
 // NewBoxPeer create a BoxPeer
 func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus eventbus.Bus) (*BoxPeer, error) {
-	// ctx := context.Background()
+
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
 	boxPeer := &BoxPeer{conns: new(sync.Map), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
@@ -180,8 +179,6 @@ func (p *BoxPeer) connectSeeds() {
 		if err := p.AddAddrToPeerstore(v); err != nil {
 			logger.Warn("Failed to add seed to peerstore.", err)
 		}
-		// conn := NewConn(nil, p, peerID)
-		// go conn.loop()
 	}
 }
 

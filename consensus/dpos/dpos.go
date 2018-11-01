@@ -134,7 +134,6 @@ func (dpos *Dpos) RecoverMint() {
 
 func (dpos *Dpos) loop(p goprocess.Process) {
 	logger.Info("Start block mint")
-	time.Sleep(30 * time.Second)
 	timeChan := time.NewTicker(time.Second)
 	defer timeChan.Stop()
 	for {
@@ -386,6 +385,9 @@ func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
 // prepareCandidateContext prepare to update CandidateContext.
 func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 
+	if tx.Data == nil {
+		return nil
+	}
 	content := tx.Data.Content
 	candidateContext := dpos.context.candidateContext
 	switch int(tx.Data.Type) {

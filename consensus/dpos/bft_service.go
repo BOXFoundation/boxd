@@ -6,6 +6,7 @@ package dpos
 
 import (
 	"bytes"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -40,7 +41,7 @@ type BftService struct {
 	notifiee                p2p.Net
 	chain                   *chain.BlockChain
 	consensus               *Dpos
-	cache                   map[EternalBlockMsgKeyType][]*EternalBlockMsg
+	cache                   *sync.Map
 	existEternalBlockMsgKey *lru.Cache
 	checkStatus             status
 	proc                    goprocess.Process
@@ -55,7 +56,7 @@ func NewBftService(consensus *Dpos) (*BftService, error) {
 		chain:             consensus.chain,
 		consensus:         consensus,
 		checkStatus:       free,
-		cache:             make(map[EternalBlockMsgKeyType][]*EternalBlockMsg),
+		cache:             new(sync.Map),
 		proc:              goprocess.WithParent(consensus.proc),
 	}
 	var err error
@@ -120,18 +121,21 @@ func (bft *BftService) maybeUpdateEternalBlock() {
 }
 
 func (bft *BftService) tryToUpdateEternal() {
+
 	now := time.Now().Unix()
-	for k, v := range bft.cache {
-		if v[0].timestamp > now || now-v[0].timestamp > MaxEternalBlockMsgCacheTime {
-			delete(bft.cache, k)
+	bft.cache.Range(func(k, v interface{}) bool {
+		value := v.([]*EternalBlockMsg)
+		if value[0].timestamp > now || now-value[0].timestamp > MaxEternalBlockMsgCacheTime {
+			bft.cache.Delete(k)
 		}
-		if len(v) < MinConfirmMsgNumberForEternalBlock {
-			continue
+		if len(value) < MinConfirmMsgNumberForEternalBlock {
+			return true
 		}
-		if bft.updateEternal(v[0]) {
-			delete(bft.cache, k)
+		if bft.updateEternal(value[0]) {
+			bft.cache.Delete(k)
 		}
-	}
+		return true
+	})
 }
 
 func (bft *BftService) updateEternal(msg *EternalBlockMsg) bool {
@@ -199,14 +203,15 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 			return err
 		}
 
-		if msg, ok := bft.cache[*key]; ok {
-			msg := append(msg, eternalBlockMsg)
-			bft.cache[*key] = msg
-			if len(bft.cache[*key]) >= MinConfirmMsgNumberForEternalBlock {
+		if msg, ok := bft.cache.Load(*key); ok {
+			value := msg.([]*EternalBlockMsg)
+			value = append(value, eternalBlockMsg)
+			bft.cache.Store(*key, value)
+			if len(value) >= MinConfirmMsgNumberForEternalBlock {
 				bft.existEternalBlockMsgKey.Add(*key, *key)
 			}
 		} else {
-			bft.cache[*key] = []*EternalBlockMsg{eternalBlockMsg}
+			bft.cache.Store(*key, []*EternalBlockMsg{eternalBlockMsg})
 		}
 	}
 

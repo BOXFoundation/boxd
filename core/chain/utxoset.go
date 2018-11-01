@@ -5,8 +5,6 @@
 package chain
 
 import (
-	"sync"
-
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -207,7 +205,6 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 		hash, _ := tx.TxHash()
 		txs[*hash] = index
 	}
-
 	for i, tx := range block.Txs[1:] {
 		for _, txIn := range tx.Vin {
 			preHash := &txIn.PrevOutPoint.Hash
@@ -246,9 +243,6 @@ func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{
 }
 
 func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint) (*types.UtxoWrap, error) {
-	// key := generateKey(outpoint)
-	// serializedUtxoWrap, err := db.Get(*key)
-	// keyPool.Put(key)
 	utxoKey := UtxoKey(&outpoint)
 	serializedUtxoWrap, err := db.Get(utxoKey)
 	if err != nil {
@@ -263,51 +257,3 @@ func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint)
 	}
 	return utxoWrap, nil
 }
-
-var maxUint32VLQSerializeSize = serializeSizeVLQ(1<<32 - 1)
-
-var keyPool = sync.Pool{
-	New: func() interface{} {
-		b := make([]byte, crypto.HashSize+maxUint32VLQSerializeSize)
-		return &b
-	},
-}
-
-func serializeSizeVLQ(n uint64) int {
-	size := 1
-	for ; n > 0x7f; n = (n >> 7) - 1 {
-		size++
-	}
-	return size
-}
-
-func putVLQ(target []byte, n uint64) int {
-	offset := 0
-	for ; ; offset++ {
-		highBitMask := byte(0x80)
-		if offset == 0 {
-			highBitMask = 0x00
-		}
-
-		target[offset] = byte(n&0x7f) | highBitMask
-		if n <= 0x7f {
-			break
-		}
-		n = (n >> 7) - 1
-	}
-	// Reverse the bytes so it is MSB-encoded.
-	for i, j := 0, offset; i < j; i, j = i+1, j-1 {
-		target[i], target[j] = target[j], target[i]
-	}
-
-	return offset + 1
-}
-
-// func generateKey(outpoint *types.OutPoint) *[]byte {
-// 	key := keyPool.Get().(*[]byte)
-// 	idx := uint64(outpoint.Index)
-// 	*key = (*key)[:crypto.HashSize+serializeSizeVLQ(idx)]
-// 	copy(*key, outpoint.Hash[:])
-// 	putVLQ((*key)[crypto.HashSize:], idx)
-// 	return key
-// }

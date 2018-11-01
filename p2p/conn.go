@@ -257,8 +257,8 @@ func (conn *Conn) Close() error {
 	logger.Info("Closing connection with ", pid.Pretty())
 	if conn.stream != nil {
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
-		conn.peer.conns.Delete(conn.remotePeer)
-		conn.peer.table.peerStore.ClearAddrs(conn.remotePeer)
+		conn.peer.conns.Delete(pid)
+		conn.peer.table.peerStore.ClearAddrs(pid)
 		return conn.stream.Close()
 	}
 	return nil
@@ -287,8 +287,9 @@ func (conn *Conn) establish() {
 	conn.peer.table.AddPeerToTable(conn)
 	conn.isEstablished = true
 	conn.establishSucceedCh <- true
-	conn.peer.conns.Store(conn.remotePeer, conn)
-	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.PeerConnEvent)
+	pid := conn.remotePeer
+	conn.peer.conns.Store(pid, conn)
+	conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerConnEvent)
 	logger.Info("Succed to establish connection with peer ", conn.remotePeer.Pretty())
 }
 
