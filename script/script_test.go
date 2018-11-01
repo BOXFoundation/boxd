@@ -41,10 +41,6 @@ var (
 		Magic:    1,
 		LockTime: 0,
 	}
-
-	privKey, pubKey, _ = crypto.NewKeyPair()
-	pubKeyBytes        = pubKey.Serialize()
-	pubKeyHash         = crypto.Hash160(pubKeyBytes)
 )
 
 // test script not dependent on a tx
@@ -85,17 +81,17 @@ func TestNonTxScriptEvaluation(t *testing.T) {
 }
 
 func genP2PKHScript(appendOpDrop bool) (*Script, *Script, []byte) {
-	// locking script: OPDUP, OPHASH160, pubKeyHash, OPEQUALVERIFY, OPCHECKSIG
-	scriptPubKey := NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	// locking script: OPDUP, OPHASH160, testPubKeyHash, OPEQUALVERIFY, OPCHECKSIG
+	scriptPubKey := NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(testPubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 	if appendOpDrop {
 		scriptPubKey.AddOpCode(OP11).AddOpCode(OPDROP)
 	}
 
 	hash, _ := CalcTxHashForSig([]byte(*scriptPubKey), tx, 0)
-	sig, _ := crypto.Sign(privKey, hash)
+	sig, _ := crypto.Sign(testPrivKey, hash)
 	sigBytes := sig.Serialize()
-	// unlocking script: sig, pubKey
-	scriptSig := NewScript().AddOperand(sigBytes).AddOperand(pubKeyBytes)
+	// unlocking script: sig, testPubKey
+	scriptSig := NewScript().AddOperand(sigBytes).AddOperand(testPubKeyBytes)
 
 	return scriptSig, scriptPubKey, sigBytes
 }
@@ -114,7 +110,7 @@ func TestP2PKH(t *testing.T) {
 
 func genP2SHScript() (*Script, *Script) {
 	// redeem script
-	redeemScript := NewScript().AddOperand(pubKeyBytes).AddOpCode(OPCHECKSIG)
+	redeemScript := NewScript().AddOperand(testPubKeyBytes).AddOpCode(OPCHECKSIG)
 	redeemScriptHash := crypto.Hash160(*redeemScript)
 
 	// locking script
@@ -122,7 +118,7 @@ func genP2SHScript() (*Script, *Script) {
 
 	// Note: use redeemScript, not scriptPubKey, because the former is checked against signature with OP_CHECKSIG
 	hash, _ := CalcTxHashForSig([]byte(*redeemScript), tx, 0)
-	sig, _ := crypto.Sign(privKey, hash)
+	sig, _ := crypto.Sign(testPrivKey, hash)
 	sigBytes := sig.Serialize()
 	// unlocking script: signature <redeemScript>
 	// Note: <redeemScript> is serialized, i.e., AddOperand not AddScript
@@ -147,8 +143,8 @@ func TestDisasm(t *testing.T) {
 	ensure.DeepEqual(t, script.disasm(), "OP_8 OP_6 OP_ADD OP_14 OP_EQUAL [Error: OP_PUSHDATA1 has not enough data]")
 
 	scriptSig, scriptPubKey, sigBytes := genP2PKHScript(false)
-	expectedScriptStrs := []string{hex.EncodeToString(sigBytes), hex.EncodeToString(pubKeyBytes), "OP_CODESEPARATOR",
-		"OP_DUP", "OP_HASH160", hex.EncodeToString(pubKeyHash), "OP_EQUALVERIFY", "OP_CHECKSIG"}
+	expectedScriptStrs := []string{hex.EncodeToString(sigBytes), hex.EncodeToString(testPubKeyBytes), "OP_CODESEPARATOR",
+		"OP_DUP", "OP_HASH160", hex.EncodeToString(testPubKeyHash), "OP_EQUALVERIFY", "OP_CHECKSIG"}
 	catScript := NewScript().AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
 	ensure.DeepEqual(t, catScript.disasm(), strings.Join(expectedScriptStrs, " "))
 }
@@ -192,12 +188,12 @@ func TestIsPayToScriptHash(t *testing.T) {
 func TestExtractAddress(t *testing.T) {
 	_, scriptPubKey, _ := genP2PKHScript(false)
 	addr, _ := scriptPubKey.ExtractAddress()
-	expectedAddr, _ := types.NewAddressFromPubKey(pubKey)
+	expectedAddr, _ := types.NewAddressFromPubKey(testPubKey)
 	ensure.DeepEqual(t, expectedAddr, addr)
 }
 
 func TestGetNthOp(t *testing.T) {
-	// OPDUP, OPHASH160, pubKeyHash, OPEQUALVERIFY, OPCHECKSIG
+	// OPDUP, OPHASH160, testPubKeyHash, OPEQUALVERIFY, OPCHECKSIG
 	_, scriptPubKey, _ := genP2PKHScript(false)
 
 	// pc starts from 0
