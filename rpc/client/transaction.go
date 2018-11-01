@@ -27,11 +27,11 @@ func CreateTransaction(v *viper.Viper, fromAddress, toAddress types.Address, pub
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	utxos, err := selectUtxo(utxoResponse, amount)
+	utxos, err := SelectUtxo(utxoResponse, amount)
 	if err != nil {
 		return nil, err
 	}
-	tx, err := wrapTransaction(fromAddress.ScriptAddress(), toAddress.ScriptAddress(), pubKeyBytes, utxos, amount, signer)
+	tx, err := WrapTransaction(fromAddress.ScriptAddress(), toAddress.ScriptAddress(), pubKeyBytes, utxos, amount, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,8 @@ func CreateTransaction(v *viper.Viper, fromAddress, toAddress types.Address, pub
 	return transaction, nil
 }
 
-func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, error) {
+// SelectUtxo select utxo
+func SelectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, error) {
 	utxoList := resp.GetUtxos()
 	sort.Slice(utxoList, func(i, j int) bool {
 		return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
@@ -73,7 +74,8 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, er
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, amount uint64, signer crypto.Signer) (*corepb.Transaction, error) {
+// WrapTransaction wrap a transaction
+func WrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, amount uint64, signer crypto.Signer) (*corepb.Transaction, error) {
 	tx := &corepb.Transaction{}
 	var current uint64
 	txIn := make([]*corepb.TxIn, len(utxos))

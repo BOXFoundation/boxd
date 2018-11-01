@@ -1,7 +1,7 @@
 #!/usr/bin/expect
 
-spawn ./box --config .devconfig/.box-1.yaml wallet newaccount
+spawn ./box --config .devconfig/.box-1.yaml --wallet_dir .devconfig/ws1/box_keystore wallet newaccount
 expect "Please Input Your Passphrase"
-send "123"
+send "zaq12wsx"
 send "exit\r"
 expect eof

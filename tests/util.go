@@ -99,3 +99,7 @@ func GetIniKV(iniBuf, key string) string {
 	}
 	return ""
 }
+
+func removeNewKeystoreFiles() {
+
+}

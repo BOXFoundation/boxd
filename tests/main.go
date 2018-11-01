@@ -5,6 +5,7 @@
 package main
 
 import (
+	"math/rand"
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
@@ -13,8 +14,11 @@ import (
 const (
 	workDir   = "../.devconfig/"
 	keyDir    = "../keyfile/"
-	walletDir = "./wallet/"
-	rpcAddr   = "127.0.0.1:19191"
+	walletDir = "../.devconfig/ws1/box_keystore"
+
+	testPassphrase = "zaq12wsx"
+
+	rpcAddr = "127.0.0.1:19191"
 
 	dockerComposeFile = "../docker-compose.yml"
 )
@@ -62,6 +66,7 @@ func txTest() {
 		testsAddr = append(testsAddr, addr)
 	}
 	logger.Infof("testsAddr: %v", testsAddr)
+	defer removeNewKeystoreFiles()
 
 	// wait for some blocks to generate
 	logger.Info("wait mining for 5 seconds")
@@ -98,16 +103,22 @@ func txTest() {
 	}
 	logger.Infof("testsBalance: %v", testsBalance)
 
-	// create a transaction
-	//createTx()
+	// create a transaction and execute it
+	accT1 := testsAddr[0]
+	txAmount := uint64(10000 + rand.Intn(10000))
+	if err := execTx(minersAddr[0], accT1, txAmount, rpcAddr); err != nil {
+		logger.Fatal(err)
+	}
 
-	//// transfer some boxes from a miner(M1) to a test count(T1)
-	//someBoxes := 2000 + rand.Intn(1000)
+	// wait transaction brought to chain
+	time.Sleep(5 * time.Second)
 
-	//// wait some time
-	//time.Sleep(15 * time.Second)
-
-	//// check the balance of M1 and T1 on all nodes
+	// check the balance of T1 on all nodes
+	amount, err := balanceFor(accT1, rpcAddr)
+	if err != nil {
+		logger.Fatal(err)
+	}
+	logger.Infof("balance for account %s is %v", accT1, amount)
 
 	//// transfer 2424 from T1 to T2
 	//someBoxes = 1000 + rand.Intn(1000)

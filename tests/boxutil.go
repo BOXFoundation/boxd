@@ -12,7 +12,10 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/wallet"
 	"google.golang.org/grpc"
 )
@@ -59,8 +62,8 @@ func newAccount() (string, error) {
 	return addr, nil
 }
 
-func balanceFor(accAddr string, nodeAddr string) (uint64, error) {
-	conn, err := grpc.Dial(nodeAddr, grpc.WithInsecure())
+func balanceFor(accAddr string, rpcAddr string) (uint64, error) {
+	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
 	if err != nil {
 		return 0, err
 	}
@@ -73,4 +76,88 @@ func balanceFor(accAddr string, nodeAddr string) (uint64, error) {
 		return 0, err
 	}
 	return r.Amount, nil
+}
+
+func execTx(fromAddr, toAddr string, amount uint64, rpcAddr string) error {
+	fromAddress, err := types.NewAddress(fromAddr)
+	if err != nil {
+		return fmt.Errorf("NewAddress fromAddr: %s error: %s", fromAddr, err)
+	}
+
+	// get account of sender
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		return err
+	}
+	account, exists := wltMgr.GetAccount(fromAddr)
+	if !exists {
+		return fmt.Errorf("Account %s not managed", fromAddr)
+	}
+	if err := account.UnlockWithPassphrase(testPassphrase); err != nil {
+		return fmt.Errorf("Fail to unlock account: %v, error: %s", account, err)
+	}
+
+	//p2pkScript, err := getScriptAddress(fromAddress.ScriptAddress())
+	//if err != nil {
+	//	return err
+	//}
+	//logger.Infof("Script Value: %v", p2pkScript)
+
+	// initialize rpc
+	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	rpcClient := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// get the utxo of sender
+	utxoResponse, err := rpcClient.FundTransaction(ctx,
+		&rpcpb.FundTransactionRequest{
+			Addr:   fromAddress.EncodeAddress(),
+			Amount: amount,
+		})
+	if err != nil {
+		return err
+	}
+
+	// wrap transaction
+	utxos, err := client.SelectUtxo(utxoResponse, amount)
+	if err != nil {
+		return err
+	}
+	toAddress, err := types.NewAddress(toAddr)
+	if err != nil {
+		return fmt.Errorf("NewAddress toAddr: %s error: %s", toAddr, err)
+	}
+	tx, err := client.WrapTransaction(fromAddress.ScriptAddress(),
+		toAddress.ScriptAddress(), account.PublicKey(), utxos,
+		amount, account)
+	if err != nil {
+		return err
+	}
+	txV2 := &types.Transaction{}
+	txV2.FromProtoMessage(tx)
+	//logger.Info(util.PrettyPrint(tx))
+
+	// send the transaction
+	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
+	r, err := rpcClient.SendTransaction(ctx, txReq)
+	if err != nil {
+		return fmt.Errorf("rpc send transaction error: %s", err)
+	}
+	logger.Infof("rpc send transaction result: %+v", r)
+	transaction := &types.Transaction{}
+	transaction.FromProtoMessage(tx)
+	return nil
+}
+
+func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
+	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+	if err != nil {
+		return nil, err
+	}
+	return *script.PayToPubKeyHashScript(addr.ScriptAddress()), nil
 }
