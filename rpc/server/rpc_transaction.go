@@ -52,19 +52,31 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 }
 
 func (s *txServer) GetBalance(ctx context.Context, req *rpcpb.GetBalanceRequest) (*rpcpb.GetBalanceResponse, error) {
-	addr, err := types.NewAddress(req.Addr)
-	if err != nil {
-		return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
+	balances := make(map[string]uint64)
+	for _, addrStr := range req.Addrs {
+		addr, err := types.NewAddress(addrStr)
+		if err != nil {
+			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
+		}
+		amount, err := s.getbalance(ctx, addr)
+		if err != nil {
+			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
+		}
+		balances[addrStr] = amount
 	}
+	return &rpcpb.GetBalanceResponse{Code: 0, Message: "ok", Balances: balances}, nil
+}
+
+func (s *txServer) getbalance(ctx context.Context, addr types.Address) (uint64, error) {
 	utxos, err := s.server.GetChainReader().LoadUtxoByAddress(addr)
 	if err != nil {
-		return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
+		return 0, err
 	}
 	var amount uint64
 	for _, value := range utxos {
 		amount += value.Output.Value
 	}
-	return &rpcpb.GetBalanceResponse{Code: 0, Message: "ok", Amount: amount}, nil
+	return amount, nil
 }
 
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {

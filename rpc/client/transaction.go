@@ -195,15 +195,15 @@ func ListUtxos(v *viper.Viper) (*rpcpb.ListUtxosResponse, error) {
 }
 
 // GetBalance returns total amount of an address
-func GetBalance(v *viper.Viper, address string) (uint64, error) {
+func GetBalance(v *viper.Viper, addresses []string) (map[string]uint64, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	r, err := c.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addr: address})
+	r, err := c.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: addresses})
 	if err != nil {
-		return 0, err
+		return map[string]uint64{}, err
 	}
-	return r.Amount, err
+	return r.GetBalances(), err
 }
