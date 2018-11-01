@@ -385,6 +385,9 @@ func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
 // prepareCandidateContext prepare to update CandidateContext.
 func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 
+	if tx.Data == nil {
+		return nil
+	}
 	content := tx.Data.Content
 	candidateContext := dpos.context.candidateContext
 	switch int(tx.Data.Type) {
