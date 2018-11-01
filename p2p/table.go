@@ -88,7 +88,9 @@ func calcTimeInterval(val float64) float64 {
 func (t *Table) peerDiscover() {
 	logger.Info("do peer discover")
 	all := t.peerStore.Peers()
+	// TODO check peer score
 	if len(all) <= MaxPeerCountToSyncRouteTable {
+		// TODO sort by peer score
 		for _, v := range all {
 			if v.Pretty() == t.peer.id.Pretty() {
 				continue

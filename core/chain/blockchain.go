@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -61,6 +62,7 @@ type BlockChain struct {
 	LongestChainHeight        uint32
 	longestChainTip           *types.Block
 	cache                     *lru.Cache
+	bus                       eventbus.Bus
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               types.SyncManager
@@ -68,7 +70,7 @@ type BlockChain struct {
 }
 
 // NewBlockChain return a blockchain.
-func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage) (*BlockChain, error) {
+func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus) (*BlockChain, error) {
 
 	b := &BlockChain{
 		notifiee:                  notifiee,
@@ -77,7 +79,9 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
 		filterHolder:              NewFilterHolder(),
+		bus:                       eventbus.Default(),
 	}
+
 	var err error
 	b.cache, err = lru.New(512)
 	if err != nil {
@@ -201,6 +205,11 @@ func (chain *BlockChain) Proc() goprocess.Process {
 	return chain.proc
 }
 
+// Bus returns the goprocess of the BlockChain
+func (chain *BlockChain) Bus() eventbus.Bus {
+	return chain.bus
+}
+
 // Stop the blockchain service
 func (chain *BlockChain) Stop() {
 	chain.proc.Close()
@@ -223,6 +232,8 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 	}
 }
 
+var evilBehavior = []interface{}{core.ErrInvalidTime, core.ErrNoTransactions, core.ErrBlockTooBig, core.ErrFirstTxNotCoinbase, core.ErrMultipleCoinbases, core.ErrBadMerkleRoot, core.ErrDuplicateTx, core.ErrTooManySigOps, core.ErrBadFees, core.ErrBadCoinbaseValue, core.ErrUnfinalizedTx, core.ErrWrongBlockHeight}
+
 func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	block := new(types.Block)
 	if err := block.Unmarshal(msg.Body()); err != nil {
@@ -230,8 +241,11 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	chain.ProcessBlock(block, false)
-
+	if _, _, err := chain.ProcessBlock(block, false); err != nil && util.InArray(err, evilBehavior) {
+		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
+		return err
+	}
+	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil
 }
 

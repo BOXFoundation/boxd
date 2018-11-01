@@ -118,7 +118,7 @@ func (server *Server) Run() error {
 	}
 	server.peer = peer
 
-	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database)
+	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 	}

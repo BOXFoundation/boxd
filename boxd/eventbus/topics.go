@@ -11,6 +11,9 @@ const (
 	//TopicP2PPeerAddr is a event topic for new peer addr found or peer addr updated
 	TopicP2PPeerAddr = "p2p:peeraddr"
 
+	// TopicConnEvent is a event topic of events for score updated
+	TopicConnEvent = "p2p:connevent"
+
 	////////////////////////////// db /////////////////////////////
 
 	// TopicGetDatabaseKeys is topic for get keys of a specified storage

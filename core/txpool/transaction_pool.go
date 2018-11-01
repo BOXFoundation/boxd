@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -16,6 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 )
 
@@ -156,13 +158,20 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	return nil
 }
 
+var evilBehavior = []interface{}{core.ErrDuplicateTxInPool, core.ErrDuplicateTxInOrphanPool, core.ErrCoinbaseTx, core.ErrNonStandardTransaction, core.ErrOutPutAlreadySpent, core.ErrOrphanTransaction, core.ErrDoubleSpendTx}
+
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
 
-	return tx_pool.ProcessTx(tx, false)
+	if err := tx_pool.ProcessTx(tx, false); err != nil && util.InArray(err, evilBehavior) {
+		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
+		return err
+	}
+	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
+	return nil
 }
 
 // ProcessTx is used to handle new transactions.

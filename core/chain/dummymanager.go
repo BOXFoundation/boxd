@@ -7,6 +7,7 @@ package chain
 import (
 	"os"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -37,7 +38,7 @@ func NewTestBlockChain() *BlockChain {
 
 	proc := goprocess.WithSignals(os.Interrupt)
 	db, _ := storage.NewDatabase(proc, dbCfg)
-	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db)
+	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db, eventbus.Default())
 	// set sync manager
 	blockChain.Setup(new(DummyDpos), NewDummySyncManager())
 	return blockChain
