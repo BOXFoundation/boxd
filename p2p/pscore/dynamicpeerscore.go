@@ -85,7 +85,6 @@ type factors struct {
 	// precomputedFactor stores precomputed exponential decay factors for the first
 	// 'precomputedLen' seconds starting from t == 0.
 	precomputedFactor []float64
-
 }
 
 func newFactors(halflife, lifetime, precomputedLen int) *factors {
