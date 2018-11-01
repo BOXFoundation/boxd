@@ -292,9 +292,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
 
-	if isMainChain {
-		// chain.filterHolder.AddFilter(block.GetFilterForTransactionScript(), block.Height, *block.Hash)
-	}
 	return isMainChain, false, nil
 }
 
