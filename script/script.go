@@ -101,11 +101,12 @@ func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx in
 	//
 
 	// First operand is signature
-	_, sig, newPc, _ := scriptSig.parseNextOp(0)
+	pc := 0
+	_, sig, _ := scriptSig.parseNextOp(&pc)
 	newScriptSig := NewScript().AddOperand(sig)
 
 	// Second operand is serialized redeem script
-	_, redeemScriptBytes, _, _ := scriptSig.parseNextOp(newPc)
+	_, redeemScriptBytes, _ := scriptSig.parseNextOp(&pc)
 	redeemScript := NewScriptFromBytes(redeemScriptBytes)
 
 	// signature becomes the new scriptSig, redeemScript becomes the new scriptPubKey
@@ -122,11 +123,10 @@ func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
-		opCode, operand, newPc, err := s.parseNextOp(pc)
+		opCode, operand, err := s.parseNextOp(&pc)
 		if err != nil {
 			return err
 		}
-		pc = newPc
 
 		if err := s.execOp(opCode, operand, tx, txInIdx, pc, &scriptPubKeyStart, stack); err != nil {
 			return err
@@ -138,18 +138,18 @@ func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 }
 
 // Get the next opcode & operand. Operand only applies to data push opcodes. Also return incremented pc.
-func (s *Script) parseNextOp(pc int) (OpCode, Operand, int /* pc */, error) {
+func (s *Script) parseNextOp(pc *int) (OpCode, Operand, error) {
 	script := *s
 	scriptLen := len(script)
-	if pc >= scriptLen {
-		return 0, nil, pc, ErrScriptBound
+	if (*pc) >= scriptLen {
+		return 0, nil, ErrScriptBound
 	}
 
-	opCode := OpCode(script[pc])
-	pc++
+	opCode := OpCode(script[*pc])
+	(*pc)++
 
 	if opCode > OPPUSHDATA4 {
-		return opCode, nil, pc, nil
+		return opCode, nil, nil
 	}
 
 	var operandSize int
@@ -157,35 +157,35 @@ func (s *Script) parseNextOp(pc int) (OpCode, Operand, int /* pc */, error) {
 		// opcode itself encodes operand size
 		operandSize = int(opCode)
 	} else if opCode == OPPUSHDATA1 {
-		if scriptLen-pc < 1 {
-			return opCode, nil, pc, ErrNoEnoughDataOPPUSHDATA1
+		if scriptLen-(*pc) < 1 {
+			return opCode, nil, ErrNoEnoughDataOPPUSHDATA1
 		}
 		// 1 byte after opcode encodes operand size
-		operandSize = int(script[pc])
-		pc++
+		operandSize = int(script[*pc])
+		(*pc)++
 	} else if opCode == OPPUSHDATA2 {
-		if scriptLen-pc < 2 {
-			return opCode, nil, pc, ErrNoEnoughDataOPPUSHDATA2
+		if scriptLen-(*pc) < 2 {
+			return opCode, nil, ErrNoEnoughDataOPPUSHDATA2
 		}
 		// 2 bytes after opcode encodes operand size
-		operandSize = int(binary.LittleEndian.Uint16(script[pc : pc+2]))
-		pc += 2
+		operandSize = int(binary.LittleEndian.Uint16(script[(*pc) : (*pc)+2]))
+		(*pc) += 2
 	} else if opCode == OPPUSHDATA4 {
-		if scriptLen-pc < 4 {
-			return opCode, nil, pc, ErrNoEnoughDataOPPUSHDATA4
+		if scriptLen-(*pc) < 4 {
+			return opCode, nil, ErrNoEnoughDataOPPUSHDATA4
 		}
 		// 4 bytes after opcode encodes operand size
-		operandSize = int(binary.LittleEndian.Uint16(script[pc : pc+4]))
-		pc += 4
+		operandSize = int(binary.LittleEndian.Uint16(script[(*pc) : (*pc)+4]))
+		(*pc) += 4
 	}
 
-	if scriptLen-pc < operandSize {
-		return opCode, nil, pc, ErrScriptBound
+	if scriptLen-(*pc) < operandSize {
+		return opCode, nil, ErrScriptBound
 	}
 	// Read operand
-	operand := Operand(script[pc : pc+operandSize])
-	pc += operandSize
-	return opCode, operand, pc, nil
+	operand := Operand(script[(*pc) : (*pc)+operandSize])
+	(*pc) += operandSize
+	return opCode, operand, nil
 }
 
 // Execute an operation
@@ -383,7 +383,7 @@ func (s *Script) disasm() string {
 	var str []string
 
 	for pc := 0; pc < len(*s); {
-		opCode, operand, newPc, err := s.parseNextOp(pc)
+		opCode, operand, err := s.parseNextOp(&pc)
 		if err != nil {
 			str = append(str, "[Error: "+err.Error()+"]")
 			return strings.Join(str, " ")
@@ -393,9 +393,7 @@ func (s *Script) disasm() string {
 		} else {
 			str = append(str, opCodeToName(opCode))
 		}
-		pc = newPc
 	}
-
 	return strings.Join(str, " ")
 }
 
@@ -408,16 +406,15 @@ func (s *Script) IsPayToScriptHash() bool {
 
 // getNthOp returns the n-th (start from 0) operand and operator, counting from pcStart of the script.
 func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error) {
-	opCode, operand, newPc, err := OpCode(0), Operand(nil), 0, error(nil)
+	opCode, operand, pc, err, i := OpCode(0), Operand(nil), 0, error(nil), 0
 
-	for pc, i := pcStart, 0; i <= n; i++ {
-		opCode, operand, newPc, err = s.parseNextOp(pc)
+	for pc, i = pcStart, 0; i <= n; i++ {
+		opCode, operand, err = s.parseNextOp(&pc)
 		if err != nil {
 			return 0, nil, 0, err
 		}
-		pc = newPc
 	}
-	return opCode, operand, newPc, err
+	return opCode, operand, pc, err
 }
 
 // ExtractAddress returns address within the script
