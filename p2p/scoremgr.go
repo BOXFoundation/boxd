@@ -70,7 +70,6 @@ func (sm *ScoreManager) record(pid peer.ID, event eventbus.BusEvent) {
 
 // clearUp close the lowest grade peers' conn on time when conn pool is almost full
 func (sm *ScoreManager) clearUp() {
-	logger.Errorf("cleanup invoked")
 	var queue []peerConnScore
 	t := time.Now()
 	sm.peer.conns.Range(func(k, v interface{}) bool {
@@ -96,13 +95,9 @@ func (sm *ScoreManager) clearUp() {
 		return queue[i].score <= queue[j].score
 	})
 
-	for _, v := range queue {
-		logger.Errorf("%v %v", v.score, v.conn.remotePeer.Pretty())
-	}
-
 	if size := len(queue) - int(float32(sm.peer.config.ConnMaxCapacity)*sm.peer.config.ConnLoadFactor); size > 0 {
 		for i := 0; i < size; i++ {
-			logger.Infof("Close conn %v because of low score %v", queue[i].conn.remotePeer.Pretty(), queue[i].score)
+			logger.Debugf("Close conn %v because of low score %v", queue[i].conn.remotePeer.Pretty(), queue[i].score)
 			queue[i].conn.Close()
 		}
 	}

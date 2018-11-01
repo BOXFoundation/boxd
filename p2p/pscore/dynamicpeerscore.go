@@ -180,46 +180,37 @@ func (s *DynamicPeerScore) score(t time.Time) int64 {
 	if dt > 0 {
 		var punishment, achievement int
 		if s.timeOutCounter > punishConnTimeOutThreshold {
-			logger.Errorf("timeOutCounter %v", s.timeOutCounter)
 			punishment += punishConnTimeOutScore * s.timeOutCounter
 			s.timeOutCounter = 0
 		}
 		if s.badBlockCounter > punishBadBlockThreshold {
-			logger.Errorf(" badBlockCounter %v", s.badBlockCounter)
 			punishment += punishBadBlockScore * s.badBlockCounter
 			s.badBlockCounter = 0
 		}
 		if s.badTxCounter > punishBadTxThreshold {
-			logger.Errorf("badTxCounter %v", s.badTxCounter)
 			punishment += punishBadTxScore * s.badTxCounter
 			s.badTxCounter = 0
 		}
 		if s.syncCounter > punishSyncMsgThreshold {
-			logger.Errorf("syncCounter %v", s.syncCounter)
 			punishment += punishSyncMsgScore * s.syncCounter
 			s.syncCounter = 0
 		}
 		if s.hbCounter < punishHeartBeatCeiling {
-			logger.Errorf("hbCounter %v", s.hbCounter)
 			punishment += punishNoHeartBeatScore
 			s.hbCounter = 0
 		}
 		if s.disconnCounter > punishDisconnThreshold {
-			logger.Errorf("disconnCounter %v", s.disconnCounter)
 			punishment += punishConnUnsteadinessScore
 			s.disconnCounter = 0
 		}
 		if s.newBlockCounter > rewardNewBlockThreshold {
-			logger.Errorf("newBlockCounter %v", s.newBlockCounter)
 			achievement += rewardNewBlockScore * s.newBlockCounter
 			s.newBlockCounter = 0
 		}
 		if s.newTxCounter > rewardNewTxThreshold {
-			logger.Errorf("newTxCounter %v", s.newTxCounter)
 			achievement += rewardNewTxScore * s.newTxCounter
 			s.newTxCounter = 0
 		}
-		logger.Errorf("punishment = %v, achievement = %v", punishment, achievement)
 		s.punish(int64(punishment), t)
 		s.reward(int64(achievement), t)
 
