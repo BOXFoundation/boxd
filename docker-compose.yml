@@ -1,9 +1,14 @@
-version: "3.3"
+version: "3"
 
 services:
   p1:
     image: boxd:latest
-    command: "./box start --config=./.devconfig/.box-1.yaml"
+    environment:
+      - "TZ=Asia/Shanghai"
+    command:
+      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
+      echo $TZ > /etc/timezone &&
+      ./box start --config=./.devconfig/.box-1.yaml"
     ports:
       - "19199:19199"
       - "19191:19191"
@@ -16,7 +21,12 @@ services:
 
   p2:
     image: boxd:latest
-    command: "./box start --config=./.devconfig/.box-2.yaml"
+    environment:
+      - "TZ=Asia/Shanghai"
+    command: >
+      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
+      echo $TZ > /etc/timezone &&
+      ./box start --config=./.devconfig/.box-2.yaml"
     depends_on:
       - p1
     ports:
@@ -31,7 +41,12 @@ services:
 
   p3:
     image: boxd:latest
-    command: "./box start --config=./.devconfig/.box-3.yaml"
+    environment:
+      - "TZ=Asia/Shanghai"
+    command: >
+      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
+      echo $TZ > /etc/timezone &&
+      ./box start --config=./.devconfig/.box-3.yaml"
     depends_on:
       - p1
     ports:
