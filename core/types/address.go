@@ -9,11 +9,26 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/util"
+	"github.com/btcsuite/btcutil/base58"
 	"golang.org/x/crypto/ripemd160"
 )
 
-var addressTypeP2PKHPrefix = [2]byte{0x13, 0x26}
-var addressTypeP2SHPrefix = [2]byte{0x13, 0x2b}
+var addressTypeP2PKHPrefix = [2]byte{FixPrefix, 0x26}
+var addressTypeP2SHPrefix = [2]byte{FixPrefix, 0x2b}
+
+// const
+const (
+	BoxPrefix           = 'b'
+	AddressPrefixLength = 2
+	FixPrefix           = 0x13
+
+	AddressLength       = 26
+	EncodeAddressLength = 35
+)
+
+// AddressHash Alias for address hash
+type AddressHash [ripemd160.Size]byte
 
 // Address is an interface type for any type of destination a transaction output may spend to.
 type Address interface {
@@ -25,7 +40,7 @@ type Address interface {
 
 // AddressPubKeyHash is an Address for a pay-to-pubkey-hash (P2PKH) transaction.
 type AddressPubKeyHash struct {
-	hash [ripemd160.Size]byte
+	hash AddressHash
 }
 
 // NewAddressPubKeyHash returns a new AddressPubKeyHash.  pkHash mustbe 20 bytes.
@@ -85,7 +100,7 @@ func (a *AddressPubKeyHash) SetString(in string) error {
 }
 
 // Hash160 returns the underlying array of the pubkey hash.
-func (a *AddressPubKeyHash) Hash160() *[ripemd160.Size]byte {
+func (a *AddressPubKeyHash) Hash160() *AddressHash {
 	return &a.hash
 }
 
@@ -94,4 +109,28 @@ func encodeAddress(hash []byte) string {
 	b = append(b, addressTypeP2PKHPrefix[:]...)
 	b = append(b, hash[:]...)
 	return crypto.Base58CheckEncode(b)
+}
+
+// ParseAddress parse address from string.
+func ParseAddress(s string) (*AddressPubKeyHash, error) {
+	if len(s) != EncodeAddressLength || s[0] != BoxPrefix {
+		return nil, core.ErrInvalidAddressString
+	}
+
+	return ParseFromBytes(base58.Decode(s))
+}
+
+// ParseFromBytes parse address from bytes.
+func ParseFromBytes(b []byte) (*AddressPubKeyHash, error) {
+	if len(b) != AddressLength || b[0] != FixPrefix {
+		return nil, core.ErrInvalidAddressString
+	}
+
+	checksum := crypto.Checksum(b[:22])
+	if !util.Equal(checksum[:], b[22:]) {
+		return nil, core.ErrInvalidAddressString
+	}
+	var hash [ripemd160.Size]byte
+	copy(hash[:], b[2:22])
+	return &AddressPubKeyHash{hash: hash}, nil
 }

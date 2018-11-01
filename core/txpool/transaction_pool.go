@@ -9,13 +9,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 )
 
@@ -23,6 +26,8 @@ import (
 const (
 	TxMsgBufferChSize          = 65536
 	ChainUpdateMsgBufferChSize = 65536
+
+	metricsLoopInterval = 2 * time.Second
 )
 
 var logger = log.NewLogger("txpool") // logger
@@ -99,12 +104,17 @@ func (tx_pool *TransactionPool) Stop() {
 // handle new tx message from network.
 func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	logger.Info("Waitting for new tx message...")
+	metricsTicker := time.NewTicker(metricsLoopInterval)
+	defer metricsTicker.Stop()
 	for {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
 			tx_pool.processTxMsg(msg)
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
+		case <-metricsTicker.C:
+			metrics.MetricsTxPoolSize.Update(int64(len(tx_pool.hashToTx)))
+			metrics.MetricsTxPoolSize.Update(int64(len(tx_pool.hashToOrphanTx)))
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			return
@@ -156,13 +166,20 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	return nil
 }
 
+var evilBehavior = []interface{}{core.ErrDuplicateTxInPool, core.ErrDuplicateTxInOrphanPool, core.ErrCoinbaseTx, core.ErrNonStandardTransaction, core.ErrOutPutAlreadySpent, core.ErrOrphanTransaction, core.ErrDoubleSpendTx}
+
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
 
-	return tx_pool.ProcessTx(tx, false)
+	if err := tx_pool.ProcessTx(tx, false); err != nil && util.InArray(err, evilBehavior) {
+		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
+		return err
+	}
+	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
+	return nil
 }
 
 // ProcessTx is used to handle new transactions.

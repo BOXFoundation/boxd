@@ -24,6 +24,8 @@ p2p:
         - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
     bucket_size: 16
     latency: 10
+    conn_max_capacity: 200
+    conn_load_factor: 0.8
 rpc:
     port: 19171
     http:
@@ -31,6 +33,9 @@ rpc:
 dpos:
     index: 10
     pubkey: 0af020217fd26e0b6bf40912bca223b1dd806a21
+    keypath: keyfile/key3.keystore
+    enable_mint: true
+    passphrase: zaq12wsx
 influxdb:
     host: http://localhost
     port: 8086

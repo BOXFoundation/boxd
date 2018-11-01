@@ -11,7 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/BOXFoundation/boxd/consensus"
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/consensus/dpos"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
@@ -110,7 +111,7 @@ type SyncManager struct {
 
 	proc      goprocess.Process
 	chain     *chain.BlockChain
-	consensus consensus.Consensus
+	consensus *dpos.Dpos
 	p2pNet    p2p.Net
 
 	messageCh         chan p2p.Message
@@ -152,8 +153,7 @@ func (sm *SyncManager) getStatus() syncStatus {
 }
 
 // NewSyncManager returns new block sync manager.
-func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
-	consensus consensus.Consensus, parent goprocess.Process) *SyncManager {
+func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net, consensus *dpos.Dpos, parent goprocess.Process) *SyncManager {
 	return &SyncManager{
 		status:       freeStatus,
 		chain:        blockChain,
@@ -478,6 +478,8 @@ func (sm *SyncManager) fetchRemoteBlocks(fbh *FetchBlockHeaders) (peer.ID, error
 }
 
 func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
+	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
+
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
 		return errNoResponding
@@ -542,6 +544,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
+	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
 		return errNoResponding
@@ -599,6 +602,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
+	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
 		return errNoResponding

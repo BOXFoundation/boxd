@@ -5,6 +5,7 @@
 package p2p
 
 import (
+	"math"
 	"math/rand"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 
 // const
 const (
-	PeerDiscoverLoopInterval        = 30 * time.Second
+	PeerDiscoverLoopInterval        = 120 * 1000
 	MaxPeerCountToSyncRouteTable    = 16
 	MaxPeerCountToReplyPeerDiscover = 16
 )
@@ -54,15 +55,23 @@ func NewTable(peer *BoxPeer) *Table {
 
 // Loop for discover new peer.
 func (t *Table) Loop(parent goprocess.Process) {
+	var cnt float64
 	t.peerDiscover()
-
 	t.proc = parent.Go(func(p goprocess.Process) {
-		loopTicker := time.NewTicker(PeerDiscoverLoopInterval)
-		defer loopTicker.Stop()
+		interval := time.Duration(calcTimeInterval(cnt) * 1000)
+		timer := time.NewTimer(interval * time.Millisecond)
+		defer timer.Stop()
 		for {
 			select {
-			case <-loopTicker.C:
+			case <-timer.C:
 				t.peerDiscover()
+				if cnt < 100 {
+					cnt++
+					interval = time.Duration(calcTimeInterval(float64(cnt)) * 1000)
+				} else {
+					interval = PeerDiscoverLoopInterval
+				}
+				timer.Reset(interval * time.Millisecond)
 			case <-p.Closing():
 				logger.Info("Quit route table loop.")
 				return
@@ -71,10 +80,17 @@ func (t *Table) Loop(parent goprocess.Process) {
 	})
 }
 
+func calcTimeInterval(val float64) float64 {
+	temp := float64(-(val) / 3.0)
+	return math.Trunc(math.Pow(2-math.Exp2(temp), math.Log2(120))*1e2+0.5) * 1e-2
+}
+
 func (t *Table) peerDiscover() {
 	logger.Info("do peer discover")
 	all := t.peerStore.Peers()
+	// TODO check peer score
 	if len(all) <= MaxPeerCountToSyncRouteTable {
+		// TODO sort by peer score
 		for _, v := range all {
 			if v.Pretty() == t.peer.id.Pretty() {
 				continue
@@ -87,9 +103,10 @@ func (t *Table) peerDiscover() {
 	// Randomly select some peer to do sync routes from the established and unconnected peers
 	// 3/4 from established peers, and 1/4 from unconnected peers
 	var establishedID []peer.ID
-	for k := range t.peer.conns {
-		establishedID = append(establishedID, k)
-	}
+	t.peer.conns.Range(func(k, v interface{}) bool {
+		establishedID = append(establishedID, k.(peer.ID))
+		return true
+	})
 
 	var unestablishedID []peer.ID
 	for _, v := range all {
@@ -114,14 +131,15 @@ func (t *Table) peerDiscover() {
 
 func (t *Table) lookup(pid peer.ID) {
 	var conn *Conn
-	if _, ok := t.peer.conns[pid]; ok {
+	if c, ok := t.peer.conns.Load(pid); ok {
 		// established peer
-		conn = t.peer.conns[pid].(*Conn)
+		conn = c.(*Conn)
 	} else {
 		// unestablished peer
 		conn = NewConn(nil, t.peer, pid)
 		conn.Loop(t.peer.proc)
 	}
+
 	if err := conn.PeerDiscover(); err != nil {
 		logger.Errorf("Failed to sync route table from peer: %s err: %s", pid.Pretty(), err.Error())
 	}

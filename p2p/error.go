@@ -9,12 +9,13 @@ import "errors"
 // error defined
 var (
 	//conn.go
-	ErrMagic                   = errors.New("magic is error")
-	ErrHeaderCheckSum          = errors.New("header checksum is error")
-	ErrExceedMaxDataLength     = errors.New("exceed max data length")
-	ErrBodyCheckSum            = errors.New("body checksum is error")
-	ErrMessageDataContent      = errors.New("Invalid message data content")
-	ErrNoConnectionEstablished = errors.New("No connection established")
+	ErrMagic                     = errors.New("magic is error")
+	ErrHeaderCheckSum            = errors.New("header checksum is error")
+	ErrExceedMaxDataLength       = errors.New("exceed max data length")
+	ErrBodyCheckSum              = errors.New("body checksum is error")
+	ErrMessageDataContent        = errors.New("Invalid message data content")
+	ErrNoConnectionEstablished   = errors.New("No connection established")
+	ErrFailedToSendMessageToPeer = errors.New("Failed to send message to peer")
 
 	//message.go
 	ErrMessageHeaderLength     = errors.New("Can not read p2p message header length")

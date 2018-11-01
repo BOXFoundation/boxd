@@ -5,8 +5,6 @@
 package types
 
 import (
-	"time"
-
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -22,9 +20,10 @@ var logger = log.NewLogger("core:types") // logger
 // transactions on their first access so subsequent accesses don't have to
 // repeat the relatively expensive hashing operations.
 type Block struct {
-	Hash   *crypto.HashType
-	Header *BlockHeader
-	Txs    []*Transaction
+	Hash      *crypto.HashType
+	Header    *BlockHeader
+	Txs       []*Transaction
+	Signature []byte
 
 	Height uint32
 }
@@ -38,7 +37,6 @@ func NewBlock(parent *Block) *Block {
 		Header: &BlockHeader{
 			Magic:         parent.Header.Magic,
 			PrevBlockHash: *parent.BlockHash(),
-			TimeStamp:     time.Now().UnixNano(),
 		},
 		Txs:    make([]*Transaction, 0),
 		Height: parent.Height + 1,
@@ -61,9 +59,10 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 			}
 		}
 		return &corepb.Block{
-			Header: header,
-			Txs:    txs,
-			Height: block.Height,
+			Header:    header,
+			Txs:       txs,
+			Signature: block.Signature,
+			Height:    block.Height,
 		}, nil
 	}
 
@@ -92,6 +91,7 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			block.Hash = block.BlockHash()
 			block.Txs = txs
 			block.Height = message.Height
+			block.Signature = message.Signature
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
@@ -159,7 +159,9 @@ type BlockHeader struct {
 	// Distinguish between mainnet and testnet.
 	Magic uint32
 
-	ConsensusRoot crypto.HashType
+	PeriodHash crypto.HashType
+
+	CandidatesHash crypto.HashType
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
@@ -169,12 +171,13 @@ var _ conv.Serializable = (*BlockHeader)(nil)
 func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 
 	return &corepb.BlockHeader{
-		Version:       header.Version,
-		PrevBlockHash: header.PrevBlockHash[:],
-		TxsRoot:       header.TxsRoot[:],
-		TimeStamp:     header.TimeStamp,
-		Magic:         header.Magic,
-		ConsensusRoot: header.ConsensusRoot[:],
+		Version:        header.Version,
+		PrevBlockHash:  header.PrevBlockHash[:],
+		TxsRoot:        header.TxsRoot[:],
+		TimeStamp:      header.TimeStamp,
+		Magic:          header.Magic,
+		PeriodHash:     header.PeriodHash[:],
+		CandidatesHash: header.CandidatesHash[:],
 	}, nil
 }
 
@@ -187,7 +190,8 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			copy(header.TxsRoot[:], message.TxsRoot)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
-			copy(header.ConsensusRoot[:], message.ConsensusRoot)
+			copy(header.PeriodHash[:], message.PeriodHash)
+			copy(header.CandidatesHash[:], message.CandidatesHash)
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

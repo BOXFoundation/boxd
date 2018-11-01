@@ -22,16 +22,21 @@ p2p:
     port: 19199
     bucket_size: 16
     latency: 10
+    conn_max_capacity: 200
+    conn_load_factor: 0.8
 rpc:
     port: 19191
     http:
         port: 19190
 dpos:
     index: 0
-    pubkey: e34cce70c86373273efcc54ce7d2a491bb4a0e84
+    pubkey: e34cce70c86373273efcc54ce7d2a491bb4a0e84 
+    keypath: keyfile/key.keystore
+    enable_mint: true
+    passphrase: zaq12wsx
 influxdb:
     host: http://localhost
     port: 8086
     db: box
     user: 
-    password: 
+    password:

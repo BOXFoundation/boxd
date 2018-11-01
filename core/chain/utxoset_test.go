@@ -5,18 +5,46 @@
 package chain
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/facebookgo/ensure"
 )
 
-func TestUtxoSet_FindUtxo(t *testing.T) {
+var (
+	txOutIdx     = uint32(0)
+	txOutIdxErr  = uint32(1)
+	value        = uint64(1)
+	value1       = uint64(2)
+	blockHeight  = uint32(10000)
+	blockHeight1 = uint32(20000)
+	isCoinBase   = false
+	isSpent      = false
+	isModified   = true
+)
+
+func createUtxoWrap(val uint64, blkHeight uint32) types.UtxoWrap {
+	txOut := &corepb.TxOut{
+		Value:        val,
+		ScriptPubKey: []byte{},
+	}
+	utxoWrap := types.UtxoWrap{
+		Output:      txOut,
+		BlockHeight: blkHeight,
+		IsCoinBase:  isCoinBase,
+		IsSpent:     isSpent,
+		IsModified:  isModified,
+	}
+	return utxoWrap
+}
+
+func createTx(outPointHash crypto.HashType, val uint64) *types.Transaction {
 	outPoint := types.OutPoint{
-		Hash:  crypto.HashType{0x0010},
-		Index: 0,
+		Hash:  outPointHash,
+		Index: txOutIdx,
 	}
 	txIn := &types.TxIn{
 		PrevOutPoint: outPoint,
@@ -27,7 +55,7 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 		txIn,
 	}
 	txOut := &corepb.TxOut{
-		Value:        1,
+		Value:        val,
 		ScriptPubKey: []byte{},
 	}
 	vOut := []*corepb.TxOut{txOut}
@@ -38,105 +66,62 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 		Magic:    1,
 		LockTime: 0,
 	}
+	return tx
+}
 
-	utxoWrapOrigin := types.UtxoWrap{
-		Output:      txOut,
-		BlockHeight: 10000,
-		IsCoinBase:  false,
-		IsSpent:     false,
-		IsModified:  false,
+func createOutPoint(txHash crypto.HashType) types.OutPoint {
+	outPoint := types.OutPoint{
+		Hash:  txHash,
+		Index: txOutIdx,
 	}
+	return outPoint
+}
 
+func TestUtxoSet_FindUtxo(t *testing.T) {
+	utxoWrapOrigin := createUtxoWrap(value, blockHeight)
+	utxoWrapNew := createUtxoWrap(value1, blockHeight1)
+
+	tx := createTx(crypto.HashType{0x0010}, value)
 	txHash, _ := tx.TxHash()
-	outPointReq := types.OutPoint{
-		Hash:  *txHash,
-		Index: 0,
-	}
+	outPointOrigin := createOutPoint(*txHash)
 
-	outPoint1 := types.OutPoint{
-		Hash:  crypto.HashType{0x0011},
-		Index: 0,
-	}
-	txIn1 := &types.TxIn{
-		PrevOutPoint: outPoint1,
-		ScriptSig:    []byte{},
-		Sequence:     0,
-	}
-	vIn1 := []*types.TxIn{
-		txIn1,
-	}
-	txOut1 := &corepb.TxOut{
-		Value:        2,
-		ScriptPubKey: []byte{},
-	}
-	vOut1 := []*corepb.TxOut{txOut1}
-	tx1 := &types.Transaction{
-		Version:  1,
-		Vin:      vIn1,
-		Vout:     vOut1,
-		Magic:    2,
-		LockTime: 0,
-	}
-
-	utxoWrapNew := types.UtxoWrap{
-		Output:      txOut1,
-		BlockHeight: uint32(20000),
-		IsCoinBase:  false,
-		IsSpent:     false,
-		IsModified:  false,
-	}
-
+	outPoint1 := createOutPoint(crypto.HashType{0x0020})
+	tx1 := createTx(outPoint1.Hash, value1)
 	tx1Hash, _ := tx1.TxHash()
-	outPointNew := types.OutPoint{
-		Hash:  *tx1Hash,
-		Index: 0,
-	}
+	outPointNew := createOutPoint(*tx1Hash)
 
-	outPointErr := types.OutPoint{
-		Hash:  crypto.HashType{0x0010},
-		Index: 121,
-	}
+	// non-existing utxoSet for this outpoint
+	outPointErr := createOutPoint(crypto.HashType{0x0050})
 
 	utxoSet := NewUtxoSet()
 
-	if err := utxoSet.AddUtxo(tx, 0, 10000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err := utxoSet.AddUtxo(tx, txOutIdx, blockHeight)
+	ensure.Nil(t, err)
 
-	if err := utxoSet.AddUtxo(tx1, 0, 20000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err2 := utxoSet.AddUtxo(tx1, txOutIdx, blockHeight1)
+	ensure.Nil(t, err2)
 
 	// test for ErrTxOutIndexOob
-	if err := utxoSet.AddUtxo(tx1, 1, 10000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err3 := utxoSet.AddUtxo(tx1, txOutIdxErr, blockHeight)
+	ensure.NotNil(t, err3)
+	ensure.DeepEqual(t, err3, core.ErrTxOutIndexOob)
 
 	// test for ErrAddExistingUtxo
-	if err := utxoSet.AddUtxo(tx, 0, 10000); err != nil {
-		t.Logf("addUtxo error: %+v", err)
-	}
+	err4 := utxoSet.AddUtxo(tx, txOutIdx, blockHeight)
+	ensure.NotNil(t, err4)
+	ensure.DeepEqual(t, err4, core.ErrAddExistingUtxo)
 
-	result := *utxoSet.FindUtxo(outPointReq)
-
-	if !reflect.DeepEqual(result, utxoWrapOrigin) {
-		t.Errorf("expected utxoentry is %+v, got %+v", utxoWrapOrigin, result)
-	}
+	result := *utxoSet.FindUtxo(outPointOrigin)
+	ensure.DeepEqual(t, result, utxoWrapOrigin)
 
 	result1 := *utxoSet.FindUtxo(outPointNew)
-
-	if !reflect.DeepEqual(result1, utxoWrapNew) {
-		t.Errorf("expected utxoWrapNew is %+v, got %+v", utxoWrapNew, result1)
-	}
+	ensure.DeepEqual(t, result1, utxoWrapNew)
 
 	// test for non-existing utxoSet
-	if utxoSet.FindUtxo(outPointErr) == nil {
-		t.Logf("there is no such utxoset exists.")
-	}
+	errRes := utxoSet.FindUtxo(outPointErr)
+	ensure.DeepEqual(t, errRes, (*types.UtxoWrap)(nil))
 
-	utxoSet.SpendUtxo(outPointReq)
-	spendResult := utxoSet.FindUtxo(outPointReq)
-	if !spendResult.IsSpent {
-		t.Errorf("expect IsSpent value is %+v, but got %+v", true, spendResult.IsSpent)
-	}
+	utxoSet.SpendUtxo(outPointOrigin)
+	spendResult := utxoSet.FindUtxo(outPointOrigin)
+	ensure.DeepEqual(t, true, spendResult.IsSpent)
 }

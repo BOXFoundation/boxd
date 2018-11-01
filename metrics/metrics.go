@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	enable = false
+	enable = true
 	quitCh chan (bool)
 )
 
@@ -49,18 +49,8 @@ func Run(config *Config) {
 	logger.Info("Starting Metrics...")
 
 	go (func() {
-		tags := make(map[string]string)
-		// metricsConfig := neb.Config().Stats.MetricsTags
-		// for _, v := range metricsConfig {
-		// 	values := strings.Split(v, ":")
-		// 	if len(values) != 2 {
-		// 		continue
-		// 	}
-		// 	tags[values[0]] = values[1]
-		// }
-		// tags[chainID] = fmt.Sprintf("%d", neb.Config().Chain.ChainId)
 		go collectSystemMetrics()
-		InfluxDBWithTags(metrics.DefaultRegistry, interval, config.Host, config.Port, config.Db, config.User, config.Password, tags)
+		InfluxDB(metrics.DefaultRegistry, interval, config.Host, config.Port, config.Db, config.User, config.Password)
 
 		logger.Info("Started Metrics.")
 

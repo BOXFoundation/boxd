@@ -138,7 +138,7 @@ func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 }
 
 // Get the next opcode & operand. Operand only applies to data push opcodes. Also return incremented pc.
-func (s *Script) parseNextOp(pc int) (OpCode, Operand, int, error) {
+func (s *Script) parseNextOp(pc int) (OpCode, Operand, int /* pc */, error) {
 	script := *s
 	scriptLen := len(script)
 	if pc >= scriptLen {
@@ -210,6 +210,12 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 
 	logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
 	switch opCode {
+	case OPDROP:
+		if stack.size() < 1 {
+			return ErrInvalidStackOperation
+		}
+		stack.pop()
+
 	case OPDUP:
 		if stack.size() < 1 {
 			return ErrInvalidStackOperation
@@ -400,14 +406,28 @@ func (s *Script) IsPayToScriptHash() bool {
 	return len(script) == 23 && OpCode(script[0]) == OPHASH160 && script[1] == 20 && OpCode(script[22]) == OPEQUAL
 }
 
+// getNthOp returns the n-th (start from 0) operand and operator, counting from pcStart of the script.
+func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error) {
+	opCode, operand, newPc, err := OpCode(0), Operand(nil), 0, error(nil)
+
+	for pc, i := pcStart, 0; i <= n; i++ {
+		opCode, operand, newPc, err = s.parseNextOp(pc)
+		if err != nil {
+			return 0, nil, 0, err
+		}
+		pc = newPc
+	}
+	return opCode, operand, newPc, err
+}
+
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
 	//TODO: only applies to p2pkh
 	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG
-	_, _, newPc, _ := s.parseNextOp(0)
-	_, _, newPc, _ = s.parseNextOp(newPc)
-	// Third operand is pubKeyHash
-	_, pubKeyHash, _, _ := s.parseNextOp(newPc)
+	_, pubKeyHash, _, err := s.getNthOp(0, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	return types.NewAddressPubKeyHash(pubKeyHash)
 }

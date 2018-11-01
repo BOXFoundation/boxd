@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/p2p/pb"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
@@ -102,6 +103,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 // readMessage returns the next message, with remote peer id
 func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	msg, err := readMessageData(r)
+	metricsReadCounter.Mark(msg.Len())
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +163,7 @@ func (conn *Conn) OnPing(data []byte) error {
 		return ErrMessageDataContent
 	}
 
+	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	conn.Establish() // establish connection
 
 	return conn.Write(Pong, []byte(PongBody))
@@ -171,6 +174,7 @@ func (conn *Conn) OnPong(data []byte) error {
 	if PongBody != string(data) {
 		return ErrMessageDataContent
 	}
+	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	if !conn.Establish() {
 		conn.mutex.Lock()
 		if conn.procHeartbeat == nil {
@@ -194,6 +198,7 @@ func (conn *Conn) PeerDiscover() error {
 		select {
 		case <-conn.establishSucceedCh:
 		case <-establishedTimeout.C:
+			conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.peer.id, eventbus.ConnTimeOutEvent)
 			conn.proc.Close()
 			return errors.New("Handshaking timeout")
 		}
@@ -231,7 +236,6 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
 		return err
 	}
-
 	conn.peer.table.AddPeers(conn, peers)
 	return nil
 }
@@ -242,6 +246,7 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 		return err
 	}
 	_, err = conn.stream.Write(data)
+	metricsWriteCounter.Mark(int64(len(data) / 8))
 	return err // error or nil
 }
 
@@ -250,10 +255,12 @@ func (conn *Conn) Close() error {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
-	logger.Info("Closing connection with ", conn.remotePeer.Pretty())
+	pid := conn.remotePeer
+	logger.Info("Closing connection with ", pid.Pretty())
 	if conn.stream != nil {
-		conn.peer.RemoveConn(conn.remotePeer)
-		conn.peer.table.peerStore.ClearAddrs(conn.remotePeer)
+		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
+		conn.peer.conns.Delete(pid)
+		conn.peer.table.peerStore.ClearAddrs(pid)
 		return conn.stream.Close()
 	}
 	return nil
@@ -282,7 +289,9 @@ func (conn *Conn) establish() {
 	conn.peer.table.AddPeerToTable(conn)
 	conn.isEstablished = true
 	conn.establishSucceedCh <- true
-	conn.peer.AddConn(conn.remotePeer, conn)
+	pid := conn.remotePeer
+	conn.peer.conns.Store(pid, conn)
+	conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerConnEvent)
 	logger.Info("Succed to establish connection with peer ", conn.remotePeer.Pretty())
 }
 

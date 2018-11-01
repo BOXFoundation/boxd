@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"hash/crc32"
 	"io"
+	"unsafe"
 
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/p2p/pb"
@@ -39,6 +40,8 @@ const (
 	LocateCheckResponse     = 0x13
 	BlockChunkRequest       = 0x14
 	BlockChunkResponse      = 0x15
+
+	EternalBlockMsg = 0x16
 
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
@@ -220,6 +223,11 @@ func (msg *message) check() error {
 		return ErrBodyCheckSum
 	}
 	return nil
+}
+
+// Len returns the msg len
+func (msg *message) Len() int64 {
+	return int64(unsafe.Sizeof(*msg.messageHeader) + unsafe.Sizeof(msg.body))
 }
 
 // p2p message with remote peer ID

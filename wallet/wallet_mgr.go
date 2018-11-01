@@ -192,9 +192,14 @@ func (acc *Account) PubKeyHash() []byte {
 	return acc.addr.ScriptAddress()
 }
 
-// PublicKey returns the accounts public key in compressed byte format
+// PublicKey returns the account's public key in compressed byte format
 func (acc *Account) PublicKey() []byte {
 	return acc.privKey.PubKey().Serialize()
+}
+
+// PrivateKey returns the accounts private key in compressed byte format
+func (acc *Account) PrivateKey() *crypto.PrivateKey {
+	return acc.privKey
 }
 
 func (acc *Account) saveWithPassphrase(passphrase string) error {
