@@ -10,7 +10,11 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+
+	"github.com/BOXFoundation/boxd/log"
 )
+
+var logger = log.NewLogger("boxd") // logger for node package
 
 //BusSubscriber defines subscription-related bus behavior
 type BusSubscriber interface {

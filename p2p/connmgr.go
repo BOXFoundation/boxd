@@ -49,6 +49,14 @@ const (
 	ConnStatusDisconnected ConnStatus = 2
 )
 
+const (
+	// ConnMaxCapacity means the max capacity of the conn pool
+	ConnMaxCapacity = 200
+
+	// ConnLoadFactor means the threshold of gc
+	ConnLoadFactor = 0.8
+)
+
 func (cs ConnStatus) String() string {
 	switch cs {
 	case ConnStatusConnected:
