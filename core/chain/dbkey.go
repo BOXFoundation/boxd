@@ -26,6 +26,9 @@ const (
 	// Eternal is the db key name of eternal block
 	Eternal = "/eternal"
 
+	// Period is the db key name of current period
+	Period = "/period/current"
+
 	// BlockPrefix is the key prefix of database key to store block content
 	// /bk/{hex encoded block hash}
 	// e.g.
@@ -64,13 +67,16 @@ var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
 
-var genesisBlockKey = BlockKey(genesisBlock.BlockHash())
+var genesisBlockKey = BlockKey(GenesisBlock.BlockHash())
 
 // TailKey is the db key to stoare tail block content
 var TailKey = []byte(Tail)
 
 // EternalKey is the db key to stoare eternal block content
 var EternalKey = []byte(Eternal)
+
+// PeriodKey is the db key to stoare current period contex content
+var PeriodKey = []byte(Period)
 
 // BlockKey returns the db key to stoare block content of the hash
 func BlockKey(h *crypto.HashType) []byte {

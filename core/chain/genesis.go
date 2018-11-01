@@ -35,20 +35,20 @@ var genesisCoinbaseTx = types.Transaction{
 
 var genesisMerkleRoot = crypto.HashType([crypto.HashSize]byte{})
 
-var genesisBlock = types.Block{
+// GenesisBlock represents genesis block.
+var GenesisBlock = types.Block{
 	Header: &types.BlockHeader{
 		Version:       1,
 		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
 		TxsRoot:       genesisMerkleRoot,
 		TimeStamp:     time.Date(2018, 1, 31, 0, 0, 0, 0, time.UTC).Unix(),
-		// ConsensusRoot: initGenesisConsensusContext(),
 	},
 	Txs:    []*types.Transaction{&genesisCoinbaseTx},
 	Height: 0,
 }
 
 // GenesisHash is the hash of genesis block
-var GenesisHash = *(genesisBlock.BlockHash())
+var GenesisHash = *(GenesisBlock.BlockHash())
 
 // var GenesisPeriod = []string{
 // 	"b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
