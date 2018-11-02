@@ -40,3 +40,4 @@ influxdb:
     db: box
     user: 
     password:
+    tags: [region:us-west, host:box-1]

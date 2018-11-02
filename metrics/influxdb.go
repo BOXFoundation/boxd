@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	uurl "net/url"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/client"
@@ -27,17 +28,27 @@ type reporter struct {
 	database string
 	username string
 	password string
+	tags     map[string]string
 
 	timeout time.Duration
 	client  *client.Client
 }
 
-// InfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
-func InfluxDB(r metrics.Registry, d time.Duration, url string, port uint32, database, username, password string) {
+// NewInfluxDB starts a InfluxDB reporter which will post the metrics from the given registry at each d interval.
+func NewInfluxDB(r metrics.Registry, d time.Duration, url string, port uint32, database, username, password string, t []string) {
 	u, err := uurl.Parse(fmt.Sprintf("%s%s%v", url, ":", port))
 	if err != nil {
 		log.Printf("unable to parse InfluxDB url %s. err=%v", url, err)
 		return
+	}
+
+	tags := make(map[string]string)
+	for _, v := range t {
+		values := strings.Split(v, ":")
+		if len(values) != 2 {
+			continue
+		}
+		tags[values[0]] = values[1]
 	}
 
 	rep := &reporter{
@@ -47,6 +58,7 @@ func InfluxDB(r metrics.Registry, d time.Duration, url string, port uint32, data
 		database: database,
 		username: username,
 		password: password,
+		tags:     tags,
 		timeout:  DefaultTimeout,
 	}
 	if err := rep.makeClient(); err != nil {
@@ -75,7 +87,6 @@ func (r *reporter) run() {
 	for {
 		select {
 		case <-intervalTicker:
-			fmt.Println("asdfasd")
 			if err := r.send(); err != nil {
 				log.Printf("unable to send metrics to InfluxDB. err=%v", err)
 			}
@@ -103,6 +114,7 @@ func (r *reporter) send() error {
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.count", name),
+				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"value": ms.Count(),
 				},
@@ -112,6 +124,7 @@ func (r *reporter) send() error {
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
+				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"value": ms.Value(),
 				},
@@ -121,6 +134,7 @@ func (r *reporter) send() error {
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.gauge", name),
+				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"value": ms.Value(),
 				},
@@ -131,6 +145,7 @@ func (r *reporter) send() error {
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.histogram", name),
+				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"count":    ms.Count(),
 					"max":      ms.Max(),
@@ -151,6 +166,7 @@ func (r *reporter) send() error {
 			ms := metric.Snapshot()
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.meter", name),
+				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"count": ms.Count(),
 					"m1":    ms.Rate1(),
@@ -165,6 +181,7 @@ func (r *reporter) send() error {
 			ps := ms.Percentiles([]float64{0.5, 0.75, 0.95, 0.99, 0.999, 0.9999})
 			pts = append(pts, client.Point{
 				Measurement: fmt.Sprintf("%s.timer", name),
+				Tags:        r.tags,
 				Fields: map[string]interface{}{
 					"count":    ms.Count(),
 					"max":      ms.Max(),

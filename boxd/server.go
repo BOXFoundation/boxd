@@ -157,7 +157,7 @@ func (server *Server) Run() error {
 	// 	consensus.Run()
 	// }
 	syncManager.Run()
-	metrics.Run(&cfg.Influxdb)
+	metrics.Run(&cfg.Influxdb, proc)
 	if len(cfg.P2p.Seeds) > 0 {
 		syncManager.StartSync()
 	}

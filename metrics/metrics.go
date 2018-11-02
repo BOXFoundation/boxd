@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/jbenet/goprocess"
 	metrics "github.com/rcrowley/go-metrics"
 	"github.com/rcrowley/go-metrics/exp"
 )
@@ -19,13 +20,12 @@ var logger = log.NewLogger("metrics")
 
 const (
 	interval = 2 * time.Second
-	chainID  = "chainID"
 	// MetricsEnabledFlag metrics enable flag
 	MetricsEnabledFlag = "metrics"
 )
 
 var (
-	enable = true
+	enable = false
 	quitCh chan (bool)
 )
 
@@ -45,18 +45,18 @@ func EnableMetrics() {
 }
 
 // Run metrics monitor
-func Run(config *Config) {
-	logger.Info("Starting Metrics...")
-
-	go (func() {
-		go collectSystemMetrics()
-		InfluxDB(metrics.DefaultRegistry, interval, config.Host, config.Port, config.Db, config.User, config.Password)
-
-		logger.Info("Started Metrics.")
-
-	})()
-
-	logger.Info("Started Metrics.")
+func Run(config *Config, parent goprocess.Process) {
+	if !enable {
+		return
+	}
+	// collect sys metrics
+	parent.Go(func(p goprocess.Process) {
+		collectSystemMetrics()
+	})
+	// insert metrics data to influxdb
+	parent.Go(func(p goprocess.Process) {
+		NewInfluxDB(metrics.DefaultRegistry, interval, config.Host, config.Port, config.Db, config.User, config.Password, config.Tags)
+	})
 }
 
 func collectSystemMetrics() {
@@ -65,14 +65,12 @@ func collectSystemMetrics() {
 		memstats[i] = new(runtime.MemStats)
 	}
 
-	allocs := metrics.GetOrRegisterMeter("system_allocs", nil)
-
-	// totalAllocs := metrics.GetOrRegisterMeter("system_total_allocs", nil)
-	sys := metrics.GetOrRegisterMeter("system_sys", nil)
-	frees := metrics.GetOrRegisterMeter("system_frees", nil)
-	heapInuse := metrics.GetOrRegisterMeter("system_heapInuse", nil)
-	stackInuse := metrics.GetOrRegisterMeter("system_stackInuse", nil)
-	releases := metrics.GetOrRegisterMeter("system_release", nil)
+	allocs := metrics.GetOrRegisterMeter("system.allocs", nil)
+	sys := metrics.GetOrRegisterMeter("system.sys", nil)
+	frees := metrics.GetOrRegisterMeter("system.frees", nil)
+	heapInuse := metrics.GetOrRegisterMeter("system.heapInuse", nil)
+	stackInuse := metrics.GetOrRegisterMeter("system.stackInuse", nil)
+	releases := metrics.GetOrRegisterMeter("system.release", nil)
 
 	for i := 1; ; i++ {
 		select {
@@ -81,7 +79,6 @@ func collectSystemMetrics() {
 		default:
 			runtime.ReadMemStats(memstats[i%2])
 			allocs.Mark(int64(memstats[i%2].Alloc - memstats[(i-1)%2].Alloc))
-
 			sys.Mark(int64(memstats[i%2].Sys - memstats[(i-1)%2].Sys))
 			frees.Mark(int64(memstats[i%2].Frees - memstats[(i-1)%2].Frees))
 			heapInuse.Mark(int64(memstats[i%2].HeapInuse - memstats[(i-1)%2].HeapInuse))
@@ -96,8 +93,6 @@ func collectSystemMetrics() {
 
 // Stop metrics monitor
 func Stop() {
-	logger.Info("Stopping Metrics...")
-
 	quitCh <- true
 }
 

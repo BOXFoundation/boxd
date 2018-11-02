@@ -166,7 +166,9 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
 		case <-metricsTicker.C:
+			metrics.MetricsCachedBlockMsg.Update(int64(len(chain.newblockMsgCh)))
 			metrics.MetricsBlockOrphanPoolSizeGauge.Update(int64(len(chain.hashToOrphanBlock)))
+			metrics.MetricsLruCacheBlock.Update(int64(chain.cache.Len()))
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
@@ -562,6 +564,7 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		}
 	}
 
+	metrics.MetricsBlockRevertMeter.Mark(1)
 	return nil
 }
 
