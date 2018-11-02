@@ -19,6 +19,10 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	rpcTimeout = 3 * time.Second
+)
+
 // KeyStore defines key structure
 type KeyStore struct {
 	Address string `json:"address"`
@@ -61,13 +65,13 @@ func newAccount() (string, error) {
 	return addr, nil
 }
 
-func balanceFor(accAddr string, rpcAddr string) (uint64, error) {
-	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+func balanceFor(accAddr string, peerAddr string) (uint64, error) {
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		return 0, err
 	}
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancel()
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
 	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addr: accAddr})
@@ -77,7 +81,19 @@ func balanceFor(accAddr string, rpcAddr string) (uint64, error) {
 	return r.Amount, nil
 }
 
-func execTx(fromAddr, toAddr string, amount uint64, rpcAddr string) error {
+func balancesFor(peerAddr string, addresses ...string) ([]uint64, error) {
+	var bb []uint64
+	for _, a := range addresses {
+		amount, err := balanceFor(a, peerAddr)
+		if err != nil {
+			return nil, err
+		}
+		bb = append(bb, amount)
+	}
+	return bb, nil
+}
+
+func execTx(fromAddr, toAddr string, amount uint64, peerAddr string) error {
 	fromAddress, err := types.NewAddress(fromAddr)
 	if err != nil {
 		return fmt.Errorf("NewAddress fromAddr: %s error: %s", fromAddr, err)
@@ -97,13 +113,13 @@ func execTx(fromAddr, toAddr string, amount uint64, rpcAddr string) error {
 	}
 
 	// initialize rpc
-	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancel()
 
 	// get the utxo of sender
@@ -134,7 +150,7 @@ func execTx(fromAddr, toAddr string, amount uint64, rpcAddr string) error {
 
 	// send the transaction
 	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancel2()
 	r, err := rpcClient.SendTransaction(ctx2, txReq)
 	if err != nil {
@@ -142,4 +158,79 @@ func execTx(fromAddr, toAddr string, amount uint64, rpcAddr string) error {
 	}
 	logger.Infof("rpc send transaction result: %+v", r)
 	return nil
+}
+
+func chainHeightFor(peerAddr string) (int, error) {
+	// create grpc conn
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	// call rpc interface
+	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	defer cancel()
+	rpcClient := rpcpb.NewContorlCommandClient(conn)
+
+	r, err := rpcClient.GetBlockHeight(ctx, &rpcpb.GetBlockHeightRequest{})
+	if err != nil {
+		return 0, err
+	}
+	return int(r.Height), nil
+}
+
+func waitHeightSame() (int, error) {
+	timeout := 30
+	for i := 0; i < timeout; i++ {
+		var hh []int
+		for j := 0; j < peerCount; j++ {
+			h, err := chainHeightFor(peersAddr[j])
+			if err != nil {
+				return 0, err
+			}
+			hh = append(hh, h)
+		}
+		if isAllSame(hh) {
+			return hh[0], nil
+		}
+		time.Sleep(time.Second)
+	}
+	return 0, fmt.Errorf("wait timeout for %ds", timeout)
+}
+
+func isAllSame(array []int) bool {
+	if len(array) == 0 || len(array) == 1 {
+		return true
+	}
+	for i := 1; i < len(array); i++ {
+		if array[i] != array[i-1] {
+			return false
+		}
+	}
+	return true
+}
+
+func allMinersAddr() []string {
+	var addresses []string
+	for i := 0; i < peerCount; i++ {
+		addr, err := minerAddress(i)
+		if err != nil {
+			logger.Fatal(err)
+		}
+		addresses = append(addresses, addr)
+	}
+	return addresses
+}
+
+func genTestAddr(count int) []string {
+	var addresses []string
+	for i := 0; i < count; i++ {
+		addr, err := newAccount()
+		if err != nil {
+			logger.Fatal(err)
+		}
+		addresses = append(addresses, addr)
+	}
+	return addresses
 }

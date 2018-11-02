@@ -91,6 +91,12 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
 	logger.Debugf("receive transaction: %+v", req.Tx)
+
+	for _, v := range req.Tx.Vin {
+		hash := new(crypto.HashType)
+		copy(hash[:], v.PrevOutPoint.Hash[:])
+		logger.Debugf("receive transaction vin hash: %s", hash)
+	}
 	txpool := s.server.GetTxHandler()
 	tx, err := generateTransaction(req.Tx)
 	if err != nil {
