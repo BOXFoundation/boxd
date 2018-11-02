@@ -19,17 +19,14 @@ log:
               level:  5 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
     key_path: peer.key
-    address: 172.27.1.11
     port: 19199
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
     conn_load_factor: 0.8
 rpc:
-    address: 172.27.1.11
     port: 19191
     http:
-        address: 172.27.1.11
         port: 19190
 dpos:
     keypath: keyfile/key1.keystore
