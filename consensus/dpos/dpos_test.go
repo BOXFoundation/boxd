@@ -29,7 +29,7 @@ var (
 	}
 
 	cfgMiner = &Config{
-		Keypath:    "../../keyfile/key.keystore",
+		Keypath:    "../../keyfile/key1.keystore",
 		EnableMint: true,
 		Passphrase: "zaq12wsx",
 	}
