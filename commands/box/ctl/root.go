@@ -158,7 +158,9 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		level = args[0]
 	}
-	client.SetDebugLevel(viper.GetViper(), level)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	client.SetDebugLevel(conn, level)
 }
 
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
@@ -175,7 +177,9 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		addrs = append(addrs, args[0])
 	}
-	balances, err := client.GetBalance(viper.GetViper(), addrs)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	balances, err := client.GetBalance(conn, addrs)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -197,7 +201,9 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	block, err := client.GetBlock(viper.GetViper(), hash)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	block, err := client.GetBlock(conn, hash)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -207,7 +213,9 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getblockcount called")
-	height, err := client.GetBlockCount(viper.GetViper())
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	height, err := client.GetBlockCount(conn)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -226,7 +234,9 @@ func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	height := uint32(height64)
-	hash, err := client.GetBlockHash(viper.GetViper(), height)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	hash, err := client.GetBlockHash(conn, height)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -241,7 +251,9 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	header, err := client.GetBlockHeader(viper.GetViper(), hash)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	header, err := client.GetBlockHeader(conn, hash)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -257,7 +269,9 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	hash := crypto.HashType{}
 	hash.SetString(args[0])
-	tx, err := client.GetRawTransaction(viper.GetViper(), hash.GetBytes())
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	tx, err := client.GetRawTransaction(conn, hash.GetBytes())
 	if err != nil {
 		fmt.Println(err)
 	} else {
