@@ -62,10 +62,9 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		cfg:    cfg,
 	}
 
-	tail := chain.TailBlock()
 	context := &ConsensusContext{}
 	dpos.context = context
-	period, err := dpos.LoadPeriodContext(tail.Header.PeriodHash)
+	period, err := dpos.LoadPeriodContext()
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +138,7 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 	for {
 		select {
 		case <-timeChan.C:
-			dpos.mint()
+			dpos.mint(time.Now().Unix())
 		case <-p.Closing():
 			logger.Info("Stopped Dpos Mining.")
 			return
@@ -147,14 +146,13 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 	}
 }
 
-func (dpos *Dpos) mint() error {
+func (dpos *Dpos) mint(timestamp int64) error {
 
 	// disableMint might be set true by sync business or others
 	if dpos.disableMint {
 		return ErrNoLegalPowerToMint
 	}
 
-	timestamp := time.Now().Unix()
 	if err := dpos.checkMiner(timestamp); err != nil {
 		return err
 	}
@@ -163,8 +161,8 @@ func (dpos *Dpos) mint() error {
 		return err
 	}
 	dpos.context.timestamp = timestamp
-	dpos.mintBlock()
-	return nil
+
+	return dpos.mintBlock()
 }
 
 // checkMiner check to verify if miner can mint at the timestamp
@@ -201,7 +199,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 	return true
 }
 
-func (dpos *Dpos) mintBlock() {
+func (dpos *Dpos) mintBlock() error {
 
 	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
@@ -213,16 +211,17 @@ func (dpos *Dpos) mintBlock() {
 	}
 	if err := dpos.PackTxs(block, dpos.miner.PubKeyHash()); err != nil {
 		logger.Warnf("Failed to pack txs. err: %s", err.Error())
-		return
+		return err
 	}
 	if err := dpos.signBlock(block); err != nil {
 		logger.Warnf("Failed to sign block. err: %s", err.Error())
-		return
+		return err
 	}
-	_, _, err := dpos.chain.ProcessBlock(block, true)
-	if err != nil {
+	if _, _, err := dpos.chain.ProcessBlock(block, true); err != nil {
 		logger.Warnf("Failed to process block. err: %s", err.Error())
+		return err
 	}
+	return nil
 }
 
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
@@ -288,10 +287,10 @@ PackingTxs:
 }
 
 // LoadPeriodContext load period context
-func (dpos *Dpos) LoadPeriodContext(hash crypto.HashType) (*PeriodContext, error) {
+func (dpos *Dpos) LoadPeriodContext() (*PeriodContext, error) {
 
 	db := dpos.chain.DB()
-	period, err := db.Get(hash[:])
+	period, err := db.Get(chain.PeriodKey)
 	if err != nil {
 		return nil, err
 	}
@@ -338,8 +337,7 @@ func (dpos *Dpos) StorePeriodContext() error {
 	if err != nil {
 		return err
 	}
-	hash := crypto.DoubleHashH(context)
-	return db.Put(hash[:], context)
+	return db.Put(chain.PeriodKey, context)
 }
 
 // LoadCandidates load candidates info.
@@ -444,8 +442,7 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 		return false, ErrNotFoundMiner
 	}
 
-	pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature)
-	if ok {
+	if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
 		addr, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
 			return false, err
@@ -454,5 +451,6 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 			return true, nil
 		}
 	}
+
 	return false, nil
 }
