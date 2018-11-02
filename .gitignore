@@ -22,6 +22,7 @@
 
 # workspace
 .vscode/
+.idea/
 /box
 /outputs
 /.devconfig

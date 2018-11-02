@@ -39,3 +39,17 @@ func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
 	}
 	return *script.PayToPubKeyHashScript(addr.ScriptAddress()), nil
 }
+
+// NewConnectionWithViper initializes a grpc connection using configs parsed by viper
+func NewConnectionWithViper(v *viper.Viper) *grpc.ClientConn {
+	return mustConnect(v)
+}
+
+// NewConnectionWithHostPort initializes a grpc connection using host and port params
+func NewConnectionWithHostPort(host string, port int) *grpc.ClientConn {
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", host, port), grpc.WithInsecure())
+	if err != nil {
+		panic("Fail to establish grpc connection")
+	}
+	return conn
+}

@@ -55,9 +55,7 @@ func init() {
 		&cobra.Command{
 			Use:   "sendmany [fromaccount] [toaddresslist]",
 			Short: "Send coins to multiple addresses",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("sendmany called")
-			},
+			Run:   sendManyCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "sendtoaddress [address]",
@@ -78,7 +76,9 @@ func init() {
 
 func listAllUtxoCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("list utxos called")
-	r, err := client.ListUtxos(viper.GetViper())
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	r, err := client.ListUtxos(conn)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -87,15 +87,13 @@ func listAllUtxoCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func sendFromCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("sendfrom called")
-	if len(args) != 3 {
+	if len(args) < 3 {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	toAddr, err1 := types.NewAddress(args[1])
-	amount, err2 := strconv.Atoi(args[2])
-	if err1 != nil || err2 != nil {
-		fmt.Println("Invalid argument format")
+	target, err := parseSendTarget(args[1:])
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	wltMgr, err := wallet.NewWalletManager(walletDir)
@@ -121,7 +119,69 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 	}
-	tx, err := client.CreateTransaction(viper.GetViper(), fromAddr, toAddr, account.PublicKey(), uint64(amount), account)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(util.PrettyPrint(tx))
+	}
+}
+
+func parseSendTarget(args []string) (map[types.Address]uint64, error) {
+	targets := make(map[types.Address]uint64)
+	for i := 0; i < len(args)/2; i++ {
+		addr, err := types.NewAddress(args[i*2])
+		if err != nil {
+			return targets, err
+		}
+		amount, err := strconv.Atoi(args[i*2+1])
+		if err != nil {
+			return targets, err
+		}
+		targets[addr] = uint64(amount)
+	}
+	return targets, nil
+}
+
+func sendManyCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) < 3 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+
+	target, err := parseSendTarget(args[1:])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	account, exists := wltMgr.GetAccount(args[0])
+	if !exists {
+		fmt.Printf("Account %s not managed\n", args[0])
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := account.UnlockWithPassphrase(passphrase); err != nil {
+		fmt.Println("Fail to unlock account", err)
+		return
+	}
+	fromAddr, err := types.NewAddress(args[0])
+	if err != nil {
+		fmt.Println("Invalid address: ", args[0])
+	}
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {

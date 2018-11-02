@@ -6,17 +6,15 @@ package client
 
 import (
 	"context"
+	"google.golang.org/grpc"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	pb "github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/spf13/viper"
 )
 
 // SetDebugLevel calls the DebugLevel gRPC methods.
-func SetDebugLevel(v *viper.Viper, level string) error {
-	conn := mustConnect(v)
-	defer conn.Close()
+func SetDebugLevel(conn *grpc.ClientConn, level string) error {
 
 	c := pb.NewContorlCommandClient(conn)
 
@@ -35,10 +33,7 @@ func SetDebugLevel(v *viper.Viper, level string) error {
 }
 
 // GetBlockCount query chain height
-func GetBlockCount(v *viper.Viper) (uint32, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
-
+func GetBlockCount(conn *grpc.ClientConn) (uint32, error) {
 	c := pb.NewContorlCommandClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -54,10 +49,7 @@ func GetBlockCount(v *viper.Viper) (uint32, error) {
 }
 
 // GetBlockHash returns block hash of a height
-func GetBlockHash(v *viper.Viper, height uint32) (string, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
-
+func GetBlockHash(conn *grpc.ClientConn, height uint32) (string, error) {
 	c := pb.NewContorlCommandClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -72,10 +64,7 @@ func GetBlockHash(v *viper.Viper, height uint32) (string, error) {
 }
 
 // GetBlockHeader returns header info of a block
-func GetBlockHeader(v *viper.Viper, hash string) (*types.BlockHeader, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
-
+func GetBlockHeader(conn *grpc.ClientConn, hash string) (*types.BlockHeader, error) {
 	c := pb.NewContorlCommandClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -92,10 +81,7 @@ func GetBlockHeader(v *viper.Viper, hash string) (*types.BlockHeader, error) {
 }
 
 // GetBlock returns block info of a block hash
-func GetBlock(v *viper.Viper, hash string) (*types.Block, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
-
+func GetBlock(conn *grpc.ClientConn, hash string) (*types.Block, error) {
 	c := pb.NewContorlCommandClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

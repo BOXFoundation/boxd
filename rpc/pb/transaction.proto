@@ -73,11 +73,11 @@ message ListUtxosResponse {
 }
 
 message GetBalanceRequest {
-    string addr = 1;
+    repeated string addrs = 1;
 }
 
 message GetBalanceResponse {
     int32 code = 1;
     string message = 2;
-    uint64 amount = 3;
+    map<string, uint64> balances = 3;
 }
