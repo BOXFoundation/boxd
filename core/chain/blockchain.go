@@ -684,13 +684,13 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return genesisBlockFromDb, nil
 	}
 
-	genesisBin, err := genesisBlock.Marshal()
+	genesisBin, err := GenesisBlock.Marshal()
 	if err != nil {
 		return nil, err
 	}
 	chain.db.Put(genesisBlockKey, genesisBin)
 
-	return &genesisBlock, nil
+	return &GenesisBlock, nil
 
 }
 
@@ -711,7 +711,7 @@ func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
 
 		return eternal, nil
 	}
-	return &genesisBlock, nil
+	return &GenesisBlock, nil
 }
 
 // LoadTailBlock load tail block
@@ -733,7 +733,7 @@ func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
 		return tailBlock, nil
 	}
 
-	return &genesisBlock, nil
+	return &GenesisBlock, nil
 }
 
 // LoadBlockByHash load block by hash from db.

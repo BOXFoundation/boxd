@@ -91,7 +91,8 @@ endif
 
 .PHONY: test
 test:
-	go test -race $(PKGS)
+	# go test -race $(PKGS)
+	go test $(PKGS)
 
 .PHONY: clean
 clean:

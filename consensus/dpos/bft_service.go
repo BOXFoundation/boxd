@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core/chain"
+	chain "github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -118,6 +118,18 @@ func (bft *BftService) maybeUpdateEternalBlock() {
 	}()
 	bft.checkStatus = underway
 	bft.tryToUpdateEternal()
+	if bft.chain.TailBlock().Height-bft.chain.EternalBlock().Height >= MinConfirmMsgNumberForEternalBlock {
+		block, err := bft.chain.LoadBlockByHeight(bft.chain.EternalBlock().Height + 1)
+		if err != nil {
+			logger.Errorf("Failed to update eternal block. LoadBlockByHeight occurs error: %s", err.Error())
+			return
+		}
+		if err := bft.chain.SetEternal(block); err != nil {
+			logger.Errorf("Failed to setEternal block. Height: %d, Hash: %v, err: %s", block.Height, block.Hash, err.Error())
+			return
+		}
+		logger.Infof("Eternal block has changed! Hash: %s Height: %d", block.BlockHash(), block.Height)
+	}
 }
 
 func (bft *BftService) tryToUpdateEternal() {

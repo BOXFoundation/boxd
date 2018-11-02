@@ -131,7 +131,7 @@ func (pc *PeriodContext) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to ConsensusContext object
 func (pc *PeriodContext) Unmarshal(data []byte) error {
-	msg := &dpospb.Candidate{}
+	msg := &dpospb.PeriodContext{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}

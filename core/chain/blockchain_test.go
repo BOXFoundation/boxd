@@ -73,7 +73,7 @@ func TestBlockProcessing(t *testing.T) {
 	ensure.True(t, blockChain.LongestChainHeight == 0)
 
 	b0 := getTailBlock()
-	ensure.DeepEqual(t, b0, &genesisBlock)
+	ensure.DeepEqual(t, b0, &GenesisBlock)
 
 	// try to append an existing block: genesis block
 	verifyProcessBlock(t, b0, false, false, core.ErrBlockExists, 0, b0)
