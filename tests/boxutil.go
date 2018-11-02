@@ -74,11 +74,12 @@ func balanceFor(accAddr string, peerAddr string) (uint64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancel()
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
-	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addr: accAddr})
+	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{
+		Addrs: []string{accAddr}})
 	if err != nil {
 		return 0, err
 	}
-	return r.Amount, nil
+	return r.Balances[accAddr], nil
 }
 
 func balancesFor(peerAddr string, addresses ...string) ([]uint64, error) {
@@ -118,45 +119,15 @@ func execTx(fromAddr, toAddr string, amount uint64, peerAddr string) error {
 		return err
 	}
 	defer conn.Close()
-	rpcClient := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
-	defer cancel()
-
-	// get the utxo of sender
-	utxoResponse, err := rpcClient.FundTransaction(ctx,
-		&rpcpb.FundTransactionRequest{
-			Addr:   fromAddress.EncodeAddress(),
-			Amount: amount,
-		})
-	if err != nil {
-		return err
-	}
-
-	// wrap transaction
-	utxos, err := client.SelectUtxo(utxoResponse, amount)
-	if err != nil {
-		return err
-	}
 	toAddress, err := types.NewAddress(toAddr)
 	if err != nil {
 		return fmt.Errorf("NewAddress toAddr: %s error: %s", toAddr, err)
 	}
-	tx, err := client.WrapTransaction(fromAddress.ScriptAddress(),
-		toAddress.ScriptAddress(), account.PublicKey(), utxos,
-		amount, account)
-	if err != nil {
-		return err
+	addrAmountMap := map[types.Address]uint64{toAddress: amount}
+	if _, err := client.CreateTransaction(conn, fromAddress, addrAmountMap,
+		account.PublicKey(), account); err != nil {
+		panic(err)
 	}
-
-	// send the transaction
-	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
-	ctx2, cancel2 := context.WithTimeout(context.Background(), rpcTimeout)
-	defer cancel2()
-	r, err := rpcClient.SendTransaction(ctx2, txReq)
-	if err != nil {
-		return fmt.Errorf("rpc send transaction error: %s", err)
-	}
-	logger.Infof("rpc send transaction result: %+v", r)
 	return nil
 }
 

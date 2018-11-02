@@ -55,8 +55,7 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 	return transaction, nil
 }
 
-// SelectUtxo select utxo
-func SelectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, error) {
+func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, error) {
 	utxoList := resp.GetUtxos()
 	sort.Slice(utxoList, func(i, j int) bool {
 		return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
