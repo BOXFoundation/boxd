@@ -25,6 +25,10 @@ const (
 
 var logger = log.NewLogger("tests") // logger
 
+func init() {
+	rand.Seed(time.Now().Unix())
+}
+
 func main() {
 	txTest()
 }
@@ -44,10 +48,10 @@ func txTest() {
 	}
 
 	// wait for nodes to be ready
-	logger.Info("wait node running for 3 seconds")
-	time.Sleep(3 * time.Second)
+	logger.Info("wait node running for 12 seconds")
+	time.Sleep(12 * time.Second)
 
-	// get pub keys, priv keys and addresses of miners and two test account(T1, T2)
+	// get addresses of three miners
 	var minersAddr []string
 	for i := 0; i < nodeCount; i++ {
 		addr, err := minerAddress(i)
@@ -57,6 +61,8 @@ func txTest() {
 		minersAddr = append(minersAddr, addr)
 	}
 	logger.Infof("minersAddr: %v", minersAddr)
+
+	//  generate addresses of test accounts(T1, T2)
 	var testsAddr []string
 	for i := 0; i < testCount; i++ {
 		addr, err := newAccount()
@@ -69,8 +75,8 @@ func txTest() {
 	defer removeNewKeystoreFiles()
 
 	// wait for some blocks to generate
-	logger.Info("wait mining for 5 seconds")
-	time.Sleep(5 * time.Second)
+	//logger.Info("wait mining for 5 seconds")
+	//time.Sleep(5 * time.Second)
 
 	// get balance of miners
 	logger.Info("start getting balance of miners")
@@ -104,21 +110,29 @@ func txTest() {
 	logger.Infof("testsBalance: %v", testsBalance)
 
 	// create a transaction and execute it
-	accT1 := testsAddr[0]
+	//accT1 := testsAddr[0]
 	txAmount := uint64(10000 + rand.Intn(10000))
-	if err := execTx(minersAddr[0], accT1, txAmount, rpcAddr); err != nil {
+	if err := execTx(minersAddr[0], minersAddr[1], txAmount, rpcAddr); err != nil {
 		logger.Fatal(err)
 	}
+	logger.Infof("have sent %d from %s to %s", txAmount, minersAddr[0], minersAddr[1])
 
 	// wait transaction brought to chain
-	time.Sleep(5 * time.Second)
+	broadcastTime := 10 * time.Second
+	logger.Infof("wait transaction broadcasted for %v", broadcastTime)
+	time.Sleep(broadcastTime)
 
 	// check the balance of T1 on all nodes
-	amount, err := balanceFor(accT1, rpcAddr)
+	amount, err := balanceFor(minersAddr[0], rpcAddr)
 	if err != nil {
 		logger.Fatal(err)
 	}
-	logger.Infof("balance for account %s is %v", accT1, amount)
+	logger.Infof("balance for account %s is %v", minersAddr[0], amount)
+	amount, err = balanceFor(minersAddr[1], rpcAddr)
+	if err != nil {
+		logger.Fatal(err)
+	}
+	logger.Infof("balance for account %s is %v", minersAddr[1], amount)
 
 	//// transfer 2424 from T1 to T2
 	//someBoxes = 1000 + rand.Intn(1000)

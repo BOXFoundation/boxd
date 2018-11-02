@@ -15,7 +15,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/wallet"
 	"google.golang.org/grpc"
 )
@@ -97,12 +96,6 @@ func execTx(fromAddr, toAddr string, amount uint64, rpcAddr string) error {
 		return fmt.Errorf("Fail to unlock account: %v, error: %s", account, err)
 	}
 
-	//p2pkScript, err := getScriptAddress(fromAddress.ScriptAddress())
-	//if err != nil {
-	//	return err
-	//}
-	//logger.Infof("Script Value: %v", p2pkScript)
-
 	// initialize rpc
 	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
 	if err != nil {
@@ -138,26 +131,15 @@ func execTx(fromAddr, toAddr string, amount uint64, rpcAddr string) error {
 	if err != nil {
 		return err
 	}
-	txV2 := &types.Transaction{}
-	txV2.FromProtoMessage(tx)
-	//logger.Info(util.PrettyPrint(tx))
 
 	// send the transaction
 	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
-	r, err := rpcClient.SendTransaction(ctx, txReq)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel2()
+	r, err := rpcClient.SendTransaction(ctx2, txReq)
 	if err != nil {
 		return fmt.Errorf("rpc send transaction error: %s", err)
 	}
 	logger.Infof("rpc send transaction result: %+v", r)
-	transaction := &types.Transaction{}
-	transaction.FromProtoMessage(tx)
 	return nil
-}
-
-func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
-	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
-	if err != nil {
-		return nil, err
-	}
-	return *script.PayToPubKeyHashScript(addr.ScriptAddress()), nil
 }
