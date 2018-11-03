@@ -16,19 +16,23 @@ var (
 )
 
 func TestIssueToken(t *testing.T) {
-	params := &IssueParams{name: tokenName, totalSupply: tokenSupply}
+	params := &IssueParams{Name: tokenName, TotalSupply: tokenSupply}
 	script := IssueTokenScript(testPubKeyHash, params)
 
 	params2, err := script.GetIssueParams()
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, params2, params)
+
+	ensure.DeepEqual(t, script.GetTokenAmount(), tokenSupply)
 }
 
 func TestTransferToken(t *testing.T) {
-	params := &TransferParams{amount: tokenSupply}
+	params := &TransferParams{Amount: tokenSupply}
 	script := TransferTokenScript(testPubKeyHash, params)
 
 	params2, err := script.GetTransferParams()
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, params2, params)
+
+	ensure.DeepEqual(t, script.GetTokenAmount(), tokenSupply)
 }

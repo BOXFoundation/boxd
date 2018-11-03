@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package transactioncmd
+package tokencmd
 
 import (
 	"fmt"
@@ -24,8 +24,8 @@ var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "tx",
-	Short: "A brief description of your application",
+	Use:   "token",
+	Short: "Token subcommand",
 	Long: `A longer description that spans multiple lines and likely contains
 examples and usage of using your application. For example:
 
@@ -43,55 +43,35 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "listutxos",
-			Short: "list all utxos",
-			Run:   listAllUtxoCmdFunc,
+			Use:   "issue",
+			Short: "issue a new token",
+			Run:   createTokenCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "sendfrom [fromaccount] [toaddress] [amount]",
-			Short: "Send coins from an account to an address",
-			Run:   sendFromCmdFunc,
+			Use:   "transfer",
+			Short: "transfer tokens",
+			Run:   transferTokenCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "sendmany [fromaccount] [toaddresslist]",
-			Short: "Send coins to multiple addresses",
-			Run:   sendManyCmdFunc,
-		},
-		&cobra.Command{
-			Use:   "sendtoaddress [address]",
-			Short: "Send coins to an address",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("sendtoaddress called")
-			},
-		},
-		&cobra.Command{
-			Use:   "signrawtx [rawtx]",
-			Short: "Sign a transaction with privatekey and send it to the network",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("signrawtx called")
-			},
+			Use:   "getbalance",
+			Short: "get token balance",
+			Run:   getTokenBalanceCmdFunc,
 		},
 	)
 }
 
-func listAllUtxoCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("list utxos called")
-	r, err := client.ListUtxos(viper.GetViper())
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(util.PrettyPrint(r))
-	}
-}
-
-func sendFromCmdFunc(cmd *cobra.Command, args []string) {
-	if len(args) < 3 {
+func createTokenCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("createToken called")
+	if len(args) != 4 {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	target, err := parseSendTarget(args[1:])
-	if err != nil {
-		fmt.Println(err)
+	toAddr := &types.AddressPubKeyHash{}
+	tokenName := args[2]
+	err1 := toAddr.SetString(args[1])
+	tokenTotalSupply, err2 := strconv.Atoi(args[3])
+	if err1 != nil || err2 != nil {
+		fmt.Println("Invalid argument format")
 		return
 	}
 	wltMgr, err := wallet.NewWalletManager(walletDir)
@@ -99,6 +79,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
+	// from pub key hash
 	account, exists := wltMgr.GetAccount(args[0])
 	if !exists {
 		fmt.Printf("Account %s not managed\n", args[0])
@@ -113,72 +94,74 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	fromAddr, err := types.NewAddress(args[0])
-	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
-	}
-	tx, err := client.CreateTransaction(viper.GetViper(), fromAddr, target, account.PublicKey(), account)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(util.PrettyPrint(tx))
-	}
-}
-
-func parseSendTarget(args []string) (map[types.Address]uint64, error) {
-	targets := make(map[types.Address]uint64)
-	for i := 0; i < len(args)/2; i++ {
-		addr, err := types.NewAddress(args[i*2])
-		if err != nil {
-			return targets, err
-		}
-		amount, err := strconv.Atoi(args[i*2+1])
-		if err != nil {
-			return targets, err
-		}
-		targets[addr] = uint64(amount)
-	}
-	return targets, nil
-}
-
-func sendManyCmdFunc(cmd *cobra.Command, args []string) {
-	if len(args) < 3 {
-		fmt.Println("Invalid argument number")
-		return
-	}
-
-	target, err := parseSendTarget(args[1:])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	wltMgr, err := wallet.NewWalletManager(walletDir)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	account, exists := wltMgr.GetAccount(args[0])
-	if !exists {
-		fmt.Printf("Account %s not managed\n", args[0])
-		return
-	}
-	passphrase, err := wallet.ReadPassphraseStdin()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if err := account.UnlockWithPassphrase(passphrase); err != nil {
-		fmt.Println("Fail to unlock account", err)
-		return
-	}
-	fromAddr, err := types.NewAddress(args[0])
-	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
-	}
-	tx, err := client.CreateTransaction(viper.GetViper(), fromAddr, target, account.PublicKey(), account)
+	tx, err := client.CreateTokenIssueTx(viper.GetViper(), account.PubKeyHash(),
+		toAddr.ScriptAddress(), account.PublicKey(), tokenName, uint64(tokenTotalSupply), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		fmt.Println(tx)
 	}
+}
+
+func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("transferToken called")
+	if len(args) != 3 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	toAddr := &types.AddressPubKeyHash{}
+	err1 := toAddr.SetString(args[1])
+	amount, err2 := strconv.Atoi(args[2])
+	if err1 != nil || err2 != nil {
+		fmt.Println("Invalid argument format")
+		return
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// from pub key hash
+	account, exists := wltMgr.GetAccount(args[0])
+	if !exists {
+		fmt.Printf("Account %s not managed\n", args[0])
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := account.UnlockWithPassphrase(passphrase); err != nil {
+		fmt.Println("Fail to unlock account", err)
+		return
+	}
+	tx, err := client.CreateTokenTransferTx(viper.GetViper(), account.PubKeyHash(),
+		toAddr.ScriptAddress(), account.PublicKey(), uint64(amount), account)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(tx)
+	}
+}
+
+func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("getTokenBalance called")
+	if len(args) != 1 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// from pub key hash
+	account, exists := wltMgr.GetAccount(args[0])
+	if !exists {
+		fmt.Printf("Account %s not managed\n", args[0])
+		return
+	}
+	balance := client.GetTokenBalance(viper.GetViper(), account.PubKeyHash())
+	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }

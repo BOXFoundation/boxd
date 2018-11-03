@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"reflect"
 	"strings"
 
 	"github.com/BOXFoundation/boxd/core/types"
@@ -377,33 +378,68 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 	return sigHash, err
 }
 
-// diaasm disassembles script in human readable format. If the script fails to parse, the returned string will
-// contain the disassembled script up to the failure point, appended by the string '[Error: error info]'
-func (s *Script) disasm() string {
-	var str []string
+// parses the entire script and returns operator/operand sequences.
+// The returned result will contain the parsed script up to the failure point, with the last element being the error
+func (s *Script) parse() []interface{} {
+	var elements []interface{}
 
 	for pc := 0; pc < len(*s); {
 		opCode, operand, newPc, err := s.parseNextOp(pc)
 		if err != nil {
-			str = append(str, "[Error: "+err.Error()+"]")
-			return strings.Join(str, " ")
+			elements = append(elements, err)
+			return elements
 		}
 		if operand != nil {
-			str = append(str, hex.EncodeToString(operand))
+			elements = append(elements, operand)
 		} else {
-			str = append(str, opCodeToName(opCode))
+			elements = append(elements, opCode)
 		}
 		pc = newPc
+	}
+
+	return elements
+}
+
+// disasm disassembles script in human readable format. If the script fails to parse, the returned string will
+// contain the disassembled script up to the failure point, appended by the string '[Error: error info]'
+func (s *Script) disasm() string {
+	var str []string
+
+	elements := s.parse()
+	for _, e := range elements {
+		switch v := e.(type) {
+		case Operand:
+			str = append(str, hex.EncodeToString(v))
+		case OpCode:
+			str = append(str, opCodeToName(v))
+		case error:
+			str = append(str, "[Error: "+v.Error()+"]")
+		default:
+			return "Disasmbler encounters unexpected type"
+		}
 	}
 
 	return strings.Join(str, " ")
 }
 
+// IsPayToPubKeyHash returns if the script is p2pkh
+func (s *Script) IsPayToPubKeyHash() bool {
+	r := s.parse()
+	return len(r) == 5 && reflect.DeepEqual(r[0], OPDUP) && reflect.DeepEqual(r[1], OPHASH160) &&
+		isOperandOfLen(r[2], 20) && reflect.DeepEqual(r[3], OPEQUALVERIFY) && reflect.DeepEqual(r[4], OPCHECKSIG)
+}
+
 // IsPayToScriptHash returns if the script is p2sh
 func (s *Script) IsPayToScriptHash() bool {
 	// OP_HASH160 <160-bit redeemp script hash> OP_EQUAL
-	script := *s
-	return len(script) == 23 && OpCode(script[0]) == OPHASH160 && script[1] == 20 && OpCode(script[22]) == OPEQUAL
+	r := s.parse()
+	return len(r) == 3 && reflect.DeepEqual(r[0], OPHASH160) && isOperandOfLen(r[1], 20) && reflect.DeepEqual(r[2], OPEQUAL)
+}
+
+// is i of type Operand and of specified length
+func isOperandOfLen(i interface{}, length int) bool {
+	operand, ok := i.(Operand)
+	return ok && len(operand) == length
 }
 
 // getNthOp returns the n-th (start from 0) operand and operator, counting from pcStart of the script.

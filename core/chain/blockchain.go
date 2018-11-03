@@ -707,12 +707,22 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 		}
 	}
 	for key, value := range utxoSet.utxoMap {
-		if bytes.Equal(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
+		if isPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
 			logger.Info("utxo: ", util.PrettyPrint(value))
 			utxos[key] = value
 		}
 	}
 	return utxos, nil
+}
+
+// is s prefixed by prefix
+func isPrefixed(s, prefix []byte) bool {
+	prefixLen := len(prefix)
+	if len(s) < prefixLen {
+		return false
+	}
+	s = s[:prefixLen]
+	return bytes.Equal(s, prefix)
 }
 
 // GetBlockHeight returns current height of main chain
