@@ -269,9 +269,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 		return false, core.ErrWrongBlockHeight
 	}
 
-	if err := chain.StoreBlockToDb(block); err != nil {
-		return false, err
-	}
 	chain.cache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
@@ -411,11 +408,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		if totalFees < lastTotalFees {
 			return core.ErrBadFees
 		}
-
-		// Update utxos by applying this tx
-		if err := utxoSet.ApplyTx(tx, block.Height); err != nil {
-			return err
-		}
 	}
 
 	// Ensure coinbase does not output more than block reward.
@@ -444,7 +436,9 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 			return core.ErrUnfinalizedTx
 		}
 	}
-
+	if err := chain.applyBlock(block, utxoSet); err != nil {
+		return err
+	}
 	chain.SetTailBlock(block, utxoSet)
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
@@ -504,6 +498,8 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error
 	if err := utxoSet.RevertBlock(block); err != nil {
 		return err
 	}
+
+	chain.db.Del(BlockKey(block.BlockHash()))
 
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
