@@ -5,9 +5,7 @@
 package metrics
 
 import (
-	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
@@ -20,33 +18,24 @@ var logger = log.NewLogger("metrics")
 
 const (
 	interval = 2 * time.Second
-	// MetricsEnabledFlag metrics enable flag
-	MetricsEnabledFlag = "metrics"
 )
 
 var (
-	enable = false
 	quitCh chan (bool)
 )
 
 func init() {
-	for _, arg := range os.Args {
-		if strings.TrimLeft(arg, "-") == MetricsEnabledFlag {
-			EnableMetrics()
-			return
-		}
-	}
+	EnableMetrics()
 }
 
 // EnableMetrics enable the metrics service
 func EnableMetrics() {
-	enable = true
 	exp.Exp(metrics.DefaultRegistry)
 }
 
 // Run metrics monitor
 func Run(config *Config, parent goprocess.Process) {
-	if !enable {
+	if !config.Enable {
 		return
 	}
 	// collect sys metrics
@@ -98,40 +87,25 @@ func Stop() {
 
 // NewCounter create a new metrics Counter
 func NewCounter(name string) metrics.Counter {
-	if !enable {
-		return new(metrics.NilCounter)
-	}
 	return metrics.GetOrRegisterCounter(name, metrics.DefaultRegistry)
 }
 
 // NewMeter create a new metrics Meter
 func NewMeter(name string) metrics.Meter {
-	if !enable {
-		return new(metrics.NilMeter)
-	}
 	return metrics.GetOrRegisterMeter(name, metrics.DefaultRegistry)
 }
 
 // NewTimer create a new metrics Timer
 func NewTimer(name string) metrics.Timer {
-	if !enable {
-		return new(metrics.NilTimer)
-	}
 	return metrics.GetOrRegisterTimer(name, metrics.DefaultRegistry)
 }
 
 // NewGauge create a new metrics Gauge
 func NewGauge(name string) metrics.Gauge {
-	if !enable {
-		return new(metrics.NilGauge)
-	}
 	return metrics.GetOrRegisterGauge(name, metrics.DefaultRegistry)
 }
 
 // NewHistogramWithUniformSample create a new metrics History with Uniform Sample algorithm.
 func NewHistogramWithUniformSample(name string, reservoirSize int) metrics.Histogram {
-	if !enable {
-		return new(metrics.NilHistogram)
-	}
 	return metrics.GetOrRegisterHistogram(name, nil, metrics.NewUniformSample(reservoirSize))
 }

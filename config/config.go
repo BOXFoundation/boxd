@@ -42,7 +42,7 @@ type Config struct {
 	RPC       rpc.Config      `mapstructure:"rpc"`
 	Database  storage.Config  `mapstructure:"database"`
 	Dpos      dpos.Config     `mapstructure:"dpos"`
-	Influxdb  metrics.Config  `mapstructure:"influxdb"`
+	Metrics   metrics.Config  `mapstructure:"metrics"`
 }
 
 var format = `workspace: %s

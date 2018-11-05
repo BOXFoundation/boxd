@@ -34,7 +34,8 @@ dpos:
     keypath: keyfile/key.keystore
     enable_mint: true
     passphrase: zaq12wsx
-influxdb:
+metrics:
+    enable: false
     host: http://localhost
     port: 8086
     db: box
