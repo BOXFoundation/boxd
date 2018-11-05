@@ -913,6 +913,9 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 	for index := range hashes {
 		block, err := chain.LoadBlockByHash(*hashes[index])
 		if err != nil {
+			if err == core.ErrBlockIsNil {
+				continue
+			}
 			return nil, err
 		}
 
