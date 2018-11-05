@@ -171,7 +171,7 @@ func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transacti
 			}
 			for _, vin := range tx.Vin {
 				if utxoSet.FindUtxo(vin.PrevOutPoint) != nil {
-					utxoSet.SpendUtxo(vin.PrevOutPoint)
+					delete(utxoSet.utxoMap, vin.PrevOutPoint)
 					isRelated = true
 				}
 			}
@@ -667,9 +667,7 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 
 // ListAllUtxos list all the available utxos for testing purpose
 func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
-	utxoSet := NewUtxoSet()
-	err := utxoSet.ApplyBlock(chain.tail)
-	return utxoSet.utxoMap, err
+	return make(map[types.OutPoint]*types.UtxoWrap), nil
 }
 
 // LoadUtxoByAddress list all the available utxos owned by an address
@@ -684,7 +682,7 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 		if err != nil {
 			return nil, err
 		}
-		if err = utxoSet.ApplyBlock(block); err != nil {
+		if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
 			return nil, err
 		}
 	}
