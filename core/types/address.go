@@ -54,6 +54,13 @@ func NewAddressFromPubKey(pubKey *crypto.PublicKey) (*AddressPubKeyHash, error) 
 	return newAddressPubKeyHash(pkHash)
 }
 
+// NewAddress creates an address from string
+func NewAddress(address string) (Address, error) {
+	addr := &AddressPubKeyHash{}
+	err := addr.SetString(address)
+	return addr, err
+}
+
 func newAddressPubKeyHash(pkHash []byte) (*AddressPubKeyHash, error) {
 	// Check for a valid pubkey hash length.
 	if len(pkHash) != ripemd160.Size {

@@ -152,7 +152,7 @@ require (
 	golang.org/x/net v0.0.0-20181017193950-04a2e542c03f
 	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4 // indirect
 	golang.org/x/sys v0.0.0-20181019160139-8e24a49d80f8 // indirect
-	golang.org/x/tools v0.0.0-20181019201213-3e7aa9e59977 // indirect
+	golang.org/x/tools v0.0.0-20181101071927-45ff765b4815 // indirect
 	google.golang.org/appengine v1.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e
 	google.golang.org/grpc v1.15.0

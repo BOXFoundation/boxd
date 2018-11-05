@@ -34,7 +34,7 @@ func (m *ListUtxosRequest) Reset()         { *m = ListUtxosRequest{} }
 func (m *ListUtxosRequest) String() string { return proto.CompactTextString(m) }
 func (*ListUtxosRequest) ProtoMessage()    {}
 func (*ListUtxosRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_916dc84d9bd2144c, []int{0}
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{0}
 }
 func (m *ListUtxosRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -71,7 +71,7 @@ func (m *GetRawTransactionRequest) Reset()         { *m = GetRawTransactionReque
 func (m *GetRawTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*GetRawTransactionRequest) ProtoMessage()    {}
 func (*GetRawTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_916dc84d9bd2144c, []int{1}
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{1}
 }
 func (m *GetRawTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -115,7 +115,7 @@ func (m *GetRawTransactionResponse) Reset()         { *m = GetRawTransactionResp
 func (m *GetRawTransactionResponse) String() string { return proto.CompactTextString(m) }
 func (*GetRawTransactionResponse) ProtoMessage()    {}
 func (*GetRawTransactionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_916dc84d9bd2144c, []int{2}
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{2}
 }
 func (m *GetRawTransactionResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -152,15 +152,15 @@ func (m *GetRawTransactionResponse) GetTx() *pb.Transaction {
 }
 
 type FundTransactionRequest struct {
-	ScriptPubKey []byte `protobuf:"bytes,1,opt,name=script_pub_key,json=scriptPubKey,proto3" json:"script_pub_key,omitempty"`
-	Amount       uint64 `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	Addr   string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	Amount uint64 `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
 }
 
 func (m *FundTransactionRequest) Reset()         { *m = FundTransactionRequest{} }
 func (m *FundTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*FundTransactionRequest) ProtoMessage()    {}
 func (*FundTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_916dc84d9bd2144c, []int{3}
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{3}
 }
 func (m *FundTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -189,11 +189,11 @@ func (m *FundTransactionRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_FundTransactionRequest proto.InternalMessageInfo
 
-func (m *FundTransactionRequest) GetScriptPubKey() []byte {
+func (m *FundTransactionRequest) GetAddr() string {
 	if m != nil {
-		return m.ScriptPubKey
+		return m.Addr
 	}
-	return nil
+	return ""
 }
 
 func (m *FundTransactionRequest) GetAmount() uint64 {
@@ -211,7 +211,7 @@ func (m *SendTransactionRequest) Reset()         { *m = SendTransactionRequest{}
 func (m *SendTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*SendTransactionRequest) ProtoMessage()    {}
 func (*SendTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_916dc84d9bd2144c, []int{4}
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{4}
 }
 func (m *SendTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -258,7 +258,7 @@ func (m *ListUtxosResponse) Reset()         { *m = ListUtxosResponse{} }
 func (m *ListUtxosResponse) String() string { return proto.CompactTextString(m) }
 func (*ListUtxosResponse) ProtoMessage()    {}
 func (*ListUtxosResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_transaction_916dc84d9bd2144c, []int{5}
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{5}
 }
 func (m *ListUtxosResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -315,6 +315,110 @@ func (m *ListUtxosResponse) GetUtxos() []*Utxo {
 	return nil
 }
 
+type GetBalanceRequest struct {
+	Addrs []string `protobuf:"bytes,1,rep,name=addrs" json:"addrs,omitempty"`
+}
+
+func (m *GetBalanceRequest) Reset()         { *m = GetBalanceRequest{} }
+func (m *GetBalanceRequest) String() string { return proto.CompactTextString(m) }
+func (*GetBalanceRequest) ProtoMessage()    {}
+func (*GetBalanceRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{6}
+}
+func (m *GetBalanceRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetBalanceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetBalanceRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *GetBalanceRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetBalanceRequest.Merge(dst, src)
+}
+func (m *GetBalanceRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetBalanceRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetBalanceRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetBalanceRequest proto.InternalMessageInfo
+
+func (m *GetBalanceRequest) GetAddrs() []string {
+	if m != nil {
+		return m.Addrs
+	}
+	return nil
+}
+
+type GetBalanceResponse struct {
+	Code     int32             `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message  string            `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Balances map[string]uint64 `protobuf:"bytes,3,rep,name=balances" json:"balances,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+}
+
+func (m *GetBalanceResponse) Reset()         { *m = GetBalanceResponse{} }
+func (m *GetBalanceResponse) String() string { return proto.CompactTextString(m) }
+func (*GetBalanceResponse) ProtoMessage()    {}
+func (*GetBalanceResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_transaction_8664420cf7ec70d5, []int{7}
+}
+func (m *GetBalanceResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetBalanceResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetBalanceResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *GetBalanceResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetBalanceResponse.Merge(dst, src)
+}
+func (m *GetBalanceResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetBalanceResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetBalanceResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetBalanceResponse proto.InternalMessageInfo
+
+func (m *GetBalanceResponse) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *GetBalanceResponse) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *GetBalanceResponse) GetBalances() map[string]uint64 {
+	if m != nil {
+		return m.Balances
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*ListUtxosRequest)(nil), "rpcpb.ListUtxosRequest")
 	proto.RegisterType((*GetRawTransactionRequest)(nil), "rpcpb.GetRawTransactionRequest")
@@ -322,6 +426,9 @@ func init() {
 	proto.RegisterType((*FundTransactionRequest)(nil), "rpcpb.FundTransactionRequest")
 	proto.RegisterType((*SendTransactionRequest)(nil), "rpcpb.SendTransactionRequest")
 	proto.RegisterType((*ListUtxosResponse)(nil), "rpcpb.ListUtxosResponse")
+	proto.RegisterType((*GetBalanceRequest)(nil), "rpcpb.GetBalanceRequest")
+	proto.RegisterType((*GetBalanceResponse)(nil), "rpcpb.GetBalanceResponse")
+	proto.RegisterMapType((map[string]uint64)(nil), "rpcpb.GetBalanceResponse.BalancesEntry")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -340,6 +447,7 @@ type TransactionCommandClient interface {
 	FundTransaction(ctx context.Context, in *FundTransactionRequest, opts ...grpc.CallOption) (*ListUtxosResponse, error)
 	SendTransaction(ctx context.Context, in *SendTransactionRequest, opts ...grpc.CallOption) (*BaseResponse, error)
 	GetRawTransaction(ctx context.Context, in *GetRawTransactionRequest, opts ...grpc.CallOption) (*GetRawTransactionResponse, error)
+	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error)
 }
 
 type transactionCommandClient struct {
@@ -386,12 +494,22 @@ func (c *transactionCommandClient) GetRawTransaction(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *transactionCommandClient) GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error) {
+	out := new(GetBalanceResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.TransactionCommand/GetBalance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TransactionCommandServer is the server API for TransactionCommand service.
 type TransactionCommandServer interface {
 	ListUtxos(context.Context, *ListUtxosRequest) (*ListUtxosResponse, error)
 	FundTransaction(context.Context, *FundTransactionRequest) (*ListUtxosResponse, error)
 	SendTransaction(context.Context, *SendTransactionRequest) (*BaseResponse, error)
 	GetRawTransaction(context.Context, *GetRawTransactionRequest) (*GetRawTransactionResponse, error)
+	GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error)
 }
 
 func RegisterTransactionCommandServer(s *grpc.Server, srv TransactionCommandServer) {
@@ -470,6 +588,24 @@ func _TransactionCommand_GetRawTransaction_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TransactionCommand_GetBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBalanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TransactionCommandServer).GetBalance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.TransactionCommand/GetBalance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TransactionCommandServer).GetBalance(ctx, req.(*GetBalanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _TransactionCommand_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "rpcpb.TransactionCommand",
 	HandlerType: (*TransactionCommandServer)(nil),
@@ -489,6 +625,10 @@ var _TransactionCommand_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRawTransaction",
 			Handler:    _TransactionCommand_GetRawTransaction_Handler,
+		},
+		{
+			MethodName: "GetBalance",
+			Handler:    _TransactionCommand_GetBalance_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -580,11 +720,11 @@ func (m *FundTransactionRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.ScriptPubKey) > 0 {
+	if len(m.Addr) > 0 {
 		dAtA[i] = 0xa
 		i++
-		i = encodeVarintTransaction(dAtA, i, uint64(len(m.ScriptPubKey)))
-		i += copy(dAtA[i:], m.ScriptPubKey)
+		i = encodeVarintTransaction(dAtA, i, uint64(len(m.Addr)))
+		i += copy(dAtA[i:], m.Addr)
 	}
 	if m.Amount != 0 {
 		dAtA[i] = 0x10
@@ -668,6 +808,84 @@ func (m *ListUtxosResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *GetBalanceRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetBalanceRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Addrs) > 0 {
+		for _, s := range m.Addrs {
+			dAtA[i] = 0xa
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	return i, nil
+}
+
+func (m *GetBalanceResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetBalanceResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintTransaction(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintTransaction(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if len(m.Balances) > 0 {
+		for k, _ := range m.Balances {
+			dAtA[i] = 0x1a
+			i++
+			v := m.Balances[k]
+			mapSize := 1 + len(k) + sovTransaction(uint64(len(k))) + 1 + sovTransaction(uint64(v))
+			i = encodeVarintTransaction(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintTransaction(dAtA, i, uint64(len(k)))
+			i += copy(dAtA[i:], k)
+			dAtA[i] = 0x10
+			i++
+			i = encodeVarintTransaction(dAtA, i, uint64(v))
+		}
+	}
+	return i, nil
+}
+
 func encodeVarintTransaction(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -718,7 +936,7 @@ func (m *FundTransactionRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.ScriptPubKey)
+	l = len(m.Addr)
 	if l > 0 {
 		n += 1 + l + sovTransaction(uint64(l))
 	}
@@ -761,6 +979,45 @@ func (m *ListUtxosResponse) Size() (n int) {
 		for _, e := range m.Utxos {
 			l = e.Size()
 			n += 1 + l + sovTransaction(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *GetBalanceRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Addrs) > 0 {
+		for _, s := range m.Addrs {
+			l = len(s)
+			n += 1 + l + sovTransaction(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *GetBalanceResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovTransaction(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if len(m.Balances) > 0 {
+		for k, v := range m.Balances {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovTransaction(uint64(len(k))) + 1 + sovTransaction(uint64(v))
+			n += mapEntrySize + 1 + sovTransaction(uint64(mapEntrySize))
 		}
 	}
 	return n
@@ -1024,9 +1281,9 @@ func (m *FundTransactionRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ScriptPubKey", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Addr", wireType)
 			}
-			var byteLen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowTransaction
@@ -1036,22 +1293,20 @@ func (m *FundTransactionRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if byteLen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthTransaction
 			}
-			postIndex := iNdEx + byteLen
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ScriptPubKey = append(m.ScriptPubKey[:0], dAtA[iNdEx:postIndex]...)
-			if m.ScriptPubKey == nil {
-				m.ScriptPubKey = []byte{}
-			}
+			m.Addr = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 0 {
@@ -1324,6 +1579,290 @@ func (m *ListUtxosResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *GetBalanceRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTransaction
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetBalanceRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetBalanceRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Addrs", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Addrs = append(m.Addrs, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTransaction(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetBalanceResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTransaction
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetBalanceResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetBalanceResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Balances", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Balances == nil {
+				m.Balances = make(map[string]uint64)
+			}
+			var mapkey string
+			var mapvalue uint64
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowTransaction
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTransaction
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= (uint64(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTransaction
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapvalue |= (uint64(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipTransaction(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if skippy < 0 {
+						return ErrInvalidLengthTransaction
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Balances[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTransaction(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func skipTransaction(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1429,41 +1968,47 @@ var (
 	ErrIntOverflowTransaction   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("transaction.proto", fileDescriptor_transaction_916dc84d9bd2144c) }
+func init() { proto.RegisterFile("transaction.proto", fileDescriptor_transaction_8664420cf7ec70d5) }
 
-var fileDescriptor_transaction_916dc84d9bd2144c = []byte{
-	// 516 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xcd, 0x6e, 0xd3, 0x40,
-	0x14, 0x85, 0xeb, 0xfc, 0x14, 0xf5, 0x26, 0xd0, 0x66, 0x0a, 0xc1, 0xa4, 0xd4, 0xa4, 0x2e, 0x8b,
-	0x88, 0x85, 0x47, 0x0d, 0x3b, 0x24, 0x24, 0x14, 0xa4, 0xb2, 0x00, 0x09, 0x64, 0x7e, 0x84, 0xc4,
-	0xa2, 0x1a, 0xdb, 0x83, 0x63, 0x35, 0x9e, 0x31, 0x9e, 0x31, 0x75, 0x61, 0xc7, 0x13, 0x20, 0xf1,
-	0x50, 0xb0, 0xac, 0xc4, 0x86, 0x25, 0x4a, 0x78, 0x10, 0xe4, 0xf1, 0xb4, 0x84, 0xc4, 0x41, 0xec,
-	0x66, 0x7c, 0xcf, 0xbd, 0xdf, 0xb1, 0xcf, 0x35, 0x74, 0x64, 0x4a, 0x98, 0x20, 0xbe, 0x8c, 0x38,
-	0x73, 0x92, 0x94, 0x4b, 0x8e, 0x9a, 0x69, 0xe2, 0x27, 0x5e, 0xef, 0x20, 0x8c, 0xe4, 0x38, 0xf3,
-	0x1c, 0x9f, 0xc7, 0x78, 0xf4, 0xf4, 0xf5, 0x21, 0xcf, 0x58, 0x40, 0x0a, 0x19, 0xf6, 0x78, 0x1e,
-	0x60, 0x9f, 0xa7, 0x14, 0x27, 0x1e, 0xf6, 0x26, 0xdc, 0x3f, 0x2e, 0x3b, 0x7b, 0x37, 0x43, 0xce,
-	0xc3, 0x09, 0xc5, 0x24, 0x89, 0x30, 0x61, 0x8c, 0x4b, 0xa5, 0x17, 0xba, 0xda, 0xf6, 0x79, 0x1c,
-	0x9f, 0x53, 0x6c, 0x04, 0x5b, 0x4f, 0x22, 0x21, 0x5f, 0xca, 0x9c, 0x0b, 0x97, 0xbe, 0xcb, 0xa8,
-	0x90, 0xb6, 0x03, 0xe6, 0x23, 0x2a, 0x5d, 0x72, 0xf2, 0xe2, 0x8f, 0x29, 0x5d, 0x43, 0x08, 0x1a,
-	0x63, 0x22, 0xc6, 0xa6, 0xd1, 0x37, 0x06, 0x6d, 0x57, 0x9d, 0xed, 0x07, 0x70, 0xa3, 0x42, 0x2f,
-	0x12, 0xce, 0x04, 0x45, 0xfb, 0x50, 0x93, 0xb9, 0x92, 0xb7, 0x86, 0xdb, 0x4e, 0x61, 0x37, 0xf1,
-	0x9c, 0x79, 0x61, 0x4d, 0xe6, 0xf6, 0x2b, 0xe8, 0x1e, 0x66, 0x2c, 0xa8, 0xe0, 0xdd, 0x86, 0x2b,
-	0xc2, 0x4f, 0xa3, 0x44, 0x1e, 0x25, 0x99, 0x77, 0x74, 0x4c, 0x4f, 0x35, 0xb9, 0x5d, 0x3e, 0x7d,
-	0x96, 0x79, 0x8f, 0xe9, 0x29, 0xea, 0xc2, 0x3a, 0x89, 0x79, 0xc6, 0xa4, 0x59, 0xeb, 0x1b, 0x83,
-	0x86, 0xab, 0x6f, 0xf6, 0x7d, 0xe8, 0x3e, 0xa7, 0x95, 0x73, 0xff, 0xcb, 0xd6, 0x07, 0xe8, 0xcc,
-	0x7d, 0x1c, 0xfd, 0x42, 0x08, 0x1a, 0x3e, 0x0f, 0xa8, 0xea, 0x6d, 0xba, 0xea, 0x8c, 0x4c, 0xb8,
-	0x14, 0x53, 0x21, 0x48, 0x48, 0x95, 0x81, 0x0d, 0xf7, 0xfc, 0x8a, 0xae, 0x42, 0xd3, 0x57, 0xc6,
-	0xea, 0x7d, 0x63, 0x70, 0xd9, 0x2d, 0x2f, 0x68, 0x0f, 0x9a, 0x59, 0x31, 0xd4, 0x6c, 0xf4, 0xeb,
-	0x83, 0xd6, 0xb0, 0xe5, 0xa8, 0xac, 0x9d, 0x02, 0xe4, 0x96, 0x95, 0xe1, 0xd7, 0x3a, 0xa0, 0x39,
-	0x3f, 0x0f, 0x79, 0x1c, 0x13, 0x16, 0xa0, 0x37, 0xb0, 0x71, 0x61, 0x09, 0x5d, 0xd7, 0x7d, 0x8b,
-	0x09, 0xf6, 0xcc, 0xe5, 0x42, 0xe9, 0xde, 0xde, 0xf9, 0xf4, 0xfd, 0xd7, 0x97, 0xda, 0x35, 0x7b,
-	0x0b, 0xbf, 0x3f, 0xc0, 0x32, 0xc7, 0x93, 0x48, 0x48, 0x05, 0xbc, 0x67, 0xdc, 0x41, 0x31, 0x6c,
-	0x2e, 0xc4, 0x80, 0x76, 0xf5, 0xa4, 0xea, 0x78, 0xfe, 0x01, 0xda, 0x53, 0xa0, 0x1d, 0xbb, 0xab,
-	0x41, 0x6f, 0x33, 0x16, 0xcc, 0x2d, 0x79, 0x81, 0x1b, 0xc3, 0xe6, 0x42, 0x3a, 0x17, 0xb8, 0xea,
-	0xd4, 0x7a, 0xdb, 0xba, 0x3c, 0x22, 0x82, 0xae, 0x24, 0x09, 0xba, 0x44, 0xfa, 0x08, 0x9d, 0xa5,
-	0x0d, 0x45, 0xb7, 0xf4, 0xb0, 0x55, 0xbb, 0xde, 0xeb, 0xaf, 0x16, 0x68, 0xf4, 0xbe, 0x42, 0xef,
-	0xda, 0xa6, 0x46, 0x87, 0x54, 0xa6, 0xe4, 0xe4, 0x6f, 0xf8, 0xc8, 0xfc, 0x36, 0xb5, 0x8c, 0xb3,
-	0xa9, 0x65, 0xfc, 0x9c, 0x5a, 0xc6, 0xe7, 0x99, 0xb5, 0x76, 0x36, 0xb3, 0xd6, 0x7e, 0xcc, 0xac,
-	0x35, 0x6f, 0x5d, 0xfd, 0x83, 0x77, 0x7f, 0x07, 0x00, 0x00, 0xff, 0xff, 0xbd, 0x0c, 0xbf, 0x29,
-	0xfe, 0x03, 0x00, 0x00,
+var fileDescriptor_transaction_8664420cf7ec70d5 = []byte{
+	// 620 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x94, 0xcf, 0x4f, 0xd4, 0x40,
+	0x14, 0xc7, 0x99, 0xfd, 0x81, 0xee, 0x03, 0x02, 0x3b, 0xe0, 0x5a, 0x16, 0x58, 0xcb, 0x70, 0x70,
+	0xe5, 0xd0, 0x06, 0xbc, 0x18, 0x8c, 0x89, 0x59, 0x14, 0x2e, 0x26, 0x26, 0x55, 0x13, 0x13, 0x0f,
+	0x66, 0xda, 0x8e, 0xbb, 0x1b, 0xb6, 0x33, 0xb5, 0x33, 0x85, 0x45, 0x6f, 0xfe, 0x05, 0x26, 0xfe,
+	0x13, 0xfe, 0x21, 0x1e, 0x3c, 0x92, 0x78, 0xf1, 0x68, 0xc0, 0x3f, 0xc4, 0x74, 0x3a, 0xb0, 0xcb,
+	0x52, 0x8c, 0xf1, 0xf6, 0x5e, 0xde, 0x9b, 0xf7, 0xf9, 0x76, 0xde, 0x77, 0x0a, 0x75, 0x95, 0x50,
+	0x2e, 0x69, 0xa0, 0xfa, 0x82, 0x3b, 0x71, 0x22, 0x94, 0xc0, 0xd5, 0x24, 0x0e, 0x62, 0xbf, 0xb9,
+	0xd5, 0xed, 0xab, 0x5e, 0xea, 0x3b, 0x81, 0x88, 0xdc, 0xce, 0xf3, 0xd7, 0x7b, 0x22, 0xe5, 0x21,
+	0xcd, 0xda, 0x5c, 0x5f, 0x0c, 0x43, 0x37, 0x10, 0x09, 0x73, 0x63, 0xdf, 0xf5, 0x07, 0x22, 0x38,
+	0xc8, 0x4f, 0x36, 0x57, 0xbb, 0x42, 0x74, 0x07, 0xcc, 0xa5, 0x71, 0xdf, 0xa5, 0x9c, 0x0b, 0xa5,
+	0xfb, 0xa5, 0xa9, 0xce, 0x06, 0x22, 0x8a, 0xce, 0x29, 0x04, 0xc3, 0xc2, 0xb3, 0xbe, 0x54, 0xaf,
+	0xd4, 0x50, 0x48, 0x8f, 0xbd, 0x4f, 0x99, 0x54, 0xc4, 0x01, 0x6b, 0x9f, 0x29, 0x8f, 0x1e, 0xbd,
+	0x1c, 0x89, 0x32, 0x35, 0x8c, 0xa1, 0xd2, 0xa3, 0xb2, 0x67, 0x21, 0x1b, 0xb5, 0x67, 0x3d, 0x1d,
+	0x93, 0xc7, 0xb0, 0x5c, 0xd0, 0x2f, 0x63, 0xc1, 0x25, 0xc3, 0x1b, 0x50, 0x52, 0x43, 0xdd, 0x3e,
+	0xb3, 0xbd, 0xe8, 0x64, 0x72, 0x63, 0xdf, 0x19, 0x6f, 0x2c, 0xa9, 0x21, 0x79, 0x02, 0x8d, 0xbd,
+	0x94, 0x87, 0xc5, 0x3c, 0x1a, 0x86, 0x89, 0x1e, 0x50, 0xf3, 0x74, 0x8c, 0x1b, 0x30, 0x4d, 0x23,
+	0x91, 0x72, 0x65, 0x95, 0x6c, 0xd4, 0xae, 0x78, 0x26, 0x23, 0x8f, 0xa0, 0xf1, 0x82, 0x15, 0x4e,
+	0xf9, 0x27, 0x11, 0x1f, 0xa0, 0x3e, 0x76, 0x15, 0x46, 0x3e, 0x86, 0x4a, 0x20, 0x42, 0xa6, 0xcf,
+	0x56, 0x3d, 0x1d, 0x63, 0x0b, 0x6e, 0x44, 0x4c, 0x4a, 0xda, 0x65, 0x5a, 0x40, 0xcd, 0x3b, 0x4f,
+	0xf1, 0x12, 0x54, 0x03, 0x2d, 0xac, 0x6c, 0xa3, 0xf6, 0x9c, 0x97, 0x27, 0x78, 0x1d, 0xaa, 0x69,
+	0x36, 0xd4, 0xaa, 0xd8, 0xe5, 0xf6, 0xcc, 0xf6, 0x8c, 0xa3, 0x37, 0xeb, 0x64, 0x20, 0x2f, 0xaf,
+	0x90, 0x7b, 0x50, 0xdf, 0x67, 0xaa, 0x43, 0x07, 0x94, 0x07, 0xec, 0x5c, 0xf5, 0x12, 0x54, 0xb3,
+	0xef, 0x95, 0x16, 0xb2, 0xcb, 0xed, 0x9a, 0x97, 0x27, 0xe4, 0x1b, 0x02, 0x3c, 0xde, 0xfb, 0x5f,
+	0x42, 0x77, 0xe1, 0xa6, 0x9f, 0x0f, 0x90, 0x56, 0x59, 0xab, 0xba, 0x6b, 0x54, 0x5d, 0x1d, 0xed,
+	0x98, 0x5c, 0x3e, 0xe5, 0x2a, 0x39, 0xf6, 0x2e, 0x0e, 0x36, 0x1f, 0xc2, 0xdc, 0xa5, 0x12, 0x5e,
+	0x80, 0xf2, 0x01, 0x3b, 0x36, 0xbb, 0xca, 0xc2, 0xec, 0x13, 0x0e, 0xe9, 0x20, 0x65, 0x66, 0x53,
+	0x79, 0xb2, 0x53, 0x7a, 0x80, 0xb6, 0xbf, 0x56, 0x00, 0x8f, 0x6d, 0x60, 0x57, 0x44, 0x11, 0xe5,
+	0x21, 0x7e, 0x03, 0xb5, 0x8b, 0x25, 0xe0, 0xdb, 0x46, 0xd3, 0xa4, 0x43, 0x9b, 0xd6, 0xd5, 0x42,
+	0xae, 0x95, 0xac, 0x7c, 0xfa, 0xf1, 0xfb, 0x4b, 0xe9, 0x16, 0x59, 0x70, 0x0f, 0xb7, 0x5c, 0x35,
+	0x74, 0x07, 0x7d, 0xa9, 0xf4, 0x15, 0xef, 0xa0, 0x4d, 0x1c, 0xc1, 0xfc, 0x84, 0xcd, 0xf0, 0x9a,
+	0x99, 0x54, 0x6c, 0xbf, 0xbf, 0x80, 0xd6, 0x35, 0x68, 0x85, 0x34, 0x0c, 0xe8, 0x5d, 0xca, 0xc3,
+	0xb1, 0x47, 0x9c, 0xe1, 0x7a, 0x30, 0x3f, 0xe1, 0xc7, 0x0b, 0x5c, 0xb1, 0x4f, 0x9b, 0x8b, 0xa6,
+	0xdc, 0xa1, 0x92, 0x5d, 0x4b, 0x92, 0xec, 0x0a, 0xe9, 0xa3, 0xb6, 0xcf, 0xe5, 0x17, 0x88, 0xef,
+	0x8c, 0x36, 0x5a, 0xf8, 0x96, 0x9b, 0xf6, 0xf5, 0x0d, 0x06, 0xbd, 0xa1, 0xd1, 0x6b, 0xc4, 0x32,
+	0xe8, 0x2e, 0x53, 0x09, 0x3d, 0x9a, 0x80, 0xbf, 0x05, 0x18, 0x99, 0x06, 0x5b, 0x05, 0x3e, 0xca,
+	0x71, 0xcb, 0xd7, 0x3a, 0x8c, 0xac, 0x6a, 0x4e, 0x83, 0xd4, 0x47, 0x1c, 0xe3, 0xb2, 0x1d, 0xb4,
+	0xd9, 0xb1, 0xbe, 0x9f, 0xb6, 0xd0, 0xc9, 0x69, 0x0b, 0xfd, 0x3a, 0x6d, 0xa1, 0xcf, 0x67, 0xad,
+	0xa9, 0x93, 0xb3, 0xd6, 0xd4, 0xcf, 0xb3, 0xd6, 0x94, 0x3f, 0xad, 0x7f, 0x62, 0xf7, 0xff, 0x04,
+	0x00, 0x00, 0xff, 0xff, 0xbd, 0x33, 0x0a, 0xef, 0x3f, 0x05, 0x00, 0x00,
 }
