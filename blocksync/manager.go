@@ -55,7 +55,7 @@ func (s syncStatus) String() string {
 const (
 	maxSyncFailedTimes = 100
 	maxCheckPeers      = 2
-	syncBlockChunkSize = 16
+	syncBlockChunkSize = 64
 	locatorSeqPartLen  = 6
 	syncTimeout        = 5 * time.Second
 	blocksTimeout      = 20 * time.Second
@@ -165,10 +165,12 @@ func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net, consensus *dpo
 		locateErrCh:  make(chan errFlag),
 		locateDoneCh: make(chan struct{}),
 		checkErrCh:   make(chan struct{}),
-		checkOkCh:    make(chan struct{}),
+		checkOkCh:    make(chan struct{}, maxCheckPeers),
 		syncErrCh:    make(chan struct{}),
-		blocksDoneCh: make(chan struct{}),
-		blocksErrCh:  make(chan FetchBlockHeaders),
+		blocksDoneCh: make(chan struct{},
+			chain.MaxBlocksPerSync/syncBlockChunkSize),
+		blocksErrCh: make(chan FetchBlockHeaders,
+			chain.MaxBlocksPerSync/syncBlockChunkSize),
 		blocksProcessedCh: make(chan struct{},
 			chain.MaxBlocksPerSync/syncBlockChunkSize),
 	}
@@ -272,13 +274,14 @@ out_sync:
 			continue
 		}
 		logger.Info("wait locateHashes done")
+		drainTimer(timer.C)
 		timer.Reset(syncTimeout)
 	out_locate:
 		for {
 			select {
 			case <-sm.locateDoneCh:
 				logger.Info("success to locate, start check")
-				timer.Stop()
+				cleanStopTimer(timer)
 				break out_locate
 			case ef := <-sm.locateErrCh:
 				// no hash sent from locate peer, no need to sync
@@ -292,7 +295,7 @@ out_sync:
 				continue out_sync
 			case <-sm.proc.Closing():
 				logger.Info("Quit handle sync msg loop.")
-				timer.Stop()
+				cleanStopTimer(timer)
 				return
 			}
 		}
@@ -303,6 +306,7 @@ out_sync:
 			continue out_sync
 		}
 		logger.Info("wait checkHashes done")
+		drainTimer(timer.C)
 		timer.Reset(syncTimeout)
 	out_check:
 		for {
@@ -310,7 +314,7 @@ out_sync:
 			case <-sm.checkOkCh:
 				if sm.checkPass() {
 					logger.Infof("success to check, start to sync")
-					timer.Stop()
+					cleanStopTimer(timer)
 					break out_check
 				}
 			case <-sm.checkErrCh:
@@ -322,7 +326,7 @@ out_sync:
 				continue out_sync
 			case <-sm.proc.Closing():
 				logger.Info("Quit handle sync msg loop.")
-				timer.Stop()
+				cleanStopTimer(timer)
 				return
 			}
 		}
@@ -330,6 +334,7 @@ out_sync:
 		sm.setStatus(blocksStatus)
 		sm.fetchAllBlocks(sm.fetchHashes)
 		logger.Infof("wait sync %d blocks done", len(sm.fetchHashes))
+		drainTimer(timer.C)
 		timer.Reset(blocksTimeout)
 		for {
 			select {
@@ -338,7 +343,7 @@ out_sync:
 					logger.Infof("complete to sync %d blocks", len(sm.fetchHashes))
 					sm.waitAllBlocksProcessed()
 					logger.Infof("complete to process %d blocks", len(sm.fetchHashes))
-					timer.Stop()
+					cleanStopTimer(timer)
 					if sm.moreSync() {
 						logger.Info("start next sync ...")
 						needMore = true
@@ -351,7 +356,7 @@ out_sync:
 				}
 			case fbh := <-sm.blocksErrCh:
 				logger.Warnf("fetch blocks error, retry for %+v", fbh)
-				timer.Stop()
+				cleanStopTimer(timer)
 				_, err := sm.fetchRemoteBlocksWithRetry(&fbh, retryTimes, retryInterval)
 				if err != nil {
 					logger.Warn(err)
@@ -359,6 +364,7 @@ out_sync:
 						chain.MaxBlocksPerSync/syncBlockChunkSize)
 					return
 				}
+				drainTimer(timer.C)
 				timer.Reset(blocksTimeout)
 			case <-timer.C:
 				logger.Info("timeout for sync blocks and exit sync!")
@@ -381,7 +387,7 @@ out_sync:
 				timer.Reset(blocksTimeout)
 			case <-sm.proc.Closing():
 				logger.Info("Quit handle sync msg loop.")
-				timer.Stop()
+				cleanStopTimer(timer)
 				return
 			}
 		}
@@ -509,6 +515,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 		return fmt.Errorf("onLocateResponse returns since now status is %s",
 			sm.getStatus())
 	}
+	popErrFlagChan(sm.locateErrCh)
 	//if !sm.isPeerStatusFor(locatePeerStatus, msg.From()) {
 	if sm.isPeerStatusFor(availablePeerStatus, msg.From()) {
 		return fmt.Errorf("receive LocateForkPointResponse from non-sync peer[%s]",
@@ -539,6 +546,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	sm.fetchHashes = hashes
 	merkleRoot := util.BuildMerkleRoot(hashes)
 	sm.checkRootHash = merkleRoot[len(merkleRoot)-1]
+	popEmptyChan(sm.locateDoneCh)
 	sm.locateDoneCh <- struct{}{}
 	return nil
 }
@@ -571,6 +579,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 		return fmt.Errorf("onCheckResponse returns since now status is %s",
 			sm.getStatus())
 	}
+	popEmptyChan(sm.checkErrCh)
 	//if !sm.isPeerStatusFor(checkPeerStatus, msg.From()) {
 	if sm.isPeerStatusFor(availablePeerStatus, msg.From()) {
 		sm.checkErrCh <- struct{}{}
@@ -595,6 +604,9 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 			msg.From().Pretty(), sch.RootHash, sm.checkRootHash)
 		sm.checkErrCh <- struct{}{}
 		return nil
+	}
+	if len(sm.checkOkCh) == maxCheckPeers {
+		popEmptyChan(sm.checkOkCh)
 	}
 	sm.checkOkCh <- struct{}{}
 	logger.Infof("success to check %d times", checkNum)
@@ -638,6 +650,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 			sm.getStatus())
 	}
 	pid := msg.From()
+	popEmptyChan(sm.syncErrCh)
 	//if !sm.isPeerStatusFor(locatePeerStatus, msg.From()) {
 	if sm.isPeerStatusFor(availablePeerStatus, pid) {
 		sm.syncErrCh <- struct{}{}
@@ -650,14 +663,27 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		sm.syncErrCh <- struct{}{}
 		return err
 	}
+	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
+	logger.Infof("has sync %d/%d blocks, current peer[%s]",
+		count, len(sm.fetchHashes), pid.Pretty())
+	maxChanLen := (len(sm.fetchHashes) + syncBlockChunkSize - 1) / syncBlockChunkSize
 	// check blocks merkle root hash
 	if fbh, ok := sm.checkBlocksAndClearInfo(sb, pid); !ok {
 		if fbh != nil {
+			if len(sm.blocksErrCh) == maxChanLen {
+				logger.Warnf("blocksErrCh overflow for len: %d", len(sm.blocksErrCh))
+				return nil
+			}
 			sm.blocksErrCh <- *fbh
 		}
 		return fmt.Errorf("onBlocksResponse check failed from peer: %s, "+
 			"SyncBlocks: %+v", pid.Pretty(), sb)
 	}
+	if len(sm.blocksDoneCh) == maxChanLen {
+		logger.Warnf("blocksDownCh overflow for len: %d", len(sm.blocksDoneCh))
+		return nil
+	}
+	sm.blocksDoneCh <- struct{}{}
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
@@ -674,10 +700,6 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		}
 		sm.blocksProcessedCh <- struct{}{}
 	}()
-	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
-	logger.Infof("has sync %d/(%d) blocks, current peer[%s]",
-		count, len(sm.fetchHashes), pid.Pretty())
-	sm.blocksDoneCh <- struct{}{}
 	return nil
 }
 
@@ -808,4 +830,32 @@ func merkleRootHashForBlocks(blocks []*coreTypes.Block) *crypto.HashType {
 	}
 	merkleRoot := util.BuildMerkleRoot(hashes)
 	return merkleRoot[len(merkleRoot)-1]
+}
+
+func drainTimer(ch <-chan time.Time) {
+	select {
+	case <-ch:
+	default:
+	}
+}
+
+func cleanStopTimer(t *time.Timer) {
+	t.Stop()
+	drainTimer(t.C)
+}
+
+func popEmptyChan(ch <-chan struct{}) {
+	select {
+	case <-ch:
+		logger.Info("pop a struct{}{} from chan struct{}")
+	default:
+	}
+}
+
+func popErrFlagChan(ch <-chan errFlag) {
+	select {
+	case v := <-ch:
+		logger.Warnf("pop value: %v from channel", v)
+	default:
+	}
 }
