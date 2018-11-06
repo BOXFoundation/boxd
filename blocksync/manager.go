@@ -532,7 +532,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 		return fmt.Errorf("receive LocateForkPointResponse from non-sync peer[%s]",
 			pid.Pretty())
 	}
-	popErrFlagChan(sm.locateErrCh)
+	tryPopErrFlagChan(sm.locateErrCh)
 	// parse response
 	sh := new(SyncHeaders)
 	if err := sh.Unmarshal(msg.Body()); err != nil || *sh.Hashes[0] == *zeroHash {
@@ -561,7 +561,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	merkleRoot := util.BuildMerkleRoot(hashes)
 	sm.checkRootHash = merkleRoot[len(merkleRoot)-1]
 	sm.stalePeers.Store(pid, locateDonePeerStatus)
-	popEmptyChan(sm.locateDoneCh)
+	tryPopEmptyChan(sm.locateDoneCh)
 	sm.locateDoneCh <- struct{}{}
 	return nil
 }
@@ -597,7 +597,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 		return fmt.Errorf("onCheckResponse returns since now status is %s",
 			sm.getStatus())
 	}
-	popEmptyChan(sm.checkErrCh)
+	tryPopEmptyChan(sm.checkErrCh)
 	pid := msg.From()
 	if !sm.isPeerStatusFor(checkedPeerStatus, pid) &&
 		!sm.isPeerStatusFor(checkedDonePeerStatus, pid) {
@@ -630,7 +630,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 	}
 	sm.stalePeers.Store(pid, checkedDonePeerStatus)
 	if len(sm.checkOkCh) == maxCheckPeers {
-		popEmptyChan(sm.checkOkCh)
+		tryPopEmptyChan(sm.checkOkCh)
 	}
 	sm.checkOkCh <- struct{}{}
 	logger.Infof("success to check %d times", checkNum)
@@ -677,7 +677,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 			sm.getStatus())
 	}
 	pid := msg.From()
-	popEmptyChan(sm.syncErrCh)
+	tryPopEmptyChan(sm.syncErrCh)
 	if !sm.isPeerStatusFor(blocksPeerStatus, pid) &&
 		!sm.isPeerStatusFor(blocksDonePeerStatus, pid) {
 		sm.stalePeers.Store(pid, errPeerStatus)
@@ -897,7 +897,7 @@ func cleanStopTimer(t *time.Timer) {
 	drainTimer(t.C)
 }
 
-func popEmptyChan(ch <-chan struct{}) {
+func tryPopEmptyChan(ch <-chan struct{}) {
 	select {
 	case <-ch:
 		logger.Info("pop a struct{}{} from chan struct{}")
@@ -905,7 +905,7 @@ func popEmptyChan(ch <-chan struct{}) {
 	}
 }
 
-func popErrFlagChan(ch <-chan errFlag) {
+func tryPopErrFlagChan(ch <-chan errFlag) {
 	select {
 	case v := <-ch:
 		logger.Warnf("pop value: %v from channel", v)
