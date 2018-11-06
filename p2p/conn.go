@@ -103,7 +103,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 // readMessage returns the next message, with remote peer id
 func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	msg, err := readMessageData(r)
-	metricsReadCounter.Mark(msg.Len())
+	metricsReadMeter.Mark(msg.Len())
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 		return err
 	}
 	_, err = conn.stream.Write(data)
-	metricsWriteCounter.Mark(int64(len(data) / 8))
+	metricsWriteMeter.Mark(int64(len(data) / 8))
 	return err // error or nil
 }
 

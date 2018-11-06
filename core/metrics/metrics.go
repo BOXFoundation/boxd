@@ -22,15 +22,15 @@ var (
 
 	// block_pool metrics
 
-	// MetricsCachedBlockMsg records the size of new block cache
-	MetricsCachedBlockMsg = metrics.NewGauge("box.block.new.cached")
-	// MetricsLruCacheBlock records the size of lru cache
-	MetricsLruCacheBlock = metrics.NewGauge("box.block.lru.cached")
+	// MetricsCachedBlockMsgGauge records the size of new block cache
+	MetricsCachedBlockMsgGauge = metrics.NewGauge("box.block.new.cached")
+	// MetricsLruCacheBlockGauge records the size of lru cache
+	MetricsLruCacheBlockGauge = metrics.NewGauge("box.block.lru.cached")
 
 	// txpool metrics
 
-	// MetricsTxPoolSize records the size of new block cache
-	MetricsTxPoolSize = metrics.NewGauge("box.txpool.size")
-	// MetricsOrphanTxPoolSize records the size of new block cache
-	MetricsOrphanTxPoolSize = metrics.NewGauge("box.txpool.orphan_size")
+	// MetricsTxPoolSizeGauge records the size of new block cache
+	MetricsTxPoolSizeGauge = metrics.NewGauge("box.txpool.size")
+	// MetricsOrphanTxPoolSizeGauge records the size of new block cache
+	MetricsOrphanTxPoolSizeGauge = metrics.NewGauge("box.txpool.orphan_size")
 )

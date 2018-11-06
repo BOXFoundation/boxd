@@ -9,6 +9,6 @@ import (
 )
 
 var (
-	metricsReadCounter  = metrics.NewMeter("box.p2p.read.request")
-	metricsWriteCounter = metrics.NewMeter("box.p2p.write.request")
+	metricsReadMeter  = metrics.NewMeter("box.p2p.read.request")
+	metricsWriteMeter = metrics.NewMeter("box.p2p.write.request")
 )

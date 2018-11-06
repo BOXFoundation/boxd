@@ -113,8 +113,8 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
 		case <-metricsTicker.C:
-			metrics.MetricsTxPoolSize.Update(int64(len(tx_pool.hashToTx)))
-			metrics.MetricsOrphanTxPoolSize.Update(int64(len(tx_pool.hashToOrphanTx)))
+			metrics.MetricsTxPoolSizeGauge.Update(int64(len(tx_pool.hashToTx)))
+			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(len(tx_pool.hashToOrphanTx)))
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			return
