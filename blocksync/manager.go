@@ -7,6 +7,7 @@ package blocksync
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,10 +59,10 @@ const (
 	syncBlockChunkSize = 64
 	locatorSeqPartLen  = 6
 	syncTimeout        = 5 * time.Second
-	blocksTimeout      = 20 * time.Second
-	retryTimes         = 20
-	retryInterval      = 2 * time.Second
-	maxSyncTries       = 100
+	blocksTimeout      = 10 * time.Second
+	retryTimes         = 10
+	retryInterval      = 1 * time.Second
+	maxSyncTries       = 20
 
 	availablePeerStatus peerStatus = iota
 	locatePeerStatus
@@ -358,6 +359,8 @@ out_sync:
 						return
 					}
 				}
+			case <-sm.syncErrCh:
+				logger.Infof("sync blocks error")
 			case fbh := <-sm.blocksErrCh:
 				logger.Warnf("fetch blocks error, retry for %+v", fbh)
 				cleanStopTimer(timer)
@@ -455,8 +458,7 @@ func (sm *SyncManager) fetchAllBlocks(hashes []*crypto.HashType) error {
 		fbh := newFetchBlockHeaders(idx, hashes[i], length)
 		pid, err := sm.fetchRemoteBlocksWithRetry(fbh, retryTimes, retryInterval)
 		if err != nil {
-			panic(fmt.Errorf("fetchRemoteBlocks(%v) exceed max retry times(%d)",
-				fbh, retryTimes))
+			return err
 		}
 		merkleRoot := util.BuildMerkleRoot(hashes[i : i+length])
 		rootHash := merkleRoot[len(merkleRoot)-1]
@@ -494,7 +496,10 @@ func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
 
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
-		return errNoResponding
+		logger.Infof("send message[0x%X] zeroHash to peer %s for in sync status",
+			p2p.LocateForkPointResponse, msg.From().Pretty())
+		return sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointResponse,
+			newSyncHeaders(zeroHash), msg.From())
 	}
 	// parse response
 	lh := new(LocateHeaders)
@@ -530,7 +535,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	popErrFlagChan(sm.locateErrCh)
 	// parse response
 	sh := new(SyncHeaders)
-	if err := sh.Unmarshal(msg.Body()); err != nil {
+	if err := sh.Unmarshal(msg.Body()); err != nil || *sh.Hashes[0] == *zeroHash {
 		logger.Infof("onLocateResponse unmarshal msg.Body[%+v] error: %s",
 			msg.Body(), err)
 		sm.stalePeers.Store(pid, errPeerStatus)
@@ -565,7 +570,10 @@ func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
 	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
-		return errNoResponding
+		logger.Infof("send message[0x%X] zeroHash to peer %s",
+			p2p.LocateCheckResponse, msg.From().Pretty())
+		return sm.p2pNet.SendMessageToPeer(p2p.LocateCheckResponse,
+			newSyncCheckHash(zeroHash), msg.From())
 	}
 	// parse response
 	ch := new(CheckHash)
@@ -633,13 +641,16 @@ func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
 	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
-		return errNoResponding
+		logger.Infof("send message[0x%X] maxUint32 Idx blocks body to peer %s",
+			p2p.BlockChunkResponse, msg.From().Pretty())
+		return sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse,
+			newSyncBlocks(math.MaxUint32), msg.From())
 	}
 	//
 	sb := newSyncBlocks(0)
 	defer func() {
 		logger.Infof("send message[0x%X] %d blocks to peer %s",
-			p2p.LocateCheckResponse, len(sb.Blocks), msg.From().Pretty())
+			p2p.BlockChunkResponse, len(sb.Blocks), msg.From().Pretty())
 		err = sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse, sb, msg.From())
 	}()
 	// parse response
@@ -676,10 +687,11 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	}
 	// parse response
 	sb := new(SyncBlocks)
-	if err := sb.Unmarshal(msg.Body()); err != nil {
+	if err := sb.Unmarshal(msg.Body()); err != nil || sb.Idx == math.MaxUint32 {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		sm.syncErrCh <- struct{}{}
-		return err
+		return fmt.Errorf("SyncBlocks unmarshal error: %v or msg.From is in "+
+			"sync(idx: %d)", err, sb.Idx)
 	}
 	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
 	logger.Infof("has sync %d/%d blocks, current peer[%s]",
