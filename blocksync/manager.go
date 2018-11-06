@@ -492,7 +492,7 @@ func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
 	//
 	hashes, err := sm.chain.LocateForkPointAndFetchHeaders(lh.Hashes)
 	if err != nil {
-		logger.Infof("onLocateRequest fetch headers error: %s, hashes: %+v",
+		logger.Warnf("onLocateRequest fetch headers error: %s, hashes: %+v",
 			err, lh.Hashes)
 		return err
 	}
@@ -558,7 +558,7 @@ func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
 	//
 	hash, err := sm.chain.CalcRootHashForNBlocks(*ch.BeginHash, ch.Length)
 	if err != nil {
-		logger.Infof("onCheckRequest calc root hash for %+v error: %s", ch, err)
+		logger.Warnf("onCheckRequest calc root hash for %+v error: %s", ch, err)
 	}
 	sh := newSyncCheckHash(hash)
 	logger.Infof("send message[0x%X] body[%+v] to peer %s", p2p.LocateCheckResponse,
@@ -619,12 +619,14 @@ func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
 	err = fbh.Unmarshal(msg.Body())
 	if err != nil {
 		logger.Infof("onBlocksRequest error: %s", err)
+		return
 	}
 	// fetch blocks from local main chain
 	blocks, err := sm.chain.FetchNBlockAfterSpecificHash(*fbh.BeginHash, fbh.Length)
 	if err != nil {
 		logger.Infof("onBlocksRequest fetchLocalBlocks FetchBlockHeaders: %+v"+
 			" error: %s", fbh, err)
+		return
 	}
 	sb = newSyncBlocks(fbh.Idx, blocks...)
 	return

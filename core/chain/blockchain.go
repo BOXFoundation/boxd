@@ -130,7 +130,7 @@ func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.Sync
 
 func (chain *BlockChain) loadFilters() error {
 	var i uint32 = 1
-	for ; i < chain.LongestChainHeight; i++ {
+	for ; i <= chain.LongestChainHeight; i++ {
 		block, err := chain.LoadBlockByHeight(i)
 		if err != nil {
 			logger.Error("Error try to load block at height", i, err)
@@ -171,7 +171,7 @@ func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transacti
 			}
 			for _, vin := range tx.Vin {
 				if utxoSet.FindUtxo(vin.PrevOutPoint) != nil {
-					utxoSet.SpendUtxo(vin.PrevOutPoint)
+					delete(utxoSet.utxoMap, vin.PrevOutPoint)
 					isRelated = true
 				}
 			}
@@ -335,9 +335,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 		return false, core.ErrWrongBlockHeight
 	}
 
-	if err := chain.StoreBlockToDb(block); err != nil {
-		return false, err
-	}
 	chain.cache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
@@ -477,11 +474,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		if totalFees < lastTotalFees {
 			return core.ErrBadFees
 		}
-
-		// Update utxos by applying this tx
-		if err := utxoSet.ApplyTx(tx, block.Height); err != nil {
-			return err
-		}
 	}
 
 	// Ensure coinbase does not output more than block reward.
@@ -510,7 +502,9 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 			return core.ErrUnfinalizedTx
 		}
 	}
-
+	if err := chain.applyBlock(block, utxoSet); err != nil {
+		return err
+	}
 	chain.SetTailBlock(block, utxoSet)
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
@@ -570,6 +564,8 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error
 	if err := utxoSet.RevertBlock(block); err != nil {
 		return err
 	}
+
+	chain.db.Del(BlockKey(block.BlockHash()))
 
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
@@ -667,9 +663,7 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 
 // ListAllUtxos list all the available utxos for testing purpose
 func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
-	utxoSet := NewUtxoSet()
-	err := utxoSet.ApplyBlock(chain.tail)
-	return utxoSet.utxoMap, err
+	return make(map[types.OutPoint]*types.UtxoWrap), nil
 }
 
 // LoadUtxoByAddress list all the available utxos owned by an address
@@ -684,7 +678,7 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 		if err != nil {
 			return nil, err
 		}
-		if err = utxoSet.ApplyBlock(block); err != nil {
+		if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
 			return nil, err
 		}
 	}
@@ -913,6 +907,9 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 	for index := range hashes {
 		block, err := chain.LoadBlockByHash(*hashes[index])
 		if err != nil {
+			if err == core.ErrBlockIsNil {
+				continue
+			}
 			return nil, err
 		}
 
