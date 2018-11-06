@@ -142,9 +142,12 @@ func (chain *BlockChain) loadFilters() error {
 			logger.Error("Error Loading block utxo", err)
 			return err
 		}
-		chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), func() bloom.Filter {
+		if err := chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), func() bloom.Filter {
 			return block.GetFilterForTransactionScript(utxoSet.utxoMap)
-		})
+		}); err != nil {
+			logger.Error("Failed to addFilter", err)
+			return err
+		}
 	}
 	return nil
 }
@@ -373,7 +376,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	// chain.sendNotification(NTBlockAccepted, block)
 
 	// This block is now the end of the best chain.
-	chain.SetTailBlock(block, utxoSet)
+	if err := chain.SetTailBlock(block, utxoSet); err != nil {
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		return false, err
+	}
 	return true, nil
 }
 
@@ -505,7 +511,10 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	if err := chain.applyBlock(block, utxoSet); err != nil {
 		return err
 	}
-	chain.SetTailBlock(block, utxoSet)
+	if err := chain.SetTailBlock(block, utxoSet); err != nil {
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		return err
+	}
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
 	return nil
@@ -708,9 +717,11 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 // SetTailBlock sets chain tail block.
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 
-	chain.filterHolder.AddFilter(tail.Height, *tail.BlockHash(), chain.DB(), func() bloom.Filter {
+	if err := chain.filterHolder.AddFilter(tail.Height, *tail.BlockHash(), chain.DB(), func() bloom.Filter {
 		return tail.GetFilterForTransactionScript(utxoSet.utxoMap)
-	})
+	}); err != nil {
+		return err
+	}
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
 		return err
