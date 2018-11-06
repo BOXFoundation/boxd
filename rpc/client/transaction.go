@@ -17,13 +17,12 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 )
 
-// GetGasPrice gets the recommended gas price according to recent packed transactions
-
-func GetGasPrice(conn *grpc.ClientConn) (uint64, error) {
+// GetFeePrice gets the recommended mining fee price according to recent packed transactions
+func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	r, err := c.GetGasPrice(ctx, &rpcpb.GetGasPriceRequest{})
+	r, err := c.GetFeePrice(ctx, &rpcpb.GetFeePriceRequest{})
 	return r.BoxPerByte, err
 }
 
@@ -34,7 +33,7 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 		total += amount
 	}
 	change := &corepb.TxOut{ScriptPubKey: getScriptAddress(fromAddress)}
-	gasPrice, err := GetGasPrice(conn)
+	gasPrice, err := GetFeePrice(conn)
 	if err != nil {
 		return nil, err
 	}

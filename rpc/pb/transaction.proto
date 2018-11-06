@@ -45,9 +45,9 @@ service TransactionCommand {
         };
     }
 
-    rpc GetGasPrice(GetGasPriceRequest) returns (GetGasPriceResponse) {
+    rpc GetFeePrice(GetFeePriceRequest) returns (GetFeePriceResponse) {
         option (google.api.http) = {
-            post: "/v1/tx/getgasprice"
+            post: "/v1/tx/getfeeprice"
             body: "*"
         };
     }
@@ -89,9 +89,9 @@ message GetBalanceResponse {
     map<string, uint64> balances = 3;
 }
 
-message GetGasPriceRequest{
+message GetFeePriceRequest{
 }
 
-message GetGasPriceResponse {
+message GetFeePriceResponse {
     uint64 box_per_byte = 1;
 }

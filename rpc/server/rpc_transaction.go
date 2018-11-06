@@ -29,8 +29,8 @@ type txServer struct {
 	server GRPCServer
 }
 
-func (s *txServer) GetGasPrice(ctx context.Context, req *rpcpb.GetGasPriceRequest) (*rpcpb.GetGasPriceResponse, error) {
-	return &rpcpb.GetGasPriceResponse{BoxPerByte: 1}, nil
+func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceRequest) (*rpcpb.GetFeePriceResponse, error) {
+	return &rpcpb.GetFeePriceResponse{BoxPerByte: 1}, nil
 }
 
 func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
