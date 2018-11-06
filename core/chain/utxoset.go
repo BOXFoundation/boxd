@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"bytes"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -133,6 +134,42 @@ func (u *UtxoSet) RevertBlock(block *types.Block) error {
 		if err := u.RevertTx(tx, block.Height); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ApplyBlockWithScriptFilter adds or remove all utxos that transactions use or generate
+// with the specified script bytes
+func (u *UtxoSet) ApplyBlockWithScriptFilter(block *types.Block, targetScript []byte) error {
+	txs := block.Txs
+	for _, tx := range txs {
+		if err := u.ApplyTxWithScriptFilter(tx, block.Height, targetScript); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ApplyTxWithScriptFilter adds or remove an utxo if the transaction uses or generates an utxo
+// with the specified script bytes
+func (u *UtxoSet) ApplyTxWithScriptFilter(tx *types.Transaction, blockHeight uint32, targetScript []byte) error {
+	// Add new utxos
+	for txOutIdx := range tx.Vout {
+		if bytes.Equal(tx.Vout[txOutIdx].ScriptPubKey, targetScript) {
+			if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Coinbase transaction doesn't spend any utxo.
+	if IsCoinBase(tx) {
+		return nil
+	}
+
+	// Spend the referenced utxos
+	for _, txIn := range tx.Vin {
+		delete(u.utxoMap, txIn.PrevOutPoint)
 	}
 	return nil
 }
