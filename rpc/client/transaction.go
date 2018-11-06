@@ -18,28 +18,48 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 )
 
+// GetGasPrice gets the recommended gas price according to recent packed transactions
+
+func GetGasPrice(conn *grpc.ClientConn) (uint64, error) {
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r, err := c.GetGasPrice(ctx, &rpcpb.GetGasPriceRequest{})
+	return r.BoxPerByte, err
+}
+
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
 func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
-	var total uint64
+	var total, adjustedAmount uint64
 	for _, amount := range targets {
 		total += amount
 	}
-	utxoResponse, err := FundTransaction(conn, fromAddress, total)
-
+	change := &corepb.TxOut{ScriptPubKey: getScriptAddress(fromAddress)}
+	gasPrice, err := GetGasPrice(conn)
 	if err != nil {
+		return nil, err
+	}
+	var tx *corepb.Transaction
+	for {
+		utxoResponse, err := FundTransaction(conn, fromAddress, total)
+		if err != nil {
+			return nil, err
+		}
+		tx, adjustedAmount = tryGenerateTx(utxoResponse.Utxos, targets, change, gasPrice)
+		if tx != nil {
+			break
+		}
+		if adjustedAmount > total {
+			total = adjustedAmount
+		} else {
+			return nil, fmt.Errorf("unable to fund transaction with proper gas fee")
+		}
+	}
+	if err := signTransaction(tx, fromAddress.ScriptAddress(), pubKeyBytes, signer); err != nil {
 		return nil, err
 	}
 
-	txReq := &rpcpb.SendTransactionRequest{}
-	utxos, err := selectUtxo(utxoResponse, total)
-	if err != nil {
-		return nil, err
-	}
-	tx, err := wrapTransaction(fromAddress.ScriptAddress(), targets, pubKeyBytes, utxos, signer)
-	if err != nil {
-		return nil, err
-	}
-	txReq.Tx = tx
+	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
 
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -75,11 +95,10 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, er
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKeyHash []byte, targets map[types.Address]uint64, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, signer crypto.Signer) (*corepb.Transaction, error) {
+func tryGenerateTx(utxos []*rpcpb.Utxo, targets map[types.Address]uint64, change *corepb.TxOut, gasPricePerByte uint64) (*corepb.Transaction, uint64) {
 	tx := &corepb.Transaction{}
-	var current, total uint64
+	var inputAmount, outputAmount uint64
 	txIn := make([]*corepb.TxIn, len(utxos))
-	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
 		txIn[i] = &corepb.TxIn{
 			PrevOutPoint: &corepb.OutPoint{
@@ -89,59 +108,61 @@ func wrapTransaction(fromPubKeyHash []byte, targets map[types.Address]uint64, fr
 			ScriptSig: []byte{},
 			Sequence:  uint32(i),
 		}
-		current += utxo.GetTxOut().GetValue()
+		inputAmount += utxo.GetTxOut().GetValue()
 	}
 	tx.Vin = txIn
 	vout := make([]*corepb.TxOut, 0)
-	fromScript, err := getScriptAddress(fromPubKeyHash)
-	prevScriptPubKey := script.NewScriptFromBytes(fromScript)
-	if err != nil {
-		return nil, err
-	}
 	for addr, amount := range targets {
-		toScript, err := getScriptAddress(addr.ScriptAddress())
-		if err != nil {
-			return nil, err
-		}
+		toScript := getScriptAddress(addr)
 		vout = append(vout, &corepb.TxOut{Value: amount, ScriptPubKey: toScript})
-		total += amount
-	}
-	//toScript, err := getScriptAddress(toPubKeyHash)
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	//fromScript, err := getScriptAddress(fromPubKeyHash)
-	//prevScriptPubKey := script.NewScriptFromBytes(fromScript)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//tx.Vout = []*corepb.TxOut{{
-	//	Value:        amount,
-	//	ScriptPubKey: toScript,
-	//}}
-	if current > total {
-		vout = append(vout, &corepb.TxOut{
-			Value:        current - total,
-			ScriptPubKey: fromScript,
-		})
+		outputAmount += amount
 	}
 
+	if inputAmount > outputAmount && change != nil {
+		vout = append(vout, change)
+	}
 	tx.Vout = vout
 
+	feeNeeded := calcFeeNeeded(tx, gasPricePerByte)
+	if feeNeeded+outputAmount <= inputAmount {
+		change.Value = inputAmount - outputAmount - feeNeeded
+		fmt.Println("Fee used:", feeNeeded)
+		return tx, 0
+	}
+	return nil, feeNeeded + outputAmount
+}
+
+func calcFeeNeeded(tx *corepb.Transaction, gasFeePerByte uint64) uint64 {
+	var totalBytes int
+	for _, vin := range tx.Vin {
+		totalBytes += len(vin.ScriptSig)
+	}
+	for _, vout := range tx.Vout {
+		totalBytes += len(vout.ScriptPubKey)
+	}
+	return uint64(totalBytes) * gasFeePerByte
+}
+
+func signTransaction(tx *corepb.Transaction, fromPubKeyHash, fromPubKeyBytes []byte, signer crypto.Signer) error {
 	// Sign the tx inputs
+	fromScript, err := getScriptAddressFromPubKeyHash(fromPubKeyHash)
+	if err != nil {
+		return err
+	}
+	prevScriptPubKey := script.NewScriptFromBytes(fromScript)
+
 	typedTx := &types.Transaction{}
-	if err = typedTx.FromProtoMessage(tx); err != nil {
-		return nil, err
+	if err := typedTx.FromProtoMessage(tx); err != nil {
+		return err
 	}
 	for txInIdx, txIn := range typedTx.Vin {
 		sigHash, err := script.CalcTxHashForSig(fromScript, typedTx, txInIdx)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		sig, err := signer.Sign(sigHash)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		scriptSig := script.SignatureScript(sig, fromPubKeyBytes)
 		txIn.ScriptSig = *scriptSig
@@ -149,16 +170,15 @@ func wrapTransaction(fromPubKeyHash []byte, targets map[types.Address]uint64, fr
 
 		// test to ensure
 		if err = script.Validate(scriptSig, prevScriptPubKey, typedTx, txInIdx); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	return tx, nil
+	return nil
 }
 
 // FundTransaction gets the utxo of a public key
 func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
-	p2pkScript, err := getScriptAddress(addr.ScriptAddress())
+	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.ScriptAddress())
 	if err != nil {
 		return nil, err
 	}

@@ -29,6 +29,10 @@ type txServer struct {
 	server GRPCServer
 }
 
+func (s *txServer) GetGasPrice(ctx context.Context, req *rpcpb.GetGasPriceRequest) (*rpcpb.GetGasPriceResponse, error) {
+	return &rpcpb.GetGasPriceResponse{BoxPerByte: 1}, nil
+}
+
 func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
 	bc := s.server.GetChainReader()
 	utxos, err := bc.ListAllUtxos()
@@ -95,8 +99,13 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 		Count:   uint32(len(utxos)),
 	}
 	res.Utxos = []*rpcpb.Utxo{}
+	var current uint64
 	for out, utxo := range utxos {
 		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
+		current += utxo.Value()
+		if current >= req.GetAmount() {
+			break
+		}
 	}
 	return res, nil
 }

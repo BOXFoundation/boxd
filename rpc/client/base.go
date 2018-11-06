@@ -32,12 +32,16 @@ func mustConnect(v *viper.Viper) *grpc.ClientConn {
 	return conn
 }
 
-func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
+func getScriptAddressFromPubKeyHash(pubKeyHash []byte) ([]byte, error) {
 	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
 	if err != nil {
 		return nil, err
 	}
 	return *script.PayToPubKeyHashScript(addr.ScriptAddress()), nil
+}
+
+func getScriptAddress(address types.Address) []byte {
+	return *script.PayToPubKeyHashScript(address.ScriptAddress())
 }
 
 // NewConnectionWithViper initializes a grpc connection using configs parsed by viper
