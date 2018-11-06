@@ -13,7 +13,8 @@ import (
 type ChainReader interface {
 	// interface to reader utxos
 	ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error)
-	LoadUtxoByPubKeyScript([]byte) (map[types.OutPoint]*types.UtxoWrap, error)
+	// LoadUtxoByPubKeyScript([]byte) (map[types.OutPoint]*types.UtxoWrap, error)
+	LoadUtxoByAddress(types.Address) (map[types.OutPoint]*types.UtxoWrap, error)
 
 	// interface to read transactions
 	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
@@ -22,4 +23,8 @@ type ChainReader interface {
 	GetBlockHeight() uint32
 	GetBlockHash(uint32) (*crypto.HashType, error)
 	LoadBlockByHash(crypto.HashType) (*types.Block, error)
+
+	// address related search method
+	GetTransactions(types.Address) ([]*types.Transaction, error)
+	// GetUtxos(*types.Address) ([]*types.UtxoWrap, error)
 }

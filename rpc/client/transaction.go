@@ -19,19 +19,23 @@ import (
 )
 
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
-func CreateTransaction(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes []byte, amount uint64, signer crypto.Signer) (*types.Transaction, error) {
-	utxoResponse, err := FundTransaction(v, fromPubkeyHash, amount)
+func CreateTransaction(v *viper.Viper, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
+	var total uint64
+	for _, amount := range targets {
+		total += amount
+	}
+	utxoResponse, err := FundTransaction(v, fromAddress, total)
 
 	if err != nil {
 		return nil, err
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	utxos, err := selectUtxo(utxoResponse, amount)
+	utxos, err := selectUtxo(utxoResponse, total)
 	if err != nil {
 		return nil, err
 	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, utxos, amount, signer)
+	tx, err := wrapTransaction(fromAddress.ScriptAddress(), targets, pubKeyBytes, utxos, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +46,7 @@ func CreateTransaction(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	logger.Debugf("Create transaction from: %v, to : %v", fromPubkeyHash, toPubKeyHash)
+
 	r, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
 		return nil, err
@@ -73,9 +77,9 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, er
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, amount uint64, signer crypto.Signer) (*corepb.Transaction, error) {
+func wrapTransaction(fromPubKeyHash []byte, targets map[types.Address]uint64, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, signer crypto.Signer) (*corepb.Transaction, error) {
 	tx := &corepb.Transaction{}
-	var current uint64
+	var current, total uint64
 	txIn := make([]*corepb.TxIn, len(utxos))
 	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
@@ -90,26 +94,42 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos
 		current += utxo.GetTxOut().GetValue()
 	}
 	tx.Vin = txIn
-	toScript, err := getScriptAddress(toPubKeyHash)
-	if err != nil {
-		return nil, err
-	}
-
+	vout := make([]*corepb.TxOut, 0)
 	fromScript, err := getScriptAddress(fromPubKeyHash)
 	prevScriptPubKey := script.NewScriptFromBytes(fromScript)
 	if err != nil {
 		return nil, err
 	}
-	tx.Vout = []*corepb.TxOut{{
-		Value:        amount,
-		ScriptPubKey: toScript,
-	}}
-	if current > amount {
-		tx.Vout = append(tx.Vout, &corepb.TxOut{
-			Value:        current - amount,
+	for addr, amount := range targets {
+		toScript, err := getScriptAddress(addr.ScriptAddress())
+		if err != nil {
+			return nil, err
+		}
+		vout = append(vout, &corepb.TxOut{Value: amount, ScriptPubKey: toScript})
+		total += amount
+	}
+	//toScript, err := getScriptAddress(toPubKeyHash)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	//fromScript, err := getScriptAddress(fromPubKeyHash)
+	//prevScriptPubKey := script.NewScriptFromBytes(fromScript)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//tx.Vout = []*corepb.TxOut{{
+	//	Value:        amount,
+	//	ScriptPubKey: toScript,
+	//}}
+	if current > total {
+		vout = append(vout, &corepb.TxOut{
+			Value:        current - total,
 			ScriptPubKey: fromScript,
 		})
 	}
+
+	tx.Vout = vout
 
 	// Sign the tx inputs
 	typedTx := &types.Transaction{}
@@ -139,10 +159,10 @@ func wrapTransaction(fromPubKeyHash, toPubKeyHash, fromPubKeyBytes []byte, utxos
 }
 
 // FundTransaction gets the utxo of a public key
-func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount uint64) (*rpcpb.ListUtxosResponse, error) {
+func FundTransaction(v *viper.Viper, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
-	p2pkScript, err := getScriptAddress(pubKeyHash)
+	p2pkScript, err := getScriptAddress(addr.ScriptAddress())
 	if err != nil {
 		return nil, err
 	}
@@ -150,11 +170,10 @@ func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount uint64) (*rpcpb.L
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	logger.Debugf("Fund transaction from: %v, amount : %v", pubKeyHash, amount)
 
 	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-		ScriptPubKey: p2pkScript,
-		Amount:       amount,
+		Addr:   addr.EncodeAddress(),
+		Amount: amount,
 	})
 	if err != nil {
 		return nil, err
@@ -193,4 +212,18 @@ func ListUtxos(v *viper.Viper) (*rpcpb.ListUtxosResponse, error) {
 		return nil, err
 	}
 	return r, nil
+}
+
+// GetBalance returns total amount of an address
+func GetBalance(v *viper.Viper, addresses []string) (map[string]uint64, error) {
+	conn := mustConnect(v)
+	defer conn.Close()
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r, err := c.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: addresses})
+	if err != nil {
+		return map[string]uint64{}, err
+	}
+	return r.GetBalances(), err
 }

@@ -46,6 +46,9 @@ func PrettyPrint(obj interface{}) string {
 }
 
 func printValue(v reflect.Value) string {
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		return "Nil"
+	}
 	if v.CanInterface() {
 		return PrettyPrint(v.Interface())
 	}

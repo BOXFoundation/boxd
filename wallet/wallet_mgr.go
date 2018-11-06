@@ -92,17 +92,24 @@ func (wlt *Manager) ListAccounts() []*Account {
 // by the passphrase user entered
 // returns a hexstring format public key hash, address and error
 func (wlt *Manager) NewAccount(passphrase string) (string, string, error) {
-	privateKey, publicKey, err := crypto.NewKeyPair()
+	privateKey, _, err := crypto.NewKeyPair()
 	if err != nil {
 		return "", "", err
 	}
-	address, err := btypes.NewAddressFromPubKey(publicKey)
+	return wlt.NewAccountWithPrivKey(privateKey, passphrase)
+}
+
+// NewAccountWithPrivKey store the give private key in a file encrypted
+// by the passphrase user entered
+// returns a hexstring format public key hash, address and error
+func (wlt *Manager) NewAccountWithPrivKey(privKey *crypto.PrivateKey, passphrase string) (string, string, error) {
+	address, err := btypes.NewAddressFromPubKey(privKey.PubKey())
 	if err != nil {
 		return "", "", err
 	}
 	account := &Account{
 		path:     path.Join(wlt.path, fmt.Sprintf("%x.keystore", address.ScriptAddress())),
-		privKey:  privateKey,
+		privKey:  privKey,
 		addr:     address,
 		unlocked: true,
 	}
