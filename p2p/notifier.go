@@ -17,8 +17,11 @@ import (
 type Frequency uint32
 
 const (
+	// Repeatable msg can be received limitless
 	Repeatable Frequency = iota
+	// Unique msg can be received only once
 	Unique
+	// UniquePerPeer msg can be received only once per peer
 	UniquePerPeer
 )
 

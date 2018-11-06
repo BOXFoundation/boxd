@@ -7,7 +7,6 @@ package p2p
 import (
 	"bytes"
 	"crypto/rand"
-	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -206,11 +205,8 @@ func TestMarshalAndUnmarshal(t *testing.T) {
 func TestSnappyEncode(t *testing.T) {
 	filename := "message.go"
 	if contents, err := ioutil.ReadFile(filename); err == nil {
-		fmt.Println(len(contents))
 		got := snappy.Encode(nil, contents)
-		fmt.Println(len(got))
-
 		data, _ := snappy.Decode(nil, got)
-		fmt.Println(len(string(data)))
+		ensure.DeepEqual(t, len(contents), len(data))
 	}
 }
