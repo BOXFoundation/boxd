@@ -125,6 +125,8 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println(err)
 	} else {
+		hash, _ := tx.TxHash()
+		fmt.Println("Tx Hash:", hash.String())
 		fmt.Println(util.PrettyPrint(tx))
 	}
 }
@@ -185,6 +187,8 @@ func sendManyCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println(err)
 	} else {
+		hash, _ := tx.TxHash()
+		fmt.Println("Tx Hash:", hash.String())
 		fmt.Println(util.PrettyPrint(tx))
 	}
 }

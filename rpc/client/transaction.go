@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
-	"sort"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -73,26 +72,6 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 	transaction := &types.Transaction{}
 	transaction.FromProtoMessage(tx)
 	return transaction, nil
-}
-
-func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, error) {
-	utxoList := resp.GetUtxos()
-	sort.Slice(utxoList, func(i, j int) bool {
-		return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
-	})
-	var current uint64
-	resultList := []*rpcpb.Utxo{}
-	for _, utxo := range utxoList {
-		if utxo.IsSpent {
-			continue
-		}
-		current += utxo.GetTxOut().GetValue()
-		resultList = append(resultList, utxo)
-		if current >= amount {
-			return resultList, nil
-		}
-	}
-	return nil, fmt.Errorf("Not enough balance")
 }
 
 func tryGenerateTx(utxos []*rpcpb.Utxo, targets map[types.Address]uint64, change *corepb.TxOut, gasPricePerByte uint64) (*corepb.Transaction, uint64) {
