@@ -269,23 +269,26 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, core.ErrOrphanBlockExists
 	}
 
-	ok, err := chain.consensus.VerifySign(block)
-	if err != nil || !ok {
-		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash().String(), block.Height)
-		return false, false, core.ErrInvalidBlockSignature
+	if ok, err := chain.consensus.VerifyBlock(block); err != nil || !ok {
+		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+		return false, false, core.ErrFailedToVerifyWithConsensus
 	}
 
 	if err := validateBlock(block, util.NewMedianTime()); err != nil {
-		logger.Error(err)
+		logger.Error("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
 		return false, false, err
 	}
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
+
 		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
-		// trigger sync
-		chain.syncManager.StartSync()
+		if chain.tail.Height < block.Height {
+			// trigger sync
+			chain.syncManager.StartSync()
+		}
+
 		return false, true, nil
 	}
 
@@ -887,10 +890,8 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	}
 	if *target == hash {
 		return tx, nil
-	} else {
-		logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
 	}
-
+	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
 	return nil, errors.New("Failed to load tx with hash")
 }
 

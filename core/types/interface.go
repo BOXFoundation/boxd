@@ -13,7 +13,7 @@ type Consensus interface {
 	Run() error
 	Stop()
 	StoreCandidateContext(*crypto.HashType) error
-	VerifySign(*Block) (bool, error)
+	VerifyBlock(*Block) (bool, error)
 	StopMint()
 	RecoverMint()
 	BroadcastEternalMsgToMiners(*Block) error
