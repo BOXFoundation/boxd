@@ -247,6 +247,10 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 	}
 	sw := snappy.NewWriter(conn.stream)
 	_, err = sw.Write(data)
+	if err != nil {
+		logger.Errorf("errrrrr %v", err)
+	}
+	// _, err = conn.stream.Write(data)
 	return err // error or nil
 }
 

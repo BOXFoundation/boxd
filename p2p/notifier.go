@@ -13,16 +13,14 @@ import (
 	"github.com/jbenet/goprocess"
 )
 
-const (
-	repeatableMsg = iota
-	uniqueBodyMsg
-	uniqueBodyMsgPerPeer
-)
+// Frequency influence the entrance of message
+type Frequency uint32
 
-var msgTypeToFilter = map[uint32]uint32{
-	NewBlockMsg:    uniqueBodyMsg,
-	ChainUpdateMsg: uniqueBodyMsgPerPeer,
-}
+const (
+	Repeatable Frequency = iota
+	Unique
+	UniquePerPeer
+)
 
 // Notifier dispatcher & distribute business message.
 type Notifier struct {
@@ -35,6 +33,7 @@ type Notifier struct {
 // Notifiee represent message receiver.
 type Notifiee struct {
 	code      uint32
+	frequency Frequency
 	messageCh chan Message
 }
 
@@ -49,8 +48,8 @@ func NewNotifier() *Notifier {
 }
 
 // NewNotifiee return a message notifiee.
-func NewNotifiee(code uint32, messageCh chan Message) *Notifiee {
-	return &Notifiee{code: code, messageCh: messageCh}
+func NewNotifiee(code uint32, frequency Frequency, messageCh chan Message) *Notifiee {
+	return &Notifiee{code: code, frequency: frequency, messageCh: messageCh}
 }
 
 // Subscribe notifier
@@ -71,7 +70,7 @@ func (notifier *Notifier) Loop(parent goprocess.Process) {
 			case msg := <-notifier.receiveCh:
 				code := msg.Code()
 				notifiee, _ := notifier.notifierMap.Load(code)
-				if notifiee != nil {
+				if notifiee != nil && notifier.filter(msg, notifiee.(*Notifiee).frequency) {
 					notifiee.(*Notifiee).messageCh <- msg
 				}
 			case <-p.Closing():
@@ -84,17 +83,14 @@ func (notifier *Notifier) Loop(parent goprocess.Process) {
 
 // Notify message to notifier
 func (notifier *Notifier) Notify(msg Message) {
-	notify := notifier.filter(msg)
-	if notify {
-		notifier.receiveCh <- msg
-	}
+	notifier.receiveCh <- msg
 }
 
-func (notifier *Notifier) filter(msg Message) bool {
-	if msgTypeToFilter[msg.Code()] == repeatableMsg {
+func (notifier *Notifier) filter(msg Message, frequency Frequency) bool {
+	if frequency == Repeatable {
 		return true
 	}
-	key := notifier.lruKey(msg)
+	key := notifier.lruKey(msg, frequency)
 	if notifier.cache.Contains(key) {
 		return false
 	}
@@ -102,14 +98,12 @@ func (notifier *Notifier) filter(msg Message) bool {
 	return true
 }
 
-func (notifier *Notifier) lruKey(msg Message) crypto.HashType {
+func (notifier *Notifier) lruKey(msg Message, frequency Frequency) crypto.HashType {
 	key := []byte(msg.Body())
-
-	if msgTypeToFilter[msg.Code()] == uniqueBodyMsgPerPeer {
+	if frequency == UniquePerPeer {
 		key = append(key, msg.From()...)
 	}
 
 	hash := sha256.Sum256(msg.Body())
-
 	return hash
 }

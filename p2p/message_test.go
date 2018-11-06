@@ -7,9 +7,12 @@ package p2p
 import (
 	"bytes"
 	"crypto/rand"
+	"fmt"
+	"io/ioutil"
 	"testing"
 
 	"github.com/facebookgo/ensure"
+	"github.com/golang/snappy"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
@@ -197,5 +200,17 @@ func TestMarshalAndUnmarshal(t *testing.T) {
 
 		msgExpected := newMessageData(test.Magic, test.Code, test.Extra, test.Body)
 		equal(t, msg, msgExpected)
+	}
+}
+
+func TestSnappyEncode(t *testing.T) {
+	filename := "message.go"
+	if contents, err := ioutil.ReadFile(filename); err == nil {
+		fmt.Println(len(contents))
+		got := snappy.Encode(nil, contents)
+		fmt.Println(len(got))
+
+		data, _ := snappy.Decode(nil, got)
+		fmt.Println(len(string(data)))
 	}
 }
