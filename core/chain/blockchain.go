@@ -265,13 +265,13 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 
 	// The block must not already exist as an orphan.
 	if chain.isInOrphanPool(blockHash) {
-		logger.Warnf("already have block (orphan) %v", blockHash)
+		logger.Warnf("already have block (orphan) %v", blockHash.String())
 		return false, false, core.ErrOrphanBlockExists
 	}
 
 	ok, err := chain.consensus.VerifySign(block)
 	if err != nil || !ok {
-		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash(), block.Height)
+		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash().String(), block.Height)
 		return false, false, core.ErrInvalidBlockSignature
 	}
 
@@ -282,7 +282,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 		// Orphan block.
-		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
+		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
 		// trigger sync
 		chain.syncManager.StartSync()
@@ -301,7 +301,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, err
 	}
 
-	logger.Infof("Accepted block hash: %v", blockHash)
+	logger.Infof("Accepted block hash: %v", blockHash.String())
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
@@ -334,7 +334,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
-		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash, block.Height, parentBlock.Height)
+		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash.String(), block.Height, parentBlock.Height)
 		return false, core.ErrWrongBlockHeight
 	}
 
@@ -365,7 +365,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
-	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash)
+	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
 	if err := chain.reorganize(block, utxoSet); err != nil {
 		return false, err
 	}
@@ -377,7 +377,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 
 	// This block is now the end of the best chain.
 	if err := chain.SetTailBlock(block, utxoSet); err != nil {
-		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return false, err
 	}
 	return true, nil
@@ -512,7 +512,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		return err
 	}
 	if err := chain.SetTailBlock(block, utxoSet); err != nil {
-		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return err
 	}
 	// Notify others such as mempool.
@@ -742,7 +742,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	}
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
-	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash(), tail.Height)
+	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
 	return nil
 }
 
@@ -887,6 +887,8 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	}
 	if *target == hash {
 		return tx, nil
+	} else {
+		logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
 	}
 
 	return nil, errors.New("Failed to load tx with hash")

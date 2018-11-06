@@ -194,7 +194,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
 	if tx_pool.isTransactionInPool(txHash) || detectDupOrphan && tx_pool.isOrphanInPool(txHash) {
-		logger.Debugf("Tx %v already exists", txHash)
+		logger.Debugf("Tx %v already exists", txHash.String())
 		return core.ErrDuplicateTxInPool
 	}
 
@@ -202,26 +202,26 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 
 	// Perform preliminary sanity checks on the transaction.
 	if err := chain.ValidateTransactionPreliminary(tx); err != nil {
-		logger.Debugf("Tx %v fails sanity check: %v", txHash, err)
+		logger.Debugf("Tx %v fails sanity check: %v", txHash.String(), err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
 	if chain.IsCoinBase(tx) {
-		logger.Debugf("Tx %v is an individual coinbase", txHash)
+		logger.Debugf("Tx %v is an individual coinbase", txHash.String())
 		return core.ErrCoinbaseTx
 	}
 
 	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
-		logger.Debugf("Tx %v is not standard: %v", txHash, err)
+		logger.Debugf("Tx %v is not standard: %v", txHash.String(), err)
 		return core.ErrNonStandardTransaction
 	}
 
 	// Quickly detects if the tx double spends with any transaction in the pool.
 	// Double spending with the main chain txs will be checked in ValidateTxInputs.
 	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
-		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash, err)
+		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
 		return err
 	}
 
@@ -273,7 +273,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
 
-	logger.Debugf("Accepted transaction %v (pool size: %v)", txHash, len(tx_pool.hashToTx))
+	logger.Debugf("Accepted transaction %v (pool size: %v)", txHash.String(), len(tx_pool.hashToTx))
 	// Broadcast this tx.
 	if broadcast {
 		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
@@ -463,7 +463,7 @@ func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
 		tx_pool.outPointToOrphan[txIn.PrevOutPoint][*txHash] = tx
 	}
 
-	logger.Debugf("Stored orphan transaction %v", txHash)
+	logger.Debugf("Stored orphan transaction %v", txHash.String())
 }
 
 // Remove orphan
@@ -485,7 +485,7 @@ func (tx_pool *TransactionPool) removeOrphan(tx *types.Transaction) {
 	}
 
 	delete(tx_pool.hashToOrphanTx, *txHash)
-	logger.Debugf("Removed orphan transaction %v", txHash)
+	logger.Debugf("Removed orphan transaction %v", txHash.String())
 }
 
 // removeDoubleSpendOrphans removes all orphans from the orphan pool, which double spend the passed transaction.
