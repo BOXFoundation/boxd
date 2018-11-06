@@ -38,8 +38,7 @@ dpos:
     passphrase: zaq12wsx
 metrics:
     enable: false
-    host: http://localhost
-    port: 8086
+    host: http://localhost:8086
     db: box
     user: 
     password: 

@@ -30,7 +30,7 @@ var (
 	// txpool metrics
 
 	// MetricsTxPoolSize records the size of new block cache
-	MetricsTxPoolSize                      = metrics.NewGauge("box.txpool.size")
+	MetricsTxPoolSize = metrics.NewGauge("box.txpool.size")
 	// MetricsOrphanTxPoolSize records the size of new block cache
-	MetricsOrphanTxPoolSize                = metrics.NewGauge("box.txpool.orphan_size")
+	MetricsOrphanTxPoolSize = metrics.NewGauge("box.txpool.orphan_size")
 )
