@@ -56,7 +56,11 @@ func (notifier *Notifier) Loop(parent goprocess.Process) {
 				code := msg.Code()
 				notifiee, _ := notifier.notifierMap.Load(code)
 				if notifiee != nil {
-					notifiee.(*Notifiee).messageCh <- msg
+					select {
+					case notifiee.(*Notifiee).messageCh <- msg:
+					default:
+						logger.Infof("Message handler is blocked. code: %d", msg.Code())
+					}
 				}
 			case <-p.Closing():
 				logger.Info("Quit notifier loop.")
