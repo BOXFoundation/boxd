@@ -44,7 +44,7 @@ func NewNotifier() *Notifier {
 		notifierMap: new(sync.Map),
 		receiveCh:   make(chan Message, 65536),
 	}
-	notifier.cache, _ = lru.New(512)
+	notifier.cache, _ = lru.New(65536)
 	return notifier
 }
 
