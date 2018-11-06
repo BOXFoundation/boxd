@@ -56,8 +56,8 @@ func (dpos *DummyDpos) Stop() {}
 // StoreCandidateContext store candidate context
 func (dpos *DummyDpos) StoreCandidateContext(*crypto.HashType) error { return nil }
 
-// VerifySign verify sign
-func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) { return true, nil }
+// VerifyBlock verify block
+func (dpos *DummyDpos) VerifyBlock(*types.Block) (bool, error) { return true, nil }
 
 // RecoverMint revover mint
 func (dpos *DummyDpos) RecoverMint() {}
