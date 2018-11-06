@@ -71,4 +71,8 @@ var (
 	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
 	ErrAddExistingUtxo             = errors.New("Trying to add utxo already existed")
 	ErrInvalidUtxoWrapProtoMessage = errors.New("Invalid utxo wrap proto message")
+
+	//filters.go
+	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
+	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
 )

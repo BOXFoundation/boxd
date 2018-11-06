@@ -59,6 +59,12 @@ const (
 
 	// CandidatesPrefix is the key prefix of database key to store candidates
 	CandidatesPrefix = "/candidates"
+	// FilterPrefix is the key prefix of block bloom filter to store a filter bytes
+	// /bf/{hex encoded block hash}
+	// e.g.
+	// key: /bf/1113b8bdad74cdc045e64e09b3e2f0502d1b7f9bd8123b28239a3360bd3a8757
+	// value: crypto hash
+	FilterPrefix = "/bf"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -66,7 +72,7 @@ var blkHashBase = key.NewKey(BlockHashPrefix)
 var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
-
+var filterBase = key.NewKey(FilterPrefix)
 var genesisBlockKey = BlockKey(GenesisBlock.BlockHash())
 
 // TailKey is the db key to stoare tail block content
@@ -101,4 +107,14 @@ func UtxoKey(op *types.OutPoint) []byte {
 // CandidatesKey returns the db key to stoare candidates.
 func CandidatesKey(h *crypto.HashType) []byte {
 	return candidatesBase.ChildString(h.String()).Bytes()
+}
+
+// FilterKey returns the db key to store bloom filter of block
+func FilterKey(hash crypto.HashType) []byte {
+	if readable {
+		return filterBase.ChildString(hash.String()).Bytes()
+	}
+	buf := filterBase.Base().Bytes()
+	buf = append(buf[:], hash.GetBytes()...)
+	return buf
 }

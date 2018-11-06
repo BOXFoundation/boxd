@@ -8,8 +8,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
+	"strconv"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -82,9 +84,7 @@ func init() {
 		&cobra.Command{
 			Use:   "importprivkey [privatekey]",
 			Short: "Import a private key from other wallets",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("importprivkey called")
-			},
+			Run:   importPrivateKeyCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "importwallet [filename]",
@@ -113,7 +113,7 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "listtransactions [account] [count] [from]",
+			Use:   "listtransactions [account] [offset] [limit]",
 			Short: "List transactions for an account",
 			Run:   listTransactionsCmdFunc,
 		},
@@ -134,6 +134,40 @@ func newAccountCmdFunc(cmd *cobra.Command, args []string) {
 	acc, addr, err := wltMgr.NewAccount(passphrase)
 	if err != nil {
 		fmt.Println(err)
+		return
+	}
+	fmt.Printf("Created new account: %s\nAddress:%s", acc, addr)
+}
+
+func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fmt.Println("Missing param private key")
+		return
+	}
+	privKeyBytes, err := hex.DecodeString(args[0])
+	if err != nil {
+		fmt.Println("Invalid private key", err)
+		return
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	privKey, _, err := crypto.KeyPairFromBytes(privKeyBytes)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	acc, addr, err := wltMgr.NewAccountWithPrivKey(privKey, passphrase)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 	fmt.Printf("Created new account: %s\nAddress:%s", acc, addr)
 }
@@ -176,8 +210,37 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func listTransactionsCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("listtransactions called")
-	if len(args) > 0 {
-		client.ListTransactions(viper.GetViper(), args[0])
+	var addr string
+	var offset, limit uint32
+	if len(args) < 1 {
+		fmt.Println("Param address required")
+		return
 	}
+	addr = args[0]
+	if len(args) > 2 {
+		uint64Val, err := strconv.ParseUint(args[2], 10, 32)
+		if err != nil {
+			fmt.Println("Invalid param limit", err)
+			return
+		}
+		offset = uint32(uint64Val)
+	} else {
+		limit = 20
+	}
+	if len(args) > 1 {
+		uint64Val, err := strconv.ParseUint(args[1], 10, 32)
+		if err != nil {
+			fmt.Println("Invalid param offset", err)
+			return
+		}
+		limit = uint32(uint64Val)
+	} else {
+		offset = 0
+	}
+	txs, err := client.ListTransactions(viper.GetViper(), addr, offset, limit)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(util.PrettyPrint(txs))
 }

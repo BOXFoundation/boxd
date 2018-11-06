@@ -16,8 +16,10 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
@@ -40,6 +42,7 @@ const (
 	sequenceLockTimeGranularity = 9
 	unminedHeight               = 0x7fffffff
 	MaxBlocksPerSync            = 1024
+	BlockFilterCapacity         = 100000
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -63,6 +66,7 @@ type BlockChain struct {
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               types.SyncManager
+	filterHolder              BloomFilterHolder
 }
 
 // NewBlockChain return a blockchain.
@@ -74,6 +78,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
+		filterHolder:              NewFilterHolder(),
 		bus:                       eventbus.Default(),
 	}
 
@@ -109,6 +114,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.tail = tail
 	b.LongestChainHeight = tail.Height
 
+	err = b.loadFilters()
+	if err != nil {
+		logger.Error("Fail to load filters", err)
+	}
+
 	return b, nil
 }
 
@@ -116,6 +126,65 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.SyncManager) {
 	chain.consensus = consensus
 	chain.syncManager = syncManager
+}
+
+func (chain *BlockChain) loadFilters() error {
+	var i uint32 = 1
+	for ; i <= chain.LongestChainHeight; i++ {
+		block, err := chain.LoadBlockByHeight(i)
+		if err != nil {
+			logger.Error("Error try to load block at height", i, err)
+			return core.ErrWrongBlockHeight
+		}
+		utxoSet := NewUtxoSet()
+		err = utxoSet.LoadBlockUtxos(block, chain.db)
+		if err != nil {
+			logger.Error("Error Loading block utxo", err)
+			return err
+		}
+		if err := chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), func() bloom.Filter {
+			return block.GetFilterForTransactionScript(utxoSet.utxoMap)
+		}); err != nil {
+			logger.Error("Failed to addFilter", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// GetTransactions search the main chain about transaction relate to give address
+func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transaction, error) {
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
+	logger.Info(len(hashes), " blocks searched as related to address ", addr.String())
+	utxoSet := NewUtxoSet()
+	var txs []*types.Transaction
+	for _, hash := range hashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		for _, tx := range block.Txs {
+			isRelated := false
+			for index, vout := range tx.Vout {
+				if bytes.Equal(vout.ScriptPubKey, payToPubKeyHashScript) {
+					utxoSet.AddUtxo(tx, uint32(index), block.Height)
+					isRelated = true
+				}
+			}
+			for _, vin := range tx.Vin {
+				if utxoSet.FindUtxo(vin.PrevOutPoint) != nil {
+					delete(utxoSet.utxoMap, vin.PrevOutPoint)
+					isRelated = true
+				}
+			}
+			if isRelated {
+				txs = append(txs, tx)
+			}
+		}
+	}
+	logger.Info(len(txs), " transactions found")
+	return txs, nil
 }
 
 // implement interface service.Server
@@ -269,9 +338,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 		return false, core.ErrWrongBlockHeight
 	}
 
-	if err := chain.StoreBlockToDb(block); err != nil {
-		return false, err
-	}
 	chain.cache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
@@ -310,7 +376,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	// chain.sendNotification(NTBlockAccepted, block)
 
 	// This block is now the end of the best chain.
-	chain.SetTailBlock(block, utxoSet)
+	if err := chain.SetTailBlock(block, utxoSet); err != nil {
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		return false, err
+	}
 	return true, nil
 }
 
@@ -411,11 +480,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		if totalFees < lastTotalFees {
 			return core.ErrBadFees
 		}
-
-		// Update utxos by applying this tx
-		if err := utxoSet.ApplyTx(tx, block.Height); err != nil {
-			return err
-		}
 	}
 
 	// Ensure coinbase does not output more than block reward.
@@ -444,8 +508,13 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 			return core.ErrUnfinalizedTx
 		}
 	}
-
-	chain.SetTailBlock(block, utxoSet)
+	if err := chain.applyBlock(block, utxoSet); err != nil {
+		return err
+	}
+	if err := chain.SetTailBlock(block, utxoSet); err != nil {
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		return err
+	}
 	// Notify others such as mempool.
 	chain.notifyBlockConnectionUpdate(block, true)
 	return nil
@@ -505,6 +574,8 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error
 		return err
 	}
 
+	chain.db.Del(BlockKey(block.BlockHash()))
+
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
@@ -542,6 +613,7 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.revertBlock(detachBlock, utxoSet); err != nil {
 			return err
 		}
+		chain.filterHolder.ResetFilters(detachBlock.Height)
 	}
 
 	// Attach the blocks that form the new chain to the main chain starting at the
@@ -600,24 +672,32 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 
 // ListAllUtxos list all the available utxos for testing purpose
 func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
-	utxoSet := NewUtxoSet()
-	err := utxoSet.ApplyBlock(chain.tail)
-	return utxoSet.utxoMap, err
+	return make(map[types.OutPoint]*types.UtxoWrap), nil
 }
 
-// LoadUtxoByPubKeyScript list all the available utxos owned by a public key bytes
-func (chain *BlockChain) LoadUtxoByPubKeyScript(pubkey []byte) (map[types.OutPoint]*types.UtxoWrap, error) {
-	allUtxos, err := chain.ListAllUtxos()
-	if err != nil {
-		return nil, err
-	}
-	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
-	for entry, utxo := range allUtxos {
-		if bytes.Equal(utxo.Output.ScriptPubKey, pubkey) {
-			utxoMap[entry] = utxo
+// LoadUtxoByAddress list all the available utxos owned by an address
+func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
+	logger.Debug(addr.String(), " related blocks", util.PrettyPrint(blockHashes))
+	utxos := make(map[types.OutPoint]*types.UtxoWrap)
+	utxoSet := NewUtxoSet()
+	for _, hash := range blockHashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
+			return nil, err
 		}
 	}
-	return utxoMap, nil
+	for key, value := range utxoSet.utxoMap {
+		if bytes.Equal(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
+			logger.Info("utxo: ", util.PrettyPrint(value))
+			utxos[key] = value
+		}
+	}
+	return utxos, nil
 }
 
 // GetBlockHeight returns current height of main chain
@@ -637,6 +717,11 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 // SetTailBlock sets chain tail block.
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 
+	if err := chain.filterHolder.AddFilter(tail.Height, *tail.BlockHash(), chain.DB(), func() bloom.Filter {
+		return tail.GetFilterForTransactionScript(utxoSet.utxoMap)
+	}); err != nil {
+		return err
+	}
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
 		return err
