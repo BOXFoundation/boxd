@@ -30,6 +30,7 @@ message MessageHeader {
 
 message Peers {
     repeated PeerInfo peers = 1;
+    bool isSyncing = 2;
 }
 
 message PeerInfo {

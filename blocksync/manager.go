@@ -176,6 +176,9 @@ func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net, consensus *dpo
 
 // Run start sync task and handle sync message
 func (sm *SyncManager) Run() {
+	sm.chain.Bus().Reply(eventbus.TopicConnEvent, func(syncCh chan<- bool) {
+		syncCh <- sm.status != freeStatus
+	}, false)
 	// Already started?
 	if i := atomic.AddInt32(&sm.svrStarted, 1); i != 1 {
 		logger.Infof("SyncManager server has started. no tried %d", i)
