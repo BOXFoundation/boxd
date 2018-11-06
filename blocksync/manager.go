@@ -480,6 +480,7 @@ func (sm *SyncManager) fetchRemoteBlocks(fbh *FetchBlockHeaders) (peer.ID, error
 	}
 	logger.Infof("send message[0x%X] body:%+v to peer %s", p2p.BlockChunkRequest,
 		fbh, pid.Pretty())
+	sm.stalePeers[pid] = blocksPeerStatus
 	return pid, sm.p2pNet.SendMessageToPeer(p2p.BlockChunkRequest, fbh, pid)
 }
 
@@ -516,8 +517,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 			sm.getStatus())
 	}
 	popErrFlagChan(sm.locateErrCh)
-	//if !sm.isPeerStatusFor(locatePeerStatus, msg.From()) {
-	if sm.isPeerStatusFor(availablePeerStatus, msg.From()) {
+	if !sm.isPeerStatusFor(locatePeerStatus, msg.From()) {
 		return fmt.Errorf("receive LocateForkPointResponse from non-sync peer[%s]",
 			msg.From().Pretty())
 	}
@@ -580,8 +580,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 			sm.getStatus())
 	}
 	popEmptyChan(sm.checkErrCh)
-	//if !sm.isPeerStatusFor(checkPeerStatus, msg.From()) {
-	if sm.isPeerStatusFor(availablePeerStatus, msg.From()) {
+	if !sm.isPeerStatusFor(checkedPeerStatus, msg.From()) {
 		sm.checkErrCh <- struct{}{}
 		return fmt.Errorf("receive LocateCheckResponse from non-sync peer[%s]",
 			msg.From().Pretty())
@@ -651,8 +650,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	}
 	pid := msg.From()
 	popEmptyChan(sm.syncErrCh)
-	//if !sm.isPeerStatusFor(locatePeerStatus, msg.From()) {
-	if sm.isPeerStatusFor(availablePeerStatus, pid) {
+	if !sm.isPeerStatusFor(blocksPeerStatus, msg.From()) {
 		sm.syncErrCh <- struct{}{}
 		return fmt.Errorf("receive BlockChunkResponse from non-sync peer[%s]",
 			pid.Pretty())
