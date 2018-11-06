@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hashicorp/golang-lru"
+
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
@@ -48,6 +50,7 @@ type Dpos struct {
 	proc        goprocess.Process
 	cfg         *Config
 	miner       *wallet.Account
+	cache       *lru.Cache
 	enableMint  bool
 	disableMint bool
 }
@@ -61,6 +64,12 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		proc:   goprocess.WithParent(parent),
 		cfg:    cfg,
 	}
+
+	cache, err := lru.New(512)
+	if err != nil {
+		return nil, err
+	}
+	dpos.cache = cache
 
 	context := &ConsensusContext{}
 	dpos.context = context
@@ -431,8 +440,28 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 	return nil
 }
 
+// VerifyBlock consensus verifies block.
+func (dpos *Dpos) VerifyBlock(block *types.Block) (bool, error) {
+	if ok, err := dpos.verifySign(block); err != nil || !ok {
+		return false, ErrFailedToVerifySign
+	}
+	if ok := dpos.verifyRepeatedMint(block); !ok {
+		return false, ErrRepeatedMintAtSameTime
+	}
+	return true, nil
+}
+
+func (dpos *Dpos) verifyRepeatedMint(block *types.Block) bool {
+	if exist, ok := dpos.cache.Get(block.Header.TimeStamp); ok {
+		if exist.(*types.Block).BlockHash() != block.BlockHash() {
+			return false
+		}
+	}
+	return true
+}
+
 // VerifySign consensus verifies signature info.
-func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
+func (dpos *Dpos) verifySign(block *types.Block) (bool, error) {
 
 	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
 	if err != nil {

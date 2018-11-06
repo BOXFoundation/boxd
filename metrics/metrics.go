@@ -5,7 +5,6 @@
 package metrics
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
@@ -20,16 +19,7 @@ const (
 	interval = 2 * time.Second
 )
 
-var (
-	quitCh chan (bool)
-)
-
 func init() {
-	EnableMetrics()
-}
-
-// EnableMetrics enable the metrics service
-func EnableMetrics() {
 	exp.Exp(metrics.DefaultRegistry)
 }
 
@@ -38,51 +28,10 @@ func Run(config *Config, parent goprocess.Process) {
 	if !config.Enable {
 		return
 	}
-	// collect sys metrics
-	parent.Go(func(p goprocess.Process) {
-		collectSystemMetrics()
-	})
 	// insert metrics data to influxdb
 	parent.Go(func(p goprocess.Process) {
 		NewInfluxDB(metrics.DefaultRegistry, interval, config.Host, config.Port, config.Db, config.User, config.Password, config.Tags)
 	})
-}
-
-func collectSystemMetrics() {
-	memstats := make([]*runtime.MemStats, 2)
-	for i := 0; i < len(memstats); i++ {
-		memstats[i] = new(runtime.MemStats)
-	}
-
-	allocs := metrics.GetOrRegisterMeter("system.allocs", nil)
-	sys := metrics.GetOrRegisterMeter("system.sys", nil)
-	frees := metrics.GetOrRegisterMeter("system.frees", nil)
-	heapInuse := metrics.GetOrRegisterMeter("system.heapInuse", nil)
-	stackInuse := metrics.GetOrRegisterMeter("system.stackInuse", nil)
-	releases := metrics.GetOrRegisterMeter("system.release", nil)
-
-	for i := 1; ; i++ {
-		select {
-		case <-quitCh:
-			return
-		default:
-			runtime.ReadMemStats(memstats[i%2])
-			allocs.Mark(int64(memstats[i%2].Alloc - memstats[(i-1)%2].Alloc))
-			sys.Mark(int64(memstats[i%2].Sys - memstats[(i-1)%2].Sys))
-			frees.Mark(int64(memstats[i%2].Frees - memstats[(i-1)%2].Frees))
-			heapInuse.Mark(int64(memstats[i%2].HeapInuse - memstats[(i-1)%2].HeapInuse))
-			stackInuse.Mark(int64(memstats[i%2].StackInuse - memstats[(i-1)%2].StackInuse))
-			releases.Mark(int64(memstats[i%2].HeapReleased - memstats[(i-1)%2].HeapReleased))
-
-			time.Sleep(2 * time.Second)
-		}
-	}
-
-}
-
-// Stop metrics monitor
-func Stop() {
-	quitCh <- true
 }
 
 // NewCounter create a new metrics Counter

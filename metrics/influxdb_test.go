@@ -12,7 +12,6 @@ import (
 
 func TestInfluxDb(t *testing.T) {
 	registry := metrics.DefaultRegistry
-	go collectSystemMetrics()
 	NewInfluxDB(registry, interval, "http://localhost", 8086, "box", "", "", nil)
 
 }
