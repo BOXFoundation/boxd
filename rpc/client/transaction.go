@@ -31,7 +31,7 @@ func CreateTransaction(v *viper.Viper, fromAddress types.Address, targets map[ty
 	if err != nil {
 		return nil, err
 	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse, amount, false, signer)
+	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse, nil, 0, amount, false, signer)
 	if err != nil {
 		return nil, err
 	}

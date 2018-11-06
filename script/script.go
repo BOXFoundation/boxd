@@ -18,6 +18,11 @@ import (
 
 var logger = log.NewLogger("script") // logger
 
+const (
+	p2PKHScriptLen = 25
+	p2SHScriptLen  = 23
+)
+
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
 	return NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
@@ -424,6 +429,10 @@ func (s *Script) disasm() string {
 
 // IsPayToPubKeyHash returns if the script is p2pkh
 func (s *Script) IsPayToPubKeyHash() bool {
+	if len(*s) != p2PKHScriptLen {
+		return false
+	}
+
 	r := s.parse()
 	return len(r) == 5 && reflect.DeepEqual(r[0], OPDUP) && reflect.DeepEqual(r[1], OPHASH160) &&
 		isOperandOfLen(r[2], 20) && reflect.DeepEqual(r[3], OPEQUALVERIFY) && reflect.DeepEqual(r[4], OPCHECKSIG)
@@ -431,6 +440,10 @@ func (s *Script) IsPayToPubKeyHash() bool {
 
 // IsPayToScriptHash returns if the script is p2sh
 func (s *Script) IsPayToScriptHash() bool {
+	if len(*s) != p2SHScriptLen {
+		return false
+	}
+
 	// OP_HASH160 <160-bit redeemp script hash> OP_EQUAL
 	r := s.parse()
 	return len(r) == 3 && reflect.DeepEqual(r[0], OPHASH160) && isOperandOfLen(r[1], 20) && reflect.DeepEqual(r[2], OPEQUAL)

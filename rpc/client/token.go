@@ -11,7 +11,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/spf13/viper"
 )
 
@@ -34,7 +33,8 @@ func CreateTokenIssueTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyByte
 	if err != nil {
 		return nil, err
 	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse, dustLimit, false, signer)
+	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse,
+		nil, 0, dustLimit, false, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func CreateTokenIssueTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyByte
 
 // CreateTokenTransferTx retrieves all the token utxo of a public key, and use some of them to fund token transfer tx
 func CreateTokenTransferTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes []byte,
-	amount uint64, signer crypto.Signer) (*types.Transaction, error) {
+	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, amount uint64, signer crypto.Signer) (*types.Transaction, error) {
 	utxoResponse, err := FundTransaction(v, fromPubkeyHash, amount)
 
 	if err != nil {
@@ -66,11 +66,12 @@ func CreateTokenTransferTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyB
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	scriptPubKey, err := getTransferTokenScript(toPubKeyHash, amount)
+	scriptPubKey, err := getTransferTokenScript(toPubKeyHash, tokenTxHash, tokenTxOutIdx, amount)
 	if err != nil {
 		return nil, err
 	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse, amount, true, signer)
+	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse,
+		tokenTxHash, tokenTxOutIdx, amount, true, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func CreateTokenTransferTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyB
 }
 
 // GetTokenBalance returns the token balance of a public key
-func GetTokenBalance(v *viper.Viper, pubkeyHash []byte) uint64 {
+func GetTokenBalance(v *viper.Viper, pubkeyHash []byte, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
 	utxoResponse, err := FundTransaction(v, pubkeyHash, 0)
 	if err != nil {
 		return 0
@@ -104,12 +105,7 @@ func GetTokenBalance(v *viper.Viper, pubkeyHash []byte) uint64 {
 		if utxo.IsSpent {
 			continue
 		}
-		scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
-		if scriptPubKey.IsPayToPubKeyHash() {
-			// not token
-			continue
-		}
-		currentAmount += scriptPubKey.GetTokenAmount()
+		currentAmount += getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
 	}
 	return currentAmount
 }

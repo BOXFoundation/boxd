@@ -5,6 +5,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -59,18 +60,49 @@ func getIssueTokenScript(pubKeyHash []byte, tokenName string, tokenTotalSupply u
 }
 
 // returns token transfer scriptPubKey
-func getTransferTokenScript(pubKeyHash []byte, amount uint64) ([]byte, error) {
+func getTransferTokenScript(pubKeyHash []byte, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, amount uint64) ([]byte, error) {
 	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
 	if err != nil {
 		return nil, err
 	}
-	transferParams := &script.TransferParams{Amount: amount}
+
+	transferParams := &script.TransferParams{}
+	transferParams.Hash = *tokenTxHash
+	transferParams.Index = tokenTxOutIdx
+	transferParams.Amount = amount
+
 	script := script.TransferTokenScript(addr.ScriptAddress(), transferParams)
 	return *script, nil
 }
 
-// colored: use colored or uncolored utxo/coin
-func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool) ([]*rpcpb.Utxo, error) {
+// get token amount in the passed utxo
+func getUtxoTokenAmount(utxo *rpcpb.Utxo, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
+	scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
+
+	if scriptPubKey.IsTokenIssue() {
+		// token issurance utxo
+		// no need to check error since it will not err
+		if bytes.Equal(utxo.OutPoint.Hash, tokenTxHash.GetBytes()) && utxo.OutPoint.Index == tokenTxOutIdx {
+			params, _ := scriptPubKey.GetIssueParams()
+			return params.TotalSupply
+		}
+	}
+	if scriptPubKey.IsTokenTransfer() {
+		// token transfer utxo
+		// no need to check error since it will not err
+		params, _ := scriptPubKey.GetTransferParams()
+		if bytes.Equal(params.Hash.GetBytes(), tokenTxHash.GetBytes()) && params.Index == tokenTxOutIdx {
+			return params.Amount
+		}
+	}
+	return 0
+}
+
+// colored: use colored or uncolored utxos/coins
+// tokenTxHash & tokenTxOutIdx only valid for colored utxos
+func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
+	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) ([]*rpcpb.Utxo, error) {
+
 	utxoList := resp.GetUtxos()
 	sort.Slice(utxoList, func(i, j int) bool {
 		// TODO: sort by token amount for token utxos
@@ -82,20 +114,22 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool)
 		if utxo.IsSpent {
 			continue
 		}
-		scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
+
 		var amount uint64
 		if !colored {
+			scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
 			if !scriptPubKey.IsPayToPubKeyHash() {
 				continue
 			}
 			// p2pkh tx
 			amount = utxo.GetTxOut().GetValue()
 		} else {
-			if scriptPubKey.IsPayToPubKeyHash() {
+			// token tx
+			amount = getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
+			if amount == 0 {
+				// non-token or different token
 				continue
 			}
-			// token tx
-			amount = scriptPubKey.GetTokenAmount()
 		}
 		currentAmount += amount
 		resultList = append(resultList, utxo)
@@ -144,7 +178,7 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 	}
 
 	tx := &corepb.Transaction{}
-	var current, total uint64
+	var currentAmount, total uint64
 	txIn := make([]*corepb.TxIn, len(utxos))
 	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
@@ -156,11 +190,11 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 			ScriptSig: []byte{},
 			Sequence:  uint32(0),
 		}
+		// no need to check utxo as selectUtxo() already filters
 		if !colored {
-			current += utxo.GetTxOut().GetValue()
+			currentAmount += utxo.GetTxOut().GetValue()
 		} else {
-			tokenScript := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
-			current += tokenScript.GetTokenAmount()
+			currentAmount += getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
 		}
 	}
 	tx.Vin = txIn
@@ -185,8 +219,8 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 	}
 
 	if !colored {
-		if current > total {
-			change := current - total
+		if currentAmount > total {
+			change := currentAmount - total
 			changeScript, err := getPayToPubKeyHashScript(fromPubKeyHash)
 			if err != nil {
 				return nil, err
@@ -198,7 +232,7 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 		}
 	} else {
 		if current > total {
-			change := current - total
+			change := currentAmount - total
 			changeScript, err := getTransferTokenScript(fromPubKeyHash, change)
 			if err != nil {
 				return nil, err
@@ -216,7 +250,7 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 				return nil, fmt.Errorf("vin size is not 1: %d or vout size is not 2: %d", len(tx.Vin), len(tx.Vout))
 			}
 			// need one uncolored utxo to cover associated colored output box deficit
-			uncoloredUtxos, err := selectUtxo(utxoResp, dustLimit, false)
+			uncoloredUtxos, err := selectUtxo(utxoResp, dustLimit, false, nil, 0)
 			if err != nil {
 				return nil, err
 			}

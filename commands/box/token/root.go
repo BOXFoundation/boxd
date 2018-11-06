@@ -11,6 +11,7 @@ import (
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -105,14 +106,17 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("transferToken called")
-	if len(args) != 3 {
+	if len(args) != 5 {
 		fmt.Println("Invalid argument number")
 		return
 	}
 	toAddr := &types.AddressPubKeyHash{}
 	err1 := toAddr.SetString(args[1])
-	amount, err2 := strconv.Atoi(args[2])
-	if err1 != nil || err2 != nil {
+	tokenTxHash := &crypto.HashType{}
+	err2 := tokenTxHash.SetString(args[2])
+	tokenTxOutIdx, err3 := strconv.Atoi(args[3])
+	amount, err4 := strconv.Atoi(args[4])
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
 		fmt.Println("Invalid argument format")
 		return
 	}
@@ -137,7 +141,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	tx, err := client.CreateTokenTransferTx(viper.GetViper(), account.PubKeyHash(),
-		toAddr.ScriptAddress(), account.PublicKey(), uint64(amount), account)
+		toAddr.ScriptAddress(), account.PublicKey(), tokenTxHash, uint32(tokenTxOutIdx), uint64(amount), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -147,8 +151,15 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getTokenBalance called")
-	if len(args) != 1 {
+	if len(args) != 3 {
 		fmt.Println("Invalid argument number")
+		return
+	}
+	tokenTxHash := &crypto.HashType{}
+	err1 := tokenTxHash.SetString(args[1])
+	tokenTxOutIdx, err2 := strconv.Atoi(args[2])
+	if err1 != nil || err2 != nil {
+		fmt.Println("Invalid argument format")
 		return
 	}
 	wltMgr, err := wallet.NewWalletManager(walletDir)
@@ -162,6 +173,7 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("Account %s not managed\n", args[0])
 		return
 	}
-	balance := client.GetTokenBalance(viper.GetViper(), account.PubKeyHash())
+
+	balance := client.GetTokenBalance(viper.GetViper(), account.PubKeyHash(), tokenTxHash, uint32(tokenTxOutIdx))
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }
