@@ -40,7 +40,6 @@ require (
 	github.com/hoisie/redis v0.0.0-20160730154456-b5c6e81454e0 // indirect
 	github.com/huin/goupnp v1.0.0 // indirect
 	github.com/influxdata/influxdb v1.6.3 // indirect
-	github.com/influxdata/platform v0.0.0-20181107003602-9b529771ebb3 // indirect
 	github.com/ipfs/go-cid v0.9.0 // indirect
 	github.com/ipfs/go-datastore v3.2.0+incompatible // indirect
 	github.com/ipfs/go-detect-race v1.0.1 // indirect
@@ -98,6 +97,8 @@ require (
 	github.com/libp2p/go-tcp-transport v2.0.15+incompatible // indirect
 	github.com/libp2p/go-testutil v1.2.9 // indirect
 	github.com/libp2p/go-ws-transport v2.0.14+incompatible // indirect
+	github.com/mattn/go-colorable v0.0.9 // indirect
+	github.com/mattn/go-isatty v0.0.4 // indirect
 	github.com/mattn/goveralls v0.0.2 // indirect
 	github.com/mdempsky/gocode v0.0.0-20181016185935-22f3bf7a9256 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
@@ -111,12 +112,14 @@ require (
 	github.com/multiformats/go-multihash v0.0.0-20180824052908-bffb9dfeaca3
 	github.com/multiformats/go-multistream v0.3.9 // indirect
 	github.com/onsi/gomega v1.4.2 // indirect
+	github.com/opentracing/opentracing-go v1.0.2 // indirect
 	github.com/peterh/liner v1.1.0 // indirect
 	github.com/ramya-rao-a/go-outline v0.0.0-20170803230019-9e9d089bb61a // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
 	github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5 // indirect
 	github.com/rogpeppe/godef v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.1.1
+	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72 // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/viper v1.2.1
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
