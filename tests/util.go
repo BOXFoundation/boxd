@@ -100,6 +100,6 @@ func GetIniKV(iniBuf, key string) string {
 	return ""
 }
 
-func removeNewKeystoreFiles() {
+func removeKeystoreFiles(addrs ...string) {
 
 }
