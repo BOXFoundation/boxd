@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -23,7 +24,8 @@ import (
 // test setup
 var (
 	proc        = goprocess.WithSignals(os.Interrupt)
-	txpool      = NewTransactionPool(proc, p2p.NewDummyPeer(), chain.NewTestBlockChain())
+	bus         = eventbus.New()
+	txpool      = NewTransactionPool(proc, p2p.NewDummyPeer(), chain.NewTestBlockChain(), bus)
 	chainHeight = uint32(0)
 
 	txOutIdx = uint32(0)

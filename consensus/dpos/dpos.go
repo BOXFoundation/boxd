@@ -65,11 +65,7 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		cfg:    cfg,
 	}
 
-	cache, err := lru.New(512)
-	if err != nil {
-		return nil, err
-	}
-	dpos.cache = cache
+	dpos.cache, _ = lru.New(512)
 
 	context := &ConsensusContext{}
 	dpos.context = context

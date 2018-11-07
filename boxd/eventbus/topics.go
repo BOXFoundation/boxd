@@ -14,6 +14,12 @@ const (
 	// TopicConnEvent is a event topic of events for score updated
 	TopicConnEvent = "p2p:connevent"
 
+	////////////////////////////// chain /////////////////////////////
+
+	// TopicChainUpdate is topic for notifying that the chain is updated,
+	// either chain reorg, or chain extended.
+	TopicChainUpdate = "chain:update"
+
 	////////////////////////////// db /////////////////////////////
 
 	// TopicGetDatabaseKeys is topic for get keys of a specified storage

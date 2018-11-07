@@ -28,7 +28,7 @@ require (
 	github.com/gogo/protobuf v1.1.1
 	github.com/golang/lint v0.0.0-20181011164241-5906bd5c48cd // indirect
 	github.com/golang/protobuf v1.2.0
-	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/uuid v0.0.0-20180828181555-e704694aed0e // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.5.1
@@ -120,7 +120,7 @@ require (
 	github.com/opentracing/opentracing-go v0.0.0-20180606204148-bd9c31933947 // indirect
 	github.com/peterh/liner v1.1.0 // indirect
 	github.com/ramya-rao-a/go-outline v0.0.0-20170803230019-9e9d089bb61a // indirect
-	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
 	github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5 // indirect
 	github.com/rogpeppe/godef v1.0.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
@@ -130,9 +130,11 @@ require (
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spf13/viper v1.2.1
 	github.com/sqs/goreturns v0.0.0-20180302073349-83e02874ec12 // indirect
+	github.com/stathat/go v1.0.0 // indirect
 	github.com/syndtr/goleveldb v0.0.0-20181012014443-6b91fda63f2e // indirect
 	github.com/tecbot/gorocksdb v0.0.0-20180907100951-214b6b7bc0f0
 	github.com/uudashr/gopkgs v2.0.1+incompatible // indirect
+	github.com/vrischmann/go-metrics-influxdb v0.0.0-20160917065939-43af8332c303
 	github.com/whyrusleeping/base32 v0.0.0-20170828182744-c30ac30633cc // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc // indirect
