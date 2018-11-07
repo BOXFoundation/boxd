@@ -122,6 +122,10 @@ func (c *Config) Prepare() {
 		}
 		c.P2p.KeyPath = filepath.Join(c.Workspace, keyPath)
 	}
+
+	// dpos
+	var keystorePath = c.Dpos.Keypath
+	c.Dpos.Keypath = filepath.Join(c.Workspace, keystorePath)
 }
 
 func mkDirAll(p string) {
