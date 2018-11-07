@@ -95,6 +95,7 @@ func (pc *PeriodContext) FromProtoMessage(message proto.Message) error {
 		if message != nil {
 			periods := make([]*Period, len(message.Period))
 			periodAddrs := make([]types.AddressHash, len(message.Period))
+			periodPeers := make([]string, len(message.Period))
 			for k, v := range message.Period {
 				period := new(Period)
 				if err := period.FromProtoMessage(v); err != nil {
@@ -102,6 +103,7 @@ func (pc *PeriodContext) FromProtoMessage(message proto.Message) error {
 				}
 				periods[k] = period
 				periodAddrs[k] = period.addr
+				periodPeers[k] = period.peerID
 			}
 
 			nextPeriods := make([]*Period, len(message.NextPeriod))
@@ -116,6 +118,7 @@ func (pc *PeriodContext) FromProtoMessage(message proto.Message) error {
 			pc.period = periods
 			pc.nextPeriod = nextPeriods
 			pc.periodAddrs = periodAddrs
+			pc.periodPeers = periodPeers
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

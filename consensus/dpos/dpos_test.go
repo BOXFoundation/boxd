@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -36,12 +37,13 @@ var (
 
 	dpos, _      = NewDummyDpos(cfg)
 	dposMiner, _ = NewDummyDpos(cfgMiner)
+	bus          = eventbus.New()
 )
 
 func NewDummyDpos(cfg *Config) (*DummyDpos, error) {
 
 	blockchain := chain.NewTestBlockChain()
-	txPool := txpool.NewTransactionPool(blockchain.Proc(), p2p.NewDummyPeer(), blockchain)
+	txPool := txpool.NewTransactionPool(blockchain.Proc(), p2p.NewDummyPeer(), blockchain, bus)
 	dpos, err := NewDpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
 	blockchain.Setup(dpos, nil)
 	dpos.Setup()
@@ -107,14 +109,14 @@ func TestDpos_signBlock(t *testing.T) {
 	block.Header.TimeStamp = 1541077396
 	err := dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err := dposMiner.dpos.VerifySign(block)
+	ok, err := dposMiner.dpos.verifySign(block)
 	ensure.DeepEqual(t, err, ErrWrongTimeToMint)
 	ensure.DeepEqual(t, ok, false)
 
 	block.Header.TimeStamp = 1541077395
 	err = dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err = dposMiner.dpos.VerifySign(block)
+	ok, err = dposMiner.dpos.verifySign(block)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, ok, true)
 }

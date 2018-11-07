@@ -34,6 +34,13 @@ rpc:
         address: 172.27.1.12
         port: 19180
 dpos:
-    keypath: keyfile/key2.keystore
+    keypath: key.keystore
     enable_mint: true
     passphrase: zaq12wsx
+metrics:
+    enable: false
+    host: http://localhost:8086
+    db: box
+    user: 
+    password: 
+    tags: [region:us-west, host:box-2]

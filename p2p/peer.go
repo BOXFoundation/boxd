@@ -30,7 +30,11 @@ import (
 	multiaddr "github.com/multiformats/go-multiaddr"
 )
 
-var logger = log.NewLogger("p2p") // logger
+var (
+	logger = log.NewLogger("p2p")
+
+	isSynced = false
+)
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
@@ -78,6 +82,9 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 	}
 	boxPeer.connmgr = NewConnManager(ps)
 	boxPeer.scoremgr = NewScoreManager(proc, bus, boxPeer)
+
+	// seed peer never sync
+	isSynced = len(config.Seeds) == 0
 
 	opts := []libp2p.Option{
 		// TODO: to support ipv6
@@ -299,4 +306,9 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 		return true
 	})
 	return pid
+}
+
+// UpdateSynced update peers' isSynced
+func UpdateSynced(synced bool) {
+	isSynced = synced
 }

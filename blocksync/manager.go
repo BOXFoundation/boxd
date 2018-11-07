@@ -202,12 +202,12 @@ func (sm *SyncManager) StartSync() {
 }
 
 func (sm *SyncManager) subscribeMessageNotifiee() {
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, p2p.Repeatable, sm.messageCh))
 }
 
 func (sm *SyncManager) handleSyncMessage() {
@@ -243,6 +243,7 @@ func (sm *SyncManager) handleSyncMessage() {
 }
 
 func (sm *SyncManager) startSync() {
+	p2p.UpdateSynced(false)
 	// prevent startSync being executed again
 	sm.setStatus(locateStatus)
 	// sleep 5s to wait for connections to establish
@@ -251,6 +252,7 @@ func (sm *SyncManager) startSync() {
 	defer func() {
 		sm.consensus.RecoverMint()
 		sm.resetAll()
+		p2p.UpdateSynced(true)
 		logger.Info("sync completed and exit!")
 	}()
 
@@ -723,7 +725,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	go func() {
 		for _, b := range sb.Blocks {
 			sm.processMtx.Lock()
-			_, _, err := sm.chain.ProcessBlock(b, false)
+			_, _, err := sm.chain.ProcessBlock(b, false, false)
 			sm.processMtx.Unlock()
 			if err != nil {
 				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {

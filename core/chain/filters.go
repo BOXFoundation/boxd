@@ -51,6 +51,9 @@ func (holder *MemoryBloomFilterHolder) AddFilter(
 	holder.mux.Lock()
 	defer holder.mux.Unlock()
 
+	if holder.filterExists(height, hash) {
+		return nil
+	}
 	if len(holder.entries) != int(height-1) {
 		logger.Errorf("Invalid Filter Height: holder.entries: %d, height: %d", len(holder.entries), height)
 		return core.ErrInvalidFilterHeight
@@ -74,6 +77,15 @@ func (holder *MemoryBloomFilterHolder) AddFilter(
 		db.Put(filterKey, filterBytes)
 	}
 	return nil
+}
+
+func (holder *MemoryBloomFilterHolder) filterExists(height uint32, hash crypto.HashType) bool {
+	arrIndex := height - 1
+	if arrIndex >= uint32(len(holder.entries)) {
+		return false
+	}
+	filter := holder.entries[arrIndex]
+	return filter.Height == height && filter.BlockHash.IsEqual(&hash)
 }
 
 // AddFilter adds a filter of block at height

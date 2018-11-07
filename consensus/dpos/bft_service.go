@@ -59,11 +59,8 @@ func NewBftService(consensus *Dpos) (*BftService, error) {
 		cache:             new(sync.Map),
 		proc:              goprocess.WithParent(consensus.proc),
 	}
-	var err error
-	bft.existEternalBlockMsgKey, err = lru.New(64)
-	if err != nil {
-		return nil, err
-	}
+
+	bft.existEternalBlockMsgKey, _ = lru.New(64)
 	return bft, nil
 }
 
@@ -75,7 +72,7 @@ func (bft *BftService) Start() {
 }
 
 func (bft *BftService) subscribeMessageNotifiee() {
-	bft.notifiee.Subscribe(p2p.NewNotifiee(p2p.EternalBlockMsg, bft.eternalBlockMsgCh))
+	bft.notifiee.Subscribe(p2p.NewNotifiee(p2p.EternalBlockMsg, p2p.Repeatable, bft.eternalBlockMsgCh))
 }
 
 func (bft *BftService) loop(p goprocess.Process) {
@@ -181,7 +178,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 	// quick check
 	peerID := msg.From().Pretty()
 	if !util.InArray(peerID, bft.consensus.context.periodContext.periodPeers) {
-		return ErrIllegalMsg
+		return ErrNotMintPeer
 	}
 
 	eternalBlockMsg := new(EternalBlockMsg)

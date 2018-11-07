@@ -62,11 +62,11 @@ var GenesisPeriod = []map[string]string{
 	},
 	{
 		"addr":   "b1ZF5VWYdHv5RrRzP3SD5huGFyqWNq8rquJ",
-		"peerID": "12D3KooWDyVN22wTKTe77pvqSwBuAquPzPvK2NvxUjeYo8SNe6WA",
+		"peerID": "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
 	},
 	{
 		"addr":   "b1UHbLVzeFfwzEQyEbkpXCjjRPnCVxvCvZd",
-		"peerID": "12D3KooWJXvwqT1X3FNkC1f2fkvMQyWAZDcmXDGKP3swnSLJDCjm",
+		"peerID": "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
 	},
 }
 

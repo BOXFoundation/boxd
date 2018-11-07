@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -42,7 +44,9 @@ const (
 	sequenceLockTimeGranularity = 9
 	unminedHeight               = 0x7fffffff
 	MaxBlocksPerSync            = 1024
-	BlockFilterCapacity         = 100000
+
+	metricsLoopInterval = 2 * time.Second
+	BlockFilterCapacity = 100000
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -69,6 +73,13 @@ type BlockChain struct {
 	filterHolder              BloomFilterHolder
 }
 
+// UpdateMsg sent from blockchain to, e.g., mempool
+type UpdateMsg struct {
+	// block connected/disconnected from main chain
+	Connected bool
+	Block     *types.Block
+}
+
 // NewBlockChain return a blockchain.
 func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus) (*BlockChain, error) {
 
@@ -83,40 +94,31 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 
 	var err error
-	b.cache, err = lru.New(512)
-	if err != nil {
-		return nil, err
-	}
-	b.db, err = db.Table(BlockTableName)
-	if err != nil {
+	b.cache, _ = lru.New(512)
+
+	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
 	}
 
-	genesis, err := b.loadGenesis()
-	if err != nil {
+	if b.genesis, err = b.loadGenesis(); err != nil {
 		logger.Error("Failed to load genesis block ", err)
 		return nil, err
 	}
-	b.genesis = genesis
 
-	eternal, err := b.loadEternalBlock()
-	if err != nil {
+	if b.eternal, err = b.loadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
-	b.eternal = eternal
 
-	tail, err := b.LoadTailBlock()
-	if err != nil {
+	if b.tail, err = b.LoadTailBlock(); err != nil {
 		logger.Error("Failed to load tail block ", err)
 		return nil, err
 	}
-	b.tail = tail
-	b.LongestChainHeight = tail.Height
+	b.LongestChainHeight = b.tail.Height
 
-	err = b.loadFilters()
-	if err != nil {
+	if err = b.loadFilters(); err != nil {
 		logger.Error("Fail to load filters", err)
+		return nil, err
 	}
 
 	return b, nil
@@ -130,15 +132,15 @@ func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.Sync
 
 func (chain *BlockChain) loadFilters() error {
 	var i uint32 = 1
+	var utxoSet *UtxoSet
 	for ; i <= chain.LongestChainHeight; i++ {
 		block, err := chain.LoadBlockByHeight(i)
 		if err != nil {
 			logger.Error("Error try to load block at height", i, err)
 			return core.ErrWrongBlockHeight
 		}
-		utxoSet := NewUtxoSet()
-		err = utxoSet.LoadBlockUtxos(block, chain.db)
-		if err != nil {
+		utxoSet = NewUtxoSet()
+		if err = utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 			logger.Error("Error Loading block utxo", err)
 			return err
 		}
@@ -149,6 +151,7 @@ func (chain *BlockChain) loadFilters() error {
 			return err
 		}
 	}
+	utxoSet = nil
 	return nil
 }
 
@@ -219,15 +222,21 @@ func (chain *BlockChain) Stop() {
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
-	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
+	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, p2p.Unique, chain.newblockMsgCh))
 }
 
 func (chain *BlockChain) loop(p goprocess.Process) {
 	logger.Info("Waitting for new block message...")
+	metricsTicker := time.NewTicker(metricsLoopInterval)
+	defer metricsTicker.Stop()
 	for {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
+		case <-metricsTicker.C:
+			metrics.MetricsCachedBlockMsgGauge.Update(int64(len(chain.newblockMsgCh)))
+			metrics.MetricsBlockOrphanPoolSizeGauge.Update(int64(len(chain.hashToOrphanBlock)))
+			metrics.MetricsLruCacheBlockGauge.Update(int64(chain.cache.Len()))
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
@@ -244,7 +253,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if _, _, err := chain.ProcessBlock(block, false); err != nil && util.InArray(err, evilBehavior) {
+	if _, _, err := chain.ProcessBlock(block, false, true); err != nil && util.InArray(err, evilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
@@ -253,7 +262,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
+func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastConfirm bool) (bool, bool, error) {
 	blockHash := block.BlockHash()
 	logger.Infof("Processing block hash: %s", blockHash.String())
 
@@ -265,27 +274,30 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 
 	// The block must not already exist as an orphan.
 	if chain.isInOrphanPool(blockHash) {
-		logger.Warnf("already have block (orphan) %v", blockHash)
+		logger.Warnf("already have block (orphan) %v", blockHash.String())
 		return false, false, core.ErrOrphanBlockExists
 	}
 
-	ok, err := chain.consensus.VerifySign(block)
-	if err != nil || !ok {
-		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash(), block.Height)
-		return false, false, core.ErrInvalidBlockSignature
+	if ok, err := chain.consensus.VerifyBlock(block); err != nil || !ok {
+		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+		return false, false, core.ErrFailedToVerifyWithConsensus
 	}
 
 	if err := validateBlock(block, util.NewMedianTime()); err != nil {
-		logger.Error(err)
+		logger.Error("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
 		return false, false, err
 	}
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
+
 		// Orphan block.
-		logger.Infof("Adding orphan block %v with parent %v", *blockHash, prevHash)
+		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
-		// trigger sync
-		chain.syncManager.StartSync()
+		if chain.tail.Height < block.Height {
+			// trigger sync
+			chain.syncManager.StartSync()
+		}
+
 		return false, true, nil
 	}
 
@@ -301,11 +313,11 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, err
 	}
 
-	logger.Infof("Accepted block hash: %v", blockHash)
+	logger.Infof("Accepted block hash: %v", blockHash.String())
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
-	if chain.consensus.ValidateMiner() {
+	if chain.consensus.ValidateMiner() && fastConfirm {
 		chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
 
@@ -334,7 +346,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
-		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash, block.Height, parentBlock.Height)
+		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash.String(), block.Height, parentBlock.Height)
 		return false, core.ErrWrongBlockHeight
 	}
 
@@ -365,7 +377,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
-	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash)
+	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
 	if err := chain.reorganize(block, utxoSet); err != nil {
 		return false, err
 	}
@@ -377,7 +389,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 
 	// This block is now the end of the best chain.
 	if err := chain.SetTailBlock(block, utxoSet); err != nil {
-		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return false, err
 	}
 	return true, nil
@@ -512,7 +524,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		return err
 	}
 	if err := chain.SetTailBlock(block, utxoSet); err != nil {
-		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return err
 	}
 	// Notify others such as mempool.
@@ -595,11 +607,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 }
 
 func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connected bool) error {
-	updateMsg := UpdateMsg{
+	chain.bus.Publish(eventbus.TopicChainUpdate, &UpdateMsg{
 		Connected: connected,
 		Block:     block,
-	}
-	chain.notifiee.Notify(NewLocalMessage(p2p.ChainUpdateMsg, updateMsg))
+	})
 	return nil
 }
 
@@ -624,8 +635,12 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.applyBlock(attachBlock, utxoSet); err != nil {
 			return err
 		}
+		chain.filterHolder.AddFilter(attachBlock.Height, *attachBlock.Hash, chain.DB(), func() bloom.Filter {
+			return attachBlock.GetFilterForTransactionScript(utxoSet.utxoMap)
+		})
 	}
 
+	metrics.MetricsBlockRevertMeter.Mark(1)
 	return nil
 }
 
@@ -742,7 +757,10 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	}
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
-	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash(), tail.Height)
+	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
+
+	metrics.MetricsBlockHeightGauge.Update(int64(tail.Height))
+	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))
 	return nil
 }
 
@@ -888,7 +906,7 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	if *target == hash {
 		return tx, nil
 	}
-
+	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
 	return nil, errors.New("Failed to load tx with hash")
 }
 

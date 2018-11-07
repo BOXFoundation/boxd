@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"hash/crc32"
 	"io"
+	"unsafe"
 
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/p2p/pb"
@@ -30,7 +31,6 @@ const (
 	PeerDiscoverReply uint32 = 0x03
 	NewBlockMsg       uint32 = 0x04
 	TransactionMsg    uint32 = 0x05
-	ChainUpdateMsg    uint32 = 0x06 // chain update: block connects to / disconnects from main chain
 
 	// Sync Manager
 	LocateForkPointRequest  = 0x10
@@ -106,6 +106,7 @@ func unmarshalHeader(data []byte) (*messageHeader, error) {
 
 // readMessageData reads a message from reader
 func readMessageData(r io.Reader) (*message, error) {
+	// sr := snappy.NewReader(r)
 	headerLen, err := util.ReadUint32(r)
 	if err != nil {
 		return nil, err
@@ -222,6 +223,11 @@ func (msg *message) check() error {
 		return ErrBodyCheckSum
 	}
 	return nil
+}
+
+// Len returns the msg len
+func (msg *message) Len() int64 {
+	return int64(unsafe.Sizeof(*msg.messageHeader) + unsafe.Sizeof(msg.body))
 }
 
 // p2p message with remote peer ID

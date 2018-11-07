@@ -125,6 +125,7 @@ func (s *txServer) GetRawTransaction(ctx context.Context, req *rpcpb.GetRawTrans
 	}
 	tx, err := s.server.GetChainReader().LoadTxByHash(hash)
 	if err != nil {
+		logger.Debug(err)
 		return &rpcpb.GetRawTransactionResponse{}, err
 	}
 	rpcTx, err := tx.ToProtoMessage()

@@ -10,7 +10,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	_ "github.com/BOXFoundation/boxd/storage/memdb" // init memdb
+	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/facebookgo/ensure"
 )
 
@@ -58,7 +58,7 @@ func getTailBlock() *types.Block {
 func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedIsMainChain bool,
 	expectedIsOrphan bool, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
 
-	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */)
+	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */, false)
 
 	ensure.DeepEqual(t, isMainChain, expectedIsMainChain)
 	ensure.DeepEqual(t, isOrphan, expectedIsOrphan)
@@ -165,4 +165,19 @@ func TestBlockProcessing(t *testing.T) {
 
 	// Create a block that spends a transaction that does not exist
 
+}
+
+func TestBlockChain_WirteTxIndex(t *testing.T) {
+	ensure.NotNil(t, blockChain)
+
+	b0 := getTailBlock()
+
+	b1 := nextBlock(b0)
+	ensure.Nil(t, blockChain.StoreBlockToDb(b1))
+	ensure.Nil(t, blockChain.WirteTxIndex(b1))
+
+	txhash, _ := b1.Txs[0].TxHash()
+	tx, err := blockChain.LoadTxByHash(*txhash)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, b1.Txs[0], tx)
 }
