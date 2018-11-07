@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -42,7 +44,9 @@ const (
 	sequenceLockTimeGranularity = 9
 	unminedHeight               = 0x7fffffff
 	MaxBlocksPerSync            = 1024
-	BlockFilterCapacity         = 100000
+
+	metricsLoopInterval = 2 * time.Second
+	BlockFilterCapacity = 100000
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -216,10 +220,16 @@ func (chain *BlockChain) subscribeMessageNotifiee() {
 
 func (chain *BlockChain) loop(p goprocess.Process) {
 	logger.Info("Waitting for new block message...")
+	metricsTicker := time.NewTicker(metricsLoopInterval)
+	defer metricsTicker.Stop()
 	for {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
+		case <-metricsTicker.C:
+			metrics.MetricsCachedBlockMsgGauge.Update(int64(len(chain.newblockMsgCh)))
+			metrics.MetricsBlockOrphanPoolSizeGauge.Update(int64(len(chain.hashToOrphanBlock)))
+			metrics.MetricsLruCacheBlockGauge.Update(int64(chain.cache.Len()))
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
@@ -624,6 +634,7 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		})
 	}
 
+	metrics.MetricsBlockRevertMeter.Mark(1)
 	return nil
 }
 
@@ -741,6 +752,9 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
+
+	metrics.MetricsBlockHeightGauge.Update(int64(tail.Height))
+	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))
 	return nil
 }
 

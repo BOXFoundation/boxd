@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -25,6 +26,8 @@ import (
 const (
 	TxMsgBufferChSize          = 65536
 	ChainUpdateMsgBufferChSize = 65536
+
+	metricsLoopInterval = 2 * time.Second
 )
 
 var logger = log.NewLogger("txpool") // logger
@@ -101,12 +104,17 @@ func (tx_pool *TransactionPool) Stop() {
 // handle new tx message from network.
 func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	logger.Info("Waitting for new tx message...")
+	metricsTicker := time.NewTicker(metricsLoopInterval)
+	defer metricsTicker.Stop()
 	for {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
 			tx_pool.processTxMsg(msg)
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
+		case <-metricsTicker.C:
+			metrics.MetricsTxPoolSizeGauge.Update(int64(len(tx_pool.hashToTx)))
+			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(len(tx_pool.hashToOrphanTx)))
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			return
