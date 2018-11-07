@@ -37,32 +37,34 @@ func minerAddress(index int) (string, error) {
 	return account.Addr(), nil
 }
 
-func newAccount() (string, error) {
+func newAccount() (string, string, error) {
 	nodeName := "boxd_p1_1"
 	args := []string{"exec", nodeName, "./newaccount.sh"}
 	cmd := exec.Command("docker", args...)
-	logger.Infof("exec: docker %v", args)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if err := cmd.Start(); err != nil {
-		return "", err
+		return "", "", err
 	}
 	var buf bytes.Buffer
 	_, err = buf.ReadFrom(stdout)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	//logger.Infof("newAccount from container %s return: %s", nodeName, buf.String())
 	if err := cmd.Wait(); err != nil {
-		return "", err
+		return "", "", err
 	}
 	addr := GetIniKV(buf.String(), "Address")
 	if addr == "" {
-		return "", errors.New("newAccount failed, address is empty")
+		return "", "", errors.New("newAccount failed, address is empty")
 	}
-	return addr, nil
+	acc := GetIniKV(buf.String(), "Created new account")
+	if addr == "" {
+		return "", "", errors.New("newAccount failed, account is empty")
+	}
+	return addr, acc, nil
 }
 
 func balanceFor(accAddr string, peerAddr string) (uint64, error) {
@@ -194,15 +196,16 @@ func allMinersAddr() []string {
 	return addresses
 }
 
-func genTestAddr(count int) []string {
-	var addresses []string
+func genTestAddr(count int) ([]string, []string) {
+	var addresses, accounts []string
 	for i := 0; i < count; i++ {
-		addr, err := newAccount()
+		addr, acc, err := newAccount()
 		if err != nil {
 			logger.Panic(err)
 		}
-		logger.Infof("new account: %s", addr)
 		addresses = append(addresses, addr)
+		accounts = append(accounts, acc)
 	}
-	return addresses
+	logger.Infof("new %d accounts", len(addresses))
+	return addresses, accounts
 }
