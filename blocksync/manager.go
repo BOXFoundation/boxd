@@ -432,6 +432,7 @@ func (sm *SyncManager) checkHashes() error {
 		peers = append(peers, pid)
 	}
 	// send msg to checking peers
+	// sm.fetachHashes can not be nil
 	sm.checkHash = newCheckHash(sm.fetchHashes[0], uint32(len(sm.fetchHashes)))
 	for _, pid := range peers {
 		sm.stalePeers.Store(pid, checkedPeerStatus)
@@ -535,7 +536,8 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	tryPopErrFlagChan(sm.locateErrCh)
 	// parse response
 	sh := new(SyncHeaders)
-	if err := sh.Unmarshal(msg.Body()); err != nil || *sh.Hashes[0] == *zeroHash {
+	if err := sh.Unmarshal(msg.Body()); err != nil ||
+		(len(sh.Hashes) == 1 && *sh.Hashes[0] == *zeroHash) {
 		logger.Infof("onLocateResponse unmarshal msg.Body[%+v] error: %s",
 			msg.Body(), err)
 		sm.stalePeers.Store(pid, errPeerStatus)
