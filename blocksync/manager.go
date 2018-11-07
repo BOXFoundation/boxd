@@ -689,11 +689,12 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	}
 	// parse response
 	sb := new(SyncBlocks)
-	if err := sb.Unmarshal(msg.Body()); err != nil || sb.Idx == math.MaxUint32 {
+	if err := sb.Unmarshal(msg.Body()); err != nil || len(sb.Blocks) == 0 ||
+		sb.Idx == math.MaxUint32 {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		sm.syncErrCh <- struct{}{}
-		return fmt.Errorf("SyncBlocks unmarshal error: %v or msg.From is in "+
-			"sync(idx: %d)", err, sb.Idx)
+		return fmt.Errorf("SyncBlocks unmarshal error: %v or receive no blocks(%d) "+
+			"or msg.From is in sync(idx: %d)", err, len(sb.Blocks), sb.Idx)
 	}
 	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
 	logger.Infof("has sync %d/%d blocks, current peer[%s]",
