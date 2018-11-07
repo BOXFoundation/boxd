@@ -84,7 +84,7 @@ var _ service.Server = (*TransactionPool)(nil)
 // Run launch transaction pool.
 func (tx_pool *TransactionPool) Run() error {
 	// p2p tx msg
-	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh)
+	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, p2p.Unique, tx_pool.newTxMsgCh)
 	tx_pool.notifiee.Subscribe(tx_pool.txNotifee)
 
 	// chain update msg
