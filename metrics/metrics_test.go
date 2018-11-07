@@ -6,11 +6,8 @@ package metrics
 
 import (
 	"testing"
-
-	"github.com/rcrowley/go-metrics"
-	influxdb "github.com/vrischmann/go-metrics-influxdb"
 )
 
 func TestInfluxDb(t *testing.T) {
-	influxdb.InfluxDBWithTags(metrics.DefaultRegistry, interval, "http://localhost:8086", "box", "", "", nil)
+	// influxdb.InfluxDBWithTags(metrics.DefaultRegistry, interval, "http://localhost:8086", "box", "", "", nil)
 }

@@ -248,7 +248,7 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 	}
 	sw := snappy.NewWriter(conn.stream)
 	_, err = sw.Write(data)
-  metricsWriteMeter.Mark(int64(len(data) / 8))
+	metricsWriteMeter.Mark(int64(len(data) / 8))
 	return err // error or nil
 }
 
