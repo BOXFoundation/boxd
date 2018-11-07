@@ -13,7 +13,6 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/p2p/pb"
 	proto "github.com/gogo/protobuf/proto"
-	"github.com/golang/snappy"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2pnet "github.com/libp2p/go-libp2p-net"
@@ -246,8 +245,8 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 	if err != nil {
 		return err
 	}
-	sw := snappy.NewWriter(conn.stream)
-	_, err = sw.Write(data)
+	// sw := snappy.NewWriter(conn.stream)
+	_, err = conn.stream.Write(data)
 	metricsWriteMeter.Mark(int64(len(data) / 8))
 	return err // error or nil
 }
