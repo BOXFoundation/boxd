@@ -238,7 +238,6 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
 		return err
 	}
-	logger.Errorf("aaaa %v", peers.IsSynced)
 	conn.isSynced = peers.IsSynced
 	conn.peer.table.AddPeers(conn, peers)
 	return nil
