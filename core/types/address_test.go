@@ -30,7 +30,7 @@ func TestNewAddressPubKeyHash(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			ab, err := ParseAddress(aa.EncodeAddress())
+			ab, err := ParseAddress(aa.String())
 			if err != nil {
 				t.Error(err)
 			}
@@ -42,7 +42,7 @@ func TestNewAddressPubKeyHash(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			ad := ac.EncodeAddress()
+			ad := ac.String()
 			if !reflect.DeepEqual(tt.addr, ad) {
 				t.Errorf("NewAddressPubKeyHash() = %v, want %v", tt.addr, ad)
 			}

@@ -34,7 +34,6 @@ type AddressHash [ripemd160.Size]byte
 type Address interface {
 	String() string
 	SetString(string) error
-	EncodeAddress() string
 	ScriptAddress() []byte
 }
 
@@ -72,11 +71,6 @@ func newAddressPubKeyHash(pkHash []byte) (*AddressPubKeyHash, error) {
 	return addr, nil
 }
 
-// EncodeAddress returns the string encoding of a pay-to-pubkey-hash address.
-func (a *AddressPubKeyHash) EncodeAddress() string {
-	return encodeAddress(a.hash[:])
-}
-
 // ScriptAddress returns the bytes to be included in a txout script to pay to a pubkey hash.
 func (a *AddressPubKeyHash) ScriptAddress() []byte {
 	return a.hash[:]
@@ -84,7 +78,7 @@ func (a *AddressPubKeyHash) ScriptAddress() []byte {
 
 // String returns a human-readable string for the pay-to-pubkey-hash address.
 func (a *AddressPubKeyHash) String() string {
-	return a.EncodeAddress()
+	return encodeAddress(a.hash[:])
 }
 
 // SetString sets the Address's internal byte array using byte array decoded from input

@@ -154,7 +154,7 @@ func FundTransaction(v *viper.Viper, addr types.Address, amount uint64) (*rpcpb.
 	defer cancel()
 
 	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-		Addr:   addr.EncodeAddress(),
+		Addr:   addr.String(),
 		Amount: amount,
 	})
 	if err != nil {
