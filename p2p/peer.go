@@ -30,9 +30,11 @@ import (
 	multiaddr "github.com/multiformats/go-multiaddr"
 )
 
-var logger = log.NewLogger("p2p") // logger
+var (
+	logger = log.NewLogger("p2p")
 
-var isSynced = false
+	isSynced = false
+)
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
