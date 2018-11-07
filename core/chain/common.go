@@ -190,11 +190,11 @@ func (chain *BlockChain) calcLockTime(utxoSet *UtxoSet, block *types.Block, tx *
 
 // MarshalTxIndex writes Tx height and index to bytes
 func MarshalTxIndex(height, index uint32) (data []byte, err error) {
-	buf := bytes.NewBuffer(make([]byte, 8))
-	if err := util.WriteUint32(buf, height); err != nil {
+	var buf bytes.Buffer
+	if err := util.WriteUint32(&buf, height); err != nil {
 		return nil, err
 	}
-	if err := util.WriteUint32(buf, index); err != nil {
+	if err := util.WriteUint32(&buf, index); err != nil {
 		return nil, err
 	}
 

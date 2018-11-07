@@ -9,12 +9,15 @@ import "errors"
 // Define err message
 var (
 	// dpos
-	ErrNoLegalPowerToMint = errors.New("No legal power to mint")
-	ErrNotMyTurnToMint    = errors.New("Not my turn to mint")
-	ErrWrongTimeToMint    = errors.New("Wrong time to mint")
-	ErrNotFoundMiner      = errors.New("Failed to find miner")
-	ErrDuplicateSignUpTx  = errors.New("duplicate sign up tx")
-	ErrCandidateNotFound  = errors.New("candidate not found")
+	ErrNoLegalPowerToMint     = errors.New("No legal power to mint")
+	ErrNotMyTurnToMint        = errors.New("Not my turn to mint")
+	ErrWrongTimeToMint        = errors.New("Wrong time to mint")
+	ErrNotFoundMiner          = errors.New("Failed to find miner")
+	ErrDuplicateSignUpTx      = errors.New("Duplicate sign up tx")
+	ErrCandidateNotFound      = errors.New("Candidate not found")
+	ErrRepeatedMintAtSameTime = errors.New("Repeated mint at same time")
+	ErrFailedToVerifySign     = errors.New("Failed to verify sign block")
+	ErrNotMintPeer            = errors.New("Invalid mint peer")
 
 	// context
 	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")

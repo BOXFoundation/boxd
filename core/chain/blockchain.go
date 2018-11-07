@@ -83,40 +83,31 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 
 	var err error
-	b.cache, err = lru.New(512)
-	if err != nil {
-		return nil, err
-	}
-	b.db, err = db.Table(BlockTableName)
-	if err != nil {
+	b.cache, _ = lru.New(512)
+
+	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
 	}
 
-	genesis, err := b.loadGenesis()
-	if err != nil {
+	if b.genesis, err = b.loadGenesis(); err != nil {
 		logger.Error("Failed to load genesis block ", err)
 		return nil, err
 	}
-	b.genesis = genesis
 
-	eternal, err := b.loadEternalBlock()
-	if err != nil {
+	if b.eternal, err = b.loadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
-	b.eternal = eternal
 
-	tail, err := b.LoadTailBlock()
-	if err != nil {
+	if b.tail, err = b.LoadTailBlock(); err != nil {
 		logger.Error("Failed to load tail block ", err)
 		return nil, err
 	}
-	b.tail = tail
-	b.LongestChainHeight = tail.Height
+	b.LongestChainHeight = b.tail.Height
 
-	err = b.loadFilters()
-	if err != nil {
+	if err = b.loadFilters(); err != nil {
 		logger.Error("Fail to load filters", err)
+		return nil, err
 	}
 
 	return b, nil
@@ -130,15 +121,15 @@ func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.Sync
 
 func (chain *BlockChain) loadFilters() error {
 	var i uint32 = 1
+	var utxoSet *UtxoSet
 	for ; i <= chain.LongestChainHeight; i++ {
 		block, err := chain.LoadBlockByHeight(i)
 		if err != nil {
 			logger.Error("Error try to load block at height", i, err)
 			return core.ErrWrongBlockHeight
 		}
-		utxoSet := NewUtxoSet()
-		err = utxoSet.LoadBlockUtxos(block, chain.db)
-		if err != nil {
+		utxoSet = NewUtxoSet()
+		if err = utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 			logger.Error("Error Loading block utxo", err)
 			return err
 		}
@@ -149,6 +140,7 @@ func (chain *BlockChain) loadFilters() error {
 			return err
 		}
 	}
+	utxoSet = nil
 	return nil
 }
 
@@ -269,23 +261,26 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 		return false, false, core.ErrOrphanBlockExists
 	}
 
-	ok, err := chain.consensus.VerifySign(block)
-	if err != nil || !ok {
-		logger.Warnf("Failed to verifySign block. Hash: %v, Height: %d", block.BlockHash().String(), block.Height)
-		return false, false, core.ErrInvalidBlockSignature
+	if ok, err := chain.consensus.VerifyBlock(block); err != nil || !ok {
+		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+		return false, false, core.ErrFailedToVerifyWithConsensus
 	}
 
 	if err := validateBlock(block, util.NewMedianTime()); err != nil {
-		logger.Error(err)
+		logger.Error("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
 		return false, false, err
 	}
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
+
 		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
-		// trigger sync
-		chain.syncManager.StartSync()
+		if chain.tail.Height < block.Height {
+			// trigger sync
+			chain.syncManager.StartSync()
+		}
+
 		return false, true, nil
 	}
 
@@ -624,6 +619,9 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.applyBlock(attachBlock, utxoSet); err != nil {
 			return err
 		}
+		chain.filterHolder.AddFilter(attachBlock.Height, *attachBlock.Hash, chain.DB(), func() bloom.Filter {
+			return attachBlock.GetFilterForTransactionScript(utxoSet.utxoMap)
+		})
 	}
 
 	return nil
@@ -887,10 +885,8 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	}
 	if *target == hash {
 		return tx, nil
-	} else {
-		logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
 	}
-
+	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
 	return nil, errors.New("Failed to load tx with hash")
 }
 

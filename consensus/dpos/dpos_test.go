@@ -107,14 +107,14 @@ func TestDpos_signBlock(t *testing.T) {
 	block.Header.TimeStamp = 1541077396
 	err := dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err := dposMiner.dpos.VerifySign(block)
+	ok, err := dposMiner.dpos.verifySign(block)
 	ensure.DeepEqual(t, err, ErrWrongTimeToMint)
 	ensure.DeepEqual(t, ok, false)
 
 	block.Header.TimeStamp = 1541077395
 	err = dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err = dposMiner.dpos.VerifySign(block)
+	ok, err = dposMiner.dpos.verifySign(block)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, ok, true)
 }
