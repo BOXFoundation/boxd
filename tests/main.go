@@ -52,8 +52,8 @@ func main() {
 	defer stopNodes()
 
 	// wait for nodes to be ready
-	logger.Info("waiting for 12s: nodes running")
-	time.Sleep(12 * time.Second)
+	logger.Info("waiting for 8s: nodes running")
+	time.Sleep(8 * time.Second)
 
 	// get addresses of three miners
 	minersAddr := allMinersAddr()

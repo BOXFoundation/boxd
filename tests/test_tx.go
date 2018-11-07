@@ -1,3 +1,7 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -21,14 +25,14 @@ func newTxTest(minersAddr, testsAddr []string) *txTest {
 func (tt *txTest) testTx() {
 	// check
 	if len(tt.testsAddr) < 10 {
-		logger.Fatal("test accounts count is less 10")
+		logger.Panic("test accounts count is less 10")
 	}
 
 	// wait all peers' heights are same
 	logger.Info("waiting for all the peers' heights are the same")
 	height, err := waitHeightSame()
 	if err != nil {
-		logger.Fatal(err)
+		logger.Panic(err)
 	}
 	logger.Infof("now the height of all peers is %d", height)
 

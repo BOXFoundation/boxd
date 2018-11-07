@@ -199,8 +199,9 @@ func genTestAddr(count int) []string {
 	for i := 0; i < count; i++ {
 		addr, err := newAccount()
 		if err != nil {
-			logger.Fatal(err)
+			logger.Panic(err)
 		}
+		logger.Infof("new account: %s", addr)
 		addresses = append(addresses, addr)
 	}
 	return addresses
