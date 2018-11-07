@@ -238,6 +238,7 @@ func (sm *SyncManager) handleSyncMessage() {
 }
 
 func (sm *SyncManager) startSync() {
+	p2p.UpdateSynced(false)
 	// prevent startSync being executed again
 	sm.setStatus(locateStatus)
 	// sleep 5s to wait for connections to establish
@@ -246,6 +247,7 @@ func (sm *SyncManager) startSync() {
 	defer func() {
 		sm.consensus.RecoverMint()
 		sm.resetAll()
+		p2p.UpdateSynced(true)
 		logger.Info("sync completed and exit!")
 	}()
 

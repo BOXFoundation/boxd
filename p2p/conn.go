@@ -33,6 +33,7 @@ type Conn struct {
 	peer               *BoxPeer
 	remotePeer         peer.ID
 	isEstablished      bool
+	isSynced           bool
 	establishSucceedCh chan bool
 	proc               goprocess.Process
 	procHeartbeat      goprocess.Process
@@ -46,6 +47,7 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 		peer:               peer,
 		remotePeer:         peerID,
 		isEstablished:      false,
+		isSynced:           false,
 		establishSucceedCh: make(chan bool, 1),
 	}
 }
@@ -210,7 +212,7 @@ func (conn *Conn) PeerDiscover() error {
 func (conn *Conn) OnPeerDiscover(body []byte) error {
 	// get random peers from routeTable
 	peers := conn.peer.table.GetRandomPeers(conn.stream.Conn().LocalPeer())
-	msg := &p2ppb.Peers{Peers: make([]*p2ppb.PeerInfo, len(peers))}
+	msg := &p2ppb.Peers{Peers: make([]*p2ppb.PeerInfo, len(peers)), IsSynced: isSynced}
 
 	for i, v := range peers {
 		peerInfo := &p2ppb.PeerInfo{
@@ -236,6 +238,7 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
 		return err
 	}
+	conn.isSynced = peers.IsSynced
 	conn.peer.table.AddPeers(conn, peers)
 	return nil
 }
