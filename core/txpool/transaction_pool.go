@@ -73,8 +73,8 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *chain
 }
 
 func (tx_pool *TransactionPool) subscribeMessageNotifiee(notifiee p2p.Net) {
-	notifiee.Subscribe(p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh))
-	notifiee.Subscribe(p2p.NewNotifiee(p2p.ChainUpdateMsg, tx_pool.newChainUpdateMsgCh))
+	notifiee.Subscribe(p2p.NewNotifiee(p2p.TransactionMsg, p2p.Unique, tx_pool.newTxMsgCh))
+	notifiee.Subscribe(p2p.NewNotifiee(p2p.ChainUpdateMsg, p2p.Repeatable, tx_pool.newChainUpdateMsgCh))
 }
 
 // implement interface service.Server
