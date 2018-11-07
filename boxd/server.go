@@ -124,7 +124,7 @@ func (server *Server) Run() error {
 	}
 	server.blockChain = blockChain
 
-	txPool := txpool.NewTransactionPool(blockChain.Proc(), peer, blockChain)
+	txPool := txpool.NewTransactionPool(blockChain.Proc(), peer, blockChain, server.bus)
 	server.txPool = txPool
 
 	consensus, err := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)

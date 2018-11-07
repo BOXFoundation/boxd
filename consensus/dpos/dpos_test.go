@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -36,12 +37,13 @@ var (
 
 	dpos, _      = NewDummyDpos(cfg)
 	dposMiner, _ = NewDummyDpos(cfgMiner)
+	bus          = eventbus.New()
 )
 
 func NewDummyDpos(cfg *Config) (*DummyDpos, error) {
 
 	blockchain := chain.NewTestBlockChain()
-	txPool := txpool.NewTransactionPool(blockchain.Proc(), p2p.NewDummyPeer(), blockchain)
+	txPool := txpool.NewTransactionPool(blockchain.Proc(), p2p.NewDummyPeer(), blockchain, bus)
 	dpos, err := NewDpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
 	blockchain.Setup(dpos, nil)
 	dpos.Setup()

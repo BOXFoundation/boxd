@@ -35,10 +35,12 @@ var _ service.TxHandler = (*TransactionPool)(nil)
 type TransactionPool struct {
 	notifiee            p2p.Net
 	newTxMsgCh          chan p2p.Message
-	newChainUpdateMsgCh chan p2p.Message
+	newChainUpdateMsgCh chan *chain.UpdateMsg
+	txNotifee           *p2p.Notifiee
 	proc                goprocess.Process
 	chain               *chain.BlockChain
 	hashToTx            map[crypto.HashType]*TxWrap
+	bus                 eventbus.Bus
 	// outpoint -> tx spending it; outpoints can be arbitrary, valid (exists and unspent) or invalid
 	outPointToTx   map[types.OutPoint]*types.Transaction
 	txMutex        sync.Mutex
@@ -58,13 +60,14 @@ type TxWrap struct {
 }
 
 // NewTransactionPool new a transaction pool.
-func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *chain.BlockChain) *TransactionPool {
+func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.BlockChain, bus eventbus.Bus) *TransactionPool {
 	return &TransactionPool{
 		newTxMsgCh:          make(chan p2p.Message, TxMsgBufferChSize),
-		newChainUpdateMsgCh: make(chan p2p.Message, ChainUpdateMsgBufferChSize),
+		newChainUpdateMsgCh: make(chan *chain.UpdateMsg, ChainUpdateMsgBufferChSize),
 		proc:                goprocess.WithParent(parent),
 		notifiee:            notifiee,
-		chain:               chain,
+		chain:               c,
+		bus:                 bus,
 		hashToTx:            make(map[crypto.HashType]*TxWrap),
 		hashToOrphanTx:      make(map[crypto.HashType]*types.Transaction),
 		outPointToOrphan:    make(map[types.OutPoint]map[crypto.HashType]*types.Transaction),
@@ -72,19 +75,19 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, chain *chain
 	}
 }
 
-func (tx_pool *TransactionPool) subscribeMessageNotifiee(notifiee p2p.Net) {
-	notifiee.Subscribe(p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh))
-	notifiee.Subscribe(p2p.NewNotifiee(p2p.ChainUpdateMsg, tx_pool.newChainUpdateMsgCh))
-}
-
 // implement interface service.Server
 var _ service.Server = (*TransactionPool)(nil)
 
 // Run launch transaction pool.
 func (tx_pool *TransactionPool) Run() error {
-	tx_pool.subscribeMessageNotifiee(tx_pool.notifiee)
-	tx_pool.proc.Go(tx_pool.loop)
+	// p2p tx msg
+	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh)
+	tx_pool.notifiee.Subscribe(tx_pool.txNotifee)
 
+	// chain update msg
+	tx_pool.bus.Subscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
+
+	tx_pool.proc.Go(tx_pool.loop).SetTeardown(tx_pool.teardown)
 	return nil
 }
 
@@ -98,6 +101,17 @@ func (tx_pool *TransactionPool) Stop() {
 	tx_pool.proc.Close()
 }
 
+// teardown to clean the process
+func (tx_pool *TransactionPool) teardown() error {
+	close(tx_pool.newChainUpdateMsgCh)
+	close(tx_pool.newTxMsgCh)
+	return nil
+}
+
+func (tx_pool *TransactionPool) receiveChainUpdateMsg(msg *chain.UpdateMsg) {
+	tx_pool.newChainUpdateMsgCh <- msg
+}
+
 // handle new tx message from network.
 func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	logger.Info("Waitting for new tx message...")
@@ -109,26 +123,17 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 			tx_pool.processChainUpdateMsg(msg)
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
+			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
+			tx_pool.bus.Unsubscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
 			return
 		}
 	}
 }
 
 // chain update message from blockchain: block connection/disconnection
-func (tx_pool *TransactionPool) processChainUpdateMsg(msg p2p.Message) error {
-	localMessage, ok := msg.(*chain.LocalMessage)
-	if !ok {
-		logger.Errorf("Received non-local message")
-		return core.ErrNonLocalMessage
-	}
-	chainUpdateMsg, ok := localMessage.Data().(chain.UpdateMsg)
-	if !ok {
-		logger.Errorf("Received local message is not a chain update")
-		return core.ErrLocalMessageNotChainUpdate
-	}
-
-	block := chainUpdateMsg.Block
-	if chainUpdateMsg.Connected {
+func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) error {
+	block := msg.Block
+	if msg.Connected {
 		logger.Infof("Block %v connects to main chain", block.BlockHash())
 		return tx_pool.removeBlockTxs(block)
 	}

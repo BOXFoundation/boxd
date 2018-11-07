@@ -30,7 +30,6 @@ const (
 	PeerDiscoverReply uint32 = 0x03
 	NewBlockMsg       uint32 = 0x04
 	TransactionMsg    uint32 = 0x05
-	ChainUpdateMsg    uint32 = 0x06 // chain update: block connects to / disconnects from main chain
 
 	// Sync Manager
 	LocateForkPointRequest  = 0x10

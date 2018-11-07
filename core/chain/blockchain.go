@@ -590,11 +590,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 }
 
 func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connected bool) error {
-	updateMsg := UpdateMsg{
+	chain.bus.Publish(eventbus.TopicChainUpdate, &UpdateMsg{
 		Connected: connected,
 		Block:     block,
-	}
-	chain.notifiee.Notify(NewLocalMessage(p2p.ChainUpdateMsg, updateMsg))
+	})
 	return nil
 }
 
