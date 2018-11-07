@@ -627,6 +627,9 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.applyBlock(attachBlock, utxoSet); err != nil {
 			return err
 		}
+		chain.filterHolder.AddFilter(attachBlock.Height, *attachBlock.Hash, chain.DB(), func() bloom.Filter {
+			return attachBlock.GetFilterForTransactionScript(utxoSet.utxoMap)
+		})
 	}
 
 	return nil
