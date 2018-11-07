@@ -58,7 +58,7 @@ func getTailBlock() *types.Block {
 func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedIsMainChain bool,
 	expectedIsOrphan bool, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
 
-	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */)
+	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */, false)
 
 	ensure.DeepEqual(t, isMainChain, expectedIsMainChain)
 	ensure.DeepEqual(t, isOrphan, expectedIsOrphan)
