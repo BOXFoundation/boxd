@@ -14,6 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p/pb"
 	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
@@ -107,11 +108,12 @@ func unmarshalHeader(data []byte) (*messageHeader, error) {
 
 // readMessageData reads a message from reader
 func readMessageData(r io.Reader) (*message, error) {
-	headerLen, err := util.ReadUint32(r)
+	sr := snappy.NewReader(r)
+	headerLen, err := util.ReadUint32(sr)
 	if err != nil {
 		return nil, err
 	}
-	headerBuf, err := util.ReadBytesOfLength(r, headerLen)
+	headerBuf, err := util.ReadBytesOfLength(sr, headerLen)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +127,7 @@ func readMessageData(r io.Reader) (*message, error) {
 		return nil, ErrExceedMaxDataLength
 	}
 
-	body, err := util.ReadBytesOfLength(r, header.dataLength)
+	body, err := util.ReadBytesOfLength(sr, header.dataLength)
 	if err != nil {
 		return nil, err
 	}

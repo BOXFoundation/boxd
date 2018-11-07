@@ -28,7 +28,7 @@ require (
 	github.com/gogo/protobuf v1.1.1
 	github.com/golang/lint v0.0.0-20181011164241-5906bd5c48cd // indirect
 	github.com/golang/protobuf v1.2.0
-	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/uuid v0.0.0-20180828181555-e704694aed0e // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.5.1

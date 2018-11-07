@@ -169,10 +169,8 @@ func TestBlockProcessing(t *testing.T) {
 
 func TestBlockChain_WirteTxIndex(t *testing.T) {
 	ensure.NotNil(t, blockChain)
-	ensure.True(t, blockChain.LongestChainHeight == 0)
 
 	b0 := getTailBlock()
-	ensure.DeepEqual(t, b0, &GenesisBlock)
 
 	b1 := nextBlock(b0)
 	ensure.Nil(t, blockChain.StoreBlockToDb(b1))
