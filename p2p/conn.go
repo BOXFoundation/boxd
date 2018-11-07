@@ -27,10 +27,6 @@ const (
 	PongBody = "pong"
 )
 
-var (
-	syncStatusCh = make(chan bool)
-)
-
 // Conn represents a connection to a remote node
 type Conn struct {
 	stream             libp2pnet.Stream
@@ -242,6 +238,7 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 		logger.Error("Failed to unmarshal PeerDiscoverReply message.")
 		return err
 	}
+	logger.Errorf("aaaa %v", peers.IsSynced)
 	conn.isSynced = peers.IsSynced
 	conn.peer.table.AddPeers(conn, peers)
 	return nil
