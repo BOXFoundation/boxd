@@ -69,6 +69,13 @@ type BlockChain struct {
 	filterHolder              BloomFilterHolder
 }
 
+// UpdateMsg sent from blockchain to, e.g., mempool
+type UpdateMsg struct {
+	// block connected/disconnected from main chain
+	Connected bool
+	Block     *types.Block
+}
+
 // NewBlockChain return a blockchain.
 func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus) (*BlockChain, error) {
 
