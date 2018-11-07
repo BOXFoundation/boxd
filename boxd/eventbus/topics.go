@@ -16,8 +16,8 @@ const (
 
 	////////////////////////////// chain /////////////////////////////
 
-	// TopicChainUpdate is topic for nitifying that the chain is updated,
-	// either chain reorg, or chain height changed..
+	// TopicChainUpdate is topic for notifying that the chain is updated,
+	// either chain reorg, or chain extended.
 	TopicChainUpdate = "chain:update"
 
 	////////////////////////////// db /////////////////////////////
