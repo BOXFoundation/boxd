@@ -44,7 +44,7 @@ func TestAppendInLoop(t *testing.T) {
 func nextBlock(parentBlock *types.Block) *types.Block {
 	newBlock := types.NewBlock(parentBlock)
 
-	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.ScriptAddress(), parentBlock.Height+1)
+	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parentBlock.Height+1)
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock

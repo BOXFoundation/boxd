@@ -5,12 +5,8 @@
 package types
 
 import (
-	"fmt"
-
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/util"
-	"github.com/btcsuite/btcutil/base58"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -34,7 +30,8 @@ type AddressHash [ripemd160.Size]byte
 type Address interface {
 	String() string
 	SetString(string) error
-	ScriptAddress() []byte
+	Hash() []byte
+	Hash160() *AddressHash
 }
 
 // AddressPubKeyHash is an Address for a pay-to-pubkey-hash (P2PKH) transaction.
@@ -71,8 +68,8 @@ func newAddressPubKeyHash(pkHash []byte) (*AddressPubKeyHash, error) {
 	return addr, nil
 }
 
-// ScriptAddress returns the bytes to be included in a txout script to pay to a pubkey hash.
-func (a *AddressPubKeyHash) ScriptAddress() []byte {
+// Hash returns the bytes to be included in a txout script to pay to a pubkey hash.
+func (a *AddressPubKeyHash) Hash() []byte {
 	return a.hash[:]
 }
 
@@ -84,17 +81,20 @@ func (a *AddressPubKeyHash) String() string {
 // SetString sets the Address's internal byte array using byte array decoded from input
 // base58 format string, returns error if input string is invalid
 func (a *AddressPubKeyHash) SetString(in string) error {
+	if len(in) != EncodeAddressLength || in[0] != BoxPrefix {
+		return core.ErrInvalidAddressString
+	}
 	rawBytes, err := crypto.Base58CheckDecode(in)
 	if err != nil {
 		return err
 	}
 	if len(rawBytes) != 22 {
-		return fmt.Errorf("Invalid address length: %s", in)
+		return core.ErrInvalidAddressString
 	}
 	var prefix [2]byte
 	copy(prefix[:], rawBytes[:2])
 	if prefix != addressTypeP2PKHPrefix && prefix != addressTypeP2SHPrefix {
-		return fmt.Errorf("Invalid address prefix")
+		return core.ErrInvalidAddressString
 	}
 	copy(a.hash[:], rawBytes[2:])
 	return nil
@@ -110,28 +110,4 @@ func encodeAddress(hash []byte) string {
 	b = append(b, addressTypeP2PKHPrefix[:]...)
 	b = append(b, hash[:]...)
 	return crypto.Base58CheckEncode(b)
-}
-
-// ParseAddress parse address from string.
-func ParseAddress(s string) (*AddressPubKeyHash, error) {
-	if len(s) != EncodeAddressLength || s[0] != BoxPrefix {
-		return nil, core.ErrInvalidAddressString
-	}
-
-	return ParseFromBytes(base58.Decode(s))
-}
-
-// ParseFromBytes parse address from bytes.
-func ParseFromBytes(b []byte) (*AddressPubKeyHash, error) {
-	if len(b) != AddressLength || b[0] != FixPrefix {
-		return nil, core.ErrInvalidAddressString
-	}
-
-	checksum := crypto.Checksum(b[:22])
-	if !util.Equal(checksum[:], b[22:]) {
-		return nil, core.ErrInvalidAddressString
-	}
-	var hash [ripemd160.Size]byte
-	copy(hash[:], b[2:22])
-	return &AddressPubKeyHash{hash: hash}, nil
 }

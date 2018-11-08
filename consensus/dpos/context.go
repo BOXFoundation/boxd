@@ -38,7 +38,7 @@ func InitPeriodContext() (*PeriodContext, error) {
 	periodPeers := make([]string, len(chain.GenesisPeriod))
 	for k, v := range chain.GenesisPeriod {
 		period := new(Period)
-		addr, err := types.ParseAddress(v["addr"])
+		addr, err := types.NewAddress(v["addr"])
 		if err != nil {
 			return nil, err
 		}

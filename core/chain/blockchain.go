@@ -157,7 +157,7 @@ func (chain *BlockChain) loadFilters() error {
 
 // GetTransactions search the main chain about transaction relate to give address
 func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transaction, error) {
-	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
 	logger.Info(len(hashes), " blocks searched as related to address ", addr.String())
 	utxoSet := NewUtxoSet()
@@ -692,7 +692,7 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 
 // LoadUtxoByAddress list all the available utxos owned by an address
 func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
-	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
 	logger.Debug(addr.String(), " related blocks", util.PrettyPrint(blockHashes))
 	utxos := make(map[types.OutPoint]*types.UtxoWrap)

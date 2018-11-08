@@ -73,7 +73,7 @@ func savePrivateKeyWithPassphrase(privatekey *bcrypto.PrivateKey, passphrase, pa
 	}
 	ksJSON := &keyStoreJSON{
 		Crypto:  cpt,
-		Address: hex.EncodeToString(addr.ScriptAddress()),
+		Address: hex.EncodeToString(addr.Hash()),
 	}
 	content, err := json.Marshal(ksJSON)
 	if err != nil {

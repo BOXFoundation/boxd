@@ -29,7 +29,7 @@ func CreateTokenIssueTx(v *viper.Viper, fromAddress, toAddress types.Address, pu
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	scriptPubKey, err := getIssueTokenScript(toAddress.ScriptAddress(), tokenName, tokenTotalSupply)
+	scriptPubKey, err := getIssueTokenScript(toAddress.Hash(), tokenName, tokenTotalSupply)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func CreateTokenTransferTx(v *viper.Viper, fromAddress types.Address, targets ma
 
 	txReq := &rpcpb.SendTransactionRequest{}
 	// TODO: can only handle transfer to 1 address
-	scriptPubKey, err := getTransferTokenScript(anyToAddress.ScriptAddress(), tokenTxHash, tokenTxOutIdx, anyToAmount)
+	scriptPubKey, err := getTransferTokenScript(anyToAddress.Hash(), tokenTxHash, tokenTxOutIdx, anyToAmount)
 	if err != nil {
 		return nil, err
 	}

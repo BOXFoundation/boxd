@@ -46,7 +46,7 @@ func getPayToPubKeyHashScript(pubKeyHash []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return *script.PayToPubKeyHashScript(addr.ScriptAddress()), nil
+	return *script.PayToPubKeyHashScript(addr.Hash()), nil
 }
 
 // returns token issurance scriptPubKey
@@ -56,7 +56,7 @@ func getIssueTokenScript(pubKeyHash []byte, tokenName string, tokenTotalSupply u
 		return nil, err
 	}
 	issueParams := &script.IssueParams{Name: tokenName, TotalSupply: tokenTotalSupply}
-	return *script.IssueTokenScript(addr.ScriptAddress(), issueParams), nil
+	return *script.IssueTokenScript(addr.Hash(), issueParams), nil
 }
 
 // returns token transfer scriptPubKey
@@ -71,7 +71,7 @@ func getTransferTokenScript(pubKeyHash []byte, tokenTxHash *crypto.HashType, tok
 	transferParams.Index = tokenTxOutIdx
 	transferParams.Amount = amount
 
-	script := script.TransferTokenScript(addr.ScriptAddress(), transferParams)
+	script := script.TransferTokenScript(addr.Hash(), transferParams)
 	return *script, nil
 }
 
@@ -144,7 +144,7 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
 func FundTransaction(v *viper.Viper, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
-	p2pkhScript, err := getPayToPubKeyHashScript(addr.ScriptAddress())
+	p2pkhScript, err := getPayToPubKeyHashScript(addr.Hash())
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromP
 	for addr, amount := range targets {
 		if !coloredOutput {
 			// general tx
-			scriptPubKey, err := getPayToPubKeyHashScript(addr.ScriptAddress())
+			scriptPubKey, err := getPayToPubKeyHashScript(addr.Hash())
 			if err != nil {
 				return nil, err
 			}
@@ -220,7 +220,7 @@ func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromP
 	if !coloredInput {
 		if currentAmount > total {
 			change := currentAmount - total
-			changeScript, err := getPayToPubKeyHashScript(addr.ScriptAddress())
+			changeScript, err := getPayToPubKeyHashScript(addr.Hash())
 			if err != nil {
 				return nil, err
 			}
@@ -232,7 +232,7 @@ func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromP
 	} else {
 		if currentAmount > total {
 			change := currentAmount - total
-			changeScript, err := getTransferTokenScript(addr.ScriptAddress(), tokenTxHash, tokenTxOutIdx, change)
+			changeScript, err := getTransferTokenScript(addr.Hash(), tokenTxHash, tokenTxOutIdx, change)
 			if err != nil {
 				return nil, err
 			}
@@ -270,7 +270,7 @@ func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromP
 			// uncolored change if any
 			if utxo.GetTxOut().GetValue() > dustLimit {
 				change := utxo.GetTxOut().GetValue() - dustLimit
-				changeScript, err := getPayToPubKeyHashScript(addr.ScriptAddress())
+				changeScript, err := getPayToPubKeyHashScript(addr.Hash())
 				if err != nil {
 					return nil, err
 				}

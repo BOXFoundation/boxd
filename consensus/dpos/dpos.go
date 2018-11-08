@@ -177,7 +177,7 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 	if err != nil {
 		return err
 	}
-	addr, err := types.ParseAddress(dpos.miner.Addr())
+	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 // ValidateMiner verifies whether the miner has authority to mint.
 func (dpos *Dpos) ValidateMiner() bool {
 
-	addr, err := types.ParseAddress(dpos.miner.Addr())
+	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {
 		return false
 	}
