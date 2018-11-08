@@ -15,23 +15,20 @@ import (
 )
 
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
-func CreateTransaction(v *viper.Viper, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
+func CreateTransaction(v *viper.Viper, fromAddress types.Address, targets map[types.Address]uint64,
+	pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
+
 	var total uint64
 	for _, amount := range targets {
 		total += amount
 	}
 	utxoResponse, err := FundTransaction(v, fromAddress, total)
-
 	if err != nil {
 		return nil, err
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	scriptPubKey, err := getPayToPubKeyHashScript(toPubKeyHash)
-	if err != nil {
-		return nil, err
-	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse, nil, 0, amount, false, signer)
+	tx, err := wrapTransaction(fromAddress, targets, pubKeyBytes, utxoResponse, false, false, nil, 0, nil, signer)
 	if err != nil {
 		return nil, err
 	}

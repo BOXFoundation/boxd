@@ -141,10 +141,10 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
 }
 
 // FundTransaction gets the utxo of a public key
-func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount uint64) (*rpcpb.ListUtxosResponse, error) {
+func FundTransaction(v *viper.Viper, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
 	conn := mustConnect(v)
 	defer conn.Close()
-	p2pkhScript, err := getPayToPubKeyHashScript(pubKeyHash)
+	p2pkhScript, err := getPayToPubKeyHashScript(addr.ScriptAddress())
 	if err != nil {
 		return nil, err
 	}
@@ -152,11 +152,10 @@ func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount uint64) (*rpcpb.L
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	logger.Debugf("Fund transaction from: %v, amount : %v", pubKeyHash, amount)
 
 	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-		ScriptPubKey: p2pkhScript,
-		Amount:       amount,
+		Addr:   addr.EncodeAddress(),
+		Amount: amount,
 	})
 	if err != nil {
 		return nil, err
@@ -165,20 +164,21 @@ func FundTransaction(v *viper.Viper, pubKeyHash []byte, amount uint64) (*rpcpb.L
 	return r, nil
 }
 
-func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKeyBytes, utxoResp *rpcpb.ListUtxosResponse,
-	amount uint64, colored bool, signer crypto.Signer) (*corepb.Transaction, error) {
+func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromPubKeyBytes []byte, utxoResp *rpcpb.ListUtxosResponse,
+	coloredInput, coloredOutput bool, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, tokenScriptPubKey []byte, signer crypto.Signer) (*corepb.Transaction, error) {
 
+	var total uint64
 	for _, amount := range targets {
 		total += amount
 	}
 
-	utxos, err := selectUtxo(utxoResp, total, colored)
+	utxos, err := selectUtxo(utxoResp, total, coloredInput, tokenTxHash, tokenTxOutIdx)
 	if err != nil {
 		return nil, err
 	}
 
 	tx := &corepb.Transaction{}
-	var currentAmount, total uint64
+	var currentAmount uint64
 	txIn := make([]*corepb.TxIn, len(utxos))
 	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
@@ -191,7 +191,7 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 			Sequence:  uint32(0),
 		}
 		// no need to check utxo as selectUtxo() already filters
-		if !colored {
+		if !coloredInput {
 			currentAmount += utxo.GetTxOut().GetValue()
 		} else {
 			currentAmount += getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
@@ -200,28 +200,27 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 	tx.Vin = txIn
 
 	for addr, amount := range targets {
-		if !colored {
+		if !coloredOutput {
 			// general tx
-			scriptPubKey, err := getScriptAddress(addr.ScriptAddress())
+			scriptPubKey, err := getPayToPubKeyHashScript(addr.ScriptAddress())
 			if err != nil {
 				return nil, err
 			}
 			tx.Vout = append(tx.Vout, &corepb.TxOut{Value: amount, ScriptPubKey: scriptPubKey})
 			total += amount
 		} else {
-			//TODO
 			// token tx
-			tx.Vout = append(tx.Vout, &corepb.TxOut{{
+			tx.Vout = append(tx.Vout, &corepb.TxOut{
 				Value:        dustLimit,
-				ScriptPubKey: scriptPubKey,
-			}}
+				ScriptPubKey: tokenScriptPubKey,
+			})
 		}
 	}
 
-	if !colored {
+	if !coloredInput {
 		if currentAmount > total {
 			change := currentAmount - total
-			changeScript, err := getPayToPubKeyHashScript(fromPubKeyHash)
+			changeScript, err := getPayToPubKeyHashScript(addr.ScriptAddress())
 			if err != nil {
 				return nil, err
 			}
@@ -231,9 +230,9 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 			})
 		}
 	} else {
-		if current > total {
+		if currentAmount > total {
 			change := currentAmount - total
-			changeScript, err := getTransferTokenScript(fromPubKeyHash, change)
+			changeScript, err := getTransferTokenScript(addr.ScriptAddress(), tokenTxHash, tokenTxOutIdx, change)
 			if err != nil {
 				return nil, err
 			}
@@ -271,7 +270,7 @@ func wrapTransaction(fromPubKeyHash, targets map[types.Address]uint64, fromPubKe
 			// uncolored change if any
 			if utxo.GetTxOut().GetValue() > dustLimit {
 				change := utxo.GetTxOut().GetValue() - dustLimit
-				changeScript, err := getPayToPubKeyHashScript(fromPubKeyHash)
+				changeScript, err := getPayToPubKeyHashScript(addr.ScriptAddress())
 				if err != nil {
 					return nil, err
 				}

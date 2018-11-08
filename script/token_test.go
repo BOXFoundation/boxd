@@ -24,6 +24,7 @@ func TestIssueToken(t *testing.T) {
 	script := IssueTokenScript(testPubKeyHash, params)
 
 	ensure.True(t, script.IsTokenIssue())
+	ensure.True(t, script.P2PKHScriptPrefix().IsPayToPubKeyHash())
 
 	params2, err := script.GetIssueParams()
 	ensure.Nil(t, err)
@@ -42,6 +43,7 @@ func TestTransferToken(t *testing.T) {
 	script := TransferTokenScript(testPubKeyHash, params)
 
 	ensure.True(t, script.IsTokenTransfer())
+	ensure.True(t, script.P2PKHScriptPrefix().IsPayToPubKeyHash())
 
 	params2, err := script.GetTransferParams()
 	ensure.Nil(t, err)

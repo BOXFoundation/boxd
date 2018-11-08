@@ -124,7 +124,7 @@ func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx in
 func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
-	logger.Debugf("script len %d: %s", scriptLen, s.disasm())
+	logger.Debugf("script len %d: %s", scriptLen, s.Disasm())
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
@@ -405,9 +405,9 @@ func (s *Script) parse() []interface{} {
 	return elements
 }
 
-// disasm disassembles script in human readable format. If the script fails to parse, the returned string will
+// Disasm disassembles script in human readable format. If the script fails to parse, the returned string will
 // contain the disassembled script up to the failure point, appended by the string '[Error: error info]'
-func (s *Script) disasm() string {
+func (s *Script) Disasm() string {
 	var str []string
 
 	elements := s.parse()

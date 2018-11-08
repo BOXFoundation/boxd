@@ -136,17 +136,17 @@ func TestP2SH(t *testing.T) {
 
 func TestDisasm(t *testing.T) {
 	script := NewScript().AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPADD).AddOpCode(OP14).AddOpCode(OPEQUAL)
-	ensure.DeepEqual(t, script.disasm(), "OP_8 OP_6 OP_ADD OP_14 OP_EQUAL")
+	ensure.DeepEqual(t, script.Disasm(), "OP_8 OP_6 OP_ADD OP_14 OP_EQUAL")
 
 	// not enough data to push
 	script.AddOpCode(OPPUSHDATA1)
-	ensure.DeepEqual(t, script.disasm(), "OP_8 OP_6 OP_ADD OP_14 OP_EQUAL [Error: OP_PUSHDATA1 has not enough data]")
+	ensure.DeepEqual(t, script.Disasm(), "OP_8 OP_6 OP_ADD OP_14 OP_EQUAL [Error: OP_PUSHDATA1 has not enough data]")
 
 	scriptSig, scriptPubKey, sigBytes := genP2PKHScript(false)
 	expectedScriptStrs := []string{hex.EncodeToString(sigBytes), hex.EncodeToString(testPubKeyBytes), "OP_CODESEPARATOR",
 		"OP_DUP", "OP_HASH160", hex.EncodeToString(testPubKeyHash), "OP_EQUALVERIFY", "OP_CHECKSIG"}
 	catScript := NewScript().AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
-	ensure.DeepEqual(t, catScript.disasm(), strings.Join(expectedScriptStrs, " "))
+	ensure.DeepEqual(t, catScript.Disasm(), strings.Join(expectedScriptStrs, " "))
 }
 
 func TestIsPayToScriptHash(t *testing.T) {

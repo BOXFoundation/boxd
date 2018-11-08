@@ -158,3 +158,8 @@ func (s *Script) IsTokenTransfer() bool {
 		reflect.DeepEqual(r[5], OPDROP) && reflect.DeepEqual(r[7], OPDROP) && reflect.DeepEqual([]byte(r[8].(Operand)), TokenAmountKey) &&
 		reflect.DeepEqual(r[9], OPDROP) && reflect.DeepEqual(r[11], OPDROP)
 }
+
+// P2PKHScriptPrefix returns p2pkh prefix of token script
+func (s *Script) P2PKHScriptPrefix() *Script {
+	return NewScriptFromBytes((*s)[:p2PKHScriptLen])
+}

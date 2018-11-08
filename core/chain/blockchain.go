@@ -145,7 +145,7 @@ func (chain *BlockChain) loadFilters() error {
 			return err
 		}
 		if err := chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), func() bloom.Filter {
-			return block.GetFilterForTransactionScript(utxoSet.utxoMap)
+			return GetFilterForTransactionScript(block, utxoSet.utxoMap)
 		}); err != nil {
 			logger.Error("Failed to addFilter", err)
 			return err
@@ -636,7 +636,7 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 			return err
 		}
 		chain.filterHolder.AddFilter(attachBlock.Height, *attachBlock.Hash, chain.DB(), func() bloom.Filter {
-			return attachBlock.GetFilterForTransactionScript(utxoSet.utxoMap)
+			return GetFilterForTransactionScript(attachBlock, utxoSet.utxoMap)
 		})
 	}
 
@@ -708,21 +708,11 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 	}
 	for key, value := range utxoSet.utxoMap {
 		if isPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
-			logger.Info("utxo: ", util.PrettyPrint(value))
+			logger.Debug("utxo: ", util.PrettyPrint(value))
 			utxos[key] = value
 		}
 	}
 	return utxos, nil
-}
-
-// is s prefixed by prefix
-func isPrefixed(s, prefix []byte) bool {
-	prefixLen := len(prefix)
-	if len(s) < prefixLen {
-		return false
-	}
-	s = s[:prefixLen]
-	return bytes.Equal(s, prefix)
 }
 
 // GetBlockHeight returns current height of main chain
@@ -743,7 +733,7 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 
 	if err := chain.filterHolder.AddFilter(tail.Height, *tail.BlockHash(), chain.DB(), func() bloom.Filter {
-		return tail.GetFilterForTransactionScript(utxoSet.utxoMap)
+		return GetFilterForTransactionScript(tail, utxoSet.utxoMap)
 	}); err != nil {
 		return err
 	}
@@ -1033,4 +1023,36 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 func (chain *BlockChain) isInOrphanPool(blockHash *crypto.HashType) bool {
 	_, exists := chain.hashToOrphanBlock[*blockHash]
 	return exists
+}
+
+// GetFilterForTransactionScript returns the bloom filter for all the script address
+// of the transactions in the block, it will use the pre-calculated filter is there
+// are any
+func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoint]*types.UtxoWrap) bloom.Filter {
+	var vin, vout [][]byte
+	for _, tx := range block.Txs {
+		for _, out := range tx.Vout {
+			vout = append(vout, out.ScriptPubKey)
+		}
+	}
+	for _, utxo := range utxoUsed {
+		if utxo != nil && utxo.Output != nil {
+			logger.Debug("previous utxo added")
+			vin = append(vin, utxo.Output.ScriptPubKey)
+		}
+	}
+	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)
+	for _, scriptBytes := range vin {
+		filter.Add(scriptBytes)
+	}
+	for _, scriptBytes := range vout {
+		scriptPubKey := script.NewScriptFromBytes(scriptBytes)
+		if scriptPubKey.IsTokenIssue() || scriptPubKey.IsTokenTransfer() {
+			// token output: only store the p2pkh prefix part so we can retrieve it later
+			scriptBytes = *scriptPubKey.P2PKHScriptPrefix()
+		}
+		filter.Add(scriptBytes)
+	}
+	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
+	return filter
 }

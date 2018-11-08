@@ -20,21 +20,22 @@ const (
 )
 
 // CreateTokenIssueTx retrieves all the utxo of a public key, and use some of them to fund token issurance tx
-func CreateTokenIssueTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes []byte, tokenName string,
+func CreateTokenIssueTx(v *viper.Viper, fromAddress, toAddress types.Address, pubKeyBytes []byte, tokenName string,
 	tokenTotalSupply uint64, signer crypto.Signer) (*types.Transaction, error) {
-	utxoResponse, err := FundTransaction(v, fromPubkeyHash, dustLimit)
 
+	utxoResponse, err := FundTransaction(v, fromAddress, dustLimit)
 	if err != nil {
 		return nil, err
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	scriptPubKey, err := getIssueTokenScript(toPubKeyHash, tokenName, tokenTotalSupply)
+	scriptPubKey, err := getIssueTokenScript(toAddress.ScriptAddress(), tokenName, tokenTotalSupply)
 	if err != nil {
 		return nil, err
 	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse,
-		nil, 0, dustLimit, false, signer)
+	targets := make(map[types.Address]uint64, 0)
+	targets[toAddress] = dustLimit
+	tx, err := wrapTransaction(fromAddress, targets, pubKeyBytes, utxoResponse, false, true, nil, 0, scriptPubKey, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +46,7 @@ func CreateTokenIssueTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyByte
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	logger.Debugf("Create transaction from: %v, to : %v", fromPubkeyHash, toPubKeyHash)
+
 	r, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
 		return nil, err
@@ -57,21 +58,29 @@ func CreateTokenIssueTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyByte
 }
 
 // CreateTokenTransferTx retrieves all the token utxo of a public key, and use some of them to fund token transfer tx
-func CreateTokenTransferTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyBytes []byte,
-	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, amount uint64, signer crypto.Signer) (*types.Transaction, error) {
-	utxoResponse, err := FundTransaction(v, fromPubkeyHash, amount)
+func CreateTokenTransferTx(v *viper.Viper, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte,
+	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, signer crypto.Signer) (*types.Transaction, error) {
 
+	var total, anyToAmount uint64
+	var anyToAddress types.Address
+	for addr, amount := range targets {
+		total += amount
+		anyToAddress = addr
+		anyToAmount = amount
+	}
+	utxoResponse, err := FundTransaction(v, fromAddress, total)
 	if err != nil {
 		return nil, err
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	scriptPubKey, err := getTransferTokenScript(toPubKeyHash, tokenTxHash, tokenTxOutIdx, amount)
+	// TODO: can only handle transfer to 1 address
+	scriptPubKey, err := getTransferTokenScript(anyToAddress.ScriptAddress(), tokenTxHash, tokenTxOutIdx, anyToAmount)
 	if err != nil {
 		return nil, err
 	}
-	tx, err := wrapTransaction(fromPubkeyHash, toPubKeyHash, pubKeyBytes, scriptPubKey, utxoResponse,
-		tokenTxHash, tokenTxOutIdx, amount, true, signer)
+	tx, err := wrapTransaction(fromAddress, targets, pubKeyBytes, utxoResponse,
+		true, true, tokenTxHash, tokenTxOutIdx, scriptPubKey, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +91,7 @@ func CreateTokenTransferTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyB
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	logger.Debugf("Create transaction from: %v, to : %v", fromPubkeyHash, toPubKeyHash)
+
 	r, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
 		return nil, err
@@ -94,14 +103,17 @@ func CreateTokenTransferTx(v *viper.Viper, fromPubkeyHash, toPubKeyHash, pubKeyB
 }
 
 // GetTokenBalance returns the token balance of a public key
-func GetTokenBalance(v *viper.Viper, pubkeyHash []byte, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
-	utxoResponse, err := FundTransaction(v, pubkeyHash, 0)
+func GetTokenBalance(v *viper.Viper, addr types.Address, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
+	utxoResponse, err := FundTransaction(v, addr, 0)
 	if err != nil {
 		return 0
 	}
 	utxos := utxoResponse.GetUtxos()
 	var currentAmount uint64
 	for _, utxo := range utxos {
+		txHashBytes := utxo.GetOutPoint().GetHash()
+		hash := &crypto.HashType{}
+		hash.SetBytes(txHashBytes)
 		if utxo.IsSpent {
 			continue
 		}
