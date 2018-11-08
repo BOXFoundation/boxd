@@ -29,6 +29,13 @@ rpc:
     http:
         port: 19190
 dpos:
-    keypath: keyfile/key.keystore
+    keypath: key.keystore
     enable_mint: true
     passphrase: zaq12wsx
+metrics:
+    enable: false
+    host: http://localhost:8086
+    db: box
+    user: 
+    password:
+    tags: [region:us-west, host:box-1]

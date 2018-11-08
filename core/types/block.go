@@ -10,7 +10,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
-	"github.com/BOXFoundation/boxd/util/bloom"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -139,33 +138,6 @@ func (block *Block) calcBlockHash() (*crypto.HashType, error) {
 	}
 	hash := crypto.DoubleHashH(headerBuf) // dhash of header
 	return &hash, nil
-}
-
-// GetFilterForTransactionScript returns the bloom filter for all the script address
-// of the transactions in the block, it will use the pre-calculated filter is there
-// are any
-func (block *Block) GetFilterForTransactionScript(utxoUsed map[OutPoint]*UtxoWrap) bloom.Filter {
-	var vin, vout [][]byte
-	for _, tx := range block.Txs {
-		for _, out := range tx.Vout {
-			vout = append(vout, out.ScriptPubKey)
-		}
-	}
-	for _, utxo := range utxoUsed {
-		if utxo != nil && utxo.Output != nil {
-			logger.Debug("previous utxo added")
-			vin = append(vin, utxo.Output.ScriptPubKey)
-		}
-	}
-	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)
-	for _, script := range vin {
-		filter.Add(script)
-	}
-	for _, script := range vout {
-		filter.Add(script)
-	}
-	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
-	return filter
 }
 
 // BlockHeader defines information about a block and is used in the

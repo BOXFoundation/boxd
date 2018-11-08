@@ -17,6 +17,7 @@ var (
 	ErrCandidateNotFound      = errors.New("Candidate not found")
 	ErrRepeatedMintAtSameTime = errors.New("Repeated mint at same time")
 	ErrFailedToVerifySign     = errors.New("Failed to verify sign block")
+	ErrNotMintPeer            = errors.New("Invalid mint peer")
 
 	// context
 	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")

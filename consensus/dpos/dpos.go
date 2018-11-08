@@ -65,11 +65,7 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		cfg:    cfg,
 	}
 
-	cache, err := lru.New(512)
-	if err != nil {
-		return nil, err
-	}
-	dpos.cache = cache
+	dpos.cache, _ = lru.New(512)
 
 	context := &ConsensusContext{}
 	dpos.context = context
@@ -181,7 +177,7 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 	if err != nil {
 		return err
 	}
-	addr, err := types.ParseAddress(dpos.miner.Addr())
+	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {
 		return err
 	}
@@ -194,7 +190,7 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 // ValidateMiner verifies whether the miner has authority to mint.
 func (dpos *Dpos) ValidateMiner() bool {
 
-	addr, err := types.ParseAddress(dpos.miner.Addr())
+	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {
 		return false
 	}
@@ -226,7 +222,7 @@ func (dpos *Dpos) mintBlock() error {
 		logger.Warnf("Failed to sign block. err: %s", err.Error())
 		return err
 	}
-	if _, _, err := dpos.chain.ProcessBlock(block, true); err != nil {
+	if _, _, err := dpos.chain.ProcessBlock(block, true, true); err != nil {
 		logger.Warnf("Failed to process block. err: %s", err.Error())
 		return err
 	}

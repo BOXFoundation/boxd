@@ -44,7 +44,7 @@ func TestAppendInLoop(t *testing.T) {
 func nextBlock(parentBlock *types.Block) *types.Block {
 	newBlock := types.NewBlock(parentBlock)
 
-	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.ScriptAddress(), parentBlock.Height+1)
+	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parentBlock.Height+1)
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock
@@ -58,7 +58,7 @@ func getTailBlock() *types.Block {
 func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedIsMainChain bool,
 	expectedIsOrphan bool, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
 
-	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */)
+	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */, false)
 
 	ensure.DeepEqual(t, isMainChain, expectedIsMainChain)
 	ensure.DeepEqual(t, isOrphan, expectedIsOrphan)
@@ -169,10 +169,8 @@ func TestBlockProcessing(t *testing.T) {
 
 func TestBlockChain_WirteTxIndex(t *testing.T) {
 	ensure.NotNil(t, blockChain)
-	ensure.True(t, blockChain.LongestChainHeight == 0)
 
 	b0 := getTailBlock()
-	ensure.DeepEqual(t, b0, &GenesisBlock)
 
 	b1 := nextBlock(b0)
 	ensure.Nil(t, blockChain.StoreBlockToDb(b1))

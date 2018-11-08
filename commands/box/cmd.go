@@ -11,6 +11,7 @@ import (
 	_ "github.com/BOXFoundation/boxd/commands/box/ctl" // init ctl cmd
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	_ "github.com/BOXFoundation/boxd/commands/box/start"       // init start cmd
+	_ "github.com/BOXFoundation/boxd/commands/box/token"       // init token cmd
 	_ "github.com/BOXFoundation/boxd/commands/box/transaction" // init transaction cmd
 	_ "github.com/BOXFoundation/boxd/commands/box/wallet"      // init wallet cmd
 )

@@ -221,10 +221,6 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 
 		// Tx amount must be in range.
 		utxoAmount := utxo.Value()
-		if utxoAmount < 0 {
-			logger.Errorf("transaction output has negative value of %v", utxoAmount)
-			return 0, core.ErrBadTxOutValue
-		}
 		if utxoAmount > TotalSupply {
 			logger.Errorf("transaction output value of %v is higher than max allowed value of %v", utxoAmount, TotalSupply)
 			return 0, core.ErrBadTxOutValue
@@ -288,20 +284,14 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 	var totalValue uint64
 	for _, txOut := range tx.Vout {
 		value := txOut.Value
-		if value < 0 {
-			logger.Errorf("transaction output has negative value of %v", value)
-			return core.ErrBadTxOutValue
-		}
 		if value > TotalSupply {
 			logger.Errorf("transaction output value of %v is "+
 				"higher than max allowed value of %v", TotalSupply)
 			return core.ErrBadTxOutValue
 		}
 
-		// Two's complement int64 overflow guarantees that any overflow
-		// is detected and reported.
 		totalValue += value
-		if totalValue < 0 {
+		if totalValue < value {
 			logger.Errorf("total value of all transaction outputs overflows %v", totalValue)
 			return core.ErrBadTxOutValue
 		}

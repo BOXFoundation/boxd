@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -42,7 +44,9 @@ const (
 	sequenceLockTimeGranularity = 9
 	unminedHeight               = 0x7fffffff
 	MaxBlocksPerSync            = 1024
-	BlockFilterCapacity         = 100000
+
+	metricsLoopInterval = 2 * time.Second
+	BlockFilterCapacity = 100000
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -69,6 +73,13 @@ type BlockChain struct {
 	filterHolder              BloomFilterHolder
 }
 
+// UpdateMsg sent from blockchain to, e.g., mempool
+type UpdateMsg struct {
+	// block connected/disconnected from main chain
+	Connected bool
+	Block     *types.Block
+}
+
 // NewBlockChain return a blockchain.
 func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus) (*BlockChain, error) {
 
@@ -83,40 +94,31 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 
 	var err error
-	b.cache, err = lru.New(512)
-	if err != nil {
-		return nil, err
-	}
-	b.db, err = db.Table(BlockTableName)
-	if err != nil {
+	b.cache, _ = lru.New(512)
+
+	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
 	}
 
-	genesis, err := b.loadGenesis()
-	if err != nil {
+	if b.genesis, err = b.loadGenesis(); err != nil {
 		logger.Error("Failed to load genesis block ", err)
 		return nil, err
 	}
-	b.genesis = genesis
 
-	eternal, err := b.loadEternalBlock()
-	if err != nil {
+	if b.eternal, err = b.loadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
-	b.eternal = eternal
 
-	tail, err := b.LoadTailBlock()
-	if err != nil {
+	if b.tail, err = b.LoadTailBlock(); err != nil {
 		logger.Error("Failed to load tail block ", err)
 		return nil, err
 	}
-	b.tail = tail
-	b.LongestChainHeight = tail.Height
+	b.LongestChainHeight = b.tail.Height
 
-	err = b.loadFilters()
-	if err != nil {
+	if err = b.loadFilters(); err != nil {
 		logger.Error("Fail to load filters", err)
+		return nil, err
 	}
 
 	return b, nil
@@ -130,31 +132,32 @@ func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.Sync
 
 func (chain *BlockChain) loadFilters() error {
 	var i uint32 = 1
+	var utxoSet *UtxoSet
 	for ; i <= chain.LongestChainHeight; i++ {
 		block, err := chain.LoadBlockByHeight(i)
 		if err != nil {
 			logger.Error("Error try to load block at height", i, err)
 			return core.ErrWrongBlockHeight
 		}
-		utxoSet := NewUtxoSet()
-		err = utxoSet.LoadBlockUtxos(block, chain.db)
-		if err != nil {
+		utxoSet = NewUtxoSet()
+		if err = utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 			logger.Error("Error Loading block utxo", err)
 			return err
 		}
 		if err := chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), func() bloom.Filter {
-			return block.GetFilterForTransactionScript(utxoSet.utxoMap)
+			return GetFilterForTransactionScript(block, utxoSet.utxoMap)
 		}); err != nil {
 			logger.Error("Failed to addFilter", err)
 			return err
 		}
 	}
+	utxoSet = nil
 	return nil
 }
 
 // GetTransactions search the main chain about transaction relate to give address
 func (chain *BlockChain) GetTransactions(addr types.Address) ([]*types.Transaction, error) {
-	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
 	logger.Info(len(hashes), " blocks searched as related to address ", addr.String())
 	utxoSet := NewUtxoSet()
@@ -219,15 +222,21 @@ func (chain *BlockChain) Stop() {
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
-	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
+	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, p2p.Unique, chain.newblockMsgCh))
 }
 
 func (chain *BlockChain) loop(p goprocess.Process) {
 	logger.Info("Waitting for new block message...")
+	metricsTicker := time.NewTicker(metricsLoopInterval)
+	defer metricsTicker.Stop()
 	for {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			chain.processBlockMsg(msg)
+		case <-metricsTicker.C:
+			metrics.MetricsCachedBlockMsgGauge.Update(int64(len(chain.newblockMsgCh)))
+			metrics.MetricsBlockOrphanPoolSizeGauge.Update(int64(len(chain.hashToOrphanBlock)))
+			metrics.MetricsLruCacheBlockGauge.Update(int64(chain.cache.Len()))
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
@@ -244,7 +253,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if _, _, err := chain.ProcessBlock(block, false); err != nil && util.InArray(err, evilBehavior) {
+	if _, _, err := chain.ProcessBlock(block, false, true); err != nil && util.InArray(err, evilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
@@ -253,7 +262,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
+func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastConfirm bool) (bool, bool, error) {
 	blockHash := block.BlockHash()
 	logger.Infof("Processing block hash: %s", blockHash.String())
 
@@ -308,7 +317,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
-	if chain.consensus.ValidateMiner() {
+	if chain.consensus.ValidateMiner() && fastConfirm {
 		chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
 
@@ -441,7 +450,7 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 }
 
 func (chain *BlockChain) ancestor(block *types.Block, height uint32) *types.Block {
-	if height < 0 || height > block.Height {
+	if height > block.Height {
 		return nil
 	}
 
@@ -598,11 +607,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 }
 
 func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connected bool) error {
-	updateMsg := UpdateMsg{
+	chain.bus.Publish(eventbus.TopicChainUpdate, &UpdateMsg{
 		Connected: connected,
 		Block:     block,
-	}
-	chain.notifiee.Notify(NewLocalMessage(p2p.ChainUpdateMsg, updateMsg))
+	})
 	return nil
 }
 
@@ -627,8 +635,12 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.applyBlock(attachBlock, utxoSet); err != nil {
 			return err
 		}
+		chain.filterHolder.AddFilter(attachBlock.Height, *attachBlock.Hash, chain.DB(), func() bloom.Filter {
+			return GetFilterForTransactionScript(attachBlock, utxoSet.utxoMap)
+		})
 	}
 
+	metrics.MetricsBlockRevertMeter.Mark(1)
 	return nil
 }
 
@@ -680,7 +692,7 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 
 // LoadUtxoByAddress list all the available utxos owned by an address
 func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
-	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.ScriptAddress())
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
 	logger.Debug(addr.String(), " related blocks", util.PrettyPrint(blockHashes))
 	utxos := make(map[types.OutPoint]*types.UtxoWrap)
@@ -695,8 +707,8 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 		}
 	}
 	for key, value := range utxoSet.utxoMap {
-		if bytes.Equal(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
-			logger.Info("utxo: ", util.PrettyPrint(value))
+		if isPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
+			logger.Debug("utxo: ", util.PrettyPrint(value))
 			utxos[key] = value
 		}
 	}
@@ -721,7 +733,7 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
 
 	if err := chain.filterHolder.AddFilter(tail.Height, *tail.BlockHash(), chain.DB(), func() bloom.Filter {
-		return tail.GetFilterForTransactionScript(utxoSet.utxoMap)
+		return GetFilterForTransactionScript(tail, utxoSet.utxoMap)
 	}); err != nil {
 		return err
 	}
@@ -746,6 +758,9 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
+
+	metrics.MetricsBlockHeightGauge.Update(int64(tail.Height))
+	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))
 	return nil
 }
 
@@ -1008,4 +1023,36 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 func (chain *BlockChain) isInOrphanPool(blockHash *crypto.HashType) bool {
 	_, exists := chain.hashToOrphanBlock[*blockHash]
 	return exists
+}
+
+// GetFilterForTransactionScript returns the bloom filter for all the script address
+// of the transactions in the block, it will use the pre-calculated filter is there
+// are any
+func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoint]*types.UtxoWrap) bloom.Filter {
+	var vin, vout [][]byte
+	for _, tx := range block.Txs {
+		for _, out := range tx.Vout {
+			vout = append(vout, out.ScriptPubKey)
+		}
+	}
+	for _, utxo := range utxoUsed {
+		if utxo != nil && utxo.Output != nil {
+			logger.Debug("previous utxo added")
+			vin = append(vin, utxo.Output.ScriptPubKey)
+		}
+	}
+	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)
+	for _, scriptBytes := range vin {
+		filter.Add(scriptBytes)
+	}
+	for _, scriptBytes := range vout {
+		scriptPubKey := script.NewScriptFromBytes(scriptBytes)
+		if scriptPubKey.IsTokenIssue() || scriptPubKey.IsTokenTransfer() {
+			// token output: only store the p2pkh prefix part so we can retrieve it later
+			scriptBytes = *scriptPubKey.P2PKHScriptPrefix()
+		}
+		filter.Add(scriptBytes)
+	}
+	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
+	return filter
 }
