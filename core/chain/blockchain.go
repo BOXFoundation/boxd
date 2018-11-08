@@ -450,7 +450,7 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 }
 
 func (chain *BlockChain) ancestor(block *types.Block, height uint32) *types.Block {
-	if height < 0 || height > block.Height {
+	if height > block.Height {
 		return nil
 	}
 
