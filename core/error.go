@@ -27,6 +27,7 @@ var (
 	ErrBlockIsNil                  = errors.New("Block is nil")
 	ErrOrphanBlockExists           = errors.New("Orphan block already exists")
 	ErrFailedToSetEternal          = errors.New("Failed to set eternal block")
+	ErrTokenInputsOutputNotEqual   = errors.New("Tx input tokens and output tokens unequal")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")

@@ -46,6 +46,14 @@ type TransferParams struct {
 	Amount uint64
 }
 
+// NewTokenID returns a new token ID
+func NewTokenID(txHash crypto.HashType, txOutIdx uint32) TokenID {
+	tokenID := TokenID{}
+	tokenID.Hash = txHash
+	tokenID.Index = txOutIdx
+	return tokenID
+}
+
 // IssueTokenScript creates a script to issue tokens to the specified address.
 func IssueTokenScript(pubKeyHash []byte, params *IssueParams) *Script {
 	// Regular p2pkh
