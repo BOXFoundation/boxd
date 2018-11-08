@@ -197,6 +197,7 @@ func allMinersAddr() []string {
 }
 
 func genTestAddr(count int) ([]string, []string) {
+	logger.Infof("start to create %d accounts", count)
 	var addresses, accounts []string
 	for i := 0; i < count; i++ {
 		addr, acc, err := newAccount()
@@ -206,6 +207,5 @@ func genTestAddr(count int) ([]string, []string) {
 		addresses = append(addresses, addr)
 		accounts = append(accounts, acc)
 	}
-	logger.Infof("new %d accounts", len(addresses))
 	return addresses, accounts
 }

@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	workDir   = "../.devconfig/"
-	keyDir    = "../keyfile/"
-	walletDir = "../.devconfig/ws1/box_keystore"
+	workDir   = "./.devconfig/"
+	keyDir    = "./.devconfig/keyfile/"
+	walletDir = "./.devconfig/ws1/box_keystore/"
 
 	testPassphrase = "zaq12wsx"
 

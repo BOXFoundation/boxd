@@ -14,7 +14,7 @@ services:
       - "19191:19191"
       - "19190:19190"
     volumes:
-      - ./.devconfig:/app/boxd/.devconfig
+      - ./tests/.devconfig:/app/boxd/.devconfig
     networks:
       boxdnet:
         ipv4_address: 172.27.1.11
@@ -34,7 +34,7 @@ services:
       - "19181:19181"
       - "19180:19180"
     volumes:
-      - ./.devconfig:/app/boxd/.devconfig
+      - ./tests/.devconfig:/app/boxd/.devconfig
     networks:
       boxdnet:
         ipv4_address: 172.27.1.12
@@ -54,7 +54,7 @@ services:
       - "19171:19171"
       - "19170:19170"
     volumes:
-      - ./.devconfig:/app/boxd/.devconfig
+      - ./tests/.devconfig:/app/boxd/.devconfig
     networks:
       boxdnet:
         ipv4_address: 172.27.1.13

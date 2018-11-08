@@ -40,24 +40,24 @@ func (tt *txTest) testTx(testsAccCnt int) {
 
 	// test single tx from miner addr 0 to test addr 0
 	amount := uint64(1000000 + rand.Intn(1000000))
-	singleTxTest(tt.minersAddr[0], tt.testsAddr[0], amount, peersAddr[0],
+	txSingleTest(tt.minersAddr[0], tt.testsAddr[0], amount, peersAddr[0],
 		peersAddr[1])
 
 	// test repeast tx test addr 0 to test addr 1
-	repeatTxTest(tt.testsAddr[0], tt.testsAddr[1], amount, peersAddr[0],
+	txRepeatTest(tt.testsAddr[0], tt.testsAddr[1], amount, peersAddr[0],
 		peersAddr[1], 1)
 
 	// test tx between account A to many other accounts
-	multiTxVoutTest(tt.testsAddr[1], tt.testsAddr[2:3], amount/2, peersAddr[1],
+	txOneToManyTest(tt.testsAddr[1], tt.testsAddr[2:3], amount/2, peersAddr[1],
 		peersAddr[0])
 
 	// test tx between accounts to a single account
 	// transfer half of balance from testsAddr[2:] to testsAddr[1]
-	multiTxVinTest(tt.testsAddr[2:3], tt.testsAddr[1], peersAddr[1], peersAddr[0])
+	txManyToOneTest(tt.testsAddr[2:3], tt.testsAddr[1], peersAddr[1], peersAddr[0])
 }
 
-func singleTxTest(fromAddr, toAddr string, amount uint64, execPeer, checkPeer string) {
-	logger.Info("=== RUN   singleTxTest")
+func txSingleTest(fromAddr, toAddr string, amount uint64, execPeer, checkPeer string) {
+	logger.Info("=== RUN   txSingleTest")
 	// get balance of miners
 	logger.Infof("start to get balance of fromAddr[%s], toAddr[%s] from %s",
 		fromAddr, toAddr, execPeer)
@@ -95,15 +95,15 @@ func singleTxTest(fromAddr, toAddr string, amount uint64, execPeer, checkPeer st
 	toGap := toBalancePost - toBalancePre
 	fromGap := (supplement + fromBalancePre - fromBalancePost) % chain.BaseSubsidy
 	if toGap != fromGap || toGap != amount {
-		logger.Panicf("singleTxTest faild: fromGap %d toGap %d and transfer %d",
+		logger.Panicf("txSingleTest faild: fromGap %d toGap %d and transfer %d",
 			fromGap, toGap, amount)
 	}
-	logger.Infof("--- PASS: singleTxTest")
+	logger.Info("--- PASS: txSingleTest")
 }
 
-func repeatTxTest(fromAddr, toAddr string, totalAmount uint64, execPeer,
+func txRepeatTest(fromAddr, toAddr string, totalAmount uint64, execPeer,
 	checkPeer string, times int) {
-	logger.Info("=== RUN   repeatTxTest")
+	logger.Info("=== RUN   txRepeatTest")
 	// get balance of miners
 	logger.Infof("start to get balance of fromAddr[%s], toAddr[%s] from %s",
 		fromAddr, toAddr, execPeer)
@@ -146,15 +146,15 @@ func repeatTxTest(fromAddr, toAddr string, totalAmount uint64, execPeer,
 	toGap := toBalancePost - toBalancePre
 	fromGap := fromBalancePre - fromBalancePost
 	if toGap != fromGap || toGap != transfer {
-		logger.Panicf("repeatTxTest faild: fromGap %d toGap %d and transfer %d",
+		logger.Panicf("txRepeatTest faild: fromGap %d toGap %d and transfer %d",
 			fromGap, toGap, transfer)
 	}
-	logger.Infof("--- PASS: repeatTxTest")
+	logger.Infof("--- PASS: txRepeatTest")
 }
 
-func multiTxVoutTest(fromAddr string, toAddrs []string, totalAmount uint64,
+func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
 	execPeer, checkPeer string) {
-	logger.Info("=== RUN   multiTxVoutTest")
+	logger.Info("=== RUN   txOneToManyTest")
 	// get balance of fromAddr and toAddrs
 	logger.Infof("start to get balance of fromAddr[%s], toAddrs[%v] from %s",
 		fromAddr, toAddrs, execPeer)
@@ -213,14 +213,14 @@ func multiTxVoutTest(fromAddr string, toAddrs []string, totalAmount uint64,
 		toGap += toBalancesPost[i] - toBalancesPre[i]
 	}
 	if toGap != fromGap || toGap != transfer {
-		logger.Panicf("multiTxVoutTest faild: fromGap %d toGap %d and transfer %d",
+		logger.Panicf("txOneToManyTest faild: fromGap %d toGap %d and transfer %d",
 			fromGap, toGap, transfer)
 	}
-	logger.Infof("--- PASS: multiTxVoutTest")
+	logger.Info("--- PASS: txOneToManyTest")
 }
 
-func multiTxVinTest(fromAddrs []string, toAddr string, execPeer, checkPeer string) {
-	logger.Info("=== RUN   multiTxVinTest")
+func txManyToOneTest(fromAddrs []string, toAddr string, execPeer, checkPeer string) {
+	logger.Info("=== RUN   txManyToOneTest")
 	// get balance of fromAddrs and toAddr
 	logger.Infof("start to get balance of fromAddrs[%v], toAddr[%s] from %s",
 		fromAddrs, toAddr, execPeer)
@@ -236,7 +236,7 @@ func multiTxVinTest(fromAddrs []string, toAddr string, execPeer, checkPeer strin
 	if err != nil {
 		logger.Panic(err)
 	}
-	logger.Infof("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
+	logger.Debugf("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
 		fromAddrs, fromBalancesPre, toAddr, toBalancePre)
 
 	// create a transaction from test accounts to account and execute it
@@ -269,7 +269,7 @@ func multiTxVinTest(fromAddrs []string, toAddr string, execPeer, checkPeer strin
 	if err != nil {
 		logger.Panic(err)
 	}
-	logger.Infof("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
+	logger.Debugf("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
 		fromAddrs, fromBalancesPost, toAddr, toBalancePost)
 
 	//
@@ -279,8 +279,8 @@ func multiTxVinTest(fromAddrs []string, toAddr string, execPeer, checkPeer strin
 	}
 	toGap := toBalancePost - toBalancePre
 	if fromGap != toGap || toGap != transfer {
-		logger.Panicf("multiTxVinTest faild: fromGap %d toGap %d and transfer %d",
+		logger.Panicf("txManyToOneTest faild: fromGap %d toGap %d and transfer %d",
 			fromGap, toGap, transfer)
 	}
-	logger.Infof("--- PASS: multiTxVinTest")
+	logger.Info("--- PASS: txManyToOneTest")
 }
