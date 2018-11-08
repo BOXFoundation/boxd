@@ -90,10 +90,6 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		if err != nil {
 			return
 		}
-		if err := conn.checkMessage(msg); err != nil {
-			logger.Error("Invalid message. ", err)
-			return
-		}
 		logger.Debugf("Receiving message %02x from peer %s", msg.Code(), conn.remotePeer.Pretty())
 		if err := conn.Handle(msg); err != nil {
 			logger.Error("Failed to handle message. ", err)
@@ -105,6 +101,25 @@ func (conn *Conn) loop(proc goprocess.Process) {
 // readMessage returns the next message, with remote peer id
 func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	msg, err := readMessageData(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := conn.checkMessage(msg); err != nil {
+		logger.Error("Invalid message. ", err)
+		return nil, err
+	}
+
+	reserved := msg.messageHeader.reserved
+	if len(reserved) != 0 && int(reserved[0])&compressFlag != 0 {
+		data, err := decompress(nil, msg.body)
+		logger.Errorf("aaaa %v %v %v", msg.messageHeader.code, len(msg.body), len(data))
+		if err != nil {
+			return nil, err
+		}
+		msg.body = data
+	}
+
 	metricsReadMeter.Mark(msg.Len())
 	if err != nil {
 		return nil, err
@@ -244,7 +259,13 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 }
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
-	data, err := newMessageData(conn.peer.config.Magic, opcode, nil, body).Marshal()
+	compressTag, ok := msgToCompression.Load(opcode)
+	reserve := []byte{}
+	if compressTag != nil && compressTag.(bool) && ok {
+		reserve = append(reserve, byte(compressFlag))
+		body = compress(nil, body)
+	}
+	data, err := newMessageData(conn.peer.config.Magic, opcode, reserve, body).Marshal()
 	if err != nil {
 		return err
 	}
@@ -300,8 +321,8 @@ func (conn *Conn) establish() {
 }
 
 // check if the message is valid. Called immediately after receiving a new message.
-func (conn *Conn) checkMessage(msg *remoteMessage) error {
-	if conn.peer.config.Magic != msg.magic {
+func (conn *Conn) checkMessage(msg *message) error {
+	if conn.peer.config.Magic != msg.messageHeader.magic {
 		return ErrMagic
 	}
 

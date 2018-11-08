@@ -106,7 +106,6 @@ func unmarshalHeader(data []byte) (*messageHeader, error) {
 
 // readMessageData reads a message from reader
 func readMessageData(r io.Reader) (*message, error) {
-	// sr := snappy.NewReader(r)
 	headerLen, err := util.ReadUint32(r)
 	if err != nil {
 		return nil, err

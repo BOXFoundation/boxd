@@ -222,7 +222,7 @@ func (chain *BlockChain) Stop() {
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
-	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, p2p.Unique, chain.newblockMsgCh))
+	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, p2p.Unique, true, chain.newblockMsgCh))
 }
 
 func (chain *BlockChain) loop(p goprocess.Process) {
