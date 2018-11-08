@@ -222,7 +222,7 @@ func (dpos *Dpos) mintBlock() error {
 		logger.Warnf("Failed to sign block. err: %s", err.Error())
 		return err
 	}
-	if _, _, err := dpos.chain.ProcessBlock(block, true); err != nil {
+	if _, _, err := dpos.chain.ProcessBlock(block, true, true); err != nil {
 		logger.Warnf("Failed to process block. err: %s", err.Error())
 		return err
 	}

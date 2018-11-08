@@ -253,7 +253,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if _, _, err := chain.ProcessBlock(block, false); err != nil && util.InArray(err, evilBehavior) {
+	if _, _, err := chain.ProcessBlock(block, false, true); err != nil && util.InArray(err, evilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
@@ -262,7 +262,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool, bool, error) {
+func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastConfirm bool) (bool, bool, error) {
 	blockHash := block.BlockHash()
 	logger.Infof("Processing block hash: %s", blockHash.String())
 
@@ -317,7 +317,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool) (bool,
 	if broadcast {
 		chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
-	if chain.consensus.ValidateMiner() {
+	if chain.consensus.ValidateMiner() && fastConfirm {
 		chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
 
