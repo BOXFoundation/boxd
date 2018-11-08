@@ -5,15 +5,10 @@
 package p2p
 
 import (
-	"sync"
-
 	"github.com/golang/snappy"
 )
 
 var (
-	// msgToCompressioncompress store the corresponding compression status to msg type
-	msgToCompression = new(sync.Map)
-
 	compressFlag = 1 << 7
 )
 
