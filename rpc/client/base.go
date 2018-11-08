@@ -207,7 +207,6 @@ func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromP
 				return nil, err
 			}
 			tx.Vout = append(tx.Vout, &corepb.TxOut{Value: amount, ScriptPubKey: scriptPubKey})
-			total += amount
 		} else {
 			// token tx
 			tx.Vout = append(tx.Vout, &corepb.TxOut{
