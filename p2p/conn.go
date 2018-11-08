@@ -113,7 +113,6 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	reserved := msg.messageHeader.reserved
 	if len(reserved) != 0 && int(reserved[0])&compressFlag != 0 {
 		data, err := decompress(nil, msg.body)
-		logger.Errorf("aaaa %v %v %v", msg.messageHeader.code, len(msg.body), len(data))
 		if err != nil {
 			return nil, err
 		}
@@ -269,7 +268,6 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 	if err != nil {
 		return err
 	}
-	// sw := snappy.NewWriter(conn.stream)
 	_, err = conn.stream.Write(data)
 	metricsWriteMeter.Mark(int64(len(data) / 8))
 	return err // error or nil
