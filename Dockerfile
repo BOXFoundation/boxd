@@ -1,15 +1,34 @@
-#FROM golang:latest
-#
-#RUN git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb
-#WORKDIR /tmp/rocksdb
-#
-#RUN apt-get update
-#RUN apt-get -y install build-essential libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
-#
-#RUN make shared_lib && make install
-#RUN rm -rf /tmp/rocksdb
+FROM golang:1.11.1-alpine as go-rocksdb
 
-FROM rocksdb_shared as builder
+RUN apk add --update --no-cache build-base linux-headers coreutils git cmake bash perl vim expect
+RUN apk add --update --no-cache zlib-dev bzip2-dev snappy-dev lz4-dev zstd-dev
+
+# installing latest gflags
+RUN cd /tmp && \
+    go get github.com/tools/godep && \
+    git clone https://github.com/gflags/gflags.git && \
+    cd gflags && \
+    mkdir build && \
+    cd build && \
+    cmake -DBUILD_SHARED_LIBS=1 -DGFLAGS_INSTALL_SHARED_LIBS=1 .. && \
+    make install && \
+    make install DESTDIR=/dist
+
+# Install Rocksdb
+RUN cd /tmp && \
+    git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb --depth 1 --single-branch --branch v5.15.10 && \
+    cd rocksdb && \
+    make shared_lib && make install-shared
+
+#Cleanup
+RUN rm -R /tmp/gflags/ && \
+    rm -R /tmp/rocksdb/
+
+
+#############################
+# image for builder
+#############################
+FROM go-rocksdb as builder
 
 ENV CGO_CFLAGS  "-I/usr/local/include"
 ENV CGO_LDFLAGS "-L/usr/local/lib -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy"
@@ -27,19 +46,17 @@ WORKDIR $GOPATH/src/github.com/BOXFoundation/boxd/
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags="-w -s" -o /app/boxd/box
 
 
-FROM rocksdb_shared
+#############################
+# image for boxd
+#############################
+FROM go-rocksdb
 
-RUN apt-get install -y vim expect
-
+RUN mkdir -p /app/boxd/.devconfig /app/boxd/keyfile
 WORKDIR /app/boxd/
-RUN /sbin/ldconfig && mkdir .devconfig && mkdir keyfile
+#RUN /sbin/ldconfig && mkdir .devconfig && mkdir keyfile
 
 COPY --from=builder /app/boxd/box .
 COPY startnode .
 COPY keyfile/* keyfile/
 COPY tests/newaccount.sh .
-#COPY .devconfig/.box-*.yaml .devconfig/
-#COPY .devconfig/ws* .devconfig/
-
-#ENTRYPOINT ["/bin/bash"]
 CMD ["/bin/bash", "startnode", "1"]
