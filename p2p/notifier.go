@@ -51,8 +51,7 @@ func NewNotifier() *Notifier {
 }
 
 // NewNotifiee return a message notifiee.
-func NewNotifiee(code uint32, frequency Frequency, compress bool, messageCh chan Message) *Notifiee {
-	msgToCompression.Store(code, compress)
+func NewNotifiee(code uint32, frequency Frequency, messageCh chan Message) *Notifiee {
 	return &Notifiee{code: code, frequency: frequency, messageCh: messageCh}
 }
 

@@ -258,9 +258,9 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 }
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
-	compressTag, ok := msgToCompression.Load(opcode)
+	msgAttr := msgToAttribute[opcode]
 	reserve := []byte{}
-	if compressTag != nil && compressTag.(bool) && ok {
+	if msgAttr != nil && msgAttr.compress {
 		reserve = append(reserve, byte(compressFlag))
 		body = compress(nil, body)
 	}
