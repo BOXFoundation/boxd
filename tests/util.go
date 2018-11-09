@@ -6,11 +6,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // LoadJSONFromFile load json from file to result
@@ -23,6 +26,48 @@ func LoadJSONFromFile(fileName string, result interface{}) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func startLocalNodes(peerCount int) ([]*os.Process, error) {
+	var processes []*os.Process
+	for i := 0; i < peerCount; i++ {
+		cfg := fmt.Sprintf("--config=../.devconfig/.box-%d.yaml", i+1)
+		args := []string{"../box", "start", cfg, "&"}
+		logger.Infof("startLocalNodes: %v", args)
+		p, err := StartProcess(args...)
+		if err != nil {
+			return processes, err
+		}
+		processes = append(processes, p)
+	}
+	return processes, nil
+}
+
+func stopLocalNodes(processes ...*os.Process) error {
+	if len(processes) == 0 {
+		return nil
+	}
+	var wg sync.WaitGroup
+	for _, p := range processes {
+		wg.Add(1)
+		go func(p *os.Process) {
+			defer wg.Done()
+			if err := p.Signal(os.Interrupt); err != nil {
+				logger.Warnf("send Interrupt signal to process[%d] error: %s", p.Pid, err)
+				if err := p.Kill(); err != nil {
+					logger.Warnf("kill process[%d] error: %s", p.Pid, err)
+				}
+				return
+			}
+			s, err := p.Wait()
+			if err != nil {
+				logger.Warnf("wait process[%d] done error: %s", p.Pid, err)
+			}
+			logger.Infof("process exit with state %s", s)
+		}(p)
+	}
+	wg.Wait()
 	return nil
 }
 
@@ -108,4 +153,23 @@ func removeKeystoreFiles(addrs ...string) {
 		}
 	}
 	logger.Infof("remove %d keystore files", len(addrs))
+}
+
+// StartProcess starts a process with args and default process attributions
+func StartProcess(args ...string) (*os.Process, error) {
+	if len(args) == 0 {
+		return nil, errors.New("no params to start process")
+	}
+	var err error
+	if args[0], err = exec.LookPath(args[0]); err != nil {
+		return nil, err
+	}
+	var procAttr os.ProcAttr
+	//procAttr.Dir = ".."
+	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	p, err := os.StartProcess(args[0], args, &procAttr)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }

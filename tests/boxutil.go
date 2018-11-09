@@ -64,7 +64,7 @@ func newAccount() (string, string, error) {
 	if addr == "" {
 		return "", "", errors.New("newAccount failed, account is empty")
 	}
-	return addr, acc, nil
+	return acc, addr, nil
 }
 
 func balanceFor(accAddr string, peerAddr string) (uint64, error) {
@@ -200,7 +200,15 @@ func genTestAddr(count int) ([]string, []string) {
 	logger.Infof("start to create %d accounts", count)
 	var addresses, accounts []string
 	for i := 0; i < count; i++ {
-		addr, acc, err := newAccount()
+		var (
+			acc, addr string
+			err       error
+		)
+		if *enableDocker {
+			acc, addr, err = newAccount()
+		} else {
+			acc, addr, err = newAccountFromWallet()
+		}
 		if err != nil {
 			logger.Panic(err)
 		}
@@ -208,4 +216,12 @@ func genTestAddr(count int) ([]string, []string) {
 		accounts = append(accounts, acc)
 	}
 	return addresses, accounts
+}
+
+func newAccountFromWallet() (string, string, error) {
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		return "", "", err
+	}
+	return wltMgr.NewAccount(testPassphrase)
 }

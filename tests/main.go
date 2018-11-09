@@ -5,6 +5,7 @@
 package main
 
 import (
+	"flag"
 	"math/rand"
 	"time"
 
@@ -33,6 +34,8 @@ var (
 		"127.0.0.1:19181",
 		"127.0.0.1:19171",
 	}
+
+	enableDocker = flag.Bool("docker", false, "test on docker?")
 )
 
 func init() {
@@ -40,6 +43,7 @@ func init() {
 }
 
 func main() {
+	flag.Parse()
 	// prepare environment and clean history data
 	//if err := prepareEnv(peerCount); err != nil {
 	//	logger.Fatal(err)
@@ -47,14 +51,23 @@ func main() {
 	//defer tearDown(peerCount)
 
 	// start nodes
-	if err := startNodes(); err != nil {
-		logger.Fatal(err)
+	localPeers := 3
+	if *enableDocker {
+		if err := startNodes(); err != nil {
+			logger.Fatal(err)
+		}
+		defer stopNodes()
+	} else {
+		processes, err := startLocalNodes(localPeers)
+		defer stopLocalNodes(processes...)
+		if err != nil {
+			logger.Fatal(err)
+		}
 	}
-	defer stopNodes()
 
 	// wait for nodes to be ready
-	logger.Info("waiting for 10s: nodes running")
-	time.Sleep(10 * time.Second)
+	logger.Info("waiting for 12s: nodes running")
+	time.Sleep(12 * time.Second)
 
 	// get addresses of three miners
 	minersAddr := allMinersAddr()
@@ -62,6 +75,7 @@ func main() {
 
 	// generate addresses of test accounts
 	testsAccCnt := 10
+
 	testsAddr, testsAcc := genTestAddr(testsAccCnt)
 	logger.Debugf("testsAddr: %v\ntestsAcc: %v", testsAddr, testsAcc)
 	defer removeKeystoreFiles(testsAcc...)
