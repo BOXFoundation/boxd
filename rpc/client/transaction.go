@@ -6,6 +6,7 @@ package client
 
 import (
 	"context"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"google.golang.org/grpc"
 	"time"
 
@@ -77,19 +78,44 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 	//func CreateTransaction(v *viper.Viper, fromAddress types.Address, targets map[types.Address]uint64,
 	//	pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
 
-	var total uint64
-	for _, amount := range targets {
-		total += amount
+	var totalAmount uint64
+	transferTargets := make([]*TransferParam, 0)
+	for addr, amount := range targets {
+		totalAmount += amount
+		transferTargets = append(transferTargets, &TransferParam{
+			addr:    addr,
+			isToken: false,
+			amount:  amount,
+			token:   nil,
+		})
 	}
-	utxoResponse, err := FundTransaction(conn, fromAddress, total)
+	change := &corepb.TxOut{
+		Value:        0,
+		ScriptPubKey: getScriptAddress(fromAddress),
+	}
+
+	price, err := GetFeePrice(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	tx, err := wrapTransaction(fromAddress, targets, pubKeyBytes, utxoResponse, false, false, nil, 0, nil, signer)
-	if err != nil {
-		//>>>>>>> develop
-		return nil, err
+	var tx *corepb.Transaction
+	for {
+		utxoResponse, err := FundTransaction(conn, fromAddress, totalAmount)
+		if err != nil {
+			return nil, err
+		}
+		if tx, err = generateTx(fromAddress, utxoResponse.GetUtxos(), transferTargets, change); err != nil {
+			return nil, err
+		}
+		if err = signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer); err != nil {
+			return nil, err
+		}
+		ok, adjustedAmount := tryBalance(tx, change, utxoResponse.Utxos, price)
+		if ok {
+			break
+		}
+		totalAmount = adjustedAmount
 	}
 
 	txReq := &rpcpb.SendTransactionRequest{Tx: tx}

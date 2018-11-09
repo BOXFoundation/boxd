@@ -22,6 +22,41 @@ import (
 
 var logger = log.NewLogger("rpcclient") // logger for client package
 
+// TransferParam wraps info of transfer target, type and amount
+type TransferParam struct {
+	addr    types.Address
+	isToken bool
+	amount  uint64
+	token   *types.OutPoint
+}
+
+func (tp *TransferParam) getScript() ([]byte, error) {
+	if tp.isToken {
+		if tp.token == nil {
+			return nil, fmt.Errorf("token type needs to be filled")
+		}
+		return getTransferTokenScript(tp.addr.Hash(), &tp.token.Hash, tp.token.Index, tp.amount)
+	}
+	return getScriptAddressFromPubKeyHash(tp.addr.Hash())
+}
+
+func (tp *TransferParam) getTxOut() (*corepb.TxOut, error) {
+	script, err := tp.getScript()
+	if err != nil {
+		return nil, err
+	}
+	if tp.isToken {
+		return &corepb.TxOut{
+			Value:        dustLimit,
+			ScriptPubKey: script,
+		}, nil
+	}
+	return &corepb.TxOut{
+		Value:        tp.amount,
+		ScriptPubKey: script,
+	}, nil
+}
+
 func unmarshalConfig(v *viper.Viper) *config.Config {
 	var cfg config.Config
 	viper.Unmarshal(&cfg)
@@ -184,6 +219,98 @@ func calcFeeNeeded(tx *corepb.Transaction, gasFeePerByte uint64) uint64 {
 	return uint64(totalBytes) * gasFeePerByte
 }
 
+func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
+	script := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
+	issueParam, err := script.GetIssueParams()
+	if err == nil {
+		outHash := crypto.HashType{}
+		outHash.SetBytes(utxo.OutPoint.Hash)
+		return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index}, issueParam.TotalSupply
+	}
+	transferParam, err := script.GetTransferParams()
+	if err == nil {
+		return &transferParam.OutPoint, transferParam.Amount
+	}
+	return nil, 0
+}
+
+func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*TransferParam, change *corepb.TxOut) (*corepb.Transaction, error) {
+	tx := &corepb.Transaction{}
+	var inputAmount, outputAmount uint64
+	tokenAmounts := make(map[*types.OutPoint]uint64)
+	txIn := make([]*corepb.TxIn, len(utxos))
+	for i, utxo := range utxos {
+		txIn[i] = &corepb.TxIn{
+			PrevOutPoint: &corepb.OutPoint{
+				Hash:  utxo.GetOutPoint().Hash,
+				Index: utxo.GetOutPoint().GetIndex(),
+			},
+			ScriptSig: []byte{},
+			Sequence:  uint32(i),
+		}
+		tokenInfo, amount := extractTokenInfo(utxo)
+		if tokenAmounts != nil && amount > 0 {
+			if val, ok := tokenAmounts[tokenInfo]; ok {
+				tokenAmounts[tokenInfo] = amount + val
+			} else {
+				tokenAmounts[tokenInfo] = amount
+			}
+		}
+		inputAmount += utxo.GetTxOut().GetValue()
+	}
+	tx.Vin = txIn
+	vout := make([]*corepb.TxOut, 0)
+	for _, param := range targets {
+		val, ok := tokenAmounts[param.token]
+		if !ok || val < param.amount {
+			return nil, fmt.Errorf("Not enough token balance")
+		}
+		tokenAmounts[param.token] = val - param.amount
+		txOut, err := param.getTxOut()
+		if err != nil {
+			return nil, err
+		}
+		vout = append(vout, txOut)
+	}
+
+	// generate token change
+	for token, amount := range tokenAmounts {
+		if amount > 0 {
+			tokenChangeScript := script.TransferTokenScript(fromAddr.Hash(), &script.TransferParams{
+				TokenID: script.TokenID{
+					OutPoint: types.OutPoint{
+						Hash:  token.Hash,
+						Index: token.Index,
+					},
+				},
+				Amount: 0,
+			})
+
+			tokenChange := &corepb.TxOut{
+				Value:        dustLimit,
+				ScriptPubKey: *tokenChangeScript,
+			}
+			vout = append(vout, tokenChange)
+		}
+	}
+	vout = append(vout, change)
+
+	if inputAmount > outputAmount && change != nil {
+		vout = append(vout, change)
+	}
+	tx.Vout = vout
+
+	return tx, nil
+
+	//feeNeeded := calcFeeNeeded(tx, gasPricePerByte)
+	//if feeNeeded+outputAmount <= inputAmount {
+	//	change.Value = inputAmount - outputAmount - feeNeeded
+	//	fmt.Println("Fee used:", feeNeeded)
+	//	return tx, 0
+	//}
+	//return nil, feeNeeded + outputAmount
+}
+
 func signTransaction(tx *corepb.Transaction, utxos []*rpcpb.Utxo, fromPubKeyBytes []byte, signer crypto.Signer) error {
 	// Sign the tx inputs
 	typedTx := &types.Transaction{}
@@ -214,6 +341,32 @@ func signTransaction(tx *corepb.Transaction, utxos []*rpcpb.Utxo, fromPubKeyByte
 		}
 	}
 	return nil
+}
+
+// tryBalance calculate mining fee of a transaction. if txIn of transaction has enough box coins to cover
+// write the change amount to change txOut, and returns (true, 0); if not, returns (false, newAmountNeeded)
+// note: param change must be an element of the transacton vout
+func tryBalance(tx *corepb.Transaction, change *corepb.TxOut, utxos []*rpcpb.Utxo, pricePerByte uint64) (bool, uint64) {
+	var totalBytes int
+	var totalIn, totalOut uint64
+	for _, vin := range tx.Vin {
+		totalBytes += len(vin.ScriptSig)
+	}
+	for _, utxo := range utxos {
+		totalIn += utxo.TxOut.GetValue()
+	}
+	for _, vout := range tx.Vout {
+		totalBytes += len(vout.ScriptPubKey)
+		if vout != change {
+			totalOut += vout.GetValue()
+		}
+	}
+	totalFee := uint64(totalBytes) * pricePerByte
+	if totalFee+totalOut <= totalIn {
+		change.Value = totalIn - totalFee - totalOut
+		return true, 0
+	}
+	return false, totalFee + totalOut
 }
 
 func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromPubKeyBytes []byte, utxoResp *rpcpb.ListUtxosResponse,
