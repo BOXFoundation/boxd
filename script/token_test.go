@@ -29,6 +29,9 @@ func TestIssueToken(t *testing.T) {
 	params2, err := script.GetIssueParams()
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, params2, params)
+
+	_, err = script.ExtractAddress()
+	ensure.Nil(t, err)
 }
 
 func TestTransferToken(t *testing.T) {
@@ -48,4 +51,7 @@ func TestTransferToken(t *testing.T) {
 	params2, err := script.GetTransferParams()
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, params2, params)
+
+	_, err = script.ExtractAddress()
+	ensure.Nil(t, err)
 }

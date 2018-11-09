@@ -471,8 +471,12 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
-	//TODO: only applies to p2pkh
-	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG
+	// only applies to p2pkh & token txs
+	if !s.IsPayToPubKeyHash() && !s.IsTokenIssue() && !s.IsTokenTransfer() {
+		return nil, ErrAddressNotApplicable
+	}
+
+	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
 	_, pubKeyHash, _, err := s.getNthOp(0, 2)
 	if err != nil {
 		return nil, err
