@@ -158,6 +158,10 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
 	utxos, err := bc.LoadUtxoByAddress(addr)
+	usedInMemoryPool := s.server.GetTxHandler().GetOutPointLockedByPool()
+	for _, o := range usedInMemoryPool {
+		delete(utxos, o)
+	}
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}

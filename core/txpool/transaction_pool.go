@@ -171,6 +171,15 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	return nil
 }
 
+// GetOutPointLockedByPool returns all the utxo outpoints that are used by transaction in pool
+func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
+	var outpoints []types.OutPoint
+	for o := range tx_pool.outPointToTx {
+		outpoints = append(outpoints, o)
+	}
+	return outpoints
+}
+
 var evilBehavior = []interface{}{core.ErrDuplicateTxInPool, core.ErrDuplicateTxInOrphanPool, core.ErrCoinbaseTx, core.ErrNonStandardTransaction, core.ErrOutPutAlreadySpent, core.ErrOrphanTransaction, core.ErrDoubleSpendTx}
 
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
