@@ -249,7 +249,7 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 			Sequence:  uint32(i),
 		}
 		tokenInfo, amount := extractTokenInfo(utxo)
-		if tokenAmounts != nil && amount > 0 {
+		if tokenInfo != nil && amount > 0 {
 			if val, ok := tokenAmounts[tokenInfo]; ok {
 				tokenAmounts[tokenInfo] = amount + val
 			} else {
@@ -261,11 +261,14 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 	tx.Vin = txIn
 	vout := make([]*corepb.TxOut, 0)
 	for _, param := range targets {
-		val, ok := tokenAmounts[param.token]
-		if !ok || val < param.amount {
-			return nil, fmt.Errorf("Not enough token balance")
+		if param.isToken {
+			val, ok := tokenAmounts[param.token]
+			if !ok || val < param.amount {
+				return nil, fmt.Errorf("Not enough token balance")
+			}
+			tokenAmounts[param.token] = val - param.amount
 		}
-		tokenAmounts[param.token] = val - param.amount
+
 		txOut, err := param.getTxOut()
 		if err != nil {
 			return nil, err
@@ -293,7 +296,6 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 			vout = append(vout, tokenChange)
 		}
 	}
-	vout = append(vout, change)
 
 	if inputAmount > outputAmount && change != nil {
 		vout = append(vout, change)

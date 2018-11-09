@@ -6,6 +6,8 @@ package rpc
 
 import (
 	"context"
+	"fmt"
+	"github.com/BOXFoundation/boxd/script"
 
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -100,14 +102,56 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 	}
 	res.Utxos = []*rpcpb.Utxo{}
 	var current uint64
+	tokenAmount := make(map[types.OutPoint]uint64)
+	if req.TokenBudgets != nil && len(req.TokenBudgets) > 0 {
+		for _, budget := range req.TokenBudgets {
+			outpoint := &types.OutPoint{}
+			outpoint.FromProtoMessage(budget.Token)
+			tokenAmount[*outpoint] = budget.Amount
+		}
+	}
 	for out, utxo := range utxos {
-		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
-		current += utxo.Value()
-		if current >= req.GetAmount() {
+		token, amount, isToken := getTokenInfo(out, utxo)
+		if isToken {
+			if val, ok := tokenAmount[token]; ok && val > 0 {
+				if val > amount {
+					tokenAmount[token] = val - amount
+				} else {
+					delete(tokenAmount, token)
+				}
+				current += utxo.Value()
+				res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
+			} else {
+				// Do not include token utxos not needed
+				continue
+			}
+		} else if current < req.GetAmount() {
+			res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
+			current += utxo.Value()
+		}
+		if current >= req.GetAmount() && len(tokenAmount) == 0 {
 			break
 		}
 	}
+	if current < req.GetAmount() || len(tokenAmount) > 0 {
+		errMsg := "Not enough balance"
+		return &rpcpb.ListUtxosResponse{
+			Code:    -1,
+			Message: errMsg,
+		}, fmt.Errorf(errMsg)
+	}
 	return res, nil
+}
+
+func getTokenInfo(outpoint types.OutPoint, wrap *types.UtxoWrap) (types.OutPoint, uint64, bool) {
+	s := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+	if issueParam, err := s.GetIssueParams(); err == nil {
+		return outpoint, issueParam.TotalSupply, true
+	}
+	if transferParam, err := s.GetTransferParams(); err == nil {
+		return transferParam.OutPoint, transferParam.Amount, true
+	}
+	return types.OutPoint{}, 0, false
 }
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {

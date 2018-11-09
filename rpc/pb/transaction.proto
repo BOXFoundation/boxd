@@ -63,9 +63,15 @@ message GetRawTransactionResponse {
     corepb.Transaction tx = 1;
 }
 
+message TokenAmount{
+    corepb.OutPoint token = 1;
+    uint64 amount = 2;
+}
+
 message FundTransactionRequest {
     string addr = 1;
     uint64 amount = 2;
+    repeated TokenAmount tokenBudgets= 3;
 }
 
 message SendTransactionRequest {

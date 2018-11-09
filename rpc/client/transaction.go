@@ -6,7 +6,9 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/util"
 	"google.golang.org/grpc"
 	"time"
 
@@ -113,10 +115,13 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 		}
 		ok, adjustedAmount := tryBalance(tx, change, utxoResponse.Utxos, price)
 		if ok {
+			signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer)
 			break
 		}
 		totalAmount = adjustedAmount
 	}
+
+	fmt.Println(util.PrettyPrint(tx))
 
 	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
 
