@@ -382,11 +382,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 		return false, err
 	}
 
-	// Notify the caller that the new block was accepted into the block chain.
-	// The caller would typically want to react by relaying the inventory to other peers.
-	// TODO
-	// chain.sendNotification(NTBlockAccepted, block)
-
 	// This block is now the end of the best chain.
 	if err := chain.SetTailBlock(block, utxoSet); err != nil {
 		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
@@ -405,7 +400,6 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 	// Start with processing at least the passed block.
 	acceptedBlocks := []*types.Block{block}
 
-	// TODO: @XIAOHUI determines whether the length of an array can be changed while traversing an array?
 	// Note: use index here instead of range because acceptedBlocks can be extended inside the loop
 	for i := 0; i < len(acceptedBlocks); i++ {
 		acceptedBlock := acceptedBlocks[i]
@@ -464,13 +458,6 @@ func (chain *BlockChain) ancestor(block *types.Block, height uint32) *types.Bloc
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet *UtxoSet) error {
-	// // TODO: needed?
-	// // The coinbase for the Genesis block is not spendable, so just return
-	// // an error now.
-	// if block.BlockHash.IsEqual(GenesisHash) {
-	// 	str := "the coinbase for the genesis block is not spendable"
-	// 	return ErrMissingTxOut
-	// }
 	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
 	if err := validateBlockScripts(utxoSet, block); err != nil {
 		return err
