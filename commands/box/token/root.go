@@ -99,7 +99,9 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 	}
-	tx, err := client.CreateTokenIssueTx(viper.GetViper(), fromAddr, toAddr,
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	tx, err := client.CreateTokenIssueTx(conn, fromAddr, toAddr,
 		account.PublicKey(), tokenName, uint64(tokenTotalSupply), account)
 	if err != nil {
 		fmt.Println(err)
@@ -150,7 +152,9 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 	}
-	tx, err := client.CreateTokenTransferTx(viper.GetViper(), fromAddr, targets,
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	tx, err := client.CreateTokenTransferTx(conn, fromAddr, targets,
 		account.PublicKey(), tokenTxHash, uint32(tokenTxOutIdx), account)
 	if err != nil {
 		fmt.Println(err)
@@ -176,8 +180,9 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 	}
-
-	balance := client.GetTokenBalance(viper.GetViper(), addr, tokenTxHash, uint32(tokenTxOutIdx))
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	balance := client.GetTokenBalance(conn, addr, tokenTxHash, uint32(tokenTxOutIdx))
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }
 

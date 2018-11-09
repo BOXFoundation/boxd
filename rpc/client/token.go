@@ -6,12 +6,15 @@ package client
 
 import (
 	"context"
+	"fmt"
+	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/util"
+	"google.golang.org/grpc"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -20,29 +23,44 @@ const (
 )
 
 // CreateTokenIssueTx retrieves all the utxo of a public key, and use some of them to fund token issurance tx
-func CreateTokenIssueTx(v *viper.Viper, fromAddress, toAddress types.Address, pubKeyBytes []byte, tokenName string,
+func CreateTokenIssueTx(conn *grpc.ClientConn, fromAddress, toAddress types.Address, pubKeyBytes []byte, tokenName string,
 	tokenTotalSupply uint64, signer crypto.Signer) (*types.Transaction, error) {
 
-	utxoResponse, err := FundTransaction(v, fromAddress, dustLimit)
+	txReq := &rpcpb.SendTransactionRequest{}
+	issueScript, err := getIssueTokenScript(toAddress.Hash(), tokenName, tokenTotalSupply)
 	if err != nil {
 		return nil, err
 	}
 
-	txReq := &rpcpb.SendTransactionRequest{}
-	scriptPubKey, err := getIssueTokenScript(toAddress.Hash(), tokenName, tokenTotalSupply)
+	price, err := GetFeePrice(conn)
 	if err != nil {
 		return nil, err
 	}
-	targets := make(map[types.Address]uint64, 0)
-	targets[toAddress] = dustLimit
-	tx, err := wrapTransaction(fromAddress, targets, pubKeyBytes, utxoResponse, false, true, nil, 0, scriptPubKey, signer)
-	if err != nil {
-		return nil, err
+
+	var tx *corepb.Transaction
+	amount := uint64(dustLimit)
+	change := &corepb.TxOut{
+		Value:        0,
+		ScriptPubKey: getScriptAddress(fromAddress),
+	}
+	for {
+		utxoResponse, err := FundTransaction(conn, fromAddress, amount)
+		if err != nil {
+			return nil, err
+		}
+		tx = generateTokenIssueTransaction(issueScript, utxoResponse.GetUtxos(), change)
+		if err = signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer); err != nil {
+			return nil, err
+		}
+		ok, adjustedAmount := tryBalance(tx, change, utxoResponse.Utxos, price)
+		if ok {
+			signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer)
+			break
+		}
+		amount = adjustedAmount
 	}
 	txReq.Tx = tx
 
-	conn := mustConnect(v)
-	defer conn.Close()
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -58,36 +76,60 @@ func CreateTokenIssueTx(v *viper.Viper, fromAddress, toAddress types.Address, pu
 }
 
 // CreateTokenTransferTx retrieves all the token utxo of a public key, and use some of them to fund token transfer tx
-func CreateTokenTransferTx(v *viper.Viper, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte,
+func CreateTokenTransferTx(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte,
 	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, signer crypto.Signer) (*types.Transaction, error) {
 
-	var total, anyToAmount uint64
-	var anyToAddress types.Address
+	var totalToken uint64
+	transferTargets := make([]*TransferParam, 0)
+	token := &types.OutPoint{
+		Hash:  *tokenTxHash,
+		Index: tokenTxOutIdx,
+	}
 	for addr, amount := range targets {
-		total += amount
-		anyToAddress = addr
-		anyToAmount = amount
+		transferTargets = append(transferTargets, &TransferParam{
+			addr:    addr,
+			isToken: true,
+			amount:  amount,
+			token:   token,
+		})
+		totalToken += amount
 	}
-	utxoResponse, err := FundTransaction(v, fromAddress, total)
+
+	change := &corepb.TxOut{
+		Value:        0,
+		ScriptPubKey: getScriptAddress(fromAddress),
+	}
+
+	price, err := GetFeePrice(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	txReq := &rpcpb.SendTransactionRequest{}
-	// TODO: can only handle transfer to 1 address
-	scriptPubKey, err := getTransferTokenScript(anyToAddress.Hash(), tokenTxHash, tokenTxOutIdx, anyToAmount)
-	if err != nil {
-		return nil, err
+	var tx *corepb.Transaction
+	boxAmount := uint64(dustLimit * (len(targets) + 1))
+	for {
+		utxoResponse, err := FundTokenTransaction(conn, fromAddress, token, boxAmount, totalToken)
+		if err != nil {
+			return nil, err
+		}
+		if tx, err = generateTx(fromAddress, utxoResponse.GetUtxos(), transferTargets, change); err != nil {
+			return nil, err
+		}
+		if err = signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer); err != nil {
+			return nil, err
+		}
+		ok, adjustedAmount := tryBalance(tx, change, utxoResponse.Utxos, price)
+		if ok {
+			signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer)
+			break
+		}
+		boxAmount = adjustedAmount
 	}
-	tx, err := wrapTransaction(fromAddress, targets, pubKeyBytes, utxoResponse,
-		true, true, tokenTxHash, tokenTxOutIdx, scriptPubKey, signer)
-	if err != nil {
-		return nil, err
-	}
-	txReq.Tx = tx
 
-	conn := mustConnect(v)
-	defer conn.Close()
+	fmt.Print(util.PrettyPrint(tx))
+
+	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
+
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -103,21 +145,22 @@ func CreateTokenTransferTx(v *viper.Viper, fromAddress types.Address, targets ma
 }
 
 // GetTokenBalance returns the token balance of a public key
-func GetTokenBalance(v *viper.Viper, addr types.Address, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
-	utxoResponse, err := FundTransaction(v, addr, 0)
+func GetTokenBalance(conn *grpc.ClientConn, addr types.Address, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceRequest{
+		Addrs: []string{addr.String()},
+		Token: &corepb.OutPoint{
+			Hash:  tokenTxHash.GetBytes(),
+			Index: tokenTxOutIdx,
+		},
+	})
 	if err != nil {
 		return 0
 	}
-	utxos := utxoResponse.GetUtxos()
-	var currentAmount uint64
-	for _, utxo := range utxos {
-		txHashBytes := utxo.GetOutPoint().GetHash()
-		hash := &crypto.HashType{}
-		hash.SetBytes(txHashBytes)
-		if utxo.IsSpent {
-			continue
-		}
-		currentAmount += getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
+	if val, ok := r.GetBalances()[addr.String()]; ok {
+		return val
 	}
-	return currentAmount
+	return 0
 }

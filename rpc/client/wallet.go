@@ -6,18 +6,16 @@ package client
 
 import (
 	"context"
+	"google.golang.org/grpc"
 	"log"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/spf13/viper"
 )
 
 // ListTransactions list transactions of certain address
-func ListTransactions(v *viper.Viper, addr string, offset, limit uint32) ([]*types.Transaction, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
+func ListTransactions(conn *grpc.ClientConn, addr string, offset, limit uint32) ([]*types.Transaction, error) {
 	c := rpcpb.NewWalletCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

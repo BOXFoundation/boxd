@@ -171,6 +171,15 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	return nil
 }
 
+// GetOutPointLockedByPool returns all the utxo outpoints that are used by transaction in pool
+func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
+	var outpoints []types.OutPoint
+	for o := range tx_pool.outPointToTx {
+		outpoints = append(outpoints, o)
+	}
+	return outpoints
+}
+
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(msg.Body()); err != nil {

@@ -76,7 +76,9 @@ func init() {
 
 func listAllUtxoCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("list utxos called")
-	r, err := client.ListUtxos(viper.GetViper())
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	r, err := client.ListUtxos(conn)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -117,10 +119,14 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 	}
-	tx, err := client.CreateTransaction(viper.GetViper(), fromAddr, target, account.PublicKey(), account)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {
+		hash, _ := tx.TxHash()
+		fmt.Println("Tx Hash:", hash.String())
 		fmt.Println(util.PrettyPrint(tx))
 	}
 }
@@ -175,10 +181,14 @@ func sendManyCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 	}
-	tx, err := client.CreateTransaction(viper.GetViper(), fromAddr, target, account.PublicKey(), account)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println(tx)
+		hash, _ := tx.TxHash()
+		fmt.Println("Tx Hash:", hash.String())
+		fmt.Println(util.PrettyPrint(tx))
 	}
 }

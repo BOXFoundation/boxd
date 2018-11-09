@@ -237,7 +237,9 @@ func listTransactionsCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		offset = 0
 	}
-	txs, err := client.ListTransactions(viper.GetViper(), addr, offset, limit)
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	txs, err := client.ListTransactions(conn, addr, offset, limit)
 	if err != nil {
 		fmt.Println(err)
 		return

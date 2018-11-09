@@ -6,36 +6,133 @@ package client
 
 import (
 	"context"
+	"fmt"
+	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/util"
+	"google.golang.org/grpc"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/spf13/viper"
 )
 
+// GetFeePrice gets the recommended mining fee price according to recent packed transactions
+func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r, err := c.GetFeePrice(ctx, &rpcpb.GetFeePriceRequest{})
+	return r.BoxPerByte, err
+}
+
+// FundTransaction gets the utxo of a public key
+func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
+	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Script Value: %v", p2pkScript)
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
+		Addr:   addr.String(),
+		Amount: amount,
+	})
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Result: %+v", r)
+	return r, nil
+}
+
+// FundTokenTransaction gets the utxo of a public key containing a certain amount of box and token
+func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *types.OutPoint, boxAmount, tokenAmount uint64) (*rpcpb.ListUtxosResponse, error) {
+	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Script Value: %v", p2pkScript)
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tokenBudges := make([]*rpcpb.TokenAmount, 0)
+	if token != nil && tokenAmount > 0 {
+		outPointMsg, err := token.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		outPointPb, ok := outPointMsg.(*corepb.OutPoint)
+		if !ok {
+			return nil, fmt.Errorf("Invalid token outpoint")
+		}
+		tokenBudges = append(tokenBudges, &rpcpb.TokenAmount{
+			Token:  outPointPb,
+			Amount: tokenAmount,
+		})
+	}
+	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
+		Addr:         addr.String(),
+		Amount:       boxAmount,
+		TokenBudgets: tokenBudges,
+	})
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Result: %+v", r)
+	return r, nil
+}
+
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
-func CreateTransaction(v *viper.Viper, fromAddress types.Address, targets map[types.Address]uint64,
-	pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
-
-	var total uint64
-	for _, amount := range targets {
-		total += amount
+func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
+	var totalAmount uint64
+	transferTargets := make([]*TransferParam, 0)
+	for addr, amount := range targets {
+		totalAmount += amount
+		transferTargets = append(transferTargets, &TransferParam{
+			addr:    addr,
+			isToken: false,
+			amount:  amount,
+			token:   nil,
+		})
 	}
-	utxoResponse, err := FundTransaction(v, fromAddress, total)
+	change := &corepb.TxOut{
+		Value:        0,
+		ScriptPubKey: getScriptAddress(fromAddress),
+	}
+
+	price, err := GetFeePrice(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	txReq := &rpcpb.SendTransactionRequest{}
-	tx, err := wrapTransaction(fromAddress, targets, pubKeyBytes, utxoResponse, false, false, nil, 0, nil, signer)
-	if err != nil {
-		return nil, err
+	var tx *corepb.Transaction
+	for {
+		utxoResponse, err := FundTransaction(conn, fromAddress, totalAmount)
+		if err != nil {
+			return nil, err
+		}
+		if tx, err = generateTx(fromAddress, utxoResponse.GetUtxos(), transferTargets, change); err != nil {
+			return nil, err
+		}
+		if err = signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer); err != nil {
+			return nil, err
+		}
+		ok, adjustedAmount := tryBalance(tx, change, utxoResponse.Utxos, price)
+		if ok {
+			signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer)
+			break
+		}
+		totalAmount = adjustedAmount
 	}
-	txReq.Tx = tx
 
-	conn := mustConnect(v)
-	defer conn.Close()
+	fmt.Println(util.PrettyPrint(tx))
+
+	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
+
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -51,9 +148,7 @@ func CreateTransaction(v *viper.Viper, fromAddress types.Address, targets map[ty
 }
 
 // GetRawTransaction get the transaction info of given hash
-func GetRawTransaction(v *viper.Viper, hash []byte) (*types.Transaction, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
+func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -69,9 +164,7 @@ func GetRawTransaction(v *viper.Viper, hash []byte) (*types.Transaction, error) 
 }
 
 //ListUtxos list all utxos
-func ListUtxos(v *viper.Viper) (*rpcpb.ListUtxosResponse, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
+func ListUtxos(conn *grpc.ClientConn) (*rpcpb.ListUtxosResponse, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -83,9 +176,7 @@ func ListUtxos(v *viper.Viper) (*rpcpb.ListUtxosResponse, error) {
 }
 
 // GetBalance returns total amount of an address
-func GetBalance(v *viper.Viper, addresses []string) (map[string]uint64, error) {
-	conn := mustConnect(v)
-	defer conn.Close()
+func GetBalance(conn *grpc.ClientConn, addresses []string) (map[string]uint64, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
