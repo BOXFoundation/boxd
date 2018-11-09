@@ -33,9 +33,9 @@ var (
 
 	privKey, pubKey, _ = crypto.NewKeyPair()
 	addr, _            = types.NewAddressFromPubKey(pubKey)
-	scriptAddr         = addr.ScriptAddress()
+	scriptAddr         = addr.Hash()
 	scriptPubKey       = script.PayToPubKeyHashScript(scriptAddr)
-	tx0, _             = chain.CreateCoinbaseTx(addr.ScriptAddress(), chainHeight)
+	tx0, _             = chain.CreateCoinbaseTx(addr.Hash(), chainHeight)
 )
 
 // create a child tx spending parent tx's output

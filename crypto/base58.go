@@ -5,8 +5,7 @@
 package crypto
 
 import (
-	"fmt"
-
+	"bytes"
 	"github.com/btcsuite/btcutil/base58"
 )
 
@@ -31,8 +30,11 @@ func Checksum(input []byte) (cksum [4]byte) {
 // checks the checksum and returns the wrapped byte array content
 func Base58CheckDecode(in string) ([]byte, error) {
 	rawBytes := base58.Decode(in)
+	if bytes.Equal(rawBytes, []byte("")) {
+		return nil, ErrInvalidBase58Encoding
+	}
 	if len(rawBytes) < 5 {
-		return nil, fmt.Errorf("Error decoding base58: %s", in)
+		return nil, ErrInvalidBase58StringLength
 	}
 	var cksum [4]byte
 	sep := len(rawBytes) - 4
@@ -40,7 +42,7 @@ func Base58CheckDecode(in string) ([]byte, error) {
 	copy(cksum[:], rawBytes[sep:])
 	copy(content, rawBytes[:sep])
 	if Checksum(content) != cksum {
-		return nil, fmt.Errorf("Error checksum of base58: %s", in)
+		return nil, ErrInvalidBase58Checksum
 	}
 	return content, nil
 }

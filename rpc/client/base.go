@@ -5,17 +5,57 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
-
 	"github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"reflect"
+	"sort"
 )
 
 var logger = log.NewLogger("rpcclient") // logger for client package
+
+// TransferParam wraps info of transfer target, type and amount
+type TransferParam struct {
+	addr    types.Address
+	isToken bool
+	amount  uint64
+	token   *types.OutPoint
+}
+
+func (tp *TransferParam) getScript() ([]byte, error) {
+	if tp.isToken {
+		if tp.token == nil {
+			return nil, fmt.Errorf("token type needs to be filled")
+		}
+		return getTransferTokenScript(tp.addr.Hash(), &tp.token.Hash, tp.token.Index, tp.amount)
+	}
+	return getScriptAddressFromPubKeyHash(tp.addr.Hash())
+}
+
+func (tp *TransferParam) getTxOut() (*corepb.TxOut, error) {
+	script, err := tp.getScript()
+	if err != nil {
+		return nil, err
+	}
+	if tp.isToken {
+		return &corepb.TxOut{
+			Value:        dustLimit,
+			ScriptPubKey: script,
+		}, nil
+	}
+	return &corepb.TxOut{
+		Value:        tp.amount,
+		ScriptPubKey: script,
+	}, nil
+}
 
 func unmarshalConfig(v *viper.Viper) *config.Config {
 	var cfg config.Config
@@ -32,12 +72,289 @@ func mustConnect(v *viper.Viper) *grpc.ClientConn {
 	return conn
 }
 
-func getScriptAddress(pubKeyHash []byte) ([]byte, error) {
+func getScriptAddressFromPubKeyHash(pubKeyHash []byte) ([]byte, error) {
 	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
 	if err != nil {
 		return nil, err
 	}
-	return *script.PayToPubKeyHashScript(addr.ScriptAddress()), nil
+	return *script.PayToPubKeyHashScript(addr.Hash()), nil
+}
+
+// returns token issurance scriptPubKey
+func getIssueTokenScript(pubKeyHash []byte, tokenName string, tokenTotalSupply uint64) ([]byte, error) {
+	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+	if err != nil {
+		return nil, err
+	}
+	issueParams := &script.IssueParams{Name: tokenName, TotalSupply: tokenTotalSupply}
+	return *script.IssueTokenScript(addr.Hash(), issueParams), nil
+}
+
+// returns token transfer scriptPubKey
+func getTransferTokenScript(pubKeyHash []byte, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, amount uint64) ([]byte, error) {
+	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+	if err != nil {
+		return nil, err
+	}
+
+	transferParams := &script.TransferParams{}
+	transferParams.Hash = *tokenTxHash
+	transferParams.Index = tokenTxOutIdx
+	transferParams.Amount = amount
+
+	script := script.TransferTokenScript(addr.Hash(), transferParams)
+	return *script, nil
+}
+
+// get token amount in the passed utxo
+func getUtxoTokenAmount(utxo *rpcpb.Utxo, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
+	scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
+
+	if scriptPubKey.IsTokenIssue() {
+		// token issurance utxo
+		// no need to check error since it will not err
+		if bytes.Equal(utxo.OutPoint.Hash, tokenTxHash.GetBytes()) && utxo.OutPoint.Index == tokenTxOutIdx {
+			params, _ := scriptPubKey.GetIssueParams()
+			return params.TotalSupply
+		}
+	}
+	if scriptPubKey.IsTokenTransfer() {
+		// token transfer utxo
+		// no need to check error since it will not err
+		params, _ := scriptPubKey.GetTransferParams()
+		if bytes.Equal(params.Hash.GetBytes(), tokenTxHash.GetBytes()) && params.Index == tokenTxOutIdx {
+			return params.Amount
+		}
+	}
+	return 0
+}
+
+// colored: use colored or uncolored utxos/coins
+// tokenTxHash & tokenTxOutIdx only valid for colored utxos
+func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
+	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) ([]*rpcpb.Utxo, error) {
+
+	utxoList := resp.GetUtxos()
+	sort.Slice(utxoList, func(i, j int) bool {
+		if !colored {
+			return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
+		}
+		return getUtxoTokenAmount(utxoList[i], tokenTxHash, tokenTxOutIdx) <
+			getUtxoTokenAmount(utxoList[j], tokenTxHash, tokenTxOutIdx)
+	})
+
+	var currentAmount uint64
+	resultList := []*rpcpb.Utxo{}
+	for _, utxo := range utxoList {
+		if utxo.IsSpent {
+			continue
+		}
+
+		var amount uint64
+		if !colored {
+			scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
+			if !scriptPubKey.IsPayToPubKeyHash() {
+				continue
+			}
+			// p2pkh tx
+			amount = utxo.GetTxOut().GetValue()
+		} else {
+			// token tx
+			amount = getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
+			if amount == 0 {
+				// non-token or different token
+				continue
+			}
+		}
+		currentAmount += amount
+		resultList = append(resultList, utxo)
+		if currentAmount >= totalAmount {
+			return resultList, nil
+		}
+	}
+	return nil, fmt.Errorf("Not enough balance")
+}
+
+func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
+	script := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
+	issueParam, err := script.GetIssueParams()
+	if err == nil {
+		outHash := crypto.HashType{}
+		outHash.SetBytes(utxo.OutPoint.Hash)
+		return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index}, issueParam.TotalSupply
+	}
+	transferParam, err := script.GetTransferParams()
+	if err == nil {
+		return &transferParam.OutPoint, transferParam.Amount
+	}
+	return nil, 0
+}
+
+func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*TransferParam, change *corepb.TxOut) (*corepb.Transaction, error) {
+	tx := &corepb.Transaction{}
+	var inputAmount, outputAmount uint64
+	tokenAmounts := make(map[types.OutPoint]uint64)
+	txIn := make([]*corepb.TxIn, len(utxos))
+	for i, utxo := range utxos {
+		txIn[i] = &corepb.TxIn{
+			PrevOutPoint: &corepb.OutPoint{
+				Hash:  utxo.GetOutPoint().Hash,
+				Index: utxo.GetOutPoint().GetIndex(),
+			},
+			ScriptSig: []byte{},
+			Sequence:  uint32(i),
+		}
+		tokenInfo, amount := extractTokenInfo(utxo)
+		if tokenInfo != nil && amount > 0 {
+			if val, ok := tokenAmounts[*tokenInfo]; ok {
+				tokenAmounts[*tokenInfo] = amount + val
+			} else {
+				tokenAmounts[*tokenInfo] = amount
+			}
+		}
+		inputAmount += utxo.GetTxOut().GetValue()
+	}
+	tx.Vin = txIn
+	vout := make([]*corepb.TxOut, 0)
+	for _, param := range targets {
+		if param.isToken {
+			val, ok := tokenAmounts[*param.token]
+			if !ok || val < param.amount {
+				return nil, fmt.Errorf("Not enough token balance")
+			}
+			tokenAmounts[*param.token] = val - param.amount
+		}
+
+		txOut, err := param.getTxOut()
+		if err != nil {
+			return nil, err
+		}
+		vout = append(vout, txOut)
+	}
+
+	// generate token change
+	for token, amount := range tokenAmounts {
+		if amount > 0 {
+			tokenChangeScript := script.TransferTokenScript(fromAddr.Hash(), &script.TransferParams{
+				TokenID: script.TokenID{
+					OutPoint: types.OutPoint{
+						Hash:  token.Hash,
+						Index: token.Index,
+					},
+				},
+				Amount: amount,
+			})
+
+			tokenChange := &corepb.TxOut{
+				Value:        dustLimit,
+				ScriptPubKey: *tokenChangeScript,
+			}
+			vout = append(vout, tokenChange)
+		}
+	}
+
+	if inputAmount > outputAmount && change != nil {
+		vout = append(vout, change)
+	}
+	tx.Vout = vout
+
+	return tx, nil
+}
+
+func signTransaction(tx *corepb.Transaction, utxos []*rpcpb.Utxo, fromPubKeyBytes []byte, signer crypto.Signer) error {
+	// Sign the tx inputs
+	typedTx := &types.Transaction{}
+	if err := typedTx.FromProtoMessage(tx); err != nil {
+		return err
+	}
+	for txInIdx, txIn := range tx.Vin {
+		prevScriptPubKeyBytes, err := findUtxoScriptPubKey(utxos, txIn.PrevOutPoint)
+		if err != nil {
+			return err
+		}
+		prevScriptPubKey := script.NewScriptFromBytes(prevScriptPubKeyBytes)
+		sigHash, err := script.CalcTxHashForSig(prevScriptPubKeyBytes, typedTx, txInIdx)
+		if err != nil {
+			return err
+		}
+		sig, err := signer.Sign(sigHash)
+		if err != nil {
+			return err
+		}
+		scriptSig := script.SignatureScript(sig, fromPubKeyBytes)
+		txIn.ScriptSig = *scriptSig
+		tx.Vin[txInIdx].ScriptSig = *scriptSig
+
+		// test to ensure
+		if err = script.Validate(scriptSig, prevScriptPubKey, typedTx, txInIdx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// tryBalance calculate mining fee of a transaction. if txIn of transaction has enough box coins to cover
+// write the change amount to change txOut, and returns (true, 0); if not, returns (false, newAmountNeeded)
+// note: param change must be an element of the transacton vout
+func tryBalance(tx *corepb.Transaction, change *corepb.TxOut, utxos []*rpcpb.Utxo, pricePerByte uint64) (bool, uint64) {
+	var totalBytes int
+	var totalIn, totalOut uint64
+	for _, vin := range tx.Vin {
+		totalBytes += len(vin.ScriptSig)
+	}
+	for _, utxo := range utxos {
+		totalIn += utxo.TxOut.GetValue()
+	}
+	for _, vout := range tx.Vout {
+		totalBytes += len(vout.ScriptPubKey)
+		if vout != change {
+			totalOut += vout.GetValue()
+		}
+	}
+	totalFee := uint64(totalBytes) * pricePerByte
+	if totalFee+totalOut <= totalIn {
+		change.Value = totalIn - totalFee - totalOut
+		return true, 0
+	}
+	return false, totalFee + totalOut
+}
+
+func generateTokenIssueTransaction(issueScript []byte, utxos []*rpcpb.Utxo, change *corepb.TxOut) *corepb.Transaction {
+	txIn := make([]*corepb.TxIn, len(utxos))
+	for i, utxo := range utxos {
+		txIn[i] = &corepb.TxIn{
+			PrevOutPoint: &corepb.OutPoint{
+				Hash:  utxo.GetOutPoint().Hash,
+				Index: utxo.GetOutPoint().GetIndex(),
+			},
+			ScriptSig: []byte{},
+			Sequence:  uint32(0),
+		}
+	}
+	tx := &corepb.Transaction{}
+	tx.Vin = txIn
+	tx.Vout = []*corepb.TxOut{
+		{
+			Value:        dustLimit,
+			ScriptPubKey: issueScript,
+		},
+		change,
+	}
+	return tx
+}
+
+// find an outpoint's referenced utxo's scriptPubKey
+func findUtxoScriptPubKey(utxos []*rpcpb.Utxo, outPoint *corepb.OutPoint) ([]byte, error) {
+	for _, utxo := range utxos {
+		if reflect.DeepEqual(utxo.GetOutPoint(), outPoint) {
+			return utxo.GetTxOut().GetScriptPubKey(), nil
+		}
+	}
+	return nil, fmt.Errorf("outPoint's referenced utxo not found")
+}
+
+func getScriptAddress(address types.Address) []byte {
+	return *script.PayToPubKeyHashScript(address.Hash())
 }
 
 // NewConnectionWithViper initializes a grpc connection using configs parsed by viper

@@ -186,7 +186,7 @@ func listAccountCmdFunc(cmd *cobra.Command, args []string) {
 
 func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("dumprivkey called")
-	if len(args) < 0 {
+	if len(args) < 1 {
 		fmt.Println("address needed")
 		return
 	}

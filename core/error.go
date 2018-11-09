@@ -4,7 +4,9 @@
 
 package core
 
-import "errors"
+import (
+	"errors"
+)
 
 // error
 var (
@@ -27,6 +29,7 @@ var (
 	ErrBlockIsNil                  = errors.New("Block is nil")
 	ErrOrphanBlockExists           = errors.New("Orphan block already exists")
 	ErrFailedToSetEternal          = errors.New("Failed to set eternal block")
+	ErrTokenInputsOutputNotEqual   = errors.New("Tx input tokens and output tokens unequal")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
@@ -75,4 +78,6 @@ var (
 	//filters.go
 	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
 	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
+
+	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
 )

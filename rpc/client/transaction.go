@@ -7,39 +7,131 @@ package client
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/util"
 	"google.golang.org/grpc"
 )
 
+// GetFeePrice gets the recommended mining fee price according to recent packed transactions
+func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r, err := c.GetFeePrice(ctx, &rpcpb.GetFeePriceRequest{})
+	return r.BoxPerByte, err
+}
+
+// FundTransaction gets the utxo of a public key
+func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
+	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Script Value: %v", p2pkScript)
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
+		Addr:   addr.String(),
+		Amount: amount,
+	})
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Result: %+v", r)
+	return r, nil
+}
+
+// FundTokenTransaction gets the utxo of a public key containing a certain amount of box and token
+func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *types.OutPoint, boxAmount, tokenAmount uint64) (*rpcpb.ListUtxosResponse, error) {
+	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Script Value: %v", p2pkScript)
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tokenBudges := make([]*rpcpb.TokenAmount, 0)
+	if token != nil && tokenAmount > 0 {
+		outPointMsg, err := token.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		outPointPb, ok := outPointMsg.(*corepb.OutPoint)
+		if !ok {
+			return nil, fmt.Errorf("Invalid token outpoint")
+		}
+		tokenBudges = append(tokenBudges, &rpcpb.TokenAmount{
+			Token:  outPointPb,
+			Amount: tokenAmount,
+		})
+	}
+	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
+		Addr:         addr.String(),
+		Amount:       boxAmount,
+		TokenBudgets: tokenBudges,
+	})
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Result: %+v", r)
+	return r, nil
+}
+
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
 func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
-	var total uint64
-	for _, amount := range targets {
-		total += amount
+	var totalAmount uint64
+	transferTargets := make([]*TransferParam, 0)
+	for addr, amount := range targets {
+		totalAmount += amount
+		transferTargets = append(transferTargets, &TransferParam{
+			addr:    addr,
+			isToken: false,
+			amount:  amount,
+			token:   nil,
+		})
 	}
-	utxoResponse, err := FundTransaction(conn, fromAddress, total)
+	change := &corepb.TxOut{
+		Value:        0,
+		ScriptPubKey: getScriptAddress(fromAddress),
+	}
 
+	price, err := GetFeePrice(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	txReq := &rpcpb.SendTransactionRequest{}
-	utxos, err := selectUtxo(utxoResponse, total)
-	if err != nil {
-		return nil, err
+	var tx *corepb.Transaction
+	for {
+		utxoResponse, err := FundTransaction(conn, fromAddress, totalAmount)
+		if err != nil {
+			return nil, err
+		}
+		if tx, err = generateTx(fromAddress, utxoResponse.GetUtxos(), transferTargets, change); err != nil {
+			return nil, err
+		}
+		if err = signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer); err != nil {
+			return nil, err
+		}
+		ok, adjustedAmount := tryBalance(tx, change, utxoResponse.Utxos, price)
+		if ok {
+			signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer)
+			break
+		}
+		totalAmount = adjustedAmount
 	}
-	tx, err := wrapTransaction(fromAddress.ScriptAddress(), targets, pubKeyBytes, utxos, signer)
-	if err != nil {
-		return nil, err
-	}
-	txReq.Tx = tx
+
+	fmt.Println(util.PrettyPrint(tx))
+
+	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
 
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -53,129 +145,6 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 	transaction := &types.Transaction{}
 	transaction.FromProtoMessage(tx)
 	return transaction, nil
-}
-
-func selectUtxo(resp *rpcpb.ListUtxosResponse, amount uint64) ([]*rpcpb.Utxo, error) {
-	utxoList := resp.GetUtxos()
-	sort.Slice(utxoList, func(i, j int) bool {
-		return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
-	})
-	var current uint64
-	resultList := []*rpcpb.Utxo{}
-	for _, utxo := range utxoList {
-		if utxo.IsSpent {
-			continue
-		}
-		current += utxo.GetTxOut().GetValue()
-		resultList = append(resultList, utxo)
-		if current >= amount {
-			return resultList, nil
-		}
-	}
-	return nil, fmt.Errorf("Not enough balance")
-}
-
-func wrapTransaction(fromPubKeyHash []byte, targets map[types.Address]uint64, fromPubKeyBytes []byte, utxos []*rpcpb.Utxo, signer crypto.Signer) (*corepb.Transaction, error) {
-	tx := &corepb.Transaction{}
-	var current, total uint64
-	txIn := make([]*corepb.TxIn, len(utxos))
-	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
-	for i, utxo := range utxos {
-		txIn[i] = &corepb.TxIn{
-			PrevOutPoint: &corepb.OutPoint{
-				Hash:  utxo.GetOutPoint().Hash,
-				Index: utxo.GetOutPoint().GetIndex(),
-			},
-			ScriptSig: []byte{},
-			Sequence:  uint32(i),
-		}
-		current += utxo.GetTxOut().GetValue()
-	}
-	tx.Vin = txIn
-	vout := make([]*corepb.TxOut, 0)
-	fromScript, err := getScriptAddress(fromPubKeyHash)
-	prevScriptPubKey := script.NewScriptFromBytes(fromScript)
-	if err != nil {
-		return nil, err
-	}
-	for addr, amount := range targets {
-		toScript, err := getScriptAddress(addr.ScriptAddress())
-		if err != nil {
-			return nil, err
-		}
-		vout = append(vout, &corepb.TxOut{Value: amount, ScriptPubKey: toScript})
-		total += amount
-	}
-	//toScript, err := getScriptAddress(toPubKeyHash)
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	//fromScript, err := getScriptAddress(fromPubKeyHash)
-	//prevScriptPubKey := script.NewScriptFromBytes(fromScript)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//tx.Vout = []*corepb.TxOut{{
-	//	Value:        amount,
-	//	ScriptPubKey: toScript,
-	//}}
-	if current > total {
-		vout = append(vout, &corepb.TxOut{
-			Value:        current - total,
-			ScriptPubKey: fromScript,
-		})
-	}
-
-	tx.Vout = vout
-
-	// Sign the tx inputs
-	typedTx := &types.Transaction{}
-	if err = typedTx.FromProtoMessage(tx); err != nil {
-		return nil, err
-	}
-	for txInIdx, txIn := range typedTx.Vin {
-		sigHash, err := script.CalcTxHashForSig(fromScript, typedTx, txInIdx)
-		if err != nil {
-			return nil, err
-		}
-		sig, err := signer.Sign(sigHash)
-		if err != nil {
-			return nil, err
-		}
-		scriptSig := script.SignatureScript(sig, fromPubKeyBytes)
-		txIn.ScriptSig = *scriptSig
-		tx.Vin[txInIdx].ScriptSig = *scriptSig
-
-		// test to ensure
-		if err = script.Validate(scriptSig, prevScriptPubKey, typedTx, txInIdx); err != nil {
-			return nil, err
-		}
-	}
-
-	return tx, nil
-}
-
-// FundTransaction gets the utxo of a public key
-func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
-	p2pkScript, err := getScriptAddress(addr.ScriptAddress())
-	if err != nil {
-		return nil, err
-	}
-	logger.Debugf("Script Value: %v", p2pkScript)
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-		Addr:   addr.EncodeAddress(),
-		Amount: amount,
-	})
-	if err != nil {
-		return nil, err
-	}
-	logger.Debugf("Result: %+v", r)
-	return r, nil
 }
 
 // GetRawTransaction get the transaction info of given hash

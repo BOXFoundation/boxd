@@ -108,7 +108,7 @@ func (wlt *Manager) NewAccountWithPrivKey(privKey *crypto.PrivateKey, passphrase
 		return "", "", err
 	}
 	account := &Account{
-		path:     path.Join(wlt.path, fmt.Sprintf("%x.keystore", address.ScriptAddress())),
+		path:     path.Join(wlt.path, fmt.Sprintf("%x.keystore", address.Hash())),
 		privKey:  privKey,
 		addr:     address,
 		unlocked: true,
@@ -116,7 +116,7 @@ func (wlt *Manager) NewAccountWithPrivKey(privKey *crypto.PrivateKey, passphrase
 	if err := account.saveWithPassphrase(passphrase); err != nil {
 		return "", "", err
 	}
-	return hex.EncodeToString(address.ScriptAddress()), address.String(), nil
+	return hex.EncodeToString(address.Hash()), address.String(), nil
 }
 
 // DumpPrivKey returns an account's private key bytes in hex string format
@@ -196,7 +196,7 @@ func (acc *Account) Addr() string {
 
 // PubKeyHash returns Public Key Hash of the account
 func (acc *Account) PubKeyHash() []byte {
-	return acc.addr.ScriptAddress()
+	return acc.addr.Hash()
 }
 
 // PublicKey returns the account's public key in compressed byte format
@@ -231,7 +231,7 @@ func (acc *Account) UnlockWithPassphrase(passphrase string) error {
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(addr.ScriptAddress(), acc.addr.ScriptAddress()) {
+	if !bytes.Equal(addr.Hash(), acc.addr.Hash()) {
 		return fmt.Errorf("Private key doesn't match address, the keystore file may be broken")
 	}
 	acc.unlocked = true

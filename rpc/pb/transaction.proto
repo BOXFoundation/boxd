@@ -44,6 +44,20 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc GetTokenBalance(GetTokenBalanceRequest) returns (GetTokenBalanceResponse) {
+        option (google.api.http) = {
+            post: "/v1/tx/gettokenbalance"
+            body: "*"
+        };
+    }
+
+    rpc GetFeePrice(GetFeePriceRequest) returns (GetFeePriceResponse) {
+        option (google.api.http) = {
+            post: "/v1/tx/getfeeprice"
+            body: "*"
+        };
+    }
 }
 
 message ListUtxosRequest {
@@ -56,9 +70,15 @@ message GetRawTransactionResponse {
     corepb.Transaction tx = 1;
 }
 
+message TokenAmount{
+    corepb.OutPoint token = 1;
+    uint64 amount = 2;
+}
+
 message FundTransactionRequest {
     string addr = 1;
     uint64 amount = 2;
+    repeated TokenAmount tokenBudgets= 3;
 }
 
 message SendTransactionRequest {
@@ -80,4 +100,22 @@ message GetBalanceResponse {
     int32 code = 1;
     string message = 2;
     map<string, uint64> balances = 3;
+}
+
+message GetTokenBalanceRequest {
+    repeated string addrs = 1;
+    corepb.OutPoint token = 2;
+}
+
+message GetTokenBalanceResponse {
+    int32 code = 1;
+    string message = 2;
+    map<string, uint64> balances = 3;
+}
+
+message GetFeePriceRequest{
+}
+
+message GetFeePriceResponse {
+    uint64 box_per_byte = 1;
 }

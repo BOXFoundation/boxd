@@ -8,6 +8,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"math/big"
+	"reflect"
 	"strings"
 
 	"github.com/BOXFoundation/boxd/core/types"
@@ -16,6 +18,11 @@ import (
 )
 
 var logger = log.NewLogger("script") // logger
+
+const (
+	p2PKHScriptLen = 25
+	p2SHScriptLen  = 23
+)
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
@@ -29,7 +36,7 @@ func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
 
 // StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
 func StandardCoinbaseSignatureScript(height uint32) *Script {
-	return NewScript().AddOperand(scriptNum(height).Bytes()).AddOperand(scriptNum(0).Bytes())
+	return NewScript().AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
 }
 
 // Script represents scripts
@@ -118,7 +125,7 @@ func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx in
 func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
-	logger.Debugf("script len %d: %s", scriptLen, s.disasm())
+	logger.Debugf("script len %d: %s", scriptLen, s.Disasm())
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
@@ -202,9 +209,9 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		stack.push(pushData)
 		return nil
 	} else if opCode <= OP16 && opCode != OPRESERVED {
-		sn := scriptNum(opCode) - scriptNum(OP1) + 1
-		logger.Debugf("opcode: %s, push data: %d, pc: %d", opCodeToName(opCode), sn, pc)
-		stack.push(Operand(sn.Bytes()))
+		op := big.NewInt(int64(opCode) - int64(OP1) + 1)
+		logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
+		stack.push(Operand(op.Bytes()))
 		return nil
 	}
 
@@ -228,28 +235,20 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		if stack.size() < 2 {
 			return ErrInvalidStackOperation
 		}
-		op1 := stack.topN(2)
-		sn1, err := newScriptNum(op1)
-		if err != nil {
-			return err
-		}
-		op2 := stack.topN(1)
-		sn2, err := newScriptNum(op2)
-		if err != nil {
-			return err
-		}
-		var sn scriptNum
+		op1, op2 := big.NewInt(0), big.NewInt(0)
+		op1.SetBytes(stack.topN(2))
+		op2.SetBytes(stack.topN(1))
 		switch opCode {
 		case OPADD:
-			sn = sn1 + sn2
+			op1.Add(op1, op2)
 		case OPSUB:
-			sn = sn1 - sn2
+			op1.Sub(op1, op2)
 		default:
 			return ErrBadOpcode
 		}
 		stack.pop()
 		stack.pop()
-		stack.push(sn.Bytes())
+		stack.push(op1.Bytes())
 
 	case OPEQUAL:
 		fallthrough
@@ -377,33 +376,76 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 	return sigHash, err
 }
 
-// diaasm disassembles script in human readable format. If the script fails to parse, the returned string will
-// contain the disassembled script up to the failure point, appended by the string '[Error: error info]'
-func (s *Script) disasm() string {
-	var str []string
+// parses the entire script and returns operator/operand sequences.
+// The returned result will contain the parsed script up to the failure point, with the last element being the error
+func (s *Script) parse() []interface{} {
+	var elements []interface{}
 
 	for pc := 0; pc < len(*s); {
 		opCode, operand, newPc, err := s.parseNextOp(pc)
 		if err != nil {
-			str = append(str, "[Error: "+err.Error()+"]")
-			return strings.Join(str, " ")
+			elements = append(elements, err)
+			return elements
 		}
 		if operand != nil {
-			str = append(str, hex.EncodeToString(operand))
+			elements = append(elements, operand)
 		} else {
-			str = append(str, opCodeToName(opCode))
+			elements = append(elements, opCode)
 		}
 		pc = newPc
+	}
+
+	return elements
+}
+
+// Disasm disassembles script in human readable format. If the script fails to parse, the returned string will
+// contain the disassembled script up to the failure point, appended by the string '[Error: error info]'
+func (s *Script) Disasm() string {
+	var str []string
+
+	elements := s.parse()
+	for _, e := range elements {
+		switch v := e.(type) {
+		case Operand:
+			str = append(str, hex.EncodeToString(v))
+		case OpCode:
+			str = append(str, opCodeToName(v))
+		case error:
+			str = append(str, "[Error: "+v.Error()+"]")
+		default:
+			return "Disasmbler encounters unexpected type"
+		}
 	}
 
 	return strings.Join(str, " ")
 }
 
+// IsPayToPubKeyHash returns if the script is p2pkh
+func (s *Script) IsPayToPubKeyHash() bool {
+	if len(*s) != p2PKHScriptLen {
+		return false
+	}
+
+	r := s.parse()
+	return len(r) == 5 && reflect.DeepEqual(r[0], OPDUP) && reflect.DeepEqual(r[1], OPHASH160) &&
+		isOperandOfLen(r[2], 20) && reflect.DeepEqual(r[3], OPEQUALVERIFY) && reflect.DeepEqual(r[4], OPCHECKSIG)
+}
+
 // IsPayToScriptHash returns if the script is p2sh
 func (s *Script) IsPayToScriptHash() bool {
+	if len(*s) != p2SHScriptLen {
+		return false
+	}
+
 	// OP_HASH160 <160-bit redeemp script hash> OP_EQUAL
-	script := *s
-	return len(script) == 23 && OpCode(script[0]) == OPHASH160 && script[1] == 20 && OpCode(script[22]) == OPEQUAL
+	r := s.parse()
+	return len(r) == 3 && reflect.DeepEqual(r[0], OPHASH160) && isOperandOfLen(r[1], 20) && reflect.DeepEqual(r[2], OPEQUAL)
+}
+
+// is i of type Operand and of specified length
+func isOperandOfLen(i interface{}, length int) bool {
+	operand, ok := i.(Operand)
+	return ok && len(operand) == length
 }
 
 // getNthOp returns the n-th (start from 0) operand and operator, counting from pcStart of the script.
@@ -422,12 +464,36 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
-	//TODO: only applies to p2pkh
-	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG
+	// only applies to p2pkh & token txs
+	if !s.IsPayToPubKeyHash() && !s.IsTokenIssue() && !s.IsTokenTransfer() {
+		return nil, ErrAddressNotApplicable
+	}
+
+	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
 	_, pubKeyHash, _, err := s.getNthOp(0, 2)
 	if err != nil {
 		return nil, err
 	}
 
 	return types.NewAddressPubKeyHash(pubKeyHash)
+}
+
+// GetSigOpCount returns number of signature operations in a script
+func (s *Script) GetSigOpCount() int {
+	numSigs := 0
+
+	elements := s.parse()
+	for _, e := range elements {
+		switch v := e.(type) {
+		case OpCode:
+			if v == OPCHECKSIG || v == OPCHECKSIGVERIFY ||
+				v == OPCHECKMULTISIG || v == OPCHECKMULTISIGVERIFY {
+				numSigs++
+			}
+		default:
+			// Not a opcode
+		}
+	}
+
+	return numSigs
 }

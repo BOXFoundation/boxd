@@ -25,6 +25,6 @@ type ChainReader interface {
 	LoadBlockByHash(crypto.HashType) (*types.Block, error)
 
 	// address related search method
-	GetTransactions(types.Address) ([]*types.Transaction, error)
+	GetTransactionsByAddr(types.Address) ([]*types.Transaction, error)
 	// GetUtxos(*types.Address) ([]*types.UtxoWrap, error)
 }

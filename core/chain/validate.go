@@ -6,6 +6,7 @@ package chain
 
 import (
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -198,6 +199,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 
 	txHash, _ := tx.TxHash()
 	var totalInputAmount uint64
+	tokenInputAmounts := make(map[script.TokenID]uint64)
 	for txInIndex, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
@@ -221,10 +223,6 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 
 		// Tx amount must be in range.
 		utxoAmount := utxo.Value()
-		if utxoAmount < 0 {
-			logger.Errorf("transaction output has negative value of %v", utxoAmount)
-			return 0, core.ErrBadTxOutValue
-		}
 		if utxoAmount > TotalSupply {
 			logger.Errorf("transaction output value of %v is higher than max allowed value of %v", utxoAmount, TotalSupply)
 			return 0, core.ErrBadTxOutValue
@@ -238,12 +236,36 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 				"allowed value of %v", totalInputAmount, TotalSupply)
 			return 0, core.ErrBadTxOutValue
 		}
+
+		// token tx input amount
+		scriptPubKey := script.NewScriptFromBytes(utxo.Output.GetScriptPubKey())
+		if scriptPubKey.IsTokenIssue() {
+			tokenID := script.NewTokenID(txIn.PrevOutPoint.Hash, txIn.PrevOutPoint.Index)
+			// no need to check error since it will not err
+			params, _ := scriptPubKey.GetIssueParams()
+			tokenInputAmounts[tokenID] += params.TotalSupply
+		} else if scriptPubKey.IsTokenTransfer() {
+			// no need to check error since it will not err
+			params, _ := scriptPubKey.GetTransferParams()
+			tokenID := script.NewTokenID(params.Hash, params.Index)
+			tokenInputAmounts[tokenID] += params.Amount
+		}
 	}
 
 	// Sum the total output amount.
 	var totalOutputAmount uint64
+	tokenOutputAmounts := make(map[script.TokenID]uint64)
 	for _, txOut := range tx.Vout {
 		totalOutputAmount += txOut.Value
+		// token tx output amount
+		scriptPubKey := script.NewScriptFromBytes(txOut.GetScriptPubKey())
+		// do not count token issued
+		if scriptPubKey.IsTokenTransfer() {
+			// no need to check error since it will not err
+			params, _ := scriptPubKey.GetTransferParams()
+			tokenID := script.NewTokenID(params.Hash, params.Index)
+			tokenOutputAmounts[tokenID] += params.Amount
+		}
 	}
 
 	// Tx total outputs must not exceed total inputs.
@@ -252,6 +274,13 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 			"transaction %v is %v, which exceeds the input amount "+
 			"of %v", txHash, totalOutputAmount, totalInputAmount)
 		return 0, core.ErrSpendTooHigh
+	}
+
+	if !reflect.DeepEqual(tokenOutputAmounts, tokenInputAmounts) {
+		logger.Errorf("total value of all token outputs for "+
+			"transaction %v is %v, differs from the input amount "+
+			"of %v", txHash, tokenOutputAmounts, tokenInputAmounts)
+		return 0, core.ErrTokenInputsOutputNotEqual
 	}
 
 	txFee := totalInputAmount - totalOutputAmount
@@ -288,20 +317,14 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 	var totalValue uint64
 	for _, txOut := range tx.Vout {
 		value := txOut.Value
-		if value < 0 {
-			logger.Errorf("transaction output has negative value of %v", value)
-			return core.ErrBadTxOutValue
-		}
 		if value > TotalSupply {
 			logger.Errorf("transaction output value of %v is "+
 				"higher than max allowed value of %v", TotalSupply)
 			return core.ErrBadTxOutValue
 		}
 
-		// Two's complement int64 overflow guarantees that any overflow
-		// is detected and reported.
 		totalValue += value
-		if totalValue < 0 {
+		if totalValue < value {
 			logger.Errorf("total value of all transaction outputs overflows %v", totalValue)
 			return core.ErrBadTxOutValue
 		}
