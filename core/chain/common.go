@@ -6,7 +6,6 @@ package chain
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -159,9 +158,10 @@ func (chain *BlockChain) calcLockTime(utxoSet *UtxoSet, block *types.Block, tx *
 			if prevInputHeight < 0 {
 				prevInputHeight = 0
 			}
-			ancestor := chain.ancestor(block, prevInputHeight)
-			if ancestor != nil {
-				return nil, fmt.Errorf("ancestor does not exist")
+			// ancestor := chain.ancestor(block, prevInputHeight)
+			ancestor, err := chain.LoadBlockByHeight(prevInputHeight)
+			if err != nil {
+				return nil, err
 			}
 			medianTime := chain.calcPastMedianTime(ancestor)
 
