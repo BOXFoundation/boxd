@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"math/big"
 	"reflect"
 	"strings"
 
@@ -35,7 +36,7 @@ func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
 
 // StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
 func StandardCoinbaseSignatureScript(height uint32) *Script {
-	return NewScript().AddOperand(scriptNum(height).Bytes()).AddOperand(scriptNum(0).Bytes())
+	return NewScript().AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
 }
 
 // Script represents scripts
@@ -208,9 +209,9 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		stack.push(pushData)
 		return nil
 	} else if opCode <= OP16 && opCode != OPRESERVED {
-		sn := scriptNum(opCode) - scriptNum(OP1) + 1
-		logger.Debugf("opcode: %s, push data: %d, pc: %d", opCodeToName(opCode), sn, pc)
-		stack.push(Operand(sn.Bytes()))
+		op := big.NewInt(int64(opCode) - int64(OP1) + 1)
+		logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
+		stack.push(Operand(op.Bytes()))
 		return nil
 	}
 
@@ -234,28 +235,20 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 		if stack.size() < 2 {
 			return ErrInvalidStackOperation
 		}
-		op1 := stack.topN(2)
-		sn1, err := newScriptNum(op1)
-		if err != nil {
-			return err
-		}
-		op2 := stack.topN(1)
-		sn2, err := newScriptNum(op2)
-		if err != nil {
-			return err
-		}
-		var sn scriptNum
+		op1, op2 := big.NewInt(0), big.NewInt(0)
+		op1.SetBytes(stack.topN(2))
+		op2.SetBytes(stack.topN(1))
 		switch opCode {
 		case OPADD:
-			sn = sn1 + sn2
+			op1.Add(op1, op2)
 		case OPSUB:
-			sn = sn1 - sn2
+			op1.Sub(op1, op2)
 		default:
 			return ErrBadOpcode
 		}
 		stack.pop()
 		stack.pop()
-		stack.push(sn.Bytes())
+		stack.push(op1.Bytes())
 
 	case OPEQUAL:
 		fallthrough
