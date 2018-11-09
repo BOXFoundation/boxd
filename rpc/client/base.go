@@ -105,9 +105,13 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
 
 	utxoList := resp.GetUtxos()
 	sort.Slice(utxoList, func(i, j int) bool {
-		// TODO: sort by token amount for token utxos
-		return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
+		if !colored {
+			return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
+		}
+		return getUtxoTokenAmount(utxoList[i], tokenTxHash, tokenTxOutIdx) <
+			getUtxoTokenAmount(utxoList[j], tokenTxHash, tokenTxOutIdx)
 	})
+
 	var currentAmount uint64
 	resultList := []*rpcpb.Utxo{}
 	for _, utxo := range utxoList {
