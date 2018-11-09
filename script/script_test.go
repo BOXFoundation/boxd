@@ -41,6 +41,16 @@ var (
 		Magic:    1,
 		LockTime: 0,
 	}
+
+	p2SHScriptBytes = []byte{
+		byte(OPHASH160),
+		0x14,                         // 160-bit redeemp script hash length: 20 bytes
+		0x00, 0x01, 0x02, 0x03, 0x04, // 160-bit redeemp script hash: begining
+		0x05, 0x06, 0x07, 0x08, 0x09,
+		0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+		0x0F, 0x10, 0x11, 0x12, 0x13, // 160-bit redeemp script hash: end
+		byte(OPEQUAL),
+	}
 )
 
 // test script not dependent on a tx
@@ -101,6 +111,8 @@ func TestP2PKH(t *testing.T) {
 	scriptSig, scriptPubKey, _ := genP2PKHScript(false)
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
+	ensure.DeepEqual(t, scriptSig.GetSigOpCount(), 0)
+	ensure.DeepEqual(t, scriptPubKey.GetSigOpCount(), 1)
 
 	// Append anything and immediately drop it to test OP_DROP; shall not affect script validity
 	scriptSig, scriptPubKey, _ = genP2PKHScript(true)
@@ -150,15 +162,6 @@ func TestDisasm(t *testing.T) {
 }
 
 func TestIsPayToScriptHash(t *testing.T) {
-	p2SHScriptBytes := []byte{
-		byte(OPHASH160),
-		0x14,                         // 160-bit redeemp script hash length: 20 bytes
-		0x00, 0x01, 0x02, 0x03, 0x04, // 160-bit redeemp script hash: begining
-		0x05, 0x06, 0x07, 0x08, 0x09,
-		0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
-		0x0F, 0x10, 0x11, 0x12, 0x13, // 160-bit redeemp script hash: end
-		byte(OPEQUAL),
-	}
 	p2SHScript := NewScriptFromBytes(p2SHScriptBytes)
 	ensure.True(t, p2SHScript.IsPayToScriptHash())
 
@@ -202,10 +205,21 @@ func TestIsPayToPubKeyHash(t *testing.T) {
 }
 
 func TestExtractAddress(t *testing.T) {
+	// general tx
 	_, scriptPubKey, _ := genP2PKHScript(false)
-	addr, _ := scriptPubKey.ExtractAddress()
+	addr, err := scriptPubKey.ExtractAddress()
+	ensure.Nil(t, err)
 	expectedAddr, _ := types.NewAddressFromPubKey(testPubKey)
 	ensure.DeepEqual(t, expectedAddr, addr)
+
+	_, scriptPubKey, _ = genP2PKHScript(true)
+	_, err = scriptPubKey.ExtractAddress()
+	ensure.NotNil(t, err)
+
+	// p2sh
+	_, scriptPubKey = genP2SHScript()
+	_, err = scriptPubKey.ExtractAddress()
+	ensure.NotNil(t, err)
 }
 
 func TestGetNthOp(t *testing.T) {

@@ -4,6 +4,10 @@
 
 package script
 
+import (
+	"math/big"
+)
+
 // Operand represents stack operand when interpretting script
 type Operand []byte
 
@@ -54,11 +58,9 @@ func (s *Stack) validateTop() error {
 	if s.empty() {
 		return ErrFinalStackEmpty
 	}
-	snTop, err := newScriptNum(s.topN(1))
-	if err != nil {
-		return err
-	}
-	if snTop == scriptNumZero {
+	topOp := big.NewInt(0)
+	topOp.SetBytes(s.topN(1))
+	if topOp.Cmp(big.NewInt(0)) == 0 {
 		return ErrFinalTopStackEleFalse
 	}
 	return nil

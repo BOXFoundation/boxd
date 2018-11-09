@@ -21,12 +21,9 @@ var (
 	ErrScriptEqualVerify         = errors.New("ScriptErrEqualVerify")
 	ErrScriptSignatureVerifyFail = errors.New("ScriptErrSignatureVerifyFail")
 	ErrInputIndexOutOfBound      = errors.New("input index out of bound")
+	ErrAddressNotApplicable      = errors.New("Address only applies to p2pkh and token txs")
 
 	// stack.go
 	ErrFinalStackEmpty       = errors.New("Final stack empty")
 	ErrFinalTopStackEleFalse = errors.New("Final top stack element false")
-
-	// scriptnum.go
-	ErrNumberTooBig = errors.New("Number too big error")
-	ErrMinimalData  = errors.New("Minimal data error")
 )

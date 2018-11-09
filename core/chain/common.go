@@ -96,25 +96,19 @@ func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, erro
 	return tx, nil
 }
 
-// return number of transactions in a script
-func getSigOpCount(script []byte) int {
-	// TODO after adding script
-	return 1
-}
-
 // return the number of signature operations for all transaction
 // input and output scripts in the provided transaction.
 func countSigOps(tx *types.Transaction) int {
 	// Accumulate the number of signature operations in all transaction inputs.
 	totalSigOps := 0
 	for _, txIn := range tx.Vin {
-		numSigOps := getSigOpCount(txIn.ScriptSig)
+		numSigOps := script.NewScriptFromBytes(txIn.ScriptSig).GetSigOpCount()
 		totalSigOps += numSigOps
 	}
 
 	// Accumulate the number of signature operations in all transaction outputs.
 	for _, txOut := range tx.Vout {
-		numSigOps := getSigOpCount(txOut.ScriptPubKey)
+		numSigOps := script.NewScriptFromBytes(txOut.ScriptPubKey).GetSigOpCount()
 		totalSigOps += numSigOps
 	}
 
