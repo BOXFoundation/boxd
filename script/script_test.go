@@ -111,6 +111,8 @@ func TestP2PKH(t *testing.T) {
 	scriptSig, scriptPubKey, _ := genP2PKHScript(false)
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
+	ensure.DeepEqual(t, scriptSig.GetSigOpCount(), 0)
+	ensure.DeepEqual(t, scriptPubKey.GetSigOpCount(), 1)
 
 	// Append anything and immediately drop it to test OP_DROP; shall not affect script validity
 	scriptSig, scriptPubKey, _ = genP2PKHScript(true)

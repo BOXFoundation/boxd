@@ -477,3 +477,23 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 
 	return types.NewAddressPubKeyHash(pubKeyHash)
 }
+
+// GetSigOpCount returns number of signature operations in a script
+func (s *Script) GetSigOpCount() int {
+	numSigs := 0
+
+	elements := s.parse()
+	for _, e := range elements {
+		switch v := e.(type) {
+		case OpCode:
+			if v == OPCHECKSIG || v == OPCHECKSIGVERIFY ||
+				v == OPCHECKMULTISIG || v == OPCHECKMULTISIGVERIFY {
+				numSigs++
+			}
+		default:
+			// Not a opcode
+		}
+	}
+
+	return numSigs
+}
