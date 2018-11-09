@@ -73,6 +73,36 @@ func (s *txServer) GetBalance(ctx context.Context, req *rpcpb.GetBalanceRequest)
 	return &rpcpb.GetBalanceResponse{Code: 0, Message: "ok", Balances: balances}, nil
 }
 
+func (s *txServer) GetTokenBalance(ctx context.Context, req *rpcpb.GetTokenBalanceRequest) (*rpcpb.GetTokenBalanceResponse, error) {
+	balances := make(map[string]uint64)
+	token := &types.OutPoint{}
+	if err := token.FromProtoMessage(req.Token); err != nil {
+		return &rpcpb.GetTokenBalanceResponse{
+			Code:    -1,
+			Message: err.Error(),
+		}, err
+	}
+	for _, addrStr := range req.Addrs {
+		addr, err := types.NewAddress(addrStr)
+		if err != nil {
+			return &rpcpb.GetTokenBalanceResponse{
+				Code:    -1,
+				Message: err.Error(),
+			}, err
+		}
+		amount, err := s.getTokenBalance(ctx, addr, token)
+		if err != nil {
+			return &rpcpb.GetTokenBalanceResponse{Code: -1, Message: err.Error()}, err
+		}
+		balances[addrStr] = amount
+	}
+	return &rpcpb.GetTokenBalanceResponse{
+		Code:     0,
+		Message:  "ok",
+		Balances: balances,
+	}, nil
+}
+
 func (s *txServer) getbalance(ctx context.Context, addr types.Address) (uint64, error) {
 	utxos, err := s.server.GetChainReader().LoadUtxoByAddress(addr)
 	if err != nil {
@@ -81,6 +111,42 @@ func (s *txServer) getbalance(ctx context.Context, addr types.Address) (uint64, 
 	var amount uint64
 	for _, value := range utxos {
 		amount += value.Output.Value
+	}
+	return amount, nil
+}
+
+func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, token *types.OutPoint) (uint64, error) {
+	utxos, err := s.server.GetChainReader().LoadUtxoByAddress(addr)
+	if err != nil {
+		return 0, err
+	}
+	var amount uint64
+	for outpoint, value := range utxos {
+		s := script.NewScriptFromBytes(value.Output.ScriptPubKey)
+		if s.IsTokenIssue() {
+			logger.Debug("Token issue utxo found")
+			if outpoint != *token {
+				// token type not match
+				continue
+			}
+			issueParam, err := s.GetIssueParams()
+			if err != nil {
+				return 0, err
+			}
+			amount += issueParam.TotalSupply
+		}
+		if s.IsTokenTransfer() {
+			logger.Debug("Token transfer utxo found")
+			transferParam, err := s.GetTransferParams()
+			if err != nil {
+				return 0, err
+			}
+			if transferParam.OutPoint != *token {
+				// token type not match
+				continue
+			}
+			amount += transferParam.Amount
+		}
 	}
 	return amount, nil
 }
@@ -110,10 +176,12 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 			tokenAmount[*outpoint] = budget.Amount
 		}
 	}
+	logger.Debugf("Requested token Info %v", tokenAmount)
 	for out, utxo := range utxos {
 		token, amount, isToken := getTokenInfo(out, utxo)
 		if isToken {
 			if val, ok := tokenAmount[token]; ok && val > 0 {
+				logger.Debugf("Found utxo with token amount: %d", val)
 				if val > amount {
 					tokenAmount[token] = val - amount
 				} else {

@@ -93,6 +93,19 @@ func request_TransactionCommand_GetBalance_0(ctx context.Context, marshaler runt
 
 }
 
+func request_TransactionCommand_GetTokenBalance_0(ctx context.Context, marshaler runtime.Marshaler, client TransactionCommandClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq GetTokenBalanceRequest
+	var metadata runtime.ServerMetadata
+
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.GetTokenBalance(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
 func request_TransactionCommand_GetFeePrice_0(ctx context.Context, marshaler runtime.Marshaler, client TransactionCommandClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetFeePriceRequest
 	var metadata runtime.ServerMetadata
@@ -244,6 +257,26 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 
 	})
 
+	mux.Handle("POST", pattern_TransactionCommand_GetTokenBalance_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_TransactionCommand_GetTokenBalance_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_TransactionCommand_GetTokenBalance_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_TransactionCommand_GetFeePrice_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -278,6 +311,8 @@ var (
 
 	pattern_TransactionCommand_GetBalance_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getbalance"}, ""))
 
+	pattern_TransactionCommand_GetTokenBalance_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "gettokenbalance"}, ""))
+
 	pattern_TransactionCommand_GetFeePrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getfeeprice"}, ""))
 )
 
@@ -291,6 +326,8 @@ var (
 	forward_TransactionCommand_GetRawTransaction_0 = runtime.ForwardResponseMessage
 
 	forward_TransactionCommand_GetBalance_0 = runtime.ForwardResponseMessage
+
+	forward_TransactionCommand_GetTokenBalance_0 = runtime.ForwardResponseMessage
 
 	forward_TransactionCommand_GetFeePrice_0 = runtime.ForwardResponseMessage
 )

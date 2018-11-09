@@ -175,54 +175,6 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
 	return nil, fmt.Errorf("Not enough balance")
 }
 
-func tryGenerateTx(utxos []*rpcpb.Utxo, targets map[types.Address]uint64, change *corepb.TxOut, gasPricePerByte uint64) (*corepb.Transaction, uint64) {
-	tx := &corepb.Transaction{}
-	var inputAmount, outputAmount uint64
-	txIn := make([]*corepb.TxIn, len(utxos))
-	for i, utxo := range utxos {
-		txIn[i] = &corepb.TxIn{
-			PrevOutPoint: &corepb.OutPoint{
-				Hash:  utxo.GetOutPoint().Hash,
-				Index: utxo.GetOutPoint().GetIndex(),
-			},
-			ScriptSig: []byte{},
-			Sequence:  uint32(i),
-		}
-		inputAmount += utxo.GetTxOut().GetValue()
-	}
-	tx.Vin = txIn
-	vout := make([]*corepb.TxOut, 0)
-	for addr, amount := range targets {
-		toScript := getScriptAddress(addr)
-		vout = append(vout, &corepb.TxOut{Value: amount, ScriptPubKey: toScript})
-		outputAmount += amount
-	}
-
-	if inputAmount > outputAmount && change != nil {
-		vout = append(vout, change)
-	}
-	tx.Vout = vout
-
-	feeNeeded := calcFeeNeeded(tx, gasPricePerByte)
-	if feeNeeded+outputAmount <= inputAmount {
-		change.Value = inputAmount - outputAmount - feeNeeded
-		fmt.Println("Fee used:", feeNeeded)
-		return tx, 0
-	}
-	return nil, feeNeeded + outputAmount
-}
-
-func calcFeeNeeded(tx *corepb.Transaction, gasFeePerByte uint64) uint64 {
-	var totalBytes int
-	for _, vin := range tx.Vin {
-		totalBytes += len(vin.ScriptSig)
-	}
-	for _, vout := range tx.Vout {
-		totalBytes += len(vout.ScriptPubKey)
-	}
-	return uint64(totalBytes) * gasFeePerByte
-}
-
 func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
 	script := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
 	issueParam, err := script.GetIssueParams()
@@ -241,7 +193,7 @@ func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
 func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*TransferParam, change *corepb.TxOut) (*corepb.Transaction, error) {
 	tx := &corepb.Transaction{}
 	var inputAmount, outputAmount uint64
-	tokenAmounts := make(map[*types.OutPoint]uint64)
+	tokenAmounts := make(map[types.OutPoint]uint64)
 	txIn := make([]*corepb.TxIn, len(utxos))
 	for i, utxo := range utxos {
 		txIn[i] = &corepb.TxIn{
@@ -254,10 +206,10 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 		}
 		tokenInfo, amount := extractTokenInfo(utxo)
 		if tokenInfo != nil && amount > 0 {
-			if val, ok := tokenAmounts[tokenInfo]; ok {
-				tokenAmounts[tokenInfo] = amount + val
+			if val, ok := tokenAmounts[*tokenInfo]; ok {
+				tokenAmounts[*tokenInfo] = amount + val
 			} else {
-				tokenAmounts[tokenInfo] = amount
+				tokenAmounts[*tokenInfo] = amount
 			}
 		}
 		inputAmount += utxo.GetTxOut().GetValue()
@@ -266,11 +218,11 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 	vout := make([]*corepb.TxOut, 0)
 	for _, param := range targets {
 		if param.isToken {
-			val, ok := tokenAmounts[param.token]
+			val, ok := tokenAmounts[*param.token]
 			if !ok || val < param.amount {
 				return nil, fmt.Errorf("Not enough token balance")
 			}
-			tokenAmounts[param.token] = val - param.amount
+			tokenAmounts[*param.token] = val - param.amount
 		}
 
 		txOut, err := param.getTxOut()
@@ -290,7 +242,7 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 						Index: token.Index,
 					},
 				},
-				Amount: 0,
+				Amount: amount,
 			})
 
 			tokenChange := &corepb.TxOut{
@@ -307,14 +259,6 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 	tx.Vout = vout
 
 	return tx, nil
-
-	//feeNeeded := calcFeeNeeded(tx, gasPricePerByte)
-	//if feeNeeded+outputAmount <= inputAmount {
-	//	change.Value = inputAmount - outputAmount - feeNeeded
-	//	fmt.Println("Fee used:", feeNeeded)
-	//	return tx, 0
-	//}
-	//return nil, feeNeeded + outputAmount
 }
 
 func signTransaction(tx *corepb.Transaction, utxos []*rpcpb.Utxo, fromPubKeyBytes []byte, signer crypto.Signer) error {
@@ -375,23 +319,8 @@ func tryBalance(tx *corepb.Transaction, change *corepb.TxOut, utxos []*rpcpb.Utx
 	return false, totalFee + totalOut
 }
 
-func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromPubKeyBytes []byte, utxoResp *rpcpb.ListUtxosResponse,
-	coloredInput, coloredOutput bool, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, tokenScriptPubKey []byte, signer crypto.Signer) (*corepb.Transaction, error) {
-
-	var total uint64
-	for _, amount := range targets {
-		total += amount
-	}
-
-	utxos, err := selectUtxo(utxoResp, total, coloredInput, tokenTxHash, tokenTxOutIdx)
-	if err != nil {
-		return nil, err
-	}
-
-	tx := &corepb.Transaction{}
-	var currentAmount uint64
+func generateTokenIssueTransaction(issueScript []byte, utxos []*rpcpb.Utxo, change *corepb.TxOut) *corepb.Transaction {
 	txIn := make([]*corepb.TxIn, len(utxos))
-	logger.Debugf("wrap transaction, utxos:%+v\n", utxos)
 	for i, utxo := range utxos {
 		txIn[i] = &corepb.TxIn{
 			PrevOutPoint: &corepb.OutPoint{
@@ -401,101 +330,17 @@ func wrapTransaction(addr types.Address, targets map[types.Address]uint64, fromP
 			ScriptSig: []byte{},
 			Sequence:  uint32(0),
 		}
-		// no need to check utxo as selectUtxo() already filters
-		if !coloredInput {
-			currentAmount += utxo.GetTxOut().GetValue()
-		} else {
-			currentAmount += getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
-		}
 	}
+	tx := &corepb.Transaction{}
 	tx.Vin = txIn
-
-	for addr, amount := range targets {
-		if !coloredOutput {
-			// general tx
-			scriptPubKey, err := getScriptAddressFromPubKeyHash(addr.Hash())
-			if err != nil {
-				return nil, err
-			}
-			tx.Vout = append(tx.Vout, &corepb.TxOut{Value: amount, ScriptPubKey: scriptPubKey})
-		} else {
-			// token tx
-			tx.Vout = append(tx.Vout, &corepb.TxOut{
-				Value:        dustLimit,
-				ScriptPubKey: tokenScriptPubKey,
-			})
-		}
+	tx.Vout = []*corepb.TxOut{
+		{
+			Value:        dustLimit,
+			ScriptPubKey: issueScript,
+		},
+		change,
 	}
-
-	if !coloredInput {
-		if currentAmount > total {
-			change := currentAmount - total
-			changeScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
-			if err != nil {
-				return nil, err
-			}
-			tx.Vout = append(tx.Vout, &corepb.TxOut{
-				Value:        change,
-				ScriptPubKey: changeScript,
-			})
-		}
-	} else {
-		if currentAmount > total {
-			change := currentAmount - total
-			changeScript, err := getTransferTokenScript(addr.Hash(), tokenTxHash, tokenTxOutIdx, change)
-			if err != nil {
-				return nil, err
-			}
-			tx.Vout = append(tx.Vout, &corepb.TxOut{
-				Value:        dustLimit,
-				ScriptPubKey: changeScript,
-			})
-		}
-
-		// number of colored output exceeds that of colored input
-		if len(tx.Vin) < len(tx.Vout) {
-			// only way to reach here is 1 colored input and 2 colored outputs
-			if len(tx.Vin) != 1 || len(tx.Vout) != 2 {
-				return nil, fmt.Errorf("vin size is not 1: %d or vout size is not 2: %d", len(tx.Vin), len(tx.Vout))
-			}
-			// need one uncolored utxo to cover associated colored output box deficit
-			uncoloredUtxos, err := selectUtxo(utxoResp, dustLimit, false, nil, 0)
-			if err != nil {
-				return nil, err
-			}
-			if len(uncoloredUtxos) != 1 {
-				return nil, fmt.Errorf("Any utxo should be larger than dust limit")
-			}
-			utxo := uncoloredUtxos[0]
-			utxos = append(utxos, utxo)
-			// the uncolored utxo
-			tx.Vin = append(tx.Vin, &corepb.TxIn{
-				PrevOutPoint: &corepb.OutPoint{
-					Hash:  utxo.GetOutPoint().Hash,
-					Index: utxo.GetOutPoint().GetIndex(),
-				},
-				ScriptSig: []byte{},
-				Sequence:  uint32(0),
-			})
-			// uncolored change if any
-			if utxo.GetTxOut().GetValue() > dustLimit {
-				change := utxo.GetTxOut().GetValue() - dustLimit
-				changeScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
-				if err != nil {
-					return nil, err
-				}
-				tx.Vout = append(tx.Vout, &corepb.TxOut{
-					Value:        change,
-					ScriptPubKey: changeScript,
-				})
-			}
-		}
-	}
-	if err := signTransaction(tx, utxos, fromPubKeyBytes, signer); err != nil {
-		return nil, err
-	}
-
-	return tx, nil
+	return tx
 }
 
 // find an outpoint's referenced utxo's scriptPubKey
