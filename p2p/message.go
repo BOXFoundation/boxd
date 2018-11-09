@@ -45,6 +45,22 @@ const (
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
 
+var msgToAttribute = map[uint32]*messageAttribute{
+	Ping:                    &messageAttribute{compress: false},
+	Pong:                    &messageAttribute{compress: false},
+	PeerDiscover:            &messageAttribute{compress: false},
+	PeerDiscoverReply:       &messageAttribute{compress: true},
+	NewBlockMsg:             &messageAttribute{compress: true},
+	TransactionMsg:          &messageAttribute{compress: true},
+	LocateForkPointRequest:  &messageAttribute{compress: false},
+	LocateForkPointResponse: &messageAttribute{compress: true},
+	LocateCheckRequest:      &messageAttribute{compress: false},
+	LocateCheckResponse:     &messageAttribute{compress: false},
+	BlockChunkRequest:       &messageAttribute{compress: true},
+	BlockChunkResponse:      &messageAttribute{compress: true},
+	EternalBlockMsg:         &messageAttribute{compress: false},
+}
+
 // NetworkNamtToMagic is a map from network name to magic number.
 var NetworkNamtToMagic = map[string]uint32{
 	"mainnet": Mainnet,
@@ -106,7 +122,6 @@ func unmarshalHeader(data []byte) (*messageHeader, error) {
 
 // readMessageData reads a message from reader
 func readMessageData(r io.Reader) (*message, error) {
-	// sr := snappy.NewReader(r)
 	headerLen, err := util.ReadUint32(r)
 	if err != nil {
 		return nil, err
@@ -131,6 +146,11 @@ func readMessageData(r io.Reader) (*message, error) {
 	}
 
 	return newMessageDataWithHeader(header, body), nil
+}
+
+// message defines the full message content from network.
+type messageAttribute struct {
+	compress bool
 }
 
 ////////////////////////////////////////////////////////////////////////////////

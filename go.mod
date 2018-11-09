@@ -39,6 +39,7 @@ require (
 	github.com/heralight/logrus_mate v0.0.0-20170807195635-969b6efb860e
 	github.com/hoisie/redis v0.0.0-20160730154456-b5c6e81454e0 // indirect
 	github.com/huin/goupnp v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/influxdb v1.6.3 // indirect
 	github.com/ipfs/go-cid v0.9.0 // indirect
 	github.com/ipfs/go-datastore v3.2.0+incompatible // indirect
