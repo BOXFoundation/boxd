@@ -55,13 +55,12 @@ func getTailBlock() *types.Block {
 	return tailBlock
 }
 
-func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedIsMainChain bool,
-	expectedIsOrphan bool, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
+func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
 
-	isMainChain, isOrphan, err := blockChain.ProcessBlock(newBlock, false /* not broadcast */, false)
+	err := blockChain.ProcessBlock(newBlock, false /* not broadcast */, false)
 
-	ensure.DeepEqual(t, isMainChain, expectedIsMainChain)
-	ensure.DeepEqual(t, isOrphan, expectedIsOrphan)
+	// ensure.DeepEqual(t, isMainChain, expectedIsMainChain)
+	// ensure.DeepEqual(t, isOrphan, expectedIsOrphan)
 	ensure.DeepEqual(t, err, expectedErr)
 	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)
 	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
@@ -76,46 +75,46 @@ func TestBlockProcessing(t *testing.T) {
 	ensure.DeepEqual(t, b0, &GenesisBlock)
 
 	// try to append an existing block: genesis block
-	verifyProcessBlock(t, b0, false, false, core.ErrBlockExists, 0, b0)
+	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)
 
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
-	verifyProcessBlock(t, b1, true, false, nil, 1, b1)
+	verifyProcessBlock(t, b1, nil, 1, b1)
 
 	// extend main chain
 	// b0 -> b1 -> b2
 	b2 := nextBlock(b1)
-	verifyProcessBlock(t, b2, true, false, nil, 2, b2)
+	verifyProcessBlock(t, b2, nil, 2, b2)
 
 	// extend side chain: fork from b1
 	// b0 -> b1 -> b2
 	//		   \-> b2A
 	b2A := nextBlock(b1)
-	verifyProcessBlock(t, b2A, false, false, core.ErrBlockExists, 2, b2)
+	verifyProcessBlock(t, b2A, core.ErrBlockExists, 2, b2)
 
 	// reorg: side chain grows longer than main chain
 	// b0 -> b1 -> b2
 	//		   \-> b2A -> b3A
 	b3A := nextBlock(b2A)
-	verifyProcessBlock(t, b3A, true, false, nil, 3, b3A)
+	verifyProcessBlock(t, b3A, nil, 3, b3A)
 
 	// Extend b2 fork twice to make first chain longer and force reorg
 	// b0 -> b1 -> b2  -> b3  -> b4
 	//		   \-> b2A -> b3A
 	b3 := nextBlock(b2)
-	verifyProcessBlock(t, b3, false, false, core.ErrBlockExists, 3, b3A)
+	verifyProcessBlock(t, b3, core.ErrBlockExists, 3, b3A)
 	b4 := nextBlock(b3)
-	verifyProcessBlock(t, b4, true, false, nil, 4, b4)
+	verifyProcessBlock(t, b4, nil, 4, b4)
 
 	// Third fork
 	// b0 -> b1 -> b2  -> b3  ->  b4
 	//						  \-> b4B -> b5B
 	//		   \-> b2A -> b3A
 	b4B := nextBlock(b3)
-	verifyProcessBlock(t, b4B, false, false, core.ErrBlockExists, 4, b4)
+	verifyProcessBlock(t, b4B, core.ErrBlockExists, 4, b4)
 	b5B := nextBlock(b4B)
-	verifyProcessBlock(t, b5B, true, false, nil, 5, b5B)
+	verifyProcessBlock(t, b5B, nil, 5, b5B)
 
 	// add b7 -> b8 -> b9 -> b10: added them to orphan pool
 	// b0 -> b1 -> b2  -> b3  ->  b4
@@ -125,29 +124,29 @@ func TestBlockProcessing(t *testing.T) {
 	// withhold b6 for now and add it later
 	b6 := nextBlock(b5B)
 	b7 := nextBlock(b6)
-	verifyProcessBlock(t, b7, false, true, nil, 5, b5B)
+	verifyProcessBlock(t, b7, nil, 5, b5B)
 	b8 := nextBlock(b7)
-	verifyProcessBlock(t, b8, false, true, nil, 5, b5B)
+	verifyProcessBlock(t, b8, nil, 5, b5B)
 	b9 := nextBlock(b8)
-	verifyProcessBlock(t, b9, false, true, nil, 5, b5B)
+	verifyProcessBlock(t, b9, nil, 5, b5B)
 	b10 := nextBlock(b9)
-	verifyProcessBlock(t, b10, false, true, nil, 5, b5B)
+	verifyProcessBlock(t, b10, nil, 5, b5B)
 
 	// add b7: already exists
-	verifyProcessBlock(t, b7, false, false, core.ErrOrphanBlockExists, 5, b5B)
+	verifyProcessBlock(t, b7, core.ErrBlockExists, 5, b5B)
 
 	// add b6:
 	// b0 -> b1 -> b2  -> b3  ->  b4
 	//						  \-> b4B -> b5B -> b6 -> b7 -> b8 -> b9 -> b10
 	//		   \-> b2A -> b3A
-	verifyProcessBlock(t, b6, true, false, nil, 10, b10)
+	verifyProcessBlock(t, b6, nil, 10, b10)
 
 	// add b11:
 	// b0 -> b1 -> b2  -> b3  ->  b4
 	//						  \-> b4B -> b5B -> b6 -> b7 -> b8 -> b9 -> b10 -> b11
 	//		   \-> b2A -> b3A
 	b11 := nextBlock(b10)
-	verifyProcessBlock(t, b11, true, false, nil, 11, b11)
+	verifyProcessBlock(t, b11, nil, 11, b11)
 
 	// Double spend
 
