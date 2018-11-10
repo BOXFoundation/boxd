@@ -17,6 +17,7 @@ import (
 	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
+	"github.com/libp2p/go-libp2p-peerstore"
 )
 
 // const
@@ -56,8 +57,8 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 func (conn *Conn) Loop(parent goprocess.Process) {
 	conn.mutex.Lock()
 	if conn.proc == nil {
-		conn.proc = parent.Go(conn.loop)
-		conn.proc.SetTeardown(conn.Close)
+		conn.proc = goprocess.WithParent(parent)
+		conn.proc.Go(conn.loop).SetTeardown(conn.Close)
 	}
 	conn.mutex.Unlock()
 }
@@ -283,7 +284,9 @@ func (conn *Conn) Close() error {
 	if conn.stream != nil {
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
 		conn.peer.conns.Delete(pid)
-		conn.peer.table.peerStore.ClearAddrs(pid)
+		addrs := conn.peer.table.peerStore.Addrs(pid)
+		conn.peer.table.peerStore.SetAddrs(pid, addrs, peerstore.RecentlyConnectedAddrTTL)
+
 		return conn.stream.Close()
 	}
 	return nil
