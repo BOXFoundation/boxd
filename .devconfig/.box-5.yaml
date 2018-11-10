@@ -1,0 +1,43 @@
+network: mainnet
+workspace: .devconfig/ws5
+database:
+    name: rocksdb
+log:
+    out:
+        name: stderr # stdout|stderr|null
+    level: debug # debug|info|warning|error|fatal
+    formatter:
+        name: text # json|text
+    hooks:
+        - name: filewithformatter
+          options:
+              filename: box.log
+              maxlines: 100000
+              # daily: true
+              # maxsize: 10240000
+              rotate: true
+              level:  4 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
+p2p:
+    key_path: peer.key
+    port: 19159
+    seeds:
+        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
+    bucket_size: 16
+    latency: 10
+    conn_max_capacity: 200
+    conn_load_factor: 0.8
+rpc:
+    port: 19151
+    http:
+        port: 19150
+dpos:
+    keypath: key.keystore
+    enable_mint: true
+    passphrase: 1
+metrics:
+    enable: false
+    host: http://localhost:8086
+    db: box
+    user: 
+    password: 
+    tags: [region:us-west, host:box-5]
