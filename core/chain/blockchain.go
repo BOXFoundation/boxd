@@ -243,7 +243,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 	}
 
 	// All context-free checks pass, try to accept the block into the chain.
-	if _, err := chain.tryAcceptBlock(block); err != nil {
+	if err := chain.tryAcceptBlock(block); err != nil {
 		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err.Error())
 		return err
 	}
@@ -285,18 +285,18 @@ func (chain *BlockChain) isInOrphanPool(blockHash crypto.HashType) bool {
 
 // tryAcceptBlock validates block within the chain context and see if it can be accepted.
 // Return whether it is on the main chain or not.
-func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
+func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
 	parentBlock := chain.getParentBlock(block)
 	if parentBlock == nil {
-		return false, fmt.Errorf("parent block does not exist")
+		return core.ErrParentBlockNotExist
 	}
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
 		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash.String(), block.Height, parentBlock.Height)
-		return false, core.ErrWrongBlockHeight
+		return core.ErrWrongBlockHeight
 	}
 
 	chain.cache.Add(*blockHash, block)
@@ -306,37 +306,38 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) (bool, error) {
 	parentHash := &block.Header.PrevBlockHash
 	tailHash := chain.TailBlock().BlockHash()
 	utxoSet := NewUtxoSet()
+	defer func() {
+		utxoSet = nil
+	}()
+
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
-		return false, err
+		return err
 	}
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		if err := chain.tryConnectBlockToMainChain(block, utxoSet); err != nil {
-			return false, err
-		}
-		return true, nil
+		return chain.tryConnectBlockToMainChain(block, utxoSet)
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
 	if block.Height <= chain.LongestChainHeight {
 		logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
 			blockHash, block.Height, chain.LongestChainHeight)
-		return false, nil
+		return nil
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
 	if err := chain.reorganize(block, utxoSet); err != nil {
-		return false, err
+		return err
 	}
 
 	// This block is now the end of the best chain.
 	if err := chain.SetTailBlock(block, utxoSet); err != nil {
 		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
-		return false, err
+		return err
 	}
-	return true, nil
+	return nil
 }
 
 func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
@@ -363,7 +364,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 			// since it will not be accepted later if rejected once.
 			delete(chain.hashToOrphanBlock, *orphanHash)
 			// Potentially accept the block into the block chain.
-			if _, err := chain.tryAcceptBlock(orphan); err != nil {
+			if err := chain.tryAcceptBlock(orphan); err != nil {
 				return err
 			}
 			// Add this block to the list of blocks to process so any orphan
