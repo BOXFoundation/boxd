@@ -57,16 +57,28 @@ var GenesisHash = *(GenesisBlock.BlockHash())
 // GenesisPeriod genesis period
 var GenesisPeriod = []map[string]string{
 	{
-		"addr":   "b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
+		"addr":   "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o",
 		"peerID": "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
 	},
 	{
-		"addr":   "b1ZF5VWYdHv5RrRzP3SD5huGFyqWNq8rquJ",
+		"addr":   "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
 		"peerID": "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
 	},
 	{
-		"addr":   "b1UHbLVzeFfwzEQyEbkpXCjjRPnCVxvCvZd",
+		"addr":   "b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
 		"peerID": "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
+	},
+	{
+		"addr":   "b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva",
+		"peerID": "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
+	},
+	{
+		"addr":   "b1ZWSdrg48g145VdcmBwMPVuDFdaxDLoktk",
+		"peerID": "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
+	},
+	{
+		"addr":   "b1fRtRnKF4qhQG7bSwqbgR2BMw9VfM2XpT4",
+		"peerID": "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
 	},
 }
 

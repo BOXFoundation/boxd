@@ -16,15 +16,15 @@ showusage()
     cmd='$(basename "$0")'
     echo "Usage:"
     echo "\tStart node #1 or #2 or #3:"
-    echo "\t\t${cmd} 1|2|3"
+    echo "\t\t${cmd} 1|2|3|4|5|6"
     echo
-    echo "\tStart all nodes(1, 2, 3):"
+    echo "\tStart all nodes(1, 2, 3, 4, 5, 6):"
     echo "\t\t${cmd}"
 }
 
 if [ "$#" -eq 1 ]
 then
-  if [[ "$1" -eq "1" || "$1" -eq "2" || "$1" -eq "3" ]]
+  if [[ "$1" -eq "1" || "$1" -eq "2" || "$1" -eq "3" || "$1" -eq "4" || "$1" -eq "5" || "$1" -eq "6" ]]
   then
     ${BIN} start --config=./.devconfig/.box-"$1".yaml
     exit $?
@@ -34,6 +34,9 @@ elif [ "$#" = 0 ]; then
   ${BIN} start --config=./.devconfig/.box-1.yaml > ./outputs/box1.log 2>&1 &
   ${BIN} start --config=./.devconfig/.box-2.yaml > ./outputs/box2.log 2>&1 &
   ${BIN} start --config=./.devconfig/.box-3.yaml > ./outputs/box3.log 2>&1 &
+  ${BIN} start --config=./.devconfig/.box-4.yaml > ./outputs/box4.log 2>&1 &
+  ${BIN} start --config=./.devconfig/.box-5.yaml > ./outputs/box5.log 2>&1 &
+  ${BIN} start --config=./.devconfig/.box-6.yaml > ./outputs/box6.log 2>&1 &
   exit 0
 fi
 

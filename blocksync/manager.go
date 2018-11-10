@@ -725,9 +725,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
-			sm.processMtx.Lock()
 			err := sm.chain.ProcessBlock(b, false, false)
-			sm.processMtx.Unlock()
 			if err != nil {
 				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
 					continue

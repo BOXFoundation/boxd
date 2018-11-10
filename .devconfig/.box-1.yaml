@@ -31,7 +31,7 @@ rpc:
 dpos:
     keypath: key.keystore
     enable_mint: true
-    passphrase: zaq12wsx
+    passphrase: 1
 metrics:
     enable: false
     host: http://localhost:8086

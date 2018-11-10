@@ -189,7 +189,8 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 	key := bft.generateKey(eternalBlockMsg.hash, eternalBlockMsg.timestamp)
 
 	if bft.existEternalBlockMsgKey.Contains(*key) {
-		return ErrEternalBlockMsgHashIsExist
+		logger.Debugf("Enough eternalBlockMsgs has been received.")
+		return nil
 	}
 	now := time.Now().Unix()
 	if eternalBlockMsg.timestamp > now || now-eternalBlockMsg.timestamp > MaxEternalBlockMsgCacheTime {

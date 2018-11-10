@@ -31,7 +31,7 @@ const (
 	SecondInMs           = int64(1000)
 	NewBlockTimeInterval = int64(5000)
 	MaxPackedTxTime      = int64(2000)
-	PeriodSize           = 3
+	PeriodSize           = 6
 )
 
 // Config defines the configurations of dpos
