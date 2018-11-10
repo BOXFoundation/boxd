@@ -287,8 +287,7 @@ func (conn *Conn) Close() error {
 		addrs := conn.peer.table.peerStore.Addrs(pid)
 		conn.peer.table.peerStore.SetAddrs(pid, addrs, peerstore.RecentlyConnectedAddrTTL)
 
-		err := conn.stream.Close()
-		return err
+		return conn.stream.Close()
 	}
 	return nil
 }
