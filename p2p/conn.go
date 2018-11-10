@@ -295,7 +295,6 @@ func (conn *Conn) Close() error {
 // Established returns whether the connection is established.
 func (conn *Conn) Established() bool {
 	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
 	r := conn.isEstablished
 	conn.mutex.Unlock()
 	return r
@@ -304,7 +303,6 @@ func (conn *Conn) Established() bool {
 // Establish means establishing the connection. It returns the previous status.
 func (conn *Conn) Establish() bool {
 	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
 	r := conn.isEstablished
 	if !conn.isEstablished {
 		conn.establish()
