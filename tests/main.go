@@ -45,10 +45,10 @@ func init() {
 func main() {
 	flag.Parse()
 	// prepare environment and clean history data
-	//if err := prepareEnv(peerCount); err != nil {
-	//	logger.Fatal(err)
-	//}
-	//defer tearDown(peerCount)
+	if err := prepareEnv(peerCount); err != nil {
+		logger.Fatal(err)
+	}
+	defer tearDown(peerCount)
 
 	// start nodes
 	localPeers := 3
@@ -65,21 +65,20 @@ func main() {
 		}
 	}
 
-	// wait for nodes to be ready
-	logger.Info("waiting for 12s: nodes running")
-	time.Sleep(12 * time.Second)
-
 	// get addresses of three miners
 	minersAddr := allMinersAddr()
 	logger.Debugf("minersAddr: %v", minersAddr)
 
 	// generate addresses of test accounts
 	testsAccCnt := 10
-
 	testsAddr, testsAcc := genTestAddr(testsAccCnt)
 	logger.Debugf("testsAddr: %v\ntestsAcc: %v", testsAddr, testsAcc)
 	defer removeKeystoreFiles(testsAcc...)
 
-	txTest := newTxTest(minersAddr, testsAddr)
-	txTest.testTx(testsAccCnt)
+	// wait for nodes to be ready
+	logger.Infof("waiting for %v: nodes running", blockTime)
+	time.Sleep(blockTime)
+
+	txTest := newTxTest(minersAddr, testsAddr, 10000)
+	txTest.testTx()
 }

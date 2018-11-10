@@ -13,7 +13,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/util"
 	"google.golang.org/grpc"
 )
 
@@ -129,19 +128,16 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 		totalAmount = adjustedAmount
 	}
 
-	fmt.Println(util.PrettyPrint(tx))
-
 	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
 
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	r, err := c.SendTransaction(ctx, txReq)
+	_, err = c.SendTransaction(ctx, txReq)
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("Result: %+v", r)
 	transaction := &types.Transaction{}
 	transaction.FromProtoMessage(tx)
 	return transaction, nil

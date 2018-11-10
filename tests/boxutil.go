@@ -5,11 +5,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"os/exec"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
@@ -37,40 +34,40 @@ func minerAddress(index int) (string, error) {
 	return account.Addr(), nil
 }
 
-func newAccount() (string, string, error) {
-	nodeName := "boxd_p1_1"
-	args := []string{"exec", nodeName, "./newaccount.sh"}
-	cmd := exec.Command("docker", args...)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", "", err
-	}
-	if err := cmd.Start(); err != nil {
-		return "", "", err
-	}
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(stdout)
-	if err != nil {
-		return "", "", err
-	}
-	if err := cmd.Wait(); err != nil {
-		return "", "", err
-	}
-	addr := GetIniKV(buf.String(), "Address")
-	if addr == "" {
-		return "", "", errors.New("newAccount failed, address is empty")
-	}
-	acc := GetIniKV(buf.String(), "Created new account")
-	if addr == "" {
-		return "", "", errors.New("newAccount failed, account is empty")
-	}
-	return acc, addr, nil
-}
+//func newAccount() (string, string, error) {
+//	nodeName := "boxd_p1_1"
+//	args := []string{"exec", nodeName, "./newaccount.sh"}
+//	cmd := exec.Command("docker", args...)
+//	stdout, err := cmd.StdoutPipe()
+//	if err != nil {
+//		return "", "", err
+//	}
+//	if err := cmd.Start(); err != nil {
+//		return "", "", err
+//	}
+//	var buf bytes.Buffer
+//	_, err = buf.ReadFrom(stdout)
+//	if err != nil {
+//		return "", "", err
+//	}
+//	if err := cmd.Wait(); err != nil {
+//		return "", "", err
+//	}
+//	addr := GetIniKV(buf.String(), "Address")
+//	if addr == "" {
+//		return "", "", errors.New("newAccount failed, address is empty")
+//	}
+//	acc := GetIniKV(buf.String(), "Created new account")
+//	if addr == "" {
+//		return "", "", errors.New("newAccount failed, account is empty")
+//	}
+//	return acc, addr, nil
+//}
 
-func balanceFor(accAddr string, peerAddr string) (uint64, error) {
+func balanceFor(accAddr string, peerAddr string) uint64 {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
-		return 0, err
+		logger.Panic(err)
 	}
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
@@ -79,58 +76,90 @@ func balanceFor(accAddr string, peerAddr string) (uint64, error) {
 	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{
 		Addrs: []string{accAddr}})
 	if err != nil {
-		return 0, err
+		logger.Panicf("balance for %s on peer %s error: %s", accAddr, peerAddr, err)
 	}
-	return r.Balances[accAddr], nil
+	return r.Balances[accAddr]
 }
 
 func balancesFor(peerAddr string, addresses ...string) ([]uint64, error) {
 	var bb []uint64
 	for _, a := range addresses {
-		amount, err := balanceFor(a, peerAddr)
-		if err != nil {
-			return nil, err
-		}
+		amount := balanceFor(a, peerAddr)
 		bb = append(bb, amount)
 	}
 	return bb, nil
 }
 
-func execTx(fromAddr, toAddr string, amount uint64, peerAddr string) error {
-	fromAddress, err := types.NewAddress(fromAddr)
-	if err != nil {
-		return fmt.Errorf("NewAddress fromAddr: %s error: %s", fromAddr, err)
-	}
-
-	// get account of sender
+func unlockAccount(addr string) *wallet.Account {
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
-		return err
+		logger.Panic(err)
 	}
-	account, exists := wltMgr.GetAccount(fromAddr)
+	account, exists := wltMgr.GetAccount(addr)
 	if !exists {
-		return fmt.Errorf("Account %s not managed", fromAddr)
+		logger.Panicf("Account %s not managed", addr)
 	}
 	if err := account.UnlockWithPassphrase(testPassphrase); err != nil {
-		return fmt.Errorf("Fail to unlock account: %v, error: %s", account, err)
+		logger.Panicf("Fail to unlock account: %v, error: %s", account, err)
+	}
+
+	return account
+}
+
+func execTx(account *wallet.Account, fromAddr string, toAddrs []string,
+	amounts []uint64, peerAddr string) {
+	//
+	if len(toAddrs) != len(amounts) {
+		logger.Panicf("toAddrs count %d is mismatch with amounts count: %d",
+			len(toAddrs), len(amounts))
+	}
+	//
+	fromAddress, err := types.NewAddress(fromAddr)
+	if err != nil {
+		logger.Panicf("NewAddress fromAddr: %s error: %s", fromAddr, err)
 	}
 
 	// initialize rpc
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
-		return err
+		logger.Panic(err)
 	}
 	defer conn.Close()
-	toAddress, err := types.NewAddress(toAddr)
-	if err != nil {
-		return fmt.Errorf("NewAddress toAddr: %s error: %s", toAddr, err)
+	// make toAddr map
+	addrAmountMap := make(map[types.Address]uint64, len(toAddrs))
+	for i := 0; i < len(toAddrs); i++ {
+		toAddress, err := types.NewAddress(toAddrs[i])
+		if err != nil {
+			logger.Panicf("NewAddress toAddrs: %s error: %s", toAddrs, err)
+		}
+		addrAmountMap[toAddress] = amounts[i]
 	}
-	addrAmountMap := map[types.Address]uint64{toAddress: amount}
+
 	if _, err := client.CreateTransaction(conn, fromAddress, addrAmountMap,
 		account.PublicKey(), account); err != nil {
-		panic(err)
+		logger.Panicf("create transaction from %s, addr amont map %v, error: %s",
+			fromAddress, addrAmountMap, err)
 	}
-	return nil
+}
+
+func txCountFor(accAddr string, peerAddr string) int {
+	b := balanceFor(accAddr, peerAddr)
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	if err != nil {
+		logger.Panic(err)
+	}
+	defer conn.Close()
+	addr, err := types.NewAddress(accAddr)
+	if err != nil {
+		logger.Panicf("NewAddress addrs: %s error: %s", addr, err)
+	}
+	logger.Infof("fund transaction for %s balance %d", addr, b)
+	r, err := client.FundTransaction(conn, addr, b)
+	if err != nil {
+		logger.Panic(err)
+	}
+	return int(r.Count)
+	//return len(r.Utxos)
 }
 
 func chainHeightFor(peerAddr string) (int, error) {
@@ -189,7 +218,7 @@ func allMinersAddr() []string {
 	for i := 0; i < peerCount; i++ {
 		addr, err := minerAddress(i)
 		if err != nil {
-			logger.Fatal(err)
+			logger.Panic(err)
 		}
 		addresses = append(addresses, addr)
 	}
@@ -204,11 +233,12 @@ func genTestAddr(count int) ([]string, []string) {
 			acc, addr string
 			err       error
 		)
-		if *enableDocker {
-			acc, addr, err = newAccount()
-		} else {
-			acc, addr, err = newAccountFromWallet()
-		}
+		//if *enableDocker {
+		//	acc, addr, err = newAccount()
+		//} else {
+		//	acc, addr, err = newAccountFromWallet()
+		//}
+		acc, addr, err = newAccountFromWallet()
 		if err != nil {
 			logger.Panic(err)
 		}

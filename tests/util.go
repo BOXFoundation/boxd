@@ -64,7 +64,7 @@ func stopLocalNodes(processes ...*os.Process) error {
 			if err != nil {
 				logger.Warnf("wait process[%d] done error: %s", p.Pid, err)
 			}
-			logger.Infof("process exit with state %s", s)
+			logger.Infof("process[%d] %s", p.Pid, s)
 		}(p)
 	}
 	wg.Wait()
@@ -96,9 +96,11 @@ func stopNodes() error {
 }
 
 func prepareEnv(count int) error {
+	logger.Info("prepare test workspace")
 	for i := 0; i < count; i++ {
 		// remove database and logs directories in ../.devconfig/ ws
-		prefix := workDir + "ws" + strconv.Itoa(i)
+		prefix := workDir + "ws" + strconv.Itoa(i+1)
+		logger.Infof("clean %s database and logs", prefix)
 		if err := os.RemoveAll(prefix + "/database"); err != nil {
 			return err
 		}
@@ -106,23 +108,30 @@ func prepareEnv(count int) error {
 			return err
 		}
 		// check .box-*.yaml exists
-		cfgFile := workDir + ".box-" + strconv.Itoa(i) + ".yaml"
+		cfgFile := workDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
 			return err
 		}
+		// check key*.keystore exists
+		keyFile := workDir + "keyfile/key" + strconv.Itoa(i+1) + ".keystore"
+		if _, err := os.Stat(keyFile); os.IsNotExist(err) {
+			return err
+		}
+		logger.Infof("configure file %s and keyfile %s exists", cfgFile, keyFile)
 	}
 	return nil
 }
 
 func tearDown(count int) error {
+	// remove database and logs directories in ../.devconfig/ ws
 	for i := 0; i < count; i++ {
-		// remove database and logs directories in ../.devconfig/ ws
-		prefix := workDir + "ws" + strconv.Itoa(i)
+		prefix := workDir + "ws" + strconv.Itoa(i+1)
+		logger.Infof("clean %s database and logs", prefix)
 		if err := os.RemoveAll(prefix + "/database"); err != nil {
-			return err
+			logger.Error(err)
 		}
 		if err := os.RemoveAll(prefix + "/logs"); err != nil {
-			return err
+			logger.Error(err)
 		}
 	}
 	return nil
@@ -149,7 +158,7 @@ func removeKeystoreFiles(addrs ...string) {
 	for _, v := range addrs {
 		path := walletDir + v + ".keystore"
 		if err := os.Remove(path); err != nil {
-			logger.Panic(err)
+			logger.Error(err)
 		}
 	}
 	logger.Infof("remove %d keystore files", len(addrs))

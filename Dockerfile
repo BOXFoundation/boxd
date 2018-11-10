@@ -39,5 +39,4 @@ WORKDIR /app/boxd/
 
 COPY --from=builder /app/boxd/box .
 COPY startnode .
-COPY tests/newaccount.sh .
 CMD ["/bin/bash", "startnode", "1"]
