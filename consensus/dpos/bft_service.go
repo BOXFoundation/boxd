@@ -115,7 +115,7 @@ func (bft *BftService) maybeUpdateEternalBlock() {
 	}()
 	bft.checkStatus = underway
 	bft.tryToUpdateEternal()
-	if bft.chain.TailBlock().Height-bft.chain.EternalBlock().Height >= MinConfirmMsgNumberForEternalBlock {
+	if bft.chain.TailBlock().Height-bft.chain.EternalBlock().Height > MinConfirmMsgNumberForEternalBlock {
 		block, err := bft.chain.LoadBlockByHeight(bft.chain.EternalBlock().Height + 1)
 		if err != nil {
 			logger.Errorf("Failed to update eternal block. LoadBlockByHeight occurs error: %s", err.Error())
@@ -137,7 +137,7 @@ func (bft *BftService) tryToUpdateEternal() {
 		if value[0].timestamp > now || now-value[0].timestamp > MaxEternalBlockMsgCacheTime {
 			bft.cache.Delete(k)
 		}
-		if len(value) < MinConfirmMsgNumberForEternalBlock {
+		if len(value) <= MinConfirmMsgNumberForEternalBlock {
 			return true
 		}
 		if bft.updateEternal(value[0]) {
@@ -189,7 +189,8 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 	key := bft.generateKey(eternalBlockMsg.hash, eternalBlockMsg.timestamp)
 
 	if bft.existEternalBlockMsgKey.Contains(*key) {
-		return ErrEternalBlockMsgHashIsExist
+		logger.Debugf("Enough eternalBlockMsgs has been received.")
+		return nil
 	}
 	now := time.Now().Unix()
 	if eternalBlockMsg.timestamp > now || now-eternalBlockMsg.timestamp > MaxEternalBlockMsgCacheTime {
@@ -216,7 +217,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 			value := msg.([]*EternalBlockMsg)
 			value = append(value, eternalBlockMsg)
 			bft.cache.Store(*key, value)
-			if len(value) >= MinConfirmMsgNumberForEternalBlock {
+			if len(value) > MinConfirmMsgNumberForEternalBlock {
 				bft.existEternalBlockMsgKey.Add(*key, *key)
 			}
 		} else {

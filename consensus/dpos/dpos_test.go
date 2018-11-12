@@ -24,15 +24,15 @@ type DummyDpos struct {
 
 var (
 	cfg = &Config{
-		Keypath:    "../../keyfile/key4.keystore",
+		Keypath:    "../../keyfile/key7.keystore",
 		EnableMint: true,
-		Passphrase: "zaq12wsx",
+		Passphrase: "1",
 	}
 
 	cfgMiner = &Config{
 		Keypath:    "../../keyfile/key1.keystore",
 		EnableMint: true,
-		Passphrase: "zaq12wsx",
+		Passphrase: "1",
 	}
 
 	dpos, _      = NewDummyDpos(cfg)
@@ -61,8 +61,8 @@ func TestDpos_ValidateMiner(t *testing.T) {
 
 func TestDpos_checkMiner(t *testing.T) {
 
-	timestamp1 := int64(1541077395)
-	timestamp2 := int64(1541077396)
+	timestamp1 := int64(1541824620)
+	timestamp2 := int64(1541824621)
 
 	// check miner in right time but wrong miner.
 	result := dpos.dpos.checkMiner(timestamp1)
@@ -87,15 +87,15 @@ func TestDpos_mint(t *testing.T) {
 	ensure.DeepEqual(t, result, ErrNoLegalPowerToMint)
 
 	dposMiner.dpos.RecoverMint()
-	timestamp1 := int64(1541077396)
+	timestamp1 := int64(1541824621)
 	result = dposMiner.dpos.mint(timestamp1)
 	ensure.DeepEqual(t, result, ErrWrongTimeToMint)
 
-	timestamp2 := int64(1541077400)
+	timestamp2 := int64(1541824625)
 	result = dposMiner.dpos.mint(timestamp2)
 	ensure.DeepEqual(t, result, ErrNotMyTurnToMint)
 
-	timestamp3 := int64(1541077395)
+	timestamp3 := int64(1541824620)
 	result = dposMiner.dpos.mint(timestamp3)
 	ensure.Nil(t, result)
 
@@ -106,14 +106,14 @@ func TestDpos_signBlock(t *testing.T) {
 	ensure.DeepEqual(t, dposMiner.isMiner, true)
 	block := &chain.GenesisBlock
 
-	block.Header.TimeStamp = 1541077396
+	block.Header.TimeStamp = 1541824621
 	err := dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
 	ok, err := dposMiner.dpos.verifySign(block)
 	ensure.DeepEqual(t, err, ErrWrongTimeToMint)
 	ensure.DeepEqual(t, ok, false)
 
-	block.Header.TimeStamp = 1541077395
+	block.Header.TimeStamp = 1541824620
 	err = dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
 	ok, err = dposMiner.dpos.verifySign(block)

@@ -31,7 +31,7 @@ const (
 	SecondInMs           = int64(1000)
 	NewBlockTimeInterval = int64(5000)
 	MaxPackedTxTime      = int64(2000)
-	PeriodSize           = 3
+	PeriodSize           = 6
 )
 
 // Config defines the configurations of dpos
@@ -189,6 +189,10 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 
 // ValidateMiner verifies whether the miner has authority to mint.
 func (dpos *Dpos) ValidateMiner() bool {
+
+	if dpos.miner == nil {
+		return false
+	}
 
 	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {

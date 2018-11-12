@@ -30,6 +30,7 @@ var (
 	ErrOrphanBlockExists           = errors.New("Orphan block already exists")
 	ErrFailedToSetEternal          = errors.New("Failed to set eternal block")
 	ErrTokenInputsOutputNotEqual   = errors.New("Tx input tokens and output tokens unequal")
+	ErrParentBlockNotExist         = errors.New("Parent block does not exist")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
