@@ -41,7 +41,7 @@ func (sm *SyncManager) handleSyncMessage() {
 	for {
 		select {
 		case msg := <-sm.messageCh:
-			logger.Infof("Receive msg[0x%X] from peer %s", msg.Code(), msg.From().Pretty())
+			logger.Debugf("Receive msg[0x%X] from peer %s", msg.Code(), msg.From().Pretty())
 			switch msg.Code() {
 			case p2p.LocateForkPointRequest:
 				err = sm.onLocateRequest(msg)
@@ -59,7 +59,7 @@ func (sm *SyncManager) handleSyncMessage() {
 				logger.Warn("Failed to handle sync msg, unknow msg code")
 			}
 			if err != nil {
-				logger.Warnf("handleSyncMessage[0x%X] error: %s", msg.Code(), err)
+				logger.Warnf("Failed to handle SyncMessage[0x%X]. Err: %v", msg.Code(), err)
 			}
 		case <-sm.proc.Closing():
 			logger.Info("Quit handle sync msg loop.")
@@ -114,7 +114,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	sh := new(SyncHeaders)
 	if err := sh.Unmarshal(msg.Body()); err != nil ||
 		(len(sh.Hashes) == 1 && *sh.Hashes[0] == *zeroHash) {
-		logger.Infof("onLocateResponse unmarshal msg.Body[%+v] error: %s",
+		logger.Infof("onLocateResponse unmarshal msg.Body[%+v] error: %v",
 			msg.Body(), err)
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushErrFlagChan(sm.locateErrCh, errFlagUnmarshal)
@@ -129,11 +129,10 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	}
 	logger.Infof("onLocateResponse receive %d hashes", len(sh.Hashes))
 	// get headers hashes needed to sync
-	hashes, err := sm.rmOverlap(sh.Hashes)
-	if err != nil {
-		logger.Infof("rmOverlap error: %s", err)
+	hashes := sm.rmOverlap(sh.Hashes)
+	if hashes == nil {
 		tryPushErrFlagChan(sm.locateErrCh, errFlagNoHash)
-		return err
+		return nil
 	}
 	logger.Infof("onLocateResponse get syncHeaders %d hashes", len(hashes))
 	sm.fetchHashes = hashes
@@ -231,14 +230,13 @@ func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
 	fbh := newFetchBlockHeaders(0, nil, 0)
 	err = fbh.Unmarshal(msg.Body())
 	if err != nil {
-		logger.Infof("onBlocksRequest error: %s", err)
+		logger.Warnf("[onBlocksRequest]Failed to unmarshal blockHeaders. Err: %v", err)
 		return
 	}
 	// fetch blocks from local main chain
 	blocks, err := sm.chain.FetchNBlockAfterSpecificHash(*fbh.BeginHash, fbh.Length)
 	if err != nil {
-		logger.Infof("onBlocksRequest fetchLocalBlocks FetchBlockHeaders: %+v"+
-			" error: %s", fbh, err)
+		logger.Warnf("[onBlocksRequest]Failed to fetch blocks after specific hash. BlockHeaders: %+v, Err: %v", fbh, err)
 		return
 	}
 	sb = newSyncBlocks(fbh.Idx, blocks...)
@@ -264,7 +262,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		sb.Idx == math.MaxUint32 {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushEmptyChan(sm.syncErrCh)
-		return fmt.Errorf("SyncBlocks unmarshal error: %v or receive no blocks(%d) "+
+		return fmt.Errorf("Failed to unmarshal syncblocks. Err: %v or receive no blocks(%d) "+
 			"or msg.From is in sync(idx: %d)", err, len(sb.Blocks), sb.Idx)
 	}
 	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))

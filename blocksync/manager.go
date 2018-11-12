@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/consensus/dpos"
-	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -484,17 +483,13 @@ func heightLocator(height uint32) []uint32 {
 }
 
 // rmOverlap remove overlapped headers between locateHashes and local chain
-func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) (
-	[]*crypto.HashType, error) {
+func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) []*crypto.HashType {
 	for i, h := range locateHashes {
-		_, err := sm.chain.LoadBlockByHash(*h)
-		if err == core.ErrBlockIsNil {
-			return locateHashes[i:], nil
-		} else if err != nil {
-			return nil, err
+		if block, _ := sm.chain.LoadBlockByHash(*h); block == nil {
+			return locateHashes[i:]
 		}
 	}
-	return nil, errors.New("no header needed to sync")
+	return nil
 }
 
 func (sm *SyncManager) pickOnePeer() (peer.ID, error) {
