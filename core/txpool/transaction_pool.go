@@ -46,6 +46,7 @@ type TransactionPool struct {
 	bus                 eventbus.Bus
 	// outpoint -> tx spending it; outpoints can be arbitrary, valid (exists and unspent) or invalid
 	outPointToTx   map[types.OutPoint]*types.Transaction
+	outPointMutex  sync.RWMutex
 	txMutex        sync.Mutex
 	hashToOrphanTx map[crypto.HashType]*types.Transaction
 	// outpoint -> orphans spending it; outpoints can be arbitrary, valid or invalid
@@ -174,9 +175,11 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 // GetOutPointLockedByPool returns all the utxo outpoints that are used by transaction in pool
 func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
 	var outpoints []types.OutPoint
+	tx_pool.outPointMutex.RLock()
 	for o := range tx_pool.outPointToTx {
 		outpoints = append(outpoints, o)
 	}
+	tx_pool.outPointMutex.RUnlock()
 	return outpoints
 }
 
@@ -306,6 +309,13 @@ func (tx_pool *TransactionPool) isTransactionInPool(txHash *crypto.HashType) boo
 	return exists
 }
 
+func (tx_pool *TransactionPool) findTransaction(outpoint types.OutPoint) (*types.Transaction, bool) {
+	tx_pool.outPointMutex.RLock()
+	tx, exists := tx_pool.outPointToTx[outpoint]
+	tx_pool.outPointMutex.RUnlock()
+	return tx, exists
+}
+
 func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 	_, exists := tx_pool.hashToOrphanTx[*txHash]
 	return exists
@@ -330,7 +340,7 @@ func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) 
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
 	for _, txIn := range tx.Vin {
-		if _, exists := tx_pool.outPointToTx[txIn.PrevOutPoint]; exists {
+		if _, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
 			return core.ErrOutPutAlreadySpent
 		}
 	}
@@ -413,9 +423,11 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 	tx_pool.hashToTx[*txHash] = txWrap
 
 	// outputs spent by this new tx
+	tx_pool.outPointMutex.Lock()
 	for _, txIn := range tx.Vin {
 		tx_pool.outPointToTx[txIn.PrevOutPoint] = tx
 	}
+	tx_pool.outPointMutex.Unlock()
 
 	// TODO: build address - tx index.
 }
@@ -425,9 +437,11 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 	txHash, _ := tx.TxHash()
 
 	// Unspend the referenced outpoints.
+	tx_pool.outPointMutex.Lock()
 	for _, txIn := range tx.Vin {
 		delete(tx_pool.outPointToTx, txIn.PrevOutPoint)
 	}
+	tx_pool.outPointMutex.Unlock()
 	delete(tx_pool.hashToTx, *txHash)
 
 	if !recursive {
@@ -444,7 +458,7 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 		for txOutIdx := range removedTx.Vout {
 			outPoint.Index = uint32(txOutIdx)
 
-			childTx, exists := tx_pool.outPointToTx[outPoint]
+			childTx, exists := tx_pool.findTransaction(outPoint)
 			if !exists {
 				continue
 			}
@@ -462,7 +476,7 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 // removeDoubleSpendTxs removes all txs from the main pool, which double spend the passed transaction.
 func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 	for _, txIn := range tx.Vin {
-		if doubleSpentTx, exists := tx_pool.outPointToTx[txIn.PrevOutPoint]; exists {
+		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
 			tx_pool.removeTx(doubleSpentTx, true /* recursive */)
 		}
 	}
