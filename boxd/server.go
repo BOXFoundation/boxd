@@ -132,9 +132,6 @@ func (server *Server) Run() error {
 	if err != nil {
 		logger.Fatalf("Failed to new Dpos, error: %v", err)
 	}
-	if err := consensus.Setup(); err != nil {
-		logger.Fatalf("Failed to Setup dpos, error: %v", err)
-	}
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
@@ -148,8 +145,10 @@ func (server *Server) Run() error {
 	peer.Run()
 	blockChain.Run()
 	txPool.Run()
-	logger.Info(consensus.EnableMint())
 	if consensus.EnableMint() {
+		if err := consensus.Setup(); err != nil {
+			logger.Fatalf("Failed to Setup dpos, error: %v", err)
+		}
 		consensus.Run()
 	}
 
