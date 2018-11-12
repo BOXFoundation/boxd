@@ -142,7 +142,7 @@ func execTx(account *wallet.Account, fromAddr string, toAddrs []string,
 	}
 }
 
-func txCountFor(accAddr string, peerAddr string) int {
+func utxosFor(accAddr string, peerAddr string) []*rpcpb.Utxo {
 	b := balanceFor(accAddr, peerAddr)
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
@@ -158,8 +158,7 @@ func txCountFor(accAddr string, peerAddr string) int {
 	if err != nil {
 		logger.Panic(err)
 	}
-	return int(r.Count)
-	//return len(r.Utxos)
+	return r.Utxos
 }
 
 func chainHeightFor(peerAddr string) (int, error) {
@@ -277,16 +276,22 @@ func waitUTXOsEnough(addr string, n int, checkPeer string, timeout int) (int, er
 	//t := time.NewTimer(d)
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
-	m := 0
+	var utxos []*rpcpb.Utxo
 	for i := 0; i < timeout; i++ {
 		select {
 		case <-t.C:
-			m = txCountFor(addr, checkPeer)
-			if m >= n {
-				return m, nil
+			utxos = utxosFor(addr, checkPeer)
+			if len(utxos) >= n {
+				return len(utxos), nil
 			}
 		}
 	}
-	return m, fmt.Errorf("timeout for waiting for UTXO reach %d for %s, now %d",
-		n, addr, m)
+	return len(utxos), fmt.Errorf("timeout for waiting for UTXO reach %d for %s, "+
+		"now %d", n, addr, len(utxos))
 }
+
+type sortByUTXOValue []*rpcpb.Utxo
+
+func (x sortByUTXOValue) Len() int           { return len(x) }
+func (x sortByUTXOValue) Less(i, j int) bool { return x[i].TxOut.Value < x[j].TxOut.Value }
+func (x sortByUTXOValue) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
