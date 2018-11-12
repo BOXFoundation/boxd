@@ -436,7 +436,7 @@ func (sm *SyncManager) fetchRemoteBlocks(fbh *FetchBlockHeaders) (peer.ID, error
 	return pid, sm.p2pNet.SendMessageToPeer(p2p.BlockChunkRequest, fbh, pid)
 }
 
-func (sm *SyncManager) isPeerStatusFor(status peerStatus, id peer.ID) bool {
+func (sm *SyncManager) verifyPeerStatus(status peerStatus, id peer.ID) bool {
 	s, ok := sm.stalePeers.Load(id)
 	return ok && (s != nil && s.(peerStatus) == status)
 }

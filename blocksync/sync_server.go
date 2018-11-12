@@ -22,7 +22,7 @@ func (sm *SyncManager) Run() {
 		logger.Infof("SyncManager server has started. no tried %d", i)
 		return
 	}
-	logger.Info("start Run")
+	logger.Info("Succeed to start sync service.")
 	sm.subscribeMessageNotifiee()
 	go sm.handleSyncMessage()
 }
@@ -104,7 +104,7 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 			sm.getStatus())
 	}
 	pid := msg.From()
-	if !sm.isPeerStatusFor(locatePeerStatus, pid) {
+	if !sm.verifyPeerStatus(locatePeerStatus, pid) {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushErrFlagChan(sm.locateErrCh, errFlagWrongPeerStatus)
 		return fmt.Errorf("receive LocateForkPointResponse from non-sync peer[%s]",
@@ -176,8 +176,8 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 			sm.getStatus())
 	}
 	pid := msg.From()
-	if !sm.isPeerStatusFor(checkedPeerStatus, pid) &&
-		!sm.isPeerStatusFor(checkedDonePeerStatus, pid) {
+	if !sm.verifyPeerStatus(checkedPeerStatus, pid) &&
+		!sm.verifyPeerStatus(checkedDonePeerStatus, pid) {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushEmptyChan(sm.checkErrCh)
 		return fmt.Errorf("receive LocateCheckResponse from non-sync peer[%s]",
@@ -251,8 +251,8 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 			sm.getStatus())
 	}
 	pid := msg.From()
-	if !sm.isPeerStatusFor(blocksPeerStatus, pid) &&
-		!sm.isPeerStatusFor(blocksDonePeerStatus, pid) {
+	if !sm.verifyPeerStatus(blocksPeerStatus, pid) &&
+		!sm.verifyPeerStatus(blocksDonePeerStatus, pid) {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushEmptyChan(sm.syncErrCh)
 		return fmt.Errorf("receive BlockChunkResponse from non-sync peer[%s]",
