@@ -45,6 +45,7 @@ type Server struct {
 	blockChain  *chain.BlockChain
 	txPool      *txpool.TransactionPool
 	syncManager *blocksync.SyncManager
+	consensus   *dpos.Dpos
 }
 
 // NewServer new a boxd server
@@ -82,32 +83,31 @@ func (server *Server) teardown() error {
 
 // Prepare to run the boxd server
 func (server *Server) Prepare() {
+
+	var proc = server.proc // parent goprocess
+	var cfg = server.cfg
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// make sure the cfg is correct and all directories are ok.
-	server.cfg.Prepare()
+	cfg.Prepare()
 	// setup logger
-	log.Setup(&server.cfg.Log)
-}
+	log.Setup(&cfg.Log)
 
-var _ service.Server = (*Server)(nil)
-
-// Run to start node server.
-func (server *Server) Run() error {
-	var proc = server.proc // parent goprocess
-	var cfg = server.cfg
-
-	// start database life cycle
+	// ########################################################
+	// prepare database.
 	database, err := storage.NewDatabase(proc, &cfg.Database)
 	if err != nil {
-		logger.Fatalf("Failed to initialize database: %v", err) // exit in case of error during initialization of database
+		// exit in case of error during initialization of database
+		logger.Fatalf("Failed to initialize database: %v", err)
 	}
 	server.database = database
 
-	// start p2p service
+	// ########################################################
+	// prepare box peer.
 	peer, err := p2p.NewBoxPeer(database.Proc(), &cfg.P2p, database, server.bus)
 	if err != nil {
-		logger.Fatalf("Failed to new BoxPeer...") // exit in case of error during creating p2p server instance
+		// exit in case of error during creating p2p server instance
+		logger.Fatalf("Failed to new BoxPeer...")
 	}
 	// Add peers configured by user
 	for _, addr := range cfg.P2p.AddPeers {
@@ -119,50 +119,78 @@ func (server *Server) Run() error {
 	}
 	server.peer = peer
 
+	// ########################################################
+	// prepare block chain.
 	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
 	}
 	server.blockChain = blockChain
 
+	// ########################################################
+	// prepare txpool.
 	txPool := txpool.NewTransactionPool(blockChain.Proc(), peer, blockChain, server.bus)
 	server.txPool = txPool
 
+	// ########################################################
+	// prepare consensus.
 	consensus, err := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
 	if err != nil {
 		logger.Fatalf("Failed to new Dpos, error: %v", err)
 	}
+	server.consensus = consensus
 
+	// ########################################################
+	// prepare grpc server.
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
 
+	// ########################################################
+	// prepare sync manager.
 	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
 	server.syncManager = syncManager
+	server.blockChain.Setup(consensus, syncManager)
 
-	blockChain.Setup(consensus, syncManager)
+}
 
-	peer.Run()
-	blockChain.Run()
-	txPool.Run()
-	if consensus.EnableMint() {
-		if err := consensus.Setup(); err != nil {
-			logger.Fatalf("Failed to Setup dpos, error: %v", err)
-		}
-		consensus.Run()
+var _ service.Server = (*Server)(nil)
+
+// Run to start node server.
+func (server *Server) Run() error {
+
+	var proc = server.proc
+	var cfg = server.cfg
+
+	if err := server.peer.Run(); err != nil {
+		logger.Fatalf("Failed to start peer. Err: %v", err)
 	}
 
-	// if cfg.Dpos.EnableMint {
-	// 	consensus.Run()
-	// }
-	syncManager.Run()
+	if err := server.blockChain.Run(); err != nil {
+		logger.Fatalf("Failed to start blockchain. Err: %v", err)
+	}
+
+	if err := server.txPool.Run(); err != nil {
+		logger.Fatalf("Failed to start txpool. Err: %v", err)
+	}
+
+	if server.consensus.EnableMint() {
+		if err := server.consensus.Setup(); err != nil {
+			logger.Fatalf("Failed to Setup dpos, Err: %v", err)
+		}
+		if err := server.consensus.Run(); err != nil {
+			logger.Fatalf("Failed to start consensus. Err: %v", err)
+		}
+	}
+
+	server.syncManager.Run()
 	metrics.Run(&cfg.Metrics, proc)
 	if len(cfg.P2p.Seeds) > 0 {
-		syncManager.StartSync()
+		server.syncManager.StartSync()
 	}
 
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
+		server.grpcsvr, _ = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain, server.txPool, server.bus)
 		server.grpcsvr.Run()
 	}
 
