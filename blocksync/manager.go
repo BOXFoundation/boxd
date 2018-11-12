@@ -7,12 +7,10 @@ package blocksync
 import (
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/consensus/dpos"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -141,18 +139,7 @@ func (sm *SyncManager) resetAll() {
 	sm.reset()
 	sm.setStatus(freeStatus)
 	sm.stalePeers = new(sync.Map)
-}
-
-func (sm *SyncManager) setStatus(stat syncStatus) {
-	sm.statMtx.Lock()
-	sm.status = stat
-	sm.statMtx.Unlock()
-}
-
-func (sm *SyncManager) getStatus() syncStatus {
-	sm.statMtx.RLock()
-	defer sm.statMtx.RUnlock()
-	return sm.status
+	sm.drainAllSyncChan()
 }
 
 // NewSyncManager returns new block sync manager.
@@ -179,18 +166,6 @@ func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net, consensus *dpo
 	}
 }
 
-// Run start sync task and handle sync message
-func (sm *SyncManager) Run() {
-	// Already started?
-	if i := atomic.AddInt32(&sm.svrStarted, 1); i != 1 {
-		logger.Infof("SyncManager server has started. no tried %d", i)
-		return
-	}
-	logger.Info("start Run")
-	sm.subscribeMessageNotifiee()
-	go sm.handleSyncMessage()
-}
-
 // StartSync start sync block message from remote peers.
 func (sm *SyncManager) StartSync() {
 	if sm.getStatus() != freeStatus {
@@ -201,53 +176,12 @@ func (sm *SyncManager) StartSync() {
 	go sm.startSync()
 }
 
-func (sm *SyncManager) subscribeMessageNotifiee() {
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, p2p.Repeatable, sm.messageCh))
-}
-
-func (sm *SyncManager) handleSyncMessage() {
-	var err error
-	for {
-		select {
-		case msg := <-sm.messageCh:
-			logger.Infof("Receive msg[0x%X] from peer %s", msg.Code(), msg.From().Pretty())
-			switch msg.Code() {
-			case p2p.LocateForkPointRequest:
-				err = sm.onLocateRequest(msg)
-			case p2p.LocateForkPointResponse:
-				err = sm.onLocateResponse(msg)
-			case p2p.LocateCheckRequest:
-				err = sm.onCheckRequest(msg)
-			case p2p.LocateCheckResponse:
-				err = sm.onCheckResponse(msg)
-			case p2p.BlockChunkRequest:
-				err = sm.onBlocksRequest(msg)
-			case p2p.BlockChunkResponse:
-				err = sm.onBlocksResponse(msg)
-			default:
-				logger.Warn("Failed to handle sync msg, unknow msg code")
-			}
-			if err != nil {
-				logger.Warnf("handleSyncMessage[0x%X] error: %s", msg.Code(), err)
-			}
-		case <-sm.proc.Closing():
-			logger.Info("Quit handle sync msg loop.")
-			return
-		}
-	}
-}
-
 func (sm *SyncManager) startSync() {
 	p2p.UpdateSynced(false)
 	// prevent startSync being executed again
 	sm.setStatus(locateStatus)
 	// sleep 5s to wait for connections to establish
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 	//
 	defer func() {
 		sm.consensus.RecoverMint()
@@ -272,6 +206,7 @@ out_sync:
 		needMore = false
 		// start block sync.
 		sm.reset()
+		sm.drainAllSyncChan()
 		sm.setStatus(locateStatus)
 		if err := sm.locateHashes(); err != nil {
 			logger.Warn("locateHashes error: ", err)
@@ -307,6 +242,7 @@ out_sync:
 		}
 
 		sm.setStatus(checkStatus)
+		sm.drainCheckChan()
 		if err := sm.checkHashes(); err != nil {
 			logger.Info("checkHashes error: ", err)
 			continue out_sync
@@ -339,7 +275,13 @@ out_sync:
 		}
 
 		sm.setStatus(blocksStatus)
-		sm.fetchAllBlocks(sm.fetchHashes)
+		sm.drainBlocksChan()
+		if err := sm.fetchAllBlocks(sm.fetchHashes); err != nil {
+			logger.Warn(err)
+			sm.blocksProcessedCh = make(chan struct{},
+				chain.MaxBlocksPerSync/syncBlockChunkSize)
+			return
+		}
 		logger.Infof("wait sync %d blocks done", len(sm.fetchHashes))
 		drainTimer(timer.C)
 		timer.Reset(blocksTimeout)
@@ -431,13 +373,13 @@ func (sm *SyncManager) checkHashes() error {
 		if err != nil {
 			return err
 		}
+		sm.stalePeers.Store(pid, checkedPeerStatus)
 		peers = append(peers, pid)
 	}
 	// send msg to checking peers
 	// sm.fetachHashes can not be nil
 	sm.checkHash = newCheckHash(sm.fetchHashes[0], uint32(len(sm.fetchHashes)))
 	for _, pid := range peers {
-		sm.stalePeers.Store(pid, checkedPeerStatus)
 		logger.Infof("send message[0x%X] body[%+v] to peer %s",
 			p2p.LocateCheckRequest, sm.checkHash, pid.Pretty())
 		err := sm.p2pNet.SendMessageToPeer(p2p.LocateCheckRequest, sm.checkHash, pid)
@@ -492,251 +434,6 @@ func (sm *SyncManager) fetchRemoteBlocks(fbh *FetchBlockHeaders) (peer.ID, error
 		fbh, pid.Pretty())
 	sm.stalePeers.Store(pid, blocksPeerStatus)
 	return pid, sm.p2pNet.SendMessageToPeer(p2p.BlockChunkRequest, fbh, pid)
-}
-
-func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
-	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
-
-	// not to been sync when the node is in sync status
-	if sm.getStatus() != freeStatus {
-		logger.Infof("send message[0x%X] zeroHash to peer %s for in sync status",
-			p2p.LocateForkPointResponse, msg.From().Pretty())
-		return sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointResponse,
-			newSyncHeaders(zeroHash), msg.From())
-	}
-	// parse response
-	lh := new(LocateHeaders)
-	if err := lh.Unmarshal(msg.Body()); err != nil {
-		return err
-	}
-	//
-	hashes, err := sm.chain.LocateForkPointAndFetchHeaders(lh.Hashes)
-	if err != nil {
-		logger.Warnf("onLocateRequest fetch headers error: %s, hashes: %+v",
-			err, lh.Hashes)
-		return err
-	}
-	logger.Infof("onLocateRequest send %d hashes", len(hashes))
-	// send SyncHeaders hashes to active end
-	sh := newSyncHeaders(hashes...)
-	logger.Infof("send message[0x%X] (%d hashes) to peer %s",
-		p2p.LocateForkPointResponse, len(hashes), msg.From().Pretty())
-	return sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointResponse, sh, msg.From())
-}
-
-func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
-	if sm.getStatus() != locateStatus {
-		return fmt.Errorf("onLocateResponse returns since now status is %s",
-			sm.getStatus())
-	}
-	pid := msg.From()
-	if !sm.isPeerStatusFor(locatePeerStatus, pid) {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		return fmt.Errorf("receive LocateForkPointResponse from non-sync peer[%s]",
-			pid.Pretty())
-	}
-	tryPopErrFlagChan(sm.locateErrCh)
-	// parse response
-	sh := new(SyncHeaders)
-	if err := sh.Unmarshal(msg.Body()); err != nil ||
-		(len(sh.Hashes) == 1 && *sh.Hashes[0] == *zeroHash) {
-		logger.Infof("onLocateResponse unmarshal msg.Body[%+v] error: %s",
-			msg.Body(), err)
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.locateErrCh <- errFlagUnmarshal
-		return err
-	}
-	if len(sh.Hashes) == 0 {
-		logger.Infof("onLocateResponse receive no Header from peer[%s], "+
-			"try another peer to sync", pid.Pretty())
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.locateErrCh <- errFlagNoHash
-		return nil
-	}
-	logger.Infof("onLocateResponse receive %d hashes", len(sh.Hashes))
-	// get headers hashes needed to sync
-	hashes, err := sm.rmOverlap(sh.Hashes)
-	if err != nil {
-		logger.Infof("rmOverlap error: %s", err)
-		return err
-	}
-	logger.Infof("onLocateResponse get syncHeaders %d hashes", len(hashes))
-	sm.fetchHashes = hashes
-	merkleRoot := util.BuildMerkleRoot(hashes)
-	sm.checkRootHash = merkleRoot[len(merkleRoot)-1]
-	sm.stalePeers.Store(pid, locateDonePeerStatus)
-	tryPopEmptyChan(sm.locateDoneCh)
-	sm.locateDoneCh <- struct{}{}
-	return nil
-}
-
-func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
-	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
-	// not to been sync when the node is in sync status
-	if sm.getStatus() != freeStatus {
-		logger.Infof("send message[0x%X] zeroHash to peer %s",
-			p2p.LocateCheckResponse, msg.From().Pretty())
-		return sm.p2pNet.SendMessageToPeer(p2p.LocateCheckResponse,
-			newSyncCheckHash(zeroHash), msg.From())
-	}
-	// parse response
-	ch := new(CheckHash)
-	if err := ch.Unmarshal(msg.Body()); err != nil {
-		return err
-	}
-	logger.Infof("receive CheckHash: %+v", ch)
-	//
-	hash, err := sm.chain.CalcRootHashForNBlocks(*ch.BeginHash, ch.Length)
-	if err != nil {
-		logger.Warnf("onCheckRequest calc root hash for %+v error: %s", ch, err)
-	}
-	sh := newSyncCheckHash(hash)
-	logger.Infof("send message[0x%X] body[%+v] to peer %s", p2p.LocateCheckResponse,
-		sh, msg.From().Pretty())
-	return sm.p2pNet.SendMessageToPeer(p2p.LocateCheckResponse, sh, msg.From())
-}
-
-func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
-	if sm.getStatus() != checkStatus {
-		return fmt.Errorf("onCheckResponse returns since now status is %s",
-			sm.getStatus())
-	}
-	tryPopEmptyChan(sm.checkErrCh)
-	pid := msg.From()
-	if !sm.isPeerStatusFor(checkedPeerStatus, pid) &&
-		!sm.isPeerStatusFor(checkedDonePeerStatus, pid) {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.checkErrCh <- struct{}{}
-		return fmt.Errorf("receive LocateCheckResponse from non-sync peer[%s]",
-			pid.Pretty())
-	}
-	checkNum := atomic.AddInt32(&sm.checkNum, 1)
-	if checkNum > int32(maxCheckPeers) {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.checkErrCh <- struct{}{}
-		return fmt.Errorf("receive too many LocateCheckResponse from check peer[%s]",
-			pid.Pretty())
-	}
-	// parse response
-	sch := new(SyncCheckHash)
-	if err := sch.Unmarshal(msg.Body()); err != nil {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.checkErrCh <- struct{}{}
-		return err
-	}
-	// check rootHash
-	if *sm.checkRootHash != *sch.RootHash {
-		logger.Warnf("check RootHash mismatch from peer[%s], recv: %v, want: %v",
-			pid.Pretty(), sch.RootHash, sm.checkRootHash)
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.checkErrCh <- struct{}{}
-		return nil
-	}
-	sm.stalePeers.Store(pid, checkedDonePeerStatus)
-	if len(sm.checkOkCh) == maxCheckPeers {
-		tryPopEmptyChan(sm.checkOkCh)
-	}
-	sm.checkOkCh <- struct{}{}
-	logger.Infof("success to check %d times", checkNum)
-	return nil
-}
-
-func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
-	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
-	// not to been sync when the node is in sync status
-	if sm.getStatus() != freeStatus {
-		logger.Infof("send message[0x%X] maxUint32 Idx blocks body to peer %s",
-			p2p.BlockChunkResponse, msg.From().Pretty())
-		return sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse,
-			newSyncBlocks(math.MaxUint32), msg.From())
-	}
-	//
-	sb := newSyncBlocks(0)
-	defer func() {
-		logger.Infof("send message[0x%X] %d blocks to peer %s",
-			p2p.BlockChunkResponse, len(sb.Blocks), msg.From().Pretty())
-		err = sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse, sb, msg.From())
-	}()
-	// parse response
-	fbh := newFetchBlockHeaders(0, nil, 0)
-	err = fbh.Unmarshal(msg.Body())
-	if err != nil {
-		logger.Infof("onBlocksRequest error: %s", err)
-		return
-	}
-	// fetch blocks from local main chain
-	blocks, err := sm.chain.FetchNBlockAfterSpecificHash(*fbh.BeginHash, fbh.Length)
-	if err != nil {
-		logger.Infof("onBlocksRequest fetchLocalBlocks FetchBlockHeaders: %+v"+
-			" error: %s", fbh, err)
-		return
-	}
-	sb = newSyncBlocks(fbh.Idx, blocks...)
-	return
-}
-
-func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
-	if sm.getStatus() != blocksStatus {
-		return fmt.Errorf("onBlocksResponse returns since now status is %s",
-			sm.getStatus())
-	}
-	pid := msg.From()
-	tryPopEmptyChan(sm.syncErrCh)
-	if !sm.isPeerStatusFor(blocksPeerStatus, pid) &&
-		!sm.isPeerStatusFor(blocksDonePeerStatus, pid) {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.syncErrCh <- struct{}{}
-		return fmt.Errorf("receive BlockChunkResponse from non-sync peer[%s]",
-			pid.Pretty())
-	}
-	// parse response
-	sb := new(SyncBlocks)
-	if err := sb.Unmarshal(msg.Body()); err != nil || len(sb.Blocks) == 0 ||
-		sb.Idx == math.MaxUint32 {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		sm.syncErrCh <- struct{}{}
-		return fmt.Errorf("SyncBlocks unmarshal error: %v or receive no blocks(%d) "+
-			"or msg.From is in sync(idx: %d)", err, len(sb.Blocks), sb.Idx)
-	}
-	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
-	logger.Infof("has sync %d/%d blocks, current peer[%s]",
-		count, len(sm.fetchHashes), pid.Pretty())
-	maxChanLen := (len(sm.fetchHashes) + syncBlockChunkSize - 1) / syncBlockChunkSize
-	// check blocks merkle root hash
-	if fbh, ok := sm.checkBlocksAndClearInfo(sb, pid); !ok {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		if fbh != nil {
-			if len(sm.blocksErrCh) == maxChanLen {
-				logger.Warnf("blocksErrCh overflow for len: %d", len(sm.blocksErrCh))
-				return nil
-			}
-			sm.blocksErrCh <- *fbh
-		}
-		return fmt.Errorf("onBlocksResponse check failed from peer: %s, "+
-			"SyncBlocks: %+v", pid.Pretty(), sb)
-	}
-	sm.stalePeers.Store(pid, blocksDonePeerStatus)
-	if len(sm.blocksDoneCh) == maxChanLen {
-		sm.stalePeers.Store(pid, errPeerStatus)
-		logger.Warnf("blocksDownCh overflow for len: %d", len(sm.blocksDoneCh))
-		return nil
-	}
-	sm.blocksDoneCh <- struct{}{}
-	// process blocks
-	go func() {
-		for _, b := range sb.Blocks {
-			err := sm.chain.ProcessBlock(b, false, false)
-			if err != nil {
-				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
-					continue
-				} else {
-					panic(err)
-				}
-			}
-		}
-		sm.blocksProcessedCh <- struct{}{}
-	}()
-	return nil
 }
 
 func (sm *SyncManager) isPeerStatusFor(status peerStatus, id peer.ID) bool {
@@ -900,18 +597,112 @@ func cleanStopTimer(t *time.Timer) {
 	drainTimer(t.C)
 }
 
-func tryPopEmptyChan(ch <-chan struct{}) {
-	select {
-	case <-ch:
-		logger.Info("pop a struct{}{} from chan struct{}")
-	default:
+func (sm *SyncManager) drainAllSyncChan() {
+	sm.drainLocateChan()
+	sm.drainCheckChan()
+	sm.drainBlocksChan()
+}
+
+func (sm *SyncManager) drainLocateChan() {
+	tryPopErrFlagChan(sm.locateErrCh)
+	tryPopEmptyChan(sm.locateDoneCh)
+}
+
+func (sm *SyncManager) drainCheckChan() {
+	tryPopEmptyChan(sm.checkErrCh)
+	for {
+		if !tryPopEmptyChan(sm.checkOkCh) {
+			break
+		}
 	}
 }
 
-func tryPopErrFlagChan(ch <-chan errFlag) {
+func (sm *SyncManager) drainBlocksChan() {
+	for {
+		if !tryPopEmptyChan(sm.blocksDoneCh) {
+			break
+		}
+	}
+	for {
+		if !tryPopBlockHeadersChan(sm.blocksErrCh) {
+			break
+		}
+	}
+	for {
+		if !tryPopEmptyChan(sm.blocksProcessedCh) {
+			break
+		}
+	}
+}
+
+func tryPopEmptyChan(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		logger.Info("pop a struct{}{} from chan struct{}")
+		return true
+	default:
+		return false
+	}
+}
+
+func tryPushEmptyChan(ch chan<- struct{}) bool {
+	select {
+	case ch <- struct{}{}:
+		return true
+	default:
+		logger.Info("cannot push a struct{}{} to chan struct{}")
+		return false
+	}
+}
+
+func tryPopErrFlagChan(ch <-chan errFlag) bool {
 	select {
 	case v := <-ch:
 		logger.Warnf("pop value: %v from channel", v)
+		return true
 	default:
+		return false
 	}
+}
+
+func tryPushErrFlagChan(ch chan<- errFlag, v errFlag) bool {
+	select {
+	case ch <- v:
+		return true
+	default:
+		logger.Info("cannot push %v to chan errFag", v)
+		return false
+	}
+}
+
+func tryPopBlockHeadersChan(ch <-chan FetchBlockHeaders) bool {
+	select {
+	case v := <-ch:
+		logger.Warnf("pop value: %v from channel", v)
+		return true
+	default:
+		return false
+	}
+}
+
+func tryPushBlockHeadersChan(ch chan<- FetchBlockHeaders, v FetchBlockHeaders) bool {
+	select {
+	case ch <- v:
+		return true
+	default:
+		logger.Info("cannot push %v to chan FetchBlockHeaders", v)
+		return false
+	}
+}
+
+func (sm *SyncManager) setStatus(stat syncStatus) {
+	sm.statMtx.Lock()
+	sm.status = stat
+	sm.statMtx.Unlock()
+}
+
+func (sm *SyncManager) getStatus() syncStatus {
+	sm.statMtx.RLock()
+	defer sm.statMtx.RUnlock()
+	return sm.status
 }
