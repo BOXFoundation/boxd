@@ -190,6 +190,10 @@ func (dpos *Dpos) checkMiner(timestamp int64) error {
 // ValidateMiner verifies whether the miner has authority to mint.
 func (dpos *Dpos) ValidateMiner() bool {
 
+	if dpos.miner == nil {
+		return false
+	}
+
 	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {
 		return false
