@@ -153,7 +153,7 @@ func txCountFor(accAddr string, peerAddr string) int {
 	if err != nil {
 		logger.Panicf("NewAddress addrs: %s error: %s", addr, err)
 	}
-	logger.Infof("fund transaction for %s balance %d", addr, b)
+	logger.Debugf("fund transaction for %s balance %d", addr, b)
 	r, err := client.FundTransaction(conn, addr, b)
 	if err != nil {
 		logger.Panic(err)
@@ -254,4 +254,39 @@ func newAccountFromWallet() (string, string, error) {
 		return "", "", err
 	}
 	return wltMgr.NewAccount(testPassphrase)
+}
+
+func waitBalanceChanged(addr string, checkPeer string, timeout int) error {
+	//t := time.NewTimer(d)
+	t := time.NewTicker(time.Second)
+	old := balanceFor(addr, checkPeer)
+	defer t.Stop()
+	for i := 0; i < timeout; i++ {
+		select {
+		case <-t.C:
+			new := balanceFor(addr, checkPeer)
+			if new != old {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("Timeout for waiting for balance of %s changed", addr)
+}
+
+func waitUTXOsEnough(addr string, n int, checkPeer string, timeout int) (int, error) {
+	//t := time.NewTimer(d)
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	m := 0
+	for i := 0; i < timeout; i++ {
+		select {
+		case <-t.C:
+			m = txCountFor(addr, checkPeer)
+			if m >= n {
+				return m, nil
+			}
+		}
+	}
+	return m, fmt.Errorf("timeout for waiting for UTXO reach %d for %s, now %d",
+		n, addr, m)
 }

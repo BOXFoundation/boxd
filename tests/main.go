@@ -17,9 +17,9 @@ const (
 	keyDir    = "./.devconfig/keyfile/"
 	walletDir = "./.devconfig/ws1/box_keystore/"
 
-	testPassphrase = "zaq12wsx"
+	testPassphrase = "1"
 
-	peerCount = 3
+	peerCount = 6
 
 	blockTime = 5 * time.Second
 
@@ -33,6 +33,9 @@ var (
 		"127.0.0.1:19191",
 		"127.0.0.1:19181",
 		"127.0.0.1:19171",
+		"127.0.0.1:19161",
+		"127.0.0.1:19151",
+		"127.0.0.1:19141",
 	}
 
 	enableDocker = flag.Bool("docker", false, "test on docker?")
@@ -46,22 +49,21 @@ func main() {
 	flag.Parse()
 	// prepare environment and clean history data
 	if err := prepareEnv(peerCount); err != nil {
-		logger.Fatal(err)
+		logger.Panic(err)
 	}
 	defer tearDown(peerCount)
 
 	// start nodes
-	localPeers := 3
 	if *enableDocker {
 		if err := startNodes(); err != nil {
-			logger.Fatal(err)
+			logger.Panic(err)
 		}
 		defer stopNodes()
 	} else {
-		processes, err := startLocalNodes(localPeers)
+		processes, err := startLocalNodes(peerCount)
 		defer stopLocalNodes(processes...)
 		if err != nil {
-			logger.Fatal(err)
+			logger.Panic(err)
 		}
 	}
 
@@ -76,9 +78,13 @@ func main() {
 	defer removeKeystoreFiles(testsAcc...)
 
 	// wait for nodes to be ready
-	logger.Infof("waiting for %v: nodes running", blockTime)
-	time.Sleep(blockTime)
-
+	logger.Info("waiting for minersAddr[0] has 1 utxo at least")
+	_, err := waitUTXOsEnough(minersAddr[0], 1, peersAddr[0],
+		int(peerCount*blockTime/time.Second))
+	if err != nil {
+		logger.Panic(err)
+	}
 	txTest := newTxTest(minersAddr, testsAddr, 10000)
+	logger.Info("start to test tx")
 	txTest.testTx()
 }

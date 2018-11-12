@@ -5,12 +5,19 @@
 package main
 
 import (
+	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
+)
+
+const (
+	timeoutToChain = 20
 )
 
 type txTest struct {
@@ -37,7 +44,7 @@ func (tt *txTest) testTx() {
 	logger.Infof("now the height of all peers is %d", height)
 
 	// prepare utxo for testsAddr[0]
-	tt.prepareUTXOs(peersAddr[0], peersAddr[1])
+	tt.prepareUTXOs(tt.testsAddr[0], 100, peersAddr[0])
 
 	//// test single tx from miner addr 0 to test addr 0
 	//amount := uint64(1000000 + rand.Intn(1000000))
@@ -57,83 +64,122 @@ func (tt *txTest) testTx() {
 	//txManyToOneTest(tt.testsAddr[2:3], tt.testsAddr[1], peersAddr[1], peersAddr[0])
 }
 
-func (tt *txTest) prepareUTXOs(execPeer, checkPeer string) {
+// prepareUTXOs generates n*n utxos for addr
+func (tt *txTest) prepareUTXOs(addr string, n int, peerAddr string) {
 	logger.Info("=== RUN   prepareUTXOs")
-
-	testsCnt := len(tt.testsAddr)
-	// 1. miner 0 to tests[0:len(testsAddr)-1]
+	count := int(math.Ceil(math.Sqrt(float64(n))))
+	if count > len(tt.testsAddr) {
+		logger.Panicf("tests account is not enough for generate %d utxo", n)
+	}
+	if !util.InArray(addr, tt.testsAddr) {
+		logger.Panicf("argument addr %s must be in tests accounts", addr)
+	}
+	// miner 0 to tests[0:len(testsAddr)-1]
 	acc := unlockAccount(tt.minersAddr[0])
-	amount := chain.BaseSubsidy / (10 * uint64(testsCnt))
+	amount := chain.BaseSubsidy / (10 * uint64(count))
 	amount += uint64(rand.Int63n(int64(amount)))
-	amounts := make([]uint64, testsCnt)
-	for i := 0; i < testsCnt; i++ {
+	amounts := make([]uint64, count)
+	for i := 0; i < count; i++ {
 		amounts[i] = amount/2 + uint64(rand.Int63n(int64(amount)/2))
 	}
-	minerBalancePre := balanceFor(tt.minersAddr[0], execPeer)
-	if minerBalancePre < amount*uint64(testsCnt) {
-		logger.Fatalf("balance of miner[0] is less than %d", amount*uint64(testsCnt))
+	minerBalancePre := balanceFor(tt.minersAddr[0], peerAddr)
+	if minerBalancePre < amount*uint64(count) {
+		logger.Panicf("balance of miner[0](%d) is less than %d",
+			minerBalancePre, amount*uint64(count))
 	}
-	logger.Infof("start to sent %v from addr %s to testsAddr on peer %s",
-		amounts, tt.minersAddr[0], execPeer)
-	execTx(acc, tt.minersAddr[0], tt.testsAddr, amounts, execPeer)
-	logger.Infof("wait for a block time %v", blockTime)
-	time.Sleep(blockTime)
+	logger.Debugf("start to sent %v from addr %s to testsAddr on peer %s",
+		amounts, tt.minersAddr[0], peerAddr)
+	execTx(acc, tt.minersAddr[0], tt.testsAddr[:count], amounts, peerAddr)
+	logger.Infof("wait for all test addresses have utxos more than %d", 1)
+	for _, addr := range tt.testsAddr[:count] {
+		_, err := waitUTXOsEnough(addr, 1, peerAddr, timeoutToChain)
+		if err != nil {
+			logger.Panic(err)
+		}
+	}
 	for i, addr := range tt.testsAddr {
-		b := balanceFor(addr, checkPeer)
+		b := balanceFor(addr, peerAddr)
 		if b != amounts[i] {
 			logger.Panicf("balance of testsAddr[%d] is %d, that is not equal to "+
 				"%d transfered", i, b, amounts[i])
 		}
 	}
 	// get accounts for testsAddr
-	logger.Infof("start to unlock all %d tests accounts", testsCnt)
-	accounts := make([]*wallet.Account, testsCnt)
-	for i := 0; i < testsCnt; i++ {
+	logger.Infof("start to unlock all %d tests accounts", count)
+	accounts := make([]*wallet.Account, count)
+	for i := 0; i < count; i++ {
 		accounts[i] = unlockAccount(tt.testsAddr[i])
 	}
 	// gen peersCnt*peerCnt utxos via sending from each to each
-	allAmounts := make([][]uint64, testsCnt)
+	allAmounts := make([][]uint64, count)
 	var wg sync.WaitGroup
-	for i := 0; i < testsCnt; i++ {
+	errChans := make(chan error, count)
+	logger.Infof("start to send tx from each to each")
+	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func(i int) {
-			defer wg.Done()
-			amounts2 := make([]uint64, testsCnt)
-			for j := 0; j < testsCnt; j++ {
-				base := amounts[i] / uint64(testsCnt) / 4
+			defer func() {
+				wg.Done()
+				if x := recover(); x != nil {
+					errChans <- fmt.Errorf("%v", x)
+				}
+			}()
+			amounts2 := make([]uint64, count)
+			for j := 0; j < count; j++ {
+				base := amounts[i] / uint64(count) / 4
 				amounts2[j] = base + uint64(rand.Int63n(int64(base)))
 			}
 			allAmounts[i] = amounts2
-			logger.Infof("start to sent %v from addr %d to testsAddr on peer %s",
-				amounts2, i, execPeer)
-			execTx(accounts[i], tt.testsAddr[i], tt.testsAddr, amounts2, execPeer)
-		}(i)
-	}
-	wg.Wait()
-	logger.Infof("wait for a block time %v", 2*blockTime)
-	time.Sleep(2 * blockTime)
-	// gather peersCnt*peersCnt utxo via transfering
-	// from others to the first one
-	for i := 1; i < testsCnt; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			logger.Infof("start to gather utxo from addr %d to addr %d on peer %s",
-				i, 0, execPeer)
-			for j := 0; j < testsCnt; j++ {
-				amount := allAmounts[j][i] / 2
-				execTx(accounts[i], tt.testsAddr[i], []string{tt.testsAddr[0]},
-					[]uint64{amount}, execPeer)
-				logger.Infof("have sent %d from %s to %s", amount, tt.testsAddr[i],
-					tt.testsAddr[0])
+			logger.Debugf("start to sent %v from addr %d to testsAddr on peer %s",
+				amounts2, i, peerAddr)
+			execTx(accounts[i], tt.testsAddr[i], tt.testsAddr[:count], amounts2, peerAddr)
+			logger.Debugf("wait for addr %s utxo more than %d, timeout %ds",
+				tt.testsAddr[i], count, timeoutToChain)
+			time.Sleep(blockTime)
+			_, err := waitUTXOsEnough(tt.testsAddr[i], count, peerAddr, timeoutToChain)
+			if err != nil {
+				errChans <- err
 			}
 		}(i)
 	}
 	wg.Wait()
-	logger.Infof("wait for a block time %v", blockTime)
-	// check utxo count of testsAddr[0]
-	count := txCountFor(tt.testsAddr[0], execPeer)
-	logger.Infof("testsAddr[0] tx count: %d", count)
+	if len(errChans) > 0 {
+		logger.Panic(<-errChans)
+	}
+	// gather count*count utxo via transfering from others to the first one
+	errChans = make(chan error, count)
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer func() {
+				wg.Done()
+				if x := recover(); x != nil {
+					errChans <- fmt.Errorf("%v", x)
+				}
+			}()
+			if tt.testsAddr[i] == addr {
+				return
+			}
+			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
+				i, addr, peerAddr)
+			for j := 0; j < count; j++ {
+				amount := allAmounts[j][i] / 2
+				execTx(accounts[i], tt.testsAddr[i], []string{addr}, []uint64{amount},
+					peerAddr)
+				logger.Debugf("have sent %d from %s to %s", amount, tt.testsAddr[i], addr)
+			}
+		}(i)
+	}
+	wg.Wait()
+	if len(errChans) > 0 {
+		logger.Panic(<-errChans)
+	}
+	logger.Infof("wait utxo count reach %d on %s, timeout %ds", n, addr, timeoutToChain)
+	m, err := waitUTXOsEnough(addr, n, peerAddr, timeoutToChain)
+	if err != nil {
+		logger.Panic(err)
+	}
+	logger.Infof("addr %s utxo count: %d", addr, m)
 }
 
 func txSingleTest(fromAddr, toAddr string, amount uint64, execPeer, checkPeer string) {
@@ -152,9 +198,10 @@ func txSingleTest(fromAddr, toAddr string, amount uint64, execPeer, checkPeer st
 	logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddr,
 		toAddr, execPeer)
 
-	logger.Infof("after %v, the transaction would be on the chain", 2*blockTime)
-	time.Sleep(2 * blockTime)
-
+	logger.Infof("wait for transaction brought on chain, timeout %ds", timeoutToChain)
+	if err := waitBalanceChanged(toAddr, checkPeer, timeoutToChain); err != nil {
+		logger.Panic(err)
+	}
 	// check the balance of miners
 	logger.Infof("start to get balance of fromAddr[%s], toAddr[%s] from %s",
 		fromAddr, toAddr, checkPeer)
@@ -197,9 +244,10 @@ func txRepeatTest(fromAddr, toAddr string, totalAmount uint64, execPeer,
 			toAddr, execPeer)
 	}
 
-	logger.Infof("after %v, the transaction would be on the chain", 2*blockTime)
-	time.Sleep(2 * blockTime)
-
+	logger.Infof("wait for transaction brought on chain, timeout %ds", timeoutToChain)
+	if err := waitBalanceChanged(toAddr, checkPeer, timeoutToChain); err != nil {
+		logger.Panic(err)
+	}
 	// check the balance of miners
 	logger.Infof("start to get balance of fromAddr[%s], toAddr[%s] from %s",
 		fromAddr, toAddr, checkPeer)
@@ -244,10 +292,12 @@ func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
 		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddr,
 			toAddrs[i], execPeer)
 	}
-
-	logger.Infof("after %v, the transaction would be on the chain", 2*blockTime)
-	time.Sleep(2 * blockTime)
-
+	logger.Infof("wait for transaction brought on chain, timeout %ds", timeoutToChain)
+	if err := waitBalanceChanged(toAddrs[len(toAddrs)-1], checkPeer,
+		timeoutToChain); err != nil {
+		logger.Panic(err)
+	}
+	time.Sleep(blockTime)
 	// get balance of fromAddr and toAddrs
 	logger.Infof("start to get balance of fromAddr[%s], toAddrs[%v] from %s",
 		fromAddr, toAddrs, checkPeer)
@@ -300,10 +350,11 @@ func txManyToOneTest(fromAddrs []string, toAddr string, execPeer, checkPeer stri
 		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddrs[i],
 			toAddr, execPeer)
 	}
-
-	logger.Infof("after %v, the transaction would be on the chain", 2*blockTime)
-	time.Sleep(2 * blockTime)
-
+	logger.Infof("wait for transaction brought on chain, timeout %ds", timeoutToChain)
+	if err := waitBalanceChanged(toAddr, checkPeer, timeoutToChain); err != nil {
+		logger.Panic(err)
+	}
+	time.Sleep(blockTime)
 	// get balance of fromAddrs and toAddr
 	logger.Infof("start to get balance of fromAddrs[%v], toAddr[%s] from %s",
 		fromAddrs, toAddr, execPeer)
