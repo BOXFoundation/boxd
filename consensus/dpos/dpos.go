@@ -10,8 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
-
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
@@ -21,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
+	"github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -161,6 +160,7 @@ func (dpos *Dpos) mint(timestamp int64) error {
 	if err := dpos.checkMiner(timestamp); err != nil {
 		return err
 	}
+	MetricsMintTurnCounter.Inc(1)
 	logger.Infof("My turn to mint a block, time: %d", timestamp)
 	if err := dpos.LoadCandidates(); err != nil {
 		return err

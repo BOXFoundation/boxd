@@ -181,6 +181,7 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 			metrics.MetricsCachedBlockMsgGauge.Update(int64(len(chain.newblockMsgCh)))
 			metrics.MetricsBlockOrphanPoolSizeGauge.Update(int64(len(chain.hashToOrphanBlock)))
 			metrics.MetricsLruCacheBlockGauge.Update(int64(chain.cache.Len()))
+			metrics.MetricsTailBlockTxsSizeGauge.Update(int64(len(chain.tail.Txs)))
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
 			return
