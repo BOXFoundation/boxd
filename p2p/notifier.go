@@ -7,6 +7,7 @@ package p2p
 import (
 	"crypto/sha256"
 	"sync"
+	"time"
 
 	"github.com/BOXFoundation/boxd/crypto"
 	lru "github.com/hashicorp/golang-lru"
@@ -23,6 +24,8 @@ const (
 	Unique
 	// UniquePerPeer msg can be received only once per peer
 	UniquePerPeer
+
+	metricsLoopInterval = 2 * time.Second
 )
 
 // Notifier dispatcher & distribute business message.
@@ -68,6 +71,8 @@ func (notifier *Notifier) UnSubscribe(notifiee *Notifiee) {
 // Loop handle notifiee message
 func (notifier *Notifier) Loop(parent goprocess.Process) {
 	notifier.proc = parent.Go(func(p goprocess.Process) {
+		metricsTicker := time.NewTicker(metricsLoopInterval)
+		defer metricsTicker.Stop()
 		for {
 			select {
 			case msg := <-notifier.receiveCh:
@@ -80,6 +85,8 @@ func (notifier *Notifier) Loop(parent goprocess.Process) {
 						logger.Infof("Message handler is blocked. code: %d", msg.Code())
 					}
 				}
+			case <-metricsTicker.C:
+				metricsRevieveChSizeGauge.Update(int64(len(notifier.receiveCh)))
 			case <-p.Closing():
 				logger.Info("Quit notifier loop.")
 				return
