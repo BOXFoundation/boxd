@@ -55,6 +55,7 @@ func (holder *MemoryBloomFilterHolder) AddFilter(
 		return nil
 	}
 	if len(holder.entries) != int(height-1) {
+		logger.Errorf("Invalid Filter Height: holder.entries: %d, height: %d", len(holder.entries), height)
 		return core.ErrInvalidFilterHeight
 	}
 	filterKey := FilterKey(hash)
