@@ -12,4 +12,5 @@ var (
 	ErrKeyNotFound       = errors.New("key not found")
 	ErrTransactionExists = errors.New("can not create two transactions")
 	ErrTransactionClosed = errors.New("the transaction is closed")
+	ErrDatabasePanic     = errors.New("database panic")
 )
