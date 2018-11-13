@@ -64,7 +64,7 @@ func minerAddress(index int) (string, error) {
 //	return acc, addr, nil
 //}
 
-func balanceFor(accAddr string, peerAddr string) uint64 {
+func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		logger.Panic(err)
@@ -76,9 +76,17 @@ func balanceFor(accAddr string, peerAddr string) uint64 {
 	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{
 		Addrs: []string{accAddr}})
 	if err != nil {
+		return 0, err
+	}
+	return r.Balances[accAddr], nil
+}
+
+func balanceFor(accAddr string, peerAddr string) uint64 {
+	b, err := balanceNoPanicFor(accAddr, peerAddr)
+	if err != nil {
 		logger.Panicf("balance for %s on peer %s error: %s", accAddr, peerAddr, err)
 	}
-	return r.Balances[accAddr]
+	return b
 }
 
 func balancesFor(peerAddr string, addresses ...string) ([]uint64, error) {
@@ -142,23 +150,31 @@ func execTx(account *wallet.Account, fromAddr string, toAddrs []string,
 	}
 }
 
-func utxosFor(accAddr string, peerAddr string) []*rpcpb.Utxo {
+func utxosNoPanicFor(accAddr string, peerAddr string) ([]*rpcpb.Utxo, error) {
 	b := balanceFor(accAddr, peerAddr)
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
-		logger.Panic(err)
+		return nil, err
 	}
 	defer conn.Close()
 	addr, err := types.NewAddress(accAddr)
 	if err != nil {
-		logger.Panicf("NewAddress addrs: %s error: %s", addr, err)
+		return nil, fmt.Errorf("NewAddress addrs: %s error: %s", addr, err)
 	}
 	logger.Debugf("fund transaction for %s balance %d", addr, b)
 	r, err := client.FundTransaction(conn, addr, b)
 	if err != nil {
+		return nil, err
+	}
+	return r.Utxos, nil
+}
+
+func utxosFor(accAddr string, peerAddr string) []*rpcpb.Utxo {
+	utxos, err := utxosNoPanicFor(accAddr, peerAddr)
+	if err != nil {
 		logger.Panic(err)
 	}
-	return r.Utxos
+	return utxos
 }
 
 func chainHeightFor(peerAddr string) (int, error) {
@@ -255,12 +271,12 @@ func newAccountFromWallet() (string, string, error) {
 	return wltMgr.NewAccount(testPassphrase)
 }
 
-func waitBalanceChanged(addr string, checkPeer string, timeout int) error {
-	//t := time.NewTimer(d)
-	t := time.NewTicker(time.Second)
+func waitBalanceChanged(addr string, checkPeer string, timeout time.Duration) error {
+	d := 100 * time.Millisecond
+	t := time.NewTicker(d)
 	old := balanceFor(addr, checkPeer)
 	defer t.Stop()
-	for i := 0; i < timeout; i++ {
+	for i := 0; i < int(timeout/d); i++ {
 		select {
 		case <-t.C:
 			new := balanceFor(addr, checkPeer)
@@ -272,15 +288,37 @@ func waitBalanceChanged(addr string, checkPeer string, timeout int) error {
 	return fmt.Errorf("Timeout for waiting for balance of %s changed", addr)
 }
 
-func waitUTXOsEnough(addr string, n int, checkPeer string, timeout int) (int, error) {
-	//t := time.NewTimer(d)
-	t := time.NewTicker(time.Second)
+func waitOneAddrUTXOEnough(addrs []string, n int, checkPeer string,
+	timeout time.Duration) (string, int, error) {
+	d := 100 * time.Millisecond
+	t := time.NewTicker(d)
 	defer t.Stop()
 	var utxos []*rpcpb.Utxo
-	for i := 0; i < timeout; i++ {
+	for i := 0; i < int(timeout/d); i++ {
 		select {
 		case <-t.C:
-			utxos = utxosFor(addr, checkPeer)
+			for _, addr := range addrs {
+				utxos = utxosFor(addr, checkPeer)
+				if len(utxos) >= n {
+					return addr, len(utxos), nil
+				}
+			}
+		}
+	}
+	return addrs[0], len(utxos), fmt.Errorf("timeout for waiting for UTXO reach "+
+		"%d for %v, now %d", n, addrs, len(utxos))
+}
+
+func waitUTXOsEnough(addr string, n int, checkPeer string, timeout time.Duration) (
+	int, error) {
+	d := 100 * time.Millisecond
+	t := time.NewTicker(d)
+	defer t.Stop()
+	var utxos []*rpcpb.Utxo
+	for i := 0; i < int(timeout/d); i++ {
+		select {
+		case <-t.C:
+			utxos, _ = utxosNoPanicFor(addr, checkPeer)
 			if len(utxos) >= n {
 				return len(utxos), nil
 			}

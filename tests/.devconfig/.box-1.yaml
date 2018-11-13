@@ -4,8 +4,8 @@ database:
     name: rocksdb
 log:
     out:
-        name: stderr # stdout|stderr|null
-    level: debug # debug|info|warning|error|fatal
+        name: null # stdout|stderr|null
+    level: error # debug|info|warning|error|fatal
     formatter:
         name: text # json|text
     hooks:
@@ -16,7 +16,7 @@ log:
               # daily: true
               # maxsize: 10240000
               rotate: true
-              level:  4 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
+              level:  5 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
     key_path: peer.key
     port: 19199
@@ -25,7 +25,7 @@ p2p:
     conn_max_capacity: 200
     conn_load_factor: 0.8
 rpc:
-    port: 19191
+    port: 19111
     http:
         port: 19190
 dpos:

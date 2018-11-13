@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/wallet"
 )
 
 const (
@@ -42,6 +43,9 @@ var (
 		// boxd002
 		//"39.105.214.10:19311", // a1
 		//"39.105.214.10:19321", // a2
+		"127.0.0.1:19141", // n4
+		"127.0.0.1:19151", // n5
+		"127.0.0.1:19161", // n6
 		//"192.168.0.226:19141", // n4
 		//"192.168.0.226:19151", // n5
 		//"192.168.0.226:19161", // n6
@@ -49,7 +53,9 @@ var (
 
 	enableDocker = flag.Bool("docker", false, "test on docker?")
 
-	newNodes = flag.Bool("nodes", false, "test on docker?")
+	newNodes = flag.Bool("nodes", false, "need to start nodes?")
+
+	testsCnt = flag.Int("accounts", 10, "how many need to create test acconts?")
 )
 
 func init() {
@@ -63,7 +69,7 @@ func main() {
 		if err := prepareEnv(peerCount); err != nil {
 			logger.Panic(err)
 		}
-		defer tearDown(peerCount)
+		//defer tearDown(peerCount)
 
 		// start nodes
 		if *enableDocker {
@@ -85,19 +91,25 @@ func main() {
 	logger.Debugf("minersAddr: %v", minersAddr)
 
 	// generate addresses of test accounts
-	testsAccCnt := 10
+	testsAccCnt := *testsCnt
 	testsAddr, testsAcc := genTestAddr(testsAccCnt)
 	logger.Debugf("testsAddr: %v\ntestsAcc: %v", testsAddr, testsAcc)
 	defer removeKeystoreFiles(testsAcc...)
 
+	// get accounts for testsAddr
+	logger.Infof("start to unlock all %d tests accounts", len(testsAddr))
+	accounts := make([]*wallet.Account, len(testsAddr))
+	for i := 0; i < len(testsAddr); i++ {
+		accounts[i] = unlockAccount(testsAddr[i])
+	}
+
 	// wait for nodes to be ready
-	logger.Info("waiting for minersAddr[0] has 1 utxo at least")
-	_, err := waitUTXOsEnough(minersAddr[0], 1, peersAddr[0],
-		int(peerCount*blockTime/time.Second))
+	logger.Info("waiting for minersAddr has 1 utxo at least")
+	addr, _, err := waitOneAddrUTXOEnough(minersAddr, 1, peersAddr[0], timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
-	txTest := newTxTest(minersAddr, testsAddr, 10000)
+	txTest := newTxTest(addr, testsAddr, accounts, testsAccCnt*testsAccCnt)
 	logger.Info("start to test tx")
 	txTest.testTx()
 }
