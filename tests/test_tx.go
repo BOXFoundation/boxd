@@ -184,14 +184,6 @@ func (tt *txTest) prepareUTXOs(addr string, n int, peerAddr string) {
 
 func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	logger.Info("=== RUN   txRepeatTest")
-	// get balance of miners
-	logger.Infof("start to get balance of fromAddr[%s], toAddr[%s] from %s",
-		fromAddr, toAddr, execPeer)
-	fromBalancePre := balanceFor(fromAddr, execPeer)
-	toBalancePre := balanceFor(toAddr, execPeer)
-	logger.Infof("fromAddr[%s] balance: %d toAddr[%s] balance: %d",
-		fromAddr, fromBalancePre, toAddr, toBalancePre)
-
 	// create a transaction from addr 1 to addr 2
 	acc := unlockAccount(fromAddr)
 	transfer := uint64(0)
@@ -202,9 +194,16 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 		times--
 	}
 	sort.Sort(sort.Reverse(sortByUTXOValue(utxos)))
+	//
+	fromBalancePre := balanceFor(fromAddr, execPeer)
+	toBalancePre := balanceFor(toAddr, execPeer)
+	logger.Infof("fromAddr[%s] balance: %d, utox count: %d, max: %d, min: %d",
+		fromAddr, fromBalancePre, len(utxos), utxos[0].TxOut.Value,
+		utxos[len(utxos)-1].TxOut.Value)
+	logger.Infof("toAddr[%s] balance: %d", toAddr, toBalancePre)
 	for i := 0; i < times; i++ {
 		//amount := utxos[i+1].TxOut.Value
-		amount := utxos[times-1].TxOut.Value
+		amount := utxos[len(utxos)-1].TxOut.Value
 		logger.Infof("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
 		execTx(acc, fromAddr, []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
