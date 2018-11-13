@@ -91,7 +91,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		if err != nil {
 			return
 		}
-		logger.Debugf("Receiving message %02x from peer %s", msg.Code(), conn.remotePeer.Pretty())
+		//logger.Debugf("Receiving message %02x from peer %s", msg.Code(), conn.remotePeer.Pretty())
 		if err := conn.Handle(msg); err != nil {
 			logger.Error("Failed to handle message. ", err)
 			return
