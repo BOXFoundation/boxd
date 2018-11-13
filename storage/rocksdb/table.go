@@ -7,21 +7,17 @@ package rocksdb
 import (
 	"bytes"
 	"context"
-	"sync"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/tecbot/gorocksdb"
 )
 
 type rtable struct {
-	sm sync.Mutex
-
 	rocksdb      *gorocksdb.DB
 	cf           *gorocksdb.ColumnFamilyHandle
 	readOptions  *gorocksdb.ReadOptions
 	writeOptions *gorocksdb.WriteOptions
 
-	tr        *dbtx
 	writeLock chan struct{}
 }
 
@@ -35,42 +31,50 @@ func (t *rtable) NewBatch() storage.Batch {
 	}
 }
 
-func (t *rtable) NewTransaction() (storage.Transaction, error) {
-	t.sm.Lock()
-	defer t.sm.Unlock()
-
-	// if t.tr != nil {
-	// 	t.tr.sm.Lock()
-	// 	defer t.tr.sm.Unlock()
-	// 	if !t.tr.closed {
-	// 		return nil, storage.ErrTransactionExists
-	// 	}
-	// }
+func (t *rtable) NewTransaction() (tr storage.Transaction, err error) {
+	defer func() {
+		if recover() != nil {
+			tr = nil
+			err = storage.ErrDatabasePanic
+		}
+	}()
 
 	// lock all write operations
 	t.writeLock <- struct{}{}
-	t.tr = &dbtx{
+	tr = &dbtx{
 		db:        t,
 		batch:     t.NewBatch(),
 		closed:    false,
 		writeLock: t.writeLock,
 	}
 
-	return t.tr, nil
+	return tr, nil
 }
 
 // put the value to entry associate with the key
-func (t *rtable) Put(key, value []byte) error {
+func (t *rtable) Put(key, value []byte) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = storage.ErrDatabasePanic
+		}
+	}()
+
 	t.writeLock <- struct{}{}
-	err := t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
+	err = t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
 	<-t.writeLock
 	return err
 }
 
 // delete the entry associate with the key in the Storage
-func (t *rtable) Del(key []byte) error {
+func (t *rtable) Del(key []byte) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = storage.ErrDatabasePanic
+		}
+	}()
+
 	t.writeLock <- struct{}{}
-	err := t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
+	err = t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
 	<-t.writeLock
 	return err
 }
@@ -134,7 +138,6 @@ func (t *rtable) KeysWithPrefix(prefix []byte) [][]byte {
 // return a chan to iter all keys
 func (t *rtable) IterKeys(ctx context.Context) <-chan []byte {
 	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)
-
 	out := make(chan []byte)
 	go func() {
 		defer close(out)
@@ -159,7 +162,6 @@ func (t *rtable) IterKeys(ctx context.Context) <-chan []byte {
 // return a set of keys with specified prefix in the Storage
 func (t *rtable) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
 	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)
-
 	out := make(chan []byte)
 	go func() {
 		defer close(out)
@@ -184,4 +186,9 @@ func (t *rtable) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan [
 		}
 	}()
 	return out
+}
+
+func (t *rtable) Close() {
+	close(t.writeLock)
+	t.cf.Destroy()
 }

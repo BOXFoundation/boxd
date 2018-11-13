@@ -126,31 +126,27 @@ func (db *rocksdb) Close() error {
 	db.sm.Lock()
 	defer db.sm.Unlock()
 
-	waitLock(db.writeLock)
-	for _, t := range db.tables {
-		waitLock(t.writeLock)
-	}
-	defer func() {
-		close(db.writeLock)
-		for _, t := range db.tables {
-			close(t.writeLock)
-		}
-		db.cfs = nil
-		db.tables = nil
-	}()
-
 	if err := db.rocksdb.Flush(db.flushOptions); err != nil {
 		return err
 	}
 
-	for _, cfh := range db.cfs {
-		cfh.Destroy()
+	waitLock(db.writeLock)
+	for _, t := range db.tables {
+		waitLock(t.writeLock)
+	}
+
+	for _, t := range db.tables {
+		t.Close()
 	}
 	db.rocksdb.Close()
 
 	db.writeOptions.Destroy()
 	db.readOptions.Destroy()
 	db.flushOptions.Destroy()
+
+	close(db.writeLock)
+	db.cfs = nil
+	db.tables = nil
 
 	return nil
 }
