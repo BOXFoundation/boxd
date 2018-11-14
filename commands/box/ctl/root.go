@@ -113,6 +113,11 @@ to quickly create a Cobra application.`,
 			Run:   getRawTxCmdFunc,
 		},
 		&cobra.Command{
+			Use:   "gettxpool",
+			Short: "Get transactions in pool",
+			Run:   getTxPoolCmdFunc,
+		},
+		&cobra.Command{
 			Use:   "searchrawtxs [address]",
 			Short: "Search transactions for a given address",
 			Run: func(cmd *cobra.Command, args []string) {
@@ -276,6 +281,23 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 	} else {
 		fmt.Println(util.PrettyPrint(tx))
+	}
+}
+
+func getTxPoolCmdFunc(cmd *cobra.Command, args []string) {
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	txs, err := client.GetTransactionsInPool(conn)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		for _, tx := range txs {
+			hash, err := tx.TxHash()
+			if err == nil {
+				fmt.Println("Tx Hash: ", hash)
+			}
+			fmt.Println(util.PrettyPrint(tx))
+		}
 	}
 }
 

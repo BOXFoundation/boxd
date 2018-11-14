@@ -26,5 +26,4 @@ type ChainReader interface {
 
 	// address related search method
 	GetTransactionsByAddr(types.Address) ([]*types.Transaction, error)
-	// GetUtxos(*types.Address) ([]*types.UtxoWrap, error)
 }

@@ -7,9 +7,9 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/script"
 
-	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
@@ -29,6 +29,20 @@ func init() {
 
 type txServer struct {
 	server GRPCServer
+}
+
+func (s *txServer) GetTransactionPool(ctx context.Context, req *rpcpb.GetTransactionPoolRequest) (*rpcpb.GetTransactionsResponse, error) {
+	txs := s.server.GetTxHandler().GetTransactionsInPool()
+	respTxs := []*corepb.Transaction{}
+	for _, tx := range txs {
+		respTx, err := tx.ToProtoMessage()
+		if err != nil {
+			return &rpcpb.GetTransactionsResponse{}, err
+		}
+
+		respTxs = append(respTxs, respTx.(*corepb.Transaction))
+	}
+	return &rpcpb.GetTransactionsResponse{respTxs}, nil
 }
 
 func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceRequest) (*rpcpb.GetFeePriceResponse, error) {

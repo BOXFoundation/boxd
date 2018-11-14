@@ -159,6 +159,27 @@ func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, 
 	return tx, err
 }
 
+// GetTransactionsInPool gets all transactions in memory pool
+func GetTransactionsInPool(conn *grpc.ClientConn) ([]*types.Transaction, error) {
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	r, err := c.GetTransactionPool(ctx, &rpcpb.GetTransactionPoolRequest{})
+	if err != nil {
+		return nil, err
+	}
+	var txs []*types.Transaction
+	for _, txMsg := range r.Txs {
+		tx := &types.Transaction{}
+		err := tx.FromProtoMessage(txMsg)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, nil
+}
+
 //ListUtxos list all utxos
 func ListUtxos(conn *grpc.ClientConn) (*rpcpb.ListUtxosResponse, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)

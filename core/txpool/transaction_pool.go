@@ -183,6 +183,18 @@ func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
 	return outpoints
 }
 
+// GetTransactionsInPool gets all transactions in memory pool
+func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
+	var txs []*types.Transaction
+	tx_pool.outPointMutex.RLock()
+
+	for _, tx := range tx_pool.outPointToTx {
+		txs = append(txs, tx)
+	}
+	tx_pool.outPointMutex.RUnlock()
+	return txs
+}
+
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(msg.Body()); err != nil {

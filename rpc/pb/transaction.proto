@@ -58,6 +58,13 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc GetTransactionPool(GetTransactionPoolRequest) returns (GetTransactionsResponse) {
+        option (google.api.http) = {
+            post: "/v1/tx/gettxpool"
+            body: "*"
+        };
+    }
 }
 
 message ListUtxosRequest {
@@ -68,6 +75,14 @@ message GetRawTransactionRequest {
 }
 message GetRawTransactionResponse {
     corepb.Transaction tx = 1;
+}
+
+message GetTransactionPoolRequest {
+
+}
+
+message GetTransactionsResponse {
+    repeated corepb.Transaction txs = 1;
 }
 
 message TokenAmount{
