@@ -454,8 +454,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return err
 	}
-	// Notify others such as mempool.
-	chain.notifyBlockConnectionUpdate(block, true)
+
 	return nil
 }
 
