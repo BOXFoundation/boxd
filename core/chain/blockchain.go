@@ -66,6 +66,7 @@ type BlockChain struct {
 	proc                      goprocess.Process
 	LongestChainHeight        uint32
 	cache                     *lru.Cache
+	repeatedMintCache         *lru.Cache
 	bus                       eventbus.Bus
 	orphanLock                sync.RWMutex
 	chainLock                 sync.RWMutex
@@ -97,6 +98,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 
 	var err error
 	b.cache, _ = lru.New(512)
+	b.repeatedMintCache, _ = lru.New(512)
 
 	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
@@ -189,10 +191,26 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 	}
 }
 
+func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
+	if exist, ok := chain.repeatedMintCache.Get(block.Header.TimeStamp); ok {
+		if exist.(*types.Block).BlockHash() != block.BlockHash() {
+			return false
+		}
+	}
+	return true
+}
+
 func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 	block := new(types.Block)
 	if err := block.Unmarshal(msg.Body()); err != nil {
+		return err
+	}
+	if ok := chain.verifyRepeatedMint(block); !ok {
+		return core.ErrRepeatedMintAtSameTime
+	}
+
+	if err := VerifyBlockTimeOut(block); err != nil {
 		return err
 	}
 
@@ -220,8 +238,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 		return core.ErrBlockExists
 	}
 
-	if ok, err := chain.consensus.VerifyBlock(block); err != nil || !ok {
-		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
+		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
 		return core.ErrFailedToVerifyWithConsensus
 	}
 
@@ -242,6 +260,11 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 
 		return nil
 	}
+
+	// if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
+	// 	logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+	// 	return core.ErrFailedToVerifyWithConsensus
+	// }
 
 	// All context-free checks pass, try to accept the block into the chain.
 	if err := chain.tryAcceptBlock(block); err != nil {
@@ -292,6 +315,12 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	parentBlock := chain.getParentBlock(block)
 	if parentBlock == nil {
 		return core.ErrParentBlockNotExist
+	}
+
+	// verify miner epoch
+	if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
+		logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+		return core.ErrFailedToVerifyWithConsensus
 	}
 
 	// The height of this block must be one more than the referenced parent block.
@@ -681,6 +710,8 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	if err := chain.WirteTxIndex(tail); err != nil {
 		return err
 	}
+
+	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
