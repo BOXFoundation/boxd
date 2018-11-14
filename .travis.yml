@@ -1,0 +1,31 @@
+# need sudo to install rocksdb
+sudo: required
+
+language: go
+
+# go mod in Makefile needs 1.11
+go:
+  - 1.11.x
+
+git:
+  # only clone the most recent commit.
+  depth: 1
+  # no need to clone submodules
+  submodules: false
+
+install:
+  # install make dependencies
+  - go get -u github.com/golang/lint/golint
+  - sudo apt-get install g++-4.8 libsnappy-dev zlib1g-dev libbz2-dev cmake-data cmake -qq
+  # install rocksdb
+  - cd
+  - git clone https://github.com/facebook/rocksdb.git
+  - cd rocksdb
+  - DEBUG_LEVEL=0 sudo make shared_lib install-shared
+  - export LD_LIBRARY_PATH=/usr/local/lib
+
+script:
+  - cd $GOPATH/src/github.com/BOXFoundation/boxd/
+  - export CGO_CFLAGS="-I/usr/local/include"
+  - export CGO_LDFLAGS="-L/usr/local/lib -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy"
+  - make
