@@ -166,6 +166,7 @@ func (cm *ConnManager) OpenedStream(network net.Network, stream net.Stream) {
 	pid := stream.Conn().RemotePeer()
 
 	cm.mutex.Lock()
+	cm.tagPeer(pid, ConnStatusTagName, int(ConnStatusConnected))
 	tagInfo, ok := cm.tagInfos[pid]
 	if ok {
 		tagInfo.Value++
@@ -264,9 +265,20 @@ func (cm *ConnManager) TrimOpenConns(ctx context.Context) {
 	//TODO: close unnecessary connections...
 	logger.Warn("TrimOpenConns was called, but not implemented.")
 	cm.mutex.Lock()
-	for p, i := range cm.tagInfos {
-		logger.Warnf("Peer %s: first seen at: %v, conn status %s, open streams %d", p.Pretty(), i.FirstSeen, ConnStatus(i.Tags[ConnStatusTagName]), i.Value)
+	var (
+		total     = 0
+		connected = 0
+		opened    = 0
+	)
+	for _, i := range cm.tagInfos {
+		total++
+		if ConnStatus(i.Tags[ConnStatusTagName]) == ConnStatusConnected {
+			connected++
+			opened += i.Value
+		}
+		//logger.Warnf("Peer %s: first seen at: %v, conn status %s, open streams %d", p.Pretty(), i.FirstSeen, ConnStatus(i.Tags[ConnStatusTagName]), i.Value)
 	}
+	logger.Infof("Peers: %d, connected: %d, opened: %d", total, connected, opened)
 	cm.mutex.Unlock()
 }
 
