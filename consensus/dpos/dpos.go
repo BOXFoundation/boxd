@@ -444,18 +444,6 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 	return nil
 }
 
-// VerifyBlock consensus verifies block.
-// func (dpos *Dpos) VerifyBlock(block *types.Block) (bool, error) {
-
-// 	if ok, err := dpos.VerifySign(block); err != nil || !ok {
-// 		return false, ErrFailedToVerifySign
-// 	}
-// 	if err := dpos.verifyMinerEpoch(block); err != nil {
-// 		return false, err
-// 	}
-// 	return true, nil
-// }
-
 // VerifyMinerEpoch verifies miner epoch.
 func (dpos *Dpos) VerifyMinerEpoch(block *types.Block) error {
 
@@ -500,6 +488,7 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 }
 
 func (dpos *Dpos) buildMinerEpoch() error {
+
 	minerEpoch := make(map[types.AddressHash]bool)
 	tail := dpos.chain.TailBlock()
 	if tail.Height == 0 {

@@ -209,7 +209,6 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	if ok := chain.verifyRepeatedMint(block); !ok {
 		return core.ErrRepeatedMintAtSameTime
 	}
-
 	if err := VerifyBlockTimeOut(block); err != nil {
 		return err
 	}
@@ -260,11 +259,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 
 		return nil
 	}
-
-	// if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
-	// 	logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
-	// 	return core.ErrFailedToVerifyWithConsensus
-	// }
 
 	// All context-free checks pass, try to accept the block into the chain.
 	if err := chain.tryAcceptBlock(block); err != nil {
