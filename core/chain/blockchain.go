@@ -67,6 +67,7 @@ type BlockChain struct {
 	LongestChainHeight        uint32
 	cache                     *lru.Cache
 	repeatedMintCache         *lru.Cache
+	heightToBlock             *lru.Cache
 	bus                       eventbus.Bus
 	orphanLock                sync.RWMutex
 	chainLock                 sync.RWMutex
@@ -99,6 +100,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	var err error
 	b.cache, _ = lru.New(512)
 	b.repeatedMintCache, _ = lru.New(512)
+	b.heightToBlock, _ = lru.New(512)
 
 	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
@@ -706,6 +708,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	}
 
 	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
+	chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
@@ -799,6 +802,10 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	if height == 0 {
 		return chain.genesis, nil
 	}
+	if block, ok := chain.heightToBlock.Get(height); ok {
+		return block.(*types.Block), nil
+	}
+
 	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {
 		return nil, err
