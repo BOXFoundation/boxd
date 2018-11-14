@@ -542,7 +542,6 @@ func (ab *addrBook) dbRemoveExpired() error {
 			var exp time.Time
 			if err := exp.UnmarshalBinary(buf); err == nil {
 				if !exp.IsZero() && exp.Before(now) {
-					logger.Debug("removing ttl key of addrbook %s", string(k))
 					if err = txn.Del(k); err != nil {
 						return err
 					}
