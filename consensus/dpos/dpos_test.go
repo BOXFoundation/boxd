@@ -35,23 +35,23 @@ var (
 		Passphrase: "1",
 	}
 
-	dpos, _      = NewDummyDpos(cfg)
-	dposMiner, _ = NewDummyDpos(cfgMiner)
-	bus          = eventbus.New()
+	dpos      = NewDummyDpos(cfg)
+	dposMiner = NewDummyDpos(cfgMiner)
+	bus       = eventbus.New()
 )
 
-func NewDummyDpos(cfg *Config) (*DummyDpos, error) {
+func NewDummyDpos(cfg *Config) *DummyDpos {
 
 	blockchain := chain.NewTestBlockChain()
 	txPool := txpool.NewTransactionPool(blockchain.Proc(), p2p.NewDummyPeer(), blockchain, bus)
-	dpos, err := NewDpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
+	dpos, _ := NewDpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
 	blockchain.Setup(dpos, nil)
 	dpos.Setup()
 	isMiner := dpos.ValidateMiner()
 	return &DummyDpos{
 		dpos:    dpos,
 		isMiner: isMiner,
-	}, err
+	}
 }
 
 func TestDpos_ValidateMiner(t *testing.T) {
@@ -101,6 +101,12 @@ func TestDpos_mint(t *testing.T) {
 
 }
 
+func TestDpos_FindMinerWithTimeStamp(t *testing.T) {
+	hash, err := dposMiner.dpos.context.periodContext.FindMinerWithTimeStamp(1541824620)
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, *hash, dposMiner.dpos.context.periodContext.period[0].addr)
+}
+
 func TestDpos_signBlock(t *testing.T) {
 
 	ensure.DeepEqual(t, dposMiner.isMiner, true)
@@ -109,14 +115,14 @@ func TestDpos_signBlock(t *testing.T) {
 	block.Header.TimeStamp = 1541824621
 	err := dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err := dposMiner.dpos.verifySign(block)
+	ok, err := dposMiner.dpos.VerifySign(block)
 	ensure.DeepEqual(t, err, ErrWrongTimeToMint)
 	ensure.DeepEqual(t, ok, false)
 
 	block.Header.TimeStamp = 1541824620
 	err = dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err = dposMiner.dpos.verifySign(block)
+	ok, err = dposMiner.dpos.VerifySign(block)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, ok, true)
 }

@@ -22,6 +22,17 @@ type LockTime struct {
 	BlockHeight uint32
 }
 
+// VerifyBlockTimeOut refuse to accept a block with wrong timestamp.
+func VerifyBlockTimeOut(block *types.Block) error {
+	now := time.Now().Unix()
+	if now-block.Header.TimeStamp > core.MaxBlockTimeOut {
+		return core.ErrBlockTimeOut
+	} else if now < block.Header.TimeStamp {
+		return core.ErrInvalidBlockTimeStamp
+	}
+	return nil
+}
+
 func validateBlock(block *types.Block, timeSource util.MedianTimeSource) error {
 	header := block.Header
 

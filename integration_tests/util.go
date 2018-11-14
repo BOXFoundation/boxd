@@ -32,7 +32,7 @@ func LoadJSONFromFile(fileName string, result interface{}) error {
 func startLocalNodes(peerCount int) ([]*os.Process, error) {
 	var processes []*os.Process
 	for i := 0; i < peerCount; i++ {
-		cfg := fmt.Sprintf("--config=../.devconfig/.box-%d.yaml", i+1)
+		cfg := fmt.Sprintf("--config=%s.box-%d.yaml", workDir, i+1)
 		args := []string{"../box", "start", cfg, "&"}
 		logger.Infof("startLocalNodes: %v", args)
 		p, err := StartProcess(args...)

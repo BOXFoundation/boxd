@@ -31,6 +31,9 @@ var (
 	ErrFailedToSetEternal          = errors.New("Failed to set eternal block")
 	ErrTokenInputsOutputNotEqual   = errors.New("Tx input tokens and output tokens unequal")
 	ErrParentBlockNotExist         = errors.New("Parent block does not exist")
+	ErrBlockTimeOut                = errors.New("The block is timeout")
+	ErrInvalidBlockTimeStamp       = errors.New("Invalid block timestamp")
+	ErrRepeatedMintAtSameTime      = errors.New("Repeated mint at same time")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
