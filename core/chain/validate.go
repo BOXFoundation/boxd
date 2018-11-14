@@ -13,7 +13,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/util"
 )
 
 // LockTime represents the relative lock-time in seconds
@@ -33,12 +32,8 @@ func VerifyBlockTimeOut(block *types.Block) error {
 	return nil
 }
 
-func validateBlock(block *types.Block, timeSource util.MedianTimeSource) error {
+func validateBlock(block *types.Block) error {
 	header := block.Header
-
-	if err := validateBlockHeader(header, timeSource); err != nil {
-		return err
-	}
 
 	// Can't have no tx
 	numTx := len(block.Txs)
@@ -114,20 +109,6 @@ func validateBlock(block *types.Block, timeSource util.MedianTimeSource) error {
 				"operations - got %v, max %v", totalSigOpCnt, maxBlockSigOpCnt)
 			return core.ErrTooManySigOps
 		}
-	}
-
-	return nil
-}
-
-func validateBlockHeader(header *types.BlockHeader, timeSource util.MedianTimeSource) error {
-
-	timestamp := time.Unix(0, header.TimeStamp)
-
-	// Ensure the block time is not too far in the future.
-	maxTimestamp := timeSource.AdjustedTime().Add(time.Second * MaxTimeOffsetSeconds)
-	if timestamp.After(maxTimestamp) {
-		logger.Errorf("block timestamp of %v is too far in the future", header.TimeStamp)
-		return core.ErrTimeTooNew
 	}
 
 	return nil

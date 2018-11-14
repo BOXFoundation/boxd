@@ -37,14 +37,9 @@ const (
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
 	LockTimeThreshold    = 5e8 // Tue Nov 5 00:53:20 1985 UTC
-	medianTimeBlocks     = 11
-	sequenceLockTimeMask = 0x0000ffff
 	PeriodDuration       = 3600 * 24 * 100 / 5
 
-	sequenceLockTimeIsSeconds   = 1 << 22
-	sequenceLockTimeGranularity = 9
-	unminedHeight               = 0x7fffffff
-	MaxBlocksPerSync            = 1024
+	MaxBlocksPerSync = 1024
 
 	metricsLoopInterval = 2 * time.Second
 	BlockFilterCapacity = 100000
@@ -244,7 +239,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 		return core.ErrFailedToVerifyWithConsensus
 	}
 
-	if err := validateBlock(block, util.NewMedianTime()); err != nil {
+	if err := validateBlock(block); err != nil {
 		logger.Errorf("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
 		return err
 	}
@@ -458,20 +453,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		return core.ErrBadCoinbaseValue
 	}
 
-	// Enforce the sequence number based relative lock-times.
-	medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
-	for _, tx := range transactions {
-		// A transaction can only be included in a block
-		// if all of its input sequence locks are active.
-		lockTime, err := chain.calcLockTime(utxoSet, block, tx)
-		if err != nil {
-			return err
-		}
-		if !sequenceLockActive(lockTime, block.Height, medianTime) {
-			logger.Errorf("block contains transaction whose input sequence locks are not met")
-			return core.ErrUnfinalizedTx
-		}
-	}
 	if err := chain.applyBlock(block, utxoSet); err != nil {
 		return err
 	}

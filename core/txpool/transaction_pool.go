@@ -271,8 +271,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 		return core.ErrOrphanTransaction
 	}
 
-	// TODO: sequence lock
-
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
 	txFee, err := chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
