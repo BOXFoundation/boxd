@@ -309,6 +309,5 @@ func (s *DynamicPeerScore) Record(event eventbus.BusEvent) {
 	case eventbus.PeerDisconnEvent:
 		s.disconnCounter++
 	default:
-		logger.Debugf("No such event found: %v", event)
 	}
 }

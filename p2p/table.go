@@ -125,6 +125,9 @@ func (t *Table) peerDiscover() {
 	if len(unestablishedID) < MaxPeerCountToSyncRouteTable/4 {
 		peerIDs = append(peerIDs, unestablishedID...)
 		peerIDs = append(peerIDs, establishedID[:MaxPeerCountToSyncRouteTable-len(unestablishedID)]...)
+	} else if len(establishedID) > MaxPeerCountToSyncRouteTable {
+		peerIDs = append(peerIDs, unestablishedID[:MaxPeerCountToSyncRouteTable/4]...)
+		peerIDs = append(peerIDs, establishedID[:MaxPeerCountToSyncRouteTable-len(peerIDs)]...)
 	} else {
 		peerIDs = append(peerIDs, establishedID...)
 		peerIDs = append(peerIDs, unestablishedID[:MaxPeerCountToSyncRouteTable-len(establishedID)]...)
