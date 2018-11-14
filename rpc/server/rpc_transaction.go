@@ -42,7 +42,7 @@ func (s *txServer) GetTransactionPool(ctx context.Context, req *rpcpb.GetTransac
 
 		respTxs = append(respTxs, respTx.(*corepb.Transaction))
 	}
-	return &rpcpb.GetTransactionsResponse{respTxs}, nil
+	return &rpcpb.GetTransactionsResponse{Txs: respTxs}, nil
 }
 
 func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceRequest) (*rpcpb.GetFeePriceResponse, error) {
