@@ -17,7 +17,7 @@ import (
 	goprocessctx "github.com/jbenet/goprocess/context"
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
-	"github.com/libp2p/go-libp2p-peerstore"
+	peerstore "github.com/libp2p/go-libp2p-peerstore"
 )
 
 // const
@@ -89,6 +89,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 
 		msg, err := conn.readMessage(conn.stream)
 		if err != nil {
+			logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
 			return
 		}
 		//logger.Debugf("Receiving message %02x from peer %s", msg.Code(), conn.remotePeer.Pretty())
@@ -161,7 +162,9 @@ func (conn *Conn) heartBeatService(p goprocess.Process) {
 	for {
 		select {
 		case <-t.C:
-			conn.Ping()
+			if err := conn.Ping(); err != nil {
+				logger.Errorf("Failed to ping peer. PeerID: %d", conn.remotePeer.Pretty())
+			}
 		case <-p.Closing():
 			logger.Debug("closing heart beat service with ", conn.remotePeer.Pretty())
 			return
@@ -241,6 +244,7 @@ func (conn *Conn) OnPeerDiscover(body []byte) error {
 	}
 	body, err := proto.Marshal(msg)
 	if err != nil {
+		logger.Errorf("[OnPeerDiscover]Failed to handle PeerDiscover message. Err: %s", err.Error())
 		return err
 	}
 	return conn.Write(PeerDiscoverReply, body)
@@ -318,7 +322,7 @@ func (conn *Conn) establish() {
 	pid := conn.remotePeer
 	conn.peer.conns.Store(pid, conn)
 	conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerConnEvent)
-	logger.Info("Succed to establish connection with peer ", conn.remotePeer.Pretty())
+	logger.Info("Succeed to establish connection with peer ", conn.remotePeer.Pretty())
 }
 
 // check if the message is valid. Called immediately after receiving a new message.

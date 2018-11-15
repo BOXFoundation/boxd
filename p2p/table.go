@@ -134,6 +134,9 @@ func (t *Table) peerDiscover() {
 	}
 
 	for _, v := range peerIDs {
+		if v.Pretty() == t.peer.id.Pretty() {
+			continue
+		}
 		go t.lookup(v)
 	}
 }
@@ -183,6 +186,7 @@ func (t *Table) AddPeerToTable(conn *Conn) {
 // AddPeers add peers to route table
 func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 	if len(peers.Peers) > MaxPeerCountToReplyPeerDiscover {
+		logger.Errorf("Add too many peers. peers num: %d", len(peers.Peers))
 		conn.Close()
 	}
 	for _, v := range peers.Peers {
