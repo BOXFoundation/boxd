@@ -98,9 +98,6 @@ func (t *Table) peerDiscover() {
 	if len(all) <= MaxPeerCountToSyncRouteTable {
 		// TODO sort by peer score
 		for _, v := range all {
-			if v.Pretty() == t.peer.id.Pretty() {
-				continue
-			}
 			go t.lookup(v)
 		}
 		return
@@ -139,6 +136,9 @@ func (t *Table) peerDiscover() {
 }
 
 func (t *Table) lookup(pid peer.ID) {
+	if pid.Pretty() == t.peer.id.Pretty() {
+		return
+	}
 	var conn *Conn
 	if c, ok := t.peer.conns.Load(pid); ok {
 		// established peer
