@@ -37,14 +37,9 @@ const (
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
 	LockTimeThreshold    = 5e8 // Tue Nov 5 00:53:20 1985 UTC
-	medianTimeBlocks     = 11
-	sequenceLockTimeMask = 0x0000ffff
 	PeriodDuration       = 3600 * 24 * 100 / 5
 
-	sequenceLockTimeIsSeconds   = 1 << 22
-	sequenceLockTimeGranularity = 9
-	unminedHeight               = 0x7fffffff
-	MaxBlocksPerSync            = 1024
+	MaxBlocksPerSync = 1024
 
 	metricsLoopInterval = 2 * time.Second
 	BlockFilterCapacity = 100000
@@ -67,6 +62,7 @@ type BlockChain struct {
 	LongestChainHeight        uint32
 	cache                     *lru.Cache
 	repeatedMintCache         *lru.Cache
+	heightToBlock             *lru.Cache
 	bus                       eventbus.Bus
 	orphanLock                sync.RWMutex
 	chainLock                 sync.RWMutex
@@ -99,6 +95,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	var err error
 	b.cache, _ = lru.New(512)
 	b.repeatedMintCache, _ = lru.New(512)
+	b.heightToBlock, _ = lru.New(512)
 
 	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
@@ -242,7 +239,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 		return core.ErrFailedToVerifyWithConsensus
 	}
 
-	if err := validateBlock(block, util.NewMedianTime()); err != nil {
+	if err := validateBlock(block); err != nil {
 		logger.Errorf("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
 		return err
 	}
@@ -456,20 +453,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		return core.ErrBadCoinbaseValue
 	}
 
-	// Enforce the sequence number based relative lock-times.
-	medianTime := chain.calcPastMedianTime(chain.getParentBlock(block))
-	for _, tx := range transactions {
-		// A transaction can only be included in a block
-		// if all of its input sequence locks are active.
-		lockTime, err := chain.calcLockTime(utxoSet, block, tx)
-		if err != nil {
-			return err
-		}
-		if !sequenceLockActive(lockTime, block.Height, medianTime) {
-			logger.Errorf("block contains transaction whose input sequence locks are not met")
-			return core.ErrUnfinalizedTx
-		}
-	}
 	if err := chain.applyBlock(block, utxoSet); err != nil {
 		return err
 	}
@@ -706,6 +689,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error
 	}
 
 	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
+	chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
@@ -799,6 +783,10 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	if height == 0 {
 		return chain.genesis, nil
 	}
+	if block, ok := chain.heightToBlock.Get(height); ok {
+		return block.(*types.Block), nil
+	}
+
 	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {
 		return nil, err

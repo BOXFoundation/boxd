@@ -7,8 +7,6 @@ package chain
 import (
 	"bytes"
 	"math"
-	"sort"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -112,74 +110,6 @@ func countSigOps(tx *types.Transaction) int {
 	}
 
 	return totalSigOps
-}
-
-func (chain *BlockChain) calcPastMedianTime(block *types.Block) time.Time {
-
-	timestamps := make([]int64, medianTimeBlocks)
-	i := 0
-	for iterBlock := block; i < medianTimeBlocks && iterBlock != nil; i++ {
-		timestamps[i] = iterBlock.Header.TimeStamp
-		iterBlock = chain.getParentBlock(iterBlock)
-	}
-	timestamps = timestamps[:i]
-	sort.Sort(timeSorter(timestamps))
-	medianTimestamp := timestamps[i/2]
-	return time.Unix(medianTimestamp, 0)
-}
-
-func sequenceLockActive(timeLock *LockTime, blockHeight uint32, medianTimePast time.Time) bool {
-	return timeLock.Seconds < medianTimePast.Unix() && timeLock.BlockHeight < blockHeight
-}
-
-func (chain *BlockChain) calcLockTime(utxoSet *UtxoSet, block *types.Block, tx *types.Transaction) (*LockTime, error) {
-
-	lockTime := &LockTime{Seconds: -1, BlockHeight: 0}
-
-	// lock-time does not apply to coinbase tx.
-	if IsCoinBase(tx) {
-		return lockTime, nil
-	}
-
-	for _, txIn := range tx.Vin {
-		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil {
-			logger.Errorf("Failed to calc lockTime, output %+v does not exist or has already been spent", txIn.PrevOutPoint)
-			return lockTime, core.ErrMissingTxOut
-		}
-
-		utxoHeight := utxo.BlockHeight
-		sequenceNum := txIn.Sequence
-		relativeLock := int64(sequenceNum & sequenceLockTimeMask)
-
-		if sequenceNum&sequenceLockTimeIsSeconds == sequenceLockTimeIsSeconds {
-
-			prevInputHeight := utxoHeight - 1
-			if prevInputHeight < 0 {
-				prevInputHeight = 0
-			}
-			// ancestor := chain.ancestor(block, prevInputHeight)
-			ancestor, err := chain.LoadBlockByHeight(prevInputHeight)
-			if err != nil {
-				return nil, err
-			}
-			medianTime := chain.calcPastMedianTime(ancestor)
-
-			timeLockSeconds := (relativeLock << sequenceLockTimeGranularity) - 1
-			timeLock := medianTime.Unix() + timeLockSeconds
-			if timeLock > lockTime.Seconds {
-				lockTime.Seconds = timeLock
-			}
-		} else {
-
-			blockHeight := utxoHeight + uint32(relativeLock-1)
-			if blockHeight > lockTime.BlockHeight {
-				lockTime.BlockHeight = blockHeight
-			}
-		}
-	}
-
-	return lockTime, nil
 }
 
 // MarshalTxIndex writes Tx height and index to bytes

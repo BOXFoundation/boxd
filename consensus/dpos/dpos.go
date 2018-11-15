@@ -49,7 +49,6 @@ type Dpos struct {
 	proc        goprocess.Process
 	cfg         *Config
 	miner       *wallet.Account
-	minerEpoch  map[types.AddressHash]bool
 	enableMint  bool
 	disableMint bool
 }
@@ -57,12 +56,11 @@ type Dpos struct {
 // NewDpos new a dpos implement.
 func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Dpos, error) {
 	dpos := &Dpos{
-		chain:      chain,
-		txpool:     txpool,
-		net:        net,
-		proc:       goprocess.WithParent(parent),
-		minerEpoch: make(map[types.AddressHash]bool),
-		cfg:        cfg,
+		chain:  chain,
+		txpool: txpool,
+		net:    net,
+		proc:   goprocess.WithParent(parent),
+		cfg:    cfg,
 	}
 
 	context := &ConsensusContext{}
@@ -72,10 +70,6 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		return nil, err
 	}
 	context.periodContext = period
-
-	if err := dpos.buildMinerEpoch(); err != nil {
-		return nil, err
-	}
 
 	return dpos, nil
 }
@@ -447,19 +441,30 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 // VerifyMinerEpoch verifies miner epoch.
 func (dpos *Dpos) VerifyMinerEpoch(block *types.Block) error {
 
+	tail := dpos.chain.TailBlock()
 	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
 	if err != nil {
 		return err
 	}
-	if _, ok := dpos.minerEpoch[*miner]; ok {
-		if len(dpos.minerEpoch) <= 2*PeriodSize/3 {
-			logger.Errorf("Failed to verify miner epoch. miner num: %d", len(dpos.minerEpoch))
-			return ErrInvalidMinerEpoch
-		} else if len(dpos.minerEpoch) == PeriodSize {
-			dpos.minerEpoch = make(map[types.AddressHash]bool)
+
+	for idx := 0; idx < 2*PeriodSize/3; {
+		height := tail.Height - uint32(idx)
+		if height == 0 {
+			break
 		}
+		block, err := dpos.chain.LoadBlockByHeight(height)
+		if err != nil {
+			return err
+		}
+		target, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
+		if err != nil {
+			return err
+		}
+		if target == miner {
+			return ErrInvalidMinerEpoch
+		}
+		idx++
 	}
-	dpos.minerEpoch[*miner] = true
 	return nil
 }
 
@@ -487,32 +492,32 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 	return false, nil
 }
 
-func (dpos *Dpos) buildMinerEpoch() error {
+// func (dpos *Dpos) buildMinerEpoch() error {
 
-	minerEpoch := make(map[types.AddressHash]bool)
-	tail := dpos.chain.TailBlock()
-	if tail.Height == 0 {
-		dpos.minerEpoch = minerEpoch
-		return nil
-	}
-	for idx := 0; idx < PeriodSize; {
-		height := tail.Height - uint32(idx)
-		if height == 0 {
-			break
-		}
-		block, err := dpos.chain.LoadBlockByHeight(height)
-		if err != nil {
-			return err
-		}
-		miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
-		if err != nil {
-			return err
-		}
-		if _, ok := dpos.minerEpoch[*miner]; !ok {
-			minerEpoch[*miner] = true
-		}
-		idx++
-	}
-	dpos.minerEpoch = minerEpoch
-	return nil
-}
+// 	minerEpoch := make(map[types.AddressHash]bool)
+// 	tail := dpos.chain.TailBlock()
+// 	if tail.Height == 0 {
+// 		dpos.minerEpoch = minerEpoch
+// 		return nil
+// 	}
+// 	for idx := 0; idx < PeriodSize; {
+// 		height := tail.Height - uint32(idx)
+// 		if height == 0 {
+// 			break
+// 		}
+// 		block, err := dpos.chain.LoadBlockByHeight(height)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if _, ok := dpos.minerEpoch[*miner]; !ok {
+// 			minerEpoch[*miner] = true
+// 		}
+// 		idx++
+// 	}
+// 	dpos.minerEpoch = minerEpoch
+// 	return nil
+// }
