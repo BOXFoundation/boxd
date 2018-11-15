@@ -6,6 +6,7 @@ package chain
 
 import (
 	"bytes"
+	"github.com/BOXFoundation/boxd/core/pb"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -23,6 +24,24 @@ func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
 		utxoMap: make(map[types.OutPoint]*types.UtxoWrap),
 	}
+}
+
+// Copy makes a deep copy instance of UtxoSet
+func (u *UtxoSet) Copy() *UtxoSet {
+	copy := NewUtxoSet()
+	for outPoint, wrapper := range u.utxoMap {
+		copy.utxoMap[outPoint] = &types.UtxoWrap{
+			BlockHeight: wrapper.BlockHeight,
+			IsCoinBase:  wrapper.IsCoinBase,
+			IsSpent:     wrapper.IsSpent,
+			IsModified:  wrapper.IsModified,
+			Output: &corepb.TxOut{
+				Value:        wrapper.Output.Value,
+				ScriptPubKey: wrapper.Output.ScriptPubKey,
+			},
+		}
+	}
+	return copy
 }
 
 // FindUtxo returns information about an outpoint.
@@ -298,10 +317,10 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 		for _, txIn := range tx.Vin {
 			preHash := &txIn.PrevOutPoint.Hash
 			if index, ok := txs[*preHash]; ok && i >= index {
-				originTx := block.Txs[index]
-				for idx := range tx.Vout {
-					u.AddUtxo(originTx, uint32(idx), block.Height)
-				}
+				//originTx := block.Txs[index]
+				//for idx := range tx.Vout {
+				//	u.AddUtxo(originTx, uint32(idx), block.Height)
+				//}
 				continue
 			}
 			if val, ok := u.utxoMap[txIn.PrevOutPoint]; ok && val != nil {
