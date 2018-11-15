@@ -208,9 +208,9 @@ func (t *Table) addPeerInfo(prettyID string, addrStr []string) error {
 		}
 	}
 	if t.routeTable.Find(pid) != "" {
-		t.peerStore.SetAddrs(pid, addrs, peerstore.PermanentAddrTTL)
+		t.peerStore.SetAddrs(pid, addrs, peerstore.OwnObservedAddrTTL)
 	} else {
-		t.peerStore.AddAddrs(pid, addrs, peerstore.PermanentAddrTTL)
+		t.peerStore.AddAddrs(pid, addrs, peerstore.OwnObservedAddrTTL)
 
 	}
 	t.routeTable.Update(pid)
