@@ -73,7 +73,7 @@ func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
 
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
-		logger.Infof("send message[0x%X] zeroHash to peer %s for in sync status",
+		logger.Infof("now be in sync, send message[0x%X] zeroHash to peer %s",
 			p2p.LocateForkPointResponse, msg.From().Pretty())
 		return sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointResponse,
 			newSyncHeaders(zeroHash), msg.From())
@@ -90,10 +90,9 @@ func (sm *SyncManager) onLocateRequest(msg p2p.Message) error {
 			err, lh.Hashes)
 		return err
 	}
-	logger.Infof("onLocateRequest send %d hashes", len(hashes))
 	// send SyncHeaders hashes to active end
 	sh := newSyncHeaders(hashes...)
-	logger.Infof("send message[0x%X] (%d hashes) to peer %s",
+	logger.Infof("onLocateRequest send message[0x%X] (%d hashes) to peer %s",
 		p2p.LocateForkPointResponse, len(hashes), msg.From().Pretty())
 	return sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointResponse, sh, msg.From())
 }
@@ -114,8 +113,8 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	sh := new(SyncHeaders)
 	if err := sh.Unmarshal(msg.Body()); err != nil ||
 		(len(sh.Hashes) == 1 && *sh.Hashes[0] == *zeroHash) {
-		logger.Infof("onLocateResponse unmarshal msg.Body[%+v] error: %v",
-			msg.Body(), err)
+		logger.Infof("onLocateResponse unmarshal error: %v or msg.From is in "+
+			"sync(hashes[0]: %v)", err, sh.Hashes[0])
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushErrFlagChan(sm.locateErrCh, errFlagUnmarshal)
 		return err
@@ -147,7 +146,7 @@ func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
 	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
 	// not to been sync when the node is in sync status
 	if sm.getStatus() != freeStatus {
-		logger.Infof("send message[0x%X] zeroHash to peer %s",
+		logger.Infof("now be in sync, send message[0x%X] zeroHash to peer %s",
 			p2p.LocateCheckResponse, msg.From().Pretty())
 		return sm.p2pNet.SendMessageToPeer(p2p.LocateCheckResponse,
 			newSyncCheckHash(zeroHash), msg.From())
@@ -212,31 +211,31 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 
 func (sm *SyncManager) onBlocksRequest(msg p2p.Message) (err error) {
 	sm.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.SyncMsgEvent)
-	// not to been sync when the node is in sync status
-	if sm.getStatus() != freeStatus {
-		logger.Infof("send message[0x%X] maxUint32 Idx blocks body to peer %s",
-			p2p.BlockChunkResponse, msg.From().Pretty())
-		return sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse,
-			newSyncBlocks(math.MaxUint32), msg.From())
-	}
 	//
-	sb := newSyncBlocks(0)
+	sb := newSyncBlocks(math.MaxUint32)
 	defer func() {
-		logger.Infof("send message[0x%X] %d blocks to peer %s",
-			p2p.BlockChunkResponse, len(sb.Blocks), msg.From().Pretty())
+		logger.Infof("send message[0x%X] %d blocks with idx %d to peer %s",
+			p2p.BlockChunkResponse, len(sb.Blocks), sb.Idx, msg.From().Pretty())
 		err = sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse, sb, msg.From())
 	}()
 	// parse response
 	fbh := newFetchBlockHeaders(0, nil, 0)
-	err = fbh.Unmarshal(msg.Body())
-	if err != nil {
+	if err = fbh.Unmarshal(msg.Body()); err != nil {
 		logger.Warnf("[onBlocksRequest]Failed to unmarshal blockHeaders. Err: %v", err)
 		return
+	}
+	// not to been sync when the node is in sync status
+	if sm.getStatus() != freeStatus {
+		logger.Infof("now be in sync, send message[0x%X] without block body to "+
+			"peer %s", p2p.BlockChunkResponse, msg.From().Pretty())
+		return sm.p2pNet.SendMessageToPeer(p2p.BlockChunkResponse,
+			newSyncBlocks(fbh.Idx), msg.From())
 	}
 	// fetch blocks from local main chain
 	blocks, err := sm.chain.FetchNBlockAfterSpecificHash(*fbh.BeginHash, fbh.Length)
 	if err != nil {
-		logger.Warnf("[onBlocksRequest]Failed to fetch blocks after specific hash. BlockHeaders: %+v, Err: %v", fbh, err)
+		logger.Warnf("[onBlocksRequest]Failed to fetch blocks after specific hash. "+
+			"BlockHeaders: %+v, Err: %v", fbh, err)
 		return
 	}
 	sb = newSyncBlocks(fbh.Idx, blocks...)
@@ -258,22 +257,19 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	}
 	// parse response
 	sb := new(SyncBlocks)
-	if err := sb.Unmarshal(msg.Body()); err != nil || len(sb.Blocks) == 0 ||
-		sb.Idx == math.MaxUint32 {
+	if err := sb.Unmarshal(msg.Body()); err != nil || sb.Idx == math.MaxUint32 {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushEmptyChan(sm.syncErrCh)
-		return fmt.Errorf("Failed to unmarshal syncblocks. Err: %v or receive no blocks(%d) "+
-			"or msg.From is in sync(idx: %d)", err, len(sb.Blocks), sb.Idx)
+		return fmt.Errorf("Failed to unmarshal syncblocks. Err: %v or msg.From is "+
+			"in wrong status(Idx: %d)", err, sb.Idx)
 	}
-	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
-	logger.Infof("has sync %d/%d blocks, current peer[%s]",
-		count, len(sm.fetchHashes), pid.Pretty())
 	maxChanLen := (len(sm.fetchHashes) + syncBlockChunkSize - 1) / syncBlockChunkSize
 	// check blocks merkle root hash
 	if fbh, ok := sm.checkBlocksAndClearInfo(sb, pid); !ok {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		if fbh != nil {
-			if len(sm.blocksErrCh) == maxChanLen {
+			logger.Warnf("onBlocksRequest check failded for %+v", fbh)
+			if len(sm.blocksErrCh) >= maxChanLen {
 				logger.Warnf("blocksErrCh overflow for len: %d", len(sm.blocksErrCh))
 				return nil
 			}
@@ -282,12 +278,15 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		return fmt.Errorf("onBlocksResponse check failed from peer: %s, "+
 			"SyncBlocks: %+v", pid.Pretty(), sb)
 	}
-	sm.stalePeers.Store(pid, blocksDonePeerStatus)
-	if len(sm.blocksDoneCh) == maxChanLen {
+	if len(sm.blocksDoneCh) >= maxChanLen {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		logger.Warnf("blocksDownCh overflow for len: %d", len(sm.blocksDoneCh))
 		return nil
 	}
+	sm.stalePeers.Store(pid, blocksDonePeerStatus)
+	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
+	logger.Infof("has sync %d/%d blocks, current peer[%s]",
+		count, len(sm.fetchHashes), pid.Pretty())
 	tryPushEmptyChan(sm.blocksDoneCh)
 	// process blocks
 	go func() {

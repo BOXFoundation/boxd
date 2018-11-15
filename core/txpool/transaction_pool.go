@@ -42,7 +42,7 @@ type TransactionPool struct {
 	txNotifee           *p2p.Notifiee
 	proc                goprocess.Process
 	chain               *chain.BlockChain
-	hashToTx            map[crypto.HashType]*TxWrap
+	hashToTx            map[crypto.HashType]*chain.TxWrap
 	bus                 eventbus.Bus
 	// outpoint -> tx spending it; outpoints can be arbitrary, valid (exists and unspent) or invalid
 	outPointToTx   map[types.OutPoint]*types.Transaction
@@ -55,14 +55,6 @@ type TransactionPool struct {
 	outPointToOrphan map[types.OutPoint]map[crypto.HashType]*types.Transaction
 }
 
-// TxWrap wrap transaction
-type TxWrap struct {
-	Tx             *types.Transaction
-	AddedTimestamp int64
-	Height         uint32
-	FeePerKB       uint64
-}
-
 // NewTransactionPool new a transaction pool.
 func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.BlockChain, bus eventbus.Bus) *TransactionPool {
 	return &TransactionPool{
@@ -72,7 +64,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		notifiee:            notifiee,
 		chain:               c,
 		bus:                 bus,
-		hashToTx:            make(map[crypto.HashType]*TxWrap),
+		hashToTx:            make(map[crypto.HashType]*chain.TxWrap),
 		hashToOrphanTx:      make(map[crypto.HashType]*types.Transaction),
 		outPointToOrphan:    make(map[types.OutPoint]map[crypto.HashType]*types.Transaction),
 		outPointToTx:        make(map[types.OutPoint]*types.Transaction),
@@ -260,18 +252,18 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 		return err
 	}
 
-	utxoSet, err := tx_pool.getTxUtxoSet(tx)
+	utxoSet, err := chain.GetExtendedTxUtxoSet(tx, tx_pool.chain.DB(), tx_pool.hashToTx)
 	if err != nil {
+		logger.Errorf("Could not get extended utxo set for tx %v", txHash)
 		return err
 	}
 
-	// Add orphan transaction
-	if tx_pool.isOrphan(utxoSet, tx) {
+	// A tx is an orphan if any of its spending utxo does not exist
+	if !utxoSet.IsTxFunded(tx) {
+		// Add orphan transaction
 		tx_pool.addOrphan(tx)
 		return core.ErrOrphanTransaction
 	}
-
-	// TODO: sequence lock
 
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
@@ -333,18 +325,6 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 	return exists
 }
 
-// A tx is an orphan if any of its spending utxo does not exist
-func (tx_pool *TransactionPool) isOrphan(utxoSet *chain.UtxoSet, tx *types.Transaction) bool {
-	for _, txIn := range tx.Vin {
-		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsSpent {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
 	// TODO:
 	return nil
@@ -357,25 +337,6 @@ func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) erro
 		}
 	}
 	return nil
-}
-
-func (tx_pool *TransactionPool) getTxUtxoSet(tx *types.Transaction) (*chain.UtxoSet, error) {
-	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadTxUtxos(tx, tx_pool.chain.DB()); err != nil {
-		return nil, err
-	}
-
-	// Outputs of existing txs in main pool can also be spent
-	for _, txIn := range tx.Vin {
-		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo != nil && !utxo.IsSpent {
-			continue
-		}
-		if poolTxWrap, exists := tx_pool.hashToTx[txIn.PrevOutPoint.Hash]; exists {
-			utxoSet.AddUtxo(poolTxWrap.Tx, txIn.PrevOutPoint.Index, poolTxWrap.Height)
-		}
-	}
-	return utxoSet, nil
 }
 
 // ProcessOrphans used to handle orphan transactions
@@ -426,7 +387,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feePerKB uint64) {
 	txHash, _ := tx.TxHash()
 
-	txWrap := &TxWrap{
+	txWrap := &chain.TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
@@ -544,8 +505,8 @@ func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) 
 }
 
 // GetAllTxs returns all transactions in mempool
-func (tx_pool *TransactionPool) GetAllTxs() []*TxWrap {
-	txs := make([]*TxWrap, len(tx_pool.hashToTx))
+func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
+	txs := make([]*chain.TxWrap, len(tx_pool.hashToTx))
 	i := 0
 	for _, tx := range tx_pool.hashToTx {
 		txs[i] = tx

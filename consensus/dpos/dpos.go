@@ -232,8 +232,8 @@ func (dpos *Dpos) mintBlock() error {
 
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 
-	txi := queue.Items(i).(*txpool.TxWrap)
-	txj := queue.Items(j).(*txpool.TxWrap)
+	txi := queue.Items(i).(*chain.TxWrap)
+	txj := queue.Items(j).(*chain.TxWrap)
 	if txi.FeePerKB == txj.FeePerKB {
 		return txi.AddedTimestamp < txj.AddedTimestamp
 	}
@@ -241,20 +241,31 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 }
 
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs() *util.PriorityQueue {
+func (dpos *Dpos) sortPendingTxs() []*chain.TxWrap {
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := dpos.txpool.GetAllTxs()
 	for _, pendingTx := range pendingTxs {
 		// place onto heap sorted by FeePerKB
 		heap.Push(pool, pendingTx)
 	}
-	return pool
+
+	var sortedTxs []*chain.TxWrap
+	for pool.Len() > 0 {
+		txWrap := heap.Pop(pool).(*chain.TxWrap)
+		sortedTxs = append(sortedTxs, txWrap)
+	}
+	return sortedTxs
 }
 
 // PackTxs packed txs and add them to block.
 func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
-	pool := dpos.sortPendingTxs()
+	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
+	// otherwise the former's utxo is missing
+	sortedTxs := dpos.sortPendingTxs()
+	// if i-th sortedTxs is packed into the block
+	txPacked := make([]bool, len(sortedTxs))
+
 	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
@@ -265,22 +276,47 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
 
+	spendableTxs := make(map[crypto.HashType]*chain.TxWrap)
+
 PackingTxs:
 	for {
 		select {
 		case <-remainTimer.C:
 			break PackingTxs
 		default:
-			for pool.Len() > 0 {
-				txWrap := heap.Pop(pool).(*txpool.TxWrap)
-				if err := dpos.prepareCandidateContext(txWrap.Tx); err != nil {
-					// TODO: abandon the error tx
-					continue
+			found := true
+			for found {
+				found = false
+				for i, txWrap := range sortedTxs {
+					if txPacked[i] {
+						continue
+					}
+
+					if err := dpos.prepareCandidateContext(txWrap.Tx); err != nil {
+						// TODO: abandon the error tx
+						continue
+					}
+
+					txHash, _ := txWrap.Tx.TxHash()
+					utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
+					if err != nil {
+						logger.Errorf("Could not get extended utxo set for tx %v", txHash)
+						continue
+					}
+					// This is to ensure within mempool, a parent tx is packed before its children txs
+					if !utxoSet.IsTxFunded(txWrap.Tx) {
+						// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
+						continue
+					}
+					spendableTxs[*txHash] = txWrap
+					blockTxns = append(blockTxns, txWrap.Tx)
+					txPacked[i] = true
+					found = true
 				}
-				blockTxns = append(blockTxns, txWrap.Tx)
 			}
 		}
 	}
+
 	candidateHash, err := dpos.context.candidateContext.CandidateContextHash()
 	if err != nil {
 		return err
