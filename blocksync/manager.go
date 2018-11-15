@@ -179,8 +179,8 @@ func (sm *SyncManager) startSync() {
 	p2p.UpdateSynced(false)
 	// prevent startSync being executed again
 	sm.setStatus(locateStatus)
-	// sleep 5s to wait for connections to establish
-	time.Sleep(10 * time.Second)
+	// sleep 1s to wait for connections to establish
+	time.Sleep(time.Second)
 	//
 	defer func() {
 		sm.consensus.RecoverMint()
