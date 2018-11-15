@@ -7,6 +7,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -28,6 +29,23 @@ func init() {
 
 type ctlserver struct {
 	server GRPCServer
+}
+
+func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
+	bus := s.server.GetEventBus()
+	ch := make(chan []pstore.NodeInfo)
+	bus.Send(eventbus.TopicGetAddressBook, ch)
+	defer close(ch)
+	nodes := <-ch
+	resp := &rpcpb.GetNodeInfoResponse{}
+	for _, n := range nodes {
+		resp.Nodes = append(resp.Nodes, &rpcpb.Node{
+			Id:    n.PeerID.Pretty(),
+			Addrs: n.Addr,
+			Ttl:   n.TTL.String(),
+		})
+	}
+	return resp, nil
 }
 
 // SetDebugLevel implements SetDebugLevel

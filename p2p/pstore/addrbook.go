@@ -6,6 +6,8 @@ package pstore
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -48,6 +50,15 @@ type addrBook struct {
 	proc     goprocess.Process
 	store    storage.Table
 	interval time.Duration
+}
+
+// NodeInfo contains status info about a peer, including peer id, protocol, ip
+// addresses and ttl
+type NodeInfo struct {
+	TTL    time.Duration
+	PeerID peer.ID
+	Addr   []string
+	Valid  bool
 }
 
 type ttlWriteMode int
@@ -100,8 +111,34 @@ func NewAddrBook(parent goprocess.Process, s storage.Table, bus eventbus.Bus, ca
 	if cacheSize > 0 {
 		ab.cache, _ = lru.NewARC(cacheSize)
 	}
+	ab.initBusListener()
 
 	return ab
+}
+
+func (ab *addrBook) initBusListener() {
+	ab.bus.Reply(eventbus.TopicGetAddressBook, func(out chan<- []NodeInfo) {
+		var infos []NodeInfo
+		peers := ab.PeersWithAddrs()
+		for _, p := range peers {
+			info := NodeInfo{
+				TTL:    0,
+				PeerID: p,
+				Addr:   []string{},
+			}
+			addrs := ab.Addrs(p)
+			for _, addr := range addrs {
+				info.Addr = append(info.Addr, addr.String())
+			}
+			ttl, err := ab.dbGetTTL(p)
+			info.Valid = err == nil
+			if info.Valid {
+				info.TTL = ttl
+			}
+			infos = append(infos, info)
+		}
+		out <- infos
+	}, false)
 }
 
 func (ab *addrBook) Run() error {
@@ -501,6 +538,37 @@ func (ab *addrBook) dbUpdateTTL(p peer.ID, oldTTL time.Duration, newTTL time.Dur
 	}
 
 	return txn.Commit()
+}
+
+func (ab *addrBook) dbGetTTL(p peer.ID) (time.Duration, error) {
+	var (
+		prefix = abBase.ChildString(p.Pretty())
+	)
+	keys := ab.store.KeysWithPrefix(prefix.Bytes())
+	if len(keys) == 0 {
+		return time.Duration(0), fmt.Errorf("no db record found for peer ttl")
+	}
+	var exps []*time.Time
+	for _, k := range keys {
+		ttlKey := ttlBase.Child(key.NewKeyFromBytes(k))
+		buf, err := ab.store.Get(ttlKey.Bytes())
+		if err != nil {
+			return time.Duration(0), err
+		}
+		exp := new(time.Time)
+		if err := exp.UnmarshalBinary(buf); err != nil {
+			return time.Duration(0), err
+		}
+		exps = append(exps, exp)
+	}
+	sort.Slice(exps, func(i, j int) bool {
+		return exps[i].After(*exps[j])
+	})
+	now := time.Now()
+	if exps[0].After(now) {
+		return exps[0].Sub(now), nil
+	}
+	return time.Duration(0), fmt.Errorf("peer expired")
 }
 
 // dbDeleteIter removes all entries whose keys are prefixed with the argument,
