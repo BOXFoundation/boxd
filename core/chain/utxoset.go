@@ -64,6 +64,48 @@ func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 	utxoWrap.IsModified = true
 }
 
+// IsTxFunded returns if a tx is funded, i.e., if all of its spending utxos exist
+func (u *UtxoSet) IsTxFunded(tx *types.Transaction) bool {
+	for _, txIn := range tx.Vin {
+		utxo := u.FindUtxo(txIn.PrevOutPoint)
+		if utxo == nil || utxo.IsSpent {
+			return false
+		}
+	}
+
+	return true
+}
+
+// TxWrap wrap transaction
+type TxWrap struct {
+	Tx             *types.Transaction
+	AddedTimestamp int64
+	Height         uint32
+	FeePerKB       uint64
+}
+
+// GetExtendedTxUtxoSet returns tx's utxo set from both db & txs in spendableTxs
+func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
+	spendableTxs map[crypto.HashType]*TxWrap) (*UtxoSet, error) {
+
+	utxoSet := NewUtxoSet()
+	if err := utxoSet.LoadTxUtxos(tx, db); err != nil {
+		return nil, err
+	}
+
+	// Outputs of existing txs in spendableTxs can also be spent
+	for _, txIn := range tx.Vin {
+		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
+		if utxo != nil && !utxo.IsSpent {
+			continue
+		}
+		if spendableTxWrap, exists := spendableTxs[txIn.PrevOutPoint.Hash]; exists {
+			utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index, spendableTxWrap.Height)
+		}
+	}
+	return utxoSet, nil
+}
+
 // ApplyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
 func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Add new utxos
