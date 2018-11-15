@@ -565,7 +565,7 @@ func (sm *SyncManager) checkBlocksAndClearInfo(sb *SyncBlocks, pid peer.ID) (
 		}
 	}
 	// remove checkInfos pointed to pid if all elements in checkInfos is nil
-	for i, v := range checkInfos {
+	for _, v := range checkInfos {
 		if v != nil {
 			return nil, ok
 		}
