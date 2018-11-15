@@ -173,8 +173,14 @@ func (tt *txTest) prepareUTXOs(addr string, n int, peerAddr string) {
 			}
 			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
 				i, addr, peerAddr)
+			minAmount := allAmounts[0][i]
 			for j := 0; j < count; j++ {
-				amount := allAmounts[j][i] / 2
+				if allAmounts[j][i] < minAmount {
+					minAmount = allAmounts[j][i]
+				}
+			}
+			for j := 0; j < count; j++ {
+				amount := minAmount / 2
 				execTx(tt.testsAcc[i], tt.testsAddr[i], []string{addr}, []uint64{amount},
 					peerAddr)
 				logger.Debugf("have sent %d from %s to %s", amount, tt.testsAddr[i], addr)
@@ -207,6 +213,11 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 		times = len(utxos) - 1
 	}
 	sort.Sort(sort.Reverse(sortByUTXOValue(utxos)))
+	values := make([]uint64, len(utxos))
+	for idx, u := range utxos {
+		values[idx] = u.TxOut.Value
+	}
+	logger.Info("utxo values: ", util.PrettyPrint(values))
 	toUtxos := utxosFor(toAddr, execPeer)
 	//
 	fromBalancePre := balanceFor(fromAddr, execPeer)
@@ -217,9 +228,9 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	logger.Infof("toAddr[%s] balance: %d", toAddr, toBalancePre)
 	for i := 0; i < times; i++ {
 		//amount := utxos[i+1].TxOut.Value
-		amount := utxos[len(utxos)-1].TxOut.Value
-		//logger.Infof("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr,
-		//	execPeer)
+		//amount := utxos[len(utxos)-1].TxOut.Value
+		var amount uint64 = 10
+		logger.Infof("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
 		execTx(acc, fromAddr, []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
 	}
