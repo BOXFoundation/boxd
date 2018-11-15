@@ -5,6 +5,7 @@
 package txpool
 
 import (
+	"bytes"
 	"errors"
 	"sync"
 	"time"
@@ -173,6 +174,52 @@ func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
 	}
 	tx_pool.outPointMutex.RUnlock()
 	return outpoints
+}
+
+// ApplyPoolUtxos remove utxo used in pool and add new generated utxo into the map if its script is prefixed
+// with the input param scriptPrefix
+func (tx_pool *TransactionPool) ApplyPoolUtxos(utxos map[types.OutPoint]*types.UtxoWrap, scriptPrefix []byte) {
+	if len(utxos) == 0 {
+		return
+	}
+	tx_pool.outPointMutex.RLock()
+	var allOutPoints []types.OutPoint
+	for o := range tx_pool.outPointToTx {
+		allOutPoints = append(allOutPoints, o)
+	}
+	for i := 0; ; i++ {
+		if i >= len(allOutPoints) {
+			break
+		}
+		tmpOut := allOutPoints[i]
+		tx, ok := tx_pool.outPointToTx[tmpOut]
+		if !ok {
+			continue
+		}
+		delete(utxos, tmpOut)
+		hash, err := tx.TxHash()
+		if err != nil {
+			// TODO: hash generation shouldn't produce error
+			continue
+		}
+		for idx, txOut := range tx.Vout {
+			if bytes.HasPrefix(txOut.ScriptPubKey, scriptPrefix) {
+				newOp := types.OutPoint{
+					Hash:  *hash,
+					Index: uint32(idx),
+				}
+				utxos[newOp] = &types.UtxoWrap{
+					Output:      txOut,
+					BlockHeight: 0,
+					IsCoinBase:  false,
+					IsSpent:     false,
+					IsModified:  false,
+				}
+				allOutPoints = append(allOutPoints, newOp)
+			}
+		}
+	}
+	tx_pool.outPointMutex.RUnlock()
 }
 
 // GetTransactionsInPool gets all transactions in memory pool
