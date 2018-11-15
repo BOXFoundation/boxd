@@ -526,11 +526,11 @@ func (sm *SyncManager) setTimeoutPeersErrStatus(status peerStatus) {
 }
 
 func (sm *SyncManager) checkPass() bool {
-	return atomic.LoadInt32(&sm.checkNum) == int32(maxCheckPeers)
+	return atomic.LoadInt32(&sm.checkNum) >= int32(maxCheckPeers)
 }
 
 func (sm *SyncManager) completed() bool {
-	return atomic.LoadInt32(&sm.blocksSynced) == int32(len(sm.fetchHashes))
+	return atomic.LoadInt32(&sm.blocksSynced) >= int32(len(sm.fetchHashes))
 }
 
 func (sm *SyncManager) waitAllBlocksProcessed() {
@@ -540,7 +540,7 @@ func (sm *SyncManager) waitAllBlocksProcessed() {
 }
 
 func (sm *SyncManager) moreSync() bool {
-	return len(sm.fetchHashes) == chain.MaxBlocksPerSync
+	return len(sm.fetchHashes) >= chain.MaxBlocksPerSync
 }
 
 func (sm *SyncManager) checkBlocksAndClearInfo(sb *SyncBlocks, pid peer.ID) (
@@ -549,26 +549,29 @@ func (sm *SyncManager) checkBlocksAndClearInfo(sb *SyncBlocks, pid peer.ID) (
 	if !ok {
 		return nil, false
 	}
-	rootHash := *merkleRootHashForBlocks(sb.Blocks)
+	ok = false
+	rootHash := *zeroHash
+	if len(sb.Blocks) > 0 {
+		rootHash = *merkleRootHashForBlocks(sb.Blocks)
+	}
 	for i, v := range checkInfos {
 		if v != nil && v.fbh.Idx == sb.Idx {
 			if rootHash != *v.rootHash {
 				return v.fbh, false
 			}
 			checkInfos[i] = nil
-			return nil, true
+			ok = true
+			break
 		}
 	}
 	// remove checkInfos pointed to pid if all elements in checkInfos is nil
 	for i, v := range checkInfos {
 		if v != nil {
-			break
-		}
-		if i == len(checkInfos)-1 {
-			delete(sm.peerBlockCheckInfo, pid)
+			return nil, ok
 		}
 	}
-	return nil, false
+	delete(sm.peerBlockCheckInfo, pid)
+	return nil, ok
 }
 
 func merkleRootHashForBlocks(blocks []*coreTypes.Block) *crypto.HashType {
