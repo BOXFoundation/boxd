@@ -31,3 +31,6 @@ tests/tests
 database/
 logs/
 integration_tests/integration_tests
+
+# Runtime
+pids.txt

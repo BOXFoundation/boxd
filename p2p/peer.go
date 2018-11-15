@@ -97,7 +97,6 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 		libp2p.ConnectionManager(boxPeer.connmgr),
 		libp2p.NATPortMap(),
 	}
-
 	boxPeer.host, err = libp2p.New(ctx, opts...)
 	boxPeer.host.SetStreamHandler(ProtocolID, boxPeer.handleStream)
 	boxPeer.table = NewTable(boxPeer)

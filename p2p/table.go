@@ -131,9 +131,6 @@ func (t *Table) peerDiscover() {
 	}
 
 	for _, v := range peerIDs {
-		if v.Pretty() == t.peer.id.Pretty() {
-			continue
-		}
 		go t.lookup(v)
 	}
 }

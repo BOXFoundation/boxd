@@ -1,0 +1,113 @@
+#!/bin/sh
+
+export NAME=box
+
+export DIR_WORKSPACE="$(pwd)"
+export DIR_OUTPUTS="${DIR_WORKSPACE}"
+export BIN="${DIR_OUTPUTS}/${NAME}"
+
+if [[ ! -f ${BIN} ]]; then
+  echo "${BIN} doesn't exist."
+  exit 1
+fi
+
+showUsage()
+{
+    cmd=`basename "$0"`
+    echo "Usage:"
+    echo "\tStart node #1 or #2 or #3:"
+    echo "\t\t${cmd} 1|2|3|4|5|6"
+    echo
+    echo "\tStart all nodes(1, 2, 3, 4, 5, 6):"
+    echo "\t\t${cmd} start"
+    echo
+    echo "\tStop all nodes:"
+    echo "\t\t${cmd} stop"
+    echo
+    echo "\tRemove database and logs of all nodes, rebuild and restart:"
+    echo "\t\t${cmd} cleanStart"
+}
+
+clean()
+{
+    for i in {1..6};
+    do
+        rm -fr .devconfig/ws${i}/database
+        rm -fr .devconfig/ws${i}/logs
+        echo "Database and log of node ${i} deleted"
+    done
+}
+
+build()
+{
+    echo "Building project"
+    make fullnode
+}
+
+stopAll()
+{
+    kill `cat pids.txt`
+    rm -fr pids.txt
+}
+
+isRunning()
+{
+    if [[ -f "pids.txt" ]];
+    then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+startAll()
+{
+    rm -fr ./pids.txt
+    for i in {1..6};
+    do
+        ${BIN} start --config=./.devconfig/.box-${i}.yaml > ./outputs/box${i}.log 2>&1 & echo $! >> ./pids.txt
+        echo "Node: ${i} started"
+    done
+}
+
+startNode()
+{
+    ${BIN} start --config=./.devconfig/.box-${1}.yaml
+    exit $?
+}
+
+if [[ "$#" -ne 1 ]]
+then
+    showUsage
+else
+    if [[ "$1" == "clean" ]]
+    then
+        clean
+        exit 0
+    elif [[ "$1" == "start" ]]
+    then
+        running=$( isRunning )
+        if [[ "$running" == "true" ]]
+        then
+            echo "Node is already running"
+            exit 1
+        fi
+        startAll
+        exit 0
+    elif [[ "$1" == "cleanStart" ]]
+    then
+        stopAll
+        clean
+        build
+        startAll
+    elif [[ "$1" == "stop" ]]
+    then
+        stopAll
+        exit 0
+    elif [[ "$1" -ge "1" && "$1" -le "6" ]]
+    then
+        startNode $1
+        exit $?
+    else
+        showUsage
+    fi
+fi

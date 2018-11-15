@@ -46,45 +46,66 @@ service ContorlCommand {
         body: "*"
       };
     }
-  }
+
+    rpc GetNodeInfo (GetNodeInfoRequest) returns (GetNodeInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/ctl/getnodeinfo"
+            body: "*"
+        };
+    }
+}
   
-  // The request message containing debug level.
-  message DebugLevelRequest {
-    string level = 1;
-  }
+// The request message containing debug level.
+message DebugLevelRequest {
+string level = 1;
+}
 
-  message GetBlockHeightRequest {
-  }
+message GetBlockHeightRequest {
+}
 
-  message GetBlockHeightResponse {
+message GetBlockHeightResponse {
     int32 code = 1;
     string message = 2;
     uint32 height = 3;
-  }
+}
 
-  message GetBlockHashRequest {
+message GetBlockHashRequest {
     uint32 height = 1;
-  }
+}
 
-  message GetBlockHashResponse {
+message GetBlockHashResponse {
     int32 code = 1;
     string message = 2;
     string hash = 3;
-  }
+}
 
-  message GetBlockRequest {
+message GetBlockRequest {
     string block_hash = 1;
-  }
+}
 
-  message GetBlockHeaderResponse {
+message GetBlockHeaderResponse {
     int32 code = 1;
     string message = 2;
     corepb.BlockHeader header = 3;
-  }
+}
 
-  message GetBlockResponse {
+message GetBlockResponse {
     int32 code = 1;
     string message = 2;
     corepb.Block block = 3;
-  }
+}
+
+message Node {
+    string id = 1;
+    repeated string addrs = 2;
+    string ttl = 3;
+}
+
+message GetNodeInfoRequest {
+
+}
+
+message GetNodeInfoResponse {
+    repeated Node nodes = 1;
+}
 

@@ -68,7 +68,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		ctx := goprocessctx.OnClosingContext(proc)
 		s, err := conn.peer.host.NewStream(ctx, conn.remotePeer, ProtocolID)
 		if err != nil {
-			logger.Errorf("Failed to new stream to %s, err = %s", conn.remotePeer.Pretty(), err.Error())
+			logger.Errorf("Failed to new stream to %s, addrs=%v, err = %s", conn.remotePeer.Pretty(), conn.peer.table.peerStore.PeerInfo(conn.remotePeer), err.Error())
 			return
 		}
 		conn.stream = s
@@ -163,7 +163,7 @@ func (conn *Conn) heartBeatService(p goprocess.Process) {
 		select {
 		case <-t.C:
 			if err := conn.Ping(); err != nil {
-				logger.Errorf("Failed to ping peer. PeerID: %d", conn.remotePeer.Pretty())
+				logger.Errorf("Failed to ping peer. PeerID: %s", conn.remotePeer.Pretty())
 			}
 		case <-p.Closing():
 			logger.Debug("closing heart beat service with ", conn.remotePeer.Pretty())
@@ -285,12 +285,13 @@ func (conn *Conn) Close() error {
 
 	pid := conn.remotePeer
 	logger.Info("Closing connection with ", pid.Pretty())
+	if _, ok := conn.peer.conns.Load(pid); ok {
+		conn.peer.conns.Delete(pid)
+	}
 	if conn.stream != nil {
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
-		conn.peer.conns.Delete(pid)
 		addrs := conn.peer.table.peerStore.Addrs(pid)
 		conn.peer.table.peerStore.SetAddrs(pid, addrs, peerstore.RecentlyConnectedAddrTTL)
-
 		return conn.stream.Close()
 	}
 	return nil
@@ -322,7 +323,7 @@ func (conn *Conn) establish() {
 	pid := conn.remotePeer
 	conn.peer.conns.Store(pid, conn)
 	conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerConnEvent)
-	logger.Info("Succeed to establish connection with peer ", conn.remotePeer.Pretty())
+	logger.Infof("Succeed to establish connection with peer %s, addrs: %v", conn.remotePeer.Pretty(), conn.peer.table.peerStore.PeerInfo(conn.remotePeer))
 }
 
 // check if the message is valid. Called immediately after receiving a new message.
