@@ -237,6 +237,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 
 	logger.Infof("wait for transaction brought on chain, timeout %v", timeoutToChain)
 	m, err := waitUTXOsEnough(toAddr, len(toUtxos)+times, execPeer, timeoutToChain)
+	time.Sleep(blockTime)
 	if err != nil {
 		logger.Panic(err)
 	}
