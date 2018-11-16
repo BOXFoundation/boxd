@@ -6,6 +6,8 @@ package chain
 
 import (
 	"bytes"
+	"sync"
+
 	"github.com/BOXFoundation/boxd/core/pb"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -105,7 +107,7 @@ type TxWrap struct {
 
 // GetExtendedTxUtxoSet returns tx's utxo set from both db & txs in spendableTxs
 func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
-	spendableTxs map[crypto.HashType]*TxWrap) (*UtxoSet, error) {
+	spendableTxs *sync.Map) (*UtxoSet, error) {
 
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadTxUtxos(tx, db); err != nil {
@@ -118,7 +120,8 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 		if utxo != nil && !utxo.IsSpent {
 			continue
 		}
-		if spendableTxWrap, exists := spendableTxs[txIn.PrevOutPoint.Hash]; exists {
+		if v, exists := spendableTxs.Load(txIn.PrevOutPoint.Hash); exists {
+			spendableTxWrap := v.(*TxWrap)
 			utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index, spendableTxWrap.Height)
 		}
 	}

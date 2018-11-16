@@ -7,6 +7,7 @@ package dpos
 import (
 	"container/heap"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -276,7 +277,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
 
-	spendableTxs := make(map[crypto.HashType]*chain.TxWrap)
+	spendableTxs := new(sync.Map)
 
 PackingTxs:
 	for {
@@ -308,7 +309,7 @@ PackingTxs:
 						// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
 						continue
 					}
-					spendableTxs[*txHash] = txWrap
+					spendableTxs.Store(*txHash, txWrap)
 					blockTxns = append(blockTxns, txWrap.Tx)
 					txPacked[i] = true
 					found = true
