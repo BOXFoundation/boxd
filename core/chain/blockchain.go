@@ -968,7 +968,6 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	}
 	for _, utxo := range utxoUsed {
 		if utxo != nil && utxo.Output != nil {
-			logger.Debug("previous utxo added")
 			vin = append(vin, utxo.Output.ScriptPubKey)
 		}
 	}
