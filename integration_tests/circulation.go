@@ -35,10 +35,10 @@ func NewCirculation(accCnt int, collAddrCh chan<- string,
 	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
 	// get accounts for addrs
 	logger.Infof("start to unlock all %d tests accounts", len(c.addrs))
-	//for i := 0; i < len(c.addrs); i++ {
-	//	acc := unlockAccount(c.addrs[i])
-	//	AddrToAcc.Store(c.addrs[i], acc)
-	//}
+	for _, addr := range c.addrs {
+		acc := unlockAccount(addr)
+		AddrToAcc[addr] = acc
+	}
 	c.collAddrCh = collAddrCh
 	c.cirAddrCh = cirAddrCh
 	c.quitCh = make(chan os.Signal, 1)
@@ -60,6 +60,14 @@ func (c *Circulation) Run() {
 	}()
 	addrIdx := 0
 	for {
+		select {
+		case s := <-c.quitCh:
+			logger.Infof("receive quit signal %v, quiting collection!", s)
+			close(c.collAddrCh)
+			return
+		default:
+			logger.Info("start create transactions...")
+		}
 		idx := addrIdx % len(c.addrs)
 		c.collAddrCh <- c.addrs[idx]
 		toIdx := (addrIdx + 1) % len(c.addrs)
@@ -67,20 +75,17 @@ func (c *Circulation) Run() {
 		logger.Info("start box circulation between accounts")
 		txRepeatTest(<-c.cirAddrCh, toAddr, peersAddr[0])
 		addrIdx++
-		select {
-		case s := <-c.quitCh:
-			logger.Infof("receive quit signal %v, quiting collection!", s)
-			break
-		default:
-			logger.Info("start create transactions again ...")
-		}
 	}
 }
 
 func txRepeatTest(fromAddr, toAddr string, execPeer string) {
+	defer func() {
+		if x := recover(); x != nil {
+			logger.Error(x)
+		}
+	}()
 	logger.Info("=== RUN   txRepeatTest")
 	// create a transaction from addr 1 to addr 2
-	acc := unlockAccount(fromAddr)
 	transfer := uint64(0)
 	utxos, err := utxosNoPanicFor(fromAddr, execPeer)
 	if err != nil {
@@ -109,7 +114,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string) {
 		//amount := utxos[len(utxos)-1].TxOut.Value
 		var amount uint64 = 1000
 		logger.Debugf("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
-		execTx(acc, fromAddr, []string{toAddr}, []uint64{amount}, execPeer)
+		execTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
 	}
 
@@ -136,7 +141,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string) {
 		logger.Errorf("txRepeatTest faild: fromGap %d toGap %d and transfer %d",
 			fromGap, toGap, transfer)
 	}
-	logger.Infof("--- PASS: txRepeatTest")
+	logger.Infof("--- DONE: txRepeatTest")
 }
 
 func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
@@ -160,7 +165,7 @@ func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
 	transfer := uint64(0)
 	for i := 0; i < len(toAddrs); i++ {
 		amount := ave/2 + uint64(rand.Int63n(int64(ave)/2))
-		execTx(acc, fromAddr, []string{toAddrs[i]}, []uint64{amount}, execPeer)
+		execTx(acc, []string{toAddrs[i]}, []uint64{amount}, execPeer)
 		transfer += amount
 		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddr,
 			toAddrs[i], execPeer)
@@ -218,7 +223,7 @@ func txManyToOneTest(fromAddrs []string, toAddr string, execPeer string) {
 	transfer := uint64(0)
 	for i := 0; i < len(fromAddrs); i++ {
 		amount := fromBalancesPre[i] / 2
-		execTx(accounts[i], fromAddrs[i], []string{toAddr}, []uint64{amount}, execPeer)
+		execTx(accounts[i], []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
 		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddrs[i],
 			toAddr, execPeer)

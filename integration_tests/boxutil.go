@@ -28,14 +28,13 @@ type KeyStore struct {
 func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
-		logger.Panic(err)
+		return 0, err
 	}
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancel()
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
-	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{
-		Addrs: []string{accAddr}})
+	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: []string{accAddr}})
 	if err != nil {
 		return 0, err
 	}
@@ -75,17 +74,17 @@ func unlockAccount(addr string) *wallet.Account {
 	return account
 }
 
-func execTx(account *wallet.Account, fromAddr string, toAddrs []string,
-	amounts []uint64, peerAddr string) {
+func execTx(account *wallet.Account, toAddrs []string, amounts []uint64,
+	peerAddr string) {
 	//
 	if len(toAddrs) != len(amounts) {
 		logger.Panicf("toAddrs count %d is mismatch with amounts count: %d",
 			len(toAddrs), len(amounts))
 	}
 	//
-	fromAddress, err := types.NewAddress(fromAddr)
+	fromAddress, err := types.NewAddress(account.Addr())
 	if err != nil {
-		logger.Panicf("NewAddress fromAddr: %s error: %s", fromAddr, err)
+		logger.Panicf("NewAddress fromAddr: %s error: %s", account.Addr(), err)
 	}
 
 	// initialize rpc
@@ -265,11 +264,15 @@ func waitOneAddrBalanceEnough(addrs []string, amount uint64, checkPeer string,
 	t := time.NewTicker(d)
 	defer t.Stop()
 	b := uint64(0)
+	var err error
 	for i := 0; i < int(timeout/d); i++ {
 		select {
 		case <-t.C:
 			for _, addr := range addrs {
-				b = balanceFor(addr, checkPeer)
+				b, err = balanceNoPanicFor(addr, checkPeer)
+				if err != nil {
+					continue
+				}
 				if b >= amount {
 					return addr, b, nil
 				}
@@ -285,16 +288,18 @@ func waitBalanceEnough(addr string, amount uint64, checkPeer string,
 	d := 100 * time.Millisecond
 	t := time.NewTicker(d)
 	defer t.Stop()
+	b := uint64(0)
 	for i := 0; i < int(timeout/d); i++ {
 		select {
 		case <-t.C:
-			b := balanceFor(addr, checkPeer)
+			b = balanceFor(addr, checkPeer)
 			if b > amount {
 				return b, nil
 			}
 		}
 	}
-	return 0, fmt.Errorf("Timeout for waiting for balance enough %d", amount)
+	return 0, fmt.Errorf("Timeout for waiting for %s balance enough %d, now %d",
+		addr, amount, b)
 }
 
 func waitOneAddrUTXOEnough(addrs []string, n int, checkPeer string,

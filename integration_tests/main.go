@@ -60,7 +60,7 @@ var (
 	minerAccs []*wallet.Account
 
 	//AddrToAcc stores addr to account
-	AddrToAcc = new(sync.Map)
+	AddrToAcc = make(map[string]*wallet.Account)
 )
 
 func init() {
@@ -74,7 +74,7 @@ func init() {
 	minerAddrs, minerAccs = minerAccounts(files...)
 	logger.Debugf("minersAddrs: %v", minerAddrs)
 	for i, addr := range minerAddrs {
-		AddrToAcc.Store(addr, minerAccs[i])
+		AddrToAcc[addr] = minerAccs[i]
 	}
 }
 
@@ -116,14 +116,14 @@ func main() {
 
 	// collection process
 	go func() {
+		defer wg.Done()
 		coll.Run()
-		wg.Done()
 	}()
 
 	// circulation process
 	go func() {
+		defer wg.Done()
 		circu.Run()
-		wg.Done()
 	}()
 
 	wg.Wait()
