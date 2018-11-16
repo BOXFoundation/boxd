@@ -166,16 +166,6 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	return nil
 }
 
-// GetOutPointLockedByPool returns all the utxo outpoints that are used by transaction in pool
-func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
-	var outpoints []types.OutPoint
-	tx_pool.outPointToTx.Range(func(k, v interface{}) bool {
-		outpoints = append(outpoints, k.(types.OutPoint))
-		return true
-	})
-	return outpoints
-}
-
 // GetTransactionsInPool gets all transactions in memory pool
 func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
 

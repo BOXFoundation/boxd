@@ -7,6 +7,8 @@ package rpc
 import (
 	"context"
 	"fmt"
+
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/script"
 
@@ -169,13 +171,20 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
 	utxos, err := bc.LoadUtxoByAddress(addr)
-	usedInMemoryPool := s.server.GetTxHandler().GetOutPointLockedByPool()
-	for _, o := range usedInMemoryPool {
-		delete(utxos, o)
-	}
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
+
+	nextHeight := s.server.GetChainReader().GetBlockHeight() + 1
+
+	// apply mempool txs as if they were mined into a block with 0 confirmation
+	utxoSet := chain.NewUtxoSetFromMap(utxos)
+	memPoolTxs := s.server.GetTxHandler().GetTransactionsInPool()
+	for _, tx := range memPoolTxs {
+		utxoSet.ApplyTx(tx, nextHeight)
+	}
+	utxos = utxoSet.GetUtxos()
+
 	res := &rpcpb.ListUtxosResponse{
 		Code:    0,
 		Message: "ok",

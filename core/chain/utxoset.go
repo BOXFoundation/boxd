@@ -26,12 +26,24 @@ func NewUtxoSet() *UtxoSet {
 	}
 }
 
+// NewUtxoSetFromMap returns the underlying utxos as a map
+func NewUtxoSetFromMap(utxoMap map[types.OutPoint]*types.UtxoWrap) *UtxoSet {
+	return &UtxoSet{
+		utxoMap: utxoMap,
+	}
+}
+
+// GetUtxos returns the underlying utxos as a map
+func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
+	return u.utxoMap
+}
+
 // FindUtxo returns information about an outpoint.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 	return u.utxoMap[outPoint]
 }
 
-// AddUtxo adds a utxo
+// AddUtxo adds a tx's outputs as utxos
 func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
