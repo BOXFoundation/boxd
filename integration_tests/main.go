@@ -6,7 +6,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
@@ -20,14 +22,12 @@ const (
 
 	testPassphrase = "1"
 
-	peerCount = 6
-
 	blockTime = 5 * time.Second
 
 	dockerComposeFile = "../docker-compose.yml"
 )
 
-var logger = log.NewLogger("tests") // logger
+var logger = log.NewLogger("integration_tests") // logger
 
 var (
 	peersAddr = []string{
@@ -51,21 +51,38 @@ var (
 		//"192.168.0.226:19161", // n6
 	}
 
+	newNodes     = flag.Bool("nodes", false, "need to start nodes?")
 	enableDocker = flag.Bool("docker", false, "test on docker?")
+	testsCnt     = flag.Int("accounts", 10, "how many need to create test acconts?")
 
-	newNodes = flag.Bool("nodes", false, "need to start nodes?")
+	minerAddrs []string
+	//minerAccAddrs []string
+	minerAccs []*wallet.Account
 
-	testsCnt = flag.Int("accounts", 10, "how many need to create test acconts?")
+	//AddrToAcc stores addr to account
+	AddrToAcc = new(sync.Map)
 )
 
 func init() {
 	rand.Seed(time.Now().Unix())
+
+	// get addresses of three miners
+	files := make([]string, len(peersAddr))
+	for i := 0; i < len(peersAddr); i++ {
+		files[i] = keyDir + fmt.Sprintf("key%d.keystore", i+1)
+	}
+	minerAddrs, minerAccs = minerAccounts(files...)
+	logger.Debugf("minersAddrs: %v", minerAddrs)
+	for i, addr := range minerAddrs {
+		AddrToAcc.Store(addr, minerAccs[i])
+	}
 }
 
 func main() {
 	flag.Parse()
 	if *newNodes {
 		// prepare environment and clean history data
+		peerCount := len(peersAddr)
 		if err := prepareEnv(peerCount); err != nil {
 			logger.Panic(err)
 		}
@@ -86,30 +103,28 @@ func main() {
 		}
 	}
 
-	// get addresses of three miners
-	minersAddr := allMinersAddr()
-	logger.Debugf("minersAddr: %v", minersAddr)
+	// define chan
+	collAddrCh := make(chan string, 1)
+	cirAddrCh := make(chan string, 1)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	// generate addresses of test accounts
-	testsAccCnt := *testsCnt
-	testsAddr, testsAcc := genTestAddr(testsAccCnt)
-	logger.Debugf("testsAddr: %v\ntestsAcc: %v", testsAddr, testsAcc)
-	defer removeKeystoreFiles(testsAcc...)
+	coll := NewCollection(*testsCnt, collAddrCh, cirAddrCh)
+	defer coll.TearDown()
+	circu := NewCirculation(4, collAddrCh, cirAddrCh)
+	defer circu.TearDown()
 
-	// get accounts for testsAddr
-	logger.Infof("start to unlock all %d tests accounts", len(testsAddr))
-	accounts := make([]*wallet.Account, len(testsAddr))
-	for i := 0; i < len(testsAddr); i++ {
-		accounts[i] = unlockAccount(testsAddr[i])
-	}
+	// collection process
+	go func() {
+		coll.Run()
+		wg.Done()
+	}()
 
-	// wait for nodes to be ready
-	logger.Info("waiting for minersAddr has 1 utxo at least")
-	addr, _, err := waitOneAddrUTXOEnough(minersAddr, 1, peersAddr[0], timeoutToChain)
-	if err != nil {
-		logger.Panic(err)
-	}
-	txTest := newTxTest(addr, testsAddr, accounts, testsAccCnt*testsAccCnt)
-	logger.Info("start to test tx")
-	txTest.testTx()
+	// circulation process
+	go func() {
+		circu.Run()
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
