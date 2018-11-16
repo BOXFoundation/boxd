@@ -238,6 +238,12 @@ func (server *Server) initEventListener() {
 
 	// TopicGetDatabaseKeys
 	server.bus.Reply(eventbus.TopicGetDatabaseKeys, func(parent context.Context, table string, prefix string, skip int32, limit int32, out chan<- []string) {
+		defer func() {
+			if err := recover(); err != nil {
+				logger.Error(err)
+			}
+		}()
+
 		var result []string
 		defer func() {
 			out <- result
@@ -274,6 +280,12 @@ func (server *Server) initEventListener() {
 
 	// TopicGetDatabaseValue
 	server.bus.Reply(eventbus.TopicGetDatabaseValue, func(table string, key string, out chan<- []byte) {
+		defer func() {
+			if err := recover(); err != nil {
+				logger.Error(err)
+			}
+		}()
+
 		var result []byte
 		defer func() {
 			out <- result

@@ -628,7 +628,6 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-	logger.Debug(addr.String(), " related blocks", util.PrettyPrint(blockHashes))
 	utxos := make(map[types.OutPoint]*types.UtxoWrap)
 	utxoSet := NewUtxoSet()
 	for _, hash := range blockHashes {
@@ -642,7 +641,6 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 	}
 	for key, value := range utxoSet.utxoMap {
 		if isPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
-			logger.Debug("utxo: ", util.PrettyPrint(value))
 			utxos[key] = value
 		}
 	}
@@ -1021,7 +1019,6 @@ func (chain *BlockChain) loadFilters() error {
 func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Transaction, error) {
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-	logger.Info(len(hashes), " blocks searched as related to address ", addr.String())
 	utxoSet := NewUtxoSet()
 	var txs []*types.Transaction
 	for _, hash := range hashes {
@@ -1049,6 +1046,5 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 		}
 	}
 	utxoSet = nil
-	logger.Info(len(txs), " transactions found")
 	return txs, nil
 }
