@@ -67,7 +67,6 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 	for out, utxo := range utxos {
 		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
 	}
-	logger.Debugf("List Utxo called, utxos: %+v", utxos)
 	return res, nil
 }
 
@@ -138,7 +137,6 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 	for outpoint, value := range utxos {
 		s := script.NewScriptFromBytes(value.Output.ScriptPubKey)
 		if s.IsTokenIssue() {
-			logger.Debug("Token issue utxo found")
 			if outpoint != *token {
 				// token type not match
 				continue
@@ -150,7 +148,6 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 			amount += issueParam.TotalSupply
 		}
 		if s.IsTokenTransfer() {
-			logger.Debug("Token transfer utxo found")
 			transferParam, err := s.GetTransferParams()
 			if err != nil {
 				return 0, err
@@ -194,12 +191,10 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 			tokenAmount[*outpoint] = budget.Amount
 		}
 	}
-	logger.Debugf("Requested token Info %v", tokenAmount)
 	for out, utxo := range utxos {
 		token, amount, isToken := getTokenInfo(out, utxo)
 		if isToken {
 			if val, ok := tokenAmount[token]; ok && val > 0 {
-				logger.Debugf("Found utxo with token amount: %d", val)
 				if val > amount {
 					tokenAmount[token] = val - amount
 				} else {
@@ -241,12 +236,9 @@ func getTokenInfo(outpoint types.OutPoint, wrap *types.UtxoWrap) (types.OutPoint
 }
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
-	logger.Debugf("receive transaction: %+v", req.Tx)
-
 	for _, v := range req.Tx.Vin {
 		hash := new(crypto.HashType)
 		copy(hash[:], v.PrevOutPoint.Hash[:])
-		logger.Debugf("receive transaction vin hash: %s", hash)
 	}
 	txpool := s.server.GetTxHandler()
 	tx, err := generateTransaction(req.Tx)
