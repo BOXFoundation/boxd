@@ -622,7 +622,7 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 	return make(map[types.OutPoint]*types.UtxoWrap), nil
 }
 
-// LoadUtxoByAddress list all the available utxos owned by an address
+// LoadUtxoByAddress list all the available utxos owned by an address, including token utxos
 func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
@@ -638,7 +638,7 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 		}
 	}
 	for key, value := range utxoSet.utxoMap {
-		if isPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
+		if util.IsPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
 			utxos[key] = value
 		}
 	}

@@ -5,13 +5,13 @@
 package chain
 
 import (
-	"bytes"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/util"
 )
 
 // UtxoSet contains all utxos
@@ -33,9 +33,15 @@ func NewUtxoSetFromMap(utxoMap map[types.OutPoint]*types.UtxoWrap) *UtxoSet {
 	}
 }
 
-// GetUtxos returns the underlying utxos as a map
+// GetUtxos returns the unspent utxos
 func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
-	return u.utxoMap
+	result := make(map[types.OutPoint]*types.UtxoWrap)
+	for outPoint, utxoWrap := range u.utxoMap {
+		if !utxoWrap.IsSpent {
+			result[outPoint] = utxoWrap
+		}
+	}
+	return result
 }
 
 // FindUtxo returns information about an outpoint.
@@ -207,22 +213,12 @@ func (u *UtxoSet) ApplyBlockWithScriptFilter(block *types.Block, targetScript []
 	return nil
 }
 
-// is s prefixed by prefix
-func isPrefixed(s, prefix []byte) bool {
-	prefixLen := len(prefix)
-	if len(s) < prefixLen {
-		return false
-	}
-	s = s[:prefixLen]
-	return bytes.Equal(s, prefix)
-}
-
 // ApplyTxWithScriptFilter adds or remove an utxo if the transaction uses or generates an utxo
 // with the specified script bytes
 func (u *UtxoSet) ApplyTxWithScriptFilter(tx *types.Transaction, blockHeight uint32, targetScript []byte) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
-		if isPrefixed(tx.Vout[txOutIdx].ScriptPubKey, targetScript) {
+		if util.IsPrefixed(tx.Vout[txOutIdx].ScriptPubKey, targetScript) {
 			if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
 				return err
 			}
