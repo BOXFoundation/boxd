@@ -313,12 +313,10 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 			preHash := &txIn.PrevOutPoint.Hash
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				for idx := range tx.Vout {
-					u.AddUtxo(originTx, uint32(idx), block.Height)
-				}
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
 				continue
 			}
-			if val, ok := u.utxoMap[txIn.PrevOutPoint]; ok && val != nil {
+			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
 				continue
 			}
 			emptySet[txIn.PrevOutPoint] = struct{}{}
