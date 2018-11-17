@@ -16,15 +16,24 @@ import (
 )
 
 const (
-	workDir   = "./.devconfig/"
-	keyDir    = "./.devconfig/keyfile/"
-	walletDir = "./.devconfig/ws1/box_keystore/"
+	walletDir         = "./.devconfig/ws1/box_keystore/"
+	dockerComposeFile = "../docker/docker-compose.yml"
 
 	testPassphrase = "1"
 
-	blockTime = 5 * time.Second
+	peerCnt = 6
 
-	dockerComposeFile = "../docker-compose.yml"
+	blockTime = 5 * time.Second
+)
+
+var (
+	localConf = struct {
+		ConfDir, WorkDir, KeyDir string
+	}{"./.devconfig/", "./.devconfig/", "./.devconfig/keyfile/"}
+
+	dockerConf = struct {
+		ConfDir, WorkDir, KeyDir string
+	}{"../docker/.devconfig/", "../docker/.devconfig/", "../docker/.devconfig/keyfile/"}
 )
 
 var logger = log.NewLogger("integration_tests") // logger
@@ -37,26 +46,31 @@ type CirInfo struct {
 }
 
 var (
-	peersAddr = []string{
-		// boxd001
+	allAddrs = []string{
+		// localhost
 		"127.0.0.1:19111", // n1
 		"127.0.0.1:19121", // n2
 		"127.0.0.1:19131", // n3
-		//"192.168.0.227:19111", // n1
-		//"192.168.0.227:19121", // n2
-		//"192.168.0.227:19131", // n3
-		//"39.105.210.220:19001", // s1
-		//"39.105.210.220:19011", // s2
-		// boxd002
-		//"39.105.214.10:19311", // a1
-		//"39.105.214.10:19321", // a2
 		"127.0.0.1:19141", // n4
 		"127.0.0.1:19151", // n5
 		"127.0.0.1:19161", // n6
-		//"192.168.0.226:19141", // n4
-		//"192.168.0.226:19151", // n5
-		//"192.168.0.226:19161", // n6
+		// docker
+		"127.0.0.1:19111", // n1
+		"127.0.0.1:19121", // n2
+		"127.0.0.1:19131", // n3
+		"127.0.0.1:19141", // n4
+		"127.0.0.1:19151", // n5
+		"127.0.0.1:19161", // n6
+		// testnet
+		"192.168.0.227:19111", // n1
+		"192.168.0.227:19121", // n2
+		"192.168.0.227:19131", // n3
+		"192.168.0.226:19141", // n4
+		"192.168.0.226:19151", // n5
+		"192.168.0.226:19161", // n6
 	}
+
+	peersAddr []string
 
 	newNodes     = flag.Bool("nodes", false, "need to start nodes?")
 	enableDocker = flag.Bool("docker", false, "test on docker?")
@@ -72,11 +86,10 @@ var (
 
 func init() {
 	rand.Seed(time.Now().Unix())
-
 	// get addresses of three miners
-	files := make([]string, len(peersAddr))
-	for i := 0; i < len(peersAddr); i++ {
-		files[i] = keyDir + fmt.Sprintf("key%d.keystore", i+1)
+	files := make([]string, peerCnt)
+	for i := 0; i < peerCnt; i++ {
+		files[i] = localConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
 	}
 	minerAddrs, minerAccs = minerAccounts(files...)
 	logger.Debugf("minersAddrs: %v", minerAddrs)
@@ -87,22 +100,24 @@ func init() {
 
 func main() {
 	flag.Parse()
+	peersAddr = allAddrs[2*peerCnt:]
 	if *newNodes {
 		// prepare environment and clean history data
-		peerCount := len(peersAddr)
-		if err := prepareEnv(peerCount); err != nil {
+		if err := prepareEnv(peerCnt); err != nil {
 			logger.Panic(err)
 		}
-		//defer tearDown(peerCount)
+		//defer tearDown(peerCnt)
 
 		// start nodes
 		if *enableDocker {
+			peersAddr = allAddrs[peerCnt : 2*peerCnt]
 			if err := startNodes(); err != nil {
 				logger.Panic(err)
 			}
 			defer stopNodes()
 		} else {
-			processes, err := startLocalNodes(peerCount)
+			peersAddr = allAddrs[:peerCnt]
+			processes, err := startLocalNodes(peerCnt)
 			defer stopLocalNodes(processes...)
 			if err != nil {
 				logger.Panic(err)

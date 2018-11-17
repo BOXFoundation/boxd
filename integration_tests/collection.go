@@ -75,10 +75,11 @@ func (c *Collection) Run() {
 		default:
 		}
 		// wait for nodes to be ready
-		logger.Info("waiting for minersAddr has BaseSubsidy utxo at least")
-		peerIdx = peerIdx % len(peersAddr)
+		peerIdx = peerIdx % peerCnt
 		peerAddr := peersAddr[peerIdx]
 		peerIdx++
+		logger.Infof("waiting for minersAddr has BaseSubsidy utxo at least on %s",
+			peerAddr)
 		addr, _, err := waitOneAddrBalanceEnough(minerAddrs, chain.BaseSubsidy,
 			peerAddr, timeoutToChain)
 		if err != nil {

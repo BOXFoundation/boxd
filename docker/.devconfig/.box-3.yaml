@@ -1,11 +1,11 @@
 network: mainnet
-workspace: .devconfig/ws2
+workspace: ./.devconfig/ws3
 database:
     name: rocksdb
 log:
     out:
         name: stderr # stdout|stderr|null
-    level: error # debug|info|warning|error|fatal
+    level: debug # debug|info|warning|error|fatal
     formatter:
         name: text # json|text
     hooks:
@@ -19,17 +19,20 @@ log:
               level:  5 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
     key_path: peer.key
-    port: 19189
+    address: "172.27.1.13"
+    port: 19179
     seeds:
-        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
+        - "/ip4/172.27.1.11/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
     conn_load_factor: 0.8
 rpc:
-    port: 19121
+    address: "172.27.1.13"
+    port: 19131
     http:
-        port: 19120
+        address: "172.27.1.13"
+        port: 19130
 dpos:
     keypath: key.keystore
     enable_mint: true
@@ -38,6 +41,6 @@ metrics:
     enable: false
     host: http://localhost:8086
     db: box
-    user: 
-    password: 
-    tags: [region:us-west, host:box-2]
+    user:
+    password:
+    tags: [region:us-west, host:box-3]
