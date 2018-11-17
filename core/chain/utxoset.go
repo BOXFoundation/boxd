@@ -302,7 +302,7 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 
 	txs := map[crypto.HashType]int{}
-	emptySet := make(map[types.OutPoint]struct{})
+	outPointsToFetch := make(map[types.OutPoint]struct{})
 
 	for index, tx := range block.Txs {
 		hash, _ := tx.TxHash()
@@ -319,12 +319,12 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
 				continue
 			}
-			emptySet[txIn.PrevOutPoint] = struct{}{}
+			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
 
-	if len(emptySet) > 0 {
-		if err := u.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
+	if len(outPointsToFetch) > 0 {
+		if err := u.fetchUtxosFromOutPointSet(outPointsToFetch, db); err != nil {
 			return err
 		}
 	}
@@ -333,12 +333,12 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 }
 
 func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{}, db storage.Table) error {
-	for outpoint := range outPoints {
-		entry, err := u.fetchUtxoWrapFromDB(db, outpoint)
+	for outPoint := range outPoints {
+		entry, err := u.fetchUtxoWrapFromDB(db, outPoint)
 		if err != nil {
 			return err
 		}
-		u.utxoMap[outpoint] = entry
+		u.utxoMap[outPoint] = entry
 	}
 	return nil
 }
