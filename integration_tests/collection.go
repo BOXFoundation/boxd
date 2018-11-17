@@ -27,13 +27,13 @@ type Collection struct {
 	addrs      []string
 	accAddrs   []string
 	collAddrCh <-chan string
-	cirAddrCh  chan<- string
+	cirInfoCh  chan<- CirInfo
 	quitCh     chan os.Signal
 }
 
 // NewCollection construct a Collection instance
 func NewCollection(accCnt int, collAddrCh <-chan string,
-	cirAddrCh chan<- string) *Collection {
+	cirInfoCh chan<- CirInfo) *Collection {
 	c := &Collection{}
 	// get account address
 	c.accCnt = accCnt
@@ -47,7 +47,7 @@ func NewCollection(accCnt int, collAddrCh <-chan string,
 		AddrToAcc[addr] = acc
 	}
 	c.collAddrCh = collAddrCh
-	c.cirAddrCh = cirAddrCh
+	c.cirInfoCh = cirInfoCh
 	c.quitCh = make(chan os.Signal, 1)
 	signal.Notify(c.quitCh, os.Interrupt, os.Kill)
 	return c
@@ -70,10 +70,9 @@ func (c *Collection) Run() {
 		select {
 		case s := <-c.quitCh:
 			logger.Infof("receive quit signal %v, quiting collection!", s)
-			close(c.cirAddrCh)
+			close(c.cirInfoCh)
 			return
 		default:
-			logger.Info("start create transactions...")
 		}
 		// wait for nodes to be ready
 		logger.Info("waiting for minersAddr has BaseSubsidy utxo at least")
@@ -87,14 +86,14 @@ func (c *Collection) Run() {
 		c.minerAddr = addr
 		collAddr := <-c.collAddrCh
 		logger.Info("start to create transactions")
-		c.prepareUTXOs(collAddr, c.accCnt*c.accCnt, peersAddr[0])
-		c.cirAddrCh <- collAddr
+		n := c.prepareUTXOs(collAddr, c.accCnt*c.accCnt, peersAddr[0])
+		c.cirInfoCh <- CirInfo{Addr: collAddr, UtxoCnt: n}
 		peerIdx++
 	}
 }
 
 // prepareUTXOs generates n*n utxos for addr, addr must not be in c.addrs
-func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) {
+func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) int {
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
@@ -221,7 +220,7 @@ func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) {
 	}
 	logger.Infof("wait utxo count reach %d on %s, timeout %v", len(oldUtxos)+n,
 		addr, blockTime)
-	_, err := waitUTXOsEnough(addr, len(oldUtxos)+n, peerAddr, blockTime)
+	m, err := waitUTXOsEnough(addr, len(oldUtxos)+n, peerAddr, blockTime)
 	if err != nil {
 		logger.Warn(err)
 	}
@@ -230,4 +229,5 @@ func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) {
 		logger.Warn(err)
 	}
 	logger.Info("--- DONE: prepareUTXOs")
+	return m - len(oldUtxos)
 }

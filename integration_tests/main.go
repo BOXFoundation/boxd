@@ -29,6 +29,12 @@ const (
 
 var logger = log.NewLogger("integration_tests") // logger
 
+// CirInfo defines circulation information
+type CirInfo struct {
+	Addr    string
+	UtxoCnt int
+}
+
 var (
 	peersAddr = []string{
 		// boxd001
@@ -105,13 +111,13 @@ func main() {
 
 	// define chan
 	collAddrCh := make(chan string, 1)
-	cirAddrCh := make(chan string, 1)
+	cirInfoCh := make(chan CirInfo, 1)
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	coll := NewCollection(*testsCnt, collAddrCh, cirAddrCh)
+	coll := NewCollection(*testsCnt, collAddrCh, cirInfoCh)
 	defer coll.TearDown()
-	circu := NewCirculation(4, collAddrCh, cirAddrCh)
+	circu := NewCirculation(*testsCnt, collAddrCh, cirInfoCh)
 	defer circu.TearDown()
 
 	// collection process

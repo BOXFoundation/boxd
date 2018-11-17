@@ -20,13 +20,13 @@ type Circulation struct {
 	addrs      []string
 	accAddrs   []string
 	collAddrCh chan<- string
-	cirAddrCh  <-chan string
+	cirInfoCh  <-chan CirInfo
 	quitCh     chan os.Signal
 }
 
 // NewCirculation construct a Circulation instance
 func NewCirculation(accCnt int, collAddrCh chan<- string,
-	cirAddrCh <-chan string) *Circulation {
+	cirInfoCh <-chan CirInfo) *Circulation {
 	c := &Circulation{}
 	// get account address
 	c.accCnt = accCnt
@@ -40,7 +40,7 @@ func NewCirculation(accCnt int, collAddrCh chan<- string,
 		AddrToAcc[addr] = acc
 	}
 	c.collAddrCh = collAddrCh
-	c.cirAddrCh = cirAddrCh
+	c.cirInfoCh = cirInfoCh
 	c.quitCh = make(chan os.Signal, 1)
 	signal.Notify(c.quitCh, os.Interrupt, os.Kill)
 	return c
@@ -66,19 +66,19 @@ func (c *Circulation) Run() {
 			close(c.collAddrCh)
 			return
 		default:
-			logger.Info("start create transactions...")
 		}
+		logger.Info("start box circulation between accounts")
 		idx := addrIdx % len(c.addrs)
 		c.collAddrCh <- c.addrs[idx]
 		toIdx := (addrIdx + 1) % len(c.addrs)
 		toAddr := c.addrs[toIdx]
-		logger.Info("start box circulation between accounts")
-		txRepeatTest(<-c.cirAddrCh, toAddr, peersAddr[0])
+		cirInfo := <-c.cirInfoCh
+		txRepeatTest(cirInfo.Addr, toAddr, peersAddr[0], cirInfo.UtxoCnt)
 		addrIdx++
 	}
 }
 
-func txRepeatTest(fromAddr, toAddr string, execPeer string) {
+func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
@@ -92,9 +92,9 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string) {
 		logger.Warn(err)
 	}
 	if len(utxos) == 0 {
+		time.Sleep(blockTime)
 		return
 	}
-	times := len(utxos) - 1
 	if len(utxos) <= times {
 		logger.Infof("utxos count %d is less or equals than repeat times %d on %s,"+
 			" set times--", len(utxos), times, fromAddr)
@@ -112,13 +112,14 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string) {
 	for i := 0; i < times; i++ {
 		//amount := utxos[i+1].TxOut.Value
 		//amount := utxos[len(utxos)-1].TxOut.Value
-		var amount uint64 = 1000
+		amount := 1000 + uint64(rand.Int31n(1000))
 		logger.Debugf("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
 		execTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
 	}
 
-	logger.Infof("wait for transaction brought on chain, timeout %v", timeoutToChain)
+	logger.Infof("wait for %d transactions brought on chain, timeout %v",
+		times, timeoutToChain)
 	m, err := waitUTXOsEnough(toAddr, len(toUtxos)+times, execPeer, timeoutToChain)
 	time.Sleep(blockTime)
 	if err != nil {
