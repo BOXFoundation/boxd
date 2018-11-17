@@ -293,7 +293,7 @@ func waitBalanceEnough(addr string, amount uint64, checkPeer string,
 		select {
 		case <-t.C:
 			b = balanceFor(addr, checkPeer)
-			if b > amount {
+			if b >= amount {
 				return b, nil
 			}
 		}

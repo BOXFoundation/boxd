@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/wallet"
@@ -17,19 +18,21 @@ import (
 // Circulation manage circulation of transaction
 type Circulation struct {
 	accCnt     int
+	partLen    int
 	addrs      []string
 	accAddrs   []string
 	collAddrCh chan<- string
 	cirInfoCh  <-chan CirInfo
-	quitCh     chan os.Signal
+	quitCh     []chan os.Signal
 }
 
 // NewCirculation construct a Circulation instance
-func NewCirculation(accCnt int, collAddrCh chan<- string,
+func NewCirculation(accCnt, partLen int, collAddrCh chan<- string,
 	cirInfoCh <-chan CirInfo) *Circulation {
 	c := &Circulation{}
 	// get account address
 	c.accCnt = accCnt
+	c.partLen = partLen
 	logger.Infof("start to gen %d address for circulation", accCnt)
 	c.addrs, c.accAddrs = genTestAddr(c.accCnt)
 	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
@@ -41,8 +44,11 @@ func NewCirculation(accCnt int, collAddrCh chan<- string,
 	}
 	c.collAddrCh = collAddrCh
 	c.cirInfoCh = cirInfoCh
-	c.quitCh = make(chan os.Signal, 1)
-	signal.Notify(c.quitCh, os.Interrupt, os.Kill)
+	//c.quitCh = make(chan os.Signal, (accCnt+partLen-1)/partLen)
+	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
+		c.quitCh = append(c.quitCh, make(chan os.Signal, 1))
+		signal.Notify(c.quitCh[i], os.Interrupt, os.Kill)
+	}
 	return c
 }
 
@@ -53,28 +59,49 @@ func (c *Circulation) TearDown() {
 
 // Run consumes transaction pending on circulation channel
 func (c *Circulation) Run() {
+	var wg sync.WaitGroup
+	for i := 0; i*c.partLen < len(c.addrs); i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			c.doTx(index)
+		}(i)
+	}
+	wg.Wait()
+}
+
+func (c *Circulation) doTx(index int) {
 	defer func() {
+		logger.Info("done doTx")
 		if x := recover(); x != nil {
 			logger.Error(x)
 		}
 	}()
+	start := index * c.partLen
+	end := start + c.partLen
+	if end > len(c.addrs) {
+		end = len(c.addrs)
+	}
+	addrs := c.addrs[start:end]
 	addrIdx := 0
+	logger.Infof("start doTx %d", index)
 	for {
 		select {
-		case s := <-c.quitCh:
-			logger.Infof("receive quit signal %v, quiting collection!", s)
+		case s := <-c.quitCh[index]:
+			logger.Infof("receive quit signal %v, quiting circulation[%d]!", s, index)
 			close(c.collAddrCh)
 			return
 		default:
 		}
-		logger.Info("start box circulation between accounts")
-		idx := addrIdx % len(c.addrs)
-		c.collAddrCh <- c.addrs[idx]
-		toIdx := (addrIdx + 1) % len(c.addrs)
-		toAddr := c.addrs[toIdx]
-		cirInfo := <-c.cirInfoCh
-		txRepeatTest(cirInfo.Addr, toAddr, peersAddr[0], cirInfo.UtxoCnt)
-		addrIdx++
+		addrIdx = addrIdx % len(addrs)
+		c.collAddrCh <- addrs[addrIdx]
+		toIdx := (addrIdx + 1) % len(addrs)
+		toAddr := addrs[toIdx]
+		addrIdx = toIdx
+		if cirInfo, ok := <-c.cirInfoCh; ok {
+			logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
+			txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, cirInfo.UtxoCnt)
+		}
 	}
 }
 

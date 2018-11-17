@@ -76,8 +76,11 @@ func (c *Collection) Run() {
 		}
 		// wait for nodes to be ready
 		logger.Info("waiting for minersAddr has BaseSubsidy utxo at least")
+		peerIdx = peerIdx % len(peersAddr)
+		peerAddr := peersAddr[peerIdx]
+		peerIdx++
 		addr, _, err := waitOneAddrBalanceEnough(minerAddrs, chain.BaseSubsidy,
-			peersAddr[0], timeoutToChain)
+			peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Error(err)
 			time.Sleep(blockTime)
@@ -85,10 +88,9 @@ func (c *Collection) Run() {
 		}
 		c.minerAddr = addr
 		collAddr := <-c.collAddrCh
-		logger.Info("start to create transactions")
-		n := c.prepareUTXOs(collAddr, c.accCnt*c.accCnt, peersAddr[0])
-		c.cirInfoCh <- CirInfo{Addr: collAddr, UtxoCnt: n}
-		peerIdx++
+		logger.Infof("start to create transactions on %s", peerAddr)
+		n := c.prepareUTXOs(collAddr, c.accCnt*c.accCnt, peerAddr)
+		c.cirInfoCh <- CirInfo{Addr: collAddr, UtxoCnt: n, PeerAddr: peerAddr}
 	}
 }
 
