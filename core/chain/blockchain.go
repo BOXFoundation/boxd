@@ -360,7 +360,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	}
 
 	// This block is now the end of the best chain.
-	if err := chain.SetTailBlock(block, utxoSet); err != nil {
+	if err := chain.SetTailBlock(block); err != nil {
 		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return err
 	}
@@ -462,7 +462,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	if err := chain.applyBlock(block, utxoSet); err != nil {
 		return err
 	}
-	if err := chain.SetTailBlock(block, utxoSet); err != nil {
+	if err := chain.SetTailBlock(block); err != nil {
 		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return err
 	}
@@ -523,8 +523,14 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error
 	if err := utxoSet.RevertBlock(block); err != nil {
 		return err
 	}
+	// save utxoset to database
+	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
+		return err
+	}
 
 	chain.db.Del(BlockKey(block.BlockHash()))
+
+	chain.filterHolder.ResetFilters(block.Height)
 
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
@@ -537,7 +543,27 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := utxoSet.ApplyBlock(block); err != nil {
 		return err
 	}
+	// save utxoset to database
+	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
+		return err
+	}
+
 	if err := chain.StoreBlockToDb(block); err != nil {
+		return err
+	}
+
+	if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), func() bloom.Filter {
+		return GetFilterForTransactionScript(block, utxoSet.utxoMap)
+	}); err != nil {
+		return err
+	}
+
+	// save candidate context
+	if err := chain.consensus.StoreCandidateContext(block.BlockHash()); err != nil {
+		return err
+	}
+	// save tx index
+	if err := chain.WriteTxIndex(block); err != nil {
 		return err
 	}
 
@@ -562,7 +588,6 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.revertBlock(detachBlock, utxoSet); err != nil {
 			return err
 		}
-		chain.filterHolder.ResetFilters(detachBlock.Height)
 	}
 
 	// Attach the blocks that form the new chain to the main chain starting at the
@@ -573,9 +598,6 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 		if err := chain.applyBlock(attachBlock, utxoSet); err != nil {
 			return err
 		}
-		chain.filterHolder.AddFilter(attachBlock.Height, *attachBlock.Hash, chain.DB(), func() bloom.Filter {
-			return GetFilterForTransactionScript(attachBlock, utxoSet.utxoMap)
-		})
 	}
 
 	metrics.MetricsBlockRevertMeter.Mark(1)
@@ -666,29 +688,10 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 }
 
 // SetTailBlock sets chain tail block.
-func (chain *BlockChain) SetTailBlock(tail *types.Block, utxoSet *UtxoSet) error {
-
-	if err := chain.filterHolder.AddFilter(tail.Height, *tail.BlockHash(), chain.DB(), func() bloom.Filter {
-		return GetFilterForTransactionScript(tail, utxoSet.utxoMap)
-	}); err != nil {
-		return err
-	}
-	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
-		return err
-	}
+func (chain *BlockChain) SetTailBlock(tail *types.Block) error {
 
 	// save current tail to database
 	if err := chain.StoreTailBlock(tail); err != nil {
-		return err
-	}
-
-	// save candidate context
-	if err := chain.consensus.StoreCandidateContext(tail.BlockHash()); err != nil {
-		return err
-	}
-	// save tx index
-	if err := chain.WirteTxIndex(tail); err != nil {
 		return err
 	}
 
@@ -853,8 +856,8 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	return nil, errors.New("Failed to load tx with hash")
 }
 
-// WirteTxIndex build tx index in block
-func (chain *BlockChain) WirteTxIndex(block *types.Block) error {
+// WriteTxIndex build tx index in block
+func (chain *BlockChain) WriteTxIndex(block *types.Block) error {
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
@@ -963,8 +966,8 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 }
 
 // GetFilterForTransactionScript returns the bloom filter for all the script address
-// of the transactions in the block, it will use the pre-calculated filter is there
-// are any
+// of the transactions in the block, it will use the pre-calculated filter if there
+// is any
 func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoint]*types.UtxoWrap) bloom.Filter {
 	var vin, vout [][]byte
 	for _, tx := range block.Txs {

@@ -173,7 +173,7 @@ func TestBlockChain_WirteTxIndex(t *testing.T) {
 
 	b1 := nextBlock(b0)
 	ensure.Nil(t, blockChain.StoreBlockToDb(b1))
-	ensure.Nil(t, blockChain.WirteTxIndex(b1))
+	ensure.Nil(t, blockChain.WriteTxIndex(b1))
 
 	txhash, _ := b1.Txs[0].TxHash()
 	tx, err := blockChain.LoadTxByHash(*txhash)
