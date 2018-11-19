@@ -178,22 +178,28 @@ func (sm *SyncManager) onCheckRequest(msg p2p.Message) error {
 }
 
 func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
+	pid := msg.From()
 	if sm.getStatus() != checkStatus {
+		// if pid is checked or checked done status and me is located status,
+		// no need to set the pid errPeerStatus
+		if !sm.verifyPeerStatus(checkedPeerStatus, pid) &&
+			!sm.verifyPeerStatus(checkedDonePeerStatus, pid) {
+			sm.stalePeers.Store(pid, errPeerStatus)
+		}
 		return fmt.Errorf("onCheckResponse returns since now status is %s",
 			sm.getStatus())
 	}
-	pid := msg.From()
 	if !sm.verifyPeerStatus(checkedPeerStatus, pid) &&
 		!sm.verifyPeerStatus(checkedDonePeerStatus, pid) {
 		sm.stalePeers.Store(pid, errPeerStatus)
-		tryPushEmptyChan(sm.checkErrCh)
+		tryPushErrFlagChan(sm.checkErrCh, errFlagWrongPeerStatus)
 		return fmt.Errorf("receive LocateCheckResponse from non-sync peer[%s]",
 			pid.Pretty())
 	}
 	checkNum := atomic.AddInt32(&sm.checkNum, 1)
 	if checkNum > int32(maxCheckPeers) {
 		sm.stalePeers.Store(pid, errPeerStatus)
-		tryPushEmptyChan(sm.checkErrCh)
+		tryPushErrFlagChan(sm.checkErrCh, errFlagCheckNumTooBig)
 		return fmt.Errorf("receive too many LocateCheckResponse from check peer[%s]",
 			pid.Pretty())
 	}
@@ -201,15 +207,19 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 	sch := new(SyncCheckHash)
 	if err := sch.Unmarshal(msg.Body()); err != nil {
 		sm.stalePeers.Store(pid, errPeerStatus)
-		tryPushEmptyChan(sm.checkErrCh)
+		tryPushErrFlagChan(sm.checkErrCh, errFlagUnmarshal)
 		return err
 	}
 	// check rootHash
 	if *sm.checkRootHash != *sch.RootHash {
 		logger.Warnf("check RootHash mismatch from peer[%s], recv: %v, want: %v",
 			pid.Pretty(), sch.RootHash, sm.checkRootHash)
+		if *sch.RootHash == *zeroHash {
+			tryPushErrFlagChan(sm.checkErrCh, errFlagInSync)
+		} else {
+			tryPushErrFlagChan(sm.checkErrCh, errFlagRootHashMismatch)
+		}
 		sm.stalePeers.Store(pid, errPeerStatus)
-		tryPushEmptyChan(sm.checkErrCh)
 		return nil
 	}
 	sm.stalePeers.Store(pid, checkedDonePeerStatus)

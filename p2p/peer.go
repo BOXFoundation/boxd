@@ -310,7 +310,7 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 // PeerSynced get sync states of remote peers
 func (p *BoxPeer) PeerSynced(peerID peer.ID) (bool, bool) {
 	val, ok := p.conns.Load(peerID)
-	return val.(bool), ok
+	return val.(*Conn).isSynced, ok
 }
 
 // UpdateSynced update peers' isSynced
