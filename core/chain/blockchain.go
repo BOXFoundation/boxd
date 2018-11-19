@@ -532,6 +532,11 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error
 
 	chain.filterHolder.ResetFilters(block.Height)
 
+	// save tx index
+	if err := chain.DelTxIndex(block); err != nil {
+		return err
+	}
+
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
@@ -562,6 +567,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := chain.consensus.StoreCandidateContext(block.BlockHash()); err != nil {
 		return err
 	}
+
 	// save tx index
 	if err := chain.WriteTxIndex(block); err != nil {
 		return err
@@ -856,21 +862,37 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	return nil, errors.New("Failed to load tx with hash")
 }
 
-// WriteTxIndex build tx index in block
+// WriteTxIndex builds tx index in block
 func (chain *BlockChain) WriteTxIndex(block *types.Block) error {
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
-	for idx, v := range block.Txs {
+	for idx, tx := range block.Txs {
 		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
 		if err != nil {
 			return err
 		}
-		txHash, err := v.TxHash()
+		txHash, err := tx.TxHash()
 		if err != nil {
 			return err
 		}
 		batch.Put(TxIndexKey(txHash), tiBuf)
+	}
+
+	return batch.Write()
+}
+
+// DelTxIndex deletes tx index in block
+func (chain *BlockChain) DelTxIndex(block *types.Block) error {
+	batch := chain.db.NewBatch()
+	defer batch.Close()
+
+	for _, tx := range block.Txs {
+		txHash, err := tx.TxHash()
+		if err != nil {
+			return err
+		}
+		batch.Del(TxIndexKey(txHash))
 	}
 
 	return batch.Write()

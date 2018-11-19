@@ -166,17 +166,22 @@ func TestBlockProcessing(t *testing.T) {
 
 }
 
-func TestBlockChain_WirteTxIndex(t *testing.T) {
+func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	ensure.NotNil(t, blockChain)
 
 	b0 := getTailBlock()
 
 	b1 := nextBlock(b0)
 	ensure.Nil(t, blockChain.StoreBlockToDb(b1))
-	ensure.Nil(t, blockChain.WriteTxIndex(b1))
 
 	txhash, _ := b1.Txs[0].TxHash()
+
+	ensure.Nil(t, blockChain.WriteTxIndex(b1))
 	tx, err := blockChain.LoadTxByHash(*txhash)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, b1.Txs[0], tx)
+
+	ensure.Nil(t, blockChain.DelTxIndex(b1))
+	_, err = blockChain.LoadTxByHash(*txhash)
+	ensure.NotNil(t, err)
 }
