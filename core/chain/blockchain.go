@@ -427,9 +427,8 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
 	var totalFees uint64
-	utxoCopy := utxoSet.Copy()
 	for _, tx := range transactions {
-		txFee, err := ValidateTxInputs(utxoCopy, tx, block.Height)
+		txFee, err := ValidateTxInputs(utxoSet, tx, block.Height)
 		if err != nil {
 			return err
 		}
@@ -440,7 +439,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet 
 		if totalFees < lastTotalFees {
 			return core.ErrBadFees
 		}
-		utxoCopy.ApplyTx(tx, block.Height)
 	}
 
 	// Ensure coinbase does not output more than block reward.

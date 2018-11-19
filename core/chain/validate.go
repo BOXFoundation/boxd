@@ -145,12 +145,8 @@ func IsTxFinalized(tx *types.Transaction, blockHeight uint32, blockTime int64) b
 
 func validateBlockScripts(utxoSet *UtxoSet, block *types.Block) error {
 	// Skip coinbases.
-	utxoCopy := utxoSet.Copy()
 	for _, tx := range block.Txs[1:] {
-		if err := ValidateTxScripts(utxoCopy, tx); err != nil {
-			return err
-		}
-		if err := utxoCopy.ApplyTx(tx, block.Height); err != nil {
+		if err := ValidateTxScripts(utxoSet, tx); err != nil {
 			return err
 		}
 	}
