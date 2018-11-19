@@ -25,5 +25,5 @@ type Net interface {
 	Notify(Message)
 	PickOnePeer(peersExclusive ...peer.ID) peer.ID
 	BroadcastToMiners(uint32, conv.Convertible, []string) error
-	PeerSynced(peers ...peer.ID) map[peer.ID]bool
+	PeerSynced(peers peer.ID) (bool, bool)
 }

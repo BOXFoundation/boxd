@@ -47,6 +47,6 @@ func (d *DummyPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners 
 }
 
 // PeerSynced get sync states of remote peers
-func (d *DummyPeer) PeerSynced(peers ...peer.ID) map[peer.ID]bool {
-	return nil
+func (d *DummyPeer) PeerSynced(peers peer.ID) (bool, bool) {
+	return false, false
 }

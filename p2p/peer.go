@@ -308,17 +308,9 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 }
 
 // PeerSynced get sync states of remote peers
-func (p *BoxPeer) PeerSynced(peers ...peer.ID) map[peer.ID]bool {
-
-	peerToSync := make(map[peer.ID]bool)
-
-	for _, peerID := range peers {
-		sync, ok := p.conns.Load(peerID)
-		if ok {
-			peerToSync[peerID] = sync.(*Conn).isSynced
-		}
-	}
-	return peerToSync
+func (p *BoxPeer) PeerSynced(peerID peer.ID) (bool, bool) {
+	val, ok := p.conns.Load(peerID)
+	return val.(bool), ok
 }
 
 // UpdateSynced update peers' isSynced
