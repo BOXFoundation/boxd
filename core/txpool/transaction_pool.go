@@ -5,7 +5,6 @@
 package txpool
 
 import (
-	"bytes"
 	"errors"
 	"sync"
 	"time"
@@ -165,76 +164,6 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 		tx_pool.removeDoubleSpendOrphans(tx)
 	}
 	return nil
-}
-
-// GetOutPointLockedByPool returns all the utxo outpoints that are used by transaction in pool
-func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
-	var outpoints []types.OutPoint
-	tx_pool.outPointToTx.Range(func(k, v interface{}) bool {
-		outpoints = append(outpoints, k.(types.OutPoint))
-		return true
-	})
-	return outpoints
-}
-
-// ApplyPoolUtxos remove utxo used in pool and add new generated utxo into the map if its script is prefixed
-// with the input param scriptPrefix
-func (tx_pool *TransactionPool) ApplyPoolUtxos(utxos map[types.OutPoint]*types.UtxoWrap, scriptPrefix []byte) {
-	if len(utxos) == 0 {
-		return
-	}
-	var allOutPoints []types.OutPoint
-	tx_pool.outPointToTx.Range(func(k, v interface{}) bool {
-		o := k.(types.OutPoint)
-		allOutPoints = append(allOutPoints, o)
-		return true
-	})
-
-	for i := 0; ; i++ {
-		if i >= len(allOutPoints) {
-			break
-		}
-		tmpOut := allOutPoints[i]
-		// tx, ok := tx_pool.outPointToTx[tmpOut]
-		v, ok := tx_pool.outPointToTx.Load(tmpOut)
-		if !ok {
-			continue
-		}
-		delete(utxos, tmpOut)
-		tx := v.(*types.Transaction)
-		hash, err := tx.TxHash()
-		if err != nil {
-			// TODO: hash generation shouldn't produce error
-			continue
-		}
-		for idx, txOut := range tx.Vout {
-			if bytes.HasPrefix(txOut.ScriptPubKey, scriptPrefix) {
-				newOp := types.OutPoint{
-					Hash:  *hash,
-					Index: uint32(idx),
-				}
-				utxos[newOp] = &types.UtxoWrap{
-					Output:      txOut,
-					BlockHeight: 0,
-					IsCoinBase:  false,
-					IsSpent:     false,
-					IsModified:  false,
-				}
-				allOutPoints = append(allOutPoints, newOp)
-			}
-		}
-	}
-}
-
-// GetTransactionsInPool gets all transactions in memory pool
-func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
-
-	var txs []*types.Transaction
-	tx_pool.outPointToTx.Range(func(k, v interface{}) bool {
-		txs = append(txs, v.(*types.Transaction))
-		return true
-	})
-	return txs
 }
 
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
@@ -563,6 +492,18 @@ func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
 		txs = append(txs, v.(*chain.TxWrap))
 		return true
 	})
+	return txs
+}
+
+// GetTransactionsInPool gets all transactions in memory pool
+func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
+
+	allTxs := tx_pool.GetAllTxs()
+
+	var txs []*types.Transaction
+	for _, tx := range allTxs {
+		txs = append(txs, tx.Tx)
+	}
 	return txs
 }
 

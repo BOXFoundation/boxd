@@ -42,6 +42,9 @@ const (
 
 	EternalBlockMsg = 0x16
 
+	LightSyncRequest = 0x17
+	LightSyncReponse = 0x18
+
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
 

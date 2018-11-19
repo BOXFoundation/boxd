@@ -5,6 +5,7 @@
 package util
 
 import (
+	"bytes"
 	"os"
 	"os/user"
 	"reflect"
@@ -44,4 +45,14 @@ func HomeDir() string {
 		return usr.HomeDir
 	}
 	return ""
+}
+
+// IsPrefixed returns if s has the passed prefix
+func IsPrefixed(s, prefix []byte) bool {
+	prefixLen := len(prefix)
+	if len(s) < prefixLen {
+		return false
+	}
+	s = s[:prefixLen]
+	return bytes.Equal(s, prefix)
 }

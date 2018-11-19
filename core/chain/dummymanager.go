@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/jbenet/goprocess"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 // DummySyncManager is only used to test
@@ -28,6 +29,9 @@ func (dm *DummySyncManager) StartSync() {}
 
 // Run starts run
 func (dm *DummySyncManager) Run() {}
+
+// ActiveLightSync active light sync from remote peer.
+func (dm *DummySyncManager) ActiveLightSync(pid peer.ID) error { return nil }
 
 // NewTestBlockChain generate a chain for testing
 func NewTestBlockChain() *BlockChain {

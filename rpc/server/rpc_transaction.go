@@ -7,8 +7,11 @@ package rpc
 import (
 	"context"
 	"fmt"
+
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/util"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -165,6 +168,7 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
 	bc := s.server.GetChainReader()
 	addr, err := types.NewAddress(req.Addr)
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
@@ -172,8 +176,32 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
-	sc := *script.PayToPubKeyHashScript(addr.Hash())
-	s.server.GetTxHandler().ApplyPoolUtxos(utxos, sc)
+
+	nextHeight := s.server.GetChainReader().GetBlockHeight() + 1
+
+	// apply mempool txs as if they were mined into a block with 0 confirmation
+	utxoSet := chain.NewUtxoSetFromMap(utxos)
+	memPoolTxs := s.server.GetTxHandler().GetTransactionsInPool()
+	// Note: we add utxo first and spend them later to maintain tx topological order within mempool. Since memPoolTxs may not
+	// be topologically ordered, if tx1 spends tx2 but tx1 comes after tx2, tx1's output is mistakenly marked as unspent
+	// Add utxos first
+	for _, tx := range memPoolTxs {
+		for txOutIdx, txOut := range tx.Vout {
+			// utxo for this address
+			if util.IsPrefixed(txOut.ScriptPubKey, payToPubKeyHashScript) {
+				if err := utxoSet.AddUtxo(tx, uint32(txOutIdx), nextHeight); err != nil {
+					return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
+				}
+			}
+		}
+	}
+	// Then spend
+	for _, tx := range memPoolTxs {
+		for _, txIn := range tx.Vin {
+			utxoSet.SpendUtxo(txIn.PrevOutPoint)
+		}
+	}
+	utxos = utxoSet.GetUtxos()
 
 	res := &rpcpb.ListUtxosResponse{
 		Code:    0,

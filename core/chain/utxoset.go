@@ -5,15 +5,12 @@
 package chain
 
 import (
-	"bytes"
 	"sync"
-
-	"github.com/BOXFoundation/boxd/core/pb"
-
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/util"
 )
 
 // UtxoSet contains all utxos
@@ -28,22 +25,22 @@ func NewUtxoSet() *UtxoSet {
 	}
 }
 
-// Copy makes a deep copy instance of UtxoSet
-func (u *UtxoSet) Copy() *UtxoSet {
-	copy := NewUtxoSet()
-	for outPoint, wrapper := range u.utxoMap {
-		copy.utxoMap[outPoint] = &types.UtxoWrap{
-			BlockHeight: wrapper.BlockHeight,
-			IsCoinBase:  wrapper.IsCoinBase,
-			IsSpent:     wrapper.IsSpent,
-			IsModified:  wrapper.IsModified,
-			Output: &corepb.TxOut{
-				Value:        wrapper.Output.Value,
-				ScriptPubKey: wrapper.Output.ScriptPubKey,
-			},
+// NewUtxoSetFromMap returns the underlying utxos as a map
+func NewUtxoSetFromMap(utxoMap map[types.OutPoint]*types.UtxoWrap) *UtxoSet {
+	return &UtxoSet{
+		utxoMap: utxoMap,
+	}
+}
+
+// GetUtxos returns the unspent utxos
+func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
+	result := make(map[types.OutPoint]*types.UtxoWrap)
+	for outPoint, utxoWrap := range u.utxoMap {
+		if !utxoWrap.IsSpent {
+			result[outPoint] = utxoWrap
 		}
 	}
-	return copy
+	return result
 }
 
 // FindUtxo returns information about an outpoint.
@@ -51,7 +48,7 @@ func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 	return u.utxoMap[outPoint]
 }
 
-// AddUtxo adds a utxo
+// AddUtxo adds a tx's outputs as utxos
 func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
@@ -133,6 +130,10 @@ func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
 		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+			if err == core.ErrAddExistingUtxo {
+				// This can occur when a tx spends from another tx in front of it in the same block
+				continue
+			}
 			return err
 		}
 	}
@@ -215,22 +216,12 @@ func (u *UtxoSet) ApplyBlockWithScriptFilter(block *types.Block, targetScript []
 	return nil
 }
 
-// is s prefixed by prefix
-func isPrefixed(s, prefix []byte) bool {
-	prefixLen := len(prefix)
-	if len(s) < prefixLen {
-		return false
-	}
-	s = s[:prefixLen]
-	return bytes.Equal(s, prefix)
-}
-
 // ApplyTxWithScriptFilter adds or remove an utxo if the transaction uses or generates an utxo
 // with the specified script bytes
 func (u *UtxoSet) ApplyTxWithScriptFilter(tx *types.Transaction, blockHeight uint32, targetScript []byte) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
-		if isPrefixed(tx.Vout[txOutIdx].ScriptPubKey, targetScript) {
+		if util.IsPrefixed(tx.Vout[txOutIdx].ScriptPubKey, targetScript) {
 			if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
 				return err
 			}
@@ -310,7 +301,7 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 
 	txs := map[crypto.HashType]int{}
-	emptySet := make(map[types.OutPoint]struct{})
+	outPointsToFetch := make(map[types.OutPoint]struct{})
 
 	for index, tx := range block.Txs {
 		hash, _ := tx.TxHash()
@@ -320,21 +311,19 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 		for _, txIn := range tx.Vin {
 			preHash := &txIn.PrevOutPoint.Hash
 			if index, ok := txs[*preHash]; ok && i >= index {
-				//originTx := block.Txs[index]
-				//for idx := range tx.Vout {
-				//	u.AddUtxo(originTx, uint32(idx), block.Height)
-				//}
+				originTx := block.Txs[index]
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
 				continue
 			}
-			if val, ok := u.utxoMap[txIn.PrevOutPoint]; ok && val != nil {
+			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
 				continue
 			}
-			emptySet[txIn.PrevOutPoint] = struct{}{}
+			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
 
-	if len(emptySet) > 0 {
-		if err := u.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
+	if len(outPointsToFetch) > 0 {
+		if err := u.fetchUtxosFromOutPointSet(outPointsToFetch, db); err != nil {
 			return err
 		}
 	}
@@ -343,12 +332,12 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 }
 
 func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{}, db storage.Table) error {
-	for outpoint := range outPoints {
-		entry, err := u.fetchUtxoWrapFromDB(db, outpoint)
+	for outPoint := range outPoints {
+		entry, err := u.fetchUtxoWrapFromDB(db, outPoint)
 		if err != nil {
 			return err
 		}
-		u.utxoMap[outpoint] = entry
+		u.utxoMap[outPoint] = entry
 	}
 	return nil
 }
