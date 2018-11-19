@@ -5,12 +5,15 @@
 package blocksync
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync/atomic"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/util"
 )
@@ -34,6 +37,8 @@ func (sm *SyncManager) subscribeMessageNotifiee() {
 	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, p2p.Repeatable, sm.messageCh))
 	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, p2p.Repeatable, sm.messageCh))
 	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncRequest, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncReponse, p2p.Repeatable, sm.messageCh))
 }
 
 func (sm *SyncManager) handleSyncMessage() {
@@ -55,6 +60,10 @@ func (sm *SyncManager) handleSyncMessage() {
 				err = sm.onBlocksRequest(msg)
 			case p2p.BlockChunkResponse:
 				err = sm.onBlocksResponse(msg)
+			case p2p.LightSyncRequest:
+				err = sm.onLightSyncRequest(msg)
+			case p2p.LightSyncReponse:
+				err = sm.onLightSyncResponse(msg)
 			default:
 				logger.Warn("Failed to handle sync msg, unknow msg code")
 			}
@@ -291,7 +300,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
-			err := sm.chain.ProcessBlock(b, false, false)
+			err := sm.chain.ProcessBlock(b, false, false, "")
 			if err != nil {
 				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
 					continue
@@ -302,5 +311,53 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		}
 		tryPushEmptyChan(sm.blocksProcessedCh)
 	}()
+	return nil
+}
+
+func (sm *SyncManager) onLightSyncRequest(msg p2p.Message) error {
+
+	locateHeaders := new(LocateHeaders)
+	if err := locateHeaders.Unmarshal(msg.Body()); err != nil {
+		return err
+	}
+	hashes, err := sm.chain.LocateForkPointAndFetchHeaders(locateHeaders.Hashes)
+	if err != nil {
+		logger.Errorf("Failed to handle LightSyncRequest message. Err: %s", err.Error())
+		return err
+	}
+	if len(hashes) > chain.Threshold {
+		return errors.New("Failed to handle LightSyncRequest message. The remote peer is too far behind")
+	}
+
+	var blocks []*types.Block
+	for _, hash := range hashes {
+		block, err := sm.chain.LoadBlockByHash(*hash)
+		if err != nil {
+			return err
+		}
+		blocks = append(blocks, block)
+	}
+	data := newSyncBlocks(0, blocks...)
+	return sm.p2pNet.SendMessageToPeer(p2p.LightSyncReponse, data, msg.From())
+}
+
+func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
+	sb := new(SyncBlocks)
+	if err := sb.Unmarshal(msg.Body()); err != nil {
+		return err
+	}
+	for _, b := range sb.Blocks {
+		if err := sm.chain.ProcessBlock(b, false, false, ""); err != nil {
+			if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
+				continue
+			}
+			logger.Errorf("Failed to process block while handling LightSyncResponse message. Err: %s", err.Error())
+			return err
+		}
+	}
+	if sm.getStatus() == freeStatus {
+		sm.consensus.RecoverMint()
+	}
+	logger.Info("Light sync completed and exit!")
 	return nil
 }

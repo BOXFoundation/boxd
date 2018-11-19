@@ -25,6 +25,7 @@ import (
 	"github.com/BOXFoundation/boxd/util/bloom"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 // const defines constants
@@ -43,6 +44,8 @@ const (
 
 	metricsLoopInterval = 2 * time.Second
 	BlockFilterCapacity = 100000
+
+	Threshold = 32
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -211,7 +214,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, false, true); err != nil && util.InArray(err, core.EvilBehavior) {
+	if err := chain.ProcessBlock(block, false, true, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
@@ -220,7 +223,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastConfirm bool) error {
+func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastConfirm bool, messageFrom peer.ID) error {
 
 	chain.chainLock.Lock()
 	defer chain.chainLock.Unlock()
@@ -249,11 +252,14 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
-		if chain.tail.Height < block.Height {
+		height := chain.tail.Height
+		if height < block.Height && messageFrom != "" {
+			if block.Height-height < Threshold {
+				return chain.syncManager.ActiveLightSync(messageFrom)
+			}
 			// trigger sync
 			chain.syncManager.StartSync()
 		}
-
 		return nil
 	}
 

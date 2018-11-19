@@ -175,6 +175,22 @@ func (sm *SyncManager) StartSync() {
 	go sm.startSync()
 }
 
+// ActiveLightSync active light sync from remote peer.
+func (sm *SyncManager) ActiveLightSync(pid peer.ID) error {
+	if sm.getStatus() != freeStatus {
+		return errors.New("Peer is in sync")
+	}
+	sm.consensus.StopMint()
+	hashes, err := sm.getLatestBlockLocator()
+	if err != nil {
+		return err
+	}
+	logger.Infof("Active light sync. remote peerID: %s", pid.Pretty())
+	data := newLocateHeaders(hashes...)
+
+	return sm.p2pNet.SendMessageToPeer(p2p.LightSyncRequest, data, pid)
+}
+
 func (sm *SyncManager) startSync() {
 	p2p.UpdateSynced(false)
 	// prevent startSync being executed again
