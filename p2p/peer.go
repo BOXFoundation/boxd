@@ -312,7 +312,7 @@ func (p *BoxPeer) PeerSynced(peers ...peer.ID) map[peer.ID]bool {
 
 	peerToSync := make(map[peer.ID]bool)
 
-	for _, peerID := range peers { 
+	for _, peerID := range peers {
 		sync, ok := p.conns.Load(peerID)
 		if ok {
 			peerToSync[peerID] = sync.(*Conn).isSynced
