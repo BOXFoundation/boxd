@@ -10,7 +10,6 @@ import "github.com/BOXFoundation/boxd/core/types"
 type TxHandler interface {
 	ProcessTx(tx *types.Transaction, broadcast bool) error
 	GetOutPointLockedByPool() []types.OutPoint
-	ApplyPoolUtxos(utxos map[types.OutPoint]*types.UtxoWrap, scriptPrefix []byte)
 	// GetTransactionsInPool gets all transactions in memory pool
 	GetTransactionsInPool() []*types.Transaction
 }
