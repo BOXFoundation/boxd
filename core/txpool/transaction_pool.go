@@ -166,17 +166,6 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	return nil
 }
 
-// GetTransactionsInPool gets all transactions in memory pool
-func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
-
-	var txs []*types.Transaction
-	tx_pool.outPointToTx.Range(func(k, v interface{}) bool {
-		txs = append(txs, v.(*types.Transaction))
-		return true
-	})
-	return txs
-}
-
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 
 	tx := new(types.Transaction)
@@ -503,6 +492,18 @@ func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
 		txs = append(txs, v.(*chain.TxWrap))
 		return true
 	})
+	return txs
+}
+
+// GetTransactionsInPool gets all transactions in memory pool
+func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
+
+	allTxs := tx_pool.GetAllTxs()
+
+	var txs []*types.Transaction
+	for _, tx := range allTxs {
+		txs = append(txs, tx.Tx)
+	}
 	return txs
 }
 
