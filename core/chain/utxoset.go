@@ -6,6 +6,7 @@ package chain
 
 import (
 	"sync"
+
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
