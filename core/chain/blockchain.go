@@ -332,18 +332,11 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	// There are 3 cases.
 	parentHash := &block.Header.PrevBlockHash
 	tailHash := chain.TailBlock().BlockHash()
-	utxoSet := NewUtxoSet()
-	defer func() {
-		utxoSet = nil
-	}()
 
-	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
-		return err
-	}
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		return chain.tryConnectBlockToMainChain(block, utxoSet)
+		return chain.tryConnectBlockToMainChain(block)
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
@@ -355,7 +348,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
-	if err := chain.reorganize(block, utxoSet); err != nil {
+	if err := chain.reorganize(block); err != nil {
 		return err
 	}
 
@@ -423,7 +416,12 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
-func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, utxoSet *UtxoSet) error {
+func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
+	utxoSet := NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+		return err
+	}
+
 	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
 	if err := validateBlockScripts(utxoSet, block); err != nil {
 		return err
@@ -515,8 +513,9 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error {
+func (chain *BlockChain) revertBlock(block *types.Block) error {
 
+	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
 	}
@@ -542,8 +541,11 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet) error
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
 
-	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
-		return err
+	if utxoSet == nil {
+		utxoSet = NewUtxoSet()
+		if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+			return err
+		}
 	}
 	if err := utxoSet.ApplyBlock(block); err != nil {
 		return err
@@ -584,14 +586,14 @@ func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connect
 	return nil
 }
 
-func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error {
+func (chain *BlockChain) reorganize(block *types.Block) error {
 	// Find the common ancestor of the main chain and side chain
 	_, detachBlocks, attachBlocks := chain.findFork(block)
 
 	// Detach the blocks that form the (now) old fork from the main chain.
 	// From tip to fork, not including fork
 	for _, detachBlock := range detachBlocks {
-		if err := chain.revertBlock(detachBlock, utxoSet); err != nil {
+		if err := chain.revertBlock(detachBlock); err != nil {
 			return err
 		}
 	}
@@ -601,7 +603,7 @@ func (chain *BlockChain) reorganize(block *types.Block, utxoSet *UtxoSet) error 
 	// From fork to tip, not including fork
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		attachBlock := attachBlocks[blockIdx]
-		if err := chain.applyBlock(attachBlock, utxoSet); err != nil {
+		if err := chain.applyBlock(attachBlock, nil); err != nil {
 			return err
 		}
 	}
