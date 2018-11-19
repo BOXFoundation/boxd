@@ -25,6 +25,7 @@ import (
 	"github.com/BOXFoundation/boxd/util/bloom"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 // const defines constants
@@ -43,6 +44,8 @@ const (
 
 	metricsLoopInterval = 2 * time.Second
 	BlockFilterCapacity = 100000
+
+	Threshold = 32
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -211,7 +214,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, false, true); err != nil && util.InArray(err, core.EvilBehavior) {
+	if err := chain.ProcessBlock(block, false, true, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
@@ -220,7 +223,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastConfirm bool) error {
+func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastConfirm bool, messageFrom peer.ID) error {
 
 	chain.chainLock.Lock()
 	defer chain.chainLock.Unlock()
@@ -249,11 +252,14 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
-		if chain.tail.Height < block.Height {
+		height := chain.tail.Height
+		if height < block.Height && messageFrom != "" {
+			if block.Height-height < Threshold {
+				return chain.syncManager.ActiveLightSync(messageFrom)
+			}
 			// trigger sync
 			chain.syncManager.StartSync()
 		}
-
 		return nil
 	}
 
@@ -622,11 +628,10 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 	return make(map[types.OutPoint]*types.UtxoWrap), nil
 }
 
-// LoadUtxoByAddress list all the available utxos owned by an address
+// LoadUtxoByAddress list all the available utxos owned by an address, including token utxos
 func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-	logger.Debug(addr.String(), " related blocks", util.PrettyPrint(blockHashes))
 	utxos := make(map[types.OutPoint]*types.UtxoWrap)
 	utxoSet := NewUtxoSet()
 	for _, hash := range blockHashes {
@@ -639,8 +644,7 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 		}
 	}
 	for key, value := range utxoSet.utxoMap {
-		if isPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
-			logger.Debug("utxo: ", util.PrettyPrint(value))
+		if util.IsPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
 			utxos[key] = value
 		}
 	}
@@ -970,7 +974,6 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	}
 	for _, utxo := range utxoUsed {
 		if utxo != nil && utxo.Output != nil {
-			logger.Debug("previous utxo added")
 			vin = append(vin, utxo.Output.ScriptPubKey)
 		}
 	}
@@ -1019,7 +1022,6 @@ func (chain *BlockChain) loadFilters() error {
 func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Transaction, error) {
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-	logger.Info(len(hashes), " blocks searched as related to address ", addr.String())
 	utxoSet := NewUtxoSet()
 	var txs []*types.Transaction
 	for _, hash := range hashes {
@@ -1047,6 +1049,5 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 		}
 	}
 	utxoSet = nil
-	logger.Info(len(txs), " transactions found")
 	return txs, nil
 }

@@ -42,17 +42,19 @@ type TransactionPool struct {
 	txNotifee           *p2p.Notifiee
 	proc                goprocess.Process
 	chain               *chain.BlockChain
-	hashToTx            map[crypto.HashType]*chain.TxWrap
+	hashToTx            *sync.Map
 	bus                 eventbus.Bus
 	// outpoint -> tx spending it; outpoints can be arbitrary, valid (exists and unspent) or invalid
-	outPointToTx   map[types.OutPoint]*types.Transaction
-	outPointMutex  sync.RWMutex
-	txMutex        sync.Mutex
-	hashToOrphanTx map[crypto.HashType]*types.Transaction
+	// types.OutPoint -> *types.Transaction
+	outPointToTx *sync.Map
+	txMutex      sync.Mutex
+	// crypto.HashType -> *types.Transaction
+	hashToOrphanTx *sync.Map
 	// outpoint -> orphans spending it; outpoints can be arbitrary, valid or invalid
 	// Use map here since there can be multiple spending txs and we don't know which
 	// one will be accepted, unlike in outPointToTx where first seen tx is accepted
-	outPointToOrphan map[types.OutPoint]map[crypto.HashType]*types.Transaction
+	// types.OutPoint -> (crypto.HashType -> *types.Transaction)
+	outPointToOrphan *sync.Map
 }
 
 // NewTransactionPool new a transaction pool.
@@ -64,10 +66,10 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		notifiee:            notifiee,
 		chain:               c,
 		bus:                 bus,
-		hashToTx:            make(map[crypto.HashType]*chain.TxWrap),
-		hashToOrphanTx:      make(map[crypto.HashType]*types.Transaction),
-		outPointToOrphan:    make(map[types.OutPoint]map[crypto.HashType]*types.Transaction),
-		outPointToTx:        make(map[types.OutPoint]*types.Transaction),
+		hashToTx:            new(sync.Map),
+		hashToOrphanTx:      new(sync.Map),
+		outPointToOrphan:    new(sync.Map),
+		outPointToTx:        new(sync.Map),
 	}
 }
 
@@ -120,8 +122,8 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
 		case <-metricsTicker.C:
-			metrics.MetricsTxPoolSizeGauge.Update(int64(len(tx_pool.hashToTx)))
-			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(len(tx_pool.hashToOrphanTx)))
+			metrics.MetricsTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToTx)))
+			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToOrphanTx)))
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
@@ -164,30 +166,8 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	return nil
 }
 
-// GetOutPointLockedByPool returns all the utxo outpoints that are used by transaction in pool
-func (tx_pool *TransactionPool) GetOutPointLockedByPool() []types.OutPoint {
-	var outpoints []types.OutPoint
-	tx_pool.outPointMutex.RLock()
-	for o := range tx_pool.outPointToTx {
-		outpoints = append(outpoints, o)
-	}
-	tx_pool.outPointMutex.RUnlock()
-	return outpoints
-}
-
-// GetTransactionsInPool gets all transactions in memory pool
-func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
-	var txs []*types.Transaction
-	tx_pool.outPointMutex.RLock()
-
-	for _, tx := range tx_pool.outPointToTx {
-		txs = append(txs, tx)
-	}
-	tx_pool.outPointMutex.RUnlock()
-	return txs
-}
-
 func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
+
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
@@ -204,10 +184,10 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 // ProcessTx is used to handle new transactions.
 // utxoSet: utxos associated with the tx
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool) error {
+
 	if err := tx_pool.maybeAcceptTx(tx, broadcast, true); err != nil {
 		return err
 	}
-
 	return tx_pool.processOrphans(tx)
 }
 
@@ -300,7 +280,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
 
-	logger.Debugf("Accepted transaction %v (pool size: %v)", txHash.String(), len(tx_pool.hashToTx))
 	// Broadcast this tx.
 	if broadcast {
 		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
@@ -309,19 +288,19 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 }
 
 func (tx_pool *TransactionPool) isTransactionInPool(txHash *crypto.HashType) bool {
-	_, exists := tx_pool.hashToTx[*txHash]
+	_, exists := tx_pool.hashToTx.Load(*txHash)
 	return exists
 }
 
 func (tx_pool *TransactionPool) findTransaction(outpoint types.OutPoint) (*types.Transaction, bool) {
-	tx_pool.outPointMutex.RLock()
-	tx, exists := tx_pool.outPointToTx[outpoint]
-	tx_pool.outPointMutex.RUnlock()
-	return tx, exists
+	if tx, exists := tx_pool.outPointToTx.Load(outpoint); exists {
+		return tx.(*types.Transaction), true
+	}
+	return nil, false
 }
 
 func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
-	_, exists := tx_pool.hashToOrphanTx[*txHash]
+	_, exists := tx_pool.hashToOrphanTx.Load(*txHash)
 	return exists
 }
 
@@ -353,25 +332,20 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 		outPoint := types.OutPoint{Hash: *acceptedTxHash}
 		for txOutIdx := range acceptedTx.Vout {
 			outPoint.Index = uint32(txOutIdx)
-
-			orphans, exists := tx_pool.outPointToOrphan[outPoint]
+			v, exists := tx_pool.outPointToOrphan.Load(outPoint)
 			if !exists {
 				continue
 			}
-
-			for _, orphan := range orphans {
-				// Do not reject a tx simply because it's already in orphan pool
-				// since it may be acceptable now
-				if err := tx_pool.maybeAcceptTx(orphan, false,
-					false /* no duplicate orphan check */); err != nil {
-					continue
+			orphans := v.(*sync.Map)
+			orphans.Range(func(k, v interface{}) bool {
+				orphan := v.(*types.Transaction)
+				if err := tx_pool.maybeAcceptTx(orphan, false, false); err != nil {
+					return true
 				}
 				tx_pool.removeOrphan(orphan)
 				acceptedTxs = append(acceptedTxs, orphan)
-				// Once one child orphan is accepted, others will definitely be rejected due to double spending.
-				// So no need to continue here
-				break
-			}
+				return false
+			})
 		}
 	}
 
@@ -393,14 +367,12 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 		Height:         height,
 		FeePerKB:       feePerKB,
 	}
-	tx_pool.hashToTx[*txHash] = txWrap
+	tx_pool.hashToTx.Store(*txHash, txWrap)
 
 	// outputs spent by this new tx
-	tx_pool.outPointMutex.Lock()
 	for _, txIn := range tx.Vin {
-		tx_pool.outPointToTx[txIn.PrevOutPoint] = tx
+		tx_pool.outPointToTx.Store(txIn.PrevOutPoint, tx)
 	}
-	tx_pool.outPointMutex.Unlock()
 
 	// TODO: build address - tx index.
 }
@@ -410,12 +382,10 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 	txHash, _ := tx.TxHash()
 
 	// Unspend the referenced outpoints.
-	tx_pool.outPointMutex.Lock()
 	for _, txIn := range tx.Vin {
-		delete(tx_pool.outPointToTx, txIn.PrevOutPoint)
+		tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
 	}
-	tx_pool.outPointMutex.Unlock()
-	delete(tx_pool.hashToTx, *txHash)
+	tx_pool.hashToTx.Delete(*txHash)
 
 	if !recursive {
 		return
@@ -457,17 +427,14 @@ func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 
 // Add orphan
 func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
-	// TODO: limit orphan pool size
 
 	txHash, _ := tx.TxHash()
-	tx_pool.hashToOrphanTx[*txHash] = tx
-
+	tx_pool.hashToOrphanTx.Store(*txHash, tx)
 	for _, txIn := range tx.Vin {
-		if _, exists := tx_pool.outPointToOrphan[txIn.PrevOutPoint]; !exists {
-			tx_pool.outPointToOrphan[txIn.PrevOutPoint] =
-				make(map[crypto.HashType]*types.Transaction)
-		}
-		tx_pool.outPointToOrphan[txIn.PrevOutPoint][*txHash] = tx
+		v := new(sync.Map)
+		v.Store(*txHash, tx)
+		tx_pool.outPointToOrphan.LoadOrStore(txIn.PrevOutPoint, v)
+
 	}
 
 	logger.Debugf("Stored orphan transaction %v", txHash.String())
@@ -478,43 +445,77 @@ func (tx_pool *TransactionPool) removeOrphan(tx *types.Transaction) {
 	txHash, _ := tx.TxHash()
 	// Outpoints this orphan spends
 	for _, txIn := range tx.Vin {
-		// Sibling orphans spending the same outpoint as this tx input
-		siblingOrphans, exists := tx_pool.outPointToOrphan[txIn.PrevOutPoint]
+		v, exists := tx_pool.outPointToOrphan.Load(txIn.PrevOutPoint)
 		if !exists {
 			continue
 		}
-		delete(siblingOrphans, *txHash)
+		siblingOrphans := v.(*sync.Map)
+		siblingOrphans.Delete(*txHash)
+
+		var counter int
+		siblingOrphans.Range(func(k, v interface{}) bool {
+			counter++
+			if counter > 0 {
+				return false
+			}
+			return true
+		})
 
 		// Delete the outpoint entry entirely if there are no longer any dependent orphans.
-		if len(siblingOrphans) == 0 {
-			delete(tx_pool.outPointToOrphan, txIn.PrevOutPoint)
+		if counter == 0 {
+			tx_pool.outPointToOrphan.Delete(txIn.PrevOutPoint)
 		}
 	}
 
-	delete(tx_pool.hashToOrphanTx, *txHash)
+	tx_pool.hashToOrphanTx.Delete(*txHash)
 	logger.Debugf("Removed orphan transaction %v", txHash.String())
 }
 
 // removeDoubleSpendOrphans removes all orphans from the orphan pool, which double spend the passed transaction.
 func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) {
 	for _, txIn := range tx.Vin {
-		for _, orphan := range tx_pool.outPointToOrphan[txIn.PrevOutPoint] {
-			tx_pool.removeOrphan(orphan)
+		if v, exists := tx_pool.outPointToOrphan.Load(txIn.PrevOutPoint); exists {
+			temp := v.(*sync.Map)
+			temp.Range(func(k, v interface{}) bool {
+				orphan := v.(*types.Transaction)
+				tx_pool.removeOrphan(orphan)
+				return true
+			})
 		}
 	}
 }
 
 // GetAllTxs returns all transactions in mempool
 func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
-	txs := make([]*chain.TxWrap, len(tx_pool.hashToTx))
-	i := 0
-	for _, tx := range tx_pool.hashToTx {
-		txs[i] = tx
-		i++
+	var txs []*chain.TxWrap
+	tx_pool.hashToTx.Range(func(k, v interface{}) bool {
+		txs = append(txs, v.(*chain.TxWrap))
+		return true
+	})
+	return txs
+}
+
+// GetTransactionsInPool gets all transactions in memory pool
+func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
+
+	allTxs := tx_pool.GetAllTxs()
+
+	var txs []*types.Transaction
+	for _, tx := range allTxs {
+		txs = append(txs, tx.Tx)
 	}
 	return txs
 }
 
 func calcRequiredMinFee(txSize int) uint64 {
 	return 0
+}
+
+func lengthOfSyncMap(target *sync.Map) int {
+	var length int
+	target.Range(func(k, v interface{}) bool {
+		length++
+		return true
+	})
+	return length
 }

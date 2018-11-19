@@ -6,6 +6,7 @@ package types
 
 import (
 	"github.com/BOXFoundation/boxd/crypto"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 // Consensus define consensus interface
@@ -24,5 +25,6 @@ type Consensus interface {
 // SyncManager define sync manager interface
 type SyncManager interface {
 	StartSync()
+	ActiveLightSync(peer.ID) error
 	Run()
 }

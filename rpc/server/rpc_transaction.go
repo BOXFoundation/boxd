@@ -7,8 +7,11 @@ package rpc
 import (
 	"context"
 	"fmt"
+
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/util"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -67,7 +70,6 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 	for out, utxo := range utxos {
 		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
 	}
-	logger.Debugf("List Utxo called, utxos: %+v", utxos)
 	return res, nil
 }
 
@@ -138,7 +140,6 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 	for outpoint, value := range utxos {
 		s := script.NewScriptFromBytes(value.Output.ScriptPubKey)
 		if s.IsTokenIssue() {
-			logger.Debug("Token issue utxo found")
 			if outpoint != *token {
 				// token type not match
 				continue
@@ -150,7 +151,6 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 			amount += issueParam.TotalSupply
 		}
 		if s.IsTokenTransfer() {
-			logger.Debug("Token transfer utxo found")
 			transferParam, err := s.GetTransferParams()
 			if err != nil {
 				return 0, err
@@ -168,17 +168,41 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
 	bc := s.server.GetChainReader()
 	addr, err := types.NewAddress(req.Addr)
+	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
 	utxos, err := bc.LoadUtxoByAddress(addr)
-	usedInMemoryPool := s.server.GetTxHandler().GetOutPointLockedByPool()
-	for _, o := range usedInMemoryPool {
-		delete(utxos, o)
-	}
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
+
+	nextHeight := s.server.GetChainReader().GetBlockHeight() + 1
+
+	// apply mempool txs as if they were mined into a block with 0 confirmation
+	utxoSet := chain.NewUtxoSetFromMap(utxos)
+	memPoolTxs := s.server.GetTxHandler().GetTransactionsInPool()
+	// Note: we add utxo first and spend them later to maintain tx topological order within mempool. Since memPoolTxs may not
+	// be topologically ordered, if tx1 spends tx2 but tx1 comes after tx2, tx1's output is mistakenly marked as unspent
+	// Add utxos first
+	for _, tx := range memPoolTxs {
+		for txOutIdx, txOut := range tx.Vout {
+			// utxo for this address
+			if util.IsPrefixed(txOut.ScriptPubKey, payToPubKeyHashScript) {
+				if err := utxoSet.AddUtxo(tx, uint32(txOutIdx), nextHeight); err != nil {
+					return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
+				}
+			}
+		}
+	}
+	// Then spend
+	for _, tx := range memPoolTxs {
+		for _, txIn := range tx.Vin {
+			utxoSet.SpendUtxo(txIn.PrevOutPoint)
+		}
+	}
+	utxos = utxoSet.GetUtxos()
+
 	res := &rpcpb.ListUtxosResponse{
 		Code:    0,
 		Message: "ok",
@@ -194,12 +218,10 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 			tokenAmount[*outpoint] = budget.Amount
 		}
 	}
-	logger.Debugf("Requested token Info %v", tokenAmount)
 	for out, utxo := range utxos {
 		token, amount, isToken := getTokenInfo(out, utxo)
 		if isToken {
 			if val, ok := tokenAmount[token]; ok && val > 0 {
-				logger.Debugf("Found utxo with token amount: %d", val)
 				if val > amount {
 					tokenAmount[token] = val - amount
 				} else {
@@ -241,12 +263,9 @@ func getTokenInfo(outpoint types.OutPoint, wrap *types.UtxoWrap) (types.OutPoint
 }
 
 func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
-	logger.Debugf("receive transaction: %+v", req.Tx)
-
 	for _, v := range req.Tx.Vin {
 		hash := new(crypto.HashType)
 		copy(hash[:], v.PrevOutPoint.Hash[:])
-		logger.Debugf("receive transaction vin hash: %s", hash)
 	}
 	txpool := s.server.GetTxHandler()
 	tx, err := generateTransaction(req.Tx)
