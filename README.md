@@ -82,7 +82,7 @@ We cannot use our Homebrew tap to install Boxd yet. But we will fix it in the fu
 	```
 	> boxd (and utilities) will now be installed in $GOPATH/bin. If you did not already add the bin directory to your system path during Go installation, we recommend you do so now.
 	
-2. Once the dependencies are installed, run
+2. Once the dependencies are installed, run:
 
 	```
 	make
@@ -146,11 +146,11 @@ The following is the template for the overall configuration.
 	    # Distinguish whether it is a miner
 	    enable_mint: false
 	    passphrase: 1
-	# Burying point Configuration
+	# Burying point Configuration.
 	metrics:
-		 # If true, you need to install Influxdb on your host node
+		 # If true, you need to install Influxdb on your host node.
 	    enable: false
-	    # Following are Influxdb configuration
+	    # Following are Influxdb configuration.
 	    host: http://localhost:8086
 	    db: box
 	    user: 
@@ -198,19 +198,19 @@ Start the nodes with the following commands:
 ## Docker
 This way to create private chains can only be done by using docker and some configuration in the source code.
 
-1. Pull from dockerhub directly
+1. Pull from dockerhub directly.
 	
 		docker pull jerrypeen/boxd:latest
 
-2. Enter custom workspace and copy some configuration from the boxd source code
+2. Enter custom workspace and copy some configuration from the boxd source code.
 	
 		cp -rf $GOPATH/src/github.com/BOXFoundation/boxd/docker/docker-compose.yml $GOPATH/src/github.com/BOXFoundation/boxd/docker/.devconfig $WORKSPACE/
 		
-3. Start image
+3. Start image.
 	
 		docker-compose up
 		
-> Docker will start six miners by default. Boxd suggest you to provide docker with at lest the following configuration
+> Docker will start six miners by default. Boxd suggest you to provide docker with at lest the following configuration:
 > 
 > * cpus : 4
 > * memory: 8.0 GiB
