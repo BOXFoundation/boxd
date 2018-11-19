@@ -131,6 +131,10 @@ func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
 		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+			if err == core.ErrAddExistingUtxo {
+				// This can occur when a tx spends from another tx in front of it in the same block
+				continue
+			}
 			return err
 		}
 	}
