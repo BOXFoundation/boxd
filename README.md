@@ -195,6 +195,30 @@ Start the nodes with the following commands:
 	cd $GOPATH/src/github.com/BOXFoundation/boxd
 	./box start --config=./.devconfig/.box-1.yaml
 
+## Docker
+This way to create private chains can only be done by using docker and some configuration in the source code.
+
+1. Pull from dockerhub directly
+	
+		docker pull jerrypeen/boxd:latest
+
+2. Enter custom workspace and copy some configuration from the boxd source code
+	
+		cp -rf $GOPATH/src/github.com/BOXFoundation/boxd/docker/docker-compose.yml $GOPATH/src/github.com/BOXFoundation/boxd/docker/.devconfig $WORKSPACE/
+		
+3. Start image
+	
+		docker-compose up
+		
+> Docker will start six miners by default. Boxd suggest you to provide docker with at lest the following configuration
+> 
+> * cpus : 4
+> * memory: 8.0 GiB
+> * Swap: 2.0 Gib
+
+
+	
+
 # Contribution
 
 Thank you very much for your thinking and help on Boxd. Even a small amount of help in code, community or documentation is making us better.
