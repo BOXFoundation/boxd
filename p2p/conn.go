@@ -12,6 +12,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/p2p/pb"
+	pq "github.com/BOXFoundation/boxd/p2p/priorityqueue"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -26,6 +27,10 @@ const (
 
 	PingBody = "ping"
 	PongBody = "pong"
+
+	// number of priority queues [Low, Mid, High, Top]
+	PriorityQueue    = 4
+	PriorityQueueCap = 1024
 )
 
 // Conn represents a connection to a remote node
@@ -36,6 +41,7 @@ type Conn struct {
 	isEstablished      bool
 	isSynced           bool
 	establishSucceedCh chan bool
+	pq                 *pq.PriorityQueue
 	proc               goprocess.Process
 	procHeartbeat      goprocess.Process
 	mutex              sync.Mutex
@@ -47,6 +53,7 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 		stream:             stream,
 		peer:               peer,
 		remotePeer:         peerID,
+		pq:                 pq.New(PriorityQueue, PriorityQueueCap),
 		isEstablished:      false,
 		isSynced:           false,
 		establishSucceedCh: make(chan bool, 1),
@@ -59,6 +66,15 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 	if conn.proc == nil {
 		conn.proc = goprocess.WithParent(parent)
 		conn.proc.Go(conn.loop).SetTeardown(conn.Close)
+
+		go conn.pq.Run(conn.proc, func(i interface{}) {
+			data := i.([]byte)
+			if _, err := conn.stream.Write(data); err != nil {
+				logger.Error("Failed to write message. ", err)
+			} else {
+				metricsWriteMeter.Mark(int64(len(data) / 8))
+			}
+		})
 	}
 	conn.mutex.Unlock()
 }
@@ -273,9 +289,8 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.stream.Write(data)
-	metricsWriteMeter.Mark(int64(len(data) / 8))
-	return err // error or nil
+	err = conn.pq.Push(data, int(msgAttr.priority))
+	return err
 }
 
 // Close connection to remote peer.

@@ -48,20 +48,27 @@ const (
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
 
+const (
+	lowPriority uint8 = iota
+	midPriority
+	highPriority
+	topPriority
+)
+
 var msgToAttribute = map[uint32]*messageAttribute{
-	Ping:                    &messageAttribute{compress: false},
-	Pong:                    &messageAttribute{compress: false},
-	PeerDiscover:            &messageAttribute{compress: false},
-	PeerDiscoverReply:       &messageAttribute{compress: true},
-	NewBlockMsg:             &messageAttribute{compress: true},
-	TransactionMsg:          &messageAttribute{compress: true},
-	LocateForkPointRequest:  &messageAttribute{compress: false},
-	LocateForkPointResponse: &messageAttribute{compress: true},
-	LocateCheckRequest:      &messageAttribute{compress: false},
-	LocateCheckResponse:     &messageAttribute{compress: false},
-	BlockChunkRequest:       &messageAttribute{compress: true},
-	BlockChunkResponse:      &messageAttribute{compress: true},
-	EternalBlockMsg:         &messageAttribute{compress: false},
+	Ping:                    &messageAttribute{compress: false, priority: lowPriority},
+	Pong:                    &messageAttribute{compress: false, priority: lowPriority},
+	PeerDiscover:            &messageAttribute{compress: false, priority: lowPriority},
+	PeerDiscoverReply:       &messageAttribute{compress: true, priority: midPriority},
+	NewBlockMsg:             &messageAttribute{compress: true, priority: topPriority},
+	TransactionMsg:          &messageAttribute{compress: true, priority: highPriority},
+	LocateForkPointRequest:  &messageAttribute{compress: false, priority: highPriority},
+	LocateForkPointResponse: &messageAttribute{compress: true, priority: midPriority},
+	LocateCheckRequest:      &messageAttribute{compress: false, priority: highPriority},
+	LocateCheckResponse:     &messageAttribute{compress: false, priority: midPriority},
+	BlockChunkRequest:       &messageAttribute{compress: true, priority: highPriority},
+	BlockChunkResponse:      &messageAttribute{compress: true, priority: highPriority},
+	EternalBlockMsg:         &messageAttribute{compress: false, priority: midPriority},
 }
 
 // NetworkNamtToMagic is a map from network name to magic number.
@@ -154,6 +161,7 @@ func readMessageData(r io.Reader) (*message, error) {
 // message defines the full message content from network.
 type messageAttribute struct {
 	compress bool
+	priority uint8
 }
 
 ////////////////////////////////////////////////////////////////////////////////
