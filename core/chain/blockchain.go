@@ -114,7 +114,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 
-	if b.tail, err = b.LoadTailBlock(); err != nil {
+	if b.tail, err = b.loadTailBlock(); err != nil {
 		logger.Error("Failed to load tail block ", err)
 		return nil, err
 	}
@@ -753,8 +753,8 @@ func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
 	return &GenesisBlock, nil
 }
 
-// LoadTailBlock load tail block
-func (chain *BlockChain) LoadTailBlock() (*types.Block, error) {
+// loadTailBlock load tail block
+func (chain *BlockChain) loadTailBlock() (*types.Block, error) {
 	if chain.tail != nil {
 		return chain.tail, nil
 	}

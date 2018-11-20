@@ -51,7 +51,7 @@ func nextBlock(parentBlock *types.Block) *types.Block {
 }
 
 func getTailBlock() *types.Block {
-	tailBlock, _ := blockChain.LoadTailBlock()
+	tailBlock, _ := blockChain.loadTailBlock()
 	return tailBlock
 }
 

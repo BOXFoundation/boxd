@@ -50,10 +50,6 @@ var GenesisBlock = types.Block{
 // GenesisHash is the hash of genesis block
 var GenesisHash = *(GenesisBlock.BlockHash())
 
-// var GenesisPeriod = []string{
-// 	"b1YVxYU6ANzJ7GNpM2Utv67zDVAidd63fJ1",
-// }
-
 // GenesisPeriod genesis period
 var GenesisPeriod = []map[string]string{
 	{
