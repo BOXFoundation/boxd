@@ -294,15 +294,97 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 			return ErrInvalidStackOperation
 		}
 		signature := stack.topN(2)
-		publicKey := stack.topN(1)
+		pubKey := stack.topN(1)
 
 		// script consists of: scriptSig + OPCODESEPARATOR + scriptPubKey
 		scriptPubKey := (*s)[*scriptPubKeyStart:]
 
-		isVerified := verifySig(signature, publicKey, scriptPubKey, tx, txInIdx)
+		isVerified := verifySig(signature, pubKey, scriptPubKey, tx, txInIdx)
 
 		stack.pop()
 		stack.pop()
+		if isVerified {
+			stack.push(operandTrue)
+		} else {
+			stack.push(operandFalse)
+		}
+		if opCode == OPCHECKSIGVERIFY {
+			if isVerified {
+				stack.pop()
+			} else {
+				return ErrScriptSignatureVerifyFail
+			}
+		}
+
+	case OPCHECKMULTISIG:
+		fallthrough
+	case OPCHECKMULTISIGVERIFY:
+		// Format: e.g.,
+		// <Signature B> <Signature C> | 2 <Public Key A> <Public Key B> <Public Key C> 3 CHECKMULTISIG
+		i := 1
+		if stack.size() < i {
+			return ErrInvalidStackOperation
+		}
+
+		// public keys
+		pubKeyCount, err := stack.topN(i).int()
+		if err != nil {
+			return err
+		}
+		if pubKeyCount < 0 {
+			return ErrCountNegative
+		}
+		i++
+		pubKeyIdx := i
+		i += pubKeyCount
+		if stack.size() < i {
+			return ErrInvalidStackOperation
+		}
+
+		// signatures
+		sigCount, err := stack.topN(i).int()
+		if err != nil {
+			return err
+		}
+		if sigCount < 0 {
+			return ErrCountNegative
+		}
+		if sigCount > pubKeyCount {
+			return ErrScriptSignatureVerifyFail
+		}
+		i++
+		sigIdx := i
+		i += sigCount
+		// Note: i points right beyond signature so use (i-1)
+		if stack.size() < i-1 {
+			logger.Errorf("sssss%d vs %d", stack.size(), i)
+			return ErrInvalidStackOperation
+		}
+
+		// script consists of: scriptSig + OPCODESEPARATOR + scriptPubKey
+		scriptPubKey := (*s)[*scriptPubKeyStart:]
+
+		isVerified := true
+		for isVerified && sigCount > 0 {
+			signature := stack.topN(sigIdx)
+			pubKey := stack.topN(pubKeyIdx)
+
+			if verifySig(signature, pubKey, scriptPubKey, tx, txInIdx) {
+				sigIdx++
+				sigCount--
+			}
+			pubKeyIdx++
+			pubKeyCount--
+
+			// More signatures left than keys means verification failure
+			if sigCount > pubKeyCount {
+				isVerified = false
+			}
+		}
+
+		for ; i > 1; i-- {
+			stack.pop()
+		}
 		if isVerified {
 			stack.push(operandTrue)
 		} else {

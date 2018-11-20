@@ -5,6 +5,7 @@
 package script
 
 import (
+	"errors"
 	"math/big"
 )
 
@@ -15,6 +16,15 @@ var (
 	operandFalse = Operand([]byte{0})
 	operandTrue  = Operand([]byte{1})
 )
+
+func (o Operand) int() (int, error) {
+	bigInt := big.NewInt(0)
+	bigInt.SetBytes(o)
+	if !bigInt.IsInt64() {
+		return 0, errors.New("Cannot be converted to int 64")
+	}
+	return int(bigInt.Int64()), nil
+}
 
 // Stack is used when interpretting script
 type Stack struct {

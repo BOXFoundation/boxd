@@ -26,4 +26,5 @@ var (
 	// stack.go
 	ErrFinalStackEmpty       = errors.New("Final stack empty")
 	ErrFinalTopStackEleFalse = errors.New("Final top stack element false")
+	ErrCountNegative         = errors.New("Count is negative")
 )

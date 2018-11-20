@@ -146,6 +146,57 @@ func TestP2SH(t *testing.T) {
 	ensure.Nil(t, err)
 }
 
+// minSigCount: minimal number of signatures required
+// sigCount: number of signatures included in unlocking script
+func genMultisigScript(minSigCount, sigCount int) (*Script, *Script) {
+	testPrivKey1, testPubKey1, _ := crypto.NewKeyPair()
+	testPubKeyBytes1 := testPubKey1.Serialize()
+
+	testPrivKey2, testPubKey2, _ := crypto.NewKeyPair()
+	testPubKeyBytes2 := testPubKey2.Serialize()
+
+	// locking script: m <Public Key A> <Public Key B> <Public Key C> 3 CHECKMULTISIG
+	opM := OpCode(int(OP1) + minSigCount - 1)
+	scriptPubKey := NewScript().AddOpCode(opM).AddOperand(testPubKeyBytes).AddOperand(testPubKeyBytes1).
+		AddOperand(testPubKeyBytes2).AddOpCode(OP3).AddOpCode(OPCHECKMULTISIG)
+
+	hash, _ := CalcTxHashForSig([]byte(*scriptPubKey), tx, 0)
+
+	sigs := make([][]byte, 0)
+
+	sig, _ := crypto.Sign(testPrivKey, hash)
+	sigs = append(sigs, sig.Serialize())
+
+	sig, _ = crypto.Sign(testPrivKey1, hash)
+	sigs = append(sigs, sig.Serialize())
+
+	sig, _ = crypto.Sign(testPrivKey2, hash)
+	sigs = append(sigs, sig.Serialize())
+
+	// unlocking script: sigA, sigB
+	scriptSig := NewScript()
+	for i := 0; i < sigCount; i++ {
+		scriptSig.AddOperand(sigs[i])
+	}
+
+	return scriptSig, scriptPubKey
+}
+
+// test multisig script
+func TestMultisig(t *testing.T) {
+	for minSigCount := 1; minSigCount <= 3; minSigCount++ {
+		for sigCount := 1; sigCount <= 3; sigCount++ {
+			scriptSig, scriptPubKey := genMultisigScript(minSigCount, sigCount)
+			err := Validate(scriptSig, scriptPubKey, tx, 0)
+			if sigCount < minSigCount {
+				ensure.NotNil(t, err)
+			} else {
+				ensure.Nil(t, err)
+			}
+		}
+	}
+}
+
 func TestDisasm(t *testing.T) {
 	script := NewScript().AddOpCode(OP8).AddOpCode(OP6).AddOpCode(OPADD).AddOpCode(OP14).AddOpCode(OPEQUAL)
 	ensure.DeepEqual(t, script.Disasm(), "OP_8 OP_6 OP_ADD OP_14 OP_EQUAL")
