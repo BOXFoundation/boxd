@@ -1,12 +1,12 @@
 # Boxd
 
-A Go implementation of BOX Payout blockchain. 
+A Go implementation of BOX Payout blockchain.[![Build Status](https://travis-ci.com/BOXFoundation/boxd.svg?token=v6N8VybyjmC1GLSWZv92&branch=develop)](https://travis-ci.com/BOXFoundation/boxd)
 
 ## Overview
 
 Content Box is a platform which was developed for building digital ecosystems. Boxd is a backend for Content Box blockchain platform.
 
-In this guide we will deploy Boxd Blockchain Platform based on three kinds of nodes with the same OS on the private net.
+In this guide, we will deploy boxd local regression testnet.
 
 As a node OS we will use:
 
@@ -22,15 +22,13 @@ As a node OS we will use:
 |:---|:---:|:---:|
 |Golang| >= 1.11| -- |
 |Govendor| -| A dependency management tool for Go. |
-|Rocksdb| >= 5.0.1| A C++ library providing an embedded key-value store. |
-
-We cannot use our Homebrew tap to install Boxd yet. But we will fix it in the future.
+|Rocksdb| >= 5.0.1|  A high performance embedded database for key-value data. |
 
 ### Preparing environment
 
 * OS X:
 
-	1. Install Go compiler:
+	1. Install Go:
 	
 		```
 		brew install go
@@ -41,7 +39,7 @@ We cannot use our Homebrew tap to install Boxd yet. But we will fix it in the fu
 		brew install rocksdb
 		```
 	
-	3. Use govendor:
+	3. Install govendor:
 	
 		```
 		go get -u github.com/kardianos/govendor
@@ -49,31 +47,27 @@ We cannot use our Homebrew tap to install Boxd yet. But we will fix it in the fu
 
 * Linux:
 
-	Click [here](https://golang.org/doc/install) to install Go compiler.
+	Click [here](https://golang.org/doc/install) to install Go.
 	
 	1. Install rocksdb:
 		#### Ubuntu
-		```
-		apt-get update
-	apt-get -y install build-essential libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
-	git clone https://github.com/facebook/rocksdb.git
-	cd rocksdb && make shared_lib && make install-shared
-		```
+			apt-get update
+			apt-get -y install build-essential libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+			git clone https://github.com/facebook/rocksdb.git
+			cd rocksdb && make shared_lib && make install-shared
 		#### CentOS
-		```
-		yum -y install epel-release && yum -y update
-	yum -y install gflags-devel snappy-devel zlib-devel bzip2-devel gcc-c++  libstdc++-devel
-		git clone https://github.com/facebook/rocksdb.git
-	cd rocksdb && make shared_lib && make install-shared
-		```
+			yum -y install epel-release && yum -y update
+			yum -y install gflags-devel snappy-devel zlib-devel bzip2-devel gcc-c++  libstdc++-devel
+			git clone https://github.com/facebook/rocksdb.git
+			cd rocksdb && make shared_lib && make install-shared
 	
-	2. Use govendor:
+	2. Install govendor:
 	
 		```
 		go get -u github.com/kardianos/govendor
 		```
 	
-### Building
+### Build
 1. Run the following command to obtain boxd and all dependencies:
 
 	```
@@ -90,7 +84,7 @@ We cannot use our Homebrew tap to install Boxd yet. But we will fix it in the fu
 
 ## Getting Started
 
-The box chain you are running at this point is private and is different from the official Testnet and Mainnet.
+The box chain you are running at this point is local is different from the official Testnet and Mainnet.
 
 ### Configuration
 
@@ -103,34 +97,11 @@ The following is the template for the overall configuration.
 	workspace: .devconfig/ws1
 	database:
 	    name: rocksdb
-	# Log Configuration
 	log:
-	    out:
-	    	 # [stdout, stderr, null]
-	        name: stderr 
-	    # Log level [debug, info, warning, error, fatal]
 	    level: debug 
-	    # Log Format [json, text]
-	    formatter:
-	        name: text
-	    hooks:
-	        - name: filewithformatter
-	          options:
-	              filename: box.log
-	              maxlines: 100000
-	              # daily: true
-	              # maxsize: 10240000
-	              rotate: true
-	              # [0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug]
-	              level:  4 
-	# P2p network Configuration
 	p2p:
 	    key_path: peer.key
 	    port: 19199
-	    # The first node to the network needn't to have the seeds.
-	    # Otherwise, every nodes of the network need to config the seeds to join into the network.
-	    seeds:
-	        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
 	    bucket_size: 16
 	    latency: 10
 	    conn_max_capacity: 200
@@ -139,39 +110,23 @@ The following is the template for the overall configuration.
 	    port: 19191
 	    http:
 	        port: 19190
-	#Dpos Configuration
 	dpos:
 		 # Store the Private key
 	    keypath: key.keystore
-	    # Distinguish whether it is a miner
 	    enable_mint: false
 	    passphrase: 1
-	# Burying point Configuration.
-	metrics:
-		 # If true, you need to install Influxdb on your host node.
-	    enable: false
-	    # Following are Influxdb configuration.
-	    host: http://localhost:8086
-	    db: box
-	    user: 
-	    password:
-	    tags: 
 
 ### Starting up your own node
 
 #### Running seed node
-Run one or more seed nodes on your networks through the above configuration, which all other nodes need to sync routing table upon. 
+Run one or more seed nodes on your networks through the above configuration, which all other nodes need to sync routing table with. 
 
 >Or if you want to use our official tesetnet seeds and connect in our testnet, skip this step.
 
 	cd $GOPATH/src/github.com/BOXFoundation/boxd
 	./box start --config=./.devconfig/.box-1.yaml
 
-If it goes smoothly, you will see the following contents:
-
-	[image link]
-
-We will find this peer's Id in the second line. 
+We will find this peer's Id in the second line of the log. 
 
 #### Running node
 Edit your node's yaml and add seeds' link to it.
@@ -187,7 +142,7 @@ Edit your node's yaml and add seeds' link to it.
 	    conn_max_capacity: 200
 	    conn_load_factor: 0.8
 
-If you are a miner node, you need to change dpos.enable_mint to true.
+If you are a miner node, you need to change `dpos.enable_mint` to true.
 
 Start the nodes with the following commands:
 
@@ -196,7 +151,6 @@ Start the nodes with the following commands:
 	./box start --config=./.devconfig/.box-1.yaml
 
 ## Docker
-This way to create private chains can only be done by using docker and some configuration in the source code.
 
 1. Pull from dockerhub directly.
 	
@@ -206,11 +160,11 @@ This way to create private chains can only be done by using docker and some conf
 	
 		cp -rf $GOPATH/src/github.com/BOXFoundation/boxd/docker/docker-compose.yml $GOPATH/src/github.com/BOXFoundation/boxd/docker/.devconfig $WORKSPACE/
 		
-3. Start image.
+3. Start container.
 	
 		docker-compose up
 		
-> Docker will start six miners by default. Boxd suggest you to provide docker with at lest the following configuration:
+> Docker will start six miners by default. We suggest you to provide docker with at least the following configuration:
 > 
 > * cpus : 4
 > * memory: 8.0 GiB
@@ -221,9 +175,9 @@ This way to create private chains can only be done by using docker and some conf
 
 # Contribution
 
-Thank you very much for your thinking and help on Boxd. Even a small amount of help in code, community or documentation is making us better.
+Thank you very much for your considering helping Boxd. Even a small amount of help in code, community or documentation is making us better.
 
-If you are willing to contribute to Boxd, please fork, fix, commit and send pull requests so that we can review the code and merge it into the main code base. If you have very complex or even structural changes, please contact our developers on the gitter channel to ensure that it fits the overall way of thinking of our code. Earlier communication will make you and us more efficient.
+If you are willing to contribute to Boxd, please fork, fix, commit and send pull requests so that we can review the code and merge it into the main code base. If you have very complex or even structural changes, please contact our developers to ensure that it fits the overall way of thinking of our code. Earlier communication will make you and us more efficient.
 
 Your code needs to meet the following requirements:
 1. Good golang code style.
