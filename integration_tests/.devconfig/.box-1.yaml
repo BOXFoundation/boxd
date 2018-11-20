@@ -27,7 +27,7 @@ p2p:
 rpc:
     port: 19111
     http:
-        port: 19190
+        port: 19110
 dpos:
     keypath: key.keystore
     enable_mint: true

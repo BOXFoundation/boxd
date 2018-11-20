@@ -29,10 +29,26 @@ func LoadJSONFromFile(fileName string, result interface{}) error {
 	return nil
 }
 
+func parseIPlist(fileName string) ([]string, error) {
+	var list []interface{}
+	if err := LoadJSONFromFile(fileName, &list); err != nil {
+		return nil, err
+	}
+	var ipList []string
+	for _, v := range list {
+		if s, ok := v.(string); ok {
+			ipList = append(ipList, s)
+		} else {
+			return nil, fmt.Errorf("%#v is not a string type", v)
+		}
+	}
+	return ipList, nil
+}
+
 func startLocalNodes(peerCount int) ([]*os.Process, error) {
 	var processes []*os.Process
 	for i := 0; i < peerCount; i++ {
-		cfg := fmt.Sprintf("--config=%s.box-%d.yaml", workDir, i+1)
+		cfg := fmt.Sprintf("--config=%s.box-%d.yaml", localConf.ConfDir, i+1)
 		args := []string{"../box", "start", cfg, "&"}
 		logger.Infof("startLocalNodes: %v", args)
 		p, err := StartProcess(args...)
@@ -97,6 +113,12 @@ func stopNodes() error {
 
 func prepareEnv(count int) error {
 	logger.Info("prepare test workspace")
+	var workDir string
+	if *enableDocker {
+		workDir = dockerConf.WorkDir
+	} else {
+		workDir = localConf.WorkDir
+	}
 	for i := 0; i < count; i++ {
 		// remove database and logs directories in ../.devconfig/ ws
 		prefix := workDir + "ws" + strconv.Itoa(i+1)
@@ -108,7 +130,12 @@ func prepareEnv(count int) error {
 			return err
 		}
 		// check .box-*.yaml exists
-		cfgFile := workDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
+		var cfgFile string
+		if *enableDocker {
+			cfgFile = dockerConf.ConfDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
+		} else {
+			cfgFile = localConf.ConfDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
+		}
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
 			return err
 		}
@@ -123,6 +150,12 @@ func prepareEnv(count int) error {
 }
 
 func tearDown(count int) error {
+	var workDir string
+	if *enableDocker {
+		workDir = dockerConf.WorkDir
+	} else {
+		workDir = localConf.WorkDir
+	}
 	// remove database and logs directories in ../.devconfig/ ws
 	for i := 0; i < count; i++ {
 		prefix := workDir + "ws" + strconv.Itoa(i+1)
