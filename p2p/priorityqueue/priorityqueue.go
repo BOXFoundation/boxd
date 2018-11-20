@@ -15,6 +15,7 @@ var (
 	logger = log.NewLogger("pq")
 
 	errBadPriority = errors.New("bad priority")
+	errPQFull = errors.New("the priority queue is full")
 )
 
 // PriorityQueue is a priority queue
@@ -29,7 +30,7 @@ func New(n int, l int) *PriorityQueue {
 	for i := range queues {
 		queues[i] = make(chan interface{}, l)
 	}
-	return &PriorityQueue{queues: queues, notify: make(chan struct{}, l)}
+	return &PriorityQueue{queues: queues, notify: make(chan struct{}, 1)}
 }
 
 // Run is a loop popping items from the priority queues
@@ -42,6 +43,8 @@ func (pq *PriorityQueue) Run(proc goprocess.Process, f func(interface{})) {
 		case x := <-q:
 			f(x)
 			p = top
+		case <-proc.Closing():
+			return
 		default:
 			if p > 0 {
 				p--
@@ -50,8 +53,6 @@ func (pq *PriorityQueue) Run(proc goprocess.Process, f func(interface{})) {
 			select {
 			case <-pq.notify:
 				p = top
-			case <-proc.Closing():
-				return
 			}
 		}
 	}
@@ -63,7 +64,14 @@ func (pq *PriorityQueue) Push(item interface{}, p int) error {
 	if p < 0 || p >= len(pq.queues) {
 		return errBadPriority
 	}
-	pq.queues[p] <- item
-	pq.notify <- struct{}{}
+	select {
+	case pq.queues[p] <- item:
+	default:
+		return errPQFull
+	}
+	select {
+	case pq.notify <- struct{}{}:
+	default:
+	}
 	return nil
 }
