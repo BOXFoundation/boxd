@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
-	"sort"
 	"sync"
 	"time"
 
@@ -100,7 +99,7 @@ func (c *Circulation) doTx(index int) {
 		addrIdx = toIdx
 		if cirInfo, ok := <-c.cirInfoCh; ok {
 			logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-			txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, cirInfo.UtxoCnt)
+			txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, 100)
 		}
 	}
 }
@@ -112,56 +111,40 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 		}
 	}()
 	logger.Info("=== RUN   txRepeatTest")
-	// create a transaction from addr 1 to addr 2
-	transfer := uint64(0)
-	utxos, err := utxosNoPanicFor(fromAddr, execPeer)
-	if err != nil {
-		logger.Warn(err)
-	}
-	if len(utxos) == 0 {
-		time.Sleep(blockTime)
+	if times <= 0 {
+		logger.Warn("times is 0, exit")
 		return
 	}
-	if len(utxos) <= times {
-		logger.Infof("utxos count %d is less or equals than repeat times %d on %s,"+
-			" set times--", len(utxos), times, fromAddr)
-		times = len(utxos) - 1
-	}
-	sort.Sort(sort.Reverse(sortByUTXOValue(utxos)))
-	toUtxos := utxosFor(toAddr, execPeer)
 	//
 	fromBalancePre := balanceFor(fromAddr, execPeer)
+	if fromBalancePre == 0 {
+		logger.Warnf("balance of %s is 0, exit", fromAddr)
+		return
+	}
 	toBalancePre := balanceFor(toAddr, execPeer)
-	logger.Infof("fromAddr[%s] balance: %d, utox count: %d, max: %d, min: %d",
-		fromAddr, fromBalancePre, len(utxos), utxos[0].TxOut.Value,
-		utxos[len(utxos)-1].TxOut.Value)
-	logger.Infof("toAddr[%s] balance: %d", toAddr, toBalancePre)
+	logger.Infof("fromAddr[%s] balance: %d, toAddr[%s] balance: %d",
+		fromAddr, fromBalancePre, toAddr, toBalancePre)
+	transfer := uint64(0)
+	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
+	// remain at 1/5 balance as transaction fee
+	base := fromBalancePre / uint64(times) / 5 * 2
 	for i := 0; i < times; i++ {
-		//amount := utxos[i+1].TxOut.Value
-		//amount := utxos[len(utxos)-1].TxOut.Value
-		amount := 1000 + uint64(rand.Int31n(1000))
+		amount := base + uint64(rand.Int63n(int64(base)))
 		logger.Debugf("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
 		execTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
 	}
-
-	logger.Infof("wait for %d transactions brought on chain, timeout %v",
-		times, timeoutToChain)
-	m, err := waitUTXOsEnough(toAddr, len(toUtxos)+times, execPeer, timeoutToChain)
-	time.Sleep(blockTime)
+	logger.Infof("wait for %s's balance reach %d, timeout %v", toAddr,
+		toBalancePre+transfer, timeoutToChain)
+	toBalancePost, err := waitBalanceEnough(toAddr, toBalancePre+transfer,
+		execPeer, timeoutToChain)
 	if err != nil {
 		logger.Warn(err)
 	}
-	logger.Infof("addr %s utxo count: %d", toAddr, m)
-
 	// check the balance of miners
-	logger.Infof("start to get balance of fromAddr[%s], toAddr[%s] from %s",
-		fromAddr, toAddr, execPeer)
 	fromBalancePost := balanceFor(fromAddr, execPeer)
-	toBalancePost := balanceFor(toAddr, execPeer)
 	logger.Infof("fromAddr[%s] balance: %d toAddr[%s] balance: %d",
 		fromAddr, fromBalancePost, toAddr, toBalancePost)
-
 	// prerequisite: neither of fromAddr and toAddr are not miner address
 	toGap := toBalancePost - toBalancePre
 	fromGap := fromBalancePre - fromBalancePost
@@ -172,6 +155,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	logger.Infof("--- DONE: txRepeatTest")
 }
 
+// TODO: have not been verified
 func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
 	execPeer string) {
 	logger.Info("=== RUN   txOneToManyTest")
@@ -228,6 +212,7 @@ func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
 	logger.Info("--- PASS: txOneToManyTest")
 }
 
+// TODO: have not been verified
 func txManyToOneTest(fromAddrs []string, toAddr string, execPeer string) {
 	logger.Info("=== RUN   txManyToOneTest")
 	// get balance of fromAddrs and toAddr

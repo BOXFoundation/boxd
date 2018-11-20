@@ -41,35 +41,10 @@ var logger = log.NewLogger("integration_tests") // logger
 // CirInfo defines circulation information
 type CirInfo struct {
 	Addr     string
-	UtxoCnt  int
 	PeerAddr string
 }
 
 var (
-	allAddrs = []string{
-		// localhost
-		"127.0.0.1:19111", // n1
-		"127.0.0.1:19121", // n2
-		"127.0.0.1:19131", // n3
-		"127.0.0.1:19141", // n4
-		"127.0.0.1:19151", // n5
-		"127.0.0.1:19161", // n6
-		// docker
-		"127.0.0.1:19111", // n1
-		"127.0.0.1:19121", // n2
-		"127.0.0.1:19131", // n3
-		"127.0.0.1:19141", // n4
-		"127.0.0.1:19151", // n5
-		"127.0.0.1:19161", // n6
-		// testnet
-		"192.168.0.227:19111", // n1
-		"192.168.0.227:19121", // n2
-		"192.168.0.227:19131", // n3
-		"192.168.0.226:19141", // n4
-		"192.168.0.226:19151", // n5
-		"192.168.0.226:19161", // n6
-	}
-
 	peersAddr []string
 
 	newNodes     = flag.Bool("nodes", false, "need to start nodes?")
@@ -100,7 +75,7 @@ func init() {
 
 func main() {
 	flag.Parse()
-	peersAddr = allAddrs[2*peerCnt:]
+	var err error
 	if *newNodes {
 		// prepare environment and clean history data
 		if err := prepareEnv(peerCnt); err != nil {
@@ -110,19 +85,27 @@ func main() {
 
 		// start nodes
 		if *enableDocker {
-			peersAddr = allAddrs[peerCnt : 2*peerCnt]
+			peersAddr, err = parseIPlist(".devconfig/docker.iplist")
+			if err != nil {
+				logger.Panic(err)
+			}
 			if err := startNodes(); err != nil {
 				logger.Panic(err)
 			}
 			defer stopNodes()
 		} else {
-			peersAddr = allAddrs[:peerCnt]
+			peersAddr, err = parseIPlist(".devconfig/local.iplist")
+			if err != nil {
+				logger.Panic(err)
+			}
 			processes, err := startLocalNodes(peerCnt)
 			defer stopLocalNodes(processes...)
 			if err != nil {
 				logger.Panic(err)
 			}
 		}
+	} else {
+		peersAddr, err = parseIPlist(".devconfig/testnet.iplist")
 	}
 
 	// define chan
@@ -141,14 +124,14 @@ func main() {
 	go func() {
 		defer wg.Done()
 		coll.Run()
-		logger.Info("done coll")
+		logger.Info("done collection")
 	}()
 
 	// circulation process
 	go func() {
 		defer wg.Done()
 		circu.Run()
-		logger.Info("done circu")
+		logger.Info("done circulation")
 	}()
 
 	wg.Wait()

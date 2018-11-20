@@ -6,18 +6,16 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
 	"time"
-
-	"github.com/BOXFoundation/boxd/core/chain"
 )
 
 const (
 	timeoutToChain = 30 * time.Second
+	totalAmount    = 1e6
 )
 
 // Collection manage transaction creation and collection
@@ -80,7 +78,7 @@ func (c *Collection) Run() {
 		peerIdx++
 		logger.Infof("waiting for minersAddr has BaseSubsidy utxo at least on %s",
 			peerAddr)
-		addr, _, err := waitOneAddrBalanceEnough(minerAddrs, chain.BaseSubsidy,
+		addr, _, err := waitOneAddrBalanceEnough(minerAddrs, totalAmount,
 			peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Error(err)
@@ -90,67 +88,47 @@ func (c *Collection) Run() {
 		c.minerAddr = addr
 		collAddr := <-c.collAddrCh
 		logger.Infof("start to create transactions on %s", peerAddr)
-		n := c.prepareUTXOs(collAddr, c.accCnt*c.accCnt, peerAddr)
-		c.cirInfoCh <- CirInfo{Addr: collAddr, UtxoCnt: n, PeerAddr: peerAddr}
+		c.launderFunds(collAddr, peerAddr)
+		c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
 	}
 }
 
-// prepareUTXOs generates n*n utxos for addr, addr must not be in c.addrs
-func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) int {
+// launderFunds generates some money, addr must not be in c.addrs
+func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
 		}
 	}()
-	logger.Info("=== RUN   prepareUTXOs")
-	count := int(math.Ceil(math.Sqrt(float64(n))))
-	if count > len(c.addrs) {
-		logger.Warnf("tests account is not enough for generate %d utxo", n)
-		count = len(c.addrs)
-	}
-	oldUtxos := utxosFor(addr, peerAddr)
-	logger.Infof("before prepareUTXOs %s utxo count: %d", addr, len(oldUtxos))
-	// miner to tests[0:len(addrs)-1]
-	amount := chain.BaseSubsidy / (10 * uint64(count))
-	amount += uint64(rand.Int63n(int64(amount)))
+	logger.Info("=== RUN   launderFunds")
+	var err error
+	count := len(c.addrs)
+	// transfer miner to tests[0:len(addrs)-1]
+	amount := totalAmount / uint64(count) / 2
 	amounts := make([]uint64, count)
 	for i := 0; i < count; i++ {
-		amounts[i] = amount/2 + uint64(rand.Int63n(int64(amount)/2))
+		amounts[i] = amount + uint64(rand.Int63n(int64(amount)))
 	}
-	minerBalancePre := balanceFor(c.minerAddr, peerAddr)
-	if minerBalancePre < amount*uint64(count) {
-		logger.Panicf("balance of miner(%d) is less than %d", minerBalancePre,
-			amount*uint64(count))
-	}
-	addrUtxos := make([]int, count)
-	//balances := make([]uint64, count)
+	balances := make([]uint64, count)
 	for i := 0; i < count; i++ {
-		utxos := utxosFor(c.addrs[i], peerAddr)
-		addrUtxos[i] = len(utxos)
-		//balances[i] = balanceFor(c.addrs[i], peerAddr)
+		b := balanceFor(c.addrs[i], peerAddr)
+		balances[i] = b
 	}
-	logger.Debugf("sent %v from %s to others addrs on peer %s", amounts,
+	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
 		c.minerAddr, peerAddr)
-	execTx(AddrToAcc[c.minerAddr], c.addrs[:count], amounts, peerAddr)
-	for i, addr := range c.addrs[:count] {
-		logger.Infof("wait for %s utxos more than %d, timeout %v", c.addrs[i],
-			addrUtxos[i]+1, timeoutToChain)
-		_, err := waitUTXOsEnough(addr, addrUtxos[i]+1, peerAddr, timeoutToChain)
+	execTx(AddrToAcc[c.minerAddr], c.addrs, amounts, peerAddr)
+	for i, addr := range c.addrs {
+		logger.Infof("wait for %s balance more than %d, timeout %v", c.addrs[i],
+			balances[i]+amounts[i], timeoutToChain)
+		balances[i], err = waitBalanceEnough(addr, balances[i]+amounts[i], peerAddr,
+			blockTime)
 		if err != nil {
-			logger.Panic(err)
+			logger.Warn(err)
 		}
 	}
-	// check balance
-	//for i, addr := range c.addrs[:count] {
-	//	b := balanceFor(addr, peerAddr)
-	//	if b != amounts[i]+balances[i] {
-	//		logger.Panicf("balance of addrs[%d] is %d, that is not equal to "+
-	//			"%d transfered", i, b, amounts[i]+balances[i])
-	//	}
-	//	logger.Debugf("balance of addrs[%d] is %d", i, b)
-	//}
-	// gen peersCnt*peerCnt utxos via sending from each to each
 	allAmounts := make([][]uint64, count)
+	amountsRecv := make([]uint64, count)
+	amountsSend := make([]uint64, count)
 	var wg sync.WaitGroup
 	errChans := make(chan error, count)
 	logger.Infof("start to send tx from each to each")
@@ -165,28 +143,32 @@ func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) int {
 			}()
 			amounts2 := make([]uint64, count)
 			for j := 0; j < count; j++ {
-				base := amounts[i] / uint64(count) / 4
+				base := amounts[i] / uint64(count) / 2
 				amounts2[j] = base + uint64(rand.Int63n(int64(base)))
+				amountsSend[i] += amounts2[j]
+				amountsRecv[j] += amounts2[j]
 			}
 			allAmounts[i] = amounts2
-			//utxos := utxosFor(c.addrs[i], peerAddr)
-			//logger.Infof("start to sent %v from %d to addrs on peer %s",
-			//	amounts2, i, peerAddr)
-			fromAddr := c.addrs[i]
-			execTx(AddrToAcc[fromAddr], c.addrs[:count], amounts2, peerAddr)
-			//logger.Infof("wait for addr %s utxo more than %d, timeout %v",
-			//	c.addrs[i], len(utxos)+count, timeoutToChain)
-			//_, err := waitUTXOsEnough(c.addrs[i], len(utxos)+count, peerAddr, timeoutToChain)
-			//if err != nil {
-			//	errChans <- err
-			//}
+			execTx(AddrToAcc[c.addrs[i]], c.addrs, amounts2, peerAddr)
 		}(i)
 	}
 	wg.Wait()
 	if len(errChans) > 0 {
 		logger.Panic(<-errChans)
 	}
+	logger.Infof("complete to send tx from each to each")
+	// check balance
+	for i := 0; i < count; i++ {
+		expect := balances[i] + amountsRecv[i] - amountsSend[i]/4*5
+		logger.Infof("wait for %s's balance reach %d, timeout %v", c.addrs[i],
+			expect, timeoutToChain)
+		balances[i], err = waitBalanceEnough(c.addrs[i], expect, peerAddr, timeoutToChain)
+		if err != nil {
+			logger.Warn(err)
+		}
+	}
 	// gather count*count utxo via transfering from others to the first one
+	lastBalance := balanceFor(addr, peerAddr)
 	total := uint64(0)
 	errChans = make(chan error, count)
 	for i := 0; i < count; i++ {
@@ -200,14 +182,6 @@ func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) int {
 			}()
 			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
 				i, addr, peerAddr)
-			//minAmount := allAmounts[0][i]
-			//for j := 0; j < count; j++ {
-			//	if allAmounts[j][i] < minAmount {
-			//		minAmount = allAmounts[j][i]
-			//	}
-			//}
-			//for j := 0; j < count; j++ {
-			//	amount := minAmount / 2
 			for j := 0; j < count; j++ {
 				amount := allAmounts[j][i] / 2
 				fromAddr := c.addrs[i]
@@ -221,16 +195,11 @@ func (c *Collection) prepareUTXOs(addr string, n int, peerAddr string) int {
 	if len(errChans) > 0 {
 		logger.Panic(<-errChans)
 	}
-	logger.Infof("wait utxo count reach %d on %s, timeout %v", len(oldUtxos)+n,
-		addr, blockTime)
-	m, err := waitUTXOsEnough(addr, len(oldUtxos)+n, peerAddr, blockTime)
+	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, blockTime)
+	b, err := waitBalanceEnough(addr, lastBalance+total, peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Warn(err)
 	}
-	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, blockTime)
-	if _, err := waitBalanceEnough(addr, total, peerAddr, blockTime); err != nil {
-		logger.Warn(err)
-	}
-	logger.Info("--- DONE: prepareUTXOs")
-	return m - len(oldUtxos)
+	logger.Info("--- DONE: launderFunds")
+	return b
 }

@@ -29,6 +29,22 @@ func LoadJSONFromFile(fileName string, result interface{}) error {
 	return nil
 }
 
+func parseIPlist(fileName string) ([]string, error) {
+	var list []interface{}
+	if err := LoadJSONFromFile(fileName, &list); err != nil {
+		return nil, err
+	}
+	var ipList []string
+	for _, v := range list {
+		if s, ok := v.(string); ok {
+			ipList = append(ipList, s)
+		} else {
+			return nil, fmt.Errorf("%#v is not a string type", v)
+		}
+	}
+	return ipList, nil
+}
+
 func startLocalNodes(peerCount int) ([]*os.Process, error) {
 	var processes []*os.Process
 	for i := 0; i < peerCount; i++ {
