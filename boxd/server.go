@@ -107,7 +107,7 @@ func (server *Server) Prepare() {
 	peer, err := p2p.NewBoxPeer(database.Proc(), &cfg.P2p, database, server.bus)
 	if err != nil {
 		// exit in case of error during creating p2p server instance
-		logger.Fatalf("Failed to new BoxPeer...")
+		logger.Fatalf("Failed to new BoxPeer... Err: %v", err)
 	}
 	// Add peers configured by user
 	for _, addr := range cfg.P2p.AddPeers {
@@ -119,34 +119,29 @@ func (server *Server) Prepare() {
 	}
 	server.peer = peer
 
-	// ########################################################
 	// prepare block chain.
 	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus)
 	if err != nil {
-		logger.Fatalf("Failed to new BlockChain...", err) // exit in case of error during creating p2p server instance
+		logger.Fatalf("Failed to new BlockChain... Err: %s", err.Error()) // exit in case of error during creating p2p server instance
 	}
 	server.blockChain = blockChain
 
-	// ########################################################
 	// prepare txpool.
 	txPool := txpool.NewTransactionPool(blockChain.Proc(), peer, blockChain, server.bus)
 	server.txPool = txPool
 
-	// ########################################################
 	// prepare consensus.
 	consensus, err := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
 	if err != nil {
-		logger.Fatalf("Failed to new Dpos, error: %v", err)
+		logger.Fatalf("Failed to new Dpos. Err: %v", err)
 	}
 	server.consensus = consensus
 
-	// ########################################################
 	// prepare grpc server.
 	if cfg.RPC.Enabled {
 		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
 
-	// ########################################################
 	// prepare sync manager.
 	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
 	server.syncManager = syncManager

@@ -23,7 +23,7 @@ import (
 
 // const
 const (
-	PeriodTime = 5
+	PeriodTime = 2 * 60
 
 	PingBody = "ping"
 	PongBody = "pong"
@@ -124,7 +124,6 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	}
 
 	if err := conn.checkMessage(msg); err != nil {
-		logger.Error("Invalid message. ", err)
 		return nil, err
 	}
 
