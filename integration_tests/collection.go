@@ -77,6 +77,9 @@ func (c *Collection) doTx(index int) {
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
+			if fmt.Sprintf("%v", x) != "close on closed channel" {
+				TryRecordError(fmt.Errorf("%v", x))
+			}
 		}
 	}()
 	start := index * c.partLen
@@ -113,10 +116,14 @@ func (c *Collection) doTx(index int) {
 			continue
 		}
 		c.minerAddr = addr
-		collAddr := <-c.collAddrCh
-		logger.Infof("start to launder fund some %d on %s", totalAmount, peerAddr)
-		c.launderFunds(collAddr, addrs, peerAddr)
-		c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
+		if collAddr, ok := <-c.collAddrCh; ok {
+			logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
+			c.launderFunds(collAddr, addrs, peerAddr)
+			c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
+		}
+		if scopeValue(*scope) == basicScope {
+			break
+		}
 	}
 }
 
@@ -125,6 +132,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
+			TryRecordError(fmt.Errorf("%v", x))
 		}
 	}()
 	logger.Info("=== RUN   launderFunds")
@@ -150,7 +158,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 		balances[i], err = waitBalanceEnough(addr, balances[i]+amounts[i], peerAddr,
 			timeoutToChain)
 		if err != nil {
-			logger.Warn(err)
+			logger.Panic(err)
 		}
 	}
 	allAmounts := make([][]uint64, count)
@@ -187,11 +195,11 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 	// check balance
 	for i := 0; i < count; i++ {
 		expect := balances[i] + amountsRecv[i] - amountsSend[i]/4*5
-		logger.Infof("wait for balance of %s reach %d, timeout %v", addrs[i],
-			expect, timeoutToChain)
+		logger.Infof("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
+			timeoutToChain)
 		balances[i], err = waitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
 		if err != nil {
-			logger.Warn(err)
+			logger.Panic(err)
 		}
 	}
 	// gather count*count utxo via transfering from others to the first one
@@ -225,6 +233,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, blockTime)
 	b, err := waitBalanceEnough(addr, lastBalance+total, peerAddr, timeoutToChain)
 	if err != nil {
+		TryRecordError(err)
 		logger.Warn(err)
 	}
 	logger.Infof("--- DONE: launderFunds, result balance: %d", b)

@@ -5,6 +5,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -73,6 +74,9 @@ func (c *Circulation) doTx(index int) {
 		logger.Info("done doTx")
 		if x := recover(); x != nil {
 			logger.Error(x)
+			if fmt.Sprintf("%v", x) != "close on closed channel" {
+				TryRecordError(fmt.Errorf("%v", x))
+			}
 		}
 	}()
 	start := index * c.partLen
@@ -100,12 +104,16 @@ func (c *Circulation) doTx(index int) {
 			logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
 			txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, 100)
 		}
+		if scopeValue(*scope) == basicScope {
+			break
+		}
 	}
 }
 
 func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	defer func() {
 		if x := recover(); x != nil {
+			TryRecordError(fmt.Errorf("%v", x))
 			logger.Error(x)
 		}
 	}()
@@ -138,6 +146,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	toBalancePost, err := waitBalanceEnough(toAddr, toBalancePre+transfer,
 		execPeer, timeoutToChain)
 	if err != nil {
+		TryRecordError(err)
 		logger.Warn(err)
 	}
 	// check the balance of miners
@@ -148,8 +157,10 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	toGap := toBalancePost - toBalancePre
 	fromGap := fromBalancePre - fromBalancePost
 	if toGap > fromGap || toGap != transfer {
-		logger.Errorf("txRepeatTest faild: fromGap %d toGap %d and transfer %d",
+		err := fmt.Errorf("txRepeatTest faild: fromGap %d toGap %d and transfer %d",
 			fromGap, toGap, transfer)
+		TryRecordError(err)
+		logger.Error(err)
 	}
 	logger.Infof("--- DONE: txRepeatTest")
 }

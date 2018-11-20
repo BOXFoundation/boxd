@@ -15,6 +15,8 @@ import (
 	"github.com/BOXFoundation/boxd/wallet"
 )
 
+type scopeValue string
+
 const (
 	walletDir         = "./.devconfig/ws1/box_keystore/"
 	dockerComposeFile = "../docker/docker-compose.yml"
@@ -24,6 +26,11 @@ const (
 	peerCnt = 6
 
 	blockTime = 5 * time.Second
+
+	basicScope    scopeValue = "basic"
+	mainScope     scopeValue = "main"
+	fullScope     scopeValue = "full"
+	continueScope scopeValue = "continue"
 )
 
 var (
@@ -47,8 +54,9 @@ type CirInfo struct {
 var (
 	peersAddr []string
 
+	scope        = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 	newNodes     = flag.Bool("nodes", false, "need to start nodes?")
-	enableDocker = flag.Bool("docker", false, "test on docker?")
+	enableDocker = flag.Bool("docker", false, "test in docker containers?")
 	testsCnt     = flag.Int("accounts", 10, "how many need to create test acconts?")
 
 	minerAddrs []string
@@ -141,4 +149,9 @@ func main() {
 	}()
 
 	wg.Wait()
+
+	// check whether integration success
+	if len(ErrItems) > 0 {
+		logger.Fatal(ErrItems)
+	}
 }

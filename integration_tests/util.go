@@ -16,6 +16,16 @@ import (
 	"sync"
 )
 
+const (
+	// MaxErrItems defines max error items
+	maxErrItems = 100
+)
+
+var (
+	// ErrItems record functional errors during integration tests
+	ErrItems = make([]error, 0, maxErrItems)
+)
+
 // LoadJSONFromFile load json from file to result
 func LoadJSONFromFile(fileName string, result interface{}) error {
 	data, err := ioutil.ReadFile(fileName)
@@ -214,4 +224,13 @@ func StartProcess(args ...string) (*os.Process, error) {
 		return nil, err
 	}
 	return p, nil
+}
+
+// TryRecordError try to record error during integration test
+func TryRecordError(err error) bool {
+	if len(ErrItems) > maxErrItems {
+		return false
+	}
+	ErrItems = append(ErrItems, err)
+	return true
 }
