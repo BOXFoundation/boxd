@@ -242,6 +242,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	}
 	logger.Infof("addr %s utxo count: %d", toAddr, m)
 
+	time.Sleep(blockTime)
 	// check the balance of miners
 	logger.Infof("start to get balance of fromAddr[%s], toAddr[%s] from %s",
 		fromAddr, toAddr, execPeer)

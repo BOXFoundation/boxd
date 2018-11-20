@@ -7,6 +7,9 @@ package client
 import (
 	"bytes"
 	"fmt"
+	"reflect"
+	"sort"
+
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -16,8 +19,6 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
-	"reflect"
-	"sort"
 )
 
 var logger = log.NewLogger("rpcclient") // logger for client package
@@ -312,8 +313,14 @@ func tryBalance(tx *corepb.Transaction, change *corepb.TxOut, utxos []*rpcpb.Utx
 		}
 	}
 	totalFee := uint64(totalBytes) * pricePerByte
-	if totalFee+totalOut <= totalIn {
+	if totalFee+totalOut < totalIn {
 		change.Value = totalIn - totalFee - totalOut
+		return true, 0
+	} else if totalFee+totalOut == totalIn {
+		// when transaction fee exactly matches, and change is not needed
+		// ignore the change output will be more efficient
+		// notice: change output must be the last element
+		tx.Vout = tx.Vout[:len(tx.Vout)-1]
 		return true, 0
 	}
 	return false, totalFee + totalOut
