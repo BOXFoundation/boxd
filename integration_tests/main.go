@@ -109,11 +109,17 @@ func main() {
 	}
 
 	// define chan
-	cirPartLen := 5
-	collAddrCh := make(chan string, 2)
-	cirInfoCh := make(chan CirInfo, cirPartLen)
+	collPartLen, cirPartLen := 5, 5
+	collLen := (*testsCnt + collPartLen - 1) / collPartLen
+	cirLen := (*testsCnt + cirPartLen - 1) / cirPartLen
+	buffLen := collLen
+	if collLen < cirLen {
+		buffLen = cirLen
+	}
+	collAddrCh := make(chan string, buffLen)
+	cirInfoCh := make(chan CirInfo, buffLen)
 
-	coll := NewCollection(*testsCnt, collAddrCh, cirInfoCh)
+	coll := NewCollection(*testsCnt, collPartLen, collAddrCh, cirInfoCh)
 	defer coll.TearDown()
 	circu := NewCirculation(*testsCnt, cirPartLen, collAddrCh, cirInfoCh)
 	defer circu.TearDown()

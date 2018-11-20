@@ -43,7 +43,6 @@ func NewCirculation(accCnt, partLen int, collAddrCh chan<- string,
 	}
 	c.collAddrCh = collAddrCh
 	c.cirInfoCh = cirInfoCh
-	//c.quitCh = make(chan os.Signal, (accCnt+partLen-1)/partLen)
 	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
 		c.quitCh = append(c.quitCh, make(chan os.Signal, 1))
 		signal.Notify(c.quitCh[i], os.Interrupt, os.Kill)
@@ -83,7 +82,7 @@ func (c *Circulation) doTx(index int) {
 	}
 	addrs := c.addrs[start:end]
 	addrIdx := 0
-	logger.Infof("start doTx %d", index)
+	logger.Infof("start circulation doTx %d", index)
 	for {
 		select {
 		case s := <-c.quitCh[index]:
@@ -134,7 +133,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 		execTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
 	}
-	logger.Infof("wait for %s's balance reach %d, timeout %v", toAddr,
+	logger.Infof("wait for balance of %s reach %d, timeout %v", toAddr,
 		toBalancePre+transfer, timeoutToChain)
 	toBalancePost, err := waitBalanceEnough(toAddr, toBalancePre+transfer,
 		execPeer, timeoutToChain)

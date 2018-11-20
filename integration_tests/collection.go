@@ -15,26 +15,28 @@ import (
 
 const (
 	timeoutToChain = 30 * time.Second
-	totalAmount    = 1e6
+	totalAmount    = 1000000
 )
 
 // Collection manage transaction creation and collection
 type Collection struct {
 	accCnt     int
+	partLen    int
 	minerAddr  string
 	addrs      []string
 	accAddrs   []string
 	collAddrCh <-chan string
 	cirInfoCh  chan<- CirInfo
-	quitCh     chan os.Signal
+	quitCh     []chan os.Signal
 }
 
 // NewCollection construct a Collection instance
-func NewCollection(accCnt int, collAddrCh <-chan string,
+func NewCollection(accCnt, partLen int, collAddrCh <-chan string,
 	cirInfoCh chan<- CirInfo) *Collection {
 	c := &Collection{}
 	// get account address
 	c.accCnt = accCnt
+	c.partLen = partLen
 	logger.Infof("start to gen %d tests address", accCnt)
 	c.addrs, c.accAddrs = genTestAddr(c.accCnt)
 	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
@@ -46,8 +48,10 @@ func NewCollection(accCnt int, collAddrCh <-chan string,
 	}
 	c.collAddrCh = collAddrCh
 	c.cirInfoCh = cirInfoCh
-	c.quitCh = make(chan os.Signal, 1)
-	signal.Notify(c.quitCh, os.Interrupt, os.Kill)
+	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
+		c.quitCh = append(c.quitCh, make(chan os.Signal, 1))
+		signal.Notify(c.quitCh[i], os.Interrupt, os.Kill)
+	}
 	return c
 }
 
@@ -58,15 +62,35 @@ func (c *Collection) TearDown() {
 
 // Run create transaction and send them to circulation channel
 func (c *Collection) Run() {
+	var wg sync.WaitGroup
+	for i := 0; i*c.partLen < len(c.addrs); i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			c.doTx(index)
+		}(i)
+	}
+	wg.Wait()
+}
+
+func (c *Collection) doTx(index int) {
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
 		}
 	}()
+	start := index * c.partLen
+	end := start + c.partLen
+	if end > len(c.addrs) {
+		end = len(c.addrs)
+	}
+	addrs := c.addrs[start:end]
 	peerIdx := 0
+	div := (len(c.addrs) + c.partLen - 1) / c.partLen
+	logger.Infof("start collection doTx %d", index)
 	for {
 		select {
-		case s := <-c.quitCh:
+		case s := <-c.quitCh[index]:
 			logger.Infof("receive quit signal %v, quiting collection!", s)
 			close(c.cirInfoCh)
 			return
@@ -76,9 +100,12 @@ func (c *Collection) Run() {
 		peerIdx = peerIdx % peerCnt
 		peerAddr := peersAddr[peerIdx]
 		peerIdx++
-		logger.Infof("waiting for minersAddr has BaseSubsidy utxo at least on %s",
-			peerAddr)
-		addr, _, err := waitOneAddrBalanceEnough(minerAddrs, totalAmount,
+		logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount, peerAddr)
+		// totalAmount is enough, to multiply is to avoid concurrence balance insufficent
+		// sleep index*rpcInterval to avoid "Output already spent by transaction in the
+		// pool" error on the same minerAddr
+		time.Sleep(time.Duration(index) * rpcInterval)
+		addr, _, err := waitOneAddrBalanceEnough(minerAddrs, totalAmount*uint64(div),
 			peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Error(err)
@@ -87,14 +114,14 @@ func (c *Collection) Run() {
 		}
 		c.minerAddr = addr
 		collAddr := <-c.collAddrCh
-		logger.Infof("start to create transactions on %s", peerAddr)
-		c.launderFunds(collAddr, peerAddr)
+		logger.Infof("start to launder fund some %d on %s", totalAmount, peerAddr)
+		c.launderFunds(collAddr, addrs, peerAddr)
 		c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
 	}
 }
 
 // launderFunds generates some money, addr must not be in c.addrs
-func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
+func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) uint64 {
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
@@ -102,7 +129,7 @@ func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
 	}()
 	logger.Info("=== RUN   launderFunds")
 	var err error
-	count := len(c.addrs)
+	count := len(addrs)
 	// transfer miner to tests[0:len(addrs)-1]
 	amount := totalAmount / uint64(count) / 2
 	amounts := make([]uint64, count)
@@ -111,17 +138,17 @@ func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
 	}
 	balances := make([]uint64, count)
 	for i := 0; i < count; i++ {
-		b := balanceFor(c.addrs[i], peerAddr)
+		b := balanceFor(addrs[i], peerAddr)
 		balances[i] = b
 	}
 	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
 		c.minerAddr, peerAddr)
-	execTx(AddrToAcc[c.minerAddr], c.addrs, amounts, peerAddr)
-	for i, addr := range c.addrs {
-		logger.Infof("wait for %s balance more than %d, timeout %v", c.addrs[i],
+	execTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
+	for i, addr := range addrs {
+		logger.Infof("wait for balance of %s more than %d, timeout %v", addrs[i],
 			balances[i]+amounts[i], timeoutToChain)
 		balances[i], err = waitBalanceEnough(addr, balances[i]+amounts[i], peerAddr,
-			blockTime)
+			timeoutToChain)
 		if err != nil {
 			logger.Warn(err)
 		}
@@ -149,7 +176,7 @@ func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
 				amountsRecv[j] += amounts2[j]
 			}
 			allAmounts[i] = amounts2
-			execTx(AddrToAcc[c.addrs[i]], c.addrs, amounts2, peerAddr)
+			execTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
 		}(i)
 	}
 	wg.Wait()
@@ -160,9 +187,9 @@ func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
 	// check balance
 	for i := 0; i < count; i++ {
 		expect := balances[i] + amountsRecv[i] - amountsSend[i]/4*5
-		logger.Infof("wait for %s's balance reach %d, timeout %v", c.addrs[i],
+		logger.Infof("wait for balance of %s reach %d, timeout %v", addrs[i],
 			expect, timeoutToChain)
-		balances[i], err = waitBalanceEnough(c.addrs[i], expect, peerAddr, timeoutToChain)
+		balances[i], err = waitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Warn(err)
 		}
@@ -184,10 +211,10 @@ func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
 				i, addr, peerAddr)
 			for j := 0; j < count; j++ {
 				amount := allAmounts[j][i] / 2
-				fromAddr := c.addrs[i]
+				fromAddr := addrs[i]
 				execTx(AddrToAcc[fromAddr], []string{addr}, []uint64{amount}, peerAddr)
 				total += amount
-				logger.Debugf("have sent %d from %s to %s", amount, c.addrs[i], addr)
+				logger.Debugf("have sent %d from %s to %s", amount, addrs[i], addr)
 			}
 		}(i)
 	}
@@ -200,6 +227,6 @@ func (c *Collection) launderFunds(addr string, peerAddr string) uint64 {
 	if err != nil {
 		logger.Warn(err)
 	}
-	logger.Info("--- DONE: launderFunds")
+	logger.Infof("--- DONE: launderFunds, result balance: %d", b)
 	return b
 }
