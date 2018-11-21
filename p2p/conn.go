@@ -279,6 +279,9 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
 	msgAttr := msgToAttribute[opcode]
+	if msgAttr == nil {
+		msgAttr = defaultMessageAttribute
+	}
 	reserve := []byte{}
 	if msgAttr != nil && msgAttr.compress {
 		reserve = append(reserve, byte(compressFlag))

@@ -25,6 +25,7 @@ const (
 	Testnet         uint32 = 0x54455354
 	FixHeaderLength        = 4
 
+	// dont forget to set messageAttribute below
 	Ping              uint32 = 0x00
 	Pong              uint32 = 0x01
 	PeerDiscover      uint32 = 0x02
@@ -55,6 +56,8 @@ const (
 	topPriority
 )
 
+var defaultMessageAttribute = &messageAttribute{compress: false, priority: midPriority}
+
 var msgToAttribute = map[uint32]*messageAttribute{
 	Ping:                    &messageAttribute{compress: false, priority: lowPriority},
 	Pong:                    &messageAttribute{compress: false, priority: lowPriority},
@@ -69,6 +72,8 @@ var msgToAttribute = map[uint32]*messageAttribute{
 	BlockChunkRequest:       &messageAttribute{compress: true, priority: midPriority},
 	BlockChunkResponse:      &messageAttribute{compress: true, priority: midPriority},
 	EternalBlockMsg:         &messageAttribute{compress: false, priority: highPriority},
+	LightSyncRequest:        &messageAttribute{compress: false, priority: midPriority},
+	LightSyncReponse:        &messageAttribute{compress: false, priority: midPriority},
 }
 
 // NetworkNamtToMagic is a map from network name to magic number.
