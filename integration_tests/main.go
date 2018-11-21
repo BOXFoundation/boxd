@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -82,6 +83,11 @@ func init() {
 }
 
 func main() {
+	defer func() {
+		if x := recover(); x != nil {
+			os.Exit(1)
+		}
+	}()
 	flag.Parse()
 	var err error
 	if *newNodes {
@@ -151,7 +157,11 @@ func main() {
 	wg.Wait()
 
 	// check whether integration success
+	for _, e := range ErrItems {
+		logger.Error(e)
+	}
 	if len(ErrItems) > 0 {
-		logger.Fatal(ErrItems)
+		// use panic to exit since it need to execute defer clause above
+		logger.Panicf("integration tests exits with %d errors", len(ErrItems))
 	}
 }

@@ -18,7 +18,7 @@ import (
 
 const (
 	// MaxErrItems defines max error items
-	maxErrItems = 100
+	maxErrItems = 16
 )
 
 var (
@@ -228,7 +228,14 @@ func StartProcess(args ...string) (*os.Process, error) {
 
 // TryRecordError try to record error during integration test
 func TryRecordError(err error) bool {
+	if err == nil {
+		return false
+	}
 	if len(ErrItems) > maxErrItems {
+		return false
+	}
+	if err.Error() == "close of closed channel" ||
+		err.Error() == "send on closed channel" {
 		return false
 	}
 	ErrItems = append(ErrItems, err)
