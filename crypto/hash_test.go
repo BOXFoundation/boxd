@@ -1,3 +1,7 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
 package crypto
 
 import (
@@ -358,4 +362,26 @@ func TestHashType_GetBytes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func BenchmarkHash160(b *testing.B) {
+	msg := []byte("1234567890-=qwertyuiop[]\asdfghjkl;'zxcvbnm,./")
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			Hash160(msg)
+		}
+	})
+}
+
+func BenchmarkSha256(b *testing.B) {
+	msg := []byte("1234567890-=qwertyuiop[]\asdfghjkl;'zxcvbnm,./")
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			Sha256(msg)
+		}
+	})
 }
