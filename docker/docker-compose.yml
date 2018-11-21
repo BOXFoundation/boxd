@@ -2,7 +2,7 @@ version: "3"
 
 services:
   p1:
-    image: boxd:latest
+    image: jerrypeen/boxd:latest
     environment:
       - "TZ=Asia/Shanghai"
     command:
@@ -20,7 +20,7 @@ services:
         ipv4_address: 172.27.1.11
 
   p2:
-    image: boxd:latest
+    image: jerrypeen/boxd:latest
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -40,7 +40,7 @@ services:
         ipv4_address: 172.27.1.12
 
   p3:
-    image: boxd:latest
+    image: jerrypeen/boxd:latest
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -60,7 +60,7 @@ services:
         ipv4_address: 172.27.1.13
 
   p4:
-    image: boxd:latest
+    image: jerrypeen/boxd:latest
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -80,7 +80,7 @@ services:
         ipv4_address: 172.27.1.14
 
   p5:
-    image: boxd:latest
+    image: jerrypeen/boxd:latest
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -100,7 +100,7 @@ services:
         ipv4_address: 172.27.1.15
 
   p6:
-    image: boxd:latest
+    image: jerrypeen/boxd:latest
     environment:
       - "TZ=Asia/Shanghai"
     command: >
