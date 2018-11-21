@@ -62,13 +62,13 @@ var msgToAttribute = map[uint32]*messageAttribute{
 	PeerDiscoverReply:       &messageAttribute{compress: true, priority: midPriority},
 	NewBlockMsg:             &messageAttribute{compress: true, priority: topPriority},
 	TransactionMsg:          &messageAttribute{compress: true, priority: highPriority},
-	LocateForkPointRequest:  &messageAttribute{compress: false, priority: highPriority},
+	LocateForkPointRequest:  &messageAttribute{compress: false, priority: midPriority},
 	LocateForkPointResponse: &messageAttribute{compress: true, priority: midPriority},
-	LocateCheckRequest:      &messageAttribute{compress: false, priority: highPriority},
+	LocateCheckRequest:      &messageAttribute{compress: false, priority: midPriority},
 	LocateCheckResponse:     &messageAttribute{compress: false, priority: midPriority},
-	BlockChunkRequest:       &messageAttribute{compress: true, priority: highPriority},
-	BlockChunkResponse:      &messageAttribute{compress: true, priority: highPriority},
-	EternalBlockMsg:         &messageAttribute{compress: false, priority: midPriority},
+	BlockChunkRequest:       &messageAttribute{compress: true, priority: midPriority},
+	BlockChunkResponse:      &messageAttribute{compress: true, priority: midPriority},
+	EternalBlockMsg:         &messageAttribute{compress: false, priority: highPriority},
 }
 
 // NetworkNamtToMagic is a map from network name to magic number.
