@@ -15,26 +15,26 @@ var (
 	logger = log.NewLogger("pq")
 
 	errBadPriority = errors.New("bad priority")
-	errPQFull = errors.New("the priority queue is full")
+	errPQFull      = errors.New("the priority queue is full")
 )
 
-// PriorityQueue is a priority queue
-type PriorityQueue struct {
+// PriorityMsgQueue is a priority message queue
+type PriorityMsgQueue struct {
 	queues []chan interface{}
 	notify chan struct{}
 }
 
-// New return a new PriorityQueue
-func New(n int, l int) *PriorityQueue {
+// New return a new PriorityMsgQueue
+func New(n int, l int) *PriorityMsgQueue {
 	var queues = make([]chan interface{}, n)
 	for i := range queues {
 		queues[i] = make(chan interface{}, l)
 	}
-	return &PriorityQueue{queues: queues, notify: make(chan struct{}, 1)}
+	return &PriorityMsgQueue{queues: queues, notify: make(chan struct{}, 1)}
 }
 
-// Run is a loop popping items from the priority queues
-func (pq *PriorityQueue) Run(proc goprocess.Process, f func(interface{})) {
+// Run is a loop popping items from the priority message queues
+func (pq *PriorityMsgQueue) Run(proc goprocess.Process, f func(interface{})) {
 	top := len(pq.queues) - 1
 	p := top
 	for {
@@ -60,7 +60,7 @@ func (pq *PriorityQueue) Run(proc goprocess.Process, f func(interface{})) {
 
 // Push pushes an item to the queue specified in the priority argument
 // and notify the loop
-func (pq *PriorityQueue) Push(item interface{}, p int) error {
+func (pq *PriorityMsgQueue) Push(item interface{}, p int) error {
 	if p < 0 || p >= len(pq.queues) {
 		return errBadPriority
 	}

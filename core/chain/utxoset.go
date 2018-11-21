@@ -74,7 +74,6 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 
 // SpendUtxo mark a utxo as the spent state.
 func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
-	logger.Debugf("Spend utxo: %+v", outPoint)
 	utxoWrap := u.utxoMap[outPoint]
 	if utxoWrap == nil {
 		return

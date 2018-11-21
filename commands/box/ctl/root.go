@@ -7,17 +7,17 @@ package ctl
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/client"
-	"github.com/BOXFoundation/boxd/wallet"
-	"github.com/spf13/viper"
 	"path"
 	"strconv"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var walletDir string
@@ -53,6 +53,11 @@ func init() {
 		&cobra.Command{
 			Use:   "debuglevel [debug|info|warning|error|fatal]",
 			Short: "Set the debug level of boxd",
+			Run:   debugLevelCmdFunc,
+		},
+		&cobra.Command{
+			Use:   "networkid [id]",
+			Short: "Update networkid of boxd",
 			Run:   debugLevelCmdFunc,
 		},
 		&cobra.Command{
@@ -166,6 +171,21 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
 	client.SetDebugLevel(conn, level)
+}
+
+func updateNetworkID(cmd *cobra.Command, args []string) {
+	id := uint32(0x54455354) // default is testnet
+	if len(args) > 0 {
+		n, err := strconv.Atoi(args[0])
+		if err != nil {
+			fmt.Println("args[0] is not a uint32 number")
+			return
+		}
+		id = uint32(n)
+	}
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	client.UpdateNetworkID(conn, id)
 }
 
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {

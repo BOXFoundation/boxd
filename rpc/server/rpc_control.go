@@ -7,11 +7,11 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"github.com/BOXFoundation/boxd/p2p/pstore"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 )
 
@@ -58,6 +58,19 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 	}
 	var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
+	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+}
+
+// UpdateNetworkID implements UpdateNetworkID
+func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
+	bus := s.server.GetEventBus()
+	ch := make(chan bool)
+	bus.Send(eventbus.TopicUpdateNetworkID, in.Id, ch)
+	if <-ch {
+		var info = fmt.Sprintf("Update NetworkID: %d", in.Id)
+		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
+	}
+	var info = fmt.Sprintf("Wrong NetworkID: %d", in.Id)
 	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
 }
 

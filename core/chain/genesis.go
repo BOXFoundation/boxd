@@ -77,14 +77,3 @@ var GenesisPeriod = []map[string]string{
 		"peerID": "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
 	},
 }
-
-// func initGenesisConsensusContext() crypto.HashType {
-// 	hashs := make([]*crypto.HashType, len(GenesisPeriod))
-// 	for index := range GenesisPeriod {
-// 		hash := crypto.DoubleHashH([]byte(GenesisPeriod[index]))
-// 		hashs[index] = &hash
-// 	}
-// 	merkRootHashs := util.BuildMerkleRoot(hashs)
-// 	rootHash := merkRootHashs[len(merkRootHashs)-1]
-// 	return *rootHash
-// }

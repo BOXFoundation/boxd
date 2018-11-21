@@ -6,11 +6,11 @@ package client
 
 import (
 	"context"
-	"google.golang.org/grpc"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	pb "github.com/BOXFoundation/boxd/rpc/pb"
+	"google.golang.org/grpc"
 )
 
 // SetDebugLevel calls the DebugLevel gRPC methods.
@@ -24,6 +24,25 @@ func SetDebugLevel(conn *grpc.ClientConn, level string) error {
 
 	logger.Infof("Set debug level %s", level)
 	r, err := c.SetDebugLevel(ctx, &pb.DebugLevelRequest{Level: level})
+	if err != nil {
+		return err
+	}
+	logger.Infof("Result: %d, Message: %s", r.Code, r.Message)
+
+	return nil
+}
+
+// UpdateNetworkID calls the UpdateNetworkID gRPC methods.
+func UpdateNetworkID(conn *grpc.ClientConn, id uint32) error {
+
+	c := pb.NewContorlCommandClient(conn)
+
+	// Contact the server and print out its response.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger.Infof("update network id %d", id)
+	r, err := c.UpdateNetworkID(ctx, &pb.UpdateNetworkIDRequest{Id: id})
 	if err != nil {
 		return err
 	}
