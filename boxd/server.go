@@ -231,6 +231,12 @@ func (server *Server) initEventListener() {
 		out <- log.SetLogLevel(newLevel)
 	}, false)
 
+	// TopicUpdateNetworkID
+	server.bus.Reply(eventbus.TopicUpdateNetworkID, func(magic uint32, out chan<- bool) {
+		server.cfg.P2p.Magic = magic
+		out <- true
+	}, false)
+
 	// TopicGetDatabaseKeys
 	server.bus.Reply(eventbus.TopicGetDatabaseKeys, func(parent context.Context, table string, prefix string, skip int32, limit int32, out chan<- []string) {
 		defer func() {

@@ -19,6 +19,13 @@ service ContorlCommand {
       };
     }
 
+    rpc UpdateNetworkID (UpdateNetworkIDRequest) returns (BaseResponse) {
+      option (google.api.http) = {
+        post: "/v1/ctl/networkid"
+        body: "*"
+      };
+    }
+
     rpc GetBlockHeight (GetBlockHeightRequest) returns (GetBlockHeightResponse) {
       option (google.api.http) = {
         post: "/v1/ctl/getblockheight"
@@ -57,7 +64,11 @@ service ContorlCommand {
   
 // The request message containing debug level.
 message DebugLevelRequest {
-string level = 1;
+    string level = 1;
+}
+
+message UpdateNetworkIDRequest {
+    uint32 id = 1;
 }
 
 message GetBlockHeightRequest {
