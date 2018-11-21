@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -67,15 +68,17 @@ func (holder *MemoryBloomFilterHolder) AddFilter(
 		}
 	}
 
+	if onCacheMiss == nil {
+		return fmt.Errorf("can't find filter for hash %v", hash)
+	}
 	// recalculate filter
 	filter := onCacheMiss()
 	holder.addFilterInternal(filter, height, hash)
-
-	if filterBytes, err := filter.Marshal(); err != nil {
-		logger.Error("Error marshal filter for block ", hash.String())
-	} else {
-		db.Put(filterKey, filterBytes)
+	filterBytes, err := filter.Marshal()
+	if err != nil {
+		return fmt.Errorf("error marshal filter for block %v", hash.String())
 	}
+	db.Put(filterKey, filterBytes)
 	return nil
 }
 
@@ -89,9 +92,12 @@ func (holder *MemoryBloomFilterHolder) filterExists(height uint32, hash crypto.H
 }
 
 // AddFilter adds a filter of block at height
-func (holder *MemoryBloomFilterHolder) addFilterInternal(filte bloom.Filter, height uint32, hash crypto.HashType) error {
+func (holder *MemoryBloomFilterHolder) addFilterInternal(filter bloom.Filter, height uint32, hash crypto.HashType) error {
+	if filter == nil {
+		return fmt.Errorf("empty filter added")
+	}
 	holder.entries = append(holder.entries, &FilterEntry{
-		Filter:    filte,
+		Filter:    filter,
 		Height:    height,
 		BlockHash: hash,
 	})
@@ -102,10 +108,14 @@ func (holder *MemoryBloomFilterHolder) addFilterInternal(filte bloom.Filter, hei
 func (holder *MemoryBloomFilterHolder) ResetFilters(height uint32) error {
 	holder.mux.Lock()
 	defer holder.mux.Unlock()
-	if len(holder.entries) < int(height-1) {
+	if len(holder.entries) < int(height) {
 		return core.ErrInvalidFilterHeight
 	}
-	holder.entries = holder.entries[:height-1]
+	if height == 0 {
+		holder.entries = []*FilterEntry{}
+	} else {
+		holder.entries = holder.entries[:height-1]
+	}
 	return nil
 }
 

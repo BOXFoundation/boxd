@@ -79,7 +79,7 @@ var (
 	ErrAddExistingUtxo             = errors.New("Trying to add utxo already existed")
 	ErrInvalidUtxoWrapProtoMessage = errors.New("Invalid utxo wrap proto message")
 
-	//filters.go
+	//filterholder.go
 	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
 	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
 

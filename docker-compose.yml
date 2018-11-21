@@ -2,7 +2,7 @@ version: "3"
 
 services:
   p1:
-    image: jerrypeen/boxd:latest
+    image: boxd
     environment:
       - "TZ=Asia/Shanghai"
     command:
@@ -11,8 +11,8 @@ services:
       ./box start --config=./.devconfig/.box-1.yaml"
     ports:
       - "19199:19199"
-      - "19111:19111"
-      - "19110:19110"
+      - "19191:19191"
+      - "19190:19190"
     volumes:
       - ./.devconfig:/app/boxd/.devconfig
     networks:
@@ -20,7 +20,7 @@ services:
         ipv4_address: 172.27.1.11
 
   p2:
-    image: jerrypeen/boxd:latest
+    image: boxd
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -31,8 +31,8 @@ services:
       - p1
     ports:
       - "19189:19189"
-      - "19121:19121"
-      - "19120:19120"
+      - "19181:19181"
+      - "19180:19180"
     volumes:
       - ./.devconfig:/app/boxd/.devconfig
     networks:
@@ -40,7 +40,7 @@ services:
         ipv4_address: 172.27.1.12
 
   p3:
-    image: jerrypeen/boxd:latest
+    image: boxd
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -51,8 +51,8 @@ services:
       - p1
     ports:
       - "19179:19179"
-      - "19131:19131"
-      - "19130:19130"
+      - "19171:19171"
+      - "19170:19170"
     volumes:
       - ./.devconfig:/app/boxd/.devconfig
     networks:
@@ -60,7 +60,7 @@ services:
         ipv4_address: 172.27.1.13
 
   p4:
-    image: jerrypeen/boxd:latest
+    image: boxd
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -71,8 +71,8 @@ services:
       - p1
     ports:
       - "19169:19169"
-      - "19141:19141"
-      - "19140:19140"
+      - "19161:19161"
+      - "19160:19160"
     volumes:
       - ./.devconfig:/app/boxd/.devconfig
     networks:
@@ -80,7 +80,7 @@ services:
         ipv4_address: 172.27.1.14
 
   p5:
-    image: jerrypeen/boxd:latest
+    image: boxd
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -100,7 +100,7 @@ services:
         ipv4_address: 172.27.1.15
 
   p6:
-    image: jerrypeen/boxd:latest
+    image: boxd
     environment:
       - "TZ=Asia/Shanghai"
     command: >
@@ -111,8 +111,8 @@ services:
       - p1
     ports:
       - "19149:19149"
-      - "19161:19161"
-      - "19160:19160"
+      - "19141:19141"
+      - "19140:19140"
     volumes:
       - ./.devconfig:/app/boxd/.devconfig
     networks:

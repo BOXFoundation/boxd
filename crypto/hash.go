@@ -36,7 +36,7 @@ func (hash *HashType) SetString(str string) error {
 		return err
 	}
 	if len(buf) != HashSize {
-		return fmt.Errorf("Invalid hash length")
+		return fmt.Errorf("invalid hash length")
 	}
 	reverseBytes(buf)
 	hash.SetBytes(buf)
