@@ -28,9 +28,9 @@ const (
 	PingBody = "ping"
 	PongBody = "pong"
 
-	// number of priority queues [Low, Mid, High, Top]
-	PriorityQueue    = 4
-	PriorityQueueCap = 1024
+	// [Low, Mid, High, Top]
+	PriorityMsgTypeSize = 4
+	PriorityQueueCap    = 1024
 )
 
 // Conn represents a connection to a remote node
@@ -41,7 +41,7 @@ type Conn struct {
 	isEstablished      bool
 	isSynced           bool
 	establishSucceedCh chan bool
-	pq                 *pq.PriorityQueue
+	pq                 *pq.PriorityMsgQueue
 	proc               goprocess.Process
 	procHeartbeat      goprocess.Process
 	mutex              sync.Mutex
@@ -53,7 +53,7 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 		stream:             stream,
 		peer:               peer,
 		remotePeer:         peerID,
-		pq:                 pq.New(PriorityQueue, PriorityQueueCap),
+		pq:                 pq.New(PriorityMsgTypeSize, PriorityQueueCap),
 		isEstablished:      false,
 		isSynced:           false,
 		establishSucceedCh: make(chan bool, 1),
