@@ -73,10 +73,7 @@ func (c *Circulation) doTx(index int) {
 	defer func() {
 		logger.Info("done doTx")
 		if x := recover(); x != nil {
-			logger.Error(x)
-			if fmt.Sprintf("%v", x) != "close on closed channel" {
-				TryRecordError(fmt.Errorf("%v", x))
-			}
+			TryRecordError(fmt.Errorf("%v", x))
 		}
 	}()
 	start := index * c.partLen

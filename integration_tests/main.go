@@ -120,8 +120,54 @@ func main() {
 		}
 	} else {
 		peersAddr, err = parseIPlist(".devconfig/testnet.iplist")
+		if err != nil {
+			logger.Panic(err)
+		}
 	}
 
+	// start test
+	var wg sync.WaitGroup
+	testItems := 2
+	errChans := make(chan error, testItems)
+	wg.Add(testItems)
+
+	// test tx
+	go func() {
+		defer func() {
+			wg.Done()
+			if x := recover(); x != nil {
+				errChans <- fmt.Errorf("%v", x)
+			}
+		}()
+		txTest()
+	}()
+
+	// test token
+	go func() {
+		defer func() {
+			wg.Done()
+			if x := recover(); x != nil {
+				errChans <- fmt.Errorf("%v", x)
+			}
+		}()
+		tokenTest()
+	}()
+
+	wg.Wait()
+	for len(errChans) > 0 {
+		TryRecordError(<-errChans)
+	}
+	// check whether integration success
+	for _, e := range ErrItems {
+		logger.Error(e)
+	}
+	if len(ErrItems) > 0 {
+		// use panic to exit since it need to execute defer clause above
+		logger.Panicf("integration tests exits with %d errors", len(ErrItems))
+	}
+}
+
+func txTest() {
 	// define chan
 	collPartLen, cirPartLen := 5, 5
 	collLen := (*testsCnt + collPartLen - 1) / collPartLen
@@ -155,13 +201,10 @@ func main() {
 	}()
 
 	wg.Wait()
+}
 
-	// check whether integration success
-	for _, e := range ErrItems {
-		logger.Error(e)
-	}
-	if len(ErrItems) > 0 {
-		// use panic to exit since it need to execute defer clause above
-		logger.Panicf("integration tests exits with %d errors", len(ErrItems))
-	}
+func tokenTest() {
+	t := NewTokenTest(3)
+	defer t.TearDown()
+	t.Run()
 }
