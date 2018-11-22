@@ -9,6 +9,7 @@ require (
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
 	github.com/fd/go-nat v1.0.0 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/gogap/env_json v0.0.0-20150503135429-86150085ddbe // indirect
 	github.com/gogap/env_strings v0.0.0-20171020034610-bdb994cfe093 // indirect
 	github.com/gogo/protobuf v1.1.1
