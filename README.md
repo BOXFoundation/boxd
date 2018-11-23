@@ -32,6 +32,7 @@ As a node OS we will use:
 	
 		```
 		brew install go
+		```
 	
 	2. Install rocksdb:
 	
@@ -135,7 +136,6 @@ Edit your node's yaml and add seeds' link to it.
 	    key_path: peer.key
 	    port: 19189
 	    seeds:
-	        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
 	        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
 	    bucket_size: 16
 	    latency: 10
