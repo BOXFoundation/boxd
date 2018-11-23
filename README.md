@@ -137,7 +137,6 @@ Edit your node's yaml and add seeds' link to it.
 	    port: 19189
 	    seeds:
 	        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
-	        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
 	    bucket_size: 16
 	    latency: 10
 	    conn_max_capacity: 200
