@@ -50,6 +50,8 @@ message TransactionInfo {
     uint32 magic = 5;
     int64 lock_time = 6;
     string hash = 7;
+    uint64 fee = 8;
+    uint64 size = 9;
 }
 
 message BlockInfo {
@@ -58,4 +60,6 @@ message BlockInfo {
     uint32 height = 3;
     bytes signature = 4;
     string hash = 5;
+    uint64 size = 6;
+    string coin_base = 7;
 }

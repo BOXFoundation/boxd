@@ -7,6 +7,8 @@ package rpc
 import (
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/script"
+
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -59,7 +61,73 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 	if err != nil {
 		return nil, err
 	}
+	if err := s.calcMiningFee(block, blockInfo); err != nil {
+		return nil, err
+	}
 	return blockInfo, nil
+}
+
+func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockInfo) error {
+	generated := make(map[types.OutPoint]*types.UtxoWrap)
+	for i, tx := range block.Txs {
+		hash, err := tx.TxHash()
+		if err != nil {
+			return err
+		}
+		for idx, out := range tx.Vout {
+			outpoint := types.OutPoint{
+				Hash:  *hash,
+				Index: uint32(idx),
+			}
+			wrap := &types.UtxoWrap{
+				Output:      out,
+				BlockHeight: block.Height,
+				IsCoinBase:  i == 0,
+				IsSpent:     false,
+				IsModified:  false,
+			}
+			generated[outpoint] = wrap
+		}
+	}
+	var missing []types.OutPoint
+	for i, tx := range block.Txs {
+		if i == 0 {
+			continue
+		}
+		for _, txIn := range tx.Vin {
+			if _, ok := generated[txIn.PrevOutPoint]; ok {
+				continue
+			}
+			missing = append(missing, txIn.PrevOutPoint)
+		}
+	}
+	stored, err := s.server.GetChainReader().LoadSpentUtxos(missing)
+	if err != nil {
+		return err
+	}
+	for i, tx := range block.Txs {
+		var totalIn, totalOut uint64
+		for _, vout := range tx.Vout {
+			totalOut += vout.Value
+		}
+		if i != 0 {
+			for _, vin := range tx.Vin {
+				if wrap, ok := stored[vin.PrevOutPoint]; ok {
+					totalIn += wrap.Value()
+					continue
+				}
+				if wrap, ok := generated[vin.PrevOutPoint]; ok {
+					totalIn += wrap.Value()
+					continue
+				}
+				return fmt.Errorf("previous outpoint not found for %v", vin.PrevOutPoint)
+			}
+			blockInfo.Txs[i].Fee = totalIn - totalOut
+		} else {
+			blockInfo.Txs[i].Fee = 0
+		}
+	}
+	return nil
 }
 
 func convertTransaction(tx *types.Transaction) (*rpcpb.TransactionInfo, error) {
@@ -75,6 +143,10 @@ func convertTransaction(tx *types.Transaction) (*rpcpb.TransactionInfo, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid transaction message")
 	}
+	bts, err := tx.Marshal()
+	if err != nil {
+		return nil, err
+	}
 	out := &rpcpb.TransactionInfo{
 		Version:  tx.Version,
 		Vin:      txPb.Vin,
@@ -83,6 +155,7 @@ func convertTransaction(tx *types.Transaction) (*rpcpb.TransactionInfo, error) {
 		Magic:    txPb.Magic,
 		LockTime: txPb.LockTime,
 		Hash:     hash.String(),
+		Size_:    uint64(len(bts)),
 	}
 	return out, nil
 }
@@ -105,7 +178,15 @@ func convertBlock(block *types.Block) (*rpcpb.BlockInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	bts, err := block.Marshal()
+	if err != nil {
+		return nil, err
+	}
 	txsPb, err := convertTransactions(block.Txs)
+	if err != nil {
+		return nil, err
+	}
+	coinbase, err := getCoinbaseAddr(block)
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +196,19 @@ func convertBlock(block *types.Block) (*rpcpb.BlockInfo, error) {
 		Height:    block.Height,
 		Signature: block.Signature,
 		Hash:      block.Hash.String(),
+		Size_:     uint64(len(bts)),
+		CoinBase:  coinbase.String(),
 	}
 	return out, nil
+}
+
+func getCoinbaseAddr(block *types.Block) (types.Address, error) {
+	if block.Txs == nil || len(block.Txs) == 0 {
+		return nil, fmt.Errorf("coinbase transaction does not exist")
+	}
+	tx := block.Txs[0]
+	sc := *script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
+	return sc.ExtractAddress()
 }
 
 func convertHeader(header *types.BlockHeader) (*rpcpb.HeaderInfo, error) {

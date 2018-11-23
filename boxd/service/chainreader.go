@@ -15,6 +15,7 @@ type ChainReader interface {
 	ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error)
 	// LoadUtxoByPubKeyScript([]byte) (map[types.OutPoint]*types.UtxoWrap, error)
 	LoadUtxoByAddress(types.Address) (map[types.OutPoint]*types.UtxoWrap, error)
+	LoadSpentUtxos([]types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error)
 
 	// interface to read transactions
 	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
