@@ -32,6 +32,7 @@ As a node OS we will use:
 	
 		```
 		brew install go
+		```
 	
 	2. Install rocksdb:
 	
