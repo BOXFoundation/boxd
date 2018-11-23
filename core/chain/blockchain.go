@@ -8,8 +8,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/BOXFoundation/boxd/storage/key"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -655,7 +658,35 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 
 // ListAllUtxos list all the available utxos for testing purpose
 func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
-	return make(map[types.OutPoint]*types.UtxoWrap), nil
+	result := make(map[types.OutPoint]*types.UtxoWrap)
+	keyBytes := chain.db.KeysWithPrefix(utxoBase.Bytes())
+	for _, k := range keyBytes {
+		key := key.NewKeyFromBytes(k)
+		if len(key.List()) != 3 {
+			return nil, fmt.Errorf("invalid utxo key")
+		}
+		serialized, err := chain.db.Get(k)
+		if err != nil || serialized == nil {
+			return nil, err
+		}
+		wrap := new(types.UtxoWrap)
+		if err := wrap.Unmarshal(serialized); err != nil {
+			return nil, err
+		}
+		hash := &crypto.HashType{}
+		if err := hash.SetString(key.List()[1]); err != nil {
+			return nil, err
+		}
+		index, err := strconv.ParseUint(key.List()[2], 16, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid utxo key")
+		}
+		result[types.OutPoint{
+			Hash:  *hash,
+			Index: uint32(index),
+		}] = wrap
+	}
+	return result, nil
 }
 
 // LoadUtxoByAddress list all the available utxos owned by an address, including token utxos

@@ -6,6 +6,7 @@ package rpc
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/BOXFoundation/boxd/script"
 
@@ -30,6 +31,52 @@ func init() {
 
 type webapiServer struct {
 	server GRPCServer
+}
+
+func (s *webapiServer) GetPendingTransaction(context.Context, *rpcpb.GetPendingTransactionRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
+	panic("implement me")
+}
+
+func (s *webapiServer) GetTransactionHistory(context.Context, *rpcpb.GetTransactionHistoryRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
+	panic("implement me")
+}
+
+func (s *webapiServer) GetTopHolders(ctx context.Context, req *rpcpb.GetTopHoldersRequest) (*rpcpb.GetTopHoldersResponse, error) {
+	utxos, err := s.server.GetChainReader().ListAllUtxos()
+	if err != nil {
+		return nil, err
+	}
+	distribute := s.analyzeDistribute(utxos)
+	var holders, targetHolders []*rpcpb.AddressAmount
+	for addr, val := range distribute {
+		holders = append(holders, &rpcpb.AddressAmount{
+			Addr:   addr,
+			Amount: val,
+		})
+	}
+	sort.Slice(holders, func(i, j int) bool {
+		return holders[i].Amount > holders[j].Amount
+	})
+	if len(holders) <= int(req.Offset) {
+		targetHolders = []*rpcpb.AddressAmount{}
+	} else if len(holders) < int(req.Offset+req.Limit) {
+		targetHolders = holders[req.Offset:]
+	} else {
+		targetHolders = holders[req.Offset : req.Offset+req.Limit]
+	}
+	return &rpcpb.GetTopHoldersResponse{
+		Total: uint32(len(holders)),
+		Data:  targetHolders,
+	}, nil
+}
+
+func (s *webapiServer) GetHolderCount(context.Context, *rpcpb.GetHolderCountRequest) (*rpcpb.GetHolderCountResponse, error) {
+	utxos, err := s.server.GetChainReader().ListAllUtxos()
+	if err != nil {
+		return nil, err
+	}
+	total := s.countAddresses(utxos)
+	return &rpcpb.GetHolderCountResponse{HolderCount: total}, nil
 }
 
 func (s *webapiServer) GetTransaction(ctx context.Context, req *rpcpb.GetTransactionInfoRequest) (*rpcpb.TransactionInfo, error) {
@@ -65,6 +112,37 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 		return nil, err
 	}
 	return blockInfo, nil
+}
+
+func (s *webapiServer) countAddresses(utxos map[types.OutPoint]*types.UtxoWrap) uint32 {
+	addrs := make(map[string]bool)
+	for _, wrap := range utxos {
+		sc := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+		addr, err := sc.ExtractAddress()
+		if err != nil || addr == nil {
+			continue
+		}
+		addrs[addr.String()] = true
+	}
+	return uint32(len(addrs))
+}
+
+func (s *webapiServer) analyzeDistribute(utxos map[types.OutPoint]*types.UtxoWrap) map[string]uint64 {
+	distribute := make(map[string]uint64)
+	for _, wrap := range utxos {
+		sc := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+		addr, err := sc.ExtractAddress()
+		if err != nil || addr == nil {
+			continue
+		}
+		addrStr := addr.String()
+		if val, ok := distribute[addrStr]; ok {
+			distribute[addrStr] = val + wrap.Output.Value
+		} else {
+			distribute[addrStr] = wrap.Output.Value
+		}
+	}
+	return distribute
 }
 
 func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockInfo) error {
