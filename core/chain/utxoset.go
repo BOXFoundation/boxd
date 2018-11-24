@@ -267,8 +267,6 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			}
 		}
 	}
-	// free memory
-	u.utxoMap = nil
 	return nil
 }
 
