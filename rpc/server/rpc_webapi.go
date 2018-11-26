@@ -33,8 +33,65 @@ type webapiServer struct {
 	server GRPCServer
 }
 
-func (s *webapiServer) GetPendingTransaction(context.Context, *rpcpb.GetPendingTransactionRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	panic("implement me")
+func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.GetPendingTransactionRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
+	txs := s.server.GetTxHandler().GetTransactionsInPool()
+	var txInRange []*types.Transaction
+	if len(txs) <= int(req.Offset) {
+		txInRange = []*types.Transaction{}
+	} else if len(txs) < int(req.Offset+req.Limit) {
+		txInRange = txs[req.Offset:]
+	} else {
+		txInRange = txs[req.Offset : req.Offset+req.Limit]
+	}
+	utxos, err := s.loadUtxoForTx(txInRange)
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("utxos %v", utxos)
+	var txInfos []*rpcpb.TransactionInfo
+	for _, tx := range txInRange {
+		msg, err := tx.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		txPb, ok := msg.(*corepb.Transaction)
+		if !ok {
+			return nil, fmt.Errorf("invalid transacton format")
+		}
+		hash, err := tx.TxHash()
+		if err != nil {
+			return nil, err
+		}
+		var totalIn, totalOut uint64
+		for _, in := range tx.Vin {
+			if wrap, ok := utxos[in.PrevOutPoint]; ok && wrap != nil {
+				totalIn += wrap.Output.Value
+				logger.Debugf("input value %v", wrap.Output.Value)
+			} else {
+				return nil, fmt.Errorf("previous input not found %v", in)
+			}
+		}
+		for _, out := range tx.Vout {
+			totalOut += out.Value
+		}
+		fee := totalIn - totalOut
+		txInfo := &rpcpb.TransactionInfo{
+			Version:  tx.Version,
+			Vin:      txPb.Vin,
+			Vout:     txPb.Vout,
+			Data:     txPb.Data,
+			Magic:    tx.Magic,
+			LockTime: tx.LockTime,
+			Hash:     hash.String(),
+			Fee:      fee,
+			Size_:    0,
+		}
+		txInfos = append(txInfos, txInfo)
+	}
+	return &rpcpb.GetTransactionsInfoResponse{
+		Total: uint32(len(txs)),
+		Txs:   txInfos,
+	}, nil
 }
 
 func (s *webapiServer) GetTransactionHistory(context.Context, *rpcpb.GetTransactionHistoryRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
@@ -145,12 +202,12 @@ func (s *webapiServer) analyzeDistribute(utxos map[types.OutPoint]*types.UtxoWra
 	return distribute
 }
 
-func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockInfo) error {
+func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
 	generated := make(map[types.OutPoint]*types.UtxoWrap)
-	for i, tx := range block.Txs {
+	for i, tx := range txs {
 		hash, err := tx.TxHash()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for idx, out := range tx.Vout {
 			outpoint := types.OutPoint{
@@ -159,7 +216,7 @@ func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockI
 			}
 			wrap := &types.UtxoWrap{
 				Output:      out,
-				BlockHeight: block.Height,
+				BlockHeight: 0,
 				IsCoinBase:  i == 0,
 				IsSpent:     false,
 				IsModified:  false,
@@ -168,10 +225,7 @@ func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockI
 		}
 	}
 	var missing []types.OutPoint
-	for i, tx := range block.Txs {
-		if i == 0 {
-			continue
-		}
+	for _, tx := range txs {
 		for _, txIn := range tx.Vin {
 			if _, ok := generated[txIn.PrevOutPoint]; ok {
 				continue
@@ -180,6 +234,54 @@ func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockI
 		}
 	}
 	stored, err := s.server.GetChainReader().LoadSpentUtxos(missing)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range stored {
+		generated[k] = v
+	}
+	return generated, nil
+}
+
+func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockInfo) error {
+	//generated := make(map[types.OutPoint]*types.UtxoWrap)
+	//for i, tx := range block.Txs {
+	//	hash, err := tx.TxHash()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	for idx, out := range tx.Vout {
+	//		outpoint := types.OutPoint{
+	//			Hash:  *hash,
+	//			Index: uint32(idx),
+	//		}
+	//		wrap := &types.UtxoWrap{
+	//			Output:      out,
+	//			BlockHeight: block.Height,
+	//			IsCoinBase:  i == 0,
+	//			IsSpent:     false,
+	//			IsModified:  false,
+	//		}
+	//		generated[outpoint] = wrap
+	//	}
+	//}
+	//var missing []types.OutPoint
+	//for i, tx := range block.Txs {
+	//	if i == 0 {
+	//		continue
+	//	}
+	//	for _, txIn := range tx.Vin {
+	//		if _, ok := generated[txIn.PrevOutPoint]; ok {
+	//			continue
+	//		}
+	//		missing = append(missing, txIn.PrevOutPoint)
+	//	}
+	//}
+	//stored, err := s.server.GetChainReader().LoadSpentUtxos(missing)
+	//if err != nil {
+	//	return err
+	//}
+	utxos, err := s.loadUtxoForTx(block.Txs)
 	if err != nil {
 		return err
 	}
@@ -190,11 +292,7 @@ func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockI
 		}
 		if i != 0 {
 			for _, vin := range tx.Vin {
-				if wrap, ok := stored[vin.PrevOutPoint]; ok {
-					totalIn += wrap.Value()
-					continue
-				}
-				if wrap, ok := generated[vin.PrevOutPoint]; ok {
+				if wrap, ok := utxos[vin.PrevOutPoint]; ok {
 					totalIn += wrap.Value()
 					continue
 				}
