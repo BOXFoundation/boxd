@@ -219,10 +219,18 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 			totalOut += out.Value
 		}
 		fee := totalIn - totalOut
+		var outInfos []*rpcpb.TxOutInfo
+		for _, o := range txPb.Vout {
+			outInfo, err := convertVout(o)
+			if err != nil {
+				return nil, err
+			}
+			outInfos = append(outInfos, outInfo)
+		}
 		txInfo := &rpcpb.TransactionInfo{
 			Version:  tx.Version,
 			Vin:      txPb.Vin,
-			Vout:     txPb.Vout,
+			Vout:     outInfos,
 			Data:     txPb.Data,
 			Magic:    tx.Magic,
 			LockTime: tx.LockTime,
@@ -236,6 +244,39 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 		Total: uint32(len(txs)),
 		Txs:   txInfos,
 	}, nil
+}
+
+func convertVout(vout *corepb.TxOut) (*rpcpb.TxOutInfo, error) {
+	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+	out := &rpcpb.TxOutInfo{
+		Value:        vout.Value,
+		ScriptPubKey: vout.ScriptPubKey,
+		ScriptDisasm: sc.Disasm(),
+	}
+	if sc.IsTokenIssue() {
+		params, err := sc.GetIssueParams()
+		if err != nil {
+			return nil, err
+		}
+		out.IssueInfo = &rpcpb.TokenIssueInfo{
+			Name:        params.Name,
+			TotalSupply: params.TotalSupply,
+		}
+	} else if sc.IsTokenTransfer() {
+		params, err := sc.GetTransferParams()
+		if err != nil {
+			return nil, err
+		}
+		tokenID := &rpcpb.Token{
+			Hash:  params.Hash.String(),
+			Index: params.Index,
+		}
+		out.TransferInfo = &rpcpb.TokenTransferInfo{
+			Token:  tokenID,
+			Amount: params.Amount,
+		}
+	}
+	return out, nil
 }
 
 func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.GetTransactionHistoryRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
@@ -519,10 +560,18 @@ func convertTransaction(tx *types.Transaction) (*rpcpb.TransactionInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	var outInfos []*rpcpb.TxOutInfo
+	for _, o := range txPb.Vout {
+		outInfo, err := convertVout(o)
+		if err != nil {
+			return nil, err
+		}
+		outInfos = append(outInfos, outInfo)
+	}
 	out := &rpcpb.TransactionInfo{
 		Version:  tx.Version,
 		Vin:      txPb.Vin,
-		Vout:     txPb.Vout,
+		Vout:     outInfos,
 		Data:     txPb.Data,
 		Magic:    txPb.Magic,
 		LockTime: txPb.LockTime,
