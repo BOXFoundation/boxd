@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/BOXFoundation/boxd/util"
+
 	"github.com/BOXFoundation/boxd/script"
 
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -94,8 +96,34 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 	}, nil
 }
 
-func (s *webapiServer) GetTransactionHistory(context.Context, *rpcpb.GetTransactionHistoryRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	panic("implement me")
+func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.GetTransactionHistoryRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
+	addr := &types.AddressPubKeyHash{}
+	if err := addr.SetString(req.Addr); err != nil {
+		return nil, err
+	}
+	txs, err := s.server.GetChainReader().GetTransactionsByAddr(addr)
+	if err != nil {
+		return nil, err
+	}
+	var txInRange []*types.Transaction
+	if len(txs) <= int(req.Offset) {
+		txInRange = []*types.Transaction{}
+	} else if len(txs) < int(req.Offset+req.Limit) {
+		txInRange = txs[req.Offset:]
+	} else {
+		txInRange = txs[req.Offset : req.Offset+req.Limit]
+	}
+	logger.Infof("transactions inf range: %v", len(txInRange))
+	utxos, err := s.loadUtxoForTx(txInRange)
+	logger.Debugf("utxos %v", util.PrettyPrint(utxos))
+	if err != nil {
+		return nil, err
+	}
+	txInfos, err := convertTransactionInfos(txInRange, utxos)
+	return &rpcpb.GetTransactionsInfoResponse{
+		Total: uint32(len(txs)),
+		Txs:   txInfos,
+	}, nil
 }
 
 func (s *webapiServer) GetTopHolders(ctx context.Context, req *rpcpb.GetTopHoldersRequest) (*rpcpb.GetTopHoldersResponse, error) {
@@ -244,43 +272,6 @@ func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoi
 }
 
 func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockInfo) error {
-	//generated := make(map[types.OutPoint]*types.UtxoWrap)
-	//for i, tx := range block.Txs {
-	//	hash, err := tx.TxHash()
-	//	if err != nil {
-	//		return err
-	//	}
-	//	for idx, out := range tx.Vout {
-	//		outpoint := types.OutPoint{
-	//			Hash:  *hash,
-	//			Index: uint32(idx),
-	//		}
-	//		wrap := &types.UtxoWrap{
-	//			Output:      out,
-	//			BlockHeight: block.Height,
-	//			IsCoinBase:  i == 0,
-	//			IsSpent:     false,
-	//			IsModified:  false,
-	//		}
-	//		generated[outpoint] = wrap
-	//	}
-	//}
-	//var missing []types.OutPoint
-	//for i, tx := range block.Txs {
-	//	if i == 0 {
-	//		continue
-	//	}
-	//	for _, txIn := range tx.Vin {
-	//		if _, ok := generated[txIn.PrevOutPoint]; ok {
-	//			continue
-	//		}
-	//		missing = append(missing, txIn.PrevOutPoint)
-	//	}
-	//}
-	//stored, err := s.server.GetChainReader().LoadSpentUtxos(missing)
-	//if err != nil {
-	//	return err
-	//}
 	utxos, err := s.loadUtxoForTx(block.Txs)
 	if err != nil {
 		return err
@@ -304,6 +295,30 @@ func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockI
 		}
 	}
 	return nil
+}
+
+func convertTransactionInfos(txs []*types.Transaction, utxos map[types.OutPoint]*types.UtxoWrap) ([]*rpcpb.TransactionInfo, error) {
+	var result []*rpcpb.TransactionInfo
+	for _, tx := range txs {
+		txPb, err := convertTransaction(tx)
+		if err != nil {
+			return nil, err
+		}
+		var totalIn, totalOut uint64
+		for _, in := range tx.Vin {
+			prev, ok := utxos[in.PrevOutPoint]
+			if !ok {
+				return nil, fmt.Errorf("previous transaction not found for outpoint: %v", in.PrevOutPoint)
+			}
+			totalIn += prev.Output.Value
+		}
+		for _, out := range tx.Vout {
+			totalOut += out.Value
+		}
+		txPb.Fee = totalIn - totalOut
+		result = append(result, txPb)
+	}
+	return result, nil
 }
 
 func convertTransaction(tx *types.Transaction) (*rpcpb.TransactionInfo, error) {
