@@ -51,6 +51,27 @@ service WebApi {
         };
     }
 
+    rpc ListTokens(ListTokensRequest) returns (ListTokensResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/listtokens"
+            body: "*"
+        };
+    }
+
+    rpc GetTokenHolders(GetTokenHoldersRequest) returns (GetTokenHoldersResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettokenholders"
+            body: "*"
+        };
+    }
+
+    rpc GetTokenTransactions(GetTokenTransactionsRequest) returns (GetTransactionsInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettokentxs"
+            body: "*"
+        };
+    }
+
 }
 
 message GetTransactionsInfoResponse {
@@ -129,4 +150,45 @@ message BlockInfo {
     string hash = 5;
     uint64 size = 6;
     string coin_base = 7;
+}
+
+message Token {
+    string hash = 1;
+    uint32 index = 2;
+}
+
+message ListTokensRequest {
+    uint32 offset = 1;
+    uint32 limit = 2;
+}
+
+message GetTokenHoldersRequest {
+    Token token = 1;
+    uint32 offset = 2;
+    uint32 limit = 3;
+}
+
+message GetTokenTransactionsRequest {
+    Token token = 1;
+    uint32 offset = 2;
+    uint32 limit = 3;
+}
+
+message TokenBasicInfo {
+    Token token = 1;
+    string name = 2;
+    uint64 total_supply = 3;
+    string creator_addr = 4;
+    uint64 creator_time = 5;
+}
+
+message ListTokensResponse {
+    uint32 count = 1;
+    repeated TokenBasicInfo tokens = 2;
+}
+
+message GetTokenHoldersResponse {
+    Token token = 1;
+    uint32 count = 2;
+    repeated AddressAmount data = 3;
 }

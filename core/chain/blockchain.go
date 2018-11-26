@@ -46,9 +46,8 @@ const (
 	MaxBlocksPerSync = 1024
 
 	metricsLoopInterval = 2 * time.Second
-	BlockFilterCapacity = 100000
-
-	Threshold = 32
+	tokenIssueFilterKey = "token_issue"
+	Threshold           = 32
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -1066,6 +1065,7 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	}
 	for _, utxo := range utxoUsed {
 		if utxo != nil && utxo.Output != nil {
+			// TODO: add script index for previous output
 			vin = append(vin, utxo.Output.ScriptPubKey)
 		}
 	}
@@ -1073,13 +1073,29 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	for _, scriptBytes := range vin {
 		filter.Add(scriptBytes)
 	}
-	for _, scriptBytes := range vout {
-		scriptPubKey := script.NewScriptFromBytes(scriptBytes)
-		if scriptPubKey.IsTokenIssue() || scriptPubKey.IsTokenTransfer() {
-			// token output: only store the p2pkh prefix part so we can retrieve it later
-			scriptBytes = *scriptPubKey.P2PKHScriptPrefix()
+	for _, tx := range block.Txs {
+		for idx, out := range tx.Vout {
+			indexedBytes := out.ScriptPubKey
+			sc := script.NewScriptFromBytes(out.ScriptPubKey)
+			if sc.IsTokenIssue() || sc.IsTokenTransfer() {
+				indexedBytes = *sc.P2PKHScriptPrefix()
+			}
+			filter.Add(indexedBytes)
+			hash, _ := tx.TxHash()
+			if sc.IsTokenIssue() {
+				filter.Add([]byte(tokenIssueFilterKey))
+				tokenID := &script.TokenID{
+					OutPoint: types.OutPoint{
+						Hash:  *hash,
+						Index: uint32(idx),
+					},
+				}
+				filter.Add([]byte(tokenID.String()))
+			} else if sc.IsTokenTransfer() {
+				param, _ := sc.GetTransferParams()
+				filter.Add([]byte(param.TokenID.String()))
+			}
 		}
-		filter.Add(scriptBytes)
 	}
 	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
 	return filter
@@ -1141,5 +1157,57 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 		}
 	}
 	utxoSet = nil
+	return txs, nil
+}
+
+// ListTokenIssueTransactions returns transactions which contains token issue info
+func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, error) {
+	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
+	logger.Infof("%v blocks related to token issue", len(hashes))
+	var txs []*types.Transaction
+	for _, hash := range hashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		for _, tx := range block.Txs {
+			for _, vout := range tx.Vout {
+				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+				if sc.IsTokenIssue() {
+					txs = append(txs, tx)
+				}
+			}
+		}
+	}
+	return txs, nil
+}
+
+func (chain *BlockChain) GetTokenTransactions(tokenID *script.TokenID) ([]*types.Transaction, error) {
+	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenID.String()))
+	logger.Infof("%v blocks related to token %v", len(hashes), tokenID)
+	var txs []*types.Transaction
+	for _, hash := range hashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		for _, tx := range block.Txs {
+			hash, _ := tx.TxHash()
+			for idx, vout := range tx.Vout {
+				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+				if sc.IsTokenIssue() && hash.IsEqual(&tokenID.Hash) && uint32(idx) == tokenID.Index {
+					txs = append(txs, tx)
+					break
+				}
+				if sc.IsTokenTransfer() {
+					params, _ := sc.GetTransferParams()
+					if params.Hash.IsEqual(&tokenID.Hash) && params.Index == tokenID.Index {
+						txs = append(txs, tx)
+						break
+					}
+				}
+			}
+		}
+	}
 	return txs, nil
 }

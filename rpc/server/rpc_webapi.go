@@ -35,6 +35,148 @@ type webapiServer struct {
 	server GRPCServer
 }
 
+func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequest) (*rpcpb.ListTokensResponse, error) {
+	tokenIssueTransactions, err := s.server.GetChainReader().ListTokenIssueTransactions()
+	if err != nil {
+		return nil, err
+	}
+	var tokenInfos []*rpcpb.TokenBasicInfo
+	var txInRange []*types.Transaction
+	total := uint32(len(tokenIssueTransactions))
+	logger.Infof("%v transactions found related to token issue", total)
+	if total < req.Offset {
+		return &rpcpb.ListTokensResponse{
+			Count:  total,
+			Tokens: []*rpcpb.TokenBasicInfo{},
+		}, nil
+	} else if total < req.Offset+req.Limit {
+		txInRange = tokenIssueTransactions[req.Offset:]
+	} else {
+		txInRange = tokenIssueTransactions[req.Offset : req.Offset+req.Limit]
+	}
+	for _, tx := range txInRange {
+		hash, err := tx.TxHash()
+		if err != nil {
+			return nil, err
+		}
+		for idx, vout := range tx.Vout {
+			sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+			if sc.IsTokenIssue() {
+				params, err := sc.GetIssueParams()
+				if err != nil {
+					return nil, err
+				}
+				addr, err := sc.ExtractAddress()
+				if err != nil {
+					return nil, err
+				}
+				tokenInfo := &rpcpb.TokenBasicInfo{
+					Token: &rpcpb.Token{
+						Hash:  hash.String(),
+						Index: uint32(idx),
+					},
+					Name:        params.Name,
+					TotalSupply: params.TotalSupply,
+					CreatorAddr: addr.String(),
+				}
+				tokenInfos = append(tokenInfos, tokenInfo)
+				break
+			}
+		}
+	}
+	return &rpcpb.ListTokensResponse{
+		Count:  total,
+		Tokens: tokenInfos,
+	}, nil
+}
+
+func (s *webapiServer) GetTokenHolders(ctx context.Context, req *rpcpb.GetTokenHoldersRequest) (*rpcpb.GetTokenHoldersResponse, error) {
+	utxos, err := s.server.GetChainReader().ListAllUtxos()
+	if err != nil {
+		return nil, err
+	}
+	hash := &crypto.HashType{}
+	if err := hash.SetString(req.Token.Hash); err != nil {
+		return nil, err
+	}
+	tokenID := &script.TokenID{
+		OutPoint: types.OutPoint{
+			Hash:  *hash,
+			Index: req.Token.Index,
+		},
+	}
+	distribute, err := s.analyzeTokenDistribute(utxos, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	var holders, targetHolders []*rpcpb.AddressAmount
+	for addr, val := range distribute {
+		holders = append(holders, &rpcpb.AddressAmount{
+			Addr:   addr,
+			Amount: val,
+		})
+	}
+	sort.Slice(holders, func(i, j int) bool {
+		return holders[i].Amount > holders[j].Amount
+	})
+	total := uint32(len(holders))
+	if total <= req.Offset {
+		targetHolders = []*rpcpb.AddressAmount{}
+	} else if total < req.Offset+req.Limit {
+		targetHolders = holders[req.Offset:]
+	} else {
+		targetHolders = holders[req.Offset : req.Offset+req.Limit]
+	}
+	return &rpcpb.GetTokenHoldersResponse{
+		Token: req.Token,
+		Count: total,
+		Data:  targetHolders,
+	}, nil
+}
+
+func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetTokenTransactionsRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
+	hash := &crypto.HashType{}
+	if err := hash.SetString(req.Token.Hash); err != nil {
+		return nil, err
+	}
+	tokenID := &script.TokenID{
+		OutPoint: types.OutPoint{
+			Hash:  *hash,
+			Index: req.Token.Index,
+		},
+	}
+	allTxs, err := s.server.GetChainReader().GetTokenTransactions(tokenID)
+	if err != nil {
+		return nil, err
+	}
+	total := uint32(len(allTxs))
+	logger.Infof("%v txs found related to token %v", total, tokenID)
+	var txInRange []*types.Transaction
+	if total <= req.Offset {
+		return &rpcpb.GetTransactionsInfoResponse{
+			Total: total,
+			Txs:   []*rpcpb.TransactionInfo{},
+		}, nil
+	} else if total < req.Offset+req.Limit {
+		txInRange = allTxs[req.Offset:]
+	} else {
+		txInRange = allTxs[req.Offset : req.Offset+req.Limit]
+	}
+	utxos, err := s.loadUtxoForTx(txInRange)
+	if err != nil {
+		return nil, err
+	}
+	logger.Infof("%v txs found related to token %v", len(txInRange))
+	txInfos, err := convertTransactionInfos(txInRange, utxos)
+	if err != nil {
+		return nil, err
+	}
+	return &rpcpb.GetTransactionsInfoResponse{
+		Total: total,
+		Txs:   txInfos,
+	}, nil
+}
+
 func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.GetPendingTransactionRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
 	txs := s.server.GetTxHandler().GetTransactionsInPool()
 	var txInRange []*types.Transaction
@@ -228,6 +370,45 @@ func (s *webapiServer) analyzeDistribute(utxos map[types.OutPoint]*types.UtxoWra
 		}
 	}
 	return distribute
+}
+
+func (s *webapiServer) analyzeTokenDistribute(utxos map[types.OutPoint]*types.UtxoWrap, token *script.TokenID) (map[string]uint64, error) {
+	distribute := make(map[string]uint64)
+	for op, wrap := range utxos {
+		sc := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+		if sc.IsTokenIssue() {
+			addr, err := sc.ExtractAddress()
+			if err != nil {
+				return nil, err
+			}
+			param, err := sc.GetIssueParams()
+			if err != nil {
+				return nil, err
+			}
+			if op.Hash.IsEqual(&token.Hash) && op.Index == token.Index {
+				distribute[addr.String()] = param.TotalSupply
+				// an utxo of issue yet implies no transfer tx yet
+				return distribute, nil
+			}
+		} else if sc.IsTokenTransfer() {
+			param, err := sc.GetTransferParams()
+			if err != nil {
+				return nil, err
+			}
+			addr, err := sc.ExtractAddress()
+			if err != nil {
+				return nil, err
+			}
+			if param.Hash.IsEqual(&token.Hash) && param.Index == token.Index {
+				if val, ok := distribute[addr.String()]; ok {
+					distribute[addr.String()] = val + param.Amount
+				} else {
+					distribute[addr.String()] = param.Amount
+				}
+			}
+		}
+	}
+	return distribute, nil
 }
 
 func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
