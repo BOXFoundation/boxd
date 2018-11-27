@@ -184,6 +184,12 @@ func txTest() {
 	circu := NewCirculation(*testsCnt, cirPartLen, collAddrCh, cirInfoCh)
 	defer circu.TearDown()
 
+	timeout := blockTime * time.Duration(len(peersAddr))
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v", 2, timeout)
+	if err := waitAllNodesHeightHigher(peersAddr, 2, timeout); err != nil {
+		logger.Panic(err)
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 	// collection process
@@ -205,6 +211,11 @@ func txTest() {
 
 func tokenTest() {
 	t := NewTokenTest(3)
+	timeout := blockTime * time.Duration(len(peersAddr))
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v", 2, timeout)
+	if err := waitAllNodesHeightHigher(peersAddr, 2, timeout); err != nil {
+		logger.Panic(err)
+	}
 	defer t.TearDown()
 	t.Run()
 }

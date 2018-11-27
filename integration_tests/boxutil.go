@@ -197,6 +197,30 @@ func chainHeightFor(peerAddr string) (int, error) {
 	return int(r.Height), nil
 }
 
+func waitAllNodesHeightHigher(addrs []string, h int, timeout time.Duration) error {
+	d := rpcInterval
+	t := time.NewTicker(d)
+	defer t.Stop()
+	idx := 0
+	for i := 0; i < int(timeout/d); i++ {
+		select {
+		case <-t.C:
+			hh, err := chainHeightFor(addrs[idx])
+			if err != nil {
+				return err
+			}
+			if hh >= h {
+				idx++
+				if idx == len(addrs) {
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("timeout for waiting for node %s's block height reach %d",
+		addrs[idx], h)
+}
+
 func waitHeightSame() (int, error) {
 	timeout := 30
 	for i := 0; i < timeout; i++ {
