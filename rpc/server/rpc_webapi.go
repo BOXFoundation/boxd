@@ -476,6 +476,9 @@ func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoi
 	}
 	var missing []types.OutPoint
 	for _, tx := range txs {
+		if s.server.GetChainReader().IsCoinBase(tx) {
+			continue
+		}
 		for _, txIn := range tx.Vin {
 			if _, ok := generated[txIn.PrevOutPoint]; ok {
 				continue

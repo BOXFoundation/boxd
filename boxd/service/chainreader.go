@@ -31,4 +31,6 @@ type ChainReader interface {
 
 	ListTokenIssueTransactions() ([]*types.Transaction, error)
 	GetTokenTransactions(*script.TokenID) ([]*types.Transaction, error)
+
+	IsCoinBase(*types.Transaction) bool
 }

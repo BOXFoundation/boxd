@@ -839,6 +839,11 @@ func (chain *BlockChain) loadTailBlock() (*types.Block, error) {
 	return &GenesisBlock, nil
 }
 
+// IsCoinBase checks if an transaction is coinbase transaction
+func (chain *BlockChain) IsCoinBase(tx *types.Transaction) bool {
+	return IsCoinBase(tx)
+}
+
 // LoadBlockByHash load block by hash from db.
 func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, error) {
 
