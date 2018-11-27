@@ -591,7 +591,7 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 	_, detachBlocks, attachBlocks := chain.findFork(block)
 
 	// Detach the blocks that form the (now) old fork from the main chain.
-	// From tip to fork, not including fork
+	// From tail to fork, not including fork
 	for _, detachBlock := range detachBlocks {
 		if err := chain.revertBlock(detachBlock); err != nil {
 			return err
@@ -600,7 +600,7 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 
 	// Attach the blocks that form the new chain to the main chain starting at the
 	// common ancenstor (the point where the chain forked).
-	// From fork to tip, not including fork
+	// From fork to tail, not including fork
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		attachBlock := attachBlocks[blockIdx]
 		if err := chain.applyBlock(attachBlock, nil); err != nil {
