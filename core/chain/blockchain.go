@@ -1182,6 +1182,7 @@ func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, err
 	return txs, nil
 }
 
+// GetTokenTransactions returns transactions history of a tokenID
 func (chain *BlockChain) GetTokenTransactions(tokenID *script.TokenID) ([]*types.Transaction, error) {
 	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenID.String()))
 	logger.Infof("%v blocks related to token %v", len(hashes), tokenID)
