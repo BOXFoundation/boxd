@@ -56,7 +56,7 @@ var (
 	peersAddr []string
 
 	scope        = flag.String("scope", "basic", "can select basic/main/full/continue cases")
-	newNodes     = flag.Bool("nodes", false, "need to start nodes?")
+	newNodes     = flag.Bool("nodes", true, "need to start nodes?")
 	enableDocker = flag.Bool("docker", false, "test in docker containers?")
 	testsCnt     = flag.Int("accounts", 10, "how many need to create test acconts?")
 
