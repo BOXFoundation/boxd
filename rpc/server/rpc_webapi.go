@@ -90,6 +90,41 @@ func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequ
 	}, nil
 }
 
+func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfoRequest) (*rpcpb.GetTokenInfoResponse, error) {
+	hash := &crypto.HashType{}
+	if err := hash.SetString(req.Token.Hash); err != nil {
+		return nil, err
+	}
+	tx, err := s.server.GetChainReader().LoadTxByHash(*hash)
+	if err != nil {
+		return nil, err
+	}
+	if uint32(len(tx.Vout)) <= req.Token.Index {
+		return nil, fmt.Errorf("invalid token index")
+	}
+	out := tx.Vout[req.Token.Index]
+	sc := script.NewScriptFromBytes(out.ScriptPubKey)
+	if !sc.IsTokenIssue() {
+		return nil, fmt.Errorf("invalid token id")
+	}
+	param, err := sc.GetIssueParams()
+	if err != nil {
+		return nil, err
+	}
+	addr, err := sc.ExtractAddress()
+	if err != nil {
+		return nil, err
+	}
+	return &rpcpb.GetTokenInfoResponse{
+		Info: &rpcpb.TokenBasicInfo{
+			Token:       req.Token,
+			Name:        param.Name,
+			TotalSupply: param.TotalSupply,
+			CreatorAddr: addr.String(),
+		},
+	}, nil
+}
+
 func (s *webapiServer) GetTokenHolders(ctx context.Context, req *rpcpb.GetTokenHoldersRequest) (*rpcpb.GetTokenHoldersResponse, error) {
 	utxos, err := s.server.GetChainReader().ListAllUtxos()
 	if err != nil {

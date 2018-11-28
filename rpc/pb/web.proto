@@ -58,6 +58,13 @@ service WebApi {
         };
     }
 
+    rpc GetTokenInfo(GetTokenInfoRequest) returns (GetTokenInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettoken"
+            body: "*"
+        };
+    }
+
     rpc GetTokenHolders(GetTokenHoldersRequest) returns (GetTokenHoldersResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/gettokenholders"
@@ -190,6 +197,14 @@ message GetTokenTransactionsRequest {
     Token token = 1;
     uint32 offset = 2;
     uint32 limit = 3;
+}
+
+message GetTokenInfoRequest {
+    Token token = 1;
+}
+
+message GetTokenInfoResponse {
+    TokenBasicInfo info = 1;
 }
 
 message TokenBasicInfo {
