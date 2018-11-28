@@ -80,7 +80,7 @@ func unlockAccount(addr string) *wallet.Account {
 }
 
 func execTx(account *wallet.Account, toAddrs []string, amounts []uint64,
-	peerAddr string) {
+	peerAddr string) *types.Transaction {
 	//
 	if len(toAddrs) != len(amounts) {
 		logger.Panicf("toAddrs count %d is mismatch with amounts count: %d",
@@ -109,7 +109,7 @@ func execTx(account *wallet.Account, toAddrs []string, amounts []uint64,
 	}
 
 	start := time.Now()
-	_, err = client.CreateTransaction(conn, fromAddress, addrAmountMap,
+	tx, err := client.CreateTransaction(conn, fromAddress, addrAmountMap,
 		account.PublicKey(), account)
 	if time.Since(start) > 2*rpcInterval {
 		logger.Warnf("cost %v for CreateTransaction on %s", time.Since(start), peerAddr)
@@ -118,6 +118,7 @@ func execTx(account *wallet.Account, toAddrs []string, amounts []uint64,
 		logger.Panicf("create transaction from %s, addr amont map %v, error: %s",
 			fromAddress, addrAmountMap, err)
 	}
+	return tx
 }
 
 func utxosNoPanicFor(accAddr string, peerAddr string) ([]*rpcpb.Utxo, error) {
@@ -194,6 +195,30 @@ func chainHeightFor(peerAddr string) (int, error) {
 		return 0, err
 	}
 	return int(r.Height), nil
+}
+
+func waitAllNodesHeightHigher(addrs []string, h int, timeout time.Duration) error {
+	d := rpcInterval
+	t := time.NewTicker(d)
+	defer t.Stop()
+	idx := 0
+	for i := 0; i < int(timeout/d); i++ {
+		select {
+		case <-t.C:
+			hh, err := chainHeightFor(addrs[idx])
+			if err != nil {
+				return err
+			}
+			if hh >= h {
+				idx++
+				if idx == len(addrs) {
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("timeout for waiting for node %s's block height reach %d",
+		addrs[idx], h)
 }
 
 func waitHeightSame() (int, error) {
@@ -301,7 +326,7 @@ func waitOneAddrBalanceEnough(addrs []string, amount uint64, checkPeer string,
 			}
 		}
 	}
-	return addrs[0], b, fmt.Errorf("timeout for waiting for UTXO reach "+
+	return addrs[0], b, fmt.Errorf("timeout for waiting for balance reach "+
 		"%d for %v, now %d", amount, addrs, b)
 }
 
@@ -326,6 +351,30 @@ func waitBalanceEnough(addr string, amount uint64, checkPeer string,
 		}
 	}
 	return b, fmt.Errorf("Timeout for waiting for %s balance enough %d, now %d",
+		addr, amount, b)
+}
+
+func waitTokenBalanceEnough(addr string, amount uint64, tx *types.Transaction,
+	checkPeer string, timeout time.Duration) (uint64, error) {
+	// return eagerly
+	b := tokenBalanceFor(addr, tx, checkPeer)
+	if b >= amount {
+		return b, nil
+	}
+	// check repeatedly
+	d := rpcInterval
+	t := time.NewTicker(d)
+	defer t.Stop()
+	for i := 0; i < int(timeout/d); i++ {
+		select {
+		case <-t.C:
+			b = tokenBalanceFor(addr, tx, checkPeer)
+			if b >= amount {
+				return b, nil
+			}
+		}
+	}
+	return b, fmt.Errorf("Timeout for waiting for %s token balance enough %d, now %d",
 		addr, amount, b)
 }
 

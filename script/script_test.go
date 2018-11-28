@@ -88,6 +88,10 @@ func TestNonTxScriptEvaluation(t *testing.T) {
 	script = NewScript().AddOpCode(OPFALSE).AddOpCode(OP16).AddOpCode(OPDROP)
 	err = script.evaluate(nil, 0)
 	ensure.NotNil(t, err)
+
+	script = NewScript().AddOpCode(OPRETURN).AddOpCode(OPTRUE)
+	err = script.evaluate(nil, 0)
+	ensure.NotNil(t, err)
 }
 
 func genP2PKHScript(appendOpDrop bool) (*Script, *Script, []byte) {

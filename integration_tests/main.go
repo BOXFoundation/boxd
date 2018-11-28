@@ -53,10 +53,11 @@ type CirInfo struct {
 }
 
 var (
-	peersAddr []string
+	peersAddr          []string
+	minConsensusBlocks = 5
 
 	scope        = flag.String("scope", "basic", "can select basic/main/full/continue cases")
-	newNodes     = flag.Bool("nodes", false, "need to start nodes?")
+	newNodes     = flag.Bool("nodes", true, "need to start nodes?")
 	enableDocker = flag.Bool("docker", false, "test in docker containers?")
 	testsCnt     = flag.Int("accounts", 10, "how many need to create test acconts?")
 
@@ -120,8 +121,55 @@ func main() {
 		}
 	} else {
 		peersAddr, err = parseIPlist(".devconfig/testnet.iplist")
+		if err != nil {
+			logger.Panic(err)
+		}
 	}
+	minConsensusBlocks = (len(peersAddr)+2)/3*2 + 1
 
+	// start test
+	var wg sync.WaitGroup
+	testItems := 2
+	errChans := make(chan error, testItems)
+	wg.Add(testItems)
+
+	// test tx
+	go func() {
+		defer func() {
+			wg.Done()
+			if x := recover(); x != nil {
+				errChans <- fmt.Errorf("%v", x)
+			}
+		}()
+		txTest()
+	}()
+
+	// test token
+	go func() {
+		defer func() {
+			wg.Done()
+			if x := recover(); x != nil {
+				errChans <- fmt.Errorf("%v", x)
+			}
+		}()
+		tokenTest()
+	}()
+
+	wg.Wait()
+	for len(errChans) > 0 {
+		TryRecordError(<-errChans)
+	}
+	// check whether integration success
+	for _, e := range ErrItems {
+		logger.Error(e)
+	}
+	if len(ErrItems) > 0 {
+		// use panic to exit since it need to execute defer clause above
+		logger.Panicf("integration tests exits with %d errors", len(ErrItems))
+	}
+}
+
+func txTest() {
 	// define chan
 	collPartLen, cirPartLen := 5, 5
 	collLen := (*testsCnt + collPartLen - 1) / collPartLen
@@ -137,6 +185,13 @@ func main() {
 	defer coll.TearDown()
 	circu := NewCirculation(*testsCnt, cirPartLen, collAddrCh, cirInfoCh)
 	defer circu.TearDown()
+
+	timeout := blockTime * time.Duration(len(peersAddr)*2)
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
+		minConsensusBlocks, timeout)
+	if err := waitAllNodesHeightHigher(peersAddr, minConsensusBlocks, timeout); err != nil {
+		logger.Panic(err)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -155,13 +210,16 @@ func main() {
 	}()
 
 	wg.Wait()
+}
 
-	// check whether integration success
-	for _, e := range ErrItems {
-		logger.Error(e)
+func tokenTest() {
+	t := NewTokenTest(3)
+	timeout := blockTime * time.Duration(len(peersAddr)*2)
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
+		minConsensusBlocks, timeout)
+	if err := waitAllNodesHeightHigher(peersAddr, minConsensusBlocks, timeout); err != nil {
+		logger.Panic(err)
 	}
-	if len(ErrItems) > 0 {
-		// use panic to exit since it need to execute defer clause above
-		logger.Panicf("integration tests exits with %d errors", len(ErrItems))
-	}
+	defer t.TearDown()
+	t.Run()
 }

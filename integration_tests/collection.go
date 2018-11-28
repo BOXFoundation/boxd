@@ -101,7 +101,8 @@ func (c *Collection) doTx(index int) {
 		peerIdx = peerIdx % peerCnt
 		peerAddr := peersAddr[peerIdx]
 		peerIdx++
-		logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount, peerAddr)
+		logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount*div,
+			peerAddr)
 		// totalAmount is enough, to multiply is to avoid concurrence balance insufficent
 		// sleep index*rpcInterval to avoid "Output already spent by transaction in the
 		// pool" error on the same minerAddr

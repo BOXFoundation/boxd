@@ -253,11 +253,15 @@ func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransacti
 
 func getTokenInfo(outpoint types.OutPoint, wrap *types.UtxoWrap) (types.OutPoint, uint64, bool) {
 	s := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
-	if issueParam, err := s.GetIssueParams(); err == nil {
-		return outpoint, issueParam.TotalSupply, true
+	if s.IsTokenIssue() {
+		if issueParam, err := s.GetIssueParams(); err == nil {
+			return outpoint, issueParam.TotalSupply, true
+		}
 	}
-	if transferParam, err := s.GetTransferParams(); err == nil {
-		return transferParam.OutPoint, transferParam.Amount, true
+	if s.IsTokenTransfer() {
+		if transferParam, err := s.GetTransferParams(); err == nil {
+			return transferParam.OutPoint, transferParam.Amount, true
+		}
 	}
 	return types.OutPoint{}, 0, false
 }

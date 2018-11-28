@@ -178,15 +178,19 @@ func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
 
 func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
 	script := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
-	issueParam, err := script.GetIssueParams()
-	if err == nil {
-		outHash := crypto.HashType{}
-		outHash.SetBytes(utxo.OutPoint.Hash)
-		return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index}, issueParam.TotalSupply
+	if script.IsTokenIssue() {
+		issueParam, err := script.GetIssueParams()
+		if err == nil {
+			outHash := crypto.HashType{}
+			outHash.SetBytes(utxo.OutPoint.Hash)
+			return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index}, issueParam.TotalSupply
+		}
 	}
-	transferParam, err := script.GetTransferParams()
-	if err == nil {
-		return &transferParam.OutPoint, transferParam.Amount
+	if script.IsTokenTransfer() {
+		transferParam, err := script.GetTransferParams()
+		if err == nil {
+			return &transferParam.OutPoint, transferParam.Amount
+		}
 	}
 	return nil, 0
 }

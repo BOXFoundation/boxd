@@ -6,15 +6,13 @@ package client
 
 import (
 	"context"
-	"fmt"
-	"github.com/BOXFoundation/boxd/core/pb"
-	"github.com/BOXFoundation/boxd/util"
-	"google.golang.org/grpc"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -69,7 +67,7 @@ func CreateTokenIssueTx(conn *grpc.ClientConn, fromAddress, toAddress types.Addr
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("Result: %+v", r)
+	logger.Debugf("Result: %+v", r)
 	transaction := &types.Transaction{}
 	transaction.FromProtoMessage(tx)
 	return transaction, nil
@@ -126,8 +124,7 @@ func CreateTokenTransferTx(conn *grpc.ClientConn, fromAddress types.Address, tar
 		boxAmount = adjustedAmount
 	}
 
-	fmt.Print(util.PrettyPrint(tx))
-
+	//fmt.Print(util.PrettyPrint(tx))
 	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
 
 	c := rpcpb.NewTransactionCommandClient(conn)
@@ -138,7 +135,7 @@ func CreateTokenTransferTx(conn *grpc.ClientConn, fromAddress types.Address, tar
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("Result: %+v", r)
+	logger.Debugf("Result: %+v", r)
 	transaction := &types.Transaction{}
 	transaction.FromProtoMessage(tx)
 	return transaction, nil
