@@ -19,6 +19,7 @@ import (
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
+	"github.com/whyrusleeping/yamux"
 )
 
 // const
@@ -105,7 +106,11 @@ func (conn *Conn) loop(proc goprocess.Process) {
 
 		msg, err := conn.readMessage(conn.stream)
 		if err != nil {
-			logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
+			if err == yamux.ErrConnectionReset {
+				logger.Warnf("ReadMessage occurs error. Err: %s", err.Error())
+			} else {
+				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
+			}
 			return
 		}
 		//logger.Debugf("Receiving message %02x from peer %s", msg.Code(), conn.remotePeer.Pretty())
