@@ -37,11 +37,10 @@ func NewCollection(accCnt, partLen int, collAddrCh <-chan string,
 	// get account address
 	c.accCnt = accCnt
 	c.partLen = partLen
-	logger.Infof("start to gen %d tests address", accCnt)
+	logger.Infof("start to gen %d tests address for tx collection", accCnt)
 	c.addrs, c.accAddrs = genTestAddr(c.accCnt)
 	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
 	// get accounts for addrs
-	logger.Infof("start to unlock all %d tests accounts", len(c.addrs))
 	for _, addr := range c.addrs {
 		acc := unlockAccount(addr)
 		AddrToAcc[addr] = acc

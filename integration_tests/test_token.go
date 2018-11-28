@@ -29,11 +29,10 @@ func NewTokenTest(accCnt int) *TokenTest {
 	t := &TokenTest{}
 	// get account address
 	t.accCnt = accCnt
-	logger.Infof("start to gen %d address for circulation", accCnt)
+	logger.Infof("start to gen %d address for token test", accCnt)
 	t.addrs, t.accAddrs = genTestAddr(t.accCnt)
 	logger.Debugf("addrs: %v\ntestsAcc: %v", t.addrs, t.accAddrs)
 	// get accounts for addrs
-	logger.Infof("start to unlock all %d tests accounts", len(t.addrs))
 	for _, addr := range t.addrs {
 		acc := unlockAccount(addr)
 		AddrToAcc[addr] = acc

@@ -36,8 +36,6 @@ func NewCirculation(accCnt, partLen int, collAddrCh chan<- string,
 	logger.Infof("start to gen %d address for circulation", accCnt)
 	c.addrs, c.accAddrs = genTestAddr(c.accCnt)
 	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
-	// get accounts for addrs
-	logger.Infof("start to unlock all %d tests accounts", len(c.addrs))
 	for _, addr := range c.addrs {
 		acc := unlockAccount(addr)
 		AddrToAcc[addr] = acc

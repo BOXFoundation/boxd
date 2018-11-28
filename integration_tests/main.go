@@ -23,8 +23,7 @@ const (
 	dockerComposeFile = "../docker/docker-compose.yml"
 
 	testPassphrase = "1"
-
-	peerCnt = 6
+	peerCnt        = 6
 
 	blockTime = 5 * time.Second
 
@@ -70,6 +69,12 @@ var (
 )
 
 func init() {
+	if err := InitConf("./param.json"); err != nil {
+		logger.Panicf("init conf using param.json error: %s", err)
+	}
+	if err := loadConf(); err != nil {
+		logger.Panic(err)
+	}
 	rand.Seed(time.Now().Unix())
 	// get addresses of three miners
 	files := make([]string, peerCnt)
@@ -181,9 +186,9 @@ func txTest() {
 	collAddrCh := make(chan string, buffLen)
 	cirInfoCh := make(chan CirInfo, buffLen)
 
-	coll := NewCollection(*testsCnt, collPartLen, collAddrCh, cirInfoCh)
+	coll := NewCollection(CollAccounts(), CollUnitAccounts(), collAddrCh, cirInfoCh)
 	defer coll.TearDown()
-	circu := NewCirculation(*testsCnt, cirPartLen, collAddrCh, cirInfoCh)
+	circu := NewCirculation(CircuAccounts(), CircuUnitAccounts(), collAddrCh, cirInfoCh)
 	defer circu.TearDown()
 
 	timeout := blockTime * time.Duration(len(peersAddr)*2)
@@ -214,7 +219,7 @@ func txTest() {
 }
 
 func tokenTest() {
-	t := NewTokenTest(3)
+	t := NewTokenTest(TokenAccounts())
 	timeout := blockTime * time.Duration(len(peersAddr)*2)
 	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
 		minConsensusBlocks, timeout)

@@ -1,0 +1,45 @@
+{
+  "peer_cnt": 6,
+  "test_scope": "basic",
+  "pass_phrase": "1",
+  "wallet_dir": "./.devconfig/ws1/box_keystore/",
+  "docker_compose_file": "../docker/docker-compose.yml",
+  "local_ws": "./.devconfig/",
+  "docker_ws": "../docker/.devconfig/",
+  "transaction_test": {
+    "collection_accounts": 20,
+    "collection_unit_accounts": 5,
+    "circulation_accounts": 20,
+    "circulationn_unit_accounts": 5
+  },
+  "token_test": {
+    "accounts": 3,
+    "unit_accounts": 3
+  },
+  "iplist": {
+    "docker": [
+	    "127.0.0.1:19111",
+	    "127.0.0.1:19121",
+	    "127.0.0.1:19131",
+	    "127.0.0.1:19141",
+	    "127.0.0.1:19151",
+	    "127.0.0.1:19161"
+    ],
+    "local": [
+	    "127.0.0.1:19111",
+	    "127.0.0.1:19121",
+	    "127.0.0.1:19131",
+	    "127.0.0.1:19141",
+	    "127.0.0.1:19151",
+	    "127.0.0.1:19161"
+    ],
+    "testnet": [
+	    "192.168.0.227:19111",
+	    "192.168.0.227:19121",
+	    "192.168.0.227:19131",
+	    "192.168.0.226:19141",
+	    "192.168.0.226:19151",
+	    "192.168.0.226:19161"
+    ]
+  }
+}

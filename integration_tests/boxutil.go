@@ -280,7 +280,6 @@ func minerAccounts(keyFiles ...string) ([]string, []*wallet.Account) {
 }
 
 func genTestAddr(count int) ([]string, []string) {
-	logger.Infof("start to create %d accounts", count)
 	var addresses, accounts []string
 	for i := 0; i < count; i++ {
 		var (
