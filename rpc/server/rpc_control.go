@@ -33,10 +33,6 @@ type ctlserver struct {
 	server GRPCServer
 }
 
-func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rpcpb.BaseResponse, error) {
-	panic("implement me")
-}
-
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
 	bus := s.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
@@ -52,6 +48,21 @@ func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoReque
 		})
 	}
 	return resp, nil
+}
+
+func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rpcpb.BaseResponse, error) {
+	out := make(chan error)
+	s.server.GetEventBus().Send(eventbus.TopicP2PAddPeer, req.Node, out)
+	if err := <-out; err != nil {
+		return &rpcpb.BaseResponse{
+			Code:    -1,
+			Message: err.Error(),
+		}, err
+	}
+	return &rpcpb.BaseResponse{
+		Code:    0,
+		Message: "ok",
+	}, nil
 }
 
 // SetDebugLevel implements SetDebugLevel
