@@ -53,7 +53,8 @@ type CirInfo struct {
 }
 
 var (
-	peersAddr []string
+	peersAddr          []string
+	minConsensusBlocks = 5
 
 	scope        = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 	newNodes     = flag.Bool("nodes", true, "need to start nodes?")
@@ -124,6 +125,7 @@ func main() {
 			logger.Panic(err)
 		}
 	}
+	minConsensusBlocks = (len(peersAddr)+2)/3*2 + 1
 
 	// start test
 	var wg sync.WaitGroup
@@ -184,9 +186,10 @@ func txTest() {
 	circu := NewCirculation(*testsCnt, cirPartLen, collAddrCh, cirInfoCh)
 	defer circu.TearDown()
 
-	timeout := blockTime * time.Duration(len(peersAddr))
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v", 2, timeout)
-	if err := waitAllNodesHeightHigher(peersAddr, 2, timeout); err != nil {
+	timeout := blockTime * time.Duration(len(peersAddr)*2)
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
+		minConsensusBlocks, timeout)
+	if err := waitAllNodesHeightHigher(peersAddr, minConsensusBlocks, timeout); err != nil {
 		logger.Panic(err)
 	}
 
@@ -211,9 +214,10 @@ func txTest() {
 
 func tokenTest() {
 	t := NewTokenTest(3)
-	timeout := blockTime * time.Duration(len(peersAddr))
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v", 2, timeout)
-	if err := waitAllNodesHeightHigher(peersAddr, 2, timeout); err != nil {
+	timeout := blockTime * time.Duration(len(peersAddr)*2)
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
+		minConsensusBlocks, timeout)
+	if err := waitAllNodesHeightHigher(peersAddr, minConsensusBlocks, timeout); err != nil {
 		logger.Panic(err)
 	}
 	defer t.TearDown()
