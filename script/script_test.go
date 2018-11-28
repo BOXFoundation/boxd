@@ -12,6 +12,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/facebookgo/ensure"
 )
 
@@ -324,7 +325,9 @@ func TestParseSplitAddrScript(t *testing.T) {
 	addrs := []types.Address{addr, addr1, addr2}
 	weights := []uint64{1, 4, 7}
 	splitAddrScript := SplitAddrScript(addrs, weights)
-	pubKeys1, weights1, err := splitAddrScript.parseSplitAddrScript()
+	ensure.True(t, splitAddrScript.IsSplitAddrScript())
+	ensure.True(t, util.IsPrefixed(*splitAddrScript, *splitAddrScript.GetSplitAddrScriptPrefix()))
+	pubKeys1, weights1, err := splitAddrScript.ParseSplitAddrScript()
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, pubKeys1, addrs)
 	ensure.DeepEqual(t, weights1, weights)

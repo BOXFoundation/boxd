@@ -5,6 +5,7 @@
 package splitaddrcmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"path"
 	"strconv"
@@ -105,10 +106,12 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Tx Hash:", hash.String())
 		fmt.Println(util.PrettyPrint(tx))
 
-		// e.g., OP_RETURN aaeb7c5e48182fbd309a4e6a7e0de57e56f4cb16 ce86056786e3415530f8cc739fb414a87435b4b6 01 3ba03e454aed097836f2957a120f95ecf76a2771 04
-		splitAddrScriptStr := script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey).Disasm()
-		s := strings.Split(splitAddrScriptStr, " ")
-		fmt.Printf("Split address generated for `%s`: %s\n", args[1:], s[1])
+		splitAddr, err := getSplitAddr(tx.Vout[0].ScriptPubKey)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Printf("Split address generated for `%s`: %v\n", args[1:], splitAddr)
 	}
 }
 
@@ -131,14 +134,19 @@ func parseAddrWeight(args []string) ([]types.Address, []uint64, error) {
 	return addrs, weights, nil
 }
 
-// // create a split address from arguments
-// func createSplitAddr(pubKeys [][]byte, weights []uint64) (string, *script.Script, error) {
-// 	s := script.SplitAddrScript(pubKeys, weights)
-// 	if s == nil {
-// 		return "", nil, errors.New("Generate split address error")
-// 	}
-
-// 	scriptHash := crypto.Hash160(*s)
-// 	splitAddr, err := types.NewAddressPubKeyHash(scriptHash)
-// 	return splitAddr.String(), s, err
-// }
+// create a split address from arguments
+func getSplitAddr(scriptPubKey []byte) (string, error) {
+	// e.g., OP_RETURN aaeb7c5e48182fbd309a4e6a7e0de57e56f4cb16 ce86056786e3415530f8cc739fb414a87435b4b6 01 3ba03e454aed097836f2957a120f95ecf76a2771 04
+	splitAddrScriptStr := script.NewScriptFromBytes(scriptPubKey).Disasm()
+	s := strings.Split(splitAddrScriptStr, " ")
+	// e.g., aaeb7c5e48182fbd309a4e6a7e0de57e56f4cb16
+	pubKeyHash, err := hex.DecodeString(s[1])
+	if err != nil {
+		return "", err
+	}
+	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+	if err != nil {
+		return "", err
+	}
+	return addr.String(), nil
+}

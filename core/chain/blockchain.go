@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/metrics"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -541,13 +542,21 @@ func (chain *BlockChain) revertBlock(block *types.Block) error {
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
 
+	// TODO: deep copy
+	protoMsg, _ := block.ToProtoMessage()
+	blockCopy := new(types.Block)
+	blockCopy.FromProtoMessage(protoMsg)
+
+	// Split tx outputs if any
+	chain.splitBlockOutputs(blockCopy)
+
 	if utxoSet == nil {
 		utxoSet = NewUtxoSet()
-		if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+		if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
 			return err
 		}
 	}
-	if err := utxoSet.ApplyBlock(block); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
 	// save utxoset to database
@@ -560,7 +569,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	}
 
 	if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), func() bloom.Filter {
-		return GetFilterForTransactionScript(block, utxoSet.utxoMap)
+		return GetFilterForTransactionScript(blockCopy, utxoSet.utxoMap)
 	}); err != nil {
 		return err
 	}
@@ -669,6 +678,9 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 		if err != nil {
 			return nil, err
 		}
+		// Split tx outputs if any
+		chain.splitBlockOutputs(block)
+
 		if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
 			return nil, err
 		}
@@ -1013,6 +1025,9 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 		if scriptPubKey.IsTokenIssue() || scriptPubKey.IsTokenTransfer() {
 			// token output: only store the p2pkh prefix part so we can retrieve it later
 			scriptBytes = *scriptPubKey.P2PKHScriptPrefix()
+		} else if scriptPubKey.IsSplitAddrScript() {
+			// split address output: only store up to the hashed address part so we can retrieve it later
+			scriptBytes = *scriptPubKey.GetSplitAddrScriptPrefix()
 		}
 		filter.Add(scriptBytes)
 	}
@@ -1077,4 +1092,81 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 	}
 	utxoSet = nil
 	return txs, nil
+}
+
+// split outputs of txs in the block where applicable
+func (chain *BlockChain) splitBlockOutputs(block *types.Block) {
+	for _, tx := range block.Txs {
+		chain.splitTxOutputs(tx)
+	}
+}
+
+// split outputs in the tx where applicable
+func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) {
+	txHash, _ := tx.TxHash()
+
+	vout := make([]*corepb.TxOut, 0)
+	for txOutIdx, txOut := range tx.Vout {
+		txOuts := []*corepb.TxOut{txOut}
+
+		if addr, err := script.NewScriptFromBytes(txOut.ScriptPubKey).ExtractAddress(); err == nil {
+			if isSplitAddr, addrs, weights, err := chain.findSplitAddr(addr); isSplitAddr {
+				logger.Debugf("Split address %v receiving at tx %v, output %d", addr, txHash, txOutIdx)
+				if err == nil {
+					txOuts = splitTxOutput(txOut, addrs, weights)
+				} else {
+					logger.Errorf("Split address %v parse error: %v", addr, err)
+				}
+			}
+		}
+		vout = append(vout, txOuts...)
+	}
+	tx.Vout = vout
+}
+
+// split an output to a split address into multiple outputs to composite addresses
+func splitTxOutput(txOut *corepb.TxOut, addrs []types.Address, weights []uint64) []*corepb.TxOut {
+	n := len(addrs)
+	txOuts := make([]*corepb.TxOut, n)
+
+	totalWeight := uint64(0)
+	for i := 0; i < n; i++ {
+		totalWeight += weights[i]
+	}
+
+	for i := 0; i < n; i++ {
+		scriptPubKey := script.PayToPubKeyHashScript(addrs[i].Hash())
+		txOuts[i] = &corepb.TxOut{
+			Value:        txOut.Value * weights[i] / totalWeight,
+			ScriptPubKey: *scriptPubKey,
+		}
+	}
+	return txOuts
+}
+
+// findSplitAddr search the main chain to see if the address is a split address.
+// If yes, return split address parameters
+func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, []types.Address, []uint64, error) {
+	splitScriptPrefix := *script.CreateSplitAddrScriptPrefix(addr)
+	hashes := chain.filterHolder.ListMatchedBlockHashes(splitScriptPrefix)
+
+	for _, hash := range hashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return false, nil, nil, nil
+		}
+		// Skip coinbase since it cannot create split address
+		for _, tx := range block.Txs[1:] {
+			txHash, _ := tx.TxHash()
+			for txOutIdx, txOut := range tx.Vout {
+				if util.IsPrefixed(txOut.ScriptPubKey, splitScriptPrefix) {
+					logger.Debugf("Split address created at outpoint (%v, %d)", txHash, txOutIdx)
+					addrs, weights, err := script.NewScriptFromBytes(txOut.ScriptPubKey).ParseSplitAddrScript()
+					return true, addrs, weights, err
+				}
+			}
+		}
+	}
+
+	return false, nil, nil, nil
 }
