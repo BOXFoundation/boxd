@@ -9,6 +9,8 @@ const (
 	TopicSetDebugLevel = "rpc:setdebuglevel"
 	// TopicUpdateNetworkID is topic for updating network id
 	TopicUpdateNetworkID = "rpc:updatenetworkid"
+	// TopicGetNetworkID is topic for querying network id
+	TopicGetNetworkID = "rpc:getnetworkid"
 	// TopicGetAddressBook is topic for listing p2p peer status
 	TopicGetAddressBook = "rpc:getaddressbook"
 
