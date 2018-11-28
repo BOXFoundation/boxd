@@ -317,10 +317,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	}
 
 	// verify miner epoch
-	//if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
-	//	logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
-	//	return core.ErrFailedToVerifyWithConsensus
-	//}
+	if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
+		logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+		return core.ErrFailedToVerifyWithConsensus
+	}
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
