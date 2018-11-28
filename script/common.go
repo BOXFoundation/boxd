@@ -4,10 +4,14 @@
 
 package script
 
-import "github.com/BOXFoundation/boxd/crypto"
+import (
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+)
 
 var (
 	testPrivKey, testPubKey, _ = crypto.NewKeyPair()
 	testPubKeyBytes            = testPubKey.Serialize()
 	testPubKeyHash             = crypto.Hash160(testPubKeyBytes)
+	addr, _                    = types.NewAddressFromPubKey(testPubKey)
 )

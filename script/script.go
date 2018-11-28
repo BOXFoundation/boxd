@@ -39,6 +39,21 @@ func StandardCoinbaseSignatureScript(height uint32) *Script {
 	return NewScript().AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
 }
 
+// SplitAddrScript returns a script to store a split address output
+func SplitAddrScript(addrs []types.Address, weights []uint64) *Script {
+	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+	s := NewScript()
+	weight := big.NewInt(0)
+	// use as many address/weight pairs as possbile
+	for i := 0; i < len(addrs) && i < len(weights); i++ {
+		weight.SetUint64(weights[i])
+		s.AddOperand(addrs[i].Hash()).AddOperand(weight.Bytes())
+	}
+	// Hash acts as address, like in p2sh
+	scriptHash := crypto.Hash160(*s)
+	return NewScript().AddOpCode(OPRETURN).AddOperand(scriptHash).AddScript(s)
+}
+
 // Script represents scripts
 type Script []byte
 
@@ -561,6 +576,64 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 	}
 
 	return types.NewAddressPubKeyHash(pubKeyHash)
+}
+
+// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+// returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]
+func (s *Script) parseSplitAddrScript() ([]types.Address, []uint64, error) {
+	opCode, _, pc, err := s.getNthOp(0, 0)
+	if err != nil || opCode != OPRETURN {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+
+	_, operandHash, pc, err := s.getNthOp(pc, 0)
+	if err != nil || opCode != OPRETURN {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+
+	addrs := make([]types.Address, 0)
+	weights := make([]uint64, 0)
+
+	for i := 0; ; i++ {
+		// public key
+		_, operand, _, err := s.getNthOp(pc, i)
+		if err != nil {
+			if err == ErrScriptBound {
+				// reached end
+				break
+			}
+			return nil, nil, ErrInvalidSplitAddrScript
+		}
+		if i%2 == 0 {
+			// address
+			addr, err := types.NewAddressPubKeyHash(operand)
+			if err != nil {
+				return nil, nil, ErrInvalidSplitAddrScript
+			}
+			addrs = append(addrs, addr)
+		} else {
+			// weight
+			weight, err := operand.int()
+			if err != nil {
+				return nil, nil, ErrInvalidSplitAddrScript
+			}
+			weights = append(weights, uint64(weight))
+		}
+	}
+
+	script := NewScript()
+	weight := big.NewInt(0)
+	for i := 0; i < len(addrs); i++ {
+		weight.SetUint64(weights[i])
+		script.AddOperand(addrs[i].Hash()).AddOperand(weight.Bytes())
+	}
+	scriptHash := crypto.Hash160(*script)
+	// Check hash is expected
+	if !bytes.Equal(scriptHash, operandHash) {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+
+	return addrs, weights, nil
 }
 
 // GetSigOpCount returns number of signature operations in a script
