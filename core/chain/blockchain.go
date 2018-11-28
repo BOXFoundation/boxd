@@ -8,8 +8,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/BOXFoundation/boxd/storage/key"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -43,9 +46,8 @@ const (
 	MaxBlocksPerSync = 1024
 
 	metricsLoopInterval = 2 * time.Second
-	BlockFilterCapacity = 100000
-
-	Threshold = 32
+	tokenIssueFilterKey = "token_issue"
+	Threshold           = 32
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -655,7 +657,35 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 
 // ListAllUtxos list all the available utxos for testing purpose
 func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
-	return make(map[types.OutPoint]*types.UtxoWrap), nil
+	result := make(map[types.OutPoint]*types.UtxoWrap)
+	keyBytes := chain.db.KeysWithPrefix(utxoBase.Bytes())
+	for _, k := range keyBytes {
+		key := key.NewKeyFromBytes(k)
+		if len(key.List()) != 3 {
+			return nil, fmt.Errorf("invalid utxo key")
+		}
+		serialized, err := chain.db.Get(k)
+		if err != nil || serialized == nil {
+			return nil, err
+		}
+		wrap := new(types.UtxoWrap)
+		if err := wrap.Unmarshal(serialized); err != nil {
+			return nil, err
+		}
+		hash := &crypto.HashType{}
+		if err := hash.SetString(key.List()[1]); err != nil {
+			return nil, err
+		}
+		index, err := strconv.ParseUint(key.List()[2], 16, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid utxo key")
+		}
+		result[types.OutPoint{
+			Hash:  *hash,
+			Index: uint32(index),
+		}] = wrap
+	}
+	return result, nil
 }
 
 // LoadUtxoByAddress list all the available utxos owned by an address, including token utxos
@@ -678,6 +708,40 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 			utxos[key] = value
 		}
 	}
+	return utxos, nil
+}
+
+// LoadSpentUtxos loads UtxoWrap info of input outpoints
+func (chain *BlockChain) LoadSpentUtxos(outpoints []types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error) {
+	var relatedTxHashes = make(map[crypto.HashType]bool)
+	for _, op := range outpoints {
+		relatedTxHashes[op.Hash] = true
+	}
+	var relatedTxs = make(map[crypto.HashType]*types.Transaction)
+	for h := range relatedTxHashes {
+		tx, err := chain.LoadTxByHash(h)
+		if err != nil {
+			return nil, err
+		}
+		relatedTxs[h] = tx
+	}
+
+	utxos := make(map[types.OutPoint]*types.UtxoWrap)
+	for _, op := range outpoints {
+		tx, ok := relatedTxs[op.Hash]
+		if !ok || tx == nil || len(tx.Vout) <= int(op.Index) {
+			return nil, fmt.Errorf("fail to find transaction: %v", op.Hash)
+		}
+		txOut := tx.Vout[op.Index]
+		utxos[op] = &types.UtxoWrap{
+			Output:      txOut,
+			BlockHeight: 0, // Warning: BlockHeight unfilled
+			IsCoinBase:  IsCoinBase(tx),
+			IsSpent:     true,
+			IsModified:  false,
+		}
+	}
+
 	return utxos, nil
 }
 
@@ -773,6 +837,11 @@ func (chain *BlockChain) loadTailBlock() (*types.Block, error) {
 	}
 
 	return &GenesisBlock, nil
+}
+
+// IsCoinBase checks if an transaction is coinbase transaction
+func (chain *BlockChain) IsCoinBase(tx *types.Transaction) bool {
+	return IsCoinBase(tx)
 }
 
 // LoadBlockByHash load block by hash from db.
@@ -1001,6 +1070,7 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	}
 	for _, utxo := range utxoUsed {
 		if utxo != nil && utxo.Output != nil {
+			// TODO: add script index for previous output
 			vin = append(vin, utxo.Output.ScriptPubKey)
 		}
 	}
@@ -1008,13 +1078,29 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	for _, scriptBytes := range vin {
 		filter.Add(scriptBytes)
 	}
-	for _, scriptBytes := range vout {
-		scriptPubKey := script.NewScriptFromBytes(scriptBytes)
-		if scriptPubKey.IsTokenIssue() || scriptPubKey.IsTokenTransfer() {
-			// token output: only store the p2pkh prefix part so we can retrieve it later
-			scriptBytes = *scriptPubKey.P2PKHScriptPrefix()
+	for _, tx := range block.Txs {
+		for idx, out := range tx.Vout {
+			indexedBytes := out.ScriptPubKey
+			sc := script.NewScriptFromBytes(out.ScriptPubKey)
+			if sc.IsTokenIssue() || sc.IsTokenTransfer() {
+				indexedBytes = *sc.P2PKHScriptPrefix()
+			}
+			filter.Add(indexedBytes)
+			hash, _ := tx.TxHash()
+			if sc.IsTokenIssue() {
+				filter.Add([]byte(tokenIssueFilterKey))
+				tokenID := &script.TokenID{
+					OutPoint: types.OutPoint{
+						Hash:  *hash,
+						Index: uint32(idx),
+					},
+				}
+				filter.Add([]byte(tokenID.String()))
+			} else if sc.IsTokenTransfer() {
+				param, _ := sc.GetTransferParams()
+				filter.Add([]byte(param.TokenID.String()))
+			}
 		}
-		filter.Add(scriptBytes)
 	}
 	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
 	return filter
@@ -1076,5 +1162,58 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 		}
 	}
 	utxoSet = nil
+	return txs, nil
+}
+
+// ListTokenIssueTransactions returns transactions which contains token issue info
+func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, error) {
+	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
+	logger.Infof("%v blocks related to token issue", len(hashes))
+	var txs []*types.Transaction
+	for _, hash := range hashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		for _, tx := range block.Txs {
+			for _, vout := range tx.Vout {
+				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+				if sc.IsTokenIssue() {
+					txs = append(txs, tx)
+				}
+			}
+		}
+	}
+	return txs, nil
+}
+
+// GetTokenTransactions returns transactions history of a tokenID
+func (chain *BlockChain) GetTokenTransactions(tokenID *script.TokenID) ([]*types.Transaction, error) {
+	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenID.String()))
+	logger.Infof("%v blocks related to token %v", len(hashes), tokenID)
+	var txs []*types.Transaction
+	for _, hash := range hashes {
+		block, err := chain.LoadBlockByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		for _, tx := range block.Txs {
+			hash, _ := tx.TxHash()
+			for idx, vout := range tx.Vout {
+				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+				if sc.IsTokenIssue() && hash.IsEqual(&tokenID.Hash) && uint32(idx) == tokenID.Index {
+					txs = append(txs, tx)
+					break
+				}
+				if sc.IsTokenTransfer() {
+					params, _ := sc.GetTransferParams()
+					if params.Hash.IsEqual(&tokenID.Hash) && params.Index == tokenID.Index {
+						txs = append(txs, tx)
+						break
+					}
+				}
+			}
+		}
+	}
 	return txs, nil
 }
