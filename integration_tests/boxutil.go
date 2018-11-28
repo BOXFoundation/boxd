@@ -378,6 +378,30 @@ func waitTokenBalanceEnough(addr string, amount uint64, tx *types.Transaction,
 		addr, amount, b)
 }
 
+func waitTokenBalanceEqualTo(addr string, amount uint64, tx *types.Transaction,
+	checkPeer string, timeout time.Duration) error {
+	// return eagerly
+	b := tokenBalanceFor(addr, tx, checkPeer)
+	if b == amount {
+		return nil
+	}
+	// check repeatedly
+	d := rpcInterval
+	t := time.NewTicker(d)
+	defer t.Stop()
+	for i := 0; i < int(timeout/d); i++ {
+		select {
+		case <-t.C:
+			b = tokenBalanceFor(addr, tx, checkPeer)
+			if b == amount {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("Timeout for waiting for %s token balance enough %d, now %d",
+		addr, amount, b)
+}
+
 func waitOneAddrUTXOEnough(addrs []string, n int, checkPeer string,
 	timeout time.Duration) (string, int, error) {
 	d := rpcInterval

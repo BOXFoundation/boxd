@@ -71,7 +71,7 @@ func (c *Circulation) Run() {
 
 func (c *Circulation) doTx(index int) {
 	defer func() {
-		logger.Info("done doTx")
+		logger.Infof("done doTx[%d]", index)
 		if x := recover(); x != nil {
 			TryRecordError(fmt.Errorf("%v", x))
 		}

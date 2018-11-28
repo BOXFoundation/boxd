@@ -132,7 +132,6 @@ func main() {
 	testItems := 2
 	errChans := make(chan error, testItems)
 	wg.Add(testItems)
-
 	// test tx
 	go func() {
 		defer func() {
@@ -167,6 +166,7 @@ func main() {
 		// use panic to exit since it need to execute defer clause above
 		logger.Panicf("integration tests exits with %d errors", len(ErrItems))
 	}
+	logger.Info("All test cases passed, great job!")
 }
 
 func txTest() {
@@ -210,6 +210,7 @@ func txTest() {
 	}()
 
 	wg.Wait()
+	logger.Info("done transaction test")
 }
 
 func tokenTest() {
@@ -222,4 +223,5 @@ func tokenTest() {
 	}
 	defer t.TearDown()
 	t.Run()
+	logger.Info("done token test")
 }

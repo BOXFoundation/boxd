@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"time"
@@ -79,33 +80,64 @@ func (t *TokenTest) Run() {
 			time.Sleep(blockTime)
 			continue
 		}
+
 		// transfer some box from a miner to a test account
+		blcPre := balanceFor(t.addrs[0], peerAddr)
 		feeAmount := uint64(totalAmount / 2)
-		logger.Infof("send %d from %s to %s", feeAmount, t.addrs[0], t.addrs[1])
+		logger.Infof("send %d from %s to %s", feeAmount, addr, t.addrs[0])
 		execTx(AddrToAcc[addr], []string{t.addrs[0]}, []uint64{feeAmount}, peerAddr)
-		_, err = waitBalanceEnough(t.addrs[0], feeAmount, peerAddr, timeoutToChain)
+		logger.Infof("wait for balance of %s equal to %d, timeout %v", t.addrs[0],
+			blcPre+feeAmount, timeoutToChain)
+		_, err = waitBalanceEnough(t.addrs[0], blcPre+feeAmount, peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
 		}
+
+		// define roles
+		issuer, issuee, sender, receiver := t.addrs[0], t.addrs[1], t.addrs[0], t.addrs[2]
 		// issue some token
 		totalSupply, tokenName := uint64(100000), "box"
-		logger.Infof("%s issue %d %s token", t.addrs[0], totalSupply, tokenName)
-		issueTx := issueTokenTx(t.addrs[0], t.addrs[0], tokenName, totalSupply, peerAddr)
-		//logger.Infof("isseTx: %+v", issueTx)
-		// query token balance before transfer
-		bPre := tokenBalanceFor(t.addrs[1], issueTx, peerAddr)
-		logger.Infof("before token transfer, %s has %d %s token", t.addrs[1], bPre, tokenName)
-		// transfer some token
-		logger.Infof("%s transfer %d %s token to %s", t.addrs[0], totalSupply/2,
-			tokenName, t.addrs[1])
-		transferToken(t.addrs[0], t.addrs[1], totalSupply/2, issueTx, peerAddr)
-		//logger.Infof("transTx: %+v", transTx)
-		// query token balance
-		logger.Infof("wait for token balance of %s reach %d, timeout %v", t.addrs[1],
-			totalSupply/2, timeoutToChain)
-		b, err := waitTokenBalanceEnough(t.addrs[1], bPre+totalSupply/2, issueTx,
+		txAmount := totalSupply/2 + uint64(rand.Intn(int(totalSupply)/2))
+		logger.Infof("%s issue %d token to %s", issuer, totalSupply, issuee)
+		issueTx0 := issueTokenTx(issuer, issuee, tokenName, totalSupply, peerAddr)
+		logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
+		issueTx := issueTokenTx(issuer, sender, tokenName, totalSupply, peerAddr)
+
+		// check issue result
+		logger.Infof("wait for token balance of issuee %s equal to %d, timeout %v",
+			issuee, totalSupply, timeoutToChain)
+		_, err = waitTokenBalanceEnough(issuee, totalSupply, issueTx0, peerAddr,
+			timeoutToChain)
+		if err != nil {
+			logger.Panic(err)
+		}
+		logger.Infof("wait for token balance of sender %s equal to %d, timeout %v",
+			sender, totalSupply, timeoutToChain)
+		blcSenderPre, err := waitTokenBalanceEnough(sender, totalSupply, issueTx,
 			peerAddr, timeoutToChain)
-		logger.Infof("%s has %d %s token", t.addrs[1], b, tokenName)
+		if err != nil {
+			logger.Panic(err)
+		}
+		blcRcvPre := tokenBalanceFor(receiver, issueTx, peerAddr)
+		logger.Infof("before token transfer, sender %s has %d token, receiver %s"+
+			" has %d token", sender, blcSenderPre, receiver, blcRcvPre)
+
+		// transfer some token
+		logger.Infof("sender %s transfer %d token to receiver %s", sender, txAmount, receiver)
+		transferToken(sender, receiver, txAmount, issueTx, peerAddr)
+
+		// query and check token balance
+		logger.Infof("wait for token balance of %s equal to %d, timeout %v",
+			sender, blcSenderPre-txAmount, timeoutToChain)
+		err = waitTokenBalanceEqualTo(sender, blcSenderPre-txAmount, issueTx,
+			peerAddr, timeoutToChain)
+		if err != nil {
+			logger.Panic(err)
+		}
+		logger.Infof("wait for token balance of receiver %s equal to %d, timeout %v",
+			receiver, blcRcvPre+txAmount, timeoutToChain)
+		err = waitTokenBalanceEqualTo(receiver, blcRcvPre+txAmount, issueTx, peerAddr,
+			timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
 		}
