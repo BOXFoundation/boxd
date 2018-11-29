@@ -21,6 +21,16 @@ func TestBlockCovertWithProtoMessage(t *testing.T) {
 	var height uint32 = 10
 	var txs = []*Transaction{}
 	block := NewBlocks(prevBlockHash, txsRoot, timestamp, *prevOutPoint, value, lockTime, height)
+
+	blockCopy := block.Copy()
+	ensure.DeepEqual(t, blockCopy.Height, block.Height)
+	ensure.DeepEqual(t, len(blockCopy.Txs), len(block.Txs))
+	ensure.DeepEqual(t, blockCopy.Txs[0].Vin, block.Txs[0].Vin)
+	ensure.DeepEqual(t, blockCopy.Txs[0].Vout, block.Txs[0].Vout)
+	blockCopy.Txs[0].LockTime--
+	// Expect original to not change since it's deep copied
+	ensure.NotDeepEqual(t, blockCopy.Txs, block.Txs)
+
 	block1 := &Block{}
 	msg, err := block.ToProtoMessage()
 	ensure.Nil(t, err)

@@ -550,10 +550,8 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
 
-	// TODO: deep copy
-	protoMsg, _ := block.ToProtoMessage()
-	blockCopy := new(types.Block)
-	blockCopy.FromProtoMessage(protoMsg)
+	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+	blockCopy := block.Copy()
 
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)

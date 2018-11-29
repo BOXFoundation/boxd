@@ -100,6 +100,45 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 	return core.ErrInvalidBlockProtoMessage
 }
 
+// Copy returns a deep copy: used only for splitBlockOutputs()
+// Only copy needed fields to save efforts: height & vin & vout
+func (block *Block) Copy() *Block {
+	newBlock := &Block{
+		Height: block.Height,
+	}
+
+	txs := make([]*Transaction, 0)
+	for _, tx := range block.Txs {
+		vin := make([]*TxIn, 0)
+		for _, txIn := range tx.Vin {
+			txInCopy := &TxIn{
+				PrevOutPoint: txIn.PrevOutPoint,
+				ScriptSig:    txIn.ScriptSig,
+				Sequence:     txIn.Sequence,
+			}
+			vin = append(vin, txInCopy)
+		}
+
+		vout := make([]*corepb.TxOut, 0)
+		for _, txOut := range tx.Vout {
+			txOutCopy := &corepb.TxOut{
+				Value:        txOut.Value,
+				ScriptPubKey: txOut.ScriptPubKey,
+			}
+			vout = append(vout, txOutCopy)
+		}
+
+		txCopy := &Transaction{
+			Vin:  vin,
+			Vout: vout,
+		}
+		txs = append(txs, txCopy)
+	}
+
+	newBlock.Txs = txs
+	return newBlock
+}
+
 // Marshal method marshal Block object to binary
 func (block *Block) Marshal() (data []byte, err error) {
 	return conv.MarshalConvertible(block)
