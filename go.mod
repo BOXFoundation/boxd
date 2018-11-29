@@ -97,7 +97,7 @@ require (
 	github.com/whyrusleeping/go-smux-yamux v2.0.6+incompatible // indirect
 	github.com/whyrusleeping/mafmt v0.0.0-20180627004827-1dc32401ee9f // indirect
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
-	github.com/whyrusleeping/yamux v1.1.2 // indirect
+	github.com/whyrusleeping/yamux v1.1.2
 	golang.org/x/crypto v0.0.0-20181015023909-0c41d7ab0a0e
 	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e

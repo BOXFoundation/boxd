@@ -71,7 +71,7 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 		go conn.pq.Run(conn.proc, func(i interface{}) {
 			data := i.([]byte)
 			if _, err := conn.stream.Write(data); err != nil {
-				logger.Error("Failed to write message. ", err)
+				logger.Errorf("Failed to write message to %v, %v. ", conn.peer.id.Pretty(), err)
 			} else {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}

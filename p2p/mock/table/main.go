@@ -1,3 +1,6 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package main
 
 import (
@@ -30,13 +33,16 @@ func (idx nodeIdx) Less(i, j int) bool {
 	return idx[i] <= idx[j]
 }
 
+//
 var (
 	NodeCount                = flag.Int("node_count", 1000, "node count in network, default is 1000")
 	NeighborCount            = flag.Int64("neighbor_count", 50, "neighbor count in route table, default is 50")
+	DiscoverTimes            = flag.Int64("discover_times", 5, "times of sync table, default is 5")
 	NeighborSyncMaxCount     = flag.Int64("neighbor_sync_max_count", 16, "neighbor sync max count in route table, default is 16")
+	DiscoverDisconnRate      = flag.Float64("discover_disconn_rate", 0.25, "rate of disconnected node in sync table, default is 0.25")
 	DiscoverNeighborMaxCount = flag.Int64("discover_neighbor_max_count", 16, "max neighbor to sync the table, default is 16")
-	DiscoverTimes            = flag.Int64("discover_times", 8, "times of sync table, default is 5")
-	LoopTimes                = flag.Int("loop_times", 20, "number of loop times, default is 20")
+	MaxTTL                   = flag.Int64("max_ttl", 3, "max ttl, default is 3")
+	LoopTimes                = flag.Int("loop_times", 10, "number of loop times, default is 20")
 )
 
 // Node the simulation of the node
@@ -50,18 +56,17 @@ type Node struct {
 	counter  int
 }
 
-func gotask() float32 {
+func gotask() (float32, float32, float32) {
 
 	nodeCount := int(*NodeCount)
 	var nodes []*Node
-	// 初始化节点
+
 	nodes = initRouteTable(nodeCount, nodes)
 
 	discoverTimes := int(*DiscoverTimes)
 
 	for i := 0; i < discoverTimes; i++ {
 		for _, v := range nodes {
-			// 选取需要来同步路由的节点
 			targets := chooseNodes(v)
 			for _, target := range targets {
 				syncRoute(v, nodes[target], nodes)
@@ -69,17 +74,49 @@ func gotask() float32 {
 		}
 	}
 
-	// 获取聚合系数
 	count := float32(0)
 	for _, v := range nodes {
 		count += calculate(v, nodes)
 	}
-	// TODO: 取中位数
-	fmt.Printf("range of aggregation：%v\n", float32(count)/float32(len(nodes)))
-	return count
+
+	random := rand.Intn(nodeCount)
+	node := nodes[random]
+	node.bingo = true
+	broadcast(node, nodes)
+
+	bingoCnt := 0
+	msgCnt := 0
+	for _, v := range nodes {
+		msgCnt += v.counter
+		if v.bingo == true {
+			bingoCnt++
+		}
+	}
+	fmt.Printf("range of aggregation：%v, rate of coverage：%v, avg of node msg cnt: %v\n",
+		float32(count)/float32(len(nodes)),
+		float32(bingoCnt)/float32(nodeCount),
+		float32(msgCnt)/float32(nodeCount))
+
+	return float32(count) / float32(len(nodes)), float32(bingoCnt) / float32(nodeCount), float32(msgCnt) / float32(nodeCount)
+
 }
 
-// 计算聚合系数
+func broadcast(node *Node, nodes []*Node) {
+	maxTTL := int(*MaxTTL)
+	if node.ttl <= maxTTL {
+		for _, v := range node.neighbor {
+			n := nodes[v]
+			n.counter++
+			if n.id != node.id && !n.bingo {
+				n.bingo = true
+				n.ttl = node.ttl + 1
+				broadcast(n, nodes)
+			}
+		}
+	}
+	return
+}
+
 func calculate(node *Node, nodes []*Node) float32 {
 
 	denominator := len(node.neighbor) * (len(node.neighbor) - 1) / 2
@@ -102,11 +139,12 @@ func calculate(node *Node, nodes []*Node) float32 {
 func chooseNodes(node *Node) []int {
 
 	discoverNeighborMaxCount := int(*DiscoverNeighborMaxCount)
+	discoverDisconnRate := float32(*DiscoverDisconnRate)
 
 	nodes := []int{}
 
-	if len(node.neighbor) > discoverNeighborMaxCount*3/4 {
-		for _, v := range shuffle(node.neighbor)[:discoverNeighborMaxCount*3/4] {
+	if len(node.neighbor) > int(float32(discoverNeighborMaxCount)*(float32(1)-discoverDisconnRate)) {
+		for _, v := range shuffle(node.neighbor)[:int(float32(discoverNeighborMaxCount)*(float32(1)-discoverDisconnRate))] {
 			if !inArray(v, nodes) {
 				nodes = append(nodes, v)
 			}
@@ -119,14 +157,14 @@ func chooseNodes(node *Node) []int {
 		}
 	}
 
-	if len(node.store) <= discoverNeighborMaxCount/4 {
+	if len(node.store) <= int(float32(discoverNeighborMaxCount)*discoverDisconnRate) {
 		for _, v := range shuffle(node.store) {
 			if !inArray(v, nodes) {
 				nodes = append(nodes, v)
 			}
 		}
 	} else {
-		for _, v := range shuffle(node.store)[:discoverNeighborMaxCount/4] {
+		for _, v := range shuffle(node.store)[:int(float32(discoverNeighborMaxCount)*discoverDisconnRate)] {
 			if !inArray(v, nodes) {
 				nodes = append(nodes, v)
 			}
@@ -140,11 +178,14 @@ func initRouteTable(nodeCount int, nodes []*Node) []*Node {
 	seed := newNode(0)
 	nodes = append(nodes, seed)
 
-	// 初始化nodeCount个节点，并从seed同步路由
 	for i := 1; i < nodeCount; i++ {
 		node := newNode(i)
 		nodes = append(nodes, node)
 		syncRoute(node, seed, nodes)
+		for k := 1; k < i; k++ {
+			node := nodes[k]
+			syncRoute(node, seed, nodes)
+		}
 	}
 	return nodes
 }
@@ -164,7 +205,6 @@ func newNode(id int) *Node {
 	return node
 }
 
-// node 来同步 target 的 neighbor
 func syncRoute(node *Node, target *Node, nodes []*Node) {
 
 	neighborCount := int(*NeighborCount)
@@ -175,21 +215,17 @@ func syncRoute(node *Node, target *Node, nodes []*Node) {
 		ret = shuffle(target.neighbor)[:neighborSyncMaxCount]
 	}
 
-	// 如果target的neighbor数小于 default cnt，则全都同步到node
-	for id := range ret {
-		// 存起来
+	for _, id := range ret {
 		if id != node.id && !inArray(id, node.store) {
 			node.store = append(node.store, id)
 		}
 	}
-	// 把target自身id也放进来
-	node.neighbor = connect(node.neighbor, target.id, neighborCount)
+	node.neighbor = connect(node, target.id, neighborCount, nodes)
 	if !inArray(target.id, node.store) {
 		node.store = append(node.store, target.id)
 	}
 
-	// 把node.id也放到target来
-	target.neighbor = connect(target.neighbor, node.id, neighborCount)
+	target.neighbor = connect(target, node.id, neighborCount, nodes)
 	if !inArray(node.id, target.store) {
 		target.store = append(target.store, node.id)
 	}
@@ -202,16 +238,30 @@ func hash(str string) uint32 {
 	return h.Sum32()
 }
 
-// 如果ids的长度 >= limit 则随机取limit-1个，然后把id加进去
-func connect(ids []int, id int, limit int) []int {
+func connect(node *Node, id int, limit int, nodes []*Node) []int {
+	ids := node.neighbor
+	disconns := []int{}
 	if len(ids) >= limit {
 		count := len(ids) - limit
 		ids = shuffle(ids)
+		disconns = ids[:count+1]
 		ids = ids[count+1:]
 	}
 	if !inArray(id, ids) {
 		ids = append(ids, id)
 	}
+
+	for _, v := range disconns {
+		disconnNode := nodes[v]
+		newNeighbors := []int{}
+		for _, neighbor := range disconnNode.neighbor {
+			if neighbor != node.id {
+				newNeighbors = append(newNeighbors, neighbor)
+			}
+		}
+		disconnNode.neighbor = newNeighbors
+	}
+
 	return ids
 }
 
@@ -227,7 +277,6 @@ func inArray(obj interface{}, array interface{}) bool {
 	return false
 }
 
-// 打乱数组
 func shuffle(vals []int) []int {
 	r := rand.New(rand.NewSource(time.Now().Unix()))
 	ret := make([]int, len(vals))
@@ -240,14 +289,22 @@ func shuffle(vals []int) []int {
 
 func main() {
 	flag.Parse()
-	total := float32(0)
 	fmt.Printf("Usage: [-node_count] [-neighbor_count] [-neighbor_sync_max_count] [-discover_neighbor_max_count] [-max_ttl] [-loop_times]\n")
 
+	total := float32(0)
+	coveredNodeTotal := float32(0)
+	msgCntTotal := float32(0)
+
 	for i := 0; i < *LoopTimes; i++ {
-		count := gotask()
+		count, coveredNodeCntRate, msgCntPerNode := gotask()
 		total += count
+		coveredNodeTotal += coveredNodeCntRate
+		msgCntTotal += msgCntPerNode
 	}
 
-	fmt.Println("The average rate of coverage：", float32(total)/(float32(*LoopTimes*(*NodeCount))))
+	fmt.Printf("The average rate of aggregation: %v, The average rate of coverage：%v, avg of node msg cnt %v \n",
+		float32(total)/(float32(*LoopTimes)),
+		float32(coveredNodeTotal)/(float32(*LoopTimes)),
+		msgCntTotal/float32(*LoopTimes))
 
 }
