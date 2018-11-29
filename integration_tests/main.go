@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/signal"
 	"sync"
 	"time"
 
@@ -30,8 +31,6 @@ const (
 	continueScope scopeValue = "continue"
 )
 
-var ()
-
 var logger = log.NewLogger("integration") // logger
 
 // CirInfo defines circulation information
@@ -51,6 +50,11 @@ var (
 
 	//AddrToAcc stores addr to account
 	AddrToAcc = make(map[string]*wallet.Account)
+
+	lastTxTestTxCnt    = uint64(0)
+	lastTokenTestTxCnt = uint64(0)
+	txTestTxCnt        = uint64(0)
+	tokenTestTxCnt     = uint64(0)
 )
 
 func init() {
@@ -100,6 +104,32 @@ func main() {
 	}
 	peersAddr = utils.PeerAddrs()
 	minConsensusBlocks = (len(peersAddr)+2)/3*2 + 1
+
+	// print tx count per TickerDurationTxs
+	go func() {
+		logger.Info("txs ticker for main start")
+		time.Sleep(timeoutToChain)
+		d := utils.TickerDurationTxs()
+		t := time.NewTicker(d)
+		defer t.Stop()
+		quitCh := make(chan os.Signal, 1)
+		signal.Notify(quitCh, os.Interrupt, os.Kill)
+
+		for {
+			select {
+			case <-t.C:
+				totalTxs := txTestTxCnt + tokenTestTxCnt
+				lastTotalTxs := lastTxTestTxCnt + lastTokenTestTxCnt
+				txs := totalTxs - lastTotalTxs
+				logger.Infof("TPS = %6.2f during last %v, total txs = %d",
+					float64(txs)/float64(d/time.Second), d, totalTxs)
+				lastTxTestTxCnt, lastTokenTestTxCnt = txTestTxCnt, tokenTestTxCnt
+			case <-quitCh:
+				logger.Info("txs ticker for main exit")
+				return
+			}
+		}
+	}()
 
 	// start test
 	var wg sync.WaitGroup
@@ -176,6 +206,27 @@ func txTest() {
 		logger.Panic(err)
 	}
 
+	// print tx count per TickerDurationTxs
+	go func() {
+		logger.Info("txs ticker for txTest start")
+		time.Sleep(timeoutToChain)
+		d := utils.TickerDurationTxs()
+		t := time.NewTicker(d)
+		defer t.Stop()
+		quitCh := make(chan os.Signal, 1)
+		signal.Notify(quitCh, os.Interrupt, os.Kill)
+
+		for {
+			select {
+			case <-t.C:
+				txTestTxCnt = coll.txCnt + circu.txCnt
+			case <-quitCh:
+				logger.Info("txs ticker for txTest exit")
+				return
+			}
+		}
+	}()
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 	// collection process
@@ -206,6 +257,28 @@ func tokenTest() {
 		logger.Panic(err)
 	}
 	defer t.TearDown()
+
+	// print tx count per TickerDurationTxs
+	go func() {
+		logger.Info("txs ticker for token test start")
+		time.Sleep(timeoutToChain)
+		d := utils.TickerDurationTxs()
+		tk := time.NewTicker(d)
+		defer tk.Stop()
+		quitCh := make(chan os.Signal, 1)
+		signal.Notify(quitCh, os.Interrupt, os.Kill)
+
+		for {
+			select {
+			case <-tk.C:
+				tokenTestTxCnt = t.txCnt
+			case <-quitCh:
+				logger.Info("txs ticker for tokenTest exit")
+				return
+			}
+		}
+	}()
+
 	t.Run()
 	logger.Info("done token test")
 }

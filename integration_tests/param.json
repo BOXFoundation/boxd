@@ -2,6 +2,7 @@
   "peer_cnt": 6,
   "test_scope": "basic",
   "pass_phrase": "1",
+  "ticker_duration_txs": 5,
   "wallet_dir": "./.devconfig/ws1/box_keystore/",
   "docker_compose_file": "../docker/docker-compose.yml",
   "local_ws": "./.devconfig/",

@@ -20,7 +20,7 @@ import (
 // TokenTest manage circulation of token
 type TokenTest struct {
 	accCnt   int
-	txCnt    int
+	txCnt    uint64
 	addrs    []string
 	accAddrs []string
 	quitCh   chan os.Signal

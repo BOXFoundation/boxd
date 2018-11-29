@@ -4,7 +4,10 @@
 
 package utils
 
-import "flag"
+import (
+	"flag"
+	"time"
+)
 
 var (
 	collAccounts       = 10
@@ -18,6 +21,7 @@ var (
 	txTestEnable       = true
 	tokenTestEnable    = true
 	peersAddr          []string
+	tickerDurationTxs  = 5
 
 	// NewNodes flag indicates to need to start nodes
 	NewNodes = flag.Bool("nodes", true, "need to start nodes?")
@@ -103,6 +107,12 @@ func LoadConf() error {
 	}
 	logger.Infof("tokenTestEnable = %t", tokenTestEnable)
 
+	tickerDurationTxs, err = GetIntCfgVal(5, "ticker_duration_txs")
+	if err != nil {
+		return err
+	}
+	logger.Infof("tickerDurationTxs = %d", tickerDurationTxs)
+
 	return nil
 }
 
@@ -175,4 +185,9 @@ func PeerAddrs() []string {
 		logger.Panic(err)
 	}
 	return peerAddrs
+}
+
+// TickerDurationTxs get ticker duration for calc tx count
+func TickerDurationTxs() time.Duration {
+	return time.Duration(tickerDurationTxs) * time.Second
 }
