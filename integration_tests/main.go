@@ -209,9 +209,7 @@ func txTest() {
 	// print tx count per TickerDurationTxs
 	go func() {
 		logger.Info("txs ticker for txTest start")
-		time.Sleep(timeoutToChain)
-		d := utils.TickerDurationTxs()
-		t := time.NewTicker(d)
+		t := time.NewTicker(time.Second)
 		defer t.Stop()
 		quitCh := make(chan os.Signal, 1)
 		signal.Notify(quitCh, os.Interrupt, os.Kill)
@@ -261,9 +259,7 @@ func tokenTest() {
 	// print tx count per TickerDurationTxs
 	go func() {
 		logger.Info("txs ticker for token test start")
-		time.Sleep(timeoutToChain)
-		d := utils.TickerDurationTxs()
-		tk := time.NewTicker(d)
+		tk := time.NewTicker(time.Second)
 		defer tk.Stop()
 		quitCh := make(chan os.Signal, 1)
 		signal.Notify(quitCh, os.Interrupt, os.Kill)
