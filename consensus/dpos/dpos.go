@@ -327,7 +327,7 @@ PackingTxs:
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
-	logger.Infof("Finish packing txs. Height: %d, TxsNum: %d", block.Height, len(blockTxns))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d", block.BlockHash().String(), block.Height, len(blockTxns))
 	return nil
 }
 

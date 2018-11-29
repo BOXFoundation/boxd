@@ -279,12 +279,13 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 	}
 
 	if broadcast {
+		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
 		go chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
 	}
 	if chain.consensus.ValidateMiner() && fastConfirm {
 		go chain.consensus.BroadcastEternalMsgToMiners(block)
 	}
-	logger.Infof("Accepted block hash: %v", blockHash.String())
+	logger.Infof("Accepted New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
 	return nil
 }
 

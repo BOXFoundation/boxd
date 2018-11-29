@@ -25,6 +25,7 @@ type LockTime struct {
 func VerifyBlockTimeOut(block *types.Block) error {
 	now := time.Now().Unix()
 	if now-block.Header.TimeStamp > core.MaxBlockTimeOut {
+		logger.Warnf("The block is timeout. Now: %d BlockTimeStamp: %d Timeout: %d", now, block.Header.TimeStamp, (now - block.Header.TimeStamp))
 		return core.ErrBlockTimeOut
 	} else if now < block.Header.TimeStamp {
 		return core.ErrInvalidBlockTimeStamp
