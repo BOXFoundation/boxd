@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/jbenet/goprocess"
@@ -410,7 +411,7 @@ func (dpos *Dpos) LoadCandidates() error {
 }
 
 // StoreCandidateContext store candidate context
-func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
+func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType, batch storage.Batch) error {
 	if dpos.context.candidateContext == nil {
 		if err := dpos.LoadCandidates(); err != nil {
 			return err
@@ -420,8 +421,8 @@ func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
 	if err != nil {
 		return err
 	}
-	db := dpos.chain.DB()
-	return db.Put(chain.CandidatesKey(hash), bytes)
+	batch.Put(chain.CandidatesKey(hash), bytes)
+	return nil
 }
 
 // prepareCandidateContext prepare to update CandidateContext.

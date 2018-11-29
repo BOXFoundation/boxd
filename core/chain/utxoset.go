@@ -241,7 +241,7 @@ func (u *UtxoSet) ApplyTxWithScriptFilter(tx *types.Transaction, blockHeight uin
 }
 
 // WriteUtxoSetToDB store utxo set to database.
-func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
+func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 
 	for outpoint, utxoWrap := range u.utxoMap {
 		if utxoWrap == nil || !utxoWrap.IsModified {
@@ -250,10 +250,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		utxoKey := UtxoKey(&outpoint)
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent {
-			err := db.Del(utxoKey)
-			if err != nil {
-				return err
-			}
+			batch.Del(utxoKey)
 			continue
 		} else if utxoWrap.IsModified {
 			// Serialize and store the utxo entry.
@@ -261,10 +258,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			if err != nil {
 				return err
 			}
-			err = db.Put(utxoKey, serialized)
-			if err != nil {
-				return err
-			}
+			batch.Put(utxoKey, serialized)
 		}
 	}
 	return nil

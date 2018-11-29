@@ -61,6 +61,7 @@ type BlockChain struct {
 	newblockMsgCh             chan p2p.Message
 	consensus                 types.Consensus
 	db                        storage.Table
+	batch                     storage.Batch
 	genesis                   *types.Block
 	tail                      *types.Block
 	eternal                   *types.Block
@@ -336,10 +337,13 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	parentHash := &block.Header.PrevBlockHash
 	tailHash := chain.TailBlock().BlockHash()
 
+	batch := chain.db.NewBatch()
+	defer batch.Close()
+
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		return chain.tryConnectBlockToMainChain(block)
+		return chain.tryConnectBlockToMainChain(block, batch)
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
@@ -351,16 +355,17 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
-	if err := chain.reorganize(block); err != nil {
+	if err := chain.reorganize(block, batch); err != nil {
 		return err
 	}
 
 	// This block is now the end of the best chain.
-	if err := chain.SetTailBlock(block); err != nil {
+	if err := chain.SetTailBlock(block, batch); err != nil {
 		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return err
 	}
-	return nil
+
+	return batch.Write()
 }
 
 func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
@@ -419,7 +424,7 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
-func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
+func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch storage.Batch) error {
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
@@ -460,15 +465,15 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 		return core.ErrBadCoinbaseValue
 	}
 
-	if err := chain.applyBlock(block, utxoSet); err != nil {
+	if err := chain.applyBlock(block, utxoSet, batch); err != nil {
 		return err
 	}
-	if err := chain.SetTailBlock(block); err != nil {
+	if err := chain.SetTailBlock(block, batch); err != nil {
 		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
 		return err
 	}
 
-	return nil
+	return batch.Write()
 }
 
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
@@ -516,7 +521,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) revertBlock(block *types.Block) error {
+func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) error {
 
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
@@ -526,23 +531,23 @@ func (chain *BlockChain) revertBlock(block *types.Block) error {
 		return err
 	}
 	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
+	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
 
-	chain.db.Del(BlockKey(block.BlockHash()))
+	batch.Del(BlockKey(block.BlockHash()))
 
 	chain.filterHolder.ResetFilters(block.Height)
 
 	// save tx index
-	if err := chain.DelTxIndex(block); err != nil {
+	if err := chain.DelTxIndex(block, batch); err != nil {
 		return err
 	}
 
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
-func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
+func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
 
 	// TODO: deep copy
 	protoMsg, _ := block.ToProtoMessage()
@@ -562,27 +567,27 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		return err
 	}
 	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
+	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
 
-	if err := chain.StoreBlockToDb(block); err != nil {
+	if err := chain.StoreBlockToDb(block, batch); err != nil {
 		return err
 	}
 
-	if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), func() bloom.Filter {
+	if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), batch, func() bloom.Filter {
 		return GetFilterForTransactionScript(blockCopy, utxoSet.utxoMap)
 	}); err != nil {
 		return err
 	}
 
 	// save candidate context
-	if err := chain.consensus.StoreCandidateContext(block.BlockHash()); err != nil {
+	if err := chain.consensus.StoreCandidateContext(block.BlockHash(), batch); err != nil {
 		return err
 	}
 
 	// save tx index
-	if err := chain.WriteTxIndex(block); err != nil {
+	if err := chain.WriteTxIndex(block, batch); err != nil {
 		return err
 	}
 
@@ -597,14 +602,14 @@ func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connect
 	return nil
 }
 
-func (chain *BlockChain) reorganize(block *types.Block) error {
+func (chain *BlockChain) reorganize(block *types.Block, batch storage.Batch) error {
 	// Find the common ancestor of the main chain and side chain
 	_, detachBlocks, attachBlocks := chain.findFork(block)
 
 	// Detach the blocks that form the (now) old fork from the main chain.
 	// From tail to fork, not including fork
 	for _, detachBlock := range detachBlocks {
-		if err := chain.revertBlock(detachBlock); err != nil {
+		if err := chain.revertBlock(detachBlock, batch); err != nil {
 			return err
 		}
 	}
@@ -614,7 +619,7 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 	// From fork to tail, not including fork
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		attachBlock := attachBlocks[blockIdx]
-		if err := chain.applyBlock(attachBlock, nil); err != nil {
+		if err := chain.applyBlock(attachBlock, nil, batch); err != nil {
 			return err
 		}
 	}
@@ -624,12 +629,13 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 }
 
 // StoreTailBlock store tail block to db.
-func (chain *BlockChain) StoreTailBlock(block *types.Block) error {
+func (chain *BlockChain) StoreTailBlock(block *types.Block, batch storage.Batch) error {
 	data, err := block.Marshal()
 	if err != nil {
 		return err
 	}
-	return chain.db.Put(TailKey, data)
+	batch.Put(TailKey, data)
+	return nil
 }
 
 // TailBlock return chain tail block.
@@ -772,10 +778,10 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 }
 
 // SetTailBlock sets chain tail block.
-func (chain *BlockChain) SetTailBlock(tail *types.Block) error {
+func (chain *BlockChain) SetTailBlock(tail *types.Block, batch storage.Batch) error {
 
 	// save current tail to database
-	if err := chain.StoreTailBlock(tail); err != nil {
+	if err := chain.StoreTailBlock(tail, batch); err != nil {
 		return err
 	}
 
@@ -901,9 +907,7 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 }
 
 // StoreBlockToDb store block to db.
-func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
-	batch := chain.db.NewBatch()
-	defer batch.Close()
+func (chain *BlockChain) StoreBlockToDb(block *types.Block, batch storage.Batch) error {
 
 	hash := block.BlockHash()
 	batch.Put(BlockHashKey(block.Height), hash[:])
@@ -913,8 +917,7 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block) error {
 		return err
 	}
 	batch.Put(BlockKey(hash), data)
-
-	return batch.Write()
+	return nil
 }
 
 // LoadTxByHash load transaction with hash.
@@ -946,9 +949,7 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 }
 
 // WriteTxIndex builds tx index in block
-func (chain *BlockChain) WriteTxIndex(block *types.Block) error {
-	batch := chain.db.NewBatch()
-	defer batch.Close()
+func (chain *BlockChain) WriteTxIndex(block *types.Block, batch storage.Batch) error {
 
 	for idx, tx := range block.Txs {
 		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
@@ -961,14 +962,11 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block) error {
 		}
 		batch.Put(TxIndexKey(txHash), tiBuf)
 	}
-
-	return batch.Write()
+	return nil
 }
 
 // DelTxIndex deletes tx index in block
-func (chain *BlockChain) DelTxIndex(block *types.Block) error {
-	batch := chain.db.NewBatch()
-	defer batch.Close()
+func (chain *BlockChain) DelTxIndex(block *types.Block, batch storage.Batch) error {
 
 	for _, tx := range block.Txs {
 		txHash, err := tx.TxHash()
@@ -978,7 +976,7 @@ func (chain *BlockChain) DelTxIndex(block *types.Block) error {
 		batch.Del(TxIndexKey(txHash))
 	}
 
-	return batch.Write()
+	return nil
 }
 
 // LocateForkPointAndFetchHeaders return block headers when get locate fork point request for sync service.
@@ -1125,6 +1123,8 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 func (chain *BlockChain) loadFilters() error {
 	var i uint32 = 1
 	var utxoSet *UtxoSet
+	batch := chain.db.NewBatch()
+	defer batch.Close()
 	for ; i <= chain.LongestChainHeight; i++ {
 		block, err := chain.LoadBlockByHeight(i)
 		if err != nil {
@@ -1136,7 +1136,7 @@ func (chain *BlockChain) loadFilters() error {
 			logger.Error("Error Loading block utxo", err)
 			return err
 		}
-		if err := chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), func() bloom.Filter {
+		if err := chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), batch, func() bloom.Filter {
 			return GetFilterForTransactionScript(block, utxoSet.utxoMap)
 		}); err != nil {
 			logger.Error("Failed to addFilter", err)
@@ -1144,7 +1144,7 @@ func (chain *BlockChain) loadFilters() error {
 		}
 	}
 	utxoSet = nil
-	return nil
+	return batch.Write()
 }
 
 // GetTransactionsByAddr search the main chain about transaction relate to give address
