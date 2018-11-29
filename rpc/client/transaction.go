@@ -86,7 +86,8 @@ func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *type
 }
 
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
-func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
+func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte,
+	signer crypto.Signer, addrs []types.Address, weights []uint64) (*types.Transaction, error) {
 	var totalAmount uint64
 	transferTargets := make([]*TransferParam, 0)
 	for addr, amount := range targets {
@@ -96,6 +97,8 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 			isToken: false,
 			amount:  amount,
 			token:   nil,
+			addrs:   addrs,
+			weights: weights,
 		})
 	}
 	change := &corepb.TxOut{

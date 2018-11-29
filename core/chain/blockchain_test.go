@@ -148,6 +148,7 @@ func TestBlockProcessing(t *testing.T) {
 	b11 := nextBlock(b10)
 	verifyProcessBlock(t, b11, nil, 11, b11)
 
+	// TODOs
 	// Double spend
 
 	// Create a fork that ends with block that generates too much coinbase

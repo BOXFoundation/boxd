@@ -121,7 +121,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account)
+	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account, nil, nil)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -183,7 +183,7 @@ func sendManyCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account)
+	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account, nil, nil)
 	if err != nil {
 		fmt.Println(err)
 	} else {
