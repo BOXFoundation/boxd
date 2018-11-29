@@ -138,7 +138,7 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	if attr == nil {
 		attr = defaultMessageAttribute
 	}
-	if !attr.duplicateFilter(msg, attr.frequency) {
+	if !attr.duplicateFilter(msg, conn.peer.id, attr.frequency) {
 		logger.Errorf("duplicate msg: %v", msg.code)
 		return nil, ErrDuplicateMessage
 	}
@@ -306,24 +306,29 @@ func (conn *Conn) relay(msg *message) error {
 
 	conn.peer.conns.Range(func(k, v interface{}) bool {
 		conn := v.(*Conn)
-		if p.id.Pretty() == conn.remotePeer.Pretty() {
+		if conn.peer.id.Pretty() == conn.remotePeer.Pretty() {
 			return true
 		}
 
-		go conn.write(body)
+		go conn.write(data)
+
 		return true
 	})
 	return nil
 }
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
-	msgAttr := msgToAttribute[opcode]
-	reserve, body := conn.reserve(msgAttr, body)
+	reserve, body := conn.reserve(opcode, body)
 
-	return write(newMessageData(conn.peer.config.Magic, opcode, reserve, body))
+	return conn.write(newMessageData(conn.peer.config.Magic, opcode, reserve, body))
 }
 
-func (conn *Conn) write(msg *message) err {
+func (conn *Conn) write(msg *message) error {
+	msgAttr := msgToAttribute[msg.code]
+	if msgAttr == nil {
+		msgAttr = defaultMessageAttribute
+	}
+
 	data, err := msg.Marshal()
 	if err != nil {
 		return err
@@ -332,7 +337,8 @@ func (conn *Conn) write(msg *message) err {
 	return err
 }
 
-func (conn *Conn) reserve(msgAttr *messageAttribute, body []byte) ([]byte, []byte) {
+func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte) {
+	msgAttr := msgToAttribute[opcode]
 	if msgAttr == nil {
 		msgAttr = defaultMessageAttribute
 	}

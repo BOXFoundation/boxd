@@ -191,7 +191,7 @@ type messageAttribute struct {
 	cache     *lru.Cache
 }
 
-func (msgAttr *messageAttribute) duplicateFilter(msg Message, frequency Frequency) bool {
+func (msgAttr *messageAttribute) duplicateFilter(msg *message, pid peer.ID, frequency uint8) bool {
 	if frequency == Repeatable {
 		return true
 	}
@@ -203,13 +203,13 @@ func (msgAttr *messageAttribute) duplicateFilter(msg Message, frequency Frequenc
 	return true
 }
 
-func (msgAttr *messageAttribute) lruKey(msg Message, frequency Frequency) crypto.HashType {
+func (msgAttr *messageAttribute) lruKey(msg *message, pid peer.ID, frequency uint8) crypto.HashType {
 	key := []byte(msg.Body())
 	if frequency == UniquePerPeer {
-		key = append(key, msg.From()...)
+		key = append(key, pid...)
 	}
 
-	hash := sha256.Sum256(msg.Body())
+	hash := sha256.Sum256(msg.body)
 	return hash
 }
 
