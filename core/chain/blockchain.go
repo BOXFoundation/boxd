@@ -1278,9 +1278,18 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 		totalWeight += weights[i]
 	}
 
+	totalValue := uint64(0)
 	for i := 0; i < n; i++ {
+		// An composite address splits value per its weight
+		value := txOut.Value * weights[i] / totalWeight
+		if i == n-1 {
+			// Last address gets the remainder value in case value is indivisible
+			value = txOut.Value - totalValue
+		} else {
+			totalValue += value
+		}
 		childTxOut := &corepb.TxOut{
-			Value:        txOut.Value * weights[i] / totalWeight,
+			Value:        value,
 			ScriptPubKey: *script.PayToPubKeyHashScript(addrs[i].Hash()),
 		}
 		// recursively find if the child tx output is splittable
