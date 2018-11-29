@@ -88,9 +88,8 @@ var msgToAttribute = map[uint32]*messageAttribute{
 	LightSyncReponse:        &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
 }
 
-func int() {
+func init() {
 	for _, attr := range msgToAttribute {
-		logger.Errorf("attr = %v", attr)
 		attr.cache, _ = lru.New(65536)
 	}
 }
@@ -192,10 +191,10 @@ type messageAttribute struct {
 }
 
 func (msgAttr *messageAttribute) duplicateFilter(msg *message, pid peer.ID, frequency uint8) bool {
-	if frequency == Repeatable {
+	if frequency == repeatable {
 		return true
 	}
-	key := msgAttr.lruKey(msg, frequency)
+	key := msgAttr.lruKey(msg, pid, frequency)
 	if msgAttr.cache.Contains(key) {
 		return false
 	}
@@ -204,8 +203,8 @@ func (msgAttr *messageAttribute) duplicateFilter(msg *message, pid peer.ID, freq
 }
 
 func (msgAttr *messageAttribute) lruKey(msg *message, pid peer.ID, frequency uint8) crypto.HashType {
-	key := []byte(msg.Body())
-	if frequency == UniquePerPeer {
+	key := []byte(msg.body)
+	if frequency == uniquePerPeer {
 		key = append(key, pid...)
 	}
 

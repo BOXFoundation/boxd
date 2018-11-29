@@ -33,7 +33,7 @@ type ConnManager struct {
 const secondsToTrimConnections = 30
 
 // ConnStatus represents the connection status
-type ConnStatus int32
+type ConnStatus int
 
 const (
 	// ConnStatusTagName is the tag name of ConnStatus

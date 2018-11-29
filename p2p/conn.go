@@ -109,6 +109,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 			if err == yamux.ErrConnectionReset {
 				logger.Warnf("ReadMessage occurs error. Err: %s", err.Error())
 			} else if err == ErrDuplicateMessage {
+				continue
 			} else {
 				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
 			}
@@ -139,14 +140,13 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 		attr = defaultMessageAttribute
 	}
 	if !attr.duplicateFilter(msg, conn.peer.id, attr.frequency) {
-		logger.Errorf("duplicate msg: %v", msg.code)
 		return nil, ErrDuplicateMessage
 	}
 
 	reserved := msg.messageHeader.reserved
 	if len(reserved) != 0 {
 		if int(reserved[0])&relayFlag != 0 {
-			conn.relay(msg)
+			go conn.relay(msg)
 		}
 		if int(reserved[0])&compressFlag != 0 {
 			data, err := decompress(nil, msg.body)
@@ -301,7 +301,8 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 // TODO: 拿到peer里去
 func (conn *Conn) relay(msg *message) error {
 
-	reserve := int(msg.reserved[0]) - 1<<5
+	reserve := msg.reserved
+	reserve[0] = byte(int(msg.reserved[0]) - 1<<5)
 	data := newMessageData(conn.peer.config.Magic, msg.code, reserve, msg.body)
 
 	conn.peer.conns.Range(func(k, v interface{}) bool {

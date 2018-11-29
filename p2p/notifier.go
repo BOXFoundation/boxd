@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -35,7 +34,6 @@ func NewNotifier() *Notifier {
 		notifierMap: new(sync.Map),
 		receiveCh:   make(chan Message, 65536),
 	}
-	notifier.cache, _ = lru.New(65536)
 	return notifier
 }
 
