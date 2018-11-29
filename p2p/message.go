@@ -25,6 +25,9 @@ const (
 	Testnet         uint32 = 0x54455354
 	FixHeaderLength        = 4
 
+	compressFlag = 1 << 7
+	relayFlag    = 3 << 5
+
 	// dont forget to set messageAttribute below
 	Ping              uint32 = 0x00
 	Pong              uint32 = 0x01
@@ -63,9 +66,9 @@ var msgToAttribute = map[uint32]*messageAttribute{
 	Pong:                    &messageAttribute{compress: false, priority: lowPriority},
 	PeerDiscover:            &messageAttribute{compress: false, priority: lowPriority},
 	PeerDiscoverReply:       &messageAttribute{compress: true, priority: midPriority},
-	NewBlockMsg:             &messageAttribute{compress: true, priority: topPriority},
+	NewBlockMsg:             &messageAttribute{compress: true, priority: topPriority, relay: true},
 	TransactionMsg:          &messageAttribute{compress: true, priority: highPriority},
-	LocateForkPointRequest:  &messageAttribute{compress: false, priority: midPriority},
+	LocateForkPointRequest:  &messageAttribute{compress: false, priority: midPriority, relay: true},
 	LocateForkPointResponse: &messageAttribute{compress: true, priority: midPriority},
 	LocateCheckRequest:      &messageAttribute{compress: false, priority: midPriority},
 	LocateCheckResponse:     &messageAttribute{compress: false, priority: midPriority},
@@ -167,6 +170,7 @@ func readMessageData(r io.Reader) (*message, error) {
 type messageAttribute struct {
 	compress bool
 	priority uint8
+	relay    bool
 }
 
 ////////////////////////////////////////////////////////////////////////////////

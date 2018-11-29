@@ -284,20 +284,38 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
 	msgAttr := msgToAttribute[opcode]
-	if msgAttr == nil {
-		msgAttr = defaultMessageAttribute
-	}
-	reserve := []byte{}
-	if msgAttr != nil && msgAttr.compress {
-		reserve = append(reserve, byte(compressFlag))
-		body = compress(nil, body)
-	}
+	reserve := conn.reserve(msgAttr, body)
+
 	data, err := newMessageData(conn.peer.config.Magic, opcode, reserve, body).Marshal()
 	if err != nil {
 		return err
 	}
 	err = conn.pq.Push(data, int(msgAttr.priority))
 	return err
+}
+
+func (conn *Conn) reserve(msgAttr *messageAttribute, body []byte) []byte {
+	if msgAttr == nil {
+		msgAttr = defaultMessageAttribute
+	}
+	reserve := []byte{}
+	flags := []int{}
+	if msgAttr.compress {
+		flags = append(flags, compressFlag)
+		body = compress(nil, body)
+	}
+	if msgAttr.relay {
+		if len(flags) > 0 {
+			flags[0] += relayFlag
+		} else {
+			flags = append(flags, relayFlag)
+		}
+		logger.Errorf("flag = %v", flags[0])
+	}
+	for _, flag := range flags {
+		reserve = append(reserve, byte(flag))
+	}
+	return reserve
 }
 
 // Close connection to remote peer.
