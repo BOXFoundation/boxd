@@ -108,6 +108,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		if err != nil {
 			if err == yamux.ErrConnectionReset {
 				logger.Warnf("ReadMessage occurs error. Err: %s", err.Error())
+			} else if err == ErrDuplicateMessage {
 			} else {
 				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
 			}
@@ -132,13 +133,28 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 		return nil, err
 	}
 
+	// filter out the duplicate messages.
+	attr := msgToAttribute[msg.code]
+	if attr == nil {
+		attr = defaultMessageAttribute
+	}
+	if !attr.duplicateFilter(msg, attr.frequency) {
+		logger.Errorf("duplicate msg: %v", msg.code)
+		return nil, ErrDuplicateMessage
+	}
+
 	reserved := msg.messageHeader.reserved
-	if len(reserved) != 0 && int(reserved[0])&compressFlag != 0 {
-		data, err := decompress(nil, msg.body)
-		if err != nil {
-			return nil, err
+	if len(reserved) != 0 {
+		if int(reserved[0])&relayFlag != 0 {
+			conn.relay(msg)
 		}
-		msg.body = data
+		if int(reserved[0])&compressFlag != 0 {
+			data, err := decompress(nil, msg.body)
+			if err != nil {
+				return nil, err
+			}
+			msg.body = data
+		}
 	}
 
 	metricsReadMeter.Mark(msg.Len())
@@ -282,11 +298,33 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 	return nil
 }
 
+// TODO: 拿到peer里去
+func (conn *Conn) relay(msg *message) error {
+
+	reserve := int(msg.reserved[0]) - 1<<5
+	data := newMessageData(conn.peer.config.Magic, msg.code, reserve, msg.body)
+
+	conn.peer.conns.Range(func(k, v interface{}) bool {
+		conn := v.(*Conn)
+		if p.id.Pretty() == conn.remotePeer.Pretty() {
+			return true
+		}
+
+		go conn.write(body)
+		return true
+	})
+	return nil
+}
+
 func (conn *Conn) Write(opcode uint32, body []byte) error {
 	msgAttr := msgToAttribute[opcode]
 	reserve, body := conn.reserve(msgAttr, body)
 
-	data, err := newMessageData(conn.peer.config.Magic, opcode, reserve, body).Marshal()
+	return write(newMessageData(conn.peer.config.Magic, opcode, reserve, body))
+}
+
+func (conn *Conn) write(msg *message) err {
+	data, err := msg.Marshal()
 	if err != nil {
 		return err
 	}

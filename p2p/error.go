@@ -16,6 +16,7 @@ var (
 	ErrMessageDataContent        = errors.New("Invalid message data content")
 	ErrNoConnectionEstablished   = errors.New("No connection established")
 	ErrFailedToSendMessageToPeer = errors.New("Failed to send message to peer")
+	ErrDuplicateMessage          = errors.New("Duplicate message")
 
 	//message.go
 	ErrMessageHeaderLength     = errors.New("Can not read p2p message header length")

@@ -72,7 +72,7 @@ func (bft *BftService) Start() {
 }
 
 func (bft *BftService) subscribeMessageNotifiee() {
-	bft.notifiee.Subscribe(p2p.NewNotifiee(p2p.EternalBlockMsg, p2p.Repeatable, bft.eternalBlockMsgCh))
+	bft.notifiee.Subscribe(p2p.NewNotifiee(p2p.EternalBlockMsg, bft.eternalBlockMsgCh))
 }
 
 func (bft *BftService) loop(p goprocess.Process) {
