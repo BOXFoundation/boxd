@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/wallet"
 )
 
@@ -19,6 +20,7 @@ import (
 type Circulation struct {
 	accCnt     int
 	partLen    int
+	txCnt      uint64
 	addrs      []string
 	accAddrs   []string
 	collAddrCh chan<- string
@@ -34,10 +36,10 @@ func NewCirculation(accCnt, partLen int, collAddrCh chan<- string,
 	c.accCnt = accCnt
 	c.partLen = partLen
 	logger.Infof("start to gen %d address for circulation", accCnt)
-	c.addrs, c.accAddrs = genTestAddr(c.accCnt)
+	c.addrs, c.accAddrs = utils.GenTestAddr(c.accCnt)
 	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
 	for _, addr := range c.addrs {
-		acc := unlockAccount(addr)
+		acc := utils.UnlockAccount(addr)
 		AddrToAcc[addr] = acc
 	}
 	c.collAddrCh = collAddrCh
@@ -51,7 +53,7 @@ func NewCirculation(accCnt, partLen int, collAddrCh chan<- string,
 
 // TearDown clean test accounts files
 func (c *Circulation) TearDown() {
-	removeKeystoreFiles(c.accAddrs...)
+	utils.RemoveKeystoreFiles(c.accAddrs...)
 }
 
 // Run consumes transaction pending on circulation channel
@@ -71,7 +73,7 @@ func (c *Circulation) doTx(index int) {
 	defer func() {
 		logger.Infof("done doTx[%d]", index)
 		if x := recover(); x != nil {
-			TryRecordError(fmt.Errorf("%v", x))
+			utils.TryRecordError(fmt.Errorf("%v", x))
 		}
 	}()
 	start := index * c.partLen
@@ -97,7 +99,7 @@ func (c *Circulation) doTx(index int) {
 		addrIdx = toIdx
 		if cirInfo, ok := <-c.cirInfoCh; ok {
 			logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-			txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, 100)
+			c.txCnt += txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes())
 		}
 		if scopeValue(*scope) == basicScope {
 			break
@@ -105,47 +107,51 @@ func (c *Circulation) doTx(index int) {
 	}
 }
 
-func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
+func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 	defer func() {
 		if x := recover(); x != nil {
-			TryRecordError(fmt.Errorf("%v", x))
+			utils.TryRecordError(fmt.Errorf("%v", x))
 			logger.Error(x)
 		}
 	}()
+	txCnt := uint64(0)
 	logger.Info("=== RUN   txRepeatTest")
 	if times <= 0 {
 		logger.Warn("times is 0, exit")
-		return
+		return 0
 	}
 	//
-	fromBalancePre := balanceFor(fromAddr, execPeer)
+	fromBalancePre := utils.BalanceFor(fromAddr, execPeer)
 	if fromBalancePre == 0 {
 		logger.Warnf("balance of %s is 0, exit", fromAddr)
-		return
+		return 0
 	}
-	toBalancePre := balanceFor(toAddr, execPeer)
+	toBalancePre := utils.BalanceFor(toAddr, execPeer)
 	logger.Infof("fromAddr[%s] balance: %d, toAddr[%s] balance: %d",
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
 	transfer := uint64(0)
 	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
-	// remain at 1/5 balance as transaction fee
+	// remain at leat 1/5 balance as transaction fee
 	base := fromBalancePre / uint64(times) / 5 * 2
 	for i := 0; i < times; i++ {
 		amount := base + uint64(rand.Int63n(int64(base)))
 		logger.Debugf("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
-		execTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
+		utils.ExecTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
+		txCnt++
 		transfer += amount
 	}
+	logger.Infof("%s sent %d times total %d tx to %s on peer %s", fromAddr, times,
+		transfer, toAddr, execPeer)
 	logger.Infof("wait for balance of %s reach %d, timeout %v", toAddr,
 		toBalancePre+transfer, timeoutToChain)
-	toBalancePost, err := waitBalanceEnough(toAddr, toBalancePre+transfer,
+	toBalancePost, err := utils.WaitBalanceEnough(toAddr, toBalancePre+transfer,
 		execPeer, timeoutToChain)
 	if err != nil {
-		TryRecordError(err)
+		utils.TryRecordError(err)
 		logger.Warn(err)
 	}
 	// check the balance of miners
-	fromBalancePost := balanceFor(fromAddr, execPeer)
+	fromBalancePost := utils.BalanceFor(fromAddr, execPeer)
 	logger.Infof("fromAddr[%s] balance: %d toAddr[%s] balance: %d",
 		fromAddr, fromBalancePost, toAddr, toBalancePost)
 	// prerequisite: neither of fromAddr and toAddr are not miner address
@@ -154,10 +160,11 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) {
 	if toGap > fromGap || toGap != transfer {
 		err := fmt.Errorf("txRepeatTest faild: fromGap %d toGap %d and transfer %d",
 			fromGap, toGap, transfer)
-		TryRecordError(err)
+		utils.TryRecordError(err)
 		logger.Error(err)
 	}
 	logger.Infof("--- DONE: txRepeatTest")
+	return txCnt
 }
 
 // TODO: have not been verified
@@ -167,28 +174,28 @@ func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
 	// get balance of fromAddr and toAddrs
 	logger.Infof("start to get balance of fromAddr[%s], toAddrs[%v] from %s",
 		fromAddr, toAddrs, execPeer)
-	fromBalancePre := balanceFor(fromAddr, execPeer)
+	fromBalancePre := utils.BalanceFor(fromAddr, execPeer)
 	toBalancesPre := make([]uint64, len(toAddrs))
 	for i := 0; i < len(toAddrs); i++ {
-		b := balanceFor(toAddrs[i], execPeer)
+		b := utils.BalanceFor(toAddrs[i], execPeer)
 		toBalancesPre[i] = b
 	}
 	logger.Infof("fromAddr[%s] balance: %d toAddrs[%v] balance: %v",
 		fromAddr, fromBalancePre, toAddrs, toBalancesPre)
 
 	// create a transaction from test account 1 to test accounts and execute it
-	acc := unlockAccount(fromAddr)
+	acc := utils.UnlockAccount(fromAddr)
 	ave := totalAmount / uint64(len(toAddrs))
 	transfer := uint64(0)
 	for i := 0; i < len(toAddrs); i++ {
 		amount := ave/2 + uint64(rand.Int63n(int64(ave)/2))
-		execTx(acc, []string{toAddrs[i]}, []uint64{amount}, execPeer)
+		utils.ExecTx(acc, []string{toAddrs[i]}, []uint64{amount}, execPeer)
 		transfer += amount
 		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddr,
 			toAddrs[i], execPeer)
 	}
 	logger.Infof("wait for transaction brought on chain, timeout %v", timeoutToChain)
-	if _, err := waitBalanceEnough(toAddrs[len(toAddrs)-1], 100000, execPeer,
+	if _, err := utils.WaitBalanceEnough(toAddrs[len(toAddrs)-1], 100000, execPeer,
 		timeoutToChain); err != nil {
 		logger.Panic(err)
 	}
@@ -196,10 +203,10 @@ func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
 	// get balance of fromAddr and toAddrs
 	logger.Infof("start to get balance of fromAddr[%s], toAddrs[%v] from %s",
 		fromAddr, toAddrs, execPeer)
-	fromBalancePost := balanceFor(fromAddr, execPeer)
+	fromBalancePost := utils.BalanceFor(fromAddr, execPeer)
 	toBalancesPost := make([]uint64, len(toAddrs))
 	for i := 0; i < len(toAddrs); i++ {
-		b := balanceFor(toAddrs[i], execPeer)
+		b := utils.BalanceFor(toAddrs[i], execPeer)
 		toBalancesPost[i] = b
 	}
 	logger.Infof("fromAddr[%s] balance: %d toAddrs[%v] balance: %v",
@@ -225,29 +232,29 @@ func txManyToOneTest(fromAddrs []string, toAddr string, execPeer string) {
 		fromAddrs, toAddr, execPeer)
 	fromBalancesPre := make([]uint64, len(fromAddrs))
 	for i := 0; i < len(fromAddrs); i++ {
-		b := balanceFor(fromAddrs[i], execPeer)
+		b := utils.BalanceFor(fromAddrs[i], execPeer)
 		fromBalancesPre[i] = b
 	}
-	toBalancePre := balanceFor(toAddr, execPeer)
+	toBalancePre := utils.BalanceFor(toAddr, execPeer)
 	logger.Debugf("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
 		fromAddrs, fromBalancesPre, toAddr, toBalancePre)
 
 	// create a transaction from test accounts to account and execute it
 	accounts := make([]*wallet.Account, len(fromAddrs))
 	for i := 0; i < len(fromAddrs); i++ {
-		acc := unlockAccount(fromAddrs[i])
+		acc := utils.UnlockAccount(fromAddrs[i])
 		accounts[i] = acc
 	}
 	transfer := uint64(0)
 	for i := 0; i < len(fromAddrs); i++ {
 		amount := fromBalancesPre[i] / 2
-		execTx(accounts[i], []string{toAddr}, []uint64{amount}, execPeer)
+		utils.ExecTx(accounts[i], []string{toAddr}, []uint64{amount}, execPeer)
 		transfer += amount
 		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddrs[i],
 			toAddr, execPeer)
 	}
 	logger.Infof("wait for transaction brought on chain, timeout %v", timeoutToChain)
-	if _, err := waitBalanceEnough(toAddr, 1000, execPeer, timeoutToChain); err != nil {
+	if _, err := utils.WaitBalanceEnough(toAddr, 1000, execPeer, timeoutToChain); err != nil {
 		logger.Panic(err)
 	}
 	time.Sleep(blockTime)
@@ -256,10 +263,10 @@ func txManyToOneTest(fromAddrs []string, toAddr string, execPeer string) {
 		fromAddrs, toAddr, execPeer)
 	fromBalancesPost := make([]uint64, len(fromAddrs))
 	for i := 0; i < len(fromAddrs); i++ {
-		b := balanceFor(fromAddrs[i], execPeer)
+		b := utils.BalanceFor(fromAddrs[i], execPeer)
 		fromBalancesPost[i] = b
 	}
-	toBalancePost := balanceFor(toAddr, execPeer)
+	toBalancePost := utils.BalanceFor(toAddr, execPeer)
 	logger.Debugf("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
 		fromAddrs, fromBalancesPost, toAddr, toBalancePost)
 

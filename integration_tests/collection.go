@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"sync"
 	"time"
+
+	"github.com/BOXFoundation/boxd/integration_tests/utils"
 )
 
 const (
@@ -22,6 +24,7 @@ const (
 type Collection struct {
 	accCnt     int
 	partLen    int
+	txCnt      uint64
 	minerAddr  string
 	addrs      []string
 	accAddrs   []string
@@ -38,11 +41,11 @@ func NewCollection(accCnt, partLen int, collAddrCh <-chan string,
 	c.accCnt = accCnt
 	c.partLen = partLen
 	logger.Infof("start to gen %d tests address for tx collection", accCnt)
-	c.addrs, c.accAddrs = genTestAddr(c.accCnt)
+	c.addrs, c.accAddrs = utils.GenTestAddr(c.accCnt)
 	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
 	// get accounts for addrs
 	for _, addr := range c.addrs {
-		acc := unlockAccount(addr)
+		acc := utils.UnlockAccount(addr)
 		AddrToAcc[addr] = acc
 	}
 	c.collAddrCh = collAddrCh
@@ -56,7 +59,7 @@ func NewCollection(accCnt, partLen int, collAddrCh <-chan string,
 
 // TearDown clean test accounts files
 func (c *Collection) TearDown() {
-	removeKeystoreFiles(c.accAddrs...)
+	utils.RemoveKeystoreFiles(c.accAddrs...)
 }
 
 // Run create transaction and send them to circulation channel
@@ -76,7 +79,7 @@ func (c *Collection) doTx(index int) {
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
-			TryRecordError(fmt.Errorf("%v", x))
+			utils.TryRecordError(fmt.Errorf("%v", x))
 		}
 	}()
 	start := index * c.partLen
@@ -105,8 +108,8 @@ func (c *Collection) doTx(index int) {
 		// totalAmount is enough, to multiply is to avoid concurrence balance insufficent
 		// sleep index*rpcInterval to avoid "Output already spent by transaction in the
 		// pool" error on the same minerAddr
-		time.Sleep(time.Duration(index) * rpcInterval)
-		addr, _, err := waitOneAddrBalanceEnough(minerAddrs, totalAmount*uint64(div),
+		time.Sleep(time.Duration(index) * utils.RPCInterval)
+		addr, _, err := utils.WaitOneAddrBalanceEnough(minerAddrs, totalAmount*uint64(div),
 			peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Error(err)
@@ -116,7 +119,7 @@ func (c *Collection) doTx(index int) {
 		c.minerAddr = addr
 		if collAddr, ok := <-c.collAddrCh; ok {
 			logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
-			c.launderFunds(collAddr, addrs, peerAddr)
+			c.txCnt += c.launderFunds(collAddr, addrs, peerAddr)
 			c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
 		}
 		if scopeValue(*scope) == basicScope {
@@ -130,11 +133,12 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
-			TryRecordError(fmt.Errorf("%v", x))
+			utils.TryRecordError(fmt.Errorf("%v", x))
 		}
 	}()
 	logger.Info("=== RUN   launderFunds")
 	var err error
+	txCnt := uint64(0)
 	count := len(addrs)
 	// transfer miner to tests[0:len(addrs)-1]
 	amount := totalAmount / uint64(count) / 2
@@ -144,16 +148,17 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 	}
 	balances := make([]uint64, count)
 	for i := 0; i < count; i++ {
-		b := balanceFor(addrs[i], peerAddr)
+		b := utils.BalanceFor(addrs[i], peerAddr)
 		balances[i] = b
 	}
 	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
 		c.minerAddr, peerAddr)
-	execTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
+	utils.ExecTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
+	txCnt++
 	for i, addr := range addrs {
 		logger.Infof("wait for balance of %s more than %d, timeout %v", addrs[i],
 			balances[i]+amounts[i], timeoutToChain)
-		balances[i], err = waitBalanceEnough(addr, balances[i]+amounts[i], peerAddr,
+		balances[i], err = utils.WaitBalanceEnough(addr, balances[i]+amounts[i], peerAddr,
 			timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
@@ -182,7 +187,8 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 				amountsRecv[j] += amounts2[j]
 			}
 			allAmounts[i] = amounts2
-			execTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
+			utils.ExecTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
+			txCnt++
 		}(i)
 	}
 	wg.Wait()
@@ -195,13 +201,13 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 		expect := balances[i] + amountsRecv[i] - amountsSend[i]/4*5
 		logger.Infof("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
 			timeoutToChain)
-		balances[i], err = waitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
+		balances[i], err = utils.WaitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
 		}
 	}
 	// gather count*count utxo via transfering from others to the first one
-	lastBalance := balanceFor(addr, peerAddr)
+	lastBalance := utils.BalanceFor(addr, peerAddr)
 	total := uint64(0)
 	errChans = make(chan error, count)
 	for i := 0; i < count; i++ {
@@ -218,7 +224,8 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 			for j := 0; j < count; j++ {
 				amount := allAmounts[j][i] / 2
 				fromAddr := addrs[i]
-				execTx(AddrToAcc[fromAddr], []string{addr}, []uint64{amount}, peerAddr)
+				utils.ExecTx(AddrToAcc[fromAddr], []string{addr}, []uint64{amount}, peerAddr)
+				txCnt++
 				total += amount
 				logger.Debugf("have sent %d from %s to %s", amount, addrs[i], addr)
 			}
@@ -229,11 +236,11 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 		logger.Panic(<-errChans)
 	}
 	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, blockTime)
-	b, err := waitBalanceEnough(addr, lastBalance+total, peerAddr, timeoutToChain)
+	b, err := utils.WaitBalanceEnough(addr, lastBalance+total, peerAddr, timeoutToChain)
 	if err != nil {
-		TryRecordError(err)
+		utils.TryRecordError(err)
 		logger.Warn(err)
 	}
 	logger.Infof("--- DONE: launderFunds, result balance: %d", b)
-	return b
+	return txCnt
 }

@@ -7,14 +7,18 @@
   "local_ws": "./.devconfig/",
   "docker_ws": "../docker/.devconfig/",
   "transaction_test": {
+    "enable": true,
     "collection_accounts": 20,
     "collection_unit_accounts": 5,
     "circulation_accounts": 20,
-    "circulationn_unit_accounts": 5
+    "circulation_unit_accounts": 5,
+    "circu_repeat_times": 100
   },
   "token_test": {
+    "enable": true,
     "accounts": 3,
-    "unit_accounts": 3
+    "unit_accounts": 3,
+    "repeat_times": 10
   },
   "iplist": {
     "docker": [
