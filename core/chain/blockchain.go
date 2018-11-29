@@ -1103,31 +1103,36 @@ func (chain *BlockChain) splitBlockOutputs(block *types.Block) {
 
 // split outputs in the tx where applicable
 func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) {
-	txHash, _ := tx.TxHash()
-
 	vout := make([]*corepb.TxOut, 0)
-	for txOutIdx, txOut := range tx.Vout {
-		txOuts := []*corepb.TxOut{txOut}
-
-		if addr, err := script.NewScriptFromBytes(txOut.ScriptPubKey).ExtractAddress(); err == nil {
-			if isSplitAddr, addrs, weights, err := chain.findSplitAddr(addr); isSplitAddr {
-				logger.Debugf("Split address %v receiving at tx %v, output %d", addr, txHash, txOutIdx)
-				if err == nil {
-					txOuts = splitTxOutput(txOut, addrs, weights)
-				} else {
-					logger.Errorf("Split address %v parse error: %v", addr, err)
-				}
-			}
-		}
+	for _, txOut := range tx.Vout {
+		txOuts := chain.splitTxOutput(txOut)
 		vout = append(vout, txOuts...)
 	}
 	tx.Vout = vout
 }
 
-// split an output to a split address into multiple outputs to composite addresses
-func splitTxOutput(txOut *corepb.TxOut, addrs []types.Address, weights []uint64) []*corepb.TxOut {
+// split an output to a split address into  multiple outputs to composite addresses
+func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
+	// return the output itself if it cannot be split
+	txOuts := []*corepb.TxOut{txOut}
+	addr, err := script.NewScriptFromBytes(txOut.ScriptPubKey).ExtractAddress()
+	if err != nil {
+		logger.Debugf("Tx output does not contain a valid address")
+		return txOuts
+	}
+	isSplitAddr, addrs, weights, err := chain.findSplitAddr(addr)
+	if !isSplitAddr {
+		logger.Debugf("Address %v is not a split address", addrs)
+		return txOuts
+	}
+	if err != nil {
+		logger.Errorf("Split address %v parse error: %v", addr, err)
+		return txOuts
+	}
+
+	// split it
+	txOuts = make([]*corepb.TxOut, 0)
 	n := len(addrs)
-	txOuts := make([]*corepb.TxOut, n)
 
 	totalWeight := uint64(0)
 	for i := 0; i < n; i++ {
@@ -1135,12 +1140,15 @@ func splitTxOutput(txOut *corepb.TxOut, addrs []types.Address, weights []uint64)
 	}
 
 	for i := 0; i < n; i++ {
-		scriptPubKey := script.PayToPubKeyHashScript(addrs[i].Hash())
-		txOuts[i] = &corepb.TxOut{
+		childTxOut := &corepb.TxOut{
 			Value:        txOut.Value * weights[i] / totalWeight,
-			ScriptPubKey: *scriptPubKey,
+			ScriptPubKey: *script.PayToPubKeyHashScript(addrs[i].Hash()),
 		}
+		// recursively find if the child tx output is splittable
+		childTxOuts := chain.splitTxOutput(childTxOut)
+		txOuts = append(txOuts, childTxOuts...)
 	}
+
 	return txOuts
 }
 
