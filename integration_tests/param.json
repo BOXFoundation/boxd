@@ -14,7 +14,7 @@
     "circulation_accounts": 20,
     "circulation_unit_accounts": 5,
     "circulation_repeat_times": 100,
-    "circulation_workers": 4
+    "circulation_workers": 1
   },
   "token_test": {
     "workers": 1,
