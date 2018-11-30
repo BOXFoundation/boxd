@@ -25,6 +25,9 @@ func TestBlockCovertWithProtoMessage(t *testing.T) {
 	blockCopy := block.Copy()
 	ensure.DeepEqual(t, blockCopy.Height, block.Height)
 	ensure.DeepEqual(t, len(blockCopy.Txs), len(block.Txs))
+	txHash, _ := block.Txs[0].TxHash()
+	txCopyHash, _ := blockCopy.Txs[0].TxHash()
+	ensure.DeepEqual(t, txHash, txCopyHash)
 	ensure.DeepEqual(t, blockCopy.Txs[0].Vin, block.Txs[0].Vin)
 	ensure.DeepEqual(t, blockCopy.Txs[0].Vout, block.Txs[0].Vout)
 	blockCopy.Txs[0].LockTime--

@@ -128,7 +128,9 @@ func (block *Block) Copy() *Block {
 			vout = append(vout, txOutCopy)
 		}
 
+		txHash, _ := tx.TxHash()
 		txCopy := &Transaction{
+			hash: txHash,
 			Vin:  vin,
 			Vout: vout,
 		}
