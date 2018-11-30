@@ -280,6 +280,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	spendableTxs := new(sync.Map)
 
+	// Total fees of all packed txs
+	totalTxFee := uint64(0)
+
 PackingTxs:
 	for {
 		select {
@@ -305,11 +308,23 @@ PackingTxs:
 						logger.Errorf("Could not get extended utxo set for tx %v", txHash)
 						continue
 					}
+
 					// This is to ensure within mempool, a parent tx is packed before its children txs
-					if !utxoSet.IsTxFunded(txWrap.Tx) {
+					totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
+					if totalInputAmount == 0 {
 						// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
 						continue
 					}
+					totalOutputAmount := txWrap.Tx.OutputAmount()
+					if totalInputAmount < totalOutputAmount {
+						// This must not happen since the tx already passed the check when admitted into mempool
+						logger.Panicf("total value of all transaction outputs for "+
+							"transaction %v is %v, which exceeds the input amount "+
+							"of %v", txHash, totalOutputAmount, totalInputAmount)
+					}
+					txFee := totalInputAmount - totalOutputAmount
+					totalTxFee += txFee
+
 					spendableTxs.Store(*txHash, txWrap)
 					blockTxns = append(blockTxns, txWrap.Tx)
 					txPacked[i] = true
@@ -318,6 +333,8 @@ PackingTxs:
 			}
 		}
 	}
+	// Pay tx fees to miner in addition to block reward in coinbase
+	blockTxns[0].Vout[0].Value += totalTxFee
 
 	candidateHash, err := dpos.context.candidateContext.CandidateContextHash()
 	if err != nil {

@@ -82,16 +82,19 @@ func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 	utxoWrap.IsModified = true
 }
 
-// IsTxFunded returns if a tx is funded, i.e., if all of its spending utxos exist
-func (u *UtxoSet) IsTxFunded(tx *types.Transaction) bool {
+// TxInputAmount returns total amount from tx's inputs
+// Return 0 if a tx is not fully funded, i.e., if not all of its spending utxos exist
+func (u *UtxoSet) TxInputAmount(tx *types.Transaction) uint64 {
+	totalInputAmount := uint64(0)
 	for _, txIn := range tx.Vin {
 		utxo := u.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil || utxo.IsSpent {
-			return false
+			return uint64(0)
 		}
+		totalInputAmount += utxo.Value()
 	}
 
-	return true
+	return totalInputAmount
 }
 
 // TxWrap wrap transaction
