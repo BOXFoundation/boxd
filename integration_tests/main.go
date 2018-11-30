@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -86,7 +87,7 @@ func main() {
 		if err := utils.PrepareEnv(peerCnt); err != nil {
 			logger.Panic(err)
 		}
-		//defer tearDown(peerCnt)
+		//defer utils.TearDown(peerCnt)
 
 		// start nodes
 		if *utils.EnableDocker {
@@ -118,12 +119,14 @@ func main() {
 		for {
 			select {
 			case <-t.C:
-				totalTxs := txTestTxCnt + tokenTestTxCnt
+				txCnt := atomic.LoadUint64(&txTestTxCnt)
+				tokenCnt := atomic.LoadUint64(&tokenTestTxCnt)
+				totalTxs := txCnt + tokenCnt
 				lastTotalTxs := lastTxTestTxCnt + lastTokenTestTxCnt
 				txs := totalTxs - lastTotalTxs
 				logger.Infof("TPS = %6.2f during last %v, total txs = %d",
 					float64(txs)/float64(d/time.Second), d, totalTxs)
-				lastTxTestTxCnt, lastTokenTestTxCnt = txTestTxCnt, tokenTestTxCnt
+				lastTxTestTxCnt, lastTokenTestTxCnt = txCnt, tokenCnt
 			case <-quitCh:
 				logger.Info("txs ticker for main exit")
 				return
@@ -217,7 +220,8 @@ func txTest() {
 		for {
 			select {
 			case <-t.C:
-				txTestTxCnt = coll.txCnt + circu.txCnt
+				atomic.StoreUint64(&txTestTxCnt, atomic.LoadUint64(&coll.txCnt)+
+					atomic.LoadUint64(&circu.txCnt))
 			case <-quitCh:
 				logger.Info("txs ticker for txTest exit")
 				return
@@ -267,7 +271,7 @@ func tokenTest() {
 		for {
 			select {
 			case <-tk.C:
-				tokenTestTxCnt = t.txCnt
+				atomic.StoreUint64(&tokenTestTxCnt, atomic.LoadUint64(&t.txCnt))
 			case <-quitCh:
 				logger.Info("txs ticker for tokenTest exit")
 				return

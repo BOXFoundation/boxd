@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -119,7 +120,8 @@ func (c *Collection) doTx(index int) {
 		c.minerAddr = addr
 		if collAddr, ok := <-c.collAddrCh; ok {
 			logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
-			c.txCnt += c.launderFunds(collAddr, addrs, peerAddr)
+			count := c.launderFunds(collAddr, addrs, peerAddr)
+			atomic.AddUint64(&c.txCnt, count)
 			c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
 		}
 		if scopeValue(*scope) == basicScope {
@@ -188,7 +190,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 			}
 			allAmounts[i] = amounts2
 			utils.ExecTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
-			txCnt++
+			atomic.AddUint64(&txCnt, 1)
 		}(i)
 	}
 	wg.Wait()
@@ -225,7 +227,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 				amount := allAmounts[j][i] / 2
 				fromAddr := addrs[i]
 				utils.ExecTx(AddrToAcc[fromAddr], []string{addr}, []uint64{amount}, peerAddr)
-				txCnt++
+				atomic.AddUint64(&txCnt, 1)
 				total += amount
 				logger.Debugf("have sent %d from %s to %s", amount, addrs[i], addr)
 			}

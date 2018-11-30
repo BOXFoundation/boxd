@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -99,7 +100,8 @@ func (c *Circulation) doTx(index int) {
 		addrIdx = toIdx
 		if cirInfo, ok := <-c.cirInfoCh; ok {
 			logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-			c.txCnt += txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes())
+			count := txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes())
+			atomic.AddUint64(&c.txCnt, count)
 		}
 		if scopeValue(*scope) == basicScope {
 			break
@@ -133,12 +135,32 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
 	// remain at leat 1/5 balance as transaction fee
 	base := fromBalancePre / uint64(times) / 5 * 2
-	for i := 0; i < times; i++ {
-		amount := base + uint64(rand.Int63n(int64(base)))
-		logger.Debugf("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
-		utils.ExecTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
-		txCnt++
-		transfer += amount
+	var wg sync.WaitGroup
+	workers := utils.CircuWorkers()
+	partLen := (times + workers - 1) / workers
+	errChans := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		start := i * partLen
+		go func(start, partLen int) {
+			defer func() {
+				wg.Done()
+				if x := recover(); x != nil {
+					errChans <- fmt.Errorf("%v", x)
+				}
+			}()
+			for j := 0; j < partLen && start+j < times; j++ {
+				amount := base + uint64(rand.Int63n(int64(base)))
+				logger.Debugf("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
+				utils.ExecTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
+				atomic.AddUint64(&txCnt, 1)
+				atomic.AddUint64(&transfer, amount)
+			}
+		}(start, partLen)
+	}
+	wg.Wait()
+	if len(errChans) > 0 {
+		logger.Panic(<-errChans)
 	}
 	logger.Infof("%s sent %d times total %d tx to %s on peer %s", fromAddr, times,
 		transfer, toAddr, execPeer)

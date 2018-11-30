@@ -9,6 +9,8 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
@@ -88,7 +90,7 @@ func (t *TokenTest) Run() {
 		feeAmount := uint64(totalAmount / 2)
 		logger.Infof("send %d from %s to %s", feeAmount, addr, t.addrs[0])
 		utils.ExecTx(AddrToAcc[addr], []string{t.addrs[0]}, []uint64{feeAmount}, peerAddr)
-		t.txCnt++
+		atomic.AddUint64(&t.txCnt, 1)
 		logger.Infof("wait for balance of %s equal to %d, timeout %v", t.addrs[0],
 			blcPre+feeAmount, timeoutToChain)
 		_, err = utils.WaitBalanceEnough(t.addrs[0], blcPre+feeAmount, peerAddr, timeoutToChain)
@@ -103,10 +105,10 @@ func (t *TokenTest) Run() {
 		txTotalAmount := totalSupply/2 + uint64(rand.Intn(int(totalSupply)/2))
 		logger.Infof("%s issue %d token to %s", issuer, totalSupply, issuee)
 		issueTx0 := issueTokenTx(issuer, issuee, tokenName, totalSupply, peerAddr)
-		t.txCnt++
+		atomic.AddUint64(&t.txCnt, 1)
 		logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
 		issueTx := issueTokenTx(issuer, sender, tokenName, totalSupply, peerAddr)
-		t.txCnt++
+		atomic.AddUint64(&t.txCnt, 1)
 
 		// check issue result
 		logger.Infof("wait for token balance of issuee %s equal to %d, timeout %v",
@@ -130,13 +132,33 @@ func (t *TokenTest) Run() {
 		// transfer token
 		base := txTotalAmount / uint64(times) / 5 * 2
 		txAmount := uint64(0)
-		for i := 0; i < times; i++ {
-			amount := base + uint64(rand.Int63n(int64(base)))
-			logger.Debugf("sender %s transfer %d token to receiver %s", sender,
-				amount, receiver)
-			transferToken(sender, receiver, amount, issueTx, peerAddr)
-			t.txCnt++
-			txAmount += amount
+		var wg sync.WaitGroup
+		workers := utils.TokenWorkers()
+		partLen := (times + workers - 1) / workers
+		errChans := make(chan error, workers)
+		for i := 0; i < workers; i++ {
+			wg.Add(1)
+			start := i * partLen
+			go func(start, partLen int) {
+				defer func() {
+					wg.Done()
+					if x := recover(); x != nil {
+						errChans <- fmt.Errorf("%v", x)
+					}
+				}()
+				for j := 0; j < partLen && start+j < times; j++ {
+					amount := base + uint64(rand.Int63n(int64(base)))
+					logger.Debugf("sender %s transfer %d token to receiver %s", sender,
+						amount, receiver)
+					transferToken(sender, receiver, amount, issueTx, peerAddr)
+					atomic.AddUint64(&t.txCnt, 1)
+					atomic.AddUint64(&txAmount, amount)
+				}
+			}(start, partLen)
+		}
+		wg.Wait()
+		if len(errChans) > 0 {
+			logger.Panic(<-errChans)
 		}
 		logger.Infof("%s sent %d times total %d token tx to %s", sender, times,
 			txAmount, receiver)

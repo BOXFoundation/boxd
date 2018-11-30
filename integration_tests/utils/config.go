@@ -22,6 +22,8 @@ var (
 	tokenTestEnable    = true
 	peersAddr          []string
 	tickerDurationTxs  = 5
+	circuWorkers       = 4
+	tokenWorkers       = 1
 
 	// NewNodes flag indicates to need to start nodes
 	NewNodes = flag.Bool("nodes", true, "need to start nodes?")
@@ -83,7 +85,8 @@ func LoadConf() error {
 	}
 	logger.Infof("tokenUnitAccounts = %d", tokenUnitAccounts)
 
-	circuRepeatTxTimes, err = GetIntCfgVal(100, "transaction_test", "circu_repeat_times")
+	circuRepeatTxTimes, err = GetIntCfgVal(100, "transaction_test",
+		"circulation_repeat_times")
 	if err != nil {
 		return err
 	}
@@ -112,6 +115,18 @@ func LoadConf() error {
 		return err
 	}
 	logger.Infof("tickerDurationTxs = %d", tickerDurationTxs)
+
+	circuWorkers, err = GetIntCfgVal(4, "transaction_test", "circulation_workers")
+	if err != nil {
+		return err
+	}
+	logger.Infof("circuWorkers = %d", circuWorkers)
+
+	tokenWorkers, err = GetIntCfgVal(1, "token_test", "workers")
+	if err != nil {
+		return err
+	}
+	logger.Infof("tokenWorkers = %d", tokenWorkers)
 
 	return nil
 }
@@ -190,4 +205,14 @@ func PeerAddrs() []string {
 // TickerDurationTxs get ticker duration for calc tx count
 func TickerDurationTxs() time.Duration {
 	return time.Duration(tickerDurationTxs) * time.Second
+}
+
+// CircuWorkers return circuWorkers
+func CircuWorkers() int {
+	return circuWorkers
+}
+
+// TokenWorkers return okenWorkers
+func TokenWorkers() int {
+	return tokenWorkers
 }
