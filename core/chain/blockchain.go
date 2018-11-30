@@ -947,6 +947,33 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 	return nil, errors.New("Failed to load tx with hash")
 }
 
+// LoadBlockInfoByTxHash returns block and txIndex of transaction with the input param hash
+func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, uint32, error) {
+	txIndex, err := chain.db.Get(TxIndexKey(&hash))
+	if err != nil {
+		return nil, 0, err
+	}
+	height, idx, err := UnmarshalTxIndex(txIndex)
+	if err != nil {
+		return nil, 0, err
+	}
+	block, err := chain.LoadBlockByHeight(height)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	tx := block.Txs[idx]
+	target, err := tx.TxHash()
+	if err != nil {
+		return nil, 0, err
+	}
+	if *target == hash {
+		return block, idx, nil
+	}
+	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
+	return nil, 0, errors.New("failed to load tx with hash")
+}
+
 // WriteTxIndex builds tx index in block
 func (chain *BlockChain) WriteTxIndex(block *types.Block, batch storage.Batch) error {
 

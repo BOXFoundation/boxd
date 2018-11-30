@@ -9,7 +9,7 @@ import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 import "google/api/annotations.proto";
 
 service WebApi {
-    rpc GetTransaction (GetTransactionInfoRequest) returns (TransactionInfo) {
+    rpc GetTransaction (GetTransactionInfoRequest) returns (GetTransactionInfoResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/gettransaction"
             body: "*"
@@ -23,56 +23,56 @@ service WebApi {
         };
     }
 
-    rpc GetTopHolders(GetTopHoldersRequest) returns (GetTopHoldersResponse) {
+    rpc GetTopHolders (GetTopHoldersRequest) returns (GetTopHoldersResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/topholders"
             body: "*"
         };
     }
 
-    rpc GetHolderCount(GetHolderCountRequest) returns (GetHolderCountResponse) {
+    rpc GetHolderCount (GetHolderCountRequest) returns (GetHolderCountResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/holdercount"
             body: "*"
         };
     }
 
-    rpc GetPendingTransaction(GetPendingTransactionRequest) returns (GetTransactionsInfoResponse) {
+    rpc GetPendingTransaction (GetPendingTransactionRequest) returns (GetTransactionsInfoResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/getpendingtxs"
             body: "*"
         };
     }
 
-    rpc GetTransactionHistory(GetTransactionHistoryRequest) returns (GetTransactionsInfoResponse) {
+    rpc GetTransactionHistory (GetTransactionHistoryRequest) returns (GetTransactionsInfoResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/gettxhistory"
             body: "*"
         };
     }
 
-    rpc ListTokens(ListTokensRequest) returns (ListTokensResponse) {
+    rpc ListTokens (ListTokensRequest) returns (ListTokensResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/listtokens"
             body: "*"
         };
     }
 
-    rpc GetTokenInfo(GetTokenInfoRequest) returns (GetTokenInfoResponse) {
+    rpc GetTokenInfo (GetTokenInfoRequest) returns (GetTokenInfoResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/gettoken"
             body: "*"
         };
     }
 
-    rpc GetTokenHolders(GetTokenHoldersRequest) returns (GetTokenHoldersResponse) {
+    rpc GetTokenHolders (GetTokenHoldersRequest) returns (GetTokenHoldersResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/gettokenholders"
             body: "*"
         };
     }
 
-    rpc GetTokenTransactions(GetTokenTransactionsRequest) returns (GetTransactionsInfoResponse) {
+    rpc GetTokenTransactions (GetTokenTransactionsRequest) returns (GetTransactionsInfoResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/gettokentxs"
             body: "*"
@@ -147,6 +147,16 @@ message TransactionInfo {
     string hash = 7;
     uint64 fee = 8;
     uint64 size = 9;
+}
+
+message TransactionExtraInfo {
+    int64 block_time = 1;
+    uint32 block_height = 2;
+}
+
+message GetTransactionInfoResponse {
+    TransactionInfo txInfo = 1;
+    TransactionExtraInfo extraInfo = 2;
 }
 
 message TokenTransferInfo {
