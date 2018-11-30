@@ -202,7 +202,7 @@ func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetT
 		return nil, err
 	}
 	logger.Infof("%v txs found related to token %v", len(txInRange))
-	txInfos, err := convertTransactionInfos(txInRange, utxos)
+	txInfos, err := s.convertTransactionInfos(txInRange, utxos)
 	if err != nil {
 		return nil, err
 	}
@@ -262,9 +262,27 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 			}
 			outInfos = append(outInfos, outInfo)
 		}
+		var inInfos []*rpcpb.TxInInfo
+		for _, i := range tx.Vin {
+			opInfo := &rpcpb.OutPointInfo{
+				Hash:  i.PrevOutPoint.Hash.String(),
+				Index: i.PrevOutPoint.Index,
+			}
+			utxo, ok := utxos[i.PrevOutPoint]
+			if !ok {
+				return nil, fmt.Errorf("previous input not found %v", i.PrevOutPoint)
+			}
+			info := &rpcpb.TxInInfo{
+				PrevOutPoint: opInfo,
+				ScriptSig:    i.ScriptSig,
+				Sequence:     i.Sequence,
+				Value:        utxo.Output.Value,
+			}
+			inInfos = append(inInfos, info)
+		}
 		txInfo := &rpcpb.TransactionInfo{
 			Version:  tx.Version,
-			Vin:      txPb.Vin,
+			Vin:      inInfos,
 			Vout:     outInfos,
 			Data:     txPb.Data,
 			Magic:    tx.Magic,
@@ -337,7 +355,7 @@ func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.Get
 	if err != nil {
 		return nil, err
 	}
-	txInfos, err := convertTransactionInfos(txInRange, utxos)
+	txInfos, err := s.convertTransactionInfos(txInRange, utxos)
 	return &rpcpb.GetTransactionsInfoResponse{
 		Total: uint32(len(txs)),
 		Txs:   txInfos,
@@ -391,7 +409,11 @@ func (s *webapiServer) GetTransaction(ctx context.Context, req *rpcpb.GetTransac
 	if err != nil {
 		return nil, err
 	}
-	txInfo, err := convertTransaction(tx)
+	utxos, err := s.loadUtxoForTx([]*types.Transaction{tx})
+	if err != nil {
+		return nil, err
+	}
+	txInfo, err := s.convertTransaction(tx, utxos)
 	if err != nil {
 		return nil, err
 	}
@@ -407,7 +429,7 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 	if err != nil {
 		return nil, err
 	}
-	blockInfo, err := convertBlock(block)
+	blockInfo, err := s.convertBlock(block)
 	if err != nil {
 		return nil, err
 	}
@@ -557,31 +579,31 @@ func (s *webapiServer) calcMiningFee(block *types.Block, blockInfo *rpcpb.BlockI
 	return nil
 }
 
-func convertTransactionInfos(txs []*types.Transaction, utxos map[types.OutPoint]*types.UtxoWrap) ([]*rpcpb.TransactionInfo, error) {
+func (s *webapiServer) convertTransactionInfos(txs []*types.Transaction, utxos map[types.OutPoint]*types.UtxoWrap) ([]*rpcpb.TransactionInfo, error) {
 	var result []*rpcpb.TransactionInfo
 	for _, tx := range txs {
-		txPb, err := convertTransaction(tx)
+		txPb, err := s.convertTransaction(tx, utxos)
 		if err != nil {
 			return nil, err
 		}
-		var totalIn, totalOut uint64
-		for _, in := range tx.Vin {
-			prev, ok := utxos[in.PrevOutPoint]
-			if !ok {
-				return nil, fmt.Errorf("previous transaction not found for outpoint: %v", in.PrevOutPoint)
-			}
-			totalIn += prev.Output.Value
-		}
-		for _, out := range tx.Vout {
-			totalOut += out.Value
-		}
-		txPb.Fee = totalIn - totalOut
+		//var totalIn, totalOut uint64
+		//for _, in := range tx.Vin {
+		//	prev, ok := utxos[in.PrevOutPoint]
+		//	if !ok {
+		//		return nil, fmt.Errorf("previous transaction not found for outpoint: %v", in.PrevOutPoint)
+		//	}
+		//	totalIn += prev.Output.Value
+		//}
+		//for _, out := range tx.Vout {
+		//	totalOut += out.Value
+		//}
+		//txPb.Fee = totalIn - totalOut
 		result = append(result, txPb)
 	}
 	return result, nil
 }
 
-func convertTransaction(tx *types.Transaction) (*rpcpb.TransactionInfo, error) {
+func (s *webapiServer) convertTransaction(tx *types.Transaction, utxos map[types.OutPoint]*types.UtxoWrap) (*rpcpb.TransactionInfo, error) {
 	hash, err := tx.TxHash()
 	if err != nil {
 		return nil, err
@@ -606,32 +628,71 @@ func convertTransaction(tx *types.Transaction) (*rpcpb.TransactionInfo, error) {
 		}
 		outInfos = append(outInfos, outInfo)
 	}
+	var inInfos []*rpcpb.TxInInfo
+	var totalIn, totalOut, fee uint64
+	for _, i := range tx.Vin {
+		opInfo := &rpcpb.OutPointInfo{
+			Hash:  i.PrevOutPoint.Hash.String(),
+			Index: i.PrevOutPoint.Index,
+		}
+		if !s.server.GetChainReader().IsCoinBase(tx) {
+			utxo, ok := utxos[i.PrevOutPoint]
+			if !ok {
+				return nil, fmt.Errorf("previous input not found %v", i.PrevOutPoint)
+			}
+			info := &rpcpb.TxInInfo{
+				PrevOutPoint: opInfo,
+				ScriptSig:    i.ScriptSig,
+				Sequence:     i.Sequence,
+				Value:        utxo.Output.Value,
+			}
+			totalIn += utxo.Output.Value
+			inInfos = append(inInfos, info)
+		} else {
+			info := &rpcpb.TxInInfo{
+				PrevOutPoint: opInfo,
+				ScriptSig:    i.ScriptSig,
+				Sequence:     i.Sequence,
+				Value:        0,
+			}
+			inInfos = append(inInfos, info)
+		}
+	}
+	for _, o := range tx.Vout {
+		totalOut += o.Value
+	}
+	if s.server.GetChainReader().IsCoinBase(tx) {
+		fee = 0
+	} else {
+		fee = totalIn - totalOut
+	}
 	out := &rpcpb.TransactionInfo{
 		Version:  tx.Version,
-		Vin:      txPb.Vin,
+		Vin:      inInfos,
 		Vout:     outInfos,
 		Data:     txPb.Data,
 		Magic:    txPb.Magic,
 		LockTime: txPb.LockTime,
 		Hash:     hash.String(),
+		Fee:      fee,
 		Size_:    uint64(len(bts)),
 	}
 	return out, nil
 }
 
-func convertTransactions(txs []*types.Transaction) ([]*rpcpb.TransactionInfo, error) {
-	var txsPb []*rpcpb.TransactionInfo
-	for _, tx := range txs {
-		txPb, err := convertTransaction(tx)
-		if err != nil {
-			return nil, err
-		}
-		txsPb = append(txsPb, txPb)
-	}
-	return txsPb, nil
-}
+//func (s *webapiServer) convertTransactions(txs []*types.Transaction, utxos map[types.OutPoint]*types.UtxoWrap) ([]*rpcpb.TransactionInfo, error) {
+//	var txsPb []*rpcpb.TransactionInfo
+//	for _, tx := range txs {
+//		txPb, err := s.convertTransaction(tx, utxos)
+//		if err != nil {
+//			return nil, err
+//		}
+//		txsPb = append(txsPb, txPb)
+//	}
+//	return txsPb, nil
+//}
 
-func convertBlock(block *types.Block) (*rpcpb.BlockInfo, error) {
+func (s *webapiServer) convertBlock(block *types.Block) (*rpcpb.BlockInfo, error) {
 
 	headerPb, err := convertHeader(block.Header)
 	if err != nil {
@@ -641,7 +702,11 @@ func convertBlock(block *types.Block) (*rpcpb.BlockInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	txsPb, err := convertTransactions(block.Txs)
+	utxos, err := s.loadUtxoForTx(block.Txs)
+	if err != nil {
+		return nil, err
+	}
+	txsPb, err := s.convertTransactionInfos(block.Txs, utxos)
 	if err != nil {
 		return nil, err
 	}

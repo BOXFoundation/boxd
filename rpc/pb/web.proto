@@ -139,7 +139,7 @@ message HeaderInfo {
 
 message TransactionInfo {
     int32 version = 1;
-    repeated corepb.TxIn vin = 2;
+    repeated TxInInfo vin = 2;
     repeated TxOutInfo vout = 3;
     corepb.Data data = 4;
     uint32 magic = 5;
@@ -165,6 +165,18 @@ message TxOutInfo {
     string script_disasm = 3;
     TokenIssueInfo issue_info = 4;
     TokenTransferInfo transfer_info = 5;
+}
+
+message OutPointInfo {
+    string hash = 1;
+    uint32 index = 2;
+}
+
+message TxInInfo {
+    OutPointInfo prev_out_point = 1;
+    bytes script_sig = 2;
+    uint32 sequence = 3;
+    uint64 value = 4;
 }
 
 message BlockInfo {
