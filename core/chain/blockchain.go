@@ -1288,7 +1288,6 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	}
 	isSplitAddr, addrs, weights, err := chain.findSplitAddr(addr)
 	if !isSplitAddr {
-		logger.Debugf("Address %v is not a split address", addrs)
 		return txOuts
 	}
 	if err != nil {
