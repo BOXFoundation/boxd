@@ -32,7 +32,7 @@ var (
 	ErrTokenInputsOutputNotEqual   = errors.New("Tx input tokens and output tokens unequal")
 	ErrParentBlockNotExist         = errors.New("Parent block does not exist")
 	ErrBlockTimeOut                = errors.New("The block is timeout")
-	ErrInvalidBlockTimeStamp       = errors.New("Invalid block timestamp")
+	ErrFutureBlock                 = errors.New("Received a future block")
 	ErrRepeatedMintAtSameTime      = errors.New("Repeated mint at same time")
 
 	//transaciton_pool.go

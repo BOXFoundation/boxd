@@ -145,11 +145,11 @@ func (pc *PeriodContext) Unmarshal(data []byte) error {
 func (pc *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
 
 	period := pc.period
-	offsetPeriod := (timestamp * SecondInMs) % (NewBlockTimeInterval * PeriodSize)
-	if (offsetPeriod % NewBlockTimeInterval) != 0 {
-		return nil, ErrWrongTimeToMint
-	}
-	offset := offsetPeriod / NewBlockTimeInterval
+	offsetPeriod := (timestamp * SecondInMs) % (MinerRefreshInterval * PeriodSize)
+	// if (offsetPeriod % MinerRefreshInterval) != 0 {
+	// 	return nil, ErrWrongTimeToMint
+	// }
+	offset := offsetPeriod / MinerRefreshInterval
 	offset = offset % PeriodSize
 
 	var miner *types.AddressHash
