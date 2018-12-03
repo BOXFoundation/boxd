@@ -237,6 +237,14 @@ func (server *Server) initEventListener() {
 		out <- true
 	}, false)
 
+	server.bus.Reply(eventbus.TopicP2PAddPeer, func(peerAddr string, out chan<- error) {
+		out <- server.peer.AddAddrToPeerstore(peerAddr)
+	}, false)
+
+	server.bus.Reply(eventbus.TopicGetNetworkID, func(out chan<- uint32) {
+		out <- server.cfg.P2p.Magic
+	}, false)
+
 	// TopicGetDatabaseKeys
 	server.bus.Reply(eventbus.TopicGetDatabaseKeys, func(parent context.Context, table string, prefix string, skip int32, limit int32, out chan<- []string) {
 		defer func() {

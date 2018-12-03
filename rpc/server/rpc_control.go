@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/p2p"
+
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -48,6 +50,21 @@ func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoReque
 	return resp, nil
 }
 
+func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rpcpb.BaseResponse, error) {
+	out := make(chan error)
+	s.server.GetEventBus().Send(eventbus.TopicP2PAddPeer, req.Node, out)
+	if err := <-out; err != nil {
+		return &rpcpb.BaseResponse{
+			Code:    -1,
+			Message: err.Error(),
+		}, err
+	}
+	return &rpcpb.BaseResponse{
+		Code:    0,
+		Message: "ok",
+	}, nil
+}
+
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
 	bus := s.server.GetEventBus()
@@ -59,6 +76,25 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 	}
 	var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
 	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+}
+
+// GetNetworkID returns
+func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
+	ch := make(chan uint32)
+	s.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
+	current := <-ch
+	var literal string
+	if current == p2p.Mainnet {
+		literal = "Mainnet"
+	} else if current == p2p.Testnet {
+		literal = "Testnet"
+	} else {
+		literal = "Unknown"
+	}
+	return &rpcpb.GetNetworkIDResponse{
+		Id:      current,
+		Literal: literal,
+	}, nil
 }
 
 // UpdateNetworkID implements UpdateNetworkID
