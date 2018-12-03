@@ -292,7 +292,7 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 	return nil
 }
 
-// LoadBlockUtxos loads the unspent transaction outputs related to block
+// LoadBlockUtxos loads all UTXOs txs in the block spend
 func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 
 	txs := map[crypto.HashType]int{}
