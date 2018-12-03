@@ -11,10 +11,8 @@ const (
 	TopicUpdateNetworkID = "rpc:updatenetworkid"
 	// TopicGetAddressBook is topic for listing p2p peer status
 	TopicGetAddressBook = "rpc:getaddressbook"
-
 	//TopicP2PPeerAddr is a event topic for new peer addr found or peer addr updated
 	TopicP2PPeerAddr = "p2p:peeraddr"
-
 	// TopicConnEvent is a event topic of events for score updated
 	TopicConnEvent = "p2p:connevent"
 

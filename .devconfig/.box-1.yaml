@@ -24,6 +24,7 @@ p2p:
     latency: 10
     conn_max_capacity: 200
     conn_load_factor: 0.8
+    relay_size: 32
 rpc:
     port: 19191
     http:
