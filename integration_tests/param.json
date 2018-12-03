@@ -2,18 +2,18 @@
   "peer_cnt": 6,
   "test_scope": "basic",
   "pass_phrase": "1",
-  "ticker_duration_txs": 1,
+  "ticker_duration_txs": 5,
   "wallet_dir": "./.devconfig/ws1/box_keystore/",
   "docker_compose_file": "../docker/docker-compose.yml",
   "local_ws": "./.devconfig/",
   "docker_ws": "../docker/.devconfig/",
   "transaction_test": {
     "enable": true,
-    "collection_accounts": 20,
+    "collection_accounts": 10,
     "collection_unit_accounts": 5,
-    "circulation_accounts": 20,
+    "circulation_accounts": 10,
     "circulation_unit_accounts": 5,
-    "circulation_repeat_times": 100,
+    "circulation_repeat_times": 200,
     "circulation_workers": 1
   },
   "token_test": {
@@ -21,7 +21,7 @@
     "enable": true,
     "accounts": 3,
     "unit_accounts": 3,
-    "repeat_times": 100
+    "repeat_times": 200
   },
   "iplist": {
     "docker": [

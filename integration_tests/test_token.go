@@ -76,7 +76,6 @@ func (t *TokenTest) Run() {
 		peerAddr := peersAddr[peerIdx]
 		peerIdx++
 		logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount, peerAddr)
-		time.Sleep(blockTime)
 		addr, _, err := utils.WaitOneAddrBalanceEnough(minerAddrs, totalAmount, peerAddr,
 			timeoutToChain)
 		if err != nil {
@@ -86,6 +85,8 @@ func (t *TokenTest) Run() {
 		}
 
 		// transfer some box from a miner to a test account
+		//var err error
+		//addr := minerAddrs[peerIdx]
 		blcPre := utils.BalanceFor(t.addrs[0], peerAddr)
 		feeAmount := uint64(totalAmount / 2)
 		logger.Infof("send %d from %s to %s", feeAmount, addr, t.addrs[0])
