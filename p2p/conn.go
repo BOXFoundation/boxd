@@ -298,21 +298,23 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 	return nil
 }
 
-// TODO: 拿到peer里去
 func (conn *Conn) relay(msg *message) error {
 
 	reserve := msg.reserved
 	reserve[0] = byte(int(msg.reserved[0]) - 1<<5)
 	data := newMessageData(conn.peer.config.Magic, msg.code, reserve, msg.body)
 
+	cnt := 0
 	conn.peer.conns.Range(func(k, v interface{}) bool {
 		conn := v.(*Conn)
 		if conn.peer.id.Pretty() == conn.remotePeer.Pretty() {
 			return true
 		}
-
 		go conn.write(data)
-
+		cnt++
+		if uint32(cnt) > conn.peer.config.RelaySize {
+			return false
+		}
 		return true
 	})
 	return nil
