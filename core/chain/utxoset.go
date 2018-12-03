@@ -167,7 +167,7 @@ func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 
 // RevertTx updates utxos with the passed tx: delete all utxos in outputs and add all utxos in inputs.
 // It undoes the effect of ApplyTx on utxo set
-func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight uint32) error {
+func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 	txHash, _ := tx.TxHash()
 
 	// Remove added utxos
@@ -183,24 +183,39 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight uint32) error {
 	// "Unspend" the referenced utxos
 	for _, txIn := range tx.Vin {
 		utxoWrap := u.utxoMap[txIn.PrevOutPoint]
-		if utxoWrap == nil {
+		if utxoWrap != nil {
+			utxoWrap.IsSpent = false
+			utxoWrap.IsModified = true
+			continue
+		}
+		// This can happen when the block the tx is in is being reverted
+		// The UTXO txIn spends have been deleted from UTXO set, so we load it from tx index
+		block, txIdx, err := chain.LoadBlockInfoByTxHash(txIn.PrevOutPoint.Hash)
+		if err != nil {
 			logger.Panicf("Trying to unspend non-existing spent output %v", txIn.PrevOutPoint)
 		}
-		utxoWrap.IsSpent = false
-		utxoWrap.IsModified = true
+		prevTx := block.Txs[txIdx]
+		utxoWrap = &types.UtxoWrap{
+			Output:      prevTx.Vout[txIn.PrevOutPoint.Index],
+			BlockHeight: block.Height,
+			IsCoinBase:  IsCoinBase(prevTx),
+			IsModified:  true,
+			IsSpent:     false,
+		}
+		u.utxoMap[txIn.PrevOutPoint] = utxoWrap
 	}
 	return nil
 }
 
 // RevertBlock undoes utxo changes made with all the transactions in the passed block
 // It undoes the effect of ApplyBlock on utxo set
-func (u *UtxoSet) RevertBlock(block *types.Block) error {
+func (u *UtxoSet) RevertBlock(block *types.Block, chain *BlockChain) error {
 	// Loop backwards through all transactions so everything is unspent in reverse order.
 	// This is necessary since transactions later in a block can spend from previous ones.
 	txs := block.Txs
 	for txIdx := len(txs) - 1; txIdx >= 0; txIdx-- {
 		tx := txs[txIdx]
-		if err := u.RevertTx(tx, block.Height); err != nil {
+		if err := u.RevertTx(tx, chain); err != nil {
 			return err
 		}
 	}

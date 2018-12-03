@@ -237,7 +237,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.verifyExists(*blockHash); exists {
-		logger.Warnf("The block is already exist. Hash: %s, Height: %d", blockHash.String(), block.Height)
+		logger.Warnf("The block already exists. Hash: %s, Height: %d", blockHash.String(), block.Height)
 		return core.ErrBlockExists
 	}
 
@@ -528,7 +528,7 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
 	}
-	if err := utxoSet.RevertBlock(block); err != nil {
+	if err := utxoSet.RevertBlock(block, chain); err != nil {
 		return err
 	}
 	// save utxoset to database

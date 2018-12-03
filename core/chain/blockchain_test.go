@@ -9,17 +9,20 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/script"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/facebookgo/ensure"
 )
 
 // test setup
 var (
-	_, publicKey, _ = crypto.NewKeyPair()
-	minerAddr, _    = types.NewAddressFromPubKey(publicKey)
-	blockChain      = NewTestBlockChain()
+	privKey, pubKey, _ = crypto.NewKeyPair()
+	minerAddr, _       = types.NewAddressFromPubKey(pubKey)
+	scriptPubKey       = script.PayToPubKeyHashScript(minerAddr.Hash())
+	blockChain         = NewTestBlockChain()
 )
 
 // Test if appending a slice while looping over it using index works.
@@ -39,6 +42,59 @@ func TestAppendInLoop(t *testing.T) {
 	if num != 2*n {
 		t.Errorf("Expect looping %d times, but got %d times instead", n, num)
 	}
+}
+
+// create a child tx spending parent tx's output
+func createChildTx(parentTx *types.Transaction) *types.Transaction {
+	outPoint := types.OutPoint{
+		Hash:  *getTxHash(parentTx),
+		Index: 0,
+	}
+	txIn := &types.TxIn{
+		PrevOutPoint: outPoint,
+		ScriptSig:    []byte{},
+		Sequence:     0,
+	}
+	vIn := []*types.TxIn{
+		txIn,
+	}
+	txOut := &corepb.TxOut{
+		Value:        value,
+		ScriptPubKey: *scriptPubKey,
+	}
+	vOut := []*corepb.TxOut{txOut}
+	tx := &types.Transaction{
+		Version:  1,
+		Vin:      vIn,
+		Vout:     vOut,
+		Magic:    1,
+		LockTime: 0,
+	}
+
+	// sign it
+	for txInIdx, txIn := range tx.Vin {
+		sigHash, err := script.CalcTxHashForSig(*scriptPubKey, tx, txInIdx)
+		if err != nil {
+			return nil
+		}
+		sig, err := crypto.Sign(privKey, sigHash)
+		if err != nil {
+			return nil
+		}
+		scriptSig := script.SignatureScript(sig, pubKey.Serialize())
+		txIn.ScriptSig = *scriptSig
+
+		// test to ensure
+		if err = script.Validate(scriptSig, scriptPubKey, tx, txInIdx); err != nil {
+			return nil
+		}
+	}
+	return tx
+}
+
+func getTxHash(tx *types.Transaction) *crypto.HashType {
+	txHash, _ := tx.TxHash()
+	return txHash
 }
 
 // generate a child block
@@ -86,6 +142,9 @@ func TestBlockProcessing(t *testing.T) {
 	// extend main chain
 	// b0 -> b1 -> b2
 	b2 := nextBlock(b1)
+	// add a tx spending from previous block's coinbase
+	b2.Txs = append(b2.Txs, createChildTx(b1.Txs[0]))
+	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
 	verifyProcessBlock(t, b2, nil, 2, b2)
 
 	// extend side chain: fork from b1
