@@ -13,44 +13,58 @@ import "google/api/annotations.proto";
 service ContorlCommand {
     // set boxd debug level
     rpc SetDebugLevel (DebugLevelRequest) returns (BaseResponse) {
-      option (google.api.http) = {
-        post: "/v1/ctl/debuglevel"
-        body: "*"
+        option (google.api.http) = {
+            post: "/v1/ctl/debuglevel"
+            body: "*"
       };
     }
 
     rpc UpdateNetworkID (UpdateNetworkIDRequest) returns (BaseResponse) {
-      option (google.api.http) = {
-        post: "/v1/ctl/networkid"
-        body: "*"
+        option (google.api.http) = {
+            post: "/v1/ctl/networkid"
+            body: "*"
       };
     }
 
+    rpc GetNetworkID (GetNetworkIDRequest) returns (GetNetworkIDResponse) {
+        option (google.api.http) = {
+            post: "/v1/ctl/getnetwork"
+            body: "*"
+        };
+    }
+
+    rpc AddNode (AddNodeRequest) returns (BaseResponse) {
+        option (google.api.http) = {
+            post: "/v1/ctl/addnode"
+            body: "*"
+        };
+    }
+
     rpc GetBlockHeight (GetBlockHeightRequest) returns (GetBlockHeightResponse) {
-      option (google.api.http) = {
-        post: "/v1/ctl/getblockheight"
-        body: "*"
+        option (google.api.http) = {
+            post: "/v1/ctl/getblockheight"
+            body: "*"
       };
     }
 
     rpc GetBlockHash (GetBlockHashRequest) returns (GetBlockHashResponse) {
-      option (google.api.http) = {
-        post: "/v1/ctl/getblockhash"
-        body: "*"
+        option (google.api.http) = {
+            post: "/v1/ctl/getblockhash"
+            body: "*"
       };
     }
 
     rpc GetBlockHeader (GetBlockRequest) returns (GetBlockHeaderResponse) {
-      option (google.api.http) = {
-        post: "/v1/ctl/getblockheader"
-        body: "*"
+        option (google.api.http) = {
+            post: "/v1/ctl/getblockheader"
+            body: "*"
       };
     }
 
     rpc GetBlock (GetBlockRequest) returns (GetBlockResponse) {
-      option (google.api.http) = {
-        post: "/v1/ctl/getblock"
-        body: "*"
+        option (google.api.http) = {
+            post: "/v1/ctl/getblock"
+            body: "*"
       };
     }
 
@@ -61,7 +75,7 @@ service ContorlCommand {
         };
     }
 }
-  
+
 // The request message containing debug level.
 message DebugLevelRequest {
     string level = 1;
@@ -69,6 +83,18 @@ message DebugLevelRequest {
 
 message UpdateNetworkIDRequest {
     uint32 id = 1;
+}
+
+message GetNetworkIDRequest {
+}
+
+message GetNetworkIDResponse {
+    uint32 id = 1;
+    string literal = 2;
+}
+
+message AddNodeRequest {
+    string node = 1;
 }
 
 message GetBlockHeightRequest {

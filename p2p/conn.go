@@ -143,10 +143,10 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 		return nil, ErrDuplicateMessage
 	}
 
-	reserved := msg.messageHeader.reserved
+	reserved := msg.reserved
 	if len(reserved) != 0 {
 		if int(reserved[0])&relayFlag != 0 {
-			go conn.relay(msg)
+			go conn.relay(&message{msg.messageHeader, msg.body})
 		}
 		if int(reserved[0])&compressFlag != 0 {
 			data, err := decompress(nil, msg.body)
@@ -306,11 +306,11 @@ func (conn *Conn) relay(msg *message) error {
 
 	cnt := 0
 	conn.peer.conns.Range(func(k, v interface{}) bool {
-		conn := v.(*Conn)
-		if conn.peer.id.Pretty() == conn.remotePeer.Pretty() {
+		connTmp := v.(*Conn)
+		if connTmp.remotePeer.Pretty() == conn.remotePeer.Pretty() {
 			return true
 		}
-		go conn.write(data)
+		go connTmp.write(data)
 		cnt++
 		if uint32(cnt) > conn.peer.config.RelaySize {
 			return false

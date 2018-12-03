@@ -173,6 +173,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_ListUtxos_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -193,6 +202,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_FundTransaction_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -213,6 +231,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_SendTransaction_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -233,6 +260,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_GetRawTransaction_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -253,6 +289,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_GetBalance_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -273,6 +318,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_GetTokenBalance_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -293,6 +347,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_GetFeePrice_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -313,6 +376,15 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 	mux.Handle("POST", pattern_TransactionCommand_GetTransactionPool_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {

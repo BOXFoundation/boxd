@@ -9,10 +9,14 @@ const (
 	TopicSetDebugLevel = "rpc:setdebuglevel"
 	// TopicUpdateNetworkID is topic for updating network id
 	TopicUpdateNetworkID = "rpc:updatenetworkid"
+	// TopicGetNetworkID is topic for querying network id
+	TopicGetNetworkID = "rpc:getnetworkid"
 	// TopicGetAddressBook is topic for listing p2p peer status
 	TopicGetAddressBook = "rpc:getaddressbook"
 	//TopicP2PPeerAddr is a event topic for new peer addr found or peer addr updated
 	TopicP2PPeerAddr = "p2p:peeraddr"
+	//TopicP2PAddPeer is a event topic for adding peer addr to peer store
+	TopicP2PAddPeer = "p2p:addpeer"
 	// TopicConnEvent is a event topic of events for score updated
 	TopicConnEvent = "p2p:connevent"
 

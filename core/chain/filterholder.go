@@ -25,7 +25,7 @@ type FilterEntry struct {
 type BloomFilterHolder interface {
 	ResetFilters(uint32) error
 	ListMatchedBlockHashes([]byte) []crypto.HashType
-	AddFilter(uint32, crypto.HashType, storage.Table, func() bloom.Filter) error
+	AddFilter(uint32, crypto.HashType, storage.Table, storage.Batch, func() bloom.Filter) error
 }
 
 // NewFilterHolder creates an holder instance
@@ -48,6 +48,7 @@ func (holder *MemoryBloomFilterHolder) AddFilter(
 	height uint32,
 	hash crypto.HashType,
 	db storage.Table,
+	batch storage.Batch,
 	onCacheMiss func() bloom.Filter) error {
 	holder.mux.Lock()
 	defer holder.mux.Unlock()
@@ -78,7 +79,7 @@ func (holder *MemoryBloomFilterHolder) AddFilter(
 	if err != nil {
 		return fmt.Errorf("error marshal filter for block %v", hash.String())
 	}
-	db.Put(filterKey, filterBytes)
+	batch.Put(filterKey, filterBytes)
 	return nil
 }
 

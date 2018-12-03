@@ -1,0 +1,249 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+package rpcpb;
+
+import "github.com/BOXFoundation/boxd/core/pb/block.proto";
+import "google/api/annotations.proto";
+
+service WebApi {
+    rpc GetTransaction (GetTransactionInfoRequest) returns (GetTransactionInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettransaction"
+            body: "*"
+        };
+    }
+
+    rpc GetBlock (GetBlockInfoRequest) returns (BlockInfo) {
+        option (google.api.http) = {
+            post: "/v1/webapi/getblock"
+            body: "*"
+        };
+    }
+
+    rpc GetTopHolders (GetTopHoldersRequest) returns (GetTopHoldersResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/topholders"
+            body: "*"
+        };
+    }
+
+    rpc GetHolderCount (GetHolderCountRequest) returns (GetHolderCountResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/holdercount"
+            body: "*"
+        };
+    }
+
+    rpc GetPendingTransaction (GetPendingTransactionRequest) returns (GetTransactionsInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/getpendingtxs"
+            body: "*"
+        };
+    }
+
+    rpc GetTransactionHistory (GetTransactionHistoryRequest) returns (GetTransactionsInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettxhistory"
+            body: "*"
+        };
+    }
+
+    rpc ListTokens (ListTokensRequest) returns (ListTokensResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/listtokens"
+            body: "*"
+        };
+    }
+
+    rpc GetTokenInfo (GetTokenInfoRequest) returns (GetTokenInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettoken"
+            body: "*"
+        };
+    }
+
+    rpc GetTokenHolders (GetTokenHoldersRequest) returns (GetTokenHoldersResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettokenholders"
+            body: "*"
+        };
+    }
+
+    rpc GetTokenTransactions (GetTokenTransactionsRequest) returns (GetTransactionsInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/webapi/gettokentxs"
+            body: "*"
+        };
+    }
+
+}
+
+message GetTransactionsInfoResponse {
+    uint32 total = 1;
+    repeated TransactionInfo txs = 2;
+}
+
+message GetTransactionHistoryRequest {
+    string addr = 1;
+    uint32 limit = 2;
+    uint32 offset = 3;
+}
+
+message GetPendingTransactionRequest {
+    uint32 limit = 1;
+    uint32 offset = 2;
+}
+
+message GetBlockInfoRequest {
+    string hash = 1;
+}
+
+message GetTransactionInfoRequest {
+    string hash = 1;
+}
+
+message GetTopHoldersRequest {
+    uint32 limit = 1;
+    uint32 offset = 2;
+}
+
+message GetTopHoldersResponse {
+    uint32 total = 1;
+    repeated AddressAmount data = 2;
+}
+
+message AddressAmount {
+    string addr = 1;
+    uint64 amount = 2;
+}
+
+message GetHolderCountRequest {
+}
+
+message GetHolderCountResponse {
+    uint32 holder_count = 1;
+}
+
+message HeaderInfo {
+    int32 version = 1;
+    string prev_block_hash = 2;
+    string txs_root = 3;
+    int64 time_stamp = 4;
+    uint32 magic = 5;
+    string period_hash = 6;
+    string candidates_hash = 7;
+}
+
+message TransactionInfo {
+    int32 version = 1;
+    repeated TxInInfo vin = 2;
+    repeated TxOutInfo vout = 3;
+    corepb.Data data = 4;
+    uint32 magic = 5;
+    int64 lock_time = 6;
+    string hash = 7;
+    uint64 fee = 8;
+    uint64 size = 9;
+}
+
+message TransactionExtraInfo {
+    int64 block_time = 1;
+    uint32 block_height = 2;
+}
+
+message GetTransactionInfoResponse {
+    TransactionInfo txInfo = 1;
+    TransactionExtraInfo extraInfo = 2;
+}
+
+message TokenTransferInfo {
+    Token token = 1;
+    uint64 amount = 2;
+}
+
+message TokenIssueInfo {
+    string name = 1;
+    uint64 total_supply = 2;
+}
+
+message TxOutInfo {
+    uint64 value = 1;
+    bytes script_pub_key = 2;
+    string script_disasm = 3;
+    TokenIssueInfo issue_info = 4;
+    TokenTransferInfo transfer_info = 5;
+}
+
+message OutPointInfo {
+    string hash = 1;
+    uint32 index = 2;
+}
+
+message TxInInfo {
+    OutPointInfo prev_out_point = 1;
+    bytes script_sig = 2;
+    uint32 sequence = 3;
+    uint64 value = 4;
+}
+
+message BlockInfo {
+    HeaderInfo header = 1;
+    repeated TransactionInfo txs = 2;
+    uint32 height = 3;
+    bytes signature = 4;
+    string hash = 5;
+    uint64 size = 6;
+    string coin_base = 7;
+}
+
+message Token {
+    string hash = 1;
+    uint32 index = 2;
+}
+
+message ListTokensRequest {
+    uint32 offset = 1;
+    uint32 limit = 2;
+}
+
+message GetTokenHoldersRequest {
+    Token token = 1;
+    uint32 offset = 2;
+    uint32 limit = 3;
+}
+
+message GetTokenTransactionsRequest {
+    Token token = 1;
+    uint32 offset = 2;
+    uint32 limit = 3;
+}
+
+message GetTokenInfoRequest {
+    Token token = 1;
+}
+
+message GetTokenInfoResponse {
+    TokenBasicInfo info = 1;
+}
+
+message TokenBasicInfo {
+    Token token = 1;
+    string name = 2;
+    uint64 total_supply = 3;
+    string creator_addr = 4;
+    uint64 creator_time = 5;
+}
+
+message ListTokensResponse {
+    uint32 count = 1;
+    repeated TokenBasicInfo tokens = 2;
+}
+
+message GetTokenHoldersResponse {
+    Token token = 1;
+    uint32 count = 2;
+    repeated AddressAmount data = 3;
+}

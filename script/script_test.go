@@ -12,6 +12,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/facebookgo/ensure"
 )
 
@@ -51,6 +52,14 @@ var (
 		0x0F, 0x10, 0x11, 0x12, 0x13, // 160-bit redeemp script hash: end
 		byte(OPEQUAL),
 	}
+
+	testPrivKey1, testPubKey1, _ = crypto.NewKeyPair()
+	testPubKeyBytes1             = testPubKey1.Serialize()
+	addr1, _                     = types.NewAddressFromPubKey(testPubKey1)
+
+	testPrivKey2, testPubKey2, _ = crypto.NewKeyPair()
+	testPubKeyBytes2             = testPubKey2.Serialize()
+	addr2, _                     = types.NewAddressFromPubKey(testPubKey2)
 )
 
 // test script not dependent on a tx
@@ -310,4 +319,16 @@ func TestGetNthOp(t *testing.T) {
 	ensure.DeepEqual(t, opCode, OPCHECKSIG)
 	opCode, _, _, err = scriptPubKey.getNthOp(pc /* start pc */, 3 /* n-th */)
 	ensure.NotNil(t, err)
+}
+
+func TestParseSplitAddrScript(t *testing.T) {
+	addrs := []types.Address{addr, addr1, addr2}
+	weights := []uint64{1, 4, 7}
+	splitAddrScript := SplitAddrScript(addrs, weights)
+	ensure.True(t, splitAddrScript.IsSplitAddrScript())
+	ensure.True(t, util.IsPrefixed(*splitAddrScript, *splitAddrScript.GetSplitAddrScriptPrefix()))
+	pubKeys1, weights1, err := splitAddrScript.ParseSplitAddrScript()
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, pubKeys1, addrs)
+	ensure.DeepEqual(t, weights1, weights)
 }

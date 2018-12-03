@@ -239,7 +239,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 	}
 
 	// A tx is an orphan if any of its spending utxo does not exist
-	if !utxoSet.IsTxFunded(tx) {
+	if utxoSet.TxInputAmount(tx) == 0 {
 		// Add orphan transaction
 		tx_pool.addOrphan(tx)
 		return core.ErrOrphanTransaction

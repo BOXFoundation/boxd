@@ -6,12 +6,10 @@ package p2p
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"hash/crc32"
 	"io"
 	"unsafe"
 
-	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/p2p/pb"
 	"github.com/BOXFoundation/boxd/util"
@@ -90,7 +88,9 @@ var msgToAttribute = map[uint32]*messageAttribute{
 
 func init() {
 	for _, attr := range msgToAttribute {
-		attr.cache, _ = lru.New(65536)
+		if attr.frequency != repeatable {
+			attr.cache, _ = lru.New(4096)
+		}
 	}
 }
 
@@ -195,20 +195,19 @@ func (msgAttr *messageAttribute) duplicateFilter(msg *message, pid peer.ID, freq
 		return true
 	}
 	key := msgAttr.lruKey(msg, pid, frequency)
-	if msgAttr.cache.Contains(key) {
+	if msgAttr.cache.Contains(key) || msgAttr.cache.Add(key, msg) {
 		return false
 	}
-	msgAttr.cache.Add(key, msg)
 	return true
 }
 
-func (msgAttr *messageAttribute) lruKey(msg *message, pid peer.ID, frequency uint8) crypto.HashType {
+func (msgAttr *messageAttribute) lruKey(msg *message, pid peer.ID, frequency uint8) uint32 {
 	key := []byte(msg.body)
 	if frequency == uniquePerPeer {
 		key = append(key, pid...)
 	}
 
-	hash := sha256.Sum256(msg.body)
+	hash := crc32.ChecksumIEEE(msg.body)
 	return hash
 }
 

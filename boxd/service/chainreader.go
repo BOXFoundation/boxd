@@ -7,6 +7,7 @@ package service
 import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/script"
 )
 
 // ChainReader defines basic operations blockchain exposes
@@ -15,9 +16,11 @@ type ChainReader interface {
 	ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error)
 	// LoadUtxoByPubKeyScript([]byte) (map[types.OutPoint]*types.UtxoWrap, error)
 	LoadUtxoByAddress(types.Address) (map[types.OutPoint]*types.UtxoWrap, error)
+	LoadSpentUtxos([]types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error)
 
 	// interface to read transactions
 	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
 
 	//interface to reader block status
 	GetBlockHeight() uint32
@@ -26,4 +29,9 @@ type ChainReader interface {
 
 	// address related search method
 	GetTransactionsByAddr(types.Address) ([]*types.Transaction, error)
+
+	ListTokenIssueTransactions() ([]*types.Transaction, error)
+	GetTokenTransactions(*script.TokenID) ([]*types.Transaction, error)
+
+	IsCoinBase(*types.Transaction) bool
 }

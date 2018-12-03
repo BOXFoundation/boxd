@@ -252,3 +252,12 @@ func calcDoubleHash(data []byte) (*crypto.HashType, error) {
 	hash := crypto.DoubleHashH(data)
 	return &hash, nil
 }
+
+// OutputAmount returns total amount from tx's outputs
+func (tx *Transaction) OutputAmount() uint64 {
+	totalOutputAmount := uint64(0)
+	for _, txOut := range tx.Vout {
+		totalOutputAmount += txOut.Value
+	}
+	return totalOutputAmount
+}

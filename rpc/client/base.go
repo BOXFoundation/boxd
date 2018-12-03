@@ -29,9 +29,16 @@ type TransferParam struct {
 	isToken bool
 	amount  uint64
 	token   *types.OutPoint
+	// only used for split addr
+	addrs   []types.Address
+	weights []uint64
 }
 
 func (tp *TransferParam) getScript() ([]byte, error) {
+	if tp.addrs != nil {
+		// creating split address
+		return getSplitAddrScript(tp.addrs, tp.weights)
+	}
 	if tp.isToken {
 		if tp.token == nil {
 			return nil, fmt.Errorf("token type needs to be filled")
@@ -104,6 +111,11 @@ func getTransferTokenScript(pubKeyHash []byte, tokenTxHash *crypto.HashType, tok
 	transferParams.Amount = amount
 
 	script := script.TransferTokenScript(addr.Hash(), transferParams)
+	return *script, nil
+}
+
+func getSplitAddrScript(addrs []types.Address, weights []uint64) ([]byte, error) {
+	script := script.SplitAddrScript(addrs, weights)
 	return *script, nil
 }
 

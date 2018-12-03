@@ -40,6 +40,10 @@ type TokenID struct {
 	types.OutPoint
 }
 
+func (t *TokenID) String() string {
+	return fmt.Sprintf("%x#%d", t.Hash, t.Index)
+}
+
 // TransferParams defines parameters for transferring tokens
 type TransferParams struct {
 	TokenID

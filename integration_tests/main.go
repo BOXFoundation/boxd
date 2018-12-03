@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/signal"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/wallet"
 )
@@ -19,11 +22,6 @@ import (
 type scopeValue string
 
 const (
-	walletDir         = "./.devconfig/ws1/box_keystore/"
-	dockerComposeFile = "../docker/docker-compose.yml"
-
-	testPassphrase = "1"
-
 	peerCnt = 6
 
 	blockTime = 5 * time.Second
@@ -34,17 +32,7 @@ const (
 	continueScope scopeValue = "continue"
 )
 
-var (
-	localConf = struct {
-		ConfDir, WorkDir, KeyDir string
-	}{"./.devconfig/", "./.devconfig/", "./.devconfig/keyfile/"}
-
-	dockerConf = struct {
-		ConfDir, WorkDir, KeyDir string
-	}{"../docker/.devconfig/", "../docker/.devconfig/", "../docker/.devconfig/keyfile/"}
-)
-
-var logger = log.NewLogger("integration_tests") // logger
+var logger = log.NewLogger("integration") // logger
 
 // CirInfo defines circulation information
 type CirInfo struct {
@@ -53,20 +41,21 @@ type CirInfo struct {
 }
 
 var (
-	peersAddr          []string
 	minConsensusBlocks = 5
 
-	scope        = flag.String("scope", "basic", "can select basic/main/full/continue cases")
-	newNodes     = flag.Bool("nodes", true, "need to start nodes?")
-	enableDocker = flag.Bool("docker", false, "test in docker containers?")
-	testsCnt     = flag.Int("accounts", 10, "how many need to create test acconts?")
+	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
+	peersAddr  []string
 	minerAddrs []string
-	//minerAccAddrs []string
-	minerAccs []*wallet.Account
+	minerAccs  []*wallet.Account
 
 	//AddrToAcc stores addr to account
 	AddrToAcc = make(map[string]*wallet.Account)
+
+	lastTxTestTxCnt    = uint64(0)
+	lastTokenTestTxCnt = uint64(0)
+	txTestTxCnt        = uint64(0)
+	tokenTestTxCnt     = uint64(0)
 )
 
 func init() {
@@ -74,9 +63,9 @@ func init() {
 	// get addresses of three miners
 	files := make([]string, peerCnt)
 	for i := 0; i < peerCnt; i++ {
-		files[i] = localConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
+		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
 	}
-	minerAddrs, minerAccs = minerAccounts(files...)
+	minerAddrs, minerAccs = utils.MinerAccounts(files...)
 	logger.Debugf("minersAddrs: %v", minerAddrs)
 	for i, addr := range minerAddrs {
 		AddrToAcc[addr] = minerAccs[i]
@@ -90,90 +79,114 @@ func main() {
 		}
 	}()
 	flag.Parse()
-	var err error
-	if *newNodes {
+	if err := utils.LoadConf(); err != nil {
+		logger.Panic(err)
+	}
+	if *utils.NewNodes {
 		// prepare environment and clean history data
-		if err := prepareEnv(peerCnt); err != nil {
+		if err := utils.PrepareEnv(peerCnt); err != nil {
 			logger.Panic(err)
 		}
-		//defer tearDown(peerCnt)
+		//defer utils.TearDown(peerCnt)
 
 		// start nodes
-		if *enableDocker {
-			peersAddr, err = parseIPlist(".devconfig/docker.iplist")
-			if err != nil {
+		if *utils.EnableDocker {
+			if err := utils.StartNodes(); err != nil {
 				logger.Panic(err)
 			}
-			if err := startNodes(); err != nil {
-				logger.Panic(err)
-			}
-			defer stopNodes()
+			defer utils.StopNodes()
 		} else {
-			peersAddr, err = parseIPlist(".devconfig/local.iplist")
+			processes, err := utils.StartLocalNodes(peerCnt)
+			defer utils.StopLocalNodes(processes...)
 			if err != nil {
 				logger.Panic(err)
 			}
-			processes, err := startLocalNodes(peerCnt)
-			defer stopLocalNodes(processes...)
-			if err != nil {
-				logger.Panic(err)
-			}
-		}
-	} else {
-		peersAddr, err = parseIPlist(".devconfig/testnet.iplist")
-		if err != nil {
-			logger.Panic(err)
 		}
 	}
+	peersAddr = utils.PeerAddrs()
 	minConsensusBlocks = (len(peersAddr)+2)/3*2 + 1
+
+	// print tx count per TickerDurationTxs
+	go func() {
+		logger.Info("txs ticker for main start")
+		time.Sleep(timeoutToChain)
+		d := utils.TickerDurationTxs()
+		t := time.NewTicker(d)
+		defer t.Stop()
+		quitCh := make(chan os.Signal, 1)
+		signal.Notify(quitCh, os.Interrupt, os.Kill)
+
+		for {
+			select {
+			case <-t.C:
+				txCnt := atomic.LoadUint64(&txTestTxCnt)
+				tokenCnt := atomic.LoadUint64(&tokenTestTxCnt)
+				totalTxs := txCnt + tokenCnt
+				lastTotalTxs := lastTxTestTxCnt + lastTokenTestTxCnt
+				txs := totalTxs - lastTotalTxs
+				logger.Infof("TPS = %6.2f during last %v, total txs = %d",
+					float64(txs)/float64(d/time.Second), d, totalTxs)
+				lastTxTestTxCnt, lastTokenTestTxCnt = txCnt, tokenCnt
+			case <-quitCh:
+				logger.Info("txs ticker for main exit")
+				return
+			}
+		}
+	}()
 
 	// start test
 	var wg sync.WaitGroup
 	testItems := 2
 	errChans := make(chan error, testItems)
-	wg.Add(testItems)
 
 	// test tx
-	go func() {
-		defer func() {
-			wg.Done()
-			if x := recover(); x != nil {
-				errChans <- fmt.Errorf("%v", x)
-			}
+	if utils.TxTestEnable() {
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+				if x := recover(); x != nil {
+					errChans <- fmt.Errorf("%v", x)
+				}
+			}()
+			txTest()
 		}()
-		txTest()
-	}()
+	}
 
 	// test token
-	go func() {
-		defer func() {
-			wg.Done()
-			if x := recover(); x != nil {
-				errChans <- fmt.Errorf("%v", x)
-			}
+	if utils.TokenTestEnable() {
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+				if x := recover(); x != nil {
+					errChans <- fmt.Errorf("%v", x)
+				}
+			}()
+			tokenTest()
 		}()
-		tokenTest()
-	}()
+	}
 
 	wg.Wait()
 	for len(errChans) > 0 {
-		TryRecordError(<-errChans)
+		utils.TryRecordError(<-errChans)
 	}
 	// check whether integration success
-	for _, e := range ErrItems {
+	for _, e := range utils.ErrItems {
 		logger.Error(e)
 	}
-	if len(ErrItems) > 0 {
+	if len(utils.ErrItems) > 0 {
 		// use panic to exit since it need to execute defer clause above
-		logger.Panicf("integration tests exits with %d errors", len(ErrItems))
+		logger.Panicf("integration tests exits with %d errors", len(utils.ErrItems))
 	}
+	logger.Info("All test cases passed, great job!")
 }
 
 func txTest() {
 	// define chan
-	collPartLen, cirPartLen := 5, 5
-	collLen := (*testsCnt + collPartLen - 1) / collPartLen
-	cirLen := (*testsCnt + cirPartLen - 1) / cirPartLen
+	collPartLen, cirPartLen := utils.CollUnitAccounts(), utils.CircuUnitAccounts()
+	collLen := (utils.CollAccounts() + collPartLen - 1) / collPartLen
+	cirLen := (utils.CircuAccounts() + cirPartLen - 1) / cirPartLen
 	buffLen := collLen
 	if collLen < cirLen {
 		buffLen = cirLen
@@ -181,17 +194,40 @@ func txTest() {
 	collAddrCh := make(chan string, buffLen)
 	cirInfoCh := make(chan CirInfo, buffLen)
 
-	coll := NewCollection(*testsCnt, collPartLen, collAddrCh, cirInfoCh)
+	coll := NewCollection(utils.CollAccounts(), utils.CollUnitAccounts(), collAddrCh,
+		cirInfoCh)
 	defer coll.TearDown()
-	circu := NewCirculation(*testsCnt, cirPartLen, collAddrCh, cirInfoCh)
+	circu := NewCirculation(utils.CircuAccounts(), utils.CircuUnitAccounts(), collAddrCh,
+		cirInfoCh)
 	defer circu.TearDown()
 
 	timeout := blockTime * time.Duration(len(peersAddr)*2)
 	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
 		minConsensusBlocks, timeout)
-	if err := waitAllNodesHeightHigher(peersAddr, minConsensusBlocks, timeout); err != nil {
+	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
+		timeout); err != nil {
 		logger.Panic(err)
 	}
+
+	// print tx count per TickerDurationTxs
+	go func() {
+		logger.Info("txs ticker for txTest start")
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		quitCh := make(chan os.Signal, 1)
+		signal.Notify(quitCh, os.Interrupt, os.Kill)
+
+		for {
+			select {
+			case <-t.C:
+				atomic.StoreUint64(&txTestTxCnt, atomic.LoadUint64(&coll.txCnt)+
+					atomic.LoadUint64(&circu.txCnt))
+			case <-quitCh:
+				logger.Info("txs ticker for txTest exit")
+				return
+			}
+		}
+	}()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -210,16 +246,39 @@ func txTest() {
 	}()
 
 	wg.Wait()
+	logger.Info("done transaction test")
 }
 
 func tokenTest() {
-	t := NewTokenTest(3)
+	t := NewTokenTest(utils.TokenAccounts())
 	timeout := blockTime * time.Duration(len(peersAddr)*2)
 	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
 		minConsensusBlocks, timeout)
-	if err := waitAllNodesHeightHigher(peersAddr, minConsensusBlocks, timeout); err != nil {
+	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
+		timeout); err != nil {
 		logger.Panic(err)
 	}
 	defer t.TearDown()
+
+	// print tx count per TickerDurationTxs
+	go func() {
+		logger.Info("txs ticker for token test start")
+		tk := time.NewTicker(time.Second)
+		defer tk.Stop()
+		quitCh := make(chan os.Signal, 1)
+		signal.Notify(quitCh, os.Interrupt, os.Kill)
+
+		for {
+			select {
+			case <-tk.C:
+				atomic.StoreUint64(&tokenTestTxCnt, atomic.LoadUint64(&t.txCnt))
+			case <-quitCh:
+				logger.Info("txs ticker for tokenTest exit")
+				return
+			}
+		}
+	}()
+
 	t.Run()
+	logger.Info("done token test")
 }

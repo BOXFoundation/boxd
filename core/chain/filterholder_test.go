@@ -147,6 +147,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 		height      uint32
 		hash        crypto.HashType
 		db          storage.Table
+		batch       storage.Batch
 		onCacheMiss func() bloom.Filter
 	}
 	tests := []struct {
@@ -162,6 +163,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				height: 1,
 				hash:   hashForHeight(1),
 				db:     prepareFilterDb(t, []*FilterEntry{}),
+				batch:  prepareFilterDb(t, []*FilterEntry{}).NewBatch(),
 				onCacheMiss: func() bloom.Filter {
 					return filterForHeight(1)
 				},
@@ -175,6 +177,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				height: 1,
 				hash:   hashForHeight(1),
 				db:     prepareFilterDb(t, []*FilterEntry{}),
+				batch:  prepareFilterDb(t, []*FilterEntry{}).NewBatch(),
 				onCacheMiss: func() bloom.Filter {
 					return &uFilter{}
 				},
@@ -188,6 +191,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				height:      1,
 				hash:        hashForHeight(1),
 				db:          prepareFilterDb(t, prepareEntries(0)),
+				batch:       prepareFilterDb(t, prepareEntries(0)).NewBatch(),
 				onCacheMiss: nil,
 			},
 			wantErr: true,
@@ -199,6 +203,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				height:      1,
 				hash:        hashForHeight(1),
 				db:          nil,
+				batch:       nil,
 				onCacheMiss: nil,
 			},
 			wantErr: false,
@@ -210,6 +215,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				height: 1,
 				hash:   hashForHeight(2),
 				db:     nil,
+				batch:  nil,
 				onCacheMiss: func() bloom.Filter {
 					return filterForHeight(2)
 				},
@@ -223,6 +229,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				height:      3,
 				hash:        hashForHeight(3),
 				db:          nil,
+				batch:       nil,
 				onCacheMiss: nil,
 			},
 			wantErr: true,
@@ -234,6 +241,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				height:      2,
 				hash:        hashForHeight(2),
 				db:          prepareFilterDb(t, prepareEntries(2)),
+				batch:       prepareFilterDb(t, prepareEntries(2)).NewBatch(),
 				onCacheMiss: nil,
 			},
 			wantErr: false,
@@ -245,7 +253,7 @@ func TestMemoryBloomFilterHolder_AddFilter(t *testing.T) {
 				entries: tt.entries,
 				mux:     &sync.Mutex{},
 			}
-			if err := holder.AddFilter(tt.args.height, tt.args.hash, tt.args.db, tt.args.onCacheMiss); (err != nil) != tt.wantErr {
+			if err := holder.AddFilter(tt.args.height, tt.args.hash, tt.args.db, tt.args.batch, tt.args.onCacheMiss); (err != nil) != tt.wantErr {
 				t.Errorf("MemoryBloomFilterHolder.AddFilter() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

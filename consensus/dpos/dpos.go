@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/jbenet/goprocess"
@@ -279,6 +280,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	spendableTxs := new(sync.Map)
 
+	// Total fees of all packed txs
+	totalTxFee := uint64(0)
+
 PackingTxs:
 	for {
 		select {
@@ -304,11 +308,23 @@ PackingTxs:
 						logger.Errorf("Could not get extended utxo set for tx %v", txHash)
 						continue
 					}
+
 					// This is to ensure within mempool, a parent tx is packed before its children txs
-					if !utxoSet.IsTxFunded(txWrap.Tx) {
+					totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
+					if totalInputAmount == 0 {
 						// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
 						continue
 					}
+					totalOutputAmount := txWrap.Tx.OutputAmount()
+					if totalInputAmount < totalOutputAmount {
+						// This must not happen since the tx already passed the check when admitted into mempool
+						logger.Panicf("total value of all transaction outputs for "+
+							"transaction %v is %v, which exceeds the input amount "+
+							"of %v", txHash, totalOutputAmount, totalInputAmount)
+					}
+					txFee := totalInputAmount - totalOutputAmount
+					totalTxFee += txFee
+
 					spendableTxs.Store(*txHash, txWrap)
 					blockTxns = append(blockTxns, txWrap.Tx)
 					txPacked[i] = true
@@ -317,6 +333,8 @@ PackingTxs:
 			}
 		}
 	}
+	// Pay tx fees to miner in addition to block reward in coinbase
+	blockTxns[0].Vout[0].Value += totalTxFee
 
 	candidateHash, err := dpos.context.candidateContext.CandidateContextHash()
 	if err != nil {
@@ -326,7 +344,7 @@ PackingTxs:
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
-	logger.Infof("Finish packing txs. Height: %d, TxsNum: %d", block.Height, len(blockTxns))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d", block.BlockHash().String(), block.Height, len(blockTxns))
 	return nil
 }
 
@@ -410,7 +428,7 @@ func (dpos *Dpos) LoadCandidates() error {
 }
 
 // StoreCandidateContext store candidate context
-func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
+func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType, batch storage.Batch) error {
 	if dpos.context.candidateContext == nil {
 		if err := dpos.LoadCandidates(); err != nil {
 			return err
@@ -420,8 +438,8 @@ func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
 	if err != nil {
 		return err
 	}
-	db := dpos.chain.DB()
-	return db.Put(chain.CandidatesKey(hash), bytes)
+	batch.Put(chain.CandidatesKey(hash), bytes)
+	return nil
 }
 
 // prepareCandidateContext prepare to update CandidateContext.
