@@ -29,7 +29,7 @@ const (
 	FixHeaderLength        = 4
 
 	compressFlag = 1 << 7
-	relayFlag    = 3 << 5
+	relayFlag    = 2 << 5
 
 	// dont forget to set messageAttribute below
 	Ping              uint32 = 0x00
@@ -76,7 +76,7 @@ var msgToAttribute = map[uint32]*messageAttribute{
 	PeerDiscover:            &messageAttribute{compress: false, priority: lowPriority, frequency: repeatable},
 	PeerDiscoverReply:       &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
 	NewBlockMsg:             &messageAttribute{compress: true, priority: topPriority, frequency: unique, relay: true},
-	TransactionMsg:          &messageAttribute{compress: true, priority: highPriority, frequency: unique},
+	TransactionMsg:          &messageAttribute{compress: true, priority: highPriority, frequency: unique, relay: true},
 	LocateForkPointRequest:  &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
 	LocateForkPointResponse: &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
 	LocateCheckRequest:      &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
