@@ -331,6 +331,7 @@ PackingTxs:
 					found = true
 				}
 			}
+			break PackingTxs
 		}
 	}
 	// Pay tx fees to miner in addition to block reward in coinbase
