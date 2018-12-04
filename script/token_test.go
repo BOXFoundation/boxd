@@ -12,15 +12,22 @@ import (
 )
 
 var (
-	tokenName   = "box"
-	tokenSupply = uint64(3000000000000)
+	tokenName     = "box token"
+	tokenSymbol   = "BOX"
+	tokenSupply   = uint64(3000000000000)
+	tokenDecimals = uint8(8)
 
 	tokentTxHashStr = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	tokenTxOutIdx   = uint32(1)
 )
 
 func TestIssueToken(t *testing.T) {
-	params := &IssueParams{Name: tokenName, TotalSupply: tokenSupply}
+	params := &IssueParams{
+		Name:        tokenName,
+		Symbol:      tokenSymbol,
+		TotalSupply: tokenSupply,
+		Decimals:    tokenDecimals,
+	}
 	script := IssueTokenScript(testPubKeyHash, params)
 
 	ensure.True(t, script.IsTokenIssue())

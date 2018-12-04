@@ -102,13 +102,13 @@ func (t *TokenTest) Run() {
 		// define roles
 		issuer, issuee, sender, receiver := t.addrs[0], t.addrs[1], t.addrs[0], t.addrs[2]
 		// issue some token
-		totalSupply, tokenName := uint64(100000000), "box"
+		tokenName, tokenSymbol, totalSupply, tokenDecimals := "box token", "BOX", uint64(100000000), uint8(8)
 		txTotalAmount := totalSupply/2 + uint64(rand.Intn(int(totalSupply)/2))
 		logger.Infof("%s issue %d token to %s", issuer, totalSupply, issuee)
-		issueTx0 := issueTokenTx(issuer, issuee, tokenName, totalSupply, peerAddr)
+		issueTx0 := issueTokenTx(issuer, issuee, tokenName, tokenSymbol, totalSupply, tokenDecimals, peerAddr)
 		atomic.AddUint64(&t.txCnt, 1)
 		logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
-		issueTx := issueTokenTx(issuer, sender, tokenName, totalSupply, peerAddr)
+		issueTx := issueTokenTx(issuer, sender, tokenName, tokenSymbol, totalSupply, tokenDecimals, peerAddr)
 		atomic.AddUint64(&t.txCnt, 1)
 
 		// check issue result
@@ -187,8 +187,8 @@ func (t *TokenTest) Run() {
 	}
 }
 
-func issueTokenTx(fromAddr, toAddr, tokenName string, totalSupply uint64,
-	peerAddr string) *types.Transaction {
+func issueTokenTx(fromAddr, toAddr, tokenName, tokenSymbol string, totalSupply uint64,
+	tokenDecimals uint8, peerAddr string) *types.Transaction {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		logger.Panic(err)
@@ -201,8 +201,8 @@ func issueTokenTx(fromAddr, toAddr, tokenName string, totalSupply uint64,
 		logger.Panicf("%v, %v", err1, err2)
 	}
 	tx, err := client.CreateTokenIssueTx(conn, fromAddress, toAddress,
-		AddrToAcc[fromAddr].PublicKey(), tokenName, uint64(totalSupply),
-		AddrToAcc[fromAddr])
+		AddrToAcc[fromAddr].PublicKey(), tokenName, tokenSymbol, uint64(totalSupply),
+		tokenDecimals, AddrToAcc[fromAddr])
 	if err != nil {
 		logger.Panic(err)
 	}
