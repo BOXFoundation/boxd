@@ -1208,25 +1208,27 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 }
 
 // ListTokenIssueTransactions returns transactions which contains token issue info
-func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, error) {
+func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, []*types.BlockHeader, error) {
 	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
 	logger.Infof("%v blocks related to token issue", len(hashes))
 	var txs []*types.Transaction
+	var blockHeaders []*types.BlockHeader
 	for _, hash := range hashes {
 		block, err := chain.LoadBlockByHash(hash)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, tx := range block.Txs {
 			for _, vout := range tx.Vout {
 				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
 				if sc.IsTokenIssue() {
 					txs = append(txs, tx)
+					blockHeaders = append(blockHeaders, block.Header)
 				}
 			}
 		}
 	}
-	return txs, nil
+	return txs, blockHeaders, nil
 }
 
 // GetTokenTransactions returns transactions history of a tokenID
