@@ -103,6 +103,10 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 	if err != nil {
 		return nil, err
 	}
+	block, _, err := s.server.GetChainReader().LoadBlockInfoByTxHash(*hash)
+	if err != nil {
+		return nil, err
+	}
 	if uint32(len(tx.Vout)) <= req.Token.Index {
 		return nil, fmt.Errorf("invalid token index")
 	}
@@ -125,6 +129,7 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 			Name:        param.Name,
 			TotalSupply: param.TotalSupply,
 			CreatorAddr: addr.String(),
+			CreatorTime: uint64(block.Header.TimeStamp),
 		},
 	}, nil
 }
