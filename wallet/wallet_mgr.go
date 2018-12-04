@@ -194,6 +194,11 @@ func (acc *Account) Addr() string {
 	return acc.addr.String()
 }
 
+// AddrType returns Address interface of the account
+func (acc *Account) AddrType() btypes.Address {
+	return acc.addr
+}
+
 // PubKeyHash returns Public Key Hash of the account
 func (acc *Account) PubKeyHash() []byte {
 	return acc.addr.Hash()
