@@ -285,24 +285,17 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 // LoadTxUtxos loads the unspent transaction outputs related to tx
 func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 
-	emptySet := make(map[types.OutPoint]struct{})
-
-	hash, _ := tx.TxHash()
-	prevOut := types.OutPoint{Hash: *hash}
-	for idx := range tx.Vout {
-		prevOut.Index = uint32(idx)
-		emptySet[prevOut] = struct{}{}
-	}
-	if !IsCoinBase(tx) {
-		for _, txIn := range tx.Vin {
-			emptySet[txIn.PrevOutPoint] = struct{}{}
-		}
+	if IsCoinBase(tx) {
+		return nil
 	}
 
-	if len(emptySet) > 0 {
-		if err := u.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
-			return err
-		}
+	outPointsToFetch := make(map[types.OutPoint]struct{})
+	for _, txIn := range tx.Vin {
+		outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
+	}
+
+	if err := u.fetchUtxosFromOutPointSet(outPointsToFetch, db); err != nil {
+		return err
 	}
 	return nil
 }
