@@ -82,6 +82,8 @@ func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequ
 					TotalSupply: params.TotalSupply,
 					CreatorAddr: addr.String(),
 					CreatorTime: uint64(headers[int(req.Offset)+i].TimeStamp),
+					Decimals:    uint32(params.Decimals),
+					Symbol:      params.Symbol,
 				}
 				tokenInfos = append(tokenInfos, tokenInfo)
 				break
@@ -130,6 +132,8 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 			TotalSupply: param.TotalSupply,
 			CreatorAddr: addr.String(),
 			CreatorTime: uint64(block.Header.TimeStamp),
+			Decimals:    uint32(param.Decimals),
+			Symbol:      param.Symbol,
 		},
 	}, nil
 }
