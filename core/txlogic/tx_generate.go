@@ -243,6 +243,7 @@ func generateTx(fromAddr types.Address, utxos map[types.OutPoint]*types.UtxoWrap
 			}
 		}
 		inputAmount += wrap.Output.GetValue()
+		i++
 	}
 	tx.Vin = txIn
 	vout := make([]*corepb.TxOut, 0)
