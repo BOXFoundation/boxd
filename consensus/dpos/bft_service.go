@@ -68,7 +68,7 @@ func NewBftService(consensus *Dpos) (*BftService, error) {
 func (bft *BftService) Start() {
 	bft.subscribeMessageNotifiee()
 	bft.proc.Go(bft.loop)
-	bft.proc.Go(bft.checkEternalBlock)
+	// bft.proc.Go(bft.checkEternalBlock)
 }
 
 func (bft *BftService) subscribeMessageNotifiee() {
@@ -88,6 +88,25 @@ func (bft *BftService) loop(p goprocess.Process) {
 			return
 		}
 	}
+}
+
+// FetchIrreversibleInfo fetch Irreversible block info.
+func (bft *BftService) FetchIrreversibleInfo() []*types.IrreversibleInfo {
+	bft.cache.Range(func(k, v interface{}) bool {
+		// value := v.([]*EternalBlockMsg)
+
+		// if value[0].timestamp > now || now-value[0].timestamp > MaxEternalBlockMsgCacheTime {
+		// 	bft.cache.Delete(k)
+		// }
+		// if len(value) <= MinConfirmMsgNumberForEternalBlock {
+		// 	return true
+		// }
+		// if bft.updateEternal(value[0]) {
+		// 	bft.cache.Delete(k)
+		// }
+		return true
+	})
+	return nil
 }
 
 // checkEternalBlock check to update eternal block.
@@ -186,12 +205,19 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		return err
 	}
 
-	key := bft.generateKey(eternalBlockMsg.hash, eternalBlockMsg.timestamp)
+	// key := bft.generateKey(eternalBlockMsg.hash, eternalBlockMsg.timestamp)
 
-	if bft.existEternalBlockMsgKey.Contains(*key) {
+	// if bft.existEternalBlockMsgKey.Contains(*key) {
+	// 	logger.Debugf("Enough eternalBlockMsgs has been received.")
+	// 	return nil
+	// }
+	key := eternalBlockMsg.hash
+
+	if bft.existEternalBlockMsgKey.Contains(key) {
 		logger.Debugf("Enough eternalBlockMsgs has been received.")
 		return nil
 	}
+
 	now := time.Now().Unix()
 	if eternalBlockMsg.timestamp > now || now-eternalBlockMsg.timestamp > MaxEternalBlockMsgCacheTime {
 		return ErrIllegalMsg
@@ -213,15 +239,25 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 			return err
 		}
 
-		if msg, ok := bft.cache.Load(*key); ok {
+		// if msg, ok := bft.cache.Load(*key); ok {
+		// 	value := msg.([]*EternalBlockMsg)
+		// 	value = append(value, eternalBlockMsg)
+		// 	bft.cache.Store(*key, value)
+		// 	if len(value) > MinConfirmMsgNumberForEternalBlock {
+		// 		bft.existEternalBlockMsgKey.Add(*key, *key)
+		// 	}
+		// } else {
+		// 	bft.cache.Store(*key, []*EternalBlockMsg{eternalBlockMsg})
+		// }
+		if msg, ok := bft.cache.Load(key); ok {
 			value := msg.([]*EternalBlockMsg)
 			value = append(value, eternalBlockMsg)
-			bft.cache.Store(*key, value)
+			bft.cache.Store(key, value)
 			if len(value) > MinConfirmMsgNumberForEternalBlock {
-				bft.existEternalBlockMsgKey.Add(*key, *key)
+				bft.existEternalBlockMsgKey.Add(key, key)
 			}
 		} else {
-			bft.cache.Store(*key, []*EternalBlockMsg{eternalBlockMsg})
+			bft.cache.Store(key, []*EternalBlockMsg{eternalBlockMsg})
 		}
 	}
 

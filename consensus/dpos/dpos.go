@@ -53,6 +53,7 @@ type Dpos struct {
 	miner       *wallet.Account
 	enableMint  bool
 	disableMint bool
+	bftservice  *BftService
 }
 
 // NewDpos new a dpos implement.
@@ -109,6 +110,7 @@ func (dpos *Dpos) Run() error {
 	if err != nil {
 		return err
 	}
+	dpos.bftservice = bftService
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
@@ -355,6 +357,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
+	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d", block.BlockHash().String(), block.Height, len(blockTxns))
 	return nil
 }
