@@ -294,10 +294,7 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 		outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
 	}
 
-	if err := u.fetchUtxosFromOutPointSet(outPointsToFetch, db); err != nil {
-		return err
-	}
-	return nil
+	return u.fetchUtxosFromOutPointSet(outPointsToFetch, db)
 }
 
 // LoadBlockUtxos loads all UTXOs txs in the block spend
