@@ -5,7 +5,6 @@
 package dpos
 
 import (
-	"bytes"
 	"sync"
 	"time"
 
@@ -22,14 +21,14 @@ import (
 type status int
 
 // EternalBlockMsgKeyType is renamed EternalBlockMsgKey type
-type EternalBlockMsgKeyType [EternalBlockMsgKeySize]byte
+// type EternalBlockMsgKeyType [EternalBlockMsgKeySize]byte
 
 // Define const.
 const (
 	EternalBlockMsgChBufferSize        = 65536
-	MaxEternalBlockMsgCacheTime        = 10 * 60
+	MaxEternalBlockMsgCacheTime        = 5
 	MinConfirmMsgNumberForEternalBlock = 2 * PeriodSize / 3
-	EternalBlockMsgKeySize             = crypto.HashSize + 8
+	// EternalBlockMsgKeySize             = crypto.HashSize + 8
 
 	free status = iota
 	underway
@@ -68,7 +67,7 @@ func NewBftService(consensus *Dpos) (*BftService, error) {
 func (bft *BftService) Start() {
 	bft.subscribeMessageNotifiee()
 	bft.proc.Go(bft.loop)
-	// bft.proc.Go(bft.checkEternalBlock)
+	bft.proc.Go(bft.checkEternalBlock)
 }
 
 func (bft *BftService) subscribeMessageNotifiee() {
@@ -91,22 +90,40 @@ func (bft *BftService) loop(p goprocess.Process) {
 }
 
 // FetchIrreversibleInfo fetch Irreversible block info.
-func (bft *BftService) FetchIrreversibleInfo() []*types.IrreversibleInfo {
-	bft.cache.Range(func(k, v interface{}) bool {
-		// value := v.([]*EternalBlockMsg)
+func (bft *BftService) FetchIrreversibleInfo() (*types.IrreversibleInfo, error) {
 
-		// if value[0].timestamp > now || now-value[0].timestamp > MaxEternalBlockMsgCacheTime {
-		// 	bft.cache.Delete(k)
-		// }
-		// if len(value) <= MinConfirmMsgNumberForEternalBlock {
-		// 	return true
-		// }
-		// if bft.updateEternal(value[0]) {
-		// 	bft.cache.Delete(k)
-		// }
-		return true
-	})
-	return nil
+	tail := bft.chain.TailBlock()
+	MinerRefreshIntervalInSecond := MinerRefreshInterval / SecondInMs
+	offset := uint32(time.Now().Unix() % MinerRefreshIntervalInSecond)
+	defer func() {
+		if offset == uint32(MinerRefreshIntervalInSecond-1) {
+			bft.cache = &sync.Map{}
+		}
+	}()
+	var targetHash *crypto.HashType
+	height := tail.Height - 1
+	for offset >= 0 && height > 0 {
+		height--
+		offset--
+		block, err := bft.chain.LoadBlockByHeight(height)
+		if err != nil {
+			return nil, err
+		}
+		if len(block.Signature) >= MinConfirmMsgNumberForEternalBlock {
+			go bft.updateEternal(block)
+			targetHash = block.Hash
+			break
+		}
+	}
+
+	if value, ok := bft.cache.Load(targetHash); ok {
+		irreversibleInfo := new(types.IrreversibleInfo)
+		irreversibleInfo.Hash = targetHash
+		irreversibleInfo.Signatures = value.([][]byte)
+		bft.cache.Delete(targetHash)
+		return irreversibleInfo, nil
+	}
+	return nil, nil
 }
 
 // checkEternalBlock check to update eternal block.
@@ -133,8 +150,8 @@ func (bft *BftService) maybeUpdateEternalBlock() {
 		bft.checkStatus = free
 	}()
 	bft.checkStatus = underway
-	bft.tryToUpdateEternal()
-	if bft.chain.TailBlock().Height-bft.chain.EternalBlock().Height > MinConfirmMsgNumberForEternalBlock {
+	// bft.tryToUpdateEternal()
+	if bft.chain.TailBlock().Height-bft.chain.EternalBlock().Height > MinConfirmMsgNumberForEternalBlock*BlockNumPerPeiod {
 		block, err := bft.chain.LoadBlockByHeight(bft.chain.EternalBlock().Height + 1)
 		if err != nil {
 			logger.Errorf("Failed to update eternal block. LoadBlockByHeight occurs error: %s", err.Error())
@@ -148,49 +165,50 @@ func (bft *BftService) maybeUpdateEternalBlock() {
 	}
 }
 
-func (bft *BftService) tryToUpdateEternal() {
+// func (bft *BftService) tryToUpdateEternal() {
 
-	now := time.Now().Unix()
-	bft.cache.Range(func(k, v interface{}) bool {
-		value := v.([]*EternalBlockMsg)
-		if value[0].timestamp > now || now-value[0].timestamp > MaxEternalBlockMsgCacheTime {
-			bft.cache.Delete(k)
-		}
-		if len(value) <= MinConfirmMsgNumberForEternalBlock {
-			return true
-		}
-		if bft.updateEternal(value[0]) {
-			bft.cache.Delete(k)
-		}
-		return true
-	})
-}
+// 	now := time.Now().Unix()
+// 	bft.cache.Range(func(k, v interface{}) bool {
+// 		value := v.([]*EternalBlockMsg)
+// 		if value[0].timestamp > now || now-value[0].timestamp > MaxEternalBlockMsgCacheTime {
+// 			bft.cache.Delete(k)
+// 		}
+// 		if len(value) <= MinConfirmMsgNumberForEternalBlock {
+// 			return true
+// 		}
+// 		if bft.updateEternal(value[0]) {
+// 			bft.cache.Delete(k)
+// 		}
+// 		return true
+// 	})
+// }
 
-func (bft *BftService) updateEternal(msg *EternalBlockMsg) bool {
-	block, err := bft.chain.LoadBlockByHash(msg.hash)
-	if err != nil {
-		return false
-	}
+func (bft *BftService) updateEternal(block *types.Block) {
 
 	if block.Height <= bft.chain.EternalBlock().Height {
-		return true
+		logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
+		return
 	}
+	//TODO: check irreversible signature information
+
 	if err := bft.chain.SetEternal(block); err != nil {
-		return false
+		logger.Info("Failed to update eternal block.Hash: %s, Height: %d, Err: %s",
+			block.BlockHash().String(), block.Height, err.Error())
+		return
 	}
 	logger.Infof("Eternal block has changed! Hash: %s Height: %d", block.BlockHash(), block.Height)
-	return true
+
 }
 
-func (bft *BftService) generateKey(hash crypto.HashType, timestamp int64) *EternalBlockMsgKeyType {
-	buf := make([]byte, EternalBlockMsgKeySize)
-	copy(buf, hash[:])
-	w := bytes.NewBuffer(buf[crypto.HashSize:])
-	util.WriteInt64(w, timestamp)
-	result := new(EternalBlockMsgKeyType)
-	copy(result[:], buf)
-	return result
-}
+// func (bft *BftService) generateKey(hash crypto.HashType, timestamp int64) *EternalBlockMsgKeyType {
+// 	buf := make([]byte, EternalBlockMsgKeySize)
+// 	copy(buf, hash[:])
+// 	w := bytes.NewBuffer(buf[crypto.HashSize:])
+// 	util.WriteInt64(w, timestamp)
+// 	result := new(EternalBlockMsgKeyType)
+// 	copy(result[:], buf)
+// 	return result
+// }
 
 func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 
@@ -205,14 +223,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		return err
 	}
 
-	// key := bft.generateKey(eternalBlockMsg.hash, eternalBlockMsg.timestamp)
-
-	// if bft.existEternalBlockMsgKey.Contains(*key) {
-	// 	logger.Debugf("Enough eternalBlockMsgs has been received.")
-	// 	return nil
-	// }
 	key := eternalBlockMsg.hash
-
 	if bft.existEternalBlockMsgKey.Contains(key) {
 		logger.Debugf("Enough eternalBlockMsgs has been received.")
 		return nil
@@ -221,6 +232,19 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 	now := time.Now().Unix()
 	if eternalBlockMsg.timestamp > now || now-eternalBlockMsg.timestamp > MaxEternalBlockMsgCacheTime {
 		return ErrIllegalMsg
+	}
+
+	miner, err := bft.consensus.context.periodContext.FindMinerWithTimeStamp(now + 1)
+	if err != nil {
+		return err
+	}
+	addr, err := types.NewAddress(bft.consensus.miner.Addr())
+	if err != nil {
+		return err
+	}
+	// No need to deal with messages that were not in my production block time period
+	if *miner != *addr.Hash160() {
+		return nil
 	}
 
 	if pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.hash[:], eternalBlockMsg.signature); ok {
@@ -236,28 +260,18 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 			}
 		}
 		if period == nil {
-			return err
+			return ErrIllegalMsg
 		}
 
-		// if msg, ok := bft.cache.Load(*key); ok {
-		// 	value := msg.([]*EternalBlockMsg)
-		// 	value = append(value, eternalBlockMsg)
-		// 	bft.cache.Store(*key, value)
-		// 	if len(value) > MinConfirmMsgNumberForEternalBlock {
-		// 		bft.existEternalBlockMsgKey.Add(*key, *key)
-		// 	}
-		// } else {
-		// 	bft.cache.Store(*key, []*EternalBlockMsg{eternalBlockMsg})
-		// }
 		if msg, ok := bft.cache.Load(key); ok {
-			value := msg.([]*EternalBlockMsg)
-			value = append(value, eternalBlockMsg)
+			value := msg.([][]byte)
+			value = append(value, eternalBlockMsg.signature)
 			bft.cache.Store(key, value)
 			if len(value) > MinConfirmMsgNumberForEternalBlock {
 				bft.existEternalBlockMsgKey.Add(key, key)
 			}
 		} else {
-			bft.cache.Store(key, []*EternalBlockMsg{eternalBlockMsg})
+			bft.cache.Store(key, [][]byte{eternalBlockMsg.signature})
 		}
 	}
 
