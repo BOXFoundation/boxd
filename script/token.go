@@ -165,6 +165,10 @@ func (s *Script) GetTransferParams() (*TransferParams, error) {
 
 // IsTokenIssue returns if the script is token issurance
 func (s *Script) IsTokenIssue() bool {
+	if len(*s) < p2PKHScriptLen {
+		return false
+	}
+
 	// two parts: p2pkh + issue parameters
 
 	p2PKHSubScript := NewScriptFromBytes((*s)[:p2PKHScriptLen])
@@ -183,7 +187,11 @@ func (s *Script) IsTokenIssue() bool {
 
 // IsTokenTransfer returns if the script is token issurance
 func (s *Script) IsTokenTransfer() bool {
-	// two parts: p2pkh + issue parameters
+	if len(*s) < p2PKHScriptLen {
+		return false
+	}
+
+	// two parts: p2pkh + transfer parameters
 
 	p2PKHSubScript := NewScriptFromBytes((*s)[:p2PKHScriptLen])
 	if !p2PKHSubScript.IsPayToPubKeyHash() {
