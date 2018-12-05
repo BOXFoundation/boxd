@@ -7,6 +7,7 @@ package client
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 
@@ -89,12 +90,17 @@ func getScriptAddressFromPubKeyHash(pubKeyHash []byte) ([]byte, error) {
 }
 
 // returns token issurance scriptPubKey
-func getIssueTokenScript(pubKeyHash []byte, tokenName string, tokenTotalSupply uint64) ([]byte, error) {
+func getIssueTokenScript(pubKeyHash []byte, tokenName, tokenSymbol string, tokenTotalSupply uint64, tokenDecimals uint8) ([]byte, error) {
 	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
 	if err != nil {
 		return nil, err
 	}
-	issueParams := &script.IssueParams{Name: tokenName, TotalSupply: tokenTotalSupply}
+	issueParams := &script.IssueParams{
+		Name:        tokenName,
+		Symbol:      tokenSymbol,
+		TotalSupply: tokenTotalSupply,
+		Decimals:    tokenDecimals,
+	}
 	return *script.IssueTokenScript(addr.Hash(), issueParams), nil
 }
 
@@ -128,7 +134,7 @@ func getUtxoTokenAmount(utxo *rpcpb.Utxo, tokenTxHash *crypto.HashType, tokenTxO
 		// no need to check error since it will not err
 		if bytes.Equal(utxo.OutPoint.Hash, tokenTxHash.GetBytes()) && utxo.OutPoint.Index == tokenTxOutIdx {
 			params, _ := scriptPubKey.GetIssueParams()
-			return params.TotalSupply
+			return params.TotalSupply * uint64(math.Pow10(int(params.Decimals)))
 		}
 	}
 	if scriptPubKey.IsTokenTransfer() {
@@ -195,7 +201,7 @@ func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
 		if err == nil {
 			outHash := crypto.HashType{}
 			outHash.SetBytes(utxo.OutPoint.Hash)
-			return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index}, issueParam.TotalSupply
+			return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index}, issueParam.TotalSupply * uint64(math.Pow10(int(issueParam.Decimals)))
 		}
 	}
 	if script.IsTokenTransfer() {

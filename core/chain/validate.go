@@ -236,7 +236,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 			tokenID := script.NewTokenID(txIn.PrevOutPoint.Hash, txIn.PrevOutPoint.Index)
 			// no need to check error since it will not err
 			params, _ := scriptPubKey.GetIssueParams()
-			tokenInputAmounts[tokenID] += params.TotalSupply
+			tokenInputAmounts[tokenID] += params.TotalSupply * uint64(math.Pow10(int(params.Decimals)))
 		} else if scriptPubKey.IsTokenTransfer() {
 			// no need to check error since it will not err
 			params, _ := scriptPubKey.GetTransferParams()

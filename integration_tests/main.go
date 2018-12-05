@@ -66,7 +66,7 @@ func init() {
 		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
 	}
 	minerAddrs, minerAccs = utils.MinerAccounts(files...)
-	logger.Debugf("minersAddrs: %v", minerAddrs)
+	logger.Infof("minersAddrs: %v", minerAddrs)
 	for i, addr := range minerAddrs {
 		AddrToAcc[addr] = minerAccs[i]
 	}

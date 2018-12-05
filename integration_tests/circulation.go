@@ -84,7 +84,7 @@ func (c *Circulation) doTx(index int) {
 	}
 	addrs := c.addrs[start:end]
 	addrIdx := 0
-	logger.Infof("start circulation doTx %d", index)
+	logger.Infof("start circulation doTx[%d]", index)
 	for {
 		select {
 		case s := <-c.quitCh[index]:

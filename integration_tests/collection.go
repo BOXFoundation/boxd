@@ -91,7 +91,7 @@ func (c *Collection) doTx(index int) {
 	addrs := c.addrs[start:end]
 	peerIdx := 0
 	div := (len(c.addrs) + c.partLen - 1) / c.partLen
-	logger.Infof("start collection doTx %d", index)
+	logger.Infof("start collection doTx[%d]", index)
 	for {
 		select {
 		case s := <-c.quitCh[index]:
@@ -117,6 +117,7 @@ func (c *Collection) doTx(index int) {
 			time.Sleep(blockTime)
 			continue
 		}
+		//c.minerAddr = minerAddrs[peerIdx]
 		c.minerAddr = addr
 		if collAddr, ok := <-c.collAddrCh; ok {
 			logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
@@ -157,8 +158,9 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 		c.minerAddr, peerAddr)
 	utils.ExecTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
 	txCnt++
+	logger.Infof("wait for test addrs received funcd, timeout %v", timeoutToChain)
 	for i, addr := range addrs {
-		logger.Infof("wait for balance of %s more than %d, timeout %v", addrs[i],
+		logger.Debugf("wait for balance of %s more than %d, timeout %v", addrs[i],
 			balances[i]+amounts[i], timeoutToChain)
 		balances[i], err = utils.WaitBalanceEnough(addr, balances[i]+amounts[i], peerAddr,
 			timeoutToChain)
@@ -197,11 +199,11 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string) 
 	if len(errChans) > 0 {
 		logger.Panic(<-errChans)
 	}
-	logger.Infof("complete to send tx from each to each")
+	logger.Infof("complete to send tx from each to each, wait for accounts received fund")
 	// check balance
 	for i := 0; i < count; i++ {
 		expect := balances[i] + amountsRecv[i] - amountsSend[i]/4*5
-		logger.Infof("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
+		logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
 			timeoutToChain)
 		balances[i], err = utils.WaitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
 		if err != nil {

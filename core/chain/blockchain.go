@@ -237,7 +237,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, broadcast bool, fastCo
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.verifyExists(*blockHash); exists {
-		logger.Warnf("The block is already exist. Hash: %s, Height: %d", blockHash.String(), block.Height)
+		logger.Warnf("The block already exists. Hash: %s, Height: %d", blockHash.String(), block.Height)
 		return core.ErrBlockExists
 	}
 
@@ -426,6 +426,8 @@ func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch storage.Batch) error {
+
+	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Height)
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
@@ -528,7 +530,7 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
 	}
-	if err := utxoSet.RevertBlock(block); err != nil {
+	if err := utxoSet.RevertBlock(block, chain); err != nil {
 		return err
 	}
 	// save utxoset to database
@@ -1208,25 +1210,27 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 }
 
 // ListTokenIssueTransactions returns transactions which contains token issue info
-func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, error) {
+func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, []*types.BlockHeader, error) {
 	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
 	logger.Infof("%v blocks related to token issue", len(hashes))
 	var txs []*types.Transaction
+	var blockHeaders []*types.BlockHeader
 	for _, hash := range hashes {
 		block, err := chain.LoadBlockByHash(hash)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, tx := range block.Txs {
 			for _, vout := range tx.Vout {
 				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
 				if sc.IsTokenIssue() {
 					txs = append(txs, tx)
+					blockHeaders = append(blockHeaders, block.Header)
 				}
 			}
 		}
 	}
-	return txs, nil
+	return txs, blockHeaders, nil
 }
 
 // GetTokenTransactions returns transactions history of a tokenID

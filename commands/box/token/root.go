@@ -63,15 +63,17 @@ func init() {
 
 func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("createToken called")
-	if len(args) != 4 {
+	if len(args) != 6 {
 		fmt.Println("Invalid argument number")
 		return
 	}
 
 	toAddr, err1 := types.NewAddress(args[1])
 	tokenName := args[2]
-	tokenTotalSupply, err2 := strconv.Atoi(args[3])
-	if err1 != nil && err2 != nil {
+	tokenSymbol := args[3]
+	tokenTotalSupply, err2 := strconv.Atoi(args[4])
+	tokenDecimals, err3 := strconv.Atoi(args[5])
+	if err1 != nil && err2 != nil && err3 != nil {
 		fmt.Println("Invalid argument format")
 		return
 	}
@@ -101,8 +103,8 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.CreateTokenIssueTx(conn, fromAddr, toAddr,
-		account.PublicKey(), tokenName, uint64(tokenTotalSupply), account)
+	tx, err := client.CreateTokenIssueTx(conn, fromAddr, toAddr, account.PublicKey(),
+		tokenName, tokenSymbol, uint64(tokenTotalSupply), uint8(tokenDecimals), account)
 	if err != nil {
 		fmt.Println(err)
 	} else {

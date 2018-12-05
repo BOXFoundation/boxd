@@ -16,10 +16,12 @@ import (
 	"google.golang.org/grpc"
 )
 
+const connTimeout = 30
+
 // GetFeePrice gets the recommended mining fee price according to recent packed transactions
 func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 	r, err := c.GetFeePrice(ctx, &rpcpb.GetFeePriceRequest{})
 	return r.BoxPerByte, err
@@ -33,7 +35,7 @@ func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (
 	}
 	logger.Debugf("Script Value: %v", p2pkScript)
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 
 	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
@@ -55,7 +57,7 @@ func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *type
 	}
 	logger.Debugf("Script Value: %v", p2pkScript)
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 
 	tokenBudges := make([]*rpcpb.TokenAmount, 0)
@@ -134,7 +136,7 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
 
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 
 	_, err = c.SendTransaction(ctx, txReq)
@@ -149,7 +151,7 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 // GetRawTransaction get the transaction info of given hash
 func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 	logger.Debugf("Get transaction of hash: %x", hash)
 
@@ -165,7 +167,7 @@ func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, 
 // GetTransactionsInPool gets all transactions in memory pool
 func GetTransactionsInPool(conn *grpc.ClientConn) ([]*types.Transaction, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 	r, err := c.GetTransactionPool(ctx, &rpcpb.GetTransactionPoolRequest{})
 	if err != nil {
@@ -186,7 +188,7 @@ func GetTransactionsInPool(conn *grpc.ClientConn) ([]*types.Transaction, error) 
 //ListUtxos list all utxos
 func ListUtxos(conn *grpc.ClientConn) (*rpcpb.ListUtxosResponse, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 	r, err := c.ListUtxos(ctx, &rpcpb.ListUtxosRequest{})
 	if err != nil {
@@ -198,7 +200,7 @@ func ListUtxos(conn *grpc.ClientConn) (*rpcpb.ListUtxosResponse, error) {
 // GetBalance returns total amount of an address
 func GetBalance(conn *grpc.ClientConn, addresses []string) (map[string]uint64, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 	r, err := c.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: addresses})
 	if err != nil {

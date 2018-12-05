@@ -21,11 +21,11 @@ const (
 )
 
 // CreateTokenIssueTx retrieves all the utxo of a public key, and use some of them to fund token issurance tx
-func CreateTokenIssueTx(conn *grpc.ClientConn, fromAddress, toAddress types.Address, pubKeyBytes []byte, tokenName string,
-	tokenTotalSupply uint64, signer crypto.Signer) (*types.Transaction, error) {
+func CreateTokenIssueTx(conn *grpc.ClientConn, fromAddress, toAddress types.Address, pubKeyBytes []byte, tokenName, tokenSymbol string,
+	tokenTotalSupply uint64, tokenDecimals uint8, signer crypto.Signer) (*types.Transaction, error) {
 
 	txReq := &rpcpb.SendTransactionRequest{}
-	issueScript, err := getIssueTokenScript(toAddress.Hash(), tokenName, tokenTotalSupply)
+	issueScript, err := getIssueTokenScript(toAddress.Hash(), tokenName, tokenSymbol, tokenTotalSupply, tokenDecimals)
 	if err != nil {
 		return nil, err
 	}

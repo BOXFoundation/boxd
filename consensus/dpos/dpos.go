@@ -277,24 +277,24 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
-	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
-	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
-
+	remainTimeInMs := dpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	spendableTxs := new(sync.Map)
 
 	// Total fees of all packed txs
 	totalTxFee := uint64(0)
+	stopPack := false
+	stopPackCh := make(chan bool)
 
-PackingTxs:
-	for {
-		select {
-		case <-remainTimer.C:
-			break PackingTxs
-		default:
+	go func() {
+	PackingTxs:
+		for {
 			found := true
 			for found {
 				found = false
 				for i, txWrap := range sortedTxs {
+					if stopPack {
+						break PackingTxs
+					}
 					if txPacked[i] {
 						continue
 					}
@@ -333,8 +333,17 @@ PackingTxs:
 					found = true
 				}
 			}
+			stopPackCh <- true
+			break PackingTxs
 		}
+	}()
+
+	select {
+	case <-time.After(time.Duration(remainTimeInMs) * time.Millisecond):
+		stopPack = true
+	case <-stopPackCh:
 	}
+
 	// Pay tx fees to miner in addition to block reward in coinbase
 	blockTxns[0].Vout[0].Value += totalTxFee
 
