@@ -150,6 +150,9 @@ func (ci *catcherImpl) catchup(targetHeight uint32) error {
 			return err
 		}
 		block, err := ci.fetcher.Block(blockHash)
+		if err != nil {
+			return err
+		}
 		if previousBlockHash != "" && strings.Compare(block.Header.PrevBlockHash.String(), previousBlockHash) != 0 {
 			return fmt.Errorf("invalid block previous hash")
 		}
