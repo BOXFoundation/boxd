@@ -43,6 +43,7 @@ type Config struct {
 	Database  storage.Config  `mapstructure:"database"`
 	Dpos      dpos.Config     `mapstructure:"dpos"`
 	Metrics   metrics.Config  `mapstructure:"metrics"`
+	Pprof     string          `mapstructure:"pprof"`
 }
 
 var format = `workspace: %s
