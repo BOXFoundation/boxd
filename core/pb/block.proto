@@ -26,7 +26,7 @@ message Block {
     repeated Transaction txs = 2;
     uint32 height = 3;
     bytes signature = 4;
-    repeated IrreversibleInfo irreversible_info = 5;
+    IrreversibleInfo irreversible_info = 5;
 }
 
 message Transaction {

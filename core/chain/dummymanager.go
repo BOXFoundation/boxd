@@ -77,3 +77,6 @@ func (dpos *DummyDpos) BroadcastEternalMsgToMiners(block *types.Block) error { r
 
 // ValidateMiner validate miner
 func (dpos *DummyDpos) ValidateMiner() bool { return true }
+
+// TryToUpdateEternalBlock try to update eternal block.
+func (dpos *DummyDpos) TryToUpdateEternalBlock(src *types.Block) {}

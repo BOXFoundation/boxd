@@ -33,6 +33,7 @@ const (
 	MaxPackedTxTime      = int64(200)
 	MaxBlockTimeOut      = 2
 	PeriodSize           = 6
+	BlockNumPerPeiod     = 5
 )
 
 // Config defines the configurations of dpos
@@ -357,7 +358,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
-	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
+	if block.IrreversibleInfo, err = dpos.bftservice.FetchIrreversibleInfo(); err != nil {
+		return err
+	}
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d", block.BlockHash().String(), block.Height, len(blockTxns))
 	return nil
 }
@@ -559,6 +562,18 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// TryToUpdateEternalBlock try to update eternal block.
+func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
+	irreversibleInfo := src.IrreversibleInfo
+	if irreversibleInfo == nil {
+		return
+	}
+	block, _ := dpos.chain.LoadBlockByHash(*irreversibleInfo.Hash)
+	if block != nil {
+		dpos.bftservice.updateEternal(block)
+	}
 }
 
 // func (dpos *Dpos) buildMinerEpoch() error {

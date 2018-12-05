@@ -24,7 +24,7 @@ type Block struct {
 	Header           *BlockHeader
 	Txs              []*Transaction
 	Signature        []byte
-	IrreversibleInfo []*IrreversibleInfo
+	IrreversibleInfo *IrreversibleInfo
 
 	Height uint32
 }
@@ -50,16 +50,10 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 	header, _ := block.Header.ToProtoMessage()
 
 	if header, ok := header.(*corepb.BlockHeader); ok {
-
-		var iis []*corepb.IrreversibleInfo
-		for _, v := range block.IrreversibleInfo {
-			ii, err := v.ToProtoMessage()
-			if err != nil {
-				return nil, err
-			}
-			if ii, ok := ii.(*corepb.IrreversibleInfo); ok {
-				iis = append(iis, ii)
-			}
+		var ii *corepb.IrreversibleInfo
+		if block.IrreversibleInfo != nil {
+			v, _ := block.IrreversibleInfo.ToProtoMessage()
+			ii = v.(*corepb.IrreversibleInfo)
 		}
 
 		var txs []*corepb.Transaction
@@ -76,7 +70,7 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 			Header:           header,
 			Txs:              txs,
 			Signature:        block.Signature,
-			IrreversibleInfo: iis,
+			IrreversibleInfo: ii,
 			Height:           block.Height,
 		}, nil
 	}
@@ -93,14 +87,12 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			if err := header.FromProtoMessage(message.Header); err != nil {
 				return err
 			}
-
-			var iis []*IrreversibleInfo
-			for _, v := range message.IrreversibleInfo {
-				ii := new(IrreversibleInfo)
-				if err := ii.FromProtoMessage(v); err != nil {
+			var ii *IrreversibleInfo
+			if message.IrreversibleInfo != nil {
+				ii = new(IrreversibleInfo)
+				if err := ii.FromProtoMessage(message.IrreversibleInfo); err != nil {
 					return err
 				}
-				iis = append(iis, ii)
 			}
 
 			var txs []*Transaction
@@ -117,7 +109,7 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			block.Txs = txs
 			block.Height = message.Height
 			block.Signature = message.Signature
-			block.IrreversibleInfo = iis
+			block.IrreversibleInfo = ii
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
