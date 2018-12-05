@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	_ "net/http/pprof" // init pprof
+
 	"github.com/BOXFoundation/boxd/blocksync"
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
