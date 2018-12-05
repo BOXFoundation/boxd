@@ -310,6 +310,8 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 	for i, tx := range block.Txs[1:] {
 		for _, txIn := range tx.Vin {
 			preHash := &txIn.PrevOutPoint.Hash
+			// i points to txs[i + 1], which should be after txs[index]
+			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
 				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
