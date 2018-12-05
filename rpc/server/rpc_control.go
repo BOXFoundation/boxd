@@ -8,11 +8,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/BOXFoundation/boxd/p2p"
-
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 )
@@ -98,6 +97,7 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 }
 
 // UpdateNetworkID implements UpdateNetworkID
+// NOTE: should be remove in product env
 func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
