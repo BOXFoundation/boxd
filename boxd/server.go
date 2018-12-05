@@ -7,6 +7,8 @@ package boxd
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"sync"
@@ -79,6 +81,19 @@ func (server *Server) teardown() error {
 		logger.Info("Box server teardown finished.")
 		return nil
 	}
+}
+
+// StartPprof start pprof service
+func (server *Server) StartPprof(addrs string) error {
+
+	dial, err := net.DialTimeout("tcp", addrs, time.Second)
+	if err == nil {
+		dial.Close()
+		return err
+	}
+	go http.ListenAndServe(addrs, nil)
+	logger.Debugf("Start pprof service at %s", addrs)
+	return nil
 }
 
 // Prepare to run the boxd server
@@ -156,6 +171,12 @@ func (server *Server) Run() error {
 
 	var proc = server.proc
 	var cfg = server.cfg
+
+	if cfg.Pprof != "" {
+		if err := server.StartPprof(cfg.Pprof); err != nil {
+			logger.Fatalf("Failed to start pprof service. Err: %v", err)
+		}
+	}
 
 	if err := server.peer.Run(); err != nil {
 		logger.Fatalf("Failed to start peer. Err: %v", err)
