@@ -53,11 +53,12 @@ var (
 	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
 
 	//transaction.go
-	ErrSerializeOutPoint           = errors.New("serialize outPoint error")
-	ErrInvalidOutPointProtoMessage = errors.New("Invalid OutPoint proto message")
-	ErrInvalidTxInProtoMessage     = errors.New("Invalid TxIn proto message")
-	ErrInvalidTxOutProtoMessage    = errors.New("Invalid TxOut proto message")
-	ErrInvalidTxProtoMessage       = errors.New("Invalid tx proto message")
+	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
+	ErrInvalidOutPointProtoMessage         = errors.New("Invalid OutPoint proto message")
+	ErrInvalidTxInProtoMessage             = errors.New("Invalid TxIn proto message")
+	ErrInvalidTxOutProtoMessage            = errors.New("Invalid TxOut proto message")
+	ErrInvalidTxProtoMessage               = errors.New("Invalid tx proto message")
+	ErrInvalidIrreversibleInfoProtoMessage = errors.New("Invalid IrreversibleInfo proto message")
 
 	//address.go
 	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")

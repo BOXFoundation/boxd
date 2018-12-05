@@ -16,11 +16,17 @@ message BlockHeader {
     bytes candidates_hash = 7;
 }
 
+message IrreversibleInfo {
+    bytes hash = 1;
+    repeated bytes signatures = 2;
+}
+
 message Block {
     BlockHeader header = 1;
     repeated Transaction txs = 2;
     uint32 height = 3;
     bytes signature = 4;
+    repeated IrreversibleInfo irreversible_info = 5;
 }
 
 message Transaction {
