@@ -2,13 +2,17 @@ module github.com/BOXFoundation/boxd
 
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
+	github.com/abiosoft/ishell v2.0.0+incompatible // indirect
+	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/btcsuite/btcd v0.0.0-20181013004428-67e573d211ac
 	github.com/btcsuite/btcutil v0.0.0-20180706230648-ab6388e0c60a
 	github.com/coreos/go-semver v0.0.0-20180108230905-e214231b295a // indirect
 	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
+	github.com/fatih/color v1.7.0 // indirect
 	github.com/fd/go-nat v1.0.0 // indirect
+	github.com/flynn-archive/go-shlex v0.0.0-20150515145356-3f9db97f8568 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/gogap/env_json v0.0.0-20150503135429-86150085ddbe // indirect
 	github.com/gogap/env_strings v0.0.0-20171020034610-bdb994cfe093 // indirect
@@ -103,4 +107,5 @@ require (
 	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e
 	google.golang.org/grpc v1.15.0
+	gopkg.in/abiosoft/ishell.v2 v2.0.0
 )
