@@ -9,12 +9,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	_ "net/http/pprof" // init pprof
 	"os"
 	"runtime"
 	"sync"
 	"time"
-
-	_ "net/http/pprof" // init pprof
 
 	"github.com/BOXFoundation/boxd/blocksync"
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -254,6 +253,7 @@ func (server *Server) initEventListener() {
 		out <- log.SetLogLevel(newLevel)
 	}, false)
 
+	// NOTE: should be remove in product env
 	// TopicUpdateNetworkID
 	server.bus.Reply(eventbus.TopicUpdateNetworkID, func(magic uint32, out chan<- bool) {
 		server.cfg.P2p.Magic = magic
