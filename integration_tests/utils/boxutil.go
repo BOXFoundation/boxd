@@ -7,12 +7,16 @@ package utils
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/wallet"
 	"google.golang.org/grpc"
 )
@@ -29,6 +33,12 @@ const (
 )
 
 var logger = log.NewLogger("integration_utils") // logger
+
+type sortByUTXOValue []*rpcpb.Utxo
+
+func (x sortByUTXOValue) Len() int           { return len(x) }
+func (x sortByUTXOValue) Less(i, j int) bool { return x[i].TxOut.Value < x[j].TxOut.Value }
+func (x sortByUTXOValue) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // KeyStore defines key structure
 type KeyStore struct {
@@ -90,9 +100,9 @@ func UnlockAccount(addr string) *wallet.Account {
 	return account
 }
 
-// ExecTx execute a transaction
-func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
-	peerAddr string) *types.Transaction {
+// ExecTxNoPanic execute a transaction
+func ExecTxNoPanic(account *wallet.Account, toAddrs []string, amounts []uint64,
+	peerAddr string) (*types.Transaction, error) {
 	//
 	if len(toAddrs) != len(amounts) {
 		logger.Panicf("toAddrs count %d is mismatch with amounts count: %d",
@@ -101,13 +111,13 @@ func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
 	//
 	fromAddress, err := types.NewAddress(account.Addr())
 	if err != nil {
-		logger.Panicf("NewAddress fromAddr: %s error: %s", account.Addr(), err)
+		return nil, fmt.Errorf("NewAddress fromAddr: %s error: %s", account.Addr(), err)
 	}
 
 	// initialize rpc
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
-		logger.Panic(err)
+		return nil, err
 	}
 	defer conn.Close()
 	// make toAddr map
@@ -115,7 +125,7 @@ func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
 	for i := 0; i < len(toAddrs); i++ {
 		toAddress, err := types.NewAddress(toAddrs[i])
 		if err != nil {
-			logger.Panicf("NewAddress toAddrs: %s error: %s", toAddrs, err)
+			return nil, fmt.Errorf("NewAddress toAddrs: %s error: %s", toAddrs, err)
 		}
 		addrAmountMap[toAddress] = amounts[i]
 	}
@@ -123,12 +133,23 @@ func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
 	start := time.Now()
 	tx, err := client.CreateTransaction(conn, fromAddress, addrAmountMap,
 		account.PublicKey(), account, nil, nil)
-	if time.Since(start) > 2*RPCInterval {
+	if time.Since(start) > 3*RPCInterval {
 		logger.Warnf("cost %v for CreateTransaction on %s", time.Since(start), peerAddr)
 	}
 	if err != nil {
-		logger.Panicf("create transaction from %s, addr amont map %v, error: %s",
+		return nil, fmt.Errorf("create transaction from %s, addr amont map %v, error: %s",
 			fromAddress, addrAmountMap, err)
+	}
+	return tx, nil
+}
+
+// ExecTx execute a transaction
+func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
+	peerAddr string) *types.Transaction {
+
+	tx, err := ExecTxNoPanic(account, toAddrs, amounts, peerAddr)
+	if err != nil {
+		logger.Panic(err)
 	}
 	return tx
 }
@@ -486,8 +507,137 @@ func TokenBalanceFor(addr string, tx *types.Transaction, peerAddr string) uint64
 	return client.GetTokenBalance(conn, address, txHash, 0)
 }
 
-type sortByUTXOValue []*rpcpb.Utxo
+// NewTxs construct some transactions
+func NewTxs(fromAddr, toAddr string, fromAcc *wallet.Account, count int,
+	peerAddr string) (txss [][]*types.Transaction, transfer, totalFee uint64,
+	num int, err error) {
+	// get utxoes
+	fromAddress, _ := types.NewAddress(fromAddr)
+	totalAmount, err := balanceNoPanicFor(fromAddr, peerAddr)
+	if err != nil {
+		return
+	}
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	if err != nil {
+		return
+	}
+	utxoResponse, err := client.FundTransaction(conn, fromAddress, totalAmount)
+	if err != nil {
+		return
+	}
+	utxos := utxoResponse.GetUtxos()
+	// get values of utxos
+	values := make([]uint64, len(utxos))
+	for i, u := range utxos {
+		values[i] = u.TxOut.Value
+	}
 
-func (x sortByUTXOValue) Len() int           { return len(x) }
-func (x sortByUTXOValue) Less(i, j int) bool { return x[i].TxOut.Value < x[j].TxOut.Value }
-func (x sortByUTXOValue) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+	// gen txs
+	txss = make([][]*types.Transaction, 0)
+	n := (count + len(utxos) - 1) / len(utxos)
+
+	transfer, totalFee, num = uint64(0), uint64(0), 0
+	for _, u := range utxos {
+		change := u
+		value := change.GetTxOut().GetValue()
+		aveAmt := value / uint64(n)
+		if aveAmt <= 1 {
+			continue
+		}
+		changeAmt := value
+		txs := make([]*types.Transaction, 0)
+		for j := n; j > 0; j-- {
+			fee := uint64(rand.Int63n(int64(aveAmt) / 100))
+			amount := aveAmt - fee
+			changeAmt = changeAmt - aveAmt
+			tx := new(types.Transaction)
+			tx, change, err = NewTx(fromAddr, toAddr, fromAcc, change, amount, changeAmt)
+			if err != nil {
+				return
+			}
+			txs = append(txs, tx)
+			transfer += amount
+			totalFee += fee
+			num++
+		}
+		txss = append(txss, txs)
+	}
+	return txss, transfer, totalFee, num, nil
+}
+
+// NewTx new a transaction
+func NewTx(fromAddr, toAddr string, fromAcc *wallet.Account, utxo *rpcpb.Utxo,
+	amount, changeAmt uint64) (*types.Transaction, *rpcpb.Utxo, error) {
+
+	if utxo.GetTxOut().GetValue() < amount+changeAmt {
+		return nil, nil, fmt.Errorf("input %d is less than output %d",
+			utxo.GetTxOut().GetValue(), amount+changeAmt)
+	}
+
+	// vin
+	var hash crypto.HashType
+	copy(hash[:], utxo.GetOutPoint().Hash)
+	txIn := &types.TxIn{
+		PrevOutPoint: types.OutPoint{
+			Hash:  hash,
+			Index: utxo.GetOutPoint().GetIndex(),
+		},
+		ScriptSig: []byte{},
+		Sequence:  uint32(0),
+	}
+
+	// vout for toAddress
+	toAddress, _ := types.NewAddress(toAddr)
+	toAddrPkh, _ := types.NewAddressPubKeyHash(toAddress.Hash())
+	toAddrScript := *script.PayToPubKeyHashScript(toAddrPkh.Hash())
+	toAddrOut := &corepb.TxOut{
+		Value:        amount,
+		ScriptPubKey: toAddrScript,
+	}
+	// vout for change of fromAddress
+	fromAddress, _ := types.NewAddress(fromAddr)
+	fromAddrPkh, _ := types.NewAddressPubKeyHash(fromAddress.Hash())
+	fromAddrScript := *script.PayToPubKeyHashScript(fromAddrPkh.Hash())
+	fromAddrOut := &corepb.TxOut{
+		Value:        changeAmt,
+		ScriptPubKey: fromAddrScript,
+	}
+
+	// construct transaction
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, txIn)
+	tx.Vout = append(tx.Vout, toAddrOut, fromAddrOut)
+
+	// sign vin
+	scriptPkBytes := utxo.GetTxOut().GetScriptPubKey()
+	sigHash, err := script.CalcTxHashForSig(scriptPkBytes, tx, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	sig, err := fromAcc.Sign(sigHash)
+	if err != nil {
+		return nil, nil, err
+	}
+	scriptSig := script.SignatureScript(sig, fromAcc.PublicKey())
+	txIn.ScriptSig = *scriptSig
+
+	// create change utxo
+	txHash, _ := tx.TxHash()
+	change := &rpcpb.Utxo{
+		OutPoint:    NewOutPoint(txHash, 1),
+		TxOut:       fromAddrOut,
+		BlockHeight: 0,
+		IsCoinbase:  false,
+		IsSpent:     false,
+	}
+
+	return tx, change, nil
+}
+
+// NewOutPoint constructs a OutPoint
+func NewOutPoint(hash *crypto.HashType, index uint32) *corepb.OutPoint {
+	return &corepb.OutPoint{
+		Hash:  (*hash)[:],
+		Index: index,
+	}
+}

@@ -13,8 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
+	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/wallet"
+	"google.golang.org/grpc"
 )
 
 // Circulation manage circulation of transaction
@@ -131,39 +134,41 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 	toBalancePre := utils.BalanceFor(toAddr, execPeer)
 	logger.Infof("fromAddr[%s] balance: %d, toAddr[%s] balance: %d",
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
-	transfer := uint64(0)
 	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
-	// remain at leat 1/5 balance as transaction fee
-	base := fromBalancePre / uint64(times) / 5 * 2
+
+	txss, transfer, fee, count, err := utils.NewTxs(fromAddr, toAddr,
+		AddrToAcc[fromAddr], times, execPeer)
+	if err != nil {
+		logger.Panic(err)
+	}
+	conn, _ := grpc.Dial(execPeer, grpc.WithInsecure())
 	var wg sync.WaitGroup
-	workers := utils.CircuWorkers()
-	partLen := (times + workers - 1) / workers
-	errChans := make(chan error, workers)
-	for i := 0; i < workers; i++ {
+	errChans := make(chan error, len(txss))
+	for _, txs := range txss {
 		wg.Add(1)
-		start := i * partLen
-		go func(start, partLen int) {
+		go func(txs []*types.Transaction) {
 			defer func() {
 				wg.Done()
 				if x := recover(); x != nil {
 					errChans <- fmt.Errorf("%v", x)
 				}
 			}()
-			for j := 0; j < partLen && start+j < times; j++ {
-				amount := base + uint64(rand.Int63n(int64(base)))
-				logger.Debugf("sent %d from %s to %s on peer %s", amount, fromAddr, toAddr, execPeer)
-				utils.ExecTx(AddrToAcc[fromAddr], []string{toAddr}, []uint64{amount}, execPeer)
+			for _, tx := range txs {
+				err := client.SendTransaction(conn, tx)
+				if err != nil {
+					logger.Panic(err)
+				}
 				atomic.AddUint64(&txCnt, 1)
-				atomic.AddUint64(&transfer, amount)
 			}
-		}(start, partLen)
+		}(txs)
 	}
 	wg.Wait()
 	if len(errChans) > 0 {
 		logger.Panic(<-errChans)
 	}
-	logger.Infof("%s sent %d times total %d tx to %s on peer %s", fromAddr, times,
-		transfer, toAddr, execPeer)
+
+	logger.Infof("%s sent %d transactions total %d to %s on peer %s",
+		fromAddr, count, transfer, toAddr, execPeer)
 	logger.Infof("wait for balance of %s reach %d, timeout %v", toAddr,
 		toBalancePre+transfer, timeoutToChain)
 	toBalancePost, err := utils.WaitBalanceEnough(toAddr, toBalancePre+transfer,
@@ -172,16 +177,16 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 		utils.TryRecordError(err)
 		logger.Warn(err)
 	}
-	// check the balance of miners
+	// check the balance of sender
 	fromBalancePost := utils.BalanceFor(fromAddr, execPeer)
 	logger.Infof("fromAddr[%s] balance: %d toAddr[%s] balance: %d",
 		fromAddr, fromBalancePost, toAddr, toBalancePost)
 	// prerequisite: neither of fromAddr and toAddr are not miner address
 	toGap := toBalancePost - toBalancePre
 	fromGap := fromBalancePre - fromBalancePost
-	if toGap > fromGap || toGap != transfer {
-		err := fmt.Errorf("txRepeatTest faild: fromGap %d toGap %d and transfer %d",
-			fromGap, toGap, transfer)
+	if fromGap != fee+transfer || toGap != transfer {
+		err := fmt.Errorf("txRepeatTest faild: fromGap %d toGap %d transfer %d and "+
+			"fee %d", fromGap, toGap, transfer, fee)
 		utils.TryRecordError(err)
 		logger.Error(err)
 	}

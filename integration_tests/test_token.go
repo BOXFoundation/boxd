@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -76,17 +75,17 @@ func (t *TokenTest) Run() {
 		peerAddr := peersAddr[peerIdx]
 		peerIdx++
 		logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount, peerAddr)
-		addr, _, err := utils.WaitOneAddrBalanceEnough(minerAddrs, totalAmount, peerAddr,
-			timeoutToChain)
-		if err != nil {
-			logger.Error(err)
-			time.Sleep(blockTime)
-			continue
-		}
+		//addr, _, err := utils.WaitOneAddrBalanceEnough(minerAddrs, totalAmount, peerAddr,
+		//	timeoutToChain)
+		//if err != nil {
+		//	logger.Error(err)
+		//	time.Sleep(blockTime)
+		//	continue
+		//}
 
 		// transfer some box from a miner to a test account
-		//var err error
-		//addr := minerAddrs[peerIdx]
+		var err error
+		addr := minerAddrs[peerIdx]
 		blcPre := utils.BalanceFor(t.addrs[0], peerAddr)
 		feeAmount := uint64(totalAmount / 2)
 		logger.Infof("send %d from %s to %s", feeAmount, addr, t.addrs[0])
