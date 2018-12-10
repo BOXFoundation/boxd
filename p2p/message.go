@@ -27,7 +27,8 @@ const (
 	FixHeaderLength        = 4
 
 	compressFlag = 1 << 7
-	relayFlag    = 2 << 5
+	relayFlag    = 3 << 5
+	relayTimes   = 2 << 5
 
 	// dont forget to set messageAttribute below
 	Ping              uint32 = 0x00
@@ -66,6 +67,16 @@ const (
 	uniquePerPeer
 )
 
+//
+const (
+	DefaultMode TransferMode = iota
+	BroadcastMode
+	RelayMode
+)
+
+// TransferMode indicates the transfer mode
+type TransferMode uint8
+
 var defaultMessageAttribute = &messageAttribute{priority: midPriority, frequency: repeatable}
 
 var msgToAttribute = map[uint32]*messageAttribute{
@@ -90,6 +101,9 @@ func init() {
 	for _, attr := range msgToAttribute {
 		if attr.frequency != repeatable {
 			attr.cache, _ = lru.New(4096)
+		}
+		if attr.relay {
+			attr.relayCache, _ = lru.New(4096)
 		}
 	}
 }
@@ -183,31 +197,32 @@ func readMessageData(r io.Reader) (*message, error) {
 
 // message defines the full message content from network.
 type messageAttribute struct {
-	compress  bool
-	priority  uint8
-	frequency uint8
-	relay     bool
-	cache     *lru.Cache
+	compress   bool
+	priority   uint8
+	frequency  uint8
+	relay      bool
+	cache      *lru.Cache
+	relayCache *lru.Cache
 }
 
-func (msgAttr *messageAttribute) duplicateFilter(msg *message, pid peer.ID, frequency uint8) bool {
+func (msgAttr *messageAttribute) duplicateFilter(body []byte, pid peer.ID, frequency uint8) bool {
 	if frequency == repeatable {
 		return true
 	}
-	key := msgAttr.lruKey(msg, pid, frequency)
-	if msgAttr.cache.Contains(key) || msgAttr.cache.Add(key, msg) {
+	key := msgAttr.lruKey(body, pid, frequency)
+	if msgAttr.cache.Contains(key) || msgAttr.cache.Add(key, struct{}{}) {
 		return false
 	}
 	return true
 }
 
-func (msgAttr *messageAttribute) lruKey(msg *message, pid peer.ID, frequency uint8) uint32 {
-	key := []byte(msg.body)
+func (msgAttr *messageAttribute) lruKey(body []byte, pid peer.ID, frequency uint8) uint32 {
+	key := body
 	if frequency == uniquePerPeer {
 		key = append(key, pid...)
 	}
 
-	hash := crc32.ChecksumIEEE(msg.body)
+	hash := crc32.ChecksumIEEE(body)
 	return hash
 }
 

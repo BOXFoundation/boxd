@@ -256,6 +256,27 @@ func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []
 	return nil
 }
 
+// Relay business message.
+func (p *BoxPeer) Relay(code uint32, msg conv.Convertible) error {
+
+	body, err := conv.MarshalConvertible(msg)
+	if err != nil {
+		return err
+	}
+
+	cnt := 0
+	p.conns.Range(func(k, v interface{}) bool {
+		connTmp := v.(*Conn)
+		go connTmp.Write(code, body)
+		cnt++
+		if uint32(cnt) > p.config.RelaySize {
+			return false
+		}
+		return true
+	})
+	return nil
+}
+
 // SendMessageToPeer sends message to a peer.
 func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible, pid peer.ID) error {
 

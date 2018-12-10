@@ -23,4 +23,5 @@ var (
 	ErrMessageHeader           = errors.New("Invalid p2p message header data")
 	ErrMessageDataBody         = errors.New("Invalid p2p message body")
 	ErrFromProtoMessageMessage = errors.New("Invalid proto message")
+	ErrNoNeedToRelay           = errors.New("Message no need to relay")
 )

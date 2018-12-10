@@ -8,7 +8,7 @@ import "github.com/BOXFoundation/boxd/core/types"
 
 // TxHandler defines basic operations txpool exposes
 type TxHandler interface {
-	ProcessTx(tx *types.Transaction, broadcast bool) error
+	ProcessTx(tx *types.Transaction, broadcast, relay bool) error
 	// GetTransactionsInPool gets all transactions in memory pool
 	GetTransactionsInPool() []*types.Transaction
 }

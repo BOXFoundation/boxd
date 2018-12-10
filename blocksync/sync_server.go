@@ -310,7 +310,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
-			err := sm.chain.ProcessBlock(b, false, false, "")
+			err := sm.chain.ProcessBlock(b, p2p.DefaultMode, false, "")
 			if err != nil {
 				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
 					continue
@@ -357,7 +357,7 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 		return err
 	}
 	for _, b := range sb.Blocks {
-		if err := sm.chain.ProcessBlock(b, false, false, ""); err != nil {
+		if err := sm.chain.ProcessBlock(b, p2p.DefaultMode, false, ""); err != nil {
 			if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
 				continue
 			}
