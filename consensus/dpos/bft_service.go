@@ -191,8 +191,6 @@ func (bft *BftService) updateEternal(block *types.Block) {
 		logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
 		return
 	}
-	//TODO: check irreversible signature information
-
 	if err := bft.chain.SetEternal(block); err != nil {
 		logger.Info("Failed to update eternal block.Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Height, err.Error())
@@ -267,6 +265,9 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 
 		if msg, ok := bft.cache.Load(key); ok {
 			value := msg.([][]byte)
+			if util.InArray(eternalBlockMsg.signature, value) {
+				return nil
+			}
 			value = append(value, eternalBlockMsg.signature)
 			bft.cache.Store(key, value)
 			if len(value) > MinConfirmMsgNumberForEternalBlock {
