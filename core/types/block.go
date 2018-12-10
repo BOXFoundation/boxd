@@ -279,7 +279,7 @@ var _ conv.Serializable = (*IrreversibleInfo)(nil)
 
 // IrreversibleInfo defines information about irreversible blocks
 type IrreversibleInfo struct {
-	Hash       *crypto.HashType
+	Hash       crypto.HashType
 	Signatures [][]byte
 }
 
