@@ -570,38 +570,8 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 	if irreversibleInfo == nil {
 		return
 	}
-	block, _ := dpos.chain.LoadBlockByHash(*irreversibleInfo.Hash)
+	block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
 	if block != nil {
 		dpos.bftservice.updateEternal(block)
 	}
 }
-
-// func (dpos *Dpos) buildMinerEpoch() error {
-
-// 	minerEpoch := make(map[types.AddressHash]bool)
-// 	tail := dpos.chain.TailBlock()
-// 	if tail.Height == 0 {
-// 		dpos.minerEpoch = minerEpoch
-// 		return nil
-// 	}
-// 	for idx := 0; idx < PeriodSize; {
-// 		height := tail.Height - uint32(idx)
-// 		if height == 0 {
-// 			break
-// 		}
-// 		block, err := dpos.chain.LoadBlockByHeight(height)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if _, ok := dpos.minerEpoch[*miner]; !ok {
-// 			minerEpoch[*miner] = true
-// 		}
-// 		idx++
-// 	}
-// 	dpos.minerEpoch = minerEpoch
-// 	return nil
-// }

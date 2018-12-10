@@ -92,37 +92,39 @@ func (bft *BftService) loop(p goprocess.Process) {
 // FetchIrreversibleInfo fetch Irreversible block info.
 func (bft *BftService) FetchIrreversibleInfo() (*types.IrreversibleInfo, error) {
 
-	tail := bft.chain.TailBlock()
+	tailHeight := bft.chain.TailBlock().Height
 	MinerRefreshIntervalInSecond := MinerRefreshInterval / SecondInMs
-	offset := uint32(time.Now().Unix() % MinerRefreshIntervalInSecond)
+	offset := time.Now().Unix() % MinerRefreshIntervalInSecond
 	defer func() {
-		if offset == uint32(MinerRefreshIntervalInSecond-1) {
+		if offset == MinerRefreshIntervalInSecond-1 {
 			bft.cache = &sync.Map{}
 		}
 	}()
-	var targetHash *crypto.HashType
-	height := tail.Height - 1
+	if tailHeight == 0 {
+		return nil, nil
+	}
+	height := tailHeight
 	for offset >= 0 && height > 0 {
-		height--
-		offset--
 		block, err := bft.chain.LoadBlockByHeight(height)
 		if err != nil {
 			return nil, err
 		}
-		if len(block.Signature) >= MinConfirmMsgNumberForEternalBlock {
-			go bft.updateEternal(block)
-			targetHash = block.Hash
-			break
+		blockHash := *block.BlockHash()
+		if value, ok := bft.cache.Load(blockHash); ok {
+			signatures := value.([][]byte)
+			if len(signatures) >= MinConfirmMsgNumberForEternalBlock {
+				go bft.updateEternal(block)
+				irreversibleInfo := new(types.IrreversibleInfo)
+				irreversibleInfo.Hash = blockHash
+				irreversibleInfo.Signatures = value.([][]byte)
+				bft.cache.Delete(blockHash)
+				return irreversibleInfo, nil
+			}
 		}
+		height--
+		offset--
 	}
 
-	if value, ok := bft.cache.Load(targetHash); ok {
-		irreversibleInfo := new(types.IrreversibleInfo)
-		irreversibleInfo.Hash = targetHash
-		irreversibleInfo.Signatures = value.([][]byte)
-		bft.cache.Delete(targetHash)
-		return irreversibleInfo, nil
-	}
 	return nil, nil
 }
 
