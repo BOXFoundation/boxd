@@ -11,12 +11,11 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
-	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/util"
-
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/util"
 )
 
 func registerTransaction(s *Server) {
@@ -277,7 +276,7 @@ func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransacti
 	if err != nil {
 		return nil, err
 	}
-	err = txpool.ProcessTx(tx, true /* relay */)
+	err = txpool.ProcessTx(tx, false, true /* relay */)
 	return &rpcpb.BaseResponse{}, err
 }
 

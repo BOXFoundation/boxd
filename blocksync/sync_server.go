@@ -31,14 +31,14 @@ func (sm *SyncManager) Run() {
 }
 
 func (sm *SyncManager) subscribeMessageNotifiee() {
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncReponse, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncReponse, sm.messageCh))
 }
 
 func (sm *SyncManager) handleSyncMessage() {
@@ -310,7 +310,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
-			err := sm.chain.ProcessBlock(b, false, false, "")
+			err := sm.chain.ProcessBlock(b, p2p.DefaultMode, false, "")
 			if err != nil {
 				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
 					continue
@@ -357,7 +357,7 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 		return err
 	}
 	for _, b := range sb.Blocks {
-		if err := sm.chain.ProcessBlock(b, false, false, ""); err != nil {
+		if err := sm.chain.ProcessBlock(b, p2p.DefaultMode, false, ""); err != nil {
 			if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
 				continue
 			}

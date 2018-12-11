@@ -41,7 +41,7 @@ type CirInfo struct {
 }
 
 var (
-	minConsensusBlocks = 5
+	minConsensusBlocks = 6
 
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
@@ -104,7 +104,6 @@ func main() {
 		}
 	}
 	peersAddr = utils.PeerAddrs()
-	minConsensusBlocks = (len(peersAddr)+2)/3*2 + 1
 
 	// print tx count per TickerDurationTxs
 	go func() {
