@@ -570,8 +570,10 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 	if irreversibleInfo == nil {
 		return
 	}
-	block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
-	if block != nil {
-		dpos.bftservice.updateEternal(block)
+	block, err := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+	if err != nil {
+		logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
+		return
 	}
+	dpos.bftservice.updateEternal(block)
 }
