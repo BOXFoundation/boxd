@@ -79,7 +79,7 @@ var _ service.Server = (*TransactionPool)(nil)
 // Run launch transaction pool.
 func (tx_pool *TransactionPool) Run() error {
 	// p2p tx msg
-	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, p2p.Unique, tx_pool.newTxMsgCh)
+	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh)
 	tx_pool.notifiee.Subscribe(tx_pool.txNotifee)
 
 	// chain update msg
@@ -147,7 +147,7 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) erro
 // Add all transactions contained in this block into mempool
 func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
-		if err := tx_pool.maybeAcceptTx(tx, false /* do not broadcast */, true); err != nil {
+		if err := tx_pool.maybeAcceptTx(tx, p2p.DefaultMode /* do not broadcast */, true); err != nil {
 			return err
 		}
 	}
@@ -173,7 +173,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 
-	if err := tx_pool.ProcessTx(tx, false); err != nil && util.InArray(err, core.EvilBehavior) {
+	if err := tx_pool.ProcessTx(tx, false, true); err != nil && util.InArray(err, core.EvilBehavior) {
 		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
 		return err
 	}
@@ -183,16 +183,24 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 
 // ProcessTx is used to handle new transactions.
 // utxoSet: utxos associated with the tx
-func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool) error {
+func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast, relay bool) error {
 
-	if err := tx_pool.maybeAcceptTx(tx, broadcast, true); err != nil {
+	transferMode := p2p.DefaultMode
+	if broadcast {
+		transferMode = p2p.BroadcastMode
+	}
+	if relay {
+		transferMode = p2p.RelayMode
+	}
+
+	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
 		return err
 	}
 	return tx_pool.processOrphans(tx)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, detectDupOrphan bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMode p2p.TransferMode, detectDupOrphan bool) error {
 
 	// tx_pool.txMutex.Lock()
 	// defer tx_pool.txMutex.Unlock()
@@ -280,9 +288,12 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
 
-	// Broadcast this tx.
-	if broadcast {
+	switch transferMode {
+	case p2p.BroadcastMode:
 		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
+	case p2p.RelayMode:
+		tx_pool.notifiee.Relay(p2p.TransactionMsg, tx)
+	default:
 	}
 	return nil
 }
@@ -339,7 +350,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			orphans := v.(*sync.Map)
 			orphans.Range(func(k, v interface{}) bool {
 				orphan := v.(*types.Transaction)
-				if err := tx_pool.maybeAcceptTx(orphan, false, false); err != nil {
+				if err := tx_pool.maybeAcceptTx(orphan, p2p.DefaultMode, false); err != nil {
 					return true
 				}
 				tx_pool.removeOrphan(orphan)

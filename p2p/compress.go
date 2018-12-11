@@ -8,10 +8,6 @@ import (
 	"github.com/golang/snappy"
 )
 
-var (
-	compressFlag = 1 << 7
-)
-
 // MaxEncodedLen = 0xffffffff 3GB
 func compress(dst, src []byte) []byte {
 	return snappy.Encode(dst, src)

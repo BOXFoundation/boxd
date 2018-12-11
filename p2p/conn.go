@@ -6,6 +6,7 @@ package p2p
 
 import (
 	"errors"
+	"hash/crc32"
 	"io"
 	"sync"
 	"time"
@@ -71,7 +72,7 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 		go conn.pq.Run(conn.proc, func(i interface{}) {
 			data := i.([]byte)
 			if _, err := conn.stream.Write(data); err != nil {
-				logger.Error("Failed to write message. ", err)
+				logger.Errorf("Failed to write message to %v, %v. ", conn.peer.id.Pretty(), err)
 			} else {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}
@@ -108,6 +109,8 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		if err != nil {
 			if err == yamux.ErrConnectionReset {
 				logger.Warnf("ReadMessage occurs error. Err: %s", err.Error())
+			} else if err == ErrDuplicateMessage {
+				continue
 			} else {
 				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
 			}
@@ -132,13 +135,27 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 		return nil, err
 	}
 
-	reserved := msg.messageHeader.reserved
-	if len(reserved) != 0 && int(reserved[0])&compressFlag != 0 {
-		data, err := decompress(nil, msg.body)
-		if err != nil {
-			return nil, err
+	// filter out the duplicate messages.
+	attr := msgToAttribute[msg.code]
+	if attr == nil {
+		attr = defaultMessageAttribute
+	}
+	if !attr.duplicateFilter(msg.body, conn.peer.id, attr.frequency) {
+		return nil, ErrDuplicateMessage
+	}
+
+	reserved := msg.reserved
+	if len(reserved) != 0 {
+		if int(reserved[0])&compressFlag != 0 {
+			data, err := decompress(nil, msg.body)
+			if err != nil {
+				return nil, err
+			}
+			msg.body = data
 		}
-		msg.body = data
+		if attr.relay {
+			attr.relayCache.Add(crc32.ChecksumIEEE(msg.body), int(reserved[0])&relayFlag)
+		}
 	}
 
 	metricsReadMeter.Mark(msg.Len())
@@ -282,22 +299,88 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 	return nil
 }
 
+func (conn *Conn) relay(msg *message) error {
+
+	reserve := msg.reserved
+	reserve[0] = byte(int(msg.reserved[0]) - 1<<5)
+	data := newMessageData(conn.peer.config.Magic, msg.code, reserve, msg.body)
+
+	cnt := 0
+	conn.peer.conns.Range(func(k, v interface{}) bool {
+		connTmp := v.(*Conn)
+		if connTmp.remotePeer.Pretty() == conn.remotePeer.Pretty() {
+			return true
+		}
+		go connTmp.write(data)
+		cnt++
+		if uint32(cnt) > conn.peer.config.RelaySize {
+			return false
+		}
+		return true
+	})
+	return nil
+}
+
 func (conn *Conn) Write(opcode uint32, body []byte) error {
-	msgAttr := msgToAttribute[opcode]
+	reserve, body, err := conn.reserve(opcode, body)
+	if err != nil {
+		return err
+	}
+	return conn.write(newMessageData(conn.peer.config.Magic, opcode, reserve, body))
+}
+
+func (conn *Conn) write(msg *message) error {
+	msgAttr := msgToAttribute[msg.code]
 	if msgAttr == nil {
 		msgAttr = defaultMessageAttribute
 	}
-	reserve := []byte{}
-	if msgAttr != nil && msgAttr.compress {
-		reserve = append(reserve, byte(compressFlag))
-		body = compress(nil, body)
-	}
-	data, err := newMessageData(conn.peer.config.Magic, opcode, reserve, body).Marshal()
+
+	data, err := msg.Marshal()
 	if err != nil {
 		return err
 	}
 	err = conn.pq.Push(data, int(msgAttr.priority))
 	return err
+}
+
+func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
+	msgAttr := msgToAttribute[opcode]
+	if msgAttr == nil {
+		msgAttr = defaultMessageAttribute
+	}
+	reserve := []byte{}
+	flags := []int{}
+
+	if msgAttr.relay {
+		times := relayTimes
+
+		if v, ok := msgAttr.relayCache.Get(crc32.ChecksumIEEE(body)); ok {
+			times = v.(int) - 1<<5
+		}
+		if times&relayFlag == 0 {
+			return nil, nil, ErrNoNeedToRelay
+		}
+
+		if len(flags) > 0 {
+			flags[0] += times
+		} else {
+			flags = append(flags, times)
+		}
+	}
+	if msgAttr.compress {
+		if len(flags) > 0 {
+			flags[0] += compressFlag
+		} else {
+			flags = append(flags, compressFlag)
+		}
+		body = compress(nil, body)
+	}
+	for _, flag := range flags {
+		reserve = append(reserve, byte(flag))
+	}
+	msgAttr.duplicateFilter(body, conn.peer.id, msgAttr.frequency)
+
+	return reserve, body, nil
 }
 
 // Close connection to remote peer.
