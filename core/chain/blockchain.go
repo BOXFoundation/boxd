@@ -288,8 +288,9 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.Trans
 	}
 	if chain.consensus.ValidateMiner() && fastConfirm {
 		go chain.consensus.BroadcastEternalMsgToMiners(block)
+		go chain.consensus.TryToUpdateEternalBlock(block)
 	}
-	go chain.consensus.TryToUpdateEternalBlock(block)
+
 	logger.Infof("Accepted New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
 	return nil
 }
