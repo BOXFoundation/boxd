@@ -18,7 +18,7 @@ import (
 
 const (
 	timeoutToChain = 30 * time.Second
-	totalAmount    = 1000000
+	totalAmount    = 100000000
 )
 
 // Collection manage transaction creation and collection
@@ -110,13 +110,6 @@ func (c *Collection) doTx(index int) {
 		// sleep index*rpcInterval to avoid "Output already spent by transaction in the
 		// pool" error on the same minerAddr
 		time.Sleep(time.Duration(index) * utils.RPCInterval)
-		//addr, _, err := utils.WaitOneAddrBalanceEnough(minerAddrs, totalAmount*uint64(div),
-		//	peerAddr, timeoutToChain)
-		//if err != nil {
-		//	logger.Error(err)
-		//	time.Sleep(blockTime)
-		//	continue
-		//}
 		c.minerAddr = minerAddrs[(peerIdx+index*peerCnt/2)%peerCnt]
 		//c.minerAddr = addr
 		if collAddr, ok := <-c.collAddrCh; ok {

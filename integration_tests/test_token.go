@@ -61,7 +61,7 @@ func (t *TokenTest) Run() {
 	if len(t.addrs) < 3 {
 		return
 	}
-	peerIdx := 0
+	peerIdx := 1
 	logger.Infof("start TokenTest doTx")
 	times := utils.TokenRepeatTxTimes()
 	for {
@@ -74,14 +74,6 @@ func (t *TokenTest) Run() {
 		peerIdx = peerIdx % peerCnt
 		peerAddr := peersAddr[peerIdx]
 		peerIdx++
-		logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount, peerAddr)
-		//addr, _, err := utils.WaitOneAddrBalanceEnough(minerAddrs, totalAmount, peerAddr,
-		//	timeoutToChain)
-		//if err != nil {
-		//	logger.Error(err)
-		//	time.Sleep(blockTime)
-		//	continue
-		//}
 
 		// transfer some box from a miner to a test account
 		var err error

@@ -103,8 +103,7 @@ func (c *Circulation) doTx(index int) {
 		addrIdx = toIdx
 		if cirInfo, ok := <-c.cirInfoCh; ok {
 			logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-			count := txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes())
-			atomic.AddUint64(&c.txCnt, count)
+			txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
 		}
 		if scopeValue(*scope) == basicScope {
 			break
@@ -112,38 +111,41 @@ func (c *Circulation) doTx(index int) {
 	}
 }
 
-func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
+func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *uint64) {
 	defer func() {
 		if x := recover(); x != nil {
 			utils.TryRecordError(fmt.Errorf("%v", x))
 			logger.Error(x)
 		}
 	}()
-	txCnt := uint64(0)
 	logger.Info("=== RUN   txRepeatTest")
 	if times <= 0 {
 		logger.Warn("times is 0, exit")
-		return 0
+		return
 	}
 	//
 	fromBalancePre := utils.BalanceFor(fromAddr, execPeer)
 	if fromBalancePre == 0 {
 		logger.Warnf("balance of %s is 0, exit", fromAddr)
-		return 0
+		return
 	}
 	toBalancePre := utils.BalanceFor(toAddr, execPeer)
 	logger.Infof("fromAddr[%s] balance: %d, toAddr[%s] balance: %d",
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
-	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
-
+	logger.Infof("start to construct txs from %s to %s %d times", fromAddr, toAddr, times)
+	start := time.Now()
 	txss, transfer, fee, count, err := utils.NewTxs(fromAddr, toAddr,
 		AddrToAcc[fromAddr], times, execPeer)
+	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
+	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {
 		logger.Panic(err)
 	}
 	conn, _ := grpc.Dial(execPeer, grpc.WithInsecure())
 	var wg sync.WaitGroup
 	errChans := make(chan error, len(txss))
+	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
+	start = time.Now()
 	for _, txs := range txss {
 		wg.Add(1)
 		go func(txs []*types.Transaction) {
@@ -158,7 +160,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 				if err != nil {
 					logger.Panic(err)
 				}
-				atomic.AddUint64(&txCnt, 1)
+				atomic.AddUint64(txCnt, 1)
 			}
 		}(txs)
 	}
@@ -166,6 +168,8 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 	if len(errChans) > 0 {
 		logger.Panic(<-errChans)
 	}
+	eclipse = float64(time.Since(start).Nanoseconds()) / 1e6
+	logger.Infof("send %d txs cost: %6.3f ms", count, eclipse)
 
 	logger.Infof("%s sent %d transactions total %d to %s on peer %s",
 		fromAddr, count, transfer, toAddr, execPeer)
@@ -191,7 +195,6 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 		logger.Error(err)
 	}
 	logger.Infof("--- DONE: txRepeatTest")
-	return txCnt
 }
 
 // TODO: have not been verified

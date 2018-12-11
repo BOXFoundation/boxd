@@ -21,7 +21,7 @@
     "enable": true,
     "accounts": 3,
     "unit_accounts": 3,
-    "repeat_times": 200
+    "repeat_times": 100
   },
   "iplist": {
     "docker": [
