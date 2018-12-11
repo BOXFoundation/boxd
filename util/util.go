@@ -19,7 +19,6 @@ var logger = log.NewLogger("util") // logger
 // InArray return if there is an element in the array
 func InArray(obj interface{}, array interface{}) bool {
 	arrayValue := reflect.ValueOf(array)
-	logger.Error(reflect.TypeOf(array).Kind())
 	if reflect.TypeOf(array).Kind() == reflect.Array || reflect.TypeOf(array).Kind() == reflect.Slice {
 		for i := 0; i < arrayValue.Len(); i++ {
 			if reflect.DeepEqual(arrayValue.Index(i).Interface(), obj) {

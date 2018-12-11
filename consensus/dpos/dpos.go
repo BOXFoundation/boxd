@@ -52,7 +52,7 @@ type Dpos struct {
 	proc        goprocess.Process
 	cfg         *Config
 	miner       *wallet.Account
-	enableMint  bool
+	canMint     bool
 	disableMint bool
 	bftservice  *BftService
 }
@@ -60,12 +60,12 @@ type Dpos struct {
 // NewDpos new a dpos implement.
 func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Dpos, error) {
 	dpos := &Dpos{
-		chain:      chain,
-		txpool:     txpool,
-		net:        net,
-		proc:       goprocess.WithParent(parent),
-		cfg:        cfg,
-		enableMint: false,
+		chain:   chain,
+		txpool:  txpool,
+		net:     net,
+		proc:    goprocess.WithParent(parent),
+		cfg:     cfg,
+		canMint: false,
 	}
 
 	context := &ConsensusContext{}
@@ -197,7 +197,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 		return false
 	}
 
-	if dpos.enableMint {
+	if dpos.canMint {
 		return true
 	}
 
@@ -212,7 +212,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 		logger.Error(err)
 		return false
 	}
-	dpos.enableMint = true
+	dpos.canMint = true
 	return true
 }
 
@@ -280,7 +280,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
-		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
@@ -312,7 +311,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				txHash, _ := txWrap.Tx.TxHash()
 				utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
 				if err != nil {
-					logger.Errorf("Could not get extended utxo set for tx %v", txHash)
+					logger.Warnf("Could not get extended utxo set for tx %v", txHash)
 					continue
 				}
 
@@ -325,9 +324,11 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				totalOutputAmount := txWrap.Tx.OutputAmount()
 				if totalInputAmount < totalOutputAmount {
 					// This must not happen since the tx already passed the check when admitted into mempool
-					logger.Panicf("total value of all transaction outputs for "+
+					logger.Warnf("total value of all transaction outputs for "+
 						"transaction %v is %v, which exceeds the input amount "+
 						"of %v", txHash, totalOutputAmount, totalInputAmount)
+					// TODO: abandon the error tx from pool.
+					continue
 				}
 				txFee := totalInputAmount - totalOutputAmount
 				totalTxFee += txFee
