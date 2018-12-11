@@ -31,7 +31,6 @@ const (
 	SecondInMs           = int64(1000)
 	MinerRefreshInterval = int64(5000)
 	MaxPackedTxTime      = int64(200)
-	MaxBlockTimeOut      = 2
 	PeriodSize           = 6
 	BlockNumPerPeiod     = 5
 )
