@@ -85,6 +85,7 @@ func (tx_pool *TransactionPool) Run() error {
 	// chain update msg
 	tx_pool.bus.Subscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
 
+	tx_pool.proc.Go(tx_pool.loop)
 	return nil
 }
 
