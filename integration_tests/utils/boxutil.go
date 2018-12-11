@@ -541,13 +541,16 @@ func NewTxs(fromAddr, toAddr string, fromAcc *wallet.Account, count int,
 		change := u
 		value := change.GetTxOut().GetValue()
 		aveAmt := value / uint64(n)
-		if aveAmt <= 1 {
+		if aveAmt == 0 {
 			continue
 		}
 		changeAmt := value
 		txs := make([]*types.Transaction, 0)
 		for j := n; j > 0; j-- {
-			fee := uint64(rand.Int63n(int64(aveAmt) / 100))
+			fee := uint64(0)
+			if aveAmt >= 1000 {
+				fee = uint64(rand.Int63n(int64(aveAmt) / 1000))
+			}
 			amount := aveAmt - fee
 			changeAmt = changeAmt - aveAmt
 			tx := new(types.Transaction)

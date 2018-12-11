@@ -134,16 +134,20 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 	toBalancePre := utils.BalanceFor(toAddr, execPeer)
 	logger.Infof("fromAddr[%s] balance: %d, toAddr[%s] balance: %d",
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
-	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
-
+	logger.Infof("start to construct txs from %s to %s %d times", fromAddr, toAddr, times)
+	start := time.Now()
 	txss, transfer, fee, count, err := utils.NewTxs(fromAddr, toAddr,
 		AddrToAcc[fromAddr], times, execPeer)
+	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
+	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {
 		logger.Panic(err)
 	}
 	conn, _ := grpc.Dial(execPeer, grpc.WithInsecure())
 	var wg sync.WaitGroup
 	errChans := make(chan error, len(txss))
+	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
+	start = time.Now()
 	for _, txs := range txss {
 		wg.Add(1)
 		go func(txs []*types.Transaction) {
@@ -166,6 +170,8 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int) uint64 {
 	if len(errChans) > 0 {
 		logger.Panic(<-errChans)
 	}
+	eclipse = float64(time.Since(start).Nanoseconds()) / 1e6
+	logger.Infof("send %d txs cost: %6.3f ms", count, eclipse)
 
 	logger.Infof("%s sent %d transactions total %d to %s on peer %s",
 		fromAddr, count, transfer, toAddr, execPeer)
