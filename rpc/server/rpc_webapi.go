@@ -36,9 +36,12 @@ type webapiServer struct {
 }
 
 func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequest) (*rpcpb.ListTokensResponse, error) {
-	tokenIssueTransactions, err := s.server.GetChainReader().ListTokenIssueTransactions()
+	tokenIssueTransactions, headers, err := s.server.GetChainReader().ListTokenIssueTransactions()
 	if err != nil {
 		return nil, err
+	}
+	if len(tokenIssueTransactions) != len(headers) {
+		return nil, fmt.Errorf("missing block header")
 	}
 	var tokenInfos []*rpcpb.TokenBasicInfo
 	var txInRange []*types.Transaction
@@ -54,7 +57,7 @@ func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequ
 	} else {
 		txInRange = tokenIssueTransactions[req.Offset : req.Offset+req.Limit]
 	}
-	for _, tx := range txInRange {
+	for i, tx := range txInRange {
 		hash, err := tx.TxHash()
 		if err != nil {
 			return nil, err
@@ -78,6 +81,9 @@ func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequ
 					Name:        params.Name,
 					TotalSupply: params.TotalSupply,
 					CreatorAddr: addr.String(),
+					CreatorTime: uint64(headers[int(req.Offset)+i].TimeStamp),
+					Decimals:    uint32(params.Decimals),
+					Symbol:      params.Symbol,
 				}
 				tokenInfos = append(tokenInfos, tokenInfo)
 				break
@@ -96,6 +102,10 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 		return nil, err
 	}
 	tx, err := s.server.GetChainReader().LoadTxByHash(*hash)
+	if err != nil {
+		return nil, err
+	}
+	block, _, err := s.server.GetChainReader().LoadBlockInfoByTxHash(*hash)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +131,9 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 			Name:        param.Name,
 			TotalSupply: param.TotalSupply,
 			CreatorAddr: addr.String(),
+			CreatorTime: uint64(block.Header.TimeStamp),
+			Decimals:    uint32(param.Decimals),
+			Symbol:      param.Symbol,
 		},
 	}, nil
 }

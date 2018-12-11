@@ -235,6 +235,9 @@ message TokenBasicInfo {
     uint64 total_supply = 3;
     string creator_addr = 4;
     uint64 creator_time = 5;
+    // should be uint8, using smallest type uint32 instead
+    uint32 decimals = 6;
+    string symbol = 7;
 }
 
 message ListTokensResponse {

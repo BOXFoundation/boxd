@@ -30,7 +30,7 @@ type ChainReader interface {
 	// address related search method
 	GetTransactionsByAddr(types.Address) ([]*types.Transaction, error)
 
-	ListTokenIssueTransactions() ([]*types.Transaction, error)
+	ListTokenIssueTransactions() ([]*types.Transaction, []*types.BlockHeader, error)
 	GetTokenTransactions(*script.TokenID) ([]*types.Transaction, error)
 
 	IsCoinBase(*types.Transaction) bool

@@ -58,11 +58,12 @@ type Dpos struct {
 // NewDpos new a dpos implement.
 func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Dpos, error) {
 	dpos := &Dpos{
-		chain:  chain,
-		txpool: txpool,
-		net:    net,
-		proc:   goprocess.WithParent(parent),
-		cfg:    cfg,
+		chain:      chain,
+		txpool:     txpool,
+		net:        net,
+		proc:       goprocess.WithParent(parent),
+		cfg:        cfg,
+		enableMint: false,
 	}
 
 	context := &ConsensusContext{}
@@ -193,6 +194,10 @@ func (dpos *Dpos) ValidateMiner() bool {
 		return false
 	}
 
+	if dpos.enableMint {
+		return true
+	}
+
 	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {
 		return false
@@ -204,6 +209,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 		logger.Error(err)
 		return false
 	}
+	dpos.enableMint = true
 	return true
 }
 
@@ -275,64 +281,69 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
-	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
-	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
-
+	remainTimeInMs := dpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	spendableTxs := new(sync.Map)
 
 	// Total fees of all packed txs
 	totalTxFee := uint64(0)
+	stopPack := false
+	stopPackCh := make(chan bool)
 
-PackingTxs:
-	for {
-		select {
-		case <-remainTimer.C:
-			break PackingTxs
-		default:
-			found := true
-			for found {
-				found = false
-				for i, txWrap := range sortedTxs {
-					if txPacked[i] {
-						continue
-					}
-
-					if err := dpos.prepareCandidateContext(txWrap.Tx); err != nil {
-						// TODO: abandon the error tx
-						continue
-					}
-
-					txHash, _ := txWrap.Tx.TxHash()
-					utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
-					if err != nil {
-						logger.Errorf("Could not get extended utxo set for tx %v", txHash)
-						continue
-					}
-
-					// This is to ensure within mempool, a parent tx is packed before its children txs
-					totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
-					if totalInputAmount == 0 {
-						// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
-						continue
-					}
-					totalOutputAmount := txWrap.Tx.OutputAmount()
-					if totalInputAmount < totalOutputAmount {
-						// This must not happen since the tx already passed the check when admitted into mempool
-						logger.Panicf("total value of all transaction outputs for "+
-							"transaction %v is %v, which exceeds the input amount "+
-							"of %v", txHash, totalOutputAmount, totalInputAmount)
-					}
-					txFee := totalInputAmount - totalOutputAmount
-					totalTxFee += txFee
-
-					spendableTxs.Store(*txHash, txWrap)
-					blockTxns = append(blockTxns, txWrap.Tx)
-					txPacked[i] = true
-					found = true
+	go func() {
+		found := true
+		for found {
+			found = false
+			for i, txWrap := range sortedTxs {
+				if stopPack {
+					return
 				}
+				if txPacked[i] {
+					continue
+				}
+
+				if err := dpos.prepareCandidateContext(txWrap.Tx); err != nil {
+					// TODO: abandon the error tx
+					continue
+				}
+
+				txHash, _ := txWrap.Tx.TxHash()
+				utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
+				if err != nil {
+					logger.Errorf("Could not get extended utxo set for tx %v", txHash)
+					continue
+				}
+
+				// This is to ensure within mempool, a parent tx is packed before its children txs
+				totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
+				if totalInputAmount == 0 {
+					// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
+					continue
+				}
+				totalOutputAmount := txWrap.Tx.OutputAmount()
+				if totalInputAmount < totalOutputAmount {
+					// This must not happen since the tx already passed the check when admitted into mempool
+					logger.Panicf("total value of all transaction outputs for "+
+						"transaction %v is %v, which exceeds the input amount "+
+						"of %v", txHash, totalOutputAmount, totalInputAmount)
+				}
+				txFee := totalInputAmount - totalOutputAmount
+				totalTxFee += txFee
+
+				spendableTxs.Store(*txHash, txWrap)
+				blockTxns = append(blockTxns, txWrap.Tx)
+				txPacked[i] = true
+				found = true
 			}
 		}
+		stopPackCh <- true
+	}()
+
+	select {
+	case <-time.After(time.Duration(remainTimeInMs) * time.Millisecond):
+		stopPack = true
+	case <-stopPackCh:
 	}
+
 	// Pay tx fees to miner in addition to block reward in coinbase
 	blockTxns[0].Vout[0].Value += totalTxFee
 

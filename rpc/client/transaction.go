@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/txlogic"
+
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -47,6 +49,41 @@ func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (
 	}
 	logger.Debugf("Result: %+v", r)
 	return r, nil
+}
+
+type rpcTransactionHelper struct {
+	conn *grpc.ClientConn
+}
+
+func (r *rpcTransactionHelper) GetFee() (uint64, error) {
+	return GetFeePrice(r.conn)
+}
+
+func (r *rpcTransactionHelper) Fund(fromAddr types.Address, amountRequired uint64) (map[types.OutPoint]*types.UtxoWrap, error) {
+	resp, err := FundTransaction(r.conn, fromAddr, amountRequired)
+	if err != nil {
+		return nil, err
+	}
+	utxos := make(map[types.OutPoint]*types.UtxoWrap)
+	for _, u := range resp.GetUtxos() {
+		hash := &crypto.HashType{}
+		if err := hash.SetBytes(u.OutPoint.Hash); err != nil {
+			return nil, err
+		}
+		op := types.OutPoint{
+			Hash:  *hash,
+			Index: u.OutPoint.Index,
+		}
+		wrap := &types.UtxoWrap{
+			Output:      u.TxOut,
+			BlockHeight: u.BlockHeight,
+			IsCoinBase:  u.IsCoinbase,
+			IsSpent:     u.IsSpent,
+			IsModified:  false,
+		}
+		utxos[op] = wrap
+	}
+	return utxos, nil
 }
 
 // FundTokenTransaction gets the utxo of a public key containing a certain amount of box and token
@@ -90,50 +127,29 @@ func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *type
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
 func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte,
 	signer crypto.Signer, addrs []types.Address, weights []uint64) (*types.Transaction, error) {
-	var totalAmount uint64
-	transferTargets := make([]*TransferParam, 0)
-	for addr, amount := range targets {
-		totalAmount += amount
-		transferTargets = append(transferTargets, &TransferParam{
-			addr:    addr,
-			isToken: false,
-			amount:  amount,
-			token:   nil,
-			addrs:   addrs,
-			weights: weights,
-		})
-	}
-	change := &corepb.TxOut{
-		Value:        0,
-		ScriptPubKey: getScriptAddress(fromAddress),
-	}
-
-	price, err := GetFeePrice(conn)
+	tx, err := txlogic.CreateTransaction(&rpcTransactionHelper{
+		conn: conn,
+	}, fromAddress, targets, pubKeyBytes, signer)
 	if err != nil {
 		return nil, err
 	}
-
-	var tx *corepb.Transaction
-	for {
-		utxoResponse, err := FundTransaction(conn, fromAddress, totalAmount)
-		if err != nil {
-			return nil, err
-		}
-		if tx, err = generateTx(fromAddress, utxoResponse.GetUtxos(), transferTargets, change); err != nil {
-			return nil, err
-		}
-		if err = signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer); err != nil {
-			return nil, err
-		}
-		ok, adjustedAmount := tryBalance(tx, change, utxoResponse.Utxos, price)
-		if ok {
-			signTransaction(tx, utxoResponse.GetUtxos(), pubKeyBytes, signer)
-			break
-		}
-		totalAmount = adjustedAmount
+	if err := SendTransaction(conn, tx); err != nil {
+		return nil, err
 	}
+	return tx, nil
+}
 
-	txReq := &rpcpb.SendTransactionRequest{Tx: tx}
+// SendTransaction sends an signed transaction to node server through grpc connection
+func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) error {
+	txProtoMsg, err := tx.ToProtoMessage()
+	if err != nil {
+		return err
+	}
+	txPb, ok := txProtoMsg.(*corepb.Transaction)
+	if !ok {
+		return fmt.Errorf("can't convert transaction into protobuf")
+	}
+	txReq := &rpcpb.SendTransactionRequest{Tx: txPb}
 
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
@@ -141,11 +157,9 @@ func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets
 
 	_, err = c.SendTransaction(ctx, txReq)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	transaction := &types.Transaction{}
-	transaction.FromProtoMessage(tx)
-	return transaction, nil
+	return nil
 }
 
 // GetRawTransaction get the transaction info of given hash

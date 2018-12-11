@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -58,7 +59,7 @@ func init() {
 		&cobra.Command{
 			Use:   "networkid [id]",
 			Short: "Update networkid of boxd",
-			Run:   debugLevelCmdFunc,
+			Run:   updateNetworkID,
 		},
 		&cobra.Command{
 			Use:   "decoderawtx",
@@ -173,8 +174,9 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	client.SetDebugLevel(conn, level)
 }
 
+// NOTE: should be remove in product env
 func updateNetworkID(cmd *cobra.Command, args []string) {
-	id := uint32(0x54455354) // default is testnet
+	id := p2p.Testnet // default is testnet
 	if len(args) > 0 {
 		n, err := strconv.Atoi(args[0])
 		if err != nil {

@@ -6,20 +6,24 @@ package chain
 
 import (
 	"testing"
+	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/facebookgo/ensure"
 )
 
 // test setup
 var (
-	_, publicKey, _ = crypto.NewKeyPair()
-	minerAddr, _    = types.NewAddressFromPubKey(publicKey)
-	blockChain      = NewTestBlockChain()
+	privKey, pubKey, _ = crypto.NewKeyPair()
+	minerAddr, _       = types.NewAddressFromPubKey(pubKey)
+	scriptPubKey       = script.PayToPubKeyHashScript(minerAddr.Hash())
+	blockChain         = NewTestBlockChain()
 )
 
 // Test if appending a slice while looping over it using index works.
@@ -41,11 +45,66 @@ func TestAppendInLoop(t *testing.T) {
 	}
 }
 
+// create a child tx spending parent tx's output
+func createChildTx(parentTx *types.Transaction) *types.Transaction {
+	outPoint := types.OutPoint{
+		Hash:  *getTxHash(parentTx),
+		Index: 0,
+	}
+	txIn := &types.TxIn{
+		PrevOutPoint: outPoint,
+		ScriptSig:    []byte{},
+		Sequence:     0,
+	}
+	vIn := []*types.TxIn{
+		txIn,
+	}
+	txOut := &corepb.TxOut{
+		Value:        value,
+		ScriptPubKey: *scriptPubKey,
+	}
+	vOut := []*corepb.TxOut{txOut}
+	tx := &types.Transaction{
+		Version:  1,
+		Vin:      vIn,
+		Vout:     vOut,
+		Magic:    1,
+		LockTime: 0,
+	}
+
+	// sign it
+	for txInIdx, txIn := range tx.Vin {
+		sigHash, err := script.CalcTxHashForSig(*scriptPubKey, tx, txInIdx)
+		if err != nil {
+			return nil
+		}
+		sig, err := crypto.Sign(privKey, sigHash)
+		if err != nil {
+			return nil
+		}
+		scriptSig := script.SignatureScript(sig, pubKey.Serialize())
+		txIn.ScriptSig = *scriptSig
+
+		// test to ensure
+		if err = script.Validate(scriptSig, scriptPubKey, tx, txInIdx); err != nil {
+			return nil
+		}
+	}
+	return tx
+}
+
+func getTxHash(tx *types.Transaction) *crypto.HashType {
+	txHash, _ := tx.TxHash()
+	return txHash
+}
+
 // generate a child block
 func nextBlock(parentBlock *types.Block) *types.Block {
 	newBlock := types.NewBlock(parentBlock)
 
 	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parentBlock.Height+1)
+	// use time to ensure we create a different/unique block each time
+	coinbaseTx.Vin[0].Sequence = uint32(time.Now().UnixNano())
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock
@@ -60,8 +119,6 @@ func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedErr error, 
 
 	err := blockChain.ProcessBlock(newBlock, p2p.DefaultMode /* not broadcast */, false, "")
 
-	// ensure.DeepEqual(t, isMainChain, expectedIsMainChain)
-	// ensure.DeepEqual(t, isOrphan, expectedIsOrphan)
 	ensure.DeepEqual(t, err, expectedErr)
 	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)
 	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
@@ -86,13 +143,16 @@ func TestBlockProcessing(t *testing.T) {
 	// extend main chain
 	// b0 -> b1 -> b2
 	b2 := nextBlock(b1)
+	// add a tx spending from previous block's coinbase
+	b2.Txs = append(b2.Txs, createChildTx(b1.Txs[0]))
+	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
 	verifyProcessBlock(t, b2, nil, 2, b2)
 
 	// extend side chain: fork from b1
 	// b0 -> b1 -> b2
 	//		   \-> b2A
 	b2A := nextBlock(b1)
-	verifyProcessBlock(t, b2A, core.ErrBlockExists, 2, b2)
+	verifyProcessBlock(t, b2A, nil, 2, b2)
 
 	// reorg: side chain grows longer than main chain
 	// b0 -> b1 -> b2
@@ -104,7 +164,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2  -> b3  -> b4
 	//		   \-> b2A -> b3A
 	b3 := nextBlock(b2)
-	verifyProcessBlock(t, b3, core.ErrBlockExists, 3, b3A)
+	verifyProcessBlock(t, b3, nil, 3, b3A)
 	b4 := nextBlock(b3)
 	verifyProcessBlock(t, b4, nil, 4, b4)
 
@@ -113,7 +173,7 @@ func TestBlockProcessing(t *testing.T) {
 	//						  \-> b4B -> b5B
 	//		   \-> b2A -> b3A
 	b4B := nextBlock(b3)
-	verifyProcessBlock(t, b4B, core.ErrBlockExists, 4, b4)
+	verifyProcessBlock(t, b4B, nil, 4, b4)
 	b5B := nextBlock(b4B)
 	verifyProcessBlock(t, b5B, nil, 5, b5B)
 

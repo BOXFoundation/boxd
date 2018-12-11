@@ -7,6 +7,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -147,7 +148,7 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 			if err != nil {
 				return 0, err
 			}
-			amount += issueParam.TotalSupply
+			amount += issueParam.TotalSupply * uint64(math.Pow10(int(issueParam.Decimals)))
 		}
 		if s.IsTokenTransfer() {
 			transferParam, err := s.GetTransferParams()
@@ -254,7 +255,7 @@ func getTokenInfo(outpoint types.OutPoint, wrap *types.UtxoWrap) (types.OutPoint
 	s := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
 	if s.IsTokenIssue() {
 		if issueParam, err := s.GetIssueParams(); err == nil {
-			return outpoint, issueParam.TotalSupply, true
+			return outpoint, issueParam.TotalSupply * uint64(math.Pow10(int(issueParam.Decimals))), true
 		}
 	}
 	if s.IsTokenTransfer() {
