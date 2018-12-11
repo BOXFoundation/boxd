@@ -472,7 +472,6 @@ func (tx_pool *TransactionPool) removeOrphan(tx *types.Transaction) {
 	}
 
 	tx_pool.hashToOrphanTx.Delete(*txHash)
-	logger.Debugf("Removed orphan transaction %v", txHash.String())
 }
 
 // removeDoubleSpendOrphans removes all orphans from the orphan pool, which double spend the passed transaction.
