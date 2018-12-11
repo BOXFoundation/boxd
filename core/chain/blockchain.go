@@ -291,7 +291,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.Trans
 		go chain.consensus.TryToUpdateEternalBlock(block)
 	}
 
-	logger.Infof("Accepted New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
 	return nil
 }
 
