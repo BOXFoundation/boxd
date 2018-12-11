@@ -355,10 +355,10 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 		times := relayTimes
 
 		if v, ok := msgAttr.relayCache.Get(crc32.ChecksumIEEE(body)); ok {
+			if v.(int) == 0 {
+				return nil, nil, ErrNoNeedToRelay
+			}
 			times = v.(int) - 1<<5
-		}
-		if times&relayFlag == 0 {
-			return nil, nil, ErrNoNeedToRelay
 		}
 
 		if len(flags) > 0 {
