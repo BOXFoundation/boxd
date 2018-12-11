@@ -13,7 +13,7 @@
     "collection_unit_accounts": 5,
     "circulation_accounts": 10,
     "circulation_unit_accounts": 5,
-    "circulation_repeat_times": 100,
+    "circulation_repeat_times": 200,
     "circulation_workers": 1
   },
   "token_test": {
