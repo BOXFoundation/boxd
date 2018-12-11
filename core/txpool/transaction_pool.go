@@ -85,7 +85,7 @@ func (tx_pool *TransactionPool) Run() error {
 	// chain update msg
 	tx_pool.bus.Subscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
 
-	tx_pool.proc.Go(tx_pool.loop).SetTeardown(tx_pool.teardown)
+	tx_pool.proc.Go(tx_pool.loop)
 	return nil
 }
 
@@ -97,13 +97,6 @@ func (tx_pool *TransactionPool) Proc() goprocess.Process {
 // Stop the server
 func (tx_pool *TransactionPool) Stop() {
 	tx_pool.proc.Close()
-}
-
-// teardown to clean the process
-func (tx_pool *TransactionPool) teardown() error {
-	close(tx_pool.newChainUpdateMsgCh)
-	close(tx_pool.newTxMsgCh)
-	return nil
 }
 
 func (tx_pool *TransactionPool) receiveChainUpdateMsg(msg *chain.UpdateMsg) {
