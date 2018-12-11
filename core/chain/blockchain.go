@@ -45,7 +45,7 @@ const (
 
 	MaxBlocksPerSync = 1024
 
-	metricsLoopInterval = 2 * time.Second
+	metricsLoopInterval = 500 * time.Millisecond
 	tokenIssueFilterKey = "token_issue"
 	Threshold           = 32
 )
