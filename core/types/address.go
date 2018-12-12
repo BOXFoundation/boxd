@@ -10,8 +10,9 @@ import (
 	"golang.org/x/crypto/ripemd160"
 )
 
-var addressTypeP2PKHPrefix = [2]byte{FixPrefix, 0x26}
-var addressTypeP2SHPrefix = [2]byte{FixPrefix, 0x2b}
+var addressTypeP2PKHPrefix = [2]byte{FixPrefix, 0x26}     // p2pkh addresses start with b1
+var addressTypeP2SHPrefix = [2]byte{FixPrefix, 0x2b}      //b3
+var addressTypeSplitAddrPrefix = [2]byte{FixPrefix, 0x29} //b2
 
 // const
 const (
@@ -102,6 +103,66 @@ func (a *AddressPubKeyHash) SetString(in string) error {
 
 // Hash160 returns the underlying array of the pubkey hash.
 func (a *AddressPubKeyHash) Hash160() *AddressHash {
+	return &a.hash
+}
+
+// NewSplitAddress creates an address with a string prefixed by "b2"
+func NewSplitAddress(address string) (Address, error) {
+	addr := &AddressTypeSplit{}
+	err := addr.SetString(address)
+	return addr, err
+}
+
+// NewSplitAddressFromHash creates an address with byte array of size 20
+func NewSplitAddressFromHash(hash []byte) (Address, error) {
+	if len(hash) != ripemd160.Size {
+		return nil, core.ErrInvalidPKHash
+	}
+
+	addr := &AddressTypeSplit{}
+	copy(addr.hash[:], hash)
+	return addr, nil
+}
+
+// AddressTypeSplit stands for split address
+type AddressTypeSplit struct {
+	hash AddressHash
+}
+
+// String returns a human-readable string for the split address.
+func (a *AddressTypeSplit) String() string {
+	return encodeAddress(a.hash[:], addressTypeSplitAddrPrefix)
+}
+
+// SetString sets the Address's internal byte array using byte array decoded from input
+// base58 format string, returns error if input string is invalid
+func (a *AddressTypeSplit) SetString(in string) error {
+	if len(in) != EncodeAddressLength || in[0] != BoxPrefix {
+		return core.ErrInvalidAddressString
+	}
+	rawBytes, err := crypto.Base58CheckDecode(in)
+	if err != nil {
+		return err
+	}
+	if len(rawBytes) != 22 {
+		return core.ErrInvalidAddressString
+	}
+	var prefix [2]byte
+	copy(prefix[:], rawBytes[:2])
+	if prefix != addressTypeSplitAddrPrefix {
+		return core.ErrInvalidAddressString
+	}
+	copy(a.hash[:], rawBytes[2:])
+	return nil
+}
+
+// Hash returns the bytes to be included in a txout script to pay to a split addr.
+func (a *AddressTypeSplit) Hash() []byte {
+	return a.hash[:]
+}
+
+// Hash160 returns the underlying array of the pubkey hash.
+func (a *AddressTypeSplit) Hash160() *AddressHash {
 	return &a.hash
 }
 
