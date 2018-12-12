@@ -75,7 +75,7 @@ func (a *AddressPubKeyHash) Hash() []byte {
 
 // String returns a human-readable string for the pay-to-pubkey-hash address.
 func (a *AddressPubKeyHash) String() string {
-	return encodeAddress(a.hash[:])
+	return encodeAddress(a.hash[:], addressTypeP2PKHPrefix)
 }
 
 // SetString sets the Address's internal byte array using byte array decoded from input
@@ -105,9 +105,9 @@ func (a *AddressPubKeyHash) Hash160() *AddressHash {
 	return &a.hash
 }
 
-func encodeAddress(hash []byte) string {
+func encodeAddress(hash []byte, prefix [2]byte) string {
 	b := make([]byte, 0, len(hash)+2)
-	b = append(b, addressTypeP2PKHPrefix[:]...)
+	b = append(b, prefix[:]...)
 	b = append(b, hash[:]...)
 	return crypto.Base58CheckEncode(b)
 }
