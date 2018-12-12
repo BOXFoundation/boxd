@@ -75,12 +75,12 @@ func CreateTokenIssueTx(conn *grpc.ClientConn, fromAddress, toAddress types.Addr
 
 // CreateTokenTransferTx retrieves all the token utxo of a public key, and use some of them to fund token transfer tx
 func CreateTokenTransferTx(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte,
-	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32, signer crypto.Signer) (*types.Transaction, error) {
+	tokenTxHash crypto.HashType, tokenTxOutIdx uint32, signer crypto.Signer) (*types.Transaction, error) {
 
 	var totalToken uint64
 	transferTargets := make([]*TransferParam, 0)
 	token := &types.OutPoint{
-		Hash:  *tokenTxHash,
+		Hash:  tokenTxHash,
 		Index: tokenTxOutIdx,
 	}
 	for addr, amount := range targets {
@@ -142,7 +142,7 @@ func CreateTokenTransferTx(conn *grpc.ClientConn, fromAddress types.Address, tar
 }
 
 // GetTokenBalance returns the token balance of a public key
-func GetTokenBalance(conn *grpc.ClientConn, addr types.Address, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
+func GetTokenBalance(conn *grpc.ClientConn, addr types.Address, tokenTxHash crypto.HashType, tokenTxOutIdx uint32) uint64 {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

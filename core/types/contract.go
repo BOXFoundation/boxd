@@ -26,6 +26,13 @@ type Token struct {
 	op OutPoint
 }
 
+// NewTokenFromOutpoint creates an token adddress from outpoint
+func NewTokenFromOutpoint(op OutPoint) *Token {
+	return &Token{
+		op: op,
+	}
+}
+
 // String returns an address string starting with "b4"
 func (t *Token) String() string {
 	return encodeContract(t.op, tokenPrefix)

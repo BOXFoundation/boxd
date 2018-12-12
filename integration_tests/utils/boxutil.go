@@ -504,7 +504,7 @@ func TokenBalanceFor(addr string, tx *types.Transaction, peerAddr string) uint64
 	if err != nil {
 		logger.Panic(err)
 	}
-	return client.GetTokenBalance(conn, address, txHash, 0)
+	return client.GetTokenBalance(conn, address, *txHash, 0)
 }
 
 // NewTxs construct some transactions

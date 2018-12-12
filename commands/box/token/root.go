@@ -11,7 +11,6 @@ import (
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -109,25 +108,25 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 	} else {
 		hash, _ := tx.TxHash()
-		fmt.Println("Tx Hash:", hash.String())
-		fmt.Println(util.PrettyPrint(tx))
+		tk := types.NewTokenFromOutpoint(types.OutPoint{
+			Hash:  *hash,
+			Index: 0,
+		})
+		fmt.Println("Created Token Address: ", tk.String())
 	}
 }
 
 func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("transferToken called")
-	if len(args) != 5 {
+	if len(args) != 4 {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	tokenTxHash := &crypto.HashType{}
-	err1 := tokenTxHash.SetString(args[1])
-	tokenTxOutIdx, err2 := strconv.Atoi(args[2])
-	if err1 != nil || err2 != nil {
-		fmt.Println("Invalid argument format")
-		return
+	token := &types.Token{}
+	if err := token.SetString(args[1]); err != nil {
+		fmt.Println("Invalid token address")
 	}
-	targets, err := parseSendTarget(args[3:])
+	targets, err := parseSendTarget(args[2:])
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -159,7 +158,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
 	tx, err := client.CreateTokenTransferTx(conn, fromAddr, targets,
-		account.PublicKey(), tokenTxHash, uint32(tokenTxOutIdx), account)
+		account.PublicKey(), token.OutPoint().Hash, token.OutPoint().Index, account)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -171,16 +170,13 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getTokenBalance called")
-	if len(args) != 3 {
+	if len(args) != 2 {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	tokenTxHash := &crypto.HashType{}
-	err1 := tokenTxHash.SetString(args[1])
-	tokenTxOutIdx, err2 := strconv.Atoi(args[2])
-	if err1 != nil || err2 != nil {
-		fmt.Println("Invalid argument format")
-		return
+	token := &types.Token{}
+	if err := token.SetString(args[1]); err != nil {
+		fmt.Println("Invalid token address")
 	}
 	addr, err := types.NewAddress(args[0])
 	if err != nil {
@@ -188,7 +184,7 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	balance := client.GetTokenBalance(conn, addr, tokenTxHash, uint32(tokenTxOutIdx))
+	balance := client.GetTokenBalance(conn, addr, token.OutPoint().Hash, uint32(token.OutPoint().Index))
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }
 

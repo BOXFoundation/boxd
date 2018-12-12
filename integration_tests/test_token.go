@@ -224,7 +224,7 @@ func transferToken(fromAddr, toAddr string, amount uint64, tx *types.Transaction
 		logger.Panic(err)
 	}
 	newTx, err := client.CreateTokenTransferTx(conn, fromAddress, targets,
-		AddrToAcc[fromAddr].PublicKey(), txHash, 0, AddrToAcc[fromAddr])
+		AddrToAcc[fromAddr].PublicKey(), *txHash, 0, AddrToAcc[fromAddr])
 	if err != nil {
 		logger.Panic(err)
 	}
