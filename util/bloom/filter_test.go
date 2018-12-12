@@ -260,7 +260,7 @@ func BenchmarkAdd(b *testing.B) {
 	bf0 := NewFilter(1000, 0.0001)
 	data := []byte("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	b.ResetTimer()
-	for i := uint32(0); i < 10000000; i++ {
+	for i := 0; i < b.N; i++ {
 		bf0.Add(data)
 	}
 }
@@ -270,7 +270,7 @@ func BenchmarkMatch(b *testing.B) {
 	data := []byte("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	bf0.Add(data)
 	b.ResetTimer()
-	for i := uint32(0); i < 10000000; i++ {
+	for i := 0; i < b.N; i++ {
 		bf0.Matches(data)
 	}
 }
@@ -280,7 +280,7 @@ func BenchmarkMatchAndAdd(b *testing.B) {
 	data := []byte("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	bf0.Add(data)
 	b.ResetTimer()
-	for i := uint32(0); i < 10000000; i++ {
+	for i := 0; i < b.N; i++ {
 		bf0.MatchesAndAdd(data)
 	}
 }
@@ -288,7 +288,7 @@ func BenchmarkMatchAndAdd(b *testing.B) {
 func BenchmarkMatchAndAdd2(b *testing.B) {
 	bf0 := NewFilter(1000, 0.0001)
 	b.ResetTimer()
-	for i := uint32(0); i < 10000000; i++ {
+	for i := 0; i < b.N; i++ {
 		bf0.MatchesAndAdd([]byte(fmt.Sprintf("%058d", i)))
 	}
 }
