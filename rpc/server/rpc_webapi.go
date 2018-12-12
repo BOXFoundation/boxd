@@ -73,11 +73,12 @@ func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequ
 				if err != nil {
 					return nil, err
 				}
+				tokenAddr := types.NewTokenFromOutpoint(types.OutPoint{
+					Hash:  *hash,
+					Index: uint32(idx),
+				})
 				tokenInfo := &rpcpb.TokenBasicInfo{
-					Token: &rpcpb.Token{
-						Hash:  hash.String(),
-						Index: uint32(idx),
-					},
+					Addr:        tokenAddr.String(),
 					Name:        params.Name,
 					TotalSupply: params.TotalSupply,
 					CreatorAddr: addr.String(),
@@ -97,22 +98,22 @@ func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequ
 }
 
 func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfoRequest) (*rpcpb.GetTokenInfoResponse, error) {
-	hash := &crypto.HashType{}
-	if err := hash.SetString(req.Token.Hash); err != nil {
+	tokenAddr := types.Token{}
+	if err := tokenAddr.SetString(req.Addr); err != nil {
 		return nil, err
 	}
-	tx, err := s.server.GetChainReader().LoadTxByHash(*hash)
+	tx, err := s.server.GetChainReader().LoadTxByHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
-	block, _, err := s.server.GetChainReader().LoadBlockInfoByTxHash(*hash)
+	block, _, err := s.server.GetChainReader().LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
-	if uint32(len(tx.Vout)) <= req.Token.Index {
+	if uint32(len(tx.Vout)) <= tokenAddr.OutPoint().Index {
 		return nil, fmt.Errorf("invalid token index")
 	}
-	out := tx.Vout[req.Token.Index]
+	out := tx.Vout[tokenAddr.OutPoint().Index]
 	sc := script.NewScriptFromBytes(out.ScriptPubKey)
 	if !sc.IsTokenIssue() {
 		return nil, fmt.Errorf("invalid token id")
@@ -127,7 +128,7 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 	}
 	return &rpcpb.GetTokenInfoResponse{
 		Info: &rpcpb.TokenBasicInfo{
-			Token:       req.Token,
+			Addr:        tokenAddr.String(),
 			Name:        param.Name,
 			TotalSupply: param.TotalSupply,
 			CreatorAddr: addr.String(),
@@ -143,15 +144,12 @@ func (s *webapiServer) GetTokenHolders(ctx context.Context, req *rpcpb.GetTokenH
 	if err != nil {
 		return nil, err
 	}
-	hash := &crypto.HashType{}
-	if err := hash.SetString(req.Token.Hash); err != nil {
+	tokenAddr := &types.Token{}
+	if err := tokenAddr.SetString(req.Addr); err != nil {
 		return nil, err
 	}
 	tokenID := &script.TokenID{
-		OutPoint: types.OutPoint{
-			Hash:  *hash,
-			Index: req.Token.Index,
-		},
+		OutPoint: tokenAddr.OutPoint(),
 	}
 	distribute, err := s.analyzeTokenDistribute(utxos, tokenID)
 	if err != nil {
@@ -176,23 +174,18 @@ func (s *webapiServer) GetTokenHolders(ctx context.Context, req *rpcpb.GetTokenH
 		targetHolders = holders[req.Offset : req.Offset+req.Limit]
 	}
 	return &rpcpb.GetTokenHoldersResponse{
-		Token: req.Token,
+		Addr:  req.Addr,
 		Count: total,
 		Data:  targetHolders,
 	}, nil
 }
 
 func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetTokenTransactionsRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	hash := &crypto.HashType{}
-	if err := hash.SetString(req.Token.Hash); err != nil {
+	tokenAddr := new(types.Token)
+	if err := tokenAddr.SetString(req.Addr); err != nil {
 		return nil, err
 	}
-	tokenID := &script.TokenID{
-		OutPoint: types.OutPoint{
-			Hash:  *hash,
-			Index: req.Token.Index,
-		},
-	}
+	tokenID := &script.TokenID{OutPoint: tokenAddr.OutPoint()}
 	allTxs, err := s.server.GetChainReader().GetTokenTransactions(tokenID)
 	if err != nil {
 		return nil, err
@@ -333,12 +326,12 @@ func convertVout(vout *corepb.TxOut) (*rpcpb.TxOutInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		tokenID := &rpcpb.Token{
-			Hash:  params.Hash.String(),
+		tokenAddr := types.NewTokenFromOutpoint(types.OutPoint{
+			Hash:  params.Hash,
 			Index: params.Index,
-		}
+		})
 		out.TransferInfo = &rpcpb.TokenTransferInfo{
-			Token:  tokenID,
+			Addr:   tokenAddr.String(),
 			Amount: params.Amount,
 		}
 	}

@@ -160,7 +160,7 @@ message GetTransactionInfoResponse {
 }
 
 message TokenTransferInfo {
-    Token token = 1;
+    string addr = 1;
     uint64 amount = 2;
 }
 
@@ -210,19 +210,19 @@ message ListTokensRequest {
 }
 
 message GetTokenHoldersRequest {
-    Token token = 1;
+    string addr = 1;
     uint32 offset = 2;
     uint32 limit = 3;
 }
 
 message GetTokenTransactionsRequest {
-    Token token = 1;
+    string addr = 1;
     uint32 offset = 2;
     uint32 limit = 3;
 }
 
 message GetTokenInfoRequest {
-    Token token = 1;
+    string addr = 1;
 }
 
 message GetTokenInfoResponse {
@@ -238,6 +238,7 @@ message TokenBasicInfo {
     // should be uint8, using smallest type uint32 instead
     uint32 decimals = 6;
     string symbol = 7;
+    string addr = 8;
 }
 
 message ListTokensResponse {
@@ -246,7 +247,7 @@ message ListTokensResponse {
 }
 
 message GetTokenHoldersResponse {
-    Token token = 1;
+    string addr = 1;
     uint32 count = 2;
     repeated AddressAmount data = 3;
 }
