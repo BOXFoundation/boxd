@@ -214,9 +214,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	if err := block.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
-	if ok := chain.verifyRepeatedMint(block); !ok {
-		return core.ErrRepeatedMintAtSameTime
-	}
+
 	if err := VerifyBlockTimeOut(block); err != nil {
 		return err
 	}
@@ -233,6 +231,11 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
 
+	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
+		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+		return core.ErrFailedToVerifyWithConsensus
+	}
+
 	chain.chainLock.Lock()
 	defer chain.chainLock.Unlock()
 
@@ -245,9 +248,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.Trans
 		return core.ErrBlockExists
 	}
 
-	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
-		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
-		return core.ErrFailedToVerifyWithConsensus
+	if ok := chain.verifyRepeatedMint(block); !ok {
+		return core.ErrRepeatedMintAtSameTime
 	}
 
 	if err := validateBlock(block); err != nil {
@@ -260,6 +262,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.Trans
 		// Orphan block.
 		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
+		chain.repeatedMintCache.Add(block.Header.TimeStamp, block)
 		height := chain.tail.Height
 		if height < block.Height && messageFrom != "" {
 			if block.Height-height < Threshold {

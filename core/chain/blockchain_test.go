@@ -24,6 +24,7 @@ var (
 	minerAddr, _       = types.NewAddressFromPubKey(pubKey)
 	scriptPubKey       = script.PayToPubKeyHashScript(minerAddr.Hash())
 	blockChain         = NewTestBlockChain()
+	timestamp          = time.Now().Unix()
 )
 
 // Test if appending a slice while looping over it using index works.
@@ -100,6 +101,7 @@ func getTxHash(tx *types.Transaction) *crypto.HashType {
 
 // generate a child block
 func nextBlock(parentBlock *types.Block) *types.Block {
+	timestamp++
 	newBlock := types.NewBlock(parentBlock)
 
 	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parentBlock.Height+1)
@@ -107,6 +109,7 @@ func nextBlock(parentBlock *types.Block) *types.Block {
 	coinbaseTx.Vin[0].Sequence = uint32(time.Now().UnixNano())
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
+	newBlock.Header.TimeStamp = timestamp
 	return newBlock
 }
 

@@ -195,8 +195,8 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast, rela
 // Potentially accept the transaction to the memory pool.
 func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMode p2p.TransferMode, detectDupOrphan bool) error {
 
-	// tx_pool.txMutex.Lock()
-	// defer tx_pool.txMutex.Unlock()
+	tx_pool.txMutex.Lock()
+	defer tx_pool.txMutex.Unlock()
 	txHash, _ := tx.TxHash()
 
 	// Don't accept the transaction if it already exists in the pool.
