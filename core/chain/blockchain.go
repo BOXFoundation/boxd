@@ -196,7 +196,7 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
 	if exist, ok := chain.repeatedMintCache.Get(block.Header.TimeStamp); ok {
-		if exist.(*types.Block).BlockHash() != block.BlockHash() {
+		if !block.BlockHash().IsEqual(exist.(*types.Block).BlockHash()) {
 			return false
 		}
 	}
