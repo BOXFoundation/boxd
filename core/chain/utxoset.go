@@ -76,7 +76,9 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 	utxoWrap := u.utxoMap[outPoint]
 	if utxoWrap == nil {
-		return
+		// Mark the utxo entry as spent so it could be deleted from db later
+		utxoWrap = &types.UtxoWrap{}
+		u.utxoMap[outPoint] = utxoWrap
 	}
 	utxoWrap.IsSpent = true
 	utxoWrap.IsModified = true
