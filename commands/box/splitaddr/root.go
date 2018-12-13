@@ -97,8 +97,7 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(),
-		account, addrs, weights)
+	tx, err := client.CreateSplitAddrTransaction(conn, fromAddr, account.PublicKey(), addrs, weights, account)
 	if err != nil {
 		fmt.Println(err)
 	} else {

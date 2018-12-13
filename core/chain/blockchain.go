@@ -575,6 +575,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 			return err
 		}
 	}
+
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
@@ -600,6 +601,12 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 
 	// save tx index
 	if err := chain.WriteTxIndex(block, batch); err != nil {
+		return err
+	}
+
+	// store split addr index
+	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
+		logger.Error(err)
 		return err
 	}
 
@@ -1301,7 +1308,7 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 		logger.Debugf("Tx output does not contain a valid address")
 		return txOuts
 	}
-	isSplitAddr, addrs, weights, err := chain.findSplitAddr(addr)
+	isSplitAddr, sai, err := chain.findSplitAddr(addr)
 	if !isSplitAddr {
 		return txOuts
 	}
@@ -1312,17 +1319,17 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 
 	// split it
 	txOuts = make([]*corepb.TxOut, 0)
-	n := len(addrs)
+	n := len(sai.addrs)
 
 	totalWeight := uint64(0)
 	for i := 0; i < n; i++ {
-		totalWeight += weights[i]
+		totalWeight += sai.weights[i]
 	}
 
 	totalValue := uint64(0)
 	for i := 0; i < n; i++ {
 		// An composite address splits value per its weight
-		value := txOut.Value * weights[i] / totalWeight
+		value := txOut.Value * sai.weights[i] / totalWeight
 		if i == n-1 {
 			// Last address gets the remainder value in case value is indivisible
 			value = txOut.Value - totalValue
@@ -1331,7 +1338,7 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 		}
 		childTxOut := &corepb.TxOut{
 			Value:        value,
-			ScriptPubKey: *script.PayToPubKeyHashScript(addrs[i].Hash()),
+			ScriptPubKey: *script.PayToPubKeyHashScript(sai.addrs[i].Hash()),
 		}
 		// recursively find if the child tx output is splittable
 		childTxOuts := chain.splitTxOutput(childTxOut)
@@ -1341,38 +1348,12 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	return txOuts
 }
 
-// findSplitAddr search the main chain to see if the address is a split address.
-// If yes, return split address parameters
-func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, []types.Address, []uint64, error) {
-	splitScriptPrefix := *script.CreateSplitAddrScriptPrefix(addr)
-	hashes := chain.filterHolder.ListMatchedBlockHashes(splitScriptPrefix)
-
-	for _, hash := range hashes {
-		block, err := chain.LoadBlockByHash(hash)
-		if err != nil {
-			return false, nil, nil, nil
-		}
-		// Skip coinbase since it cannot create split address
-		for _, tx := range block.Txs[1:] {
-			txHash, _ := tx.TxHash()
-			for txOutIdx, txOut := range tx.Vout {
-				if util.IsPrefixed(txOut.ScriptPubKey, splitScriptPrefix) {
-					logger.Debugf("Split address created at outpoint (%v, %d)", txHash, txOutIdx)
-					addrs, weights, err := script.NewScriptFromBytes(txOut.ScriptPubKey).ParseSplitAddrScript()
-					return true, addrs, weights, err
-				}
-			}
-		}
-	}
-
-	return false, nil, nil, nil
-}
-
 type splitAddrInfo struct {
 	addrs   []types.Address
 	weights []uint64
 }
 
+// Marshall Serialize splitAddrInfo into bytes
 func (s *splitAddrInfo) Marshall() ([]byte, error) {
 	if len(s.addrs) != len(s.weights) {
 		return nil, fmt.Errorf("invalid split addr info")
@@ -1387,6 +1368,7 @@ func (s *splitAddrInfo) Marshall() ([]byte, error) {
 	return res, nil
 }
 
+// Unmarshall parse splitAddrInfo from bytes
 func (s *splitAddrInfo) Unmarshall(data []byte) error {
 	minLenght := ripemd160.Size + 8
 	if len(data)%minLenght != 0 {
@@ -1410,8 +1392,10 @@ func (s *splitAddrInfo) Unmarshall(data []byte) error {
 	return nil
 }
 
-func (chain *BlockChain) findSplitAddr2(addr types.Address) (bool, *splitAddrInfo, error) {
-	if splitInfo, ok := chain.hashToSplitAddr.Get(addr.Hash()); ok {
+// findSplitAddr search the main chain to see if the address is a split address.
+// If yes, return split address parameters
+func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, *splitAddrInfo, error) {
+	if splitInfo, ok := chain.hashToSplitAddr.Get(addr.Hash160()); ok {
 		return ok, splitInfo.(*splitAddrInfo), nil
 	}
 	data, err := chain.db.Get(SplitAddrKey(addr.Hash()))
@@ -1425,6 +1409,38 @@ func (chain *BlockChain) findSplitAddr2(addr types.Address) (bool, *splitAddrInf
 	if err := info.Unmarshall(data); err != nil {
 		return false, nil, err
 	}
-	chain.hashToSplitAddr.Add(addr.Hash(), info)
+	chain.hashToSplitAddr.Add(addr.Hash160(), info)
 	return true, info, nil
+}
+
+// WriteSplitAddrIndex writes split addr info index
+func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, batch storage.Batch) error {
+	for _, tx := range block.Txs {
+		for _, vout := range tx.Vout {
+			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+			if sc.IsSplitAddrScript() {
+				addr, err := sc.ExtractAddress()
+				if err != nil {
+					return err
+				}
+				addrs, weights, err := sc.ParseSplitAddrScript()
+				if err != nil {
+					return err
+				}
+				sai := &splitAddrInfo{
+					addrs:   addrs,
+					weights: weights,
+				}
+				dataBytes, err := sai.Marshall()
+				if err != nil {
+					return err
+				}
+				k := SplitAddrKey(addr.Hash())
+				batch.Put(k, dataBytes)
+				chain.hashToSplitAddr.Add(addr.Hash160(), sai)
+				logger.Infof("New Split Address created")
+			}
+		}
+	}
+	return nil
 }

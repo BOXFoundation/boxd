@@ -124,6 +124,20 @@ func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *type
 	return r, nil
 }
 
+// CreateSplitAddrTransaction creates a split address using input param addrs and weight
+func CreateSplitAddrTransaction(conn *grpc.ClientConn, fromAddr types.Address, pubKeyBytes []byte,
+	addrs []types.Address, weights []uint64, signer crypto.Signer) (*types.Transaction, error) {
+	tx, err := txlogic.CreateSplitAddrTransaction(
+		&rpcTransactionHelper{conn: conn}, fromAddr, pubKeyBytes, addrs, weights, signer)
+	if err != nil {
+		return nil, err
+	}
+	if err := SendTransaction(conn, tx); err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
 func CreateTransaction(conn *grpc.ClientConn, fromAddress types.Address, targets map[types.Address]uint64, pubKeyBytes []byte,
 	signer crypto.Signer, addrs []types.Address, weights []uint64) (*types.Transaction, error) {

@@ -122,6 +122,7 @@ func FilterKey(hash crypto.HashType) []byte {
 	return buf
 }
 
+// SplitAddrKey returns the db key to store split address
 func SplitAddrKey(hash []byte) []byte {
 	return splitAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
 }

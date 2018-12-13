@@ -586,6 +586,20 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
+	if s.IsSplitAddrScript() {
+		str := s.Disasm()
+		segs := strings.Split(str, " ")
+		pubKeyHash, err := hex.DecodeString(segs[1])
+		if err != nil {
+			return nil, err
+		}
+		addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+		if err != nil {
+			return nil, err
+		}
+		return addr, nil
+	}
+
 	// only applies to p2pkh & token txs
 	if !s.IsPayToPubKeyHash() && !s.IsTokenIssue() && !s.IsTokenTransfer() {
 		return nil, ErrAddressNotApplicable

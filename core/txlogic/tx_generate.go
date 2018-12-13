@@ -95,13 +95,25 @@ func getScriptAddress(address types.Address) []byte {
 	return *script.PayToPubKeyHashScript(address.Hash())
 }
 
+// CreateSplitAddrTransaction creates a split address using input addresses and weights
+func CreateSplitAddrTransaction(helper TxGenerateHelper, fromAddr types.Address, pubKeyBytes []byte,
+	addrs []types.Address, weights []uint64, signer crypto.Signer) (*types.Transaction, error) {
+	t := &TransferParam{
+		addr:    fromAddr,
+		isToken: false,
+		amount:  0,
+		token:   nil,
+		addrs:   addrs,
+		weights: weights,
+	}
+	return CreateTransactionFromTransferParam(helper, fromAddr, pubKeyBytes, []*TransferParam{t}, signer)
+}
+
 // CreateTransaction retrieves all the utxo of a public key, and use some of them to send transaction
 func CreateTransaction(helper TxGenerateHelper, fromAddress types.Address, targets map[types.Address]uint64,
 	pubKeyBytes []byte, signer crypto.Signer) (*types.Transaction, error) {
-	var totalAmount uint64
-	transferTargets := make([]*TransferParam, 0)
+	transferTargets := make([]*TransferParam, 0, len(targets))
 	for addr, amount := range targets {
-		totalAmount += amount
 		transferTargets = append(transferTargets, &TransferParam{
 			addr:    addr,
 			isToken: false,
@@ -109,9 +121,19 @@ func CreateTransaction(helper TxGenerateHelper, fromAddress types.Address, targe
 			token:   nil,
 		})
 	}
+	return CreateTransactionFromTransferParam(helper, fromAddress, pubKeyBytes, transferTargets, signer)
+}
+
+// CreateTransactionFromTransferParam creates transaction from processed transferparam arrays
+func CreateTransactionFromTransferParam(helper TxGenerateHelper, fromAddr types.Address, pubKeyBytes []byte,
+	targets []*TransferParam, signer crypto.Signer) (*types.Transaction, error) {
+	var totalAmount uint64
+	for _, t := range targets {
+		totalAmount += t.amount
+	}
 	change := &corepb.TxOut{
 		Value:        0,
-		ScriptPubKey: getScriptAddress(fromAddress),
+		ScriptPubKey: getScriptAddress(fromAddr),
 	}
 
 	price, err := helper.GetFee()
@@ -121,12 +143,12 @@ func CreateTransaction(helper TxGenerateHelper, fromAddress types.Address, targe
 
 	var tx *types.Transaction
 	for {
-		utxos, err := helper.Fund(fromAddress, totalAmount)
+		utxos, err := helper.Fund(fromAddr, totalAmount)
 		//utxoResponse, err := FundTransaction(conn, fromAddress, totalAmount)
 		if err != nil {
 			return nil, err
 		}
-		if tx, err = generateTx(fromAddress, utxos, transferTargets, change); err != nil {
+		if tx, err = generateTx(fromAddr, utxos, targets, change); err != nil {
 			return nil, err
 		}
 		if err = signTransaction(tx, utxos, pubKeyBytes, signer); err != nil {
