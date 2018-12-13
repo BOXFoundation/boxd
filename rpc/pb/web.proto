@@ -175,6 +175,7 @@ message TxOutInfo {
     string script_disasm = 3;
     TokenIssueInfo issue_info = 4;
     TokenTransferInfo transfer_info = 5;
+    string addr = 6;
 }
 
 message OutPointInfo {
@@ -187,6 +188,7 @@ message TxInInfo {
     bytes script_sig = 2;
     uint32 sequence = 3;
     uint64 value = 4;
+    string addr = 5;
 }
 
 message BlockInfo {

@@ -335,6 +335,9 @@ func convertVout(vout *corepb.TxOut) (*rpcpb.TxOutInfo, error) {
 			Amount: params.Amount,
 		}
 	}
+	if addr, err := sc.ExtractAddress(); err == nil {
+		out.Addr = addr.String()
+	}
 	return out, nil
 }
 
@@ -618,6 +621,10 @@ func (s *webapiServer) convertTransaction(tx *types.Transaction, utxos map[types
 				ScriptSig:    i.ScriptSig,
 				Sequence:     i.Sequence,
 				Value:        utxo.Output.Value,
+			}
+			sc := *script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+			if addr, err := sc.ExtractAddress(); err == nil {
+				info.Addr = addr.String()
 			}
 			totalIn += utxo.Output.Value
 			inInfos = append(inInfos, info)
