@@ -210,10 +210,9 @@ func (msgAttr *messageAttribute) duplicateFilter(body []byte, pid peer.ID, frequ
 		return true
 	}
 	key := msgAttr.lruKey(body, pid, frequency)
-	if msgAttr.cache.Contains(key) {
+	if ok, _ := msgAttr.cache.ContainsOrAdd(key, struct{}{}); ok {
 		return false
 	}
-	msgAttr.cache.Add(key, struct{}{})
 	return true
 }
 
