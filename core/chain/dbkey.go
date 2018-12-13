@@ -65,6 +65,8 @@ const (
 	// key: /bf/1113b8bdad74cdc045e64e09b3e2f0502d1b7f9bd8123b28239a3360bd3a8757
 	// value: crypto hash
 	FilterPrefix = "/bf"
+	// SplitAddressPrefix is the key prefix of split address
+	SplitAddressPrefix = "/sap"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -74,6 +76,7 @@ var utxoBase = key.NewKey(UtxoPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
 var filterBase = key.NewKey(FilterPrefix)
 var genesisBlockKey = BlockKey(GenesisBlock.BlockHash())
+var splitAddrBase = key.NewKey(SplitAddressPrefix)
 
 // TailKey is the db key to stoare tail block content
 var TailKey = []byte(Tail)
@@ -117,4 +120,8 @@ func FilterKey(hash crypto.HashType) []byte {
 	buf := filterBase.Base().Bytes()
 	buf = append(buf[:], hash.GetBytes()...)
 	return buf
+}
+
+func SplitAddrKey(hash []byte) []byte {
+	return splitAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
 }

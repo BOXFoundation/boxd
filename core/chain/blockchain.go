@@ -6,11 +6,14 @@ package chain
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/ripemd160"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -69,6 +72,7 @@ type BlockChain struct {
 	cache                     *lru.Cache
 	repeatedMintCache         *lru.Cache
 	heightToBlock             *lru.Cache
+	hashToSplitAddr           *lru.Cache
 	bus                       eventbus.Bus
 	orphanLock                sync.RWMutex
 	chainLock                 sync.RWMutex
@@ -102,6 +106,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.cache, _ = lru.New(512)
 	b.repeatedMintCache, _ = lru.New(512)
 	b.heightToBlock, _ = lru.New(512)
+	b.hashToSplitAddr, _ = lru.New(512)
 
 	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
@@ -1361,4 +1366,65 @@ func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, []types.Addres
 	}
 
 	return false, nil, nil, nil
+}
+
+type splitAddrInfo struct {
+	addrs   []types.Address
+	weights []uint64
+}
+
+func (s *splitAddrInfo) Marshall() ([]byte, error) {
+	if len(s.addrs) != len(s.weights) {
+		return nil, fmt.Errorf("invalid split addr info")
+	}
+	res := make([]byte, 0, len(s.addrs)*(ripemd160.Size+8))
+	for i := 0; i < len(s.addrs); i++ {
+		res = append(res, s.addrs[i].Hash()...)
+		weightByte := make([]byte, 8)
+		binary.BigEndian.PutUint64(weightByte, s.weights[i])
+		res = append(res, weightByte...)
+	}
+	return res, nil
+}
+
+func (s *splitAddrInfo) Unmarshall(data []byte) error {
+	minLenght := ripemd160.Size + 8
+	if len(data)%minLenght != 0 {
+		return fmt.Errorf("invalid byte length")
+	}
+	count := len(data) / minLenght
+	addrs := make([]types.Address, 0, count)
+	weights := make([]uint64, 0, count)
+	for i := 0; i < count; i++ {
+		offset := i * minLenght
+		addr, err := types.NewAddressPubKeyHash(data[offset : offset+ripemd160.Size])
+		if err != nil {
+			return err
+		}
+		weight := binary.BigEndian.Uint64(data[offset+ripemd160.Size : offset+minLenght])
+		addrs = append(addrs, addr)
+		weights = append(weights, weight)
+	}
+	s.addrs = addrs
+	s.weights = weights
+	return nil
+}
+
+func (chain *BlockChain) findSplitAddr2(addr types.Address) (bool, *splitAddrInfo, error) {
+	if splitInfo, ok := chain.hashToSplitAddr.Get(addr.Hash()); ok {
+		return ok, splitInfo.(*splitAddrInfo), nil
+	}
+	data, err := chain.db.Get(SplitAddrKey(addr.Hash()))
+	if err != nil {
+		return false, nil, err
+	}
+	if data == nil {
+		return false, nil, nil
+	}
+	info := new(splitAddrInfo)
+	if err := info.Unmarshall(data); err != nil {
+		return false, nil, err
+	}
+	chain.hashToSplitAddr.Add(addr.Hash(), info)
+	return true, info, nil
 }
