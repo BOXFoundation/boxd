@@ -196,7 +196,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 		return fmt.Errorf("receive LocateCheckResponse from non-sync peer[%s]",
 			pid.Pretty())
 	}
-	checkNum := atomic.AddInt32(&sm.checkNum, 1)
+	checkNum := atomic.LoadInt32(&sm.checkNum)
 	if checkNum > int32(maxCheckPeers) {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushErrFlagChan(sm.checkErrCh, errFlagCheckNumTooBig)
@@ -224,6 +224,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 	}
 	sm.stalePeers.Store(pid, checkedDonePeerStatus)
 	tryPushEmptyChan(sm.checkOkCh)
+	checkNum = atomic.AddInt32(&sm.checkNum, 1)
 	logger.Infof("success to check %d times", checkNum)
 	return nil
 }
