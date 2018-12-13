@@ -45,7 +45,7 @@ const (
 
 	MaxBlocksPerSync = 1024
 
-	metricsLoopInterval = 2 * time.Second
+	metricsLoopInterval = 500 * time.Millisecond
 	tokenIssueFilterKey = "token_issue"
 	Threshold           = 32
 )
@@ -288,8 +288,10 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.Trans
 	}
 	if chain.consensus.ValidateMiner() && fastConfirm {
 		go chain.consensus.BroadcastEternalMsgToMiners(block)
+		go chain.consensus.TryToUpdateEternalBlock(block)
 	}
-	logger.Infof("Accepted New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+
+	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
 	return nil
 }
 
@@ -324,10 +326,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	}
 
 	// verify miner epoch
-	if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
-		logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
-		return core.ErrFailedToVerifyWithConsensus
-	}
+	// if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
+	// 	logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+	// 	return core.ErrFailedToVerifyWithConsensus
+	// }
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {

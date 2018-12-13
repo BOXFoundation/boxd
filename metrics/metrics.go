@@ -18,7 +18,7 @@ import (
 var logger = log.NewLogger("metrics")
 
 const (
-	interval = 2 * time.Second
+	interval = 500 * time.Millisecond
 )
 
 func init() {

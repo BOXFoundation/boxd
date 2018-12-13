@@ -29,10 +29,10 @@ var logger = log.NewLogger("dpos") // logger
 // Define const
 const (
 	SecondInMs           = int64(1000)
-	NewBlockTimeInterval = int64(5000)
-	MaxPackedTxTime      = int64(2000)
-	MaxBlockTimeOut      = 2
+	MinerRefreshInterval = int64(5000)
+	MaxPackedTxTime      = int64(200)
 	PeriodSize           = 6
+	BlockNumPerPeiod     = 5
 )
 
 // Config defines the configurations of dpos
@@ -51,19 +51,20 @@ type Dpos struct {
 	proc        goprocess.Process
 	cfg         *Config
 	miner       *wallet.Account
-	enableMint  bool
+	canMint     bool
 	disableMint bool
+	bftservice  *BftService
 }
 
 // NewDpos new a dpos implement.
 func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Dpos, error) {
 	dpos := &Dpos{
-		chain:      chain,
-		txpool:     txpool,
-		net:        net,
-		proc:       goprocess.WithParent(parent),
-		cfg:        cfg,
-		enableMint: false,
+		chain:   chain,
+		txpool:  txpool,
+		net:     net,
+		proc:    goprocess.WithParent(parent),
+		cfg:     cfg,
+		canMint: false,
 	}
 
 	context := &ConsensusContext{}
@@ -109,6 +110,7 @@ func (dpos *Dpos) Run() error {
 	if err != nil {
 		return err
 	}
+	dpos.bftservice = bftService
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
@@ -194,7 +196,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 		return false
 	}
 
-	if dpos.enableMint {
+	if dpos.canMint {
 		return true
 	}
 
@@ -209,7 +211,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 		logger.Error(err)
 		return false
 	}
-	dpos.enableMint = true
+	dpos.canMint = true
 	return true
 }
 
@@ -277,7 +279,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
-		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
@@ -309,7 +310,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				txHash, _ := txWrap.Tx.TxHash()
 				utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
 				if err != nil {
-					logger.Errorf("Could not get extended utxo set for tx %v", txHash)
+					logger.Warnf("Could not get extended utxo set for tx %v", txHash)
 					continue
 				}
 
@@ -322,9 +323,11 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				totalOutputAmount := txWrap.Tx.OutputAmount()
 				if totalInputAmount < totalOutputAmount {
 					// This must not happen since the tx already passed the check when admitted into mempool
-					logger.Panicf("total value of all transaction outputs for "+
+					logger.Warnf("total value of all transaction outputs for "+
 						"transaction %v is %v, which exceeds the input amount "+
 						"of %v", txHash, totalOutputAmount, totalInputAmount)
+					// TODO: abandon the error tx from pool.
+					continue
 				}
 				txFee := totalInputAmount - totalOutputAmount
 				totalTxFee += txFee
@@ -355,6 +358,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
+	if block.IrreversibleInfo, err = dpos.bftservice.FetchIrreversibleInfo(); err != nil {
+		return err
+	}
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d", block.BlockHash().String(), block.Height, len(blockTxns))
 	return nil
 }
@@ -558,32 +564,16 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 	return false, nil
 }
 
-// func (dpos *Dpos) buildMinerEpoch() error {
-
-// 	minerEpoch := make(map[types.AddressHash]bool)
-// 	tail := dpos.chain.TailBlock()
-// 	if tail.Height == 0 {
-// 		dpos.minerEpoch = minerEpoch
-// 		return nil
-// 	}
-// 	for idx := 0; idx < PeriodSize; {
-// 		height := tail.Height - uint32(idx)
-// 		if height == 0 {
-// 			break
-// 		}
-// 		block, err := dpos.chain.LoadBlockByHeight(height)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if _, ok := dpos.minerEpoch[*miner]; !ok {
-// 			minerEpoch[*miner] = true
-// 		}
-// 		idx++
-// 	}
-// 	dpos.minerEpoch = minerEpoch
-// 	return nil
-// }
+// TryToUpdateEternalBlock try to update eternal block.
+func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
+	irreversibleInfo := src.IrreversibleInfo
+	if irreversibleInfo == nil {
+		return
+	}
+	block, err := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+	if err != nil {
+		logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
+		return
+	}
+	dpos.bftservice.updateEternal(block)
+}

@@ -21,6 +21,7 @@ type Consensus interface {
 	RecoverMint()
 	BroadcastEternalMsgToMiners(*Block) error
 	ValidateMiner() bool
+	TryToUpdateEternalBlock(*Block)
 }
 
 // SyncManager define sync manager interface

@@ -21,7 +21,7 @@ func InArray(obj interface{}, array interface{}) bool {
 	arrayValue := reflect.ValueOf(array)
 	if reflect.TypeOf(array).Kind() == reflect.Array || reflect.TypeOf(array).Kind() == reflect.Slice {
 		for i := 0; i < arrayValue.Len(); i++ {
-			if arrayValue.Index(i).Interface() == obj {
+			if reflect.DeepEqual(arrayValue.Index(i).Interface(), obj) {
 				return true
 			}
 		}

@@ -18,5 +18,5 @@ const (
 	// MaxCoinbaseScriptLen is the maximum length a coinbase script can be.
 	MaxCoinbaseScriptLen = 1000
 
-	MaxBlockTimeOut = 3
+	MaxBlockTimeOut = 1
 )
