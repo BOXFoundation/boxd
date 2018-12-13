@@ -267,11 +267,11 @@ func (p *BoxPeer) Relay(code uint32, msg conv.Convertible) error {
 	cnt := 0
 	p.conns.Range(func(k, v interface{}) bool {
 		connTmp := v.(*Conn)
-		go connTmp.Write(code, body)
-		cnt++
-		if uint32(cnt) > p.config.RelaySize {
+		if uint32(cnt) >= p.config.RelaySize {
 			return false
 		}
+		go connTmp.Write(code, body)
+		cnt++
 		return true
 	})
 	return nil
