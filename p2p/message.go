@@ -213,6 +213,7 @@ func (msgAttr *messageAttribute) duplicateFilter(body []byte, pid peer.ID, frequ
 	if msgAttr.cache.Contains(key) {
 		return false
 	}
+	msgAttr.cache.Add(key, struct{}{})
 	return true
 }
 
@@ -222,7 +223,7 @@ func (msgAttr *messageAttribute) lruKey(body []byte, pid peer.ID, frequency uint
 		key = append(key, pid...)
 	}
 
-	hash := crc32.ChecksumIEEE(body)
+	hash := crc32.ChecksumIEEE(key)
 	return hash
 }
 
