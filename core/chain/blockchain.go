@@ -734,15 +734,15 @@ func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoi
 	utxoSet := NewUtxoSet()
 	for _, hash := range blockHashes {
 		block, err := chain.LoadBlockByHash(hash)
-		if err != nil {
-			return nil, err
-		}
-		// Split tx outputs if any
-		chain.splitBlockOutputs(block)
+		if block != nil {
+			// Split tx outputs if any
+			chain.splitBlockOutputs(block)
 
-		if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
-			return nil, err
+			if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
+				return nil, err
+			}
 		}
+
 	}
 	for key, value := range utxoSet.utxoMap {
 		if util.IsPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
