@@ -553,6 +553,7 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 	}
 
 	batch.Del(BlockKey(block.BlockHash()))
+	batch.Del(BlockHashKey(block.Height))
 
 	chain.filterHolder.ResetFilters(block.Height)
 
