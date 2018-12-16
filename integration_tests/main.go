@@ -10,10 +10,12 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -41,7 +43,7 @@ type CirInfo struct {
 }
 
 var (
-	minConsensusBlocks = 6
+	minConsensusBlocks = 5*(peerCnt-1) + 1 // 5 is block count one peer gen once
 
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
@@ -56,7 +58,20 @@ var (
 	lastTokenTestTxCnt = uint64(0)
 	txTestTxCnt        = uint64(0)
 	tokenTestTxCnt     = uint64(0)
+
+	outpointMap = new(sync.Map)
 )
+
+func txDuplicate(tx *types.Transaction) {
+	for _, in := range tx.Vin {
+		if _, ok := outpointMap.Load(in.PrevOutPoint); ok {
+			debug.PrintStack()
+			panic("=============== duplicate tx found ====================")
+		} else {
+			outpointMap.Store(in.PrevOutPoint, struct{}{})
+		}
+	}
+}
 
 func init() {
 	rand.Seed(time.Now().Unix())

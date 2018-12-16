@@ -6,7 +6,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
@@ -16,7 +15,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
-	"github.com/BOXFoundation/boxd/wallet"
 	"google.golang.org/grpc"
 )
 
@@ -134,8 +132,8 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
 	logger.Infof("start to construct txs from %s to %s %d times", fromAddr, toAddr, times)
 	start := time.Now()
-	txss, transfer, fee, count, err := utils.NewTxs(fromAddr, toAddr,
-		AddrToAcc[fromAddr], times, execPeer)
+	txss, transfer, fee, count, err := utils.NewTxs(AddrToAcc[fromAddr], toAddr,
+		times, execPeer)
 	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
 	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {
@@ -156,6 +154,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 				}
 			}()
 			for _, tx := range txs {
+				txDuplicate(tx)
 				err := client.SendTransaction(conn, tx)
 				if err != nil {
 					logger.Panic(err)
@@ -195,120 +194,4 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		logger.Error(err)
 	}
 	logger.Infof("--- DONE: txRepeatTest")
-}
-
-// TODO: have not been verified
-func txOneToManyTest(fromAddr string, toAddrs []string, totalAmount uint64,
-	execPeer string) {
-	logger.Info("=== RUN   txOneToManyTest")
-	// get balance of fromAddr and toAddrs
-	logger.Infof("start to get balance of fromAddr[%s], toAddrs[%v] from %s",
-		fromAddr, toAddrs, execPeer)
-	fromBalancePre := utils.BalanceFor(fromAddr, execPeer)
-	toBalancesPre := make([]uint64, len(toAddrs))
-	for i := 0; i < len(toAddrs); i++ {
-		b := utils.BalanceFor(toAddrs[i], execPeer)
-		toBalancesPre[i] = b
-	}
-	logger.Infof("fromAddr[%s] balance: %d toAddrs[%v] balance: %v",
-		fromAddr, fromBalancePre, toAddrs, toBalancesPre)
-
-	// create a transaction from test account 1 to test accounts and execute it
-	acc := utils.UnlockAccount(fromAddr)
-	ave := totalAmount / uint64(len(toAddrs))
-	transfer := uint64(0)
-	for i := 0; i < len(toAddrs); i++ {
-		amount := ave/2 + uint64(rand.Int63n(int64(ave)/2))
-		utils.ExecTx(acc, []string{toAddrs[i]}, []uint64{amount}, execPeer)
-		transfer += amount
-		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddr,
-			toAddrs[i], execPeer)
-	}
-	logger.Infof("wait for transaction brought on chain, timeout %v", timeoutToChain)
-	if _, err := utils.WaitBalanceEnough(toAddrs[len(toAddrs)-1], 100000, execPeer,
-		timeoutToChain); err != nil {
-		logger.Panic(err)
-	}
-	time.Sleep(blockTime)
-	// get balance of fromAddr and toAddrs
-	logger.Infof("start to get balance of fromAddr[%s], toAddrs[%v] from %s",
-		fromAddr, toAddrs, execPeer)
-	fromBalancePost := utils.BalanceFor(fromAddr, execPeer)
-	toBalancesPost := make([]uint64, len(toAddrs))
-	for i := 0; i < len(toAddrs); i++ {
-		b := utils.BalanceFor(toAddrs[i], execPeer)
-		toBalancesPost[i] = b
-	}
-	logger.Infof("fromAddr[%s] balance: %d toAddrs[%v] balance: %v",
-		fromAddr, fromBalancePost, toAddrs, toBalancesPost)
-	//
-	fromGap := fromBalancePre - fromBalancePost
-	toGap := uint64(0)
-	for i := 0; i < len(toAddrs); i++ {
-		toGap += toBalancesPost[i] - toBalancesPre[i]
-	}
-	if toGap > fromGap || toGap != transfer {
-		logger.Panicf("txOneToManyTest faild: fromGap %d toGap %d and transfer %d",
-			fromGap, toGap, transfer)
-	}
-	logger.Info("--- PASS: txOneToManyTest")
-}
-
-// TODO: have not been verified
-func txManyToOneTest(fromAddrs []string, toAddr string, execPeer string) {
-	logger.Info("=== RUN   txManyToOneTest")
-	// get balance of fromAddrs and toAddr
-	logger.Infof("start to get balance of fromAddrs[%v], toAddr[%s] from %s",
-		fromAddrs, toAddr, execPeer)
-	fromBalancesPre := make([]uint64, len(fromAddrs))
-	for i := 0; i < len(fromAddrs); i++ {
-		b := utils.BalanceFor(fromAddrs[i], execPeer)
-		fromBalancesPre[i] = b
-	}
-	toBalancePre := utils.BalanceFor(toAddr, execPeer)
-	logger.Debugf("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
-		fromAddrs, fromBalancesPre, toAddr, toBalancePre)
-
-	// create a transaction from test accounts to account and execute it
-	accounts := make([]*wallet.Account, len(fromAddrs))
-	for i := 0; i < len(fromAddrs); i++ {
-		acc := utils.UnlockAccount(fromAddrs[i])
-		accounts[i] = acc
-	}
-	transfer := uint64(0)
-	for i := 0; i < len(fromAddrs); i++ {
-		amount := fromBalancesPre[i] / 2
-		utils.ExecTx(accounts[i], []string{toAddr}, []uint64{amount}, execPeer)
-		transfer += amount
-		logger.Infof("have sent %d from %s to %s on peer %s", amount, fromAddrs[i],
-			toAddr, execPeer)
-	}
-	logger.Infof("wait for transaction brought on chain, timeout %v", timeoutToChain)
-	if _, err := utils.WaitBalanceEnough(toAddr, 1000, execPeer, timeoutToChain); err != nil {
-		logger.Panic(err)
-	}
-	time.Sleep(blockTime)
-	// get balance of fromAddrs and toAddr
-	logger.Infof("start to get balance of fromAddrs[%v], toAddr[%s] from %s",
-		fromAddrs, toAddr, execPeer)
-	fromBalancesPost := make([]uint64, len(fromAddrs))
-	for i := 0; i < len(fromAddrs); i++ {
-		b := utils.BalanceFor(fromAddrs[i], execPeer)
-		fromBalancesPost[i] = b
-	}
-	toBalancePost := utils.BalanceFor(toAddr, execPeer)
-	logger.Debugf("fromAddrs[%v] balance: %v toAddr[%s] balance: %d",
-		fromAddrs, fromBalancesPost, toAddr, toBalancePost)
-
-	//
-	fromGap := uint64(0)
-	for i := 0; i < len(fromAddrs); i++ {
-		fromGap += fromBalancesPre[i] - fromBalancesPost[i]
-	}
-	toGap := toBalancePost - toBalancePre
-	if fromGap < toGap || toGap != transfer {
-		logger.Panicf("txManyToOneTest faild: fromGap %d toGap %d and transfer %d",
-			fromGap, toGap, transfer)
-	}
-	logger.Info("--- PASS: txManyToOneTest")
 }

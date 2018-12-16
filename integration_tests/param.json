@@ -9,16 +9,16 @@
   "docker_ws": "../docker/.devconfig/",
   "transaction_test": {
     "enable": true,
-    "collection_accounts": 10,
+    "collection_accounts": 5,
     "collection_unit_accounts": 5,
-    "circulation_accounts": 10,
+    "circulation_accounts": 5,
     "circulation_unit_accounts": 5,
     "circulation_repeat_times": 200,
     "circulation_workers": 1
   },
   "token_test": {
     "workers": 1,
-    "enable": true,
+    "enable": false,
     "accounts": 3,
     "unit_accounts": 3,
     "repeat_times": 100
