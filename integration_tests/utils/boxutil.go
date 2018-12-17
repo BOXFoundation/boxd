@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -37,25 +36,6 @@ const (
 
 var logger = log.NewLogger("integration_utils") // logger
 
-var (
-	utxoSpentMap = new(sync.Map)
-)
-
-func utxoSpent(utxos ...*rpcpb.Utxo) {
-	for _, utxo := range utxos {
-		pbOutpoint := utxo.GetOutPoint()
-		var outpoint types.OutPoint
-		copy(outpoint.Hash[:], pbOutpoint.Hash[:])
-		outpoint.Index = pbOutpoint.Index
-		if _, ok := utxoSpentMap.Load(outpoint); ok {
-			debug.PrintStack()
-			panic("=============== try to spend utxo spent ====================")
-		} else {
-			utxoSpentMap.Store(outpoint, struct{}{})
-		}
-	}
-}
-
 type sortByUTXOValue []*rpcpb.Utxo
 
 func (x sortByUTXOValue) Len() int           { return len(x) }
@@ -78,7 +58,7 @@ func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
 	start := time.Now()
 	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: []string{accAddr}})
-	if time.Since(start) > RPCInterval {
+	if time.Since(start) > 2*RPCInterval {
 		logger.Warnf("cost %v for GetBalance on %s", time.Since(start), peerAddr)
 	}
 	if err != nil {
@@ -532,22 +512,28 @@ func TokenBalanceFor(addr string, tx *types.Transaction, peerAddr string) uint64
 
 // NewTx new a tx
 func NewTx(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
-	peerAddr string) (tx *types.Transaction, changeAmt uint64, err error) {
-	// get utxoes
-	utxos, err := fetchUtxos(fromAcc.Addr(), peerAddr)
-	if err != nil {
-		return
-	}
+	peerAddr string) (tx *types.Transaction, changeAmt, fee uint64, err error) {
+	// calc amount
 	amount := uint64(0)
 	for _, a := range amounts {
 		amount += a
 	}
 	// calc fee
-	fee := uint64(0)
-	if amount >= 1000 {
-		fee = uint64(rand.Int63n(int64(amount) / 1000))
+	if amount >= 10000 {
+		fee = amount / 10000
 	}
-	changeAmt = amount - fee
+	// get utxos
+	utxos, err := fetchUtxos(fromAcc.Addr(), amount+fee, peerAddr)
+	if err != nil {
+		return
+	}
+	// calc change amount
+	total := uint64(0)
+	for _, u := range utxos {
+		total += u.GetTxOut().GetValue()
+	}
+	changeAmt = total - amount - fee
+	//
 	var change *rpcpb.Utxo
 	tx, change, err = NewTxWithUtxo(fromAcc, utxos, toAddrs, amounts, changeAmt)
 	if err != nil {
@@ -562,7 +548,7 @@ func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) 
 	txss [][]*types.Transaction, transfer, totalFee uint64,
 	num int, err error) {
 	// get utxoes
-	utxos, err := fetchUtxos(fromAcc.Addr(), peerAddr)
+	utxos, err := fetchUtxos(fromAcc.Addr(), 0, peerAddr)
 	if err != nil {
 		return
 	}
@@ -586,8 +572,8 @@ func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) 
 		txs := make([]*types.Transaction, 0)
 		fee := uint64(0)
 		for j := n; num < count && j > 0; j-- {
-			if aveAmt >= 1000 {
-				fee = uint64(rand.Int63n(int64(aveAmt) / 1000))
+			if aveAmt >= 10000 {
+				fee = uint64(rand.Int63n(int64(aveAmt) / 10000))
 			}
 			amount := aveAmt - fee
 			changeAmt = changeAmt - aveAmt
@@ -621,16 +607,7 @@ func NewTxWithUtxo(fromAcc *wallet.Account, utxos []*rpcpb.Utxo, toAddrs []strin
 	}
 	if utxoValue < amount+changeAmt {
 		return nil, nil, fmt.Errorf("input %d is less than output %d",
-			amount, amount+changeAmt)
-	}
-
-	// check double spent
-	for _, u := range utxos {
-		pbOutpoint := u.GetOutPoint()
-		var outpoint types.OutPoint
-		copy(outpoint.Hash[:], pbOutpoint.Hash[:])
-		outpoint.Index = pbOutpoint.Index
-		utxoSpent(u)
+			utxoValue, amount+changeAmt)
 	}
 
 	// vin
@@ -712,12 +689,15 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *corepb.OutPoint {
 	}
 }
 
-func fetchUtxos(addr string, peerAddr string) (utxos []*rpcpb.Utxo, err error) {
+func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utxo, err error) {
 	// get utxoes
 	fromAddress, _ := types.NewAddress(addr)
 	totalAmount, err := balanceNoPanicFor(addr, peerAddr)
 	if err != nil {
 		return
+	}
+	if amount < totalAmount && amount != 0 {
+		totalAmount = amount
 	}
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {

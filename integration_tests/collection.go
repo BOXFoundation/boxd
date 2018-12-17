@@ -153,11 +153,10 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
 		c.minerAddr, peerAddr)
-	tx, _, err := utils.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
+	tx, _, _, err := utils.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
 	if err != nil {
 		logger.Panic(err)
 	}
-	txDuplicate(tx)
 	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
 	err = client.SendTransaction(conn, tx)
 	if err != nil {
@@ -176,13 +175,13 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 
 	// send tx from each to each
-	allAmounts := make([][]uint64, count)
 	amountsRecv := make([]uint64, count)
 	amountsSend := make([]uint64, count)
+	amountsFees := make([]uint64, count)
+	var txs []*types.Transaction
 	var wg sync.WaitGroup
 	errChans := make(chan error, count)
 	logger.Infof("start to send tx from each to each")
-	var txs []*types.Transaction
 	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func(i int) {
@@ -193,18 +192,17 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 				}
 			}()
 			amounts2 := make([]uint64, count)
+			base := balances[i] / uint64(count) / 6
 			for j := 0; j < count; j++ {
-				base := amounts[i] / uint64(count) / 10
 				amounts2[j] = base + uint64(rand.Int63n(int64(base)))
 				amountsSend[i] += amounts2[j]
 				amountsRecv[j] += amounts2[j]
 			}
-			allAmounts[i] = amounts2
-			tx, _, err := utils.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
+			tx, _, fee, err := utils.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
 			if err != nil {
 				logger.Panic(err)
 			}
-			txDuplicate(tx)
+			amountsFees[i] = fee
 			txs = append(txs, tx)
 			atomic.AddUint64(txCnt, 1)
 		}(i)
@@ -221,55 +219,54 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	logger.Infof("complete to send tx from each to each")
 	// check balance
-	//for i := 0; i < count; i++ {
-	//	expect := balances[i] + amountsRecv[i] - amountsSend[i]/4*5
-	//	logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
-	//		timeoutToChain)
-	//	balances[i], err = utils.WaitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
-	//	if err != nil {
-	//		logger.Panic(err)
-	//	}
-	//}
+	logger.Infof("wait for test addrs received funcd, timeout %v", timeoutToChain)
+	for i := 0; i < count; i++ {
+		expect := balances[i] + amountsRecv[i] - amountsSend[i] - amountsFees[i]
+		logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
+			timeoutToChain)
+		balances[i], err = utils.WaitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
+		if err != nil {
+			logger.Panic(err)
+		}
+	}
 
 	// gather count*count utxo via transfering from others to the first one
 	lastBalance := utils.BalanceFor(addr, peerAddr)
 	total := uint64(0)
-	//errChans = make(chan error, count)
 	for i := 0; i < count; i++ {
-		//wg.Add(1)
-		//go func(i int) {
-		//	defer func() {
-		//		wg.Done()
-		//		if x := recover(); x != nil {
-		//			errChans <- fmt.Errorf("%v", x)
-		//		}
-		//	}()
-		logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
-			i, addr, peerAddr)
-		fromAddr := addrs[i]
-		txss, transfer, _, _, err := utils.NewTxs(AddrToAcc[fromAddr], addr, count, peerAddr)
-		if err != nil {
-			logger.Panic(err)
-		}
-
-		for _, txs := range txss {
-			for _, tx := range txs {
-				txDuplicate(tx)
-				err := client.SendTransaction(conn, tx)
-				if err != nil {
-					logger.Panic(err)
+		wg.Add(1)
+		go func(i int) {
+			defer func() {
+				wg.Done()
+				if x := recover(); x != nil {
+					errChans <- fmt.Errorf("%v", x)
 				}
+			}()
+			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
+				i, addr, peerAddr)
+			fromAddr := addrs[i]
+			txss, transfer, _, _, err := utils.NewTxs(AddrToAcc[fromAddr], addr, count, peerAddr)
+			if err != nil {
+				logger.Panic(err)
 			}
-			atomic.AddUint64(txCnt, uint64(len(txs)))
-		}
-		total += transfer
-		logger.Debugf("have sent %d from %s to %s", transfer, addrs[i], addr)
-		//}(i)
+
+			for _, txs := range txss {
+				for _, tx := range txs {
+					err := client.SendTransaction(conn, tx)
+					if err != nil {
+						logger.Panic(err)
+					}
+				}
+				atomic.AddUint64(txCnt, uint64(len(txs)))
+			}
+			total += transfer
+			logger.Debugf("have sent %d from %s to %s", transfer, addrs[i], addr)
+		}(i)
 	}
-	//wg.Wait()
-	//if len(errChans) > 0 {
-	//	logger.Panic(<-errChans)
-	//}
+	wg.Wait()
+	if len(errChans) > 0 {
+		logger.Panic(<-errChans)
+	}
 	// check balance
 	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, blockTime)
 	b, err := utils.WaitBalanceEnough(addr, lastBalance+total, peerAddr, timeoutToChain)
@@ -278,5 +275,4 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Warn(err)
 	}
 	logger.Infof("--- DONE: launderFunds, result balance: %d", b)
-	//logger.Infof("--- DONE: launderFunds")
 }

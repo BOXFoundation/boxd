@@ -154,7 +154,6 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 				}
 			}()
 			for _, tx := range txs {
-				txDuplicate(tx)
 				err := client.SendTransaction(conn, tx)
 				if err != nil {
 					logger.Panic(err)
