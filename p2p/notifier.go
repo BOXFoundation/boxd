@@ -67,10 +67,10 @@ func (notifier *Notifier) Loop(parent goprocess.Process) {
 					select {
 					case notifiee.(*Notifiee).messageCh <- msg:
 					default:
-						logger.Infof("Message handler is blocked. code: %d", msg.Code())
+						logger.Infof("Message handler is blocked. code: %X", msg.Code())
 					}
 				} else {
-					logger.Debugf("Message is throwing away, %v from %v", code, msg.From().Pretty())
+					logger.Debugf("Message is throwing away, %X from %v", code, msg.From().Pretty())
 				}
 			case <-metricsTicker.C:
 				metricsRevieveChSizeGauge.Update(int64(len(notifier.receiveCh)))
