@@ -74,6 +74,7 @@ var (
 	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
 	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
 	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
+	ErrPubKeyInBlackList    = errors.New("Public key is in black list")
 
 	//utxoset.go
 	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")

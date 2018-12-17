@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"hash/crc32"
 	"math/big"
 	"reflect"
 	"strings"
@@ -557,6 +558,17 @@ func (s *Script) GetSplitAddrScriptPrefix() *Script {
 	_, operandHash, _, _ := s.getNthOp(pc, 0)
 
 	return NewScript().AddOpCode(opCode).AddOperand(operandHash)
+}
+
+// GetPubKeyChecksum get public key checksum from script
+func (s *Script) GetPubKeyChecksum() (uint32, bool) {
+	r := s.parse()
+	if s.IsPayToPubKeyHash() {
+		return crc32.ChecksumIEEE(r[2].(Operand)), true
+	} else if s.IsPayToScriptHash() || s.IsSplitAddrScript() {
+		return crc32.ChecksumIEEE(r[1].(Operand)), true
+	}
+	return 0, false
 }
 
 // CreateSplitAddrScriptPrefix creates a script prefix for split address with a hashed address

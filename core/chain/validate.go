@@ -159,6 +159,7 @@ func validateBlockScripts(utxoSet *UtxoSet, block *types.Block) error {
 // Coinbase tx will not reach here
 func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 	txHash, _ := tx.TxHash()
+	var checkBlackList bool
 	for txInIdx, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
@@ -176,6 +177,23 @@ func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 
 		if err := script.Validate(scriptSig, prevScriptPubKey, tx, txInIdx); err != nil {
 			return err
+		}
+
+		// Ensure public key not in black list
+		if !checkBlackList {
+			if checksum, ok := prevScriptPubKey.GetPubKeyChecksum(); ok {
+				if _, ok := blackList.blackList.Load(checksum); ok {
+					return core.ErrPubKeyInBlackList
+				}
+				blackList.mutex.Lock()
+				if val, ok := blackList.keyCounter.Get(checksum); ok {
+					blackList.keyCounter.Add(checksum, val.(uint32)+1)
+				} else {
+					blackList.keyCounter.Add(checksum, 0)
+				}
+				blackList.mutex.Unlock()
+			}
+			checkBlackList = true
 		}
 	}
 

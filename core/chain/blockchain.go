@@ -13,8 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ripemd160"
-
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -32,6 +30,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
+	"golang.org/x/crypto/ripemd160"
 )
 
 // const defines constants
