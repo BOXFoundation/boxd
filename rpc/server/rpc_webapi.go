@@ -128,13 +128,17 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 	}
 	return &rpcpb.GetTokenInfoResponse{
 		Info: &rpcpb.TokenBasicInfo{
-			Addr:        tokenAddr.String(),
+			Token: &rpcpb.Token{
+				Hash:  tokenAddr.OutPoint().Hash.String(),
+				Index: tokenAddr.OutPoint().Index,
+			},
 			Name:        param.Name,
 			TotalSupply: param.TotalSupply,
 			CreatorAddr: addr.String(),
 			CreatorTime: uint64(block.Header.TimeStamp),
 			Decimals:    uint32(param.Decimals),
 			Symbol:      param.Symbol,
+			Addr:        tokenAddr.String(),
 		},
 	}, nil
 }
