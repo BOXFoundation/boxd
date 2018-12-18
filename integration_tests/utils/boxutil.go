@@ -671,7 +671,7 @@ func NewTxWithUtxo(fromAcc *wallet.Account, utxos []*rpcpb.Utxo, toAddrs []strin
 	// create change utxo
 	txHash, _ := tx.TxHash()
 	change := &rpcpb.Utxo{
-		OutPoint:    NewOutPoint(txHash, 1),
+		OutPoint:    NewOutPoint(txHash, uint32(len(tx.Vout))-1),
 		TxOut:       fromAddrOut,
 		BlockHeight: 0,
 		IsCoinbase:  false,
