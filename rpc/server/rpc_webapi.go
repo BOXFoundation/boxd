@@ -446,11 +446,14 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 	if err := hash.SetString(req.Hash); err != nil {
 		return nil, err
 	}
+
+	eternalBlock, err := s.server.GetChainReader().LoadEternalBlock()
 	block, err := s.server.GetChainReader().LoadBlockByHash(*hash)
 	if err != nil {
 		return nil, err
 	}
 	blockInfo, err := s.convertBlock(block)
+	blockInfo.Confirmed = eternalBlock.Height >= block.Height
 	if err != nil {
 		return nil, err
 	}

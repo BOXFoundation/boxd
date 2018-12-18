@@ -199,6 +199,7 @@ message BlockInfo {
     string hash = 5;
     uint64 size = 6;
     string coin_base = 7;
+    bool confirmed = 8;
 }
 
 message Token {

@@ -117,7 +117,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 
-	if b.eternal, err = b.loadEternalBlock(); err != nil {
+	if b.eternal, err = b.LoadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
@@ -838,7 +838,8 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 }
 
-func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
+// LoadEternalBlock returns the current highest eternal block
+func (chain *BlockChain) LoadEternalBlock() (*types.Block, error) {
 	if chain.eternal != nil {
 		return chain.eternal, nil
 	}
