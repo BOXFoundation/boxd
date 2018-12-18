@@ -148,7 +148,7 @@ var _ service.Server = (*BlockChain)(nil)
 func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
 	chain.proc.Go(chain.loop)
-
+	blackList.run(chain.proc)
 	return nil
 }
 

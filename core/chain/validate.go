@@ -185,13 +185,7 @@ func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 				if _, ok := blackList.blackList.Load(checksum); ok {
 					return core.ErrPubKeyInBlackList
 				}
-				blackList.mutex.Lock()
-				if val, ok := blackList.keyCounter.Get(checksum); ok {
-					blackList.keyCounter.Add(checksum, val.(uint32)+1)
-				} else {
-					blackList.keyCounter.Add(checksum, 0)
-				}
-				blackList.mutex.Unlock()
+				blackList.msgCh <- checksum
 			}
 			checkBlackList = true
 		}
