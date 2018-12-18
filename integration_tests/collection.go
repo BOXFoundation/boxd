@@ -158,6 +158,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Panic(err)
 	}
 	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
+	defer conn.Close()
 	err = client.SendTransaction(conn, tx)
 	if err != nil {
 		logger.Panic(err)

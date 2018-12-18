@@ -703,6 +703,7 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utx
 	if err != nil {
 		return
 	}
+	defer conn.Close()
 	var utxoResponse *rpcpb.ListUtxosResponse
 	for totalAmount > 0 {
 		utxoResponse, err = client.FundTransaction(conn, fromAddress, totalAmount)

@@ -140,6 +140,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		logger.Panic(err)
 	}
 	conn, _ := grpc.Dial(execPeer, grpc.WithInsecure())
+	defer conn.Close()
 	var wg sync.WaitGroup
 	errChans := make(chan error, len(txss))
 	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
