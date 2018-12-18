@@ -12,9 +12,11 @@ import (
 	"github.com/jbenet/goprocess"
 )
 
+// TODO: add into core config
 const (
 	blackListLoopInterval = 3
 	blackListThreshold    = 100
+	blackListEnable       = true
 )
 
 var (
@@ -29,6 +31,7 @@ type BlackList struct {
 	// checksumIEEE(pubKey) -> uint32
 	keyCounter *lru.Cache
 	msgCh      chan uint32
+	proc       goprocess.Process
 }
 
 func init() {
@@ -46,24 +49,29 @@ func Default() *BlackList {
 }
 
 func (bl *BlackList) run(parent goprocess.Process) {
-	logger.Info("Start blacklist loop")
-	ticker := time.NewTicker(blackListLoopInterval * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			bl.statistics()
-		case checksum := <-blackList.msgCh:
-			if val, ok := blackList.keyCounter.Get(checksum); ok {
-				blackList.keyCounter.Add(checksum, val.(uint32)+1)
-			} else {
-				blackList.keyCounter.Add(checksum, 0)
+
+	bl.proc = parent.Go(func(p goprocess.Process) {
+		logger.Info("Start blacklist loop")
+		ticker := time.NewTicker(blackListLoopInterval * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				bl.statistics()
+			case checksum := <-blackList.msgCh:
+				if blackListEnable {
+					if val, ok := blackList.keyCounter.Get(checksum); ok {
+						blackList.keyCounter.Add(checksum, val.(uint32)+1)
+					} else {
+						blackList.keyCounter.Add(checksum, 0)
+					}
+				}
+			case <-parent.Closing():
+				logger.Info("Stopped black list loop.")
+				return
 			}
-		case <-parent.Closing():
-			logger.Info("Stopped black list loop.")
-			return
 		}
-	}
+	})
 }
 
 func (bl *BlackList) statistics() {
