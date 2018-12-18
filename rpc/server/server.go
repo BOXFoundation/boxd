@@ -249,7 +249,6 @@ func (s *Server) withHTTPLimits(h http.Handler) http.Handler {
 	httpCh := make(chan bool, httpLimit)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Errorf("withHTTPLimits: httpch: %d", len(httpCh))
 		select {
 		case httpCh <- true:
 			defer func() { <-httpCh }()
