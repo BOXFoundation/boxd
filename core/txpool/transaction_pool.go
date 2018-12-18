@@ -499,15 +499,17 @@ func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
 }
 
 // GetTransactionsInPool gets all transactions in memory pool
-func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
+func (tx_pool *TransactionPool) GetTransactionsInPool() ([]*types.Transaction, []int64) {
 
 	allTxs := tx_pool.GetAllTxs()
 
-	var txs []*types.Transaction
+	txs := make([]*types.Transaction, 0, len(allTxs))
+	addedTimes := make([]int64, 0, len(allTxs))
 	for _, tx := range allTxs {
 		txs = append(txs, tx.Tx)
+		addedTimes = append(addedTimes, tx.AddedTimestamp)
 	}
-	return txs
+	return txs, addedTimes
 }
 
 func calcRequiredMinFee(txSize int) uint64 {

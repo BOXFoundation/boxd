@@ -61,7 +61,7 @@ func (notifier *Notifier) Loop(parent goprocess.Process) {
 			select {
 			case msg := <-notifier.receiveCh:
 				code := msg.Code()
-				logger.Debugf("received network message. Code: %X From: %s", code, msg.From().Pretty())
+				//logger.Debugf("received network message. Code: %X From: %s", code, msg.From().Pretty())
 				notifiee, _ := notifier.notifierMap.Load(code)
 				if notifiee != nil {
 					select {
