@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/wallet/walletserver"
+
 	"github.com/BOXFoundation/boxd/blocksync"
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -49,6 +51,7 @@ type Server struct {
 	txPool      *txpool.TransactionPool
 	syncManager *blocksync.SyncManager
 	consensus   *dpos.Dpos
+	wallet      *walletserver.WalletServer
 }
 
 // NewServer new a boxd server
@@ -153,6 +156,10 @@ func (server *Server) Prepare() {
 	}
 	server.consensus = consensus
 
+	if cfg.Wallet.Enable {
+		server.wallet, _ = walletserver.NewWalletServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
+	}
+
 	// prepare grpc server.
 	if cfg.RPC.Enabled {
 		server.grpcsvr = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
@@ -205,6 +212,10 @@ func (server *Server) Run() error {
 	if len(cfg.P2p.Seeds) > 0 {
 		server.consensus.StopMint()
 		server.syncManager.StartSync()
+	}
+
+	if cfg.Wallet.Enable && server.wallet != nil {
+		server.wallet.Run()
 	}
 
 	if cfg.RPC.Enabled {

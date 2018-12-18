@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/BOXFoundation/boxd/wallet/walletserver"
+
 	"github.com/BOXFoundation/boxd/consensus/dpos"
 	logtypes "github.com/BOXFoundation/boxd/log/types"
 	"github.com/BOXFoundation/boxd/metrics"
@@ -35,15 +37,16 @@ var GitBranch string
 // Config is a configuration data structure for box blockchain server,
 // which is read from config file or parsed from command line.
 type Config struct {
-	Workspace string          `mapstructure:"workspace"`
-	Network   string          `mapstructure:"network"`
-	Log       logtypes.Config `mapstructure:"log"`
-	P2p       p2p.Config      `mapstructure:"p2p"`
-	RPC       rpc.Config      `mapstructure:"rpc"`
-	Database  storage.Config  `mapstructure:"database"`
-	Dpos      dpos.Config     `mapstructure:"dpos"`
-	Metrics   metrics.Config  `mapstructure:"metrics"`
-	Pprof     string          `mapstructure:"pprof"`
+	Workspace string              `mapstructure:"workspace"`
+	Network   string              `mapstructure:"network"`
+	Log       logtypes.Config     `mapstructure:"log"`
+	P2p       p2p.Config          `mapstructure:"p2p"`
+	RPC       rpc.Config          `mapstructure:"rpc"`
+	Database  storage.Config      `mapstructure:"database"`
+	Dpos      dpos.Config         `mapstructure:"dpos"`
+	Metrics   metrics.Config      `mapstructure:"metrics"`
+	Pprof     string              `mapstructure:"pprof"`
+	Wallet    walletserver.Config `mapstructure:"wallet"`
 }
 
 var format = `workspace: %s
