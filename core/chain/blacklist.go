@@ -14,7 +14,7 @@ import (
 
 const (
 	blackListLoopInterval = 3
-	blackListThreshold    = 2
+	blackListThreshold    = 100
 )
 
 var (
