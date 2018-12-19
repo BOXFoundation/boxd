@@ -510,9 +510,10 @@ func TokenBalanceFor(addr string, tx *types.Transaction, peerAddr string) uint64
 	return client.GetTokenBalance(conn, address, *txHash, 0)
 }
 
-// NewTx new a tx
+// NewTx new a tx and return change utxo
 func NewTx(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
-	peerAddr string) (tx *types.Transaction, changeAmt, fee uint64, err error) {
+	peerAddr string) (tx *types.Transaction, change *rpcpb.Utxo, fee uint64,
+	err error) {
 	// calc amount
 	amount := uint64(0)
 	for _, a := range amounts {
@@ -532,14 +533,9 @@ func NewTx(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
 	for _, u := range utxos {
 		total += u.GetTxOut().GetValue()
 	}
-	changeAmt = total - amount - fee
+	changeAmt := total - amount - fee
 	//
-	var change *rpcpb.Utxo
 	tx, change, err = NewTxWithUtxo(fromAcc, utxos, toAddrs, amounts, changeAmt)
-	if err != nil {
-		return
-	}
-	changeAmt = change.GetTxOut().GetValue()
 	return
 }
 

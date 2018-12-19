@@ -141,7 +141,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	logger.Info("=== RUN   launderFunds")
 	var err error
 	count := len(addrs)
-	// transfer miner to tests[0:len(addrs)-1]
+	// transfer from miner to tests[0:len(addrs)-1]
 	amount := totalAmount / uint64(count) / 3
 	amounts := make([]uint64, count)
 	for i := 0; i < count; i++ {

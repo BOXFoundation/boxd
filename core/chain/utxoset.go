@@ -341,7 +341,9 @@ func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{
 		if err != nil {
 			return err
 		}
-		u.utxoMap[outPoint] = entry
+		if entry != nil {
+			u.utxoMap[outPoint] = entry
+		}
 	}
 	return nil
 }
