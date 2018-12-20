@@ -250,12 +250,12 @@ func (s *DynamicPeerScore) reward(achievement int64, t time.Time) int64 {
 		if s.punishment > 1 {
 			s.punishment *= PunishFactors.decayRate(dt)
 		}
-		s.achievement += float64(achievement)
-		if s.achievement > rewardLimit {
-			s.achievement = rewardLimit
-		}
-		s.lastUnix = tu
 	}
+	s.achievement += float64(achievement)
+	if s.achievement > rewardLimit {
+		s.achievement = rewardLimit
+	}
+	s.lastUnix = tu
 	return baseScore + int64(s.achievement) - int64(s.punishment)
 }
 
@@ -279,12 +279,12 @@ func (s *DynamicPeerScore) punish(punishment int64, t time.Time) int64 {
 		if s.punishment > 1 {
 			s.punishment *= PunishFactors.decayRate(dt)
 		}
-		s.punishment += float64(punishment)
-		if s.punishment > punishLimit {
-			s.punishment = punishLimit
-		}
-		s.lastUnix = tu
 	}
+	s.punishment += float64(punishment)
+	if s.punishment > punishLimit {
+		s.punishment = punishLimit
+	}
+	s.lastUnix = tu
 
 	return baseScore + int64(s.achievement) - int64(s.punishment)
 }
