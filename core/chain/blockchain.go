@@ -117,7 +117,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 
-	if b.eternal, err = b.loadEternalBlock(); err != nil {
+	if b.eternal, err = b.LoadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
@@ -809,7 +809,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, batch storage.Batch) er
 	}
 
 	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
-	chain.heightToBlock.Add(tail.Height, tail)
+	// chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
@@ -838,7 +838,8 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 }
 
-func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
+// LoadEternalBlock returns the current highest eternal block
+func (chain *BlockChain) LoadEternalBlock() (*types.Block, error) {
 	if chain.eternal != nil {
 		return chain.eternal, nil
 	}
@@ -908,9 +909,9 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	if height == 0 {
 		return chain.genesis, nil
 	}
-	if block, ok := chain.heightToBlock.Get(height); ok {
-		return block.(*types.Block), nil
-	}
+	// if block, ok := chain.heightToBlock.Get(height); ok {
+	// 	return block.(*types.Block), nil
+	// }
 
 	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {

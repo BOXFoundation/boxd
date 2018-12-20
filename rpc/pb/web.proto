@@ -147,6 +147,7 @@ message TransactionInfo {
     string hash = 7;
     uint64 fee = 8;
     uint64 size = 9;
+    uint64 addedTime = 10;
 }
 
 message TransactionExtraInfo {
@@ -199,6 +200,7 @@ message BlockInfo {
     string hash = 5;
     uint64 size = 6;
     string coin_base = 7;
+    bool confirmed = 8;
 }
 
 message Token {

@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -56,7 +58,7 @@ func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
 	start := time.Now()
 	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: []string{accAddr}})
-	if time.Since(start) > RPCInterval {
+	if time.Since(start) > 2*RPCInterval {
 		logger.Warnf("cost %v for GetBalance on %s", time.Since(start), peerAddr)
 	}
 	if err != nil {
@@ -149,6 +151,7 @@ func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
 
 	tx, err := ExecTxNoPanic(account, toAddrs, amounts, peerAddr)
 	if err != nil {
+		debug.PrintStack()
 		logger.Panic(err)
 	}
 	return tx
@@ -507,31 +510,48 @@ func TokenBalanceFor(addr string, tx *types.Transaction, peerAddr string) uint64
 	return client.GetTokenBalance(conn, address, *txHash, 0)
 }
 
+// NewTx new a tx and return change utxo
+func NewTx(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
+	peerAddr string) (tx *types.Transaction, change *rpcpb.Utxo, fee uint64,
+	err error) {
+	// calc amount
+	amount := uint64(0)
+	for _, a := range amounts {
+		amount += a
+	}
+	// calc fee
+	if amount >= 10000 {
+		fee = amount / 10000
+	}
+	// get utxos
+	utxos, err := fetchUtxos(fromAcc.Addr(), amount+fee, peerAddr)
+	if err != nil {
+		return
+	}
+	// calc change amount
+	total := uint64(0)
+	for _, u := range utxos {
+		total += u.GetTxOut().GetValue()
+	}
+	changeAmt := total - amount - fee
+	//
+	tx, change, err = NewTxWithUtxo(fromAcc, utxos, toAddrs, amounts, changeAmt)
+	return
+}
+
 // NewTxs construct some transactions
-func NewTxs(fromAddr, toAddr string, fromAcc *wallet.Account, count int,
-	peerAddr string) (txss [][]*types.Transaction, transfer, totalFee uint64,
+func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) (
+	txss [][]*types.Transaction, transfer, totalFee uint64,
 	num int, err error) {
 	// get utxoes
-	fromAddress, _ := types.NewAddress(fromAddr)
-	totalAmount, err := balanceNoPanicFor(fromAddr, peerAddr)
+	utxos, err := fetchUtxos(fromAcc.Addr(), 0, peerAddr)
 	if err != nil {
 		return
 	}
-	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
-	if err != nil {
+	if len(utxos) == 0 {
+		err = fmt.Errorf("no utxos")
 		return
 	}
-	utxoResponse, err := client.FundTransaction(conn, fromAddress, totalAmount)
-	if err != nil {
-		return
-	}
-	utxos := utxoResponse.GetUtxos()
-	// get values of utxos
-	values := make([]uint64, len(utxos))
-	for i, u := range utxos {
-		values[i] = u.TxOut.Value
-	}
-
 	// gen txs
 	txss = make([][]*types.Transaction, 0)
 	n := (count + len(utxos) - 1) / len(utxos)
@@ -546,15 +566,16 @@ func NewTxs(fromAddr, toAddr string, fromAcc *wallet.Account, count int,
 		}
 		changeAmt := value
 		txs := make([]*types.Transaction, 0)
-		for j := n; j > 0; j-- {
-			fee := uint64(0)
-			if aveAmt >= 1000 {
-				fee = uint64(rand.Int63n(int64(aveAmt) / 1000))
+		fee := uint64(0)
+		for j := n; num < count && j > 0; j-- {
+			if aveAmt >= 10000 {
+				fee = uint64(rand.Int63n(int64(aveAmt) / 10000))
 			}
 			amount := aveAmt - fee
 			changeAmt = changeAmt - aveAmt
 			tx := new(types.Transaction)
-			tx, change, err = NewTx(fromAddr, toAddr, fromAcc, change, amount, changeAmt)
+			tx, change, err = NewTxWithUtxo(fromAcc, []*rpcpb.Utxo{change}, []string{toAddr},
+				[]uint64{amount}, changeAmt)
 			if err != nil {
 				return
 			}
@@ -568,37 +589,53 @@ func NewTxs(fromAddr, toAddr string, fromAcc *wallet.Account, count int,
 	return txss, transfer, totalFee, num, nil
 }
 
-// NewTx new a transaction
-func NewTx(fromAddr, toAddr string, fromAcc *wallet.Account, utxo *rpcpb.Utxo,
-	amount, changeAmt uint64) (*types.Transaction, *rpcpb.Utxo, error) {
+// NewTxWithUtxo new a transaction
+func NewTxWithUtxo(fromAcc *wallet.Account, utxos []*rpcpb.Utxo, toAddrs []string,
+	amounts []uint64, changeAmt uint64) (*types.Transaction, *rpcpb.Utxo, error) {
 
-	if utxo.GetTxOut().GetValue() < amount+changeAmt {
+	utxoValue := uint64(0)
+	for _, u := range utxos {
+		utxoValue += u.GetTxOut().GetValue()
+	}
+	amount := uint64(0)
+	for _, a := range amounts {
+		amount += a
+	}
+	if utxoValue < amount+changeAmt {
 		return nil, nil, fmt.Errorf("input %d is less than output %d",
-			utxo.GetTxOut().GetValue(), amount+changeAmt)
+			utxoValue, amount+changeAmt)
 	}
 
 	// vin
-	var hash crypto.HashType
-	copy(hash[:], utxo.GetOutPoint().Hash)
-	txIn := &types.TxIn{
-		PrevOutPoint: types.OutPoint{
-			Hash:  hash,
-			Index: utxo.GetOutPoint().GetIndex(),
-		},
-		ScriptSig: []byte{},
-		Sequence:  uint32(0),
+	vins := make([]*types.TxIn, 0)
+	for _, utxo := range utxos {
+		var hash crypto.HashType
+		copy(hash[:], utxo.GetOutPoint().Hash)
+		txIn := &types.TxIn{
+			PrevOutPoint: types.OutPoint{
+				Hash:  hash,
+				Index: utxo.GetOutPoint().GetIndex(),
+			},
+			ScriptSig: []byte{},
+			Sequence:  uint32(0),
+		}
+		vins = append(vins, txIn)
 	}
 
-	// vout for toAddress
-	toAddress, _ := types.NewAddress(toAddr)
-	toAddrPkh, _ := types.NewAddressPubKeyHash(toAddress.Hash())
-	toAddrScript := *script.PayToPubKeyHashScript(toAddrPkh.Hash())
-	toAddrOut := &corepb.TxOut{
-		Value:        amount,
-		ScriptPubKey: toAddrScript,
+	// vout for toAddrs
+	vouts := make([]*corepb.TxOut, 0, len(toAddrs))
+	for i, toAddr := range toAddrs {
+		toAddress, _ := types.NewAddress(toAddr)
+		toAddrPkh, _ := types.NewAddressPubKeyHash(toAddress.Hash())
+		toAddrScript := *script.PayToPubKeyHashScript(toAddrPkh.Hash())
+		toAddrOut := &corepb.TxOut{
+			Value:        amounts[i],
+			ScriptPubKey: toAddrScript,
+		}
+		vouts = append(vouts, toAddrOut)
 	}
 	// vout for change of fromAddress
-	fromAddress, _ := types.NewAddress(fromAddr)
+	fromAddress, _ := types.NewAddress(fromAcc.Addr())
 	fromAddrPkh, _ := types.NewAddressPubKeyHash(fromAddress.Hash())
 	fromAddrScript := *script.PayToPubKeyHashScript(fromAddrPkh.Hash())
 	fromAddrOut := &corepb.TxOut{
@@ -608,26 +645,29 @@ func NewTx(fromAddr, toAddr string, fromAcc *wallet.Account, utxo *rpcpb.Utxo,
 
 	// construct transaction
 	tx := new(types.Transaction)
-	tx.Vin = append(tx.Vin, txIn)
-	tx.Vout = append(tx.Vout, toAddrOut, fromAddrOut)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, vouts...)
+	tx.Vout = append(tx.Vout, fromAddrOut)
 
 	// sign vin
-	scriptPkBytes := utxo.GetTxOut().GetScriptPubKey()
-	sigHash, err := script.CalcTxHashForSig(scriptPkBytes, tx, 0)
-	if err != nil {
-		return nil, nil, err
+	for i, utxo := range utxos {
+		scriptPkBytes := utxo.GetTxOut().GetScriptPubKey()
+		sigHash, err := script.CalcTxHashForSig(scriptPkBytes, tx, i)
+		if err != nil {
+			return nil, nil, err
+		}
+		sig, err := fromAcc.Sign(sigHash)
+		if err != nil {
+			return nil, nil, err
+		}
+		scriptSig := script.SignatureScript(sig, fromAcc.PublicKey())
+		tx.Vin[i].ScriptSig = *scriptSig
 	}
-	sig, err := fromAcc.Sign(sigHash)
-	if err != nil {
-		return nil, nil, err
-	}
-	scriptSig := script.SignatureScript(sig, fromAcc.PublicKey())
-	txIn.ScriptSig = *scriptSig
 
 	// create change utxo
 	txHash, _ := tx.TxHash()
 	change := &rpcpb.Utxo{
-		OutPoint:    NewOutPoint(txHash, 1),
+		OutPoint:    NewOutPoint(txHash, uint32(len(tx.Vout))-1),
 		TxOut:       fromAddrOut,
 		BlockHeight: 0,
 		IsCoinbase:  false,
@@ -643,4 +683,38 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *corepb.OutPoint {
 		Hash:  (*hash)[:],
 		Index: index,
 	}
+}
+
+func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utxo, err error) {
+	// get utxoes
+	fromAddress, _ := types.NewAddress(addr)
+	totalAmount, err := balanceNoPanicFor(addr, peerAddr)
+	if err != nil {
+		return
+	}
+	if amount < totalAmount && amount != 0 {
+		totalAmount = amount
+	}
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	var utxoResponse *rpcpb.ListUtxosResponse
+	for totalAmount > 0 {
+		utxoResponse, err = client.FundTransaction(conn, fromAddress, totalAmount)
+		if err == nil {
+			break
+		}
+		if strings.Contains(err.Error(), "Not enough balance") {
+			totalAmount -= totalAmount / 16
+			continue
+		}
+		return
+	}
+	if utxoResponse == nil || totalAmount == 0 {
+		err = fmt.Errorf("FundTransaction fetch 0 utxos")
+		return
+	}
+	return utxoResponse.GetUtxos(), nil
 }

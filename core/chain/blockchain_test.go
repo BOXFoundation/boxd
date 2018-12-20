@@ -143,6 +143,10 @@ func TestBlockProcessing(t *testing.T) {
 	b1 := nextBlock(b0)
 	verifyProcessBlock(t, b1, nil, 1, b1)
 
+	b1DoubleMint := nextBlock(b1)
+	b1DoubleMint.Header.TimeStamp = b1.Header.TimeStamp
+	verifyProcessBlock(t, b1DoubleMint, core.ErrRepeatedMintAtSameTime, 1, b1)
+
 	// extend main chain
 	// b0 -> b1 -> b2
 	b2 := nextBlock(b1)

@@ -10,5 +10,5 @@ import "github.com/BOXFoundation/boxd/core/types"
 type TxHandler interface {
 	ProcessTx(tx *types.Transaction, broadcast, relay bool) error
 	// GetTransactionsInPool gets all transactions in memory pool
-	GetTransactionsInPool() []*types.Transaction
+	GetTransactionsInPool() ([]*types.Transaction, []int64)
 }

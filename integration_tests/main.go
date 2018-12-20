@@ -41,7 +41,7 @@ type CirInfo struct {
 }
 
 var (
-	minConsensusBlocks = 6
+	minConsensusBlocks = 5*(peerCnt-1) + 1 // 5 is block count one peer gen once
 
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 

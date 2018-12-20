@@ -128,13 +128,17 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 	}
 	return &rpcpb.GetTokenInfoResponse{
 		Info: &rpcpb.TokenBasicInfo{
-			Addr:        tokenAddr.String(),
+			Token: &rpcpb.Token{
+				Hash:  tokenAddr.OutPoint().Hash.String(),
+				Index: tokenAddr.OutPoint().Index,
+			},
 			Name:        param.Name,
 			TotalSupply: param.TotalSupply,
 			CreatorAddr: addr.String(),
 			CreatorTime: uint64(block.Header.TimeStamp),
 			Decimals:    uint32(param.Decimals),
 			Symbol:      param.Symbol,
+			Addr:        tokenAddr.String(),
 		},
 	}, nil
 }
@@ -219,7 +223,7 @@ func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetT
 }
 
 func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.GetPendingTransactionRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	txs := s.server.GetTxHandler().GetTransactionsInPool()
+	txs, addedTime := s.server.GetTxHandler().GetTransactionsInPool()
 	var txInRange []*types.Transaction
 	if len(txs) <= int(req.Offset) {
 		txInRange = []*types.Transaction{}
@@ -228,13 +232,17 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 	} else {
 		txInRange = txs[req.Offset : req.Offset+req.Limit]
 	}
-	utxos, err := s.loadUtxoForTx(txInRange)
+	generatedUtxo, err := s.loadGeneratedUtxoForTx(txs)
+	if err != nil {
+		return nil, err
+	}
+	utxos, err := s.loadUsedUtxoForTx(generatedUtxo, txInRange)
 	if err != nil {
 		return nil, err
 	}
 	logger.Debugf("utxos %v", utxos)
 	var txInfos []*rpcpb.TransactionInfo
-	for _, tx := range txInRange {
+	for idx, tx := range txInRange {
 		msg, err := tx.ToProtoMessage()
 		if err != nil {
 			return nil, err
@@ -287,15 +295,16 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 			inInfos = append(inInfos, info)
 		}
 		txInfo := &rpcpb.TransactionInfo{
-			Version:  tx.Version,
-			Vin:      inInfos,
-			Vout:     outInfos,
-			Data:     txPb.Data,
-			Magic:    tx.Magic,
-			LockTime: tx.LockTime,
-			Hash:     hash.String(),
-			Fee:      fee,
-			Size_:    0,
+			Version:   tx.Version,
+			Vin:       inInfos,
+			Vout:      outInfos,
+			Data:      txPb.Data,
+			Magic:     tx.Magic,
+			LockTime:  tx.LockTime,
+			Hash:      hash.String(),
+			Fee:       fee,
+			Size_:     0,
+			AddedTime: uint64(addedTime[int(req.Offset)+idx]),
 		}
 		txInfos = append(txInfos, txInfo)
 	}
@@ -442,11 +451,14 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 	if err := hash.SetString(req.Hash); err != nil {
 		return nil, err
 	}
+
+	eternalBlock, err := s.server.GetChainReader().LoadEternalBlock()
 	block, err := s.server.GetChainReader().LoadBlockByHash(*hash)
 	if err != nil {
 		return nil, err
 	}
 	blockInfo, err := s.convertBlock(block)
+	blockInfo.Confirmed = eternalBlock.Height >= block.Height
 	if err != nil {
 		return nil, err
 	}
@@ -521,6 +533,58 @@ func (s *webapiServer) analyzeTokenDistribute(utxos map[types.OutPoint]*types.Ut
 		}
 	}
 	return distribute, nil
+}
+
+func (s *webapiServer) loadGeneratedUtxoForTx(txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
+	generated := make(map[types.OutPoint]*types.UtxoWrap)
+	for i, tx := range txs {
+		hash, err := tx.TxHash()
+		if err != nil {
+			return nil, err
+		}
+		for idx, out := range tx.Vout {
+			outpoint := types.OutPoint{
+				Hash:  *hash,
+				Index: uint32(idx),
+			}
+			wrap := &types.UtxoWrap{
+				Output:      out,
+				BlockHeight: 0,
+				IsCoinBase:  i == 0,
+				IsSpent:     false,
+				IsModified:  false,
+			}
+			generated[outpoint] = wrap
+		}
+	}
+	return generated, nil
+}
+
+func (s *webapiServer) loadUsedUtxoForTx(memUtxoSource map[types.OutPoint]*types.UtxoWrap, txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
+	var missing []types.OutPoint
+	final := make(map[types.OutPoint]*types.UtxoWrap)
+	for k, v := range memUtxoSource {
+		final[k] = v
+	}
+	for _, tx := range txs {
+		if s.server.GetChainReader().IsCoinBase(tx) {
+			continue
+		}
+		for _, txIn := range tx.Vin {
+			if _, ok := memUtxoSource[txIn.PrevOutPoint]; ok {
+				continue
+			}
+			missing = append(missing, txIn.PrevOutPoint)
+		}
+	}
+	stored, err := s.server.GetChainReader().LoadSpentUtxos(missing)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range stored {
+		final[k] = v
+	}
+	return final, nil
 }
 
 func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
