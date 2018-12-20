@@ -251,8 +251,32 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 	return txi.FeePerKB < txj.FeePerKB
 }
 
+// getChainedTxs returns all chained ancestor txs in mempool of the passed tx, including itself
+// From child to ancestors
+func getChainedTxs(tx *chain.TxWrap, hashToTx map[crypto.HashType]*chain.TxWrap) []*chain.TxWrap {
+	hashSet := make(map[crypto.HashType]struct{})
+	chainedTxs := []*chain.TxWrap{tx}
+
+	// Note: use index here instead of range because chainedTxs can be extended inside the loop
+	for i := 0; i < len(chainedTxs); i++ {
+		tx := chainedTxs[i].Tx
+
+		for _, txIn := range tx.Vin {
+			prevTxHash := txIn.PrevOutPoint.Hash
+			if prevTx, exists := hashToTx[prevTxHash]; exists {
+				if _, exists := hashSet[prevTxHash]; !exists {
+					chainedTxs = append(chainedTxs, prevTx)
+					hashSet[prevTxHash] = struct{}{}
+				}
+			}
+		}
+	}
+
+	return chainedTxs
+}
+
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs() []*chain.TxWrap {
+func (dpos *Dpos) sortPendingTxs() ([]*chain.TxWrap, map[crypto.HashType]*chain.TxWrap) {
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := dpos.txpool.GetAllTxs()
 	for _, pendingTx := range pendingTxs {
@@ -261,11 +285,14 @@ func (dpos *Dpos) sortPendingTxs() []*chain.TxWrap {
 	}
 
 	var sortedTxs []*chain.TxWrap
+	hashToTx := make(map[crypto.HashType]*chain.TxWrap)
 	for pool.Len() > 0 {
 		txWrap := heap.Pop(pool).(*chain.TxWrap)
 		sortedTxs = append(sortedTxs, txWrap)
+		txHash, _ := txWrap.Tx.TxHash()
+		hashToTx[*txHash] = txWrap
 	}
-	return sortedTxs
+	return sortedTxs, hashToTx
 }
 
 // PackTxs packed txs and add them to block.
@@ -273,9 +300,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
 	// otherwise the former's utxo is missing
-	sortedTxs := dpos.sortPendingTxs()
-	// if i-th sortedTxs is packed into the block
-	txPacked := make([]bool, len(sortedTxs))
+	sortedTxs, hashToTx := dpos.sortPendingTxs()
 
 	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
@@ -292,14 +317,20 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	stopPackCh := make(chan bool)
 
 	go func() {
-		found := true
-		for found {
-			found = false
-			for i, txWrap := range sortedTxs {
-				if stopPack {
-					return
-				}
-				if txPacked[i] {
+		for txIdx, tx := range sortedTxs {
+			if stopPack {
+				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(blockTxns)-1, len(sortedTxs))
+				return
+			}
+
+			logger.Debugf("Iterating over %d-th tx: packed %d txs out of %d so far", txIdx, len(blockTxns)-1, len(sortedTxs))
+			chainedTxs := getChainedTxs(tx, hashToTx)
+			// Add ancestors first
+			for i := len(chainedTxs) - 1; i >= 0; i-- {
+				txWrap := chainedTxs[i]
+				txHash, _ := txWrap.Tx.TxHash()
+				// Already packed
+				if _, exists := spendableTxs.Load(*txHash); exists {
 					continue
 				}
 
@@ -308,17 +339,15 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 					continue
 				}
 
-				txHash, _ := txWrap.Tx.TxHash()
 				utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
 				if err != nil {
 					logger.Warnf("Could not get extended utxo set for tx %v", txHash)
 					continue
 				}
 
-				// This is to ensure within mempool, a parent tx is packed before its children txs
 				totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
 				if totalInputAmount == 0 {
-					// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
+					// This can only occur when a tx's parent is removed from mempool but not written to utxo db yet
 					continue
 				}
 				totalOutputAmount := txWrap.Tx.OutputAmount()
@@ -335,8 +364,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 				spendableTxs.Store(*txHash, txWrap)
 				blockTxns = append(blockTxns, txWrap.Tx)
-				txPacked[i] = true
-				found = true
 			}
 		}
 		stopPackCh <- true
@@ -344,8 +371,10 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	select {
 	case <-time.After(time.Duration(remainTimeInMs) * time.Millisecond):
+		logger.Debug("Packing timeout")
 		stopPack = true
 	case <-stopPackCh:
+		logger.Debug("Packing completed")
 	}
 
 	// Pay tx fees to miner in addition to block reward in coinbase
@@ -362,7 +391,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if block.IrreversibleInfo, err = dpos.bftservice.FetchIrreversibleInfo(); err != nil {
 		return err
 	}
-	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d", block.BlockHash().String(), block.Height, len(blockTxns))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Height, len(blockTxns), len(sortedTxs))
 	return nil
 }
 
