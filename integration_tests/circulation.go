@@ -73,7 +73,7 @@ func (c *Circulation) Run() {
 
 func (c *Circulation) doTx(index int) {
 	defer func() {
-		logger.Infof("done doTx[%d]", index)
+		logger.Infof("done circulation test doTx[%d]", index)
 		if x := recover(); x != nil {
 			utils.TryRecordError(fmt.Errorf("%v", x))
 		}
@@ -155,8 +155,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 				}
 			}()
 			for _, tx := range txs {
-				err := client.SendTransaction(conn, tx)
-				if err != nil {
+				if err := client.SendTransaction(conn, tx); err != nil {
 					logger.Panic(err)
 				}
 				atomic.AddUint64(txCnt, 1)

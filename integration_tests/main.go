@@ -41,7 +41,8 @@ type CirInfo struct {
 }
 
 var (
-	minConsensusBlocks = 5*(peerCnt-1) + 1 // 5 is block count one peer gen once
+	//minConsensusBlocks = 5*(peerCnt-1) + 1 // 5 is block count one peer gen once
+	minConsensusBlocks = 6
 
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
@@ -249,7 +250,7 @@ func txTest() {
 }
 
 func tokenTest() {
-	t := NewTokenTest(utils.TokenAccounts())
+	t := NewTokenTest(utils.TokenAccounts(), utils.TokenUnitAccounts())
 	timeout := blockTime * time.Duration(len(peersAddr)*2)
 	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
 		minConsensusBlocks, timeout)

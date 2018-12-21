@@ -115,12 +115,6 @@ func LoadConf() error {
 	}
 	logger.Infof("tickerDurationTxs = %d", tickerDurationTxs)
 
-	tokenWorkers, err = GetIntCfgVal(1, "token_test", "workers")
-	if err != nil {
-		return err
-	}
-	logger.Infof("tokenWorkers = %d", tokenWorkers)
-
 	return nil
 }
 
@@ -198,9 +192,4 @@ func PeerAddrs() []string {
 // TickerDurationTxs get ticker duration for calc tx count
 func TickerDurationTxs() time.Duration {
 	return time.Duration(tickerDurationTxs) * time.Second
-}
-
-// TokenWorkers return okenWorkers
-func TokenWorkers() int {
-	return tokenWorkers
 }

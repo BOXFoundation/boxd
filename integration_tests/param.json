@@ -13,12 +13,11 @@
     "collection_unit_accounts": 4,
     "circulation_accounts": 12,
     "circulation_unit_accounts": 4,
-    "circulation_repeat_times": 500
+    "circulation_repeat_times": 400
   },
   "token_test": {
-    "workers": 1,
-    "enable": false,
-    "accounts": 3,
+    "enable": true,
+    "accounts": 6,
     "unit_accounts": 3,
     "repeat_times": 100
   },
