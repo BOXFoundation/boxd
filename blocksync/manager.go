@@ -473,7 +473,7 @@ func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 	hashes := make([]*crypto.HashType, 0)
 	tailHeight := sm.chain.TailBlock().Height
 	if tailHeight == 0 {
-		return []*crypto.HashType{&chain.GenesisHash}, nil
+		return []*crypto.HashType{sm.chain.Genesis().BlockHash()}, nil
 	}
 	heights := heightLocator(tailHeight)
 	for _, h := range heights {

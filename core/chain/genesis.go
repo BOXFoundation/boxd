@@ -5,50 +5,25 @@
 package chain
 
 import (
+	"math"
+	"strconv"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/script"
 )
-
-var genesisCoinbaseTx = types.Transaction{
-	Version: 1,
-	Vin: []*types.TxIn{
-		{
-			PrevOutPoint: types.OutPoint{
-				Hash:  crypto.HashType{},
-				Index: 0xffffffff,
-			},
-			ScriptSig: []byte{},
-			Sequence:  0xffffffff,
-		},
-	},
-	Vout: []*corepb.TxOut{
-		{
-			Value:        0x12a05f200,
-			ScriptPubKey: []byte{},
-		},
-	},
-	LockTime: 0,
-}
-
-var genesisMerkleRoot = crypto.HashType([crypto.HashSize]byte{})
 
 // GenesisBlock represents genesis block.
 var GenesisBlock = types.Block{
 	Header: &types.BlockHeader{
 		Version:       1,
 		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
-		TxsRoot:       genesisMerkleRoot,
 		TimeStamp:     time.Date(2018, 1, 31, 0, 0, 0, 0, time.UTC).Unix(),
 	},
-	Txs:    []*types.Transaction{&genesisCoinbaseTx},
 	Height: 0,
 }
-
-// GenesisHash is the hash of genesis block
-var GenesisHash = *(GenesisBlock.BlockHash())
 
 // GenesisPeriod genesis period
 var GenesisPeriod = []map[string]string{
@@ -76,4 +51,100 @@ var GenesisPeriod = []map[string]string{
 		"addr":   "b1fRtRnKF4qhQG7bSwqbgR2BMw9VfM2XpT4",
 		"peerID": "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
 	},
+}
+
+// tokenPreAllocation token pre_allocation
+// total 3 billion, 2.1 billion pre_allocation and 0.9 billion pay for miner.
+// 0.45 billion for team, unlocked in four years, 112.5 million per year.
+var tokenPreAllocation = []map[string]string{
+	{ // token for team
+		"addr":  "b1UTiZvrJMfUtcyW24viemR2dSYtkpZxouR",
+		"value": "112500000",
+	},
+	{ // token for team
+		"addr":     "b1jHVRpT8WTkn5RRQYKocjvf7u7tpfFbvRs",
+		"value":    "112500000",
+		"locktime": "31536000",
+	},
+	{ // token for team
+		"addr":     "b1TpriWdFvGQ4qRSvUvWvT9Eqx7dxKeAyKq",
+		"value":    "112500000",
+		"locktime": "63072000",
+	},
+	{ // token for team
+		"addr":     "b1ebddZsUpng3nCKFrjdu7vGDkpUgKqDU8c",
+		"value":    "112500000",
+		"locktime": "94608000",
+	},
+	{
+		"addr":  "b1pNwCEUkAgwNbzGfFWcUDZBfSofXAL2ELr",
+		"value": "330000000",
+	},
+	{
+		"addr":  "b1qgzftUmcsnj2cXJjELAoeMY6Mxd2izeiu",
+		"value": "330000000",
+	},
+	{
+		"addr":  "b1rXV1dcj7AnHhJCGEx7FdR5UTgPjcgAseS",
+		"value": "330000000",
+	},
+	{
+		"addr":  "b1fMbSSDHRLQszXucPYhNXKQ9EXScQVAdVH",
+		"value": "330000000",
+	},
+	{
+		"addr":  "b1YSz8ciqPSpybTr19dnxEh7tHJLRU2z85t",
+		"value": "330000000",
+	},
+}
+
+// TokenPreAllocation is for token preallocation
+func TokenPreAllocation() ([]*types.Transaction, error) {
+
+	txs := make([]*types.Transaction, len(tokenPreAllocation))
+	for idx, v := range tokenPreAllocation {
+		addr, err := types.NewAddress(v["addr"])
+		if err != nil {
+			return nil, err
+		}
+		pubkeyhash := addr.Hash()
+
+		value, err := strconv.ParseUint(v["value"], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		coinbaseScriptSig := script.StandardCoinbaseSignatureScript(0)
+		pkScript := *script.PayToPubKeyHashScript(pubkeyhash)
+
+		var locktime int64
+		if v["locktime"] != "" {
+			locktime, err = strconv.ParseInt(v["locktime"], 10, 64)
+			if err != nil {
+				return nil, err
+			}
+		}
+		tx := &types.Transaction{
+			Version: 1,
+			Vin: []*types.TxIn{
+				{
+					PrevOutPoint: types.OutPoint{
+						Hash:  zeroHash,
+						Index: math.MaxUint32,
+					},
+					ScriptSig: *coinbaseScriptSig,
+					Sequence:  math.MaxUint32,
+				},
+			},
+			Vout: []*corepb.TxOut{
+				{
+					Value:        value,
+					ScriptPubKey: pkScript,
+				},
+			},
+			LockTime: locktime,
+		}
+		txs[idx] = tx
+
+	}
+	return txs, nil
 }

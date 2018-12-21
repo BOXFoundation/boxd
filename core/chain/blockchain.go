@@ -424,7 +424,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 
 	// check for genesis.
-	if block.BlockHash().IsEqual(chain.genesis.BlockHash()) {
+	if block.Header.PrevBlockHash.IsEqual(chain.genesis.BlockHash()) {
 		return chain.genesis
 	}
 	if target, ok := chain.cache.Get(block.Header.PrevBlockHash); ok {
@@ -666,6 +666,11 @@ func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
 }
 
+// Genesis return chain tail block.
+func (chain *BlockChain) Genesis() *types.Block {
+	return chain.genesis
+}
+
 // SetEternal set block eternal status.
 func (chain *BlockChain) SetEternal(block *types.Block) error {
 	eternal := chain.eternal
@@ -820,21 +825,46 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, batch storage.Batch) er
 }
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
-	if ok, _ := chain.db.Has(genesisBlockKey); ok {
-		genesisBlockFromDb, err := chain.LoadBlockByHash(GenesisHash)
+
+	if ok, _ := chain.db.Has(GenesisKey); ok {
+		genesisBin, err := chain.db.Get(GenesisKey)
 		if err != nil {
 			return nil, err
 		}
-		return genesisBlockFromDb, nil
+		genesis := new(types.Block)
+		if err := genesis.Unmarshal(genesisBin); err != nil {
+			return nil, err
+		}
+
+		return genesis, nil
 	}
 
-	genesisBin, err := GenesisBlock.Marshal()
+	genesis := GenesisBlock
+	genesisTxs, err := TokenPreAllocation()
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put(genesisBlockKey, genesisBin)
+	genesis.Txs = genesisTxs
+	genesis.Header.TxsRoot = *CalcTxsHash(genesisTxs)
 
-	return &GenesisBlock, nil
+	genesisBin, err := genesis.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	batch := chain.db.NewBatch()
+	utxoSet := NewUtxoSet()
+	for _, v := range genesis.Txs {
+		for idx := range v.Vout {
+			utxoSet.AddUtxo(v, uint32(idx), genesis.Height)
+		}
+	}
+	utxoSet.WriteUtxoSetToDB(batch)
+	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
+	if err := batch.Write(); err != nil {
+		return nil, err
+	}
+	logger.Errorf("genesis hash : %v", genesis.BlockHash().String())
+	return &genesis, nil
 
 }
 
@@ -856,7 +886,7 @@ func (chain *BlockChain) LoadEternalBlock() (*types.Block, error) {
 
 		return eternal, nil
 	}
-	return &GenesisBlock, nil
+	return chain.genesis, nil
 }
 
 // loadTailBlock load tail block
@@ -878,7 +908,7 @@ func (chain *BlockChain) loadTailBlock() (*types.Block, error) {
 		return tailBlock, nil
 	}
 
-	return &GenesisBlock, nil
+	return chain.genesis, nil
 }
 
 // IsCoinBase checks if an transaction is coinbase transaction
