@@ -7,11 +7,8 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"os"
-	"os/signal"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -19,22 +16,12 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	timeoutToChain = 30 * time.Second
-	totalAmount    = 10000000
-)
-
 // Collection manage transaction creation and collection
 type Collection struct {
-	accCnt     int
-	partLen    int
-	txCnt      uint64
+	*BaseFmw
 	minerAddr  string
-	addrs      []string
-	accAddrs   []string
 	collAddrCh <-chan string
 	cirInfoCh  chan<- CirInfo
-	quitCh     []chan os.Signal
 }
 
 // NewCollection construct a Collection instance
@@ -42,91 +29,31 @@ func NewCollection(accCnt, partLen int, collAddrCh <-chan string,
 	cirInfoCh chan<- CirInfo) *Collection {
 	c := &Collection{}
 	// get account address
-	c.accCnt = accCnt
-	c.partLen = partLen
-	logger.Infof("start to gen %d tests address for tx collection", accCnt)
-	c.addrs, c.accAddrs = utils.GenTestAddr(c.accCnt)
-	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
-	// get accounts for addrs
-	for _, addr := range c.addrs {
-		acc := utils.UnlockAccount(addr)
-		AddrToAcc[addr] = acc
-	}
+	c.BaseFmw = NewBaseFmw(accCnt, partLen)
 	c.collAddrCh = collAddrCh
 	c.cirInfoCh = cirInfoCh
-	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
-		c.quitCh = append(c.quitCh, make(chan os.Signal, 1))
-		signal.Notify(c.quitCh[i], os.Interrupt, os.Kill)
-	}
 	return c
 }
 
-// TearDown clean test accounts files
-func (c *Collection) TearDown() {
-	utils.RemoveKeystoreFiles(c.accAddrs...)
-}
-
-// Run create transaction and send them to circulation channel
-func (c *Collection) Run() {
-	var wg sync.WaitGroup
-	for i := 0; i*c.partLen < len(c.addrs); i++ {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			c.doTx(index)
-		}(i)
+// HandleFunc hooks test func
+func (c *Collection) HandleFunc(addrs []string, idx *int) {
+	// wait for nodes to be ready
+	*idx = *idx % peerCnt
+	peerAddr := peersAddr[*idx]
+	*idx++
+	logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount,
+		peerAddr)
+	// totalAmount is enough, to multiply is to avoid concurrence balance insufficent
+	c.minerAddr = minerAddrs[rand.Intn(len(minerAddrs)-1)]
+	_, err := utils.WaitBalanceEnough(c.minerAddr, totalAmount, peerAddr, timeoutToChain)
+	if err != nil {
+		return
 	}
-	wg.Wait()
-}
-
-func (c *Collection) doTx(index int) {
-	defer func() {
-		if x := recover(); x != nil {
-			logger.Error(x)
-			utils.TryRecordError(fmt.Errorf("%v", x))
-		}
-	}()
-	start := index * c.partLen
-	end := start + c.partLen
-	if end > len(c.addrs) {
-		end = len(c.addrs)
-	}
-	addrs := c.addrs[start:end]
-	peerIdx := 0
-	//div := (len(c.addrs) + c.partLen - 1) / c.partLen
-	logger.Infof("start collection doTx[%d]", index)
-	for {
-		select {
-		case s := <-c.quitCh[index]:
-			logger.Infof("receive quit signal %v, quiting collection!", s)
-			close(c.cirInfoCh)
-			return
-		default:
-		}
-		// wait for nodes to be ready
-		peerIdx = peerIdx % peerCnt
-		peerAddr := peersAddr[peerIdx]
-		peerIdx++
-		logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount,
-			peerAddr)
-		// totalAmount is enough, to multiply is to avoid concurrence balance insufficent
-		// sleep index*rpcInterval to avoid "Output already spent by transaction in the
-		// pool" error on the same minerAddr
-		c.minerAddr = minerAddrs[(peerIdx+index*peerCnt/2)%peerCnt]
-		_, err := utils.WaitBalanceEnough(c.minerAddr, totalAmount, peerAddr, timeoutToChain)
-		if err != nil {
-			continue
-		}
-		time.Sleep(time.Duration(index) * utils.RPCInterval)
-		//c.minerAddr = addr
-		if collAddr, ok := <-c.collAddrCh; ok {
-			logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
-			c.launderFunds(collAddr, addrs, peerAddr, &c.txCnt)
-			c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
-		}
-		if scopeValue(*scope) == basicScope {
-			break
-		}
+	//c.minerAddr = addr
+	if collAddr, ok := <-c.collAddrCh; ok {
+		logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
+		c.launderFunds(collAddr, addrs, peerAddr, &c.txCnt)
+		c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
 	}
 }
 

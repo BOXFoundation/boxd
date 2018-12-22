@@ -6,8 +6,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,92 +18,31 @@ import (
 
 // Circulation manage circulation of transaction
 type Circulation struct {
-	accCnt     int
-	partLen    int
-	txCnt      uint64
-	addrs      []string
-	accAddrs   []string
+	*BaseFmw
 	collAddrCh chan<- string
 	cirInfoCh  <-chan CirInfo
-	quitCh     []chan os.Signal
 }
 
 // NewCirculation construct a Circulation instance
 func NewCirculation(accCnt, partLen int, collAddrCh chan<- string,
 	cirInfoCh <-chan CirInfo) *Circulation {
 	c := &Circulation{}
-	// get account address
-	c.accCnt = accCnt
-	c.partLen = partLen
-	logger.Infof("start to gen %d address for circulation", accCnt)
-	c.addrs, c.accAddrs = utils.GenTestAddr(c.accCnt)
-	logger.Debugf("addrs: %v\ntestsAcc: %v", c.addrs, c.accAddrs)
-	for _, addr := range c.addrs {
-		acc := utils.UnlockAccount(addr)
-		AddrToAcc[addr] = acc
-	}
+	c.BaseFmw = NewBaseFmw(accCnt, partLen)
 	c.collAddrCh = collAddrCh
 	c.cirInfoCh = cirInfoCh
-	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
-		c.quitCh = append(c.quitCh, make(chan os.Signal, 1))
-		signal.Notify(c.quitCh[i], os.Interrupt, os.Kill)
-	}
 	return c
 }
 
-// TearDown clean test accounts files
-func (c *Circulation) TearDown() {
-	utils.RemoveKeystoreFiles(c.accAddrs...)
-}
-
-// Run consumes transaction pending on circulation channel
-func (c *Circulation) Run() {
-	var wg sync.WaitGroup
-	for i := 0; i*c.partLen < len(c.addrs); i++ {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			c.doTx(index)
-		}(i)
-	}
-	wg.Wait()
-}
-
-func (c *Circulation) doTx(index int) {
-	defer func() {
-		logger.Infof("done circulation test doTx[%d]", index)
-		if x := recover(); x != nil {
-			utils.TryRecordError(fmt.Errorf("%v", x))
-		}
-	}()
-	start := index * c.partLen
-	end := start + c.partLen
-	if end > len(c.addrs) {
-		end = len(c.addrs)
-	}
-	addrs := c.addrs[start:end]
-	addrIdx := 0
-	logger.Infof("start circulation doTx[%d]", index)
-	for {
-		select {
-		case s := <-c.quitCh[index]:
-			logger.Infof("receive quit signal %v, quiting circulation[%d]!", s, index)
-			close(c.collAddrCh)
-			return
-		default:
-		}
-		addrIdx = addrIdx % len(addrs)
-		c.collAddrCh <- addrs[addrIdx]
-		toIdx := (addrIdx + 1) % len(addrs)
-		toAddr := addrs[toIdx]
-		addrIdx = toIdx
-		if cirInfo, ok := <-c.cirInfoCh; ok {
-			logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-			txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
-		}
-		if scopeValue(*scope) == basicScope {
-			break
-		}
+// HandleFunc hooks test func
+func (c *Circulation) HandleFunc(addrs []string, idx *int) {
+	*idx = *idx % len(addrs)
+	c.collAddrCh <- addrs[*idx]
+	toIdx := (*idx + 1) % len(addrs)
+	toAddr := addrs[toIdx]
+	*idx = toIdx
+	if cirInfo, ok := <-c.cirInfoCh; ok {
+		logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
+		txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
 	}
 }
 

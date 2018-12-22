@@ -524,7 +524,11 @@ func TokenBalanceFor(addr string, tokenID *types.OutPoint, peerAddr string) uint
 	if err != nil {
 		logger.Panic(err)
 	}
-	return client.GetTokenBalance(conn, address, tokenID.Hash, tokenID.Index)
+	b, err := client.GetTokenBalance(conn, address, tokenID.Hash, tokenID.Index)
+	if err != nil {
+		logger.Panic(err)
+	}
+	return b
 }
 
 // NewTx new a tx and return change utxo

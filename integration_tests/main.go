@@ -24,7 +24,9 @@ type scopeValue string
 const (
 	peerCnt = 6
 
-	blockTime = 5 * time.Second
+	blockTime      = 5 * time.Second
+	timeoutToChain = 10 * time.Second
+	totalAmount    = 10000000
 
 	basicScope    scopeValue = "basic"
 	mainScope     scopeValue = "main"
@@ -234,14 +236,14 @@ func txTest() {
 	// collection process
 	go func() {
 		defer wg.Done()
-		coll.Run()
+		coll.Run(coll.HandleFunc)
 		logger.Info("done collection")
 	}()
 
 	// circulation process
 	go func() {
 		defer wg.Done()
-		circu.Run()
+		circu.Run(circu.HandleFunc)
 		logger.Info("done circulation")
 	}()
 
@@ -279,6 +281,6 @@ func tokenTest() {
 		}
 	}()
 
-	t.Run()
+	t.Run(t.HandleFunc)
 	logger.Info("done token test")
 }
