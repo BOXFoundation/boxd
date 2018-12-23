@@ -24,8 +24,8 @@ type scopeValue string
 const (
 	peerCnt = 6
 
-	blockTime      = 5 * time.Second
-	timeoutToChain = 10 * time.Second
+	blockTime      = 1 * time.Second
+	timeoutToChain = 15 * time.Second
 	totalAmount    = 10000000
 
 	basicScope    scopeValue = "basic"
@@ -42,15 +42,22 @@ type CirInfo struct {
 	PeerAddr string
 }
 
+type picker struct {
+	sync.Mutex
+	status []bool
+}
+
 var (
 	//minConsensusBlocks = 5*(peerCnt-1) + 1 // 5 is block count one peer gen once
-	minConsensusBlocks = 6
+	minConsensusBlocks = 26
 
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
 	peersAddr  []string
 	minerAddrs []string
 	minerAccs  []*wallet.Account
+
+	minerPicker = picker{status: make([]bool, peerCnt)}
 
 	//AddrToAcc stores addr to account
 	AddrToAcc = make(map[string]*wallet.Account)
@@ -105,6 +112,7 @@ func main() {
 				logger.Panic(err)
 			}
 		}
+		time.Sleep(3 * time.Second) // wait for 3s to let boxd started
 	}
 	peersAddr = utils.PeerAddrs()
 
@@ -137,6 +145,14 @@ func main() {
 	}()
 
 	// start test
+	timeout := blockTime * time.Duration(minConsensusBlocks+10)
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
+		minConsensusBlocks, timeout)
+	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
+		timeout); err != nil {
+		logger.Panic(err)
+	}
+
 	var wg sync.WaitGroup
 	testItems := 2
 	errChans := make(chan error, testItems)
@@ -203,14 +219,6 @@ func txTest() {
 		cirInfoCh)
 	defer circu.TearDown()
 
-	timeout := blockTime * time.Duration(len(peersAddr)*2)
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
-		minConsensusBlocks, timeout)
-	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
-		timeout); err != nil {
-		logger.Panic(err)
-	}
-
 	// print tx count per TickerDurationTxs
 	go func() {
 		logger.Info("txs ticker for txTest start")
@@ -253,13 +261,6 @@ func txTest() {
 
 func tokenTest() {
 	t := NewTokenTest(utils.TokenAccounts(), utils.TokenUnitAccounts())
-	timeout := blockTime * time.Duration(len(peersAddr)*2)
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
-		minConsensusBlocks, timeout)
-	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
-		timeout); err != nil {
-		logger.Panic(err)
-	}
 	defer t.TearDown()
 
 	// print tx count per TickerDurationTxs
@@ -283,4 +284,30 @@ func tokenTest() {
 
 	t.Run(t.HandleFunc)
 	logger.Info("done token test")
+}
+
+// PickOneMiner picks a miner address that was not picked by other goroutine
+func PickOneMiner() (string, bool) {
+	minerPicker.Lock()
+	defer minerPicker.Unlock()
+	for i, picked := range minerPicker.status {
+		if !picked {
+			minerPicker.status[i] = true
+			return minerAddrs[i], true
+		}
+	}
+	return "", false
+}
+
+// UnpickMiner unpick a miner address
+func UnpickMiner(addr string) bool {
+	minerPicker.Lock()
+	defer minerPicker.Unlock()
+	for i, a := range minerAddrs {
+		if a == addr {
+			minerPicker.status[i] = false
+			return true
+		}
+	}
+	return false
 }

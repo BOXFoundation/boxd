@@ -41,15 +41,21 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) {
 	*idx = *idx % peerCnt
 	peerAddr := peersAddr[*idx]
 	*idx++
-	logger.Infof("waiting for minersAddr has %d at least on %s", totalAmount,
-		peerAddr)
-	// totalAmount is enough, to multiply is to avoid concurrence balance insufficent
-	c.minerAddr = minerAddrs[rand.Intn(len(minerAddrs)-1)]
+	//
+	maddr, ok := PickOneMiner()
+	if !ok {
+		logger.Warnf("have no miner address to pick")
+		return
+	}
+	defer UnpickMiner(maddr)
+	c.minerAddr = maddr
+	//
+	logger.Infof("waiting for minersAddr has %d at least on %s for collection test",
+		totalAmount, peerAddr)
 	_, err := utils.WaitBalanceEnough(c.minerAddr, totalAmount, peerAddr, timeoutToChain)
 	if err != nil {
 		return
 	}
-	//c.minerAddr = addr
 	if collAddr, ok := <-c.collAddrCh; ok {
 		logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
 		c.launderFunds(collAddr, addrs, peerAddr, &c.txCnt)
@@ -101,6 +107,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 			logger.Panic(err)
 		}
 	}
+	UnpickMiner(c.minerAddr)
 
 	// send tx from each to each
 	amountsRecv := make([]uint64, count)

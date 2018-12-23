@@ -27,14 +27,20 @@ func NewTokenTest(accCnt int, partLen int) *TokenTest {
 
 // HandleFunc hooks test func
 func (t *TokenTest) HandleFunc(addrs []string, index *int) {
-	*index = peerCnt / 2
-	*index = *index % peerCnt
-	peerAddr := peersAddr[*index]
+	peerAddr := peersAddr[(*index)%peerCnt]
 	(*index)++
-	logger.Infof("waiting for minersAddr has %d at least on %s for token test",
-		totalAmount, peerAddr)
-	miner := minerAddrs[rand.Intn(len(minerAddrs)-1)]
-	_, err := utils.WaitBalanceEnough(miner, 22000000, peerAddr, timeoutToChain)
+	//
+	miner, ok := PickOneMiner()
+	if !ok {
+		logger.Warnf("have no miner address to pick")
+		return
+	}
+	defer UnpickMiner(miner)
+	//
+	testFee, subsidy := uint64(1000000), uint64(10000)
+	logger.Infof("waiting for minersAddr %s has %d at least on %s for token test",
+		miner, testFee+2*subsidy, peerAddr)
+	_, err := utils.WaitBalanceEnough(miner, testFee+2*subsidy, peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -45,7 +51,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) {
 	}
 	issuer, sender, receivers := addrs[0], addrs[1], addrs[2:]
 	tx, _, _, err := utils.NewTx(AddrToAcc[miner], []string{issuer, sender},
-		[]uint64{10000000, 10000000}, peerAddr)
+		[]uint64{subsidy, testFee}, peerAddr)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -56,6 +62,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) {
 		logger.Error(err)
 		return
 	}
+	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
 	tag := utils.NewTokenTag("box token", "BOX", 8)
 	times := utils.TokenRepeatTxTimes()

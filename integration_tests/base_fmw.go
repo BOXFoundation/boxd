@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
+	"runtime"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -62,6 +64,9 @@ func (b *BaseFmw) Run(handle HandleFunc) {
 		}(i)
 	}
 	wg.Wait()
+	name := runtime.FuncForPC(reflect.ValueOf(handle).Pointer()).Name()
+	//name[strings.LastIndexByte(name, '/')+1:]
+	logger.Warnf("done %s", name)
 }
 
 func (b *BaseFmw) doTest(index int, handle HandleFunc) {
