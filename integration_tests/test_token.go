@@ -5,6 +5,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"sync/atomic"
 
@@ -27,6 +28,12 @@ func NewTokenTest(accCnt int, partLen int) *TokenTest {
 
 // HandleFunc hooks test func
 func (t *TokenTest) HandleFunc(addrs []string, index *int) {
+	defer func() {
+		if x := recover(); x != nil {
+			utils.TryRecordError(fmt.Errorf("%v", x))
+			logger.Error(x)
+		}
+	}()
 	peerAddr := peersAddr[(*index)%peerCnt]
 	(*index)++
 	//

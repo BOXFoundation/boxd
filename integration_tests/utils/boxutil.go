@@ -416,6 +416,31 @@ func WaitBalanceEnough(addr string, amount uint64, checkPeer string,
 		addr, amount, b)
 }
 
+// WaitBalanceEqual wait balance of addr is more than amount
+func WaitBalanceEqual(addr string, amount uint64, checkPeer string,
+	timeout time.Duration) (uint64, error) {
+	// return eagerly
+	b := BalanceFor(addr, checkPeer)
+	if b == amount {
+		return b, nil
+	}
+	// check repeatedly
+	d := RPCInterval
+	t := time.NewTicker(d)
+	defer t.Stop()
+	for i := 0; i < int(timeout/d); i++ {
+		select {
+		case <-t.C:
+			b = BalanceFor(addr, checkPeer)
+			if b == amount {
+				return b, nil
+			}
+		}
+	}
+	return b, fmt.Errorf("Timeout for waiting for %s balance equal to %d, now %d",
+		addr, amount, b)
+}
+
 // WaitTokenBalanceEnough wait tokken balance of addr is more than amount
 func WaitTokenBalanceEnough(addr string, amount uint64, tokenID *types.OutPoint,
 	checkPeer string, timeout time.Duration) (uint64, error) {

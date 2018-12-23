@@ -154,7 +154,7 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	testItems := 2
+	testItems := 3
 	errChans := make(chan error, testItems)
 
 	// test tx
@@ -182,6 +182,20 @@ func main() {
 				}
 			}()
 			tokenTest()
+		}()
+	}
+
+	// test split address
+	if true {
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+				if x := recover(); x != nil {
+					errChans <- fmt.Errorf("%v", x)
+				}
+			}()
+			splitAddrTest()
 		}()
 	}
 
@@ -284,6 +298,14 @@ func tokenTest() {
 
 	t.Run(t.HandleFunc)
 	logger.Info("done token test")
+}
+
+func splitAddrTest() {
+	//t := NewSplitAddrTest(utils.TokenAccounts(), utils.TokenUnitAccounts())
+	t := NewSplitAddrTest(5, 5)
+	defer t.TearDown()
+	t.Run(t.HandleFunc)
+	logger.Info("done split address test")
 }
 
 // PickOneMiner picks a miner address that was not picked by other goroutine
