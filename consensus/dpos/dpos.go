@@ -104,7 +104,6 @@ func (dpos *Dpos) Run() error {
 		logger.Warn("You have no authority to mint block")
 		return ErrNoLegalPowerToMint
 	}
-	dpos.StopMint()
 
 	// peer can mint, start bftService.
 	bftService, err := NewBftService(dpos)

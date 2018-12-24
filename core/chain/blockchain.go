@@ -863,7 +863,6 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err := batch.Write(); err != nil {
 		return nil, err
 	}
-	logger.Errorf("genesis hash : %v", genesis.BlockHash().String())
 	return &genesis, nil
 
 }
