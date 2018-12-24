@@ -540,11 +540,17 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 
 func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) error {
 
+	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+	blockCopy := block.Copy()
+
+	// Split tx outputs if any
+	chain.splitBlockOutputs(blockCopy)
+
 	utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
 		return err
 	}
-	if err := utxoSet.RevertBlock(block, chain); err != nil {
+	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
 		return err
 	}
 	// save utxoset to database
