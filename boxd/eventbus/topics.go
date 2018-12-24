@@ -26,6 +26,9 @@ const (
 	// either chain reorg, or chain extended.
 	TopicChainUpdate = "chain:update"
 
+	// TopicUtxoUpdate is topic for notifying that chain utxo is changed
+	TopicUtxoUpdate = "chain:utxoupdate"
+
 	////////////////////////////// db /////////////////////////////
 
 	// TopicGetDatabaseKeys is topic for get keys of a specified storage

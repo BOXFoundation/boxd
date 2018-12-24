@@ -20,6 +20,9 @@ const (
 	// BlockTableName is the table name of db to store block chain data
 	BlockTableName = "core"
 
+	// WalletTableName is the table name of db to store wallet data
+	WalletTableName = "wl"
+
 	// Tail is the db key name of tail block
 	Tail = "/tail"
 
@@ -70,6 +73,9 @@ const (
 	FilterPrefix = "/bf"
 	// SplitAddressPrefix is the key prefix of split address
 	SplitAddressPrefix = "/sap"
+
+	// AddressUtxoPrefix is the key prefix of database key to store address related utxo
+	AddressUtxoPrefix = "/aut"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -79,6 +85,7 @@ var utxoBase = key.NewKey(UtxoPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
 var filterBase = key.NewKey(FilterPrefix)
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
+var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
 
 // TailKey is the db key to stoare tail block content
 var TailKey = []byte(Tail)
@@ -130,4 +137,16 @@ func FilterKey(hash crypto.HashType) []byte {
 // SplitAddrKey returns the db key to store split address
 func SplitAddrKey(hash []byte) []byte {
 	return splitAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
+}
+
+func AddrUtxoKey(addr string, op types.OutPoint) []byte {
+	return addrUtxoBase.
+		ChildString(addr).
+		ChildString(op.Hash.String()).
+		ChildString(fmt.Sprintf("%x", op.Index)).
+		Bytes()
+}
+
+func AddrAllUtxoKey(addr string) []byte {
+	return addrUtxoBase.ChildString(addr).Bytes()
 }

@@ -81,7 +81,8 @@ func (s *txServer) GetBalance(ctx context.Context, req *rpcpb.GetBalanceRequest)
 		if err != nil {
 			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
 		}
-		amount, err := s.getbalance(ctx, addr)
+
+		amount, err := s.server.GetWalletAgent().Balance(addr)
 		if err != nil {
 			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
 		}

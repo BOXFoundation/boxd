@@ -44,12 +44,17 @@ func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
 	return result
 }
 
+// All returns all utxo contained including spent utxo
+func (u *UtxoSet) All() map[types.OutPoint]*types.UtxoWrap {
+	return u.utxoMap
+}
+
 // FindUtxo returns information about an outpoint.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 	return u.utxoMap[outPoint]
 }
 
-// AddUtxo adds a tx's outputs as utxos
+// addUtxo adds a tx's outputs as utxos
 func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
@@ -72,7 +77,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	return nil
 }
 
-// SpendUtxo mark a utxo as the spent state.
+// spendUtxo mark a utxo as the spent state.
 func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 	utxoWrap := u.utxoMap[outPoint]
 	if utxoWrap == nil {
