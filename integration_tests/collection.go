@@ -24,6 +24,54 @@ type Collection struct {
 	cirInfoCh  chan<- CirInfo
 }
 
+// CirInfo defines circulation information
+type CirInfo struct {
+	Addr     string
+	PeerAddr string
+}
+
+func txTest() {
+	// define chan
+	collPartLen, cirPartLen := utils.CollUnitAccounts(), utils.CircuUnitAccounts()
+	collLen := (utils.CollAccounts() + collPartLen - 1) / collPartLen
+	cirLen := (utils.CircuAccounts() + cirPartLen - 1) / cirPartLen
+	buffLen := collLen
+	if collLen < cirLen {
+		buffLen = cirLen
+	}
+	collAddrCh := make(chan string, buffLen)
+	cirInfoCh := make(chan CirInfo, buffLen)
+
+	coll := NewCollection(utils.CollAccounts(), utils.CollUnitAccounts(), collAddrCh,
+		cirInfoCh)
+	defer coll.TearDown()
+	circu := NewCirculation(utils.CircuAccounts(), utils.CircuUnitAccounts(), collAddrCh,
+		cirInfoCh)
+	defer circu.TearDown()
+
+	// print tx count per TickerDurationTxs
+	go CountTxs(&txTestTxCnt, &coll.txCnt, &circu.txCnt)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	// collection process
+	go func() {
+		defer wg.Done()
+		coll.Run(coll.HandleFunc)
+		logger.Info("done collection")
+	}()
+
+	// circulation process
+	go func() {
+		defer wg.Done()
+		circu.Run(circu.HandleFunc)
+		logger.Info("done circulation")
+	}()
+
+	wg.Wait()
+	logger.Info("done transaction test")
+}
+
 // NewCollection construct a Collection instance
 func NewCollection(accCnt, partLen int, collAddrCh <-chan string,
 	cirInfoCh chan<- CirInfo) *Collection {
@@ -50,8 +98,8 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) {
 	defer UnpickMiner(maddr)
 	c.minerAddr = maddr
 	//
-	logger.Infof("waiting for minersAddr has %d at least on %s for collection test",
-		totalAmount, peerAddr)
+	logger.Infof("waiting for minersAddr %s has %d at least on %s for collection test",
+		maddr, totalAmount, peerAddr)
 	_, err := utils.WaitBalanceEnough(c.minerAddr, totalAmount, peerAddr, timeoutToChain)
 	if err != nil {
 		return
@@ -65,13 +113,13 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) {
 
 // launderFunds generates some money, addr must not be in c.addrs
 func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, txCnt *uint64) {
+	logger.Info("=== RUN   launderFunds")
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
 			utils.TryRecordError(fmt.Errorf("%v", x))
 		}
 	}()
-	logger.Info("=== RUN   launderFunds")
 	var err error
 	count := len(addrs)
 	// transfer from miner to tests[0:len(addrs)-1]
@@ -96,6 +144,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	if err != nil {
 		logger.Panic(err)
 	}
+	UnpickMiner(c.minerAddr)
 	atomic.AddUint64(txCnt, 1)
 	logger.Infof("wait for test addrs received funcd, timeout %v", timeoutToChain)
 	for i, addr := range addrs {
@@ -107,7 +156,6 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 			logger.Panic(err)
 		}
 	}
-	UnpickMiner(c.minerAddr)
 
 	// send tx from each to each
 	amountsRecv := make([]uint64, count)

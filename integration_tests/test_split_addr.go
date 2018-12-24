@@ -16,20 +16,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-//// TxSortTest tests whether orphan tx in tx pool in the case that txs sent to
-//// blockchain in the same time
-//func splitAddrTest(oriAddr, sender string) {
-//	accCnt := 2
-//	addrs, _ := utils.GenTestAddr(accCnt)
-//	var accs []*wallet.Account
-//	for _, addr := range addrs {
-//		accs = append(accs, utils.UnlockAccount(addr))
-//	}
-//}
-
 // SplitAddrTest manage circulation of token
 type SplitAddrTest struct {
 	*BaseFmw
+}
+
+func splitAddrTest() {
+	//t := NewSplitAddrTest(utils.TokenAccounts(), utils.TokenUnitAccounts())
+	t := NewSplitAddrTest(5, 5)
+	defer t.TearDown()
+	t.Run(t.HandleFunc)
+	logger.Info("done split address test")
 }
 
 // NewSplitAddrTest construct a SplitAddrTest instance

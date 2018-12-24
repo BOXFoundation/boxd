@@ -47,13 +47,14 @@ func (c *Circulation) HandleFunc(addrs []string, idx *int) {
 }
 
 func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *uint64) {
+	logger.Info("=== RUN   txRepeatTest")
+	defer logger.Infof("--- DONE: txRepeatTest")
 	defer func() {
 		if x := recover(); x != nil {
 			utils.TryRecordError(fmt.Errorf("%v", x))
 			logger.Error(x)
 		}
 	}()
-	logger.Info("=== RUN   txRepeatTest")
 	if times <= 0 {
 		logger.Warn("times is 0, exit")
 		return
@@ -129,5 +130,4 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		utils.TryRecordError(err)
 		logger.Error(err)
 	}
-	logger.Infof("--- DONE: txRepeatTest")
 }

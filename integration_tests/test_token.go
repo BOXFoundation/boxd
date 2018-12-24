@@ -19,6 +19,17 @@ type TokenTest struct {
 	*BaseFmw
 }
 
+func tokenTest() {
+	t := NewTokenTest(utils.TokenAccounts(), utils.TokenUnitAccounts())
+	defer t.TearDown()
+
+	// print tx count per TickerDurationTxs
+	go CountTxs(&tokenTestTxCnt, &t.txCnt)
+
+	t.Run(t.HandleFunc)
+	logger.Info("done token test")
+}
+
 // NewTokenTest construct a TokenTest instance
 func NewTokenTest(accCnt int, partLen int) *TokenTest {
 	t := &TokenTest{}
@@ -79,6 +90,8 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) {
 
 func tokenRepeatTest(issuer, sender string, receivers []string, tag *utils.TokenTag,
 	times int, txCnt *uint64, peerAddr string) {
+	logger.Info("=== RUN   tokenRepeatTest")
+	defer logger.Info("=== DONE   tokenRepeatTest")
 	// issue some token
 	totalSupply := uint64(100000000)
 	txTotalAmount := totalSupply/2 + uint64(rand.Int63n(int64(totalSupply)/2))
