@@ -20,3 +20,13 @@ const (
 
 	MaxBlockTimeOut = 1
 )
+
+// TransferMode
+const (
+	DefaultMode TransferMode = iota
+	BroadcastMode
+	RelayMode
+)
+
+// TransferMode indicates the transfer mode
+type TransferMode uint8

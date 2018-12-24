@@ -67,16 +67,6 @@ const (
 	uniquePerPeer
 )
 
-//
-const (
-	DefaultMode TransferMode = iota
-	BroadcastMode
-	RelayMode
-)
-
-// TransferMode indicates the transfer mode
-type TransferMode uint8
-
 var defaultMessageAttribute = &messageAttribute{priority: midPriority, frequency: repeatable}
 
 var msgToAttribute = map[uint32]*messageAttribute{

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -233,7 +234,7 @@ func (dpos *Dpos) mintBlock() error {
 		logger.Warnf("Failed to sign block. err: %s", err.Error())
 		return err
 	}
-	if err := dpos.chain.ProcessBlock(block, p2p.BroadcastMode, true, ""); err != nil {
+	if err := dpos.chain.ProcessBlock(block, core.BroadcastMode, true, ""); err != nil {
 		logger.Warnf("Failed to process block. err: %s", err.Error())
 		return err
 	}

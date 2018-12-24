@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -276,7 +277,7 @@ func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransacti
 	if err != nil {
 		return nil, err
 	}
-	err = txpool.ProcessTx(tx, false, true /* relay */)
+	err = txpool.ProcessTx(tx, core.BroadcastMode)
 	return &rpcpb.BaseResponse{}, err
 }
 

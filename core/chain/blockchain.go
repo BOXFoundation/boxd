@@ -220,7 +220,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, p2p.RelayMode, true, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
+	if err := chain.ProcessBlock(block, core.RelayMode, true, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
@@ -229,7 +229,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
+func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
 
 	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
 		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
@@ -286,10 +286,10 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.Trans
 	}
 
 	switch transferMode {
-	case p2p.BroadcastMode:
+	case core.BroadcastMode:
 		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
 		go chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
-	case p2p.RelayMode:
+	case core.RelayMode:
 		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
 		go chain.notifiee.Relay(p2p.NewBlockMsg, block)
 	default:
