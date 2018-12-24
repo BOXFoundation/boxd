@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"strconv"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
+	bl "github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -148,7 +150,7 @@ var _ service.Server = (*BlockChain)(nil)
 func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
 	chain.proc.Go(chain.loop)
-	blackList.run(chain.proc)
+	bl.Default().Run(chain.notifiee, chain.proc)
 	return nil
 }
 
@@ -219,10 +221,28 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, p2p.RelayMode, true, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
-		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
+	if err := chain.ProcessBlock(block, p2p.RelayMode, true, msg.From()); err != nil {
+		// process err
+		if util.InArray(err, core.EvilBehavior) {
+			chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
+			go func() {
+				if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
+					pubkeyChecksum := crc32.ChecksumIEEE(pubkey.Serialize())
+					bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Scene: block, Err: err, Ts: time.Now()}
+				}
+			}()
+		}
 		return err
 	}
+
+	// TODO: test
+	go func() {
+		if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
+			pubkeyChecksum := crc32.ChecksumIEEE(pubkey.Serialize())
+			bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Scene: block, Err: nil, Ts: time.Now()}
+		}
+	}()
+
 	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil
 }

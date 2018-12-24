@@ -234,12 +234,17 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 }
 
 // BroadcastToMiners business message to miners.
-func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []string) error {
+func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible) error {
 
 	body, err := conv.MarshalConvertible(msg)
 	if err != nil {
 		return err
 	}
+
+	minersCh := make(chan []string)
+	p.bus.Send(eventbus.TopicMiners, minersCh)
+	miners := <-minersCh
+
 	for _, v := range miners {
 		if p.id.Pretty() == v {
 			continue

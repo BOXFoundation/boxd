@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
@@ -114,6 +115,9 @@ func (dpos *Dpos) Run() error {
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
+	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
+		out <- dpos.context.periodContext.periodPeers
+	}, false)
 	return nil
 }
 
@@ -403,9 +407,8 @@ func (dpos *Dpos) BroadcastEternalMsgToMiners(block *types.Block) error {
 	eternalBlockMsg.hash = *hash
 	eternalBlockMsg.signature = signature
 	eternalBlockMsg.timestamp = block.Header.TimeStamp
-	miners := dpos.context.periodContext.periodPeers
 
-	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg, miners)
+	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg)
 }
 
 // StorePeriodContext store period context

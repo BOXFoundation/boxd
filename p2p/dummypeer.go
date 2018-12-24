@@ -47,7 +47,7 @@ func (d *DummyPeer) UnSubscribe(*Notifiee) {}
 func (d *DummyPeer) Notify(Message) {}
 
 // BroadcastToMiners broadcast to miners
-func (d *DummyPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []string) error {
+func (d *DummyPeer) BroadcastToMiners(code uint32, msg conv.Convertible) error {
 	return nil
 }
 

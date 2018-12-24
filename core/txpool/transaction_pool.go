@@ -12,12 +12,14 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
+	bl "github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 )
@@ -166,8 +168,16 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 
-	if err := tx_pool.ProcessTx(tx, false, true); err != nil && util.InArray(err, core.EvilBehavior) {
-		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
+	if err := tx_pool.ProcessTx(tx, false, true); err != nil {
+		if util.InArray(err, core.EvilBehavior) {
+			tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
+
+			go func() {
+				// TODO: bug, need to process script and valid sig = true
+				script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey).GetPubKeyChecksum()
+				bl.Default().SceneCh <- &bl.Evidence{Scene: tx, Err: err, Ts: time.Now()}
+			}()
+		}
 		return err
 	}
 	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
