@@ -168,6 +168,9 @@ message TokenTransferInfo {
 message TokenIssueInfo {
     string name = 1;
     uint64 total_supply = 2;
+    string symbol = 3;
+    uint32 decimals = 4;
+    string addr = 5;
 }
 
 message TxOutInfo {

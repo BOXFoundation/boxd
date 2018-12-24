@@ -269,8 +269,8 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 		}
 		fee := totalIn - totalOut
 		var outInfos []*rpcpb.TxOutInfo
-		for _, o := range txPb.Vout {
-			outInfo, err := convertVout(o)
+		for idx, o := range txPb.Vout {
+			outInfo, err := convertVout(*hash, uint32(idx), o)
 			if err != nil {
 				return nil, err
 			}
@@ -314,7 +314,7 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 	}, nil
 }
 
-func convertVout(vout *corepb.TxOut) (*rpcpb.TxOutInfo, error) {
+func convertVout(hash crypto.HashType, index uint32, vout *corepb.TxOut) (*rpcpb.TxOutInfo, error) {
 	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
 	out := &rpcpb.TxOutInfo{
 		Value:        vout.Value,
@@ -326,9 +326,16 @@ func convertVout(vout *corepb.TxOut) (*rpcpb.TxOutInfo, error) {
 		if err != nil {
 			return nil, err
 		}
+		tokenAddr := types.NewTokenFromOutpoint(types.OutPoint{
+			Hash:  hash,
+			Index: index,
+		})
 		out.IssueInfo = &rpcpb.TokenIssueInfo{
 			Name:        params.Name,
 			TotalSupply: params.TotalSupply,
+			Symbol:      params.Symbol,
+			Decimals:    uint32(params.Decimals),
+			Addr:        tokenAddr.String(),
 		}
 	} else if sc.IsTokenTransfer() {
 		params, err := sc.GetTransferParams()
@@ -661,8 +668,8 @@ func (s *webapiServer) convertTransaction(tx *types.Transaction, utxos map[types
 		return nil, err
 	}
 	var outInfos []*rpcpb.TxOutInfo
-	for _, o := range txPb.Vout {
-		outInfo, err := convertVout(o)
+	for idx, o := range txPb.Vout {
+		outInfo, err := convertVout(*hash, uint32(idx), o)
 		if err != nil {
 			return nil, err
 		}
