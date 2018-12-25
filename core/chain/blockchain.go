@@ -568,6 +568,10 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 		return err
 	}
 
+	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
+		return err
+	}
+
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
@@ -1483,4 +1487,23 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, batch storage.B
 		}
 	}
 	return nil
+}
+
+// DeleteSplitAddrIndex remove split address index from both db and cache
+func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.Batch) error {
+	for _, tx := range block.Txs {
+		for _, vout := range tx.Vout {
+			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+			if sc.IsSplitAddrScript() {
+				addr, err := sc.ExtractAddress()
+				if err != nil {
+					return err
+				}
+				k := SplitAddrKey(addr.Hash())
+				batch.Del(k)
+				chain.hashToSplitAddr.Remove(addr.Hash160())
+				logger.Infof("Remove Split Address: %s", addr.String())
+			}
+		}
+	}
 }
