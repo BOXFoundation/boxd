@@ -296,6 +296,10 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 				Sequence:     i.Sequence,
 				Value:        utxo.Output.Value,
 			}
+			sc := *script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+			if addr, err := sc.ExtractAddress(); err == nil {
+				info.Addr = addr.String()
+			}
 			inInfos = append(inInfos, info)
 		}
 		txInfo := &rpcpb.TransactionInfo{
