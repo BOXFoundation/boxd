@@ -1,10 +1,12 @@
 package utxo
 
 import (
-	"bytes"
+	"encoding/binary"
 	"fmt"
 	"strconv"
 	"sync"
+
+	"github.com/BOXFoundation/boxd/log"
 
 	"github.com/BOXFoundation/boxd/crypto"
 	key2 "github.com/BOXFoundation/boxd/storage/key"
@@ -14,6 +16,8 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 )
+
+var logger = log.NewLogger("wallet-utxo")
 
 type WalletUtxo struct {
 	f       filter
@@ -47,7 +51,7 @@ func (wu *WalletUtxo) ApplyUtxoSet(utxoSet *chain.UtxoSet) error {
 	defer wu.mux.Unlock()
 	for o, u := range utxoSet.All() {
 		if u.IsSpent {
-			wu.spendUtxo(o)
+			wu.spendUtxo(o, u)
 			continue
 		}
 		if wu.f.accept(u.Output.ScriptPubKey) {
@@ -57,12 +61,16 @@ func (wu *WalletUtxo) ApplyUtxoSet(utxoSet *chain.UtxoSet) error {
 	return nil
 }
 
-func (wu *WalletUtxo) spendUtxo(outPoint types.OutPoint) {
+func (wu *WalletUtxo) spendUtxo(outPoint types.OutPoint, wrap *types.UtxoWrap) {
 	if u, ok := wu.utxoMap[outPoint]; ok {
 		u.IsSpent = true
 		u.IsModified = true
 	} else {
-		utxoWrap := &types.UtxoWrap{}
+		utxoWrap := &types.UtxoWrap{
+			Output:      wrap.Output,
+			BlockHeight: wrap.BlockHeight,
+			IsCoinBase:  wrap.IsCoinBase,
+		}
 		utxoWrap.IsSpent = true
 		utxoWrap.IsModified = true
 		wu.utxoMap[outPoint] = utxoWrap
@@ -83,6 +91,9 @@ func (wu *WalletUtxo) addUtxo(outPoint types.OutPoint, wrap *types.UtxoWrap) {
 func (wu *WalletUtxo) Save() error {
 	batch := wu.db.NewBatch()
 	defer batch.Close()
+	wu.mux.Lock()
+	defer wu.mux.Unlock()
+	balanceChange := make(map[types.Address]int64)
 	for o, u := range wu.utxoMap {
 		if u == nil || !u.IsModified {
 			continue
@@ -93,20 +104,79 @@ func (wu *WalletUtxo) Save() error {
 			return err
 		}
 		key := chain.AddrUtxoKey(addr.String(), o)
+		oBalance, ok := balanceChange[addr]
+		if !ok {
+			oBalance = 0
+		}
 		if u.IsSpent {
 			batch.Del(key)
-		} else if u.IsModified {
+			balanceChange[addr] = oBalance - int64(u.Output.Value)
+		} else {
 			serialized, err := u.Marshal()
 			if err != nil {
 				return err
 			}
 			batch.Put(key, serialized)
+			balanceChange[addr] = oBalance + int64(u.Output.Value)
+		}
+		u.IsModified = false
+	}
+	for addr, c := range balanceChange {
+		beforeChange, err := wu.fetchBalanceFromDB(addr)
+		if err != nil {
+			return err
+		}
+		balance := uint64(int64(beforeChange) + c)
+		if err := wu.saveBalanceToDB(addr, balance, batch); err != nil {
+			return err
 		}
 	}
 	if err := batch.Write(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (wu *WalletUtxo) ClearSaved() {
+	wu.mux.Lock()
+	defer wu.mux.Unlock()
+	wu.utxoMap = make(map[types.OutPoint]*types.UtxoWrap)
+	//clearKeys := make([]types.OutPoint, 0, len(wu.utxoMap))
+	//for o, u := range wu.utxoMap {
+	//	if !u.IsModified {
+	//		clearKeys = append(clearKeys, o)
+	//	}
+	//}
+	//for _, o := range clearKeys {
+	//	delete(wu.utxoMap, o)
+	//}
+}
+
+func (wu *WalletUtxo) fetchBalanceFromDB(addr types.Address) (uint64, error) {
+	bKey := chain.AddrBalanceKey(addr.String())
+	buf, err := wu.db.Get(bKey)
+	if err != nil {
+		return 0, err
+	}
+	if buf == nil {
+		return 0, nil
+	}
+	if len(buf) != 8 {
+		return 0, fmt.Errorf("invalid balance record")
+	}
+	return binary.LittleEndian.Uint64(buf), nil
+}
+
+func (wu *WalletUtxo) saveBalanceToDB(addr types.Address, balance uint64, batch storage.Batch) error {
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, balance)
+	key := chain.AddrBalanceKey(addr.String())
+	if batch == nil {
+		return wu.db.Put(key, buf)
+	} else {
+		batch.Put(key, buf)
+		return nil
+	}
 }
 
 func (wu *WalletUtxo) FetchUtxoForAddress(addr types.Address) error {
@@ -148,12 +218,17 @@ func (wu *WalletUtxo) FetchUtxoForAddress(addr types.Address) error {
 func (wu *WalletUtxo) Balance(addr types.Address) uint64 {
 	wu.mux.RLock()
 	defer wu.mux.RUnlock()
-	sc := script.PayToPubKeyHashScript(addr.Hash())
-	var balance uint64
-	for _, u := range wu.utxoMap {
-		if !u.IsSpent && bytes.HasPrefix(u.Output.ScriptPubKey, *sc.P2PKHScriptPrefix()) {
-			balance += u.Output.Value
-		}
+	//sc := script.PayToPubKeyHashScript(addr.Hash())
+	//var balance uint64
+	//for _, u := range wu.utxoMap {
+	//	if !u.IsSpent && bytes.HasPrefix(u.Output.ScriptPubKey, *sc.P2PKHScriptPrefix()) {
+	//		balance += u.Output.Value
+	//	}
+	//}
+	if balance, err := wu.fetchBalanceFromDB(addr); err != nil {
+		logger.Errorf("unable to get balance for addr: %s, err: %v", addr.String(), err)
+		return 0
+	} else {
+		return balance
 	}
-	return balance
 }

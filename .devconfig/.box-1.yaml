@@ -41,3 +41,6 @@ metrics:
     user: 
     password:
     tags: [region:us-west, host:box-1]
+wallet:
+    enable: true
+    cache_size: 512

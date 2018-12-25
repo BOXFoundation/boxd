@@ -76,6 +76,11 @@ const (
 
 	// AddressUtxoPrefix is the key prefix of database key to store address related utxo
 	AddressUtxoPrefix = "/aut"
+
+	// AddrBalancePrefix is the key prefix of database key to store address box balance
+	AddrBalancePrefix = "/bal"
+	// AddrTokenBalancePrefix is the key prefix of database key to store address token balance
+	AddrTokenBalancePrefix = "/tbal"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -86,6 +91,8 @@ var candidatesBase = key.NewKey(CandidatesPrefix)
 var filterBase = key.NewKey(FilterPrefix)
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
 var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
+var addrBalanceBase = key.NewKey(AddrBalancePrefix)
+var addrTokenBalanceBase = key.NewKey(AddrTokenBalancePrefix)
 
 // TailKey is the db key to stoare tail block content
 var TailKey = []byte(Tail)
@@ -149,4 +156,16 @@ func AddrUtxoKey(addr string, op types.OutPoint) []byte {
 
 func AddrAllUtxoKey(addr string) []byte {
 	return addrUtxoBase.ChildString(addr).Bytes()
+}
+
+func AddrBalanceKey(addr string) []byte {
+	return addrBalanceBase.ChildString(addr).Bytes()
+}
+
+func AddrTokenBalanceKey(addr string, token types.OutPoint) []byte {
+	return addrTokenBalanceBase.
+		ChildString(addr).
+		ChildString(token.Hash.String()).
+		ChildString(fmt.Sprintf("%x", token.Index)).
+		Bytes()
 }

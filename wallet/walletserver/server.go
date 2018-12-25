@@ -71,6 +71,7 @@ func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
 	if err := w.wu.Save(); err != nil {
 		logger.Error("fail to save utxo set", err)
 	}
+	w.wu.ClearSaved()
 }
 
 func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
