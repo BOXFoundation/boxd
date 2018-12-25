@@ -6,6 +6,7 @@ package utils
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -720,12 +721,15 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *types.OutPoint {
 func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utxo, err error) {
 	// get utxoes
 	fromAddress, _ := types.NewAddress(addr)
-	totalAmount, err := balanceNoPanicFor(addr, peerAddr)
-	if err != nil {
-		return
-	}
-	if amount < totalAmount && amount != 0 {
-		totalAmount = amount
+	//totalAmount, err := balanceNoPanicFor(addr, peerAddr)
+	//if err != nil {
+	//	return
+	//}
+	//if amount < totalAmount && amount != 0 {
+	//	totalAmount = amount
+	//}
+	if amount == 0 {
+		amount = 100000000
 	}
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
@@ -733,21 +737,23 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utx
 	}
 	defer conn.Close()
 	var utxoResponse *rpcpb.ListUtxosResponse
-	for totalAmount > 0 {
-		utxoResponse, err = client.FundTransaction(conn, fromAddress, totalAmount)
+	for amount > 0 {
+		utxoResponse, err = client.FundTransaction(conn, fromAddress, amount)
 		if err == nil {
 			break
 		}
 		if strings.Contains(err.Error(), "Not enough balance") {
-			totalAmount -= totalAmount / 16
+			amount -= amount / 16
 			continue
 		}
 		return
 	}
-	if utxoResponse == nil || totalAmount == 0 {
+	if utxoResponse == nil || amount == 0 {
 		err = fmt.Errorf("FundTransaction fetch 0 utxos")
 		return
 	}
+	//bytes, _ := json.MarshalIndent(utxoResponse.GetUtxos(), "", "  ")
+	//logger.Infof("utxos: %s", string(bytes))
 	return utxoResponse.GetUtxos(), nil
 }
 
@@ -960,6 +966,13 @@ func makeTokenVout(addr string, tokenID *types.OutPoint, amount uint64) *corepb.
 	return &corepb.TxOut{Value: tokenBoxAmt, ScriptPubKey: addrScript}
 }
 
+func makeSplitAddrVout(addrs []string, weights []uint64) *corepb.TxOut {
+	return &corepb.TxOut{
+		Value:        0,
+		ScriptPubKey: MakeSplitAddrPubkey(addrs, weights),
+	}
+}
+
 func makeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
 	var hash crypto.HashType
 	copy(hash[:], utxo.GetOutPoint().Hash)
@@ -988,4 +1001,87 @@ func signTx(tx *types.Transaction, utxos []*rpcpb.Utxo, acc *wallet.Account) err
 		tx.Vin[i].ScriptSig = *scriptSig
 	}
 	return nil
+}
+
+// NewSplitAddrTxWithFee new split address tx
+func NewSplitAddrTxWithFee(acc *wallet.Account, addrs []string, weights []uint64,
+	fee uint64, peerAddr string) (tx *types.Transaction, change *rpcpb.Utxo,
+	splitAddr string, err error) {
+	// get utxos
+	utxos, err := fetchUtxos(acc.Addr(), fee, peerAddr)
+	if err != nil {
+		return
+	}
+	return NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, fee, peerAddr)
+}
+
+// NewSplitAddrTxWithUtxos new split address tx
+func NewSplitAddrTxWithUtxos(acc *wallet.Account, addrs []string, weights []uint64,
+	utxos []*rpcpb.Utxo, fee uint64, peerAddr string) (tx *types.Transaction,
+	change *rpcpb.Utxo, splitAddr string, err error) {
+
+	utxoValue := uint64(0)
+	for _, u := range utxos {
+		utxoValue += u.GetTxOut().GetValue()
+	}
+	changeAmt := utxoValue - fee
+
+	// vin
+	vins := make([]*types.TxIn, 0)
+	for _, utxo := range utxos {
+		vins = append(vins, makeVin(utxo, 0))
+	}
+
+	// vout for toAddrs
+	splitAddrOut := makeSplitAddrVout(addrs, weights)
+	changeOut := makeVout(acc.Addr(), changeAmt)
+
+	// construct transaction
+	tx = new(types.Transaction)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, splitAddrOut, changeOut)
+
+	// sign vin
+	if err = signTx(tx, utxos, acc); err != nil {
+		return
+	}
+
+	// create change utxo
+	txHash, _ := tx.TxHash()
+	change = &rpcpb.Utxo{
+		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
+		TxOut:       changeOut,
+		BlockHeight: 0,
+		IsCoinbase:  false,
+		IsSpent:     false,
+	}
+
+	splitAddr, err = MakeSplitAddr(addrs, weights)
+
+	return
+}
+
+// MakeSplitAddrPubkey make split addr
+func MakeSplitAddrPubkey(addrs []string, weights []uint64) []byte {
+	addresses := make([]types.Address, len(addrs))
+	for i, addr := range addrs {
+		addresses[i], _ = types.NewAddress(addr)
+	}
+	return *script.SplitAddrScript(addresses, weights)
+}
+
+// MakeSplitAddr make split addr
+func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
+	pk := MakeSplitAddrPubkey(addrs, weights)
+	splitAddrScriptStr := script.NewScriptFromBytes(pk).Disasm()
+	s := strings.Split(splitAddrScriptStr, " ")
+	pubKeyHash, err := hex.DecodeString(s[1])
+	if err != nil {
+		return "", err
+	}
+	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+	if err != nil {
+		return "", err
+	}
+	return addr.String(), nil
 }

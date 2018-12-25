@@ -93,13 +93,13 @@ func main() {
 	peersAddr = utils.PeerAddrs()
 
 	// start test
-	timeout := blockTime * time.Duration(minConsensusBlocks+10)
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
-		minConsensusBlocks, timeout)
-	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
-		timeout); err != nil {
-		logger.Panic(err)
-	}
+	//timeout := blockTime * time.Duration(minConsensusBlocks+10)
+	//logger.Infof("wait for block height of all nodes reach %d, timeout %v",
+	//	minConsensusBlocks, timeout)
+	//if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
+	//	timeout); err != nil {
+	//	logger.Panic(err)
+	//}
 
 	// print tx count per TickerDurationTxs
 	go CountGlobalTxs()
@@ -119,7 +119,7 @@ func main() {
 	}
 
 	// test split address
-	if false {
+	if true {
 		runItem(&wg, errChans, splitAddrTest)
 	}
 
