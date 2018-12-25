@@ -203,9 +203,9 @@ func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetT
 			Txs:   []*rpcpb.TransactionInfo{},
 		}, nil
 	} else if total < req.Offset+req.Limit {
-		txInRange = allTxs[req.Offset:]
+		txInRange = allTxs[:total-req.Offset]
 	} else {
-		txInRange = allTxs[req.Offset : req.Offset+req.Limit]
+		txInRange = allTxs[total-req.Offset-req.Limit : total-req.Offset]
 	}
 	utxos, err := s.loadUtxoForTx(txInRange)
 	if err != nil {
@@ -215,6 +215,10 @@ func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetT
 	txInfos, err := s.convertTransactionInfos(txInRange, utxos)
 	if err != nil {
 		return nil, err
+	}
+	for i := 0; i < len(txInfos)/2; i++ {
+		j := len(txInfos) - i - 1
+		txInfos[i], txInfos[j] = txInfos[j], txInfos[i]
 	}
 	return &rpcpb.GetTransactionsInfoResponse{
 		Total: total,
@@ -370,9 +374,9 @@ func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.Get
 	if len(txs) <= int(req.Offset) {
 		txInRange = []*types.Transaction{}
 	} else if len(txs) < int(req.Offset+req.Limit) {
-		txInRange = txs[req.Offset:]
+		txInRange = txs[:len(txs)-int(req.Offset)]
 	} else {
-		txInRange = txs[req.Offset : req.Offset+req.Limit]
+		txInRange = txs[len(txs)-int(req.Offset)-int(req.Limit) : len(txs)-int(req.Offset)]
 	}
 	logger.Infof("transactions inf range: %v", len(txInRange))
 	utxos, err := s.loadUtxoForTx(txInRange)
@@ -381,6 +385,10 @@ func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.Get
 		return nil, err
 	}
 	txInfos, err := s.convertTransactionInfos(txInRange, utxos)
+	for i := 0; i < len(txInfos)/2; i++ {
+		j := len(txInfos) - i - 1
+		txInfos[i], txInfos[j] = txInfos[j], txInfos[i]
+	}
 	return &rpcpb.GetTransactionsInfoResponse{
 		Total: uint32(len(txs)),
 		Txs:   txInfos,

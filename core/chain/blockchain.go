@@ -1506,4 +1506,5 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 			}
 		}
 	}
+	return nil
 }
