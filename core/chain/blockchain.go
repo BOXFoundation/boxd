@@ -149,8 +149,9 @@ var _ service.Server = (*BlockChain)(nil)
 // Run launch blockchain.
 func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
+	chain.subscribeBlacklistMsg()
 	chain.proc.Go(chain.loop)
-	bl.Default().Run(chain.notifiee, chain.proc)
+	bl.Default().Run(chain.notifiee, chain.bus, chain.proc)
 	return nil
 }
 
@@ -176,6 +177,13 @@ func (chain *BlockChain) Stop() {
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
 	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
+}
+
+func (chain *BlockChain) subscribeBlacklistMsg() {
+	chain.bus.Reply(eventbus.TopicBlacklistConfirmResult, func(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID, resultCh chan error) {
+		err := chain.ProcessBlock(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID)
+		resultCh <- err
+	}, false)
 }
 
 func (chain *BlockChain) loop(p goprocess.Process) {
@@ -228,7 +236,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 			go func() {
 				if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
 					pubkeyChecksum := crc32.ChecksumIEEE(pubkey.Serialize())
-					bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Scene: block, Err: err, Ts: time.Now()}
+					bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Block: block, Type: bl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
 				}
 			}()
 		}
@@ -239,7 +247,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	go func() {
 		if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
 			pubkeyChecksum := crc32.ChecksumIEEE(pubkey.Serialize())
-			bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Scene: block, Err: nil, Ts: time.Now()}
+			bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Block: block, Type: bl.BlockEvidence, Err: "", Ts: time.Now().Unix()}
 		}
 	}()
 

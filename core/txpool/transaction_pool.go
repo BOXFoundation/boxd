@@ -175,7 +175,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 			go func() {
 				// TODO: bug, need to process script and valid sig = true
 				script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey).GetPubKeyChecksum()
-				bl.Default().SceneCh <- &bl.Evidence{Scene: tx, Err: err, Ts: time.Now()}
+				bl.Default().SceneCh <- &bl.Evidence{Tx: tx, Type: bl.TxEvidence, Err: err.Error(), Ts: time.Now().Unix()}
 			}()
 		}
 		return err
@@ -299,6 +299,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	default:
 	}
 	return nil
+}
+
+func (tx_pool *TransactionPool) subscribeBlacklistMsg() {
+	tx_pool.bus.Reply(eventbus.TopicBlacklistTxConfirmResult, func(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID, resultCh chan error) {
+		err := chain.ProcessBlock(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID)
+		resultCh <- err
+	}, false)
 }
 
 func (tx_pool *TransactionPool) isTransactionInPool(txHash *crypto.HashType) bool {

@@ -25,7 +25,7 @@ const (
 
 	////////////////////////////// dpos /////////////////////////////
 
-	// TopicMiners is topic for replying current miners 
+	// TopicMiners is topic for replying current miners
 	TopicMiners = "dpos:miners"
 
 	////////////////////////////// chain /////////////////////////////
@@ -33,6 +33,10 @@ const (
 	// TopicChainUpdate is topic for notifying that the chain is updated,
 	// either chain reorg, or chain extended.
 	TopicChainUpdate = "chain:update"
+	// TopicBlacklistBlockConfirmResult is topic for confirmed result
+	TopicBlacklistBlockConfirmResult = "chain:blacklistblockresult"
+	// TopicBlacklistTxConfirmResult is topic for confirmed result
+	TopicBlacklistTxConfirmResult = "chain:blacklisttxresult"
 
 	////////////////////////////// db /////////////////////////////
 
