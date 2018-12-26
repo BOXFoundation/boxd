@@ -85,5 +85,13 @@ var (
 	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
 	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
 
+	// blacklist.go
+	ErrInvalidEvidenceType     = errors.New("Invalid evidence type")
+	ErrInsufficientEvidence    = errors.New("Insufficient evidence")
+	ErrEmptyEvidence           = errors.New("No evidences")
+	ErrSeparateSourceEvidences = errors.New("Separate source evidences")
+	ErrSign                    = errors.New("Sign error")
+	ErrEmptyProtoSource        = errors.New("Empty proto source")
+
 	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
 )

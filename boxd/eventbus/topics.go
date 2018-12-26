@@ -27,6 +27,8 @@ const (
 
 	// TopicMiners is topic for replying current miners
 	TopicMiners = "dpos:miners"
+	// TopicSignature is topic for sign a []byte
+	TopicSignature = "dpos:signature"
 
 	////////////////////////////// chain /////////////////////////////
 

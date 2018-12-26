@@ -83,9 +83,9 @@ func (tx_pool *TransactionPool) Run() error {
 	// p2p tx msg
 	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh)
 	tx_pool.notifiee.Subscribe(tx_pool.txNotifee)
-
 	// chain update msg
 	tx_pool.bus.Subscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
+	tx_pool.subscribeBlacklistMsg()
 
 	tx_pool.proc.Go(tx_pool.loop)
 	return nil
@@ -142,7 +142,7 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) erro
 // Add all transactions contained in this block into mempool
 func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
-		if err := tx_pool.maybeAcceptTx(tx, p2p.DefaultMode /* do not broadcast */, true); err != nil {
+		if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
 			return err
 		}
 	}
@@ -168,7 +168,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 
-	if err := tx_pool.ProcessTx(tx, false, true); err != nil {
+	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil {
 		if util.InArray(err, core.EvilBehavior) {
 			tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
 
@@ -186,15 +186,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 
 // ProcessTx is used to handle new transactions.
 // utxoSet: utxos associated with the tx
-func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast, relay bool) error {
-
-	transferMode := p2p.DefaultMode
-	if broadcast {
-		transferMode = p2p.BroadcastMode
-	}
-	if relay {
-		transferMode = p2p.RelayMode
-	}
+func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
 
 	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
 		return err
@@ -203,7 +195,7 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast, rela
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMode p2p.TransferMode, detectDupOrphan bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMode core.TransferMode, detectDupOrphan bool) error {
 
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
@@ -292,9 +284,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
 
 	switch transferMode {
-	case p2p.BroadcastMode:
+	case core.BroadcastMode:
 		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
-	case p2p.RelayMode:
+	case core.RelayMode:
 		tx_pool.notifiee.Relay(p2p.TransactionMsg, tx)
 	default:
 	}
@@ -302,8 +294,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 }
 
 func (tx_pool *TransactionPool) subscribeBlacklistMsg() {
-	tx_pool.bus.Reply(eventbus.TopicBlacklistTxConfirmResult, func(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID, resultCh chan error) {
-		err := chain.ProcessBlock(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID)
+	tx_pool.bus.Reply(eventbus.TopicBlacklistTxConfirmResult, func(tx *types.Transaction, resultCh chan error) {
+		err := tx_pool.ProcessTx(tx, core.DefaultMode)
 		resultCh <- err
 	}, false)
 }
@@ -360,7 +352,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			orphans := v.(*sync.Map)
 			orphans.Range(func(k, v interface{}) bool {
 				orphan := v.(*types.Transaction)
-				if err := tx_pool.maybeAcceptTx(orphan, p2p.DefaultMode, false); err != nil {
+				if err := tx_pool.maybeAcceptTx(orphan, core.DefaultMode, false); err != nil {
 					return true
 				}
 				tx_pool.removeOrphan(orphan)
@@ -516,15 +508,17 @@ func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
 }
 
 // GetTransactionsInPool gets all transactions in memory pool
-func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
+func (tx_pool *TransactionPool) GetTransactionsInPool() ([]*types.Transaction, []int64) {
 
 	allTxs := tx_pool.GetAllTxs()
 
-	var txs []*types.Transaction
+	txs := make([]*types.Transaction, 0, len(allTxs))
+	addedTimes := make([]int64, 0, len(allTxs))
 	for _, tx := range allTxs {
 		txs = append(txs, tx.Tx)
+		addedTimes = append(addedTimes, tx.AddedTimestamp)
 	}
-	return txs
+	return txs, addedTimes
 }
 
 func calcRequiredMinFee(txSize int) uint64 {

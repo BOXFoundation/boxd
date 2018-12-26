@@ -23,6 +23,9 @@ const (
 	// Tail is the db key name of tail block
 	Tail = "/tail"
 
+	// Genesis is the db key name of genesis block
+	Genesis = "/genesis"
+
 	// Eternal is the db key name of eternal block
 	Eternal = "/eternal"
 
@@ -75,11 +78,13 @@ var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
 var filterBase = key.NewKey(FilterPrefix)
-var genesisBlockKey = BlockKey(GenesisBlock.BlockHash())
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
 
 // TailKey is the db key to stoare tail block content
 var TailKey = []byte(Tail)
+
+// GenesisKey is the db key to stoare genesis block content
+var GenesisKey = []byte(Genesis)
 
 // EternalKey is the db key to stoare eternal block content
 var EternalKey = []byte(Eternal)

@@ -29,10 +29,14 @@ rpc:
     port: 19111
     http:
         port: 19110
+
 dpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1
+
+pprof: "0.0.0.0:8888"
+
 metrics:
     enable: false
     host: http://localhost:8086

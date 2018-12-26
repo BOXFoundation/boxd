@@ -184,7 +184,8 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	balance := client.GetTokenBalance(conn, addr, token.OutPoint().Hash, uint32(token.OutPoint().Index))
+	balance, _ := client.GetTokenBalance(conn, addr, token.OutPoint().Hash,
+		uint32(token.OutPoint().Index))
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }
 

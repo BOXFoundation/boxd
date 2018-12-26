@@ -9,9 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"os/signal"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -24,8 +22,6 @@ type scopeValue string
 const (
 	peerCnt = 6
 
-	blockTime = 5 * time.Second
-
 	basicScope    scopeValue = "basic"
 	mainScope     scopeValue = "main"
 	fullScope     scopeValue = "full"
@@ -34,14 +30,9 @@ const (
 
 var logger = log.NewLogger("integration") // logger
 
-// CirInfo defines circulation information
-type CirInfo struct {
-	Addr     string
-	PeerAddr string
-}
-
 var (
-	minConsensusBlocks = 6
+	//minConsensusBlocks = 5*(peerCnt-1) + 1 // 5 is block count one peer gen once
+	minConsensusBlocks = 26
 
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
@@ -51,11 +42,6 @@ var (
 
 	//AddrToAcc stores addr to account
 	AddrToAcc = make(map[string]*wallet.Account)
-
-	lastTxTestTxCnt    = uint64(0)
-	lastTokenTestTxCnt = uint64(0)
-	txTestTxCnt        = uint64(0)
-	tokenTestTxCnt     = uint64(0)
 )
 
 func init() {
@@ -102,68 +88,39 @@ func main() {
 				logger.Panic(err)
 			}
 		}
+		time.Sleep(3 * time.Second) // wait for 3s to let boxd started
 	}
 	peersAddr = utils.PeerAddrs()
 
-	// print tx count per TickerDurationTxs
-	go func() {
-		logger.Info("txs ticker for main start")
-		time.Sleep(timeoutToChain)
-		d := utils.TickerDurationTxs()
-		t := time.NewTicker(d)
-		defer t.Stop()
-		quitCh := make(chan os.Signal, 1)
-		signal.Notify(quitCh, os.Interrupt, os.Kill)
-
-		for {
-			select {
-			case <-t.C:
-				txCnt := atomic.LoadUint64(&txTestTxCnt)
-				tokenCnt := atomic.LoadUint64(&tokenTestTxCnt)
-				totalTxs := txCnt + tokenCnt
-				lastTotalTxs := lastTxTestTxCnt + lastTokenTestTxCnt
-				txs := totalTxs - lastTotalTxs
-				logger.Infof("TPS = %6.2f during last %v, total txs = %d",
-					float64(txs)/float64(d/time.Second), d, totalTxs)
-				lastTxTestTxCnt, lastTokenTestTxCnt = txCnt, tokenCnt
-			case <-quitCh:
-				logger.Info("txs ticker for main exit")
-				return
-			}
-		}
-	}()
-
 	// start test
+	timeout := blockTime * time.Duration(minConsensusBlocks+10)
+	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
+		minConsensusBlocks, timeout)
+	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
+		timeout); err != nil {
+		logger.Panic(err)
+	}
+
+	// print tx count per TickerDurationTxs
+	go CountGlobalTxs()
+
 	var wg sync.WaitGroup
-	testItems := 2
+	testItems := 3
 	errChans := make(chan error, testItems)
 
 	// test tx
 	if utils.TxTestEnable() {
-		wg.Add(1)
-		go func() {
-			defer func() {
-				wg.Done()
-				if x := recover(); x != nil {
-					errChans <- fmt.Errorf("%v", x)
-				}
-			}()
-			txTest()
-		}()
+		runItem(&wg, errChans, txTest)
 	}
 
 	// test token
 	if utils.TokenTestEnable() {
-		wg.Add(1)
-		go func() {
-			defer func() {
-				wg.Done()
-				if x := recover(); x != nil {
-					errChans <- fmt.Errorf("%v", x)
-				}
-			}()
-			tokenTest()
-		}()
+		runItem(&wg, errChans, tokenTest)
+	}
+
+	// test split address
+	if false {
+		runItem(&wg, errChans, splitAddrTest)
 	}
 
 	wg.Wait()
@@ -179,105 +136,4 @@ func main() {
 		logger.Panicf("integration tests exits with %d errors", len(utils.ErrItems))
 	}
 	logger.Info("All test cases passed, great job!")
-}
-
-func txTest() {
-	// define chan
-	collPartLen, cirPartLen := utils.CollUnitAccounts(), utils.CircuUnitAccounts()
-	collLen := (utils.CollAccounts() + collPartLen - 1) / collPartLen
-	cirLen := (utils.CircuAccounts() + cirPartLen - 1) / cirPartLen
-	buffLen := collLen
-	if collLen < cirLen {
-		buffLen = cirLen
-	}
-	collAddrCh := make(chan string, buffLen)
-	cirInfoCh := make(chan CirInfo, buffLen)
-
-	coll := NewCollection(utils.CollAccounts(), utils.CollUnitAccounts(), collAddrCh,
-		cirInfoCh)
-	defer coll.TearDown()
-	circu := NewCirculation(utils.CircuAccounts(), utils.CircuUnitAccounts(), collAddrCh,
-		cirInfoCh)
-	defer circu.TearDown()
-
-	timeout := blockTime * time.Duration(len(peersAddr)*2)
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
-		minConsensusBlocks, timeout)
-	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
-		timeout); err != nil {
-		logger.Panic(err)
-	}
-
-	// print tx count per TickerDurationTxs
-	go func() {
-		logger.Info("txs ticker for txTest start")
-		t := time.NewTicker(time.Second)
-		defer t.Stop()
-		quitCh := make(chan os.Signal, 1)
-		signal.Notify(quitCh, os.Interrupt, os.Kill)
-
-		for {
-			select {
-			case <-t.C:
-				atomic.StoreUint64(&txTestTxCnt, atomic.LoadUint64(&coll.txCnt)+
-					atomic.LoadUint64(&circu.txCnt))
-			case <-quitCh:
-				logger.Info("txs ticker for txTest exit")
-				return
-			}
-		}
-	}()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	// collection process
-	go func() {
-		defer wg.Done()
-		coll.Run()
-		logger.Info("done collection")
-	}()
-
-	// circulation process
-	go func() {
-		defer wg.Done()
-		circu.Run()
-		logger.Info("done circulation")
-	}()
-
-	wg.Wait()
-	logger.Info("done transaction test")
-}
-
-func tokenTest() {
-	t := NewTokenTest(utils.TokenAccounts())
-	timeout := blockTime * time.Duration(len(peersAddr)*2)
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
-		minConsensusBlocks, timeout)
-	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
-		timeout); err != nil {
-		logger.Panic(err)
-	}
-	defer t.TearDown()
-
-	// print tx count per TickerDurationTxs
-	go func() {
-		logger.Info("txs ticker for token test start")
-		tk := time.NewTicker(time.Second)
-		defer tk.Stop()
-		quitCh := make(chan os.Signal, 1)
-		signal.Notify(quitCh, os.Interrupt, os.Kill)
-
-		for {
-			select {
-			case <-tk.C:
-				atomic.StoreUint64(&tokenTestTxCnt, atomic.LoadUint64(&t.txCnt))
-			case <-quitCh:
-				logger.Info("txs ticker for tokenTest exit")
-				return
-			}
-		}
-	}()
-
-	t.Run()
-	logger.Info("done token test")
 }

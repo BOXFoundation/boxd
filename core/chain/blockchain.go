@@ -44,7 +44,6 @@ const (
 	MaxBlockSize         = 32000000
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
-	LockTimeThreshold    = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 	PeriodDuration       = 3600 * 24 * 100 / 5
 
 	MaxBlocksPerSync = 1024
@@ -118,7 +117,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 
-	if b.eternal, err = b.loadEternalBlock(); err != nil {
+	if b.eternal, err = b.LoadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
@@ -229,7 +228,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, p2p.RelayMode, true, msg.From()); err != nil {
+	if err := chain.ProcessBlock(block, core.RelayMode, true, msg.From()); err != nil {
 		// process err
 		if util.InArray(err, core.EvilBehavior) {
 			chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
@@ -256,7 +255,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
+func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
 
 	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
 		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
@@ -313,10 +312,10 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode p2p.Trans
 	}
 
 	switch transferMode {
-	case p2p.BroadcastMode:
+	case core.BroadcastMode:
 		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
 		go chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
-	case p2p.RelayMode:
+	case core.RelayMode:
 		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
 		go chain.notifiee.Relay(p2p.NewBlockMsg, block)
 	default:
@@ -451,7 +450,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
 
 	// check for genesis.
-	if block.BlockHash().IsEqual(chain.genesis.BlockHash()) {
+	if block.Header.PrevBlockHash.IsEqual(chain.genesis.BlockHash()) {
 		return chain.genesis
 	}
 	if target, ok := chain.cache.Get(block.Header.PrevBlockHash); ok {
@@ -567,11 +566,17 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 
 func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) error {
 
+	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+	blockCopy := block.Copy()
+
+	// Split tx outputs if any
+	chain.splitBlockOutputs(blockCopy)
+
 	utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
 		return err
 	}
-	if err := utxoSet.RevertBlock(block, chain); err != nil {
+	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
 		return err
 	}
 	// save utxoset to database
@@ -586,6 +591,10 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 
 	// save tx index
 	if err := chain.DelTxIndex(block, batch); err != nil {
+		return err
+	}
+
+	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
 		return err
 	}
 
@@ -691,6 +700,11 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block, batch storage.Batch)
 // TailBlock return chain tail block.
 func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
+}
+
+// Genesis return chain tail block.
+func (chain *BlockChain) Genesis() *types.Block {
+	return chain.genesis
 }
 
 // SetEternal set block eternal status.
@@ -836,7 +850,7 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, batch storage.Batch) er
 	}
 
 	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
-	chain.heightToBlock.Add(tail.Height, tail)
+	// chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
 	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
@@ -847,25 +861,50 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, batch storage.Batch) er
 }
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
-	if ok, _ := chain.db.Has(genesisBlockKey); ok {
-		genesisBlockFromDb, err := chain.LoadBlockByHash(GenesisHash)
+
+	if ok, _ := chain.db.Has(GenesisKey); ok {
+		genesisBin, err := chain.db.Get(GenesisKey)
 		if err != nil {
 			return nil, err
 		}
-		return genesisBlockFromDb, nil
+		genesis := new(types.Block)
+		if err := genesis.Unmarshal(genesisBin); err != nil {
+			return nil, err
+		}
+
+		return genesis, nil
 	}
 
-	genesisBin, err := GenesisBlock.Marshal()
+	genesis := GenesisBlock
+	genesisTxs, err := TokenPreAllocation()
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put(genesisBlockKey, genesisBin)
+	genesis.Txs = genesisTxs
+	genesis.Header.TxsRoot = *CalcTxsHash(genesisTxs)
 
-	return &GenesisBlock, nil
+	genesisBin, err := genesis.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	batch := chain.db.NewBatch()
+	utxoSet := NewUtxoSet()
+	for _, v := range genesis.Txs {
+		for idx := range v.Vout {
+			utxoSet.AddUtxo(v, uint32(idx), genesis.Height)
+		}
+	}
+	utxoSet.WriteUtxoSetToDB(batch)
+	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
+	if err := batch.Write(); err != nil {
+		return nil, err
+	}
+	return &genesis, nil
 
 }
 
-func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
+// LoadEternalBlock returns the current highest eternal block
+func (chain *BlockChain) LoadEternalBlock() (*types.Block, error) {
 	if chain.eternal != nil {
 		return chain.eternal, nil
 	}
@@ -882,7 +921,7 @@ func (chain *BlockChain) loadEternalBlock() (*types.Block, error) {
 
 		return eternal, nil
 	}
-	return &GenesisBlock, nil
+	return chain.genesis, nil
 }
 
 // loadTailBlock load tail block
@@ -904,7 +943,7 @@ func (chain *BlockChain) loadTailBlock() (*types.Block, error) {
 		return tailBlock, nil
 	}
 
-	return &GenesisBlock, nil
+	return chain.genesis, nil
 }
 
 // IsCoinBase checks if an transaction is coinbase transaction
@@ -935,9 +974,9 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	if height == 0 {
 		return chain.genesis, nil
 	}
-	if block, ok := chain.heightToBlock.Get(height); ok {
-		return block.(*types.Block), nil
-	}
+	// if block, ok := chain.heightToBlock.Get(height); ok {
+	// 	return block.(*types.Block), nil
+	// }
 
 	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {
@@ -1470,6 +1509,26 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, batch storage.B
 				batch.Put(k, dataBytes)
 				chain.hashToSplitAddr.Add(addr.Hash160(), sai)
 				logger.Infof("New Split Address created")
+			}
+		}
+	}
+	return nil
+}
+
+// DeleteSplitAddrIndex remove split address index from both db and cache
+func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.Batch) error {
+	for _, tx := range block.Txs {
+		for _, vout := range tx.Vout {
+			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+			if sc.IsSplitAddrScript() {
+				addr, err := sc.ExtractAddress()
+				if err != nil {
+					return err
+				}
+				k := SplitAddrKey(addr.Hash())
+				batch.Del(k)
+				chain.hashToSplitAddr.Remove(addr.Hash160())
+				logger.Infof("Remove Split Address: %s", addr.String())
 			}
 		}
 	}

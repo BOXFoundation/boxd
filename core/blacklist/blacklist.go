@@ -85,7 +85,7 @@ func (bl *BlackList) Run(notifiee p2p.Net, bus eventbus.Bus, parent goprocess.Pr
 		for {
 			select {
 			case msg := <-bl.msgCh:
-				bl.processBlacklistMsg(msg)
+				bl.onBlacklistMsg(msg)
 			case evidence := <-bl.SceneCh:
 				bl.processEvidence(evidence)
 			case <-parent.Closing():

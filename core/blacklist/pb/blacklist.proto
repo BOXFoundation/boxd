@@ -19,5 +19,12 @@ message Evidence {
 }
 
 message BlacklistMsg {
-    repeated Evidence evidences = 1;
+    bytes hash = 1; 
+    repeated Evidence evidences = 2;
+}
+
+message BlacklistConfirmMsg {
+    uint32 pubKeyChecksum = 1;
+    bytes hash = 2; 
+    bytes signature = 3; 
 }

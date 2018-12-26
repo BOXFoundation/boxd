@@ -34,16 +34,18 @@ func prepare(path string) {
 func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	logger.Infof("Creating rocksdb at %s", name)
 
-	// bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
-	// filter := gorocksdb.NewBloomFilter(number)
-	// bbto.SetFilterPolicy(filter)
-
-	// bbto.SetBlockCache(gorocksdb.NewLRUCache(cache))
 	options := gorocksdb.NewDefaultOptions()
-	// options.SetBlockBasedTableFactory(bbto)
+
+	blockBasedTableOptions := gorocksdb.NewDefaultBlockBasedTableOptions()
+	filter := gorocksdb.NewBloomFilter(number)
+	blockBasedTableOptions.SetFilterPolicy(filter)
+	blockBasedTableOptions.SetBlockCache(gorocksdb.NewLRUCache(cache))
+
+	options.SetBlockBasedTableFactory(blockBasedTableOptions)
 	options.SetCreateIfMissing(true)
 	options.SetCreateIfMissingColumnFamilies(true)
 	options.SetMaxBackgroundFlushes(4)
+	options.SetMaxOpenFiles(512)
 
 	prepare(name)
 	// get all column families

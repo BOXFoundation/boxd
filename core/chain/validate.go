@@ -127,7 +127,7 @@ func IsTxFinalized(tx *types.Transaction, blockHeight uint32, blockTime int64) b
 	// When lock time field is less than the threshold, it is a block height.
 	// Otherwise it is a timestamp.
 	blockTimeOrHeight := int64(0)
-	if lockTime < LockTimeThreshold {
+	if lockTime < script.LockTimeThreshold {
 		blockTimeOrHeight = int64(blockHeight)
 	} else {
 		blockTimeOrHeight = blockTime

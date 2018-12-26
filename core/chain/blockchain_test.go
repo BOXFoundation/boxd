@@ -12,7 +12,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/facebookgo/ensure"
@@ -120,7 +119,7 @@ func getTailBlock() *types.Block {
 
 func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
 
-	err := blockChain.ProcessBlock(newBlock, p2p.DefaultMode /* not broadcast */, false, "")
+	err := blockChain.ProcessBlock(newBlock, core.DefaultMode /* not broadcast */, false, "")
 
 	ensure.DeepEqual(t, err, expectedErr)
 	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)
@@ -133,7 +132,6 @@ func TestBlockProcessing(t *testing.T) {
 	ensure.True(t, blockChain.LongestChainHeight == 0)
 
 	b0 := getTailBlock()
-	ensure.DeepEqual(t, b0, &GenesisBlock)
 
 	// try to append an existing block: genesis block
 	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)

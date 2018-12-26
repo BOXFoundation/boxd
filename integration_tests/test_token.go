@@ -7,12 +7,8 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"os"
-	"os/signal"
-	"sync"
 	"sync/atomic"
 
-	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"google.golang.org/grpc"
@@ -20,213 +16,140 @@ import (
 
 // TokenTest manage circulation of token
 type TokenTest struct {
-	accCnt   int
-	txCnt    uint64
-	addrs    []string
-	accAddrs []string
-	quitCh   chan os.Signal
+	*BaseFmw
+}
+
+func tokenTest() {
+	t := NewTokenTest(utils.TokenAccounts(), utils.TokenUnitAccounts())
+	defer t.TearDown()
+
+	// print tx count per TickerDurationTxs
+	go CountTxs(&tokenTestTxCnt, &t.txCnt)
+
+	t.Run(t.HandleFunc)
+	logger.Info("done token test")
 }
 
 // NewTokenTest construct a TokenTest instance
-func NewTokenTest(accCnt int) *TokenTest {
+func NewTokenTest(accCnt int, partLen int) *TokenTest {
 	t := &TokenTest{}
-	// get account address
-	t.accCnt = accCnt
-	logger.Infof("start to gen %d address for token test", accCnt)
-	t.addrs, t.accAddrs = utils.GenTestAddr(t.accCnt)
-	logger.Debugf("addrs: %v\ntestsAcc: %v", t.addrs, t.accAddrs)
-	// get accounts for addrs
-	for _, addr := range t.addrs {
-		acc := utils.UnlockAccount(addr)
-		AddrToAcc[addr] = acc
-	}
-	t.quitCh = make(chan os.Signal, 1)
-	signal.Notify(t.quitCh, os.Interrupt, os.Kill)
+	t.BaseFmw = NewBaseFmw(accCnt, partLen)
 	return t
 }
 
-// TearDown clean test accounts files
-func (t *TokenTest) TearDown() {
-	utils.RemoveKeystoreFiles(t.accAddrs...)
-}
-
-// Run runs toke test
-func (t *TokenTest) Run() {
+// HandleFunc hooks test func
+func (t *TokenTest) HandleFunc(addrs []string, index *int) {
 	defer func() {
-		logger.Info("done TokenTest doTx")
 		if x := recover(); x != nil {
 			utils.TryRecordError(fmt.Errorf("%v", x))
+			logger.Error(x)
 		}
 	}()
-	if len(t.addrs) < 3 {
+	peerAddr := peersAddr[(*index)%peerCnt]
+	(*index)++
+	//
+	miner, ok := PickOneMiner()
+	if !ok {
+		logger.Warnf("have no miner address to pick")
 		return
 	}
-	peerIdx := 1
-	logger.Infof("start TokenTest doTx")
+	defer UnpickMiner(miner)
+	//
+	testFee, subsidy := uint64(1000000), uint64(10000)
+	logger.Infof("waiting for minersAddr %s has %d at least on %s for token test",
+		miner, testFee+2*subsidy, peerAddr)
+	_, err := utils.WaitBalanceEnough(miner, testFee+2*subsidy, peerAddr, timeoutToChain)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	if len(addrs) < 3 {
+		logger.Errorf("token test require 3 accounts at leat, now %d", len(addrs))
+		return
+	}
+	issuer, sender, receivers := addrs[0], addrs[1], addrs[2:]
+	tx, _, _, err := utils.NewTx(AddrToAcc[miner], []string{issuer, sender},
+		[]uint64{subsidy, testFee}, peerAddr)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
+	defer conn.Close()
+	if err := client.SendTransaction(conn, tx); err != nil {
+		logger.Error(err)
+		return
+	}
+	UnpickMiner(miner)
+	atomic.AddUint64(&t.txCnt, 1)
+	tag := utils.NewTokenTag("box token", "BOX", 8)
 	times := utils.TokenRepeatTxTimes()
-	for {
-		select {
-		case s := <-t.quitCh:
-			logger.Infof("receive quit signal %v, quiting token test!", s)
-			return
-		default:
-		}
-		peerIdx = peerIdx % peerCnt
-		peerAddr := peersAddr[peerIdx]
-		peerIdx++
-
-		// transfer some box from a miner to a test account
-		var err error
-		addr := minerAddrs[peerIdx]
-		blcPre := utils.BalanceFor(t.addrs[0], peerAddr)
-		feeAmount := uint64(totalAmount / 2)
-		logger.Infof("send %d from %s to %s", feeAmount, addr, t.addrs[0])
-		utils.ExecTx(AddrToAcc[addr], []string{t.addrs[0]}, []uint64{feeAmount}, peerAddr)
-		atomic.AddUint64(&t.txCnt, 1)
-		logger.Infof("wait for balance of %s equal to %d, timeout %v", t.addrs[0],
-			blcPre+feeAmount, timeoutToChain)
-		_, err = utils.WaitBalanceEnough(t.addrs[0], blcPre+feeAmount, peerAddr, timeoutToChain)
-		if err != nil {
-			logger.Panic(err)
-		}
-
-		// define roles
-		issuer, issuee, sender, receiver := t.addrs[0], t.addrs[1], t.addrs[0], t.addrs[2]
-		// issue some token
-		tokenName, tokenSymbol, totalSupply, tokenDecimals := "box token", "BOX", uint64(100000000), uint8(8)
-		txTotalAmount := totalSupply/2 + uint64(rand.Intn(int(totalSupply)/2))
-		logger.Infof("%s issue %d token to %s", issuer, totalSupply, issuee)
-		issueTx0 := issueTokenTx(issuer, issuee, tokenName, tokenSymbol, totalSupply, tokenDecimals, peerAddr)
-		atomic.AddUint64(&t.txCnt, 1)
-		logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
-		issueTx := issueTokenTx(issuer, sender, tokenName, tokenSymbol, totalSupply, tokenDecimals, peerAddr)
-		atomic.AddUint64(&t.txCnt, 1)
-
-		// check issue result
-		logger.Infof("wait for token balance of issuee %s equal to %d, timeout %v",
-			issuee, totalSupply, timeoutToChain)
-		_, err = utils.WaitTokenBalanceEnough(issuee, totalSupply, issueTx0, peerAddr,
-			timeoutToChain)
-		if err != nil {
-			logger.Panic(err)
-		}
-		logger.Infof("wait for token balance of sender %s equal to %d, timeout %v",
-			sender, totalSupply, timeoutToChain)
-		blcSenderPre, err := utils.WaitTokenBalanceEnough(sender, totalSupply, issueTx,
-			peerAddr, timeoutToChain)
-		if err != nil {
-			logger.Panic(err)
-		}
-		blcRcvPre := utils.TokenBalanceFor(receiver, issueTx, peerAddr)
-		logger.Infof("before token transfer, sender %s has %d token, receiver %s"+
-			" has %d token", sender, blcSenderPre, receiver, blcRcvPre)
-
-		// transfer token
-		base := txTotalAmount / uint64(times) / 5 * 2
-		txAmount := uint64(0)
-		var wg sync.WaitGroup
-		workers := utils.TokenWorkers()
-		partLen := (times + workers - 1) / workers
-		errChans := make(chan error, workers)
-		for i := 0; i < workers; i++ {
-			wg.Add(1)
-			start := i * partLen
-			go func(start, partLen int) {
-				defer func() {
-					wg.Done()
-					if x := recover(); x != nil {
-						errChans <- fmt.Errorf("%v", x)
-					}
-				}()
-				for j := 0; j < partLen && start+j < times; j++ {
-					amount := base + uint64(rand.Int63n(int64(base)))
-					logger.Debugf("sender %s transfer %d token to receiver %s", sender,
-						amount, receiver)
-					transferToken(sender, receiver, amount, issueTx, peerAddr)
-					atomic.AddUint64(&t.txCnt, 1)
-					atomic.AddUint64(&txAmount, amount)
-				}
-			}(start, partLen)
-		}
-		wg.Wait()
-		if len(errChans) > 0 {
-			logger.Panic(<-errChans)
-		}
-		logger.Infof("%s sent %d times total %d token tx to %s", sender, times,
-			txAmount, receiver)
-
-		// query and check token balance
-		logger.Infof("wait for token balance of %s equal to %d, timeout %v",
-			sender, blcSenderPre-txAmount, timeoutToChain)
-		err = utils.WaitTokenBalanceEqualTo(sender, blcSenderPre-txAmount, issueTx,
-			peerAddr, timeoutToChain)
-		if err != nil {
-			logger.Panic(err)
-		}
-		logger.Infof("wait for token balance of receiver %s equal to %d, timeout %v",
-			receiver, blcRcvPre+txAmount, timeoutToChain)
-		err = utils.WaitTokenBalanceEqualTo(receiver, blcRcvPre+txAmount, issueTx, peerAddr,
-			timeoutToChain)
-		if err != nil {
-			logger.Panic(err)
-		}
-
-		//
-		if scopeValue(*scope) == basicScope {
-			break
-		}
-	}
+	tokenRepeatTest(issuer, sender, receivers, tag, times, &t.txCnt, peerAddr)
+	//
 }
 
-func issueTokenTx(fromAddr, toAddr, tokenName, tokenSymbol string, totalSupply uint64,
-	tokenDecimals uint8, peerAddr string) *types.Transaction {
-	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
-	if err != nil {
-		logger.Panic(err)
-	}
-	defer conn.Close()
-	// create
-	fromAddress, err1 := types.NewAddress(fromAddr)
-	toAddress, err2 := types.NewAddress(toAddr)
-	if err1 != nil || err2 != nil {
-		logger.Panicf("%v, %v", err1, err2)
-	}
-	tx, err := client.CreateTokenIssueTx(conn, fromAddress, toAddress,
-		AddrToAcc[fromAddr].PublicKey(), tokenName, tokenSymbol, uint64(totalSupply),
-		tokenDecimals, AddrToAcc[fromAddr])
-	if err != nil {
-		logger.Panic(err)
-	}
-	return tx
-}
+func tokenRepeatTest(issuer, sender string, receivers []string, tag *utils.TokenTag,
+	times int, txCnt *uint64, peerAddr string) {
+	logger.Info("=== RUN   tokenRepeatTest")
+	defer logger.Info("=== DONE   tokenRepeatTest")
+	// issue some token
+	totalSupply := uint64(100000000)
+	txTotalAmount := totalSupply/2 + uint64(rand.Int63n(int64(totalSupply)/2))
+	logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
+	tokenID := utils.IssueTokenTx(AddrToAcc[issuer], sender, tag, totalSupply, peerAddr)
+	atomic.AddUint64(txCnt, 1)
 
-func transferToken(fromAddr, toAddr string, amount uint64, tx *types.Transaction,
-	peerAddr string) *types.Transaction {
-	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	// check issue result
+	logger.Infof("wait for token balance of sender %s equal to %d, timeout %v",
+		sender, totalSupply, timeoutToChain)
+	blcSenderPre, err := utils.WaitTokenBalanceEnough(sender, totalSupply, tokenID,
+		peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
+
+	// check status before transfer
+	receiver := receivers[0]
+	blcRcvPre := utils.TokenBalanceFor(receiver, tokenID, peerAddr)
+	logger.Infof("before token transfer, sender %s has %d token, receiver %s"+
+		" has %d token", sender, blcSenderPre, receiver, blcRcvPre)
+
+	// construct some token txs
+	logger.Infof("start to create %d token txs from %s to %s on %s",
+		times, sender, receiver, peerAddr)
+	txs, err := utils.NewTokenTxs(AddrToAcc[sender], receiver, txTotalAmount, times,
+		tokenID, peerAddr)
+	if err != nil {
+		logger.Panic(err)
+	}
+
+	// send token txs
+	logger.Infof("start to send %d token txs from %s to %s on %s",
+		times, sender, receiver, peerAddr)
+	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
 	defer conn.Close()
-	// transfer
-	toAddress, err := types.NewAddress(toAddr)
+	for _, tx := range txs {
+		if err := client.SendTransaction(conn, tx); err != nil {
+			logger.Panic(err)
+		}
+		atomic.AddUint64(txCnt, 1)
+	}
+	logger.Infof("%s sent %d times total %d token tx to %s", sender, times,
+		txTotalAmount, receiver)
+
+	// query and check token balance
+	logger.Infof("wait for token balance of %s equal to %d, timeout %v",
+		sender, blcSenderPre-txTotalAmount, timeoutToChain)
+	err = utils.WaitTokenBalanceEqualTo(sender, blcSenderPre-txTotalAmount, tokenID,
+		peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
-	targets := map[types.Address]uint64{
-		toAddress: amount,
-	}
-	fromAddress, err := types.NewAddress(fromAddr)
+	logger.Infof("wait for token balance of receiver %s equal to %d, timeout %v",
+		receiver, blcRcvPre+txTotalAmount, timeoutToChain)
+	err = utils.WaitTokenBalanceEqualTo(receiver, blcRcvPre+txTotalAmount, tokenID,
+		peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
-	txHash, err := tx.TxHash()
-	if err != nil {
-		logger.Panic(err)
-	}
-	newTx, err := client.CreateTokenTransferTx(conn, fromAddress, targets,
-		AddrToAcc[fromAddr].PublicKey(), *txHash, 0, AddrToAcc[fromAddr])
-	if err != nil {
-		logger.Panic(err)
-	}
-	return newTx
 }
