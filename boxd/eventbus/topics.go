@@ -32,4 +32,6 @@ const (
 	TopicGetDatabaseKeys = "rpc:database:keys"
 	// TopicGetDatabaseValue is topic for get value of specified key
 	TopicGetDatabaseValue = "rpc:database:get"
+	// TopicRPCSendNewBlock is topic for sending new block to explorer
+	TopicRPCSendNewBlock = "rpc:newblock:send"
 )

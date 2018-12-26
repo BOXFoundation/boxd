@@ -93,11 +93,12 @@ type GRPCServer interface {
 	GetChainReader() service.ChainReader
 	GetTxHandler() service.TxHandler
 	GetEventBus() eventbus.Bus
+	Proc() goprocess.Process
 	Stop()
 }
 
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, txh service.TxHandler, bus eventbus.Bus) (*Server, error) {
+func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, txh service.TxHandler, bus eventbus.Bus) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
@@ -106,7 +107,7 @@ func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, tx
 		gRPCProc:    goprocess.WithParent(parent),
 	}
 
-	return server, nil
+	return server
 }
 
 // implement interface service.Server

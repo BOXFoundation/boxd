@@ -108,7 +108,7 @@ func (m *GetRawTransactionRequest) GetHash() []byte {
 }
 
 type GetRawTransactionResponse struct {
-	Tx *pb.Transaction `protobuf:"bytes,1,opt,name=tx" json:"tx,omitempty"`
+	Tx *pb.Transaction `protobuf:"bytes,1,opt,name=tx,proto3" json:"tx,omitempty"`
 }
 
 func (m *GetRawTransactionResponse) Reset()         { *m = GetRawTransactionResponse{} }
@@ -188,7 +188,7 @@ func (m *GetTransactionPoolRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_GetTransactionPoolRequest proto.InternalMessageInfo
 
 type GetTransactionsResponse struct {
-	Txs []*pb.Transaction `protobuf:"bytes,1,rep,name=txs" json:"txs,omitempty"`
+	Txs []*pb.Transaction `protobuf:"bytes,1,rep,name=txs,proto3" json:"txs,omitempty"`
 }
 
 func (m *GetTransactionsResponse) Reset()         { *m = GetTransactionsResponse{} }
@@ -232,7 +232,7 @@ func (m *GetTransactionsResponse) GetTxs() []*pb.Transaction {
 }
 
 type TokenAmount struct {
-	Token  *pb.OutPoint `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	Token  *pb.OutPoint `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	Amount uint64       `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
 }
 
@@ -286,7 +286,7 @@ func (m *TokenAmount) GetAmount() uint64 {
 type FundTransactionRequest struct {
 	Addr         string         `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	Amount       uint64         `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
-	TokenBudgets []*TokenAmount `protobuf:"bytes,3,rep,name=tokenBudgets" json:"tokenBudgets,omitempty"`
+	TokenBudgets []*TokenAmount `protobuf:"bytes,3,rep,name=tokenBudgets,proto3" json:"tokenBudgets,omitempty"`
 }
 
 func (m *FundTransactionRequest) Reset()         { *m = FundTransactionRequest{} }
@@ -344,7 +344,7 @@ func (m *FundTransactionRequest) GetTokenBudgets() []*TokenAmount {
 }
 
 type SendTransactionRequest struct {
-	Tx *pb.Transaction `protobuf:"bytes,1,opt,name=tx" json:"tx,omitempty"`
+	Tx *pb.Transaction `protobuf:"bytes,1,opt,name=tx,proto3" json:"tx,omitempty"`
 }
 
 func (m *SendTransactionRequest) Reset()         { *m = SendTransactionRequest{} }
@@ -391,7 +391,7 @@ type ListUtxosResponse struct {
 	Code    int32   `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message string  `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Count   uint32  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
-	Utxos   []*Utxo `protobuf:"bytes,4,rep,name=utxos" json:"utxos,omitempty"`
+	Utxos   []*Utxo `protobuf:"bytes,4,rep,name=utxos,proto3" json:"utxos,omitempty"`
 }
 
 func (m *ListUtxosResponse) Reset()         { *m = ListUtxosResponse{} }
@@ -456,7 +456,7 @@ func (m *ListUtxosResponse) GetUtxos() []*Utxo {
 }
 
 type GetBalanceRequest struct {
-	Addrs []string `protobuf:"bytes,1,rep,name=addrs" json:"addrs,omitempty"`
+	Addrs []string `protobuf:"bytes,1,rep,name=addrs,proto3" json:"addrs,omitempty"`
 }
 
 func (m *GetBalanceRequest) Reset()         { *m = GetBalanceRequest{} }
@@ -502,7 +502,7 @@ func (m *GetBalanceRequest) GetAddrs() []string {
 type GetBalanceResponse struct {
 	Code     int32             `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message  string            `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Balances map[string]uint64 `protobuf:"bytes,3,rep,name=balances" json:"balances,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	Balances map[string]uint64 `protobuf:"bytes,3,rep,name=balances,proto3" json:"balances,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 }
 
 func (m *GetBalanceResponse) Reset()         { *m = GetBalanceResponse{} }
@@ -560,8 +560,8 @@ func (m *GetBalanceResponse) GetBalances() map[string]uint64 {
 }
 
 type GetTokenBalanceRequest struct {
-	Addrs []string     `protobuf:"bytes,1,rep,name=addrs" json:"addrs,omitempty"`
-	Token *pb.OutPoint `protobuf:"bytes,2,opt,name=token" json:"token,omitempty"`
+	Addrs []string     `protobuf:"bytes,1,rep,name=addrs,proto3" json:"addrs,omitempty"`
+	Token *pb.OutPoint `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
 }
 
 func (m *GetTokenBalanceRequest) Reset()         { *m = GetTokenBalanceRequest{} }
@@ -614,7 +614,7 @@ func (m *GetTokenBalanceRequest) GetToken() *pb.OutPoint {
 type GetTokenBalanceResponse struct {
 	Code     int32             `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message  string            `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Balances map[string]uint64 `protobuf:"bytes,3,rep,name=balances" json:"balances,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	Balances map[string]uint64 `protobuf:"bytes,3,rep,name=balances,proto3" json:"balances,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 }
 
 func (m *GetTokenBalanceResponse) Reset()         { *m = GetTokenBalanceResponse{} }

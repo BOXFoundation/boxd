@@ -22,8 +22,8 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type Utxo struct {
-	OutPoint    *pb.OutPoint `protobuf:"bytes,1,opt,name=out_point,json=outPoint" json:"out_point,omitempty"`
-	TxOut       *pb.TxOut    `protobuf:"bytes,2,opt,name=tx_out,json=txOut" json:"tx_out,omitempty"`
+	OutPoint    *pb.OutPoint `protobuf:"bytes,1,opt,name=out_point,json=outPoint,proto3" json:"out_point,omitempty"`
+	TxOut       *pb.TxOut    `protobuf:"bytes,2,opt,name=tx_out,json=txOut,proto3" json:"tx_out,omitempty"`
 	BlockHeight uint32       `protobuf:"varint,3,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
 	IsCoinbase  bool         `protobuf:"varint,4,opt,name=is_coinbase,json=isCoinbase,proto3" json:"is_coinbase,omitempty"`
 	IsSpent     bool         `protobuf:"varint,5,opt,name=is_spent,json=isSpent,proto3" json:"is_spent,omitempty"`

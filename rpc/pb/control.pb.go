@@ -495,7 +495,7 @@ func (m *GetBlockRequest) GetBlockHash() string {
 type GetBlockHeaderResponse struct {
 	Code    int32           `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message string          `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Header  *pb.BlockHeader `protobuf:"bytes,3,opt,name=header" json:"header,omitempty"`
+	Header  *pb.BlockHeader `protobuf:"bytes,3,opt,name=header,proto3" json:"header,omitempty"`
 }
 
 func (m *GetBlockHeaderResponse) Reset()         { *m = GetBlockHeaderResponse{} }
@@ -555,7 +555,7 @@ func (m *GetBlockHeaderResponse) GetHeader() *pb.BlockHeader {
 type GetBlockResponse struct {
 	Code    int32     `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message string    `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Block   *pb.Block `protobuf:"bytes,3,opt,name=block" json:"block,omitempty"`
+	Block   *pb.Block `protobuf:"bytes,3,opt,name=block,proto3" json:"block,omitempty"`
 }
 
 func (m *GetBlockResponse) Reset()         { *m = GetBlockResponse{} }
@@ -614,7 +614,7 @@ func (m *GetBlockResponse) GetBlock() *pb.Block {
 
 type Node struct {
 	Id    string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Addrs []string `protobuf:"bytes,2,rep,name=addrs" json:"addrs,omitempty"`
+	Addrs []string `protobuf:"bytes,2,rep,name=addrs,proto3" json:"addrs,omitempty"`
 	Ttl   string   `protobuf:"bytes,3,opt,name=ttl,proto3" json:"ttl,omitempty"`
 }
 
@@ -709,7 +709,7 @@ func (m *GetNodeInfoRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_GetNodeInfoRequest proto.InternalMessageInfo
 
 type GetNodeInfoResponse struct {
-	Nodes []*Node `protobuf:"bytes,1,rep,name=nodes" json:"nodes,omitempty"`
+	Nodes []*Node `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
 }
 
 func (m *GetNodeInfoResponse) Reset()         { *m = GetNodeInfoResponse{} }

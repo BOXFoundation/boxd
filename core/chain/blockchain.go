@@ -13,8 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ripemd160"
-
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -32,6 +30,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
+	"golang.org/x/crypto/ripemd160"
 )
 
 // const defines constants
@@ -302,6 +301,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		go chain.consensus.BroadcastEternalMsgToMiners(block)
 		go chain.consensus.TryToUpdateEternalBlock(block)
 	}
+
+	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
 	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
 	return nil

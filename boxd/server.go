@@ -155,7 +155,7 @@ func (server *Server) Prepare() {
 
 	// prepare grpc server.
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
+		server.grpcsvr = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
 	}
 
 	// prepare sync manager.
@@ -208,7 +208,7 @@ func (server *Server) Run() error {
 	}
 
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain, server.txPool, server.bus)
+		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain, server.txPool, server.bus)
 		server.grpcsvr.Run()
 	}
 
