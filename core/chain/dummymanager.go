@@ -80,3 +80,6 @@ func (dpos *DummyDpos) ValidateMiner() bool { return true }
 
 // TryToUpdateEternalBlock try to update eternal block.
 func (dpos *DummyDpos) TryToUpdateEternalBlock(src *types.Block) {}
+
+// IsCandidateExist check candidate is exist.
+func (dpos *DummyDpos) IsCandidateExist(addr types.AddressHash) bool { return false }

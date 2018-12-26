@@ -29,7 +29,15 @@ var (
 	// BaseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
 	BaseSubsidy = (uint64)(50 * math.Pow10(core.Decimals))
+
+	// CandidatePledge is pledge for candidate to mint.
+	CandidatePledge = (uint64)(1e6 * math.Pow10(core.Decimals))
 )
+
+// CalcCandidatePledgeHeight calc current candidate pledge height
+func CalcCandidatePledgeHeight(tailHeight int64) int64 {
+	return (tailHeight/PeriodDuration + 2) * PeriodDuration
+}
 
 // isNullOutPoint determines whether or not a previous transaction output point is set.
 func isNullOutPoint(outPoint *types.OutPoint) bool {

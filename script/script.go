@@ -581,6 +581,16 @@ func (s *Script) IsSplitAddrScript() bool {
 	return len(r) >= 4 && len(r)%2 == 0 && reflect.DeepEqual(r[0], OPRETURN) && isOperandOfLen(r[1], 20)
 }
 
+// IsRegisterCandidateScript returns if the script is register candidate script
+func (s *Script) IsRegisterCandidateScript(blockTimeOrHeight int64) bool {
+	r := s.parse()
+	value, err := r[0].(Operand).int64()
+	if err != nil {
+		return false
+	}
+	return len(r) >= 7 && value == blockTimeOrHeight
+}
+
 // GetSplitAddrScriptPrefix returns prefix of split addr script without and list of addresses and weights
 // only called on split address script, so no need to check error
 func (s *Script) GetSplitAddrScriptPrefix() *Script {

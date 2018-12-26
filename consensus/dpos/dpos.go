@@ -489,6 +489,17 @@ func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType, batch storage.Bat
 	return nil
 }
 
+// IsCandidateExist check candidate is exist.
+func (dpos *Dpos) IsCandidateExist(addr types.AddressHash) bool {
+
+	for _, v := range dpos.context.candidateContext.addrs {
+		if v == addr {
+			return true
+		}
+	}
+	return false
+}
+
 // prepareCandidateContext prepare to update CandidateContext.
 func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 
@@ -499,15 +510,15 @@ func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 	candidateContext := dpos.context.candidateContext
 	switch int(tx.Data.Type) {
 	case types.RegisterCandidateTx:
-		signUpContent := new(types.SignUpContent)
-		if err := signUpContent.Unmarshal(content); err != nil {
+		registerCandidateContent := new(types.RegisterCandidateContent)
+		if err := registerCandidateContent.Unmarshal(content); err != nil {
 			return err
 		}
-		if util.InArray(signUpContent.Addr(), candidateContext.addrs) {
+		if util.InArray(registerCandidateContent.Addr(), candidateContext.addrs) {
 			return ErrDuplicateSignUpTx
 		}
 		candidate := &Candidate{
-			addr:  signUpContent.Addr(),
+			addr:  registerCandidateContent.Addr(),
 			votes: 0,
 		}
 		candidateContext.candidates = append(candidateContext.candidates, candidate)

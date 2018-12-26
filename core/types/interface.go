@@ -22,6 +22,7 @@ type Consensus interface {
 	BroadcastEternalMsgToMiners(*Block) error
 	ValidateMiner() bool
 	TryToUpdateEternalBlock(*Block)
+	IsCandidateExist(AddressHash) bool
 }
 
 // SyncManager define sync manager interface

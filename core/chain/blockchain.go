@@ -43,7 +43,7 @@ const (
 	MaxBlockSize         = 32000000
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
-	PeriodDuration       = 3600 * 24 * 100 / 5
+	PeriodDuration       = 21 * 5 * 10000
 
 	MaxBlocksPerSync = 1024
 
@@ -150,6 +150,11 @@ func (chain *BlockChain) Run() error {
 	chain.proc.Go(chain.loop)
 
 	return nil
+}
+
+// Consensus return chain consensus.
+func (chain *BlockChain) Consensus() types.Consensus {
+	return chain.consensus
 }
 
 // DB return chain db storage.

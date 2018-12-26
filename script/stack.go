@@ -26,6 +26,15 @@ func (o Operand) int() (int, error) {
 	return int(bigInt.Int64()), nil
 }
 
+func (o Operand) int64() (int64, error) {
+	bigInt := big.NewInt(0)
+	bigInt.SetBytes(o)
+	if bigInt.IsInt64() {
+		return bigInt.Int64(), nil
+	}
+	return 0, errors.New("Cannot be converted to int64")
+}
+
 // Stack is used when interpretting script
 type Stack struct {
 	stk []Operand

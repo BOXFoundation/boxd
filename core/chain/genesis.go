@@ -108,13 +108,10 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 			return nil, err
 		}
 		pubkeyhash := addr.Hash()
-
 		value, err := strconv.ParseUint(v["value"], 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		coinbaseScriptSig := script.StandardCoinbaseSignatureScript(0)
-		pkScript := *script.PayToPubKeyHashScript(pubkeyhash)
 
 		var locktime int64
 		if v["locktime"] != "" {
@@ -123,6 +120,9 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 				return nil, err
 			}
 		}
+		coinbaseScriptSig := script.StandardCoinbaseSignatureScript(0)
+		pkScript := *script.PayToPubKeyHashCLTVScript(pubkeyhash, locktime)
+
 		tx := &types.Transaction{
 			Version: 1,
 			Vin: []*types.TxIn{
@@ -141,7 +141,6 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 					ScriptPubKey: pkScript,
 				},
 			},
-			LockTime: locktime,
 		}
 		txs[idx] = tx
 

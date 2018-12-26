@@ -45,6 +45,8 @@ var (
 	ErrNonLocalMessage            = errors.New("Received non-local message")
 	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
 	ErrDoubleSpendTx              = errors.New("transaction must not use any of the same outputs as other transactions already in the pool")
+	ErrCandidateIsAlreadyExist    = errors.New("The Candidate is already exist")
+	ErrInvalidRegisterCandidateTx = errors.New("Invalid register candidate tx")
 
 	//block.go
 	ErrSerializeHeader                = errors.New("Serialize block header error")
