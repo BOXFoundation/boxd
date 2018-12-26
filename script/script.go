@@ -19,14 +19,23 @@ import (
 
 var logger = log.NewLogger("script") // logger
 
+// constants
 const (
 	p2PKHScriptLen = 25
 	p2SHScriptLen  = 23
+
+	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 )
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
 	return NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+}
+
+// PayToPubKeyHashCLTVScript creates a script to lock a transaction output to the specified address till a specific time or block height.
+func PayToPubKeyHashCLTVScript(pubKeyHash []byte, blockTimeOrHeight int64) *Script {
+	return NewScript().AddOperand(big.NewInt(blockTimeOrHeight).Bytes()).AddOpCode(OPCHECKLOCKTIMEVERIFY).AddOpCode(OPDUP).AddOpCode(OPHASH160).
+		AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 }
 
 // SignatureScript creates a script to unlock a utxo.
@@ -416,10 +425,32 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 			}
 		}
 
+	case OPCHECKLOCKTIMEVERIFY:
+		if stack.size() < 1 {
+			return ErrInvalidStackOperation
+		}
+		op := big.NewInt(0)
+		op.SetBytes(stack.topN(1))
+		lockTime := op.Int64()
+		if checkLockTime(lockTime, tx.LockTime) {
+			stack.pop()
+		} else {
+			return ErrScriptLockTimeVerifyFail
+		}
+
 	default:
 		return ErrBadOpcode
 	}
 	return nil
+}
+
+func checkLockTime(lockTime, txLockTime int64) bool {
+	// same type: either both block height or both UTC seconds
+	if !(lockTime < LockTimeThreshold && txLockTime < LockTimeThreshold ||
+		lockTime >= LockTimeThreshold && txLockTime >= LockTimeThreshold) {
+		return false
+	}
+	return lockTime <= txLockTime
 }
 
 // verify if signature is right

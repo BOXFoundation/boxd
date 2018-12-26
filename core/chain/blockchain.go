@@ -43,7 +43,6 @@ const (
 	MaxBlockSize         = 32000000
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
-	LockTimeThreshold    = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 	PeriodDuration       = 3600 * 24 * 100 / 5
 
 	MaxBlocksPerSync = 1024

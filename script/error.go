@@ -24,6 +24,7 @@ var (
 	ErrAddressNotApplicable      = errors.New("Address only applies to p2pkh and token txs")
 	ErrOpReturn                  = errors.New("Encounter OP_RETURN")
 	ErrInvalidSplitAddrScript    = errors.New("Invalid split address script")
+	ErrScriptLockTimeVerifyFail  = errors.New("Check lock time verification failure")
 
 	// stack.go
 	ErrFinalStackEmpty       = errors.New("Final stack empty")

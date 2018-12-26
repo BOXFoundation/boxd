@@ -6,6 +6,7 @@ package script
 
 import (
 	"encoding/hex"
+	"math/big"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ var (
 		Vin:      vIn,
 		Vout:     vOut,
 		Magic:    1,
-		LockTime: 0,
+		LockTime: 10000,
 	}
 
 	p2SHScriptBytes = []byte{
@@ -103,9 +104,13 @@ func TestNonTxScriptEvaluation(t *testing.T) {
 	ensure.NotNil(t, err)
 }
 
-func genP2PKHScript(appendOpDrop bool) (*Script, *Script, []byte) {
+func genP2PKHScript(prependOpCLTV, appendOpDrop bool, blockTimeOrHeight int64) (*Script, *Script, []byte) {
 	// locking script: OPDUP, OPHASH160, testPubKeyHash, OPEQUALVERIFY, OPCHECKSIG
-	scriptPubKey := NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(testPubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	scriptPubKey := NewScript()
+	if prependOpCLTV {
+		scriptPubKey.AddOperand(big.NewInt(blockTimeOrHeight).Bytes()).AddOpCode(OPCHECKLOCKTIMEVERIFY)
+	}
+	scriptPubKey.AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(testPubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 	if appendOpDrop {
 		scriptPubKey.AddOpCode(OP11).AddOpCode(OPDROP)
 	}
@@ -121,14 +126,14 @@ func genP2PKHScript(appendOpDrop bool) (*Script, *Script, []byte) {
 
 // test p2pkh script
 func TestP2PKH(t *testing.T) {
-	scriptSig, scriptPubKey, _ := genP2PKHScript(false)
+	scriptSig, scriptPubKey, _ := genP2PKHScript(false, false, 0)
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, scriptSig.GetSigOpCount(), 0)
 	ensure.DeepEqual(t, scriptPubKey.GetSigOpCount(), 1)
 
 	// Append anything and immediately drop it to test OP_DROP; shall not affect script validity
-	scriptSig, scriptPubKey, _ = genP2PKHScript(true)
+	scriptSig, scriptPubKey, _ = genP2PKHScript(false, true, 0)
 	err = Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
 }
@@ -218,7 +223,7 @@ func TestDisasm(t *testing.T) {
 	script.AddOpCode(OPPUSHDATA1)
 	ensure.DeepEqual(t, script.Disasm(), "OP_8 OP_6 OP_ADD OP_14 OP_EQUAL [Error: OP_PUSHDATA1 has not enough data]")
 
-	scriptSig, scriptPubKey, sigBytes := genP2PKHScript(false)
+	scriptSig, scriptPubKey, sigBytes := genP2PKHScript(false, false, 0)
 	expectedScriptStrs := []string{hex.EncodeToString(sigBytes), hex.EncodeToString(testPubKeyBytes), "OP_CODESEPARATOR",
 		"OP_DUP", "OP_HASH160", hex.EncodeToString(testPubKeyHash), "OP_EQUALVERIFY", "OP_CHECKSIG"}
 	catScript := NewScript().AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
@@ -270,13 +275,13 @@ func TestIsPayToPubKeyHash(t *testing.T) {
 
 func TestExtractAddress(t *testing.T) {
 	// general tx
-	_, scriptPubKey, _ := genP2PKHScript(false)
+	_, scriptPubKey, _ := genP2PKHScript(false, false, 0)
 	addr, err := scriptPubKey.ExtractAddress()
 	ensure.Nil(t, err)
 	expectedAddr, _ := types.NewAddressFromPubKey(testPubKey)
 	ensure.DeepEqual(t, expectedAddr, addr)
 
-	_, scriptPubKey, _ = genP2PKHScript(true)
+	_, scriptPubKey, _ = genP2PKHScript(false, true, 0)
 	_, err = scriptPubKey.ExtractAddress()
 	ensure.NotNil(t, err)
 
@@ -288,7 +293,7 @@ func TestExtractAddress(t *testing.T) {
 
 func TestGetNthOp(t *testing.T) {
 	// OPDUP, OPHASH160, testPubKeyHash, OPEQUALVERIFY, OPCHECKSIG
-	_, scriptPubKey, _ := genP2PKHScript(false)
+	_, scriptPubKey, _ := genP2PKHScript(false, false, 0)
 
 	// pc starts from 0
 	opCode, _, _, _ := scriptPubKey.getNthOp(0 /* start pc */, 0 /* n-th */)
@@ -331,4 +336,14 @@ func TestParseSplitAddrScript(t *testing.T) {
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, pubKeys1, addrs)
 	ensure.DeepEqual(t, weights1, weights)
+}
+
+func TestCheckLockTimeVerify(t *testing.T) {
+	scriptSig, scriptPubKey, _ := genP2PKHScript(true /* prepend CLTV */, false, tx.LockTime)
+	err := Validate(scriptSig, scriptPubKey, tx, 0)
+	ensure.Nil(t, err)
+
+	scriptSig, scriptPubKey, _ = genP2PKHScript(true /* prepend CLTV */, false, tx.LockTime+1)
+	err = Validate(scriptSig, scriptPubKey, tx, 0)
+	ensure.DeepEqual(t, err, ErrScriptLockTimeVerifyFail)
 }
