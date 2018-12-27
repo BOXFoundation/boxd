@@ -66,7 +66,7 @@ func (b *BaseFmw) Run(handle HandleFunc) {
 	wg.Wait()
 	name := runtime.FuncForPC(reflect.ValueOf(handle).Pointer()).Name()
 	//name[strings.LastIndexByte(name, '/')+1:]
-	logger.Warnf("done %s", name)
+	logger.Infof("done %s", name)
 }
 
 func (b *BaseFmw) doTest(index int, handle HandleFunc) {

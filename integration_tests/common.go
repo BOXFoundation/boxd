@@ -21,7 +21,6 @@ type picker struct {
 }
 
 const (
-	blockTime      = 1 * time.Second
 	timeoutToChain = 15 * time.Second
 	totalAmount    = 10000000
 )

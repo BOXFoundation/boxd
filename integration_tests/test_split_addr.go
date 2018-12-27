@@ -5,7 +5,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -22,7 +21,7 @@ type SplitAddrTest struct {
 
 func splitAddrTest() {
 	//t := NewSplitAddrTest(utils.TokenAccounts(), utils.TokenUnitAccounts())
-	t := NewSplitAddrTest(5, 5)
+	t := NewSplitAddrTest(utils.SplitAddrAccounts(), utils.SplitAddrUnitAccounts())
 	defer t.TearDown()
 	t.Run(t.HandleFunc)
 	logger.Info("done split address test")
@@ -85,10 +84,9 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) {
 		return
 	}
 
-	bytes, _ := json.MarshalIndent(senderTx, "", "  ")
-	hash, _ := senderTx.CalcTxHash()
-	logger.Infof("senderTx hash: %v\nbody: %s",
-		hash[:], string(bytes))
+	//bytes, _ := json.MarshalIndent(senderTx, "", "  ")
+	//hash, _ := senderTx.CalcTxHash()
+	//logger.Infof("senderTx hash: %v\nbody: %s", hash[:], string(bytes))
 
 	time.Sleep(time.Second)
 	// create split addr
@@ -105,9 +103,9 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) {
 		return
 	}
 
-	bytes, _ = json.MarshalIndent(splitTx, "", "  ")
-	hash, _ = splitTx.CalcTxHash()
-	logger.Infof("splitTx hash: %v\nbody: %s", hash[:], string(bytes))
+	//bytes, _ = json.MarshalIndent(splitTx, "", "  ")
+	//hash, _ = splitTx.CalcTxHash()
+	//logger.Infof("splitTx hash: %v\nbody: %s", hash[:], string(bytes))
 
 	logger.Infof("wait for balance of sender %s equals to %d, timeout %v", sender,
 		testAmount, timeoutToChain)
@@ -119,7 +117,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) {
 	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
-	times := 100
+	times := utils.SplitAddrRepeatTxTimes()
 	splitAddrRepeatTest(sender, receivers, weights, times, &t.txCnt, peerAddr)
 	//
 }
@@ -164,9 +162,9 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	defer conn.Close()
 	for _, txs := range txss {
 		for _, tx := range txs {
-			bytes, _ := json.MarshalIndent(tx, "", "  ")
-			hash, _ := tx.CalcTxHash()
-			logger.Infof("send split tx hash: %v\nbody: %s", hash[:], string(bytes))
+			//bytes, _ := json.MarshalIndent(tx, "", "  ")
+			//hash, _ := tx.CalcTxHash()
+			//logger.Infof("send split tx hash: %v\nbody: %s", hash[:], string(bytes))
 			if err := client.SendTransaction(conn, tx); err != nil {
 				logger.Panic(err)
 			}

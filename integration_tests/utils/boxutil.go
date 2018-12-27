@@ -281,25 +281,6 @@ func WaitAllNodesHeightHigher(addrs []string, h int, timeout time.Duration) erro
 		addrs[idx], h)
 }
 
-func waitHeightSame() (int, error) {
-	timeout := 30
-	for i := 0; i < timeout; i++ {
-		var hh []int
-		for j := 0; j < len(peersAddr); j++ {
-			h, err := ChainHeightFor(peersAddr[j])
-			if err != nil {
-				return 0, err
-			}
-			hh = append(hh, h)
-		}
-		if isAllSame(hh) {
-			return hh[0], nil
-		}
-		time.Sleep(time.Second)
-	}
-	return 0, fmt.Errorf("wait timeout for %ds", timeout)
-}
-
 func isAllSame(array []int) bool {
 	if len(array) == 0 || len(array) == 1 {
 		return true

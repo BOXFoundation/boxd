@@ -251,7 +251,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Panic(<-errChans)
 	}
 	// check balance
-	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, blockTime)
+	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, timeoutToChain)
 	b, err := utils.WaitBalanceEnough(addr, lastBalance+total, peerAddr, timeoutToChain)
 	if err != nil {
 		utils.TryRecordError(err)
