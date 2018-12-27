@@ -62,19 +62,19 @@ var tokenPreAllocation = []map[string]string{
 		"value": "112500000",
 	},
 	{ // token for team
-		"addr":     "b1jHVRpT8WTkn5RRQYKocjvf7u7tpfFbvRs",
-		"value":    "112500000",
-		"locktime": "31536000",
+		"addr":  "b1jHVRpT8WTkn5RRQYKocjvf7u7tpfFbvRs",
+		"value": "112500000",
+		// "locktime": "31536000",
 	},
 	{ // token for team
-		"addr":     "b1TpriWdFvGQ4qRSvUvWvT9Eqx7dxKeAyKq",
-		"value":    "112500000",
-		"locktime": "63072000",
+		"addr":  "b1TpriWdFvGQ4qRSvUvWvT9Eqx7dxKeAyKq",
+		"value": "112500000",
+		// "locktime": "63072000",
 	},
 	{ // token for team
-		"addr":     "b1ebddZsUpng3nCKFrjdu7vGDkpUgKqDU8c",
-		"value":    "112500000",
-		"locktime": "94608000",
+		"addr":  "b1ebddZsUpng3nCKFrjdu7vGDkpUgKqDU8c",
+		"value": "112500000",
+		// "locktime": "94608000",
 	},
 	{
 		"addr":  "b1pNwCEUkAgwNbzGfFWcUDZBfSofXAL2ELr",

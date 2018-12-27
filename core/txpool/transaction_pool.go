@@ -325,21 +325,37 @@ func (tx_pool *TransactionPool) checkRegisterOrVoteTx(tx *types.Transaction) err
 		if tx_pool.chain.Consensus().IsCandidateExist(registerCandidateContent.Addr()) {
 			return core.ErrCandidateIsAlreadyExist
 		}
-		if !tx_pool.checkRegisterCandidateTx(tx) {
-			return core.ErrInvalidRegisterCandidateTx
+		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
+			return core.ErrInvalidRegisterCandidateOrVoteTx
 		}
 	case types.VoteTx:
+		votesContent := new(types.VoteContent)
+		if err := votesContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if !tx_pool.chain.Consensus().IsCandidateExist(votesContent.Addr()) {
+			return core.ErrCandidateNotFound
+		}
+		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
+			return core.ErrInvalidRegisterCandidateOrVoteTx
+		}
 	}
 
 	return nil
 }
 
-func (tx_pool *TransactionPool) checkRegisterCandidateTx(tx *types.Transaction) bool {
+func (tx_pool *TransactionPool) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
 	for _, vout := range tx.Vout {
 		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
 		if scriptPubKey.IsRegisterCandidateScript(chain.CalcCandidatePledgeHeight(int64(tx_pool.chain.TailBlock().Height))) {
-			if vout.Value >= chain.CandidatePledge {
-				return true
+			if tx.Data.Type == types.RegisterCandidateTx {
+				if vout.Value >= chain.CandidatePledge {
+					return true
+				}
+			} else if tx.Data.Type == types.VoteTx {
+				if vout.Value >= chain.MinNumOfVotes {
+					return true
+				}
 			}
 		}
 	}

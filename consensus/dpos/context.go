@@ -211,7 +211,6 @@ func (period *Period) Unmarshal(data []byte) error {
 
 // CandidateContext represents possible to be the miner.
 type CandidateContext struct {
-	height     uint32
 	candidates []*Candidate
 	addrs      []types.AddressHash
 }
@@ -219,8 +218,8 @@ type CandidateContext struct {
 // InitCandidateContext init candidate context
 func InitCandidateContext() *CandidateContext {
 	return &CandidateContext{
-		height:     0,
 		candidates: []*Candidate{},
+		addrs:      []types.AddressHash{},
 	}
 }
 
@@ -242,7 +241,6 @@ func (candidateContext *CandidateContext) ToProtoMessage() (proto.Message, error
 	}
 
 	return &dpospb.CandidateContext{
-		Height:     candidateContext.height,
 		Candidates: candidates,
 	}, nil
 }
@@ -262,7 +260,6 @@ func (candidateContext *CandidateContext) FromProtoMessage(message proto.Message
 				candidates[k] = candidate
 				addrs[k] = candidate.addr
 			}
-			candidateContext.height = message.Height
 			candidateContext.candidates = candidates
 			candidateContext.addrs = addrs
 			return nil
@@ -271,6 +268,18 @@ func (candidateContext *CandidateContext) FromProtoMessage(message proto.Message
 	}
 
 	return ErrInvalidCandidateContextProtoMessage
+}
+
+// Copy returns a deep copy of CandidateContext
+func (candidateContext *CandidateContext) Copy() *CandidateContext {
+
+	cc := &CandidateContext{addrs: candidateContext.addrs}
+	candidates := make([]*Candidate, len(candidateContext.candidates))
+	for idx, v := range candidateContext.candidates {
+		candidates[idx] = v
+	}
+	cc.candidates = candidates
+	return cc
 }
 
 // Marshal method marshal CandidateContext object to binary

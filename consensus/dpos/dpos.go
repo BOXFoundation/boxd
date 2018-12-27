@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hashicorp/golang-lru"
+
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -45,16 +47,17 @@ type Config struct {
 
 // Dpos define dpos struct
 type Dpos struct {
-	chain       *chain.BlockChain
-	txpool      *txpool.TransactionPool
-	context     *ConsensusContext
-	net         p2p.Net
-	proc        goprocess.Process
-	cfg         *Config
-	miner       *wallet.Account
-	canMint     bool
-	disableMint bool
-	bftservice  *BftService
+	chain                       *chain.BlockChain
+	txpool                      *txpool.TransactionPool
+	context                     *ConsensusContext
+	net                         p2p.Net
+	proc                        goprocess.Process
+	cfg                         *Config
+	miner                       *wallet.Account
+	canMint                     bool
+	disableMint                 bool
+	bftservice                  *BftService
+	blockHashToCandidateContext *lru.Cache
 }
 
 // NewDpos new a dpos implement.
@@ -67,7 +70,7 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		cfg:     cfg,
 		canMint: false,
 	}
-
+	dpos.blockHashToCandidateContext, _ = lru.New(512)
 	context := &ConsensusContext{}
 	dpos.context = context
 	period, err := dpos.LoadPeriodContext()
@@ -75,6 +78,9 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		return nil, err
 	}
 	context.periodContext = period
+	if err := dpos.LoadCandidates(); err != nil {
+		return nil, err
+	}
 
 	return dpos, nil
 }
@@ -163,13 +169,10 @@ func (dpos *Dpos) mint(timestamp int64) error {
 	if err := dpos.checkMiner(timestamp); err != nil {
 		return err
 	}
-	MetricsMintTurnCounter.Inc(1)
-	logger.Infof("My turn to mint a block, time: %d", timestamp)
-	if err := dpos.LoadCandidates(); err != nil {
-		return err
-	}
 	dpos.context.timestamp = timestamp
+	MetricsMintTurnCounter.Inc(1)
 
+	logger.Infof("My turn to mint a block, time: %d", timestamp)
 	return dpos.mintBlock()
 }
 
@@ -301,6 +304,11 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
 	// otherwise the former's utxo is missing
 	sortedTxs, hashToTx := dpos.sortPendingTxs()
+	candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
+	if err != nil {
+		logger.Error("Failed to load candidate context")
+		return err
+	}
 
 	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
@@ -334,7 +342,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 					continue
 				}
 
-				if err := dpos.prepareCandidateContext(txWrap.Tx); err != nil {
+				if err := dpos.prepareCandidateContext(candidateContext, txWrap.Tx); err != nil {
 					// TODO: abandon the error tx
 					continue
 				}
@@ -380,7 +388,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// Pay tx fees to miner in addition to block reward in coinbase
 	blockTxns[0].Vout[0].Value += totalTxFee
 
-	candidateHash, err := dpos.context.candidateContext.CandidateContextHash()
+	candidateHash, err := candidateContext.CandidateContextHash()
 	if err != nil {
 		return err
 	}
@@ -464,7 +472,6 @@ func (dpos *Dpos) LoadCandidates() error {
 		if err := candidatesContext.Unmarshal(candidates); err != nil {
 			return err
 		}
-		candidatesContext.height = tail.Height + 1
 		dpos.context.candidateContext = candidatesContext
 		return nil
 	}
@@ -474,18 +481,54 @@ func (dpos *Dpos) LoadCandidates() error {
 	return nil
 }
 
-// StoreCandidateContext store candidate context
-func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType, batch storage.Batch) error {
-	if dpos.context.candidateContext == nil {
-		if err := dpos.LoadCandidates(); err != nil {
-			return err
-		}
-	}
-	bytes, err := dpos.context.candidateContext.Marshal()
+// UpdateCandidateContext update candidate context in memory.
+func (dpos *Dpos) UpdateCandidateContext(block *types.Block) error {
+	candidateContext, err := dpos.LoadCandidateByBlockHash(block.BlockHash())
 	if err != nil {
 		return err
 	}
-	batch.Put(chain.CandidatesKey(hash), bytes)
+	dpos.context.candidateContext = candidateContext
+	return nil
+}
+
+// LoadCandidateByBlockHash load candidate by block hash
+func (dpos *Dpos) LoadCandidateByBlockHash(hash *crypto.HashType) (*CandidateContext, error) {
+
+	if v, ok := dpos.blockHashToCandidateContext.Get(*hash); ok {
+		return v.(*CandidateContext), nil
+	}
+	candidateContextBin, err := dpos.chain.DB().Get(chain.CandidatesKey(hash))
+	if err != nil {
+		return nil, err
+	}
+	candidateContext := new(CandidateContext)
+	if err := candidateContext.Unmarshal(candidateContextBin); err != nil {
+		return nil, err
+	}
+	return candidateContext, nil
+}
+
+// StoreCandidateContext store candidate context
+// The cache is not used here to avoid problems caused by revert block.
+// So when block revert occurs, here we don't have to do revert.
+func (dpos *Dpos) StoreCandidateContext(block *types.Block, batch storage.Batch) error {
+
+	parentBlock := dpos.chain.GetParentBlock(block)
+	candidateContext, err := dpos.LoadCandidateByBlockHash(parentBlock.BlockHash())
+	if err != nil {
+		return err
+	}
+	for _, tx := range block.Txs {
+		if err := dpos.prepareCandidateContext(candidateContext, tx); err != nil {
+			return err
+		}
+	}
+	bytes, err := candidateContext.Marshal()
+	if err != nil {
+		return err
+	}
+	batch.Put(chain.CandidatesKey(block.BlockHash()), bytes)
+	dpos.blockHashToCandidateContext.Add(*block.BlockHash(), candidateContext)
 	return nil
 }
 
@@ -500,22 +543,38 @@ func (dpos *Dpos) IsCandidateExist(addr types.AddressHash) bool {
 	return false
 }
 
+// VerifyCandidates vefiry if the block candidates hash is right.
+func (dpos *Dpos) VerifyCandidates(block *types.Block) error {
+
+	candidateContext := dpos.context.candidateContext.Copy()
+	for _, tx := range block.Txs {
+		if err := dpos.prepareCandidateContext(candidateContext, tx); err != nil {
+			return err
+		}
+	}
+	candidateHash, err := candidateContext.CandidateContextHash()
+	if err != nil {
+		return err
+	}
+	if !candidateHash.IsEqual(&block.Header.CandidatesHash) {
+		return ErrInvalidCandidateHash
+	}
+
+	return nil
+}
+
 // prepareCandidateContext prepare to update CandidateContext.
-func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
+func (dpos *Dpos) prepareCandidateContext(candidateContext *CandidateContext, tx *types.Transaction) error {
 
 	if tx.Data == nil {
 		return nil
 	}
 	content := tx.Data.Content
-	candidateContext := dpos.context.candidateContext
 	switch int(tx.Data.Type) {
 	case types.RegisterCandidateTx:
 		registerCandidateContent := new(types.RegisterCandidateContent)
 		if err := registerCandidateContent.Unmarshal(content); err != nil {
 			return err
-		}
-		if util.InArray(registerCandidateContent.Addr(), candidateContext.addrs) {
-			return ErrDuplicateSignUpTx
 		}
 		candidate := &Candidate{
 			addr:  registerCandidateContent.Addr(),
@@ -526,9 +585,6 @@ func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 		votesContent := new(types.VoteContent)
 		if err := votesContent.Unmarshal(content); err != nil {
 			return err
-		}
-		if !util.InArray(votesContent.Addr(), dpos.context.candidateContext.addrs) {
-			return ErrCandidateNotFound
 		}
 		for _, v := range candidateContext.candidates {
 			if v.addr == votesContent.Addr() {

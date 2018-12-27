@@ -32,6 +32,9 @@ var (
 
 	// CandidatePledge is pledge for candidate to mint.
 	CandidatePledge = (uint64)(1e6 * math.Pow10(core.Decimals))
+
+	// MinNumOfVotes is Minimum number of votes
+	MinNumOfVotes = (uint64)(100)
 )
 
 // CalcCandidatePledgeHeight calc current candidate pledge height
