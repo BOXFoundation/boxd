@@ -893,6 +893,9 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		}
 	}
 	utxoSet.WriteUtxoSetToDB(batch)
+	if err := chain.WriteTxIndex(&genesis, batch); err != nil {
+		return nil, err
+	}
 	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
 	if err := batch.Write(); err != nil {
 		return nil, err
