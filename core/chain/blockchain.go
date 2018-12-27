@@ -1352,7 +1352,11 @@ func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) {
 func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	// return the output itself if it cannot be split
 	txOuts := []*corepb.TxOut{txOut}
-	addr, err := script.NewScriptFromBytes(txOut.ScriptPubKey).ExtractAddress()
+	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+	if !sc.IsPayToPubKeyHash() {
+		return txOuts
+	}
+	addr, err := sc.ExtractAddress()
 	if err != nil {
 		logger.Debugf("Tx output does not contain a valid address")
 		return txOuts
