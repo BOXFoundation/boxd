@@ -35,7 +35,7 @@ func NewSplitAddrTest(accCnt int, partLen int) *SplitAddrTest {
 }
 
 // HandleFunc hooks test func
-func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) {
+func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	defer func() {
 		if x := recover(); x != nil {
 			utils.TryRecordError(fmt.Errorf("%v", x))
@@ -44,26 +44,26 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) {
 	}()
 	if len(addrs) != 5 {
 		logger.Errorf("split addr test require 5 accounts at leat, now %d", len(addrs))
-		return
+		return true
 	}
-	peerAddr := peersAddr[(*index)%peerCnt]
+	peerAddr := peersAddr[(*index)%len(peersAddr)]
 	(*index)++
 	//
 	miner, ok := PickOneMiner()
 	if !ok {
 		logger.Warnf("have no miner address to pick")
-		return
+		return true
 	}
 	defer UnpickMiner(miner)
 	//
-	testAmount, splitFee, testFee := uint64(1000000), uint64(10000), uint64(10000)
+	testAmount, splitFee, testFee := uint64(100000), uint64(1000), uint64(1000)
 	logger.Infof("waiting for minersAddr %s has %d at least on %s for split address test",
 		miner, testAmount+testFee, peerAddr)
 	_, err := utils.WaitBalanceEnough(miner, testAmount+splitFee+testFee, peerAddr,
 		timeoutToChain)
 	if err != nil {
 		logger.Error(err)
-		return
+		return true
 	}
 
 	sender, receivers := addrs[0], addrs[1:]
@@ -120,6 +120,8 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) {
 	times := utils.SplitAddrRepeatTxTimes()
 	splitAddrRepeatTest(sender, receivers, weights, times, &t.txCnt, peerAddr)
 	//
+
+	return
 }
 
 func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,

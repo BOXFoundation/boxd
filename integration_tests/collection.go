@@ -7,6 +7,8 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
 
@@ -84,16 +86,15 @@ func NewCollection(accCnt, partLen int, collAddrCh <-chan string,
 }
 
 // HandleFunc hooks test func
-func (c *Collection) HandleFunc(addrs []string, idx *int) {
+func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	// wait for nodes to be ready
-	*idx = *idx % peerCnt
-	peerAddr := peersAddr[*idx]
+	peerAddr := peersAddr[*idx%len(peersAddr)]
 	*idx++
 	//
 	maddr, ok := PickOneMiner()
 	if !ok {
 		logger.Warnf("have no miner address to pick")
-		return
+		return true
 	}
 	defer UnpickMiner(maddr)
 	c.minerAddr = maddr
@@ -102,12 +103,25 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) {
 		maddr, totalAmount, peerAddr)
 	_, err := utils.WaitBalanceEnough(c.minerAddr, totalAmount, peerAddr, timeoutToChain)
 	if err != nil {
-		return
+		logger.Warn(err)
+		return true
 	}
-	if collAddr, ok := <-c.collAddrCh; ok {
+	quitCh := make(chan os.Signal, 1)
+	signal.Notify(quitCh, os.Interrupt, os.Kill)
+	select {
+	case collAddr := <-c.collAddrCh:
 		logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
 		c.launderFunds(collAddr, addrs, peerAddr, &c.txCnt)
-		c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}
+		select {
+		case c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}:
+			return false
+		case s := <-quitCh:
+			logger.Infof("receive quit signal %v, quiting HandleFunc[%d]!", s, idx)
+			return true
+		}
+	case s := <-quitCh:
+		logger.Infof("receive quit signal %v, quiting HandleFunc[%d]!", s, idx)
+		return true
 	}
 }
 

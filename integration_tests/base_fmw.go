@@ -16,7 +16,7 @@ import (
 )
 
 // HandleFunc defines handler func
-type HandleFunc func(addrs []string, idx *int)
+type HandleFunc func(addrs []string, idx *int) bool
 
 // BaseFmw define a base test framework
 type BaseFmw struct {
@@ -91,7 +91,9 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 			return
 		default:
 		}
-		handle(addrs, &idx)
+		if handle(addrs, &idx) {
+			break
+		}
 		if scopeValue(*scope) == basicScope {
 			break
 		}

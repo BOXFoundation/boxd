@@ -20,9 +20,6 @@ import (
 type scopeValue string
 
 const (
-	peerCnt  = 6
-	minerCnt = 6
-
 	basicScope    scopeValue = "basic"
 	mainScope     scopeValue = "main"
 	fullScope     scopeValue = "full"
@@ -44,8 +41,11 @@ var (
 
 func init() {
 	rand.Seed(time.Now().Unix())
-	// get addresses of three miners
-	files := make([]string, peerCnt)
+}
+
+func initMinerAcc() {
+	minerCnt := len(utils.MinerAddrs())
+	files := make([]string, minerCnt)
 	for i := 0; i < minerCnt; i++ {
 		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
 	}
@@ -66,21 +66,25 @@ func main() {
 	if err := utils.LoadConf(); err != nil {
 		logger.Panic(err)
 	}
+	initMinerAcc()
+	initMinerPicker(len(minerAddrs))
+	peersAddr = utils.PeerAddrs()
+
 	if *utils.NewNodes {
 		// prepare environment and clean history data
-		if err := utils.PrepareEnv(peerCnt); err != nil {
+		if err := utils.PrepareEnv(len(minerAddrs)); err != nil {
 			logger.Panic(err)
 		}
-		//defer utils.TearDown(peerCnt)
+		//defer utils.TearDown(len(minerAddrs))
 
 		// start nodes
 		if *utils.EnableDocker {
-			if err := utils.StartNodes(); err != nil {
+			if err := utils.StartDockerNodes(); err != nil {
 				logger.Panic(err)
 			}
 			defer utils.StopNodes()
 		} else {
-			processes, err := utils.StartLocalNodes(peerCnt)
+			processes, err := utils.StartLocalNodes(len(minerAddrs))
 			defer utils.StopLocalNodes(processes...)
 			if err != nil {
 				logger.Panic(err)
@@ -88,7 +92,6 @@ func main() {
 		}
 		time.Sleep(3 * time.Second) // wait for 3s to let boxd started
 	}
-	peersAddr = utils.PeerAddrs()
 
 	// print tx count per TickerDurationTxs
 	go CountGlobalTxs()

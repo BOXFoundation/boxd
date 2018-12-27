@@ -22,11 +22,11 @@ type picker struct {
 
 const (
 	timeoutToChain = 15 * time.Second
-	totalAmount    = 10000000
+	totalAmount    = 1000000
 )
 
 var (
-	minerPicker = picker{status: make([]bool, peerCnt)}
+	minerPicker picker
 
 	lastTxTestTxCnt    = uint64(0)
 	lastTokenTestTxCnt = uint64(0)
@@ -34,12 +34,18 @@ var (
 	tokenTestTxCnt     = uint64(0)
 )
 
+func initMinerPicker(minerCnt int) {
+	minerPicker = picker{status: make([]bool, minerCnt)}
+}
+
 // PickOneMiner picks a miner address that was not picked by other goroutine
 func PickOneMiner() (string, bool) {
 	minerPicker.Lock()
 	defer minerPicker.Unlock()
 	for i, picked := range minerPicker.status {
 		if !picked {
+			logger.Infof("PickOneMiner wait for miner %s box reach %d on peer %s",
+				minerAddrs[i], 100000000, peersAddr[0])
 			if _, err := utils.WaitBalanceEnough(minerAddrs[i], 100000000, peersAddr[0],
 				timeoutToChain); err != nil {
 				break
