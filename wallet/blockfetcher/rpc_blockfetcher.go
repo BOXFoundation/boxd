@@ -43,7 +43,8 @@ func (r *rpcBlockFetcher) Block(hashStr string) (*types.Block, error) {
 
 var _ walletdata.BlockFetcher = (*rpcBlockFetcher)(nil)
 
-func NewRpcBlockFetcherWithHostPort(host string, port int) (walletdata.BlockFetcher, error) {
+// NewRPCBlockFetcherWithHostPort returns an block fetch using rpc client
+func NewRPCBlockFetcherWithHostPort(host string, port int) (walletdata.BlockFetcher, error) {
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", host, port), grpc.WithInsecure())
 	if err != nil {
 		return nil, err

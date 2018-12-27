@@ -146,6 +146,7 @@ func SplitAddrKey(hash []byte) []byte {
 	return splitAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
 }
 
+// AddrUtxoKey is the key to store an utxo which belongs to the input param address
 func AddrUtxoKey(addr string, op types.OutPoint) []byte {
 	return addrUtxoBase.
 		ChildString(addr).
@@ -154,14 +155,17 @@ func AddrUtxoKey(addr string, op types.OutPoint) []byte {
 		Bytes()
 }
 
+// AddrAllUtxoKey is the key prefix to explore all utxos of an address
 func AddrAllUtxoKey(addr string) []byte {
 	return addrUtxoBase.ChildString(addr).Bytes()
 }
 
+// AddrBalanceKey is the key to store an address's balance
 func AddrBalanceKey(addr string) []byte {
 	return addrBalanceBase.ChildString(addr).Bytes()
 }
 
+// AddrTokenBalanceKey is the key to store an address's token balance
 func AddrTokenBalanceKey(addr string, token types.OutPoint) []byte {
 	return addrTokenBalanceBase.
 		ChildString(addr).

@@ -54,7 +54,7 @@ func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 	return u.utxoMap[outPoint]
 }
 
-// addUtxo adds a tx's outputs as utxos
+// AddUtxo adds a tx's outputs as utxos
 func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
@@ -77,7 +77,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	return nil
 }
 
-// spendUtxo mark a utxo as the spent state.
+// SpendUtxo mark a utxo as the spent state.
 func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 	utxoWrap := u.utxoMap[outPoint]
 	if utxoWrap == nil {

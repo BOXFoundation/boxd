@@ -145,6 +145,7 @@ func (s *Server) GetTxHandler() service.TxHandler {
 	return s.TxHandler
 }
 
+// GetWalletAgent returns the wallet related service handler
 func (s *Server) GetWalletAgent() service.WalletAgent {
 	return s.WalletAgent
 }

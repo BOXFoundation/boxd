@@ -1,3 +1,7 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
 package utxo
 
 import (
@@ -19,6 +23,7 @@ import (
 
 var logger = log.NewLogger("wallet-utxo")
 
+// WalletUtxo manages utxos of a set of addresses
 type WalletUtxo struct {
 	f       filter
 	utxoMap map[types.OutPoint]*types.UtxoWrap
@@ -26,6 +31,7 @@ type WalletUtxo struct {
 	mux     *sync.RWMutex
 }
 
+// NewWalletUtxoWithAddress creates a WalletUtxo using one address filter
 func NewWalletUtxoWithAddress(scriptBytes []byte, db storage.Table) *WalletUtxo {
 	return &WalletUtxo{
 		f: &addressFilter{
@@ -37,6 +43,7 @@ func NewWalletUtxoWithAddress(scriptBytes []byte, db storage.Table) *WalletUtxo 
 	}
 }
 
+// NewWalletUtxoForP2PKH creates a WalletUtxo using p2pkh script filter
 func NewWalletUtxoForP2PKH(db storage.Table) *WalletUtxo {
 	return &WalletUtxo{
 		f:       &p2pkhFilter{},
@@ -46,6 +53,7 @@ func NewWalletUtxoForP2PKH(db storage.Table) *WalletUtxo {
 	}
 }
 
+// ApplyUtxoSet merges utxo change from an chain.UtxoSet struct
 func (wu *WalletUtxo) ApplyUtxoSet(utxoSet *chain.UtxoSet) error {
 	wu.mux.Lock()
 	defer wu.mux.Unlock()
@@ -89,6 +97,7 @@ func (wu *WalletUtxo) addUtxo(outPoint types.OutPoint, wrap *types.UtxoWrap) {
 	wu.utxoMap[outPoint] = wrapCopy
 }
 
+// Save stores current utxo and balance change to db
 func (wu *WalletUtxo) Save() error {
 	batch := wu.db.NewBatch()
 	defer batch.Close()
@@ -155,6 +164,7 @@ func (wu *WalletUtxo) updateBalanceFromUtxo(addr types.Address, batch storage.Ba
 	return nil
 }
 
+// ClearSaved removes all utxos
 func (wu *WalletUtxo) ClearSaved() {
 	wu.mux.Lock()
 	defer wu.mux.Unlock()
@@ -191,12 +201,12 @@ func (wu *WalletUtxo) saveBalanceToDB(addr types.Address, balance uint64, batch 
 	key := chain.AddrBalanceKey(addr.String())
 	if batch == nil {
 		return wu.db.Put(key, buf)
-	} else {
-		batch.Put(key, buf)
-		return nil
 	}
+	batch.Put(key, buf)
+	return nil
 }
 
+// FetchUtxoForAddress fetches all utxo from db into struct internal member utxoMap
 func (wu *WalletUtxo) FetchUtxoForAddress(addr types.Address) error {
 	utxoMap, err := fetchUtxoFromDB(addr, wu.db)
 	if err != nil {
@@ -245,6 +255,7 @@ func fetchUtxoFromDB(addr types.Address, db storage.Table) (map[types.OutPoint]*
 	return utxoMap, nil
 }
 
+// Balance returns balance amount of an address using balance index
 func (wu *WalletUtxo) Balance(addr types.Address) uint64 {
 	wu.mux.RLock()
 	defer wu.mux.RUnlock()
@@ -255,14 +266,15 @@ func (wu *WalletUtxo) Balance(addr types.Address) uint64 {
 	//		balance += u.Output.Value
 	//	}
 	//}
-	if balance, err := wu.fetchBalanceFromDB(addr); err != nil {
+	balance, err := wu.fetchBalanceFromDB(addr)
+	if err != nil {
 		logger.Errorf("unable to get balance for addr: %s, err: %v", addr.String(), err)
 		return 0
-	} else {
-		return balance
 	}
+	return balance
 }
 
+// Utxos returns all utxo of an address from db
 func (wu *WalletUtxo) Utxos(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
 	return fetchUtxoFromDB(addr, wu.db)
 }

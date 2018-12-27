@@ -18,6 +18,7 @@ import (
 
 var logger = log.NewLogger("wallet-server")
 
+// WalletServer is the struct type of an wallet service
 type WalletServer struct {
 	proc  goprocess.Process
 	bus   eventbus.Bus
@@ -27,6 +28,7 @@ type WalletServer struct {
 	mux   *sync.Mutex
 }
 
+// NewWalletServer creates an WalletServer instance using config and storage
 func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage, bus eventbus.Bus) (*WalletServer, error) {
 	proc := goprocess.WithParent(parent)
 	table, err := s.Table(chain.WalletTableName)
@@ -44,6 +46,7 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 	return wServer, nil
 }
 
+// Run starts WalletServer main loop
 func (w *WalletServer) Run() error {
 	logger.Info("Wallet Server Start Running")
 	if err := w.initListener(); err != nil {
@@ -52,10 +55,12 @@ func (w *WalletServer) Run() error {
 	return nil
 }
 
+// Proc returns then go process of the wallet server
 func (w *WalletServer) Proc() goprocess.Process {
 	return w.proc
 }
 
+// Stop terminate the WalletServer process
 func (w *WalletServer) Stop() {
 	logger.Info("Wallet Server Stop Running")
 	w.bus.Unsubscribe(eventbus.TopicUtxoUpdate, w.onUtxoChange)
@@ -79,6 +84,7 @@ func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
 	w.wu.ClearSaved()
 }
 
+// Balance returns the total balance of an address
 func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
 	//sc := script.PayToPubKeyHashScript(addr.Hash())
 	//s := utxo.NewWalletUtxoWithAddress(*sc.P2PKHScriptPrefix(), w.table)
@@ -88,6 +94,7 @@ func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
 	return w.wu.Balance(addr), nil
 }
 
+// Utxos returns all utxos of an address
 func (w *WalletServer) Utxos(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
 	//sc := script.PayToPubKeyHashScript(addr.Hash())
 	//s := utxo.NewWalletUtxoWithAddress(*sc.P2PKHScriptPrefix(), w.table)
