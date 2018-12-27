@@ -48,7 +48,7 @@ func setupWebAPIMockSvr() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	origServer := NewServer(goprocess.WithSignals(os.Interrupt), nil, nil, nil,
+	origServer := NewServer(goprocess.WithSignals(os.Interrupt), nil, nil, nil, nil,
 		testWebAPIBus)
 	origServer.server = grpc.NewServer()
 	registerWebapi(origServer)
