@@ -16,7 +16,7 @@
     "circulation_repeat_times": 400
   },
   "token_test": {
-    "enable": true,
+    "enable": false,
     "accounts": 6,
     "unit_accounts": 3,
     "repeat_times": 100

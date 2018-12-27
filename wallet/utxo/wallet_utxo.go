@@ -180,39 +180,51 @@ func (wu *WalletUtxo) saveBalanceToDB(addr types.Address, balance uint64, batch 
 }
 
 func (wu *WalletUtxo) FetchUtxoForAddress(addr types.Address) error {
+	utxoMap, err := fetchUtxoFromDB(addr, wu.db)
+	if err != nil {
+		return err
+	}
+	for k, v := range utxoMap {
+		wu.utxoMap[k] = v
+	}
+	return nil
+}
+
+func fetchUtxoFromDB(addr types.Address, db storage.Table) (map[types.OutPoint]*types.UtxoWrap, error) {
 	utxoKey := chain.AddrAllUtxoKey(addr.String())
-	keys := wu.db.KeysWithPrefix(utxoKey)
+	keys := db.KeysWithPrefix(utxoKey)
+	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
 	for _, keyBytes := range keys {
-		serialized, err := wu.db.Get(keyBytes)
+		serialized, err := db.Get(keyBytes)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if serialized == nil {
-			return fmt.Errorf("utxo not found for address: %s", addr.String())
+			return nil, fmt.Errorf("utxo not found for address: %s", addr.String())
 		}
 		utxoWrap := new(types.UtxoWrap)
 		if err := utxoWrap.Unmarshal(serialized); err != nil {
-			return err
+			return nil, err
 		}
 		k := key2.NewKeyFromBytes(keyBytes)
 		segs := k.List()
 		if len(segs) >= 4 {
 			hash := new(crypto.HashType)
 			if err := hash.SetString(segs[2]); err != nil {
-				return err
+				return nil, err
 			}
 			index, err := strconv.ParseInt(segs[3], 16, 32)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			op := types.OutPoint{
 				Hash:  *hash,
 				Index: uint32(index),
 			}
-			wu.utxoMap[op] = utxoWrap
+			utxoMap[op] = utxoWrap
 		}
 	}
-	return nil
+	return utxoMap, nil
 }
 
 func (wu *WalletUtxo) Balance(addr types.Address) uint64 {
@@ -231,4 +243,8 @@ func (wu *WalletUtxo) Balance(addr types.Address) uint64 {
 	} else {
 		return balance
 	}
+}
+
+func (wu *WalletUtxo) Utxos(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
+	return fetchUtxoFromDB(addr, wu.db)
 }

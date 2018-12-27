@@ -9,7 +9,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/wallet/utxo"
 	"github.com/jbenet/goprocess"
@@ -75,10 +74,19 @@ func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
 }
 
 func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
-	sc := script.PayToPubKeyHashScript(addr.Hash())
-	s := utxo.NewWalletUtxoWithAddress(*sc.P2PKHScriptPrefix(), w.table)
-	if err := s.FetchUtxoForAddress(addr); err != nil {
-		return 0, err
-	}
-	return s.Balance(addr), nil
+	//sc := script.PayToPubKeyHashScript(addr.Hash())
+	//s := utxo.NewWalletUtxoWithAddress(*sc.P2PKHScriptPrefix(), w.table)
+	//if err := s.FetchUtxoForAddress(addr); err != nil {
+	//	return 0, err
+	//}
+	return w.wu.Balance(addr), nil
+}
+
+func (w *WalletServer) Utxos(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
+	//sc := script.PayToPubKeyHashScript(addr.Hash())
+	//s := utxo.NewWalletUtxoWithAddress(*sc.P2PKHScriptPrefix(), w.table)
+	//if err := s.FetchUtxoForAddress(addr); err != nil {
+	//
+	//}
+	return w.wu.Utxos(addr)
 }
