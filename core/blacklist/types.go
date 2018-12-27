@@ -35,6 +35,14 @@ type BlacklistMsg struct {
 	evidences []*Evidence
 }
 
+// BlacklistConfirmMsg contains evidences for bad node
+type BlacklistConfirmMsg struct {
+	pubKeyChecksum uint32
+	hash           []byte
+	signature      []byte
+	timestamp      int64
+}
+
 func newBlacklistMsg(evis ...*Evidence) *BlacklistMsg {
 	if evis == nil {
 		evis = make([]*Evidence, 0)
@@ -70,13 +78,6 @@ func (blm *BlacklistMsg) validate() (bool, error) {
 	} else {
 		return bytes.Equal(blm.hash, eviHash), nil
 	}
-}
-
-// BlacklistConfirmMsg contains evidences for bad node
-type BlacklistConfirmMsg struct {
-	pubKeyChecksum uint32
-	hash           []byte
-	signature      []byte
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -225,6 +226,7 @@ func (bcm *BlacklistConfirmMsg) ToProtoMessage() (proto.Message, error) {
 		PubKeyChecksum: bcm.pubKeyChecksum,
 		Hash:           hash,
 		Signature:      signature,
+		Timestamp:      bcm.timestamp,
 	}, nil
 }
 
@@ -240,6 +242,7 @@ func (bcm *BlacklistConfirmMsg) FromProtoMessage(message proto.Message) error {
 			copy(bcm.hash[:], msg.Hash[:])
 			bcm.signature = make([]byte, len(msg.Signature))
 			copy(bcm.signature[:], msg.Signature[:])
+			bcm.timestamp = msg.Timestamp
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

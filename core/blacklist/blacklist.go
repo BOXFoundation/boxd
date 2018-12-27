@@ -29,24 +29,35 @@ const (
 	txEvidenceMaxSize    = 100
 	blockEvidenceMaxSize = 3
 	BlMsgChBufferSize    = 5
+
+	MaxConfirmMsgCacheTime = 5
 )
 
 var (
 	blackList *BlackList
+
+	// periodSize is a clone of consensus.periodSize
+	periodSize int
 )
 
 // BlackList represents the black list of public keys
 type BlackList struct {
 	// checksumIEEE(pubKey) -> struct{}{}
 	Details *sync.Map
+	SceneCh chan *Evidence
 	// checksumIEEE(pubKey) -> []ch
 	evidenceNote *lru.Cache
-	SceneCh      chan *Evidence
+
+	// []byte(hash) -> [][]byte([]signature)
+	confirmMsgNote *lru.Cache
+	// []byte(hash) -> struct{}{}
+	existConfirmedKey *lru.Cache
 
 	bus      eventbus.Bus
 	notifiee p2p.Net
 	msgCh    chan p2p.Message
 	proc     goprocess.Process
+	mutex    *sync.Mutex
 }
 
 // Evidence can help bp to restore error scene
@@ -64,13 +75,21 @@ func init() {
 		Details: new(sync.Map),
 		SceneCh: make(chan *Evidence, 4096),
 		msgCh:   make(chan p2p.Message, BlMsgChBufferSize),
+		mutex:   &sync.Mutex{},
 	}
 	blackList.evidenceNote, _ = lru.New(4096)
+	blackList.confirmMsgNote, _ = lru.New(1024)
+	blackList.existConfirmedKey, _ = lru.New(1024)
 }
 
 // Default returns the default BlackList.
 func Default() *BlackList {
 	return blackList
+}
+
+// SetPeriodSize get a clone from consensus
+func SetPeriodSize(size int) {
+	periodSize = size
 }
 
 // Run process
@@ -85,7 +104,12 @@ func (bl *BlackList) Run(notifiee p2p.Net, bus eventbus.Bus, parent goprocess.Pr
 		for {
 			select {
 			case msg := <-bl.msgCh:
-				bl.onBlacklistMsg(msg)
+				switch msg.Code() {
+				case p2p.BlacklistMsg:
+					bl.onBlacklistMsg(msg)
+				case p2p.BlacklistConfirmMsg:
+					bl.onBlacklistConfirmMsg(msg)
+				}
 			case evidence := <-bl.SceneCh:
 				bl.processEvidence(evidence)
 			case <-parent.Closing():

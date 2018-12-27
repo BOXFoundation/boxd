@@ -27,4 +27,5 @@ message BlacklistConfirmMsg {
     uint32 pubKeyChecksum = 1;
     bytes hash = 2; 
     bytes signature = 3; 
+    int64 timestamp = 4;
 }

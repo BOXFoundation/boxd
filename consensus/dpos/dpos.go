@@ -14,6 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -113,6 +114,7 @@ func (dpos *Dpos) Run() error {
 		return err
 	}
 	dpos.bftservice = bftService
+	dpos.subscribeBlacklist()
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
@@ -608,10 +610,24 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 	dpos.bftservice.updateEternal(block)
 }
 
-func (dpos *Dpos) subscribeBlacklistMsg() {
+func (dpos *Dpos) subscribeBlacklist() {
+
+	blacklist.SetPeriodSize(PeriodSize)
 	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
 		out <- dpos.context.periodContext.periodPeers
 	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicValidateMiner, pid string, addr types.AddressHash, func(out chan<- bool) {
+		if util.InArray(peerID, bft.consensus.context.periodContext.periodPeers) {
+			for _, v := range bft.consensus.context.periodContext.period {
+				if addr == v.addr && peerID == v.peerID {
+					out <- true
+				}
+			}
+		}
+		out <- false
+	}, false)
+
 	dpos.chain.Bus().Reply(eventbus.TopicSignature, func(digest []byte, out chan<- []byte) {
 		signature, err := crypto.SignCompact(dpos.miner.PrivateKey(), digest[:])
 		if err == nil {

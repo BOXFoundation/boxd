@@ -92,6 +92,8 @@ var (
 	ErrSeparateSourceEvidences = errors.New("Separate source evidences")
 	ErrSign                    = errors.New("Sign error")
 	ErrEmptyProtoSource        = errors.New("Empty proto source")
+	ErrNotMintPeer             = errors.New("Invalid mint peer")
+	ErrIllegalMsg              = errors.New("Illegal message")
 
 	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
 )
