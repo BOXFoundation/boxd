@@ -5,6 +5,8 @@
 package walletserver
 
 import (
+	"sync"
+
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -22,6 +24,7 @@ type WalletServer struct {
 	table storage.Table
 	cfg   *Config
 	wu    *utxo.WalletUtxo
+	mux   *sync.Mutex
 }
 
 func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage, bus eventbus.Bus) (*WalletServer, error) {
@@ -36,6 +39,7 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 		table: table,
 		cfg:   config,
 		wu:    utxo.NewWalletUtxoForP2PKH(table),
+		mux:   &sync.Mutex{},
 	}
 	return wServer, nil
 }
@@ -63,6 +67,8 @@ func (w *WalletServer) initListener() error {
 }
 
 func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
+	w.mux.Lock()
+	defer w.mux.Unlock()
 	err := w.wu.ApplyUtxoSet(utxoSet)
 	if err != nil {
 		logger.Error("fail to apply utxo set", err)

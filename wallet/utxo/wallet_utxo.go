@@ -50,6 +50,7 @@ func (wu *WalletUtxo) ApplyUtxoSet(utxoSet *chain.UtxoSet) error {
 	wu.mux.Lock()
 	defer wu.mux.Unlock()
 	for o, u := range utxoSet.All() {
+		logger.Infof("apply utxo :%+v", o)
 		if u.IsSpent {
 			wu.spendUtxo(o, u)
 			continue
@@ -93,7 +94,7 @@ func (wu *WalletUtxo) Save() error {
 	defer batch.Close()
 	wu.mux.Lock()
 	defer wu.mux.Unlock()
-	balanceChange := make(map[types.Address]int64)
+	affectedAddrs := make(map[string]bool)
 	for o, u := range wu.utxoMap {
 		if u == nil || !u.IsModified {
 			continue
@@ -103,35 +104,52 @@ func (wu *WalletUtxo) Save() error {
 		if err != nil {
 			return err
 		}
+		affectedAddrs[addr.String()] = true
 		key := chain.AddrUtxoKey(addr.String(), o)
-		oBalance, ok := balanceChange[addr]
-		if !ok {
-			oBalance = 0
-		}
 		if u.IsSpent {
 			batch.Del(key)
-			balanceChange[addr] = oBalance - int64(u.Output.Value)
+			logger.Infof("Addr :%s spent %d", addr, u.Output.Value)
 		} else {
 			serialized, err := u.Marshal()
 			if err != nil {
 				return err
 			}
 			batch.Put(key, serialized)
-			balanceChange[addr] = oBalance + int64(u.Output.Value)
+			logger.Infof("Addr: %s received %d", addr, u.Output.Value)
 		}
 		u.IsModified = false
 	}
-	for addr, c := range balanceChange {
-		beforeChange, err := wu.fetchBalanceFromDB(addr)
-		if err != nil {
-			return err
-		}
-		balance := uint64(int64(beforeChange) + c)
-		if err := wu.saveBalanceToDB(addr, balance, batch); err != nil {
+	if err := batch.Write(); err != nil {
+		return err
+	}
+	balanceBatch := wu.db.NewBatch()
+	defer balanceBatch.Close()
+	for addrStr := range affectedAddrs {
+		addr := &types.AddressPubKeyHash{}
+		addr.SetString(addrStr)
+		if err := wu.updateBalanceFromUtxo(addr, balanceBatch); err != nil {
 			return err
 		}
 	}
-	if err := batch.Write(); err != nil {
+	if err := balanceBatch.Write(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (wu *WalletUtxo) updateBalanceFromUtxo(addr types.Address, batch storage.Batch) error {
+	utxos, err := fetchUtxoFromDB(addr, wu.db)
+	if err != nil {
+		return err
+	}
+	var balance uint64
+	for _, u := range utxos {
+		if u != nil && !u.IsSpent {
+			balance += u.Output.Value
+		}
+	}
+	if err := wu.saveBalanceToDB(addr, balance, batch); err != nil {
 		return err
 	}
 	return nil
