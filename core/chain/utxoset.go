@@ -44,6 +44,11 @@ func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
 	return result
 }
 
+// All returns all utxo contained including spent utxo
+func (u *UtxoSet) All() map[types.OutPoint]*types.UtxoWrap {
+	return u.utxoMap
+}
+
 // FindUtxo returns information about an outpoint.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 	return u.utxoMap[outPoint]

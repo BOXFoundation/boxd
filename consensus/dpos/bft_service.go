@@ -145,7 +145,7 @@ func (bft *BftService) maybeUpdateEternalBlock() {
 func (bft *BftService) updateEternal(block *types.Block) {
 
 	if block.Height <= bft.chain.EternalBlock().Height {
-		logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
+		//logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
 		return
 	}
 	if err := bft.chain.SetEternal(block); err != nil {

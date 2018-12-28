@@ -599,6 +599,7 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 		return err
 	}
 
+	chain.notifyUtxoChange(utxoSet)
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
@@ -651,6 +652,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 		return err
 	}
 
+	chain.notifyUtxoChange(utxoSet)
+
 	return chain.notifyBlockConnectionUpdate(block, true)
 }
 
@@ -660,6 +663,10 @@ func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connect
 		Block:     block,
 	})
 	return nil
+}
+
+func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
+	chain.bus.Publish(eventbus.TopicUtxoUpdate, utxoSet)
 }
 
 func (chain *BlockChain) reorganize(block *types.Block, batch storage.Batch) error {

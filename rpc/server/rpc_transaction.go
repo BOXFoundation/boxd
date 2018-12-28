@@ -81,13 +81,18 @@ func (s *txServer) GetBalance(ctx context.Context, req *rpcpb.GetBalanceRequest)
 		if err != nil {
 			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
 		}
-		amount, err := s.getbalance(ctx, addr)
+
+		amount, err := s.server.GetWalletAgent().Balance(addr)
 		if err != nil {
 			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
 		}
 		balances[addrStr] = amount
 	}
 	return &rpcpb.GetBalanceResponse{Code: 0, Message: "ok", Balances: balances}, nil
+}
+
+func (s *txServer) CreateTransaction(ctx context.Context, req *rpcpb.CreateTransactionRequest) (*rpcpb.CreateTransactionResponse, error) {
+	return &rpcpb.CreateTransactionResponse{}, nil
 }
 
 func (s *txServer) GetTokenBalance(ctx context.Context, req *rpcpb.GetTokenBalanceRequest) (*rpcpb.GetTokenBalanceResponse, error) {
@@ -167,13 +172,12 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 }
 
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
-	bc := s.server.GetChainReader()
 	addr, err := types.NewAddress(req.Addr)
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
-	utxos, err := bc.LoadUtxoByAddress(addr)
+	utxos, err := s.server.GetWalletAgent().Utxos(addr)
 	if err != nil {
 		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
 	}
