@@ -179,8 +179,8 @@ func (chain *BlockChain) subscribeMessageNotifiee() {
 }
 
 func (chain *BlockChain) subscribeBlacklistMsg() {
-	chain.bus.Reply(eventbus.TopicBlacklistConfirmResult, func(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID, resultCh chan error) {
-		err := chain.ProcessBlock(block *types.Block, transferMode p2p.TransferMode, fastConfirm bool, messageFrom peer.ID)
+	chain.bus.Reply(eventbus.TopicBlacklistBlockConfirmResult, func(block *types.Block, messageFrom peer.ID, resultCh chan error) {
+		err := chain.ProcessBlock(block, core.DefaultMode, false, messageFrom)
 		resultCh <- err
 	}, false)
 }
@@ -246,7 +246,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	go func() {
 		if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
 			pubkeyChecksum := crc32.ChecksumIEEE(pubkey.Serialize())
-			bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Block: block, Type: bl.BlockEvidence, Err: "", Ts: time.Now().Unix()}
+			bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Block: block, Type: bl.BlockEvidence, Err: core.ErrBlockExists.Error(), Ts: time.Now().Unix()}
 		}
 	}()
 

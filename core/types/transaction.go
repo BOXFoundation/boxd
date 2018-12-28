@@ -17,6 +17,7 @@ const (
 	GeneralTx = iota
 	RegisterCandidateTx
 	VoteTx
+	BlacklistTx
 )
 
 // Transaction defines a transaction.

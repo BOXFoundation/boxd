@@ -29,6 +29,8 @@ const (
 	TopicMiners = "dpos:miners"
 	// TopicValidateMiner is topic for replying wheather it is a miner now
 	TopicValidateMiner = "dpos:validateminer"
+	// TopicMinerPubkey is topic for miner pubkey
+	TopicMinerPubkey = "dpos:minerpubkey"
 	// TopicSignature is topic for sign a []byte
 	TopicSignature = "dpos:signature"
 

@@ -5,14 +5,19 @@
 package blacklist
 
 import (
+	"hash/crc32"
+	"math"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
@@ -22,7 +27,7 @@ func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
 		return err
 	}
 
-	ok, err := blMsg.validate()
+	ok, err := blMsg.validateHash()
 	if err != nil {
 		return err
 	} else if !ok {
@@ -34,14 +39,15 @@ func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
 	for _, evidence := range blMsg.evidences {
 		switch evidence.Type {
 		case BlockEvidence:
-			bl.bus.Send(eventbus.TopicBlacklistBlockConfirmResult, evidence.Block, core.DefaultMode, false, nil, resultCh)
+			// TODO: params bug
+			bl.bus.Send(eventbus.TopicBlacklistBlockConfirmResult, evidence.Block, peer.ID("nil"), resultCh)
 		case TxEvidence:
 			bl.bus.Send(eventbus.TopicBlacklistTxConfirmResult, evidence.Tx, resultCh)
 		default:
 			return core.ErrInvalidEvidenceType
 		}
 		if result := <-resultCh; result == nil || result.Error() != evidence.Err {
-			return core.ErrInsufficientEvidence
+			return core.ErrEvidenceErrNotMatch
 		}
 
 		// TODO: 判断checksum是否match scene中的发送方（script/block）
@@ -77,7 +83,7 @@ func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
 		return err
 	}
 
-	if bl.existConfirmedKey.Contains(confirmMsg.hash) {
+	if bl.existConfirmedKey.Contains(crc32.ChecksumIEEE(confirmMsg.hash)) {
 		logger.Debugf("Enough confirmMsgs had been received.")
 		return nil
 	}
@@ -87,40 +93,104 @@ func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
 		return core.ErrIllegalMsg
 	}
 
-	if pubkey, ok := crypto.RecoverCompact(confirmMsg.hash[:], confirmMsg.signature); ok {
-		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
-		if err != nil {
-			return err
-		}
-		addr := *addrPubKeyHash.Hash160()
+	pubkey, ok := crypto.RecoverCompact(confirmMsg.hash[:], confirmMsg.signature)
+	if !ok {
+		return core.ErrSign
+	}
+	addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
+	if err != nil {
+		return err
+	}
+	addr := *addrPubKeyHash.Hash160()
 
-		minersValidateCh := make(chan bool)
-		bl.bus.Send(eventbus.TopicValidateMiner, msg.From().Pretty(), addr, minersValidateCh)
-		if !<-minersValidateCh {
-			return core.ErrIllegalMsg
-		}
+	minersValidateCh := make(chan bool)
+	bl.bus.Send(eventbus.TopicValidateMiner, msg.From().Pretty(), addr, minersValidateCh)
+	if !<-minersValidateCh {
+		return core.ErrIllegalMsg
 	}
 
+	hashChecksum := crc32.ChecksumIEEE(confirmMsg.hash)
 	bl.mutex.Lock()
-	if sigs, ok := bl.confirmMsgNote.Get(confirmMsg.hash); ok {
+	if sigs, ok := bl.confirmMsgNote.Get(hashChecksum); ok {
 		sigSlice := sigs.([][]byte)
 		if util.InArray(confirmMsg.signature, sigSlice) {
 			return nil
 		}
 		sigSlice = append(sigSlice, confirmMsg.signature)
 		if len(sigSlice) > 2*periodSize/3 {
-			bl.existConfirmedKey.Add(confirmMsg.hash, struct{}{})
+			bl.existConfirmedKey.Add(hashChecksum, struct{}{})
 			// TODO: 上链
 			go func() {
-
+				bl.processBlacklistTx(confirmMsg.hash, sigSlice)
+				bl.confirmMsgNote.Remove(hashChecksum)
 			}()
 		} else {
-			bl.confirmMsgNote.Add(confirmMsg.hash, sigSlice)
+			bl.confirmMsgNote.Add(hashChecksum, sigSlice)
 		}
 	} else {
-		bl.confirmMsgNote.Add(confirmMsg.hash, [][]byte{confirmMsg.signature})
+		bl.confirmMsgNote.Add(hashChecksum, [][]byte{confirmMsg.signature})
 	}
 	bl.mutex.Unlock()
-
 	return nil
+}
+
+func (bl *BlackList) processBlacklistTx(hash []byte, signs [][]byte) error {
+	tx, err := CreateBlacklistTx(&BlacklistTxData{
+		hash:       hash,
+		signatures: signs,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	resultCh := make(chan error)
+	bl.bus.Send(eventbus.TopicBlacklistTxConfirmResult, tx, resultCh)
+	if err = <-resultCh; err != nil {
+		logger.Errorf("tx send fail %v", err)
+		return err
+	}
+	logger.Errorf("tx send success %v", tx)
+	return nil
+}
+
+// CreateBlacklistTx creates blacklist type tx
+func CreateBlacklistTx(txData *BlacklistTxData) (*types.Transaction, error) {
+
+	pubkeyCh := make(chan []byte)
+	eventbus.Default().Send(eventbus.TopicMinerPubkey, pubkeyCh)
+	pubkey := <-pubkeyCh
+
+	var pkScript []byte
+	pkScript = *script.PayToPubKeyHashScript(pubkey)
+
+	data, err := txData.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	tx := &types.Transaction{
+		Version: 1,
+		Vin: []*types.TxIn{
+			{
+				PrevOutPoint: types.OutPoint{
+					Hash:  zeroHash,
+					Index: math.MaxUint32,
+				},
+				ScriptSig: []byte{},
+				Sequence:  math.MaxUint32,
+			},
+		},
+		Vout: []*corepb.TxOut{
+			{
+				Value:        0,
+				ScriptPubKey: pkScript,
+			},
+		},
+		Data: &corepb.Data{
+			Type:    types.BlacklistTx,
+			Content: data,
+		},
+	}
+	return tx, nil
 }

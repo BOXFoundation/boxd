@@ -25,6 +25,8 @@ var (
 	_ conv.Serializable = (*BlacklistMsg)(nil)
 	_ conv.Convertible  = (*BlacklistConfirmMsg)(nil)
 	_ conv.Serializable = (*BlacklistConfirmMsg)(nil)
+	_ conv.Convertible  = (*BlacklistTxData)(nil)
+	_ conv.Serializable = (*BlacklistTxData)(nil)
 
 	errInvalidProtoMessage = errors.New("Invalid proto message")
 )
@@ -41,6 +43,12 @@ type BlacklistConfirmMsg struct {
 	hash           []byte
 	signature      []byte
 	timestamp      int64
+}
+
+// BlacklistTxData will put into tx on chain
+type BlacklistTxData struct {
+	hash       []byte
+	signatures [][]byte
 }
 
 func newBlacklistMsg(evis ...*Evidence) *BlacklistMsg {
@@ -72,12 +80,12 @@ func (blm *BlacklistMsg) calcHash() ([]byte, error) {
 	return hash, nil
 }
 
-func (blm *BlacklistMsg) validate() (bool, error) {
-	if eviHash, err := blm.calcHash(); err != nil {
+func (blm *BlacklistMsg) validateHash() (bool, error) {
+	eviHash, err := blm.calcHash()
+	if err != nil {
 		return false, err
-	} else {
-		return bytes.Equal(blm.hash, eviHash), nil
 	}
+	return bytes.Equal(blm.hash, eviHash), nil
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -220,7 +228,7 @@ func (bcm *BlacklistConfirmMsg) ToProtoMessage() (proto.Message, error) {
 	copy(hash[:], bcm.hash[:])
 
 	signature := make([]byte, len(bcm.signature))
-	copy(hash[:], bcm.signature[:])
+	copy(signature[:], bcm.signature[:])
 
 	return &blpb.BlacklistConfirmMsg{
 		PubKeyChecksum: bcm.pubKeyChecksum,
@@ -257,11 +265,70 @@ func (bcm *BlacklistConfirmMsg) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to BlacklistConfirmMsg object
 func (bcm *BlacklistConfirmMsg) Unmarshal(data []byte) error {
-	msg := &blpb.BlacklistMsg{}
+	msg := &blpb.BlacklistConfirmMsg{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
 	return bcm.FromProtoMessage(msg)
+}
+
+// ToProtoMessage converts BlacklistConfirmMsg to proto message.
+func (btd *BlacklistTxData) ToProtoMessage() (proto.Message, error) {
+	if btd == nil {
+		return nil, core.ErrEmptyProtoSource
+	}
+
+	hash := make([]byte, len(btd.hash))
+	copy(hash[:], btd.hash[:])
+
+	signs := make([][]byte, len(btd.signatures))
+	for _, v := range btd.signatures {
+		sign := make([]byte, len(v))
+		copy(sign[:], v[:])
+		signs = append(signs, sign)
+	}
+
+	return &blpb.BlacklistTxData{
+		Hash:       hash,
+		Signatures: signs,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to BlacklistConfirmMsg.
+func (btd *BlacklistTxData) FromProtoMessage(message proto.Message) error {
+	if btd == nil {
+		btd = &BlacklistTxData{}
+	}
+	if msg, ok := message.(*blpb.BlacklistTxData); ok {
+		if msg != nil {
+			btd.hash = make([]byte, len(msg.Hash))
+			copy(btd.hash[:], msg.Hash[:])
+
+			btd.signatures = make([][]byte, len(btd.signatures))
+			for _, v := range msg.Signatures {
+				sign := make([]byte, len(v))
+				copy(sign[:], v[:])
+				btd.signatures = append(btd.signatures, sign)
+			}
+			return nil
+		}
+		return core.ErrEmptyProtoMessage
+	}
+	return errInvalidProtoMessage
+}
+
+// Marshal method marshal BlacklistConfirmMsg object to binary
+func (btd *BlacklistTxData) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(btd)
+}
+
+// Unmarshal method unmarshal binary data to BlacklistConfirmMsg object
+func (btd *BlacklistTxData) Unmarshal(data []byte) error {
+	msg := &blpb.BlacklistTxData{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return btd.FromProtoMessage(msg)
 }
 
 ///////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@
 package dpos
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/facebookgo/ensure"

@@ -29,3 +29,8 @@ message BlacklistConfirmMsg {
     bytes signature = 3; 
     int64 timestamp = 4;
 }
+
+message BlacklistTxData {
+    bytes hash = 1; 
+    repeated bytes signatures = 2;
+}

@@ -617,10 +617,14 @@ func (dpos *Dpos) subscribeBlacklist() {
 		out <- dpos.context.periodContext.periodPeers
 	}, false)
 
-	dpos.chain.Bus().Reply(eventbus.TopicValidateMiner, pid string, addr types.AddressHash, func(out chan<- bool) {
-		if util.InArray(peerID, bft.consensus.context.periodContext.periodPeers) {
-			for _, v := range bft.consensus.context.periodContext.period {
-				if addr == v.addr && peerID == v.peerID {
+	dpos.chain.Bus().Reply(eventbus.TopicMinerPubkey, func(out chan<- []byte) {
+		out <- dpos.miner.PubKeyHash()
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicValidateMiner, func(pid string, addr types.AddressHash, out chan<- bool) {
+		if util.InArray(pid, dpos.bftservice.consensus.context.periodContext.periodPeers) {
+			for _, v := range dpos.bftservice.consensus.context.periodContext.period {
+				if addr == v.addr && pid == v.peerID {
 					out <- true
 				}
 			}

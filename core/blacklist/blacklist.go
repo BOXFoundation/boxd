@@ -10,6 +10,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	lru "github.com/hashicorp/golang-lru"
@@ -35,9 +36,9 @@ const (
 
 var (
 	blackList *BlackList
-
 	// periodSize is a clone of consensus.periodSize
 	periodSize int
+	zeroHash   = crypto.HashType{}
 )
 
 // BlackList represents the black list of public keys
@@ -48,9 +49,9 @@ type BlackList struct {
 	// checksumIEEE(pubKey) -> []ch
 	evidenceNote *lru.Cache
 
-	// []byte(hash) -> [][]byte([]signature)
+	// checkousum(hash) -> [][]byte([]signature)
 	confirmMsgNote *lru.Cache
-	// []byte(hash) -> struct{}{}
+	// checkousum(hash) -> struct{}{}
 	existConfirmedKey *lru.Cache
 
 	bus      eventbus.Bus
@@ -106,12 +107,18 @@ func (bl *BlackList) Run(notifiee p2p.Net, bus eventbus.Bus, parent goprocess.Pr
 			case msg := <-bl.msgCh:
 				switch msg.Code() {
 				case p2p.BlacklistMsg:
-					bl.onBlacklistMsg(msg)
+					if err := bl.onBlacklistMsg(msg); err != nil {
+						logger.Errorf("Process blacklist msg fail. %v", err)
+					}
 				case p2p.BlacklistConfirmMsg:
-					bl.onBlacklistConfirmMsg(msg)
+					if err := bl.onBlacklistConfirmMsg(msg); err != nil {
+						logger.Errorf("Process blacklist confirm msg fail. %v", err)
+					}
 				}
 			case evidence := <-bl.SceneCh:
-				bl.processEvidence(evidence)
+				if err := bl.processEvidence(evidence); err != nil {
+					logger.Errorf("Process evidence fail. %v", err)
+				}
 			case <-parent.Closing():
 				logger.Info("Stopped black list loop.")
 				return
@@ -120,7 +127,7 @@ func (bl *BlackList) Run(notifiee p2p.Net, bus eventbus.Bus, parent goprocess.Pr
 	})
 }
 
-func (bl *BlackList) processEvidence(evidence *Evidence) {
+func (bl *BlackList) processEvidence(evidence *Evidence) error {
 
 	// get personal note
 	personalNote, ok := bl.evidenceNote.Get(evidence.PubKeyChecksum)
@@ -144,7 +151,7 @@ func (bl *BlackList) processEvidence(evidence *Evidence) {
 			first = <-evidenceCh
 		} else {
 			evidenceCh <- evidence
-			return
+			return nil
 		}
 	case BlockEvidence:
 		evidenceCh = personalNote.([]chan *Evidence)[1]
@@ -152,17 +159,24 @@ func (bl *BlackList) processEvidence(evidence *Evidence) {
 			first = <-evidenceCh
 		} else {
 			evidenceCh <- evidence
-			return
+			return nil
 		}
 	default:
 		logger.Errorf("invalid evidence type: %v", evidence.Type)
 	}
 	if first == nil || time.Unix(int64(first.Ts), 0).Add(blackListPeriod).Before(time.Unix(int64(evidence.Ts), 0)) {
-		return
+		return nil
 	}
 	eviPackege := bl.packageEvidences(first, evidence, evidenceCh)
+	blm := &BlacklistMsg{evidences: eviPackege}
+	hash, err := blm.calcHash()
+	if err != nil {
+		return err
+	}
+	blm.hash = hash
 	logger.Errorf("blacklist Broadcast to miners")
-	bl.notifiee.BroadcastToMiners(p2p.BlacklistMsg, &BlacklistMsg{evidences: eviPackege})
+	bl.notifiee.BroadcastToMiners(p2p.BlacklistMsg, blm)
+	return nil
 }
 
 func (bl *BlackList) packageEvidences(first, last *Evidence, evidenceCh chan *Evidence) []*Evidence {
@@ -176,4 +190,5 @@ func (bl *BlackList) packageEvidences(first, last *Evidence, evidenceCh chan *Ev
 
 func (bl *BlackList) subscribeMessageNotifiee() {
 	bl.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlacklistMsg, bl.msgCh))
+	bl.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlacklistConfirmMsg, bl.msgCh))
 }
