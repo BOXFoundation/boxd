@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sort"
 
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -146,52 +145,6 @@ func getUtxoTokenAmount(utxo *rpcpb.Utxo, tokenTxHash *crypto.HashType, tokenTxO
 		}
 	}
 	return 0
-}
-
-// colored: use colored or uncolored utxos/coins
-// tokenTxHash & tokenTxOutIdx only valid for colored utxos
-func selectUtxo(resp *rpcpb.ListUtxosResponse, totalAmount uint64, colored bool,
-	tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) ([]*rpcpb.Utxo, error) {
-
-	utxoList := resp.GetUtxos()
-	sort.Slice(utxoList, func(i, j int) bool {
-		if !colored {
-			return utxoList[i].GetTxOut().GetValue() < utxoList[j].GetTxOut().GetValue()
-		}
-		return getUtxoTokenAmount(utxoList[i], tokenTxHash, tokenTxOutIdx) <
-			getUtxoTokenAmount(utxoList[j], tokenTxHash, tokenTxOutIdx)
-	})
-
-	var currentAmount uint64
-	resultList := []*rpcpb.Utxo{}
-	for _, utxo := range utxoList {
-		if utxo.IsSpent {
-			continue
-		}
-
-		var amount uint64
-		if !colored {
-			scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
-			if !scriptPubKey.IsPayToPubKeyHash() {
-				continue
-			}
-			// p2pkh tx
-			amount = utxo.GetTxOut().GetValue()
-		} else {
-			// token tx
-			amount = getUtxoTokenAmount(utxo, tokenTxHash, tokenTxOutIdx)
-			if amount == 0 {
-				// non-token or different token
-				continue
-			}
-		}
-		currentAmount += amount
-		resultList = append(resultList, utxo)
-		if currentAmount >= totalAmount {
-			return resultList, nil
-		}
-	}
-	return nil, fmt.Errorf("Not enough balance")
 }
 
 func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
