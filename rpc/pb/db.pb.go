@@ -98,7 +98,7 @@ type GetDatabaseKeysResponse struct {
 	Code    int32    `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message string   `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Skip    int32    `protobuf:"varint,3,opt,name=skip,proto3" json:"skip,omitempty"`
-	Keys    []string `protobuf:"bytes,4,rep,name=keys" json:"keys,omitempty"`
+	Keys    []string `protobuf:"bytes,4,rep,name=keys,proto3" json:"keys,omitempty"`
 }
 
 func (m *GetDatabaseKeysResponse) Reset()         { *m = GetDatabaseKeysResponse{} }

@@ -11,15 +11,21 @@
     "enable": true,
     "collection_accounts": 8,
     "collection_unit_accounts": 4,
-    "circulation_accounts": 8,
-    "circulation_unit_accounts": 4,
+    "circulation_accounts": 6,
+    "circulation_unit_accounts": 3,
     "circulation_repeat_times": 400
   },
   "token_test": {
     "enable": true,
     "accounts": 6,
     "unit_accounts": 3,
-    "repeat_times": 100
+    "repeat_times": 50
+  },
+  "split_addr_test": {
+    "enable": true,
+    "accounts": 10,
+    "unit_accounts": 5,
+    "repeat_times": 50
   },
   "iplist": {
     "docker": [
@@ -45,6 +51,10 @@
 	    "192.168.0.226:19141",
 	    "192.168.0.226:19151",
 	    "192.168.0.226:19161"
+    ],
+    "tx_peers": [
+	    "127.0.0.1:19111",
+	    "127.0.0.1:19121"
     ]
   }
 }

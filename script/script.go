@@ -226,21 +226,21 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 
 	// Push value
 	if opCode <= OPPUSHDATA4 {
-		if opCode < OPPUSHDATA1 {
-			logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
-		} else {
-			logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
-		}
+		// if opCode < OPPUSHDATA1 {
+		// 	logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
+		// } else {
+		// 	logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
+		// }
 		stack.push(pushData)
 		return nil
 	} else if opCode <= OP16 && opCode != OPRESERVED {
 		op := big.NewInt(int64(opCode) - int64(OP1) + 1)
-		logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
+		// logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
 		stack.push(Operand(op.Bytes()))
 		return nil
 	}
 
-	logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
+	// logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
 	switch opCode {
 	case OPRETURN:
 		return ErrOpReturn
@@ -580,6 +580,16 @@ func (s *Script) IsSplitAddrScript() bool {
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
 	r := s.parse()
 	return len(r) >= 4 && len(r)%2 == 0 && reflect.DeepEqual(r[0], OPRETURN) && isOperandOfLen(r[1], 20)
+}
+
+// IsRegisterCandidateScript returns if the script is register candidate script
+func (s *Script) IsRegisterCandidateScript(blockTimeOrHeight int64) bool {
+	r := s.parse()
+	value, err := r[0].(Operand).int64()
+	if err != nil {
+		return false
+	}
+	return len(r) >= 7 && value == blockTimeOrHeight
 }
 
 // GetSplitAddrScriptPrefix returns prefix of split addr script without and list of addresses and weights

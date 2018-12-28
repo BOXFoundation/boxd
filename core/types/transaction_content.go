@@ -10,13 +10,13 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 )
 
-// SignUpContent identify the tx of signup type
-type SignUpContent struct {
+// RegisterCandidateContent identify the tx of RegisterCandidate type
+type RegisterCandidateContent struct {
 	addr AddressHash
 }
 
-// Marshal marshals the SignUpContent to a binary representation of it.
-func (sc *SignUpContent) Marshal() (data []byte, err error) {
+// Marshal marshals the RegisterCandidateContent to a binary representation of it.
+func (sc *RegisterCandidateContent) Marshal() (data []byte, err error) {
 
 	var w bytes.Buffer
 	if err := util.WriteVarBytes(&w, sc.addr[:]); err != nil {
@@ -26,8 +26,8 @@ func (sc *SignUpContent) Marshal() (data []byte, err error) {
 	return w.Bytes(), nil
 }
 
-// Unmarshal unmarshals SignUpContent from binary data.
-func (sc *SignUpContent) Unmarshal(data []byte) error {
+// Unmarshal unmarshals RegisterCandidateContent from binary data.
+func (sc *RegisterCandidateContent) Unmarshal(data []byte) error {
 
 	var r = bytes.NewBuffer(data)
 	varbytes, err := util.ReadVarBytes(r)
@@ -39,8 +39,8 @@ func (sc *SignUpContent) Unmarshal(data []byte) error {
 	return nil
 }
 
-// Addr returns addr in signUpContent.
-func (sc *SignUpContent) Addr() AddressHash {
+// Addr returns addr in registerCandidateContent.
+func (sc *RegisterCandidateContent) Addr() AddressHash {
 	return sc.addr
 }
 

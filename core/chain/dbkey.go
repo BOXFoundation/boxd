@@ -20,6 +20,9 @@ const (
 	// BlockTableName is the table name of db to store block chain data
 	BlockTableName = "core"
 
+	// WalletTableName is the table name of db to store wallet data
+	WalletTableName = "wl"
+
 	// Tail is the db key name of tail block
 	Tail = "/tail"
 
@@ -70,6 +73,14 @@ const (
 	FilterPrefix = "/bf"
 	// SplitAddressPrefix is the key prefix of split address
 	SplitAddressPrefix = "/sap"
+
+	// AddressUtxoPrefix is the key prefix of database key to store address related utxo
+	AddressUtxoPrefix = "/aut"
+
+	// AddrBalancePrefix is the key prefix of database key to store address box balance
+	AddrBalancePrefix = "/bal"
+	// AddrTokenBalancePrefix is the key prefix of database key to store address token balance
+	AddrTokenBalancePrefix = "/tbal"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -79,6 +90,9 @@ var utxoBase = key.NewKey(UtxoPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
 var filterBase = key.NewKey(FilterPrefix)
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
+var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
+var addrBalanceBase = key.NewKey(AddrBalancePrefix)
+var addrTokenBalanceBase = key.NewKey(AddrTokenBalancePrefix)
 
 // TailKey is the db key to stoare tail block content
 var TailKey = []byte(Tail)
@@ -130,4 +144,32 @@ func FilterKey(hash crypto.HashType) []byte {
 // SplitAddrKey returns the db key to store split address
 func SplitAddrKey(hash []byte) []byte {
 	return splitAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
+}
+
+// AddrUtxoKey is the key to store an utxo which belongs to the input param address
+func AddrUtxoKey(addr string, op types.OutPoint) []byte {
+	return addrUtxoBase.
+		ChildString(addr).
+		ChildString(op.Hash.String()).
+		ChildString(fmt.Sprintf("%x", op.Index)).
+		Bytes()
+}
+
+// AddrAllUtxoKey is the key prefix to explore all utxos of an address
+func AddrAllUtxoKey(addr string) []byte {
+	return addrUtxoBase.ChildString(addr).Bytes()
+}
+
+// AddrBalanceKey is the key to store an address's balance
+func AddrBalanceKey(addr string) []byte {
+	return addrBalanceBase.ChildString(addr).Bytes()
+}
+
+// AddrTokenBalanceKey is the key to store an address's token balance
+func AddrTokenBalanceKey(addr string, token types.OutPoint) []byte {
+	return addrTokenBalanceBase.
+		ChildString(addr).
+		ChildString(token.Hash.String()).
+		ChildString(fmt.Sprintf("%x", token.Index)).
+		Bytes()
 }

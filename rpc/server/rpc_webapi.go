@@ -8,19 +8,24 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/BOXFoundation/boxd/util"
-
-	"github.com/BOXFoundation/boxd/script"
-
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/util"
 	"golang.org/x/net/context"
 )
 
+const (
+	newBlockMsgChSize = 512
+)
+
 func registerWebapi(s *Server) {
-	rpcpb.RegisterWebApiServer(s.server, &webapiServer{server: s})
+	was := newWebAPIServer(s)
+	rpcpb.RegisterWebApiServer(s.server, was)
+	s.eventBus.Subscribe(eventbus.TopicRPCSendNewBlock, was.receiveNewBlockMsg)
 }
 
 func init() {
@@ -32,11 +37,27 @@ func init() {
 }
 
 type webapiServer struct {
-	server GRPCServer
+	GRPCServer
+	newBlockMsgCh chan *types.Block
+}
+
+func newWebAPIServer(s *Server) *webapiServer {
+	return &webapiServer{
+		GRPCServer:    s,
+		newBlockMsgCh: make(chan *types.Block, newBlockMsgChSize),
+	}
+}
+
+func (s *webapiServer) receiveNewBlockMsg(msg *types.Block) {
+	select {
+	case s.newBlockMsgCh <- msg:
+	default:
+		logger.Warnf("webapiServer newBlockMsgCh size is full(%d)", len(s.newBlockMsgCh))
+	}
 }
 
 func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequest) (*rpcpb.ListTokensResponse, error) {
-	tokenIssueTransactions, headers, err := s.server.GetChainReader().ListTokenIssueTransactions()
+	tokenIssueTransactions, headers, err := s.GetChainReader().ListTokenIssueTransactions()
 	if err != nil {
 		return nil, err
 	}
@@ -102,11 +123,11 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 	if err := tokenAddr.SetString(req.Addr); err != nil {
 		return nil, err
 	}
-	tx, err := s.server.GetChainReader().LoadTxByHash(tokenAddr.OutPoint().Hash)
+	tx, err := s.GetChainReader().LoadTxByHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
-	block, _, err := s.server.GetChainReader().LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
+	block, _, err := s.GetChainReader().LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +165,7 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 }
 
 func (s *webapiServer) GetTokenHolders(ctx context.Context, req *rpcpb.GetTokenHoldersRequest) (*rpcpb.GetTokenHoldersResponse, error) {
-	utxos, err := s.server.GetChainReader().ListAllUtxos()
+	utxos, err := s.GetChainReader().ListAllUtxos()
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +211,7 @@ func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetT
 		return nil, err
 	}
 	tokenID := &script.TokenID{OutPoint: tokenAddr.OutPoint()}
-	allTxs, err := s.server.GetChainReader().GetTokenTransactions(tokenID)
+	allTxs, err := s.GetChainReader().GetTokenTransactions(tokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +248,7 @@ func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetT
 }
 
 func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.GetPendingTransactionRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	txs, addedTime := s.server.GetTxHandler().GetTransactionsInPool()
+	txs, addedTime := s.GetTxHandler().GetTransactionsInPool()
 	var txInRange []*types.Transaction
 	if len(txs) <= int(req.Offset) {
 		txInRange = []*types.Transaction{}
@@ -370,7 +391,7 @@ func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.Get
 	if err := addr.SetString(req.Addr); err != nil {
 		return nil, err
 	}
-	txs, err := s.server.GetChainReader().GetTransactionsByAddr(addr)
+	txs, err := s.GetChainReader().GetTransactionsByAddr(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +421,7 @@ func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.Get
 }
 
 func (s *webapiServer) GetTopHolders(ctx context.Context, req *rpcpb.GetTopHoldersRequest) (*rpcpb.GetTopHoldersResponse, error) {
-	utxos, err := s.server.GetChainReader().ListAllUtxos()
+	utxos, err := s.GetChainReader().ListAllUtxos()
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +450,7 @@ func (s *webapiServer) GetTopHolders(ctx context.Context, req *rpcpb.GetTopHolde
 }
 
 func (s *webapiServer) GetHolderCount(context.Context, *rpcpb.GetHolderCountRequest) (*rpcpb.GetHolderCountResponse, error) {
-	utxos, err := s.server.GetChainReader().ListAllUtxos()
+	utxos, err := s.GetChainReader().ListAllUtxos()
 	if err != nil {
 		return nil, err
 	}
@@ -442,8 +463,8 @@ func (s *webapiServer) GetTransaction(ctx context.Context, req *rpcpb.GetTransac
 	if err := hash.SetString(req.Hash); err != nil {
 		return nil, err
 	}
-	block, index, err := s.server.GetChainReader().LoadBlockInfoByTxHash(*hash)
-	//tx, err := s.server.GetChainReader().LoadTxByHash(*hash)
+	block, index, err := s.GetChainReader().LoadBlockInfoByTxHash(*hash)
+	//tx, err := s.GetChainReader().LoadTxByHash(*hash)
 	if err != nil {
 		return nil, err
 	}
@@ -471,8 +492,8 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 		return nil, err
 	}
 
-	eternalBlock, err := s.server.GetChainReader().LoadEternalBlock()
-	block, err := s.server.GetChainReader().LoadBlockByHash(*hash)
+	eternalBlock, err := s.GetChainReader().LoadEternalBlock()
+	block, err := s.GetChainReader().LoadBlockByHash(*hash)
 	if err != nil {
 		return nil, err
 	}
@@ -482,6 +503,31 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 		return nil, err
 	}
 	return blockInfo, nil
+}
+
+func (s *webapiServer) ListenAndReadNewBlock(
+	req *rpcpb.ListenBlockRequest,
+	stream rpcpb.WebApi_ListenAndReadNewBlockServer,
+) error {
+	for {
+		var block *types.Block
+		select {
+		case <-s.Proc().Closing():
+			logger.Info("exit ListenAndReadNewBlock ...")
+			return nil
+		case block = <-s.newBlockMsgCh:
+			logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
+				block.BlockHash().String(), block.Height)
+		}
+		msg, err := block.ToProtoMessage()
+		if err != nil {
+			return err
+		}
+		pbBlock, _ := msg.(*corepb.Block)
+		stream.Send(pbBlock)
+		logger.Debugf("webapiServer sent a block, previous hash: %s, height: %d",
+			pbBlock.GetHeader().GetPrevBlockHash(), pbBlock.Height)
+	}
 }
 
 func (s *webapiServer) countAddresses(utxos map[types.OutPoint]*types.UtxoWrap) uint32 {
@@ -586,7 +632,7 @@ func (s *webapiServer) loadUsedUtxoForTx(memUtxoSource map[types.OutPoint]*types
 		final[k] = v
 	}
 	for _, tx := range txs {
-		if s.server.GetChainReader().IsCoinBase(tx) {
+		if s.GetChainReader().IsCoinBase(tx) {
 			continue
 		}
 		for _, txIn := range tx.Vin {
@@ -596,7 +642,7 @@ func (s *webapiServer) loadUsedUtxoForTx(memUtxoSource map[types.OutPoint]*types
 			missing = append(missing, txIn.PrevOutPoint)
 		}
 	}
-	stored, err := s.server.GetChainReader().LoadSpentUtxos(missing)
+	stored, err := s.GetChainReader().LoadSpentUtxos(missing)
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +676,7 @@ func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoi
 	}
 	var missing []types.OutPoint
 	for _, tx := range txs {
-		if s.server.GetChainReader().IsCoinBase(tx) {
+		if s.GetChainReader().IsCoinBase(tx) {
 			continue
 		}
 		for _, txIn := range tx.Vin {
@@ -640,7 +686,7 @@ func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoi
 			missing = append(missing, txIn.PrevOutPoint)
 		}
 	}
-	stored, err := s.server.GetChainReader().LoadSpentUtxos(missing)
+	stored, err := s.GetChainReader().LoadSpentUtxos(missing)
 	if err != nil {
 		return nil, err
 	}
@@ -694,7 +740,7 @@ func (s *webapiServer) convertTransaction(tx *types.Transaction, utxos map[types
 			Hash:  i.PrevOutPoint.Hash.String(),
 			Index: i.PrevOutPoint.Index,
 		}
-		if !s.server.GetChainReader().IsCoinBase(tx) {
+		if !s.GetChainReader().IsCoinBase(tx) {
 			utxo, ok := utxos[i.PrevOutPoint]
 			if !ok {
 				return nil, fmt.Errorf("previous input not found %v", i.PrevOutPoint)
@@ -724,7 +770,7 @@ func (s *webapiServer) convertTransaction(tx *types.Transaction, utxos map[types
 	for _, o := range tx.Vout {
 		totalOut += o.Value
 	}
-	if s.server.GetChainReader().IsCoinBase(tx) {
+	if s.GetChainReader().IsCoinBase(tx) {
 		fee = 0
 	} else {
 		fee = totalIn - totalOut

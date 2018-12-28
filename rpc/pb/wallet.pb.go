@@ -91,7 +91,7 @@ type ListTransactionsResponse struct {
 	Code         int32             `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message      string            `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Count        uint32            `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
-	Transactions []*pb.Transaction `protobuf:"bytes,4,rep,name=transactions" json:"transactions,omitempty"`
+	Transactions []*pb.Transaction `protobuf:"bytes,4,rep,name=transactions,proto3" json:"transactions,omitempty"`
 }
 
 func (m *ListTransactionsResponse) Reset()         { *m = ListTransactionsResponse{} }

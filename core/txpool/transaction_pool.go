@@ -212,26 +212,31 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 
 	// Perform preliminary sanity checks on the transaction.
 	if err := chain.ValidateTransactionPreliminary(tx); err != nil {
-		logger.Debugf("Tx %v fails sanity check: %v", txHash.String(), err)
+		logger.Errorf("Tx %v fails sanity check: %v", txHash.String(), err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
 	if chain.IsCoinBase(tx) {
-		logger.Debugf("Tx %v is an individual coinbase", txHash.String())
+		logger.Errorf("Tx %v is an individual coinbase", txHash.String())
 		return core.ErrCoinbaseTx
 	}
 
 	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
-		logger.Debugf("Tx %v is not standard: %v", txHash.String(), err)
+		logger.Errorf("Tx %v is not standard: %v", txHash.String(), err)
 		return core.ErrNonStandardTransaction
+	}
+
+	if err := tx_pool.checkRegisterOrVoteTx(tx); err != nil {
+		logger.Errorf("Tx %v is a invalid Register or Vote tx. Err: %v", txHash.String(), err)
+		return err
 	}
 
 	// Quickly detects if the tx double spends with any transaction in the pool.
 	// Double spending with the main chain txs will be checked in ValidateTxInputs.
 	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
-		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
+		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
 		return err
 	}
 
@@ -320,6 +325,63 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
 	// TODO:
 	return nil
+}
+
+func (tx_pool *TransactionPool) checkRegisterOrVoteTx(tx *types.Transaction) error {
+	if tx.Data == nil {
+		return nil
+	}
+	content := tx.Data.Content
+	switch int(tx.Data.Type) {
+	case types.RegisterCandidateTx:
+		registerCandidateContent := new(types.RegisterCandidateContent)
+		if err := registerCandidateContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if tx_pool.chain.Consensus().IsCandidateExist(registerCandidateContent.Addr()) {
+			return core.ErrCandidateIsAlreadyExist
+		}
+		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
+			return core.ErrInvalidRegisterCandidateOrVoteTx
+		}
+	case types.VoteTx:
+		votesContent := new(types.VoteContent)
+		if err := votesContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if !tx_pool.chain.Consensus().IsCandidateExist(votesContent.Addr()) {
+			return core.ErrCandidateNotFound
+		}
+		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
+			return core.ErrInvalidRegisterCandidateOrVoteTx
+		}
+	}
+
+	return nil
+}
+
+func (tx_pool *TransactionPool) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
+	for _, vout := range tx.Vout {
+		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
+		if scriptPubKey.IsRegisterCandidateScript(chain.CalcCandidatePledgeHeight(int64(tx_pool.chain.TailBlock().Height))) {
+			if tx.Data.Type == types.RegisterCandidateTx {
+				if vout.Value >= chain.CandidatePledge {
+					return true
+				}
+			} else if tx.Data.Type == types.VoteTx {
+				if vout.Value >= chain.MinNumOfVotes {
+					votesContent := new(types.VoteContent)
+					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
+						return false
+					}
+					if votesContent.Votes() == int64(vout.Value) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {

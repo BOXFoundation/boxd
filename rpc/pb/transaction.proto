@@ -134,3 +134,34 @@ message GetFeePriceRequest{
 message GetFeePriceResponse {
     uint64 box_per_byte = 1;
 }
+
+message CreateTransactionRequest {
+    repeated TransactionParam tx_params = 1;
+}
+
+message CreateTransactionResponse {
+    repeated corepb.Transaction txs = 1;
+}
+
+message TransactionParam {
+    string from_addr = 1;
+    oneof param {
+        TransferBoxTarget box_target = 2;
+        TransferTokenTarget token_target = 3;
+        SplitAddrInfo split_addr = 4;
+    }
+}
+
+message TransferBoxTarget {
+    uint64 amount = 1;
+}
+
+message TransferTokenTarget {
+    uint64 amount = 1;
+    corepb.OutPoint token = 2;
+}
+
+message SplitAddrInfo {
+    repeated string addrs = 1;
+    repeated uint64 weights = 2;
+}

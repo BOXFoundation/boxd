@@ -52,6 +52,7 @@ type Server struct {
 
 	ChainReader service.ChainReader
 	TxHandler   service.TxHandler
+	WalletAgent service.WalletAgent
 	eventBus    eventbus.Bus
 	server      *grpc.Server
 	gRPCProc    goprocess.Process
@@ -92,21 +93,26 @@ func RegisterServiceWithGatewayHandler(name string, s Service, h GatewayHandler)
 type GRPCServer interface {
 	GetChainReader() service.ChainReader
 	GetTxHandler() service.TxHandler
+	GetWalletAgent() service.WalletAgent
 	GetEventBus() eventbus.Bus
+	Proc() goprocess.Process
 	Stop()
 }
 
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, txh service.TxHandler, bus eventbus.Bus) (*Server, error) {
+func NewServer(parent goprocess.Process, cfg *Config,
+	cr service.ChainReader, txh service.TxHandler,
+	wa service.WalletAgent, bus eventbus.Bus) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
 		TxHandler:   txh,
 		eventBus:    bus,
+		WalletAgent: wa,
 		gRPCProc:    goprocess.WithParent(parent),
 	}
 
-	return server, nil
+	return server
 }
 
 // implement interface service.Server
@@ -137,6 +143,11 @@ func (s *Server) GetChainReader() service.ChainReader {
 // GetTxHandler returns a handler to deal with transactions
 func (s *Server) GetTxHandler() service.TxHandler {
 	return s.TxHandler
+}
+
+// GetWalletAgent returns the wallet related service handler
+func (s *Server) GetWalletAgent() service.WalletAgent {
+	return s.WalletAgent
 }
 
 // GetEventBus returns a interface to publish events

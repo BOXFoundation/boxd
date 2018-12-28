@@ -79,6 +79,7 @@ service WebApi {
         };
     }
 
+    rpc ListenAndReadNewBlock(ListenBlockRequest) returns (stream corepb.Block);
 }
 
 message GetTransactionsInfoResponse {
@@ -257,4 +258,7 @@ message GetTokenHoldersResponse {
     string addr = 1;
     uint32 count = 2;
     repeated AddressAmount data = 3;
+}
+
+message ListenBlockRequest {
 }

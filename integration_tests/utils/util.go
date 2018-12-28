@@ -100,8 +100,8 @@ func StopLocalNodes(processes ...*os.Process) error {
 	return nil
 }
 
-// StartNodes start nodes
-func StartNodes() error {
+// StartDockerNodes start nodes
+func StartDockerNodes() error {
 	cmd := exec.Command("docker-compose", "-f", dockerComposeFile, "up",
 		"--force-recreate", "-d")
 	logger.Infof("exec: docker-compose -f %s up --force-recreate -d",

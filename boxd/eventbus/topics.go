@@ -44,10 +44,15 @@ const (
 	// TopicBlacklistTxConfirmResult is topic for confirmed result
 	TopicBlacklistTxConfirmResult = "chain:blacklisttxresult"
 
+	// TopicUtxoUpdate is topic for notifying that chain utxo is changed
+	TopicUtxoUpdate = "chain:utxoupdate"
+
 	////////////////////////////// db /////////////////////////////
 
 	// TopicGetDatabaseKeys is topic for get keys of a specified storage
 	TopicGetDatabaseKeys = "rpc:database:keys"
 	// TopicGetDatabaseValue is topic for get value of specified key
 	TopicGetDatabaseValue = "rpc:database:get"
+	// TopicRPCSendNewBlock is topic for sending new block to explorer
+	TopicRPCSendNewBlock = "rpc:newblock:send"
 )

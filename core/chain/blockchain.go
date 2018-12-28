@@ -44,7 +44,7 @@ const (
 	MaxBlockSize         = 32000000
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
-	PeriodDuration       = 3600 * 24 * 100 / 5
+	PeriodDuration       = 21 * 5 * 10000
 
 	MaxBlocksPerSync = 1024
 
@@ -69,7 +69,7 @@ type BlockChain struct {
 	eternal                   *types.Block
 	proc                      goprocess.Process
 	LongestChainHeight        uint32
-	cache                     *lru.Cache
+	blockcache                *lru.Cache
 	repeatedMintCache         *lru.Cache
 	heightToBlock             *lru.Cache
 	hashToSplitAddr           *lru.Cache
@@ -103,7 +103,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 
 	var err error
-	b.cache, _ = lru.New(512)
+	b.blockcache, _ = lru.New(512)
 	b.repeatedMintCache, _ = lru.New(512)
 	b.heightToBlock, _ = lru.New(512)
 	b.hashToSplitAddr, _ = lru.New(512)
@@ -154,6 +154,11 @@ func (chain *BlockChain) Run() error {
 	return nil
 }
 
+// Consensus return chain consensus.
+func (chain *BlockChain) Consensus() types.Consensus {
+	return chain.consensus
+}
+
 // DB return chain db storage.
 func (chain *BlockChain) DB() storage.Table {
 	return chain.db
@@ -198,7 +203,7 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 		case <-metricsTicker.C:
 			metrics.MetricsCachedBlockMsgGauge.Update(int64(len(chain.newblockMsgCh)))
 			metrics.MetricsBlockOrphanPoolSizeGauge.Update(int64(len(chain.hashToOrphanBlock)))
-			metrics.MetricsLruCacheBlockGauge.Update(int64(chain.cache.Len()))
+			metrics.MetricsLruCacheBlockGauge.Update(int64(chain.blockcache.Len()))
 			metrics.MetricsTailBlockTxsSizeGauge.Update(int64(len(chain.tail.Txs)))
 		case <-p.Closing():
 			logger.Info("Quit blockchain loop.")
@@ -268,6 +273,10 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	blockHash := block.BlockHash()
 	logger.Infof("Prepare to process block. Hash: %s, Height: %d", blockHash.String(), block.Height)
 
+	if err := chain.consensus.VerifyCandidates(block); err != nil {
+		return core.ErrFailedToVerifyWithCandidates
+	}
+
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.verifyExists(*blockHash); exists {
 		logger.Warnf("The block already exists. Hash: %s, Height: %d", blockHash.String(), block.Height)
@@ -325,6 +334,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		go chain.consensus.TryToUpdateEternalBlock(block)
 	}
 
+	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
+
 	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
 	return nil
 }
@@ -334,7 +345,7 @@ func (chain *BlockChain) verifyExists(blockHash crypto.HashType) bool {
 }
 
 func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
-	if chain.cache.Contains(blockHash) {
+	if chain.blockcache.Contains(blockHash) {
 		return true
 	}
 	if block, _ := chain.LoadBlockByHash(blockHash); block != nil {
@@ -354,7 +365,7 @@ func (chain *BlockChain) isInOrphanPool(blockHash crypto.HashType) bool {
 func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
-	parentBlock := chain.getParentBlock(block)
+	parentBlock := chain.GetParentBlock(block)
 	if parentBlock == nil {
 		return core.ErrParentBlockNotExist
 	}
@@ -371,7 +382,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 		return core.ErrWrongBlockHeight
 	}
 
-	chain.cache.Add(*blockHash, block)
+	chain.blockcache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
 	// There are 3 cases.
@@ -400,13 +411,19 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 		return err
 	}
 
-	// This block is now the end of the best chain.
-	if err := chain.SetTailBlock(block, batch); err != nil {
-		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+	// save current tail to database
+	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
 	}
 
-	return batch.Write()
+	if err := batch.Write(); err != nil {
+		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+	}
+
+	// This block is now the end of the best chain.
+	chain.ChangeNewTail(block)
+
+	return nil
 }
 
 func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
@@ -446,14 +463,14 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 	return nil
 }
 
-// Finds the parent of a block. Return nil if nonexistent
-func (chain *BlockChain) getParentBlock(block *types.Block) *types.Block {
+// GetParentBlock Finds the parent of a block. Return nil if nonexistent
+func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 
 	// check for genesis.
 	if block.Header.PrevBlockHash.IsEqual(chain.genesis.BlockHash()) {
 		return chain.genesis
 	}
-	if target, ok := chain.cache.Get(block.Header.PrevBlockHash); ok {
+	if target, ok := chain.blockcache.Get(block.Header.PrevBlockHash); ok {
 		return target.(*types.Block)
 	}
 	target, err := chain.LoadBlockByHash(block.Header.PrevBlockHash)
@@ -511,12 +528,24 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch st
 	if err := chain.applyBlock(block, utxoSet, batch); err != nil {
 		return err
 	}
-	if err := chain.SetTailBlock(block, batch); err != nil {
-		logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+	// if err := chain.SetTailBlock(block, batch); err != nil {
+	// 	logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+	// 	return err
+	// }
+	// save current tail to database
+	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
 	}
 
-	return batch.Write()
+	if err := batch.Write(); err != nil {
+		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
+			block.BlockHash().String(), block.Height, err.Error())
+	}
+
+	// This block is now the end of the best chain.
+	chain.ChangeNewTail(block)
+
+	return nil
 }
 
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
@@ -536,7 +565,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 			logger.Panicf("Block on side chain shall not be nil before reaching main chain height during reorg")
 		}
 		attachBlocks = append(attachBlocks, sideChainBlock)
-		sideChainBlock = chain.getParentBlock(sideChainBlock)
+		sideChainBlock = chain.GetParentBlock(sideChainBlock)
 	}
 
 	// Compare two blocks at the same height till they are identical: the fork point
@@ -553,7 +582,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 		}
 		detachBlocks = append(detachBlocks, mainChainBlock)
 		attachBlocks = append(attachBlocks, sideChainBlock)
-		mainChainBlock, sideChainBlock = chain.getParentBlock(mainChainBlock), chain.getParentBlock(sideChainBlock)
+		mainChainBlock, sideChainBlock = chain.GetParentBlock(mainChainBlock), chain.GetParentBlock(sideChainBlock)
 	}
 	if !found {
 		logger.Panicf("Fork point not found, but main chain and side chain share at least one common block, i.e., genesis")
@@ -598,6 +627,7 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 		return err
 	}
 
+	chain.notifyUtxoChange(utxoSet)
 	return chain.notifyBlockConnectionUpdate(block, false)
 }
 
@@ -635,7 +665,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 	}
 
 	// save candidate context
-	if err := chain.consensus.StoreCandidateContext(block.BlockHash(), batch); err != nil {
+	if err := chain.consensus.StoreCandidateContext(block, batch); err != nil {
 		return err
 	}
 
@@ -650,6 +680,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 		return err
 	}
 
+	chain.notifyUtxoChange(utxoSet)
+
 	return chain.notifyBlockConnectionUpdate(block, true)
 }
 
@@ -659,6 +691,10 @@ func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connect
 		Block:     block,
 	})
 	return nil
+}
+
+func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
+	chain.bus.Publish(eventbus.TopicUtxoUpdate, utxoSet)
 }
 
 func (chain *BlockChain) reorganize(block *types.Block, batch storage.Batch) error {
@@ -841,14 +877,12 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 	return block.BlockHash(), nil
 }
 
-// SetTailBlock sets chain tail block.
-func (chain *BlockChain) SetTailBlock(tail *types.Block, batch storage.Batch) error {
+// ChangeNewTail change chain tail block.
+func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 
-	// save current tail to database
-	if err := chain.StoreTailBlock(tail, batch); err != nil {
-		return err
+	if err := chain.consensus.UpdateCandidateContext(tail); err != nil {
+		panic("Failed to update candidate context")
 	}
-
 	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
 	// chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Height
@@ -857,7 +891,6 @@ func (chain *BlockChain) SetTailBlock(tail *types.Block, batch storage.Batch) er
 
 	metrics.MetricsBlockHeightGauge.Update(int64(tail.Height))
 	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))
-	return nil
 }
 
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
@@ -895,6 +928,9 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		}
 	}
 	utxoSet.WriteUtxoSetToDB(batch)
+	if err := chain.WriteTxIndex(&genesis, batch); err != nil {
+		return nil, err
+	}
 	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
 	if err := batch.Write(); err != nil {
 		return nil, err
@@ -1373,7 +1409,11 @@ func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) {
 func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	// return the output itself if it cannot be split
 	txOuts := []*corepb.TxOut{txOut}
-	addr, err := script.NewScriptFromBytes(txOut.ScriptPubKey).ExtractAddress()
+	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+	if !sc.IsPayToPubKeyHash() {
+		return txOuts
+	}
+	addr, err := sc.ExtractAddress()
 	if err != nil {
 		logger.Debugf("Tx output does not contain a valid address")
 		return txOuts

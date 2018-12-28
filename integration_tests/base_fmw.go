@@ -16,7 +16,7 @@ import (
 )
 
 // HandleFunc defines handler func
-type HandleFunc func(addrs []string, idx *int)
+type HandleFunc func(addrs []string, idx *int) bool
 
 // BaseFmw define a base test framework
 type BaseFmw struct {
@@ -66,7 +66,7 @@ func (b *BaseFmw) Run(handle HandleFunc) {
 	wg.Wait()
 	name := runtime.FuncForPC(reflect.ValueOf(handle).Pointer()).Name()
 	//name[strings.LastIndexByte(name, '/')+1:]
-	logger.Warnf("done %s", name)
+	logger.Infof("done %s", name)
 }
 
 func (b *BaseFmw) doTest(index int, handle HandleFunc) {
@@ -91,7 +91,9 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 			return
 		default:
 		}
-		handle(addrs, &idx)
+		if handle(addrs, &idx) {
+			break
+		}
 		if scopeValue(*scope) == basicScope {
 			break
 		}
