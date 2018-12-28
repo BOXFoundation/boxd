@@ -27,7 +27,7 @@ type p2pkhFilter struct {
 
 func (*p2pkhFilter) accept(scriptBytes []byte) bool {
 	sc := *script.NewScriptFromBytes(scriptBytes)
-	if sc != nil && sc.IsPayToPubKeyHash() {
+	if sc != nil && (sc.IsPayToPubKeyHash() || sc.IsTokenIssue() || sc.IsTokenTransfer()) {
 		return true
 	}
 	return false
