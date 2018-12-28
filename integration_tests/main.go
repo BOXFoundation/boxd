@@ -20,8 +20,6 @@ import (
 type scopeValue string
 
 const (
-	peerCnt = 6
-
 	basicScope    scopeValue = "basic"
 	mainScope     scopeValue = "main"
 	fullScope     scopeValue = "full"
@@ -31,9 +29,6 @@ const (
 var logger = log.NewLogger("integration") // logger
 
 var (
-	//minConsensusBlocks = 5*(peerCnt-1) + 1 // 5 is block count one peer gen once
-	minConsensusBlocks = 26
-
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
 	peersAddr  []string
@@ -46,9 +41,12 @@ var (
 
 func init() {
 	rand.Seed(time.Now().Unix())
-	// get addresses of three miners
-	files := make([]string, peerCnt)
-	for i := 0; i < peerCnt; i++ {
+}
+
+func initMinerAcc() {
+	minerCnt := len(utils.MinerAddrs())
+	files := make([]string, minerCnt)
+	for i := 0; i < minerCnt; i++ {
 		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
 	}
 	minerAddrs, minerAccs = utils.MinerAccounts(files...)
@@ -68,21 +66,25 @@ func main() {
 	if err := utils.LoadConf(); err != nil {
 		logger.Panic(err)
 	}
+	initMinerAcc()
+	initMinerPicker(len(minerAddrs))
+	peersAddr = utils.PeerAddrs()
+
 	if *utils.NewNodes {
 		// prepare environment and clean history data
-		if err := utils.PrepareEnv(peerCnt); err != nil {
+		if err := utils.PrepareEnv(len(minerAddrs)); err != nil {
 			logger.Panic(err)
 		}
-		//defer utils.TearDown(peerCnt)
+		//defer utils.TearDown(len(minerAddrs))
 
 		// start nodes
 		if *utils.EnableDocker {
-			if err := utils.StartNodes(); err != nil {
+			if err := utils.StartDockerNodes(); err != nil {
 				logger.Panic(err)
 			}
 			defer utils.StopNodes()
 		} else {
-			processes, err := utils.StartLocalNodes(peerCnt)
+			processes, err := utils.StartLocalNodes(len(minerAddrs))
 			defer utils.StopLocalNodes(processes...)
 			if err != nil {
 				logger.Panic(err)
@@ -90,37 +92,16 @@ func main() {
 		}
 		time.Sleep(3 * time.Second) // wait for 3s to let boxd started
 	}
-	peersAddr = utils.PeerAddrs()
-
-	// start test
-	timeout := blockTime * time.Duration(minConsensusBlocks+10)
-	logger.Infof("wait for block height of all nodes reach %d, timeout %v",
-		minConsensusBlocks, timeout)
-	if err := utils.WaitAllNodesHeightHigher(peersAddr, minConsensusBlocks,
-		timeout); err != nil {
-		logger.Panic(err)
-	}
 
 	// print tx count per TickerDurationTxs
 	go CountGlobalTxs()
 
 	var wg sync.WaitGroup
-	testItems := 3
-	errChans := make(chan error, testItems)
+	testCnt := 3
+	errChans := make(chan error, testCnt)
 
-	// test tx
-	if utils.TxTestEnable() {
-		runItem(&wg, errChans, txTest)
-	}
-
-	// test token
-	if utils.TokenTestEnable() {
-		runItem(&wg, errChans, tokenTest)
-	}
-
-	// test split address
-	if false {
-		runItem(&wg, errChans, splitAddrTest)
+	for _, f := range testItems() {
+		runItem(&wg, errChans, f)
 	}
 
 	wg.Wait()
@@ -135,5 +116,24 @@ func main() {
 		// use panic to exit since it need to execute defer clause above
 		logger.Panicf("integration tests exits with %d errors", len(utils.ErrItems))
 	}
-	logger.Info("All test cases passed, great job!")
+	logger.Info("\r\n\n====>> CONGRATULATION! All CASES PASSED, GREATE JOB! <<====\n\n\r")
+}
+
+func testItems() []func() {
+	var items []func()
+	// test tx
+	if utils.TxTestEnable() {
+		items = append(items, txTest)
+	}
+
+	// test token
+	if utils.TokenTestEnable() {
+		items = append(items, tokenTest)
+	}
+
+	// test split address
+	if utils.SplitAddrTestEnable() {
+		items = append(items, splitAddrTest)
+	}
+	return items
 }

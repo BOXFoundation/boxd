@@ -9,16 +9,18 @@ import "errors"
 // Define err message
 var (
 	// dpos
-	ErrNoLegalPowerToMint     = errors.New("No legal power to mint")
-	ErrNotMyTurnToMint        = errors.New("Not my turn to mint")
-	ErrWrongTimeToMint        = errors.New("Wrong time to mint")
-	ErrNotFoundMiner          = errors.New("Failed to find miner")
-	ErrDuplicateSignUpTx      = errors.New("Duplicate sign up tx")
-	ErrCandidateNotFound      = errors.New("Candidate not found")
-	ErrRepeatedMintAtSameTime = errors.New("Repeated mint at same time")
-	ErrFailedToVerifySign     = errors.New("Failed to verify sign block")
-	ErrNotMintPeer            = errors.New("Invalid mint peer")
-	ErrInvalidMinerEpoch      = errors.New("Invalid miner epoch")
+	ErrNoLegalPowerToMint            = errors.New("No legal power to mint")
+	ErrNotMyTurnToMint               = errors.New("Not my turn to mint")
+	ErrWrongTimeToMint               = errors.New("Wrong time to mint")
+	ErrNotFoundMiner                 = errors.New("Failed to find miner")
+	ErrDuplicateSignUpTx             = errors.New("Duplicate sign up tx")
+	ErrCandidateNotFound             = errors.New("Candidate not found")
+	ErrRepeatedMintAtSameTime        = errors.New("Repeated mint at same time")
+	ErrFailedToVerifySign            = errors.New("Failed to verify sign block")
+	ErrNotMintPeer                   = errors.New("Invalid mint peer")
+	ErrInvalidMinerEpoch             = errors.New("Invalid miner epoch")
+	ErrInvalidCandidateHash          = errors.New("Invalid candidate hash")
+	ErrFailedToStoreCandidateContext = errors.New("Failed to store candidate context")
 
 	// context
 	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")

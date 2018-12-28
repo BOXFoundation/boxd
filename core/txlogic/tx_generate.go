@@ -254,7 +254,7 @@ func generateTx(fromAddr types.Address, utxos map[types.OutPoint]*types.UtxoWrap
 				Index: op.Index,
 			},
 			ScriptSig: []byte{},
-			Sequence:  uint32(i),
+			Sequence:  0,
 		}
 		tokenInfo, amount := extractTokenInfo(op, wrap)
 		if tokenInfo != nil && amount > 0 {

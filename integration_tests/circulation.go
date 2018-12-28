@@ -6,6 +6,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,16 +36,30 @@ func NewCirculation(accCnt, partLen int, collAddrCh chan<- string,
 }
 
 // HandleFunc hooks test func
-func (c *Circulation) HandleFunc(addrs []string, idx *int) {
+func (c *Circulation) HandleFunc(addrs []string, idx *int) (exit bool) {
 	*idx = *idx % len(addrs)
-	c.collAddrCh <- addrs[*idx]
-	toIdx := (*idx + 1) % len(addrs)
-	toAddr := addrs[toIdx]
-	*idx = toIdx
-	if cirInfo, ok := <-c.cirInfoCh; ok {
-		logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-		txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
+
+	quitCh := make(chan os.Signal, 1)
+	signal.Notify(quitCh, os.Interrupt, os.Kill)
+
+	select {
+	case c.collAddrCh <- addrs[*idx]:
+		toIdx := (*idx + 1) % len(addrs)
+		toAddr := addrs[toIdx]
+		*idx = toIdx
+		select {
+		case cirInfo, ok := <-c.cirInfoCh:
+			if ok {
+				logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
+				txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
+				return false
+			}
+		}
+	case s := <-quitCh:
+		logger.Infof("receive quit signal %v, quiting HandleFunc!", s)
+		return true
 	}
+	return
 }
 
 func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *uint64) {
