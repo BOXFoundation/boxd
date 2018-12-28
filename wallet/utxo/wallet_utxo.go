@@ -169,11 +169,8 @@ func (wu *WalletUtxo) Save() error {
 			return err
 		}
 	}
-	if err := balanceBatch.Write(); err != nil {
-		return err
-	}
 
-	return nil
+	return balanceBatch.Write()
 }
 
 func (wu *WalletUtxo) updateBalanceFromUtxo(addr types.Address, batch storage.Batch) error {
@@ -187,10 +184,8 @@ func (wu *WalletUtxo) updateBalanceFromUtxo(addr types.Address, batch storage.Ba
 			balance += u.Output.Value
 		}
 	}
-	if err := wu.saveBalanceToDB(addr, balance, batch); err != nil {
-		return err
-	}
-	return nil
+
+	return wu.saveBalanceToDB(addr, balance, batch)
 }
 
 // ClearSaved removes all utxos

@@ -354,7 +354,13 @@ func (tx_pool *TransactionPool) checkRegisterCandidateOrVoteTx(tx *types.Transac
 				}
 			} else if tx.Data.Type == types.VoteTx {
 				if vout.Value >= chain.MinNumOfVotes {
-					return true
+					votesContent := new(types.VoteContent)
+					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
+						return false
+					}
+					if votesContent.Votes() == int64(vout.Value) {
+						return true
+					}
 				}
 			}
 		}
