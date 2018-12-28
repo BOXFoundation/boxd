@@ -55,6 +55,7 @@ func setupWebAPIMockSvr() {
 
 	go origServer.server.Serve(lis)
 	rpcAddr = lis.Addr()
+	time.Sleep(100 * time.Millisecond)
 }
 
 func sendWebAPITestBlocks() {
