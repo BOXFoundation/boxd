@@ -286,8 +286,6 @@ func fetchUtxoFromDB(addr types.Address, db storage.Table) (map[types.OutPoint]*
 
 // Balance returns balance amount of an address using balance index
 func (wu *WalletUtxo) Balance(addr types.Address) uint64 {
-	wu.mux.RLock()
-	defer wu.mux.RUnlock()
 	//sc := script.PayToPubKeyHashScript(addr.Hash())
 	//var balance uint64
 	//for _, u := range wu.utxoMap {
