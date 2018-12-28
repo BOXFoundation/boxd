@@ -225,21 +225,21 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 
 	// Push value
 	if opCode <= OPPUSHDATA4 {
-		if opCode < OPPUSHDATA1 {
-			logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
-		} else {
-			logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
-		}
+		// if opCode < OPPUSHDATA1 {
+		// 	logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
+		// } else {
+		// 	logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
+		// }
 		stack.push(pushData)
 		return nil
 	} else if opCode <= OP16 && opCode != OPRESERVED {
 		op := big.NewInt(int64(opCode) - int64(OP1) + 1)
-		logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
+		// logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
 		stack.push(Operand(op.Bytes()))
 		return nil
 	}
 
-	logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
+	// logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
 	switch opCode {
 	case OPRETURN:
 		return ErrOpReturn

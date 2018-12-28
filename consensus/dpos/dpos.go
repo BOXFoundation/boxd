@@ -331,7 +331,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				return
 			}
 
-			logger.Debugf("Iterating over %d-th tx: packed %d txs out of %d so far", txIdx, len(blockTxns)-1, len(sortedTxs))
+			// logger.Debugf("Iterating over %d-th tx: packed %d txs out of %d so far", txIdx, len(blockTxns)-1, len(sortedTxs))
 			chainedTxs := getChainedTxs(tx, hashToTx)
 			// Add ancestors first
 			for i := len(chainedTxs) - 1; i >= 0; i-- {
