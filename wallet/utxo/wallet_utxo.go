@@ -103,7 +103,8 @@ func (wu *WalletUtxo) Save() error {
 	defer batch.Close()
 	wu.mux.Lock()
 	defer wu.mux.Unlock()
-	affectedAddrs := make(map[string]bool)
+	recalculateAddrs := make(map[string]bool)
+	increAddrs := make(map[string]int64)
 	for o, u := range wu.utxoMap {
 		if u == nil || !u.IsModified {
 			continue
@@ -113,11 +114,24 @@ func (wu *WalletUtxo) Save() error {
 		if err != nil {
 			return err
 		}
-		affectedAddrs[addr.String()] = true
+		recalculateAddrs[addr.String()] = true
 		key := chain.AddrUtxoKey(addr.String(), o)
+		oBalance, ok := increAddrs[addr.String()]
+		if !ok {
+			oBalance = 0
+		}
+		_, reCalculate := recalculateAddrs[addr.String()]
 		if u.IsSpent {
 			batch.Del(key)
 			logger.Infof("Addr :%s spent %d", addr, u.Output.Value)
+			if !reCalculate {
+				exist, err := wu.db.Has(key)
+				if err != nil {
+					recalculateAddrs[addr.String()] = true
+				} else if exist {
+					increAddrs[addr.String()] = oBalance - int64(u.Output.Value)
+				}
+			}
 		} else {
 			serialized, err := u.Marshal()
 			if err != nil {
@@ -125,6 +139,9 @@ func (wu *WalletUtxo) Save() error {
 			}
 			batch.Put(key, serialized)
 			logger.Infof("Addr: %s received %d", addr, u.Output.Value)
+			if !reCalculate {
+				increAddrs[addr.String()] = oBalance + int64(u.Output.Value)
+			}
 		}
 		u.IsModified = false
 	}
@@ -133,10 +150,22 @@ func (wu *WalletUtxo) Save() error {
 	}
 	balanceBatch := wu.db.NewBatch()
 	defer balanceBatch.Close()
-	for addrStr := range affectedAddrs {
+	for addrStr := range recalculateAddrs {
 		addr := &types.AddressPubKeyHash{}
 		addr.SetString(addrStr)
 		if err := wu.updateBalanceFromUtxo(addr, balanceBatch); err != nil {
+			return err
+		}
+	}
+	for addrStr, balanceChange := range increAddrs {
+		if _, ok := recalculateAddrs[addrStr]; ok {
+			//ignore already existing addresses
+			continue
+		}
+		addr := &types.AddressPubKeyHash{}
+		addr.SetString(addrStr)
+		oBalance := wu.Balance(addr)
+		if err := wu.saveBalanceToDB(addr, uint64(int64(oBalance)+balanceChange), balanceBatch); err != nil {
 			return err
 		}
 	}
