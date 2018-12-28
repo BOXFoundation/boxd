@@ -178,7 +178,7 @@ func generateTx(fromAddr types.Address, utxos []*rpcpb.Utxo, targets []*Transfer
 				Index: utxo.GetOutPoint().GetIndex(),
 			},
 			ScriptSig: []byte{},
-			Sequence:  uint32(i),
+			Sequence:  0,
 		}
 		tokenInfo, amount := extractTokenInfo(utxo)
 		if tokenInfo != nil && amount > 0 {
