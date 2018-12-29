@@ -149,7 +149,7 @@ func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx in
 func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
-	logger.Debugf("script len %d: %s", scriptLen, s.Disasm())
+	// logger.Debugf("script len %d: %s", scriptLen, s.Disasm())
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
