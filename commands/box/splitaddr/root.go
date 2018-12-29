@@ -91,6 +91,7 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	fromAddr, err := types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
+		return
 	}
 	target := make(map[types.Address]uint64)
 	target[fromAddr /* just a dummy value here */] = opReturnAmount
@@ -100,18 +101,18 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	tx, err := client.CreateSplitAddrTransaction(conn, fromAddr, account.PublicKey(), addrs, weights, account)
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		hash, _ := tx.TxHash()
-		fmt.Println("Tx Hash:", hash.String())
-		fmt.Println(util.PrettyPrint(tx))
-
-		splitAddr, err := getSplitAddr(tx.Vout[0].ScriptPubKey)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Printf("Split address generated for `%s`: %v\n", args[1:], splitAddr)
+		return
 	}
+	hash, _ := tx.TxHash()
+	fmt.Println("Tx Hash:", hash.String())
+	fmt.Println(util.PrettyPrint(tx))
+
+	splitAddr, err := getSplitAddr(tx.Vout[0].ScriptPubKey)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("Split address generated for `%s`: %v\n", args[1:], splitAddr)
 }
 
 func parseAddrWeight(args []string) ([]types.Address, []uint64, error) {

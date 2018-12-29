@@ -99,6 +99,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	fromAddr, err := types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
+		return
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
@@ -106,14 +107,14 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		tokenName, tokenSymbol, uint64(tokenTotalSupply), uint8(tokenDecimals), account)
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		hash, _ := tx.TxHash()
-		tk := types.NewTokenFromOutpoint(types.OutPoint{
-			Hash:  *hash,
-			Index: 0,
-		})
-		fmt.Println("Created Token Address: ", tk.String())
+		return
 	}
+	hash, _ := tx.TxHash()
+	tk := types.NewTokenFromOutpoint(types.OutPoint{
+		Hash:  *hash,
+		Index: 0,
+	})
+	fmt.Println("Created Token Address: ", tk.String())
 }
 
 func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
@@ -125,6 +126,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	token := &types.Token{}
 	if err := token.SetString(args[1]); err != nil {
 		fmt.Println("Invalid token address")
+		return
 	}
 	targets, err := parseSendTarget(args[2:])
 	if err != nil {
@@ -154,6 +156,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	fromAddr, err := types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
+		return
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
@@ -161,11 +164,10 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		account.PublicKey(), token.OutPoint().Hash, token.OutPoint().Index, account)
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		hash, _ := tx.TxHash()
-		fmt.Println("Tx Hash:", hash.String())
-		fmt.Println(util.PrettyPrint(tx))
 	}
+	hash, _ := tx.TxHash()
+	fmt.Println("Tx Hash:", hash.String())
+	fmt.Println(util.PrettyPrint(tx))
 }
 
 func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
@@ -177,10 +179,12 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	token := &types.Token{}
 	if err := token.SetString(args[1]); err != nil {
 		fmt.Println("Invalid token address")
+		return
 	}
 	addr, err := types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
+		return
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()

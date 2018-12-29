@@ -118,17 +118,18 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	fromAddr, err := types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
+		return
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
 	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account, nil, nil)
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		hash, _ := tx.TxHash()
-		fmt.Println("Tx Hash:", hash.String())
-		fmt.Println(util.PrettyPrint(tx))
+		return
 	}
+	hash, _ := tx.TxHash()
+	fmt.Println("Tx Hash:", hash.String())
+	fmt.Println(util.PrettyPrint(tx))
 }
 
 func parseSendTarget(args []string) (map[types.Address]uint64, error) {
@@ -180,15 +181,16 @@ func sendManyCmdFunc(cmd *cobra.Command, args []string) {
 	fromAddr, err := types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
+		return
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
 	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account, nil, nil)
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		hash, _ := tx.TxHash()
-		fmt.Println("Tx Hash:", hash.String())
-		fmt.Println(util.PrettyPrint(tx))
+		return
 	}
+	hash, _ := tx.TxHash()
+	fmt.Println("Tx Hash:", hash.String())
+	fmt.Println(util.PrettyPrint(tx))
 }

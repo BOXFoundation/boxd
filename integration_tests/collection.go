@@ -44,21 +44,19 @@ func txTest() {
 	collAddrCh := make(chan string, buffLen)
 	cirInfoCh := make(chan CirInfo, buffLen)
 
-	coll := NewCollection(utils.CollAccounts(), utils.CollUnitAccounts(), collAddrCh,
-		cirInfoCh)
-	defer coll.TearDown()
-	circu := NewCirculation(utils.CircuAccounts(), utils.CircuUnitAccounts(), collAddrCh,
-		cirInfoCh)
-	defer circu.TearDown()
+	var (
+		coll  *Collection
+		circu *Circulation
+		wg    sync.WaitGroup
+	)
 
-	// print tx count per TickerDurationTxs
-	go CountTxs(&txTestTxCnt, &coll.txCnt, &circu.txCnt)
-
-	var wg sync.WaitGroup
 	wg.Add(2)
 	// collection process
 	go func() {
 		defer wg.Done()
+		coll = NewCollection(utils.CollAccounts(), utils.CollUnitAccounts(),
+			collAddrCh, cirInfoCh)
+		defer coll.TearDown()
 		coll.Run(coll.HandleFunc)
 		logger.Info("done collection")
 	}()
@@ -66,11 +64,18 @@ func txTest() {
 	// circulation process
 	go func() {
 		defer wg.Done()
+		circu = NewCirculation(utils.CircuAccounts(), utils.CircuUnitAccounts(),
+			collAddrCh, cirInfoCh)
+		defer circu.TearDown()
 		circu.Run(circu.HandleFunc)
 		logger.Info("done circulation")
 	}()
 
 	wg.Wait()
+
+	// print tx count per TickerDurationTxs
+	go CountTxs(&txTestTxCnt, &coll.txCnt, &circu.txCnt)
+
 	logger.Info("done transaction test")
 }
 
