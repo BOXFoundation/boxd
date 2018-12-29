@@ -111,6 +111,7 @@ func (wu *WalletUtxo) Save() error {
 		}
 		if u.Output == nil || u.Output.ScriptPubKey == nil {
 			logger.Errorf("invalid output %+v wrapper %+v", o, u)
+			continue
 		}
 		sc := *script.NewScriptFromBytes(u.Output.ScriptPubKey)
 		addr, err := sc.ExtractAddress()
