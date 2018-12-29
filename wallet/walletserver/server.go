@@ -5,6 +5,7 @@
 package walletserver
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -91,6 +92,9 @@ func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
 	//if err := s.FetchUtxoForAddress(addr); err != nil {
 	//	return 0, err
 	//}
+	if !w.cfg.Enable {
+		return 0, fmt.Errorf("not supported")
+	}
 	return w.wu.Balance(addr), nil
 }
 
@@ -101,5 +105,8 @@ func (w *WalletServer) Utxos(addr types.Address) (map[types.OutPoint]*types.Utxo
 	//if err := s.FetchUtxoForAddress(addr); err != nil {
 	//
 	//}
+	if !w.cfg.Enable {
+		return nil, fmt.Errorf("not supported")
+	}
 	return w.wu.Utxos(addr)
 }
