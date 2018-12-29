@@ -75,6 +75,9 @@ func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (
 }
 
 func (s *txServer) GetBalance(ctx context.Context, req *rpcpb.GetBalanceRequest) (*rpcpb.GetBalanceResponse, error) {
+	if s.server.GetWalletAgent() == nil {
+		return nil, fmt.Errorf("api balance not supported")
+	}
 	balances := make(map[string]uint64)
 	for _, addrStr := range req.Addrs {
 		addr, err := types.NewAddress(addrStr)
@@ -172,6 +175,9 @@ func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, toke
 }
 
 func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
+	if s.server.GetWalletAgent() == nil {
+		return nil, fmt.Errorf("api fund transaction not supported")
+	}
 	addr, err := types.NewAddress(req.Addr)
 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
 	if err != nil {
