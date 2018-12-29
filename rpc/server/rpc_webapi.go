@@ -52,7 +52,6 @@ func (s *webapiServer) receiveNewBlockMsg(msg *types.Block) {
 	select {
 	case s.newBlockMsgCh <- msg:
 	default:
-		logger.Warnf("webapiServer newBlockMsgCh size is full(%d)", len(s.newBlockMsgCh))
 	}
 }
 
