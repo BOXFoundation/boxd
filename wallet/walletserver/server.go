@@ -69,7 +69,7 @@ func (w *WalletServer) Stop() {
 }
 
 func (w *WalletServer) initListener() error {
-	return w.bus.Subscribe(eventbus.TopicUtxoUpdate, w.onUtxoChange)
+	return w.bus.SubscribeAsync(eventbus.TopicUtxoUpdate, w.onUtxoChange, true)
 }
 
 func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
