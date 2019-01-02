@@ -58,7 +58,7 @@ func (wu *WalletUtxo) ApplyUtxoSet(utxoSet *chain.UtxoSet) error {
 	wu.mux.Lock()
 	defer wu.mux.Unlock()
 	for o, u := range utxoSet.All() {
-		logger.Infof("apply utxo :%+v", o)
+		// logger.Infof("apply utxo :%+v", o)
 		if u.IsSpent {
 			wu.spendUtxo(o, u)
 			continue
@@ -127,7 +127,7 @@ func (wu *WalletUtxo) Save() error {
 		_, reCalculate := recalculateAddrs[addr.String()]
 		if u.IsSpent {
 			batch.Del(key)
-			logger.Infof("Addr :%s spent %d", addr, u.Output.Value)
+			// logger.Infof("Addr :%s spent %d", addr, u.Output.Value)
 			if !reCalculate {
 				exist, err := wu.db.Has(key)
 				if err != nil {
@@ -142,7 +142,7 @@ func (wu *WalletUtxo) Save() error {
 				return err
 			}
 			batch.Put(key, serialized)
-			logger.Infof("Addr: %s received %d", addr, u.Output.Value)
+			// logger.Infof("Addr: %s received %d", addr, u.Output.Value)
 			if !reCalculate {
 				increAddrs[addr.String()] = oBalance + int64(u.Output.Value)
 			}
