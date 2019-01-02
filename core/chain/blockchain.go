@@ -525,7 +525,7 @@ func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch
 	chain.tryToClearCache(attachBlocks, detachBlocks)
 
 	// notify when batch write success
-	chain.notifyUtxoChange(utxoSet)
+	go chain.notifyUtxoChange(utxoSet)
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
