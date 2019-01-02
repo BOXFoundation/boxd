@@ -354,7 +354,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 		return core.ErrWrongBlockHeight
 	}
 
-	chain.blockcache.Add(*blockHash, block)
+	// chain.blockcache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
 	// There are 3 cases.
@@ -374,7 +374,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	if block.Height <= chain.LongestChainHeight {
 		logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
 			blockHash, block.Height, chain.LongestChainHeight)
-		return nil
+		// we can store the side chain block, But we should not go on the chain.
+		return chain.StoreBlock(block)
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
@@ -501,10 +502,10 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch st
 		return err
 	}
 
-	return chain.submitBlock(block, utxoSet, batch)
+	return chain.submitBlock(block, utxoSet, batch, nil, nil)
 }
 
-func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
+func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch, attachBlocks, detachBlocks []*types.Block) error {
 
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
@@ -521,6 +522,8 @@ func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch
 			block.BlockHash().String(), block.Height, err.Error())
 	}
 
+	chain.tryToClearCache(attachBlocks, detachBlocks)
+
 	// notify when batch write success
 	chain.notifyUtxoChange(utxoSet)
 
@@ -528,6 +531,15 @@ func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch
 	chain.ChangeNewTail(block)
 
 	return nil
+}
+
+func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
+	for _, v := range detachBlocks {
+		chain.blockcache.Remove(*v.BlockHash())
+	}
+	for _, v := range attachBlocks {
+		chain.blockcache.Add(*v.BlockHash(), v)
+	}
 }
 
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
@@ -591,7 +603,7 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet, batch
 		return err
 	}
 
-	batch.Del(BlockKey(block.BlockHash()))
+	// batch.Del(BlockKey(block.BlockHash()))
 	batch.Del(BlockHashKey(block.Height))
 
 	chain.filterHolder.ResetFilters(block.Height)
@@ -624,7 +636,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 		return err
 	}
 
-	if err := chain.StoreBlockToDb(block, batch); err != nil {
+	if err := chain.StoreBlockInBatch(block, batch); err != nil {
 		return err
 	}
 
@@ -688,7 +700,7 @@ func (chain *BlockChain) reorganize(block *types.Block, batch storage.Batch) err
 		}
 	}
 
-	if err := chain.submitBlock(block, utxoSet, batch); err != nil {
+	if err := chain.submitBlock(block, utxoSet, batch, attachBlocks, detachBlocks); err != nil {
 		return err
 	}
 
@@ -1004,8 +1016,8 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
-// StoreBlockToDb store block to db.
-func (chain *BlockChain) StoreBlockToDb(block *types.Block, batch storage.Batch) error {
+// StoreBlockInBatch store block to db in batch mod.
+func (chain *BlockChain) StoreBlockInBatch(block *types.Block, batch storage.Batch) error {
 
 	hash := block.BlockHash()
 	batch.Put(BlockHashKey(block.Height), hash[:])
@@ -1015,6 +1027,18 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block, batch storage.Batch)
 		return err
 	}
 	batch.Put(BlockKey(hash), data)
+	return nil
+}
+
+// StoreBlock store block to db.
+func (chain *BlockChain) StoreBlock(block *types.Block) error {
+
+	hash := block.BlockHash()
+	data, err := block.Marshal()
+	if err != nil {
+		return err
+	}
+	chain.db.Put(BlockKey(hash), data)
 	return nil
 }
 
