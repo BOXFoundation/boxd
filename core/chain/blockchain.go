@@ -83,8 +83,8 @@ type BlockChain struct {
 // UpdateMsg sent from blockchain to, e.g., mempool
 type UpdateMsg struct {
 	// block connected/disconnected from main chain
-	Connected bool
-	Block     *types.Block
+	AttachBlocks []*types.Block
+	DetachBlocks []*types.Block
 }
 
 // NewBlockChain return a blockchain.
@@ -527,6 +527,9 @@ func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch
 	// notify when batch write success
 	chain.notifyUtxoChange(utxoSet)
 
+	// notify mem_pool when chain update
+	chain.notifyBlockConnectionUpdate(attachBlocks, detachBlocks)
+
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
 
@@ -536,10 +539,12 @@ func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
 	for _, v := range detachBlocks {
 		chain.blockcache.Remove(*v.BlockHash())
+		// clean detachBlocks child tx
 	}
 	for _, v := range attachBlocks {
 		chain.blockcache.Add(*v.BlockHash(), v)
 	}
+
 }
 
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
@@ -613,11 +618,12 @@ func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet, batch
 		return err
 	}
 
-	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
-		return err
-	}
+	// if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
+	// 	return err
+	// }
+	return chain.DeleteSplitAddrIndex(block, batch)
 
-	return chain.notifyBlockConnectionUpdate(block, false)
+	// return chain.notifyBlockConnectionUpdate(block, false)
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
@@ -657,18 +663,19 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 	}
 
 	// store split addr index
-	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
-		logger.Error(err)
-		return err
-	}
+	// if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
+	// 	logger.Error(err)
+	// 	return err
+	// }
+	return chain.WriteSplitAddrIndex(block, batch)
 
-	return chain.notifyBlockConnectionUpdate(block, true)
+	// return chain.notifyBlockConnectionUpdate(block, true)
 }
 
-func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connected bool) error {
+func (chain *BlockChain) notifyBlockConnectionUpdate(attachBlocks, detachBlocks []*types.Block) error {
 	chain.bus.Publish(eventbus.TopicChainUpdate, &UpdateMsg{
-		Connected: connected,
-		Block:     block,
+		AttachBlocks: attachBlocks,
+		DetachBlocks: detachBlocks,
 	})
 	return nil
 }

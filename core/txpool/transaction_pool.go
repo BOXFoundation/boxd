@@ -128,14 +128,31 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 }
 
 // chain update message from blockchain: block connection/disconnection
-func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) error {
-	block := msg.Block
-	if msg.Connected {
-		logger.Infof("Block %v connects to main chain", block.BlockHash())
-		return tx_pool.removeBlockTxs(block)
+func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
+
+	for _, v := range msg.DetachBlocks {
+		logger.Infof("Block %v disconnects from main chain", v.BlockHash())
+		tx_pool.addBlockTxs(v)
+		// remove related child txs.
+		for _, tx := range v.Txs {
+			removedTxHash, _ := tx.TxHash()
+			outPoint := types.OutPoint{Hash: *removedTxHash}
+			for txOutIdx := range tx.Vout {
+				outPoint.Index = uint32(txOutIdx)
+				childTx, exists := tx_pool.findTransaction(outPoint)
+				if !exists {
+					continue
+				}
+				tx_pool.removeTx(childTx, true)
+			}
+		}
 	}
-	logger.Infof("Block %v disconnects from main chain", block.BlockHash())
-	return tx_pool.addBlockTxs(block)
+
+	for _, v := range msg.AttachBlocks {
+		logger.Infof("Block %v connects to main chain", v.BlockHash())
+		tx_pool.removeBlockTxs(v)
+	}
+
 }
 
 // Add all transactions contained in this block into mempool
