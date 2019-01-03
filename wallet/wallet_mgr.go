@@ -53,7 +53,7 @@ func (wlt *Manager) loadAccounts() error {
 		}
 	}
 	wlt.accounts = make(map[string]*Account)
-	for _, account := range accounts {
+	for _, account := range accounts { 
 		wlt.accounts[account.addr.String()] = account
 	}
 	return nil

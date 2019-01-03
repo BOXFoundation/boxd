@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
-	"github.com/hashicorp/golang-lru"
-
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/blacklist"
@@ -26,6 +24,7 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
+	"github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -680,8 +679,17 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 func (dpos *Dpos) subscribeBlacklist() {
 
 	blacklist.SetPeriodSize(PeriodSize)
+
 	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
 		out <- dpos.context.periodContext.periodPeers
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicMiner, func(out chan<- *wallet.Account) {
+		out <- dpos.miner
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicAddrs, func(out chan<- []types.AddressHash) {
+		out <- dpos.context.periodContext.periodAddrs
 	}, false)
 
 	dpos.chain.Bus().Reply(eventbus.TopicMinerPubkey, func(out chan<- []byte) {

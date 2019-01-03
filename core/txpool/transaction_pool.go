@@ -5,6 +5,7 @@
 package txpool
 
 import (
+	"bytes"
 	"errors"
 	"sync"
 	"time"
@@ -228,8 +229,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 		return core.ErrNonStandardTransaction
 	}
 
-	if err := tx_pool.checkRegisterOrVoteTx(tx); err != nil {
-		logger.Errorf("Tx %v is a invalid Register or Vote tx. Err: %v", txHash.String(), err)
+	if err := tx_pool.checkSpecialTx(tx); err != nil {
+		logger.Errorf("Tx %v is a invalid special tx. Err: %v", txHash.String(), err)
 		return err
 	}
 
@@ -327,10 +328,11 @@ func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) 
 	return nil
 }
 
-func (tx_pool *TransactionPool) checkRegisterOrVoteTx(tx *types.Transaction) error {
+func (tx_pool *TransactionPool) checkSpecialTx(tx *types.Transaction) error {
 	if tx.Data == nil {
 		return nil
 	}
+	logger.Errorf("checkSpecialTx start")
 	content := tx.Data.Content
 	switch int(tx.Data.Type) {
 	case types.RegisterCandidateTx:
@@ -355,8 +357,45 @@ func (tx_pool *TransactionPool) checkRegisterOrVoteTx(tx *types.Transaction) err
 		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
 			return core.ErrInvalidRegisterCandidateOrVoteTx
 		}
+	case types.BlacklistTx:
+		if err := tx_pool.checkBlacklistData(tx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (tx_pool *TransactionPool) checkBlacklistData(tx *types.Transaction) error {
+	blacklistContent := new(bl.BlacklistTxData)
+	if err := blacklistContent.Unmarshal(tx.Data.Content); err != nil {
+		return err
 	}
 
+	minerAddrsCh := make(chan []types.AddressHash)
+	tx_pool.bus.Send(eventbus.TopicAddrs, minerAddrsCh)
+	minerAddrs := <-minerAddrsCh
+
+	for _, sigStr := range blacklistContent.Signatures() {
+		pubkey, ok := crypto.RecoverCompact(blacklistContent.Hash()[:], sigStr)
+		if ok {
+			addr, err := types.NewAddressFromPubKey(pubkey)
+			if err != nil {
+				return err
+			}
+			var match bool
+			for _, minerAddr := range minerAddrs {
+				if bytes.Equal(minerAddr[:], addr.Hash()) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				return core.ErrSign
+			}
+		} else {
+			return core.ErrSign
+		}
+	}
 	return nil
 }
 

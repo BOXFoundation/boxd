@@ -6,7 +6,6 @@ package blacklist
 
 import (
 	"hash/crc32"
-	"math"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -15,7 +14,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
@@ -121,7 +119,7 @@ func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
 			bl.existConfirmedKey.Add(hashChecksum, struct{}{})
 			// TODO: 上链
 			go func() {
-				bl.processBlacklistTx(confirmMsg.hash, sigSlice)
+				bl.createBlacklistTx(confirmMsg.hash, sigSlice)
 				bl.confirmMsgNote.Remove(hashChecksum)
 			}()
 		} else {
@@ -134,7 +132,7 @@ func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
 	return nil
 }
 
-func (bl *BlackList) processBlacklistTx(hash []byte, signs [][]byte) error {
+func (bl *BlackList) createBlacklistTx(hash []byte, signs [][]byte) error {
 	tx, err := CreateBlacklistTx(&BlacklistTxData{
 		hash:       hash,
 		signatures: signs,
@@ -157,40 +155,50 @@ func (bl *BlackList) processBlacklistTx(hash []byte, signs [][]byte) error {
 // CreateBlacklistTx creates blacklist type tx
 func CreateBlacklistTx(txData *BlacklistTxData) (*types.Transaction, error) {
 
-	pubkeyCh := make(chan []byte)
-	eventbus.Default().Send(eventbus.TopicMinerPubkey, pubkeyCh)
-	pubkey := <-pubkeyCh
+	// pubkeyCh := make(chan []byte)
+	// eventbus.Default().Send(eventbus.TopicMinerPubkey, pubkeyCh)
+	// pubkey := <-pubkeyCh
 
-	var pkScript []byte
-	pkScript = *script.PayToPubKeyHashScript(pubkey)
+	// var pkScript []byte
+	// pkScript = *script.PayToPubKeyHashScript(pubkey)
 
 	data, err := txData.Marshal()
 	if err != nil {
 		return nil, err
 	}
 
-	tx := &types.Transaction{
-		Version: 1,
-		Vin: []*types.TxIn{
-			{
-				PrevOutPoint: types.OutPoint{
-					Hash:  zeroHash,
-					Index: math.MaxUint32,
-				},
-				ScriptSig: []byte{},
-				Sequence:  math.MaxUint32,
-			},
-		},
-		Vout: []*corepb.TxOut{
-			{
-				Value:        0,
-				ScriptPubKey: pkScript,
-			},
-		},
-		Data: &corepb.Data{
-			Type:    types.BlacklistTx,
-			Content: data,
-		},
+	// tx := &types.Transaction{
+	// 	Version: 1,
+	// 	Vin: []*types.TxIn{
+	// 		{
+	// 			PrevOutPoint: types.OutPoint{
+	// 				Hash:  zeroHash,
+	// 				Index: 0,
+	// 			},
+	// 			ScriptSig: []byte{},
+	// 			Sequence:  math.MaxUint32,
+	// 		},
+	// 	},
+	// 	Vout: []*corepb.TxOut{
+	// 		{
+	// 			Value:        0,
+	// 			ScriptPubKey: pkScript,
+	// 		},
+	// 	},
+	// 	Data: &corepb.Data{
+	// 		Type:    types.BlacklistTx,
+	// 		Content: data,
+	// 	},
+	// }
+
+	txpbData := &corepb.Data{
+		Type:    types.BlacklistTx,
+		Content: data,
 	}
+
+	txCh := make(chan *types.Transaction)
+	eventbus.Default().Send(eventbus.TopicGenerateTx, txpbData, txCh)
+	tx := <-txCh
+
 	return tx, nil
 }

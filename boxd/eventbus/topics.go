@@ -25,8 +25,12 @@ const (
 
 	////////////////////////////// dpos /////////////////////////////
 
+	// TopicMiner is topic for miner
+	TopicMiner = "dpos:miner"
 	// TopicMiners is topic for replying current miners
 	TopicMiners = "dpos:miners"
+	// TopicAddrs is topic for replying current addrs
+	TopicAddrs = "dpos:addrs"
 	// TopicValidateMiner is topic for replying wheather it is a miner now
 	TopicValidateMiner = "dpos:validateminer"
 	// TopicMinerPubkey is topic for miner pubkey
@@ -55,4 +59,9 @@ const (
 	TopicGetDatabaseValue = "rpc:database:get"
 	// TopicRPCSendNewBlock is topic for sending new block to explorer
 	TopicRPCSendNewBlock = "rpc:newblock:send"
+
+	////////////////////////////// tx /////////////////////////////
+
+	// TopicGenerateTx is topic to generate tx
+	TopicGenerateTx = "tx:generate"
 )

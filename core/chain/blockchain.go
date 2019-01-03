@@ -669,6 +669,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 		return err
 	}
 
+	// save candidate context
+	if err := bl.Default().StoreContext(block, batch); err != nil {
+		return err
+	}
+
 	// save tx index
 	if err := chain.WriteTxIndex(block, batch); err != nil {
 		return err

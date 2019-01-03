@@ -88,6 +88,16 @@ func (blm *BlacklistMsg) validateHash() (bool, error) {
 	return bytes.Equal(blm.hash, eviHash), nil
 }
 
+// Hash return hash
+func (btd *BlacklistTxData) Hash() []byte {
+	return btd.hash
+}
+
+// Signatures return signatures
+func (btd *BlacklistTxData) Signatures() [][]byte {
+	return btd.signatures
+}
+
 ////////////////////////////////////////////////////////////////////
 
 // ToProtoMessage converts Evidence to proto message.

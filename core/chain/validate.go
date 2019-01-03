@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	bl "github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -182,12 +181,12 @@ func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
 
 		// Ensure public key not in black list
 		if !checkBlackList {
-			if checksum, ok := prevScriptPubKey.GetPubKeyChecksum(); ok {
-				if _, ok := bl.Default().Details.Load(checksum); ok {
-					return core.ErrPubKeyInBlackList
-				}
-			}
-			checkBlackList = true
+			// if checksum, ok := prevScriptPubKey.GetPubKeyChecksum(); ok {
+			// 	if _, ok := bl.Default().Details.Load(checksum); ok {
+			// 		return core.ErrPubKeyInBlackList
+			// 	}
+			// }
+			// checkBlackList = true
 		}
 	}
 

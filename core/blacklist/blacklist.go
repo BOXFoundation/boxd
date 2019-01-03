@@ -10,9 +10,9 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/storage"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
@@ -38,7 +38,6 @@ var (
 	blackList *BlackList
 	// periodSize is a clone of consensus.periodSize
 	periodSize int
-	zeroHash   = crypto.HashType{}
 )
 
 // BlackList represents the black list of public keys
@@ -155,6 +154,7 @@ func (bl *BlackList) processEvidence(evidence *Evidence) error {
 		}
 	case BlockEvidence:
 		evidenceCh = personalNote.([]chan *Evidence)[1]
+		logger.Errorf("len(evidenceCh) = %v", len(evidenceCh))
 		if len(evidenceCh) >= blockEvidenceMaxSize {
 			first = <-evidenceCh
 		} else {
@@ -191,4 +191,28 @@ func (bl *BlackList) packageEvidences(first, last *Evidence, evidenceCh chan *Ev
 func (bl *BlackList) subscribeMessageNotifiee() {
 	bl.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlacklistMsg, bl.msgCh))
 	bl.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlacklistConfirmMsg, bl.msgCh))
+}
+
+// StoreContext save new blacklist item
+func (bl *BlackList) StoreContext(block *types.Block, batch storage.Batch) error {
+	for _, tx := range block.Txs {
+		if err := bl.processBlacklistTx(tx, batch); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (bl *BlackList) processBlacklistTx(tx *types.Transaction, batch storage.Batch) error {
+
+	if tx.Data == nil || tx.Data.Type != types.BlacklistTx {
+		return nil
+	}
+
+	blacklistContent := new(BlacklistTxData)
+	if err := blacklistContent.Unmarshal(tx.Data.Content); err != nil {
+		return err
+	}
+
+	return nil
 }

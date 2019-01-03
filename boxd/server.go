@@ -15,14 +15,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BOXFoundation/boxd/wallet/walletserver"
-
 	"github.com/BOXFoundation/boxd/blocksync"
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	config "github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/consensus/dpos"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/txgenerator"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/metrics"
@@ -31,6 +30,7 @@ import (
 	storage "github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
+	"github.com/BOXFoundation/boxd/wallet/walletserver"
 	"github.com/jbenet/goprocess"
 )
 
@@ -170,6 +170,9 @@ func (server *Server) Prepare() {
 	server.syncManager = syncManager
 	server.blockChain.Setup(consensus, syncManager)
 
+	if _, err := txgenerator.New(database, blockChain, txPool, peer); err != nil {
+		logger.Fatalf("Failed to new txgenerator. Err: %v", err)
+	}
 }
 
 var _ service.Server = (*Server)(nil)
@@ -223,6 +226,7 @@ func (server *Server) Run() error {
 			server.txPool, server.wallet, server.bus)
 		server.grpcsvr.Run()
 	}
+	txgenerator.Default().Run()
 
 	// goprocesses dependencies
 	//            root

@@ -339,6 +339,11 @@ func (p *BoxPeer) PeerSynced(peerID peer.ID) (bool, bool) {
 	return val.(*Conn).isSynced, ok
 }
 
+// NetworkIdentity get networkIdentity
+func (p *BoxPeer) NetworkIdentity() crypto.PrivKey {
+	return p.networkIdentity
+}
+
 // UpdateSynced update peers' isSynced
 func UpdateSynced(synced bool) {
 	isSynced = synced
