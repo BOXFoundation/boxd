@@ -85,8 +85,8 @@ type BlockChain struct {
 // UpdateMsg sent from blockchain to, e.g., mempool
 type UpdateMsg struct {
 	// block connected/disconnected from main chain
-	Connected bool
-	Block     *types.Block
+	AttachBlocks []*types.Block
+	DetachBlocks []*types.Block
 }
 
 // NewBlockChain return a blockchain.
@@ -382,7 +382,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 		return core.ErrWrongBlockHeight
 	}
 
-	chain.blockcache.Add(*blockHash, block)
+	// chain.blockcache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
 	// There are 3 cases.
@@ -402,28 +402,29 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	if block.Height <= chain.LongestChainHeight {
 		logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
 			blockHash, block.Height, chain.LongestChainHeight)
-		return nil
+		// we can store the side chain block, But we should not go on the chain.
+		return chain.StoreBlock(block)
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
-	if err := chain.reorganize(block, batch); err != nil {
-		return err
-	}
+	// if err := chain.reorganize(block, batch); err != nil {
+	// 	return err
+	// }
 
 	// save current tail to database
-	if err := chain.StoreTailBlock(block, batch); err != nil {
-		return err
-	}
+	// if err := chain.StoreTailBlock(block, batch); err != nil {
+	// 	return err
+	// }
 
-	if err := batch.Write(); err != nil {
-		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
-	}
+	// if err := batch.Write(); err != nil {
+	// 	logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
+	// }
 
-	// This block is now the end of the best chain.
-	chain.ChangeNewTail(block)
+	// // This block is now the end of the best chain.
+	// chain.ChangeNewTail(block)
 
-	return nil
+	return chain.reorganize(block, batch)
 }
 
 func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
@@ -528,10 +529,17 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch st
 	if err := chain.applyBlock(block, utxoSet, batch); err != nil {
 		return err
 	}
-	// if err := chain.SetTailBlock(block, batch); err != nil {
-	// 	logger.Errorf("Failed to set tail block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
-	// 	return err
-	// }
+
+	return chain.submitBlock(block, utxoSet, batch, []*types.Block{block}, nil)
+}
+
+func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch, attachBlocks, detachBlocks []*types.Block) error {
+
+	// save utxoset to database
+	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
+		return err
+	}
+
 	// save current tail to database
 	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
@@ -542,10 +550,29 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch st
 			block.BlockHash().String(), block.Height, err.Error())
 	}
 
+	chain.tryToClearCache(attachBlocks, detachBlocks)
+
+	// notify when batch write success
+	chain.notifyUtxoChange(utxoSet)
+
+	// notify mem_pool when chain update
+	chain.notifyBlockConnectionUpdate(attachBlocks, detachBlocks)
+
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
 
 	return nil
+}
+
+func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
+	for _, v := range detachBlocks {
+		chain.blockcache.Remove(*v.BlockHash())
+		// clean detachBlocks child tx
+	}
+	for _, v := range attachBlocks {
+		chain.blockcache.Add(*v.BlockHash(), v)
+	}
+
 }
 
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
@@ -593,7 +620,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) error {
+func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
 
 	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 	blockCopy := block.Copy()
@@ -601,19 +628,15 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)
 
-	utxoSet := NewUtxoSet()
+	// utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
 		return err
 	}
 	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
 		return err
 	}
-	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
-		return err
-	}
 
-	batch.Del(BlockKey(block.BlockHash()))
+	// batch.Del(BlockKey(block.BlockHash()))
 	batch.Del(BlockHashKey(block.Height))
 
 	chain.filterHolder.ResetFilters(block.Height)
@@ -623,12 +646,12 @@ func (chain *BlockChain) revertBlock(block *types.Block, batch storage.Batch) er
 		return err
 	}
 
-	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
-		return err
-	}
+	// if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
+	// 	return err
+	// }
+	return chain.DeleteSplitAddrIndex(block, batch)
 
-	chain.notifyUtxoChange(utxoSet)
-	return chain.notifyBlockConnectionUpdate(block, false)
+	// return chain.notifyBlockConnectionUpdate(block, false)
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
@@ -639,22 +662,15 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)
 
-	if utxoSet == nil {
-		utxoSet = NewUtxoSet()
-		if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
-			return err
-		}
+	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
+		return err
 	}
 
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
-	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
-		return err
-	}
 
-	if err := chain.StoreBlockToDb(block, batch); err != nil {
+	if err := chain.StoreBlockInBatch(block, batch); err != nil {
 		return err
 	}
 
@@ -680,20 +696,19 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 	}
 
 	// store split addr index
-	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
-		logger.Error(err)
-		return err
-	}
+	// if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
+	// 	logger.Error(err)
+	// 	return err
+	// }
+	return chain.WriteSplitAddrIndex(block, batch)
 
-	chain.notifyUtxoChange(utxoSet)
-
-	return chain.notifyBlockConnectionUpdate(block, true)
+	// return chain.notifyBlockConnectionUpdate(block, true)
 }
 
-func (chain *BlockChain) notifyBlockConnectionUpdate(block *types.Block, connected bool) error {
+func (chain *BlockChain) notifyBlockConnectionUpdate(attachBlocks, detachBlocks []*types.Block) error {
 	chain.bus.Publish(eventbus.TopicChainUpdate, &UpdateMsg{
-		Connected: connected,
-		Block:     block,
+		AttachBlocks: attachBlocks,
+		DetachBlocks: detachBlocks,
 	})
 	return nil
 }
@@ -706,10 +721,11 @@ func (chain *BlockChain) reorganize(block *types.Block, batch storage.Batch) err
 	// Find the common ancestor of the main chain and side chain
 	_, detachBlocks, attachBlocks := chain.findFork(block)
 
+	utxoSet := NewUtxoSet()
 	// Detach the blocks that form the (now) old fork from the main chain.
 	// From tail to fork, not including fork
 	for _, detachBlock := range detachBlocks {
-		if err := chain.revertBlock(detachBlock, batch); err != nil {
+		if err := chain.revertBlock(detachBlock, utxoSet, batch); err != nil {
 			return err
 		}
 	}
@@ -719,9 +735,13 @@ func (chain *BlockChain) reorganize(block *types.Block, batch storage.Batch) err
 	// From fork to tail, not including fork
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		attachBlock := attachBlocks[blockIdx]
-		if err := chain.applyBlock(attachBlock, nil, batch); err != nil {
+		if err := chain.applyBlock(attachBlock, utxoSet, batch); err != nil {
 			return err
 		}
+	}
+
+	if err := chain.submitBlock(block, utxoSet, batch, attachBlocks, detachBlocks); err != nil {
+		return err
 	}
 
 	metrics.MetricsBlockRevertMeter.Mark(1)
@@ -1036,8 +1056,8 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
-// StoreBlockToDb store block to db.
-func (chain *BlockChain) StoreBlockToDb(block *types.Block, batch storage.Batch) error {
+// StoreBlockInBatch store block to db in batch mod.
+func (chain *BlockChain) StoreBlockInBatch(block *types.Block, batch storage.Batch) error {
 
 	hash := block.BlockHash()
 	batch.Put(BlockHashKey(block.Height), hash[:])
@@ -1047,6 +1067,18 @@ func (chain *BlockChain) StoreBlockToDb(block *types.Block, batch storage.Batch)
 		return err
 	}
 	batch.Put(BlockKey(hash), data)
+	return nil
+}
+
+// StoreBlock store block to db.
+func (chain *BlockChain) StoreBlock(block *types.Block) error {
+
+	hash := block.BlockHash()
+	data, err := block.Marshal()
+	if err != nil {
+		return err
+	}
+	chain.db.Put(BlockKey(hash), data)
 	return nil
 }
 

@@ -7,6 +7,7 @@ package crypto
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"golang.org/x/crypto/ripemd160"
@@ -26,6 +27,11 @@ func (hash HashType) String() string {
 	buf := hash.GetBytes()
 	reverseBytes(buf)
 	return hex.EncodeToString(buf)
+}
+
+// MarshalJSON returns hash of hex type as the JSON encoding of HashType
+func (hash HashType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hash.String())
 }
 
 // SetString sets hash using bytes parsed from string
