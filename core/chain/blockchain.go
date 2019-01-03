@@ -502,7 +502,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch st
 		return err
 	}
 
-	return chain.submitBlock(block, utxoSet, batch, nil, nil)
+	return chain.submitBlock(block, utxoSet, batch, []*types.Block{block}, nil)
 }
 
 func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch, attachBlocks, detachBlocks []*types.Block) error {
