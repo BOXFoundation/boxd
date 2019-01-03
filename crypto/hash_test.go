@@ -6,6 +6,8 @@ package crypto
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -36,6 +38,16 @@ func TestSetString(t *testing.T) {
 	hash.SetString(hexString)
 	if hash.String() != hexString {
 		t.Errorf("Error setting string to hash\nexpected: %s\nactual: %s", hexString, hash.String())
+	}
+}
+
+func TestHashTypeJSONMarshal(t *testing.T) {
+	hexString := "7c3040dcb540cc57f8c4ed08dbcfba807434dc861c94a1c161b099f58d9ebe6d"
+	hash := &HashType{}
+	hash.SetString(hexString)
+	bytes, _ := json.Marshal(hash)
+	if string(bytes) != fmt.Sprintf("\"%s\"", hexString) {
+		t.Errorf("Error JSON Marshal hash to string\nexpected: %s\nactual: %v", hexString, string(bytes))
 	}
 }
 
