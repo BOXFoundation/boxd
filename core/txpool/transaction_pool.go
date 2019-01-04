@@ -132,8 +132,8 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 			if time.Now().Unix()%30 == 0 {
 				var hashstr string
 				tx_pool.hashToTx.Range(func(k, v interface{}) bool {
-					tx := v.(*types.Transaction)
-					hash, _ := tx.TxHash()
+					txwrap := v.(*chain.TxWrap)
+					hash, _ := txwrap.Tx.TxHash()
 					hashstr += hash.String()
 					hashstr += ","
 					return true
