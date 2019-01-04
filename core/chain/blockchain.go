@@ -16,7 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
-	bl "github.com/BOXFoundation/boxd/core/blacklist"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -149,7 +149,7 @@ func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
 	chain.subscribeBlacklistMsg()
 	chain.proc.Go(chain.loop)
-	bl.Default().Run(chain.notifiee, chain.bus, chain.db, chain.proc)
+	ctl.Default().Run(chain.notifiee, chain.bus, chain.db, chain.proc)
 	return nil
 }
 
@@ -238,7 +238,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 			chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 			go func() {
 				if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
-					bl.Default().SceneCh <- &bl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: bl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
+					ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: ctl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
 				}
 			}()
 		}
@@ -248,7 +248,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	// TODO: test
 	go func() {
 		if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
-			bl.Default().SceneCh <- &bl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: bl.BlockEvidence, Err: core.ErrBlockExists.Error(), Ts: time.Now().Unix()}
+			ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: ctl.BlockEvidence, Err: core.ErrBlockExists.Error(), Ts: time.Now().Unix()}
 		}
 	}()
 
@@ -683,7 +683,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 	}
 
 	// save candidate context
-	if err := bl.Default().StoreContext(block, batch); err != nil {
+	if err := ctl.Default().StoreContext(block, batch); err != nil {
 		return err
 	}
 

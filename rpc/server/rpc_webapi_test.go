@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
-	"github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/chain"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/jbenet/goprocess"
@@ -50,7 +50,7 @@ func setupWebAPIMockSvr() {
 	}
 
 	origServer := NewServer(goprocess.WithSignals(os.Interrupt), nil, nil, nil, nil,
-		testWebAPIBus, blacklist.Default())
+		testWebAPIBus, ctl.Default())
 	origServer.server = grpc.NewServer()
 	registerWebapi(origServer)
 

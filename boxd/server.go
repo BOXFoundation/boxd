@@ -20,8 +20,8 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	config "github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/consensus/dpos"
-	"github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/chain"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/txgenerator"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
@@ -163,7 +163,7 @@ func (server *Server) Prepare() {
 
 	// prepare grpc server.
 	if cfg.RPC.Enabled {
-		server.grpcsvr = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.wallet, server.bus, blacklist.Default())
+		server.grpcsvr = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.wallet, server.bus, ctl.Default())
 	}
 
 	// prepare sync manager.
@@ -224,7 +224,7 @@ func (server *Server) Run() error {
 
 	if cfg.RPC.Enabled {
 		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain,
-			server.txPool, server.wallet, server.bus, blacklist.Default())
+			server.txPool, server.wallet, server.bus, ctl.Default())
 		server.grpcsvr.Run()
 	}
 	txgenerator.Default().Run()

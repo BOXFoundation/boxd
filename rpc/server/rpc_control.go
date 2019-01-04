@@ -206,6 +206,6 @@ func (s *ctlserver) GetBlock(ctx context.Context, req *rpcpb.GetBlockRequest) (*
 	}, fmt.Errorf("Error converting proto message")
 }
 
-func (s *ctlserver) GetBlacklist(ctx context.Context, req *rpcpb.GetBlacklistRequest) (*rpcpb.GetBlacklistResponse, error) {
-	return nil, nil
-}
+// func (s *ctlserver) GetBlacklist(ctx context.Context, req *rpcpb.GetBlacklistRequest) (*rpcpb.GetBlacklistResponse, error) {
+// 	return nil, nil
+// }

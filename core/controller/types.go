@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package blacklist
+package controller
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/core"
-	blpb "github.com/BOXFoundation/boxd/core/blacklist/pb"
+	ctlpb "github.com/BOXFoundation/boxd/core/controller/pb"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -122,7 +122,7 @@ func (evi *Evidence) ToProtoMessage() (proto.Message, error) {
 		return nil, err
 	}
 
-	return &blpb.Evidence{
+	return &ctlpb.Evidence{
 		PubKey: evi.PubKey,
 		Tx:     tx,
 		Block:  block,
@@ -138,7 +138,7 @@ func (evi *Evidence) FromProtoMessage(message proto.Message) error {
 		evi = &Evidence{}
 	}
 	var err error
-	if message, ok := message.(*blpb.Evidence); ok {
+	if message, ok := message.(*ctlpb.Evidence); ok {
 		if message != nil {
 			evi.PubKey = make([]byte, len(message.PubKey))
 			copy(evi.PubKey[:], message.PubKey[:])
@@ -168,7 +168,7 @@ func (evi *Evidence) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to Evidence object
 func (evi *Evidence) Unmarshal(data []byte) error {
-	msg := &blpb.Evidence{}
+	msg := &ctlpb.Evidence{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (blm *BlacklistMsg) ToProtoMessage() (proto.Message, error) {
 	hash := make([]byte, len(blm.hash))
 	copy(hash[:], blm.hash[:])
 
-	return &blpb.BlacklistMsg{
+	return &ctlpb.BlacklistMsg{
 		Evidences: evis,
 		Hash:      hash,
 	}, nil
@@ -199,7 +199,7 @@ func (blm *BlacklistMsg) FromProtoMessage(message proto.Message) error {
 	if blm == nil {
 		blm = newBlacklistMsg()
 	}
-	if msg, ok := message.(*blpb.BlacklistMsg); ok {
+	if msg, ok := message.(*ctlpb.BlacklistMsg); ok {
 		if msg != nil {
 			var err error
 			blm.evidences, err = ConvPbEvidencesToEvidences(msg.Evidences)
@@ -223,7 +223,7 @@ func (blm *BlacklistMsg) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to BlacklistMsg object
 func (blm *BlacklistMsg) Unmarshal(data []byte) error {
-	msg := &blpb.BlacklistMsg{}
+	msg := &ctlpb.BlacklistMsg{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (bcm *BlacklistConfirmMsg) ToProtoMessage() (proto.Message, error) {
 	pubkey := make([]byte, len(bcm.pubkey))
 	copy(pubkey[:], bcm.pubkey[:])
 
-	return &blpb.BlacklistConfirmMsg{
+	return &ctlpb.BlacklistConfirmMsg{
 		Pubkey:    pubkey,
 		Hash:      hash,
 		Signature: signature,
@@ -258,7 +258,7 @@ func (bcm *BlacklistConfirmMsg) FromProtoMessage(message proto.Message) error {
 	if bcm == nil {
 		return core.ErrEmptyProtoMessage
 	}
-	if msg, ok := message.(*blpb.BlacklistConfirmMsg); ok {
+	if msg, ok := message.(*ctlpb.BlacklistConfirmMsg); ok {
 		if msg != nil {
 			bcm.pubkey = make([]byte, len(msg.Pubkey))
 			copy(bcm.pubkey[:], msg.Pubkey[:])
@@ -281,7 +281,7 @@ func (bcm *BlacklistConfirmMsg) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to BlacklistConfirmMsg object
 func (bcm *BlacklistConfirmMsg) Unmarshal(data []byte) error {
-	msg := &blpb.BlacklistConfirmMsg{}
+	msg := &ctlpb.BlacklistConfirmMsg{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -306,7 +306,7 @@ func (btd *BlacklistTxData) ToProtoMessage() (proto.Message, error) {
 		signs = append(signs, sign)
 	}
 
-	return &blpb.BlacklistTxData{
+	return &ctlpb.BlacklistTxData{
 		Pubkey:     pubkey,
 		Hash:       hash,
 		Signatures: signs,
@@ -318,7 +318,7 @@ func (btd *BlacklistTxData) FromProtoMessage(message proto.Message) error {
 	if btd == nil {
 		btd = &BlacklistTxData{}
 	}
-	if msg, ok := message.(*blpb.BlacklistTxData); ok {
+	if msg, ok := message.(*ctlpb.BlacklistTxData); ok {
 		if msg != nil {
 			btd.pubkey = make([]byte, len(msg.Pubkey))
 			copy(btd.pubkey[:], msg.Pubkey[:])
@@ -345,7 +345,7 @@ func (btd *BlacklistTxData) Marshal() (data []byte, err error) {
 
 // Unmarshal method unmarshal binary data to BlacklistConfirmMsg object
 func (btd *BlacklistTxData) Unmarshal(data []byte) error {
-	msg := &blpb.BlacklistTxData{}
+	msg := &ctlpb.BlacklistTxData{}
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
@@ -397,16 +397,16 @@ func ConvPbTxToTx(pbTx *corepb.Transaction) (*coreTypes.Transaction, error) {
 }
 
 // ConvEvidencesToPbEvidences convert []*coreTypes.Block to []*corepb.Block
-func ConvEvidencesToPbEvidences(evidences []*Evidence) ([]*blpb.Evidence, error) {
-	pbEvis := make([]*blpb.Evidence, 0, len(evidences))
+func ConvEvidencesToPbEvidences(evidences []*Evidence) ([]*ctlpb.Evidence, error) {
+	pbEvis := make([]*ctlpb.Evidence, 0, len(evidences))
 	for _, v := range evidences {
 		msg, err := v.ToProtoMessage()
 		if err != nil {
 			return nil, err
 		}
-		evi, ok := msg.(*blpb.Evidence)
+		evi, ok := msg.(*ctlpb.Evidence)
 		if !ok {
-			return nil, fmt.Errorf("asserted failed for proto.Message to *blpb.Evidence")
+			return nil, fmt.Errorf("asserted failed for proto.Message to *ctlpb.Evidence")
 		}
 		pbEvis = append(pbEvis, evi)
 	}
@@ -414,7 +414,7 @@ func ConvEvidencesToPbEvidences(evidences []*Evidence) ([]*blpb.Evidence, error)
 }
 
 // ConvPbEvidencesToEvidences convert []*corepb.Block to []*coreTypes.Block
-func ConvPbEvidencesToEvidences(pbEvis []*blpb.Evidence) ([]*Evidence, error) {
+func ConvPbEvidencesToEvidences(pbEvis []*ctlpb.Evidence) ([]*Evidence, error) {
 	evidences := make([]*Evidence, 0, len(pbEvis))
 	for _, v := range pbEvis {
 		evidence := new(Evidence)

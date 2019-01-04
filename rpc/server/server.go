@@ -14,7 +14,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
-	"github.com/BOXFoundation/boxd/core/blacklist"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
@@ -55,7 +55,7 @@ type Server struct {
 	TxHandler   service.TxHandler
 	WalletAgent service.WalletAgent
 	eventBus    eventbus.Bus
-	blacklist   *blacklist.BlackListWrap
+	blacklist   *ctl.BlackListWrap
 	server      *grpc.Server
 	gRPCProc    goprocess.Process
 	wggRPC      sync.WaitGroup
@@ -97,7 +97,7 @@ type GRPCServer interface {
 	GetTxHandler() service.TxHandler
 	GetWalletAgent() service.WalletAgent
 	GetEventBus() eventbus.Bus
-	GetBlacklist() *blacklist.BlackListWrap
+	GetBlacklist() *ctl.BlackListWrap
 	Proc() goprocess.Process
 	Stop()
 }
@@ -106,7 +106,7 @@ type GRPCServer interface {
 func NewServer(parent goprocess.Process, cfg *Config,
 	cr service.ChainReader, txh service.TxHandler,
 	wa service.WalletAgent, bus eventbus.Bus,
-	blw *blacklist.BlackListWrap) *Server {
+	blw *ctl.BlackListWrap) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
@@ -161,7 +161,7 @@ func (s *Server) GetEventBus() eventbus.Bus {
 }
 
 // GetBlacklist returns the blacklist containing the pubkeys
-func (s *Server) GetBlacklist() *blacklist.BlackListWrap {
+func (s *Server) GetBlacklist() *ctl.BlackListWrap {
 	return s.blacklist
 }
 

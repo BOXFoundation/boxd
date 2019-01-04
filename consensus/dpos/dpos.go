@@ -14,8 +14,8 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/chain"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -678,7 +678,7 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 
 func (dpos *Dpos) subscribeBlacklist() {
 
-	blacklist.SetPeriodSize(PeriodSize)
+	ctl.SetPeriodSize(PeriodSize)
 
 	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
 		out <- dpos.context.periodContext.periodPeers

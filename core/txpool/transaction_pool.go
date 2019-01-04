@@ -13,8 +13,8 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
-	bl "github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/core/chain"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -193,7 +193,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 			go func() {
 				// TODO: bug, need to process script and valid sig = true
 				script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey).GetPubKeyChecksum()
-				bl.Default().SceneCh <- &bl.Evidence{Tx: tx, Type: bl.TxEvidence, Err: err.Error(), Ts: time.Now().Unix()}
+				ctl.Default().SceneCh <- &ctl.Evidence{Tx: tx, Type: ctl.TxEvidence, Err: err.Error(), Ts: time.Now().Unix()}
 			}()
 		}
 		return err
@@ -382,7 +382,7 @@ func (tx_pool *TransactionPool) checkSpecialTx(tx *types.Transaction) error {
 }
 
 func (tx_pool *TransactionPool) checkBlacklistData(tx *types.Transaction) error {
-	blacklistContent := new(bl.BlacklistTxData)
+	blacklistContent := new(ctl.BlacklistTxData)
 	if err := blacklistContent.Unmarshal(tx.Data.Content); err != nil {
 		return err
 	}
