@@ -28,7 +28,7 @@ const (
 	TxMsgBufferChSize          = 65536
 	ChainUpdateMsgBufferChSize = 65536
 
-	metricsLoopInterval = 2 * time.Second
+	metricsLoopInterval = 1 * time.Second
 
 	// Note: reuse metrics ticker to save cost
 	orphanTxTTLMultiplier = 3600
@@ -318,7 +318,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
-	logger.Infof("Accept new tx. Hash: %v", txHash)
+	logger.Infof("Accepted new tx. Hash: %v", txHash)
 	switch transferMode {
 	case core.BroadcastMode:
 		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
