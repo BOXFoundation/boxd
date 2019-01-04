@@ -138,7 +138,9 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 					hashstr += ","
 					return true
 				})
-				logger.Infof("tx_pool info: %s", string([]rune(hashstr)[:len(hashstr)-1]))
+				if len(hashstr) > 1 {
+					logger.Infof("tx_pool info: %s", string([]rune(hashstr)[:len(hashstr)-1]))
+				}
 			}
 			metricsTickSeq++
 			if metricsTickSeq == orphanTxTTLMultiplier {
