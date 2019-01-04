@@ -32,7 +32,7 @@ const (
 
 	// [Low, Mid, High, Top]
 	PriorityMsgTypeSize = 4
-	PriorityQueueCap    = 1024
+	PriorityQueueCap    = 65536
 )
 
 // Conn represents a connection to a remote node
