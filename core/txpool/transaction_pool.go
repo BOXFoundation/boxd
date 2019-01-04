@@ -29,6 +29,17 @@ const (
 	ChainUpdateMsgBufferChSize = 65536
 
 	metricsLoopInterval = 2 * time.Second
+
+	// Note: reuse metrics ticker to save cost
+	orphanTxTTLMultiplier = 3600
+)
+
+var (
+	// max time to retain an orphan
+	// Orphan can't be stored forever, otherwise memory will be exhausted
+	orphanTxTTL = orphanTxTTLMultiplier * metricsLoopInterval
+
+	metricsTickSeq = 0
 )
 
 var logger = log.NewLogger("txpool") // logger
@@ -49,7 +60,7 @@ type TransactionPool struct {
 	// types.OutPoint -> *types.Transaction
 	outPointToTx *sync.Map
 	txMutex      sync.Mutex
-	// crypto.HashType -> *types.Transaction
+	// crypto.HashType -> *types.TxWrap
 	hashToOrphanTx *sync.Map
 	// outpoint -> orphans spending it; outpoints can be arbitrary, valid or invalid
 	// Use map here since there can be multiple spending txs and we don't know which
@@ -118,6 +129,13 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 		case <-metricsTicker.C:
 			metrics.MetricsTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToTx)))
 			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToOrphanTx)))
+			metricsTickSeq++
+			if metricsTickSeq == orphanTxTTLMultiplier {
+				// loop around
+				metricsTickSeq = 0
+				// remove expired orphans if any
+				tx_pool.expireOrphans()
+			}
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
@@ -503,14 +521,17 @@ func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 
 // Add orphan
 func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
+	txWrap := &chain.TxWrap{
+		Tx:             tx,
+		AddedTimestamp: time.Now().Unix(),
+	}
 
 	txHash, _ := tx.TxHash()
-	tx_pool.hashToOrphanTx.Store(*txHash, tx)
+	tx_pool.hashToOrphanTx.Store(*txHash, txWrap)
 	for _, txIn := range tx.Vin {
 		v := new(sync.Map)
 		v.Store(*txHash, tx)
 		tx_pool.outPointToOrphan.LoadOrStore(txIn.PrevOutPoint, v)
-
 	}
 
 	logger.Debugf("Stored orphan transaction %v", txHash.String())
@@ -557,6 +578,26 @@ func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) 
 				return true
 			})
 		}
+	}
+}
+
+func (tx_pool *TransactionPool) expireOrphans() {
+	var expiredOrphans []*types.Transaction
+
+	now := time.Now()
+	tx_pool.hashToOrphanTx.Range(func(k, v interface{}) bool {
+		orphan := v.(*chain.TxWrap)
+		if now.After(time.Unix(orphan.AddedTimestamp, 0).Add(orphanTxTTL)) {
+			// Note: do not delete while range looping over map; delete after loop is over
+			expiredOrphans = append(expiredOrphans, orphan.Tx)
+		}
+		return true
+	})
+
+	for _, expiredOrphan := range expiredOrphans {
+		txHash, _ := expiredOrphan.TxHash()
+		logger.Infof("Remove expired orphan %v", txHash)
+		tx_pool.removeOrphan(expiredOrphan)
 	}
 }
 
