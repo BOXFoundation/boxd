@@ -129,6 +129,9 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 		case <-metricsTicker.C:
 			metrics.MetricsTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToTx)))
 			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToOrphanTx)))
+			if time.Now().Unix()%30 == 0 {
+				logger.Infof("tx_pool info: %v", tx_pool.hashToTx)
+			}
 			metricsTickSeq++
 			if metricsTickSeq == orphanTxTTLMultiplier {
 				// loop around
@@ -201,6 +204,8 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
+	hash, _ := tx.TxHash()
+	logger.Info("Start to process tx. Hash: %v", hash)
 
 	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil && util.InArray(err, core.EvilBehavior) {
 		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
@@ -313,7 +318,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
-
+	logger.Infof("Accept new tx. Hash: %v", txHash)
 	switch transferMode {
 	case core.BroadcastMode:
 		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
