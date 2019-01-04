@@ -26,14 +26,14 @@ func TestProcessEvidence(t *testing.T) {
 	blackList.Run(nil, eventbus.Default(), goprocess.WithSignals(os.Interrupt))
 
 	for i := 0; i < 20; i++ {
-		blackList.SceneCh <- &Evidence{PubKeyChecksum: 0, Block: block, Type: BlockEvidence, Err: "", Ts: time.Now().Unix()}
+		blackList.SceneCh <- &Evidence{PubKey: []byte{}, Block: block, Type: BlockEvidence, Err: "", Ts: time.Now().Unix()}
 	}
 }
 
 func TestCalcHash(t *testing.T) {
 	evidence := &Evidence{
-		PubKeyChecksum: 1,
-		Type:           BlockEvidence,
+		PubKey: []byte{},
+		Type:   BlockEvidence,
 		Block: &types.Block{
 			Header:           &types.BlockHeader{},
 			Txs:              []*types.Transaction{},

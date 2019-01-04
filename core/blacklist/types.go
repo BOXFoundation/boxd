@@ -39,14 +39,15 @@ type BlacklistMsg struct {
 
 // BlacklistConfirmMsg contains evidences for bad node
 type BlacklistConfirmMsg struct {
-	pubKeyChecksum uint32
-	hash           []byte
-	signature      []byte
-	timestamp      int64
+	pubkey    []byte
+	hash      []byte
+	signature []byte
+	timestamp int64
 }
 
 // BlacklistTxData will put into tx on chain
 type BlacklistTxData struct {
+	pubkey     []byte
 	hash       []byte
 	signatures [][]byte
 }
@@ -122,12 +123,12 @@ func (evi *Evidence) ToProtoMessage() (proto.Message, error) {
 	}
 
 	return &blpb.Evidence{
-		PubKeyChecksum: evi.PubKeyChecksum,
-		Tx:             tx,
-		Block:          block,
-		Type:           evi.Type,
-		Err:            evi.Err,
-		Ts:             evi.Ts,
+		PubKey: evi.PubKey,
+		Tx:     tx,
+		Block:  block,
+		Type:   evi.Type,
+		Err:    evi.Err,
+		Ts:     evi.Ts,
 	}, nil
 }
 
@@ -139,7 +140,8 @@ func (evi *Evidence) FromProtoMessage(message proto.Message) error {
 	var err error
 	if message, ok := message.(*blpb.Evidence); ok {
 		if message != nil {
-			evi.PubKeyChecksum = message.PubKeyChecksum
+			evi.PubKey = make([]byte, len(message.PubKey))
+			copy(evi.PubKey[:], message.PubKey[:])
 			evi.Tx, err = ConvPbTxToTx(message.Tx)
 			if err != nil {
 				return err
@@ -240,11 +242,14 @@ func (bcm *BlacklistConfirmMsg) ToProtoMessage() (proto.Message, error) {
 	signature := make([]byte, len(bcm.signature))
 	copy(signature[:], bcm.signature[:])
 
+	pubkey := make([]byte, len(bcm.pubkey))
+	copy(pubkey[:], bcm.pubkey[:])
+
 	return &blpb.BlacklistConfirmMsg{
-		PubKeyChecksum: bcm.pubKeyChecksum,
-		Hash:           hash,
-		Signature:      signature,
-		Timestamp:      bcm.timestamp,
+		Pubkey:    pubkey,
+		Hash:      hash,
+		Signature: signature,
+		Timestamp: bcm.timestamp,
 	}, nil
 }
 
@@ -255,7 +260,8 @@ func (bcm *BlacklistConfirmMsg) FromProtoMessage(message proto.Message) error {
 	}
 	if msg, ok := message.(*blpb.BlacklistConfirmMsg); ok {
 		if msg != nil {
-			bcm.pubKeyChecksum = msg.PubKeyChecksum
+			bcm.pubkey = make([]byte, len(msg.Pubkey))
+			copy(bcm.pubkey[:], msg.Pubkey[:])
 			bcm.hash = make([]byte, len(msg.Hash))
 			copy(bcm.hash[:], msg.Hash[:])
 			bcm.signature = make([]byte, len(msg.Signature))
@@ -290,8 +296,10 @@ func (btd *BlacklistTxData) ToProtoMessage() (proto.Message, error) {
 
 	hash := make([]byte, len(btd.hash))
 	copy(hash[:], btd.hash[:])
+	pubkey := make([]byte, len(btd.pubkey))
+	copy(pubkey[:], btd.pubkey[:])
 
-	signs := make([][]byte, len(btd.signatures))
+	signs := [][]byte{}
 	for _, v := range btd.signatures {
 		sign := make([]byte, len(v))
 		copy(sign[:], v[:])
@@ -299,6 +307,7 @@ func (btd *BlacklistTxData) ToProtoMessage() (proto.Message, error) {
 	}
 
 	return &blpb.BlacklistTxData{
+		Pubkey:     pubkey,
 		Hash:       hash,
 		Signatures: signs,
 	}, nil
@@ -311,6 +320,8 @@ func (btd *BlacklistTxData) FromProtoMessage(message proto.Message) error {
 	}
 	if msg, ok := message.(*blpb.BlacklistTxData); ok {
 		if msg != nil {
+			btd.pubkey = make([]byte, len(msg.Pubkey))
+			copy(btd.pubkey[:], msg.Pubkey[:])
 			btd.hash = make([]byte, len(msg.Hash))
 			copy(btd.hash[:], msg.Hash[:])
 

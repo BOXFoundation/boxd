@@ -10,7 +10,7 @@ import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 
 
 message Evidence {
-    uint32 PubKeyChecksum = 1;
+    bytes PubKey = 1;
     corepb.Transaction Tx = 2;
     corepb.Block Block = 3;
     uint32 Type = 4;
@@ -24,13 +24,14 @@ message BlacklistMsg {
 }
 
 message BlacklistConfirmMsg {
-    uint32 pubKeyChecksum = 1;
+    bytes pubkey = 1;
     bytes hash = 2; 
     bytes signature = 3; 
     int64 timestamp = 4;
 }
 
 message BlacklistTxData {
-    bytes hash = 1; 
-    repeated bytes signatures = 2;
+    bytes pubkey = 1;
+    bytes hash = 2; 
+    repeated bytes signatures = 3;
 }

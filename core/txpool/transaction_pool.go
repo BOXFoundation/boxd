@@ -349,7 +349,6 @@ func (tx_pool *TransactionPool) checkSpecialTx(tx *types.Transaction) error {
 	if tx.Data == nil {
 		return nil
 	}
-	logger.Errorf("checkSpecialTx start")
 	content := tx.Data.Content
 	switch int(tx.Data.Type) {
 	case types.RegisterCandidateTx:
@@ -387,6 +386,7 @@ func (tx_pool *TransactionPool) checkBlacklistData(tx *types.Transaction) error 
 	if err := blacklistContent.Unmarshal(tx.Data.Content); err != nil {
 		return err
 	}
+	logger.Errorf("blacklistContent = %v", blacklistContent)
 
 	minerAddrsCh := make(chan []types.AddressHash)
 	tx_pool.bus.Send(eventbus.TopicAddrs, minerAddrsCh)

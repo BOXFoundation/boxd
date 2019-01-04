@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"strconv"
 	"sync"
 	"time"
@@ -239,8 +238,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 			chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 			go func() {
 				if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
-					pubkeyChecksum := crc32.ChecksumIEEE(pubkey.Serialize())
-					bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Block: block, Type: bl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
+					bl.Default().SceneCh <- &bl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: bl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
 				}
 			}()
 		}
@@ -250,8 +248,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	// TODO: test
 	go func() {
 		if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
-			pubkeyChecksum := crc32.ChecksumIEEE(pubkey.Serialize())
-			bl.Default().SceneCh <- &bl.Evidence{PubKeyChecksum: pubkeyChecksum, Block: block, Type: bl.BlockEvidence, Err: core.ErrBlockExists.Error(), Ts: time.Now().Unix()}
+			bl.Default().SceneCh <- &bl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: bl.BlockEvidence, Err: core.ErrBlockExists.Error(), Ts: time.Now().Unix()}
 		}
 	}()
 

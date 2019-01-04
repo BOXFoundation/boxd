@@ -5,6 +5,7 @@
 package blacklist
 
 import (
+	"bytes"
 	"hash/crc32"
 	"time"
 
@@ -32,7 +33,7 @@ func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
 		return core.ErrInsufficientEvidence
 	}
 
-	var pubkeyChecksum uint32
+	var pubkey []byte
 	resultCh := make(chan error)
 	for _, evidence := range blMsg.evidences {
 		switch evidence.Type {
@@ -48,10 +49,11 @@ func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
 			return core.ErrEvidenceErrNotMatch
 		}
 
-		// TODO: 判断checksum是否match scene中的发送方（script/block）
-		if pubkeyChecksum == 0 {
-			pubkeyChecksum = evidence.PubKeyChecksum
-		} else if pubkeyChecksum != evidence.PubKeyChecksum {
+		// TODO: 判断pubkey是否match scene中的发送方（script/block）
+		if pubkey == nil || len(pubkey) == 0 {
+			pubkey = make([]byte, len(evidence.PubKey))
+			copy(pubkey[:], evidence.PubKey)
+		} else if !bytes.Equal(pubkey, evidence.PubKey) {
 			return core.ErrSeparateSourceEvidences
 		}
 	}
@@ -65,11 +67,12 @@ func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
 	}
 
 	confirmMsg := &BlacklistConfirmMsg{
-		pubKeyChecksum: pubkeyChecksum,
-		hash:           blMsg.hash,
-		signature:      signature,
-		timestamp:      time.Now().Unix(),
+		pubkey:    pubkey,
+		hash:      blMsg.hash,
+		signature: signature,
+		timestamp: time.Now().Unix(),
 	}
+
 	bl.notifiee.SendMessageToPeer(p2p.BlacklistConfirmMsg, confirmMsg, msg.From())
 	return nil
 }
@@ -119,7 +122,7 @@ func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
 			bl.existConfirmedKey.Add(hashChecksum, struct{}{})
 			// TODO: 上链
 			go func() {
-				bl.createBlacklistTx(confirmMsg.hash, sigSlice)
+				bl.createBlacklistTx(confirmMsg.pubkey, confirmMsg.hash, sigSlice)
 				bl.confirmMsgNote.Remove(hashChecksum)
 			}()
 		} else {
@@ -132,12 +135,12 @@ func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
 	return nil
 }
 
-func (bl *BlackList) createBlacklistTx(hash []byte, signs [][]byte) error {
+func (bl *BlackList) createBlacklistTx(pubkey, hash []byte, signs [][]byte) error {
 	tx, err := CreateBlacklistTx(&BlacklistTxData{
+		pubkey:     pubkey,
 		hash:       hash,
 		signatures: signs,
 	})
-
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@
 package blacklist
 
 import (
+	"hash/crc32"
 	"sync"
 	"time"
 
@@ -35,39 +36,18 @@ const (
 )
 
 var (
-	blackList *BlackList
 	// periodSize is a clone of consensus.periodSize
 	periodSize int
 )
 
-// BlackList represents the black list of public keys
-type BlackList struct {
-	// checksumIEEE(pubKey) -> struct{}{}
-	Details *sync.Map
-	SceneCh chan *Evidence
-	// checksumIEEE(pubKey) -> []ch
-	evidenceNote *lru.Cache
-
-	// checkousum(hash) -> [][]byte([]signature)
-	confirmMsgNote *lru.Cache
-	// checkousum(hash) -> struct{}{}
-	existConfirmedKey *lru.Cache
-
-	bus      eventbus.Bus
-	notifiee p2p.Net
-	msgCh    chan p2p.Message
-	proc     goprocess.Process
-	mutex    *sync.Mutex
-}
-
 // Evidence can help bp to restore error scene
 type Evidence struct {
-	PubKeyChecksum uint32
-	Tx             *types.Transaction
-	Block          *types.Block
-	Type           uint32
-	Err            string
-	Ts             int64
+	PubKey []byte
+	Tx     *types.Transaction
+	Block  *types.Block
+	Type   uint32
+	Err    string
+	Ts     int64
 }
 
 func init() {
@@ -128,16 +108,17 @@ func (bl *BlackList) Run(notifiee p2p.Net, bus eventbus.Bus, parent goprocess.Pr
 
 func (bl *BlackList) processEvidence(evidence *Evidence) error {
 
+	key := crc32.ChecksumIEEE(evidence.PubKey)
 	// get personal note
-	personalNote, ok := bl.evidenceNote.Get(evidence.PubKeyChecksum)
+	personalNote, ok := bl.evidenceNote.Get(key)
 	if !ok {
 		newNote := make([]chan *Evidence, 2)
 		// store invalid txs
 		newNote[0] = make(chan *Evidence, txEvidenceMaxSize+1)
 		// store invalid blocks
 		newNote[1] = make(chan *Evidence, blockEvidenceMaxSize+1)
-		bl.evidenceNote.Add(evidence.PubKeyChecksum, newNote)
-		personalNote, _ = bl.evidenceNote.Get(evidence.PubKeyChecksum)
+		bl.evidenceNote.Add(key, newNote)
+		personalNote, _ = bl.evidenceNote.Get(key)
 	}
 
 	// get pioneer
@@ -154,7 +135,6 @@ func (bl *BlackList) processEvidence(evidence *Evidence) error {
 		}
 	case BlockEvidence:
 		evidenceCh = personalNote.([]chan *Evidence)[1]
-		logger.Errorf("len(evidenceCh) = %v", len(evidenceCh))
 		if len(evidenceCh) >= blockEvidenceMaxSize {
 			first = <-evidenceCh
 		} else {
@@ -213,6 +193,10 @@ func (bl *BlackList) processBlacklistTx(tx *types.Transaction, batch storage.Bat
 	if err := blacklistContent.Unmarshal(tx.Data.Content); err != nil {
 		return err
 	}
+
+	logger.Errorf("blacklist tx = %v", blacklistContent)
+
+	batch.Put()
 
 	return nil
 }
