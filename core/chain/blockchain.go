@@ -361,13 +361,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	parentHash := &block.Header.PrevBlockHash
 	tailHash := chain.TailBlock().BlockHash()
 
-	batch := chain.db.NewBatch()
-	defer batch.Close()
-
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		return chain.tryConnectBlockToMainChain(block, batch)
+		return chain.tryConnectBlockToMainChain(block)
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
@@ -380,23 +377,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
-	// if err := chain.reorganize(block, batch); err != nil {
-	// 	return err
-	// }
 
-	// save current tail to database
-	// if err := chain.StoreTailBlock(block, batch); err != nil {
-	// 	return err
-	// }
-
-	// if err := batch.Write(); err != nil {
-	// 	logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s", block.BlockHash().String(), block.Height, err.Error())
-	// }
-
-	// // This block is now the end of the best chain.
-	// chain.ChangeNewTail(block)
-
-	return chain.reorganize(block, batch)
+	return chain.reorganize(block)
 }
 
 func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
@@ -455,7 +437,7 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
-func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch storage.Batch) error {
+func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 
 	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Height)
 	utxoSet := NewUtxoSet()
@@ -498,48 +480,12 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, batch st
 		return core.ErrBadCoinbaseValue
 	}
 
-	if err := chain.applyBlock(block, utxoSet, batch); err != nil {
-		return err
-	}
-
-	return chain.submitBlock(block, utxoSet, batch, []*types.Block{block}, nil)
-}
-
-func (chain *BlockChain) submitBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch, attachBlocks, detachBlocks []*types.Block) error {
-
-	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
-		return err
-	}
-
-	// save current tail to database
-	if err := chain.StoreTailBlock(block, batch); err != nil {
-		return err
-	}
-
-	if err := batch.Write(); err != nil {
-		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
-			block.BlockHash().String(), block.Height, err.Error())
-	}
-
-	chain.tryToClearCache(attachBlocks, detachBlocks)
-
-	// notify when batch write success
-	chain.notifyUtxoChange(utxoSet)
-
-	// notify mem_pool when chain update
-	chain.notifyBlockConnectionUpdate(attachBlocks, detachBlocks)
-
-	// This block is now the end of the best chain.
-	chain.ChangeNewTail(block)
-
-	return nil
+	return chain.applyBlock(block, utxoSet)
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
 	for _, v := range detachBlocks {
 		chain.blockcache.Remove(*v.BlockHash())
-		// clean detachBlocks child tx
 	}
 	for _, v := range attachBlocks {
 		chain.blockcache.Add(*v.BlockHash(), v)
@@ -592,41 +538,10 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) revertBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
+func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
 
-	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-	blockCopy := block.Copy()
-
-	// Split tx outputs if any
-	chain.splitBlockOutputs(blockCopy)
-
-	// utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
-		return err
-	}
-	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
-		return err
-	}
-
-	// batch.Del(BlockKey(block.BlockHash()))
-	batch.Del(BlockHashKey(block.Height))
-
-	chain.filterHolder.ResetFilters(block.Height)
-
-	// save tx index
-	if err := chain.DelTxIndex(block, batch); err != nil {
-		return err
-	}
-
-	// if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
-	// 	return err
-	// }
-	return chain.DeleteSplitAddrIndex(block, batch)
-
-	// return chain.notifyBlockConnectionUpdate(block, false)
-}
-
-func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch storage.Batch) error {
+	batch := chain.db.NewBatch()
+	defer batch.Close()
 
 	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 	blockCopy := block.Copy()
@@ -663,13 +578,37 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, batch 
 	}
 
 	// store split addr index
-	// if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
-	// 	logger.Error(err)
-	// 	return err
-	// }
-	return chain.WriteSplitAddrIndex(block, batch)
+	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
+		logger.Error(err)
+		return err
+	}
+	// save utxoset to database
+	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
+		return err
+	}
 
-	// return chain.notifyBlockConnectionUpdate(block, true)
+	// save current tail to database
+	if err := chain.StoreTailBlock(block, batch); err != nil {
+		return err
+	}
+
+	if err := batch.Write(); err != nil {
+		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
+			block.BlockHash().String(), block.Height, err.Error())
+	}
+
+	chain.tryToClearCache([]*types.Block{block}, nil)
+
+	// notify when batch write success
+	chain.notifyUtxoChange(utxoSet)
+
+	// notify mem_pool when chain update
+	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
+
+	// This block is now the end of the best chain.
+	chain.ChangeNewTail(block)
+
+	return nil
 }
 
 func (chain *BlockChain) notifyBlockConnectionUpdate(attachBlocks, detachBlocks []*types.Block) error {
@@ -684,34 +623,81 @@ func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
 	chain.bus.Publish(eventbus.TopicUtxoUpdate, utxoSet)
 }
 
-func (chain *BlockChain) reorganize(block *types.Block, batch storage.Batch) error {
+func (chain *BlockChain) reorganize(block *types.Block) error {
 	// Find the common ancestor of the main chain and side chain
 	_, detachBlocks, attachBlocks := chain.findFork(block)
 
-	utxoSet := NewUtxoSet()
-	// Detach the blocks that form the (now) old fork from the main chain.
-	// From tail to fork, not including fork
 	for _, detachBlock := range detachBlocks {
-		if err := chain.revertBlock(detachBlock, utxoSet, batch); err != nil {
+		if err := chain.tryDisConnectBlockFromMainChain(detachBlock); err != nil {
 			return err
 		}
 	}
 
-	// Attach the blocks that form the new chain to the main chain starting at the
-	// common ancenstor (the point where the chain forked).
-	// From fork to tail, not including fork
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		attachBlock := attachBlocks[blockIdx]
-		if err := chain.applyBlock(attachBlock, utxoSet, batch); err != nil {
+		if err := chain.tryConnectBlockToMainChain(attachBlock); err != nil {
 			return err
 		}
-	}
-
-	if err := chain.submitBlock(block, utxoSet, batch, attachBlocks, detachBlocks); err != nil {
-		return err
 	}
 
 	metrics.MetricsBlockRevertMeter.Mark(1)
+	return nil
+}
+
+func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
+
+	batch := chain.db.NewBatch()
+	defer batch.Close()
+
+	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+	blockCopy := block.Copy()
+
+	// Split tx outputs if any
+	chain.splitBlockOutputs(blockCopy)
+
+	utxoSet := NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
+		return err
+	}
+	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
+		return err
+	}
+
+	// batch.Del(BlockKey(block.BlockHash()))
+	batch.Del(BlockHashKey(block.Height))
+
+	chain.filterHolder.ResetFilters(block.Height)
+
+	// save tx index
+	if err := chain.DelTxIndex(block, batch); err != nil {
+		return err
+	}
+
+	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
+		return err
+	}
+
+	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
+		return err
+	}
+
+	// save current tail to database
+	if err := chain.StoreTailBlock(block, batch); err != nil {
+		return err
+	}
+
+	if err := batch.Write(); err != nil {
+		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
+			block.BlockHash().String(), block.Height, err.Error())
+	}
+
+	chain.tryToClearCache(nil, []*types.Block{block})
+
+	// notify when batch write success
+	chain.notifyUtxoChange(utxoSet)
+
+	// notify mem_pool when chain update
+	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 	return nil
 }
 
