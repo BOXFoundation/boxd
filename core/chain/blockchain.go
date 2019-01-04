@@ -149,7 +149,7 @@ func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
 	chain.subscribeBlacklistMsg()
 	chain.proc.Go(chain.loop)
-	bl.Default().Run(chain.notifiee, chain.bus, chain.proc)
+	bl.Default().Run(chain.notifiee, chain.bus, chain.db, chain.proc)
 	return nil
 }
 

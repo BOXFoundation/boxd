@@ -19,7 +19,7 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
-func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
+func (bl *BlackListWrap) onBlacklistMsg(msg p2p.Message) error {
 
 	blMsg := new(BlacklistMsg)
 	if err := blMsg.Unmarshal(msg.Body()); err != nil {
@@ -77,7 +77,7 @@ func (bl *BlackList) onBlacklistMsg(msg p2p.Message) error {
 	return nil
 }
 
-func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
+func (bl *BlackListWrap) onBlacklistConfirmMsg(msg p2p.Message) error {
 
 	confirmMsg := new(BlacklistConfirmMsg)
 	if err := confirmMsg.Unmarshal(msg.Body()); err != nil {
@@ -135,7 +135,7 @@ func (bl *BlackList) onBlacklistConfirmMsg(msg p2p.Message) error {
 	return nil
 }
 
-func (bl *BlackList) createBlacklistTx(pubkey, hash []byte, signs [][]byte) error {
+func (bl *BlackListWrap) createBlacklistTx(pubkey, hash []byte, signs [][]byte) error {
 	tx, err := CreateBlacklistTx(&BlacklistTxData{
 		pubkey:     pubkey,
 		hash:       hash,
@@ -158,42 +158,10 @@ func (bl *BlackList) createBlacklistTx(pubkey, hash []byte, signs [][]byte) erro
 // CreateBlacklistTx creates blacklist type tx
 func CreateBlacklistTx(txData *BlacklistTxData) (*types.Transaction, error) {
 
-	// pubkeyCh := make(chan []byte)
-	// eventbus.Default().Send(eventbus.TopicMinerPubkey, pubkeyCh)
-	// pubkey := <-pubkeyCh
-
-	// var pkScript []byte
-	// pkScript = *script.PayToPubKeyHashScript(pubkey)
-
 	data, err := txData.Marshal()
 	if err != nil {
 		return nil, err
 	}
-
-	// tx := &types.Transaction{
-	// 	Version: 1,
-	// 	Vin: []*types.TxIn{
-	// 		{
-	// 			PrevOutPoint: types.OutPoint{
-	// 				Hash:  zeroHash,
-	// 				Index: 0,
-	// 			},
-	// 			ScriptSig: []byte{},
-	// 			Sequence:  math.MaxUint32,
-	// 		},
-	// 	},
-	// 	Vout: []*corepb.TxOut{
-	// 		{
-	// 			Value:        0,
-	// 			ScriptPubKey: pkScript,
-	// 		},
-	// 	},
-	// 	Data: &corepb.Data{
-	// 		Type:    types.BlacklistTx,
-	// 		Content: data,
-	// 	},
-	// }
-
 	txpbData := &corepb.Data{
 		Type:    types.BlacklistTx,
 		Content: data,

@@ -81,9 +81,6 @@ const (
 	AddrBalancePrefix = "/bal"
 	// AddrTokenBalancePrefix is the key prefix of database key to store address token balance
 	AddrTokenBalancePrefix = "/tbal"
-
-	// BlacklistPrefix is the key prefix of database key to store blacklist item
-	BlacklistPrefix = "/bl"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -96,7 +93,6 @@ var splitAddrBase = key.NewKey(SplitAddressPrefix)
 var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
 var addrBalanceBase = key.NewKey(AddrBalancePrefix)
 var addrTokenBalanceBase = key.NewKey(AddrTokenBalancePrefix)
-var blacklistBase = key.NewKey(BlacklistPrefix)
 
 // TailKey is the db key to stoare tail block content
 var TailKey = []byte(Tail)
@@ -178,7 +174,3 @@ func AddrTokenBalanceKey(addr string, token types.OutPoint) []byte {
 		Bytes()
 }
 
-// BlacklistKey returns the db key to store blacklist pubkey
-func BlacklistKey(pubkey []byte) []byte {
-	return splitAddrBase.ChildString(fmt.Sprintf("%x", pubkey)).Bytes()
-}

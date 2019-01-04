@@ -5,6 +5,7 @@
 package blacklist
 
 import (
+	"fmt"
 	"hash/crc32"
 	"sync"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/key"
+	"github.com/BOXFoundation/boxd/util"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
@@ -28,17 +31,41 @@ const (
 	blackListPeriod    = 3 * time.Second
 	blackListThreshold = 100
 
-	txEvidenceMaxSize    = 100
-	blockEvidenceMaxSize = 3
-	BlMsgChBufferSize    = 5
-
+	txEvidenceMaxSize      = 100
+	blockEvidenceMaxSize   = 3
+	BlMsgChBufferSize      = 5
 	MaxConfirmMsgCacheTime = 5
 )
 
 var (
+	blackListWrap *BlackListWrap
+
 	// periodSize is a clone of consensus.periodSize
 	periodSize int
+
+	blacklistBase = key.NewKey("/bl")
 )
+
+// BlackListWrap represents the black list of public keys
+type BlackListWrap struct {
+	// checksumIEEE(pubKey) -> int64(expire time)
+	Details *sync.Map
+	SceneCh chan *Evidence
+	// checksumIEEE(pubKey) -> []ch
+	evidenceNote *lru.Cache
+
+	// checkousum(hash) -> [][]byte([]signature)
+	confirmMsgNote *lru.Cache
+	// checkousum(hash) -> struct{}{}
+	existConfirmedKey *lru.Cache
+
+	db       storage.Table
+	bus      eventbus.Bus
+	notifiee p2p.Net
+	msgCh    chan p2p.Message
+	proc     goprocess.Process
+	mutex    *sync.Mutex
+}
 
 // Evidence can help bp to restore error scene
 type Evidence struct {
@@ -51,20 +78,20 @@ type Evidence struct {
 }
 
 func init() {
-	blackList = &BlackList{
+	blackListWrap = &BlackListWrap{
 		Details: new(sync.Map),
 		SceneCh: make(chan *Evidence, 4096),
 		msgCh:   make(chan p2p.Message, BlMsgChBufferSize),
 		mutex:   &sync.Mutex{},
 	}
-	blackList.evidenceNote, _ = lru.New(4096)
-	blackList.confirmMsgNote, _ = lru.New(1024)
-	blackList.existConfirmedKey, _ = lru.New(1024)
+	blackListWrap.evidenceNote, _ = lru.New(4096)
+	blackListWrap.confirmMsgNote, _ = lru.New(1024)
+	blackListWrap.existConfirmedKey, _ = lru.New(1024)
 }
 
-// Default returns the default BlackList.
-func Default() *BlackList {
-	return blackList
+// Default returns the default BlackListWrap.
+func Default() *BlackListWrap {
+	return blackListWrap
 }
 
 // SetPeriodSize get a clone from consensus
@@ -73,10 +100,12 @@ func SetPeriodSize(size int) {
 }
 
 // Run process
-func (bl *BlackList) Run(notifiee p2p.Net, bus eventbus.Bus, parent goprocess.Process) {
+func (bl *BlackListWrap) Run(notifiee p2p.Net, bus eventbus.Bus, db storage.Table, parent goprocess.Process) {
 
 	bl.bus = bus
 	bl.notifiee = notifiee
+	bl.db = db
+	bl.loadBlacklist()
 	bl.subscribeMessageNotifiee()
 
 	bl.proc = parent.Go(func(p goprocess.Process) {
@@ -106,7 +135,7 @@ func (bl *BlackList) Run(notifiee p2p.Net, bus eventbus.Bus, parent goprocess.Pr
 	})
 }
 
-func (bl *BlackList) processEvidence(evidence *Evidence) error {
+func (bl *BlackListWrap) processEvidence(evidence *Evidence) error {
 
 	key := crc32.ChecksumIEEE(evidence.PubKey)
 	// get personal note
@@ -159,7 +188,7 @@ func (bl *BlackList) processEvidence(evidence *Evidence) error {
 	return nil
 }
 
-func (bl *BlackList) packageEvidences(first, last *Evidence, evidenceCh chan *Evidence) []*Evidence {
+func (bl *BlackListWrap) packageEvidences(first, last *Evidence, evidenceCh chan *Evidence) []*Evidence {
 	evidences := []*Evidence{first}
 	for len(evidenceCh) != 0 {
 		evidences = append(evidences, <-evidenceCh)
@@ -168,13 +197,13 @@ func (bl *BlackList) packageEvidences(first, last *Evidence, evidenceCh chan *Ev
 	return evidences
 }
 
-func (bl *BlackList) subscribeMessageNotifiee() {
+func (bl *BlackListWrap) subscribeMessageNotifiee() {
 	bl.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlacklistMsg, bl.msgCh))
 	bl.notifiee.Subscribe(p2p.NewNotifiee(p2p.BlacklistConfirmMsg, bl.msgCh))
 }
 
 // StoreContext save new blacklist item
-func (bl *BlackList) StoreContext(block *types.Block, batch storage.Batch) error {
+func (bl *BlackListWrap) StoreContext(block *types.Block, batch storage.Batch) error {
 	for _, tx := range block.Txs {
 		if err := bl.processBlacklistTx(tx, batch); err != nil {
 			return err
@@ -183,7 +212,7 @@ func (bl *BlackList) StoreContext(block *types.Block, batch storage.Batch) error
 	return nil
 }
 
-func (bl *BlackList) processBlacklistTx(tx *types.Transaction, batch storage.Batch) error {
+func (bl *BlackListWrap) processBlacklistTx(tx *types.Transaction, batch storage.Batch) error {
 
 	if tx.Data == nil || tx.Data.Type != types.BlacklistTx {
 		return nil
@@ -193,10 +222,35 @@ func (bl *BlackList) processBlacklistTx(tx *types.Transaction, batch storage.Bat
 	if err := blacklistContent.Unmarshal(tx.Data.Content); err != nil {
 		return err
 	}
-
-	logger.Errorf("blacklist tx = %v", blacklistContent)
-
-	batch.Put()
+	expire := time.Now().Add(24 * time.Hour).Unix()
+	bl.Details.Store(crc32.ChecksumIEEE(blacklistContent.pubkey), expire)
+	batch.Put(BlacklistKey(blacklistContent.pubkey), util.FromInt64(expire))
 
 	return nil
+}
+
+func (bl *BlackListWrap) loadBlacklist() {
+	keys := bl.db.KeysWithPrefix(blacklistBase.Bytes())
+	for _, k := range keys {
+		slice := key.NewKeyFromBytes(k).List()
+		if len(slice) == 2 {
+			val, err := bl.db.Get(k)
+			if err != nil {
+				logger.Errorf("db get fail. Err: %v", err)
+				continue
+			}
+			expire := util.Int64(val)
+			if expire <= time.Now().Unix() {
+				continue
+			}
+			pubkey := slice[1]
+			bl.Details.Store(crc32.ChecksumIEEE([]byte(pubkey)), expire)
+			logger.Errorf("store = %v, %v", crc32.ChecksumIEEE([]byte(pubkey)), expire)
+		}
+	}
+}
+
+// BlacklistKey returns the db key to store blacklist pubkey
+func BlacklistKey(pubkey []byte) []byte {
+	return blacklistBase.ChildString(fmt.Sprintf("%x", pubkey)).Bytes()
 }
