@@ -14,6 +14,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
+	"github.com/BOXFoundation/boxd/core/blacklist"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
@@ -54,6 +55,7 @@ type Server struct {
 	TxHandler   service.TxHandler
 	WalletAgent service.WalletAgent
 	eventBus    eventbus.Bus
+	blacklist   *blacklist.BlackListWrap
 	server      *grpc.Server
 	gRPCProc    goprocess.Process
 	wggRPC      sync.WaitGroup
@@ -95,6 +97,7 @@ type GRPCServer interface {
 	GetTxHandler() service.TxHandler
 	GetWalletAgent() service.WalletAgent
 	GetEventBus() eventbus.Bus
+	GetBlacklist() *blacklist.BlackListWrap
 	Proc() goprocess.Process
 	Stop()
 }
@@ -102,12 +105,14 @@ type GRPCServer interface {
 // NewServer creates a RPC server instance.
 func NewServer(parent goprocess.Process, cfg *Config,
 	cr service.ChainReader, txh service.TxHandler,
-	wa service.WalletAgent, bus eventbus.Bus) *Server {
+	wa service.WalletAgent, bus eventbus.Bus,
+	blw *blacklist.BlackListWrap) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
 		TxHandler:   txh,
 		eventBus:    bus,
+		blacklist:   blw,
 		WalletAgent: wa,
 		gRPCProc:    goprocess.WithParent(parent),
 	}
@@ -153,6 +158,11 @@ func (s *Server) GetWalletAgent() service.WalletAgent {
 // GetEventBus returns a interface to publish events
 func (s *Server) GetEventBus() eventbus.Bus {
 	return s.eventBus
+}
+
+// GetBlacklist returns the blacklist containing the pubkeys
+func (s *Server) GetBlacklist() *blacklist.BlackListWrap {
+	return s.blacklist
 }
 
 func (s *Server) servegRPC(proc goprocess.Process) {

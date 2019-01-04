@@ -74,6 +74,13 @@ service ContorlCommand {
             body: "*"
         };
     }
+
+    rpc GetBlacklist (GetBlacklistRequest) returns (GetBlacklistResponse) {
+        option (google.api.http) = {
+            post: "/v1/ctl/getblacklist"
+            body: "*"
+        };
+    }
 }
 
 // The request message containing debug level.
@@ -146,3 +153,10 @@ message GetNodeInfoResponse {
     repeated Node nodes = 1;
 }
 
+message GetBlacklistRequest {
+
+}
+
+message GetBlacklistResponse {
+    map<string, string> map = 1;
+}

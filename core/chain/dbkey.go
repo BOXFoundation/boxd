@@ -173,4 +173,3 @@ func AddrTokenBalanceKey(addr string, token types.OutPoint) []byte {
 		ChildString(fmt.Sprintf("%x", token.Index)).
 		Bytes()
 }
-
