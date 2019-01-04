@@ -130,7 +130,15 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 			metrics.MetricsTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToTx)))
 			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToOrphanTx)))
 			if time.Now().Unix()%30 == 0 {
-				logger.Infof("tx_pool info: %v", tx_pool.hashToTx)
+				var hashstr string
+				tx_pool.hashToTx.Range(func(k, v interface{}) bool {
+					tx := v.(*types.Transaction)
+					hash, _ := tx.TxHash()
+					hashstr += hash.String()
+					hashstr += ","
+					return true
+				})
+				logger.Infof("tx_pool info: %s", string([]rune(hashstr)[:len(hashstr)-1]))
 			}
 			metricsTickSeq++
 			if metricsTickSeq == orphanTxTTLMultiplier {
@@ -205,7 +213,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 	hash, _ := tx.TxHash()
-	logger.Info("Start to process tx. Hash: %v", hash)
+	logger.Infof("Start to process tx. Hash: %v", hash)
 
 	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil && util.InArray(err, core.EvilBehavior) {
 		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
