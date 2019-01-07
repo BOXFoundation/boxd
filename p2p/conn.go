@@ -300,10 +300,8 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 }
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
-	reserve, body, err := conn.reserve(opcode, body)
-	if err != nil {
-		return err
-	}
+	reserve, body := conn.reserve(opcode, body)
+
 	return conn.write(newMessageData(conn.peer.config.Magic, opcode, reserve, body))
 }
 
@@ -321,7 +319,7 @@ func (conn *Conn) write(msg *message) error {
 	return err
 }
 
-func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
+func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte) {
 	msgAttr := msgToAttribute[opcode]
 	if msgAttr == nil {
 		msgAttr = defaultMessageAttribute
@@ -334,7 +332,7 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 
 		if v, ok := msgAttr.relayCache.Get(crc32.ChecksumIEEE(body)); ok {
 			if v.(int) == 0 {
-				return nil, nil, ErrNoNeedToRelay
+				return nil, nil
 			}
 			times = v.(int) - 1<<5
 		}
@@ -358,7 +356,7 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 	}
 	msgAttr.duplicateFilter(body, conn.peer.id, msgAttr.frequency)
 
-	return reserve, body, nil
+	return reserve, body
 }
 
 // Close connection to remote peer.
