@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -71,10 +72,13 @@ func txTest() {
 		logger.Info("done circulation")
 	}()
 
-	wg.Wait()
-
 	// print tx count per TickerDurationTxs
+	for coll == nil || circu == nil {
+		time.Sleep(time.Millisecond)
+	}
 	go CountTxs(&txTestTxCnt, &coll.txCnt, &circu.txCnt)
+
+	wg.Wait()
 
 	logger.Info("done transaction test")
 }
@@ -116,7 +120,14 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	select {
 	case collAddr := <-c.collAddrCh:
 		logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
-		c.launderFunds(collAddr, addrs, peerAddr, &c.txCnt)
+		for !c.launderFunds(collAddr, addrs, peerAddr, &c.txCnt) {
+			select {
+			case s := <-quitCh:
+				logger.Infof("receive quit signal %v, quiting HandleFunc[%d]!", s, idx)
+				return true
+			default:
+			}
+		}
 		select {
 		case c.cirInfoCh <- CirInfo{Addr: collAddr, PeerAddr: peerAddr}:
 			return false
@@ -131,12 +142,13 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 }
 
 // launderFunds generates some money, addr must not be in c.addrs
-func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, txCnt *uint64) {
+func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, txCnt *uint64) (ok bool) {
 	logger.Info("=== RUN   launderFunds")
 	defer func() {
 		if x := recover(); x != nil {
 			logger.Error(x)
 			utils.TryRecordError(fmt.Errorf("%v", x))
+			ok = false
 		}
 	}()
 	var err error
@@ -165,7 +177,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	UnpickMiner(c.minerAddr)
 	atomic.AddUint64(txCnt, 1)
-	logger.Infof("wait for test addrs received funcd, timeout %v", timeoutToChain)
+	logger.Infof("wait for test addrs received fund, timeout %v", timeoutToChain)
 	for i, addr := range addrs {
 		logger.Debugf("wait for balance of %s more than %d, timeout %v", addrs[i],
 			balances[i]+amounts[i], timeoutToChain)
@@ -221,7 +233,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	logger.Infof("complete to send tx from each to each")
 	// check balance
-	logger.Infof("wait for test addrs received funcd, timeout %v", timeoutToChain)
+	logger.Infof("wait for test addrs received fund, timeout %v", timeoutToChain)
 	for i := 0; i < count; i++ {
 		expect := balances[i] + amountsRecv[i] - amountsSend[i] - amountsFees[i]
 		logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
@@ -277,4 +289,6 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Warn(err)
 	}
 	logger.Infof("--- DONE: launderFunds, result balance: %d", b)
+
+	return true
 }

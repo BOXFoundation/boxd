@@ -54,6 +54,9 @@ func (c *Circulation) HandleFunc(addrs []string, idx *int) (exit bool) {
 				txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
 				return false
 			}
+		case s := <-quitCh:
+			logger.Infof("receive quit signal %v, quiting HandleFunc[%d]!", s, idx)
+			return true
 		}
 	case s := <-quitCh:
 		logger.Infof("receive quit signal %v, quiting HandleFunc!", s)
@@ -108,10 +111,18 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 					errChans <- fmt.Errorf("%v", x)
 				}
 			}()
+
+			// reverse txs
+			//for i, j := 0, len(txs)-1; i < j; {
+			//	txs[i], txs[j] = txs[j], txs[i]
+			//	i, j = i+1, j-1
+			//}
+
 			for _, tx := range txs {
 				if err := client.SendTransaction(conn, tx); err != nil {
-					logger.Panic(err)
+					//logger.Panic(err)
 				}
+				//time.Sleep(20 * time.Millisecond)
 				atomic.AddUint64(txCnt, 1)
 			}
 		}(txs)

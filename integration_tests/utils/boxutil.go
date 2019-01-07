@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -567,6 +568,9 @@ func NewTxWithFee(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
 	if err != nil {
 		return
 	}
+	if err = checkAndStoreDuplicateUtxo(utxos); err != nil {
+		return
+	}
 	// calc change amount
 	total := uint64(0)
 	for _, u := range utxos {
@@ -588,6 +592,9 @@ func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) 
 	}
 	if len(utxos) == 0 {
 		err = fmt.Errorf("no utxos")
+		return
+	}
+	if err = checkAndStoreDuplicateUtxo(utxos); err != nil {
 		return
 	}
 	// gen txs
@@ -697,6 +704,21 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *types.OutPoint {
 		Hash:  *hash,
 		Index: index,
 	}
+}
+
+var utxoMap = new(sync.Map)
+
+func checkAndStoreDuplicateUtxo(utxos []*rpcpb.Utxo) error {
+	//for _, u := range utxos {
+	//	op := new(types.OutPoint)
+	//	if err := op.FromProtoMessage(u.OutPoint); err != nil {
+	//		return err
+	//	}
+	//	if _, loaded := utxoMap.LoadOrStore(*op, struct{}{}); loaded {
+	//		return fmt.Errorf("duplicate outpoint for utxo: %v", u)
+	//	}
+	//}
+	return nil
 }
 
 func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utxo, err error) {
