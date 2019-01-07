@@ -32,6 +32,10 @@ type ctlserver struct {
 	server GRPCServer
 }
 
+func (s *ctlserver) GetBlacklist(context.Context, *rpcpb.GetBlacklistRequest) (*rpcpb.GetBlacklistResponse, error) {
+	panic("implement me")
+}
+
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
 	bus := s.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
