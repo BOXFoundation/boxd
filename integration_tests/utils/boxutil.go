@@ -180,58 +180,6 @@ func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
 	return tx
 }
 
-func utxosNoPanicFor(accAddr string, peerAddr string) ([]*rpcpb.Utxo, error) {
-	b := BalanceFor(accAddr, peerAddr)
-	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	addr, err := types.NewAddress(accAddr)
-	if err != nil {
-		return nil, fmt.Errorf("NewAddress addrs: %s error: %s", addr, err)
-	}
-	logger.Debugf("fund transaction for %s balance %d", addr, b)
-	start := time.Now()
-	r, err := client.FundTransaction(conn, addr, b)
-	if time.Since(start) > RPCInterval {
-		logger.Warnf("cost %v for FundTransaction on %s", time.Since(start), peerAddr)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return r.Utxos, nil
-}
-
-func utxosFor(accAddr string, peerAddr string) []*rpcpb.Utxo {
-	utxos, err := utxosNoPanicFor(accAddr, peerAddr)
-	if err != nil {
-		logger.Panic(err)
-	}
-	return utxos
-}
-
-func utxosWithBalanceFor(accAddr string, balance uint64, peerAddr string) []*rpcpb.Utxo {
-	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
-	if err != nil {
-		logger.Panic(err)
-	}
-	defer conn.Close()
-	addr, err := types.NewAddress(accAddr)
-	if err != nil {
-		logger.Panic(err)
-	}
-	start := time.Now()
-	r, err := client.FundTransaction(conn, addr, balance)
-	if time.Since(start) > RPCInterval {
-		logger.Warnf("cost %v for FundTransaction on %s", time.Since(start), peerAddr)
-	}
-	if err != nil {
-		logger.Panic(err)
-	}
-	return r.Utxos
-}
-
 // ChainHeightFor get chain height of peer's chain
 func ChainHeightFor(peerAddr string) (int, error) {
 	// create grpc conn
@@ -280,18 +228,6 @@ func WaitAllNodesHeightHigher(addrs []string, h int, timeout time.Duration) erro
 	}
 	return fmt.Errorf("timeout for waiting for node %s's block height reach %d",
 		addrs[idx], h)
-}
-
-func isAllSame(array []int) bool {
-	if len(array) == 0 || len(array) == 1 {
-		return true
-	}
-	for i := 1; i < len(array); i++ {
-		if array[i] != array[i-1] {
-			return false
-		}
-	}
-	return true
 }
 
 // MinerAccounts get miners' accounts
@@ -472,52 +408,6 @@ func WaitTokenBalanceEqualTo(addr string, amount uint64, tokenID *types.OutPoint
 	}
 	return fmt.Errorf("Timeout for waiting for %s token balance enough %d, now %d",
 		addr, amount, b)
-}
-
-func waitOneAddrUTXOEnough(addrs []string, n int, checkPeer string,
-	timeout time.Duration) (string, int, error) {
-	d := RPCInterval
-	t := time.NewTicker(d)
-	defer t.Stop()
-	var utxos []*rpcpb.Utxo
-	for i := 0; i < int(timeout/d); i++ {
-		select {
-		case <-t.C:
-			for _, addr := range addrs {
-				utxos = utxosFor(addr, checkPeer)
-				if len(utxos) >= n {
-					return addr, len(utxos), nil
-				}
-			}
-		}
-	}
-	return addrs[0], len(utxos), fmt.Errorf("timeout for waiting for UTXO reach "+
-		"%d for %v, now %d", n, addrs, len(utxos))
-}
-
-func waitUTXOsEnough(addr string, n int, checkPeer string, timeout time.Duration) (
-	int, error) {
-	d := RPCInterval
-	t := time.NewTicker(d)
-	defer t.Stop()
-	var utxos []*rpcpb.Utxo
-	var err error
-	//out:
-	for i := 0; i < int(timeout/d); i++ {
-		select {
-		case <-t.C:
-			utxos, err = utxosNoPanicFor(addr, checkPeer)
-			if err != nil {
-				logger.Warnf("fetch utxo count for %s error: %s", err)
-				//break out
-			}
-			if len(utxos) >= n {
-				return len(utxos), nil
-			}
-		}
-	}
-	return len(utxos), fmt.Errorf("timeout for waiting for UTXO reach %d for %s, "+
-		"now %d", n, addr, len(utxos))
 }
 
 // TokenBalanceFor get token balance of addr
