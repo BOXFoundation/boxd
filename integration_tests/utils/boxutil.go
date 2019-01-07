@@ -13,7 +13,6 @@ import (
 	"math/rand"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -458,15 +457,17 @@ func NewTxWithFee(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
 	if err != nil {
 		return
 	}
-	if err = checkAndStoreDuplicateUtxo(utxos); err != nil {
-		return
-	}
 	// calc change amount
 	total := uint64(0)
 	for _, u := range utxos {
 		total += u.GetTxOut().GetValue()
 	}
 	changeAmt := total - amount - fee
+	if changeAmt >= total {
+		err = fmt.Errorf("invalid arguments, utxo total=%d, amount=%d, fee=%d, "+
+			"changeAmt=%d", total, amount, fee, changeAmt)
+		return
+	}
 	//
 	tx, change, err = NewTxWithUtxo(fromAcc, utxos, toAddrs, amounts, changeAmt)
 	return
@@ -482,9 +483,6 @@ func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) 
 	}
 	if len(utxos) == 0 {
 		err = fmt.Errorf("no utxos")
-		return
-	}
-	if err = checkAndStoreDuplicateUtxo(utxos); err != nil {
 		return
 	}
 	// gen txs
@@ -596,21 +594,6 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *types.OutPoint {
 	}
 }
 
-var utxoMap = new(sync.Map)
-
-func checkAndStoreDuplicateUtxo(utxos []*rpcpb.Utxo) error {
-	//for _, u := range utxos {
-	//	op := new(types.OutPoint)
-	//	if err := op.FromProtoMessage(u.OutPoint); err != nil {
-	//		return err
-	//	}
-	//	if _, loaded := utxoMap.LoadOrStore(*op, struct{}{}); loaded {
-	//		return fmt.Errorf("duplicate outpoint for utxo: %v", u)
-	//	}
-	//}
-	return nil
-}
-
 func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utxo, err error) {
 	// get utxoes
 	fromAddress, _ := types.NewAddress(addr)
@@ -641,12 +624,10 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utx
 		}
 		return
 	}
-	if utxoResponse == nil || amount == 0 {
+	if utxoResponse == nil || amount <= 0 {
 		err = fmt.Errorf("FundTransaction fetch 0 utxos")
 		return
 	}
-	//bytes, _ := json.MarshalIndent(utxoResponse.GetUtxos(), "", "  ")
-	//logger.Infof("utxos: %s", string(bytes))
 	return utxoResponse.GetUtxos(), nil
 }
 
