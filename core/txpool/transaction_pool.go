@@ -23,6 +23,7 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 // const defines constants
@@ -187,19 +188,25 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	}
 
 	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil {
-		if util.InArray(err, core.EvilBehavior) {
-			tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
-
-			go func() {
-				// TODO: bug, need to process script and valid sig = true
-				script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey).GetPubKeyChecksum()
-				ctl.Default().SceneCh <- &ctl.Evidence{Tx: tx, Type: ctl.TxEvidence, Err: err.Error(), Ts: time.Now().Unix()}
-			}()
-		}
+		tx_pool.checkEvilBehavior(msg.From(), tx, err)
 		return err
 	}
 	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
 	return nil
+}
+
+func (tx_pool *TransactionPool) checkEvilBehavior(pid peer.ID, tx *types.Transaction, err error) {
+	if util.InArray(err, core.EvilBehavior) {
+		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, pid, eventbus.BadTxEvent)
+
+		go func() {
+			// TODO: need to process script and valid sig = true
+			pubkey, ok := script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey).GetPubKey()
+			if ok {
+				ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey, Tx: tx, Type: ctl.TxEvidence, Err: err.Error(), Ts: time.Now().Unix()}
+			}
+		}()
+	}
 }
 
 // ProcessTx is used to handle new transactions.

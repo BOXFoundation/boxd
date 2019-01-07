@@ -149,7 +149,7 @@ func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
 	chain.subscribeBlacklistMsg()
 	chain.proc.Go(chain.loop)
-	ctl.Default().Run(chain.notifiee, chain.bus, chain.db, chain.proc)
+	ctl.NewBlacklistWrap(chain.notifiee, chain.bus, chain.db, chain.proc)
 	return nil
 }
 
@@ -233,15 +233,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 	// process block
 	if err := chain.ProcessBlock(block, core.RelayMode, true, msg.From()); err != nil {
-		// process err
-		if util.InArray(err, core.EvilBehavior) {
-			chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
-			go func() {
-				if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
-					ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: ctl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
-				}
-			}()
-		}
+		chain.checkEvilBehavior(msg.From(), block, err)
 		return err
 	}
 
@@ -254,6 +246,17 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil
+}
+
+func (chain *BlockChain) checkEvilBehavior(pid peer.ID, block *types.Block, err error) {
+	if util.InArray(err, core.EvilBehavior) {
+		chain.Bus().Publish(eventbus.TopicConnEvent, pid, eventbus.BadBlockEvent)
+		go func() {
+			if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
+				ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: ctl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
+			}
+		}()
+	}
 }
 
 // ProcessBlock is used to handle new blocks.

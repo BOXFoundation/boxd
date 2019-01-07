@@ -81,12 +81,15 @@ func (blm *BlacklistMsg) calcHash() ([]byte, error) {
 	return hash, nil
 }
 
-func (blm *BlacklistMsg) validateHash() (bool, error) {
+func (blm *BlacklistMsg) validateHash() error {
 	eviHash, err := blm.calcHash()
 	if err != nil {
-		return false, err
+		return err
 	}
-	return bytes.Equal(blm.hash, eviHash), nil
+	if !bytes.Equal(blm.hash, eviHash) {
+		return core.ErrInsufficientEvidence
+	}
+	return nil
 }
 
 // Hash return hash
