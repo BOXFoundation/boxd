@@ -32,10 +32,6 @@ type ctlserver struct {
 	server GRPCServer
 }
 
-func (s *ctlserver) GetBlacklist(context.Context, *rpcpb.GetBlacklistRequest) (*rpcpb.GetBlacklistResponse, error) {
-	panic("implement me")
-}
-
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
 	bus := s.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
@@ -210,6 +206,13 @@ func (s *ctlserver) GetBlock(ctx context.Context, req *rpcpb.GetBlockRequest) (*
 	}, fmt.Errorf("Error converting proto message")
 }
 
-// func (s *ctlserver) GetBlacklist(ctx context.Context, req *rpcpb.GetBlacklistRequest) (*rpcpb.GetBlacklistResponse, error) {
-// 	return nil, nil
-// }
+func (s *ctlserver) GetBlacklist(ctx context.Context, req *rpcpb.GetBlacklistRequest) (*rpcpb.GetBlacklistResponse, error) {
+	blacklist := s.server.GetBlacklist()
+	rpcMap := make(map[string]string)
+	blacklist.Details.Range(func(k, v interface{}) bool {
+		rpcMap[k.(string)] = v.(string)
+		return true
+	})
+	return &rpcpb.GetBlacklistResponse{
+	}, nil
+}
