@@ -213,6 +213,5 @@ func (s *ctlserver) GetBlacklist(ctx context.Context, req *rpcpb.GetBlacklistReq
 		rpcMap[k.(string)] = v.(string)
 		return true
 	})
-	return &rpcpb.GetBlacklistResponse{
-	}, nil
+	return &rpcpb.GetBlacklistResponse{}, nil
 }
