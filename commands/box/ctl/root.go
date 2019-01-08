@@ -114,6 +114,11 @@ to quickly create a Cobra application.`,
 			},
 		},
 		&cobra.Command{
+			Use:   "getblacklist",
+			Short: "Get the blacklist of the main chain",
+			Run:   getBlacklistCmdFunc,
+		},
+		&cobra.Command{
 			Use:   "getrawtx [txhash]",
 			Short: "Get the raw transaction for a txid",
 			Run:   getRawTxCmdFunc,
@@ -286,6 +291,17 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Printf("Block Header of hash %s is\n%s\n", hash, util.PrettyPrint(header))
 	}
+}
+
+func getBlacklistCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("getblacklist called")
+	conn := client.NewConnectionWithViper(viper.GetViper())
+	defer conn.Close()
+	blacklist, err := client.GetBlacklist(conn)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("Current Blacklist: ", blacklist)
 }
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {

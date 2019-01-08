@@ -7,6 +7,8 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -210,8 +212,13 @@ func (s *ctlserver) GetBlacklist(ctx context.Context, req *rpcpb.GetBlacklistReq
 	blacklist := s.server.GetBlacklist()
 	rpcMap := make(map[string]string)
 	blacklist.Details.Range(func(k, v interface{}) bool {
-		rpcMap[k.(string)] = v.(string)
+		// rpcMap[strconv.Itoa(int(k.(uint32)))] = strconv.Itoa(int(v.(int64)))
+		rpcMap[strconv.Itoa(int(k.(uint32)))] = time.Unix(v.(int64), 0).Format("2006-01-02 15:04:05")
 		return true
 	})
-	return &rpcpb.GetBlacklistResponse{}, nil
+	return &rpcpb.GetBlacklistResponse{
+		Code:    0,
+		Message: "ok",
+		Details: rpcMap,
+	}, nil
 }

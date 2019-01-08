@@ -267,6 +267,7 @@ func (bl *BlackListWrap) loadBlacklistFromDb() {
 			}
 			pubkey := slice[1]
 			bl.Details.Store(crc32.ChecksumIEEE([]byte(pubkey)), expire)
+			logger.Errorf("blacklist form db: %v = %v", crc32.ChecksumIEEE([]byte(pubkey)), expire)
 		}
 	}
 }
@@ -318,6 +319,7 @@ func (bl *BlackListWrap) validateEvidences(blMsg *BlacklistMsg) ([]byte, error) 
 			return nil, core.ErrInvalidEvidenceType
 		}
 		if result := <-resultCh; result == nil || result.Error() != evidence.Err {
+			logger.Errorf("result err = %v, except = %v", result, evidence.Err)
 			return nil, core.ErrEvidenceErrNotMatch
 		}
 

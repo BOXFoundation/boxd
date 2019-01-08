@@ -115,3 +115,18 @@ func GetBlock(conn *grpc.ClientConn, hash string) (*types.Block, error) {
 	err = block.FromProtoMessage(r.Block)
 	return block, err
 }
+
+// GetBlacklist return blacklist
+func GetBlacklist(conn *grpc.ClientConn) (map[string]string, error) {
+	c := pb.NewContorlCommandClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger.Info("Querying blacklist")
+	r, err := c.GetBlacklist(ctx, &pb.GetBlacklistRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return r.Details, nil
+}
