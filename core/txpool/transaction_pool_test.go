@@ -156,6 +156,8 @@ func TestProcessTx(t *testing.T) {
 
 	ensure.DeepEqual(t, len(txpool.GetAllTxs()), 3)
 
+	ensure.DeepEqual(t, len(txpool.GetOrphaTxs()), 3)
+
 	// Add missing tx3
 	verifyProcessTx(t, tx3, nil, true, false)
 

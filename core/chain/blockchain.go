@@ -125,11 +125,12 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 	b.LongestChainHeight = b.tail.Height
-
+	logger.Info("Begin to load bloom filter...")
 	if err = b.loadFilters(); err != nil {
 		logger.Error("Fail to load filters", err)
 		return nil, err
 	}
+	logger.Info("Finish Loading bloom filter...")
 
 	return b, nil
 }
@@ -295,10 +296,18 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	switch transferMode {
 	case core.BroadcastMode:
 		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
-		go chain.notifiee.Broadcast(p2p.NewBlockMsg, block)
+		go func() {
+			if err := chain.notifiee.Broadcast(p2p.NewBlockMsg, block); err != nil {
+				logger.Errorf("Failed to broadcast block. Hash: %s Err: %v", blockHash.String(), err)
+			}
+		}()
 	case core.RelayMode:
 		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
-		go chain.notifiee.Relay(p2p.NewBlockMsg, block)
+		go func() {
+			if err := chain.notifiee.Relay(p2p.NewBlockMsg, block); err != nil {
+				logger.Errorf("Failed to relay block. Hash: %s Err: %v", blockHash.String(), err)
+			}
+		}()
 	default:
 	}
 	if chain.consensus.ValidateMiner() && fastConfirm {

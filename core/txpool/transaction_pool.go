@@ -123,7 +123,9 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	for {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
-			tx_pool.processTxMsg(msg)
+			if err := tx_pool.processTxMsg(msg); err != nil {
+				logger.Errorf("Failed to processTxMsg. Err: %v", err)
+			}
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
 		case <-metricsTicker.C:
@@ -230,6 +232,8 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
 
 	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
+		txHash, _ := tx.TxHash()
+		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash.String(), err)
 		return err
 	}
 	return tx_pool.processOrphans(tx)
@@ -238,9 +242,9 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode co
 // Potentially accept the transaction to the memory pool.
 func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMode core.TransferMode, detectDupOrphan bool) error {
 
+	txHash, _ := tx.TxHash()
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
-	txHash, _ := tx.TxHash()
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
@@ -331,9 +335,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	logger.Infof("Accepted new tx. Hash: %v", txHash)
 	switch transferMode {
 	case core.BroadcastMode:
-		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
+		return tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
 	case core.RelayMode:
-		tx_pool.notifiee.Relay(p2p.TransactionMsg, tx)
+		return tx_pool.notifiee.Relay(p2p.TransactionMsg, tx)
 	default:
 	}
 	return nil
@@ -549,7 +553,7 @@ func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
 		tx_pool.outPointToOrphan.LoadOrStore(txIn.PrevOutPoint, v)
 	}
 
-	logger.Debugf("Stored orphan transaction %v", txHash.String())
+	logger.Infof("Stored orphan transaction %v", txHash.String())
 }
 
 // Remove orphan
@@ -620,6 +624,16 @@ func (tx_pool *TransactionPool) expireOrphans() {
 func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
 	var txs []*chain.TxWrap
 	tx_pool.hashToTx.Range(func(k, v interface{}) bool {
+		txs = append(txs, v.(*chain.TxWrap))
+		return true
+	})
+	return txs
+}
+
+// GetOrphaTxs returns all orpha txs in mempool
+func (tx_pool *TransactionPool) GetOrphaTxs() []*chain.TxWrap {
+	var txs []*chain.TxWrap
+	tx_pool.hashToOrphanTx.Range(func(k, v interface{}) bool {
 		txs = append(txs, v.(*chain.TxWrap))
 		return true
 	})
