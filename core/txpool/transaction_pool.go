@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -330,7 +330,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	// TODO: free-to-relay rate limit
 
 	// verify crypto signatures for each input
-	if err = chain.ValidateTxScripts(utxoSet, tx); err != nil {
+	if _, err = chain.CheckTxScripts(utxoSet, tx, false /* validate script */); err != nil {
 		return err
 	}
 

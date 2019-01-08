@@ -238,6 +238,46 @@ func (tx *Transaction) SerializeSize() (int, error) {
 	return len(serializedTx), nil
 }
 
+// Copy returns a deep copy, mostly for parallel script verification
+// Do not copy hash since it will be updated anyway in script verification
+func (tx *Transaction) Copy() *Transaction {
+	vin := make([]*TxIn, 0)
+	for _, txIn := range tx.Vin {
+		txInCopy := &TxIn{
+			PrevOutPoint: txIn.PrevOutPoint,
+			ScriptSig:    txIn.ScriptSig,
+			Sequence:     txIn.Sequence,
+		}
+		vin = append(vin, txInCopy)
+	}
+
+	vout := make([]*corepb.TxOut, 0)
+	for _, txOut := range tx.Vout {
+		txOutCopy := &corepb.TxOut{
+			Value:        txOut.Value,
+			ScriptPubKey: txOut.ScriptPubKey,
+		}
+		vout = append(vout, txOutCopy)
+	}
+
+	data := &corepb.Data{}
+	if tx.Data != nil {
+		data.Type = tx.Data.Type
+		copy(data.Content, tx.Data.Content)
+	} else {
+		data = nil
+	}
+
+	return &Transaction{
+		Version:  tx.Version,
+		Vin:      vin,
+		Vout:     vout,
+		Data:     data,
+		Magic:    tx.Magic,
+		LockTime: tx.LockTime,
+	}
+}
+
 // calcProtoMsgDoubleHash calculates double hash of proto msg
 func calcProtoMsgDoubleHash(pb proto.Message) (*crypto.HashType, error) {
 	data, err := proto.Marshal(pb)

@@ -477,17 +477,14 @@ func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *type
 }
 
 // CalcTxHashForSig calculates the hash of a tx input, used for signature
-func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (*crypto.HashType, error) {
-	if txInIdx >= len(tx.Vin) {
+func CalcTxHashForSig(scriptPubKey []byte, originalTx *types.Transaction, txInIdx int) (*crypto.HashType, error) {
+	if txInIdx >= len(originalTx.Vin) {
 		return nil, ErrInputIndexOutOfBound
 	}
 
-	// We do not want to change the original tx script sig, so make a copy
-	oldScriptSigs := make([][]byte, 0, len(tx.Vin))
-
+	// Make a hard copy here to avoid racing conditions when verifying signature in parallel
+	tx := originalTx.Copy()
 	for i, txIn := range tx.Vin {
-		oldScriptSigs = append(oldScriptSigs, txIn.ScriptSig)
-
 		if i != txInIdx {
 			// Blank out other inputs' signatures
 			txIn.ScriptSig = nil
@@ -497,14 +494,7 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 		}
 	}
 
-	// force to recompute hash instead of getting from cached hash since tx has changed
-	sigHash, err := tx.CalcTxHash()
-
-	// recover script sig
-	for i, txIn := range tx.Vin {
-		txIn.ScriptSig = oldScriptSigs[i]
-	}
-	return sigHash, err
+	return tx.CalcTxHash()
 }
 
 // parses the entire script and returns operator/operand sequences.
