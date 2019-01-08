@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/golang-lru"
+
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -67,10 +69,12 @@ type TransactionPool struct {
 	// one will be accepted, unlike in outPointToTx where first seen tx is accepted
 	// types.OutPoint -> (crypto.HashType -> *types.Transaction)
 	outPointToOrphan *sync.Map
+	txcache          *lru.Cache
 }
 
 // NewTransactionPool new a transaction pool.
 func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.BlockChain, bus eventbus.Bus) *TransactionPool {
+	txcache, _ := lru.New(65536)
 	return &TransactionPool{
 		newTxMsgCh:          make(chan p2p.Message, TxMsgBufferChSize),
 		newChainUpdateMsgCh: make(chan *chain.UpdateMsg, ChainUpdateMsgBufferChSize),
@@ -82,6 +86,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		hashToOrphanTx:      new(sync.Map),
 		outPointToOrphan:    new(sync.Map),
 		outPointToTx:        new(sync.Map),
+		txcache:             txcache,
 	}
 }
 
@@ -165,7 +170,15 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 
 	for _, v := range msg.DetachBlocks {
 		logger.Infof("Block %v disconnects from main chain", v.BlockHash())
-		tx_pool.addBlockTxs(v)
+		for _, tx := range v.Txs[1:] {
+			txHash, _ := tx.TxHash()
+			if tx_pool.txcache.Contains(*txHash) {
+				tx_pool.txcache.Remove(*txHash)
+			}
+			if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
+				logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
+			}
+		}
 		// remove related child txs.
 		for _, tx := range v.Txs {
 			removedTxHash, _ := tx.TxHash()
@@ -188,19 +201,11 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 
 }
 
-// Add all transactions contained in this block into mempool
-func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
-	for _, tx := range block.Txs[1:] {
-		if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Remove all transactions contained in this block and their double spends from main and orphan pool
 func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
+		txHash, _ := tx.TxHash()
+		tx_pool.txcache.Add(*txHash, true)
 		// Since the passed tx is confirmed in a new block, all its childrent remain valid, thus no recursive removal.
 		tx_pool.removeTx(tx, false /* non-recursive */)
 		tx_pool.removeDoubleSpendTxs(tx)
@@ -248,7 +253,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
-	if tx_pool.isTransactionInPool(txHash) || detectDupOrphan && tx_pool.isOrphanInPool(txHash) {
+	if tx_pool.isTransactionInPool(txHash) || detectDupOrphan && tx_pool.isOrphanInPool(txHash) || tx_pool.txcache.Contains(*txHash) {
 		logger.Debugf("Tx %v already exists", txHash.String())
 		return core.ErrDuplicateTxInPool
 	}
@@ -333,6 +338,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
 	logger.Infof("Accepted new tx. Hash: %v", txHash)
+	tx_pool.txcache.Add(*txHash, true)
 	switch transferMode {
 	case core.BroadcastMode:
 		return tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
