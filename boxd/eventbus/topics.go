@@ -13,6 +13,9 @@ const (
 	TopicGetNetworkID = "rpc:getnetworkid"
 	// TopicGetAddressBook is topic for listing p2p peer status
 	TopicGetAddressBook = "rpc:getaddressbook"
+
+	////////////////////////////// p2p /////////////////////////////
+
 	//TopicP2PPeerAddr is a event topic for new peer addr found or peer addr updated
 	TopicP2PPeerAddr = "p2p:peeraddr"
 	//TopicP2PAddPeer is a event topic for adding peer addr to peer store
@@ -20,11 +23,30 @@ const (
 	// TopicConnEvent is a event topic of events for score updated
 	TopicConnEvent = "p2p:connevent"
 
+	////////////////////////////// dpos /////////////////////////////
+
+	// TopicMiner is topic for miner
+	TopicMiner = "dpos:miner"
+	// TopicMiners is topic for replying current miners
+	TopicMiners = "dpos:miners"
+	// TopicAddrs is topic for replying current addrs
+	TopicAddrs = "dpos:addrs"
+	// TopicValidateMiner is topic for replying wheather it is a miner now
+	TopicValidateMiner = "dpos:validateminer"
+	// TopicMinerPubkey is topic for miner pubkey
+	TopicMinerPubkey = "dpos:minerpubkey"
+	// TopicSignature is topic for sign a []byte
+	TopicSignature = "dpos:signature"
+
 	////////////////////////////// chain /////////////////////////////
 
 	// TopicChainUpdate is topic for notifying that the chain is updated,
 	// either chain reorg, or chain extended.
 	TopicChainUpdate = "chain:update"
+	// TopicBlacklistBlockConfirmResult is topic for confirmed result
+	TopicBlacklistBlockConfirmResult = "chain:blacklistblockresult"
+	// TopicBlacklistTxConfirmResult is topic for confirmed result
+	TopicBlacklistTxConfirmResult = "chain:blacklisttxresult"
 
 	// TopicUtxoUpdate is topic for notifying that chain utxo is changed
 	TopicUtxoUpdate = "chain:utxoupdate"
@@ -37,4 +59,9 @@ const (
 	TopicGetDatabaseValue = "rpc:database:get"
 	// TopicRPCSendNewBlock is topic for sending new block to explorer
 	TopicRPCSendNewBlock = "rpc:newblock:send"
+
+	////////////////////////////// tx /////////////////////////////
+
+	// TopicGenerateTx is topic to generate tx
+	TopicGenerateTx = "tx:generate"
 )

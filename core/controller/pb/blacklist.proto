@@ -1,0 +1,37 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package pb;
+
+import "github.com/BOXFoundation/boxd/core/pb/block.proto";
+
+
+message Evidence {
+    bytes PubKey = 1;
+    corepb.Transaction Tx = 2;
+    corepb.Block Block = 3;
+    uint32 Type = 4;
+    string Err = 5;
+    int64 Ts = 6;
+}
+
+message BlacklistMsg {
+    bytes hash = 1; 
+    repeated Evidence evidences = 2;
+}
+
+message BlacklistConfirmMsg {
+    bytes pubkey = 1;
+    bytes hash = 2; 
+    bytes signature = 3; 
+    int64 timestamp = 4;
+}
+
+message BlacklistTxData {
+    bytes pubkey = 1;
+    bytes hash = 2; 
+    repeated bytes signatures = 3;
+}

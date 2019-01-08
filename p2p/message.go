@@ -51,6 +51,9 @@ const (
 	LightSyncRequest = 0x17
 	LightSyncReponse = 0x18
 
+	BlacklistMsg        = 0x19
+	BlacklistConfirmMsg = 0x20
+
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
 

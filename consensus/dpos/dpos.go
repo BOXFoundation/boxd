@@ -11,11 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
-
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -24,6 +24,7 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
+	"github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -118,6 +119,7 @@ func (dpos *Dpos) Run() error {
 		return err
 	}
 	dpos.bftservice = bftService
+	dpos.subscribeBlacklist()
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
@@ -441,9 +443,8 @@ func (dpos *Dpos) BroadcastEternalMsgToMiners(block *types.Block) error {
 	eternalBlockMsg.hash = *hash
 	eternalBlockMsg.signature = signature
 	eternalBlockMsg.timestamp = block.Header.TimeStamp
-	miners := dpos.context.periodContext.periodPeers
 
-	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg, miners)
+	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg)
 }
 
 // StorePeriodContext store period context
@@ -673,4 +674,46 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 		return
 	}
 	dpos.bftservice.updateEternal(block)
+}
+
+func (dpos *Dpos) subscribeBlacklist() {
+
+	ctl.SetPeriodSize(PeriodSize)
+
+	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
+		out <- dpos.context.periodContext.periodPeers
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicMiner, func(out chan<- *wallet.Account) {
+		out <- dpos.miner
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicAddrs, func(out chan<- []types.AddressHash) {
+		out <- dpos.context.periodContext.periodAddrs
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicMinerPubkey, func(out chan<- []byte) {
+		out <- dpos.miner.PubKeyHash()
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicValidateMiner, func(pid string, addr types.AddressHash, out chan<- bool) {
+		if util.InArray(pid, dpos.bftservice.consensus.context.periodContext.periodPeers) {
+			for _, v := range dpos.bftservice.consensus.context.periodContext.period {
+				if addr == v.addr && pid == v.peerID {
+					out <- true
+				}
+			}
+		}
+		out <- false
+	}, false)
+
+	dpos.chain.Bus().Reply(eventbus.TopicSignature, func(digest []byte, out chan<- []byte) {
+		signature, err := crypto.SignCompact(dpos.miner.PrivateKey(), digest[:])
+		if err == nil {
+			out <- signature
+		} else {
+			logger.Warnf("SignCompact err: %v", err)
+			out <- nil
+		}
+	}, false)
 }

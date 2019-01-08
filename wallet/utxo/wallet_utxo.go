@@ -10,15 +10,13 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/BOXFoundation/boxd/log"
-
-	"github.com/BOXFoundation/boxd/crypto"
-	key2 "github.com/BOXFoundation/boxd/storage/key"
-
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
+	key2 "github.com/BOXFoundation/boxd/storage/key"
 )
 
 var logger = log.NewLogger("wallet-utxo")
@@ -248,9 +246,12 @@ func (wu *WalletUtxo) FetchUtxoForAddress(addr types.Address) error {
 
 func fetchUtxoFromDB(addr types.Address, db storage.Table) (map[types.OutPoint]*types.UtxoWrap, error) {
 	utxoKey := chain.AddrAllUtxoKey(addr.String())
+	// logger.Errorf("utxokey = %v", string(utxoKey))
 	keys := db.KeysWithPrefix(utxoKey)
+	// logger.Errorf("keys = %v", len(keys))
 	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
 	for _, keyBytes := range keys {
+		// logger.Errorf("keyBytes = %v", string(keyBytes))
 		serialized, err := db.Get(keyBytes)
 		if err != nil {
 			return nil, err
@@ -262,7 +263,9 @@ func fetchUtxoFromDB(addr types.Address, db storage.Table) (map[types.OutPoint]*
 		if err := utxoWrap.Unmarshal(serialized); err != nil {
 			return nil, err
 		}
+		// logger.Errorf("utxoWrap = %v", utxoWrap)
 		k := key2.NewKeyFromBytes(keyBytes)
+		// logger.Errorf("k = %v", k)
 		segs := k.List()
 		if len(segs) >= 4 {
 			hash := new(crypto.HashType)

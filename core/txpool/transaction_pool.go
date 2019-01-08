@@ -5,6 +5,7 @@
 package txpool
 
 import (
+	"bytes"
 	"errors"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -21,6 +23,7 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
 
 // const defines constants
@@ -93,9 +96,9 @@ func (tx_pool *TransactionPool) Run() error {
 	// p2p tx msg
 	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh)
 	tx_pool.notifiee.Subscribe(tx_pool.txNotifee)
-
 	// chain update msg
 	tx_pool.bus.Subscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
+	tx_pool.subscribeBlacklistMsg()
 
 	tx_pool.proc.Go(tx_pool.loop)
 	return nil
@@ -217,12 +220,26 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	hash, _ := tx.TxHash()
 	logger.Infof("Start to process tx. Hash: %v", hash)
 
-	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil && util.InArray(err, core.EvilBehavior) {
-		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
+	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil {
+		tx_pool.checkEvilBehavior(msg.From(), tx, err)
 		return err
 	}
 	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
 	return nil
+}
+
+func (tx_pool *TransactionPool) checkEvilBehavior(pid peer.ID, tx *types.Transaction, err error) {
+	if util.InArray(err, core.EvilBehavior) {
+		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, pid, eventbus.BadTxEvent)
+
+		go func() {
+			// TODO: need to process script and valid sig = true
+			pubkey, ok := script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey).GetPubKey()
+			if ok {
+				ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey, Tx: tx, Type: ctl.TxEvidence, Err: err.Error(), Ts: time.Now().Unix()}
+			}
+		}()
+	}
 }
 
 // ProcessTx is used to handle new transactions.
@@ -269,8 +286,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 		return core.ErrNonStandardTransaction
 	}
 
-	if err := tx_pool.checkRegisterOrVoteTx(tx); err != nil {
-		logger.Errorf("Tx %v is a invalid Register or Vote tx. Err: %v", txHash.String(), err)
+	if err := tx_pool.checkSpecialTx(tx); err != nil {
+		logger.Errorf("Tx %v is a invalid special tx. Err: %v", txHash.String(), err)
 		return err
 	}
 
@@ -339,6 +356,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	return nil
 }
 
+func (tx_pool *TransactionPool) subscribeBlacklistMsg() {
+	tx_pool.bus.Reply(eventbus.TopicBlacklistTxConfirmResult, func(tx *types.Transaction, resultCh chan error) {
+		err := tx_pool.ProcessTx(tx, core.DefaultMode)
+		resultCh <- err
+	}, false)
+}
+
 func (tx_pool *TransactionPool) isTransactionInPool(txHash *crypto.HashType) bool {
 	_, exists := tx_pool.hashToTx.Load(*txHash)
 	return exists
@@ -361,7 +385,7 @@ func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) 
 	return nil
 }
 
-func (tx_pool *TransactionPool) checkRegisterOrVoteTx(tx *types.Transaction) error {
+func (tx_pool *TransactionPool) checkSpecialTx(tx *types.Transaction) error {
 	if tx.Data == nil {
 		return nil
 	}
@@ -389,8 +413,46 @@ func (tx_pool *TransactionPool) checkRegisterOrVoteTx(tx *types.Transaction) err
 		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
 			return core.ErrInvalidRegisterCandidateOrVoteTx
 		}
+	case types.BlacklistTx:
+		if err := tx_pool.checkBlacklistData(tx); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
+func (tx_pool *TransactionPool) checkBlacklistData(tx *types.Transaction) error {
+	blacklistContent := new(ctl.BlacklistTxData)
+	if err := blacklistContent.Unmarshal(tx.Data.Content); err != nil {
+		return err
+	}
+	logger.Errorf("blacklistContent = %v", blacklistContent)
+
+	minerAddrsCh := make(chan []types.AddressHash)
+	tx_pool.bus.Send(eventbus.TopicAddrs, minerAddrsCh)
+	minerAddrs := <-minerAddrsCh
+
+	for _, sigStr := range blacklistContent.Signatures() {
+		pubkey, ok := crypto.RecoverCompact(blacklistContent.Hash()[:], sigStr)
+		if ok {
+			addr, err := types.NewAddressFromPubKey(pubkey)
+			if err != nil {
+				return err
+			}
+			var match bool
+			for _, minerAddr := range minerAddrs {
+				if bytes.Equal(minerAddr[:], addr.Hash()) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				return core.ErrSign
+			}
+		} else {
+			return core.ErrSign
+		}
+	}
 	return nil
 }
 

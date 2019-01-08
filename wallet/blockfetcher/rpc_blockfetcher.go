@@ -8,10 +8,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/BOXFoundation/boxd/wallet/walletdata"
-
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/wallet/walletdata"
 	"google.golang.org/grpc"
 )
 

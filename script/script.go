@@ -600,6 +600,17 @@ func (s *Script) GetSplitAddrScriptPrefix() *Script {
 	return NewScript().AddOpCode(opCode).AddOperand(operandHash)
 }
 
+// GetPubKey get public key from script
+func (s *Script) GetPubKey() ([]byte, bool) {
+	r := s.parse()
+	if s.IsPayToPubKeyHash() {
+		return r[2].(Operand), true
+	} else if s.IsPayToScriptHash() || s.IsSplitAddrScript() {
+		return r[1].(Operand), true
+	}
+	return nil, false
+}
+
 // CreateSplitAddrScriptPrefix creates a script prefix for split address with a hashed address
 func CreateSplitAddrScriptPrefix(addr types.Address) *Script {
 	return NewScript().AddOpCode(OPRETURN).AddOperand(addr.Hash())

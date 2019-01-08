@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
+	ctl "github.com/BOXFoundation/boxd/core/controller"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -146,8 +147,9 @@ var _ service.Server = (*BlockChain)(nil)
 // Run launch blockchain.
 func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
+	chain.subscribeBlacklistMsg()
 	chain.proc.Go(chain.loop)
-
+	ctl.NewBlacklistWrap(chain.notifiee, chain.bus, chain.db, chain.proc)
 	return nil
 }
 
@@ -178,6 +180,13 @@ func (chain *BlockChain) Stop() {
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
 	chain.notifiee.Subscribe(p2p.NewNotifiee(p2p.NewBlockMsg, chain.newblockMsgCh))
+}
+
+func (chain *BlockChain) subscribeBlacklistMsg() {
+	chain.bus.Reply(eventbus.TopicBlacklistBlockConfirmResult, func(block *types.Block, messageFrom peer.ID, resultCh chan error) {
+		err := chain.ProcessBlock(block, core.DefaultMode, false, messageFrom)
+		resultCh <- err
+	}, false)
 }
 
 func (chain *BlockChain) loop(p goprocess.Process) {
@@ -223,12 +232,31 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, core.RelayMode, true, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
-		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
+	if err := chain.ProcessBlock(block, core.RelayMode, true, msg.From()); err != nil {
+		chain.checkEvilBehavior(msg.From(), block, err)
 		return err
 	}
+
+	// TODO: test
+	go func() {
+		if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
+			ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: ctl.BlockEvidence, Err: core.ErrBlockExists.Error(), Ts: time.Now().Unix()}
+		}
+	}()
+
 	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil
+}
+
+func (chain *BlockChain) checkEvilBehavior(pid peer.ID, block *types.Block, err error) {
+	if util.InArray(err, core.EvilBehavior) {
+		chain.Bus().Publish(eventbus.TopicConnEvent, pid, eventbus.BadBlockEvent)
+		go func() {
+			if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
+				ctl.Default().SceneCh <- &ctl.Evidence{PubKey: pubkey.Serialize(), Block: block, Type: ctl.BlockEvidence, Err: err.Error(), Ts: time.Now().Unix()}
+			}
+		}()
+	}
 }
 
 // ProcessBlock is used to handle new blocks.
@@ -569,6 +597,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 
 	// save candidate context
 	if err := chain.consensus.StoreCandidateContext(block, batch); err != nil {
+		return err
+	}
+
+	// save candidate context
+	if err := ctl.Default().StoreContext(block, batch); err != nil {
 		return err
 	}
 

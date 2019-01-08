@@ -78,6 +78,7 @@ var (
 	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
 	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
 	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
+	ErrPubKeyInBlackList    = errors.New("Public key is in black list")
 
 	//utxoset.go
 	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
@@ -88,5 +89,17 @@ var (
 	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
 	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
 
-	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
+	// blacklist.go
+	ErrInvalidEvidenceType     = errors.New("Invalid evidence type")
+	ErrInsufficientEvidence    = errors.New("Insufficient evidence")
+	ErrEmptyEvidence           = errors.New("No evidences")
+	ErrSeparateSourceEvidences = errors.New("Separate source evidences")
+	ErrSign                    = errors.New("Sign error")
+	ErrEmptyProtoSource        = errors.New("Empty proto source")
+	ErrNotMintPeer             = errors.New("Invalid mint peer")
+	ErrIllegalMsg              = errors.New("Illegal message")
+	ErrEvidenceErrNotMatch     = errors.New("Evidence not match error")
+	ErrInvalidBlacklistTx      = errors.New("Invalid blacklist tx")
+
+	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrDoubleSpendTx}
 )
