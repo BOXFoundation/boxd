@@ -334,7 +334,7 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte) {
 			if v.(int) == 0 {
 				return nil, nil
 			}
-			times = v.(int) - 1<<5
+			times = v.(int) - (1 << 5)
 		}
 
 		if len(flags) > 0 {
