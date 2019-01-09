@@ -17,6 +17,9 @@ import (
 	"github.com/BOXFoundation/boxd/wallet"
 )
 
+// UtxoWrapMap defines a map type with key is outpoint and value is utxowrap
+type UtxoWrapMap map[types.OutPoint]*types.UtxoWrap
+
 // TokenTag defines token tag
 type TokenTag struct {
 	Name    string
@@ -55,6 +58,17 @@ func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
 		},
 		ScriptSig: []byte{},
 		Sequence:  seq,
+	}
+}
+
+// NewUtxoWrap makes a UtxoWrap
+func NewUtxoWrap(addr string, height uint32, value uint64) *types.UtxoWrap {
+	return &types.UtxoWrap{
+		Output:      MakeVout(addr, value),
+		BlockHeight: height,
+		IsCoinBase:  false,
+		IsModified:  true,
+		IsSpent:     false,
 	}
 }
 
