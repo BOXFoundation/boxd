@@ -486,7 +486,7 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utx
 	//	totalAmount = amount
 	//}
 	if amount == 0 {
-		amount = 100000000
+		amount = 40000000
 	}
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
