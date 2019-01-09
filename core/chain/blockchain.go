@@ -708,6 +708,9 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// notify mem_pool when chain update
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
+
+	// This block is now the end of the best chain.
+	chain.ChangeNewTail(block)
 	return nil
 }
 
@@ -1159,10 +1162,12 @@ func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashTyp
 	for index := range hashes {
 		block, err := chain.LoadBlockByHash(*hashes[index])
 		if err != nil {
-			if err == core.ErrBlockIsNil {
-				continue
-			}
-			return nil, err
+			continue
+		}
+		// Important: make sure the block is on main chain !!!
+		b, _ := chain.LoadBlockByHeight(block.Height)
+		if !b.BlockHash().IsEqual(block.BlockHash()) {
+			continue
 		}
 
 		result := []*crypto.HashType{}
@@ -1309,6 +1314,7 @@ func (chain *BlockChain) loadFilters() error {
 		if !ok {
 			hash, err = chain.GetBlockHash(uint32(i))
 			if err != nil {
+				logger.Errorf("Failed to get block info. i: %d tail_height: %d Err: %v", i, chain.LongestChainHeight, err)
 				return err
 			}
 		}
