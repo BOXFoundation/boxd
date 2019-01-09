@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"sync"
 	"time"
@@ -1018,6 +1019,28 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
+func (chain *BlockChain) loadAllBlockHeightHash() (map[uint32]*crypto.HashType, error) {
+	keys := chain.db.KeysWithPrefix(BlockHeightPrefix())
+	res := make(map[uint32]*crypto.HashType)
+	for _, k := range keys {
+		bytes, err := chain.db.Get(k)
+		if err != nil {
+			return nil, err
+		}
+		if bytes == nil {
+			return nil, core.ErrBlockIsNil
+		}
+		height := BlockHeightFromBlockHashKey(k)
+		if height == math.MaxUint32 {
+			continue
+		}
+		hash := new(crypto.HashType)
+		copy(hash[:], bytes)
+		res[height] = hash
+	}
+	return res, nil
+}
+
 // StoreBlockInBatch store block to db in batch mod.
 func (chain *BlockChain) StoreBlockInBatch(block *types.Block, batch storage.Batch) error {
 
@@ -1277,18 +1300,29 @@ func (chain *BlockChain) loadFilters() error {
 	var utxoSet *UtxoSet
 	batch := chain.db.NewBatch()
 	defer batch.Close()
+	heightHashMapping, err := chain.loadAllBlockHeightHash()
+	if err != nil {
+		heightHashMapping = make(map[uint32]*crypto.HashType)
+	}
 	for ; i <= chain.LongestChainHeight; i++ {
-		block, err := chain.LoadBlockByHeight(i)
-		if err != nil {
-			logger.Error("Error try to load block at height", i, err)
-			return core.ErrWrongBlockHeight
+		hash, ok := heightHashMapping[uint32(i)]
+		if !ok {
+			hash, err = chain.GetBlockHash(uint32(i))
+			if err != nil {
+				return err
+			}
 		}
-		utxoSet = NewUtxoSet()
-		if err = utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
-			logger.Error("Error Loading block utxo", err)
-			return err
-		}
-		if err := chain.filterHolder.AddFilter(i, *block.Hash, chain.DB(), batch, func() bloom.Filter {
+		if err := chain.filterHolder.AddFilter(i, *hash, chain.DB(), batch, func() bloom.Filter {
+			block, err := chain.LoadBlockByHash(*hash)
+			if err != nil {
+				logger.Error("Error try to load block at height", i, err)
+				return nil
+			}
+			utxoSet = NewUtxoSet()
+			if err = utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+				logger.Error("Error Loading block utxo", err)
+				return nil
+			}
 			return GetFilterForTransactionScript(block, utxoSet.utxoMap)
 		}); err != nil {
 			logger.Error("Failed to addFilter", err)

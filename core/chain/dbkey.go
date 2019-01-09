@@ -6,6 +6,8 @@ package chain
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -94,39 +96,58 @@ var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
 var addrBalanceBase = key.NewKey(AddrBalancePrefix)
 var addrTokenBalanceBase = key.NewKey(AddrTokenBalancePrefix)
 
-// TailKey is the db key to stoare tail block content
+// TailKey is the db key to store tail block content
 var TailKey = []byte(Tail)
 
-// GenesisKey is the db key to stoare genesis block content
+// GenesisKey is the db key to store genesis block content
 var GenesisKey = []byte(Genesis)
 
-// EternalKey is the db key to stoare eternal block content
+// EternalKey is the db key to store eternal block content
 var EternalKey = []byte(Eternal)
 
-// PeriodKey is the db key to stoare current period contex content
+// PeriodKey is the db key to store current period contex content
 var PeriodKey = []byte(Period)
 
-// BlockKey returns the db key to stoare block content of the hash
+// BlockKey returns the db key to store block content of the hash
 func BlockKey(h *crypto.HashType) []byte {
 	return blkBase.ChildString(h.String()).Bytes()
 }
 
-// BlockHashKey returns the db key to stoare block hash content of the height
+// BlockHashKey returns the db key to store block hash content of the height
 func BlockHashKey(height uint32) []byte {
 	return blkHashBase.ChildString(fmt.Sprintf("%x", height)).Bytes()
 }
 
-// TxIndexKey returns the db key to stoare tx index of the hash
+// BlockHeightFromBlockHashKey parse height info from a BlockHashKey
+func BlockHeightFromBlockHashKey(k []byte) uint32 {
+	key := key.NewKeyFromBytes(k)
+	segs := key.List()
+	if len(segs) > 1 {
+		num, err := strconv.ParseUint(segs[1], 16, 32)
+		if err == nil {
+			return uint32(num)
+		}
+		logger.Infof("error parsing key: %s", segs[1])
+	}
+	return math.MaxUint32
+}
+
+// BlockHeightPrefix returns the db key prefix to store hash content of the height
+func BlockHeightPrefix() []byte {
+	return blkHashBase.Bytes()
+}
+
+// TxIndexKey returns the db key to store tx index of the hash
 func TxIndexKey(h *crypto.HashType) []byte {
 	return txixBase.ChildString(h.String()).Bytes()
 }
 
-// UtxoKey returns the db key to stoare utxo content of the Outpoint
+// UtxoKey returns the db key to store utxo content of the Outpoint
 func UtxoKey(op *types.OutPoint) []byte {
 	return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
 }
 
-// CandidatesKey returns the db key to stoare candidates.
+// CandidatesKey returns the db key to store candidates.
 func CandidatesKey(h *crypto.HashType) []byte {
 	return candidatesBase.ChildString(h.String()).Bytes()
 }

@@ -74,7 +74,9 @@ func (holder *MemoryBloomFilterHolder) AddFilter(
 	}
 	// recalculate filter
 	filter := onCacheMiss()
-	holder.addFilterInternal(filter, height, hash)
+	if err := holder.addFilterInternal(filter, height, hash); err != nil {
+		return err
+	}
 	filterBytes, err := filter.Marshal()
 	if err != nil {
 		return fmt.Errorf("error marshal filter for block %v", hash.String())
