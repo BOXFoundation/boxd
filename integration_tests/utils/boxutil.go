@@ -6,23 +6,20 @@ package utils
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
-	"runtime/debug"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/wallet"
+	lru "github.com/hashicorp/golang-lru"
 	"google.golang.org/grpc"
 )
 
@@ -47,27 +44,6 @@ type sortByUTXOValue []*rpcpb.Utxo
 func (x sortByUTXOValue) Len() int           { return len(x) }
 func (x sortByUTXOValue) Less(i, j int) bool { return x[i].TxOut.Value < x[j].TxOut.Value }
 func (x sortByUTXOValue) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
-
-// KeyStore defines key structure
-type KeyStore struct {
-	Address string `json:"address"`
-}
-
-// TokenTag defines token tag
-type TokenTag struct {
-	Name    string
-	Symbol  string
-	Decimal uint8
-}
-
-// NewTokenTag news a TokenTag
-func NewTokenTag(name, sym string, decimal uint8) *TokenTag {
-	return &TokenTag{
-		Name:    name,
-		Symbol:  sym,
-		Decimal: decimal,
-	}
-}
 
 func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
@@ -122,61 +98,6 @@ func UnlockAccount(addr string) *wallet.Account {
 	}
 
 	return account
-}
-
-// ExecTxNoPanic execute a transaction
-func ExecTxNoPanic(account *wallet.Account, toAddrs []string, amounts []uint64,
-	peerAddr string) (*types.Transaction, error) {
-	//
-	if len(toAddrs) != len(amounts) {
-		logger.Panicf("toAddrs count %d is mismatch with amounts count: %d",
-			len(toAddrs), len(amounts))
-	}
-	//
-	fromAddress, err := types.NewAddress(account.Addr())
-	if err != nil {
-		return nil, fmt.Errorf("NewAddress fromAddr: %s error: %s", account.Addr(), err)
-	}
-
-	// initialize rpc
-	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	// make toAddr map
-	addrAmountMap := make(map[types.Address]uint64, len(toAddrs))
-	for i := 0; i < len(toAddrs); i++ {
-		toAddress, err := types.NewAddress(toAddrs[i])
-		if err != nil {
-			return nil, fmt.Errorf("NewAddress toAddrs: %s error: %s", toAddrs, err)
-		}
-		addrAmountMap[toAddress] = amounts[i]
-	}
-
-	start := time.Now()
-	tx, err := client.CreateTransaction(conn, fromAddress, addrAmountMap,
-		account.PublicKey(), account, nil, nil)
-	if time.Since(start) > 3*RPCInterval {
-		logger.Warnf("cost %v for CreateTransaction on %s", time.Since(start), peerAddr)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("create transaction from %s, addr amont map %v, error: %s",
-			fromAddress, addrAmountMap, err)
-	}
-	return tx, nil
-}
-
-// ExecTx execute a transaction
-func ExecTx(account *wallet.Account, toAddrs []string, amounts []uint64,
-	peerAddr string) *types.Transaction {
-
-	tx, err := ExecTxNoPanic(account, toAddrs, amounts, peerAddr)
-	if err != nil {
-		debug.PrintStack()
-		logger.Panic(err)
-	}
-	return tx
 }
 
 // ChainHeightFor get chain height of peer's chain
@@ -457,6 +378,8 @@ func NewTxWithFee(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
 	if err != nil {
 		return
 	}
+	// NOTE: for test only
+	//checkDuplicateUtxos(utxos)
 	// calc change amount
 	total := uint64(0)
 	for _, u := range utxos {
@@ -469,7 +392,7 @@ func NewTxWithFee(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
 		return
 	}
 	//
-	tx, change, err = NewTxWithUtxo(fromAcc, utxos, toAddrs, amounts, changeAmt)
+	tx, change, err = txlogic.NewTxWithUtxos(fromAcc, utxos, toAddrs, amounts, changeAmt)
 	return
 }
 
@@ -485,6 +408,8 @@ func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) 
 		err = fmt.Errorf("no utxos")
 		return
 	}
+	// NOTE: for test only
+	//checkDuplicateUtxos(utxos)
 	// gen txs
 	txss = make([][]*types.Transaction, 0)
 	n := (count + len(utxos) - 1) / len(utxos)
@@ -507,7 +432,7 @@ func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) 
 			amount := aveAmt - fee
 			changeAmt = changeAmt - aveAmt
 			tx := new(types.Transaction)
-			tx, change, err = NewTxWithUtxo(fromAcc, []*rpcpb.Utxo{change}, []string{toAddr},
+			tx, change, err = txlogic.NewTxWithUtxos(fromAcc, []*rpcpb.Utxo{change}, []string{toAddr},
 				[]uint64{amount}, changeAmt)
 			if err != nil {
 				return
@@ -522,75 +447,31 @@ func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) 
 	return txss, transfer, totalFee, num, nil
 }
 
-// NewTxWithUtxo new a transaction
-func NewTxWithUtxo(fromAcc *wallet.Account, utxos []*rpcpb.Utxo, toAddrs []string,
-	amounts []uint64, changeAmt uint64) (*types.Transaction, *rpcpb.Utxo, error) {
+var utxoCache *lru.Cache
 
-	utxoValue := uint64(0)
+func init() {
+	utxoCache, _ = lru.New(1000000)
+}
+
+func checkDuplicateUtxos(utxos []*rpcpb.Utxo) {
 	for _, u := range utxos {
-		utxoValue += u.GetTxOut().GetValue()
-	}
-	amount := uint64(0)
-	for _, a := range amounts {
-		amount += a
-	}
-	if utxoValue < amount+changeAmt {
-		return nil, nil, fmt.Errorf("input %d is less than output %d",
-			utxoValue, amount+changeAmt)
-	}
-
-	// vin
-	vins := make([]*types.TxIn, 0)
-	for _, utxo := range utxos {
-		vins = append(vins, makeVin(utxo, 0))
-	}
-
-	// vout for toAddrs
-	vouts := make([]*corepb.TxOut, 0, len(toAddrs))
-	for i, toAddr := range toAddrs {
-		vouts = append(vouts, makeVout(toAddr, amounts[i]))
-	}
-
-	// vout for change of fromAddress
-	fromAddrOut := makeVout(fromAcc.Addr(), changeAmt)
-
-	// construct transaction
-	tx := new(types.Transaction)
-	tx.Vin = append(tx.Vin, vins...)
-	tx.Vout = append(tx.Vout, vouts...)
-	tx.Vout = append(tx.Vout, fromAddrOut)
-
-	// sign vin
-	if err := signTx(tx, utxos, fromAcc); err != nil {
-		return nil, nil, err
-	}
-
-	// create change utxo
-	txHash, _ := tx.TxHash()
-	change := &rpcpb.Utxo{
-		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-		TxOut:       fromAddrOut,
-		BlockHeight: 0,
-		IsCoinbase:  false,
-		IsSpent:     false,
-	}
-
-	return tx, change, nil
-}
-
-// NewPbOutPoint constructs a OutPoint
-func NewPbOutPoint(hash *crypto.HashType, index uint32) *corepb.OutPoint {
-	return &corepb.OutPoint{
-		Hash:  (*hash)[:],
-		Index: index,
+		op := new(types.OutPoint)
+		if err := op.FromProtoMessage(u.OutPoint); err != nil {
+			logger.Panic(err)
+		}
+		if ok := utxoCache.Contains(*op); ok {
+			logger.Errorf("duplicate outpoint for utxo: %v", u)
+			os.Exit(1)
+		}
 	}
 }
 
-// NewOutPoint constructs a OutPoint
-func NewOutPoint(hash *crypto.HashType, index uint32) *types.OutPoint {
-	return &types.OutPoint{
-		Hash:  *hash,
-		Index: index,
+func addUtxoToCache(vins []*types.TxIn) {
+	for _, in := range vins {
+		if ok, _ := utxoCache.ContainsOrAdd(in.PrevOutPoint, struct{}{}); ok {
+			logger.Errorf("duplicate outpoint for vin: %v", in)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -632,7 +513,7 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utx
 }
 
 // IssueTokenTx issues some token
-func IssueTokenTx(acc *wallet.Account, toAddr string, tag *TokenTag, totalSupply uint64,
+func IssueTokenTx(acc *wallet.Account, toAddr string, tag *txlogic.TokenTag, totalSupply uint64,
 	peerAddr string) *types.OutPoint {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
@@ -651,7 +532,7 @@ func IssueTokenTx(acc *wallet.Account, toAddr string, tag *TokenTag, totalSupply
 		logger.Panic(err)
 	}
 	txHash, _ := tx.CalcTxHash()
-	return NewOutPoint(txHash, 0)
+	return txlogic.NewOutPoint(txHash, 0)
 }
 
 // NewTokenTx new a token tx
@@ -722,7 +603,7 @@ func NewTokenTxWithUtxos(acc *wallet.Account, toAddrs []string, amounts []uint64
 	// check amount
 	val, valT := uint64(0), uint64(0)
 	for _, u := range utxos {
-		outpoint, value, ok := ExtractTokenInfo(u)
+		outpoint, value, ok := txlogic.ExtractTokenInfo(u)
 		if !ok {
 			val += u.GetTxOut().GetValue()
 		} else {
@@ -749,26 +630,26 @@ func NewTokenTxWithUtxos(acc *wallet.Account, toAddrs []string, amounts []uint64
 	tx := new(types.Transaction)
 	// vin
 	for _, utxo := range utxos {
-		tx.Vin = append(tx.Vin, makeVin(utxo, 0))
+		tx.Vin = append(tx.Vin, txlogic.MakeVin(utxo, 0))
 	}
 	// vout for toAddrs
 	for i, toAddr := range toAddrs {
-		tx.Vout = append(tx.Vout, makeTokenVout(toAddr, tokenID, amounts[i]))
+		tx.Vout = append(tx.Vout, txlogic.MakeTokenVout(toAddr, tokenID, amounts[i]))
 	}
 	// vout for change of fromAddress
 	changeIdx, changeTIdx := uint32(0), uint32(0)
 	if remain > 0 {
-		tx.Vout = append(tx.Vout, makeVout(acc.Addr(), remain))
+		tx.Vout = append(tx.Vout, txlogic.MakeVout(acc.Addr(), remain))
 		changeIdx = uint32(len(tx.Vout)) - 1
 	}
 	// vout for token change of fromAddress
 	if remainT > 0 {
-		tx.Vout = append(tx.Vout, makeTokenVout(acc.Addr(), tokenID, remainT))
+		tx.Vout = append(tx.Vout, txlogic.MakeTokenVout(acc.Addr(), tokenID, remainT))
 		changeTIdx = uint32(len(tx.Vout)) - 1
 	}
 
 	// sign vin
-	if err := signTx(tx, utxos, acc); err != nil {
+	if err := txlogic.SignTxWithUtxos(tx, utxos, acc); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -777,8 +658,8 @@ func NewTokenTxWithUtxos(acc *wallet.Account, toAddrs []string, amounts []uint64
 	txHash, _ := tx.TxHash()
 	if remain > 0 {
 		change = &rpcpb.Utxo{
-			OutPoint:    NewPbOutPoint(txHash, changeIdx),
-			TxOut:       makeVout(acc.Addr(), remain),
+			OutPoint:    txlogic.NewPbOutPoint(txHash, changeIdx),
+			TxOut:       txlogic.MakeVout(acc.Addr(), remain),
 			BlockHeight: 0,
 			IsCoinbase:  false,
 			IsSpent:     false,
@@ -786,8 +667,8 @@ func NewTokenTxWithUtxos(acc *wallet.Account, toAddrs []string, amounts []uint64
 	}
 	if remainT > 0 {
 		changeT = &rpcpb.Utxo{
-			OutPoint:    NewPbOutPoint(txHash, changeTIdx),
-			TxOut:       makeTokenVout(acc.Addr(), tokenID, remainT),
+			OutPoint:    txlogic.NewPbOutPoint(txHash, changeTIdx),
+			TxOut:       txlogic.MakeTokenVout(acc.Addr(), tokenID, remainT),
 			BlockHeight: 0,
 			IsCoinbase:  false,
 			IsSpent:     false,
@@ -795,86 +676,6 @@ func NewTokenTxWithUtxos(acc *wallet.Account, toAddrs []string, amounts []uint64
 	}
 
 	return tx, change, changeT, nil
-}
-
-// ExtractTokenInfo extract token info from a utxo
-func ExtractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64, bool) {
-	script := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
-	if script.IsTokenIssue() {
-		issueParam, err := script.GetIssueParams()
-		if err == nil {
-			outHash := crypto.HashType{}
-			outHash.SetBytes(utxo.OutPoint.Hash)
-			return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index},
-				issueParam.TotalSupply * uint64(math.Pow10(int(issueParam.Decimals))),
-				true
-		}
-	}
-	if script.IsTokenTransfer() {
-		transferParam, err := script.GetTransferParams()
-		if err == nil {
-			return &transferParam.OutPoint, transferParam.Amount, true
-		}
-	}
-	return nil, 0, false
-}
-
-func makeVout(addr string, amount uint64) *corepb.TxOut {
-	address, _ := types.NewAddress(addr)
-	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
-	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
-	return &corepb.TxOut{
-		Value:        amount,
-		ScriptPubKey: addrScript,
-	}
-}
-
-func makeTokenVout(addr string, tokenID *types.OutPoint, amount uint64) *corepb.TxOut {
-	address, _ := types.NewAddress(addr)
-	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
-	transferParams := &script.TransferParams{}
-	transferParams.Hash = tokenID.Hash
-	transferParams.Index = tokenID.Index
-	transferParams.Amount = amount
-	addrScript := *script.TransferTokenScript(addrPkh.Hash(), transferParams)
-	return &corepb.TxOut{Value: tokenBoxAmt, ScriptPubKey: addrScript}
-}
-
-func makeSplitAddrVout(addrs []string, weights []uint64) *corepb.TxOut {
-	return &corepb.TxOut{
-		Value:        0,
-		ScriptPubKey: MakeSplitAddrPubkey(addrs, weights),
-	}
-}
-
-func makeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
-	var hash crypto.HashType
-	copy(hash[:], utxo.GetOutPoint().Hash)
-	return &types.TxIn{
-		PrevOutPoint: types.OutPoint{
-			Hash:  hash,
-			Index: utxo.GetOutPoint().GetIndex(),
-		},
-		ScriptSig: []byte{},
-		Sequence:  seq,
-	}
-}
-
-func signTx(tx *types.Transaction, utxos []*rpcpb.Utxo, acc *wallet.Account) error {
-	for i, utxo := range utxos {
-		scriptPkBytes := utxo.GetTxOut().GetScriptPubKey()
-		sigHash, err := script.CalcTxHashForSig(scriptPkBytes, tx, i)
-		if err != nil {
-			return err
-		}
-		sig, err := acc.Sign(sigHash)
-		if err != nil {
-			return err
-		}
-		scriptSig := script.SignatureScript(sig, acc.PublicKey())
-		tx.Vin[i].ScriptSig = *scriptSig
-	}
-	return nil
 }
 
 // NewSplitAddrTxWithFee new split address tx
@@ -886,76 +687,5 @@ func NewSplitAddrTxWithFee(acc *wallet.Account, addrs []string, weights []uint64
 	if err != nil {
 		return
 	}
-	return NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, fee, peerAddr)
-}
-
-// NewSplitAddrTxWithUtxos new split address tx
-func NewSplitAddrTxWithUtxos(acc *wallet.Account, addrs []string, weights []uint64,
-	utxos []*rpcpb.Utxo, fee uint64, peerAddr string) (tx *types.Transaction,
-	change *rpcpb.Utxo, splitAddr string, err error) {
-
-	utxoValue := uint64(0)
-	for _, u := range utxos {
-		utxoValue += u.GetTxOut().GetValue()
-	}
-	changeAmt := utxoValue - fee
-
-	// vin
-	vins := make([]*types.TxIn, 0)
-	for _, utxo := range utxos {
-		vins = append(vins, makeVin(utxo, 0))
-	}
-
-	// vout for toAddrs
-	splitAddrOut := makeSplitAddrVout(addrs, weights)
-	changeOut := makeVout(acc.Addr(), changeAmt)
-
-	// construct transaction
-	tx = new(types.Transaction)
-	tx.Vin = append(tx.Vin, vins...)
-	tx.Vout = append(tx.Vout, splitAddrOut, changeOut)
-
-	// sign vin
-	if err = signTx(tx, utxos, acc); err != nil {
-		return
-	}
-
-	// create change utxo
-	txHash, _ := tx.TxHash()
-	change = &rpcpb.Utxo{
-		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-		TxOut:       changeOut,
-		BlockHeight: 0,
-		IsCoinbase:  false,
-		IsSpent:     false,
-	}
-
-	splitAddr, err = MakeSplitAddr(addrs, weights)
-
-	return
-}
-
-// MakeSplitAddrPubkey make split addr
-func MakeSplitAddrPubkey(addrs []string, weights []uint64) []byte {
-	addresses := make([]types.Address, len(addrs))
-	for i, addr := range addrs {
-		addresses[i], _ = types.NewAddress(addr)
-	}
-	return *script.SplitAddrScript(addresses, weights)
-}
-
-// MakeSplitAddr make split addr
-func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
-	pk := MakeSplitAddrPubkey(addrs, weights)
-	splitAddrScriptStr := script.NewScriptFromBytes(pk).Disasm()
-	s := strings.Split(splitAddrScriptStr, " ")
-	pubKeyHash, err := hex.DecodeString(s[1])
-	if err != nil {
-		return "", err
-	}
-	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
-	if err != nil {
-		return "", err
-	}
-	return addr.String(), nil
+	return txlogic.NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, fee, peerAddr)
 }

@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"sync/atomic"
 
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"google.golang.org/grpc"
@@ -82,15 +83,15 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
-	tag := utils.NewTokenTag("box token", "BOX", 8)
+	tag := txlogic.NewTokenTag("box token", "BOX", 8)
 	times := utils.TokenRepeatTxTimes()
 	tokenRepeatTest(issuer, sender, receivers, tag, times, &t.txCnt, peerAddr)
 	//
 	return
 }
 
-func tokenRepeatTest(issuer, sender string, receivers []string, tag *utils.TokenTag,
-	times int, txCnt *uint64, peerAddr string) {
+func tokenRepeatTest(issuer, sender string, receivers []string,
+	tag *txlogic.TokenTag, times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
 	// issue some token
