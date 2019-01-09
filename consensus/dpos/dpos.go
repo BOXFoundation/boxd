@@ -323,10 +323,12 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	totalTxFee := uint64(0)
 	stopPack := false
 	stopPackCh := make(chan bool)
+	continueCh := make(chan bool)
 
 	go func() {
 		for txIdx, tx := range sortedTxs {
 			if stopPack {
+				continueCh <- true
 				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(blockTxns)-1, len(sortedTxs))
 				return
 			}
@@ -375,6 +377,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			}
 		}
 		stopPackCh <- true
+		continueCh <- true
 	}()
 
 	select {
@@ -384,6 +387,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	case <-stopPackCh:
 		logger.Debug("Packing completed")
 	}
+
+	// Important: wait for packing complete and exit
+	<-continueCh
 
 	// Pay tx fees to miner in addition to block reward in coinbase
 	blockTxns[0].Vout[0].Value += totalTxFee
