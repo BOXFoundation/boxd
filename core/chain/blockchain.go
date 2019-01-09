@@ -1272,6 +1272,7 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 }
 
 func (chain *BlockChain) loadFilters() error {
+	start := time.Now()
 	var i uint32 = 1
 	var utxoSet *UtxoSet
 	batch := chain.db.NewBatch()
@@ -1295,6 +1296,7 @@ func (chain *BlockChain) loadFilters() error {
 		}
 	}
 	utxoSet = nil
+	logger.Infof("bloom filter start cost: %v block count: %v", time.Since(start), chain.LongestChainHeight)
 	return batch.Write()
 }
 

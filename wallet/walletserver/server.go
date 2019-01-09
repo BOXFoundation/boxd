@@ -5,8 +5,10 @@
 package walletserver
 
 import (
+	"container/list"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -27,6 +29,7 @@ type WalletServer struct {
 	cfg   *Config
 	wu    *utxo.WalletUtxo
 	mux   *sync.Mutex
+	queue *list.List
 }
 
 // NewWalletServer creates an WalletServer instance using config and storage
@@ -43,6 +46,7 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 		cfg:   config,
 		wu:    utxo.NewWalletUtxoForP2PKH(table),
 		mux:   &sync.Mutex{},
+		queue: list.New(),
 	}
 	return wServer, nil
 }
@@ -52,6 +56,51 @@ func (w *WalletServer) Run() error {
 	logger.Info("Wallet Server Start Running")
 	if err := w.initListener(); err != nil {
 		logger.Error("fail to subscribe utxo change")
+	}
+	w.proc.Go(w.loop)
+	return nil
+}
+
+func (w *WalletServer) loop(p goprocess.Process) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	for {
+		select {
+		case <-ticker.C:
+			err := w.process()
+			if err != nil {
+				logger.Error(err)
+			}
+		case <-p.Closing():
+			ticker.Stop()
+			logger.Infof("Quit Wallet Server")
+			return
+		}
+	}
+}
+
+func (w *WalletServer) process() error {
+	w.mux.Lock()
+	if w.queue.Len() == 0 {
+		w.mux.Unlock()
+		return nil
+	}
+	tmpList := list.New()
+	tmpList.PushBackList(w.queue)
+	w.queue.Init()
+	w.mux.Unlock()
+	elem := tmpList.Front()
+	for elem != nil {
+		err := w.wu.ApplyUtxoSet(elem.Value.(*chain.UtxoSet))
+		if err != nil {
+			logger.Error("fail to apply utxo set", err)
+			return err
+		}
+		if err := w.wu.Save(); err != nil {
+			logger.Error("fail to save utxo set", err)
+			return err
+		}
+		w.wu.ClearSaved()
+		elem = elem.Next()
 	}
 	return nil
 }
@@ -75,14 +124,15 @@ func (w *WalletServer) initListener() error {
 func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
 	w.mux.Lock()
 	defer w.mux.Unlock()
-	err := w.wu.ApplyUtxoSet(utxoSet)
-	if err != nil {
-		logger.Error("fail to apply utxo set", err)
-	}
-	if err := w.wu.Save(); err != nil {
-		logger.Error("fail to save utxo set", err)
-	}
-	w.wu.ClearSaved()
+	w.queue.PushBack(utxoSet)
+	//err := w.wu.ApplyUtxoSet(utxoSet)
+	//if err != nil {
+	//	logger.Error("fail to apply utxo set", err)
+	//}
+	//if err := w.wu.Save(); err != nil {
+	//	logger.Error("fail to save utxo set", err)
+	//}
+	//w.wu.ClearSaved()
 }
 
 // Balance returns the total balance of an address
