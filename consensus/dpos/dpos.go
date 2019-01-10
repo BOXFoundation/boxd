@@ -322,7 +322,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// Total fees of all packed txs
 	totalTxFee := uint64(0)
 	stopPack := false
-	stopPackCh := make(chan bool)
+	stopPackCh := make(chan bool, 1)
 	continueCh := make(chan bool)
 
 	go func() {
@@ -376,8 +376,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				blockTxns = append(blockTxns, txWrap.Tx)
 			}
 		}
-		stopPackCh <- true
 		continueCh <- true
+		stopPackCh <- true
 	}()
 
 	select {
