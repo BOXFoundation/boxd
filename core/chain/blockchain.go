@@ -1023,23 +1023,19 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 }
 
 func (chain *BlockChain) loadAllBlockHeightHash() (map[uint32]*crypto.HashType, error) {
-	keys := chain.db.KeysWithPrefix(BlockHeightPrefix())
+	keys := chain.db.KeysWithPrefix(FilterKeyPrefix())
 	res := make(map[uint32]*crypto.HashType)
 	for _, k := range keys {
-		bytes, err := chain.db.Get(k)
-		if err != nil {
-			return nil, err
-		}
-		if bytes == nil {
-			return nil, core.ErrBlockIsNil
-		}
-		height := BlockHeightFromBlockHashKey(k)
+		height, bytes := FilterHeightHashFromKey(k)
 		if height == math.MaxUint32 {
 			continue
 		}
-		hash := new(crypto.HashType)
-		copy(hash[:], bytes)
-		res[height] = hash
+		hash := &crypto.HashType{}
+		if err := hash.SetString(bytes); err == nil {
+			res[height] = hash
+		} else {
+			logger.Warnf("HashType parse fail. Err: %v", err)
+		}
 	}
 	return res, nil
 }
