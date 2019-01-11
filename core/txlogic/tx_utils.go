@@ -17,9 +17,6 @@ import (
 	"github.com/BOXFoundation/boxd/wallet"
 )
 
-// UtxoWrapMap defines a map type with key is outpoint and value is utxowrap
-type UtxoWrapMap map[types.OutPoint]*types.UtxoWrap
-
 // TokenTag defines token tag
 type TokenTag struct {
 	Name    string

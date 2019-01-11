@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -57,14 +56,14 @@ func releaseDatabase(dbpath string, db storage.Storage) {
 	os.RemoveAll(dbpath)
 }
 
-func newTestUtxoSet(n int, addrs ...string) (*chain.UtxoSet, map[string]uint64,
-	map[string]txlogic.UtxoWrapMap) {
+func newTestUtxoSet(n int, addrs ...string) (types.UtxoMap, map[string]uint64,
+	map[string]types.UtxoMap) {
 
-	utxoSetMap := make(map[types.OutPoint]*types.UtxoWrap, n)
-	balanceMap := make(map[string]uint64)
-	utxoMap := make(map[string]txlogic.UtxoWrapMap)
+	utxoMap := make(types.UtxoMap, n)
+	addrBalance := make(map[string]uint64)
+	addrUtxos := make(map[string]types.UtxoMap)
 	for _, addr := range addrs {
-		utxoMap[addr] = make(txlogic.UtxoWrapMap)
+		addrUtxos[addr] = make(types.UtxoMap)
 	}
 	for h := uint32(0); h < uint32(n); h++ {
 		// outpoint
@@ -74,17 +73,17 @@ func newTestUtxoSet(n int, addrs ...string) (*chain.UtxoSet, map[string]uint64,
 		addr := addrs[int(h)%len(addrs)]
 		value := 1 + uint64(rand.Intn(10000))
 		utxoWrap := txlogic.NewUtxoWrap(addr, h, value)
-		utxoSetMap[*outpoint] = utxoWrap
+		utxoMap[*outpoint] = utxoWrap
 		// update balance
-		balanceMap[addr] += value
+		addrBalance[addr] += value
 		// update utxo
-		utxoMap[addr][*outpoint] = utxoWrap
+		addrUtxos[addr][*outpoint] = utxoWrap
 	}
 	// log
 	log.Printf("newTestUtxoSet: balances: %+v, utxos count: %d\n",
-		balanceMap, len(utxoSetMap))
+		addrBalance, len(utxoMap))
 	//
-	return chain.NewUtxoSetFromMap(utxoSetMap), balanceMap, utxoMap
+	return utxoMap, addrBalance, addrUtxos
 }
 
 func hashFromUint64(n uint64) crypto.HashType {
@@ -104,47 +103,48 @@ func TestSaveUtxos(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer releaseDatabase(dbpath, db)
-	// new WalletUtxo
-	wu := NewWalletUtxoForP2PKH(db)
 	//
 	addr1 := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	t.Run("test1", walletUtxosSaveGetTest(wu, 100, addr1))
 	addr2 := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ"
-	t.Run("test2", walletUtxosSaveGetTest(wu, 300, addr2))
 	addrs1 := []string{
 		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
 		"b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva",
 	}
-	t.Run("test3", walletUtxosSaveGetTest(wu, 400, addrs1...))
+	t.Run("test1", walletUtxosSaveGetTest(db, 2, addr1))
+	t.Run("test2", walletUtxosSaveGetTest(db, 300, addr2))
+	t.Run("test3", walletUtxosSaveGetTest(db, 400, addrs1...))
 }
 
-func walletUtxosSaveGetTest(wu *WalletUtxo, n int, addrs ...string) func(*testing.T) {
+func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*testing.T) {
 	return func(t *testing.T) {
-		// utxo set
-		utxoSet, balances, utxos := newTestUtxoSet(n, addrs...)
-		// new wallet utxo
-		if err := wu.ApplyUtxoSet(utxoSet); err != nil {
-			t.Fatal(err)
-		}
-		if err := wu.Save(); err != nil {
+		//t.Parallel()
+		// gen utxos
+		utxoMap, balances, utxos := newTestUtxoSet(n, addrs...)
+		// apply utxos
+		if err := ApplyUtxos(utxoMap, db); err != nil {
 			t.Fatal(err)
 		}
 		// check balance and utxos
 		for _, addr := range addrs {
 			address, _ := types.NewAddress(addr)
-			balanceGot := wu.Balance(address)
+			// check balance
+			balanceGot := BalanceFor(address, db)
 			if balances[addr] != balanceGot {
 				t.Errorf("for balance of addr %s, want: %d, got: %d", addr, balances[addr],
 					balanceGot)
 			}
 			// check utxos
-			utxoGot, err := wu.Utxos(address)
+			utxosGot, err := FetchUtxosOf(address, db)
 			if err != nil {
 				t.Error(err)
 			}
-			if !compareUtxoWrapMap(utxos[addr], utxoGot) {
-				t.Errorf("for utxos of addr %s, want map len: %d, got map len: %d", addr,
-					len(utxos[addr]), len(utxoGot))
+			utxosWantC := comparableUtxoWrapMap(utxos[addr])
+			utxosGotC := comparableUtxoWrapMap(utxosGot)
+			if !reflect.DeepEqual(utxosWantC, utxosGotC) {
+				//t.Errorf("for utxos of addr %s, want map len: %d, got map len: %d",
+				//	addr, len(utxos[addr]), len(utxosGot))
+				t.Errorf("for utxos of addr %s, want map: %+v, got map: %+v", addr,
+					utxosWantC, utxosGotC)
 			}
 		}
 	}
@@ -168,14 +168,12 @@ func newComparableUtxoWrap(uw *types.UtxoWrap) *ComparableUtxoWrap {
 	}
 }
 
-func compareUtxoWrapMap(x, y txlogic.UtxoWrapMap) bool {
-	x1 := make(map[types.OutPoint]ComparableUtxoWrap)
-	y1 := make(map[types.OutPoint]ComparableUtxoWrap)
-	for k, v := range x {
-		x1[k] = *newComparableUtxoWrap(v)
+func comparableUtxoWrapMap(um types.UtxoMap) map[types.OutPoint]ComparableUtxoWrap {
+	x := make(map[types.OutPoint]ComparableUtxoWrap)
+	for k, v := range um {
+		u := *newComparableUtxoWrap(v)
+		u.IsModified = false
+		x[k] = u
 	}
-	for k, v := range y {
-		y1[k] = *newComparableUtxoWrap(v)
-	}
-	return reflect.DeepEqual(x1, y1)
+	return x
 }

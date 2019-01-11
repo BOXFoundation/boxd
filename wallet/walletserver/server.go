@@ -27,8 +27,7 @@ type WalletServer struct {
 	bus   eventbus.Bus
 	table storage.Table
 	cfg   *Config
-	wu    *utxo.WalletUtxo
-	mux   *sync.Mutex
+	sync.Mutex
 	queue *list.List
 }
 
@@ -44,8 +43,6 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 		bus:   bus,
 		table: table,
 		cfg:   config,
-		wu:    utxo.NewWalletUtxoForP2PKH(table),
-		mux:   &sync.Mutex{},
 		queue: list.New(),
 	}
 	return wServer, nil
@@ -55,7 +52,7 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 func (w *WalletServer) Run() error {
 	logger.Info("Wallet Server Start Running")
 	if err := w.initListener(); err != nil {
-		logger.Error("fail to subscribe utxo change")
+		return fmt.Errorf("fail to subscribe utxo change")
 	}
 	w.proc.Go(w.loop)
 	return nil
@@ -79,29 +76,21 @@ func (w *WalletServer) loop(p goprocess.Process) {
 }
 
 func (w *WalletServer) process() error {
-	w.mux.Lock()
-	if w.queue.Len() == 0 {
-		w.mux.Unlock()
+	w.Lock()
+	defer w.Unlock()
+
+	elem := w.queue.Front()
+	if elem == nil {
 		return nil
 	}
-	tmpList := list.New()
-	tmpList.PushBackList(w.queue)
-	w.queue.Init()
-	w.mux.Unlock()
-	elem := tmpList.Front()
-	for elem != nil {
-		err := w.wu.ApplyUtxoSet(elem.Value.(*chain.UtxoSet))
-		if err != nil {
-			logger.Error("fail to apply utxo set", err)
-			return err
-		}
-		if err := w.wu.Save(); err != nil {
-			logger.Error("fail to save utxo set", err)
-			return err
-		}
-		w.wu.ClearSaved()
-		elem = elem.Next()
+	value := w.queue.Remove(elem)
+	utxoSet := value.(*chain.UtxoSet)
+
+	if err := utxo.ApplyUtxos(utxoSet.All(), w.table); err != nil {
+		logger.Error("fail to apply utxo set", err)
+		return err
 	}
+
 	return nil
 }
 
@@ -122,41 +111,23 @@ func (w *WalletServer) initListener() error {
 }
 
 func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
-	w.mux.Lock()
-	defer w.mux.Unlock()
+	w.Lock()
+	defer w.Unlock()
 	w.queue.PushBack(utxoSet)
-	//err := w.wu.ApplyUtxoSet(utxoSet)
-	//if err != nil {
-	//	logger.Error("fail to apply utxo set", err)
-	//}
-	//if err := w.wu.Save(); err != nil {
-	//	logger.Error("fail to save utxo set", err)
-	//}
-	//w.wu.ClearSaved()
 }
 
 // Balance returns the total balance of an address
 func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
-	//sc := script.PayToPubKeyHashScript(addr.Hash())
-	//s := utxo.NewWalletUtxoWithAddress(*sc.P2PKHScriptPrefix(), w.table)
-	//if err := s.FetchUtxoForAddress(addr); err != nil {
-	//	return 0, err
-	//}
 	if w == nil || w.cfg == nil || !w.cfg.Enable {
 		return 0, fmt.Errorf("not supported")
 	}
-	return w.wu.Balance(addr), nil
+	return utxo.BalanceFor(addr, w.table), nil
 }
 
 // Utxos returns all utxos of an address
 func (w *WalletServer) Utxos(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
-	//sc := script.PayToPubKeyHashScript(addr.Hash())
-	//s := utxo.NewWalletUtxoWithAddress(*sc.P2PKHScriptPrefix(), w.table)
-	//if err := s.FetchUtxoForAddress(addr); err != nil {
-	//
-	//}
 	if w == nil || w.cfg == nil || !w.cfg.Enable {
 		return nil, fmt.Errorf("not supported")
 	}
-	return w.wu.Utxos(addr)
+	return utxo.FetchUtxosOf(addr, w.table)
 }
