@@ -135,8 +135,18 @@ func (db *memorydb) Get(key []byte) ([]byte, error) {
 
 // return values associate with the keys in the Storage
 func (db *memorydb) MultiGet(key ...[]byte) ([][]byte, error) {
-	//TODO:
-	return nil, nil
+	db.sm.RLock()
+	defer db.sm.RUnlock()
+
+	values := [][]byte{}
+	for _, k := range key {
+		if value, ok := db.db[string(k)]; ok {
+			values = append(values, value)
+		} else {
+			return nil, nil
+		}
+	}
+	return values, nil
 }
 
 // check if the entry associate with key exists
