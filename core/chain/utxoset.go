@@ -15,6 +15,9 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 )
 
+// UtxoMap defines a map type with OutPoint to UtxoWrap
+type UtxoMap map[types.OutPoint]*types.UtxoWrap
+
 // UtxoSet contains all utxos
 type UtxoSet struct {
 	utxoMap map[types.OutPoint]*types.UtxoWrap
