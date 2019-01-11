@@ -57,6 +57,12 @@ func (tx *mtx) Get(key []byte) ([]byte, error) {
 	return tx.db.Get(key)
 }
 
+// return values associate with the keys in the Storage
+func (tx *mtx) MultiGet(key ...[]byte) ([][]byte, error) {
+	// TODO:
+	return nil, nil
+}
+
 // check if the entry associate with key exists
 func (tx *mtx) Has(key []byte) (bool, error) {
 	tx.txsm.Lock()

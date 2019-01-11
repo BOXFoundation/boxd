@@ -57,6 +57,12 @@ func (tr *dbtx) Get(key []byte) ([]byte, error) {
 	return tr.db.Get(key)
 }
 
+// return values associate with the keys in the Storage
+func (tr *dbtx) MultiGet(key ...[]byte) ([][]byte, error) {
+	// TODO:
+	return nil, nil
+}
+
 // check if the entry associate with key exists
 func (tr *dbtx) Has(key []byte) (bool, error) {
 	tr.sm.Lock()

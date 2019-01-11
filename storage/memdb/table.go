@@ -93,6 +93,12 @@ func (t *mtable) Get(key []byte) ([]byte, error) {
 	return nil, nil
 }
 
+// return values associate with the keys in the Storage
+func (t *mtable) MultiGet(key ...[]byte) ([][]byte, error) {
+	// TODO:
+	return nil, nil
+}
+
 // check if the entry associate with key exists
 func (t *mtable) Has(key []byte) (bool, error) {
 	t.sm.RLock()
