@@ -9,10 +9,12 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
@@ -172,7 +174,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
 	defer conn.Close()
 	err = client.SendTransaction(conn, tx)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
 	}
 	UnpickMiner(c.minerAddr)
@@ -227,7 +229,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	for _, tx := range txs {
 		err = client.SendTransaction(conn, tx)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
 	}
@@ -267,7 +269,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 			for _, txs := range txss {
 				for _, tx := range txs {
 					err := client.SendTransaction(conn, tx)
-					if err != nil {
+					if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 						logger.Panic(err)
 					}
 				}

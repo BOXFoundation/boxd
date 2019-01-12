@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
-
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
@@ -22,6 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -250,14 +249,15 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
 	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
 		txHash, _ := tx.TxHash()
-		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash.String(), err)
+		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash, err)
 		return err
 	}
 	return tx_pool.processOrphans(tx)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMode core.TransferMode, detectDupOrphan bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
+	transferMode core.TransferMode, detectDupOrphan bool) error {
 
 	txHash, _ := tx.TxHash()
 	logger.Infof("Maybe accept tx. Hash: %v", txHash)
@@ -266,7 +266,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
-	if tx_pool.isTransactionInPool(txHash) || detectDupOrphan && tx_pool.isOrphanInPool(txHash) || tx_pool.txcache.Contains(*txHash) {
+	if tx_pool.isTransactionInPool(txHash) ||
+		detectDupOrphan && tx_pool.isOrphanInPool(txHash) ||
+		tx_pool.txcache.Contains(*txHash) {
 		logger.Debugf("Tx %v already exists", txHash.String())
 		return core.ErrDuplicateTxInPool
 	}

@@ -30,23 +30,29 @@ func isTxUtxo(scriptBytes []byte) bool {
 
 // ApplyUtxos apply utxos from chain
 func ApplyUtxos(utxos types.UtxoMap, db storage.Table) error {
+	if len(utxos) == 0 {
+		return fmt.Errorf("no utxo to apply")
+	}
 	batch := db.NewBatch()
 	addrsChanged := make(map[types.Address]struct{})
 	for o, u := range utxos {
 		if u == nil || u.Output == nil || u.Output.ScriptPubKey == nil {
+			logger.Warnf("invalid utxo, outpoint: %s, utxoWrap: %+v", o, u)
 			continue
 		}
 		if !isTxUtxo(u.Output.ScriptPubKey) {
+			logger.Warnf("utxo[%s, %+v] is not tx utxo", o, u)
 			continue
 		}
 		if !u.IsModified {
+			logger.Warnf("utxo[%s, %+v] unmodified", o, u)
 			continue
 		}
 		//
 		sc := *script.NewScriptFromBytes(u.Output.ScriptPubKey)
 		addr, err := sc.ExtractAddress()
 		if err != nil {
-			logger.Warn(err)
+			logger.Warnf("apply utxo[%s, %+v] error: %s", o, u, err)
 			continue
 		}
 		addrsChanged[addr] = struct{}{}
@@ -67,7 +73,6 @@ func ApplyUtxos(utxos types.UtxoMap, db storage.Table) error {
 		return err
 	}
 
-	batch = db.NewBatch()
 	// update balance
 	for addr := range addrsChanged {
 		updateBalanceFor(addr, db, batch)

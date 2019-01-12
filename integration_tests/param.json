@@ -16,13 +16,13 @@
     "circulation_repeat_times": 400
   },
   "token_test": {
-    "enable": true,
+    "enable": false,
     "accounts": 6,
     "unit_accounts": 3,
     "repeat_times": 50
   },
   "split_addr_test": {
-    "enable": true,
+    "enable": false,
     "accounts": 10,
     "unit_accounts": 5,
     "repeat_times": 50
