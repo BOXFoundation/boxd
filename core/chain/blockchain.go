@@ -378,7 +378,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
-	if block.Height <= chain.LongestChainHeight {
+	if block.Height <= chain.LongestChainHeight && block.Height > chain.eternal.Height {
 		logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
 			blockHash, block.Height, chain.LongestChainHeight)
 		// we can store the side chain block, But we should not go on the chain.
@@ -635,7 +635,11 @@ func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
 
 func (chain *BlockChain) reorganize(block *types.Block) error {
 	// Find the common ancestor of the main chain and side chain
-	_, detachBlocks, attachBlocks := chain.findFork(block)
+	forkpoint, detachBlocks, attachBlocks := chain.findFork(block)
+	if forkpoint.Height < chain.eternal.Height {
+		logger.Warnf("No need to reorganize, because the forkpoint height is lower than the latest eternal block.")
+		return nil
+	}
 
 	for _, detachBlock := range detachBlocks {
 		if err := chain.tryDisConnectBlockFromMainChain(detachBlock); err != nil {
