@@ -14,31 +14,28 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 )
 
-// UtxoMap defines a map type with OutPoint to UtxoWrap
-type UtxoMap map[types.OutPoint]*types.UtxoWrap
-
 // UtxoSet contains all utxos
 type UtxoSet struct {
-	utxoMap map[types.OutPoint]*types.UtxoWrap
+	utxoMap types.UtxoMap
 }
 
 // NewUtxoSet new utxo set
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
-		utxoMap: make(map[types.OutPoint]*types.UtxoWrap),
+		utxoMap: make(types.UtxoMap),
 	}
 }
 
 // NewUtxoSetFromMap returns the underlying utxos as a map
-func NewUtxoSetFromMap(utxoMap map[types.OutPoint]*types.UtxoWrap) *UtxoSet {
+func NewUtxoSetFromMap(utxoMap types.UtxoMap) *UtxoSet {
 	return &UtxoSet{
 		utxoMap: utxoMap,
 	}
 }
 
 // GetUtxos returns the unspent utxos
-func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
-	result := make(map[types.OutPoint]*types.UtxoWrap)
+func (u *UtxoSet) GetUtxos() types.UtxoMap {
+	result := make(types.UtxoMap)
 	for outPoint, utxoWrap := range u.utxoMap {
 		if !utxoWrap.IsSpent {
 			result[outPoint] = utxoWrap
@@ -48,7 +45,7 @@ func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
 }
 
 // All returns all utxo contained including spent utxo
-func (u *UtxoSet) All() map[types.OutPoint]*types.UtxoWrap {
+func (u *UtxoSet) All() types.UtxoMap {
 	return u.utxoMap
 }
 

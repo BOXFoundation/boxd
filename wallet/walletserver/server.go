@@ -8,7 +8,6 @@ import (
 	"container/list"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -28,22 +27,23 @@ type WalletServer struct {
 	table storage.Table
 	cfg   *Config
 	sync.Mutex
-	queue *list.List
+	utxosQueue *list.List
 }
 
 // NewWalletServer creates an WalletServer instance using config and storage
-func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage, bus eventbus.Bus) (*WalletServer, error) {
+func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage,
+	bus eventbus.Bus) (*WalletServer, error) {
 	proc := goprocess.WithParent(parent)
 	table, err := s.Table(chain.WalletTableName)
 	if err != nil {
 		return nil, err
 	}
 	wServer := &WalletServer{
-		proc:  proc,
-		bus:   bus,
-		table: table,
-		cfg:   config,
-		queue: list.New(),
+		proc:       proc,
+		bus:        bus,
+		table:      table,
+		cfg:        config,
+		utxosQueue: list.New(),
 	}
 	return wServer, nil
 }
@@ -59,39 +59,31 @@ func (w *WalletServer) Run() error {
 }
 
 func (w *WalletServer) loop(p goprocess.Process) {
-	ticker := time.NewTicker(100 * time.Millisecond)
 	for {
+		// check whether to exit
 		select {
-		case <-ticker.C:
-			err := w.process()
-			if err != nil {
-				logger.Error(err)
-			}
 		case <-p.Closing():
-			ticker.Stop()
 			logger.Infof("Quit Wallet Server")
 			return
+		default:
+		}
+		// process
+		elem := w.utxosQueue.Front()
+		if elem == nil {
+			continue
+		}
+		value := w.utxosQueue.Remove(elem)
+		utxoSet := value.(*chain.UtxoSet)
+
+		allUtxos := utxoSet.All()
+		if err := utxo.ApplyUtxos(allUtxos, w.table); err != nil {
+			logger.Warnf("wallet server fail to apply %d utxos error: %s",
+				len(allUtxos), err)
+			for op := range allUtxos {
+				logger.Warnf("may unsucessfull applying utxo: %s", op)
+			}
 		}
 	}
-}
-
-func (w *WalletServer) process() error {
-	w.Lock()
-	defer w.Unlock()
-
-	elem := w.queue.Front()
-	if elem == nil {
-		return nil
-	}
-	value := w.queue.Remove(elem)
-	utxoSet := value.(*chain.UtxoSet)
-
-	if err := utxo.ApplyUtxos(utxoSet.All(), w.table); err != nil {
-		logger.Error("fail to apply utxo set", err)
-		return err
-	}
-
-	return nil
 }
 
 // Proc returns then go process of the wallet server
@@ -113,21 +105,21 @@ func (w *WalletServer) initListener() error {
 func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
 	w.Lock()
 	defer w.Unlock()
-	w.queue.PushBack(utxoSet)
+	w.utxosQueue.PushBack(utxoSet)
 }
 
 // Balance returns the total balance of an address
 func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
-	if w == nil || w.cfg == nil || !w.cfg.Enable {
-		return 0, fmt.Errorf("not supported")
+	if w.cfg == nil || !w.cfg.Enable {
+		return 0, fmt.Errorf("fetch balance not supported for non-wallet node")
 	}
 	return utxo.BalanceFor(addr, w.table), nil
 }
 
 // Utxos returns all utxos of an address
 func (w *WalletServer) Utxos(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
-	if w == nil || w.cfg == nil || !w.cfg.Enable {
-		return nil, fmt.Errorf("not supported")
+	if w.cfg == nil || !w.cfg.Enable {
+		return nil, fmt.Errorf("fetch utxos not supported for non-wallet node")
 	}
 	return utxo.FetchUtxosOf(addr, w.table)
 }
