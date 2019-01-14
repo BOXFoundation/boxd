@@ -378,11 +378,16 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
-	if block.Height <= chain.LongestChainHeight && block.Height > chain.eternal.Height {
-		logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
-			blockHash, block.Height, chain.LongestChainHeight)
-		// we can store the side chain block, But we should not go on the chain.
-		return chain.StoreBlock(block)
+	if block.Height <= chain.LongestChainHeight {
+		if block.Height > chain.eternal.Height {
+			logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
+				blockHash, block.Height, chain.LongestChainHeight)
+			// we can store the side chain block, But we should not go on the chain.
+			return chain.StoreBlock(block)
+		} else {
+			return core.ErrInvalidBlock
+		}
+
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
