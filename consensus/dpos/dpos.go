@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
-
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -24,6 +22,7 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -284,7 +283,10 @@ func (dpos *Dpos) sortPendingTxs() ([]*chain.TxWrap, map[crypto.HashType]*chain.
 	pendingTxs := dpos.txpool.GetAllTxs()
 	for _, pendingTx := range pendingTxs {
 		// place onto heap sorted by FeePerKB
-		heap.Push(pool, pendingTx)
+		// only pack txs whose scripts have been verified
+		if pendingTx.IsScriptValid {
+			heap.Push(pool, pendingTx)
+		}
 	}
 
 	var sortedTxs []*chain.TxWrap
