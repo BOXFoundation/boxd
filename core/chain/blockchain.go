@@ -384,10 +384,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 				blockHash, block.Height, chain.LongestChainHeight)
 			// we can store the side chain block, But we should not go on the chain.
 			return chain.StoreBlock(block)
-		} else {
-			return core.ErrInvalidBlock
 		}
-
+		return core.ErrInvalidBlock
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
