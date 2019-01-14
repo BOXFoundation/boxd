@@ -302,6 +302,9 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 func (conn *Conn) Write(opcode uint32, body []byte) error {
 	reserve, body, err := conn.reserve(opcode, body)
 	if err != nil {
+		if err == ErrNoNeedToRelay {
+			return nil
+		}
 		return err
 	}
 	return conn.write(newMessageData(conn.peer.config.Magic, opcode, reserve, body))
