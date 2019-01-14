@@ -78,10 +78,7 @@ func ApplyUtxos(utxos types.UtxoMap, db storage.Table) error {
 		updateBalanceFor(addr, db, batch)
 	}
 	// write storage
-	if err := batch.Write(); err != nil {
-		return err
-	}
-	return nil
+	return batch.Write()
 }
 
 func updateBalanceFor(addr types.Address, db storage.Table,
