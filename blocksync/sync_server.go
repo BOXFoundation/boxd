@@ -313,7 +313,9 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		for _, b := range sb.Blocks {
 			err := sm.chain.ProcessBlock(b, core.DefaultMode, false, "")
 			if err != nil {
-				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
+				if err == core.ErrBlockExists ||
+					err == core.ErrOrphanBlockExists ||
+					err == core.ErrExpiredBlock {
 					continue
 				} else {
 					panic(err)
