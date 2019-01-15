@@ -166,7 +166,7 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 				tx_pool.expireOrphans()
 			}
 		case txScript := <-tx_pool.newTxScriptCh:
-			tx_pool.checkTxScript(txScript)
+			go tx_pool.checkTxScript(txScript)
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
