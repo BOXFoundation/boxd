@@ -386,6 +386,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 			if err := chain.StoreBlock(block); err != nil {
 				return err
 			}
+			if err := chain.processOrphans(block); err != nil {
+				logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
+				return err
+			}
 			return core.ErrExpiredBlock
 		}
 		logger.Warnf("Block %v extends a side chain height[%d] is lower than eternal block height[%d]", blockHash, block.Height, chain.eternal.Height)
