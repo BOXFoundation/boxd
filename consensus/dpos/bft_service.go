@@ -55,7 +55,7 @@ func NewBftService(consensus *Dpos) (*BftService, error) {
 func (bft *BftService) Start() {
 	bft.subscribeMessageNotifiee()
 	bft.proc.Go(bft.loop)
-	bft.proc.Go(bft.checkEternalBlock)
+	// bft.proc.Go(bft.checkEternalBlock)
 }
 
 func (bft *BftService) subscribeMessageNotifiee() {
@@ -96,7 +96,7 @@ func (bft *BftService) FetchIrreversibleInfo() (*types.IrreversibleInfo, error) 
 		blockHash := *block.BlockHash()
 		if value, ok := bft.msgCache.Load(blockHash); ok {
 			signatures := value.([][]byte)
-			if len(signatures) >= MinConfirmMsgNumberForEternalBlock {
+			if len(signatures) > MinConfirmMsgNumberForEternalBlock {
 				go bft.updateEternal(block)
 				irreversibleInfo := new(types.IrreversibleInfo)
 				irreversibleInfo.Hash = blockHash
@@ -170,14 +170,14 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		return err
 	}
 
-	key := eternalBlockMsg.hash
+	key := eternalBlockMsg.Hash
 	if bft.existEternalBlockMsgKey.Contains(key) {
 		logger.Debugf("Enough eternalBlockMsgs has been received.")
 		return nil
 	}
 
 	now := time.Now().Unix()
-	if eternalBlockMsg.timestamp > now || now-eternalBlockMsg.timestamp > MaxEternalBlockMsgCacheTime {
+	if eternalBlockMsg.Timestamp > now || now-eternalBlockMsg.Timestamp > MaxEternalBlockMsgCacheTime {
 		return ErrIllegalMsg
 	}
 
@@ -194,7 +194,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		return nil
 	}
 
-	if pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.hash[:], eternalBlockMsg.signature); ok {
+	if pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.Hash[:], eternalBlockMsg.Signature); ok {
 		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
 			return err
@@ -212,16 +212,16 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 
 		if msg, ok := bft.msgCache.Load(key); ok {
 			value := msg.([][]byte)
-			if util.InArray(eternalBlockMsg.signature, value) {
+			if util.InArray(eternalBlockMsg.Signature, value) {
 				return nil
 			}
-			value = append(value, eternalBlockMsg.signature)
+			value = append(value, eternalBlockMsg.Signature)
 			bft.msgCache.Store(key, value)
 			if len(value) > MinConfirmMsgNumberForEternalBlock {
 				bft.existEternalBlockMsgKey.Add(key, key)
 			}
 		} else {
-			bft.msgCache.Store(key, [][]byte{eternalBlockMsg.signature})
+			bft.msgCache.Store(key, [][]byte{eternalBlockMsg.Signature})
 		}
 	}
 
