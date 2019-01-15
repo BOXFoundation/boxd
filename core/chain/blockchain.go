@@ -383,7 +383,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 			logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
 				blockHash, block.Height, chain.LongestChainHeight)
 			// we can store the side chain block, But we should not go on the chain.
-			return chain.StoreBlock(block)
+			if err := chain.StoreBlock(block); err != nil {
+				return err
+			}
+			return core.ErrExpiredBlock
 		}
 		logger.Warnf("Block %v extends a side chain height[%d] is lower than eternal block height[%d]", blockHash, block.Height, chain.eternal.Height)
 		return core.ErrExpiredBlock
