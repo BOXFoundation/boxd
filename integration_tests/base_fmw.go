@@ -104,7 +104,13 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 			for _, addr := range addrs {
 				delete(AddrToAcc, addr)
 			}
-			addrs = <-addrsCh
+			select {
+			case <-b.quitCh[index]:
+				logger.Infof("receive quit signal, quiting doTest[%d]!", index)
+				return
+			case addrs = <-addrsCh:
+			}
+			logger.Warnf("times: %d", times)
 		}
 	}
 }
@@ -113,10 +119,6 @@ func genAddrs(n int, addrsCh chan<- []string) {
 	quitCh := make(chan os.Signal, 1)
 	signal.Notify(quitCh, os.Interrupt, os.Kill)
 	for {
-		if utils.Closing(quitCh) {
-			logger.Infof("receive quit signal, quiting genAddrs!")
-			return
-		}
 		addrs, accAddrs := utils.GenTestAddr(n)
 		for _, addr := range addrs {
 			acc := utils.UnlockAccount(addr)
@@ -124,6 +126,11 @@ func genAddrs(n int, addrsCh chan<- []string) {
 		}
 		logger.Infof("done to gen %d address", n)
 		utils.RemoveKeystoreFiles(accAddrs...)
-		addrsCh <- addrs
+		select {
+		case <-quitCh:
+			logger.Infof("receive quit signal, quiting genAddrs")
+			return
+		case addrsCh <- addrs:
+		}
 	}
 }
