@@ -35,7 +35,7 @@ var (
 	ErrFutureBlock                  = errors.New("Received a future block")
 	ErrRepeatedMintAtSameTime       = errors.New("Repeated mint at same time")
 	ErrFailedToVerifyWithCandidates = errors.New("Failed to verify block with candidates")
-	ErrInvalidBlock                 = errors.New("Invalid block")
+	ErrExpiredBlock                 = errors.New("Expired block")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool                = errors.New("Duplicate transactions in tx pool")
