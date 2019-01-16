@@ -3,7 +3,7 @@
   "test_scope": "basic",
   "pass_phrase": "1",
   "ticker_duration_txs": 5,
-  "times_to_update_addrs": 100,
+  "times_to_update_addrs": 50,
   "wallet_dir": "./.devconfig/ws1/box_keystore/",
   "docker_compose_file": "../docker/docker-compose.yml",
   "local_ws": "./.devconfig/",
