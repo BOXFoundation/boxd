@@ -621,7 +621,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	chain.tryToClearCache([]*types.Block{block}, nil)
 
 	// notify when batch write success
-	chain.notifyUtxoChange(utxoSet)
+	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
 	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
@@ -727,7 +727,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	chain.tryToClearCache(nil, []*types.Block{block})
 
 	// notify when batch write success
-	chain.notifyUtxoChange(utxoSet)
+	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
