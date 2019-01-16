@@ -289,6 +289,11 @@ func TestExtractAddress(t *testing.T) {
 	_, scriptPubKey = genP2SHScript()
 	_, err = scriptPubKey.ExtractAddress()
 	ensure.NotNil(t, err)
+
+	// p2pkhCLTV
+	scriptPubKey = PayToPubKeyHashCLTVScript(testPubKeyHash, 63072000)
+	_, err = scriptPubKey.ExtractAddress()
+	ensure.Nil(t, err)
 }
 
 func TestGetNthOp(t *testing.T) {

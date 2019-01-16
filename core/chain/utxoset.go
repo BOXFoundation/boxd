@@ -10,6 +10,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 )
@@ -274,9 +275,17 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			continue
 		}
 		utxoKey := UtxoKey(&outpoint)
+		sc := *script.NewScriptFromBytes(utxoWrap.Output.ScriptPubKey)
+		addr, err := sc.ExtractAddress()
+		if err != nil {
+			logger.Warnf("Failed to extract address. Err: %v", err)
+			return err
+		}
+		addrUtxoKey := AddrUtxoKey(addr.String(), outpoint)
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent {
 			batch.Del(utxoKey)
+			batch.Del(addrUtxoKey)
 			continue
 		} else if utxoWrap.IsModified {
 			// Serialize and store the utxo entry.
@@ -285,6 +294,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 				return err
 			}
 			batch.Put(utxoKey, serialized)
+			batch.Put(addrUtxoKey, serialized)
 		}
 	}
 	return nil
@@ -329,6 +339,16 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 				continue
 			}
 			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
+		}
+
+	}
+
+	for _, tx := range block.Txs {
+		hash, _ := tx.TxHash()
+		outPoint := types.OutPoint{Hash: *hash}
+		for idx := range tx.Vout {
+			outPoint.Index = uint32(idx)
+			outPointsToFetch[outPoint] = struct{}{}
 		}
 	}
 

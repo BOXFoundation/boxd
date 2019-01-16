@@ -552,6 +552,12 @@ func (s *Script) IsPayToPubKeyHash() bool {
 		isOperandOfLen(r[2], 20) && reflect.DeepEqual(r[3], OPEQUALVERIFY) && reflect.DeepEqual(r[4], OPCHECKSIG)
 }
 
+// IsPayToPubKeyHashCLTVScript returns if the script is p2pkhCLTV
+func (s *Script) IsPayToPubKeyHashCLTVScript() bool {
+	r := s.parse()
+	return len(r) == 7 && reflect.DeepEqual(r[1], OPCHECKLOCKTIMEVERIFY) && reflect.DeepEqual(r[2], OPDUP) && reflect.DeepEqual(r[3], OPHASH160) && isOperandOfLen(r[4], 20) && reflect.DeepEqual(r[5], OPEQUALVERIFY) && reflect.DeepEqual(r[6], OPCHECKSIG)
+}
+
 // IsPayToScriptHash returns if the script is p2sh
 func (s *Script) IsPayToScriptHash() bool {
 	if len(*s) != p2SHScriptLen {
@@ -629,6 +635,14 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 			return nil, err
 		}
 		return addr, nil
+	}
+
+	if s.IsPayToPubKeyHashCLTVScript() {
+		_, pubKeyHash, _, err := s.getNthOp(0, 4)
+		if err != nil {
+			return nil, err
+		}
+		return types.NewAddressPubKeyHash(pubKeyHash)
 	}
 
 	// only applies to p2pkh & token txs
