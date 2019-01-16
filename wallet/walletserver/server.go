@@ -34,7 +34,7 @@ type WalletServer struct {
 func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage,
 	bus eventbus.Bus) (*WalletServer, error) {
 	proc := goprocess.WithParent(parent)
-	table, err := s.Table(chain.WalletTableName)
+	table, err := s.Table(chain.BlockTableName)
 	if err != nil {
 		return nil, err
 	}
