@@ -32,7 +32,7 @@ var logger = log.NewLogger("dpos") // logger
 const (
 	SecondInMs           = int64(1000)
 	MinerRefreshInterval = int64(5000)
-	MaxPackedTxTime      = int64(200)
+	MaxPackedTxTime      = int64(100)
 	PeriodSize           = 6
 	BlockNumPerPeiod     = 5
 )

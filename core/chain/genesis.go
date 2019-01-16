@@ -121,7 +121,12 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 			}
 		}
 		coinbaseScriptSig := script.StandardCoinbaseSignatureScript(0)
-		pkScript := *script.PayToPubKeyHashCLTVScript(pubkeyhash, locktime)
+		var pkScript script.Script
+		if locktime == 0 {
+			pkScript = *script.PayToPubKeyHashScript(pubkeyhash)
+		} else {
+			pkScript = *script.PayToPubKeyHashCLTVScript(pubkeyhash, locktime)
+		}
 
 		tx := &types.Transaction{
 			Version: 1,

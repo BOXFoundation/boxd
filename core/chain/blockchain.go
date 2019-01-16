@@ -678,6 +678,7 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 
 func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
 
+	logger.Infof("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Height)
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
@@ -714,9 +715,9 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	}
 
 	// save current tail to database
-	if err := chain.StoreTailBlock(block, batch); err != nil {
-		return err
-	}
+	// if err := chain.StoreTailBlock(block, batch); err != nil {
+	// 	return err
+	// }
 
 	if err := batch.Write(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
@@ -732,7 +733,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 
 	// This block is now the end of the best chain.
-	chain.ChangeNewTail(block)
+	// chain.ChangeNewTail(block)
 	return nil
 }
 
