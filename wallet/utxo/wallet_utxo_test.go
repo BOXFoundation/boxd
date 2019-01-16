@@ -128,7 +128,10 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 		for _, addr := range addrs {
 			address, _ := types.NewAddress(addr)
 			// check balance
-			balanceGot := BalanceFor(address, db)
+			balanceGot, err := BalanceFor(address, db)
+			if err != nil {
+				t.Error(err)
+			}
 			if balances[addr] != balanceGot {
 				t.Errorf("for balance of addr %s, want: %d, got: %d", addr, balances[addr],
 					balanceGot)

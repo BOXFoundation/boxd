@@ -121,13 +121,18 @@ func saveBalanceToDB(addr types.Address, balance uint64, batch storage.Batch) er
 }
 
 // BalanceFor returns balance amount of an address using balance index
-func BalanceFor(addr types.Address, db storage.Table) uint64 {
-	balance, err := fetchBalanceFromDB(addr, db)
+func BalanceFor(addr types.Address, db storage.Table) (uint64, error) {
+	utxos, err := FetchUtxosOf(addr, db)
 	if err != nil {
-		logger.Errorf("unable to get balance for addr: %s, err: %v", addr.String(), err)
-		return 0
+		return 0, err
 	}
-	return balance
+	var balance uint64
+	for _, u := range utxos {
+		if u != nil && !u.IsSpent {
+			balance += u.Output.Value
+		}
+	}
+	return balance, nil
 }
 
 // FetchUtxosOf fetches utxos from db
