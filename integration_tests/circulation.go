@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
@@ -119,8 +121,9 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 			//}
 
 			for _, tx := range txs {
-				if err := client.SendTransaction(conn, tx); err != nil {
-					//logger.Panic(err)
+				if err := client.SendTransaction(conn, tx); err != nil &&
+					!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
+					logger.Panic(err)
 				}
 				//time.Sleep(20 * time.Millisecond)
 				atomic.AddUint64(txCnt, 1)
