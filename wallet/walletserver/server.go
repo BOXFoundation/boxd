@@ -6,6 +6,7 @@ package walletserver
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -111,9 +112,15 @@ func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
 // Balance returns the total balance of an address
 func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
 	if w.cfg == nil || !w.cfg.Enable {
-		return 0, fmt.Errorf("fetch balance not supported for non-wallet node")
+		err := errors.New("not supported for non-wallet node")
+		logger.Warn(err)
+		return 0, err
 	}
-	return utxo.BalanceFor(addr, w.table)
+	balance, err := utxo.BalanceFor(addr, w.table)
+	if err != nil {
+		logger.Warnf("BalanceFor %s error %s", addr, err)
+	}
+	return balance, err
 }
 
 // Utxos returns all utxos of an address
