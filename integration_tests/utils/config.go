@@ -29,6 +29,8 @@ var (
 	splitAddrUnitAccounts  = 4
 	splitAddrRepeatTxTimes = 50
 
+	timesToUpdateAddrs = 100
+
 	// NewNodes flag indicates to need to start nodes
 	NewNodes = flag.Bool("nodes", true, "need to start nodes?")
 	// EnableDocker flag indicates to need start docker
@@ -143,6 +145,12 @@ func LoadConf() error {
 	}
 	logger.Infof("splitAddr repeat tx times = %d", splitAddrRepeatTxTimes)
 
+	timesToUpdateAddrs, err = GetIntCfgVal(100, "times_to_update_addrs")
+	if err != nil {
+		return err
+	}
+	logger.Infof("times to update addrs = %d", timesToUpdateAddrs)
+
 	return nil
 }
 
@@ -252,4 +260,9 @@ func SplitAddrUnitAccounts() int {
 // SplitAddrRepeatTxTimes return splitAddrRepeatTxTimes
 func SplitAddrRepeatTxTimes() int {
 	return splitAddrRepeatTxTimes
+}
+
+// TimesToUpdateAddrs return timesToUpdateAddrs
+func TimesToUpdateAddrs() int {
+	return timesToUpdateAddrs
 }
