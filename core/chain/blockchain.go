@@ -383,9 +383,17 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 			logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
 				blockHash, block.Height, chain.LongestChainHeight)
 			// we can store the side chain block, But we should not go on the chain.
-			return chain.StoreBlock(block)
+			if err := chain.StoreBlock(block); err != nil {
+				return err
+			}
+			if err := chain.processOrphans(block); err != nil {
+				logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
+				return err
+			}
+			return core.ErrExpiredBlock
 		}
-		return core.ErrInvalidBlock
+		logger.Warnf("Block %v extends a side chain height[%d] is lower than eternal block height[%d]", blockHash, block.Height, chain.eternal.Height)
+		return core.ErrExpiredBlock
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
@@ -640,7 +648,14 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 	// Find the common ancestor of the main chain and side chain
 	forkpoint, detachBlocks, attachBlocks := chain.findFork(block)
 	if forkpoint.Height < chain.eternal.Height {
-		logger.Warnf("No need to reorganize, because the forkpoint height is lower than the latest eternal block.")
+		// delete all block from forkpoint.
+		for _, attachBlock := range attachBlocks {
+			delete(chain.hashToOrphanBlock, *attachBlock.BlockHash())
+			delete(chain.orphanBlockHashToChildren, *attachBlock.BlockHash())
+			chain.RemoveBlock(attachBlock)
+		}
+
+		logger.Warnf("No need to reorganize, because the forkpoint height[%d] is lower than the latest eternal block height[%d].", forkpoint.Height, chain.eternal.Height)
 		return nil
 	}
 
@@ -1075,6 +1090,15 @@ func (chain *BlockChain) StoreBlock(block *types.Block) error {
 	}
 	chain.db.Put(BlockKey(hash), data)
 	return nil
+}
+
+// RemoveBlock store block to db.
+func (chain *BlockChain) RemoveBlock(block *types.Block) {
+
+	hash := block.BlockHash()
+	if ok, _ := chain.db.Has(BlockKey(hash)); ok {
+		chain.db.Del(BlockKey(hash))
+	}
 }
 
 // LoadTxByHash load transaction with hash.

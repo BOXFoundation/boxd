@@ -313,7 +313,10 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		for _, b := range sb.Blocks {
 			err := sm.chain.ProcessBlock(b, core.DefaultMode, false, "")
 			if err != nil {
-				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
+				if err == core.ErrBlockExists ||
+					err == core.ErrOrphanBlockExists ||
+					err == core.ErrExpiredBlock {
+					logger.Warnf("Failed to process block. Err: %v", err)
 					continue
 				} else {
 					panic(err)
@@ -359,7 +362,9 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 	}
 	for _, b := range sb.Blocks {
 		if err := sm.chain.ProcessBlock(b, core.DefaultMode, false, ""); err != nil {
-			if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
+			if err == core.ErrBlockExists ||
+				err == core.ErrOrphanBlockExists ||
+				err == core.ErrExpiredBlock {
 				continue
 			}
 			logger.Errorf("Failed to process block while handling LightSyncResponse message. Err: %s", err.Error())

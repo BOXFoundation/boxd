@@ -28,6 +28,7 @@ import (
 const (
 	TxMsgBufferChSize          = 65536
 	ChainUpdateMsgBufferChSize = 65536
+	TxScriptBufferChSize       = 65536
 
 	metricsLoopInterval = 1 * time.Second
 
@@ -47,11 +48,18 @@ var logger = log.NewLogger("txpool") // logger
 
 var _ service.TxHandler = (*TransactionPool)(nil)
 
+// Wrapper for info needed to validate a tx's script
+type txScriptWrap struct {
+	tx      *types.Transaction
+	utxoSet *chain.UtxoSet
+}
+
 // TransactionPool define struct.
 type TransactionPool struct {
 	notifiee            p2p.Net
 	newTxMsgCh          chan p2p.Message
 	newChainUpdateMsgCh chan *chain.UpdateMsg
+	newTxScriptCh       chan *txScriptWrap
 	txNotifee           *p2p.Notifiee
 	proc                goprocess.Process
 	chain               *chain.BlockChain
@@ -77,6 +85,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 	return &TransactionPool{
 		newTxMsgCh:          make(chan p2p.Message, TxMsgBufferChSize),
 		newChainUpdateMsgCh: make(chan *chain.UpdateMsg, ChainUpdateMsgBufferChSize),
+		newTxScriptCh:       make(chan *txScriptWrap, TxScriptBufferChSize),
 		proc:                goprocess.WithParent(parent),
 		notifiee:            notifiee,
 		chain:               c,
@@ -155,6 +164,8 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 				// remove expired orphans if any
 				tx_pool.expireOrphans()
 			}
+		case txScript := <-tx_pool.newTxScriptCh:
+			go tx_pool.checkTxScript(txScript)
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
@@ -331,10 +342,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 
 	// TODO: free-to-relay rate limit
 
-	// verify crypto signatures for each input
-	if _, err = chain.CheckTxScripts(utxoSet, tx, false /* validate script */); err != nil {
-		return err
-	}
+	// To check script later so main thread is not blocked
+	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
@@ -487,6 +496,7 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
 		FeePerKB:       feePerKB,
+		IsScriptValid:  false,
 	}
 	tx_pool.hashToTx.Store(*txHash, txWrap)
 
@@ -606,6 +616,25 @@ func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) 
 			})
 		}
 	}
+}
+
+// check admitted tx's script
+func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
+	// verify crypto signatures for each input
+	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false /* validate script */); err != nil {
+		// remove
+		tx_pool.removeTx(txScript.tx, true)
+		return
+	}
+
+	txHash, _ := txScript.tx.TxHash()
+	v, exists := tx_pool.hashToTx.Load(*txHash)
+	if !exists {
+		// already removed
+		return
+	}
+	tx := v.(*chain.TxWrap)
+	tx.IsScriptValid = true
 }
 
 func (tx_pool *TransactionPool) expireOrphans() {

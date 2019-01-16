@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
-
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -24,6 +22,7 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -284,7 +283,10 @@ func (dpos *Dpos) sortPendingTxs() ([]*chain.TxWrap, map[crypto.HashType]*chain.
 	pendingTxs := dpos.txpool.GetAllTxs()
 	for _, pendingTx := range pendingTxs {
 		// place onto heap sorted by FeePerKB
-		heap.Push(pool, pendingTx)
+		// only pack txs whose scripts have been verified
+		if pendingTx.IsScriptValid {
+			heap.Push(pool, pendingTx)
+		}
 	}
 
 	var sortedTxs []*chain.TxWrap
@@ -323,7 +325,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	totalTxFee := uint64(0)
 	stopPack := false
 	stopPackCh := make(chan bool, 1)
-	continueCh := make(chan bool)
+	continueCh := make(chan bool, 1)
 
 	go func() {
 		for txIdx, tx := range sortedTxs {
@@ -444,9 +446,9 @@ func (dpos *Dpos) BroadcastEternalMsgToMiners(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	eternalBlockMsg.hash = *hash
-	eternalBlockMsg.signature = signature
-	eternalBlockMsg.timestamp = block.Header.TimeStamp
+	eternalBlockMsg.Hash = *hash
+	eternalBlockMsg.Signature = signature
+	eternalBlockMsg.Timestamp = block.Header.TimeStamp
 	miners := dpos.context.periodContext.periodPeers
 
 	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg, miners)
@@ -670,13 +672,12 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 // TryToUpdateEternalBlock try to update eternal block.
 func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
-	if irreversibleInfo == nil {
-		return
+	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > MinConfirmMsgNumberForEternalBlock {
+		block, err := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		if err != nil {
+			logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
+			return
+		}
+		dpos.bftservice.updateEternal(block)
 	}
-	block, err := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
-	if err != nil {
-		logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
-		return
-	}
-	dpos.bftservice.updateEternal(block)
 }

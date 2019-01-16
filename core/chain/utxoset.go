@@ -110,6 +110,7 @@ type TxWrap struct {
 	AddedTimestamp int64
 	Height         uint32
 	FeePerKB       uint64
+	IsScriptValid  bool
 }
 
 // GetExtendedTxUtxoSet returns tx's utxo set from both db & txs in spendableTxs

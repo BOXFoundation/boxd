@@ -361,9 +361,9 @@ func (candidate *Candidate) Unmarshal(data []byte) error {
 
 // EternalBlockMsg represents eternal block msg.
 type EternalBlockMsg struct {
-	hash      crypto.HashType
-	signature []byte
-	timestamp int64
+	Hash      crypto.HashType
+	Signature []byte
+	Timestamp int64
 }
 
 var _ conv.Convertible = (*EternalBlockMsg)(nil)
@@ -372,9 +372,9 @@ var _ conv.Serializable = (*EternalBlockMsg)(nil)
 // ToProtoMessage converts EternalBlockMsg to proto message.
 func (ebm *EternalBlockMsg) ToProtoMessage() (proto.Message, error) {
 	return &dpospb.EternalBlockMsg{
-		Hash:      ebm.hash[:],
-		Timestamp: ebm.timestamp,
-		Signature: ebm.signature,
+		Hash:      ebm.Hash[:],
+		Timestamp: ebm.Timestamp,
+		Signature: ebm.Signature,
 	}, nil
 }
 
@@ -382,9 +382,9 @@ func (ebm *EternalBlockMsg) ToProtoMessage() (proto.Message, error) {
 func (ebm *EternalBlockMsg) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*dpospb.EternalBlockMsg); ok {
 		if message != nil {
-			copy(ebm.hash[:], message.Hash)
-			ebm.timestamp = message.Timestamp
-			ebm.signature = message.Signature
+			copy(ebm.Hash[:], message.Hash)
+			ebm.Timestamp = message.Timestamp
+			ebm.Signature = message.Signature
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
