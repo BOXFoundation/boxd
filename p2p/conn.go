@@ -5,8 +5,9 @@
 package p2p
 
 import (
+	"crypto/md5"
 	"errors"
-	"hash/crc32"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -154,7 +155,7 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 			msg.body = data
 		}
 		if attr.relay {
-			attr.relayCache.Add(crc32.ChecksumIEEE(msg.body), int(reserved[0])&relayFlag)
+			attr.relayCache.Add(fmt.Sprintf("%x", (md5.Sum(msg.body))), int(reserved[0])&relayFlag)
 		}
 	}
 
@@ -335,7 +336,7 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 	if msgAttr.relay {
 		times := relayTimes
 
-		if v, ok := msgAttr.relayCache.Get(crc32.ChecksumIEEE(body)); ok {
+		if v, ok := msgAttr.relayCache.Get(fmt.Sprintf("%x", (md5.Sum(body)))); ok {
 			if v.(int) == 0 {
 				return nil, nil, ErrNoNeedToRelay
 			}
