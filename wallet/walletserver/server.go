@@ -54,7 +54,7 @@ func (w *WalletServer) Run() error {
 	if err := w.initListener(); err != nil {
 		return fmt.Errorf("fail to subscribe utxo change")
 	}
-	w.proc.Go(w.loop)
+	//w.proc.Go(w.loop)
 	return nil
 }
 
@@ -103,9 +103,9 @@ func (w *WalletServer) initListener() error {
 }
 
 func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
-	w.Lock()
-	defer w.Unlock()
-	w.utxosQueue.PushBack(utxoSet)
+	//w.Lock()
+	//defer w.Unlock()
+	//w.utxosQueue.PushBack(utxoSet)
 }
 
 // Balance returns the total balance of an address
@@ -113,7 +113,7 @@ func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
 	if w.cfg == nil || !w.cfg.Enable {
 		return 0, fmt.Errorf("fetch balance not supported for non-wallet node")
 	}
-	return utxo.BalanceFor(addr, w.table), nil
+	return utxo.BalanceFor(addr, w.table)
 }
 
 // Utxos returns all utxos of an address
