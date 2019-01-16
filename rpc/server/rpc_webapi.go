@@ -5,8 +5,11 @@
 package rpc
 
 import (
+	"container/list"
 	"fmt"
 	"sort"
+	"sync"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -19,7 +22,7 @@ import (
 )
 
 const (
-	newBlockMsgChSize = 512
+	newBlockMsgSize = 60
 )
 
 func registerWebapi(s *Server) {
@@ -38,21 +41,33 @@ func init() {
 
 type webapiServer struct {
 	GRPCServer
-	newBlockMsgCh chan *types.Block
+	newBlockMutex  sync.RWMutex
+	newBlocksQueue *list.List
 }
 
 func newWebAPIServer(s *Server) *webapiServer {
 	return &webapiServer{
-		GRPCServer:    s,
-		newBlockMsgCh: make(chan *types.Block, newBlockMsgChSize),
+		GRPCServer:     s,
+		newBlocksQueue: list.New(),
+	}
+}
+
+func (s *webapiServer) Closing() bool {
+	select {
+	case <-s.Proc().Closing():
+		return true
+	default:
+		return false
 	}
 }
 
 func (s *webapiServer) receiveNewBlockMsg(msg *types.Block) {
-	select {
-	case s.newBlockMsgCh <- msg:
-	default:
+	s.newBlockMutex.Lock()
+	if s.newBlocksQueue.Len() == newBlockMsgSize {
+		s.newBlocksQueue.Remove(s.newBlocksQueue.Front())
 	}
+	s.newBlocksQueue.PushBack(msg)
+	s.newBlockMutex.Unlock()
 }
 
 func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequest) (*rpcpb.ListTokensResponse, error) {
@@ -514,16 +529,25 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	req *rpcpb.ListenBlockRequest,
 	stream rpcpb.WebApi_ListenAndReadNewBlockServer,
 ) error {
+	var elm *list.Element
 	for {
-		var block *types.Block
-		select {
-		case <-s.Proc().Closing():
-			logger.Info("exit ListenAndReadNewBlock ...")
+		if s.Closing() {
+			logger.Info("blocks queue is empty, exit ListenAndReadNewBlock ...")
 			return nil
-		case block = <-s.newBlockMsgCh:
-			logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
-				block.BlockHash().String(), block.Height)
 		}
+		s.newBlockMutex.RLock()
+		if s.newBlocksQueue.Len() != 0 {
+			elm = s.newBlocksQueue.Front()
+			s.newBlockMutex.RUnlock()
+			break
+		}
+		s.newBlockMutex.RUnlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	for {
+		block := elm.Value.(*types.Block)
+		logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
+			block.BlockHash().String(), block.Height)
 		msg, err := block.ToProtoMessage()
 		if err != nil {
 			return err
@@ -532,6 +556,22 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		stream.Send(pbBlock)
 		logger.Debugf("webapiServer sent a block, previous hash: %s, height: %d",
 			pbBlock.GetHeader().GetPrevBlockHash(), pbBlock.Height)
+		// move to next element
+		for {
+			if s.Closing() {
+				logger.Info("exit ListenAndReadNewBlock ...")
+				return nil
+			}
+			s.newBlockMutex.RLock()
+			next := elm.Next()
+			if next != nil {
+				elm = next
+				s.newBlockMutex.RUnlock()
+				break
+			}
+			s.newBlockMutex.RUnlock()
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 

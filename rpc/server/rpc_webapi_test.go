@@ -78,34 +78,43 @@ func TestListenAndReadNewBlock(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		sendWebAPITestBlocks()
 	}()
-	// create grpc stub
-	conn, err := grpc.Dial(rpcAddr.String(), grpc.WithInsecure())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	client := rpcpb.NewWebApiClient(conn)
 
-	blockReq := &rpcpb.ListenBlockRequest{}
-	stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < blockCnt+1; i++ {
-		block, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
-		}
-		if uint32(i) != block.Height {
-			t.Fatalf("block height mismatch, want: %d, got: %d", i, block.Height)
-		}
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			// create grpc stub
+			conn, err := grpc.Dial(rpcAddr.String(), grpc.WithInsecure())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			client := rpcpb.NewWebApiClient(conn)
 
-		bytes, err := json.MarshalIndent(block, "", "  ")
-		t.Logf("recv block: %s", string(bytes))
+			blockReq := &rpcpb.ListenBlockRequest{}
+			stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < blockCnt+1; i++ {
+				block, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
+				}
+				if uint32(i) != block.Height {
+					t.Fatalf("block height mismatch, want: %d, got: %d", i, block.Height)
+				}
+
+				bytes, err := json.MarshalIndent(block, "", "  ")
+				t.Logf("[%d] recv block: %s", idx, string(bytes))
+			}
+		}(i)
 	}
+	wg.Wait()
 }
 
 func newTestBlock(count int) []*types.Block {
