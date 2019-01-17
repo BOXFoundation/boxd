@@ -15,18 +15,12 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
-=======
 	"github.com/BOXFoundation/boxd/core/chain"
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-<<<<<<< HEAD
-=======
 	"github.com/BOXFoundation/boxd/script"
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/storage/rocksdb"
 )
@@ -129,11 +123,7 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 		// gen utxos
 		utxoMap, balances, utxos := newTestUtxoSet(n, addrs...)
 		// apply utxos
-<<<<<<< HEAD
-		if err := ApplyUtxos(utxoMap, db); err != nil {
-=======
 		if err := applyUtxosTest(utxoMap, db); err != nil {
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 			t.Fatal(err)
 		}
 		// check balance and utxos
@@ -192,8 +182,6 @@ func comparableUtxoWrapMap(um types.UtxoMap) map[types.OutPoint]ComparableUtxoWr
 	}
 	return x
 }
-<<<<<<< HEAD
-=======
 
 func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 	if len(utxos) == 0 {
@@ -245,4 +233,3 @@ func isTxUtxo(scriptBytes []byte) bool {
 	}
 	return false
 }
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03

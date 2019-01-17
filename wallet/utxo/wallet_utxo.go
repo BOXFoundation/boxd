@@ -12,122 +12,12 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
-<<<<<<< HEAD
-	"github.com/BOXFoundation/boxd/script"
-=======
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	"github.com/BOXFoundation/boxd/storage"
 	key2 "github.com/BOXFoundation/boxd/storage/key"
 )
 
 var logger = log.NewLogger("wallet-utxo")
 
-<<<<<<< HEAD
-func isTxUtxo(scriptBytes []byte) bool {
-	sc := *script.NewScriptFromBytes(scriptBytes)
-	if sc != nil && (sc.IsPayToPubKeyHash() || sc.IsTokenIssue() || sc.IsTokenTransfer()) {
-		return true
-	}
-	return false
-}
-
-// ApplyUtxos apply utxos from chain
-func ApplyUtxos(utxos types.UtxoMap, db storage.Table) error {
-	if len(utxos) == 0 {
-		return fmt.Errorf("no utxo to apply")
-	}
-	batch := db.NewBatch()
-	addrsChanged := make(map[types.Address]struct{})
-	for o, u := range utxos {
-		if u == nil || u.Output == nil || u.Output.ScriptPubKey == nil {
-			logger.Warnf("invalid utxo, outpoint: %s, utxoWrap: %+v", o, u)
-			continue
-		}
-		if !isTxUtxo(u.Output.ScriptPubKey) {
-			logger.Warnf("utxo[%s, %+v] is not tx utxo", o, u)
-			continue
-		}
-		if !u.IsModified {
-			logger.Warnf("utxo[%s, %+v] unmodified", o, u)
-			continue
-		}
-		//
-		sc := *script.NewScriptFromBytes(u.Output.ScriptPubKey)
-		addr, err := sc.ExtractAddress()
-		if err != nil {
-			logger.Warnf("apply utxo[%s, %+v] error: %s", o, u, err)
-			continue
-		}
-		addrsChanged[addr] = struct{}{}
-		// store utxo with key consisting of addr and outpoint
-		utxoKey := chain.AddrUtxoKey(addr.String(), o)
-		if u.IsSpent {
-			batch.Del(utxoKey)
-		} else {
-			serialized, err := u.Marshal()
-			if err != nil {
-				return err
-			}
-			batch.Put(utxoKey, serialized)
-		}
-	}
-	// write storage
-	if err := batch.Write(); err != nil {
-		return err
-	}
-
-	// update balance
-	for addr := range addrsChanged {
-		updateBalanceFor(addr, db, batch)
-	}
-	// write storage
-	return batch.Write()
-}
-
-func updateBalanceFor(addr types.Address, db storage.Table,
-	batch storage.Batch) error {
-=======
-// BalanceFor returns balance amount of an address using balance index
-func BalanceFor(addr types.Address, db storage.Table) (uint64, error) {
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
-	utxos, err := FetchUtxosOf(addr, db)
-	if err != nil {
-		return 0, err
-	}
-	var balance uint64
-	for _, u := range utxos {
-		if u != nil && !u.IsSpent {
-			balance += u.Output.Value
-		}
-	}
-<<<<<<< HEAD
-
-	return saveBalanceToDB(addr, balance, batch)
-}
-
-func fetchBalanceFromDB(addr types.Address, db storage.Table) (uint64, error) {
-	bKey := chain.AddrBalanceKey(addr.String())
-	buf, err := db.Get(bKey)
-	if err != nil {
-		return 0, err
-	}
-	if buf == nil {
-		return 0, nil
-	}
-	if len(buf) != 8 {
-		return 0, fmt.Errorf("invalid balance record")
-	}
-	return binary.LittleEndian.Uint64(buf), nil
-}
-
-func saveBalanceToDB(addr types.Address, balance uint64, batch storage.Batch) error {
-	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, balance)
-	key := chain.AddrBalanceKey(addr.String())
-	batch.Put(key, buf)
-	return nil
-}
-
 // BalanceFor returns balance amount of an address using balance index
 func BalanceFor(addr types.Address, db storage.Table) (uint64, error) {
 	utxos, err := FetchUtxosOf(addr, db)
@@ -140,19 +30,12 @@ func BalanceFor(addr types.Address, db storage.Table) (uint64, error) {
 			balance += u.Output.Value
 		}
 	}
-	return balance, nil
-}
-
-// FetchUtxosOf fetches utxos from db
-func FetchUtxosOf(addr types.Address, db storage.Table) (map[types.OutPoint]*types.UtxoWrap, error) {
-=======
 	return balance, nil
 }
 
 // FetchUtxosOf fetches utxos from db
 func FetchUtxosOf(addr types.Address, db storage.Table) (types.UtxoMap, error) {
 
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	utxoKey := chain.AddrAllUtxoKey(addr.String())
 	keys := db.KeysWithPrefix(utxoKey)
 	utxoMap := make(map[types.OutPoint]*types.UtxoWrap)
@@ -188,8 +71,6 @@ func FetchUtxosOf(addr types.Address, db storage.Table) (types.UtxoMap, error) {
 	}
 	return utxoMap, nil
 }
-<<<<<<< HEAD
-=======
 
 //func updateBalanceFor(addr types.Address, db storage.Table,
 //	batch storage.Batch) error {
@@ -229,4 +110,3 @@ func FetchUtxosOf(addr types.Address, db storage.Table) (types.UtxoMap, error) {
 //	batch.Put(key, buf)
 //	return nil
 //}
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03

@@ -5,15 +5,8 @@
 package walletserver
 
 import (
-<<<<<<< HEAD
-	"container/list"
 	"errors"
 	"fmt"
-	"sync"
-=======
-	"errors"
-	"fmt"
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -32,13 +25,8 @@ type WalletServer struct {
 	bus   eventbus.Bus
 	table storage.Table
 	cfg   *Config
-<<<<<<< HEAD
-	sync.Mutex
-	utxosQueue *list.List
-=======
 	//sync.Mutex
 	//utxosQueue *list.List
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 }
 
 // NewWalletServer creates an WalletServer instance using config and storage
@@ -50,19 +38,11 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 		return nil, err
 	}
 	wServer := &WalletServer{
-<<<<<<< HEAD
-		proc:       proc,
-		bus:        bus,
-		table:      table,
-		cfg:        config,
-		utxosQueue: list.New(),
-=======
 		proc:  proc,
 		bus:   bus,
 		table: table,
 		cfg:   config,
 		//utxosQueue: list.New(),
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	}
 	return wServer, nil
 }
@@ -70,15 +50,9 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 // Run starts WalletServer main loop
 func (w *WalletServer) Run() error {
 	logger.Info("Wallet Server Start Running")
-<<<<<<< HEAD
-	if err := w.initListener(); err != nil {
-		return fmt.Errorf("fail to subscribe utxo change")
-	}
-=======
 	//if err := w.initListener(); err != nil {
 	//	return fmt.Errorf("fail to subscribe utxo change")
 	//}
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	//w.proc.Go(w.loop)
 	return nil
 }
@@ -93,23 +67,6 @@ func (w *WalletServer) loop(p goprocess.Process) {
 		default:
 		}
 		// process
-<<<<<<< HEAD
-		elem := w.utxosQueue.Front()
-		if elem == nil {
-			continue
-		}
-		value := w.utxosQueue.Remove(elem)
-		utxoSet := value.(*chain.UtxoSet)
-
-		allUtxos := utxoSet.All()
-		if err := utxo.ApplyUtxos(allUtxos, w.table); err != nil {
-			logger.Warnf("wallet server fail to apply %d utxos error: %s",
-				len(allUtxos), err)
-			for op := range allUtxos {
-				logger.Warnf("may unsucessfull applying utxo: %s", op)
-			}
-		}
-=======
 		//elem := w.utxosQueue.Front()
 		//if elem == nil {
 		//	continue
@@ -118,7 +75,6 @@ func (w *WalletServer) loop(p goprocess.Process) {
 		//utxoSet := value.(*chain.UtxoSet)
 
 		//allUtxos := utxoSet.All()
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	}
 }
 
@@ -150,29 +106,17 @@ func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
 		err := errors.New("not supported for non-wallet node")
 		logger.Warn(err)
 		return 0, err
-<<<<<<< HEAD
 	}
 	balance, err := utxo.BalanceFor(addr, w.table)
 	if err != nil {
 		logger.Warnf("BalanceFor %s error %s", addr, err)
 	}
-=======
-	}
-	balance, err := utxo.BalanceFor(addr, w.table)
-	if err != nil {
-		logger.Warnf("BalanceFor %s error %s", addr, err)
-	}
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	return balance, err
 }
 
 // Utxos returns all utxos of an address
-<<<<<<< HEAD
-func (w *WalletServer) Utxos(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
-=======
 func (w *WalletServer) Utxos(addr types.Address) (types.UtxoMap, error) {
 
->>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	if w.cfg == nil || !w.cfg.Enable {
 		return nil, fmt.Errorf("fetch utxos not supported for non-wallet node")
 	}
