@@ -710,7 +710,7 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 }
 
 func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
-
+	dtt0 := time.Now().UnixNano()
 	logger.Infof("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Height)
 	batch := chain.db.NewBatch()
 	defer batch.Close()
@@ -720,7 +720,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)
-
+	dtt1 := time.Now().UnixNano()
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
 		return err
@@ -728,12 +728,12 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
 		return err
 	}
-
+	dtt2 := time.Now().UnixNano()
 	// batch.Del(BlockKey(block.BlockHash()))
 	batch.Del(BlockHashKey(block.Height))
 
 	chain.filterHolder.ResetFilters(block.Height)
-
+	dtt3 := time.Now().UnixNano()
 	// save tx index
 	if err := chain.DelTxIndex(block, batch); err != nil {
 		return err
@@ -742,11 +742,11 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
 		return err
 	}
-
+	dtt4 := time.Now().UnixNano()
 	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
-
+	dtt5 := time.Now().UnixNano()
 	// save current tail to database
 	// if err := chain.StoreTailBlock(block, batch); err != nil {
 	// 	return err
@@ -756,7 +756,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Height, err.Error())
 	}
-
+	dtt6 := time.Now().UnixNano()
 	chain.tryToClearCache(nil, []*types.Block{block})
 
 	// notify when batch write success
@@ -764,9 +764,12 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// notify mem_pool when chain update
 	go chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
-
+	dtt7 := time.Now().UnixNano()
 	// This block is now the end of the best chain.
 	// chain.ChangeNewTail(block)
+	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
+		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
+	}
 	return nil
 }
 
