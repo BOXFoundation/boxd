@@ -481,12 +481,12 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
 	}
-
+	tt1 := time.Now().UnixNano()
 	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
 	if err := validateBlockScripts(utxoSet, block); err != nil {
 		return err
 	}
-	tt1 := time.Now().UnixNano()
+	tt2 := time.Now().UnixNano()
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -516,13 +516,13 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 			totalCoinbaseOutput, expectedCoinbaseOutput)
 		return core.ErrBadCoinbaseValue
 	}
-	tt2 := time.Now().UnixNano()
+	tt3 := time.Now().UnixNano()
 	if err := chain.applyBlock(block, utxoSet); err != nil {
 		return err
 	}
-	tt3 := time.Now().UnixNano()
-	if needToTracking((tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6) {
-		logger.Infof("tt Time tracking: tt0` = %d tt1` = %d tt2` = %d", (tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6)
+	tt4 := time.Now().UnixNano()
+	if needToTracking((tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6, (tt4-tt3)/1e6) {
+		logger.Infof("tt Time tracking: tt0` = %d tt1` = %d tt2` = %d tt3` = %d", (tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6, (tt4-tt3)/1e6)
 	}
 
 	return nil
