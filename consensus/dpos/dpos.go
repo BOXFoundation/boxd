@@ -404,9 +404,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
-	if block.IrreversibleInfo, err = dpos.bftservice.FetchIrreversibleInfo(); err != nil {
-		return err
-	}
+	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Height, len(blockTxns), len(sortedTxs))
 	return nil
 }

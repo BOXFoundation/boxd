@@ -78,20 +78,20 @@ func (bft *BftService) loop(p goprocess.Process) {
 }
 
 // FetchIrreversibleInfo fetch Irreversible block info.
-func (bft *BftService) FetchIrreversibleInfo() (*types.IrreversibleInfo, error) {
+func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 
 	tailHeight := bft.chain.TailBlock().Height
 	MinerRefreshIntervalInSecond := MinerRefreshInterval / SecondInMs
 	offset := time.Now().Unix() % MinerRefreshIntervalInSecond
 
 	if tailHeight == 0 {
-		return nil, nil
+		return nil
 	}
 	height := tailHeight
 	for offset >= 0 && height > 0 {
 		block, err := bft.chain.LoadBlockByHeight(height)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		blockHash := *block.BlockHash()
 		if value, ok := bft.msgCache.Load(blockHash); ok {
@@ -102,7 +102,7 @@ func (bft *BftService) FetchIrreversibleInfo() (*types.IrreversibleInfo, error) 
 				irreversibleInfo.Hash = blockHash
 				irreversibleInfo.Signatures = value.([][]byte)
 				bft.msgCache.Delete(blockHash)
-				return irreversibleInfo, nil
+				return irreversibleInfo
 			}
 		}
 		height--
@@ -112,7 +112,7 @@ func (bft *BftService) FetchIrreversibleInfo() (*types.IrreversibleInfo, error) 
 		bft.msgCache = &sync.Map{}
 	}
 
-	return nil, nil
+	return nil
 }
 
 // checkEternalBlock check to update eternal block.
