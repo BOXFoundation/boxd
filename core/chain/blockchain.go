@@ -757,7 +757,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
-	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
+	go chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 
 	// This block is now the end of the best chain.
 	// chain.ChangeNewTail(block)
