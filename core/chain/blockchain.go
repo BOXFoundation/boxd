@@ -235,7 +235,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
-
+	t0 := time.Now().UnixNano()
 	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
 		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
 		return core.ErrFailedToVerifyWithConsensus
@@ -283,12 +283,14 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return nil
 	}
 
+	t1 := time.Now().UnixNano()
 	// All context-free checks pass, try to accept the block into the chain.
 	if err := chain.tryAcceptBlock(block); err != nil {
 		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err.Error())
 		return err
 	}
 
+	t2 := time.Now().UnixNano()
 	if err := chain.processOrphans(block); err != nil {
 		logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
 		return err
@@ -319,6 +321,9 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
 	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
+	t3 := time.Now().UnixNano()
+
+	logger.Infof("Time tracking: t0` = %d t1` = %d t2` = %d", (t1-t0)/1000, (t2-t1)/1000, (t3-t2)/1000)
 	return nil
 }
 
@@ -459,7 +464,7 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
-
+	tt0 := time.Now().UnixNano()
 	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Height)
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
@@ -470,7 +475,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	if err := validateBlockScripts(utxoSet, block); err != nil {
 		return err
 	}
-
+	tt1 := time.Now().UnixNano()
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -500,8 +505,13 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 			totalCoinbaseOutput, expectedCoinbaseOutput)
 		return core.ErrBadCoinbaseValue
 	}
-
-	return chain.applyBlock(block, utxoSet)
+	tt2 := time.Now().UnixNano()
+	if err := chain.applyBlock(block, utxoSet); err != nil {
+		return err
+	}
+	tt3 := time.Now().UnixNano()
+	logger.Infof("tt Time tracking: tt0` = %d tt1` = %d tt2` = %d", (tt1-tt0)/1000, (tt2-tt1)/1000, (tt3-tt2)/1000)
+	return nil
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
@@ -560,7 +570,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
-
+	ttt0 := time.Now().UnixNano()
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
@@ -573,7 +583,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
 		return err
 	}
-
+	ttt1 := time.Now().UnixNano()
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
@@ -581,13 +591,13 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := chain.StoreBlockInBatch(block, batch); err != nil {
 		return err
 	}
-
+	ttt2 := time.Now().UnixNano()
 	if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), batch, func() bloom.Filter {
 		return GetFilterForTransactionScript(blockCopy, utxoSet.utxoMap)
 	}); err != nil {
 		return err
 	}
-
+	ttt3 := time.Now().UnixNano()
 	// save candidate context
 	if err := chain.consensus.StoreCandidateContext(block, batch); err != nil {
 		return err
@@ -597,7 +607,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := chain.WriteTxIndex(block, batch); err != nil {
 		return err
 	}
-
+	ttt4 := time.Now().UnixNano()
 	// store split addr index
 	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
 		logger.Error(err)
@@ -607,7 +617,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
-
+	ttt5 := time.Now().UnixNano()
 	// save current tail to database
 	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
@@ -617,7 +627,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Height, err.Error())
 	}
-
+	ttt6 := time.Now().UnixNano()
 	chain.tryToClearCache([]*types.Block{block}, nil)
 
 	// notify when batch write success
@@ -628,7 +638,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
-
+	ttt7 := time.Now().UnixNano()
+	logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d", (ttt1-ttt0)/1000, (ttt2-ttt1)/1000, (ttt3-ttt2)/1000, (ttt4-ttt3)/1000, (ttt5-ttt4)/1000, (ttt6-ttt5)/1000, (ttt7-ttt6)/1000)
 	return nil
 }
 
