@@ -301,9 +301,9 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 }
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
+	md5 := fmt.Sprintf("%x", (md5.Sum(body)))
 	reserve, body, err := conn.reserve(opcode, body)
 	if opcode == TransactionMsg {
-		md5 := fmt.Sprintf("%x", (md5.Sum(body)))
 		logger.Warnf("Write md5 %v result: %v, %v, %v", md5, len(reserve), len(body), err)
 		if reserve == nil {
 			logger.Warnf("Write reserve = nil")
