@@ -593,11 +593,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)
-
-	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
-		return err
-	}
 	ttt1 := time.Now().UnixNano()
+	// if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
+	// 	return err
+	// }
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
@@ -627,11 +626,12 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		logger.Error(err)
 		return err
 	}
+	ttt5 := time.Now().UnixNano()
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
-	ttt5 := time.Now().UnixNano()
+	ttt6 := time.Now().UnixNano()
 	// save current tail to database
 	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
@@ -641,7 +641,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Height, err.Error())
 	}
-	ttt6 := time.Now().UnixNano()
+	ttt7 := time.Now().UnixNano()
 	chain.tryToClearCache([]*types.Block{block}, nil)
 
 	// notify when batch write success
@@ -652,9 +652,9 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
-	ttt7 := time.Now().UnixNano()
+	ttt8 := time.Now().UnixNano()
 	if needToTracking((ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
-		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
+		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ttt7` = %d", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6, (ttt8-ttt7)/1e6)
 	}
 	return nil
 }
@@ -722,7 +722,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	chain.splitBlockOutputs(blockCopy)
 	dtt1 := time.Now().UnixNano()
 	utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
+	if err := utxoSet.LoadBlockAllUtxos(blockCopy, chain.db); err != nil {
 		return err
 	}
 	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
