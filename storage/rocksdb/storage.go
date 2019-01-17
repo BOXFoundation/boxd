@@ -185,7 +185,7 @@ func (db *rocksdb) MultiGet(key ...[]byte) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	values := make([][]byte, len(slices))
+	values := make([][]byte, 0, len(slices))
 	for _, slice := range slices {
 		values = append(values, data(slice))
 	}

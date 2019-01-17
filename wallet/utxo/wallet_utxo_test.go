@@ -15,10 +15,18 @@ import (
 	"testing"
 	"time"
 
+<<<<<<< HEAD
+=======
+	"github.com/BOXFoundation/boxd/core/chain"
+>>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+<<<<<<< HEAD
+=======
+	"github.com/BOXFoundation/boxd/script"
+>>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/storage/rocksdb"
 )
@@ -121,7 +129,11 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 		// gen utxos
 		utxoMap, balances, utxos := newTestUtxoSet(n, addrs...)
 		// apply utxos
+<<<<<<< HEAD
 		if err := ApplyUtxos(utxoMap, db); err != nil {
+=======
+		if err := applyUtxosTest(utxoMap, db); err != nil {
+>>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03
 			t.Fatal(err)
 		}
 		// check balance and utxos
@@ -180,3 +192,57 @@ func comparableUtxoWrapMap(um types.UtxoMap) map[types.OutPoint]ComparableUtxoWr
 	}
 	return x
 }
+<<<<<<< HEAD
+=======
+
+func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
+	if len(utxos) == 0 {
+		return fmt.Errorf("no utxo to apply")
+	}
+	batch := db.NewBatch()
+	addrsChanged := make(map[types.Address]struct{})
+	for o, u := range utxos {
+		if u == nil || u.Output == nil || u.Output.ScriptPubKey == nil {
+			logger.Warnf("invalid utxo, outpoint: %s, utxoWrap: %+v", o, u)
+			continue
+		}
+		if !isTxUtxo(u.Output.ScriptPubKey) {
+			logger.Warnf("utxo[%s, %+v] is not tx utxo", o, u)
+			continue
+		}
+		if !u.IsModified {
+			logger.Warnf("utxo[%s, %+v] unmodified", o, u)
+			continue
+		}
+		//
+		sc := *script.NewScriptFromBytes(u.Output.ScriptPubKey)
+		addr, err := sc.ExtractAddress()
+		if err != nil {
+			logger.Warnf("apply utxo[%s, %+v] error: %s", o, u, err)
+			continue
+		}
+		addrsChanged[addr] = struct{}{}
+		// store utxo with key consisting of addr and outpoint
+		utxoKey := chain.AddrUtxoKey(addr.String(), o)
+		if u.IsSpent {
+			batch.Del(utxoKey)
+		} else {
+			serialized, err := u.Marshal()
+			if err != nil {
+				return err
+			}
+			batch.Put(utxoKey, serialized)
+		}
+	}
+	// write storage
+	return batch.Write()
+}
+
+func isTxUtxo(scriptBytes []byte) bool {
+	sc := *script.NewScriptFromBytes(scriptBytes)
+	if sc != nil && (sc.IsPayToPubKeyHash() || sc.IsTokenIssue() || sc.IsTokenTransfer()) {
+		return true
+	}
+	return false
+}
+>>>>>>> 53cd91366c37fda6adeefee2ef94505631863d03

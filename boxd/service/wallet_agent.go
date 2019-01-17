@@ -9,5 +9,5 @@ import "github.com/BOXFoundation/boxd/core/types"
 // WalletAgent defines functions an wallet service should provide
 type WalletAgent interface {
 	Balance(address types.Address) (uint64, error)
-	Utxos(address types.Address) (map[types.OutPoint]*types.UtxoWrap, error)
+	Utxos(address types.Address) (types.UtxoMap, error)
 }
