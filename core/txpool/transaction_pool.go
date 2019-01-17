@@ -185,9 +185,11 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 			if tx_pool.txcache.Contains(*txHash) {
 				tx_pool.txcache.Remove(*txHash)
 			}
-			if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
-				logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
-			}
+			go func(tx *types.Transaction) {
+				if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
+					logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
+				}
+			}(tx)
 		}
 		// remove related child txs.
 		for _, tx := range v.Txs {
@@ -232,7 +234,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 	hash, _ := tx.TxHash()
-	logger.Infof("Start to process tx. Hash: %v", hash)
+	logger.Infof("Start to process tx from network. Hash: %v", hash)
 
 	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil && util.InArray(err, core.EvilBehavior) {
 		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
@@ -245,7 +247,6 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 // ProcessTx is used to handle new transactions.
 // utxoSet: utxos associated with the tx
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
-
 	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
 		txHash, _ := tx.TxHash()
 		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash, err)
@@ -259,6 +260,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	transferMode core.TransferMode, detectDupOrphan bool) error {
 
 	txHash, _ := tx.TxHash()
+	logger.Infof("Maybe accept tx. Hash: %v", txHash)
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
 

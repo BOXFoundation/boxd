@@ -93,6 +93,22 @@ func (t *mtable) Get(key []byte) ([]byte, error) {
 	return nil, nil
 }
 
+// return values associate with the keys in the Storage
+func (t *mtable) MultiGet(key ...[]byte) ([][]byte, error) {
+	t.sm.RLock()
+	defer t.sm.RUnlock()
+
+	values := [][]byte{}
+	for _, k := range key {
+		if value, ok := t.db[string(t.realkey(k))]; ok {
+			values = append(values, value)
+		} else {
+			return nil, nil
+		}
+	}
+	return values, nil
+}
+
 // check if the entry associate with key exists
 func (t *mtable) Has(key []byte) (bool, error) {
 	t.sm.RLock()
