@@ -5,11 +5,11 @@
 package txpool
 
 import (
+	"crypto/md5"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
-
-	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -20,8 +20,10 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -348,7 +350,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
-	logger.Infof("Accepted new tx. Hash: %v", txHash)
+	body, _ := conv.MarshalConvertible(tx)
+	key := fmt.Sprintf("%x", (md5.Sum(body)))
+	logger.Infof("Accepted new tx. Hash: %v, transferMode: %v, key: %s", txHash, transferMode, key)
 	tx_pool.txcache.Add(*txHash, true)
 	switch transferMode {
 	case core.BroadcastMode:
