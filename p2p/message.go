@@ -7,6 +7,7 @@ package p2p
 import (
 	"bytes"
 	"hash/crc32"
+	"hash/crc64"
 	"io"
 	"unsafe"
 
@@ -206,13 +207,13 @@ func (msgAttr *messageAttribute) duplicateFilter(body []byte, pid peer.ID, frequ
 	return true
 }
 
-func (msgAttr *messageAttribute) lruKey(body []byte, pid peer.ID, frequency uint8) uint32 {
+func (msgAttr *messageAttribute) lruKey(body []byte, pid peer.ID, frequency uint8) uint64 {
 	key := body
 	if frequency == uniquePerPeer {
 		key = append(key, pid...)
 	}
 
-	hash := crc32.ChecksumIEEE(key)
+	hash := crc64.Checksum(key, crc64Table)
 	return hash
 }
 
