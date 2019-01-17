@@ -8,6 +8,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"sync"
 	"time"
@@ -72,11 +73,13 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 
 		go conn.pq.Run(conn.proc, func(i interface{}) {
 			data := i.([]byte)
-			if _, err := conn.stream.Write(data); err != nil {
+			_, err := conn.stream.Write(data)
+			if err != nil {
 				logger.Errorf("Failed to write message to %v, %v. ", conn.peer.id.Pretty(), err)
 			} else {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}
+			logger.Warnf("pq data: %v, err: %v", crc32.ChecksumIEEE(data), err)
 		})
 	}
 	conn.mutex.Unlock()
@@ -304,13 +307,7 @@ func (conn *Conn) Write(opcode uint32, body []byte) error {
 	md5 := fmt.Sprintf("%x", (md5.Sum(body)))
 	reserve, body, err := conn.reserve(opcode, body)
 	if opcode == TransactionMsg {
-		logger.Warnf("Write md5 %v result: %v, %v, %v", md5, len(reserve), len(body), err)
-		if reserve == nil {
-			logger.Warnf("Write reserve = nil")
-		}
-		if body == nil {
-			logger.Warnf("Write body = nil")
-		}
+		logger.Warnf("Write md5 %v result: %v, %v, %v, %v", md5, len(reserve), len(body), err, crc32.ChecksumIEEE(body))
 	}
 	if err != nil {
 		if err == ErrNoNeedToRelay {
@@ -327,11 +324,16 @@ func (conn *Conn) write(msg *message) error {
 		msgAttr = defaultMessageAttribute
 	}
 
+	bodyChecksum := crc32.ChecksumIEEE(msg.body)
 	data, err := msg.Marshal()
 	if err != nil {
 		return err
 	}
+
 	err = conn.pq.Push(data, int(msgAttr.priority))
+	if TransactionMsg == msg.code {
+		logger.Warnf("write body %v, %v, %v", bodyChecksum, crc32.ChecksumIEEE(data), err)
+	}
 	return err
 }
 
