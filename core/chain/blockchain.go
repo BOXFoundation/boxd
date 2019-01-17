@@ -235,14 +235,14 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
+	chain.chainLock.Lock()
+	defer chain.chainLock.Unlock()
+
 	t0 := time.Now().UnixNano()
 	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
 		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
 		return core.ErrFailedToVerifyWithConsensus
 	}
-
-	chain.chainLock.Lock()
-	defer chain.chainLock.Unlock()
 
 	blockHash := block.BlockHash()
 	logger.Infof("Prepare to process block. Hash: %s, Height: %d", blockHash.String(), block.Height)
@@ -322,9 +322,20 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
+	if needToTracking((t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6) {
+		logger.Infof("Time tracking: t0` = %d t1` = %d t2` = %d", (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6)
+	}
 
-	logger.Infof("Time tracking: t0` = %d t1` = %d t2` = %d", (t1-t0)/1000000, (t2-t1)/1000000, (t3-t2)/1000000)
 	return nil
+}
+
+func needToTracking(t ...int64) bool {
+	for _, v := range t {
+		if v >= 200 {
+			return true
+		}
+	}
+	return false
 }
 
 func (chain *BlockChain) verifyExists(blockHash crypto.HashType) bool {
@@ -510,7 +521,10 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 		return err
 	}
 	tt3 := time.Now().UnixNano()
-	logger.Infof("tt Time tracking: tt0` = %d tt1` = %d tt2` = %d", (tt1-tt0)/1000000, (tt2-tt1)/1000000, (tt3-tt2)/1000000)
+	if needToTracking((tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6) {
+		logger.Infof("tt Time tracking: tt0` = %d tt1` = %d tt2` = %d", (tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6)
+	}
+
 	return nil
 }
 
@@ -639,7 +653,9 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
 	ttt7 := time.Now().UnixNano()
-	logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
+	if needToTracking((ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
+		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
+	}
 	return nil
 }
 
