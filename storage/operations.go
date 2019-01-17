@@ -22,6 +22,9 @@ type Reader interface {
 	// return value associate with the key in the Storage
 	Get(key []byte) ([]byte, error)
 
+	// return values associate with the keys in the Storage
+	MultiGet(key ...[]byte) ([][]byte, error)
+
 	// check if the entry associate with key exists
 	Has(key []byte) (bool, error)
 

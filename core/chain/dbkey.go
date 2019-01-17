@@ -15,10 +15,6 @@ import (
 )
 
 const (
-	readable = true // readable db key or compact key
-)
-
-const (
 	// BlockTableName is the table name of db to store block chain data
 	BlockTableName = "core"
 
@@ -153,13 +149,30 @@ func CandidatesKey(h *crypto.HashType) []byte {
 }
 
 // FilterKey returns the db key to store bloom filter of block
-func FilterKey(hash crypto.HashType) []byte {
-	if readable {
-		return filterBase.ChildString(hash.String()).Bytes()
+func FilterKey(height uint32, hash crypto.HashType) []byte {
+	return filterBase.
+		ChildString(fmt.Sprintf("%x", height)).
+		ChildString(hash.String()).
+		Bytes()
+}
+
+// FilterKeyPrefix returns the db key prefix to store bloom filter of block
+func FilterKeyPrefix() []byte {
+	return filterBase.Bytes()
+}
+
+// FilterHeightHashFromKey parse height and hash info from a FilterKey
+func FilterHeightHashFromKey(k []byte) (uint32, string) {
+	key := key.NewKeyFromBytes(k)
+	segs := key.List()
+	if len(segs) > 2 {
+		num, err := strconv.ParseUint(segs[1], 16, 32)
+		if err == nil {
+			return uint32(num), segs[2]
+		}
+		logger.Infof("error parsing key. num: %s, segs: %v", segs[1], segs)
 	}
-	buf := filterBase.Base().Bytes()
-	buf = append(buf[:], hash.GetBytes()...)
-	return buf
+	return math.MaxUint32, ""
 }
 
 // SplitAddrKey returns the db key to store split address
