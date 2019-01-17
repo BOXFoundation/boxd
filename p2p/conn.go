@@ -155,9 +155,7 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 			msg.body = data
 		}
 		if attr.relay {
-			key := fmt.Sprintf("%x", (md5.Sum(msg.body)))
-			logger.Warnf("Add relay times. Key: %s, Val: %v", key, (int(reserved[0])&relayFlag)>>5)
-			attr.relayCache.Add(key, int(reserved[0])&relayFlag)
+			attr.relayCache.Add(fmt.Sprintf("%x", (md5.Sum(msg.body))), int(reserved[0])&relayFlag)
 		}
 	}
 
@@ -304,6 +302,16 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
 	reserve, body, err := conn.reserve(opcode, body)
+	if opcode == TransactionMsg {
+		md5 := fmt.Sprintf("%x", (md5.Sum(body)))
+		logger.Warnf("Write md5 %v result: %v, %v, %v", md5, len(reserve), len(body), err)
+		if reserve == nil {
+			logger.Warnf("Write reserve = nil")
+		}
+		if body == nil {
+			logger.Warnf("Write body = nil")
+		}
+	}
 	if err != nil {
 		if err == ErrNoNeedToRelay {
 			return nil
@@ -338,10 +346,8 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 	if msgAttr.relay {
 		times := relayTimes
 
-		key := fmt.Sprintf("%x", (md5.Sum(body)))
-		if v, ok := msgAttr.relayCache.Get(key); ok {
+		if v, ok := msgAttr.relayCache.Get(fmt.Sprintf("%x", (md5.Sum(body)))); ok {
 			if v.(int) == 0 {
-				logger.Warnf("Get relay times 0. Key: %s", key)
 				return nil, nil, ErrNoNeedToRelay
 			}
 			times = v.(int) - (1 << 5)
