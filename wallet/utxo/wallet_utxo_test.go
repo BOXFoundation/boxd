@@ -139,7 +139,7 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 					balanceGot)
 			}
 			// check utxos
-			utxosGot, err := FetchUtxosOf(address, db)
+			utxosGot, err := FetchUtxosOf(address, 0, db)
 			if err != nil {
 				t.Error(err)
 			}
