@@ -155,7 +155,9 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 			msg.body = data
 		}
 		if attr.relay {
-			attr.relayCache.Add(fmt.Sprintf("%x", (md5.Sum(msg.body))), int(reserved[0])&relayFlag)
+			key := fmt.Sprintf("%x", (md5.Sum(msg.body)))
+			logger.Warnf("Add relay times. Key: %s, Val: %v", key, (int(reserved[0])&relayFlag)>>5)
+			attr.relayCache.Add(key, int(reserved[0])&relayFlag)
 		}
 	}
 
@@ -336,8 +338,10 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 	if msgAttr.relay {
 		times := relayTimes
 
-		if v, ok := msgAttr.relayCache.Get(fmt.Sprintf("%x", (md5.Sum(body)))); ok {
+		key := fmt.Sprintf("%x", (md5.Sum(body)))
+		if v, ok := msgAttr.relayCache.Get(key); ok {
 			if v.(int) == 0 {
+				logger.Warnf("Get relay times 0. Key: %s", key)
 				return nil, nil, ErrNoNeedToRelay
 			}
 			times = v.(int) - (1 << 5)
