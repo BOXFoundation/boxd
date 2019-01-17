@@ -687,16 +687,22 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 	}
 
 	for _, detachBlock := range detachBlocks {
+		stt0 := time.Now().UnixNano()
 		if err := chain.tryDisConnectBlockFromMainChain(detachBlock); err != nil {
 			return err
 		}
+		stt1 := time.Now().UnixNano()
+		logger.Infof("Disconnet time tracking: %d", (stt1-stt0)/1e6)
 	}
 
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
+		stt0 := time.Now().UnixNano()
 		attachBlock := attachBlocks[blockIdx]
 		if err := chain.tryConnectBlockToMainChain(attachBlock); err != nil {
 			return err
 		}
+		stt1 := time.Now().UnixNano()
+		logger.Infof("Connet time tracking: %d", (stt1-stt0)/1e6)
 	}
 
 	metrics.MetricsBlockRevertMeter.Mark(1)
