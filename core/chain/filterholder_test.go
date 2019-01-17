@@ -12,13 +12,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/BOXFoundation/boxd/storage/memdb"
-
-	"github.com/facebookgo/ensure"
-
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/BOXFoundation/boxd/util/bloom"
+	"github.com/facebookgo/ensure"
 )
 
 func TestNewFilterHolder(t *testing.T) {
@@ -113,7 +111,7 @@ func prepareFilterDb(t *testing.T, entries []*FilterEntry) storage.Table {
 	for _, entry := range entries {
 		filterMarshalled, err := entry.Filter.Marshal()
 		ensure.Nil(t, err)
-		table.Put(FilterKey(entry.BlockHash), filterMarshalled)
+		table.Put(FilterKey(entry.Height, entry.BlockHash), filterMarshalled)
 	}
 	return table
 }
