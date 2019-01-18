@@ -49,7 +49,7 @@ const (
 	MaxBlocksPerSync = 1024
 
 	metricsLoopInterval      = 500 * time.Millisecond
-	metricsUtxosLoopInterval = 10 * time.Second
+	metricsUtxosLoopInterval = 200 * time.Second
 	tokenIssueFilterKey      = "token_issue"
 	Threshold                = 32
 )
@@ -232,6 +232,9 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 						metrics.MetricsUtxoSizeCounter.Clear()
 						metrics.MetricsUtxoSizeCounter.Inc(int64(len(utxos)))
 					}
+				case <-p.Closing():
+					logger.Info("Quit metricsUtxos loop.")
+					return
 				}
 			}
 		})
