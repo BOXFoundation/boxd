@@ -225,13 +225,9 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 			for {
 				select {
 				case <-ticker.C:
-					utxos, err := chain.ListAllUtxos()
-					if err != nil {
-						logger.Errorf("Ticker ListAllUtxos fail. Err: %v", err)
-					} else {
-						metrics.MetricsUtxoSizeCounter.Clear()
-						metrics.MetricsUtxoSizeCounter.Inc(int64(len(utxos)))
-					}
+					keys := chain.db.KeysWithPrefix(utxoBase.Bytes())
+					metrics.MetricsUtxoSizeCounter.Clear()
+					metrics.MetricsUtxoSizeCounter.Inc(int64(len(keys)))
 				case <-p.Closing():
 					logger.Info("Quit metricsUtxos loop.")
 					return
