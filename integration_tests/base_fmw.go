@@ -85,9 +85,11 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 	addrs := b.addrs[start:end]
 	idx := 0
 	logger.Infof("start doTest[%d]", index)
-	var times int
 	addrsCh := make(chan []string)
-	go genAddrs(end-start, addrsCh)
+	if scopeValue(*scope) == continueScope {
+		go genAddrs(end-start, addrsCh)
+	}
+	times := 0
 	for {
 		if utils.Closing(b.quitCh[index]) {
 			logger.Infof("receive quit signal, quiting doTest[%d]!", index)

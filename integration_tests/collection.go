@@ -78,7 +78,9 @@ func txTest() {
 	for coll == nil || circu == nil {
 		time.Sleep(time.Millisecond)
 	}
-	go CountTxs(&txTestTxCnt, &coll.txCnt, &circu.txCnt)
+	if scopeValue(*scope) == continueScope {
+		go CountTxs(&txTestTxCnt, &coll.txCnt, &circu.txCnt)
+	}
 
 	wg.Wait()
 

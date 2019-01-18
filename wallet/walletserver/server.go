@@ -10,8 +10,8 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/wallet/utxo"
 	"github.com/jbenet/goprocess"
@@ -101,7 +101,7 @@ func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
 }
 
 // Balance returns the total balance of an address
-func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
+func (w *WalletServer) Balance(addr string) (uint64, error) {
 	if w.cfg == nil || !w.cfg.Enable {
 		err := errors.New("not supported for non-wallet node")
 		logger.Warn(err)
@@ -115,10 +115,14 @@ func (w *WalletServer) Balance(addr types.Address) (uint64, error) {
 }
 
 // Utxos returns all utxos of an address
-func (w *WalletServer) Utxos(addr types.Address) (types.UtxoMap, error) {
-
+func (w *WalletServer) Utxos(addr string, amount uint64) ([]*rpcpb.Utxo, error) {
 	if w.cfg == nil || !w.cfg.Enable {
 		return nil, fmt.Errorf("fetch utxos not supported for non-wallet node")
 	}
-	return utxo.FetchUtxosOf(addr, w.table)
+	utxos, err := utxo.FetchUtxosOf(addr, amount, w.table)
+	if err != nil {
+		logger.Warnf("Utxos for %s error %s", addr, err)
+		return nil, err
+	}
+	return utxos, nil
 }

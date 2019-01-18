@@ -212,8 +212,7 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	var total uint64
-	for addr, balance := range balances {
-		fmt.Printf("Addr: %s\t Balance: %d\n", addr, balance)
+	for _, balance := range balances {
 		total += balance
 	}
 	if len(balances) > 1 {

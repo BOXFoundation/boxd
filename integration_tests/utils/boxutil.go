@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -49,14 +48,14 @@ func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	defer cancel()
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
 	start := time.Now()
-	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: []string{accAddr}})
+	r, err := rpcClient.GetBalance(ctx, &rpcpb.GetBalanceReq{Addrs: []string{accAddr}})
 	if time.Since(start) > 2*RPCInterval {
 		logger.Warnf("cost %v for GetBalance on %s", time.Since(start), peerAddr)
 	}
 	if err != nil {
 		return 0, err
 	}
-	return r.Balances[accAddr], nil
+	return r.Balances[0], nil
 }
 
 // BalanceFor get balance of accAddr
@@ -332,11 +331,7 @@ func TokenBalanceFor(addr string, tokenID *types.OutPoint, peerAddr string) uint
 	}
 	defer conn.Close()
 	// get balance
-	address, err := types.NewAddress(addr)
-	if err != nil {
-		logger.Panic(err)
-	}
-	b, err := client.GetTokenBalance(conn, address, tokenID.Hash, tokenID.Index)
+	b, err := client.GetTokenBalance(conn, addr, tokenID.Hash, tokenID.Index)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -469,41 +464,20 @@ func addUtxoToCache(vins []*types.TxIn) {
 	}
 }
 
-func fetchUtxos(addr string, amount uint64, peerAddr string) (utxos []*rpcpb.Utxo, err error) {
-	// get utxoes
-	fromAddress, _ := types.NewAddress(addr)
-	//totalAmount, err := balanceNoPanicFor(addr, peerAddr)
-	//if err != nil {
-	//	return
-	//}
-	//if amount < totalAmount && amount != 0 {
-	//	totalAmount = amount
-	//}
-	if amount == 0 {
-		amount = 40000000
-	}
+func fetchUtxos(addr string, amount uint64, peerAddr string) ([]*rpcpb.Utxo, error) {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer conn.Close()
-	var utxoResponse *rpcpb.ListUtxosResponse
-	for amount > 0 {
-		utxoResponse, err = client.FundTransaction(conn, fromAddress, amount)
-		if err == nil {
-			break
-		}
-		if strings.Contains(err.Error(), "Not enough balance") {
-			amount -= amount / 16
-			continue
-		}
-		return
+	utxos, err := client.FetchUtxos(conn, addr, amount)
+	if err != nil {
+		return nil, err
 	}
-	if utxoResponse == nil || amount <= 0 {
-		err = fmt.Errorf("FundTransaction fetch 0 utxos")
-		return
+	if len(utxos) == 0 {
+		return nil, fmt.Errorf("FundTransaction fetch 0 utxos")
 	}
-	return utxoResponse.GetUtxos(), nil
+	return utxos, err
 }
 
 // IssueTokenTx issues some token

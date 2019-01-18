@@ -15,8 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BOXFoundation/boxd/wallet/walletserver"
-
 	"github.com/BOXFoundation/boxd/blocksync"
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -31,6 +29,7 @@ import (
 	storage "github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
+	"github.com/BOXFoundation/boxd/wallet/walletserver"
 	"github.com/jbenet/goprocess"
 )
 

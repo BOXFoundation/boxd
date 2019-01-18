@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core/txlogic"
-
 	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
@@ -19,6 +18,30 @@ import (
 )
 
 const connTimeout = 30
+
+// GetBalance returns total amount of an address
+func GetBalance(conn *grpc.ClientConn, addresses []string) ([]uint64, error) {
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
+	defer cancel()
+	req, err := c.GetBalance(ctx, &rpcpb.GetBalanceReq{Addrs: addresses})
+	if err != nil {
+		return nil, err
+	}
+	return req.GetBalances(), nil
+}
+
+// FetchUtxos fetch utxos from chain
+func FetchUtxos(conn *grpc.ClientConn, addr string, amount uint64) ([]*rpcpb.Utxo, error) {
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
+	defer cancel()
+	req, err := c.FetchUtxos(ctx, &rpcpb.FetchUtxosReq{Addr: addr})
+	if err != nil {
+		return nil, err
+	}
+	return req.GetUtxos(), nil
+}
 
 // GetFeePrice gets the recommended mining fee price according to recent packed transactions
 func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
@@ -31,24 +54,25 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 
 // FundTransaction gets the utxo of a public key
 func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
-	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
-	if err != nil {
-		return nil, err
-	}
-	logger.Debugf("Script Value: %v", p2pkScript)
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
+	//p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
+	//if err != nil {
+	//	return nil, err
+	//}
+	//logger.Debugf("Script Value: %v", p2pkScript)
+	//c := rpcpb.NewTransactionCommandClient(conn)
+	//ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
+	//defer cancel()
 
-	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-		Addr:   addr.String(),
-		Amount: amount,
-	})
-	if err != nil {
-		return nil, err
-	}
-	logger.Debugf("Result: %+v", r)
-	return r, nil
+	//r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
+	//	Addr:   addr.String(),
+	//	Amount: amount,
+	//})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//logger.Debugf("Result: %+v", r)
+	//return r, nil
+	return nil, nil
 }
 
 type rpcTransactionHelper struct {
@@ -59,69 +83,43 @@ func (r *rpcTransactionHelper) GetFee() (uint64, error) {
 	return GetFeePrice(r.conn)
 }
 
-func (r *rpcTransactionHelper) Fund(fromAddr types.Address, amountRequired uint64) (map[types.OutPoint]*types.UtxoWrap, error) {
-	resp, err := FundTransaction(r.conn, fromAddr, amountRequired)
-	if err != nil {
-		return nil, err
-	}
-	utxos := make(map[types.OutPoint]*types.UtxoWrap)
-	for _, u := range resp.GetUtxos() {
-		hash := &crypto.HashType{}
-		if err := hash.SetBytes(u.OutPoint.Hash); err != nil {
-			return nil, err
-		}
-		op := types.OutPoint{
-			Hash:  *hash,
-			Index: u.OutPoint.Index,
-		}
-		wrap := &types.UtxoWrap{
-			Output:      u.TxOut,
-			BlockHeight: u.BlockHeight,
-			IsCoinBase:  u.IsCoinbase,
-			IsSpent:     u.IsSpent,
-			IsModified:  false,
-		}
-		utxos[op] = wrap
-	}
-	return utxos, nil
-}
-
 // FundTokenTransaction gets the utxo of a public key containing a certain amount of box and token
 func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *types.OutPoint, boxAmount, tokenAmount uint64) (*rpcpb.ListUtxosResponse, error) {
-	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
-	if err != nil {
-		return nil, err
-	}
-	logger.Debugf("Script Value: %v", p2pkScript)
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
+	//p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
+	//if err != nil {
+	//	return nil, err
+	//}
+	//logger.Debugf("Script Value: %v", p2pkScript)
+	//c := rpcpb.NewTransactionCommandClient(conn)
+	//ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
+	//defer cancel()
 
-	tokenBudges := make([]*rpcpb.TokenAmount, 0)
-	if token != nil && tokenAmount > 0 {
-		outPointMsg, err := token.ToProtoMessage()
-		if err != nil {
-			return nil, err
-		}
-		outPointPb, ok := outPointMsg.(*corepb.OutPoint)
-		if !ok {
-			return nil, fmt.Errorf("Invalid token outpoint")
-		}
-		tokenBudges = append(tokenBudges, &rpcpb.TokenAmount{
-			Token:  outPointPb,
-			Amount: tokenAmount,
-		})
-	}
-	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-		Addr:         addr.String(),
-		Amount:       boxAmount,
-		TokenBudgets: tokenBudges,
-	})
-	if err != nil {
-		return nil, err
-	}
-	logger.Debugf("Result: %+v", r)
-	return r, nil
+	//tokenBudges := make([]*rpcpb.TokenAmount, 0)
+	//if token != nil && tokenAmount > 0 {
+	//	outPointMsg, err := token.ToProtoMessage()
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	outPointPb, ok := outPointMsg.(*corepb.OutPoint)
+	//	if !ok {
+	//		return nil, fmt.Errorf("Invalid token outpoint")
+	//	}
+	//	tokenBudges = append(tokenBudges, &rpcpb.TokenAmount{
+	//		Token:  outPointPb,
+	//		Amount: tokenAmount,
+	//	})
+	//}
+	//r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
+	//	Addr:         addr.String(),
+	//	Amount:       boxAmount,
+	//	TokenBudgets: tokenBudges,
+	//})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//logger.Debugf("Result: %+v", r)
+	//return r, nil
+	return nil, nil
 }
 
 // CreateSplitAddrTransaction creates a split address using input param addrs and weight
@@ -225,14 +223,29 @@ func ListUtxos(conn *grpc.ClientConn) (*rpcpb.ListUtxosResponse, error) {
 	return r, nil
 }
 
-// GetBalance returns total amount of an address
-func GetBalance(conn *grpc.ClientConn, addresses []string) (map[string]uint64, error) {
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
-	r, err := c.GetBalance(ctx, &rpcpb.GetBalanceRequest{Addrs: addresses})
+func (r *rpcTransactionHelper) Fund(fromAddr types.Address, amountRequired uint64) (map[types.OutPoint]*types.UtxoWrap, error) {
+	resp, err := FundTransaction(r.conn, fromAddr, amountRequired)
 	if err != nil {
-		return map[string]uint64{}, err
+		return nil, err
 	}
-	return r.GetBalances(), err
+	utxos := make(map[types.OutPoint]*types.UtxoWrap)
+	for _, u := range resp.GetUtxos() {
+		hash := &crypto.HashType{}
+		if err := hash.SetBytes(u.OutPoint.Hash); err != nil {
+			return nil, err
+		}
+		op := types.OutPoint{
+			Hash:  *hash,
+			Index: u.OutPoint.Index,
+		}
+		wrap := &types.UtxoWrap{
+			Output:      u.TxOut,
+			BlockHeight: u.BlockHeight,
+			IsCoinBase:  u.IsCoinbase,
+			IsSpent:     u.IsSpent,
+			IsModified:  false,
+		}
+		utxos[op] = wrap
+	}
+	return utxos, nil
 }

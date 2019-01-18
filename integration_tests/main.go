@@ -94,7 +94,9 @@ func main() {
 	}
 
 	// print tx count per TickerDurationTxs
-	go CountGlobalTxs()
+	if scopeValue(*scope) == continueScope {
+		go CountGlobalTxs()
+	}
 
 	var wg sync.WaitGroup
 	testCnt := 3

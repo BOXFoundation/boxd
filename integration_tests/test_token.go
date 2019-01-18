@@ -25,7 +25,9 @@ func tokenTest() {
 	defer t.TearDown()
 
 	// print tx count per TickerDurationTxs
-	go CountTxs(&tokenTestTxCnt, &t.txCnt)
+	if scopeValue(*scope) == continueScope {
+		go CountTxs(&tokenTestTxCnt, &t.txCnt)
+	}
 
 	t.Run(t.HandleFunc)
 	logger.Info("done token test")
