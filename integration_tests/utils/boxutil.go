@@ -39,12 +39,6 @@ const (
 
 var logger = log.NewLogger("integration_utils") // logger
 
-type sortByUTXOValue []*rpcpb.Utxo
-
-func (x sortByUTXOValue) Len() int           { return len(x) }
-func (x sortByUTXOValue) Less(i, j int) bool { return x[i].TxOut.Value < x[j].TxOut.Value }
-func (x sortByUTXOValue) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
-
 func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {

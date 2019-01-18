@@ -24,6 +24,13 @@ type TokenTag struct {
 	Decimal uint8
 }
 
+// SortByUTXOValue defines a type suited for sort
+type SortByUTXOValue []*rpcpb.Utxo
+
+func (x SortByUTXOValue) Len() int           { return len(x) }
+func (x SortByUTXOValue) Less(i, j int) bool { return x[i].TxOut.Value < x[j].TxOut.Value }
+func (x SortByUTXOValue) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+
 // NewTokenTag news a TokenTag
 func NewTokenTag(name, sym string, decimal uint8) *TokenTag {
 	return &TokenTag{
@@ -41,6 +48,14 @@ func MakeVout(addr string, amount uint64) *corepb.TxOut {
 	return &corepb.TxOut{
 		Value:        amount,
 		ScriptPubKey: addrScript,
+	}
+}
+
+// MakeVoutWithSPk makes txOut
+func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
+	return &corepb.TxOut{
+		Value:        amount,
+		ScriptPubKey: scriptPk,
 	}
 }
 

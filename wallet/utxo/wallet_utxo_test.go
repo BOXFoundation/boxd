@@ -20,6 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/storage/rocksdb"
@@ -38,6 +39,47 @@ var (
 
 func init() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+}
+
+func TestSaveUtxos(t *testing.T) {
+	// db
+	dbpath, db, err := getDatabase()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseDatabase(dbpath, db)
+	//
+	addr1 := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+	addr2 := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ"
+	addrs1 := []string{
+		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
+		"b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva",
+	}
+	t.Run("t1", walletUtxosSaveGetTest(db, 2, addr1))
+	t.Run("t2", walletUtxosSaveGetTest(db, 300, addr2))
+	t.Run("t3", walletUtxosSaveGetTest(db, 400, addrs1...))
+}
+
+func TestFetchSomeUtxos(t *testing.T) {
+
+}
+
+func TestSelectUtxos(t *testing.T) {
+
+	utxos := make([]*rpcpb.Utxo, 0)
+	values := []uint64{1, 2, 3, 4, 5, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 5, 4, 3, 2, 1}
+	for _, v := range values {
+		utxos = append(utxos, &rpcpb.Utxo{TxOut: txlogic.MakeVout("a", v)})
+	}
+	t.Run("t1", selUtxosTest(utxos, 10, []uint64{1, 1, 2, 2, 3, 3}))
+	t.Run("t2", selUtxosTest(utxos, 0, []uint64{}))
+	t.Run("t3", selUtxosTest(utxos, 1000, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
+		6, 6, 7, 7, 8, 8, 9, 9, 10, 10}))
+	t.Run("t4", selUtxosTest(utxos, 110, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
+		6, 6, 7, 7, 8, 8, 9, 9, 10, 10}))
+	t.Run("t5", selUtxosTest(utxos, 60, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
+		6, 6, 7, 7, 8}))
+
 }
 
 func getDatabase() (string, storage.Storage, error) {
@@ -98,25 +140,6 @@ func makeOutpoint(hash *crypto.HashType, i uint32) *types.OutPoint {
 	return &types.OutPoint{Hash: *hash, Index: i}
 }
 
-func TestSaveUtxos(t *testing.T) {
-	// db
-	dbpath, db, err := getDatabase()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer releaseDatabase(dbpath, db)
-	//
-	addr1 := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	addr2 := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ"
-	addrs1 := []string{
-		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
-		"b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva",
-	}
-	t.Run("test1", walletUtxosSaveGetTest(db, 2, addr1))
-	t.Run("test2", walletUtxosSaveGetTest(db, 300, addr2))
-	t.Run("test3", walletUtxosSaveGetTest(db, 400, addrs1...))
-}
-
 func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*testing.T) {
 	return func(t *testing.T) {
 		//t.Parallel()
@@ -128,9 +151,8 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 		}
 		// check balance and utxos
 		for _, addr := range addrs {
-			address, _ := types.NewAddress(addr)
 			// check balance
-			balanceGot, err := BalanceFor(address, db)
+			balanceGot, err := BalanceFor(addr, db)
 			if err != nil {
 				t.Error(err)
 			}
@@ -139,18 +161,55 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 					balanceGot)
 			}
 			// check utxos
-			utxosGot, err := FetchUtxosOf(address, 0, db)
+			utxosGot, err := FetchUtxosOf(addr, 0, db)
 			if err != nil {
 				t.Error(err)
 			}
 			utxosWantC := comparableUtxoWrapMap(utxos[addr])
-			utxosGotC := comparableUtxoWrapMap(utxosGot)
+			utxosGotC := comparableUtxoWrapMap(makeUtxoMapFromPbUtxos(utxosGot))
 			if !reflect.DeepEqual(utxosWantC, utxosGotC) {
 				//t.Errorf("for utxos of addr %s, want map len: %d, got map len: %d",
 				//	addr, len(utxos[addr]), len(utxosGot))
 				t.Errorf("for utxos of addr %s, want map: %+v, got map: %+v", addr,
 					utxosWantC, utxosGotC)
 			}
+			// check fetching partial utxos
+			t.Logf("fetch utxos for %d", balanceGot/2)
+			utxosGot, err = FetchUtxosOf(addr, balanceGot/2, db)
+			if err != nil {
+				t.Error(err)
+			}
+			total := uint64(0)
+			for _, u := range utxosGot {
+				total += u.TxOut.Value
+			}
+			if total < balanceGot/2 || total > balanceGot {
+				t.Errorf("want value of utxos %d, got %d", balanceGot/2, total)
+			}
+		}
+	}
+}
+
+func selUtxosTest(
+	utxos []*rpcpb.Utxo, amount uint64, wantUtxos []uint64) func(*testing.T) {
+	return func(t *testing.T) {
+		wantAmount := uint64(0)
+		for _, u := range wantUtxos {
+			wantAmount += u
+		}
+		selUtxos, gotAmount := selectUtxos(utxos, amount)
+		gotUtxos := make([]uint64, 0)
+		gotCalcAmount := uint64(0)
+		for _, u := range selUtxos {
+			gotUtxos = append(gotUtxos, u.TxOut.Value)
+			gotCalcAmount += u.TxOut.Value
+		}
+		if !reflect.DeepEqual(wantUtxos, gotUtxos) {
+			t.Errorf("for utxos, want: %v, got: %v", wantUtxos, gotUtxos)
+		}
+		if gotCalcAmount != gotAmount || wantAmount != gotAmount {
+			t.Errorf("for amount, want: %d, got: %d, calc amount: %d",
+				wantAmount, gotAmount, gotCalcAmount)
 		}
 	}
 }
@@ -171,6 +230,23 @@ func newComparableUtxoWrap(uw *types.UtxoWrap) *ComparableUtxoWrap {
 		IsSpent:     uw.IsSpent,
 		IsModified:  uw.IsModified,
 	}
+}
+
+func makeUtxoMapFromPbUtxos(utxos []*rpcpb.Utxo) types.UtxoMap {
+	m := make(types.UtxoMap)
+	for _, u := range utxos {
+		hash := crypto.HashType{}
+		copy(hash[:], u.OutPoint.Hash[:])
+		op := txlogic.NewOutPoint(&hash, u.OutPoint.Index)
+		m[*op] = &types.UtxoWrap{
+			Output:      u.TxOut,
+			BlockHeight: u.BlockHeight,
+			IsCoinBase:  u.IsCoinbase,
+			IsSpent:     u.IsSpent,
+			IsModified:  false,
+		}
+	}
+	return m
 }
 
 func comparableUtxoWrapMap(um types.UtxoMap) map[types.OutPoint]ComparableUtxoWrap {
