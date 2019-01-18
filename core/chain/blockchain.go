@@ -47,9 +47,10 @@ const (
 
 	MaxBlocksPerSync = 1024
 
-	metricsLoopInterval = 500 * time.Millisecond
-	tokenIssueFilterKey = "token_issue"
-	Threshold           = 32
+	metricsLoopInterval      = 500 * time.Millisecond
+	metricsUtxosLoopInterval = 10 * time.Second
+	tokenIssueFilterKey      = "token_issue"
+	Threshold                = 32
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -149,7 +150,6 @@ var _ service.Server = (*BlockChain)(nil)
 func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
 	chain.proc.Go(chain.loop)
-
 	return nil
 }
 
@@ -184,6 +184,7 @@ func (chain *BlockChain) subscribeMessageNotifiee() {
 
 func (chain *BlockChain) loop(p goprocess.Process) {
 	logger.Info("Waitting for new block message...")
+	chain.metricsUtxos(chain.proc)
 	metricsTicker := time.NewTicker(metricsLoopInterval)
 	defer metricsTicker.Stop()
 	for {
@@ -202,6 +203,24 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 			return
 		}
 	}
+}
+
+func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
+	goprocess.WithParent(parent).Go(
+		func(p goprocess.Process) {
+			ticker := time.NewTicker(metricsUtxosLoopInterval)
+			for {
+				select {
+				case <-ticker.C:
+					utxos, err := chain.ListAllUtxos()
+					if err != nil {
+						logger.Errorf("Ticker ListAllUtxos fail. Err: %v", err)
+					} else {
+						metrics.MetricsUtxoSizeGauge.Update(int64(len(utxos)))
+					}
+				}
+			}
+		})
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
