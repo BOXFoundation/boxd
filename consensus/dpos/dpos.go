@@ -150,7 +150,10 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 	for {
 		select {
 		case <-timeChan.C:
-			dpos.mint(time.Now().Unix())
+			if !dpos.chain.IsBusy() {
+				dpos.mint(time.Now().Unix())
+			}
+
 		case <-p.Closing():
 			logger.Info("Stopped Dpos Mining.")
 			return

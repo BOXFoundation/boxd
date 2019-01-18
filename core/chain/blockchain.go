@@ -12,6 +12,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -53,6 +54,11 @@ const (
 	Threshold                = 32
 )
 
+const (
+	free int32 = iota
+	busy
+)
+
 var logger = log.NewLogger("chain") // logger
 
 var _ service.ChainReader = (*BlockChain)(nil)
@@ -74,12 +80,12 @@ type BlockChain struct {
 	heightToBlock             *lru.Cache
 	hashToSplitAddr           *lru.Cache
 	bus                       eventbus.Bus
-	orphanLock                sync.RWMutex
 	chainLock                 sync.RWMutex
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               types.SyncManager
 	filterHolder              BloomFilterHolder
+	status                    int32
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -100,6 +106,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
 		filterHolder:              NewFilterHolder(),
 		bus:                       eventbus.Default(),
+		status:                    free,
 	}
 
 	var err error
@@ -135,6 +142,12 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	logger.Info("Finish Loading bloom filter...")
 
 	return b, nil
+}
+
+// IsBusy return if the chain is processing a block
+func (chain *BlockChain) IsBusy() bool {
+	v := atomic.LoadInt32(&chain.status)
+	return v == busy
 }
 
 // Setup prepare blockchain.
@@ -257,6 +270,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
 	chain.chainLock.Lock()
 	defer chain.chainLock.Unlock()
+	atomic.StoreInt32(&chain.status, busy)
 
 	t0 := time.Now().UnixNano()
 	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
@@ -305,7 +319,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	t1 := time.Now().UnixNano()
 	// All context-free checks pass, try to accept the block into the chain.
-	if err := chain.tryAcceptBlock(block); err != nil {
+	if err := chain.tryAcceptBlock(block, transferMode); err != nil {
 		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err.Error())
 		return err
 	}
@@ -316,23 +330,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return err
 	}
 
-	switch transferMode {
-	case core.BroadcastMode:
-		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
-		go func() {
-			if err := chain.notifiee.Broadcast(p2p.NewBlockMsg, block); err != nil {
-				logger.Errorf("Failed to broadcast block. Hash: %s Err: %v", blockHash.String(), err)
-			}
-		}()
-	case core.RelayMode:
-		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
-		go func() {
-			if err := chain.notifiee.Relay(p2p.NewBlockMsg, block); err != nil {
-				logger.Errorf("Failed to relay block. Hash: %s Err: %v", blockHash.String(), err)
-			}
-		}()
-	default:
-	}
+	atomic.StoreInt32(&chain.status, free)
 	if chain.consensus.ValidateMiner() && fastConfirm {
 		go chain.consensus.BroadcastEternalMsgToMiners(block)
 		go chain.consensus.TryToUpdateEternalBlock(block)
@@ -380,7 +378,7 @@ func (chain *BlockChain) isInOrphanPool(blockHash crypto.HashType) bool {
 
 // tryAcceptBlock validates block within the chain context and see if it can be accepted.
 // Return whether it is on the main chain or not.
-func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
+func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.TransferMode) error {
 	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
 	parentBlock := chain.GetParentBlock(block)
@@ -410,6 +408,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
+		chain.broadcastOrRelayBlock(block, transferMode)
 		return chain.tryConnectBlockToMainChain(block)
 	}
 
@@ -435,7 +434,29 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
 
-	return chain.reorganize(block)
+	return chain.reorganize(block, transferMode)
+}
+
+func (chain *BlockChain) broadcastOrRelayBlock(block *types.Block, transferMode core.TransferMode) {
+
+	blockHash := block.BlockHash()
+	switch transferMode {
+	case core.BroadcastMode:
+		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+		go func() {
+			if err := chain.notifiee.Broadcast(p2p.NewBlockMsg, block); err != nil {
+				logger.Errorf("Failed to broadcast block. Hash: %s Err: %v", blockHash.String(), err)
+			}
+		}()
+	case core.RelayMode:
+		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+		go func() {
+			if err := chain.notifiee.Relay(p2p.NewBlockMsg, block); err != nil {
+				logger.Errorf("Failed to relay block. Hash: %s Err: %v", blockHash.String(), err)
+			}
+		}()
+	default:
+	}
 }
 
 func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
@@ -462,7 +483,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 			// since it will not be accepted later if rejected once.
 			delete(chain.hashToOrphanBlock, *orphanHash)
 			// Potentially accept the block into the block chain.
-			if err := chain.tryAcceptBlock(orphan); err != nil {
+			if err := chain.tryAcceptBlock(orphan, core.DefaultMode); err != nil {
 				return err
 			}
 			// Add this block to the list of blocks to process so any orphan
@@ -691,7 +712,7 @@ func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
 	chain.bus.Publish(eventbus.TopicUtxoUpdate, utxoSet)
 }
 
-func (chain *BlockChain) reorganize(block *types.Block) error {
+func (chain *BlockChain) reorganize(block *types.Block, transferMode core.TransferMode) error {
 	// Find the common ancestor of the main chain and side chain
 	forkpoint, detachBlocks, attachBlocks := chain.findFork(block)
 	if forkpoint.Height < chain.eternal.Height {
@@ -705,6 +726,8 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 		logger.Warnf("No need to reorganize, because the forkpoint height[%d] is lower than the latest eternal block height[%d].", forkpoint.Height, chain.eternal.Height)
 		return nil
 	}
+
+	chain.broadcastOrRelayBlock(block, transferMode)
 
 	for _, detachBlock := range detachBlocks {
 		stt0 := time.Now().UnixNano()
@@ -783,7 +806,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
-	go chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
+	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 	dtt7 := time.Now().UnixNano()
 	// This block is now the end of the best chain.
 	// chain.ChangeNewTail(block)

@@ -185,11 +185,9 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 			if tx_pool.txcache.Contains(*txHash) {
 				tx_pool.txcache.Remove(*txHash)
 			}
-			go func(tx *types.Transaction) {
-				if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
-					logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
-				}
-			}(tx)
+			if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
+				logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
+			}
 		}
 		// remove related child txs.
 		for _, tx := range v.Txs {
@@ -201,6 +199,8 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 				if !exists {
 					continue
 				}
+				hash, _ := childTx.TxHash()
+				logger.Infof("Remove related child tx %s when block %v disconnects from main chain", hash, v.BlockHash())
 				tx_pool.removeTx(childTx, true)
 			}
 		}
