@@ -216,7 +216,8 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					if err != nil {
 						logger.Errorf("Ticker ListAllUtxos fail. Err: %v", err)
 					} else {
-						metrics.MetricsUtxoSizeGauge.Update(int64(len(utxos)))
+						metrics.MetricsUtxoSizeCounter.Clear()
+						metrics.MetricsUtxoSizeCounter.Inc(int64(len(utxos)))
 					}
 				}
 			}
