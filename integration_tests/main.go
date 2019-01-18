@@ -14,7 +14,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/wallet"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 type scopeValue string
@@ -33,10 +33,10 @@ var (
 
 	peersAddr  []string
 	minerAddrs []string
-	minerAccs  []*wallet.Account
+	minerAccs  []*acc.Account
 
 	//AddrToAcc stores addr to account
-	AddrToAcc = make(map[string]*wallet.Account)
+	AddrToAcc = make(map[string]*acc.Account)
 )
 
 func init() {

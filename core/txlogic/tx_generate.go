@@ -14,7 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/wallet"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 const (
@@ -335,7 +335,7 @@ func extractTokenInfo(op types.OutPoint, wrap *types.UtxoWrap) (*types.OutPoint,
 }
 
 // NewTxWithUtxos new a transaction
-func NewTxWithUtxos(fromAcc *wallet.Account, utxos []*rpcpb.Utxo, toAddrs []string,
+func NewTxWithUtxos(fromAcc *acc.Account, utxos []*rpcpb.Utxo, toAddrs []string,
 	amounts []uint64, changeAmt uint64) (*types.Transaction, *rpcpb.Utxo, error) {
 
 	utxoValue := uint64(0)
@@ -391,7 +391,7 @@ func NewTxWithUtxos(fromAcc *wallet.Account, utxos []*rpcpb.Utxo, toAddrs []stri
 }
 
 // NewSplitAddrTxWithUtxos new split address tx
-func NewSplitAddrTxWithUtxos(acc *wallet.Account, addrs []string,
+func NewSplitAddrTxWithUtxos(acc *acc.Account, addrs []string,
 	weights []uint64, utxos []*rpcpb.Utxo, fee uint64, peerAddr string) (
 	tx *types.Transaction, change *rpcpb.Utxo, splitAddr string, err error) {
 

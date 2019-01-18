@@ -29,7 +29,7 @@ import (
 	storage "github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
-	"github.com/BOXFoundation/boxd/wallet/walletserver"
+	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/jbenet/goprocess"
 )
 
@@ -50,7 +50,7 @@ type Server struct {
 	txPool      *txpool.TransactionPool
 	syncManager *blocksync.SyncManager
 	consensus   *dpos.Dpos
-	wallet      *walletserver.WalletServer
+	wallet      *wallet.Server
 }
 
 // NewServer new a boxd server
@@ -156,7 +156,7 @@ func (server *Server) Prepare() {
 	server.consensus = consensus
 
 	if cfg.Wallet.Enable {
-		server.wallet, _ = walletserver.NewWalletServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
+		server.wallet, _ = wallet.NewServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
 	}
 
 	// prepare grpc server.

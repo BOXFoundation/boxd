@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package utxo
+package wallet
 
 import (
 	"fmt"
@@ -14,18 +14,14 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/storage"
 	sk "github.com/BOXFoundation/boxd/storage/key"
-	"github.com/jbenet/goprocess"
 )
 
 const (
-	utxoSelUnitCnt = 64
+	utxoSelUnitCnt = 256
 )
-
-var logger = log.NewLogger("wallet-utxo")
 
 // LiveCache defines a cache in that utxos keep alive
 type LiveCache struct {
@@ -40,40 +36,6 @@ func NewLiveCache(expired int) *LiveCache {
 		liveDuration: time.Duration(expired) * time.Second,
 		ts2Op:        make(map[int64]types.OutPoint),
 		Op2ts:        make(map[types.OutPoint]int64),
-	}
-}
-
-// Server defines a utxo server
-type Server struct {
-	proc      goprocess.Process
-	db        storage.Table
-	liveCache *LiveCache
-}
-
-// NewServer new a Server instance
-func NewServer(db storage.Table, expired int, parent goprocess.Process) *Server {
-	return &Server{
-		proc:      goprocess.WithParent(parent),
-		db:        db,
-		liveCache: NewLiveCache(expired),
-	}
-}
-
-// Run starts utxo server
-func (svr *Server) Run() error {
-	logger.Info("Utxo Server Start Running")
-	svr.proc.Go(svr.loop)
-	return nil
-}
-
-func (svr *Server) loop(p goprocess.Process) {
-	for {
-		select {
-		case <-p.Closing():
-			logger.Infof("Quit Utxo Server")
-			return
-		default:
-		}
 	}
 }
 

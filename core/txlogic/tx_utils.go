@@ -14,7 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/wallet"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 // TokenTag defines token tag
@@ -101,7 +101,9 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *types.OutPoint {
 }
 
 // SignTxWithUtxos sign tx with utxo
-func SignTxWithUtxos(tx *types.Transaction, utxos []*rpcpb.Utxo, acc *wallet.Account) error {
+func SignTxWithUtxos(
+	tx *types.Transaction, utxos []*rpcpb.Utxo, acc *acc.Account,
+) error {
 	for i, utxo := range utxos {
 		scriptPkBytes := utxo.GetTxOut().GetScriptPubKey()
 		sigHash, err := script.CalcTxHashForSig(scriptPkBytes, tx, i)

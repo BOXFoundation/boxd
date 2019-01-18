@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package walletserver
+package wallet
 
 import (
 	"errors"
@@ -13,14 +13,13 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/storage"
-	"github.com/BOXFoundation/boxd/wallet/utxo"
 	"github.com/jbenet/goprocess"
 )
 
-var logger = log.NewLogger("wallet-server")
+var logger = log.NewLogger("wallet")
 
-// WalletServer is the struct type of an wallet service
-type WalletServer struct {
+// Server is the struct type of an wallet service
+type Server struct {
 	proc  goprocess.Process
 	bus   eventbus.Bus
 	table storage.Table
@@ -29,15 +28,15 @@ type WalletServer struct {
 	//utxosQueue *list.List
 }
 
-// NewWalletServer creates an WalletServer instance using config and storage
-func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage,
-	bus eventbus.Bus) (*WalletServer, error) {
+// NewServer creates an Server instance using config and storage
+func NewServer(parent goprocess.Process, config *Config, s storage.Storage,
+	bus eventbus.Bus) (*Server, error) {
 	proc := goprocess.WithParent(parent)
 	table, err := s.Table(chain.BlockTableName)
 	if err != nil {
 		return nil, err
 	}
-	wServer := &WalletServer{
+	wServer := &Server{
 		proc:  proc,
 		bus:   bus,
 		table: table,
@@ -47,8 +46,8 @@ func NewWalletServer(parent goprocess.Process, config *Config, s storage.Storage
 	return wServer, nil
 }
 
-// Run starts WalletServer main loop
-func (w *WalletServer) Run() error {
+// Run starts Server main loop
+func (w *Server) Run() error {
 	logger.Info("Wallet Server Start Running")
 	//if err := w.initListener(); err != nil {
 	//	return fmt.Errorf("fail to subscribe utxo change")
@@ -57,7 +56,7 @@ func (w *WalletServer) Run() error {
 	return nil
 }
 
-func (w *WalletServer) loop(p goprocess.Process) {
+func (w *Server) loop(p goprocess.Process) {
 	for {
 		// check whether to exit
 		select {
@@ -79,35 +78,35 @@ func (w *WalletServer) loop(p goprocess.Process) {
 }
 
 // Proc returns then go process of the wallet server
-func (w *WalletServer) Proc() goprocess.Process {
+func (w *Server) Proc() goprocess.Process {
 	return w.proc
 }
 
-// Stop terminate the WalletServer process
-func (w *WalletServer) Stop() {
+// Stop terminate the Server process
+func (w *Server) Stop() {
 	logger.Info("Wallet Server Stop Running")
 	w.bus.Unsubscribe(eventbus.TopicUtxoUpdate, w.onUtxoChange)
 	w.proc.Close()
 }
 
-func (w *WalletServer) initListener() error {
+func (w *Server) initListener() error {
 	return w.bus.SubscribeAsync(eventbus.TopicUtxoUpdate, w.onUtxoChange, true)
 }
 
-func (w *WalletServer) onUtxoChange(utxoSet *chain.UtxoSet) {
+func (w *Server) onUtxoChange(utxoSet *chain.UtxoSet) {
 	//w.Lock()
 	//defer w.Unlock()
 	//w.utxosQueue.PushBack(utxoSet)
 }
 
 // Balance returns the total balance of an address
-func (w *WalletServer) Balance(addr string) (uint64, error) {
+func (w *Server) Balance(addr string) (uint64, error) {
 	if w.cfg == nil || !w.cfg.Enable {
 		err := errors.New("not supported for non-wallet node")
 		logger.Warn(err)
 		return 0, err
 	}
-	balance, err := utxo.BalanceFor(addr, w.table)
+	balance, err := BalanceFor(addr, w.table)
 	if err != nil {
 		logger.Warnf("BalanceFor %s error %s", addr, err)
 	}
@@ -115,11 +114,11 @@ func (w *WalletServer) Balance(addr string) (uint64, error) {
 }
 
 // Utxos returns all utxos of an address
-func (w *WalletServer) Utxos(addr string, amount uint64) ([]*rpcpb.Utxo, error) {
+func (w *Server) Utxos(addr string, amount uint64) ([]*rpcpb.Utxo, error) {
 	if w.cfg == nil || !w.cfg.Enable {
 		return nil, fmt.Errorf("fetch utxos not supported for non-wallet node")
 	}
-	utxos, err := utxo.FetchUtxosOf(addr, amount, w.table)
+	utxos, err := FetchUtxosOf(addr, amount, w.table)
 	if err != nil {
 		logger.Warnf("Utxos for %s error %s", addr, err)
 		return nil, err

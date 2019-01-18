@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/wallet"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 	lru "github.com/hashicorp/golang-lru"
 	"google.golang.org/grpc"
 )
@@ -77,7 +78,7 @@ func balancesFor(peerAddr string, addresses ...string) ([]uint64, error) {
 }
 
 // UnlockAccount defines unlock account
-func UnlockAccount(addr string) *wallet.Account {
+func UnlockAccount(addr string) *acc.Account {
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
 		logger.Panic(err)
@@ -144,18 +145,18 @@ func WaitAllNodesHeightHigher(addrs []string, h int, timeout time.Duration) erro
 }
 
 // MinerAccounts get miners' accounts
-func MinerAccounts(keyFiles ...string) ([]string, []*wallet.Account) {
+func MinerAccounts(keyFiles ...string) ([]string, []*acc.Account) {
 	var (
 		addrs    []string
-		accounts []*wallet.Account
+		accounts []*acc.Account
 	)
 
 	for _, f := range keyFiles {
 		var (
-			account *wallet.Account
+			account *acc.Account
 			err     error
 		)
-		account, err = wallet.NewAccountFromFile(f)
+		account, err = acc.NewAccountFromFile(f)
 		if err != nil {
 			logger.Panic(err)
 		}
@@ -339,7 +340,7 @@ func TokenBalanceFor(addr string, tokenID *types.OutPoint, peerAddr string) uint
 }
 
 // NewTx new a tx and return change utxo
-func NewTx(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
+func NewTx(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
 	peerAddr string) (tx *types.Transaction, change *rpcpb.Utxo, fee uint64,
 	err error) {
 	// calc fee
@@ -355,7 +356,7 @@ func NewTx(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
 }
 
 // NewTxWithFee new a tx and return change utxo
-func NewTxWithFee(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
+func NewTxWithFee(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
 	fee uint64, peerAddr string) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// calc amount
 	amount := uint64(0)
@@ -386,7 +387,7 @@ func NewTxWithFee(fromAcc *wallet.Account, toAddrs []string, amounts []uint64,
 }
 
 // NewTxs construct some transactions
-func NewTxs(fromAcc *wallet.Account, toAddr string, count int, peerAddr string) (
+func NewTxs(fromAcc *acc.Account, toAddr string, count int, peerAddr string) (
 	txss [][]*types.Transaction, transfer, totalFee uint64, num int, err error) {
 	// get utxoes
 	utxos, err := fetchUtxos(fromAcc.Addr(), 0, peerAddr)
@@ -481,7 +482,7 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) ([]*rpcpb.Utxo, err
 }
 
 // IssueTokenTx issues some token
-func IssueTokenTx(acc *wallet.Account, toAddr string, tag *txlogic.TokenTag, totalSupply uint64,
+func IssueTokenTx(acc *acc.Account, toAddr string, tag *txlogic.TokenTag, totalSupply uint64,
 	peerAddr string) *types.OutPoint {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
@@ -504,7 +505,7 @@ func IssueTokenTx(acc *wallet.Account, toAddr string, tag *txlogic.TokenTag, tot
 }
 
 // NewTokenTx new a token tx
-func NewTokenTx(acc *wallet.Account, toAddrs []string, amounts []uint64,
+func NewTokenTx(acc *acc.Account, toAddrs []string, amounts []uint64,
 	tokenID *types.OutPoint, peerAddr string) (*types.Transaction, *rpcpb.Utxo,
 	*rpcpb.Utxo, error) {
 	fee := uint64(1000)
@@ -527,7 +528,7 @@ func NewTokenTx(acc *wallet.Account, toAddrs []string, amounts []uint64,
 }
 
 // NewTokenTxs new a token tx
-func NewTokenTxs(acc *wallet.Account, toAddr string, amountT uint64, count int,
+func NewTokenTxs(acc *acc.Account, toAddr string, amountT uint64, count int,
 	tokenID *types.OutPoint, peerAddr string) ([]*types.Transaction, error) {
 	// get utxo for some amount box and token
 	amount := (tokenTxFee + tokenBoxAmt) * uint64(count)
@@ -565,7 +566,7 @@ func NewTokenTxs(acc *wallet.Account, toAddr string, amountT uint64, count int,
 }
 
 // NewTokenTxWithUtxos new a token tx
-func NewTokenTxWithUtxos(acc *wallet.Account, toAddrs []string, amounts []uint64,
+func NewTokenTxWithUtxos(acc *acc.Account, toAddrs []string, amounts []uint64,
 	tokenID *types.OutPoint, utxos []*rpcpb.Utxo) (*types.Transaction,
 	*rpcpb.Utxo, *rpcpb.Utxo, error) {
 	// check amount
@@ -647,7 +648,7 @@ func NewTokenTxWithUtxos(acc *wallet.Account, toAddrs []string, amounts []uint64
 }
 
 // NewSplitAddrTxWithFee new split address tx
-func NewSplitAddrTxWithFee(acc *wallet.Account, addrs []string, weights []uint64,
+func NewSplitAddrTxWithFee(acc *acc.Account, addrs []string, weights []uint64,
 	fee uint64, peerAddr string) (tx *types.Transaction, change *rpcpb.Utxo,
 	splitAddr string, err error) {
 	// get utxos
