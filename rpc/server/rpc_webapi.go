@@ -506,10 +506,7 @@ func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequ
 		return nil, err
 	}
 
-	eternalBlock, err := s.GetChainReader().LoadEternalBlock()
-	if err != nil {
-		return nil, err
-	}
+	eternalBlock := s.GetChainReader().EternalBlock()
 	block, err := s.GetChainReader().LoadBlockByHash(*hash)
 	if err != nil {
 		return nil, err
@@ -542,20 +539,9 @@ func (s *webapiServer) ListenAndReadNewBlock(
 			break
 		}
 		s.newBlockMutex.RUnlock()
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	for {
-		block := elm.Value.(*types.Block)
-		logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
-			block.BlockHash().String(), block.Height)
-		msg, err := block.ToProtoMessage()
-		if err != nil {
-			return err
-		}
-		pbBlock, _ := msg.(*corepb.Block)
-		stream.Send(pbBlock)
-		logger.Debugf("webapiServer sent a block, previous hash: %s, height: %d",
-			pbBlock.GetHeader().GetPrevBlockHash(), pbBlock.Height)
 		// move to next element
 		for {
 			if s.Closing() {
@@ -570,8 +556,30 @@ func (s *webapiServer) ListenAndReadNewBlock(
 				break
 			}
 			s.newBlockMutex.RUnlock()
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
+		// get block
+		block := elm.Value.(*types.Block)
+		logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
+			block.BlockHash(), block.Height)
+		// convert block to block info
+		// NOTE: need refine to reduce db access and to improve performance
+		blockInfo, err := s.convertBlock(block)
+		if err != nil {
+			logger.Warnf("convert block %s error: %s", block.BlockHash(), err)
+			continue
+		}
+		// assign Confirmed field
+		eternalBlock := s.GetChainReader().EternalBlock()
+		if eternalBlock == nil {
+			logger.Warnf("get EternalBlock is nil")
+			continue
+		}
+		blockInfo.Confirmed = eternalBlock.Height >= block.Height
+		// send block info
+		stream.Send(blockInfo)
+		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
+			block.BlockHash(), block.Height)
 	}
 }
 

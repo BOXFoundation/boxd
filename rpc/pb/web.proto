@@ -79,7 +79,7 @@ service WebApi {
         };
     }
 
-    rpc ListenAndReadNewBlock(ListenBlockRequest) returns (stream corepb.Block);
+    rpc ListenAndReadNewBlock(ListenBlockRequest) returns (stream BlockInfo);
 }
 
 message GetTransactionsInfoResponse {
