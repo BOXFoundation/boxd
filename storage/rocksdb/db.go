@@ -42,6 +42,7 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	blockBasedTableOptions := gorocksdb.NewDefaultBlockBasedTableOptions()
 	filter := gorocksdb.NewBloomFilter(number)
 	blockBasedTableOptions.SetFilterPolicy(filter)
+	blockBasedTableOptions.SetCacheIndexAndFilterBlocks(true)
 	cache := gorocksdb.NewLRUCache(cachesize)
 	blockBasedTableOptions.SetBlockCache(cache)
 
