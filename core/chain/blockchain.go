@@ -19,7 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/metrics"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -78,7 +78,7 @@ type BlockChain struct {
 	blockcache                *lru.Cache
 	repeatedMintCache         *lru.Cache
 	heightToBlock             *lru.Cache
-	hashToSplitAddr           *lru.Cache
+	splitAddrFilter           bloom.Filter
 	bus                       eventbus.Bus
 	chainLock                 sync.RWMutex
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
@@ -113,7 +113,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.blockcache, _ = lru.New(512)
 	b.repeatedMintCache, _ = lru.New(512)
 	b.heightToBlock, _ = lru.New(512)
-	b.hashToSplitAddr, _ = lru.New(512)
+	b.splitAddrFilter = bloom.NewFilter(bloom.MaxFilterSize, 0.0001)
 
 	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
@@ -1652,9 +1652,12 @@ func (s *splitAddrInfo) Unmarshall(data []byte) error {
 // findSplitAddr search the main chain to see if the address is a split address.
 // If yes, return split address parameters
 func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, *splitAddrInfo, error) {
-	if splitInfo, ok := chain.hashToSplitAddr.Get(addr.Hash160()); ok {
-		return ok, splitInfo.(*splitAddrInfo), nil
+	if !chain.splitAddrFilter.Matches(addr.Hash()) {
+		// Definitely not a split address
+		return false, nil, nil
 	}
+	// May be a split address
+	// Query db to find out
 	data, err := chain.db.Get(SplitAddrKey(addr.Hash()))
 	if err != nil {
 		return false, nil, err
@@ -1666,7 +1669,6 @@ func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, *splitAddrInfo
 	if err := info.Unmarshall(data); err != nil {
 		return false, nil, err
 	}
-	chain.hashToSplitAddr.Add(addr.Hash160(), info)
 	return true, info, nil
 }
 
@@ -1694,7 +1696,7 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, batch storage.B
 				}
 				k := SplitAddrKey(addr.Hash())
 				batch.Put(k, dataBytes)
-				chain.hashToSplitAddr.Add(addr.Hash160(), sai)
+				chain.splitAddrFilter.Add(addr.Hash())
 				logger.Infof("New Split Address created")
 			}
 		}
@@ -1714,7 +1716,6 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 				}
 				k := SplitAddrKey(addr.Hash())
 				batch.Del(k)
-				chain.hashToSplitAddr.Remove(addr.Hash160())
 				logger.Infof("Remove Split Address: %s", addr.String())
 			}
 		}
