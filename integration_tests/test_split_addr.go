@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"google.golang.org/grpc"
@@ -143,7 +144,7 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 		sender, senderBalancePre, receiversBalancePre)
 	// make split address
 	//addrSub, err := MakeSplitAddr(receivers[:2], weights[:2])
-	addr, err := utils.MakeSplitAddr(receivers, weights)
+	addr, err := txlogic.MakeSplitAddr(receivers, weights)
 	if err != nil {
 		logger.Panic(err)
 	}

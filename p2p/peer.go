@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"hash/crc64"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -31,7 +32,8 @@ import (
 )
 
 var (
-	logger = log.NewLogger("p2p")
+	logger     = log.NewLogger("p2p")
+	crc64Table = crc64.MakeTable(crc64.ECMA)
 
 	isSynced = false
 )

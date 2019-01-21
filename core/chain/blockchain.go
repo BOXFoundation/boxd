@@ -12,6 +12,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -47,9 +48,15 @@ const (
 
 	MaxBlocksPerSync = 1024
 
-	metricsLoopInterval = 500 * time.Millisecond
-	tokenIssueFilterKey = "token_issue"
-	Threshold           = 32
+	metricsLoopInterval      = 500 * time.Millisecond
+	metricsUtxosLoopInterval = 200 * time.Second
+	tokenIssueFilterKey      = "token_issue"
+	Threshold                = 32
+)
+
+const (
+	free int32 = iota
+	busy
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -73,12 +80,12 @@ type BlockChain struct {
 	heightToBlock             *lru.Cache
 	splitAddrFilter           bloom.Filter
 	bus                       eventbus.Bus
-	orphanLock                sync.RWMutex
 	chainLock                 sync.RWMutex
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               types.SyncManager
 	filterHolder              BloomFilterHolder
+	status                    int32
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -99,6 +106,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
 		filterHolder:              NewFilterHolder(),
 		bus:                       eventbus.Default(),
+		status:                    free,
 	}
 
 	var err error
@@ -136,6 +144,12 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	return b, nil
 }
 
+// IsBusy return if the chain is processing a block
+func (chain *BlockChain) IsBusy() bool {
+	v := atomic.LoadInt32(&chain.status)
+	return v == busy
+}
+
 // Setup prepare blockchain.
 func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.SyncManager) {
 	chain.consensus = consensus
@@ -149,7 +163,6 @@ var _ service.Server = (*BlockChain)(nil)
 func (chain *BlockChain) Run() error {
 	chain.subscribeMessageNotifiee()
 	chain.proc.Go(chain.loop)
-
 	return nil
 }
 
@@ -184,6 +197,7 @@ func (chain *BlockChain) subscribeMessageNotifiee() {
 
 func (chain *BlockChain) loop(p goprocess.Process) {
 	logger.Info("Waitting for new block message...")
+	chain.metricsUtxos(chain.proc)
 	metricsTicker := time.NewTicker(metricsLoopInterval)
 	defer metricsTicker.Stop()
 	for {
@@ -202,6 +216,24 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 			return
 		}
 	}
+}
+
+func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
+	goprocess.WithParent(parent).Go(
+		func(p goprocess.Process) {
+			ticker := time.NewTicker(metricsUtxosLoopInterval)
+			for {
+				select {
+				case <-ticker.C:
+					keys := chain.db.KeysWithPrefix(utxoBase.Bytes())
+					metrics.MetricsUtxoSizeCounter.Clear()
+					metrics.MetricsUtxoSizeCounter.Inc(int64(len(keys)))
+				case <-p.Closing():
+					logger.Info("Quit metricsUtxos loop.")
+					return
+				}
+			}
+		})
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
@@ -235,14 +267,15 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
+	chain.chainLock.Lock()
+	defer chain.chainLock.Unlock()
+	atomic.StoreInt32(&chain.status, busy)
 
+	t0 := time.Now().UnixNano()
 	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
 		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
 		return core.ErrFailedToVerifyWithConsensus
 	}
-
-	chain.chainLock.Lock()
-	defer chain.chainLock.Unlock()
 
 	blockHash := block.BlockHash()
 	logger.Infof("Prepare to process block. Hash: %s, Height: %d", blockHash.String(), block.Height)
@@ -283,34 +316,20 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return nil
 	}
 
+	t1 := time.Now().UnixNano()
 	// All context-free checks pass, try to accept the block into the chain.
-	if err := chain.tryAcceptBlock(block); err != nil {
+	if err := chain.tryAcceptBlock(block, transferMode); err != nil {
 		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err.Error())
 		return err
 	}
 
+	t2 := time.Now().UnixNano()
 	if err := chain.processOrphans(block); err != nil {
 		logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
 		return err
 	}
 
-	switch transferMode {
-	case core.BroadcastMode:
-		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
-		go func() {
-			if err := chain.notifiee.Broadcast(p2p.NewBlockMsg, block); err != nil {
-				logger.Errorf("Failed to broadcast block. Hash: %s Err: %v", blockHash.String(), err)
-			}
-		}()
-	case core.RelayMode:
-		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
-		go func() {
-			if err := chain.notifiee.Relay(p2p.NewBlockMsg, block); err != nil {
-				logger.Errorf("Failed to relay block. Hash: %s Err: %v", blockHash.String(), err)
-			}
-		}()
-	default:
-	}
+	atomic.StoreInt32(&chain.status, free)
 	if chain.consensus.ValidateMiner() && fastConfirm {
 		go chain.consensus.BroadcastEternalMsgToMiners(block)
 		go chain.consensus.TryToUpdateEternalBlock(block)
@@ -319,7 +338,21 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
 	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
+	t3 := time.Now().UnixNano()
+	if needToTracking((t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6) {
+		logger.Infof("Time tracking: t0` = %d t1` = %d t2` = %d", (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6)
+	}
+
 	return nil
+}
+
+func needToTracking(t ...int64) bool {
+	for _, v := range t {
+		if v >= 200 {
+			return true
+		}
+	}
+	return false
 }
 
 func (chain *BlockChain) verifyExists(blockHash crypto.HashType) bool {
@@ -344,7 +377,7 @@ func (chain *BlockChain) isInOrphanPool(blockHash crypto.HashType) bool {
 
 // tryAcceptBlock validates block within the chain context and see if it can be accepted.
 // Return whether it is on the main chain or not.
-func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
+func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.TransferMode) error {
 	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
 	parentBlock := chain.GetParentBlock(block)
@@ -374,6 +407,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
+		chain.broadcastOrRelayBlock(block, transferMode)
 		return chain.tryConnectBlockToMainChain(block)
 	}
 
@@ -399,7 +433,29 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block) error {
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
 
-	return chain.reorganize(block)
+	return chain.reorganize(block, transferMode)
+}
+
+func (chain *BlockChain) broadcastOrRelayBlock(block *types.Block, transferMode core.TransferMode) {
+
+	blockHash := block.BlockHash()
+	switch transferMode {
+	case core.BroadcastMode:
+		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+		go func() {
+			if err := chain.notifiee.Broadcast(p2p.NewBlockMsg, block); err != nil {
+				logger.Errorf("Failed to broadcast block. Hash: %s Err: %v", blockHash.String(), err)
+			}
+		}()
+	case core.RelayMode:
+		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+		go func() {
+			if err := chain.notifiee.Relay(p2p.NewBlockMsg, block); err != nil {
+				logger.Errorf("Failed to relay block. Hash: %s Err: %v", blockHash.String(), err)
+			}
+		}()
+	default:
+	}
 }
 
 func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.HashType, parentHash crypto.HashType) {
@@ -426,7 +482,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 			// since it will not be accepted later if rejected once.
 			delete(chain.hashToOrphanBlock, *orphanHash)
 			// Potentially accept the block into the block chain.
-			if err := chain.tryAcceptBlock(orphan); err != nil {
+			if err := chain.tryAcceptBlock(orphan, core.DefaultMode); err != nil {
 				return err
 			}
 			// Add this block to the list of blocks to process so any orphan
@@ -459,18 +515,18 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
-
+	tt0 := time.Now().UnixNano()
 	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Height)
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
 	}
-
+	tt1 := time.Now().UnixNano()
 	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
 	if err := validateBlockScripts(utxoSet, block); err != nil {
 		return err
 	}
-
+	tt2 := time.Now().UnixNano()
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -500,8 +556,16 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 			totalCoinbaseOutput, expectedCoinbaseOutput)
 		return core.ErrBadCoinbaseValue
 	}
+	tt3 := time.Now().UnixNano()
+	if err := chain.applyBlock(block, utxoSet); err != nil {
+		return err
+	}
+	tt4 := time.Now().UnixNano()
+	if needToTracking((tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6, (tt4-tt3)/1e6) {
+		logger.Infof("tt Time tracking: tt0` = %d tt1` = %d tt2` = %d tt3` = %d", (tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6, (tt4-tt3)/1e6)
+	}
 
-	return chain.applyBlock(block, utxoSet)
+	return nil
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
@@ -560,7 +624,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
-
+	ttt0 := time.Now().UnixNano()
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
@@ -569,11 +633,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)
-
-	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
-		return err
-	}
-
+	ttt1 := time.Now().UnixNano()
+	// if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
+	// 	return err
+	// }
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
@@ -581,13 +644,13 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := chain.StoreBlockInBatch(block, batch); err != nil {
 		return err
 	}
-
+	ttt2 := time.Now().UnixNano()
 	if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), batch, func() bloom.Filter {
 		return GetFilterForTransactionScript(blockCopy, utxoSet.utxoMap)
 	}); err != nil {
 		return err
 	}
-
+	ttt3 := time.Now().UnixNano()
 	// save candidate context
 	if err := chain.consensus.StoreCandidateContext(block, batch); err != nil {
 		return err
@@ -597,17 +660,18 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := chain.WriteTxIndex(block, batch); err != nil {
 		return err
 	}
-
+	ttt4 := time.Now().UnixNano()
 	// store split addr index
 	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
 		logger.Error(err)
 		return err
 	}
+	ttt5 := time.Now().UnixNano()
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
-
+	ttt6 := time.Now().UnixNano()
 	// save current tail to database
 	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
@@ -617,18 +681,21 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Height, err.Error())
 	}
-
+	ttt7 := time.Now().UnixNano()
 	chain.tryToClearCache([]*types.Block{block}, nil)
 
 	// notify when batch write success
-	chain.notifyUtxoChange(utxoSet)
+	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
 	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
-
+	ttt8 := time.Now().UnixNano()
+	if needToTracking((ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
+		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ttt7` = %d", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6, (ttt8-ttt7)/1e6)
+	}
 	return nil
 }
 
@@ -644,7 +711,7 @@ func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
 	chain.bus.Publish(eventbus.TopicUtxoUpdate, utxoSet)
 }
 
-func (chain *BlockChain) reorganize(block *types.Block) error {
+func (chain *BlockChain) reorganize(block *types.Block, transferMode core.TransferMode) error {
 	// Find the common ancestor of the main chain and side chain
 	forkpoint, detachBlocks, attachBlocks := chain.findFork(block)
 	if forkpoint.Height < chain.eternal.Height {
@@ -659,17 +726,25 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 		return nil
 	}
 
+	chain.broadcastOrRelayBlock(block, transferMode)
+
 	for _, detachBlock := range detachBlocks {
+		stt0 := time.Now().UnixNano()
 		if err := chain.tryDisConnectBlockFromMainChain(detachBlock); err != nil {
 			return err
 		}
+		stt1 := time.Now().UnixNano()
+		logger.Infof("Disconnet time tracking: %d", (stt1-stt0)/1e6)
 	}
 
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
+		stt0 := time.Now().UnixNano()
 		attachBlock := attachBlocks[blockIdx]
 		if err := chain.tryConnectBlockToMainChain(attachBlock); err != nil {
 			return err
 		}
+		stt1 := time.Now().UnixNano()
+		logger.Infof("Connet time tracking: %d", (stt1-stt0)/1e6)
 	}
 
 	metrics.MetricsBlockRevertMeter.Mark(1)
@@ -677,7 +752,7 @@ func (chain *BlockChain) reorganize(block *types.Block) error {
 }
 
 func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
-
+	dtt0 := time.Now().UnixNano()
 	logger.Infof("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Height)
 	batch := chain.db.NewBatch()
 	defer batch.Close()
@@ -687,20 +762,20 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)
-
+	dtt1 := time.Now().UnixNano()
 	utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
+	if err := utxoSet.LoadBlockAllUtxos(blockCopy, chain.db); err != nil {
 		return err
 	}
 	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
 		return err
 	}
-
+	dtt2 := time.Now().UnixNano()
 	// batch.Del(BlockKey(block.BlockHash()))
 	batch.Del(BlockHashKey(block.Height))
 
 	chain.filterHolder.ResetFilters(block.Height)
-
+	dtt3 := time.Now().UnixNano()
 	// save tx index
 	if err := chain.DelTxIndex(block, batch); err != nil {
 		return err
@@ -709,11 +784,11 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
 		return err
 	}
-
+	dtt4 := time.Now().UnixNano()
 	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
-
+	dtt5 := time.Now().UnixNano()
 	// save current tail to database
 	// if err := chain.StoreTailBlock(block, batch); err != nil {
 	// 	return err
@@ -723,17 +798,20 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Height, err.Error())
 	}
-
+	dtt6 := time.Now().UnixNano()
 	chain.tryToClearCache(nil, []*types.Block{block})
 
 	// notify when batch write success
-	chain.notifyUtxoChange(utxoSet)
+	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
-
+	dtt7 := time.Now().UnixNano()
 	// This block is now the end of the best chain.
 	// chain.ChangeNewTail(block)
+	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
+		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
+	}
 	return nil
 }
 

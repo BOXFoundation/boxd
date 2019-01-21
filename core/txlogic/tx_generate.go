@@ -12,7 +12,9 @@ import (
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 const (
@@ -330,4 +332,106 @@ func extractTokenInfo(op types.OutPoint, wrap *types.UtxoWrap) (*types.OutPoint,
 		}
 	}
 	return nil, 0
+}
+
+// NewTxWithUtxos new a transaction
+func NewTxWithUtxos(fromAcc *acc.Account, utxos []*rpcpb.Utxo, toAddrs []string,
+	amounts []uint64, changeAmt uint64) (*types.Transaction, *rpcpb.Utxo, error) {
+
+	utxoValue := uint64(0)
+	for _, u := range utxos {
+		utxoValue += u.GetTxOut().GetValue()
+	}
+	amount := uint64(0)
+	for _, a := range amounts {
+		amount += a
+	}
+	if utxoValue < amount+changeAmt {
+		return nil, nil, fmt.Errorf("input %d is less than output %d",
+			utxoValue, amount+changeAmt)
+	}
+
+	// vin
+	vins := make([]*types.TxIn, 0)
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(utxo, 0))
+	}
+
+	// vout for toAddrs
+	vouts := make([]*corepb.TxOut, 0, len(toAddrs))
+	for i, toAddr := range toAddrs {
+		vouts = append(vouts, MakeVout(toAddr, amounts[i]))
+	}
+
+	// vout for change of fromAddress
+	fromAddrOut := MakeVout(fromAcc.Addr(), changeAmt)
+
+	// construct transaction
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, vouts...)
+	tx.Vout = append(tx.Vout, fromAddrOut)
+
+	// sign vin
+	if err := SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
+		return nil, nil, err
+	}
+
+	// create change utxo
+	txHash, _ := tx.TxHash()
+	change := &rpcpb.Utxo{
+		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
+		TxOut:       fromAddrOut,
+		BlockHeight: 0,
+		IsCoinbase:  false,
+		IsSpent:     false,
+	}
+
+	return tx, change, nil
+}
+
+// NewSplitAddrTxWithUtxos new split address tx
+func NewSplitAddrTxWithUtxos(acc *acc.Account, addrs []string,
+	weights []uint64, utxos []*rpcpb.Utxo, fee uint64, peerAddr string) (
+	tx *types.Transaction, change *rpcpb.Utxo, splitAddr string, err error) {
+
+	utxoValue := uint64(0)
+	for _, u := range utxos {
+		utxoValue += u.GetTxOut().GetValue()
+	}
+	changeAmt := utxoValue - fee
+
+	// vin
+	vins := make([]*types.TxIn, 0)
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(utxo, 0))
+	}
+
+	// vout for toAddrs
+	splitAddrOut := MakeSplitAddrVout(addrs, weights)
+	changeOut := MakeVout(acc.Addr(), changeAmt)
+
+	// construct transaction
+	tx = new(types.Transaction)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, splitAddrOut, changeOut)
+
+	// sign vin
+	if err = SignTxWithUtxos(tx, utxos, acc); err != nil {
+		return
+	}
+
+	// create change utxo
+	txHash, _ := tx.TxHash()
+	change = &rpcpb.Utxo{
+		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
+		TxOut:       changeOut,
+		BlockHeight: 0,
+		IsCoinbase:  false,
+		IsSpent:     false,
+	}
+
+	splitAddr, err = MakeSplitAddr(addrs, weights)
+
+	return
 }

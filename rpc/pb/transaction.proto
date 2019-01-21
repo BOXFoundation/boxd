@@ -10,6 +10,21 @@ import "google/api/annotations.proto";
 import "common.proto";
 
 service TransactionCommand {
+
+    rpc GetBalance(GetBalanceReq) returns (GetBalanceResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/getbalance"
+            body: "*"
+        };
+    }
+
+    rpc FetchUtxos(FetchUtxosReq) returns (FetchUtxosResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/fetchutxos"
+            body: "*"
+        };
+    }
+
     rpc ListUtxos(ListUtxosRequest) returns (ListUtxosResponse) {
         option (google.api.http) = {
             post: "/v1/tx/listutxos"
@@ -17,12 +32,12 @@ service TransactionCommand {
         };
     }
 
-    rpc FundTransaction(FundTransactionRequest) returns (ListUtxosResponse) {
-        option (google.api.http) = {
-            post: "/v1/tx/fundtransaction"
-            body: "*"
-        };
-    }
+    //rpc FundTransaction(FundTransactionRequest) returns (ListUtxosResponse) {
+    //    option (google.api.http) = {
+    //        post: "/v1/tx/fundtransaction"
+    //        body: "*"
+    //    };
+    //}
 
     rpc SendTransaction(SendTransactionRequest) returns (BaseResponse) {
         option (google.api.http) = {
@@ -34,13 +49,6 @@ service TransactionCommand {
     rpc GetRawTransaction(GetRawTransactionRequest) returns (GetRawTransactionResponse) {
         option (google.api.http) = {
             post: "/v1/tx/getrawtransaction"
-            body: "*"
-        };
-    }
-
-    rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse) {
-        option (google.api.http) = {
-            post: "/v1/tx/getbalance"
             body: "*"
         };
     }
@@ -65,6 +73,27 @@ service TransactionCommand {
             body: "*"
         };
     }
+}
+
+message GetBalanceReq {
+    repeated string addrs = 1;
+}
+
+message GetBalanceResp {
+    int32 code = 1;
+    string message = 2;
+    repeated uint64 balances = 3;
+}
+
+message FetchUtxosReq {
+  string addr = 1;
+  uint64 amount = 2;
+}
+
+message FetchUtxosResp {
+    int32 code = 1;
+    string message = 2;
+    repeated Utxo utxos = 3;
 }
 
 message ListUtxosRequest {
@@ -107,16 +136,6 @@ message ListUtxosResponse {
     repeated Utxo utxos = 4;
 }
 
-message GetBalanceRequest {
-    repeated string addrs = 1;
-}
-
-message GetBalanceResponse {
-    int32 code = 1;
-    string message = 2;
-    map<string, uint64> balances = 3;
-}
-
 message GetTokenBalanceRequest {
     repeated string addrs = 1;
     corepb.OutPoint token = 2;
@@ -125,7 +144,7 @@ message GetTokenBalanceRequest {
 message GetTokenBalanceResponse {
     int32 code = 1;
     string message = 2;
-    map<string, uint64> balances = 3;
+    repeated uint64 balances = 3;
 }
 
 message GetFeePriceRequest{
@@ -133,14 +152,6 @@ message GetFeePriceRequest{
 
 message GetFeePriceResponse {
     uint64 box_per_byte = 1;
-}
-
-message CreateTransactionRequest {
-    repeated TransactionParam tx_params = 1;
-}
-
-message CreateTransactionResponse {
-    repeated corepb.Transaction txs = 1;
 }
 
 message TransactionParam {

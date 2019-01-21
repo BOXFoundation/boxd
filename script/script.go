@@ -623,6 +623,17 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
+
+	if s.IsPayToPubKeyHash() || s.IsTokenIssue() || s.IsTokenTransfer() {
+		// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
+		_, pubKeyHash, _, err := s.getNthOp(0, 2)
+		if err != nil {
+			return nil, err
+
+		}
+		return types.NewAddressPubKeyHash(pubKeyHash)
+	}
+
 	if s.IsSplitAddrScript() {
 		str := s.Disasm()
 		segs := strings.Split(str, " ")
@@ -645,18 +656,7 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 		return types.NewAddressPubKeyHash(pubKeyHash)
 	}
 
-	// only applies to p2pkh & token txs
-	if !s.IsPayToPubKeyHash() && !s.IsTokenIssue() && !s.IsTokenTransfer() {
-		return nil, ErrAddressNotApplicable
-	}
-
-	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
-	_, pubKeyHash, _, err := s.getNthOp(0, 2)
-	if err != nil {
-		return nil, err
-	}
-
-	return types.NewAddressPubKeyHash(pubKeyHash)
+	return nil, ErrAddressNotApplicable
 }
 
 // ParseSplitAddrScript returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]

@@ -125,25 +125,25 @@ func (block *Block) Copy() *Block {
 		Height: block.Height,
 	}
 
-	txs := make([]*Transaction, 0)
-	for _, tx := range block.Txs {
-		vin := make([]*TxIn, 0)
-		for _, txIn := range tx.Vin {
+	txs := make([]*Transaction, len(block.Txs))
+	for k, tx := range block.Txs {
+		vin := make([]*TxIn, len(tx.Vin))
+		for idx, txIn := range tx.Vin {
 			txInCopy := &TxIn{
 				PrevOutPoint: txIn.PrevOutPoint,
 				ScriptSig:    txIn.ScriptSig,
 				Sequence:     txIn.Sequence,
 			}
-			vin = append(vin, txInCopy)
+			vin[idx] = txInCopy
 		}
 
-		vout := make([]*corepb.TxOut, 0)
-		for _, txOut := range tx.Vout {
+		vout := make([]*corepb.TxOut, len(tx.Vout))
+		for idx, txOut := range tx.Vout {
 			txOutCopy := &corepb.TxOut{
 				Value:        txOut.Value,
 				ScriptPubKey: txOut.ScriptPubKey,
 			}
-			vout = append(vout, txOutCopy)
+			vout[idx] = txOutCopy
 		}
 
 		txHash, _ := tx.TxHash()
@@ -152,7 +152,7 @@ func (block *Block) Copy() *Block {
 			Vin:  vin,
 			Vout: vout,
 		}
-		txs = append(txs, txCopy)
+		txs[k] = txCopy
 	}
 
 	newBlock.Txs = txs

@@ -21,7 +21,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
-	"github.com/BOXFoundation/boxd/wallet"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
@@ -52,7 +52,7 @@ type Dpos struct {
 	net                         p2p.Net
 	proc                        goprocess.Process
 	cfg                         *Config
-	miner                       *wallet.Account
+	miner                       *acc.Account
 	canMint                     bool
 	disableMint                 bool
 	bftservice                  *BftService
@@ -91,7 +91,7 @@ func (dpos *Dpos) EnableMint() bool {
 
 // Setup setup dpos
 func (dpos *Dpos) Setup() error {
-	account, err := wallet.NewAccountFromFile(dpos.cfg.Keypath)
+	account, err := acc.NewAccountFromFile(dpos.cfg.Keypath)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,10 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 	for {
 		select {
 		case <-timeChan.C:
-			dpos.mint(time.Now().Unix())
+			if !dpos.chain.IsBusy() {
+				dpos.mint(time.Now().Unix())
+			}
+
 		case <-p.Closing():
 			logger.Info("Stopped Dpos Mining.")
 			return

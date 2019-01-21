@@ -41,6 +41,7 @@ func NewBaseFmw(accCnt, partLen int) *BaseFmw {
 		acc := utils.UnlockAccount(addr)
 		AddrToAcc[addr] = acc
 	}
+	utils.RemoveKeystoreFiles(b.accAddrs...)
 	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
 		b.quitCh = append(b.quitCh, make(chan os.Signal, 1))
 		signal.Notify(b.quitCh[i], os.Interrupt, os.Kill)
@@ -84,18 +85,54 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 	addrs := b.addrs[start:end]
 	idx := 0
 	logger.Infof("start doTest[%d]", index)
+	addrsCh := make(chan []string)
+	if scopeValue(*scope) == continueScope {
+		go genAddrs(end-start, addrsCh)
+	}
+	times := 0
 	for {
-		select {
-		case s := <-b.quitCh[index]:
-			logger.Infof("receive quit signal %v, quiting doTest[%d]!", s, index)
+		if utils.Closing(b.quitCh[index]) {
+			logger.Infof("receive quit signal, quiting doTest[%d]!", index)
 			return
-		default:
 		}
 		if handle(addrs, &idx) {
 			break
 		}
 		if scopeValue(*scope) == basicScope {
 			break
+		}
+		times++
+		if times%utils.TimesToUpdateAddrs() == 0 {
+			for _, addr := range addrs {
+				delete(AddrToAcc, addr)
+			}
+			select {
+			case <-b.quitCh[index]:
+				logger.Infof("receive quit signal, quiting doTest[%d]!", index)
+				return
+			case addrs = <-addrsCh:
+			}
+			logger.Warnf("times: %d", times)
+		}
+	}
+}
+
+func genAddrs(n int, addrsCh chan<- []string) {
+	quitCh := make(chan os.Signal, 1)
+	signal.Notify(quitCh, os.Interrupt, os.Kill)
+	for {
+		addrs, accAddrs := utils.GenTestAddr(n)
+		for _, addr := range addrs {
+			acc := utils.UnlockAccount(addr)
+			AddrToAcc[addr] = acc
+		}
+		logger.Infof("done to gen %d address", n)
+		utils.RemoveKeystoreFiles(accAddrs...)
+		select {
+		case <-quitCh:
+			logger.Infof("receive quit signal, quiting genAddrs")
+			return
+		case addrsCh <- addrs:
 		}
 	}
 }

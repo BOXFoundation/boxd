@@ -249,3 +249,16 @@ func TryRecordError(err error) bool {
 	ErrItems = append(ErrItems, err)
 	return true
 }
+
+// Closing check if receive quit signal
+func Closing(quitCh <-chan os.Signal) bool {
+	select {
+	case s := <-quitCh:
+		if s == os.Interrupt || s == os.Kill {
+			return true
+		}
+		return false
+	default:
+		return false
+	}
+}

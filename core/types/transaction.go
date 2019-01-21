@@ -5,6 +5,8 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -47,6 +49,10 @@ var _ conv.Serializable = (*TxIn)(nil)
 type OutPoint struct {
 	Hash  crypto.HashType
 	Index uint32
+}
+
+func (op OutPoint) String() string {
+	return fmt.Sprintf("Hash: %s, Index: %d", op.Hash, op.Index)
 }
 
 var _ conv.Convertible = (*OutPoint)(nil)

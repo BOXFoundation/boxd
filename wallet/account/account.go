@@ -2,10 +2,10 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package wallet
+package account
 
 import (
-	"crypto"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -17,10 +17,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"golang.org/x/crypto/scrypt"
-
-	btypes "github.com/BOXFoundation/boxd/core/types"
+	ctypes "github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	bcrypto "github.com/BOXFoundation/boxd/crypto"
+	"golang.org/x/crypto/scrypt"
 )
 
 const (
@@ -29,6 +29,14 @@ const (
 	scryptP     = 1
 	scryptDklen = 32
 )
+
+// Account offers method to operate ecdsa keys stored in a keystore file path
+type Account struct {
+	Path     string
+	Address  ctypes.Address
+	PrivKey  *crypto.PrivateKey
+	Unlocked bool
+}
 
 type keystorePassphrase struct {
 	path         string
@@ -62,8 +70,96 @@ type kdfParamsJSON struct {
 	P     int    `json:"p"`
 }
 
+// Addr return addr
+func (acc *Account) Addr() string {
+	return acc.Address.String()
+}
+
+// AddrType returns Address interface of the account
+func (acc *Account) AddrType() ctypes.Address {
+	return acc.Address
+}
+
+// PubKeyHash returns Public Key Hash of the account
+func (acc *Account) PubKeyHash() []byte {
+	return acc.Address.Hash()
+}
+
+// PublicKey returns the account's public key in compressed byte format
+func (acc *Account) PublicKey() []byte {
+	return acc.PrivKey.PubKey().Serialize()
+}
+
+// PrivateKey returns the accounts private key in compressed byte format
+func (acc *Account) PrivateKey() *crypto.PrivateKey {
+	return acc.PrivKey
+}
+
+// SaveWithPassphrase save account with passphrase
+func (acc *Account) SaveWithPassphrase(passphrase string) error {
+	savePrivateKeyWithPassphrase(acc.PrivKey, passphrase, acc.Path)
+	return nil
+}
+
+// UnlockWithPassphrase unlocks an account and generate its private key
+func (acc *Account) UnlockWithPassphrase(passphrase string) error {
+	privateKeyBytes, err := unlockPrivateKeyWithPassphrase(acc.Path, passphrase)
+	if err != nil {
+		return err
+	}
+	if acc.PrivKey == nil {
+		acc.PrivKey = &crypto.PrivateKey{}
+	}
+	acc.PrivKey, _, err = crypto.KeyPairFromBytes(privateKeyBytes)
+	if err != nil {
+		return err
+	}
+	addr, err := ctypes.NewAddressFromPubKey(acc.PrivKey.PubKey())
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(addr.Hash(), acc.Address.Hash()) {
+		return fmt.Errorf("Private key doesn't match address, the keystore file may be broken")
+	}
+	acc.Unlocked = true
+	return nil
+}
+
+var _ crypto.Signer = (*Account)(nil)
+
+// Sign calculates an ECDSA signature of messageHash using privateKey.
+// returns error if account is locked or sign process failed
+func (acc *Account) Sign(messageHash *crypto.HashType) (*crypto.Signature, error) {
+	if acc.Unlocked == false || acc.PrivKey == nil {
+		return nil, fmt.Errorf("Address unlocked")
+	}
+	return crypto.Sign(acc.PrivKey, messageHash)
+}
+
+// NewAccountFromFile create account from file.
+func NewAccountFromFile(filePath string) (*Account, error) {
+	pubKeyHashString, err := GetKeystoreAddress(filePath)
+	if err != nil {
+		return nil, err
+	}
+	pubKeyHashBytes, err := hex.DecodeString(pubKeyHashString)
+	if err != nil {
+		return nil, err
+	}
+	addr, err := ctypes.NewAddressPubKeyHash(pubKeyHashBytes)
+	if err != nil {
+		return nil, err
+	}
+	acc := &Account{
+		Path:     filePath,
+		Address:  addr,
+		Unlocked: false,
+	}
+	return acc, nil
+}
+
 func savePrivateKeyWithPassphrase(privatekey *bcrypto.PrivateKey, passphrase, path string) error {
-	addr, err := btypes.NewAddressFromPubKey(privatekey.PubKey())
+	addr, err := ctypes.NewAddressFromPubKey(privatekey.PubKey())
 	if err != nil {
 		return err
 	}

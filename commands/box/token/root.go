@@ -128,11 +128,11 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid token address")
 		return
 	}
-	targets, err := parseSendTarget(args[2:])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	//targets, err := parseSendTarget(args[2:])
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
 		fmt.Println(err)
@@ -153,18 +153,19 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	fromAddr, err := types.NewAddress(args[0])
-	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
-		return
-	}
+	//fromAddr, err := types.NewAddress(args[0])
+	//if err != nil {
+	//	fmt.Println("Invalid address: ", args[0])
+	//	return
+	//}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.CreateTokenTransferTx(conn, fromAddr, targets,
-		account.PublicKey(), token.OutPoint().Hash, token.OutPoint().Index, account)
-	if err != nil {
-		fmt.Println(err)
-	}
+	tx := new(types.Transaction)
+	//tx, err := client.CreateTokenTransferTx(conn, fromAddr, targets,
+	//	account.PublicKey(), token.OutPoint().Hash, token.OutPoint().Index, account)
+	//if err != nil {
+	//	fmt.Println(err)
+	//}
 	hash, _ := tx.TxHash()
 	fmt.Println("Tx Hash:", hash.String())
 	fmt.Println(util.PrettyPrint(tx))
@@ -181,11 +182,12 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid token address")
 		return
 	}
-	addr, err := types.NewAddress(args[0])
-	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
-		return
-	}
+	addr := args[0]
+	//addr, err := types.NewAddress(args[0])
+	//if err != nil {
+	//	fmt.Println("Invalid address: ", args[0])
+	//	return
+	//}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
 	balance, _ := client.GetTokenBalance(conn, addr, token.OutPoint().Hash,

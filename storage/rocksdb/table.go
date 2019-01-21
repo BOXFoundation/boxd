@@ -95,7 +95,7 @@ func (t *rtable) MultiGet(key ...[]byte) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	values := [][]byte{}
+	values := make([][]byte, 0, len(slices))
 	for _, slice := range slices {
 		values = append(values, data(slice))
 	}

@@ -4,10 +4,12 @@
 
 package service
 
-import "github.com/BOXFoundation/boxd/core/types"
+import (
+	"github.com/BOXFoundation/boxd/rpc/pb"
+)
 
 // WalletAgent defines functions an wallet service should provide
 type WalletAgent interface {
-	Balance(address types.Address) (uint64, error)
-	Utxos(address types.Address) (map[types.OutPoint]*types.UtxoWrap, error)
+	Balance(addr string) (uint64, error)
+	Utxos(addr string, amount uint64) ([]*rpcpb.Utxo, error)
 }

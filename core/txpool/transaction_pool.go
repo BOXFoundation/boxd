@@ -5,9 +5,7 @@
 package txpool
 
 import (
-	"crypto/md5"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -20,7 +18,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
-	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	lru "github.com/hashicorp/golang-lru"
@@ -111,7 +108,7 @@ func (tx_pool *TransactionPool) Run() error {
 	tx_pool.notifiee.Subscribe(tx_pool.txNotifee)
 
 	// chain update msg
-	tx_pool.bus.Subscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
+	tx_pool.bus.SubscribeAsync(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg, true)
 
 	tx_pool.proc.Go(tx_pool.loop)
 	return nil
@@ -188,11 +185,9 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 			if tx_pool.txcache.Contains(*txHash) {
 				tx_pool.txcache.Remove(*txHash)
 			}
-			go func(tx *types.Transaction) {
-				if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
-					logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
-				}
-			}(tx)
+			if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
+				logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
+			}
 		}
 		// remove related child txs.
 		for _, tx := range v.Txs {
@@ -204,6 +199,8 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 				if !exists {
 					continue
 				}
+				hash, _ := childTx.TxHash()
+				logger.Infof("Remove related child tx %s when block %v disconnects from main chain", hash, v.BlockHash())
 				tx_pool.removeTx(childTx, true)
 			}
 		}
@@ -252,14 +249,15 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
 	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
 		txHash, _ := tx.TxHash()
-		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash.String(), err)
+		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash, err)
 		return err
 	}
 	return tx_pool.processOrphans(tx)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMode core.TransferMode, detectDupOrphan bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
+	transferMode core.TransferMode, detectDupOrphan bool) error {
 
 	txHash, _ := tx.TxHash()
 	logger.Infof("Maybe accept tx. Hash: %v", txHash)
@@ -268,7 +266,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
-	if tx_pool.isTransactionInPool(txHash) || detectDupOrphan && tx_pool.isOrphanInPool(txHash) || tx_pool.txcache.Contains(*txHash) {
+	if tx_pool.isTransactionInPool(txHash) ||
+		detectDupOrphan && tx_pool.isOrphanInPool(txHash) ||
+		tx_pool.txcache.Contains(*txHash) {
 		logger.Debugf("Tx %v already exists", txHash.String())
 		return core.ErrDuplicateTxInPool
 	}
@@ -350,9 +350,10 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, transferMod
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
-	body, _ := conv.MarshalConvertible(tx)
-	key := fmt.Sprintf("%x", (md5.Sum(body)))
-	logger.Infof("Accepted new tx. Hash: %v, transferMode: %v, key: %s", txHash, transferMode, key)
+	// body, _ := conv.MarshalConvertible(tx)
+	// key := fmt.Sprintf("%x", (md5.Sum(body)))
+	// logger.Infof("Accepted new tx. Hash: %v, transferMode: %v, key: %s", txHash, transferMode, key)
+	logger.Infof("Accepted new tx. Hash: %v", txHash)
 	tx_pool.txcache.Add(*txHash, true)
 	switch transferMode {
 	case core.BroadcastMode:

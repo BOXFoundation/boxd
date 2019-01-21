@@ -21,7 +21,7 @@ require (
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/uuid v0.0.0-20180828181555-e704694aed0e // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway v1.5.1
+	github.com/grpc-ecosystem/grpc-gateway v1.6.4
 	github.com/gxed/GoEndian v0.0.0-20160916112711-0f5c6873267e // indirect
 	github.com/gxed/eventfd v0.0.0-20160916113412-80a92cca79a8 // indirect
 	github.com/gxed/hashland v0.0.0-20180221191214-d9f6b97f8db2 // indirect

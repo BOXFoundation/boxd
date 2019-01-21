@@ -6,6 +6,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -28,6 +29,11 @@ var logger = log.NewLogger("rpc")
 const (
 	DefaultGrpcLimits = 128
 	DefaultHTTPLimits = 128
+)
+
+//
+var (
+	ErrAPINotSupported = errors.New("api not supported")
 )
 
 // Config defines the configurations of rpc server

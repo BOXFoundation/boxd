@@ -20,6 +20,9 @@ type UtxoWrap struct {
 	IsModified  bool
 }
 
+// UtxoMap defines a map type with OutPoint to UtxoWrap
+type UtxoMap map[OutPoint]*UtxoWrap
+
 // ToProtoMessage converts utxo wrap to proto message.
 func (utxoWrap *UtxoWrap) ToProtoMessage() (proto.Message, error) {
 	return &corepb.UtxoWrap{

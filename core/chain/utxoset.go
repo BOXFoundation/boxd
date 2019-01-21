@@ -17,26 +17,26 @@ import (
 
 // UtxoSet contains all utxos
 type UtxoSet struct {
-	utxoMap map[types.OutPoint]*types.UtxoWrap
+	utxoMap types.UtxoMap
 }
 
 // NewUtxoSet new utxo set
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
-		utxoMap: make(map[types.OutPoint]*types.UtxoWrap),
+		utxoMap: make(types.UtxoMap),
 	}
 }
 
 // NewUtxoSetFromMap returns the underlying utxos as a map
-func NewUtxoSetFromMap(utxoMap map[types.OutPoint]*types.UtxoWrap) *UtxoSet {
+func NewUtxoSetFromMap(utxoMap types.UtxoMap) *UtxoSet {
 	return &UtxoSet{
 		utxoMap: utxoMap,
 	}
 }
 
 // GetUtxos returns the unspent utxos
-func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
-	result := make(map[types.OutPoint]*types.UtxoWrap)
+func (u *UtxoSet) GetUtxos() types.UtxoMap {
+	result := make(types.UtxoMap)
 	for outPoint, utxoWrap := range u.utxoMap {
 		if !utxoWrap.IsSpent {
 			result[outPoint] = utxoWrap
@@ -46,7 +46,7 @@ func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
 }
 
 // All returns all utxo contained including spent utxo
-func (u *UtxoSet) All() map[types.OutPoint]*types.UtxoWrap {
+func (u *UtxoSet) All() types.UtxoMap {
 	return u.utxoMap
 }
 
@@ -315,8 +315,44 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 	return u.fetchUtxosFromOutPointSet(outPointsToFetch, db)
 }
 
-// LoadBlockUtxos loads all UTXOs txs in the block spend
+// LoadBlockUtxos loads UTXOs txs in the block spend
 func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
+
+	txs := map[crypto.HashType]int{}
+	outPointsToFetch := make(map[types.OutPoint]struct{})
+
+	for index, tx := range block.Txs {
+		hash, _ := tx.TxHash()
+		txs[*hash] = index
+	}
+	for i, tx := range block.Txs[1:] {
+		for _, txIn := range tx.Vin {
+			preHash := &txIn.PrevOutPoint.Hash
+			// i points to txs[i + 1], which should be after txs[index]
+			// Thus (i + 1) > index, equavalently, i >= index
+			if index, ok := txs[*preHash]; ok && i >= index {
+				originTx := block.Txs[index]
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
+				continue
+			}
+			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
+				continue
+			}
+			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
+		}
+	}
+
+	if len(outPointsToFetch) > 0 {
+		if err := u.fetchUtxosFromOutPointSet(outPointsToFetch, db); err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
+
+// LoadBlockAllUtxos loads all UTXOs txs in the block
+func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error {
 
 	txs := map[crypto.HashType]int{}
 	outPointsToFetch := make(map[types.OutPoint]struct{})
