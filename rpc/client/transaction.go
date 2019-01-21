@@ -36,7 +36,7 @@ func FetchUtxos(conn *grpc.ClientConn, addr string, amount uint64) ([]*rpcpb.Utx
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
-	req, err := c.FetchUtxos(ctx, &rpcpb.FetchUtxosReq{Addr: addr})
+	req, err := c.FetchUtxos(ctx, &rpcpb.FetchUtxosReq{Addr: addr, Amount: amount})
 	if err != nil {
 		return nil, err
 	}
