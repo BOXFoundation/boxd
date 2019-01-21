@@ -191,7 +191,8 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 }
 
 func selUtxosTest(
-	utxos []*rpcpb.Utxo, amount uint64, wantUtxos []uint64) func(*testing.T) {
+	utxos []*rpcpb.Utxo, amount uint64, wantUtxos []uint64,
+) func(*testing.T) {
 	return func(t *testing.T) {
 		wantAmount := uint64(0)
 		for _, u := range wantUtxos {

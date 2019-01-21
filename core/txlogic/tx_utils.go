@@ -92,6 +92,38 @@ func NewPbOutPoint(hash *crypto.HashType, index uint32) *corepb.OutPoint {
 	}
 }
 
+// ConvPbOutPoint constructs a types OutPoint
+func ConvPbOutPoint(op *corepb.OutPoint) *types.OutPoint {
+	if op == nil {
+		return nil
+	}
+	hash := crypto.HashType{}
+	copy(hash[:], op.Hash[:])
+	return &types.OutPoint{
+		Hash:  hash,
+		Index: op.Index,
+	}
+}
+
+// ConvOutPoint constructs a protobuf OutPoint
+func ConvOutPoint(op *types.OutPoint) *corepb.OutPoint {
+	return &corepb.OutPoint{
+		Hash:  op.Hash[:],
+		Index: op.Index,
+	}
+}
+
+// MakePbUtxo make pb.Utxo from Op and utxo wrap
+func MakePbUtxo(op *types.OutPoint, uw *types.UtxoWrap) *rpcpb.Utxo {
+	return &rpcpb.Utxo{
+		BlockHeight: uw.BlockHeight,
+		IsCoinbase:  uw.IsCoinBase,
+		IsSpent:     uw.IsSpent,
+		OutPoint:    NewPbOutPoint(&op.Hash, op.Index),
+		TxOut:       uw.Output,
+	}
+}
+
 // NewOutPoint constructs a OutPoint
 func NewOutPoint(hash *crypto.HashType, index uint32) *types.OutPoint {
 	return &types.OutPoint{

@@ -23,21 +23,9 @@ const (
 	utxoSelUnitCnt = 256
 )
 
-// LiveCache defines a cache in that utxos keep alive
-type LiveCache struct {
-	liveDuration time.Duration
-	ts2Op        map[int64]types.OutPoint
-	Op2ts        map[types.OutPoint]int64
-}
-
-// NewLiveCache new a LiveCache instance with expired seconds
-func NewLiveCache(expired int) *LiveCache {
-	return &LiveCache{
-		liveDuration: time.Duration(expired) * time.Second,
-		ts2Op:        make(map[int64]types.OutPoint),
-		Op2ts:        make(map[types.OutPoint]int64),
-	}
-}
+var (
+	liveCache = NewLiveUtxoCache(5)
+)
 
 // BalanceFor returns balance amount of an address using balance index
 func BalanceFor(addr string, db storage.Table) (uint64, error) {
@@ -64,7 +52,7 @@ func FetchUtxosOf(addr string, total uint64, db storage.Table) ([]*rpcpb.Utxo, e
 	start := time.Now()
 	keys := db.KeysWithPrefix(utxoKey)
 	logger.Infof("get utxos keys[%d] for %s cost %v", len(keys), addr, time.Since(start))
-	//
+	// fetch all utxos fir total equals to 0
 	if total == 0 {
 		utxos, err := makeUtxosFromDB(keys, db)
 		if err != nil {
@@ -72,10 +60,14 @@ func FetchUtxosOf(addr string, total uint64, db storage.Table) ([]*rpcpb.Utxo, e
 		}
 		return utxos, nil
 	}
-	//
+	// fetch moderate utxos by adjustint to total
 	utxos, err := fetchModerateUtxos(keys, total, db)
 	if err != nil {
 		return nil, err
+	}
+	// add utxos to LiveUtxoCache
+	for _, u := range utxos {
+		liveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
 	}
 
 	return utxos, nil
@@ -135,7 +127,7 @@ func makeUtxosFromDB(keys [][]byte, db storage.Table) ([]*rpcpb.Utxo, error) {
 			logger.Warn(err)
 			continue
 		}
-		utxos = append(utxos, makePbUtxo(op, utxoWrap))
+		utxos = append(utxos, txlogic.MakePbUtxo(op, utxoWrap))
 	}
 	return utxos, nil
 }
@@ -151,8 +143,13 @@ func selectUtxos(utxos []*rpcpb.Utxo, amount uint64) ([]*rpcpb.Utxo, uint64) {
 	// sort
 	sort.Sort(sort.Interface(txlogic.SortByUTXOValue(utxos)))
 	// select
+	liveCache.Shrink()
 	i, total := 0, uint64(0)
 	for i < len(utxos) && total < amount {
+		// filter utxos already in cache
+		if liveCache.Contains(txlogic.ConvPbOutPoint(utxos[i].OutPoint)) {
+			continue
+		}
 		total += utxos[i].TxOut.Value
 		i++
 	}
@@ -173,16 +170,6 @@ func parseOutPointFromDbKey(key []byte) (*types.OutPoint, error) {
 		return nil, err
 	}
 	return txlogic.NewOutPoint(hash, uint32(index)), nil
-}
-
-func makePbUtxo(op *types.OutPoint, uw *types.UtxoWrap) *rpcpb.Utxo {
-	return &rpcpb.Utxo{
-		BlockHeight: uw.BlockHeight,
-		IsCoinbase:  uw.IsCoinBase,
-		IsSpent:     uw.IsSpent,
-		OutPoint:    txlogic.NewPbOutPoint(&op.Hash, op.Index),
-		TxOut:       uw.Output,
-	}
 }
 
 //func updateBalanceFor(addr types.Address, db storage.Table,
