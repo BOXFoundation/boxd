@@ -90,11 +90,15 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 
 	go func() {
 		ticherCache := cache
-		ticker := time.NewTicker(time.Second)
+		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
+				indexFilterMem := db.GetProperty("rocksdb.estimate-table-readers-mem")
+				mmtMem := db.GetProperty("rocksdb.cur-size-all-mem-tables")
+				pinMem := cache.GetPinnedUsage()
+				logger.Errorf("mem usage = %v, %v, %v, %v", indexFilterMem, mmtMem, pinMem, ticherCache.GetUsage())
 				metrics.MetricsRocksdbCacheGauge.Update(int64(ticherCache.GetUsage()))
 			}
 		}
