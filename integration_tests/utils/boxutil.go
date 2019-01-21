@@ -29,7 +29,7 @@ const (
 	testPassphrase    = "1"
 
 	// RPCTimeout defines rpc timeout
-	RPCTimeout = 5 * time.Second
+	RPCTimeout = 10 * time.Second
 	// RPCInterval defines rpc query interval
 	RPCInterval = 300 * time.Millisecond
 

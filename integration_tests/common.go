@@ -48,7 +48,8 @@ func PickOneMiner() (string, bool) {
 				minerAddrs[i], 100000000, peersAddr[0])
 			if _, err := utils.WaitBalanceEnough(minerAddrs[i], 100000000, peersAddr[0],
 				timeoutToChain); err != nil {
-				break
+				logger.Warn(err)
+				continue
 			}
 			minerPicker.status[i] = true
 			return minerAddrs[i], true
