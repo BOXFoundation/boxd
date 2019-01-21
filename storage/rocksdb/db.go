@@ -6,6 +6,7 @@ package rocksdb
 
 import (
 	"io/ioutil"
+	"strconv"
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
@@ -90,13 +91,30 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 
 	go func() {
 		ticherCache := cache
+		rocks := d
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				indexFilterMem := db.GetProperty("rocksdb.estimate-table-readers-mem")
-				mmtMem := db.GetProperty("rocksdb.cur-size-all-mem-tables")
+				indexFilterMem := 0
+				mmtMem := 0
+				for _, val := range rocks.tables {
+					tmp, err := strconv.Atoi(db.GetPropertyCF("rocksdb.estimate-table-readers-mem", val.cf))
+					if err != nil {
+						logger.Errorf("db.GetPropertyCF estimate-table-readers-mem fail. Err: %v", err)
+						continue
+					}
+					indexFilterMem += tmp
+					tmp, err = strconv.Atoi(db.GetPropertyCF("rocksdb.cur-size-all-mem-tables", val.cf))
+					if err != nil {
+						logger.Errorf("db.GetPropertyCF cur-size-all-mem-tables fail. Err: %v", err)
+						continue
+					}
+					mmtMem += tmp
+				}
+				// indexFilterMem := db.GetProperty("rocksdb.estimate-table-readers-mem")
+				// mmtMem := db.GetProperty("rocksdb.cur-size-all-mem-tables")
 				pinMem := cache.GetPinnedUsage()
 				logger.Errorf("mem usage = %v, %v, %v, %v", indexFilterMem, mmtMem, pinMem, ticherCache.GetUsage())
 				metrics.MetricsRocksdbCacheGauge.Update(int64(ticherCache.GetUsage()))
