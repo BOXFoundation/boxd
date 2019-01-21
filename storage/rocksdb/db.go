@@ -6,16 +6,18 @@ package rocksdb
 
 import (
 	"io/ioutil"
+	"time"
 
 	"github.com/BOXFoundation/boxd/log"
 	storage "github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/metrics"
 	"github.com/tecbot/gorocksdb"
 )
 
 var logger = log.NewLogger("rocksdb")
 
 const number = 10
-const cache = 3 << 30
+const cachesize = 3 << 30
 
 func init() {
 	// register rocksdb impl
@@ -39,7 +41,8 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	blockBasedTableOptions := gorocksdb.NewDefaultBlockBasedTableOptions()
 	filter := gorocksdb.NewBloomFilter(number)
 	blockBasedTableOptions.SetFilterPolicy(filter)
-	blockBasedTableOptions.SetBlockCache(gorocksdb.NewLRUCache(cache))
+	cache := gorocksdb.NewLRUCache(cachesize)
+	blockBasedTableOptions.SetBlockCache(cache)
 
 	options.SetBlockBasedTableFactory(blockBasedTableOptions)
 	options.SetCreateIfMissing(true)
@@ -84,6 +87,18 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	}
 	// d.flushOptions.SetWait(true)
 	// d.writeOptions.SetSync(true)
+
+	go func() {
+		ticherCache := cache
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				metrics.MetricsRocksdbCacheGauge.Update(int64(ticherCache.GetUsage()))
+			}
+		}
+	}()
 
 	for i, cfhandler := range cfhandlers {
 		d.cfs[cfnames[i]] = cfhandler
