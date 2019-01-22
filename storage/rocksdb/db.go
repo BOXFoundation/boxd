@@ -43,13 +43,18 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	filter := gorocksdb.NewBloomFilter(number)
 	blockBasedTableOptions.SetFilterPolicy(filter)
 	blockBasedTableOptions.SetCacheIndexAndFilterBlocks(true)
+	blockBasedTableOptions.SetPinL0FilterAndIndexBlocksInCache(true)
+	blockBasedTableOptions.SetBlockSize(16 * 1024)
+
 	cache := gorocksdb.NewLRUCache(cachesize)
 	blockBasedTableOptions.SetBlockCache(cache)
 
 	options.SetBlockBasedTableFactory(blockBasedTableOptions)
 	options.SetCreateIfMissing(true)
 	options.SetCreateIfMissingColumnFamilies(true)
-	options.SetMaxBackgroundFlushes(4)
+	options.SetMaxBackgroundFlushes(2)
+	options.SetMaxBackgroundCompactions(4)
+	options.SetBytesPerSync(1024 * 1024) // 1M
 	options.SetMaxOpenFiles(512)
 
 	prepare(name)
