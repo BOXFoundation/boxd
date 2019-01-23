@@ -33,15 +33,7 @@ const (
 	metricsLoopInterval = 1 * time.Second
 
 	// Note: reuse metrics ticker to save cost
-	orphanTxTTLMultiplier = 3600
-)
-
-var (
-	// max time to retain an orphan
-	// Orphan can't be stored forever, otherwise memory will be exhausted
-	orphanTxTTL = orphanTxTTLMultiplier * metricsLoopInterval
-
-	metricsTickSeq = 0
+	txTTL = 3600
 )
 
 var logger = log.NewLogger("txpool") // logger
@@ -111,6 +103,8 @@ func (tx_pool *TransactionPool) Run() error {
 	tx_pool.bus.SubscribeAsync(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg, true)
 
 	tx_pool.proc.Go(tx_pool.loop)
+
+	tx_pool.proc.Go(tx_pool.cleanExpiredTxsLoop)
 	return nil
 }
 
@@ -157,13 +151,7 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 					logger.Debugf("tx_pool info: %s", string([]rune(hashstr)[:len(hashstr)-1]))
 				}
 			}
-			metricsTickSeq++
-			if metricsTickSeq == orphanTxTTLMultiplier {
-				// loop around
-				metricsTickSeq = 0
-				// remove expired orphans if any
-				tx_pool.expireOrphans()
-			}
+
 		case txScript := <-tx_pool.newTxScriptCh:
 			go tx_pool.checkTxScript(txScript)
 		case <-p.Closing():
@@ -173,6 +161,24 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 			return
 		}
 	}
+}
+
+func (tx_pool *TransactionPool) cleanExpiredTxsLoop(parent goprocess.Process) {
+
+	goprocess.WithParent(parent).Go(
+		func(p goprocess.Process) {
+			ticker := time.NewTicker(txTTL)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					tx_pool.cleanExpiredTxs()
+				case <-p.Closing():
+					logger.Info("Quit cleanUpTxPool loop.")
+					return
+				}
+			}
+		})
 }
 
 // chain update message from blockchain: block connection/disconnection
@@ -642,15 +648,25 @@ func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	tx.IsScriptValid = true
 }
 
-func (tx_pool *TransactionPool) expireOrphans() {
+func (tx_pool *TransactionPool) cleanExpiredTxs() {
 	var expiredOrphans []*types.Transaction
+	var expiredTxs []*types.Transaction
 
 	now := time.Now()
 	tx_pool.hashToOrphanTx.Range(func(k, v interface{}) bool {
 		orphan := v.(*chain.TxWrap)
-		if now.After(time.Unix(orphan.AddedTimestamp, 0).Add(orphanTxTTL)) {
+		if now.After(time.Unix(orphan.AddedTimestamp, 0).Add(txTTL)) {
 			// Note: do not delete while range looping over map; delete after loop is over
 			expiredOrphans = append(expiredOrphans, orphan.Tx)
+		}
+		return true
+	})
+
+	tx_pool.hashToTx.Range(func(k, v interface{}) bool {
+		txWrap := v.(*chain.TxWrap)
+		if now.After(time.Unix(txWrap.AddedTimestamp, 0).Add(txTTL)) {
+			// Note: do not delete while range looping over map; delete after loop is over
+			expiredTxs = append(expiredTxs, txWrap.Tx)
 		}
 		return true
 	})
@@ -659,6 +675,12 @@ func (tx_pool *TransactionPool) expireOrphans() {
 		txHash, _ := expiredOrphan.TxHash()
 		logger.Debugf("Remove expired orphan %v", txHash)
 		tx_pool.removeOrphan(expiredOrphan)
+	}
+
+	for _, expiredTx := range expiredTxs {
+		txHash, _ := expiredTx.TxHash()
+		logger.Debugf("Remove expired tx %v", txHash)
+		tx_pool.removeTx(expiredTx, true)
 	}
 }
 
