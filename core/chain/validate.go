@@ -29,6 +29,7 @@ func VerifyBlockTimeOut(block *types.Block) error {
 		logger.Warnf("The block is timeout. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
 		return core.ErrBlockTimeOut
 	} else if now < block.Header.TimeStamp {
+		logger.Warnf("The block is a future block. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
 		return core.ErrFutureBlock
 	}
 	return nil
