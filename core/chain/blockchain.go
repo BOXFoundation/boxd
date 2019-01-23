@@ -268,7 +268,11 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
 	chain.chainLock.Lock()
-	defer chain.chainLock.Unlock()
+	defer func() {
+		chain.chainLock.Unlock()
+		atomic.StoreInt32(&chain.status, free)
+	}()
+
 	atomic.StoreInt32(&chain.status, busy)
 
 	t0 := time.Now().UnixNano()
@@ -329,7 +333,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return err
 	}
 
-	atomic.StoreInt32(&chain.status, free)
 	if chain.consensus.ValidateMiner() && fastConfirm {
 		go chain.consensus.BroadcastEternalMsgToMiners(block)
 		go chain.consensus.TryToUpdateEternalBlock(block)
