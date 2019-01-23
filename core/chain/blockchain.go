@@ -340,7 +340,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
-	logger.Infof("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
+	logger.Warnf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
 	if needToTracking((t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6) {
 		logger.Infof("Time tracking: t0` = %d t1` = %d t2` = %d", (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6)
@@ -417,7 +417,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
 	if block.Height <= chain.LongestChainHeight {
 		if block.Height > chain.eternal.Height {
-			logger.Infof("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
+			logger.Warnf("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
 				blockHash, block.Height, chain.LongestChainHeight)
 			// we can store the side chain block, But we should not go on the chain.
 			if err := chain.StoreBlock(block); err != nil {
@@ -756,7 +756,7 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 
 func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
 	dtt0 := time.Now().UnixNano()
-	logger.Infof("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Height)
+	logger.Debugf("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Height)
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
@@ -982,7 +982,7 @@ func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 	// chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Height
 	chain.tail = tail
-	logger.Infof("Change New Tail. Hash: %s Height: %d", tail.BlockHash().String(), tail.Height)
+	logger.Infof("Change New Tail. Hash: %s Height: %d txsNum: %d", tail.BlockHash().String(), tail.Height, len(tail.Txs))
 
 	metrics.MetricsBlockHeightGauge.Update(int64(tail.Height))
 	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))
@@ -1445,7 +1445,7 @@ func (chain *BlockChain) loadFilters() error {
 		}
 	}
 	utxoSet = nil
-	logger.Infof("bloom filter start cost: %v block count: %v", time.Since(start), chain.LongestChainHeight)
+	logger.Debugf("bloom filter start cost: %v block count: %v", time.Since(start), chain.LongestChainHeight)
 	return batch.Write()
 }
 
@@ -1486,7 +1486,7 @@ func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Tra
 // ListTokenIssueTransactions returns transactions which contains token issue info
 func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, []*types.BlockHeader, error) {
 	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
-	logger.Infof("%v blocks related to token issue", len(hashes))
+	logger.Debugf("%v blocks related to token issue", len(hashes))
 	var txs []*types.Transaction
 	var blockHeaders []*types.BlockHeader
 	for _, hash := range hashes {
@@ -1510,7 +1510,7 @@ func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, []*
 // GetTokenTransactions returns transactions history of a tokenID
 func (chain *BlockChain) GetTokenTransactions(tokenID *script.TokenID) ([]*types.Transaction, error) {
 	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenID.String()))
-	logger.Infof("%v blocks related to token %v", len(hashes), tokenID)
+	logger.Debugf("%v blocks related to token %v", len(hashes), tokenID)
 	var txs []*types.Transaction
 	for _, hash := range hashes {
 		block, err := chain.LoadBlockByHash(hash)
@@ -1700,7 +1700,7 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, batch storage.B
 				k := SplitAddrKey(addr.Hash())
 				batch.Put(k, dataBytes)
 				chain.splitAddrFilter.Add(addr.Hash())
-				logger.Infof("New Split Address created")
+				logger.Debugf("New Split Address created")
 			}
 		}
 	}
@@ -1719,7 +1719,7 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 				}
 				k := SplitAddrKey(addr.Hash())
 				batch.Del(k)
-				logger.Infof("Remove Split Address: %s", addr.String())
+				logger.Debugf("Remove Split Address: %s", addr.String())
 			}
 		}
 	}
