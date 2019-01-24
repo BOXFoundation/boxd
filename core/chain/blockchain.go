@@ -6,6 +6,7 @@ package chain
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -49,7 +50,7 @@ const (
 	MaxBlocksPerSync = 1024
 
 	metricsLoopInterval      = 500 * time.Millisecond
-	metricsUtxosLoopInterval = 200 * time.Second
+	metricsUtxosLoopInterval = 20 * time.Second
 	tokenIssueFilterKey      = "token_issue"
 	Threshold                = 32
 )
@@ -225,9 +226,13 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 			for {
 				select {
 				case <-ticker.C:
-					keys := chain.db.KeysWithPrefix(utxoBase.Bytes())
-					metrics.MetricsUtxoSizeCounter.Clear()
-					metrics.MetricsUtxoSizeCounter.Inc(int64(len(keys)))
+					ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					defer cancel()
+					i := 0
+					for range chain.db.IterKeysWithPrefix(ctx, utxoBase.Bytes()) {
+						i++
+					}
+					metrics.MetricsUtxoSizeGauge.Update(int64(i))
 				case <-p.Closing():
 					logger.Info("Quit metricsUtxos loop.")
 					return
@@ -1358,6 +1363,7 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 // is any
 func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoint]*types.UtxoWrap) bloom.Filter {
 	var vin, vout [][]byte
+	start := time.Now()
 	for _, tx := range block.Txs {
 		for _, out := range tx.Vout {
 			vout = append(vout, out.ScriptPubKey)
@@ -1371,22 +1377,25 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	}
 	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)
 	for _, scriptBytes := range vin {
+		// 把所有要用到的utxo加到filter里
 		filter.Add(scriptBytes)
 	}
 	for _, tx := range block.Txs {
 		for idx, out := range tx.Vout {
 			indexedBytes := out.ScriptPubKey
 			sc := script.NewScriptFromBytes(out.ScriptPubKey)
-			if sc.IsTokenIssue() || sc.IsTokenTransfer() {
+			scType := sc.CheckTokenBehavior()
+			switch scType {
+			case script.TokenIssue, script.TokenTransfer:
 				// token output: only store the p2pkh prefix part so we can retrieve it later
 				indexedBytes = *sc.P2PKHScriptPrefix()
-			} else if sc.IsSplitAddrScript() {
+			case script.SplitAddr:
 				// split address output: only store up to the hashed address part so we can retrieve it later
 				indexedBytes = *sc.GetSplitAddrScriptPrefix()
 			}
 			filter.Add(indexedBytes)
 			hash, _ := tx.TxHash()
-			if sc.IsTokenIssue() {
+			if scType == script.TokenIssue {
 				filter.Add([]byte(tokenIssueFilterKey))
 				tokenID := &script.TokenID{
 					OutPoint: types.OutPoint{
@@ -1395,13 +1404,15 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 					},
 				}
 				filter.Add([]byte(tokenID.String()))
-			} else if sc.IsTokenTransfer() {
+			} else if scType == script.TokenTransfer {
 				param, _ := sc.GetTransferParams()
 				filter.Add([]byte(param.TokenID.String()))
 			}
 		}
 	}
+	logger.Errorf("before log filter cost %v, %v", time.Since(start), len(block.Txs))
 	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
+	logger.Errorf("after log filter cost %v, %v", time.Since(start), len(block.Txs))
 	return filter
 }
 
