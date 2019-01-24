@@ -366,6 +366,8 @@ func NewTxWithFee(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
 	// get utxos
 	utxos, err := fetchUtxos(fromAcc.Addr(), amount+fee, peerAddr)
 	if err != nil {
+		err = fmt.Errorf("fetchUtxos error for %s amount %d: %s",
+			fromAcc.Addr(), amount+fee, err)
 		return
 	}
 	// NOTE: for test only
@@ -465,18 +467,25 @@ func addUtxoToCache(vins []*types.TxIn) {
 	}
 }
 
-func fetchUtxos(addr string, amount uint64, peerAddr string) ([]*rpcpb.Utxo, error) {
+func fetchUtxos(addr string, amount uint64, peerAddr string) (
+	utxos []*rpcpb.Utxo, err error) {
+
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-	utxos, err := client.FetchUtxos(conn, addr, amount)
-	if err != nil {
-		return nil, err
-	}
-	if len(utxos) == 0 {
-		return nil, fmt.Errorf("FundTransaction fetch 0 utxos")
+
+	for t := 0; t < 10; t++ {
+		utxos, err = client.FetchUtxos(conn, addr, amount)
+		if len(utxos) == 0 {
+			err = fmt.Errorf("fetch no utxo for %s amount %d", addr, amount)
+		}
+		if err == nil {
+			break
+		}
+		logger.Warn(err)
+		time.Sleep(300 * time.Millisecond)
 	}
 	return utxos, err
 }

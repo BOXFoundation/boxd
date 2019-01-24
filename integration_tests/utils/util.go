@@ -208,9 +208,7 @@ func GetIniKV(iniBuf, key string) string {
 func RemoveKeystoreFiles(addrs ...string) {
 	for _, v := range addrs {
 		path := walletDir + v + ".keystore"
-		if err := os.Remove(path); err != nil {
-			logger.Error(err)
-		}
+		os.Remove(path)
 	}
 	logger.Infof("remove %d keystore files", len(addrs))
 }

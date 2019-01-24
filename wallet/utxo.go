@@ -51,7 +51,8 @@ func FetchUtxosOf(addr string, total uint64, db storage.Table) ([]*rpcpb.Utxo, e
 	//
 	start := time.Now()
 	keys := db.KeysWithPrefix(utxoKey)
-	logger.Infof("get utxos keys[%d] for %s cost %v", len(keys), addr, time.Since(start))
+	logger.Infof("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
+		total, time.Since(start))
 	// fetch all utxos fir total equals to 0
 	if total == 0 {
 		utxos, err := makeUtxosFromDB(keys, db)
@@ -65,6 +66,7 @@ func FetchUtxosOf(addr string, total uint64, db storage.Table) ([]*rpcpb.Utxo, e
 	if err != nil {
 		return nil, err
 	}
+	logger.Infof("fetch utxos for %s amount %d get %d", addr, total, len(utxos))
 	// add utxos to LiveUtxoCache
 	for _, u := range utxos {
 		liveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
@@ -101,7 +103,7 @@ func fetchModerateUtxos(keys [][]byte, total uint64, db storage.Table) (
 func makeUtxosFromDB(keys [][]byte, db storage.Table) ([]*rpcpb.Utxo, error) {
 	ts := time.Now()
 	values, err := db.MultiGet(keys...)
-	logger.Infof("get utxos values[count=%d] cost %v", len(keys), time.Since(ts))
+	logger.Infof("get utxos values[%d] cost %v", len(keys), time.Since(ts))
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +147,7 @@ func selectUtxos(utxos []*rpcpb.Utxo, amount uint64) ([]*rpcpb.Utxo, uint64) {
 	// select
 	liveCache.Shrink()
 	i, total := 0, uint64(0)
-	for i < len(utxos) && total < amount {
+	for k := 0; k < len(utxos) && total < amount; k++ {
 		// filter utxos already in cache
 		if liveCache.Contains(txlogic.ConvPbOutPoint(utxos[i].OutPoint)) {
 			continue

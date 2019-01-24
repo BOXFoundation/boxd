@@ -71,8 +71,9 @@ func (b *BaseFmw) Run(handle HandleFunc) {
 }
 
 func (b *BaseFmw) doTest(index int, handle HandleFunc) {
+	handlerName := runtime.FuncForPC(reflect.ValueOf(handle).Pointer()).Name()
 	defer func() {
-		logger.Infof("done doTest[%d]", index)
+		logger.Infof("done doTest[%s#%d]", handlerName, index)
 		if x := recover(); x != nil {
 			utils.TryRecordError(fmt.Errorf("%v", x))
 		}
@@ -84,7 +85,7 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 	}
 	addrs := b.addrs[start:end]
 	idx := 0
-	logger.Infof("start doTest[%d]", index)
+	logger.Infof("start doTest[%s#%d]", handlerName, index)
 	addrsCh := make(chan []string)
 	if scopeValue(*scope) == continueScope {
 		go genAddrs(end-start, addrsCh)
@@ -92,7 +93,7 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 	times := 0
 	for {
 		if utils.Closing(b.quitCh[index]) {
-			logger.Infof("receive quit signal, quiting doTest[%d]!", index)
+			logger.Infof("receive quit signal, quiting doTest[%s#%d]!", handlerName, index)
 			return
 		}
 		if handle(addrs, &idx) {
@@ -108,7 +109,7 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 			}
 			select {
 			case <-b.quitCh[index]:
-				logger.Infof("receive quit signal, quiting doTest[%d]!", index)
+				logger.Infof("receive quit signal, quiting doTest[%s#%d]!", handlerName, index)
 				return
 			case addrs = <-addrsCh:
 			}
