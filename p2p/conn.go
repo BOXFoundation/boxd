@@ -385,6 +385,7 @@ func (conn *Conn) Close() error {
 	if _, ok := conn.peer.conns.Load(pid); ok {
 		conn.peer.conns.Delete(pid)
 	}
+	conn.pq.Close()
 	if conn.stream != nil {
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
 		addrs := conn.peer.table.peerStore.Addrs(pid)

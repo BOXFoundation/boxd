@@ -75,3 +75,11 @@ func (pq *PriorityMsgQueue) Push(item interface{}, p int) error {
 	}
 	return nil
 }
+
+// Close close the queue
+func (pq *PriorityMsgQueue) Close() {
+	for i := 0; i < len(pq.queues); i++ {
+		pq.queues[i] = nil
+	}
+	pq.notify = nil
+}
