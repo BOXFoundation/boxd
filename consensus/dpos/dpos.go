@@ -366,6 +366,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
 				if totalInputAmount == 0 {
 					// This can only occur when a tx's parent is removed from mempool but not written to utxo db yet
+					logger.Errorf("This can not occur totalInputAmount == 0, tx hash: %v", txHash)
 					continue
 				}
 				totalOutputAmount := txWrap.Tx.OutputAmount()
