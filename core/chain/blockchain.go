@@ -5,7 +5,7 @@
 package chain
 
 import (
-	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -49,7 +49,7 @@ const (
 	MaxBlocksPerSync = 1024
 
 	metricsLoopInterval      = 500 * time.Millisecond
-	metricsUtxosLoopInterval = 200 * time.Second
+	metricsUtxosLoopInterval = 20 * time.Second
 	tokenIssueFilterKey      = "token_issue"
 	Threshold                = 32
 )
@@ -134,12 +134,12 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 	b.LongestChainHeight = b.tail.Height
-	logger.Info("Begin to load bloom filter...")
-	if err = b.loadFilters(); err != nil {
-		logger.Error("Fail to load filters", err)
-		return nil, err
-	}
-	logger.Info("Finish Loading bloom filter...")
+	// logger.Info("Begin to load bloom filter...")
+	// if err = b.loadFilters(); err != nil {
+	// 	logger.Error("Fail to load filters", err)
+	// 	return nil, err
+	// }
+	// logger.Info("Finish Loading bloom filter...")
 
 	return b, nil
 }
@@ -225,9 +225,13 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 			for {
 				select {
 				case <-ticker.C:
-					keys := chain.db.KeysWithPrefix(utxoBase.Bytes())
-					metrics.MetricsUtxoSizeCounter.Clear()
-					metrics.MetricsUtxoSizeCounter.Inc(int64(len(keys)))
+					ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					defer cancel()
+					i := 0
+					for range chain.db.IterKeysWithPrefix(ctx, utxoBase.Bytes()) {
+						i++
+					}
+					metrics.MetricsUtxoSizeGauge.Update(int64(i))
 				case <-p.Closing():
 					logger.Info("Quit metricsUtxos loop.")
 					return
@@ -648,11 +652,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		return err
 	}
 	ttt2 := time.Now().UnixNano()
-	if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), batch, func() bloom.Filter {
-		return GetFilterForTransactionScript(blockCopy, utxoSet.utxoMap)
-	}); err != nil {
-		return err
-	}
+	// if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), batch, func() bloom.Filter {
+	// 	return GetFilterForTransactionScript(blockCopy, utxoSet.utxoMap)
+	// }); err != nil {
+	// 	return err
+	// }
 	ttt3 := time.Now().UnixNano()
 	// save candidate context
 	if err := chain.consensus.StoreCandidateContext(block, batch); err != nil {
@@ -777,7 +781,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	// batch.Del(BlockKey(block.BlockHash()))
 	batch.Del(BlockHashKey(block.Height))
 
-	chain.filterHolder.ResetFilters(block.Height)
+	// chain.filterHolder.ResetFilters(block.Height)
 	dtt3 := time.Now().UnixNano()
 	// save tx index
 	if err := chain.DelTxIndex(block, batch); err != nil {
@@ -898,31 +902,31 @@ func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, err
 	return result, nil
 }
 
-// LoadUtxoByAddress list all the available utxos owned by an address, including token utxos
-func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
-	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
-	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-	utxos := make(map[types.OutPoint]*types.UtxoWrap)
-	utxoSet := NewUtxoSet()
-	for _, hash := range blockHashes {
-		block, err := chain.LoadBlockByHash(hash)
-		if block != nil {
-			// Split tx outputs if any
-			chain.splitBlockOutputs(block)
+// // LoadUtxoByAddress list all the available utxos owned by an address, including token utxos
+// func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
+// 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
+// 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
+// 	utxos := make(map[types.OutPoint]*types.UtxoWrap)
+// 	utxoSet := NewUtxoSet()
+// 	for _, hash := range blockHashes {
+// 		block, err := chain.LoadBlockByHash(hash)
+// 		if block != nil {
+// 			// Split tx outputs if any
+// 			chain.splitBlockOutputs(block)
 
-			if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
-				return nil, err
-			}
-		}
+// 			if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
+// 				return nil, err
+// 			}
+// 		}
 
-	}
-	for key, value := range utxoSet.utxoMap {
-		if util.IsPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
-			utxos[key] = value
-		}
-	}
-	return utxos, nil
-}
+// 	}
+// 	for key, value := range utxoSet.utxoMap {
+// 		if util.IsPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
+// 			utxos[key] = value
+// 		}
+// 	}
+// 	return utxos, nil
+// }
 
 // LoadSpentUtxos loads UtxoWrap info of input outpoints
 func (chain *BlockChain) LoadSpentUtxos(outpoints []types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error) {
@@ -1451,90 +1455,91 @@ func (chain *BlockChain) loadFilters() error {
 
 // GetTransactionsByAddr search the main chain about transaction relate to give address
 func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Transaction, error) {
-	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
-	hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-	utxoSet := NewUtxoSet()
+	// payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
+	// hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
+	// utxoSet := NewUtxoSet()
 	var txs []*types.Transaction
-	for _, hash := range hashes {
-		block, err := chain.LoadBlockByHash(hash)
-		if err != nil {
-			return nil, err
-		}
-		for _, tx := range block.Txs {
-			isRelated := false
-			for index, vout := range tx.Vout {
-				if bytes.Equal(vout.ScriptPubKey, payToPubKeyHashScript) {
-					utxoSet.AddUtxo(tx, uint32(index), block.Height)
-					isRelated = true
-				}
-			}
-			for _, vin := range tx.Vin {
-				if utxoSet.FindUtxo(vin.PrevOutPoint) != nil {
-					delete(utxoSet.utxoMap, vin.PrevOutPoint)
-					isRelated = true
-				}
-			}
-			if isRelated {
-				txs = append(txs, tx)
-			}
-		}
-	}
-	utxoSet = nil
+	// for _, hash := range hashes {
+	// 	block, err := chain.LoadBlockByHash(hash)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	for _, tx := range block.Txs {
+	// 		isRelated := false
+	// 		for index, vout := range tx.Vout {
+	// 			if bytes.Equal(vout.ScriptPubKey, payToPubKeyHashScript) {
+	// 				utxoSet.AddUtxo(tx, uint32(index), block.Height)
+	// 				isRelated = true
+	// 			}
+	// 		}
+	// 		for _, vin := range tx.Vin {
+	// 			if utxoSet.FindUtxo(vin.PrevOutPoint) != nil {
+	// 				delete(utxoSet.utxoMap, vin.PrevOutPoint)
+	// 				isRelated = true
+	// 			}
+	// 		}
+	// 		if isRelated {
+	// 			txs = append(txs, tx)
+	// 		}
+	// 	}
+	// }
+	// utxoSet = nil
 	return txs, nil
 }
 
 // ListTokenIssueTransactions returns transactions which contains token issue info
+// TODO: issue token change to separate storage
 func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, []*types.BlockHeader, error) {
-	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
-	logger.Debugf("%v blocks related to token issue", len(hashes))
+	// hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
+	// logger.Debugf("%v blocks related to token issue", len(hashes))
 	var txs []*types.Transaction
 	var blockHeaders []*types.BlockHeader
-	for _, hash := range hashes {
-		block, err := chain.LoadBlockByHash(hash)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, tx := range block.Txs {
-			for _, vout := range tx.Vout {
-				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
-				if sc.IsTokenIssue() {
-					txs = append(txs, tx)
-					blockHeaders = append(blockHeaders, block.Header)
-				}
-			}
-		}
-	}
+	// for _, hash := range hashes {
+	// 	block, err := chain.LoadBlockByHash(hash)
+	// 	if err != nil {
+	// 		return nil, nil, err
+	// 	}
+	// 	for _, tx := range block.Txs {
+	// 		for _, vout := range tx.Vout {
+	// 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+	// 			if sc.IsTokenIssue() {
+	// 				txs = append(txs, tx)
+	// 				blockHeaders = append(blockHeaders, block.Header)
+	// 			}
+	// 		}
+	// 	}
+	// }
 	return txs, blockHeaders, nil
 }
 
 // GetTokenTransactions returns transactions history of a tokenID
 func (chain *BlockChain) GetTokenTransactions(tokenID *script.TokenID) ([]*types.Transaction, error) {
-	hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenID.String()))
-	logger.Debugf("%v blocks related to token %v", len(hashes), tokenID)
+	// hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenID.String()))
+	// logger.Debugf("%v blocks related to token %v", len(hashes), tokenID)
 	var txs []*types.Transaction
-	for _, hash := range hashes {
-		block, err := chain.LoadBlockByHash(hash)
-		if err != nil {
-			return nil, err
-		}
-		for _, tx := range block.Txs {
-			hash, _ := tx.TxHash()
-			for idx, vout := range tx.Vout {
-				sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
-				if sc.IsTokenIssue() && hash.IsEqual(&tokenID.Hash) && uint32(idx) == tokenID.Index {
-					txs = append(txs, tx)
-					break
-				}
-				if sc.IsTokenTransfer() {
-					params, _ := sc.GetTransferParams()
-					if params.Hash.IsEqual(&tokenID.Hash) && params.Index == tokenID.Index {
-						txs = append(txs, tx)
-						break
-					}
-				}
-			}
-		}
-	}
+	// for _, hash := range hashes {
+	// 	block, err := chain.LoadBlockByHash(hash)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	for _, tx := range block.Txs {
+	// 		hash, _ := tx.TxHash()
+	// 		for idx, vout := range tx.Vout {
+	// 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
+	// 			if sc.IsTokenIssue() && hash.IsEqual(&tokenID.Hash) && uint32(idx) == tokenID.Index {
+	// 				txs = append(txs, tx)
+	// 				break
+	// 			}
+	// 			if sc.IsTokenTransfer() {
+	// 				params, _ := sc.GetTransferParams()
+	// 				if params.Hash.IsEqual(&tokenID.Hash) && params.Index == tokenID.Index {
+	// 					txs = append(txs, tx)
+	// 					break
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 	return txs, nil
 }
 
