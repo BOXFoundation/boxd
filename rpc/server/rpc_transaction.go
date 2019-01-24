@@ -5,6 +5,7 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"math"
 
@@ -164,20 +165,15 @@ func (s *txServer) GetTokenBalance(
 func (s *txServer) getTokenBalance(
 	ctx context.Context, addr string, token *types.OutPoint) (
 	uint64, error) {
-
-	address, err := types.NewAddress(addr)
-	if err != nil {
-		return 0, err
-	}
-	utxos, err := s.server.GetChainReader().LoadUtxoByAddress(address)
+	utxos, err := s.server.GetWalletAgent().Utxos(addr, 0)
 	if err != nil {
 		return 0, err
 	}
 	var amount uint64
-	for outpoint, value := range utxos {
-		s := script.NewScriptFromBytes(value.Output.ScriptPubKey)
+	for _, utxo := range utxos {
+		s := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
 		if s.IsTokenIssue() {
-			if outpoint != *token {
+			if !bytes.Equal(utxo.OutPoint.Hash, token.Hash[:]) || utxo.OutPoint.Index != token.Index {
 				// token type not match
 				continue
 			}
