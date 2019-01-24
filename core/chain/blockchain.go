@@ -344,7 +344,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
-	logger.Warnf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
+	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
 	if needToTracking((t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6) {
 		logger.Infof("Time tracking: t0` = %d t1` = %d t2` = %d", (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6)

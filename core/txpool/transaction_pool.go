@@ -33,7 +33,7 @@ const (
 	metricsLoopInterval = 1 * time.Second
 
 	// Note: reuse metrics ticker to save cost
-	txTTL = 3600
+	txTTL = 3600 * time.Second
 )
 
 var logger = log.NewLogger("txpool") // logger
@@ -163,22 +163,19 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	}
 }
 
-func (tx_pool *TransactionPool) cleanExpiredTxsLoop(parent goprocess.Process) {
+func (tx_pool *TransactionPool) cleanExpiredTxsLoop(p goprocess.Process) {
 
-	goprocess.WithParent(parent).Go(
-		func(p goprocess.Process) {
-			ticker := time.NewTicker(txTTL)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					tx_pool.cleanExpiredTxs()
-				case <-p.Closing():
-					logger.Info("Quit cleanUpTxPool loop.")
-					return
-				}
-			}
-		})
+	ticker := time.NewTicker(txTTL)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			tx_pool.cleanExpiredTxs()
+		case <-p.Closing():
+			logger.Info("Quit cleanUpTxPool loop.")
+			return
+		}
+	}
 }
 
 // chain update message from blockchain: block connection/disconnection
