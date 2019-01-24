@@ -19,6 +19,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
+	"github.com/rs/cors"
 	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
 )
@@ -44,6 +45,7 @@ type Config struct {
 	HTTP       HTTPConfig `mapstructure:"http"`
 	GrpcLimits int        `mapstructure:"grpc_limits"`
 	HTTPLimits int        `mapstructure:"http_limits"`
+	HTTPCors   []string   `mapstructure:"http_cors"`
 }
 
 // HTTPConfig defines the address/port of rest api over http
@@ -265,11 +267,18 @@ func (s *Server) withHTTPLimits(h http.Handler) http.Handler {
 	}
 	httpCh := make(chan bool, httpLimit)
 
+	c := cors.New(cors.Options{
+		AllowedHeaders: []string{"Content-Type", "Accept"},
+		AllowedMethods: []string{"GET", "HEAD", "POST", "PUT", "DELETE"},
+		AllowedOrigins: s.cfg.HTTPCors,
+		MaxAge:         600,
+	})
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case httpCh <- true:
 			defer func() { <-httpCh }()
-			h.ServeHTTP(w, r)
+			c.Handler(h).ServeHTTP(w, r)
 		default:
 			serviceUnavailableHandler(w, r)
 		}

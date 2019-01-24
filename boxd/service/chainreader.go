@@ -26,7 +26,7 @@ type ChainReader interface {
 	GetBlockHeight() uint32
 	GetBlockHash(uint32) (*crypto.HashType, error)
 	LoadBlockByHash(crypto.HashType) (*types.Block, error)
-	LoadEternalBlock() (*types.Block, error)
+	EternalBlock() *types.Block
 
 	// address related search method
 	GetTransactionsByAddr(types.Address) ([]*types.Transaction, error)
