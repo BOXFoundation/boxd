@@ -1384,18 +1384,16 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 		for idx, out := range tx.Vout {
 			indexedBytes := out.ScriptPubKey
 			sc := script.NewScriptFromBytes(out.ScriptPubKey)
-			scType := sc.CheckTokenBehavior()
-			switch scType {
-			case script.TokenIssue, script.TokenTransfer:
+			if sc.IsTokenIssue() || sc.IsTokenTransfer() {
 				// token output: only store the p2pkh prefix part so we can retrieve it later
 				indexedBytes = *sc.P2PKHScriptPrefix()
-			case script.SplitAddr:
+			} else if sc.IsSplitAddrScript() {
 				// split address output: only store up to the hashed address part so we can retrieve it later
 				indexedBytes = *sc.GetSplitAddrScriptPrefix()
 			}
 			filter.Add(indexedBytes)
 			hash, _ := tx.TxHash()
-			if scType == script.TokenIssue {
+			if sc.IsTokenIssue() {
 				filter.Add([]byte(tokenIssueFilterKey))
 				tokenID := &script.TokenID{
 					OutPoint: types.OutPoint{
@@ -1404,7 +1402,7 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 					},
 				}
 				filter.Add([]byte(tokenID.String()))
-			} else if scType == script.TokenTransfer {
+			} else if sc.IsTokenTransfer() {
 				param, _ := sc.GetTransferParams()
 				filter.Add([]byte(param.TokenID.String()))
 			}
