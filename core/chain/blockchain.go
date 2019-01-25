@@ -225,7 +225,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 			for {
 				select {
 				case <-ticker.C:
-					ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), 18*time.Second)
 					defer cancel()
 					i := 0
 					for range chain.db.IterKeysWithPrefix(ctx, utxoBase.Bytes()) {
