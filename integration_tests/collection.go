@@ -5,6 +5,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -234,6 +235,9 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
+
+		bytes, _ := json.MarshalIndent(tx, "", "  ")
+		logger.Infof("tx: %s", string(bytes))
 	}
 	logger.Infof("complete to send tx from each to each")
 	// check balance

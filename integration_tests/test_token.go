@@ -96,10 +96,24 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	tag *txlogic.TokenTag, times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
+
+	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
+	defer conn.Close()
+
 	// issue some token
 	totalSupply := uint64(100000000)
 	txTotalAmount := totalSupply/2 + uint64(rand.Int63n(int64(totalSupply)/2))
 	logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
+
+	tx, tokenID, _, err := client.NewIssueTokenTx(conn, AddrToAcc[issuer], sender,
+		tag, totalSupply)
+	if err != nil {
+		logger.Panic(err)
+	}
+	if err := client.SendTransaction(conn, tx); err != nil {
+		logger.Panic(err)
+	}
+
 	tokenID := utils.IssueTokenTx(AddrToAcc[issuer], sender, tag, totalSupply, peerAddr)
 	atomic.AddUint64(txCnt, 1)
 
@@ -130,8 +144,6 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	// send token txs
 	logger.Infof("start to send %d token txs from %s to %s on %s",
 		times, sender, receiver, peerAddr)
-	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
-	defer conn.Close()
 	for _, tx := range txs {
 		if err := client.SendTransaction(conn, tx); err != nil {
 			logger.Panic(err)

@@ -98,6 +98,11 @@ func (s *txServer) FetchUtxos(
 	return newFetchUtxosResp(0, "ok", utxos...), nil
 }
 
+func (s *txServer) FetchTokenUtxos(
+	ctx context.Context, req *rpcpb.FetchUtxoReq) *rpcpb.FetchTokenUtxos {
+
+}
+
 func (s *txServer) GetTransactionPool(ctx context.Context, req *rpcpb.GetTransactionPoolRequest) (*rpcpb.GetTransactionsResponse, error) {
 	txs, _ := s.server.GetTxHandler().GetTransactionsInPool()
 	respTxs := []*corepb.Transaction{}

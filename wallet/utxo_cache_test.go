@@ -8,18 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 )
 
-func TestCount(t *testing.T) {
+func TestLiveUtxoCache(t *testing.T) {
 	cache := NewLiveUtxoCache(3)
 
 	n := 4
 	nonExists := make([]*types.OutPoint, 0, n)
 	for i := 0; i < n; i++ {
 		hash := hashFromUint64(uint64(i))
-		op := txlogic.NewOutPoint(&hash, uint32(i))
+		op := types.NewOutPoint(&hash, uint32(i))
 		cache.Add(op)
 		nonExists = append(nonExists, op)
 	}
@@ -38,7 +37,7 @@ func TestCount(t *testing.T) {
 	exists := make([]*types.OutPoint, 0, m)
 	for i := n - 1; i < n+m; i++ {
 		hash := hashFromUint64(uint64(i))
-		op := txlogic.NewOutPoint(&hash, uint32(i))
+		op := types.NewOutPoint(&hash, uint32(i))
 		cache.Add(op)
 		exists = append(exists, op)
 	}

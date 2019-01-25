@@ -70,7 +70,7 @@ func sendWebAPITestBlocks() {
 	proc.Signal(os.Interrupt)
 }
 
-func NoTestListenAndReadNewBlock(t *testing.T) {
+func TestListenAndReadNewBlock(t *testing.T) {
 	// start grpc server
 	starter.Do(setupWebAPIMockSvr)
 	// start send blocks goroutine
