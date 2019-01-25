@@ -7,10 +7,12 @@ package core
 // const defines constants
 const (
 	// subsidyReductionInterval is the interval of blocks before the subsidy is reduced.
-	SubsidyReductionInterval = 210000
+	SubsidyReductionInterval = 180 * 24 * 3600
 
 	// decimals is the number of digits after decimal point of value/amount
 	Decimals = 8
+
+	DuPerBox = 1e8
 
 	// MinCoinbaseScriptLen is the minimum length a coinbase script can be.
 	MinCoinbaseScriptLen = 2

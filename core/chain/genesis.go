@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -142,7 +143,7 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 			},
 			Vout: []*corepb.TxOut{
 				{
-					Value:        value,
+					Value:        value * core.DuPerBox,
 					ScriptPubKey: pkScript,
 				},
 			},
