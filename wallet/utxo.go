@@ -167,13 +167,37 @@ func selectUtxos(utxos []*rpcpb.Utxo, amount uint64) ([]*rpcpb.Utxo, uint64) {
 func parseOutPointFromDbKey(key []byte) (*types.OutPoint, error) {
 	segs := sk.NewKeyFromBytes(key).List()
 	if len(segs) < 4 {
-		return nil, fmt.Errorf("invalid address utxo storage key %s", string(key))
+		return nil, fmt.Errorf("invalid address utxo db key %s", string(key))
+	}
+	return parseOutPointFromKeys(segs[2:4])
+}
+
+func parseTokenIDFromDbKey(key []byte) (*txlogic.TokenID, error) {
+	segs := sk.NewKeyFromBytes(key).List()
+	if len(segs) != 6 {
+		return nil, fmt.Errorf("invalid address token utxo db key %s", string(key))
+	}
+	op, err := parseOutPointFromKeys(segs[2:4])
+	return *txlogic.TokenID(op), err
+}
+
+func parseTokenOutPoint(key []byte) (*txlogic.TokenID, error) {
+	segs := sk.NewKeyFromBytes(key).List()
+	if len(segs) != 6 {
+		return nil, fmt.Errorf("invalid address token utxo db key %s", string(key))
+	}
+	return parseOutPointFromKeys(segs[4:6])
+}
+
+func parseOutPointFromKeys(segs []string) (*types.OutPoint, error) {
+	if len(segs) < 2 {
+		return nil, fmt.Errorf("connot parse out point from keys %v", segs)
 	}
 	hash := new(crypto.HashType)
-	if err := hash.SetString(segs[2]); err != nil {
+	if err := hash.SetString(segs[0]); err != nil {
 		return nil, err
 	}
-	index, err := strconv.ParseUint(segs[3], 16, 32)
+	index, err := strconv.ParseUint(segs[1], 16, 32)
 	if err != nil {
 		return nil, err
 	}
