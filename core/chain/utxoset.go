@@ -275,13 +275,29 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			continue
 		}
 		utxoKey := UtxoKey(&outpoint)
+		var addrUtxoKey []byte
 		sc := *script.NewScriptFromBytes(utxoWrap.Output.ScriptPubKey)
 		addr, err := sc.ExtractAddress()
 		if err != nil {
 			logger.Warnf("Failed to extract address. Err: %v", err)
 			return err
 		}
-		addrUtxoKey := AddrUtxoKey(addr.String(), outpoint)
+		if sc.IsTokenTransfer() || sc.IsTokenIssue() {
+			var tokenID types.OutPoint
+			if sc.IsTokenTransfer() {
+				v, err := sc.GetTransferParams()
+				if err != nil {
+					logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
+				}
+				tokenID = v.OutPoint
+			} else {
+				tokenID = outpoint
+			}
+			addrUtxoKey = AddrTokenUtxoKey(addr.String(), tokenID, outpoint)
+		} else {
+			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+		}
+
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent {
 			batch.Del(utxoKey)

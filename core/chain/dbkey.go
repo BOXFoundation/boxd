@@ -75,6 +75,9 @@ const (
 	// AddressUtxoPrefix is the key prefix of database key to store address related utxo
 	AddressUtxoPrefix = "/aut"
 
+	// AddressTokenUtxoPrefix is the key prefix of database key to store address related token utxo
+	AddressTokenUtxoPrefix = "/atut"
+
 	// AddrBalancePrefix is the key prefix of database key to store address box balance
 	AddrBalancePrefix = "/bal"
 	// AddrTokenBalancePrefix is the key prefix of database key to store address token balance
@@ -89,6 +92,7 @@ var candidatesBase = key.NewKey(CandidatesPrefix)
 var filterBase = key.NewKey(FilterPrefix)
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
 var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
+var addrTokenUtxoBase = key.NewKey(AddressTokenUtxoPrefix)
 var addrBalanceBase = key.NewKey(AddrBalancePrefix)
 var addrTokenBalanceBase = key.NewKey(AddrTokenBalancePrefix)
 
@@ -187,6 +191,11 @@ func AddrUtxoKey(addr string, op types.OutPoint) []byte {
 		ChildString(op.Hash.String()).
 		ChildString(fmt.Sprintf("%x", op.Index)).
 		Bytes()
+}
+
+// AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
+func AddrTokenUtxoKey(addr string, tokenID, op types.OutPoint) []byte {
+	return addrTokenUtxoBase.ChildString(addr).ChildString(tokenID.Hash.String()).ChildString(fmt.Sprintf("%x", tokenID.Index)).ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
 }
 
 // AddrAllUtxoKey is the key prefix to explore all utxos of an address
