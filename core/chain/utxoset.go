@@ -283,11 +283,17 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			return err
 		}
 		if sc.IsTokenTransfer() || sc.IsTokenIssue() {
-			params, err := sc.GetTransferParams()
-			if err != nil {
-				logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
+			var tokenID types.OutPoint
+			if sc.IsTokenTransfer() {
+				v, err := sc.GetTransferParams()
+				if err != nil {
+					logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
+				}
+				tokenID = v.OutPoint
+			} else {
+				tokenID = outpoint
 			}
-			addrUtxoKey = AddrTokenUtxoKey(addr.String(), params.TokenID.OutPoint, outpoint)
+			addrUtxoKey = AddrTokenUtxoKey(addr.String(), tokenID, outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}
