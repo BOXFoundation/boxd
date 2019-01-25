@@ -22,6 +22,10 @@ import (
 
 var logger = log.NewLogger("rpcclient") // logger for client package
 
+func calcFee() uint64 {
+	return 100
+}
+
 // TransferParam wraps info of transfer target, type and amount
 type TransferParam struct {
 	addr    types.Address

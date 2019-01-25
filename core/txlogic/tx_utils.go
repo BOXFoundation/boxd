@@ -6,23 +6,21 @@ package txlogic
 
 import (
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
-// TokenTag defines token tag
-type TokenTag struct {
-	Name    string
-	Symbol  string
-	Decimal uint8
-}
+var logger = log.NewLogger("txlogic") // logger
 
 // SortByUTXOValue defines a type suited for sort
 type SortByUTXOValue []*rpcpb.Utxo
@@ -31,13 +29,71 @@ func (x SortByUTXOValue) Len() int           { return len(x) }
 func (x SortByUTXOValue) Less(i, j int) bool { return x[i].TxOut.Value < x[j].TxOut.Value }
 func (x SortByUTXOValue) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
-// NewTokenTag news a TokenTag
-func NewTokenTag(name, sym string, decimal uint8) *TokenTag {
-	return &TokenTag{
-		Name:    name,
-		Symbol:  sym,
-		Decimal: decimal,
+// SortByTokenUTXOValue defines a type suited for sort
+type SortByTokenUTXOValue []*rpcpb.Utxo
+
+func (x SortByTokenUTXOValue) Len() int      { return len(x) }
+func (x SortByTokenUTXOValue) Swap(i, j int) { x[i], x[j] = x[j], x[i] }
+func (x SortByTokenUTXOValue) Less(i, j int) bool {
+	vi, err := ParseTokenAmount(x[i].TxOut.GetScriptPubKey())
+	if err != nil {
+		logger.Warn(err)
 	}
+	vj, err := ParseTokenAmount(x[j].TxOut.GetScriptPubKey())
+	if err != nil {
+		logger.Warn(err)
+	}
+	return vi < vj
+}
+
+// ParseUtxoAmount parse amount from utxo and return amount, is token
+func ParseUtxoAmount(utxo *rpcpb.Utxo, tokenID *types.TokenID) (uint64, bool, error) {
+	scp := utxo.TxOut.GetScriptPubKey()
+	s := script.NewScriptFromBytes(scp)
+	if s.IsPayToPubKeyHash() {
+		return utxo.TxOut.GetValue(), false, nil
+	} else if s.IsTokenIssue() {
+		if *tokenID != types.TokenID(*ConvPbOutPoint(utxo.OutPoint)) {
+			return 0, true, fmt.Errorf("token id mismatch for issue: got %+v, want %+v",
+				ConvPbOutPoint(utxo.OutPoint), tokenID)
+		}
+		amount, err := ParseTokenAmount(scp)
+		return amount, true, err
+	} else if s.IsTokenTransfer() {
+		param, err := s.GetTransferParams()
+		if err != nil {
+			return 0, true, err
+		}
+		if *tokenID != types.TokenID(param.TokenID.OutPoint) {
+			return 0, true, fmt.Errorf("token id mismatch for transfer: got %+v, want %+v",
+				ConvPbOutPoint(utxo.OutPoint), tokenID)
+		}
+		return param.Amount, true, nil
+	} else {
+		return 0, false, errors.New("utxo not recognized")
+	}
+}
+
+// ParseTokenAmount parse token amount from script pubkey
+func ParseTokenAmount(spk []byte) (uint64, error) {
+	s := script.NewScriptFromBytes(spk)
+	var v uint64
+	if s.IsTokenIssue() {
+		param, err := s.GetIssueParams()
+		if err != nil {
+			return 0, err
+		}
+		v = param.TotalSupply
+	} else if s.IsTokenTransfer() {
+		param, err := s.GetTransferParams()
+		if err != nil {
+			return 0, err
+		}
+		v = param.Amount
+	} else {
+		return 0, errors.New("not token script pubkey")
+	}
+	return v, nil
 }
 
 // MakeVout makes txOut
@@ -80,6 +136,40 @@ func NewUtxoWrap(addr string, height uint32, value uint64) *types.UtxoWrap {
 	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
 
 	return types.NewUtxoWrap(value, addrScript, height)
+}
+
+// NewIssueTokenUtxoWrap makes a UtxoWrap
+func NewIssueTokenUtxoWrap(
+	addr string, tag *types.TokenTag, height uint32, value uint64,
+) (*types.UtxoWrap, error) {
+	vout, err := MakeIssueTokenVout(addr, tag, value)
+	if err != nil {
+		return nil, err
+	}
+	return &types.UtxoWrap{
+		Output:      vout,
+		BlockHeight: height,
+		IsCoinBase:  false,
+		IsModified:  true,
+		IsSpent:     false,
+	}, nil
+}
+
+// NewTokenUtxoWrap makes a UtxoWrap
+func NewTokenUtxoWrap(
+	addr string, tid *types.TokenID, height uint32, value uint64,
+) (*types.UtxoWrap, error) {
+	vout, err := MakeTokenVout(addr, tid, value)
+	if err != nil {
+		return nil, err
+	}
+	return &types.UtxoWrap{
+		Output:      vout,
+		BlockHeight: height,
+		IsCoinBase:  false,
+		IsModified:  true,
+		IsSpent:     false,
+	}, nil
 }
 
 // NewPbOutPoint constructs a OutPoint
@@ -125,14 +215,6 @@ func MakePbUtxo(op *types.OutPoint, uw *types.UtxoWrap) *rpcpb.Utxo {
 	}
 }
 
-// NewOutPoint constructs a OutPoint
-func NewOutPoint(hash *crypto.HashType, index uint32) *types.OutPoint {
-	return &types.OutPoint{
-		Hash:  *hash,
-		Index: index,
-	}
-}
-
 // SignTxWithUtxos sign tx with utxo
 func SignTxWithUtxos(
 	tx *types.Transaction, utxos []*rpcpb.Utxo, acc *acc.Account,
@@ -175,16 +257,50 @@ func ExtractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64, bool) {
 	return nil, 0, false
 }
 
+// MakeIssueTokenScript make issue token script for addr with supply and tokent ag
+func MakeIssueTokenScript(addr string, tag *types.TokenTag, supply uint64) ([]byte, error) {
+	address, err := types.NewAddress(addr)
+	if err != nil {
+		return nil, err
+	}
+	addrPkh, err := types.NewAddressPubKeyHash(address.Hash())
+	if err != nil {
+		return nil, err
+	}
+	issueParams := &script.IssueParams{
+		Name:        tag.Name,
+		Symbol:      tag.Symbol,
+		Decimals:    tag.Decimal,
+		TotalSupply: supply,
+	}
+	return *script.IssueTokenScript(addrPkh.Hash(), issueParams), nil
+}
+
+// MakeIssueTokenVout make issue token vout
+func MakeIssueTokenVout(addr string, tag *types.TokenTag, supply uint64) (*corepb.TxOut, error) {
+	spk, err := MakeIssueTokenScript(addr, tag, supply)
+	if err != nil {
+		return nil, err
+	}
+	return &corepb.TxOut{Value: 0, ScriptPubKey: spk}, nil
+}
+
 // MakeTokenVout make token tx vout
-func MakeTokenVout(addr string, tokenID *types.OutPoint, amount uint64) *corepb.TxOut {
-	address, _ := types.NewAddress(addr)
-	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
+func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.TxOut, error) {
+	address, err := types.NewAddress(addr)
+	if err != nil {
+		return nil, err
+	}
+	addrPkh, err := types.NewAddressPubKeyHash(address.Hash())
+	if err != nil {
+		return nil, err
+	}
 	transferParams := &script.TransferParams{}
 	transferParams.Hash = tokenID.Hash
 	transferParams.Index = tokenID.Index
 	transferParams.Amount = amount
 	addrScript := *script.TransferTokenScript(addrPkh.Hash(), transferParams)
-	return &corepb.TxOut{Value: dustLimit, ScriptPubKey: addrScript}
+	return &corepb.TxOut{Value: 0, ScriptPubKey: addrScript}, nil
 }
 
 // MakeSplitAddrVout make split addr vout

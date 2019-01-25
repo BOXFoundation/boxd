@@ -14,10 +14,14 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 	"google.golang.org/grpc"
 )
 
-const connTimeout = 30
+const (
+	connTimeout = 30
+	maxTokenFee = 1000
+)
 
 // GetBalance returns total amount of an address
 func GetBalance(conn *grpc.ClientConn, addresses []string) ([]uint64, error) {
@@ -52,6 +56,74 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 	return r.BoxPerByte, err
 }
 
+// NewIssueTokenTx new a issue token transaction
+func NewIssueTokenTx(conn *grpc.ClientConn, acc *acc.Account, to string,
+	tag *txlogic.TokenTag, supply uint64) (
+	*types.Transaction, *txlogic.TokenID, *rpcpb.Utxo, error) {
+
+	// fetch utxos for fee
+	inputAmt := uint64(0)
+	utxos, err := FetchUtxos(conn, acc.Addr(), maxTokenFee)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	for _, u := range utxos {
+		inputAmt += u.GetTxOut().GetValue()
+	}
+	// fee
+	fee := calcFee()
+	//
+	tx, tid, change, err := txlogic.NewIssueTokenTxWithUtxos(acc, utxos, to, tag, supply,
+		inputAmt-fee)
+	if err != nil {
+		logger.Warnf("new issue token tx with utxos from %s to %s tag %+v "+
+			"supply %d change %d with utxos: %+v error: %s", acc.Addr(), to, tag,
+			supply, inputAmt-fee, utxos, err)
+		return nil, nil, nil, err
+	}
+	return tx, tid, change, nil
+}
+
+// FundTokenTransaction gets the utxo of a public key containing a certain amount of box and token
+func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address,
+	token *txlogic.TokenID, boxAmount, tokenAmount uint64) (
+	*rpcpb.ListUtxosResponse, error) {
+	p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Script Value: %v", p2pkScript)
+	c := rpcpb.NewTransactionCommandClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
+	defer cancel()
+
+	tokenBudges := make([]*rpcpb.TokenAmount, 0)
+	if token != nil && tokenAmount > 0 {
+		outPointMsg, err := token.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		outPointPb, ok := outPointMsg.(*corepb.OutPoint)
+		if !ok {
+			return nil, fmt.Errorf("Invalid token outpoint")
+		}
+		tokenBudges = append(tokenBudges, &rpcpb.TokenAmount{
+			Token:  outPointPb,
+			Amount: tokenAmount,
+		})
+	}
+	r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
+		Addr:         addr.String(),
+		Amount:       boxAmount,
+		TokenBudgets: tokenBudges,
+	})
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("Result: %+v", r)
+	return r, nil
+}
+
 // FundTransaction gets the utxo of a public key
 func FundTransaction(conn *grpc.ClientConn, addr types.Address, amount uint64) (*rpcpb.ListUtxosResponse, error) {
 	//p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
@@ -81,45 +153,6 @@ type rpcTransactionHelper struct {
 
 func (r *rpcTransactionHelper) GetFee() (uint64, error) {
 	return GetFeePrice(r.conn)
-}
-
-// FundTokenTransaction gets the utxo of a public key containing a certain amount of box and token
-func FundTokenTransaction(conn *grpc.ClientConn, addr types.Address, token *types.OutPoint, boxAmount, tokenAmount uint64) (*rpcpb.ListUtxosResponse, error) {
-	//p2pkScript, err := getScriptAddressFromPubKeyHash(addr.Hash())
-	//if err != nil {
-	//	return nil, err
-	//}
-	//logger.Debugf("Script Value: %v", p2pkScript)
-	//c := rpcpb.NewTransactionCommandClient(conn)
-	//ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	//defer cancel()
-
-	//tokenBudges := make([]*rpcpb.TokenAmount, 0)
-	//if token != nil && tokenAmount > 0 {
-	//	outPointMsg, err := token.ToProtoMessage()
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//	outPointPb, ok := outPointMsg.(*corepb.OutPoint)
-	//	if !ok {
-	//		return nil, fmt.Errorf("Invalid token outpoint")
-	//	}
-	//	tokenBudges = append(tokenBudges, &rpcpb.TokenAmount{
-	//		Token:  outPointPb,
-	//		Amount: tokenAmount,
-	//	})
-	//}
-	//r, err := c.FundTransaction(ctx, &rpcpb.FundTransactionRequest{
-	//	Addr:         addr.String(),
-	//	Amount:       boxAmount,
-	//	TokenBudgets: tokenBudges,
-	//})
-	//if err != nil {
-	//	return nil, err
-	//}
-	//logger.Debugf("Result: %+v", r)
-	//return r, nil
-	return nil, nil
 }
 
 // CreateSplitAddrTransaction creates a split address using input param addrs and weight

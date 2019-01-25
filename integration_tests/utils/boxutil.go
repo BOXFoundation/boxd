@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -19,7 +18,6 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/wallet"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
-	lru "github.com/hashicorp/golang-lru"
 	"google.golang.org/grpc"
 )
 
@@ -424,10 +422,11 @@ func NewTxs(fromAcc *acc.Account, toAddr string, count int, peerAddr string) (
 			amount := aveAmt - fee
 			changeAmt = changeAmt - aveAmt
 			tx := new(types.Transaction)
-			tx, change, err = txlogic.NewTxWithUtxos(fromAcc, []*rpcpb.Utxo{change}, []string{toAddr},
-				[]uint64{amount}, changeAmt)
+			tx, change, err = txlogic.NewTxWithUtxos(fromAcc, []*rpcpb.Utxo{change},
+				[]string{toAddr}, []uint64{amount}, changeAmt)
 			if err != nil {
-				return
+				logger.Warn(err)
+				continue
 			}
 			txs = append(txs, tx)
 			transfer += amount
@@ -437,34 +436,6 @@ func NewTxs(fromAcc *acc.Account, toAddr string, count int, peerAddr string) (
 		txss = append(txss, txs)
 	}
 	return txss, transfer, totalFee, num, nil
-}
-
-var utxoCache *lru.Cache
-
-func init() {
-	utxoCache, _ = lru.New(1000000)
-}
-
-func checkDuplicateUtxos(utxos []*rpcpb.Utxo) {
-	for _, u := range utxos {
-		op := new(types.OutPoint)
-		if err := op.FromProtoMessage(u.OutPoint); err != nil {
-			logger.Panic(err)
-		}
-		if ok := utxoCache.Contains(*op); ok {
-			logger.Errorf("duplicate outpoint for utxo: %v", u)
-			os.Exit(1)
-		}
-	}
-}
-
-func addUtxoToCache(vins []*types.TxIn) {
-	for _, in := range vins {
-		if ok, _ := utxoCache.ContainsOrAdd(in.PrevOutPoint, struct{}{}); ok {
-			logger.Errorf("duplicate outpoint for vin: %v", in)
-			os.Exit(1)
-		}
-	}
 }
 
 func fetchUtxos(addr string, amount uint64, peerAddr string) (
@@ -490,32 +461,9 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) (
 	return utxos, err
 }
 
-// IssueTokenTx issues some token
-func IssueTokenTx(acc *acc.Account, toAddr string, tag *txlogic.TokenTag, totalSupply uint64,
-	peerAddr string) *types.OutPoint {
-	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
-	if err != nil {
-		logger.Panic(err)
-	}
-	defer conn.Close()
-	// create
-	fromAddress, err1 := types.NewAddress(acc.Addr())
-	toAddress, err2 := types.NewAddress(toAddr)
-	if err1 != nil || err2 != nil {
-		logger.Panicf("%v, %v", err1, err2)
-	}
-	tx, err := client.CreateTokenIssueTx(conn, fromAddress, toAddress, acc.PublicKey(),
-		tag.Name, tag.Symbol, uint64(totalSupply), tag.Decimal, acc)
-	if err != nil {
-		logger.Panic(err)
-	}
-	txHash, _ := tx.CalcTxHash()
-	return txlogic.NewOutPoint(txHash, 0)
-}
-
 // NewTokenTx new a token tx
 func NewTokenTx(acc *acc.Account, toAddrs []string, amounts []uint64,
-	tokenID *types.OutPoint, peerAddr string) (*types.Transaction, *rpcpb.Utxo,
+	tokenID *txlogic.TokenID, peerAddr string) (*types.Transaction, *rpcpb.Utxo,
 	*rpcpb.Utxo, error) {
 	fee := uint64(1000)
 	amount := fee + uint64(len(toAddrs)*tokenBoxAmt)
