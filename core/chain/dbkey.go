@@ -193,10 +193,9 @@ func AddrUtxoKey(addr string, op types.OutPoint) []byte {
 		Bytes()
 }
 
-// AddrTokenUtxoBase is the key to store an token utxo which belongs to the input param address
-func AddrTokenUtxoBase(addr, tokenID string, op types.OutPoint) []byte {
-	return addrTokenUtxoBase.ChildString(addr).ChildString(tokenID).ChildString(op.Hash.String()).
-		ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
+// AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
+func AddrTokenUtxoKey(addr string, tokenID, op types.OutPoint) []byte {
+	return addrTokenUtxoBase.ChildString(addr).ChildString(tokenID.Hash.String()).ChildString(fmt.Sprintf("%x", tokenID.Index)).ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
 }
 
 // AddrAllUtxoKey is the key prefix to explore all utxos of an address

@@ -287,7 +287,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			if err != nil {
 				logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
 			}
-			addrUtxoKey = AddrTokenUtxoBase(addr.String(), params.TokenID.String(), outpoint)
+			addrUtxoKey = AddrTokenUtxoKey(addr.String(), params.TokenID.OutPoint, outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}
