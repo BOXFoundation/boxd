@@ -7,7 +7,6 @@ package txlogic
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math"
 	"strings"
 
@@ -47,30 +46,24 @@ func (x SortByTokenUTXOValue) Less(i, j int) bool {
 }
 
 // ParseUtxoAmount parse amount from utxo and return amount, is token
-func ParseUtxoAmount(utxo *rpcpb.Utxo, tokenID *types.TokenID) (uint64, bool, error) {
+func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 	scp := utxo.TxOut.GetScriptPubKey()
 	s := script.NewScriptFromBytes(scp)
 	if s.IsPayToPubKeyHash() {
-		return utxo.TxOut.GetValue(), false, nil
+		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
-		if *tokenID != types.TokenID(*ConvPbOutPoint(utxo.OutPoint)) {
-			return 0, true, fmt.Errorf("token id mismatch for issue: got %+v, want %+v",
-				ConvPbOutPoint(utxo.OutPoint), tokenID)
-		}
+		tid := types.TokenID(*ConvPbOutPoint(utxo.OutPoint))
 		amount, err := ParseTokenAmount(scp)
-		return amount, true, err
+		return amount, &tid, err
 	} else if s.IsTokenTransfer() {
 		param, err := s.GetTransferParams()
 		if err != nil {
-			return 0, true, err
+			return 0, nil, err
 		}
-		if *tokenID != types.TokenID(param.TokenID.OutPoint) {
-			return 0, true, fmt.Errorf("token id mismatch for transfer: got %+v, want %+v",
-				ConvPbOutPoint(utxo.OutPoint), tokenID)
-		}
-		return param.Amount, true, nil
+		tid := types.TokenID(param.TokenID.OutPoint)
+		return param.Amount, &tid, nil
 	} else {
-		return 0, false, errors.New("utxo not recognized")
+		return 0, nil, errors.New("utxo not recognized")
 	}
 }
 

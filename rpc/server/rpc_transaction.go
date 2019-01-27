@@ -5,17 +5,15 @@
 package rpc
 
 import (
-	"bytes"
 	"context"
-	"math"
 	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/script"
 )
 
 func registerTransaction(s *Server) {
@@ -34,7 +32,7 @@ type txServer struct {
 	server GRPCServer
 }
 
-func newGetBalance(code int32, msg string, balances ...uint64) *rpcpb.GetBalanceResp {
+func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBalanceResp {
 	return &rpcpb.GetBalanceResp{
 		Code:     code,
 		Message:  msg,
@@ -50,19 +48,43 @@ func (s *txServer) GetBalance(
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
 		logger.Warn("get balance error ", ErrAPINotSupported)
-		return newGetBalance(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
+		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
 	}
 	balances := make([]uint64, len(req.GetAddrs()))
 	for i, addr := range req.Addrs {
-		amount, err := walletAgent.Balance(addr)
+		amount, err := walletAgent.Balance(addr, nil)
 		if err != nil {
 			logger.Warnf("get balance for %s error %s", addr, err)
-			return newGetBalance(-1, err.Error()), nil
+			return newGetBalanceResp(-1, err.Error()), nil
 		}
 		balances[i] = amount
 	}
 	logger.Infof("get balance for %v result: %v", req.Addrs, balances)
-	return newGetBalance(0, "ok", balances...), nil
+	return newGetBalanceResp(0, "ok", balances...), nil
+}
+
+func (s *txServer) GetTokenBalance(
+	ctx context.Context, req *rpcpb.GetTokenBalanceReq) (
+	*rpcpb.GetBalanceResp, error,
+) {
+	logger.Infof("get token balance req: %+v", req)
+	walletAgent := s.server.GetWalletAgent()
+	if walletAgent == nil {
+		logger.Warn("get token balance error ", ErrAPINotSupported)
+		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
+	}
+	balances := make([]uint64, len(req.GetAddrs()))
+	for i, addr := range req.Addrs {
+		tid := types.TokenID(*txlogic.ConvPbOutPoint(req.TokenID))
+		amount, err := walletAgent.Balance(addr, &tid)
+		if err != nil {
+			logger.Warnf("get token balance for %s error %s", addr, err)
+			return newGetBalanceResp(-1, err.Error()), nil
+		}
+		balances[i] = amount
+	}
+	logger.Infof("get balance for %v result: %v", req.Addrs, balances)
+	return newGetBalanceResp(0, "ok", balances...), nil
 }
 
 func newFetchUtxosResp(code int32, msg string, utxos ...*rpcpb.Utxo) *rpcpb.FetchUtxosResp {
@@ -76,31 +98,32 @@ func newFetchUtxosResp(code int32, msg string, utxos ...*rpcpb.Utxo) *rpcpb.Fetc
 // FetchUtxos fetch utxos from chain
 func (s *txServer) FetchUtxos(
 	ctx context.Context, req *rpcpb.FetchUtxosReq) (
-	*rpcpb.FetchUtxosResp, error,
-) {
+	*rpcpb.FetchUtxosResp, error) {
+
 	logger.Infof("fetch utxos req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
 		logger.Warn("fetch utxos error ", ErrAPINotSupported)
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
 	}
-	utxos, err := walletAgent.Utxos(req.GetAddr(), req.GetAmount())
+	tid := types.TokenID(*txlogic.ConvPbOutPoint(req.GetTokenID()))
+	utxos, err := walletAgent.Utxos(req.GetAddr(), &tid, req.GetAmount())
 	if err != nil {
-		logger.Warnf("fetch utxos for %s error %s", req.GetAddr(), err)
+		logger.Warnf("fetch utxos for %+v error %s", req, err)
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
 	total := uint64(0)
 	for _, u := range utxos {
-		total += u.TxOut.Value
+		amount, _, err := txlogic.ParseUtxoAmount(u)
+		if err != nil {
+			logger.Warnf("fetch utxos for %+v error %s", req, err)
+			continue
+		}
+		total += amount
 	}
-	logger.Infof("fetch utxos for %s return %d utxos total %d",
-		req.Addr, len(utxos), total)
+	logger.Infof("fetch utxos for %+v return %d utxos total %d",
+		req, len(utxos), total)
 	return newFetchUtxosResp(0, "ok", utxos...), nil
-}
-
-func (s *txServer) FetchTokenUtxos(
-	ctx context.Context, req *rpcpb.FetchUtxoReq) *rpcpb.FetchTokenUtxos {
-
 }
 
 func (s *txServer) GetTransactionPool(ctx context.Context, req *rpcpb.GetTransactionPoolRequest) (*rpcpb.GetTransactionsResponse, error) {
@@ -119,73 +142,6 @@ func (s *txServer) GetTransactionPool(ctx context.Context, req *rpcpb.GetTransac
 
 func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceRequest) (*rpcpb.GetFeePriceResponse, error) {
 	return &rpcpb.GetFeePriceResponse{BoxPerByte: 1}, nil
-}
-
-func (s *txServer) GetTokenBalance(
-	ctx context.Context, req *rpcpb.GetTokenBalanceRequest) (
-	*rpcpb.GetTokenBalanceResponse, error) {
-
-	token := &types.OutPoint{}
-	if err := token.FromProtoMessage(req.Token); err != nil {
-		return &rpcpb.GetTokenBalanceResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
-	}
-	balances := make([]uint64, 0, len(req.Addrs))
-	for i, addr := range req.Addrs {
-		amount, err := s.getTokenBalance(ctx, addr, token)
-		if err != nil {
-			return &rpcpb.GetTokenBalanceResponse{Code: -1, Message: err.Error()}, err
-		}
-		balances[i] = amount
-	}
-	return &rpcpb.GetTokenBalanceResponse{
-		Code:     0,
-		Message:  "ok",
-		Balances: balances,
-	}, nil
-}
-
-func (s *txServer) getTokenBalance(
-	ctx context.Context, addr string, token *types.OutPoint) (
-	uint64, error) {
-	walletAgent := s.server.GetWalletAgent()
-	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
-		logger.Warn("get balance error ", ErrAPINotSupported)
-		return 0, ErrAPINotSupported
-	}
-	utxos, err := walletAgent.Utxos(addr, 0)
-	if err != nil {
-		return 0, err
-	}
-	var amount uint64
-	for _, utxo := range utxos {
-		s := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
-		if s.IsTokenIssue() {
-			if !bytes.Equal(utxo.OutPoint.Hash, token.Hash[:]) || utxo.OutPoint.Index != token.Index {
-				// token type not match
-				continue
-			}
-			issueParam, err := s.GetIssueParams()
-			if err != nil {
-				return 0, err
-			}
-			amount += issueParam.TotalSupply * uint64(math.Pow10(int(issueParam.Decimals)))
-		}
-		if s.IsTokenTransfer() {
-			transferParam, err := s.GetTransferParams()
-			if err != nil {
-				return 0, err
-			}
-			if transferParam.OutPoint != *token {
-				// token type not match
-				continue
-			}
-			amount += transferParam.Amount
-		}
-	}
-	return amount, nil
 }
 
 func (s *txServer) SendTransaction(

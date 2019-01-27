@@ -140,22 +140,3 @@ func CreateTokenIssueTx(conn *grpc.ClientConn, fromAddress, toAddress types.Addr
 //	transaction.FromProtoMessage(tx)
 //	return transaction, nil
 //}
-
-// GetTokenBalance returns the token balance of a public key
-func GetTokenBalance(conn *grpc.ClientConn, addr string,
-	tokenTxHash crypto.HashType, tokenTxOutIdx uint32) (uint64, error) {
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	r, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceRequest{
-		Addrs: []string{addr},
-		Token: &corepb.OutPoint{
-			Hash:  tokenTxHash.GetBytes(),
-			Index: tokenTxOutIdx,
-		},
-	})
-	if err != nil {
-		return 0, err
-	}
-	return r.GetBalances()[0], nil
-}

@@ -182,7 +182,7 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid token address")
 		return
 	}
-	addr := args[0]
+	addrs := args[0:1]
 	//addr, err := types.NewAddress(args[0])
 	//if err != nil {
 	//	fmt.Println("Invalid address: ", args[0])
@@ -190,8 +190,8 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	//}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	balance, _ := client.GetTokenBalance(conn, addr, token.OutPoint().Hash,
-		uint32(token.OutPoint().Index))
+	tid := types.TokenID(token.OutPoint())
+	balance, _ := client.GetTokenBalance(conn, addrs, &tid)
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }
 
