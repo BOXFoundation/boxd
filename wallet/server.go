@@ -115,13 +115,13 @@ func (w *Server) Balance(addr string, tokenID *types.TokenID) (uint64, error) {
 }
 
 // Utxos returns all utxos of an address
-func (w *Server) Utxos(addr string, amount uint64, tokenID *types.TokenID) (
+func (w *Server) Utxos(addr string, tokenID *types.TokenID, amount uint64) (
 	[]*rpcpb.Utxo, error) {
 
 	if w.cfg == nil || !w.cfg.Enable {
 		return nil, fmt.Errorf("fetch utxos not supported for non-wallet node")
 	}
-	utxos, err := FetchUtxosOf(addr, amount, tokenID, w.table)
+	utxos, err := FetchUtxosOf(addr, tokenID, amount, w.table)
 	if err != nil {
 		logger.Warnf("Utxos for %s error %s", addr, err)
 		return nil, err

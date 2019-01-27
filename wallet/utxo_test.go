@@ -229,7 +229,7 @@ func walletUtxosSaveGetTest(
 					balanceGot)
 			}
 			// check utxos
-			utxosGot, err := FetchUtxosOf(addr, 0, tid, db)
+			utxosGot, err := FetchUtxosOf(addr, tid, 0, db)
 			if err != nil {
 				t.Error(err)
 			}
@@ -241,15 +241,19 @@ func walletUtxosSaveGetTest(
 			}
 			// check fetching partial utxos
 			t.Logf("fetch utxos for %d", balanceGot/2)
-			utxosGot, err = FetchUtxosOf(addr, balanceGot/2, tid, db)
+			utxosGot, err = FetchUtxosOf(addr, tid, balanceGot/2, db)
 			if err != nil {
 				t.Error(err)
 			}
 			total := uint64(0)
 			for _, u := range utxosGot {
-				amount, _, err := txlogic.ParseUtxoAmount(u, tid)
+				amount, tidR, err := txlogic.ParseUtxoAmount(u)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if (tid != nil && (tidR == nil || *tid != *tidR)) ||
+					(tid == nil && tidR != nil) {
+					t.Fatalf("token id want %+v, got %+v", tid, tidR)
 				}
 				total += amount
 			}

@@ -49,7 +49,7 @@ func filterTokenTransfer(raw []byte) bool {
 
 // BalanceFor returns balance amount of an address using balance index
 func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, error) {
-	utxos, err := FetchUtxosOf(addr, 0, tid, db)
+	utxos, err := FetchUtxosOf(addr, tid, 0, db)
 	logger.Infof("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
 		return 0, err
@@ -60,11 +60,16 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 			logger.Warnf("fetch utxos for %s error, utxo: %+v", addr, u)
 			continue
 		}
-		n, _, err := txlogic.ParseUtxoAmount(u, tid)
+		n, _, err := txlogic.ParseUtxoAmount(u)
 		if err != nil {
 			logger.Warnf("parse utxo %+v token %+v error: %s", u, tid, err)
 			continue
 		}
+		//if (tid != nil && (tidR == nil || *tid != *tidR)) ||
+		//	(tid == nil && tidR != nil) {
+		//	logger.Errorf("BalanceFor %s token id %+v got error utxos %+v", u)
+		//	continue
+		//}
 		balance += n
 	}
 	return balance, nil
@@ -74,7 +79,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 // NOTE: if total is 0, fetch all utxos
 // NOTE: if tokenID is nil, fetch box utxos
 func FetchUtxosOf(
-	addr string, total uint64, tid *types.TokenID, db storage.Table,
+	addr string, tid *types.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	var utxoKey []byte
@@ -97,7 +102,7 @@ func FetchUtxosOf(
 		return utxos, nil
 	}
 	// fetch moderate utxos by adjustint to total
-	utxos, err := fetchModerateUtxos(keys, total, tid, db)
+	utxos, err := fetchModerateUtxos(keys, tid, total, db)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +116,7 @@ func FetchUtxosOf(
 }
 
 func fetchModerateUtxos(
-	keys [][]byte, total uint64, tid *types.TokenID, db storage.Table,
+	keys [][]byte, tid *types.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	result := make([]*rpcpb.Utxo, 0)
@@ -222,9 +227,14 @@ func selectUtxos(
 
 	total := uint64(0)
 	for _, u := range utxos {
-		amount, _, err := txlogic.ParseUtxoAmount(u, tid)
+		amount, tidR, err := txlogic.ParseUtxoAmount(u)
 		if err != nil {
 			logger.Warn(err)
+			continue
+		}
+		if (tid != nil && (tidR == nil || *tid != *tidR)) ||
+			(tid == nil && tidR != nil) {
+			logger.Errorf("BalanceFor %s token id %+v got error utxos %+v", u)
 			continue
 		}
 		total += amount
@@ -246,7 +256,8 @@ func selectUtxos(
 		if liveCache.Contains(txlogic.ConvPbOutPoint(utxos[i].OutPoint)) {
 			continue
 		}
-		amount, _, _ := txlogic.ParseUtxoAmount(utxos[i], tid)
+		// have check tid and err in the front
+		amount, _, _ := txlogic.ParseUtxoAmount(utxos[i])
 		total += amount
 		i++
 	}

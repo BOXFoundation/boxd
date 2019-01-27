@@ -129,23 +129,23 @@ func (m *GetBalanceResp) GetBalances() []uint64 {
 	return nil
 }
 
-type GetTokenBalanceRequest struct {
-	Addrs []string     `protobuf:"bytes,1,rep,name=addrs,proto3" json:"addrs,omitempty"`
-	Token *pb.OutPoint `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+type GetTokenBalanceReq struct {
+	Addrs   []string     `protobuf:"bytes,1,rep,name=addrs,proto3" json:"addrs,omitempty"`
+	TokenID *pb.OutPoint `protobuf:"bytes,2,opt,name=tokenID,proto3" json:"tokenID,omitempty"`
 }
 
-func (m *GetTokenBalanceRequest) Reset()         { *m = GetTokenBalanceRequest{} }
-func (m *GetTokenBalanceRequest) String() string { return proto.CompactTextString(m) }
-func (*GetTokenBalanceRequest) ProtoMessage()    {}
-func (*GetTokenBalanceRequest) Descriptor() ([]byte, []int) {
+func (m *GetTokenBalanceReq) Reset()         { *m = GetTokenBalanceReq{} }
+func (m *GetTokenBalanceReq) String() string { return proto.CompactTextString(m) }
+func (*GetTokenBalanceReq) ProtoMessage()    {}
+func (*GetTokenBalanceReq) Descriptor() ([]byte, []int) {
 	return fileDescriptor_2cc4e03d2c28c490, []int{2}
 }
-func (m *GetTokenBalanceRequest) XXX_Unmarshal(b []byte) error {
+func (m *GetTokenBalanceReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *GetTokenBalanceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *GetTokenBalanceReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_GetTokenBalanceRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_GetTokenBalanceReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -155,102 +155,43 @@ func (m *GetTokenBalanceRequest) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return b[:n], nil
 	}
 }
-func (m *GetTokenBalanceRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetTokenBalanceRequest.Merge(m, src)
+func (m *GetTokenBalanceReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetTokenBalanceReq.Merge(m, src)
 }
-func (m *GetTokenBalanceRequest) XXX_Size() int {
+func (m *GetTokenBalanceReq) XXX_Size() int {
 	return m.Size()
 }
-func (m *GetTokenBalanceRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetTokenBalanceRequest.DiscardUnknown(m)
+func (m *GetTokenBalanceReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetTokenBalanceReq.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_GetTokenBalanceRequest proto.InternalMessageInfo
+var xxx_messageInfo_GetTokenBalanceReq proto.InternalMessageInfo
 
-func (m *GetTokenBalanceRequest) GetAddrs() []string {
+func (m *GetTokenBalanceReq) GetAddrs() []string {
 	if m != nil {
 		return m.Addrs
 	}
 	return nil
 }
 
-func (m *GetTokenBalanceRequest) GetToken() *pb.OutPoint {
+func (m *GetTokenBalanceReq) GetTokenID() *pb.OutPoint {
 	if m != nil {
-		return m.Token
-	}
-	return nil
-}
-
-type GetTokenBalanceResponse struct {
-	Code     int32    `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
-	Message  string   `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Balances []uint64 `protobuf:"varint,3,rep,packed,name=balances,proto3" json:"balances,omitempty"`
-}
-
-func (m *GetTokenBalanceResponse) Reset()         { *m = GetTokenBalanceResponse{} }
-func (m *GetTokenBalanceResponse) String() string { return proto.CompactTextString(m) }
-func (*GetTokenBalanceResponse) ProtoMessage()    {}
-func (*GetTokenBalanceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{3}
-}
-func (m *GetTokenBalanceResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetTokenBalanceResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetTokenBalanceResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetTokenBalanceResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetTokenBalanceResponse.Merge(m, src)
-}
-func (m *GetTokenBalanceResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetTokenBalanceResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetTokenBalanceResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetTokenBalanceResponse proto.InternalMessageInfo
-
-func (m *GetTokenBalanceResponse) GetCode() int32 {
-	if m != nil {
-		return m.Code
-	}
-	return 0
-}
-
-func (m *GetTokenBalanceResponse) GetMessage() string {
-	if m != nil {
-		return m.Message
-	}
-	return ""
-}
-
-func (m *GetTokenBalanceResponse) GetBalances() []uint64 {
-	if m != nil {
-		return m.Balances
+		return m.TokenID
 	}
 	return nil
 }
 
 type FetchUtxosReq struct {
-	Addr   string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	Amount uint64 `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	Addr    string       `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	TokenID *pb.OutPoint `protobuf:"bytes,2,opt,name=tokenID,proto3" json:"tokenID,omitempty"`
+	Amount  uint64       `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
 }
 
 func (m *FetchUtxosReq) Reset()         { *m = FetchUtxosReq{} }
 func (m *FetchUtxosReq) String() string { return proto.CompactTextString(m) }
 func (*FetchUtxosReq) ProtoMessage()    {}
 func (*FetchUtxosReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{4}
+	return fileDescriptor_2cc4e03d2c28c490, []int{3}
 }
 func (m *FetchUtxosReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -286,6 +227,13 @@ func (m *FetchUtxosReq) GetAddr() string {
 	return ""
 }
 
+func (m *FetchUtxosReq) GetTokenID() *pb.OutPoint {
+	if m != nil {
+		return m.TokenID
+	}
+	return nil
+}
+
 func (m *FetchUtxosReq) GetAmount() uint64 {
 	if m != nil {
 		return m.Amount
@@ -303,7 +251,7 @@ func (m *FetchUtxosResp) Reset()         { *m = FetchUtxosResp{} }
 func (m *FetchUtxosResp) String() string { return proto.CompactTextString(m) }
 func (*FetchUtxosResp) ProtoMessage()    {}
 func (*FetchUtxosResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{5}
+	return fileDescriptor_2cc4e03d2c28c490, []int{4}
 }
 func (m *FetchUtxosResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -361,7 +309,7 @@ func (m *GetRawTransactionRequest) Reset()         { *m = GetRawTransactionReque
 func (m *GetRawTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*GetRawTransactionRequest) ProtoMessage()    {}
 func (*GetRawTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{6}
+	return fileDescriptor_2cc4e03d2c28c490, []int{5}
 }
 func (m *GetRawTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -405,7 +353,7 @@ func (m *GetRawTransactionResponse) Reset()         { *m = GetRawTransactionResp
 func (m *GetRawTransactionResponse) String() string { return proto.CompactTextString(m) }
 func (*GetRawTransactionResponse) ProtoMessage()    {}
 func (*GetRawTransactionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{7}
+	return fileDescriptor_2cc4e03d2c28c490, []int{6}
 }
 func (m *GetRawTransactionResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -448,7 +396,7 @@ func (m *GetTransactionPoolRequest) Reset()         { *m = GetTransactionPoolReq
 func (m *GetTransactionPoolRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTransactionPoolRequest) ProtoMessage()    {}
 func (*GetTransactionPoolRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{8}
+	return fileDescriptor_2cc4e03d2c28c490, []int{7}
 }
 func (m *GetTransactionPoolRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -485,7 +433,7 @@ func (m *GetTransactionsResponse) Reset()         { *m = GetTransactionsResponse
 func (m *GetTransactionsResponse) String() string { return proto.CompactTextString(m) }
 func (*GetTransactionsResponse) ProtoMessage()    {}
 func (*GetTransactionsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{9}
+	return fileDescriptor_2cc4e03d2c28c490, []int{8}
 }
 func (m *GetTransactionsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -529,7 +477,7 @@ func (m *SendTransactionRequest) Reset()         { *m = SendTransactionRequest{}
 func (m *SendTransactionRequest) String() string { return proto.CompactTextString(m) }
 func (*SendTransactionRequest) ProtoMessage()    {}
 func (*SendTransactionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{10}
+	return fileDescriptor_2cc4e03d2c28c490, []int{9}
 }
 func (m *SendTransactionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -576,7 +524,7 @@ func (m *ListUtxosResponse) Reset()         { *m = ListUtxosResponse{} }
 func (m *ListUtxosResponse) String() string { return proto.CompactTextString(m) }
 func (*ListUtxosResponse) ProtoMessage()    {}
 func (*ListUtxosResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{11}
+	return fileDescriptor_2cc4e03d2c28c490, []int{10}
 }
 func (m *ListUtxosResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -640,7 +588,7 @@ func (m *GetFeePriceRequest) Reset()         { *m = GetFeePriceRequest{} }
 func (m *GetFeePriceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetFeePriceRequest) ProtoMessage()    {}
 func (*GetFeePriceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{12}
+	return fileDescriptor_2cc4e03d2c28c490, []int{11}
 }
 func (m *GetFeePriceRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -677,7 +625,7 @@ func (m *GetFeePriceResponse) Reset()         { *m = GetFeePriceResponse{} }
 func (m *GetFeePriceResponse) String() string { return proto.CompactTextString(m) }
 func (*GetFeePriceResponse) ProtoMessage()    {}
 func (*GetFeePriceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_2cc4e03d2c28c490, []int{13}
+	return fileDescriptor_2cc4e03d2c28c490, []int{12}
 }
 func (m *GetFeePriceResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -716,8 +664,7 @@ func (m *GetFeePriceResponse) GetBoxPerByte() uint64 {
 func init() {
 	proto.RegisterType((*GetBalanceReq)(nil), "rpcpb.GetBalanceReq")
 	proto.RegisterType((*GetBalanceResp)(nil), "rpcpb.GetBalanceResp")
-	proto.RegisterType((*GetTokenBalanceRequest)(nil), "rpcpb.GetTokenBalanceRequest")
-	proto.RegisterType((*GetTokenBalanceResponse)(nil), "rpcpb.GetTokenBalanceResponse")
+	proto.RegisterType((*GetTokenBalanceReq)(nil), "rpcpb.GetTokenBalanceReq")
 	proto.RegisterType((*FetchUtxosReq)(nil), "rpcpb.FetchUtxosReq")
 	proto.RegisterType((*FetchUtxosResp)(nil), "rpcpb.FetchUtxosResp")
 	proto.RegisterType((*GetRawTransactionRequest)(nil), "rpcpb.GetRawTransactionRequest")
@@ -733,55 +680,55 @@ func init() {
 func init() { proto.RegisterFile("transaction.proto", fileDescriptor_2cc4e03d2c28c490) }
 
 var fileDescriptor_2cc4e03d2c28c490 = []byte{
-	// 766 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x55, 0xcf, 0x4f, 0xdb, 0x48,
-	0x14, 0xc6, 0xf9, 0xc1, 0x2e, 0x2f, 0xfc, 0xca, 0x10, 0x82, 0x31, 0x90, 0x0d, 0x83, 0x58, 0x45,
-	0x1c, 0x62, 0x91, 0x3d, 0xac, 0xc4, 0x6a, 0x25, 0x94, 0x95, 0xc8, 0x65, 0x25, 0x22, 0x2f, 0xfb,
-	0x43, 0x7b, 0x41, 0x63, 0x7b, 0x48, 0x22, 0x12, 0x8f, 0xeb, 0x99, 0x14, 0xd3, 0xde, 0xfa, 0x17,
-	0x54, 0xea, 0x3f, 0xd5, 0x23, 0x52, 0x2f, 0x3d, 0x56, 0xd0, 0x3f, 0xa3, 0x87, 0xca, 0x63, 0xc7,
-	0x76, 0x12, 0x47, 0x6a, 0xab, 0xde, 0x3c, 0xf3, 0xde, 0x7c, 0xdf, 0x7b, 0xdf, 0xfb, 0x66, 0x0c,
-	0x65, 0xe1, 0x11, 0x87, 0x13, 0x4b, 0x0c, 0x98, 0xd3, 0x74, 0x3d, 0x26, 0x18, 0x2a, 0x7a, 0xae,
-	0xe5, 0x9a, 0xda, 0x69, 0x6f, 0x20, 0xfa, 0x63, 0xb3, 0x69, 0xb1, 0x91, 0xde, 0xbe, 0xfc, 0xef,
-	0x82, 0x8d, 0x1d, 0x9b, 0x04, 0x69, 0xba, 0xc9, 0x7c, 0x5b, 0xb7, 0x98, 0x47, 0x75, 0xd7, 0xd4,
-	0xcd, 0x21, 0xb3, 0x6e, 0xc3, 0x93, 0xda, 0x7e, 0x8f, 0xb1, 0xde, 0x90, 0xea, 0xc4, 0x1d, 0xe8,
-	0xc4, 0x71, 0x98, 0x90, 0xf9, 0x3c, 0x8a, 0xae, 0x5a, 0x6c, 0x34, 0x9a, 0xb0, 0xe0, 0x63, 0x58,
-	0xeb, 0x50, 0xd1, 0x26, 0x43, 0xe2, 0x58, 0xd4, 0xa0, 0xcf, 0x50, 0x05, 0x8a, 0xc4, 0xb6, 0x3d,
-	0xae, 0x2a, 0xf5, 0x7c, 0x63, 0xc5, 0x08, 0x17, 0xf8, 0x7f, 0x58, 0x4f, 0xa7, 0x71, 0x17, 0x21,
-	0x28, 0x58, 0xcc, 0xa6, 0xaa, 0x52, 0x57, 0x1a, 0x45, 0x43, 0x7e, 0x23, 0x15, 0x7e, 0x18, 0x51,
-	0xce, 0x49, 0x8f, 0xaa, 0xb9, 0xba, 0xd2, 0x58, 0x31, 0x26, 0x4b, 0xa4, 0xc1, 0x8f, 0x66, 0x78,
-	0x98, 0xab, 0xf9, 0x7a, 0xbe, 0x51, 0x30, 0xe2, 0x35, 0xfe, 0x07, 0xaa, 0x1d, 0x2a, 0xae, 0xd8,
-	0x2d, 0x75, 0x92, 0x3a, 0xc6, 0x94, 0x8b, 0xec, 0x5a, 0xd0, 0xcf, 0x50, 0x14, 0x41, 0xb2, 0xe4,
-	0x28, 0xb5, 0x36, 0x9b, 0x81, 0x06, 0xae, 0xd9, 0xbc, 0x1c, 0x8b, 0x2e, 0x1b, 0x38, 0xc2, 0x08,
-	0xc3, 0xd8, 0x82, 0x9d, 0x39, 0x5c, 0xee, 0x32, 0x87, 0xd3, 0xef, 0x58, 0xfc, 0x6f, 0xb0, 0x76,
-	0x41, 0x85, 0xd5, 0xff, 0x5b, 0xf8, 0x8c, 0x07, 0xfa, 0x21, 0x28, 0x04, 0x65, 0x4a, 0xe8, 0x15,
-	0x43, 0x7e, 0xa3, 0x2a, 0x2c, 0x93, 0x11, 0x1b, 0x3b, 0x42, 0x22, 0x17, 0x8c, 0x68, 0x85, 0x09,
-	0xac, 0xa7, 0x0f, 0x7f, 0xb5, 0xaa, 0x87, 0x50, 0x1c, 0x07, 0x47, 0x65, 0x55, 0xa5, 0x56, 0xa9,
-	0x29, 0x2d, 0xd3, 0x0c, 0xe0, 0x8c, 0x30, 0x82, 0x9b, 0xa0, 0x76, 0xa8, 0x30, 0xc8, 0xdd, 0x55,
-	0x62, 0xb0, 0x89, 0xbc, 0x08, 0x0a, 0x7d, 0xc2, 0xfb, 0x92, 0x6c, 0xd5, 0x90, 0xdf, 0xf8, 0x1c,
-	0x76, 0x33, 0xf2, 0x23, 0xd9, 0x8e, 0x20, 0x27, 0x7c, 0x99, 0x5e, 0x6a, 0x6d, 0x4d, 0x64, 0x4f,
-	0x27, 0xe6, 0x84, 0x8f, 0xf7, 0x24, 0x42, 0x6a, 0xb7, 0xcb, 0xd8, 0x30, 0xa2, 0xc4, 0xe7, 0xe1,
-	0x4c, 0x92, 0x20, 0x8f, 0xc1, 0x8f, 0x21, 0x2f, 0xfc, 0x70, 0xd4, 0x0b, 0xd0, 0x83, 0x38, 0xfe,
-	0x1d, 0xaa, 0x7f, 0x51, 0xc7, 0xce, 0x68, 0xe7, 0x8b, 0xaa, 0x7b, 0x01, 0xe5, 0x3f, 0x07, 0x5c,
-	0xc4, 0x8a, 0x7f, 0x83, 0x1d, 0x2a, 0x50, 0xb4, 0xe4, 0x30, 0xf3, 0x75, 0xa5, 0xb1, 0x66, 0x84,
-	0x8b, 0x64, 0x16, 0x85, 0x85, 0xb3, 0xa8, 0x00, 0xea, 0x50, 0x71, 0x41, 0x69, 0xd7, 0x1b, 0xc4,
-	0x26, 0xc7, 0xbf, 0xc2, 0xd6, 0xd4, 0x6e, 0x54, 0x53, 0x1d, 0x56, 0x4d, 0xe6, 0x5f, 0xbb, 0xd4,
-	0xbb, 0x36, 0xef, 0x45, 0x58, 0x5b, 0xc1, 0x00, 0x93, 0xf9, 0x5d, 0xea, 0xb5, 0xef, 0x05, 0x6d,
-	0x7d, 0x2a, 0x02, 0x4a, 0xb5, 0xf7, 0x07, 0x1b, 0x8d, 0x88, 0x63, 0xa3, 0x7f, 0x01, 0x92, 0xab,
-	0x8a, 0x2a, 0x51, 0x1d, 0x53, 0x97, 0x5c, 0xdb, 0xce, 0xd8, 0xe5, 0x2e, 0xde, 0x7f, 0xf5, 0xee,
-	0xe3, 0x9b, 0x5c, 0x15, 0x97, 0xf5, 0xe7, 0xa7, 0xba, 0xf0, 0xf5, 0x1e, 0x15, 0x91, 0xd1, 0xcf,
-	0x94, 0x93, 0x00, 0x38, 0x71, 0x6b, 0x0c, 0x3c, 0xe5, 0xfe, 0x18, 0x78, 0xda, 0xd6, 0x73, 0xc0,
-	0x37, 0x41, 0x58, 0x8a, 0x12, 0x00, 0xf7, 0x61, 0x63, 0x66, 0xa4, 0xe8, 0x20, 0xc2, 0xc9, 0x1e,
-	0xb5, 0xb6, 0x15, 0x85, 0xdb, 0x84, 0xc7, 0x8a, 0xe1, 0x43, 0x49, 0xb2, 0x87, 0xab, 0x11, 0x09,
-	0xa7, 0x8e, 0x9d, 0x7a, 0x56, 0x03, 0xa6, 0x97, 0x50, 0x9e, 0x73, 0x37, 0xfa, 0x29, 0x11, 0x23,
-	0xf3, 0x9e, 0x68, 0xf5, 0xc5, 0x09, 0x11, 0xf5, 0x91, 0xa4, 0x3e, 0xc0, 0x6a, 0x22, 0x9c, 0x47,
-	0xee, 0x66, 0xc8, 0x39, 0x6c, 0xcc, 0xbc, 0x47, 0x71, 0x9b, 0xd9, 0xef, 0x9f, 0x56, 0x5b, 0x14,
-	0x5e, 0xd0, 0x71, 0x8f, 0x0a, 0xf9, 0xf4, 0xa5, 0x86, 0x66, 0x41, 0x29, 0xe5, 0x2e, 0xb4, 0x9b,
-	0x20, 0xce, 0xf8, 0x50, 0xd3, 0xb2, 0x42, 0x11, 0xd1, 0x81, 0x24, 0xda, 0xc1, 0x28, 0x21, 0xba,
-	0xa1, 0xd4, 0x0d, 0x72, 0xc2, 0xce, 0xd0, 0xfc, 0x95, 0x47, 0x29, 0xd9, 0xb2, 0x5f, 0x83, 0xa9,
-	0xfe, 0x32, 0x9e, 0x04, 0xbc, 0x27, 0x69, 0xb7, 0xf1, 0x66, 0xaa, 0x3f, 0xdf, 0x65, 0x6c, 0x78,
-	0xa6, 0x9c, 0xb4, 0xd5, 0xb7, 0x8f, 0x35, 0xe5, 0xe1, 0xb1, 0xa6, 0x7c, 0x78, 0xac, 0x29, 0xaf,
-	0x9f, 0x6a, 0x4b, 0x0f, 0x4f, 0xb5, 0xa5, 0xf7, 0x4f, 0xb5, 0x25, 0x73, 0x59, 0xfe, 0xda, 0x7e,
-	0xf9, 0x1c, 0x00, 0x00, 0xff, 0xff, 0x32, 0x63, 0x53, 0x1f, 0x55, 0x07, 0x00, 0x00,
+	// 757 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x55, 0x4d, 0x4f, 0xdb, 0x48,
+	0x18, 0xc6, 0xf9, 0x80, 0xe5, 0x0d, 0x5f, 0x19, 0x42, 0x30, 0x06, 0xb2, 0x61, 0x10, 0x52, 0xc4,
+	0x21, 0x16, 0xd9, 0xc3, 0x4a, 0x48, 0x2b, 0xa1, 0xec, 0x0a, 0xb4, 0xd2, 0x4a, 0x44, 0x5e, 0x76,
+	0x59, 0xed, 0x05, 0x8d, 0xed, 0x21, 0x89, 0x48, 0x3c, 0xc6, 0x33, 0x29, 0xa6, 0xbd, 0xf5, 0x17,
+	0x54, 0xea, 0x9f, 0xea, 0x11, 0xa9, 0x97, 0x1e, 0x2b, 0xe8, 0xbd, 0x7f, 0xa1, 0xf2, 0xd8, 0xb1,
+	0x9d, 0xe0, 0xa8, 0xe5, 0xe6, 0xf1, 0xfb, 0xf8, 0x79, 0xde, 0xaf, 0x67, 0x0c, 0x65, 0xe1, 0x11,
+	0x87, 0x13, 0x4b, 0xf4, 0x99, 0xd3, 0x74, 0x3d, 0x26, 0x18, 0x2a, 0x7a, 0xae, 0xe5, 0x9a, 0xda,
+	0x51, 0xb7, 0x2f, 0x7a, 0x23, 0xb3, 0x69, 0xb1, 0xa1, 0xde, 0x3e, 0xff, 0xef, 0x94, 0x8d, 0x1c,
+	0x9b, 0x04, 0x30, 0xdd, 0x64, 0xbe, 0xad, 0x5b, 0xcc, 0xa3, 0xba, 0x6b, 0xea, 0xe6, 0x80, 0x59,
+	0x37, 0xe1, 0x97, 0xda, 0x4e, 0x97, 0xb1, 0xee, 0x80, 0xea, 0xc4, 0xed, 0xeb, 0xc4, 0x71, 0x98,
+	0x90, 0x78, 0x1e, 0x45, 0x97, 0x2c, 0x36, 0x1c, 0x8e, 0x55, 0xf0, 0x01, 0x2c, 0x9f, 0x51, 0xd1,
+	0x26, 0x03, 0xe2, 0x58, 0xd4, 0xa0, 0xb7, 0xa8, 0x02, 0x45, 0x62, 0xdb, 0x1e, 0x57, 0x95, 0x7a,
+	0xbe, 0xb1, 0x68, 0x84, 0x07, 0xfc, 0x3f, 0xac, 0xa4, 0x61, 0xdc, 0x45, 0x08, 0x0a, 0x16, 0xb3,
+	0xa9, 0xaa, 0xd4, 0x95, 0x46, 0xd1, 0x90, 0xcf, 0x48, 0x85, 0x85, 0x21, 0xe5, 0x9c, 0x74, 0xa9,
+	0x9a, 0xab, 0x2b, 0x8d, 0x45, 0x63, 0x7c, 0x44, 0x1a, 0xfc, 0x64, 0x86, 0x1f, 0x73, 0x35, 0x5f,
+	0xcf, 0x37, 0x0a, 0x46, 0x7c, 0xc6, 0xff, 0x02, 0x3a, 0xa3, 0xe2, 0x82, 0xdd, 0x50, 0xe7, 0x7b,
+	0x79, 0xa0, 0x43, 0x58, 0x10, 0x01, 0xf0, 0xcf, 0x3f, 0xa4, 0x42, 0xa9, 0xb5, 0xd6, 0x0c, 0x3a,
+	0xe0, 0x9a, 0xcd, 0xf3, 0x91, 0xe8, 0xb0, 0xbe, 0x23, 0x8c, 0x31, 0x00, 0x77, 0x61, 0xf9, 0x94,
+	0x0a, 0xab, 0xf7, 0x8f, 0xf0, 0x19, 0x0f, 0x28, 0x11, 0x14, 0x02, 0x16, 0x99, 0xf2, 0xa2, 0x21,
+	0x9f, 0x5f, 0x42, 0x88, 0xaa, 0x30, 0x4f, 0x86, 0x6c, 0xe4, 0x08, 0x35, 0x5f, 0x57, 0x1a, 0x05,
+	0x23, 0x3a, 0x61, 0x02, 0x2b, 0x69, 0xa1, 0x17, 0x37, 0x67, 0x0f, 0x8a, 0xa3, 0xe0, 0x53, 0xd9,
+	0x99, 0x52, 0xab, 0xd4, 0x94, 0x93, 0x6f, 0x06, 0x74, 0x46, 0x18, 0xc1, 0x4d, 0x50, 0xcf, 0xa8,
+	0x30, 0xc8, 0xdd, 0x45, 0xb2, 0x27, 0x06, 0xbd, 0x1d, 0x51, 0x2e, 0x02, 0xb1, 0x1e, 0xe1, 0x3d,
+	0x29, 0xb6, 0x64, 0xc8, 0x67, 0x7c, 0x02, 0x5b, 0x19, 0x78, 0xee, 0x32, 0x87, 0x53, 0xb4, 0x0f,
+	0x39, 0xe1, 0x4b, 0x78, 0xa9, 0xb5, 0x3e, 0x2e, 0x37, 0x0d, 0xcc, 0x09, 0x1f, 0x6f, 0x4b, 0x86,
+	0xd4, 0xdb, 0x0e, 0x63, 0x83, 0x48, 0x12, 0x9f, 0xc0, 0xe6, 0x64, 0x90, 0xc7, 0xe4, 0x07, 0x90,
+	0x17, 0x7e, 0x38, 0xb5, 0x19, 0xec, 0x41, 0x1c, 0xff, 0x06, 0xd5, 0xbf, 0xa9, 0x63, 0x67, 0x94,
+	0xf3, 0x43, 0xd9, 0xbd, 0x86, 0xf2, 0x5f, 0x7d, 0x2e, 0xe2, 0x8e, 0x4b, 0xe9, 0x97, 0x75, 0xbd,
+	0x02, 0x45, 0x2b, 0x1e, 0xe6, 0xb2, 0x11, 0x1e, 0x92, 0x59, 0x14, 0x66, 0xce, 0xa2, 0x22, 0xf7,
+	0xf5, 0x94, 0xd2, 0x8e, 0xd7, 0x97, 0xbb, 0x2a, 0x5b, 0xf2, 0x2b, 0xac, 0x4f, 0xbc, 0x8d, 0x72,
+	0xaa, 0xc3, 0x92, 0xc9, 0xfc, 0x2b, 0x97, 0x7a, 0x57, 0xe6, 0xbd, 0x08, 0x73, 0x2b, 0x18, 0x60,
+	0x32, 0xbf, 0x43, 0xbd, 0xf6, 0xbd, 0xa0, 0xad, 0xaf, 0x45, 0x40, 0xa9, 0xf2, 0x7e, 0x67, 0xc3,
+	0x21, 0x71, 0x6c, 0x74, 0x09, 0x90, 0x38, 0x0e, 0x55, 0xa2, 0x3c, 0x26, 0xbc, 0xaa, 0x6d, 0x64,
+	0xbc, 0xe5, 0x2e, 0xde, 0x79, 0xfb, 0xf1, 0xcb, 0xfb, 0x5c, 0x15, 0x97, 0xf5, 0x57, 0x47, 0xba,
+	0xf0, 0xf5, 0x2e, 0x15, 0x91, 0xd9, 0x8e, 0x95, 0x43, 0x74, 0x0d, 0xab, 0x53, 0x76, 0x43, 0x5b,
+	0x09, 0xcf, 0x94, 0x0d, 0x67, 0x49, 0xec, 0x49, 0x89, 0x6d, 0x5c, 0x4d, 0x24, 0xa4, 0x4b, 0x52,
+	0x3a, 0x97, 0x00, 0x89, 0x2b, 0xe2, 0x02, 0x26, 0x1c, 0x19, 0xb3, 0x4f, 0xda, 0xe7, 0x59, 0x01,
+	0xd7, 0x41, 0x58, 0x36, 0x3f, 0x20, 0xee, 0xc1, 0xea, 0xd4, 0xea, 0xa0, 0xdd, 0x88, 0x27, 0x7b,
+	0xa5, 0xb4, 0xf5, 0x28, 0xdc, 0x26, 0x3c, 0x9e, 0xcc, 0xb3, 0x12, 0x38, 0x75, 0xec, 0xd4, 0x2d,
+	0x1c, 0x28, 0xbd, 0x81, 0xf2, 0x33, 0x17, 0xa1, 0x9f, 0x93, 0x8e, 0x64, 0xfa, 0x51, 0xab, 0xcf,
+	0x06, 0x44, 0xd2, 0xfb, 0x52, 0x7a, 0x17, 0xab, 0x49, 0xf7, 0x3c, 0x72, 0x37, 0x25, 0x6e, 0x41,
+	0x29, 0xb5, 0x50, 0xe9, 0x19, 0x4d, 0xad, 0x9e, 0xa6, 0x65, 0x85, 0x22, 0xa9, 0x5d, 0x29, 0xb5,
+	0x89, 0x51, 0x22, 0x75, 0x4d, 0xa9, 0x1b, 0x60, 0x02, 0x11, 0x1e, 0xde, 0xbd, 0x93, 0x2e, 0x47,
+	0xa9, 0x0a, 0xb2, 0x2f, 0x00, 0xad, 0x96, 0x89, 0x88, 0xad, 0x88, 0xb7, 0xa5, 0xec, 0x06, 0x5e,
+	0x4b, 0xed, 0x87, 0xef, 0x32, 0x36, 0x38, 0x56, 0x0e, 0xdb, 0xea, 0x87, 0xc7, 0x9a, 0xf2, 0xf0,
+	0x58, 0x53, 0x3e, 0x3f, 0xd6, 0x94, 0x77, 0x4f, 0xb5, 0xb9, 0x87, 0xa7, 0xda, 0xdc, 0xa7, 0xa7,
+	0xda, 0x9c, 0x39, 0x2f, 0x7f, 0x4a, 0xbf, 0x7c, 0x0b, 0x00, 0x00, 0xff, 0xff, 0x58, 0x3d, 0xe8,
+	0x9d, 0x0f, 0x07, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -797,10 +744,10 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type TransactionCommandClient interface {
 	GetBalance(ctx context.Context, in *GetBalanceReq, opts ...grpc.CallOption) (*GetBalanceResp, error)
+	GetTokenBalance(ctx context.Context, in *GetTokenBalanceReq, opts ...grpc.CallOption) (*GetBalanceResp, error)
 	FetchUtxos(ctx context.Context, in *FetchUtxosReq, opts ...grpc.CallOption) (*FetchUtxosResp, error)
 	SendTransaction(ctx context.Context, in *SendTransactionRequest, opts ...grpc.CallOption) (*BaseResponse, error)
 	GetRawTransaction(ctx context.Context, in *GetRawTransactionRequest, opts ...grpc.CallOption) (*GetRawTransactionResponse, error)
-	GetTokenBalance(ctx context.Context, in *GetTokenBalanceRequest, opts ...grpc.CallOption) (*GetTokenBalanceResponse, error)
 	GetFeePrice(ctx context.Context, in *GetFeePriceRequest, opts ...grpc.CallOption) (*GetFeePriceResponse, error)
 	GetTransactionPool(ctx context.Context, in *GetTransactionPoolRequest, opts ...grpc.CallOption) (*GetTransactionsResponse, error)
 }
@@ -816,6 +763,15 @@ func NewTransactionCommandClient(cc *grpc.ClientConn) TransactionCommandClient {
 func (c *transactionCommandClient) GetBalance(ctx context.Context, in *GetBalanceReq, opts ...grpc.CallOption) (*GetBalanceResp, error) {
 	out := new(GetBalanceResp)
 	err := c.cc.Invoke(ctx, "/rpcpb.TransactionCommand/GetBalance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *transactionCommandClient) GetTokenBalance(ctx context.Context, in *GetTokenBalanceReq, opts ...grpc.CallOption) (*GetBalanceResp, error) {
+	out := new(GetBalanceResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.TransactionCommand/GetTokenBalance", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -849,15 +805,6 @@ func (c *transactionCommandClient) GetRawTransaction(ctx context.Context, in *Ge
 	return out, nil
 }
 
-func (c *transactionCommandClient) GetTokenBalance(ctx context.Context, in *GetTokenBalanceRequest, opts ...grpc.CallOption) (*GetTokenBalanceResponse, error) {
-	out := new(GetTokenBalanceResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.TransactionCommand/GetTokenBalance", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *transactionCommandClient) GetFeePrice(ctx context.Context, in *GetFeePriceRequest, opts ...grpc.CallOption) (*GetFeePriceResponse, error) {
 	out := new(GetFeePriceResponse)
 	err := c.cc.Invoke(ctx, "/rpcpb.TransactionCommand/GetFeePrice", in, out, opts...)
@@ -879,10 +826,10 @@ func (c *transactionCommandClient) GetTransactionPool(ctx context.Context, in *G
 // TransactionCommandServer is the server API for TransactionCommand service.
 type TransactionCommandServer interface {
 	GetBalance(context.Context, *GetBalanceReq) (*GetBalanceResp, error)
+	GetTokenBalance(context.Context, *GetTokenBalanceReq) (*GetBalanceResp, error)
 	FetchUtxos(context.Context, *FetchUtxosReq) (*FetchUtxosResp, error)
 	SendTransaction(context.Context, *SendTransactionRequest) (*BaseResponse, error)
 	GetRawTransaction(context.Context, *GetRawTransactionRequest) (*GetRawTransactionResponse, error)
-	GetTokenBalance(context.Context, *GetTokenBalanceRequest) (*GetTokenBalanceResponse, error)
 	GetFeePrice(context.Context, *GetFeePriceRequest) (*GetFeePriceResponse, error)
 	GetTransactionPool(context.Context, *GetTransactionPoolRequest) (*GetTransactionsResponse, error)
 }
@@ -905,6 +852,24 @@ func _TransactionCommand_GetBalance_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TransactionCommandServer).GetBalance(ctx, req.(*GetBalanceReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TransactionCommand_GetTokenBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTokenBalanceReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TransactionCommandServer).GetTokenBalance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.TransactionCommand/GetTokenBalance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TransactionCommandServer).GetTokenBalance(ctx, req.(*GetTokenBalanceReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -963,24 +928,6 @@ func _TransactionCommand_GetRawTransaction_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TransactionCommand_GetTokenBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTokenBalanceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TransactionCommandServer).GetTokenBalance(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.TransactionCommand/GetTokenBalance",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TransactionCommandServer).GetTokenBalance(ctx, req.(*GetTokenBalanceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TransactionCommand_GetFeePrice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetFeePriceRequest)
 	if err := dec(in); err != nil {
@@ -1026,6 +973,10 @@ var _TransactionCommand_serviceDesc = grpc.ServiceDesc{
 			Handler:    _TransactionCommand_GetBalance_Handler,
 		},
 		{
+			MethodName: "GetTokenBalance",
+			Handler:    _TransactionCommand_GetTokenBalance_Handler,
+		},
+		{
 			MethodName: "FetchUtxos",
 			Handler:    _TransactionCommand_FetchUtxos_Handler,
 		},
@@ -1036,10 +987,6 @@ var _TransactionCommand_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRawTransaction",
 			Handler:    _TransactionCommand_GetRawTransaction_Handler,
-		},
-		{
-			MethodName: "GetTokenBalance",
-			Handler:    _TransactionCommand_GetTokenBalance_Handler,
 		},
 		{
 			MethodName: "GetFeePrice",
@@ -1133,7 +1080,7 @@ func (m *GetBalanceResp) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetTokenBalanceRequest) Marshal() (dAtA []byte, err error) {
+func (m *GetTokenBalanceReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -1143,7 +1090,7 @@ func (m *GetTokenBalanceRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetTokenBalanceRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetTokenBalanceReq) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1163,61 +1110,15 @@ func (m *GetTokenBalanceRequest) MarshalTo(dAtA []byte) (int, error) {
 			i += copy(dAtA[i:], s)
 		}
 	}
-	if m.Token != nil {
+	if m.TokenID != nil {
 		dAtA[i] = 0x12
 		i++
-		i = encodeVarintTransaction(dAtA, i, uint64(m.Token.Size()))
-		n3, err := m.Token.MarshalTo(dAtA[i:])
+		i = encodeVarintTransaction(dAtA, i, uint64(m.TokenID.Size()))
+		n3, err := m.TokenID.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n3
-	}
-	return i, nil
-}
-
-func (m *GetTokenBalanceResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTokenBalanceResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Code != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintTransaction(dAtA, i, uint64(m.Code))
-	}
-	if len(m.Message) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintTransaction(dAtA, i, uint64(len(m.Message)))
-		i += copy(dAtA[i:], m.Message)
-	}
-	if len(m.Balances) > 0 {
-		dAtA5 := make([]byte, len(m.Balances)*10)
-		var j4 int
-		for _, num := range m.Balances {
-			for num >= 1<<7 {
-				dAtA5[j4] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j4++
-			}
-			dAtA5[j4] = uint8(num)
-			j4++
-		}
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintTransaction(dAtA, i, uint64(j4))
-		i += copy(dAtA[i:], dAtA5[:j4])
 	}
 	return i, nil
 }
@@ -1243,8 +1144,18 @@ func (m *FetchUtxosReq) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintTransaction(dAtA, i, uint64(len(m.Addr)))
 		i += copy(dAtA[i:], m.Addr)
 	}
+	if m.TokenID != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintTransaction(dAtA, i, uint64(m.TokenID.Size()))
+		n4, err := m.TokenID.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n4
+	}
 	if m.Amount != 0 {
-		dAtA[i] = 0x10
+		dAtA[i] = 0x18
 		i++
 		i = encodeVarintTransaction(dAtA, i, uint64(m.Amount))
 	}
@@ -1335,11 +1246,11 @@ func (m *GetRawTransactionResponse) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintTransaction(dAtA, i, uint64(m.Tx.Size()))
-		n6, err := m.Tx.MarshalTo(dAtA[i:])
+		n5, err := m.Tx.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n6
+		i += n5
 	}
 	return i, nil
 }
@@ -1411,11 +1322,11 @@ func (m *SendTransactionRequest) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintTransaction(dAtA, i, uint64(m.Tx.Size()))
-		n7, err := m.Tx.MarshalTo(dAtA[i:])
+		n6, err := m.Tx.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n7
+		i += n6
 	}
 	return i, nil
 }
@@ -1554,7 +1465,7 @@ func (m *GetBalanceResp) Size() (n int) {
 	return n
 }
 
-func (m *GetTokenBalanceRequest) Size() (n int) {
+func (m *GetTokenBalanceReq) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1566,32 +1477,9 @@ func (m *GetTokenBalanceRequest) Size() (n int) {
 			n += 1 + l + sovTransaction(uint64(l))
 		}
 	}
-	if m.Token != nil {
-		l = m.Token.Size()
+	if m.TokenID != nil {
+		l = m.TokenID.Size()
 		n += 1 + l + sovTransaction(uint64(l))
-	}
-	return n
-}
-
-func (m *GetTokenBalanceResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Code != 0 {
-		n += 1 + sovTransaction(uint64(m.Code))
-	}
-	l = len(m.Message)
-	if l > 0 {
-		n += 1 + l + sovTransaction(uint64(l))
-	}
-	if len(m.Balances) > 0 {
-		l = 0
-		for _, e := range m.Balances {
-			l += sovTransaction(uint64(e))
-		}
-		n += 1 + sovTransaction(uint64(l)) + l
 	}
 	return n
 }
@@ -1604,6 +1492,10 @@ func (m *FetchUtxosReq) Size() (n int) {
 	_ = l
 	l = len(m.Addr)
 	if l > 0 {
+		n += 1 + l + sovTransaction(uint64(l))
+	}
+	if m.TokenID != nil {
+		l = m.TokenID.Size()
 		n += 1 + l + sovTransaction(uint64(l))
 	}
 	if m.Amount != 0 {
@@ -2006,7 +1898,7 @@ func (m *GetBalanceResp) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetTokenBalanceRequest) Unmarshal(dAtA []byte) error {
+func (m *GetTokenBalanceReq) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2029,10 +1921,10 @@ func (m *GetTokenBalanceRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetTokenBalanceRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetTokenBalanceReq: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTokenBalanceRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetTokenBalanceReq: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2066,7 +1958,7 @@ func (m *GetTokenBalanceRequest) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Token", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -2090,184 +1982,13 @@ func (m *GetTokenBalanceRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Token == nil {
-				m.Token = &pb.OutPoint{}
+			if m.TokenID == nil {
+				m.TokenID = &pb.OutPoint{}
 			}
-			if err := m.Token.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.TokenID.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipTransaction(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthTransaction
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetTokenBalanceResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowTransaction
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTokenBalanceResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTokenBalanceResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
-			}
-			m.Code = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTransaction
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Code |= (int32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTransaction
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthTransaction
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Message = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType == 0 {
-				var v uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowTransaction
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					v |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				m.Balances = append(m.Balances, v)
-			} else if wireType == 2 {
-				var packedLen int
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowTransaction
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					packedLen |= (int(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				if packedLen < 0 {
-					return ErrInvalidLengthTransaction
-				}
-				postIndex := iNdEx + packedLen
-				if postIndex > l {
-					return io.ErrUnexpectedEOF
-				}
-				var elementCount int
-				var count int
-				for _, integer := range dAtA {
-					if integer < 128 {
-						count++
-					}
-				}
-				elementCount = count
-				if elementCount != 0 && len(m.Balances) == 0 {
-					m.Balances = make([]uint64, 0, elementCount)
-				}
-				for iNdEx < postIndex {
-					var v uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowTransaction
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						v |= (uint64(b) & 0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					m.Balances = append(m.Balances, v)
-				}
-			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Balances", wireType)
-			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTransaction(dAtA[iNdEx:])
@@ -2348,6 +2069,39 @@ func (m *FetchUtxosReq) Unmarshal(dAtA []byte) error {
 			m.Addr = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTransaction
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTransaction
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.TokenID == nil {
+				m.TokenID = &pb.OutPoint{}
+			}
+			if err := m.TokenID.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Amount", wireType)
 			}
