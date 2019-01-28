@@ -6,6 +6,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -43,6 +44,9 @@ func GetTokenBalance(
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
+	if tid == nil {
+		return nil, errors.New("token id cannot be empty")
+	}
 	pbTid := txlogic.ConvOutPoint((*types.OutPoint)(tid))
 	req, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceReq{
 		Addrs: addresses, TokenID: pbTid})
@@ -52,16 +56,27 @@ func GetTokenBalance(
 	return req.GetBalances(), nil
 }
 
+func newFetchUtxosReq(addr string, amount uint64) *rpcpb.FetchUtxosReq {
+	return &rpcpb.FetchUtxosReq{Addr: addr, Amount: amount}
+}
+
 // FetchUtxos fetch utxos from chain
-func FetchUtxos(conn *grpc.ClientConn, addr string, amount uint64) ([]*rpcpb.Utxo, error) {
+func FetchUtxos(
+	conn *grpc.ClientConn, addr string, amount uint64, tid *types.TokenID,
+) ([]*rpcpb.Utxo, error) {
+
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
-	req, err := c.FetchUtxos(ctx, &rpcpb.FetchUtxosReq{Addr: addr, Amount: amount})
+	req := newFetchUtxosReq(addr, amount)
+	if tid != nil {
+		req.TokenID = txlogic.ConvOutPoint((*types.OutPoint)(tid))
+	}
+	resp, err := c.FetchUtxos(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return req.GetUtxos(), nil
+	return resp.GetUtxos(), nil
 }
 
 // GetFeePrice gets the recommended mining fee price according to recent packed transactions
@@ -74,24 +89,37 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 }
 
 // NewIssueTokenTx new a issue token transaction
-func NewIssueTokenTx(conn *grpc.ClientConn, acc *acc.Account, to string,
-	tag *types.TokenTag, supply uint64) (
+func NewIssueTokenTx(
+	conn *grpc.ClientConn, acc *acc.Account, to string, tag *types.TokenTag, supply uint64) (
 	*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
-	inputAmt := uint64(0)
-	utxos, err := FetchUtxos(conn, acc.Addr(), maxTokenFee)
+	var (
+		utxos []*rpcpb.Utxo
+		err   error
+	)
+	for t := 0; t < 30; t++ {
+		utxos, err = FetchUtxos(conn, acc.Addr(), maxTokenFee, nil)
+		if len(utxos) == 0 {
+			err = fmt.Errorf("fetch no utxo for %s amount %d", acc.Addr(), maxTokenFee)
+		}
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	inputAmt := uint64(0)
 	for _, u := range utxos {
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	// fee
 	fee := calcFee()
 	//
-	tx, tid, change, err := txlogic.NewIssueTokenTxWithUtxos(acc, utxos, to, tag, supply,
-		inputAmt-fee)
+	tx, tid, change, err := txlogic.NewIssueTokenTxWithUtxos(acc, utxos, to, tag,
+		supply, inputAmt-fee)
 	if err != nil {
 		logger.Warnf("new issue token tx with utxos from %s to %s tag %+v "+
 			"supply %d change %d with utxos: %+v error: %s", acc.Addr(), to, tag,

@@ -5,7 +5,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -131,6 +130,7 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 				logger.Infof("receive quit signal %v, quiting HandleFunc[%d]!", s, idx)
 				return true
 			default:
+				time.Sleep(time.Second)
 			}
 		}
 		select {
@@ -235,9 +235,9 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
-
-		bytes, _ := json.MarshalIndent(tx, "", "  ")
-		logger.Infof("tx: %s", string(bytes))
+		//bytes, _ := json.MarshalIndent(tx, "", "  ")
+		//hash, _ := tx.CalcTxHash()
+		//logger.Infof("tx: %s, hash: %s", string(bytes), hash)
 	}
 	logger.Infof("complete to send tx from each to each")
 	// check balance
