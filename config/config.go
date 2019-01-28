@@ -81,31 +81,31 @@ func (c *Config) Prepare() {
 	}
 
 	// check log file configuration
-	for _, hook := range c.Log.Hooks {
-		if hook.Name == "file" || hook.Name == "filewithformatter" { // only check file logs
-			filename, ok := hook.Options["filename"]
-			if !ok {
-				logfile := filepath.Join(c.Workspace, "logs", c.Network, "box.log")
-				mkDirAll(filepath.Dir(logfile))
-				hook.Options["filename"] = logfile
-			} else if strV, ok := filename.(string); ok {
-				if filepath.IsAbs(strV) { // abs dir
-					mkDirAll(filepath.Dir(strV))
-				} else {
-					if strings.Contains(strV, "/") { // incorrect filename
-						fmt.Println("Incorrect log filename ", strV)
-						os.Exit(1)
-					}
-					if len(strV) == 0 {
-						strV = "box.log"
-					}
-					logfile := filepath.Join(c.Workspace, "logs", c.Network, strV)
-					mkDirAll(filepath.Dir(logfile))
-					hook.Options["filename"] = logfile
-				}
-			}
-		}
-	}
+	// for _, hook := range c.Log.Hooks {
+	// 	if hook.Name == "file" || hook.Name == "filewithformatter" { // only check file logs
+	// 		filename, ok := hook.Options["filename"]
+	// 		if !ok {
+	// 			logfile := filepath.Join(c.Workspace, "logs", c.Network, "box.log")
+	// 			mkDirAll(filepath.Dir(logfile))
+	// 			hook.Options["filename"] = logfile
+	// 		} else if strV, ok := filename.(string); ok {
+	// 			if filepath.IsAbs(strV) { // abs dir
+	// 				mkDirAll(filepath.Dir(strV))
+	// 			} else {
+	// 				if strings.Contains(strV, "/") { // incorrect filename
+	// 					fmt.Println("Incorrect log filename ", strV)
+	// 					os.Exit(1)
+	// 				}
+	// 				if len(strV) == 0 {
+	// 					strV = "box.log"
+	// 				}
+	// 				logfile := filepath.Join(c.Workspace, "logs", c.Network, strV)
+	// 				mkDirAll(filepath.Dir(logfile))
+	// 				hook.Options["filename"] = logfile
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	// database
 	dbpath := filepath.Join(c.Workspace, "database", c.Network)
