@@ -96,7 +96,7 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	// d.writeOptions.SetSync(true)
 
 	go func() {
-		ticherCache := cache
+		tickerCache := cache
 		rocks := d
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
@@ -121,9 +121,9 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 				}
 				// indexFilterMem := db.GetProperty("rocksdb.estimate-table-readers-mem")
 				// mmtMem := db.GetProperty("rocksdb.cur-size-all-mem-tables")
-				pinMem := cache.GetPinnedUsage()
-				logger.Errorf("mem usage = %v, %v, %v, %v", indexFilterMem, mmtMem, pinMem, ticherCache.GetUsage())
-				metrics.MetricsRocksdbCacheGauge.Update(int64(ticherCache.GetUsage()))
+				// pinMem := cache.GetPinnedUsage()
+				// logger.Errorf("mem usage = %v, %v, %v, %v", indexFilterMem, mmtMem, pinMem, ticherCache.GetUsage())
+				metrics.MetricsRocksdbCacheGauge.Update(int64(tickerCache.GetUsage()))
 			}
 		}
 	}()
