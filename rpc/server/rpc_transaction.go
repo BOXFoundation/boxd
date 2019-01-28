@@ -74,9 +74,9 @@ func (s *txServer) GetTokenBalance(
 		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
 	}
 	balances := make([]uint64, len(req.GetAddrs()))
+	tid := (*types.TokenID)(txlogic.ConvPbOutPoint(req.TokenID))
 	for i, addr := range req.Addrs {
-		tid := types.TokenID(*txlogic.ConvPbOutPoint(req.TokenID))
-		amount, err := walletAgent.Balance(addr, &tid)
+		amount, err := walletAgent.Balance(addr, tid)
 		if err != nil {
 			logger.Warnf("get token balance for %s error %s", addr, err)
 			return newGetBalanceResp(-1, err.Error()), nil
@@ -106,8 +106,11 @@ func (s *txServer) FetchUtxos(
 		logger.Warn("fetch utxos error ", ErrAPINotSupported)
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
 	}
-	tid := types.TokenID(*txlogic.ConvPbOutPoint(req.GetTokenID()))
-	utxos, err := walletAgent.Utxos(req.GetAddr(), &tid, req.GetAmount())
+	var tid *types.TokenID
+	if req.GetTokenID() != nil {
+		tid = (*types.TokenID)(txlogic.ConvPbOutPoint(req.GetTokenID()))
+	}
+	utxos, err := walletAgent.Utxos(req.GetAddr(), tid, req.GetAmount())
 	if err != nil {
 		logger.Warnf("fetch utxos for %+v error %s", req, err)
 		return newFetchUtxosResp(-1, err.Error()), nil

@@ -52,16 +52,16 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 	if s.IsPayToPubKeyHash() {
 		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
-		tid := types.TokenID(*ConvPbOutPoint(utxo.OutPoint))
+		tid := (*types.TokenID)(ConvPbOutPoint(utxo.OutPoint))
 		amount, err := ParseTokenAmount(scp)
-		return amount, &tid, err
+		return amount, tid, err
 	} else if s.IsTokenTransfer() {
 		param, err := s.GetTransferParams()
 		if err != nil {
 			return 0, nil, err
 		}
-		tid := types.TokenID(param.TokenID.OutPoint)
-		return param.Amount, &tid, nil
+		tid := (*types.TokenID)(&param.TokenID.OutPoint)
+		return param.Amount, tid, nil
 	} else {
 		return 0, nil, errors.New("utxo not recognized")
 	}
@@ -76,7 +76,7 @@ func ParseTokenAmount(spk []byte) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		v = param.TotalSupply
+		v = param.TotalSupply * uint64(math.Pow10(int(param.Decimals)))
 	} else if s.IsTokenTransfer() {
 		param, err := s.GetTransferParams()
 		if err != nil {
@@ -226,28 +226,6 @@ func SignTxWithUtxos(
 		tx.Vin[i].ScriptSig = *scriptSig
 	}
 	return nil
-}
-
-// ExtractTokenInfo extract token info from a utxo
-func ExtractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64, bool) {
-	script := script.NewScriptFromBytes(utxo.TxOut.ScriptPubKey)
-	if script.IsTokenIssue() {
-		issueParam, err := script.GetIssueParams()
-		if err == nil {
-			outHash := crypto.HashType{}
-			outHash.SetBytes(utxo.OutPoint.Hash)
-			return &types.OutPoint{Hash: outHash, Index: utxo.OutPoint.Index},
-				issueParam.TotalSupply * uint64(math.Pow10(int(issueParam.Decimals))),
-				true
-		}
-	}
-	if script.IsTokenTransfer() {
-		transferParam, err := script.GetTransferParams()
-		if err == nil {
-			return &transferParam.OutPoint, transferParam.Amount, true
-		}
-	}
-	return nil, 0, false
 }
 
 // MakeIssueTokenScript make issue token script for addr with supply and tokent ag

@@ -273,10 +273,10 @@ func WaitBalanceEqual(addr string, amount uint64, checkPeer string,
 }
 
 // WaitTokenBalanceEnough wait tokken balance of addr is more than amount
-func WaitTokenBalanceEnough(addr string, amount uint64, tokenID *types.OutPoint,
+func WaitTokenBalanceEnough(addr string, amount uint64, tid *types.TokenID,
 	checkPeer string, timeout time.Duration) (uint64, error) {
 	// return eagerly
-	b := TokenBalanceFor(addr, tokenID, checkPeer)
+	b := TokenBalanceFor(addr, tid, checkPeer)
 	if b >= amount {
 		return b, nil
 	}
@@ -287,7 +287,7 @@ func WaitTokenBalanceEnough(addr string, amount uint64, tokenID *types.OutPoint,
 	for i := 0; i < int(timeout/d); i++ {
 		select {
 		case <-t.C:
-			b = TokenBalanceFor(addr, tokenID, checkPeer)
+			b = TokenBalanceFor(addr, tid, checkPeer)
 			if b >= amount {
 				return b, nil
 			}
@@ -298,10 +298,10 @@ func WaitTokenBalanceEnough(addr string, amount uint64, tokenID *types.OutPoint,
 }
 
 // WaitTokenBalanceEqualTo wait token balance of addr equal to amount
-func WaitTokenBalanceEqualTo(addr string, amount uint64, tokenID *types.OutPoint,
+func WaitTokenBalanceEqualTo(addr string, amount uint64, tid *types.TokenID,
 	checkPeer string, timeout time.Duration) error {
 	// return eagerly
-	b := TokenBalanceFor(addr, tokenID, checkPeer)
+	b := TokenBalanceFor(addr, tid, checkPeer)
 	if b == amount {
 		return nil
 	}
@@ -312,29 +312,29 @@ func WaitTokenBalanceEqualTo(addr string, amount uint64, tokenID *types.OutPoint
 	for i := 0; i < int(timeout/d); i++ {
 		select {
 		case <-t.C:
-			b = TokenBalanceFor(addr, tokenID, checkPeer)
+			b = TokenBalanceFor(addr, tid, checkPeer)
 			if b == amount {
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("Timeout for waiting for %s token balance enough %d, now %d",
+	return fmt.Errorf("Timeout for waiting for %s token balance equal to %d, now %d",
 		addr, amount, b)
 }
 
 // TokenBalanceFor get token balance of addr
-func TokenBalanceFor(addr string, tokenID *types.OutPoint, peerAddr string) uint64 {
+func TokenBalanceFor(addr string, tid *types.TokenID, peerAddr string) uint64 {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		logger.Panic(err)
 	}
 	defer conn.Close()
 	// get balance
-	b, err := client.GetTokenBalance(conn, addr, tokenID.Hash, tokenID.Index)
+	b, err := client.GetTokenBalance(conn, []string{addr}, tid)
 	if err != nil {
 		logger.Panic(err)
 	}
-	return b
+	return b[0]
 }
 
 // NewTx new a tx and return change utxo
@@ -447,23 +447,25 @@ func fetchUtxos(addr string, amount uint64, peerAddr string) (
 	}
 	defer conn.Close()
 
-	for t := 0; t < 10; t++ {
-		utxos, err = client.FetchUtxos(conn, addr, amount)
+	for t := 0; t < 30; t++ {
+		utxos, err = client.FetchUtxos(conn, addr, amount, nil)
 		if len(utxos) == 0 {
 			err = fmt.Errorf("fetch no utxo for %s amount %d", addr, amount)
 		}
 		if err == nil {
 			break
 		}
-		logger.Warn(err)
 		time.Sleep(300 * time.Millisecond)
+	}
+	if err != nil {
+		logger.Warn(err)
 	}
 	return utxos, err
 }
 
 // NewTokenTx new a token tx
 func NewTokenTx(acc *acc.Account, toAddrs []string, amounts []uint64,
-	tokenID *txlogic.TokenID, peerAddr string) (*types.Transaction, *rpcpb.Utxo,
+	tid *types.TokenID, peerAddr string) (*types.Transaction, *rpcpb.Utxo,
 	*rpcpb.Utxo, error) {
 	fee := uint64(1000)
 	amount := fee + uint64(len(toAddrs)*tokenBoxAmt)
@@ -476,43 +478,49 @@ func NewTokenTx(acc *acc.Account, toAddrs []string, amounts []uint64,
 		return nil, nil, nil, err
 	}
 	defer conn.Close()
-	fromAddress, _ := types.NewAddress(acc.Addr())
-	resp, err := client.FundTokenTransaction(conn, fromAddress, tokenID, amount, amountT)
+	boxUtxos, err := client.FetchUtxos(conn, acc.Addr(), amount, nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return NewTokenTxWithUtxos(acc, toAddrs, amounts, tokenID, resp.GetUtxos())
+	tokenUtxos, err := client.FetchUtxos(conn, acc.Addr(), amountT, tid)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	utxos := append(boxUtxos, tokenUtxos...)
+	return NewTokenTxWithUtxos(acc, toAddrs, amounts, tid, utxos)
 }
 
 // NewTokenTxs new a token tx
 func NewTokenTxs(acc *acc.Account, toAddr string, amountT uint64, count int,
-	tokenID *types.OutPoint, peerAddr string) ([]*types.Transaction, error) {
+	tid *types.TokenID, peerAddr string) ([]*types.Transaction, error) {
 	// get utxo for some amount box and token
-	amount := (tokenTxFee + tokenBoxAmt) * uint64(count)
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-	fromAddress, _ := types.NewAddress(acc.Addr())
-	resp, err := client.FundTokenTransaction(conn, fromAddress, tokenID, amount,
-		amountT)
+
+	// get utxos
+	amount := tokenTxFee * uint64(count)
+	boxUtxos, err := client.FetchUtxos(conn, acc.Addr(), amount, nil)
 	if err != nil {
 		return nil, err
 	}
+	tokenUtxos, err := client.FetchUtxos(conn, acc.Addr(), amountT, tid)
+	if err != nil {
+		return nil, err
+	}
+	utxos := append(boxUtxos, tokenUtxos...)
+
 	//
-	var (
-		txs   []*types.Transaction
-		utxos []*rpcpb.Utxo
-	)
+	var txs []*types.Transaction
 	unitT := amountT / uint64(count)
-	utxos = resp.GetUtxos()
 	for i := 0; i < count; i++ {
 		if i == count-1 {
 			unitT = amountT - unitT*uint64(i)
 		}
 		tx, change, changeT, err := NewTokenTxWithUtxos(acc, []string{toAddr},
-			[]uint64{unitT}, tokenID, utxos)
+			[]uint64{unitT}, tid, utxos)
 		if err != nil {
 			return nil, err
 		}
@@ -524,19 +532,22 @@ func NewTokenTxs(acc *acc.Account, toAddr string, amountT uint64, count int,
 
 // NewTokenTxWithUtxos new a token tx
 func NewTokenTxWithUtxos(acc *acc.Account, toAddrs []string, amounts []uint64,
-	tokenID *types.OutPoint, utxos []*rpcpb.Utxo) (*types.Transaction,
+	tid *types.TokenID, utxos []*rpcpb.Utxo) (*types.Transaction,
 	*rpcpb.Utxo, *rpcpb.Utxo, error) {
 	// check amount
 	val, valT := uint64(0), uint64(0)
+
 	for _, u := range utxos {
-		outpoint, value, ok := txlogic.ExtractTokenInfo(u)
-		if !ok {
-			val += u.GetTxOut().GetValue()
+		amount, tidR, err := txlogic.ParseUtxoAmount(u)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if tidR == nil {
+			val += amount
+		} else if tid != nil && *tidR == *tid {
+			valT += amount
 		} else {
-			if *tokenID != *outpoint {
-				return nil, nil, nil, errors.New("token outpoint mismatch")
-			}
-			valT += value
+			logger.Errorf("utxo: %+v have wrong token id", u)
 		}
 	}
 	remain := val - uint64(len(toAddrs)) - tokenTxFee
@@ -560,7 +571,11 @@ func NewTokenTxWithUtxos(acc *acc.Account, toAddrs []string, amounts []uint64,
 	}
 	// vout for toAddrs
 	for i, toAddr := range toAddrs {
-		tx.Vout = append(tx.Vout, txlogic.MakeTokenVout(toAddr, tokenID, amounts[i]))
+		o, err := txlogic.MakeTokenVout(toAddr, tid, amounts[i])
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("make token vout error %s", err)
+		}
+		tx.Vout = append(tx.Vout, o)
 	}
 	// vout for change of fromAddress
 	changeIdx, changeTIdx := uint32(0), uint32(0)
@@ -570,7 +585,11 @@ func NewTokenTxWithUtxos(acc *acc.Account, toAddrs []string, amounts []uint64,
 	}
 	// vout for token change of fromAddress
 	if remainT > 0 {
-		tx.Vout = append(tx.Vout, txlogic.MakeTokenVout(acc.Addr(), tokenID, remainT))
+		o, err := txlogic.MakeTokenVout(acc.Addr(), tid, remainT)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("make token vout error %s", err)
+		}
+		tx.Vout = append(tx.Vout, o)
 		changeTIdx = uint32(len(tx.Vout)) - 1
 	}
 
@@ -592,9 +611,13 @@ func NewTokenTxWithUtxos(acc *acc.Account, toAddrs []string, amounts []uint64,
 		}
 	}
 	if remainT > 0 {
+		o, err := txlogic.MakeTokenVout(acc.Addr(), tid, remainT)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("make token vout error %s", err)
+		}
 		changeT = &rpcpb.Utxo{
 			OutPoint:    txlogic.NewPbOutPoint(txHash, changeTIdx),
-			TxOut:       txlogic.MakeTokenVout(acc.Addr(), tokenID, remainT),
+			TxOut:       o,
 			BlockHeight: 0,
 			IsCoinbase:  false,
 			IsSpent:     false,

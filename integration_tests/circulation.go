@@ -125,7 +125,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 					!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 					logger.Panic(err)
 				}
-				time.Sleep(2 * time.Millisecond)
+				time.Sleep(4 * time.Millisecond)
 				atomic.AddUint64(txCnt, 1)
 			}
 		}(txs)
