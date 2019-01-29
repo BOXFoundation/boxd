@@ -12,7 +12,7 @@ import (
 )
 
 func TestTxInConvertWithProtoMessage(t *testing.T) {
-	var prevOutPoint = NewOutPoint(crypto.HashType{0x0010})
+	var prevOutPoint = NewOutPoint(&crypto.HashType{0x0010}, 0)
 	txIn := NewTxIn(*prevOutPoint)
 	var txIn1 = &TxIn{}
 	msg, err := txIn.ToProtoMessage()
@@ -23,7 +23,7 @@ func TestTxInConvertWithProtoMessage(t *testing.T) {
 }
 
 func TestOutPointConvertWithProtoMessage(t *testing.T) {
-	outPoint := NewOutPoint(crypto.HashType{0x0011})
+	outPoint := NewOutPoint(&crypto.HashType{0x0011}, 0)
 	var outPoint1 = &OutPoint{}
 	msg, err := outPoint.ToProtoMessage()
 	ensure.Nil(t, err)
@@ -33,7 +33,7 @@ func TestOutPointConvertWithProtoMessage(t *testing.T) {
 }
 
 func TestTxConvertWithProtoMessage(t *testing.T) {
-	var prevOutPoint = NewOutPoint(crypto.HashType{0x0012})
+	var prevOutPoint = NewOutPoint(&crypto.HashType{0x0012}, 0)
 	var value uint64 = 111222
 	var lockTime int64 = 12345678900000000
 	tx := NewTransaction(*prevOutPoint, value, lockTime)

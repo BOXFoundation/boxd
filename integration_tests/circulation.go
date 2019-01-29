@@ -17,7 +17,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
-	"google.golang.org/grpc"
 )
 
 // Circulation manage circulation of transaction
@@ -91,15 +90,19 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
 	logger.Infof("start to construct txs from %s to %s %d times", fromAddr, toAddr, times)
 	start := time.Now()
-	txss, transfer, fee, count, err := utils.NewTxs(AddrToAcc[fromAddr], toAddr,
-		times, execPeer)
+	conn, err := client.GetGRPCConn(execPeer)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
+	defer conn.Close()
+	txss, transfer, fee, count, err := client.NewTxs(AddrToAcc[fromAddr], toAddr,
+		times, conn)
 	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
 	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {
 		logger.Panic(err)
 	}
-	conn, _ := grpc.Dial(execPeer, grpc.WithInsecure())
-	defer conn.Close()
 	var wg sync.WaitGroup
 	errChans := make(chan error, len(txss))
 	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)

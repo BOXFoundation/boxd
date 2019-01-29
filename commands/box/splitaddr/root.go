@@ -13,12 +13,9 @@ import (
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
-	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -63,56 +60,56 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number: expect odd number larger than or equal to 3")
 		return
 	}
-	addrs, weights, err := parseAddrWeight(args[1:])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	//addrs, weights, err := parseAddrWeight(args[1:])
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
 
-	wltMgr, err := wallet.NewWalletManager(walletDir)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	account, exists := wltMgr.GetAccount(args[0])
-	if !exists {
-		fmt.Printf("Account %s not managed\n", args[0])
-		return
-	}
-	passphrase, err := wallet.ReadPassphraseStdin()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if err := account.UnlockWithPassphrase(passphrase); err != nil {
-		fmt.Println("Fail to unlock account", err)
-		return
-	}
-	fromAddr, err := types.NewAddress(args[0])
-	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
-		return
-	}
-	target := make(map[types.Address]uint64)
-	target[fromAddr /* just a dummy value here */] = opReturnAmount
+	//wltMgr, err := wallet.NewWalletManager(walletDir)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//account, exists := wltMgr.GetAccount(args[0])
+	//if !exists {
+	//	fmt.Printf("Account %s not managed\n", args[0])
+	//	return
+	//}
+	//passphrase, err := wallet.ReadPassphraseStdin()
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//if err := account.UnlockWithPassphrase(passphrase); err != nil {
+	//	fmt.Println("Fail to unlock account", err)
+	//	return
+	//}
+	//fromAddr, err := types.NewAddress(args[0])
+	//if err != nil {
+	//	fmt.Println("Invalid address: ", args[0])
+	//	return
+	//}
+	//target := make(map[types.Address]uint64)
+	//target[fromAddr /* just a dummy value here */] = opReturnAmount
 
-	conn := client.NewConnectionWithViper(viper.GetViper())
-	defer conn.Close()
-	tx, err := client.CreateSplitAddrTransaction(conn, fromAddr, account.PublicKey(), addrs, weights, account)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	hash, _ := tx.TxHash()
-	fmt.Println("Tx Hash:", hash.String())
-	fmt.Println(util.PrettyPrint(tx))
+	//conn := client.NewConnectionWithViper(viper.GetViper())
+	//defer conn.Close()
+	//tx, err := client.CreateSplitAddrTransaction(conn, fromAddr, account.PublicKey(), addrs, weights, account)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//hash, _ := tx.TxHash()
+	//fmt.Println("Tx Hash:", hash.String())
+	//fmt.Println(util.PrettyPrint(tx))
 
-	splitAddr, err := getSplitAddr(tx.Vout[0].ScriptPubKey)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("Split address generated for `%s`: %v\n", args[1:], splitAddr)
+	//splitAddr, err := getSplitAddr(tx.Vout[0].ScriptPubKey)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//fmt.Printf("Split address generated for `%s`: %v\n", args[1:], splitAddr)
 }
 
 func parseAddrWeight(args []string) ([]types.Address, []uint64, error) {
