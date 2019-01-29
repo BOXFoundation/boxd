@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"math"
+	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/pb"
@@ -47,7 +48,7 @@ func (s *txServer) GetBalance(
 ) {
 	logger.Infof("get balance req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
-	if walletAgent == nil {
+	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
 		logger.Warn("get balance error ", ErrAPINotSupported)
 		return newGetBalance(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
 	}
@@ -79,7 +80,7 @@ func (s *txServer) FetchUtxos(
 ) {
 	logger.Infof("fetch utxos req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
-	if walletAgent == nil {
+	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
 		logger.Warn("fetch utxos error ", ErrAPINotSupported)
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
 	}
@@ -165,7 +166,12 @@ func (s *txServer) GetTokenBalance(
 func (s *txServer) getTokenBalance(
 	ctx context.Context, addr string, token *types.OutPoint) (
 	uint64, error) {
-	utxos, err := s.server.GetWalletAgent().Utxos(addr, 0)
+	walletAgent := s.server.GetWalletAgent()
+	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
+		logger.Warn("get balance error ", ErrAPINotSupported)
+		return 0, ErrAPINotSupported
+	}
+	utxos, err := walletAgent.Utxos(addr, 0)
 	if err != nil {
 		return 0, err
 	}
