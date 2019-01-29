@@ -12,7 +12,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
-	"google.golang.org/grpc"
 )
 
 // SplitAddrTest manage circulation of token
@@ -71,11 +70,15 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	weights := []uint64{1, 2, 3, 4}
 
 	// send box to sender
-	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
+	conn, err := client.GetGRPCConn(peerAddr)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
 	defer conn.Close()
 	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
-	senderTx, _, _, err := utils.NewTx(AddrToAcc[miner], []string{sender},
-		[]uint64{testAmount + splitFee}, peerAddr)
+	senderTx, _, _, err := client.NewTx(AddrToAcc[miner], []string{sender},
+		[]uint64{testAmount + splitFee}, conn)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -93,8 +96,8 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	// create split addr
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
-	splitTx, _, _, err := utils.NewSplitAddrTxWithFee(AddrToAcc[sender], receivers,
-		weights, splitFee, peerAddr)
+	splitTx, _, _, err := client.NewSplitAddrTxWithFee(AddrToAcc[sender], receivers,
+		weights, splitFee, conn)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -155,14 +158,16 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	//}
 
 	// transfer
-	txss, transfer, fee, count, err := utils.NewTxs(AddrToAcc[sender], addr, 1,
-		peerAddr)
+	conn, err := client.GetGRPCConn(peerAddr)
+	if err != nil {
+		logger.Panic(err)
+	}
+	defer conn.Close()
+	txss, transfer, fee, count, err := client.NewTxs(AddrToAcc[sender], addr, 1, conn)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
-	defer conn.Close()
 	for _, txs := range txss {
 		for _, tx := range txs {
 			//bytes, _ := json.MarshalIndent(tx, "", "  ")

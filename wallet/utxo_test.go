@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"reflect"
@@ -162,7 +163,7 @@ func newTestTokenUtxoSet(n int, addrs ...string) (types.UtxoMap, map[string]uint
 	outpoint := types.NewOutPoint(&hash, 0)
 
 	utxoMap[*outpoint] = issueUtxo
-	addrBalance[addr] += supply
+	addrBalance[addr] += supply * uint64(math.Pow10(int(tag.Decimal)))
 	addrUtxos[addr][*outpoint] = issueUtxo
 
 	for h := uint32(0); h < uint32(n); h++ {

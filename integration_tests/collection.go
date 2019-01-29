@@ -18,7 +18,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/client"
-	"google.golang.org/grpc"
 )
 
 // Collection manage transaction creation and collection
@@ -170,12 +169,15 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
 		c.minerAddr, peerAddr)
-	tx, _, _, err := utils.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
+	conn, err := client.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Panic(err)
 	}
-	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
 	defer conn.Close()
+	tx, _, _, err := client.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, conn)
+	if err != nil {
+		logger.Panic(err)
+	}
 	err = client.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
@@ -217,7 +219,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 				amountsSend[i] += amounts2[j]
 				amountsRecv[j] += amounts2[j]
 			}
-			tx, _, fee, err := utils.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
+			tx, _, fee, err := client.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
@@ -267,7 +269,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
 				i, addr, peerAddr)
 			fromAddr := addrs[i]
-			txss, transfer, _, _, err := utils.NewTxs(AddrToAcc[fromAddr], addr, count, peerAddr)
+			txss, transfer, _, _, err := client.NewTxs(AddrToAcc[fromAddr], addr, count, conn)
 			if err != nil {
 				logger.Panic(err)
 			}

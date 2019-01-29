@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/util"
@@ -96,19 +98,27 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	fromAddr, err := types.NewAddress(args[0])
+	_, err = types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 		return
 	}
 	conn := client.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.CreateTokenIssueTx(conn, fromAddr, toAddr, account.PublicKey(),
-		tokenName, tokenSymbol, uint64(tokenTotalSupply), uint8(tokenDecimals), account)
+
+	tag := types.NewTokenTag(tokenName, tokenSymbol, uint8(tokenDecimals))
+	tx, _, _, err := client.NewIssueTokenTx(account, toAddr.String(), tag,
+		uint64(tokenTotalSupply), conn)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	err = client.SendTransaction(conn, tx)
+	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
+		fmt.Println(err)
+		return
+	}
+
 	hash, _ := tx.TxHash()
 	tk := types.NewTokenFromOutpoint(types.OutPoint{
 		Hash:  *hash,
