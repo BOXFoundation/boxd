@@ -277,110 +277,6 @@ func (m *GetTransactionInfoRequest) GetHash() string {
 	return ""
 }
 
-type GetTopHoldersRequest struct {
-	Limit  uint32 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset uint32 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
-}
-
-func (m *GetTopHoldersRequest) Reset()         { *m = GetTopHoldersRequest{} }
-func (m *GetTopHoldersRequest) String() string { return proto.CompactTextString(m) }
-func (*GetTopHoldersRequest) ProtoMessage()    {}
-func (*GetTopHoldersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{5}
-}
-func (m *GetTopHoldersRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetTopHoldersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetTopHoldersRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetTopHoldersRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetTopHoldersRequest.Merge(m, src)
-}
-func (m *GetTopHoldersRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetTopHoldersRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetTopHoldersRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetTopHoldersRequest proto.InternalMessageInfo
-
-func (m *GetTopHoldersRequest) GetLimit() uint32 {
-	if m != nil {
-		return m.Limit
-	}
-	return 0
-}
-
-func (m *GetTopHoldersRequest) GetOffset() uint32 {
-	if m != nil {
-		return m.Offset
-	}
-	return 0
-}
-
-type GetTopHoldersResponse struct {
-	Total uint32           `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
-	Data  []*AddressAmount `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
-}
-
-func (m *GetTopHoldersResponse) Reset()         { *m = GetTopHoldersResponse{} }
-func (m *GetTopHoldersResponse) String() string { return proto.CompactTextString(m) }
-func (*GetTopHoldersResponse) ProtoMessage()    {}
-func (*GetTopHoldersResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{6}
-}
-func (m *GetTopHoldersResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetTopHoldersResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetTopHoldersResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetTopHoldersResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetTopHoldersResponse.Merge(m, src)
-}
-func (m *GetTopHoldersResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetTopHoldersResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetTopHoldersResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetTopHoldersResponse proto.InternalMessageInfo
-
-func (m *GetTopHoldersResponse) GetTotal() uint32 {
-	if m != nil {
-		return m.Total
-	}
-	return 0
-}
-
-func (m *GetTopHoldersResponse) GetData() []*AddressAmount {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
 type AddressAmount struct {
 	Addr   string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	Amount uint64 `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
@@ -390,7 +286,7 @@ func (m *AddressAmount) Reset()         { *m = AddressAmount{} }
 func (m *AddressAmount) String() string { return proto.CompactTextString(m) }
 func (*AddressAmount) ProtoMessage()    {}
 func (*AddressAmount) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{7}
+	return fileDescriptor_461bb3ac99194e85, []int{5}
 }
 func (m *AddressAmount) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -433,86 +329,6 @@ func (m *AddressAmount) GetAmount() uint64 {
 	return 0
 }
 
-type GetHolderCountRequest struct {
-}
-
-func (m *GetHolderCountRequest) Reset()         { *m = GetHolderCountRequest{} }
-func (m *GetHolderCountRequest) String() string { return proto.CompactTextString(m) }
-func (*GetHolderCountRequest) ProtoMessage()    {}
-func (*GetHolderCountRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{8}
-}
-func (m *GetHolderCountRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetHolderCountRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetHolderCountRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetHolderCountRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetHolderCountRequest.Merge(m, src)
-}
-func (m *GetHolderCountRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetHolderCountRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetHolderCountRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetHolderCountRequest proto.InternalMessageInfo
-
-type GetHolderCountResponse struct {
-	HolderCount uint32 `protobuf:"varint,1,opt,name=holder_count,json=holderCount,proto3" json:"holder_count,omitempty"`
-}
-
-func (m *GetHolderCountResponse) Reset()         { *m = GetHolderCountResponse{} }
-func (m *GetHolderCountResponse) String() string { return proto.CompactTextString(m) }
-func (*GetHolderCountResponse) ProtoMessage()    {}
-func (*GetHolderCountResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{9}
-}
-func (m *GetHolderCountResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetHolderCountResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetHolderCountResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetHolderCountResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetHolderCountResponse.Merge(m, src)
-}
-func (m *GetHolderCountResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetHolderCountResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetHolderCountResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetHolderCountResponse proto.InternalMessageInfo
-
-func (m *GetHolderCountResponse) GetHolderCount() uint32 {
-	if m != nil {
-		return m.HolderCount
-	}
-	return 0
-}
-
 type HeaderInfo struct {
 	Version        int32  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	PrevBlockHash  string `protobuf:"bytes,2,opt,name=prev_block_hash,json=prevBlockHash,proto3" json:"prev_block_hash,omitempty"`
@@ -527,7 +343,7 @@ func (m *HeaderInfo) Reset()         { *m = HeaderInfo{} }
 func (m *HeaderInfo) String() string { return proto.CompactTextString(m) }
 func (*HeaderInfo) ProtoMessage()    {}
 func (*HeaderInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{10}
+	return fileDescriptor_461bb3ac99194e85, []int{6}
 }
 func (m *HeaderInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -622,7 +438,7 @@ func (m *TransactionInfo) Reset()         { *m = TransactionInfo{} }
 func (m *TransactionInfo) String() string { return proto.CompactTextString(m) }
 func (*TransactionInfo) ProtoMessage()    {}
 func (*TransactionInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{11}
+	return fileDescriptor_461bb3ac99194e85, []int{7}
 }
 func (m *TransactionInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -730,7 +546,7 @@ func (m *TransactionExtraInfo) Reset()         { *m = TransactionExtraInfo{} }
 func (m *TransactionExtraInfo) String() string { return proto.CompactTextString(m) }
 func (*TransactionExtraInfo) ProtoMessage()    {}
 func (*TransactionExtraInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{12}
+	return fileDescriptor_461bb3ac99194e85, []int{8}
 }
 func (m *TransactionExtraInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -782,7 +598,7 @@ func (m *GetTransactionInfoResponse) Reset()         { *m = GetTransactionInfoRe
 func (m *GetTransactionInfoResponse) String() string { return proto.CompactTextString(m) }
 func (*GetTransactionInfoResponse) ProtoMessage()    {}
 func (*GetTransactionInfoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{13}
+	return fileDescriptor_461bb3ac99194e85, []int{9}
 }
 func (m *GetTransactionInfoResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -834,7 +650,7 @@ func (m *TokenTransferInfo) Reset()         { *m = TokenTransferInfo{} }
 func (m *TokenTransferInfo) String() string { return proto.CompactTextString(m) }
 func (*TokenTransferInfo) ProtoMessage()    {}
 func (*TokenTransferInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{14}
+	return fileDescriptor_461bb3ac99194e85, []int{10}
 }
 func (m *TokenTransferInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -889,7 +705,7 @@ func (m *TokenIssueInfo) Reset()         { *m = TokenIssueInfo{} }
 func (m *TokenIssueInfo) String() string { return proto.CompactTextString(m) }
 func (*TokenIssueInfo) ProtoMessage()    {}
 func (*TokenIssueInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{15}
+	return fileDescriptor_461bb3ac99194e85, []int{11}
 }
 func (m *TokenIssueInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -966,7 +782,7 @@ func (m *TxOutInfo) Reset()         { *m = TxOutInfo{} }
 func (m *TxOutInfo) String() string { return proto.CompactTextString(m) }
 func (*TxOutInfo) ProtoMessage()    {}
 func (*TxOutInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{16}
+	return fileDescriptor_461bb3ac99194e85, []int{12}
 }
 func (m *TxOutInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1046,7 +862,7 @@ func (m *OutPointInfo) Reset()         { *m = OutPointInfo{} }
 func (m *OutPointInfo) String() string { return proto.CompactTextString(m) }
 func (*OutPointInfo) ProtoMessage()    {}
 func (*OutPointInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{17}
+	return fileDescriptor_461bb3ac99194e85, []int{13}
 }
 func (m *OutPointInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1101,7 +917,7 @@ func (m *TxInInfo) Reset()         { *m = TxInInfo{} }
 func (m *TxInInfo) String() string { return proto.CompactTextString(m) }
 func (*TxInInfo) ProtoMessage()    {}
 func (*TxInInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{18}
+	return fileDescriptor_461bb3ac99194e85, []int{14}
 }
 func (m *TxInInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1180,7 +996,7 @@ func (m *BlockInfo) Reset()         { *m = BlockInfo{} }
 func (m *BlockInfo) String() string { return proto.CompactTextString(m) }
 func (*BlockInfo) ProtoMessage()    {}
 func (*BlockInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{19}
+	return fileDescriptor_461bb3ac99194e85, []int{15}
 }
 func (m *BlockInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1274,7 +1090,7 @@ func (m *Token) Reset()         { *m = Token{} }
 func (m *Token) String() string { return proto.CompactTextString(m) }
 func (*Token) ProtoMessage()    {}
 func (*Token) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{20}
+	return fileDescriptor_461bb3ac99194e85, []int{16}
 }
 func (m *Token) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1326,7 +1142,7 @@ func (m *ListTokensRequest) Reset()         { *m = ListTokensRequest{} }
 func (m *ListTokensRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTokensRequest) ProtoMessage()    {}
 func (*ListTokensRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{21}
+	return fileDescriptor_461bb3ac99194e85, []int{17}
 }
 func (m *ListTokensRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1369,66 +1185,6 @@ func (m *ListTokensRequest) GetLimit() uint32 {
 	return 0
 }
 
-type GetTokenHoldersRequest struct {
-	Addr   string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	Offset uint32 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
-	Limit  uint32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-}
-
-func (m *GetTokenHoldersRequest) Reset()         { *m = GetTokenHoldersRequest{} }
-func (m *GetTokenHoldersRequest) String() string { return proto.CompactTextString(m) }
-func (*GetTokenHoldersRequest) ProtoMessage()    {}
-func (*GetTokenHoldersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{22}
-}
-func (m *GetTokenHoldersRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetTokenHoldersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetTokenHoldersRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetTokenHoldersRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetTokenHoldersRequest.Merge(m, src)
-}
-func (m *GetTokenHoldersRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetTokenHoldersRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetTokenHoldersRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetTokenHoldersRequest proto.InternalMessageInfo
-
-func (m *GetTokenHoldersRequest) GetAddr() string {
-	if m != nil {
-		return m.Addr
-	}
-	return ""
-}
-
-func (m *GetTokenHoldersRequest) GetOffset() uint32 {
-	if m != nil {
-		return m.Offset
-	}
-	return 0
-}
-
-func (m *GetTokenHoldersRequest) GetLimit() uint32 {
-	if m != nil {
-		return m.Limit
-	}
-	return 0
-}
-
 type GetTokenTransactionsRequest struct {
 	Addr   string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	Offset uint32 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
@@ -1439,7 +1195,7 @@ func (m *GetTokenTransactionsRequest) Reset()         { *m = GetTokenTransaction
 func (m *GetTokenTransactionsRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTokenTransactionsRequest) ProtoMessage()    {}
 func (*GetTokenTransactionsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{23}
+	return fileDescriptor_461bb3ac99194e85, []int{18}
 }
 func (m *GetTokenTransactionsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1497,7 +1253,7 @@ func (m *GetTokenInfoRequest) Reset()         { *m = GetTokenInfoRequest{} }
 func (m *GetTokenInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTokenInfoRequest) ProtoMessage()    {}
 func (*GetTokenInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{24}
+	return fileDescriptor_461bb3ac99194e85, []int{19}
 }
 func (m *GetTokenInfoRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1541,7 +1297,7 @@ func (m *GetTokenInfoResponse) Reset()         { *m = GetTokenInfoResponse{} }
 func (m *GetTokenInfoResponse) String() string { return proto.CompactTextString(m) }
 func (*GetTokenInfoResponse) ProtoMessage()    {}
 func (*GetTokenInfoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{25}
+	return fileDescriptor_461bb3ac99194e85, []int{20}
 }
 func (m *GetTokenInfoResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1593,7 +1349,7 @@ func (m *TokenBasicInfo) Reset()         { *m = TokenBasicInfo{} }
 func (m *TokenBasicInfo) String() string { return proto.CompactTextString(m) }
 func (*TokenBasicInfo) ProtoMessage()    {}
 func (*TokenBasicInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{26}
+	return fileDescriptor_461bb3ac99194e85, []int{21}
 }
 func (m *TokenBasicInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1687,7 +1443,7 @@ func (m *ListTokensResponse) Reset()         { *m = ListTokensResponse{} }
 func (m *ListTokensResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTokensResponse) ProtoMessage()    {}
 func (*ListTokensResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{27}
+	return fileDescriptor_461bb3ac99194e85, []int{22}
 }
 func (m *ListTokensResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1730,66 +1486,6 @@ func (m *ListTokensResponse) GetTokens() []*TokenBasicInfo {
 	return nil
 }
 
-type GetTokenHoldersResponse struct {
-	Addr  string           `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	Count uint32           `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
-	Data  []*AddressAmount `protobuf:"bytes,3,rep,name=data,proto3" json:"data,omitempty"`
-}
-
-func (m *GetTokenHoldersResponse) Reset()         { *m = GetTokenHoldersResponse{} }
-func (m *GetTokenHoldersResponse) String() string { return proto.CompactTextString(m) }
-func (*GetTokenHoldersResponse) ProtoMessage()    {}
-func (*GetTokenHoldersResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{28}
-}
-func (m *GetTokenHoldersResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetTokenHoldersResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetTokenHoldersResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetTokenHoldersResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetTokenHoldersResponse.Merge(m, src)
-}
-func (m *GetTokenHoldersResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetTokenHoldersResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetTokenHoldersResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetTokenHoldersResponse proto.InternalMessageInfo
-
-func (m *GetTokenHoldersResponse) GetAddr() string {
-	if m != nil {
-		return m.Addr
-	}
-	return ""
-}
-
-func (m *GetTokenHoldersResponse) GetCount() uint32 {
-	if m != nil {
-		return m.Count
-	}
-	return 0
-}
-
-func (m *GetTokenHoldersResponse) GetData() []*AddressAmount {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
 type ListenBlockRequest struct {
 }
 
@@ -1797,7 +1493,7 @@ func (m *ListenBlockRequest) Reset()         { *m = ListenBlockRequest{} }
 func (m *ListenBlockRequest) String() string { return proto.CompactTextString(m) }
 func (*ListenBlockRequest) ProtoMessage()    {}
 func (*ListenBlockRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_461bb3ac99194e85, []int{29}
+	return fileDescriptor_461bb3ac99194e85, []int{23}
 }
 func (m *ListenBlockRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1832,11 +1528,7 @@ func init() {
 	proto.RegisterType((*GetPendingTransactionRequest)(nil), "rpcpb.GetPendingTransactionRequest")
 	proto.RegisterType((*GetBlockInfoRequest)(nil), "rpcpb.GetBlockInfoRequest")
 	proto.RegisterType((*GetTransactionInfoRequest)(nil), "rpcpb.GetTransactionInfoRequest")
-	proto.RegisterType((*GetTopHoldersRequest)(nil), "rpcpb.GetTopHoldersRequest")
-	proto.RegisterType((*GetTopHoldersResponse)(nil), "rpcpb.GetTopHoldersResponse")
 	proto.RegisterType((*AddressAmount)(nil), "rpcpb.AddressAmount")
-	proto.RegisterType((*GetHolderCountRequest)(nil), "rpcpb.GetHolderCountRequest")
-	proto.RegisterType((*GetHolderCountResponse)(nil), "rpcpb.GetHolderCountResponse")
 	proto.RegisterType((*HeaderInfo)(nil), "rpcpb.HeaderInfo")
 	proto.RegisterType((*TransactionInfo)(nil), "rpcpb.TransactionInfo")
 	proto.RegisterType((*TransactionExtraInfo)(nil), "rpcpb.TransactionExtraInfo")
@@ -1849,125 +1541,112 @@ func init() {
 	proto.RegisterType((*BlockInfo)(nil), "rpcpb.BlockInfo")
 	proto.RegisterType((*Token)(nil), "rpcpb.Token")
 	proto.RegisterType((*ListTokensRequest)(nil), "rpcpb.ListTokensRequest")
-	proto.RegisterType((*GetTokenHoldersRequest)(nil), "rpcpb.GetTokenHoldersRequest")
 	proto.RegisterType((*GetTokenTransactionsRequest)(nil), "rpcpb.GetTokenTransactionsRequest")
 	proto.RegisterType((*GetTokenInfoRequest)(nil), "rpcpb.GetTokenInfoRequest")
 	proto.RegisterType((*GetTokenInfoResponse)(nil), "rpcpb.GetTokenInfoResponse")
 	proto.RegisterType((*TokenBasicInfo)(nil), "rpcpb.TokenBasicInfo")
 	proto.RegisterType((*ListTokensResponse)(nil), "rpcpb.ListTokensResponse")
-	proto.RegisterType((*GetTokenHoldersResponse)(nil), "rpcpb.GetTokenHoldersResponse")
 	proto.RegisterType((*ListenBlockRequest)(nil), "rpcpb.ListenBlockRequest")
 }
 
 func init() { proto.RegisterFile("web.proto", fileDescriptor_461bb3ac99194e85) }
 
 var fileDescriptor_461bb3ac99194e85 = []byte{
-	// 1677 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x58, 0xcd, 0x6f, 0x1c, 0x49,
-	0x15, 0x4f, 0x7b, 0x3e, 0x3c, 0xf3, 0x66, 0x6c, 0x6f, 0x2a, 0xb6, 0x33, 0x1e, 0xdb, 0xb3, 0x76,
-	0x25, 0x80, 0x83, 0x84, 0x87, 0x18, 0x0e, 0x2c, 0x2b, 0x84, 0x6c, 0xc2, 0xae, 0x23, 0x56, 0x24,
-	0xea, 0x44, 0xda, 0x80, 0x84, 0x86, 0xfe, 0x28, 0xcf, 0x94, 0x3c, 0xd3, 0xd5, 0x74, 0xd5, 0xd8,
-	0x63, 0x38, 0x81, 0x40, 0x1c, 0x41, 0xe2, 0x2f, 0xe0, 0xca, 0x5f, 0xc2, 0x71, 0x25, 0x2e, 0x1c,
-	0x21, 0xe1, 0xc0, 0x3f, 0xc0, 0x81, 0x1b, 0xaa, 0x57, 0xd5, 0x1f, 0xf3, 0xe5, 0x24, 0x68, 0x6f,
-	0x5d, 0xaf, 0x5e, 0xfd, 0xde, 0x67, 0xbd, 0xf7, 0xaa, 0xa1, 0x7e, 0xcd, 0xfc, 0xe3, 0x38, 0x11,
-	0x4a, 0x90, 0x4a, 0x12, 0x07, 0xb1, 0xdf, 0x7e, 0xdc, 0xe7, 0x6a, 0x30, 0xf6, 0x8f, 0x03, 0x31,
-	0xea, 0x9e, 0x3d, 0x7b, 0xf5, 0x89, 0x18, 0x47, 0xa1, 0xa7, 0xb8, 0x88, 0xba, 0xbe, 0x98, 0x84,
-	0xdd, 0x40, 0x24, 0xac, 0x1b, 0xfb, 0x5d, 0x7f, 0x28, 0x82, 0x4b, 0x73, 0xb2, 0xbd, 0xd7, 0x17,
-	0xa2, 0x3f, 0x64, 0x5d, 0x2f, 0xe6, 0x5d, 0x2f, 0x8a, 0x84, 0x42, 0x7e, 0x69, 0x76, 0xe9, 0xcf,
-	0x60, 0xf7, 0x53, 0xa6, 0x5e, 0x26, 0x5e, 0x24, 0xbd, 0x00, 0x37, 0x9e, 0x46, 0x17, 0xc2, 0x65,
-	0x32, 0x16, 0x91, 0x64, 0x64, 0x13, 0x2a, 0x4a, 0x28, 0x6f, 0xd8, 0x72, 0x0e, 0x9c, 0xa3, 0x35,
-	0xd7, 0x2c, 0xc8, 0x11, 0x94, 0xd4, 0x44, 0xb6, 0x56, 0x0e, 0x4a, 0x47, 0x8d, 0x93, 0xed, 0x63,
-	0x54, 0xed, 0xb8, 0x80, 0x81, 0x10, 0x9a, 0x85, 0xfe, 0x1c, 0xf6, 0xa6, 0xe1, 0xcf, 0xb9, 0x54,
-	0x22, 0xb9, 0x71, 0xd9, 0x2f, 0xc6, 0x4c, 0x2a, 0x42, 0xa0, 0xec, 0x85, 0x61, 0x82, 0xf0, 0x75,
-	0x17, 0xbf, 0xb5, 0xcc, 0x21, 0x1f, 0x71, 0xd5, 0x5a, 0x31, 0x32, 0x71, 0x41, 0xb6, 0xa1, 0x2a,
-	0x2e, 0x2e, 0x24, 0x53, 0xad, 0x12, 0x92, 0xed, 0x8a, 0x7e, 0x86, 0x12, 0x9e, 0xb3, 0x28, 0xe4,
-	0x51, 0xbf, 0x20, 0x28, 0x95, 0x90, 0xa1, 0x39, 0x8b, 0xd1, 0x56, 0xa6, 0xd0, 0x1e, 0xc1, 0xbd,
-	0x4f, 0x99, 0x3a, 0xd3, 0xee, 0x33, 0x7e, 0xc8, 0xd4, 0x1c, 0x78, 0x72, 0x90, 0xaa, 0xa9, 0xbf,
-	0x69, 0x17, 0x76, 0xa6, 0x4d, 0x7b, 0xdb, 0x81, 0x27, 0xb0, 0xa9, 0x0f, 0x88, 0xf8, 0x5c, 0x0c,
-	0x43, 0x96, 0xc8, 0xff, 0x4f, 0xc3, 0xcf, 0x61, 0x6b, 0x06, 0xe5, 0x2d, 0xa1, 0x2a, 0x87, 0x9e,
-	0xf2, 0x6c, 0xac, 0x36, 0x6d, 0xac, 0x4e, 0xc3, 0x30, 0x61, 0x52, 0x9e, 0x8e, 0xc4, 0x38, 0x52,
-	0x2e, 0x72, 0xd0, 0x8f, 0x61, 0x6d, 0x8a, 0xbc, 0x30, 0x36, 0xdb, 0x50, 0xf5, 0x70, 0x17, 0xb5,
-	0x2a, 0xbb, 0x76, 0x45, 0xef, 0xa3, 0x56, 0x46, 0xa5, 0x1f, 0x20, 0xa8, 0x31, 0x8e, 0x7e, 0x0c,
-	0xdb, 0xb3, 0x1b, 0x56, 0xdf, 0x43, 0x68, 0x0e, 0x90, 0xdc, 0x0b, 0x10, 0xd0, 0xa8, 0xdd, 0x18,
-	0xe4, 0xac, 0xf4, 0xdf, 0x0e, 0xc0, 0x39, 0xf3, 0x42, 0x96, 0x68, 0xdf, 0x92, 0x16, 0xac, 0x5e,
-	0xb1, 0x44, 0x72, 0x11, 0x21, 0x73, 0xc5, 0x4d, 0x97, 0xe4, 0xab, 0xb0, 0x11, 0x27, 0xec, 0xaa,
-	0x87, 0x79, 0xdf, 0x43, 0xcf, 0xaf, 0xa0, 0xd6, 0x6b, 0x9a, 0x8c, 0xe1, 0x3c, 0xf7, 0xe4, 0x80,
-	0xec, 0x40, 0x4d, 0x4d, 0x64, 0x2f, 0x11, 0xc2, 0xa4, 0x51, 0xdd, 0x5d, 0x55, 0x13, 0xe9, 0x0a,
-	0xa1, 0xc8, 0x3e, 0x80, 0xe2, 0x23, 0xd6, 0x93, 0xca, 0x1b, 0xc5, 0xad, 0xf2, 0x81, 0x73, 0x54,
-	0x72, 0xeb, 0x9a, 0xf2, 0x42, 0x13, 0xb4, 0x77, 0x47, 0x5e, 0x9f, 0x07, 0xad, 0x8a, 0xf1, 0x2e,
-	0x2e, 0xc8, 0x87, 0xd0, 0x88, 0x59, 0xc2, 0x45, 0x68, 0x64, 0x56, 0x11, 0x12, 0x0c, 0x09, 0x05,
-	0x7e, 0x0d, 0x36, 0x02, 0x2f, 0x0a, 0x79, 0xe8, 0x29, 0x26, 0x0d, 0xd3, 0x2a, 0x32, 0xad, 0xe7,
-	0x64, 0xcd, 0x48, 0xff, 0xbc, 0x02, 0x1b, 0x33, 0xb9, 0x74, 0x8b, 0xbd, 0x87, 0x50, 0xba, 0xe2,
-	0x91, 0x0d, 0xea, 0x46, 0x7a, 0x01, 0x27, 0x4f, 0xed, 0xcd, 0xbb, 0xe2, 0x11, 0x79, 0x08, 0xe5,
-	0x2b, 0x31, 0xd6, 0x66, 0x6a, 0x9e, 0x0f, 0x32, 0x9e, 0x67, 0x63, 0x85, 0x4c, 0xb8, 0x4b, 0x0e,
-	0x6c, 0x7a, 0x68, 0x7b, 0x1b, 0x27, 0xcd, 0x63, 0x5d, 0x40, 0x62, 0xff, 0xf8, 0x89, 0xa7, 0x3c,
-	0x93, 0x16, 0x4b, 0x0c, 0xdf, 0x85, 0x3a, 0xba, 0x5a, 0x3b, 0x08, 0xcd, 0x2e, 0xb9, 0x35, 0x4d,
-	0x78, 0xc9, 0x47, 0x2c, 0x4b, 0xfe, 0xd5, 0x3c, 0xf9, 0xc9, 0x07, 0x50, 0xba, 0x60, 0xac, 0x55,
-	0xc3, 0xac, 0xd1, 0x9f, 0x9a, 0x4b, 0xf2, 0x5f, 0xb2, 0x56, 0x1d, 0x49, 0xf8, 0x4d, 0xf6, 0xa0,
-	0xee, 0x85, 0x21, 0x0b, 0x35, 0x4c, 0x0b, 0x70, 0x23, 0x27, 0xd0, 0x57, 0xb0, 0x59, 0x70, 0xd1,
-	0x0f, 0x27, 0x2a, 0xf1, 0xd0, 0x4f, 0xfb, 0x00, 0x7e, 0xae, 0x8d, 0x63, 0x42, 0xe7, 0x67, 0xea,
-	0x1c, 0x42, 0xd3, 0xe6, 0x05, 0xe3, 0xfd, 0x41, 0x7a, 0x9f, 0x1a, 0x48, 0x3b, 0x47, 0x12, 0xfd,
-	0xbd, 0x03, 0xed, 0x45, 0x97, 0xd9, 0xa6, 0xea, 0x31, 0x54, 0xd5, 0x44, 0x53, 0x10, 0x7c, 0x79,
-	0xc9, 0xb3, 0x5c, 0xe4, 0x23, 0xa8, 0xb3, 0x54, 0x3b, 0x14, 0xd7, 0x38, 0xd9, 0x9d, 0x3f, 0x92,
-	0x19, 0xe0, 0xe6, 0xdc, 0xf4, 0xfb, 0x70, 0xf7, 0xa5, 0xb8, 0x64, 0x11, 0xf2, 0x5d, 0xd8, 0xc4,
-	0x7f, 0x9f, 0x9b, 0xf8, 0x07, 0x07, 0xd6, 0x11, 0xe1, 0xa9, 0x94, 0x63, 0x96, 0x1e, 0x8f, 0x3c,
-	0xeb, 0x99, 0xba, 0x8b, 0xdf, 0xda, 0x29, 0x58, 0x20, 0x7a, 0x72, 0x1c, 0xc7, 0xc3, 0x1b, 0x0b,
-	0xd2, 0x40, 0xda, 0x0b, 0x24, 0x69, 0x09, 0xf2, 0x66, 0xe4, 0x8b, 0xa1, 0xbd, 0x2a, 0x76, 0x45,
-	0xda, 0x50, 0x0b, 0x59, 0xc0, 0x47, 0xde, 0x50, 0x62, 0xde, 0xac, 0xb9, 0xd9, 0x3a, 0xd3, 0xb4,
-	0x92, 0x6b, 0x4a, 0xff, 0xe3, 0x40, 0x3d, 0xcb, 0x3b, 0x9d, 0x4f, 0x57, 0xde, 0x70, 0x6c, 0xb4,
-	0x29, 0xbb, 0x66, 0x41, 0x1e, 0xc2, 0xba, 0x0c, 0x12, 0x1e, 0xab, 0x5e, 0x3c, 0xf6, 0x7b, 0x97,
-	0xcc, 0x28, 0xd4, 0x74, 0x9b, 0x86, 0xfa, 0x7c, 0xec, 0xff, 0x88, 0xdd, 0x90, 0x07, 0xb0, 0x66,
-	0xb9, 0x42, 0x2e, 0x3d, 0x39, 0xb2, 0x8a, 0x59, 0xa6, 0x27, 0x48, 0x23, 0xdf, 0x06, 0xe0, 0xda,
-	0xf4, 0x1e, 0xd7, 0xde, 0x37, 0x89, 0xbd, 0x95, 0x7a, 0x7f, 0xca, 0x31, 0x6e, 0x9d, 0x67, 0x3e,
-	0xfa, 0x1e, 0xac, 0x29, 0xeb, 0x72, 0x73, 0xb0, 0x82, 0x07, 0x5b, 0xc5, 0x83, 0xc5, 0x98, 0xb8,
-	0x4d, 0xb5, 0x28, 0x42, 0xd5, 0x82, 0xdd, 0xdf, 0x81, 0xe6, 0xb3, 0xb1, 0x7a, 0x2e, 0x78, 0xa4,
-	0x52, 0x9e, 0xd9, 0x9e, 0xa0, 0xbd, 0xc1, 0xa3, 0x90, 0x4d, 0xd2, 0x5e, 0x87, 0x0b, 0xfa, 0x17,
-	0x07, 0x6a, 0xe9, 0x6d, 0x26, 0x1f, 0xc1, 0x3a, 0xd6, 0x36, 0x31, 0x56, 0xbd, 0x58, 0x83, 0xd9,
-	0x24, 0xbc, 0x67, 0x55, 0x2b, 0xca, 0x70, 0x9b, 0x9a, 0x35, 0xa5, 0xe8, 0x8b, 0x61, 0xfd, 0x25,
-	0x79, 0xdf, 0x7a, 0xb4, 0x6e, 0x28, 0x2f, 0x78, 0x5f, 0x07, 0x52, 0xea, 0x32, 0x1d, 0x05, 0xcc,
-	0x36, 0xd5, 0x6c, 0x9d, 0x87, 0xa9, 0x5c, 0x0c, 0xd3, 0xa2, 0xf0, 0xfe, 0xd7, 0x81, 0x7a, 0xd6,
-	0x30, 0xc9, 0x23, 0xa8, 0x0e, 0xb0, 0x62, 0x5b, 0x2d, 0xef, 0x5a, 0x2d, 0xf3, 0x32, 0xee, 0x5a,
-	0x86, 0x77, 0x9f, 0x22, 0x74, 0x26, 0xda, 0xbb, 0x6b, 0x7b, 0xbf, 0x59, 0xe9, 0x72, 0x21, 0x79,
-	0x3f, 0xf2, 0xd4, 0x38, 0x31, 0x8a, 0x6a, 0xf3, 0x52, 0x42, 0xe6, 0xef, 0x4a, 0xc1, 0xdf, 0x69,
-	0xd1, 0xa9, 0x16, 0x8a, 0xce, 0x2e, 0xd4, 0x03, 0xc1, 0xa3, 0x9e, 0xef, 0x49, 0x66, 0x6b, 0x56,
-	0x4d, 0x13, 0xce, 0x3c, 0x89, 0x15, 0x29, 0x10, 0xd1, 0x05, 0x4f, 0x46, 0x2c, 0xc4, 0xea, 0x55,
-	0x73, 0x73, 0x02, 0x7d, 0x0c, 0x15, 0xcc, 0x8c, 0xf7, 0x88, 0xed, 0x29, 0xdc, 0xfd, 0x8c, 0x4b,
-	0x85, 0xc7, 0xb2, 0x11, 0x20, 0x6f, 0xf6, 0x4e, 0xb1, 0xd9, 0x2f, 0x1e, 0x85, 0xe8, 0x4f, 0xb1,
-	0xa7, 0x22, 0xc2, 0xcc, 0x28, 0xb1, 0xa4, 0x50, 0x2c, 0x1a, 0x24, 0x72, 0xec, 0x52, 0x11, 0xbb,
-	0x67, 0xe6, 0xc1, 0x2c, 0xdd, 0xed, 0x50, 0xf8, 0xe5, 0x09, 0x30, 0x13, 0x96, 0xb9, 0x88, 0xd3,
-	0x03, 0xd3, 0x2c, 0x30, 0x3d, 0xb5, 0x03, 0x53, 0xc6, 0x6a, 0xcb, 0xf1, 0x23, 0x28, 0xf3, 0xbc,
-	0x18, 0x4f, 0xdd, 0xed, 0x33, 0x4f, 0xf2, 0xc0, 0xf4, 0x37, 0xcd, 0xa2, 0x93, 0x73, 0x7d, 0x7a,
-	0x83, 0x50, 0x3d, 0x27, 0x5d, 0xb2, 0xc8, 0x1e, 0x6f, 0x16, 0x8f, 0xbb, 0x66, 0x2b, 0xab, 0x98,
-	0x2b, 0xb7, 0x54, 0xcc, 0xd2, 0x7c, 0xc5, 0x3c, 0x84, 0x66, 0x90, 0x30, 0x4f, 0x89, 0xa4, 0x87,
-	0xc6, 0x94, 0xf1, 0x78, 0xc3, 0xd2, 0xf4, 0x74, 0x55, 0x64, 0xc1, 0x6e, 0x55, 0x31, 0x28, 0x96,
-	0x86, 0xfd, 0xaa, 0x58, 0x5f, 0xab, 0x33, 0xf5, 0x35, 0xaf, 0xc9, 0xab, 0x53, 0x35, 0x39, 0x75,
-	0x5f, 0xad, 0xe0, 0xbe, 0x9f, 0x00, 0x29, 0x66, 0x5a, 0x3e, 0x26, 0x16, 0xe7, 0x2d, 0xb3, 0x20,
-	0xdf, 0x80, 0x2a, 0x5a, 0x9e, 0x5e, 0xc7, 0x25, 0x4e, 0xb5, 0x4c, 0x74, 0x04, 0xf7, 0xe7, 0x32,
-	0xd0, 0xe2, 0x2f, 0x99, 0xe8, 0x83, 0xac, 0x55, 0x65, 0x32, 0xd3, 0xd1, 0xb4, 0xf4, 0xd6, 0xd1,
-	0x74, 0xd3, 0x58, 0xc2, 0x22, 0xac, 0x33, 0x36, 0x65, 0x4e, 0xfe, 0x59, 0x87, 0xea, 0xe7, 0xcc,
-	0x3f, 0x8d, 0x39, 0xf9, 0x15, 0xac, 0x4f, 0xb7, 0x6f, 0x72, 0x60, 0xe1, 0x96, 0x8e, 0xe8, 0xed,
-	0xc3, 0x5b, 0x38, 0x8c, 0x2d, 0xf4, 0xe1, 0x6f, 0xfe, 0xf6, 0xaf, 0x3f, 0xad, 0x74, 0xe8, 0x4e,
-	0xf7, 0xea, 0x71, 0xf7, 0x9a, 0xf9, 0xfa, 0x09, 0xd5, 0x67, 0x4a, 0xe5, 0xec, 0xdf, 0x75, 0xbe,
-	0x4e, 0x5e, 0x41, 0x2d, 0x7d, 0x33, 0x90, 0x76, 0x0e, 0x3a, 0xfb, 0x88, 0x68, 0xa7, 0x33, 0x58,
-	0xb6, 0x41, 0x3b, 0x88, 0xdf, 0xa2, 0xf7, 0xa6, 0xf1, 0x71, 0x32, 0xd1, 0xc8, 0x43, 0x58, 0x9b,
-	0x9a, 0xf5, 0xc9, 0x6e, 0x41, 0xe7, 0xd9, 0x77, 0x44, 0x7b, 0x6f, 0xf1, 0xa6, 0xb5, 0xe5, 0x00,
-	0x65, 0xb5, 0xe9, 0x56, 0x41, 0x96, 0x12, 0xb1, 0x19, 0xb7, 0xa5, 0x96, 0x16, 0xa3, 0x13, 0x0b,
-	0xa3, 0x3a, 0x29, 0x20, 0xce, 0x8f, 0xf6, 0xed, 0xfd, 0x25, 0xbb, 0x56, 0xe0, 0x21, 0x0a, 0xdc,
-	0xa5, 0xdb, 0x05, 0x81, 0x46, 0x1a, 0x86, 0x5f, 0x4b, 0xfc, 0x9d, 0x83, 0xcf, 0x86, 0xf9, 0xc7,
-	0x1b, 0x79, 0x90, 0x63, 0x2f, 0x7d, 0xda, 0xb5, 0xe9, 0xc2, 0x08, 0x4e, 0x3d, 0x60, 0xe9, 0x03,
-	0xd4, 0x62, 0x9f, 0xb6, 0xa6, 0x5d, 0x1c, 0x1b, 0x50, 0x35, 0x41, 0xcb, 0x7f, 0x6b, 0xf4, 0x98,
-	0x7f, 0xa6, 0x16, 0xf5, 0x58, 0xfa, 0x88, 0x7d, 0x27, 0x3d, 0x28, 0xea, 0xb1, 0x47, 0xef, 0xcf,
-	0xa4, 0xd2, 0x64, 0x60, 0xb0, 0xb4, 0x1a, 0x01, 0x40, 0x7e, 0x61, 0x49, 0x3a, 0x7a, 0xcc, 0x75,
-	0x8b, 0xf6, 0xce, 0x82, 0x9d, 0x5b, 0xa2, 0x3c, 0xe4, 0x52, 0x99, 0x7b, 0xab, 0x85, 0xf4, 0xa1,
-	0x59, 0x2c, 0xaa, 0xc5, 0x8c, 0x9d, 0x2d, 0xca, 0xed, 0xdd, 0x85, 0x7b, 0x56, 0xd4, 0x92, 0xe4,
-	0x45, 0x49, 0x5a, 0xd0, 0x35, 0x6c, 0xcc, 0xd4, 0x08, 0xb2, 0x3f, 0x83, 0x37, 0x93, 0xc0, 0x9d,
-	0x65, 0xdb, 0x56, 0xe2, 0x57, 0x50, 0xe2, 0x87, 0xb4, 0xbd, 0x40, 0x62, 0x21, 0x8f, 0x7f, 0xed,
-	0xe4, 0x7d, 0xa3, 0x18, 0x0f, 0x42, 0x67, 0xf0, 0x17, 0x34, 0xb8, 0x77, 0x8a, 0xe5, 0xa2, 0xcc,
-	0x4e, 0xf5, 0xb0, 0x19, 0xf5, 0x09, 0x6c, 0x99, 0x8a, 0x75, 0x1a, 0x85, 0x2e, 0xf3, 0xc2, 0x1f,
-	0xb3, 0x6b, 0x53, 0x20, 0x8a, 0xb1, 0x9b, 0xae, 0x67, 0xf3, 0xf5, 0xe1, 0x9b, 0xce, 0x59, 0xeb,
-	0xaf, 0xaf, 0x3b, 0xce, 0x17, 0xaf, 0x3b, 0xce, 0x3f, 0x5e, 0x77, 0x9c, 0x3f, 0xbe, 0xe9, 0xdc,
-	0xf9, 0xe2, 0x4d, 0xe7, 0xce, 0xdf, 0xdf, 0x74, 0xee, 0xf8, 0x55, 0xfc, 0x7f, 0xf3, 0xad, 0xff,
-	0x05, 0x00, 0x00, 0xff, 0xff, 0x75, 0xa3, 0x28, 0x93, 0x24, 0x12, 0x00, 0x00,
+	// 1501 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x57, 0x4f, 0x6f, 0x1c, 0x45,
+	0x16, 0x4f, 0x7b, 0xfe, 0x78, 0xe6, 0x79, 0x6c, 0x27, 0x15, 0xdb, 0x3b, 0x1e, 0x3b, 0xb3, 0x76,
+	0x27, 0xda, 0x75, 0x56, 0x5a, 0xcf, 0xc6, 0xbb, 0x87, 0x0d, 0x08, 0x21, 0x5b, 0x21, 0x71, 0x44,
+	0x44, 0xa2, 0x4e, 0x24, 0xc2, 0x01, 0x0d, 0xd5, 0xdd, 0xe5, 0x71, 0xc9, 0x33, 0x5d, 0x4d, 0x57,
+	0x8d, 0x33, 0x86, 0x13, 0x08, 0x04, 0x37, 0x90, 0xf8, 0x04, 0x5c, 0xf9, 0x24, 0x1c, 0x23, 0x71,
+	0xe1, 0x88, 0x12, 0x0e, 0x7c, 0x01, 0x0e, 0xdc, 0x50, 0xbd, 0xaa, 0xfe, 0x33, 0xe3, 0x19, 0x93,
+	0xdc, 0xba, 0x5e, 0xbd, 0x7a, 0x7f, 0x7e, 0xf5, 0xea, 0xf7, 0x5e, 0x43, 0xfd, 0x19, 0xf3, 0x77,
+	0xe3, 0x44, 0x28, 0x41, 0x2a, 0x49, 0x1c, 0xc4, 0x7e, 0xeb, 0x56, 0x8f, 0xab, 0xe3, 0xa1, 0xbf,
+	0x1b, 0x88, 0x41, 0xe7, 0xe0, 0xe1, 0xd3, 0xbb, 0x62, 0x18, 0x85, 0x54, 0x71, 0x11, 0x75, 0x7c,
+	0x31, 0x0a, 0x3b, 0x81, 0x48, 0x58, 0x27, 0xf6, 0x3b, 0x7e, 0x5f, 0x04, 0x27, 0xe6, 0x64, 0x6b,
+	0xb3, 0x27, 0x44, 0xaf, 0xcf, 0x3a, 0x34, 0xe6, 0x1d, 0x1a, 0x45, 0x42, 0xa1, 0xbe, 0x34, 0xbb,
+	0xee, 0x87, 0xb0, 0x71, 0x8f, 0xa9, 0x27, 0x09, 0x8d, 0x24, 0x0d, 0x70, 0xe3, 0x7e, 0x74, 0x24,
+	0x3c, 0x26, 0x63, 0x11, 0x49, 0x46, 0x56, 0xa0, 0xa2, 0x84, 0xa2, 0xfd, 0xa6, 0xb3, 0xe5, 0xec,
+	0x2c, 0x7a, 0x66, 0x41, 0x76, 0xa0, 0xa4, 0x46, 0xb2, 0x39, 0xb7, 0x55, 0xda, 0x59, 0xd8, 0x5b,
+	0xdb, 0xc5, 0xd0, 0x76, 0x0b, 0x36, 0xd0, 0x84, 0x56, 0x71, 0x3f, 0x82, 0xcd, 0x71, 0xf3, 0x87,
+	0x5c, 0x2a, 0x91, 0x9c, 0x79, 0xec, 0xe3, 0x21, 0x93, 0x8a, 0x10, 0x28, 0xd3, 0x30, 0x4c, 0xd0,
+	0x7c, 0xdd, 0xc3, 0x6f, 0xed, 0xb3, 0xcf, 0x07, 0x5c, 0x35, 0xe7, 0x8c, 0x4f, 0x5c, 0x90, 0x35,
+	0xa8, 0x8a, 0xa3, 0x23, 0xc9, 0x54, 0xb3, 0x84, 0x62, 0xbb, 0x72, 0x1f, 0xa0, 0x87, 0x47, 0x2c,
+	0x0a, 0x79, 0xd4, 0x2b, 0x38, 0x4a, 0x3d, 0x64, 0xd6, 0x9c, 0xe9, 0xd6, 0xe6, 0xc6, 0xac, 0xdd,
+	0x84, 0xab, 0xf7, 0x98, 0x3a, 0xd0, 0xf0, 0x19, 0x1c, 0xb2, 0x30, 0x8f, 0xa9, 0x3c, 0x4e, 0xc3,
+	0xd4, 0xdf, 0x6e, 0x07, 0xd6, 0xc7, 0x53, 0xfb, 0xab, 0x03, 0x6f, 0xc2, 0xe2, 0x7e, 0x18, 0x26,
+	0x4c, 0xca, 0xfd, 0x81, 0x18, 0x46, 0xd3, 0x93, 0x5f, 0x83, 0x2a, 0xc5, 0x5d, 0x0c, 0xac, 0xec,
+	0xd9, 0x95, 0xfb, 0x9b, 0x03, 0x70, 0xc8, 0x68, 0xc8, 0x12, 0xed, 0x86, 0x34, 0x61, 0xfe, 0x94,
+	0x25, 0x92, 0x8b, 0x08, 0x4f, 0x57, 0xbc, 0x74, 0x49, 0xfe, 0x01, 0xcb, 0x71, 0xc2, 0x4e, 0xbb,
+	0x58, 0x02, 0x5d, 0x0c, 0x62, 0x0e, 0xed, 0x2f, 0x6a, 0x31, 0x66, 0x76, 0x48, 0xe5, 0x31, 0x59,
+	0x87, 0x9a, 0x1a, 0xc9, 0x6e, 0x22, 0x84, 0x41, 0xb4, 0xee, 0xcd, 0xab, 0x91, 0xf4, 0x84, 0x50,
+	0xe4, 0x1a, 0x80, 0xe2, 0x03, 0xd6, 0x95, 0x8a, 0x0e, 0xe2, 0x66, 0x79, 0xcb, 0xd9, 0x29, 0x79,
+	0x75, 0x2d, 0x79, 0xac, 0x05, 0x1a, 0xd1, 0x01, 0xed, 0xf1, 0xa0, 0x59, 0x31, 0x88, 0xe2, 0x82,
+	0xfc, 0x1d, 0x16, 0x62, 0x96, 0x70, 0x11, 0x1a, 0x9f, 0x55, 0x34, 0x09, 0x46, 0x84, 0x0e, 0xff,
+	0x09, 0xcb, 0x01, 0x8d, 0x42, 0x1e, 0x52, 0xc5, 0xa4, 0x51, 0x9a, 0x47, 0xa5, 0xa5, 0x5c, 0xac,
+	0x15, 0xdd, 0xef, 0xe7, 0x60, 0x79, 0x02, 0xd6, 0x0b, 0xf2, 0xdd, 0x86, 0xd2, 0x29, 0x8f, 0x6c,
+	0x2d, 0x2e, 0xa7, 0xb5, 0x38, 0xba, 0x6f, 0x8b, 0xf0, 0x94, 0x47, 0xe4, 0x06, 0x94, 0x4f, 0xc5,
+	0x50, 0xa7, 0xa9, 0x75, 0x2e, 0x67, 0x3a, 0x0f, 0x87, 0x0a, 0x95, 0x70, 0x97, 0x6c, 0x41, 0x39,
+	0xa4, 0x8a, 0x62, 0xbe, 0x0b, 0x7b, 0x8d, 0x5d, 0xfd, 0x96, 0x62, 0x7f, 0xf7, 0x0e, 0x55, 0xd4,
+	0xc3, 0x9d, 0x19, 0x89, 0x6f, 0x40, 0x1d, 0xa1, 0xd6, 0x00, 0x61, 0xda, 0x25, 0xaf, 0xa6, 0x05,
+	0x4f, 0xf8, 0x80, 0x65, 0x75, 0x30, 0x9f, 0xd7, 0x01, 0xb9, 0x0c, 0xa5, 0x23, 0xc6, 0x9a, 0x35,
+	0xbc, 0x5f, 0xfd, 0xa9, 0xb5, 0x24, 0xff, 0x84, 0x35, 0xeb, 0x28, 0xc2, 0x6f, 0xb2, 0x09, 0x75,
+	0x1a, 0x86, 0x2c, 0xd4, 0x66, 0x9a, 0x80, 0x1b, 0xb9, 0xc0, 0x7d, 0x0a, 0x2b, 0x05, 0x88, 0xde,
+	0x19, 0xa9, 0x84, 0x22, 0x4e, 0xd7, 0x00, 0xfc, 0x3c, 0x1a, 0xc7, 0x5c, 0x9d, 0x9f, 0x85, 0xb3,
+	0x0d, 0x0d, 0x5b, 0x17, 0x8c, 0xf7, 0x8e, 0xd3, 0xe2, 0x5f, 0x40, 0xd9, 0x21, 0x8a, 0xdc, 0xaf,
+	0x1c, 0x68, 0x4d, 0xab, 0x6b, 0x4b, 0x08, 0xbb, 0x50, 0x55, 0x23, 0x2d, 0x41, 0xe3, 0xb3, 0x5f,
+	0xbf, 0xd5, 0x22, 0xb7, 0xa1, 0xce, 0xd2, 0xe8, 0xd0, 0xdd, 0xc2, 0xde, 0xc6, 0xf9, 0x23, 0x59,
+	0x02, 0x5e, 0xae, 0xed, 0xbe, 0x0d, 0x57, 0x9e, 0x88, 0x13, 0x16, 0xa1, 0xde, 0x91, 0x2d, 0xfc,
+	0xd7, 0x79, 0x33, 0xdf, 0x38, 0xb0, 0x84, 0x16, 0xee, 0x4b, 0x39, 0x64, 0xe9, 0xf1, 0x88, 0x5a,
+	0x64, 0xea, 0x1e, 0x7e, 0x6b, 0x50, 0x90, 0xd6, 0xba, 0x72, 0x18, 0xc7, 0xfd, 0x33, 0x6b, 0x64,
+	0x01, 0x65, 0x8f, 0x51, 0xa4, 0x3d, 0xc8, 0xb3, 0x81, 0x2f, 0xfa, 0xf6, 0xa9, 0xd8, 0x15, 0x69,
+	0x41, 0x2d, 0x64, 0x01, 0x1f, 0xd0, 0xbe, 0xc4, 0xba, 0x59, 0xf4, 0xb2, 0x75, 0x16, 0x69, 0x25,
+	0x8f, 0xd4, 0xfd, 0xdd, 0x81, 0x7a, 0x56, 0x77, 0xba, 0x9e, 0x4e, 0x69, 0x7f, 0x68, 0xa2, 0x29,
+	0x7b, 0x66, 0x41, 0x6e, 0xc0, 0x92, 0x0c, 0x12, 0x1e, 0xab, 0x6e, 0x3c, 0xf4, 0xbb, 0x27, 0xcc,
+	0x04, 0xd4, 0xf0, 0x1a, 0x46, 0xfa, 0x68, 0xe8, 0xbf, 0xcb, 0xce, 0xc8, 0x75, 0x58, 0xb4, 0x5a,
+	0x21, 0x97, 0x54, 0x0e, 0x6c, 0x60, 0x56, 0xe9, 0x0e, 0xca, 0xc8, 0xff, 0x00, 0xb8, 0x4e, 0xbd,
+	0xcb, 0x35, 0xfa, 0xa6, 0xb0, 0x57, 0x53, 0xf4, 0xc7, 0x80, 0xf1, 0xea, 0x3c, 0xc3, 0xe8, 0x2d,
+	0x58, 0x54, 0x16, 0x72, 0x73, 0xb0, 0x82, 0x07, 0x9b, 0xc5, 0x83, 0xc5, 0x3b, 0xf1, 0x1a, 0x6a,
+	0xda, 0x0d, 0x55, 0x0b, 0x79, 0xff, 0x1f, 0x1a, 0x0f, 0x87, 0xea, 0x91, 0xe0, 0x91, 0x4a, 0x75,
+	0x26, 0xe9, 0x51, 0xa3, 0xc1, 0xa3, 0x90, 0x8d, 0x52, 0xda, 0xc7, 0x85, 0xfb, 0x83, 0x03, 0xb5,
+	0xf4, 0x35, 0x93, 0xdb, 0xb0, 0x84, 0xdc, 0x26, 0x86, 0xaa, 0x1b, 0x6b, 0x63, 0xb6, 0x08, 0xaf,
+	0xda, 0xd0, 0x8a, 0x3e, 0xbc, 0x86, 0x56, 0x4d, 0x25, 0xfa, 0x61, 0x58, 0xbc, 0x24, 0xef, 0x59,
+	0x44, 0xeb, 0x46, 0xf2, 0x98, 0xf7, 0xf4, 0x45, 0x4a, 0x4d, 0xdd, 0x51, 0xc0, 0x6c, 0x7f, 0xc9,
+	0xd6, 0xf9, 0x35, 0x95, 0x8b, 0xd7, 0x34, 0xed, 0x7a, 0xff, 0x70, 0xa0, 0x9e, 0xf5, 0x0e, 0x72,
+	0x13, 0xaa, 0xc7, 0xc8, 0xd8, 0x36, 0xca, 0x2b, 0x36, 0xca, 0x9c, 0xc6, 0x3d, 0xab, 0xf0, 0xea,
+	0x0d, 0x55, 0x57, 0xa2, 0x7d, 0xbb, 0xb6, 0x0d, 0x9a, 0x95, 0xa6, 0x0b, 0xc9, 0x7b, 0x11, 0x55,
+	0xc3, 0xc4, 0x04, 0xaa, 0xd3, 0x4b, 0x05, 0x19, 0xde, 0x95, 0x02, 0xde, 0x29, 0xe9, 0x54, 0x0b,
+	0xa4, 0xb3, 0x01, 0xf5, 0x40, 0xf0, 0xa8, 0xeb, 0x53, 0xc9, 0x2c, 0x67, 0xd5, 0xb4, 0xe0, 0x80,
+	0x4a, 0x64, 0xa4, 0x40, 0x44, 0x47, 0x3c, 0x19, 0xb0, 0x10, 0xd9, 0xab, 0xe6, 0xe5, 0x02, 0xf7,
+	0x16, 0x54, 0xb0, 0x32, 0x5e, 0xe3, 0x6e, 0xf7, 0xe1, 0xca, 0x03, 0x2e, 0x15, 0x1e, 0x93, 0x69,
+	0xe7, 0xcc, 0x3b, 0xb3, 0x53, 0xec, 0xcc, 0xd3, 0xa7, 0x02, 0xb7, 0x6b, 0xc6, 0x97, 0xac, 0x24,
+	0xed, 0x0c, 0x73, 0xd1, 0x78, 0x31, 0xa3, 0xf5, 0xe7, 0x0e, 0x4a, 0x45, 0x07, 0x66, 0x20, 0x30,
+	0x8f, 0x65, 0xbc, 0xbf, 0x4f, 0x1a, 0x76, 0xf7, 0x61, 0x65, 0x5c, 0xd5, 0x52, 0xe6, 0x4d, 0x28,
+	0xf3, 0x9c, 0x30, 0xc7, 0xde, 0xdf, 0x01, 0x95, 0x3c, 0x30, 0x3d, 0x48, 0xab, 0xe8, 0x02, 0x5a,
+	0x1a, 0xdf, 0x20, 0xae, 0x9e, 0xc0, 0x4e, 0x58, 0x64, 0x8f, 0x37, 0x8a, 0xc7, 0x3d, 0xb3, 0x95,
+	0xb1, 0xda, 0xdc, 0x05, 0xac, 0x56, 0x3a, 0xcf, 0x6a, 0xdb, 0xd0, 0x08, 0x12, 0x46, 0x95, 0x48,
+	0xba, 0x98, 0x4c, 0x19, 0x8f, 0x2f, 0x58, 0x99, 0x9e, 0x55, 0x8a, 0x2a, 0xd8, 0x51, 0x2a, 0xc6,
+	0x8a, 0x95, 0x61, 0x4f, 0x29, 0x72, 0x60, 0x75, 0x82, 0x03, 0x73, 0xde, 0x9c, 0x1f, 0xe3, 0xcd,
+	0x14, 0xbe, 0x5a, 0x01, 0xbe, 0x0f, 0x80, 0x14, 0xab, 0x21, 0x1f, 0x40, 0x03, 0xa4, 0x76, 0x3b,
+	0xbe, 0xe1, 0x82, 0xfc, 0x1b, 0xaa, 0x98, 0x79, 0xfa, 0x64, 0x66, 0x80, 0x6a, 0x95, 0xdc, 0x15,
+	0x63, 0x9a, 0x45, 0xf8, 0x38, 0xed, 0x1d, 0xee, 0x7d, 0x3d, 0x0f, 0xd5, 0xf7, 0x99, 0xbf, 0x1f,
+	0x73, 0xf2, 0x29, 0x2c, 0x8d, 0xf7, 0x3c, 0xb2, 0x65, 0x2d, 0xce, 0x1c, 0xf1, 0x5a, 0xdb, 0x17,
+	0x68, 0x98, 0xe0, 0xdd, 0x1b, 0x9f, 0xff, 0xf4, 0xeb, 0x77, 0x73, 0x6d, 0x77, 0xbd, 0x73, 0x7a,
+	0xab, 0xf3, 0x8c, 0xf9, 0x7a, 0x04, 0xef, 0x31, 0xa5, 0x72, 0xf5, 0x37, 0x9c, 0x7f, 0x91, 0xa7,
+	0x50, 0x4b, 0x67, 0x4e, 0xd2, 0xca, 0x8d, 0x4e, 0x0e, 0xa1, 0xad, 0x74, 0x70, 0xc9, 0x36, 0xdc,
+	0x36, 0xda, 0x6f, 0xba, 0x57, 0xc7, 0xed, 0x63, 0x3b, 0xd7, 0x96, 0xbf, 0x74, 0x60, 0x75, 0xea,
+	0x70, 0x4c, 0xae, 0xe7, 0x7e, 0x66, 0x8e, 0xce, 0x2d, 0x77, 0x6a, 0x86, 0x63, 0x3f, 0x08, 0xee,
+	0x75, 0x0c, 0xe1, 0x9a, 0xdb, 0x1c, 0x0f, 0x21, 0x36, 0x46, 0xd5, 0x48, 0xea, 0x38, 0xbe, 0x30,
+	0x71, 0x9c, 0xff, 0x0d, 0x28, 0xc6, 0x31, 0xf3, 0x27, 0xe1, 0x95, 0xe2, 0x70, 0x31, 0x8e, 0x4d,
+	0xf7, 0x6f, 0x13, 0x50, 0x8f, 0x8e, 0x8d, 0x2d, 0x1d, 0x46, 0x00, 0x90, 0x57, 0x18, 0x49, 0xfb,
+	0xd9, 0x39, 0x0a, 0x6a, 0xad, 0x4f, 0xd9, 0xb1, 0x6e, 0xb6, 0xd0, 0x4d, 0xcb, 0x5d, 0x2d, 0xb8,
+	0xe9, 0x73, 0xa9, 0x4c, 0xa1, 0x69, 0x27, 0x3d, 0x68, 0x14, 0x59, 0xa0, 0x78, 0xa3, 0x93, 0x2c,
+	0xd2, 0xda, 0x98, 0xba, 0x67, 0x5d, 0xcd, 0xb8, 0x5c, 0xf4, 0xa4, 0x1d, 0x7d, 0xe6, 0xe4, 0x7c,
+	0x53, 0x84, 0x85, 0xb8, 0x13, 0x56, 0xa7, 0x10, 0xe3, 0x2b, 0x41, 0xba, 0x8d, 0x01, 0x6c, 0xb8,
+	0x6b, 0x53, 0x02, 0xb0, 0x17, 0x7b, 0x17, 0x56, 0xcd, 0xc3, 0xda, 0x8f, 0x42, 0x8f, 0xd1, 0xf0,
+	0x3d, 0xf6, 0xcc, 0xd4, 0x71, 0x11, 0xc2, 0xf1, 0x67, 0x77, 0xbe, 0x8c, 0xff, 0xe3, 0x1c, 0x34,
+	0x7f, 0x7c, 0xd1, 0x76, 0x9e, 0xbf, 0x68, 0x3b, 0xbf, 0xbc, 0x68, 0x3b, 0xdf, 0xbe, 0x6c, 0x5f,
+	0x7a, 0xfe, 0xb2, 0x7d, 0xe9, 0xe7, 0x97, 0xed, 0x4b, 0x7e, 0x15, 0x7f, 0x53, 0xff, 0xfb, 0x67,
+	0x00, 0x00, 0x00, 0xff, 0xff, 0x86, 0x17, 0x31, 0xbb, 0x0b, 0x0f, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1984,13 +1663,10 @@ const _ = grpc.SupportPackageIsVersion4
 type WebApiClient interface {
 	GetTransaction(ctx context.Context, in *GetTransactionInfoRequest, opts ...grpc.CallOption) (*GetTransactionInfoResponse, error)
 	GetBlock(ctx context.Context, in *GetBlockInfoRequest, opts ...grpc.CallOption) (*BlockInfo, error)
-	GetTopHolders(ctx context.Context, in *GetTopHoldersRequest, opts ...grpc.CallOption) (*GetTopHoldersResponse, error)
-	GetHolderCount(ctx context.Context, in *GetHolderCountRequest, opts ...grpc.CallOption) (*GetHolderCountResponse, error)
 	GetPendingTransaction(ctx context.Context, in *GetPendingTransactionRequest, opts ...grpc.CallOption) (*GetTransactionsInfoResponse, error)
 	GetTransactionHistory(ctx context.Context, in *GetTransactionHistoryRequest, opts ...grpc.CallOption) (*GetTransactionsInfoResponse, error)
 	ListTokens(ctx context.Context, in *ListTokensRequest, opts ...grpc.CallOption) (*ListTokensResponse, error)
 	GetTokenInfo(ctx context.Context, in *GetTokenInfoRequest, opts ...grpc.CallOption) (*GetTokenInfoResponse, error)
-	GetTokenHolders(ctx context.Context, in *GetTokenHoldersRequest, opts ...grpc.CallOption) (*GetTokenHoldersResponse, error)
 	GetTokenTransactions(ctx context.Context, in *GetTokenTransactionsRequest, opts ...grpc.CallOption) (*GetTransactionsInfoResponse, error)
 	ListenAndReadNewBlock(ctx context.Context, in *ListenBlockRequest, opts ...grpc.CallOption) (WebApi_ListenAndReadNewBlockClient, error)
 }
@@ -2015,24 +1691,6 @@ func (c *webApiClient) GetTransaction(ctx context.Context, in *GetTransactionInf
 func (c *webApiClient) GetBlock(ctx context.Context, in *GetBlockInfoRequest, opts ...grpc.CallOption) (*BlockInfo, error) {
 	out := new(BlockInfo)
 	err := c.cc.Invoke(ctx, "/rpcpb.WebApi/GetBlock", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *webApiClient) GetTopHolders(ctx context.Context, in *GetTopHoldersRequest, opts ...grpc.CallOption) (*GetTopHoldersResponse, error) {
-	out := new(GetTopHoldersResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.WebApi/GetTopHolders", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *webApiClient) GetHolderCount(ctx context.Context, in *GetHolderCountRequest, opts ...grpc.CallOption) (*GetHolderCountResponse, error) {
-	out := new(GetHolderCountResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.WebApi/GetHolderCount", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2069,15 +1727,6 @@ func (c *webApiClient) ListTokens(ctx context.Context, in *ListTokensRequest, op
 func (c *webApiClient) GetTokenInfo(ctx context.Context, in *GetTokenInfoRequest, opts ...grpc.CallOption) (*GetTokenInfoResponse, error) {
 	out := new(GetTokenInfoResponse)
 	err := c.cc.Invoke(ctx, "/rpcpb.WebApi/GetTokenInfo", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *webApiClient) GetTokenHolders(ctx context.Context, in *GetTokenHoldersRequest, opts ...grpc.CallOption) (*GetTokenHoldersResponse, error) {
-	out := new(GetTokenHoldersResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.WebApi/GetTokenHolders", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2129,13 +1778,10 @@ func (x *webApiListenAndReadNewBlockClient) Recv() (*BlockInfo, error) {
 type WebApiServer interface {
 	GetTransaction(context.Context, *GetTransactionInfoRequest) (*GetTransactionInfoResponse, error)
 	GetBlock(context.Context, *GetBlockInfoRequest) (*BlockInfo, error)
-	GetTopHolders(context.Context, *GetTopHoldersRequest) (*GetTopHoldersResponse, error)
-	GetHolderCount(context.Context, *GetHolderCountRequest) (*GetHolderCountResponse, error)
 	GetPendingTransaction(context.Context, *GetPendingTransactionRequest) (*GetTransactionsInfoResponse, error)
 	GetTransactionHistory(context.Context, *GetTransactionHistoryRequest) (*GetTransactionsInfoResponse, error)
 	ListTokens(context.Context, *ListTokensRequest) (*ListTokensResponse, error)
 	GetTokenInfo(context.Context, *GetTokenInfoRequest) (*GetTokenInfoResponse, error)
-	GetTokenHolders(context.Context, *GetTokenHoldersRequest) (*GetTokenHoldersResponse, error)
 	GetTokenTransactions(context.Context, *GetTokenTransactionsRequest) (*GetTransactionsInfoResponse, error)
 	ListenAndReadNewBlock(*ListenBlockRequest, WebApi_ListenAndReadNewBlockServer) error
 }
@@ -2176,42 +1822,6 @@ func _WebApi_GetBlock_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WebApiServer).GetBlock(ctx, req.(*GetBlockInfoRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _WebApi_GetTopHolders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTopHoldersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(WebApiServer).GetTopHolders(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.WebApi/GetTopHolders",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WebApiServer).GetTopHolders(ctx, req.(*GetTopHoldersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _WebApi_GetHolderCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetHolderCountRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(WebApiServer).GetHolderCount(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.WebApi/GetHolderCount",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WebApiServer).GetHolderCount(ctx, req.(*GetHolderCountRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2288,24 +1898,6 @@ func _WebApi_GetTokenInfo_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _WebApi_GetTokenHolders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTokenHoldersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(WebApiServer).GetTokenHolders(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.WebApi/GetTokenHolders",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WebApiServer).GetTokenHolders(ctx, req.(*GetTokenHoldersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _WebApi_GetTokenTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetTokenTransactionsRequest)
 	if err := dec(in); err != nil {
@@ -2358,14 +1950,6 @@ var _WebApi_serviceDesc = grpc.ServiceDesc{
 			Handler:    _WebApi_GetBlock_Handler,
 		},
 		{
-			MethodName: "GetTopHolders",
-			Handler:    _WebApi_GetTopHolders_Handler,
-		},
-		{
-			MethodName: "GetHolderCount",
-			Handler:    _WebApi_GetHolderCount_Handler,
-		},
-		{
 			MethodName: "GetPendingTransaction",
 			Handler:    _WebApi_GetPendingTransaction_Handler,
 		},
@@ -2380,10 +1964,6 @@ var _WebApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTokenInfo",
 			Handler:    _WebApi_GetTokenInfo_Handler,
-		},
-		{
-			MethodName: "GetTokenHolders",
-			Handler:    _WebApi_GetTokenHolders_Handler,
 		},
 		{
 			MethodName: "GetTokenTransactions",
@@ -2545,69 +2125,6 @@ func (m *GetTransactionInfoRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetTopHoldersRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTopHoldersRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Limit != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(m.Limit))
-	}
-	if m.Offset != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(m.Offset))
-	}
-	return i, nil
-}
-
-func (m *GetTopHoldersResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTopHoldersResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Total != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(m.Total))
-	}
-	if len(m.Data) > 0 {
-		for _, msg := range m.Data {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintWeb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	return i, nil
-}
-
 func (m *AddressAmount) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2633,47 +2150,6 @@ func (m *AddressAmount) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x10
 		i++
 		i = encodeVarintWeb(dAtA, i, uint64(m.Amount))
-	}
-	return i, nil
-}
-
-func (m *GetHolderCountRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetHolderCountRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	return i, nil
-}
-
-func (m *GetHolderCountResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetHolderCountResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.HolderCount != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(m.HolderCount))
 	}
 	return i, nil
 }
@@ -3239,40 +2715,6 @@ func (m *ListTokensRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetTokenHoldersRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTokenHoldersRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Addr) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(len(m.Addr)))
-		i += copy(dAtA[i:], m.Addr)
-	}
-	if m.Offset != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(m.Offset))
-	}
-	if m.Limit != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(m.Limit))
-	}
-	return i, nil
-}
-
 func (m *GetTokenTransactionsRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -3461,47 +2903,6 @@ func (m *ListTokensResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetTokenHoldersResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTokenHoldersResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Addr) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(len(m.Addr)))
-		i += copy(dAtA[i:], m.Addr)
-	}
-	if m.Count != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintWeb(dAtA, i, uint64(m.Count))
-	}
-	if len(m.Data) > 0 {
-		for _, msg := range m.Data {
-			dAtA[i] = 0x1a
-			i++
-			i = encodeVarintWeb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	return i, nil
-}
-
 func (m *ListenBlockRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -3607,39 +3008,6 @@ func (m *GetTransactionInfoRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetTopHoldersRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Limit != 0 {
-		n += 1 + sovWeb(uint64(m.Limit))
-	}
-	if m.Offset != 0 {
-		n += 1 + sovWeb(uint64(m.Offset))
-	}
-	return n
-}
-
-func (m *GetTopHoldersResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Total != 0 {
-		n += 1 + sovWeb(uint64(m.Total))
-	}
-	if len(m.Data) > 0 {
-		for _, e := range m.Data {
-			l = e.Size()
-			n += 1 + l + sovWeb(uint64(l))
-		}
-	}
-	return n
-}
-
 func (m *AddressAmount) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3652,27 +3020,6 @@ func (m *AddressAmount) Size() (n int) {
 	}
 	if m.Amount != 0 {
 		n += 1 + sovWeb(uint64(m.Amount))
-	}
-	return n
-}
-
-func (m *GetHolderCountRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	return n
-}
-
-func (m *GetHolderCountResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.HolderCount != 0 {
-		n += 1 + sovWeb(uint64(m.HolderCount))
 	}
 	return n
 }
@@ -3979,25 +3326,6 @@ func (m *ListTokensRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetTokenHoldersRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Addr)
-	if l > 0 {
-		n += 1 + l + sovWeb(uint64(l))
-	}
-	if m.Offset != 0 {
-		n += 1 + sovWeb(uint64(m.Offset))
-	}
-	if m.Limit != 0 {
-		n += 1 + sovWeb(uint64(m.Limit))
-	}
-	return n
-}
-
 func (m *GetTokenTransactionsRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -4092,28 +3420,6 @@ func (m *ListTokensResponse) Size() (n int) {
 	}
 	if len(m.Tokens) > 0 {
 		for _, e := range m.Tokens {
-			l = e.Size()
-			n += 1 + l + sovWeb(uint64(l))
-		}
-	}
-	return n
-}
-
-func (m *GetTokenHoldersResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Addr)
-	if l > 0 {
-		n += 1 + l + sovWeb(uint64(l))
-	}
-	if m.Count != 0 {
-		n += 1 + sovWeb(uint64(m.Count))
-	}
-	if len(m.Data) > 0 {
-		for _, e := range m.Data {
 			l = e.Size()
 			n += 1 + l + sovWeb(uint64(l))
 		}
@@ -4606,194 +3912,6 @@ func (m *GetTransactionInfoRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetTopHoldersRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWeb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTopHoldersRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTopHoldersRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Limit", wireType)
-			}
-			m.Limit = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Limit |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Offset", wireType)
-			}
-			m.Offset = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Offset |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWeb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetTopHoldersResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWeb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTopHoldersResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTopHoldersResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Total", wireType)
-			}
-			m.Total = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Total |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthWeb
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Data = append(m.Data, &AddressAmount{})
-			if err := m.Data[len(m.Data)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWeb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *AddressAmount) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4867,125 +3985,6 @@ func (m *AddressAmount) Unmarshal(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.Amount |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWeb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetHolderCountRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWeb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetHolderCountRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetHolderCountRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWeb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetHolderCountResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWeb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetHolderCountResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetHolderCountResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HolderCount", wireType)
-			}
-			m.HolderCount = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.HolderCount |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -6949,123 +5948,6 @@ func (m *ListTokensRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetTokenHoldersRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWeb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTokenHoldersRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTokenHoldersRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Addr", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWeb
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Addr = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Offset", wireType)
-			}
-			m.Offset = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Offset |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Limit", wireType)
-			}
-			m.Limit = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Limit |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWeb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *GetTokenTransactionsRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7677,135 +6559,6 @@ func (m *ListTokensResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.Tokens = append(m.Tokens, &TokenBasicInfo{})
 			if err := m.Tokens[len(m.Tokens)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWeb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetTokenHoldersResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWeb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTokenHoldersResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTokenHoldersResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Addr", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWeb
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Addr = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
-			}
-			m.Count = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Count |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWeb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthWeb
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Data = append(m.Data, &AddressAmount{})
-			if err := m.Data[len(m.Data)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

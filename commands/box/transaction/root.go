@@ -43,11 +43,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "listutxos",
-			Short: "list all utxos",
-			Run:   listAllUtxoCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "sendfrom [fromaccount] [toaddress] [amount]",
 			Short: "Send coins from an account to an address",
 			Run:   sendFromCmdFunc,
@@ -72,18 +67,6 @@ func init() {
 			},
 		},
 	)
-}
-
-func listAllUtxoCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("list utxos called")
-	conn := client.NewConnectionWithViper(viper.GetViper())
-	defer conn.Close()
-	r, err := client.ListUtxos(conn)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(util.PrettyPrint(r))
-	}
 }
 
 func sendFromCmdFunc(cmd *cobra.Command, args []string) {

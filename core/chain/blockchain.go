@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +25,6 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
-	"github.com/BOXFoundation/boxd/storage/key"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/util/bloom"
 	lru "github.com/hashicorp/golang-lru"
@@ -868,65 +866,6 @@ func (chain *BlockChain) StoreEternalBlock(block *types.Block) error {
 func (chain *BlockChain) EternalBlock() *types.Block {
 	return chain.eternal
 }
-
-// ListAllUtxos list all the available utxos for testing purpose
-func (chain *BlockChain) ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error) {
-	result := make(map[types.OutPoint]*types.UtxoWrap)
-	keyBytes := chain.db.KeysWithPrefix(utxoBase.Bytes())
-	for _, k := range keyBytes {
-		key := key.NewKeyFromBytes(k)
-		if len(key.List()) != 3 {
-			return nil, fmt.Errorf("invalid utxo key")
-		}
-		serialized, err := chain.db.Get(k)
-		if err != nil || serialized == nil {
-			return nil, err
-		}
-		wrap := new(types.UtxoWrap)
-		if err := wrap.Unmarshal(serialized); err != nil {
-			return nil, err
-		}
-		hash := &crypto.HashType{}
-		if err := hash.SetString(key.List()[1]); err != nil {
-			return nil, err
-		}
-		index, err := strconv.ParseUint(key.List()[2], 16, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid utxo key")
-		}
-		result[types.OutPoint{
-			Hash:  *hash,
-			Index: uint32(index),
-		}] = wrap
-	}
-	return result, nil
-}
-
-// // LoadUtxoByAddress list all the available utxos owned by an address, including token utxos
-// func (chain *BlockChain) LoadUtxoByAddress(addr types.Address) (map[types.OutPoint]*types.UtxoWrap, error) {
-// 	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
-// 	blockHashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-// 	utxos := make(map[types.OutPoint]*types.UtxoWrap)
-// 	utxoSet := NewUtxoSet()
-// 	for _, hash := range blockHashes {
-// 		block, err := chain.LoadBlockByHash(hash)
-// 		if block != nil {
-// 			// Split tx outputs if any
-// 			chain.splitBlockOutputs(block)
-
-// 			if err = utxoSet.ApplyBlockWithScriptFilter(block, payToPubKeyHashScript); err != nil {
-// 				return nil, err
-// 			}
-// 		}
-
-// 	}
-// 	for key, value := range utxoSet.utxoMap {
-// 		if util.IsPrefixed(value.Output.ScriptPubKey, payToPubKeyHashScript) && !value.IsSpent {
-// 			utxos[key] = value
-// 		}
-// 	}
-// 	return utxos, nil
-// }
 
 // LoadSpentUtxos loads UtxoWrap info of input outpoints
 func (chain *BlockChain) LoadSpentUtxos(outpoints []types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error) {

@@ -7,7 +7,6 @@ package rpc
 import (
 	"container/list"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -175,47 +174,6 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 			Symbol:      param.Symbol,
 			Addr:        tokenAddr.String(),
 		},
-	}, nil
-}
-
-func (s *webapiServer) GetTokenHolders(ctx context.Context, req *rpcpb.GetTokenHoldersRequest) (*rpcpb.GetTokenHoldersResponse, error) {
-	utxos, err := s.GetChainReader().ListAllUtxos()
-	if err != nil {
-		return nil, err
-	}
-	tokenAddr := &types.Token{}
-	if err := tokenAddr.SetString(req.Addr); err != nil {
-		return nil, err
-	}
-	tokenID := &script.TokenID{
-		OutPoint: tokenAddr.OutPoint(),
-	}
-	distribute, err := s.analyzeTokenDistribute(utxos, tokenID)
-	if err != nil {
-		return nil, err
-	}
-	var holders, targetHolders []*rpcpb.AddressAmount
-	for addr, val := range distribute {
-		holders = append(holders, &rpcpb.AddressAmount{
-			Addr:   addr,
-			Amount: val,
-		})
-	}
-	sort.Slice(holders, func(i, j int) bool {
-		return holders[i].Amount > holders[j].Amount
-	})
-	total := uint32(len(holders))
-	if total <= req.Offset {
-		targetHolders = []*rpcpb.AddressAmount{}
-	} else if total < req.Offset+req.Limit {
-		targetHolders = holders[req.Offset:]
-	} else {
-		targetHolders = holders[req.Offset : req.Offset+req.Limit]
-	}
-	return &rpcpb.GetTokenHoldersResponse{
-		Addr:  req.Addr,
-		Count: total,
-		Data:  targetHolders,
 	}, nil
 }
 
@@ -432,44 +390,6 @@ func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.Get
 		Total: uint32(len(txs)),
 		Txs:   txInfos,
 	}, nil
-}
-
-func (s *webapiServer) GetTopHolders(ctx context.Context, req *rpcpb.GetTopHoldersRequest) (*rpcpb.GetTopHoldersResponse, error) {
-	utxos, err := s.GetChainReader().ListAllUtxos()
-	if err != nil {
-		return nil, err
-	}
-	distribute := s.analyzeDistribute(utxos)
-	var holders, targetHolders []*rpcpb.AddressAmount
-	for addr, val := range distribute {
-		holders = append(holders, &rpcpb.AddressAmount{
-			Addr:   addr,
-			Amount: val,
-		})
-	}
-	sort.Slice(holders, func(i, j int) bool {
-		return holders[i].Amount > holders[j].Amount
-	})
-	if len(holders) <= int(req.Offset) {
-		targetHolders = []*rpcpb.AddressAmount{}
-	} else if len(holders) < int(req.Offset+req.Limit) {
-		targetHolders = holders[req.Offset:]
-	} else {
-		targetHolders = holders[req.Offset : req.Offset+req.Limit]
-	}
-	return &rpcpb.GetTopHoldersResponse{
-		Total: uint32(len(holders)),
-		Data:  targetHolders,
-	}, nil
-}
-
-func (s *webapiServer) GetHolderCount(context.Context, *rpcpb.GetHolderCountRequest) (*rpcpb.GetHolderCountResponse, error) {
-	utxos, err := s.GetChainReader().ListAllUtxos()
-	if err != nil {
-		return nil, err
-	}
-	total := s.countAddresses(utxos)
-	return &rpcpb.GetHolderCountResponse{HolderCount: total}, nil
 }
 
 func (s *webapiServer) GetTransaction(ctx context.Context, req *rpcpb.GetTransactionInfoRequest) (*rpcpb.GetTransactionInfoResponse, error) {

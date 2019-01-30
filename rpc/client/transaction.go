@@ -211,18 +211,6 @@ func GetTransactionsInPool(conn *grpc.ClientConn) ([]*types.Transaction, error) 
 	return txs, nil
 }
 
-//ListUtxos list all utxos
-func ListUtxos(conn *grpc.ClientConn) (*rpcpb.ListUtxosResponse, error) {
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
-	r, err := c.ListUtxos(ctx, &rpcpb.ListUtxosRequest{})
-	if err != nil {
-		return nil, err
-	}
-	return r, nil
-}
-
 func (r *rpcTransactionHelper) Fund(fromAddr types.Address, amountRequired uint64) (map[types.OutPoint]*types.UtxoWrap, error) {
 	resp, err := FundTransaction(r.conn, fromAddr, amountRequired)
 	if err != nil {

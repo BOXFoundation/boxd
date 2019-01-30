@@ -25,20 +25,6 @@ service TransactionCommand {
         };
     }
 
-    rpc ListUtxos(ListUtxosRequest) returns (ListUtxosResponse) {
-        option (google.api.http) = {
-            post: "/v1/tx/listutxos"
-            body: "*"
-        };
-    }
-
-    //rpc FundTransaction(FundTransactionRequest) returns (ListUtxosResponse) {
-    //    option (google.api.http) = {
-    //        post: "/v1/tx/fundtransaction"
-    //        body: "*"
-    //    };
-    //}
-
     rpc SendTransaction(SendTransactionRequest) returns (BaseResponse) {
         option (google.api.http) = {
             post: "/v1/tx/sendtransaction"
@@ -85,6 +71,17 @@ message GetBalanceResp {
     repeated uint64 balances = 3;
 }
 
+message GetTokenBalanceRequest {
+    repeated string addrs = 1;
+    corepb.OutPoint token = 2;
+}
+
+message GetTokenBalanceResponse {
+    int32 code = 1;
+    string message = 2;
+    repeated uint64 balances = 3;
+}
+
 message FetchUtxosReq {
   string addr = 1;
   uint64 amount = 2;
@@ -94,9 +91,6 @@ message FetchUtxosResp {
     int32 code = 1;
     string message = 2;
     repeated Utxo utxos = 3;
-}
-
-message ListUtxosRequest {
 }
 
 message GetRawTransactionRequest {
@@ -134,17 +128,6 @@ message ListUtxosResponse {
     string message = 2;
     uint32 count = 3;
     repeated Utxo utxos = 4;
-}
-
-message GetTokenBalanceRequest {
-    repeated string addrs = 1;
-    corepb.OutPoint token = 2;
-}
-
-message GetTokenBalanceResponse {
-    int32 code = 1;
-    string message = 2;
-    repeated uint64 balances = 3;
 }
 
 message GetFeePriceRequest{

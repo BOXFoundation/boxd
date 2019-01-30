@@ -23,20 +23,6 @@ service WebApi {
         };
     }
 
-    rpc GetTopHolders (GetTopHoldersRequest) returns (GetTopHoldersResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/topholders"
-            body: "*"
-        };
-    }
-
-    rpc GetHolderCount (GetHolderCountRequest) returns (GetHolderCountResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/holdercount"
-            body: "*"
-        };
-    }
-
     rpc GetPendingTransaction (GetPendingTransactionRequest) returns (GetTransactionsInfoResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/getpendingtxs"
@@ -61,13 +47,6 @@ service WebApi {
     rpc GetTokenInfo (GetTokenInfoRequest) returns (GetTokenInfoResponse) {
         option (google.api.http) = {
             post: "/v1/webapi/gettoken"
-            body: "*"
-        };
-    }
-
-    rpc GetTokenHolders (GetTokenHoldersRequest) returns (GetTokenHoldersResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/gettokenholders"
             body: "*"
         };
     }
@@ -106,26 +85,9 @@ message GetTransactionInfoRequest {
     string hash = 1;
 }
 
-message GetTopHoldersRequest {
-    uint32 limit = 1;
-    uint32 offset = 2;
-}
-
-message GetTopHoldersResponse {
-    uint32 total = 1;
-    repeated AddressAmount data = 2;
-}
-
 message AddressAmount {
     string addr = 1;
     uint64 amount = 2;
-}
-
-message GetHolderCountRequest {
-}
-
-message GetHolderCountResponse {
-    uint32 holder_count = 1;
 }
 
 message HeaderInfo {
@@ -217,12 +179,6 @@ message ListTokensRequest {
     uint32 limit = 2;
 }
 
-message GetTokenHoldersRequest {
-    string addr = 1;
-    uint32 offset = 2;
-    uint32 limit = 3;
-}
-
 message GetTokenTransactionsRequest {
     string addr = 1;
     uint32 offset = 2;
@@ -253,12 +209,5 @@ message ListTokensResponse {
     uint32 count = 1;
     repeated TokenBasicInfo tokens = 2;
 }
-
-message GetTokenHoldersResponse {
-    string addr = 1;
-    uint32 count = 2;
-    repeated AddressAmount data = 3;
-}
-
 message ListenBlockRequest {
 }

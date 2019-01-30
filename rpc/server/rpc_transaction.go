@@ -116,27 +116,6 @@ func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceReques
 	return &rpcpb.GetFeePriceResponse{BoxPerByte: 1}, nil
 }
 
-func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
-	bc := s.server.GetChainReader()
-	utxos, err := bc.ListAllUtxos()
-	if err != nil {
-		return &rpcpb.ListUtxosResponse{
-			Code:    1,
-			Message: err.Error(),
-		}, err
-	}
-	res := &rpcpb.ListUtxosResponse{
-		Code:    0,
-		Message: "ok",
-		Count:   uint32(len(utxos)),
-	}
-	res.Utxos = []*rpcpb.Utxo{}
-	for out, utxo := range utxos {
-		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
-	}
-	return res, nil
-}
-
 func (s *txServer) GetTokenBalance(
 	ctx context.Context, req *rpcpb.GetTokenBalanceRequest) (
 	*rpcpb.GetTokenBalanceResponse, error) {
@@ -202,109 +181,6 @@ func (s *txServer) getTokenBalance(
 		}
 	}
 	return amount, nil
-}
-
-//func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
-//	if s.server.GetWalletAgent() == nil {
-//		return nil, fmt.Errorf("api fund transaction not supported")
-//	}
-//	addr, err := types.NewAddress(req.Addr)
-//	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
-//	if err != nil {
-//		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
-//	}
-//	utxos, err := s.server.GetWalletAgent().Utxos(addr)
-//	if err != nil {
-//		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
-//	}
-//
-//	nextHeight := s.server.GetChainReader().GetBlockHeight() + 1
-//
-//	// apply mempool txs as if they were mined into a block with 0 confirmation
-//	utxoSet := chain.NewUtxoSetFromMap(utxos)
-//	memPoolTxs, _ := s.server.GetTxHandler().GetTransactionsInPool()
-//	// Note: we add utxo first and spend them later to maintain tx topological order within mempool. Since memPoolTxs may not
-//	// be topologically ordered, if tx1 spends tx2 but tx1 comes after tx2, tx1's output is mistakenly marked as unspent
-//	// Add utxos first
-//	for _, tx := range memPoolTxs {
-//		for txOutIdx, txOut := range tx.Vout {
-//			// utxo for this address
-//			if util.IsPrefixed(txOut.ScriptPubKey, payToPubKeyHashScript) {
-//				if err := utxoSet.AddUtxo(tx, uint32(txOutIdx), nextHeight); err != nil {
-//					return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
-//				}
-//			}
-//		}
-//	}
-//	// Then spend
-//	for _, tx := range memPoolTxs {
-//		for _, txIn := range tx.Vin {
-//			utxoSet.SpendUtxo(txIn.PrevOutPoint)
-//		}
-//	}
-//	utxos = utxoSet.GetUtxos()
-//
-//	res := &rpcpb.ListUtxosResponse{
-//		Code:    0,
-//		Message: "ok",
-//		Count:   uint32(len(utxos)),
-//	}
-//	res.Utxos = []*rpcpb.Utxo{}
-//	var current uint64
-//	tokenAmount := make(map[types.OutPoint]uint64)
-//	if req.TokenBudgets != nil && len(req.TokenBudgets) > 0 {
-//		for _, budget := range req.TokenBudgets {
-//			outpoint := &types.OutPoint{}
-//			outpoint.FromProtoMessage(budget.Token)
-//			tokenAmount[*outpoint] = budget.Amount
-//		}
-//	}
-//	for out, utxo := range utxos {
-//		token, amount, isToken := getTokenInfo(out, utxo)
-//		if isToken {
-//			if val, ok := tokenAmount[token]; ok && val > 0 {
-//				if val > amount {
-//					tokenAmount[token] = val - amount
-//				} else {
-//					delete(tokenAmount, token)
-//				}
-//				current += utxo.Value()
-//				res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
-//			} else {
-//				// Do not include token utxos not needed
-//				continue
-//			}
-//		} else if current < req.GetAmount() {
-//			res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
-//			current += utxo.Value()
-//		}
-//		if current >= req.GetAmount() && len(tokenAmount) == 0 {
-//			break
-//		}
-//	}
-//	if current < req.GetAmount() || len(tokenAmount) > 0 {
-//		errMsg := "Not enough balance"
-//		return &rpcpb.ListUtxosResponse{
-//			Code:    -1,
-//			Message: errMsg,
-//		}, fmt.Errorf(errMsg)
-//	}
-//	return res, nil
-//}
-
-func getTokenInfo(outpoint types.OutPoint, wrap *types.UtxoWrap) (types.OutPoint, uint64, bool) {
-	s := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
-	if s.IsTokenIssue() {
-		if issueParam, err := s.GetIssueParams(); err == nil {
-			return outpoint, issueParam.TotalSupply * uint64(math.Pow10(int(issueParam.Decimals))), true
-		}
-	}
-	if s.IsTokenTransfer() {
-		if transferParam, err := s.GetTransferParams(); err == nil {
-			return transferParam.OutPoint, transferParam.Amount, true
-		}
-	}
-	return types.OutPoint{}, 0, false
 }
 
 func (s *txServer) SendTransaction(

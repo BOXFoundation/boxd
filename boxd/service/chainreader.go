@@ -12,10 +12,6 @@ import (
 
 // ChainReader defines basic operations blockchain exposes
 type ChainReader interface {
-	// interface to reader utxos
-	ListAllUtxos() (map[types.OutPoint]*types.UtxoWrap, error)
-	// LoadUtxoByPubKeyScript([]byte) (map[types.OutPoint]*types.UtxoWrap, error)
-	// LoadUtxoByAddress(types.Address) (map[types.OutPoint]*types.UtxoWrap, error)
 	LoadSpentUtxos([]types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error)
 
 	// interface to read transactions
