@@ -2,16 +2,16 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package client
+package rpcutil
 
 import (
 	"context"
-	"google.golang.org/grpc"
 	"log"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"google.golang.org/grpc"
 )
 
 // ListTransactions list transactions of certain address

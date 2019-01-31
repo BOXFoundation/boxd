@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/wallet"
 	"google.golang.org/grpc"
 	"gopkg.in/abiosoft/ishell.v2"
@@ -23,21 +23,21 @@ type rpcBlockFetcher struct {
 func (r *rpcBlockFetcher) Height() (uint32, error) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	return client.GetBlockCount(r.conn)
+	return rpcutil.GetBlockCount(r.conn)
 }
 
 // HashForHeight returns hash string for the height param
 func (r *rpcBlockFetcher) HashForHeight(height uint32) (string, error) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	return client.GetBlockHash(r.conn, height)
+	return rpcutil.GetBlockHash(r.conn, height)
 }
 
 // Block returns block info of hash param
 func (r *rpcBlockFetcher) Block(hashStr string) (*types.Block, error) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	return client.GetBlock(r.conn, hashStr)
+	return rpcutil.GetBlock(r.conn, hashStr)
 }
 
 type consoleBackend struct {

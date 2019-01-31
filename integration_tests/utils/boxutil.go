@@ -11,8 +11,8 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/rpc/client"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/wallet"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	"google.golang.org/grpc"
@@ -324,7 +324,7 @@ func TokenBalanceFor(addr string, tid *types.TokenID, peerAddr string) uint64 {
 	}
 	defer conn.Close()
 	// get balance
-	b, err := client.GetTokenBalance(conn, []string{addr}, tid)
+	b, err := rpcutil.GetTokenBalance(conn, []string{addr}, tid)
 	if err != nil {
 		logger.Panic(err)
 	}

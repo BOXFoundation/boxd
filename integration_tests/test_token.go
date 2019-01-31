@@ -14,7 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 // TokenTest manage circulation of token
@@ -73,19 +73,19 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return true
 	}
 	issuer, sender, receivers := addrs[0], addrs[1], addrs[2:]
-	conn, err := client.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Warn(err)
 		return false
 	}
 	defer conn.Close()
-	tx, _, _, err := client.NewTx(AddrToAcc[miner], []string{issuer, sender},
+	tx, _, _, err := rpcutil.NewTx(AddrToAcc[miner], []string{issuer, sender},
 		[]uint64{subsidy, testFee}, conn)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	if err := client.SendTransaction(conn, tx); err != nil &&
+	if err := rpcutil.SendTransaction(conn, tx); err != nil &&
 		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Error(err)
 		return
@@ -104,7 +104,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
 
-	conn, err := client.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -114,12 +114,12 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	totalSupply := uint64(10000)
 	logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
 
-	tx, tid, _, err := client.NewIssueTokenTx(AddrToAcc[issuer], sender, tag,
+	tx, tid, _, err := rpcutil.NewIssueTokenTx(AddrToAcc[issuer], sender, tag,
 		totalSupply, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
-	if err := client.SendTransaction(conn, tx); err != nil &&
+	if err := rpcutil.SendTransaction(conn, tx); err != nil &&
 		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
 	}
@@ -145,7 +145,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	logger.Infof("start to create %d token txs from %s to %s on %s",
 		times, sender, receiver, peerAddr)
 	txTotalAmount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount)/2))
-	txs, err := client.NewTokenTxs(AddrToAcc[sender], receiver, txTotalAmount, times,
+	txs, err := rpcutil.NewTokenTxs(AddrToAcc[sender], receiver, txTotalAmount, times,
 		tid, conn)
 	if err != nil {
 		logger.Panic(err)
@@ -155,7 +155,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	logger.Infof("start to send %d token txs from %s to %s on %s",
 		times, sender, receiver, peerAddr)
 	for _, tx := range txs {
-		if err := client.SendTransaction(conn, tx); err != nil &&
+		if err := rpcutil.SendTransaction(conn, tx); err != nil &&
 			!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}

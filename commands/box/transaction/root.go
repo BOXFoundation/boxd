@@ -14,7 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -99,17 +99,17 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	var cfg config.Config
 	viper.Unmarshal(&cfg)
 	peerAddr := fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
-	conn, err := client.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer conn.Close()
-	tx, _, _, err := client.NewTx(account, addrs, amounts, conn)
+	tx, _, _, err := rpcutil.NewTx(account, addrs, amounts, conn)
 	if err != nil {
 		fmt.Println("new tx error: ", err)
 		return
 	}
-	err = client.SendTransaction(conn, tx)
+	err = rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		fmt.Println(err)
 	}
