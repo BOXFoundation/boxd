@@ -61,11 +61,7 @@ func TestMakeTxWithoutSign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ttx, err := types.ConvPbTx(tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rawMsgs, err := MakeTxRawMsgsForSign(ttx, utxos...)
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
 	if err != nil {
 		t.Fatal(err)
 	}

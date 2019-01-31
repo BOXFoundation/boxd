@@ -67,12 +67,12 @@ func NewIssueTokenTxWithUtxos(
 // MakeTxWithoutSign make a tx without signature
 func MakeTxWithoutSign(
 	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*corepb.Transaction, error) {
+) (*types.Transaction, error) {
 	utxoValue := uint64(0)
 	for _, u := range utxos {
 		amount, tid, err := ParseUtxoAmount(u)
 		if err != nil || tid != nil {
-			return nil, err
+			return nil, fmt.Errorf("error: %v or tid(%+v) is not nil", err, tid)
 		}
 		utxoValue += amount
 	}
@@ -86,9 +86,9 @@ func MakeTxWithoutSign(
 	}
 
 	// vin
-	vins := make([]*corepb.TxIn, 0)
+	vins := make([]*types.TxIn, 0, len(utxos))
 	for _, utxo := range utxos {
-		vins = append(vins, MakePbVin(utxo, 0))
+		vins = append(vins, MakeVin(utxo, 0))
 	}
 
 	// vout for toAddrs
@@ -98,7 +98,7 @@ func MakeTxWithoutSign(
 	}
 
 	// construct transaction
-	tx := new(corepb.Transaction)
+	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
 	tx.Vout = append(tx.Vout, vouts...)
 	tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
@@ -115,15 +115,11 @@ func NewTxWithUtxos(
 		return nil, nil, err
 	}
 	// sign vin
-	ttx, err := types.ConvPbTx(tx)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := SignTxWithUtxos(ttx, utxos, fromAcc); err != nil {
+	if err := SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
 		return nil, nil, err
 	}
 	// create change utxo
-	txHash, _ := ttx.TxHash()
+	txHash, _ := tx.TxHash()
 	change := &rpcpb.Utxo{
 		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
 		TxOut:       MakeVout(fromAcc.Addr(), changeAmt),
@@ -132,7 +128,7 @@ func NewTxWithUtxos(
 		IsSpent:     false,
 	}
 
-	return ttx, change, nil
+	return tx, change, nil
 }
 
 // NewSplitAddrTxWithUtxos new split address tx

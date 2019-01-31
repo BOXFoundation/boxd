@@ -110,24 +110,19 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 
 // MakeVin makes txIn
 func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
-	var hash crypto.HashType
+	hash := new(crypto.HashType)
 	copy(hash[:], utxo.GetOutPoint().Hash)
 	return &types.TxIn{
-		PrevOutPoint: types.OutPoint{
-			Hash:  hash,
-			Index: utxo.GetOutPoint().GetIndex(),
-		},
-		ScriptSig: []byte{},
-		Sequence:  seq,
+		PrevOutPoint: *types.NewOutPoint(hash, utxo.OutPoint.Index),
+		ScriptSig:    []byte{},
+		Sequence:     seq,
 	}
 }
 
 // MakePbVin makes txIn
 func MakePbVin(utxo *rpcpb.Utxo, seq uint32) *corepb.TxIn {
-	hash := new(crypto.HashType)
-	copy(hash[:], utxo.GetOutPoint().Hash)
 	return &corepb.TxIn{
-		PrevOutPoint: NewPbOutPoint(hash, utxo.GetOutPoint().GetIndex()),
+		PrevOutPoint: utxo.OutPoint,
 		ScriptSig:    []byte{},
 		Sequence:     seq,
 	}
