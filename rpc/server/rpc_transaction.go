@@ -218,15 +218,15 @@ func (s *txServer) MakeTxWithoutSign(
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), err
 	}
-	pbTx, err := types.ConvPbTx(tx)
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), err
 	}
-	rawMsgs, err := MakeTxRawMsgsForSign(pbTx, utxos...)
+	pbTx, err := tx.ConvToPbTx()
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), err
 	}
-	return newMakeTxResp(0, "", tx, rawMsgs), nil
+	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
 }
 
 // MakeTxRawMsgsForSign make tx raw msg for sign

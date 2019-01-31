@@ -284,7 +284,7 @@ func NewTxs(
 // MakeTxWithoutSign make a tx without signature
 func MakeTxWithoutSign(
 	wa service.WalletAgent, from string, to []string, amounts []uint64, fee uint64,
-) (*corepb.Transaction, []*rpcpb.Utxo, error) {
+) (*types.Transaction, []*rpcpb.Utxo, error) {
 	total := fee
 	for _, a := range amounts {
 		total += a
