@@ -122,6 +122,17 @@ func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
 	}
 }
 
+// MakePbVin makes txIn
+func MakePbVin(utxo *rpcpb.Utxo, seq uint32) *corepb.TxIn {
+	hash := new(crypto.HashType)
+	copy(hash[:], utxo.GetOutPoint().Hash)
+	return &corepb.TxIn{
+		PrevOutPoint: NewPbOutPoint(hash, utxo.GetOutPoint().GetIndex()),
+		ScriptSig:    []byte{},
+		Sequence:     seq,
+	}
+}
+
 // NewUtxoWrap makes a UtxoWrap
 func NewUtxoWrap(addr string, height uint32, value uint64) *types.UtxoWrap {
 	return &types.UtxoWrap{

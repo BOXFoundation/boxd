@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -278,6 +279,28 @@ func NewTxs(
 		txss = append(txss, txs)
 	}
 	return txss, transfer, totalFee, num, nil
+}
+
+// MakeTxWithoutSign make a tx without signature
+func MakeTxWithoutSign(
+	wa service.WalletAgent, from string, to []string, amounts []uint64, fee uint64,
+) (*corepb.Transaction, []*rpcpb.Utxo, error) {
+	total := fee
+	for _, a := range amounts {
+		total += a
+	}
+	utxos, err := wa.Utxos(from, nil, total)
+	uv := uint64(0)
+	for _, u := range utxos {
+		amount, _, err := txlogic.ParseUtxoAmount(u)
+		if err != nil {
+			return nil, nil, err
+		}
+		uv += amount
+	}
+	changeAmt := uv - total
+	tx, err := txlogic.MakeTxWithoutSign(from, to, amounts, changeAmt, utxos...)
+	return tx, utxos, err
 }
 
 func fetchUtxos(conn *grpc.ClientConn, addr string, amount uint64, tid *types.TokenID) (
