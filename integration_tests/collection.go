@@ -17,7 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 // Collection manage transaction creation and collection
@@ -169,16 +169,16 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
 		c.minerAddr, peerAddr)
-	conn, err := client.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Panic(err)
 	}
 	defer conn.Close()
-	tx, _, _, err := client.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, conn)
+	tx, _, _, err := rpcutil.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
-	err = client.SendTransaction(conn, tx)
+	err = rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
 	}
@@ -219,7 +219,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 				amountsSend[i] += amounts2[j]
 				amountsRecv[j] += amounts2[j]
 			}
-			tx, _, fee, err := client.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, conn)
+			tx, _, fee, err := rpcutil.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
@@ -233,7 +233,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Panic(<-errChans)
 	}
 	for _, tx := range txs {
-		err = client.SendTransaction(conn, tx)
+		err = rpcutil.SendTransaction(conn, tx)
 		if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
@@ -269,14 +269,14 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
 				i, addr, peerAddr)
 			fromAddr := addrs[i]
-			txss, transfer, _, _, err := client.NewTxs(AddrToAcc[fromAddr], addr, count, conn)
+			txss, transfer, _, _, err := rpcutil.NewTxs(AddrToAcc[fromAddr], addr, count, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
 
 			for _, txs := range txss {
 				for _, tx := range txs {
-					err := client.SendTransaction(conn, tx)
+					err := rpcutil.SendTransaction(conn, tx)
 					if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 						logger.Panic(err)
 					}

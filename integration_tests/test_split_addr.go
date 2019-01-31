@@ -11,7 +11,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 // SplitAddrTest manage circulation of token
@@ -70,20 +70,20 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	weights := []uint64{1, 2, 3, 4}
 
 	// send box to sender
-	conn, err := client.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
 	defer conn.Close()
 	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
-	senderTx, _, _, err := client.NewTx(AddrToAcc[miner], []string{sender},
+	senderTx, _, _, err := rpcutil.NewTx(AddrToAcc[miner], []string{sender},
 		[]uint64{testAmount + splitFee}, conn)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	if err := client.SendTransaction(conn, senderTx); err != nil {
+	if err := rpcutil.SendTransaction(conn, senderTx); err != nil {
 		logger.Error(err)
 		return
 	}
@@ -96,13 +96,13 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	// create split addr
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
-	splitTx, _, _, err := client.NewSplitAddrTxWithFee(AddrToAcc[sender], receivers,
+	splitTx, _, _, err := rpcutil.NewSplitAddrTxWithFee(AddrToAcc[sender], receivers,
 		weights, splitFee, conn)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	if err := client.SendTransaction(conn, splitTx); err != nil {
+	if err := rpcutil.SendTransaction(conn, splitTx); err != nil {
 		logger.Error(err)
 		return
 	}
@@ -158,12 +158,12 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	//}
 
 	// transfer
-	conn, err := client.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Panic(err)
 	}
 	defer conn.Close()
-	txss, transfer, fee, count, err := client.NewTxs(AddrToAcc[sender], addr, 1, conn)
+	txss, transfer, fee, count, err := rpcutil.NewTxs(AddrToAcc[sender], addr, 1, conn)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -173,7 +173,7 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 			//bytes, _ := json.MarshalIndent(tx, "", "  ")
 			//hash, _ := tx.CalcTxHash()
 			//logger.Infof("send split tx hash: %v\nbody: %s", hash[:], string(bytes))
-			if err := client.SendTransaction(conn, tx); err != nil {
+			if err := rpcutil.SendTransaction(conn, tx); err != nil {
 				logger.Panic(err)
 			}
 			atomic.AddUint64(txCnt, 1)
