@@ -96,6 +96,7 @@ message FetchUtxosResp {
 message GetRawTransactionRequest {
     bytes hash = 1;
 }
+
 message GetRawTransactionResponse {
     corepb.Transaction tx = 1;
 }
@@ -106,17 +107,6 @@ message GetTransactionPoolRequest {
 
 message GetTransactionsResponse {
     repeated corepb.Transaction txs = 1;
-}
-
-message TokenAmount{
-    corepb.OutPoint token = 1;
-    uint64 amount = 2;
-}
-
-message FundTransactionRequest {
-    string addr = 1;
-    uint64 amount = 2;
-    repeated TokenAmount tokenBudgets= 3;
 }
 
 message SendTransactionRequest {
@@ -135,27 +125,4 @@ message GetFeePriceRequest{
 
 message GetFeePriceResponse {
     uint64 box_per_byte = 1;
-}
-
-message TransactionParam {
-    string from_addr = 1;
-    oneof param {
-        TransferBoxTarget box_target = 2;
-        TransferTokenTarget token_target = 3;
-        SplitAddrInfo split_addr = 4;
-    }
-}
-
-message TransferBoxTarget {
-    uint64 amount = 1;
-}
-
-message TransferTokenTarget {
-    uint64 amount = 1;
-    corepb.OutPoint token = 2;
-}
-
-message SplitAddrInfo {
-    repeated string addrs = 1;
-    repeated uint64 weights = 2;
 }

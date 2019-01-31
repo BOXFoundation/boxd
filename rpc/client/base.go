@@ -5,7 +5,6 @@
 package client
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"reflect"
@@ -122,29 +121,6 @@ func getTransferTokenScript(pubKeyHash []byte, tokenTxHash *crypto.HashType, tok
 func getSplitAddrScript(addrs []types.Address, weights []uint64) ([]byte, error) {
 	script := script.SplitAddrScript(addrs, weights)
 	return *script, nil
-}
-
-// get token amount in the passed utxo
-func getUtxoTokenAmount(utxo *rpcpb.Utxo, tokenTxHash *crypto.HashType, tokenTxOutIdx uint32) uint64 {
-	scriptPubKey := script.NewScriptFromBytes(utxo.GetTxOut().GetScriptPubKey())
-
-	if scriptPubKey.IsTokenIssue() {
-		// token issurance utxo
-		// no need to check error since it will not err
-		if bytes.Equal(utxo.OutPoint.Hash, tokenTxHash.GetBytes()) && utxo.OutPoint.Index == tokenTxOutIdx {
-			params, _ := scriptPubKey.GetIssueParams()
-			return params.TotalSupply * uint64(math.Pow10(int(params.Decimals)))
-		}
-	}
-	if scriptPubKey.IsTokenTransfer() {
-		// token transfer utxo
-		// no need to check error since it will not err
-		params, _ := scriptPubKey.GetTransferParams()
-		if bytes.Equal(params.Hash.GetBytes(), tokenTxHash.GetBytes()) && params.Index == tokenTxOutIdx {
-			return params.Amount
-		}
-	}
-	return 0
 }
 
 func extractTokenInfo(utxo *rpcpb.Utxo) (*types.OutPoint, uint64) {
