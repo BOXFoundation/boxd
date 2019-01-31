@@ -6,6 +6,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -14,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 func registerTransaction(s *Server) {
@@ -189,4 +191,65 @@ func generateUtxoMessage(outPoint *types.OutPoint, entry *types.UtxoWrap) *rpcpb
 			ScriptPubKey: entry.Script(),
 		},
 	}
+}
+
+func newMakeTxResp(
+	code int32, msg string, tx *corepb.Transaction, rawMsgs [][]byte,
+) *rpcpb.MakeTxResp {
+	return &rpcpb.MakeTxResp{
+		Code:    code,
+		Message: msg,
+		Tx:      tx,
+		RawMsgs: rawMsgs,
+	}
+}
+
+func (s *txServer) MakeTxWithoutSign(
+	ctx context.Context, req *rpcpb.MakeTxReq,
+) (*rpcpb.MakeTxResp, error) {
+	wa := s.server.GetWalletAgent()
+	if wa == nil || reflect.ValueOf(wa).IsNil() {
+		logger.Warn("get balance error ", ErrAPINotSupported)
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), ErrAPINotSupported
+	}
+	from, to := req.GetFrom(), req.GetTo()
+	amounts, fee := req.GetAmounts(), req.GetFee()
+	tx, utxos, err := rpcutil.MakeTxWithoutSign(wa, from, to, amounts, fee)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	pbTx, err := types.ConvPbTx(tx)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(pbTx, utxos...)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	return newMakeTxResp(0, "", tx, rawMsgs), nil
+}
+
+// MakeTxRawMsgsForSign make tx raw msg for sign
+func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte, error) {
+	if len(tx.Vin) != len(utxos) {
+		return nil, errors.New("invalid param")
+	}
+	msgs := make([][]byte, 0, len(tx.Vin))
+	for i, u := range utxos {
+		spk := u.GetTxOut().GetScriptPubKey()
+		newTx := tx.Copy()
+		for j, in := range newTx.Vin {
+			if i != j {
+				in.ScriptSig = nil
+			} else {
+				in.ScriptSig = spk
+			}
+		}
+		data, err := newTx.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, data)
+	}
+	return msgs, nil
 }

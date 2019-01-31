@@ -206,6 +206,15 @@ func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 	}, nil
 }
 
+// ConvToPbTx convert a types tx to corepb tx
+func (tx *Transaction) ConvToPbTx() (*corepb.Transaction, error) {
+	data, err := tx.ToProtoMessage()
+	if err != nil {
+		return nil, err
+	}
+	return data.(*corepb.Transaction), nil
+}
+
 // FromProtoMessage converts proto message to transaction.
 func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.Transaction); ok {
@@ -232,6 +241,15 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 		return core.ErrEmptyProtoMessage
 	}
 	return core.ErrInvalidTxProtoMessage
+}
+
+// ConvPbTx  convert a pb tx to types tx
+func ConvPbTx(orig *corepb.Transaction) (*Transaction, error) {
+	tx := new(Transaction)
+	if err := tx.FromProtoMessage(orig); err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 // Marshal method marshal tx object to binary

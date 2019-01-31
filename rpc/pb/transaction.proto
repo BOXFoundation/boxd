@@ -59,6 +59,13 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc MakeTxWithoutSign(MakeTxReq) returns (MakeTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeneedsigntx"
+            body: "*"
+        };
+    }
 }
 
 message GetBalanceReq {
@@ -120,4 +127,18 @@ message GetFeePriceRequest{
 
 message GetFeePriceResponse {
     uint64 box_per_byte = 1;
+}
+
+message MakeTxReq {
+    string from = 1;
+    repeated string to = 2;
+    repeated uint64 amounts = 3;
+    uint64 fee = 4;
+}
+
+message MakeTxResp {
+    int32 code = 1;
+    string message = 2;
+    corepb.Transaction tx = 3;
+    repeated bytes rawMsgs = 4;
 }
