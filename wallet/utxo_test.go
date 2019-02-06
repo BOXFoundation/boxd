@@ -145,6 +145,10 @@ func walletUtxosSaveGetTest(db storage.Table, n int, addrs ...string) func(*test
 		//t.Parallel()
 		// gen utxos
 		utxoMap, balances, utxos := newTestUtxoSet(n, addrs...)
+		for _, v := range utxoMap {
+			logger.Infof("utxoMap: %+v", v)
+		}
+
 		// apply utxos
 		if err := applyUtxosTest(utxoMap, db); err != nil {
 			t.Fatal(err)
@@ -225,11 +229,14 @@ type ComparableUtxoWrap struct {
 
 func newComparableUtxoWrap(uw *types.UtxoWrap) *ComparableUtxoWrap {
 	return &ComparableUtxoWrap{
-		Output:      *uw.Output,
-		BlockHeight: uw.BlockHeight,
-		IsCoinBase:  uw.IsCoinBase,
-		IsSpent:     uw.IsSpent,
-		IsModified:  uw.IsModified,
+		Output: corepb.TxOut{
+			Value:        uw.Value(),
+			ScriptPubKey: uw.Script(),
+		},
+		BlockHeight: uw.Height(),
+		IsCoinBase:  uw.IsCoinBase(),
+		IsSpent:     uw.IsSpent(),
+		IsModified:  uw.IsModified(),
 	}
 }
 
@@ -239,13 +246,17 @@ func makeUtxoMapFromPbUtxos(utxos []*rpcpb.Utxo) types.UtxoMap {
 		hash := crypto.HashType{}
 		copy(hash[:], u.OutPoint.Hash[:])
 		op := txlogic.NewOutPoint(&hash, u.OutPoint.Index)
-		m[*op] = &types.UtxoWrap{
-			Output:      u.TxOut,
-			BlockHeight: u.BlockHeight,
-			IsCoinBase:  u.IsCoinbase,
-			IsSpent:     u.IsSpent,
-			IsModified:  false,
+		m[*op] = types.NewUtxoWrap(u.TxOut.Value, u.TxOut.ScriptPubKey, u.BlockHeight)
+		if u.IsCoinbase {
+			m[*op].SetCoinBase()
 		}
+		// m[*op] = &types.UtxoWrap{
+		// 	Output:      u.TxOut,
+		// 	BlockHeight: u.BlockHeight,
+		// 	IsCoinBase:  u.IsCoinbase,
+		// 	IsSpent:     u.IsSpent,
+		// 	IsModified:  false,
+		// }
 	}
 	return m
 }
@@ -267,20 +278,20 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 	batch := db.NewBatch()
 	addrsChanged := make(map[types.Address]struct{})
 	for o, u := range utxos {
-		if u == nil || u.Output == nil || u.Output.ScriptPubKey == nil {
+		if u == nil {
 			logger.Warnf("invalid utxo, outpoint: %s, utxoWrap: %+v", o, u)
 			continue
 		}
-		if !isTxUtxo(u.Output.ScriptPubKey) {
+		if !isTxUtxo(u.Script()) {
 			logger.Warnf("utxo[%s, %+v] is not tx utxo", o, u)
 			continue
 		}
-		if !u.IsModified {
+		if !u.IsModified() {
 			logger.Warnf("utxo[%s, %+v] unmodified", o, u)
 			continue
 		}
 		//
-		sc := *script.NewScriptFromBytes(u.Output.ScriptPubKey)
+		sc := *script.NewScriptFromBytes(u.Script())
 		addr, err := sc.ExtractAddress()
 		if err != nil {
 			logger.Warnf("apply utxo[%s, %+v] error: %s", o, u, err)
@@ -289,10 +300,10 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 		addrsChanged[addr] = struct{}{}
 		// store utxo with key consisting of addr and outpoint
 		utxoKey := chain.AddrUtxoKey(addr.String(), o)
-		if u.IsSpent {
+		if u.IsSpent() {
 			batch.Del(utxoKey)
 		} else {
-			serialized, err := u.Marshal()
+			serialized, err := chain.SerializeUtxoEntry(u)
 			if err != nil {
 				return err
 			}

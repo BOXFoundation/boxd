@@ -143,9 +143,9 @@ func TxIndexKey(h *crypto.HashType) []byte {
 }
 
 // UtxoKey returns the db key to store utxo content of the Outpoint
-func UtxoKey(op *types.OutPoint) []byte {
-	return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
-}
+// func UtxoKey(op *types.OutPoint) []byte {
+// 	return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
+// }
 
 // CandidatesKey returns the db key to store candidates.
 func CandidatesKey(h *crypto.HashType) []byte {

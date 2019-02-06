@@ -178,7 +178,7 @@ func tryBalance(tx *types.Transaction, change *corepb.TxOut, utxos map[types.Out
 		totalBytes += len(vin.ScriptSig)
 	}
 	for _, utxo := range utxos {
-		totalIn += utxo.Output.GetValue()
+		totalIn += utxo.Value()
 	}
 	for _, vout := range tx.Vout {
 		totalBytes += len(vout.ScriptPubKey)
@@ -236,7 +236,7 @@ func signTransaction(tx *types.Transaction, utxos map[types.OutPoint]*types.Utxo
 func findUtxoScriptPubKey(utxos map[types.OutPoint]*types.UtxoWrap, outPoint types.OutPoint) ([]byte, error) {
 	for op, utxo := range utxos {
 		if reflect.DeepEqual(op, outPoint) {
-			return utxo.Output.GetScriptPubKey(), nil
+			return utxo.Script(), nil
 		}
 	}
 	return nil, fmt.Errorf("outPoint's referenced utxo not found")
@@ -266,7 +266,7 @@ func generateTx(fromAddr types.Address, utxos map[types.OutPoint]*types.UtxoWrap
 				tokenAmounts[*tokenInfo] = amount
 			}
 		}
-		inputAmount += wrap.Output.GetValue()
+		inputAmount += wrap.Value()
 		i++
 	}
 	tx.Vin = txIn
@@ -318,7 +318,7 @@ func generateTx(fromAddr types.Address, utxos map[types.OutPoint]*types.UtxoWrap
 
 // extractTokenInfo returns token outpoint and amount of an utxo
 func extractTokenInfo(op types.OutPoint, wrap *types.UtxoWrap) (*types.OutPoint, uint64) {
-	sc := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+	sc := script.NewScriptFromBytes(wrap.Script())
 	if sc.IsTokenIssue() {
 		issueParam, err := sc.GetIssueParams()
 		if err == nil {

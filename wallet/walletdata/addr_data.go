@@ -126,14 +126,14 @@ func (m *MemAddrProcessor) Fund(fromAddr types.Address, amountRequired uint64) (
 	var current uint64
 	out := make(map[types.OutPoint]*types.UtxoWrap)
 	for o, w := range m.utxos.GetUtxos() {
-		current += w.Output.Value
+		current += w.Value()
 		out[o] = w
 		if current >= amountRequired {
 			return out, nil
 		}
 	}
 	for o, w := range m.caching {
-		current += w.Output.Value
+		current += w.Value()
 		out[o] = w
 		if current >= amountRequired {
 			return out, nil
@@ -145,7 +145,7 @@ func (m *MemAddrProcessor) Fund(fromAddr types.Address, amountRequired uint64) (
 // GetBalance returns total box amount of current address
 func (m *MemAddrProcessor) GetBalance() (balance uint64) {
 	for _, val := range m.utxos.GetUtxos() {
-		balance += val.Output.Value
+		balance += val.Value()
 	}
 	return
 }
@@ -166,13 +166,8 @@ func (m *MemAddrProcessor) CreateSendTransaction(pubKeyBytes []byte, targets map
 	}
 	for idx, vout := range tx.Vout {
 		if bytes.HasPrefix(vout.ScriptPubKey, m.filter) {
-			m.caching[types.OutPoint{Hash: *hash, Index: uint32(idx)}] = &types.UtxoWrap{
-				Output:      vout,
-				BlockHeight: 0,
-				IsCoinBase:  false,
-				IsSpent:     false,
-				IsModified:  false,
-			}
+			wrap := types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, 0)
+			m.caching[types.OutPoint{Hash: *hash, Index: uint32(idx)}] = wrap
 		}
 	}
 	return tx, nil

@@ -114,13 +114,19 @@ func makeUtxosFromDB(keys [][]byte, db storage.Table) ([]*rpcpb.Utxo, error) {
 			logger.Warnf("utxo not found for key = %s", string(keys[i]))
 			continue
 		}
-		utxoWrap := new(types.UtxoWrap)
-		if err := utxoWrap.Unmarshal(value); err != nil {
-			logger.Warnf("unmarshal error %s, key = %s, body = %v",
+		// utxoWrap := new(types.UtxoWrap)
+		// if err := utxoWrap.Unmarshal(value); err != nil {
+		// 	logger.Warnf("unmarshal error %s, key = %s, body = %v",
+		// 		err, string(keys[i]), string(value))
+		// 	continue
+		// }
+		var utxoWrap *types.UtxoWrap
+		if utxoWrap, err = chain.DeserializeUtxoEntry(value); err != nil {
+			logger.Warnf("Deserialize error %s, key = %s, body = %v",
 				err, string(keys[i]), string(value))
 			continue
 		}
-		if utxoWrap.Output == nil {
+		if utxoWrap == nil {
 			logger.Warnf("invalid utxo in db, key: %s, value: %+v", keys[i], utxoWrap)
 			continue
 		}

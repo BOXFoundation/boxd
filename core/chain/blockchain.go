@@ -889,13 +889,11 @@ func (chain *BlockChain) LoadSpentUtxos(outpoints []types.OutPoint) (map[types.O
 			return nil, fmt.Errorf("fail to find transaction: %v", op.Hash)
 		}
 		txOut := tx.Vout[op.Index]
-		utxos[op] = &types.UtxoWrap{
-			Output:      txOut,
-			BlockHeight: 0, // Warning: BlockHeight unfilled
-			IsCoinBase:  IsCoinBase(tx),
-			IsSpent:     true,
-			IsModified:  false,
+		utxos[op] = types.NewUtxoWrap(txOut.Value, txOut.ScriptPubKey, 0)
+		if IsCoinBase(tx) {
+			utxos[op].SetCoinBase()
 		}
+		utxos[op].Spend()
 	}
 
 	return utxos, nil
@@ -1310,9 +1308,9 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 		}
 	}
 	for _, utxo := range utxoUsed {
-		if utxo != nil && utxo.Output != nil {
+		if utxo != nil {
 			// TODO: add script index for previous output
-			vin = append(vin, utxo.Output.ScriptPubKey)
+			vin = append(vin, utxo.Script())
 		}
 	}
 	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)

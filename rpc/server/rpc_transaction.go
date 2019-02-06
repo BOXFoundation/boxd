@@ -213,16 +213,16 @@ func (s *txServer) GetRawTransaction(ctx context.Context, req *rpcpb.GetRawTrans
 
 func generateUtxoMessage(outPoint *types.OutPoint, entry *types.UtxoWrap) *rpcpb.Utxo {
 	return &rpcpb.Utxo{
-		BlockHeight: entry.BlockHeight,
-		IsCoinbase:  entry.IsCoinBase,
-		IsSpent:     entry.IsSpent,
+		BlockHeight: entry.Height(),
+		IsCoinbase:  entry.IsCoinBase(),
+		IsSpent:     entry.IsSpent(),
 		OutPoint: &corepb.OutPoint{
 			Hash:  outPoint.Hash.GetBytes(),
 			Index: outPoint.Index,
 		},
 		TxOut: &corepb.TxOut{
 			Value:        entry.Value(),
-			ScriptPubKey: entry.Output.ScriptPubKey,
+			ScriptPubKey: entry.Script(),
 		},
 	}
 }

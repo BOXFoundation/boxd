@@ -12,6 +12,7 @@ const (
 	// push value
 	OP0         OpCode = 0x00 // 0
 	OPFALSE     OpCode = 0x00 // 0 - AKA OP0
+	OPDATA20    OpCode = 0x14 // 20
 	OPPUSHDATA1 OpCode = 0x4c // 76
 	OPPUSHDATA2 OpCode = 0x4d // 77
 	OPPUSHDATA4 OpCode = 0x4e // 78

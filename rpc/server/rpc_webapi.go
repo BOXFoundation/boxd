@@ -255,8 +255,8 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 		var totalIn, totalOut uint64
 		for _, in := range tx.Vin {
 			if wrap, ok := utxos[in.PrevOutPoint]; ok && wrap != nil {
-				totalIn += wrap.Output.Value
-				logger.Debugf("input value %v", wrap.Output.Value)
+				totalIn += wrap.Value()
+				logger.Debugf("input value %v", wrap.Value())
 			} else {
 				return nil, fmt.Errorf("previous input not found %v", in)
 			}
@@ -287,9 +287,9 @@ func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.Get
 				PrevOutPoint: opInfo,
 				ScriptSig:    i.ScriptSig,
 				Sequence:     i.Sequence,
-				Value:        utxo.Output.Value,
+				Value:        utxo.Value(),
 			}
-			sc := *script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+			sc := *script.NewScriptFromBytes(utxo.Script())
 			if addr, err := sc.ExtractAddress(); err == nil {
 				info.Addr = addr.String()
 			}
@@ -506,7 +506,7 @@ func (s *webapiServer) ListenAndReadNewBlock(
 func (s *webapiServer) countAddresses(utxos map[types.OutPoint]*types.UtxoWrap) uint32 {
 	addrs := make(map[string]bool)
 	for _, wrap := range utxos {
-		sc := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+		sc := script.NewScriptFromBytes(wrap.Script())
 		addr, err := sc.ExtractAddress()
 		if err != nil || addr == nil {
 			continue
@@ -519,16 +519,16 @@ func (s *webapiServer) countAddresses(utxos map[types.OutPoint]*types.UtxoWrap) 
 func (s *webapiServer) analyzeDistribute(utxos map[types.OutPoint]*types.UtxoWrap) map[string]uint64 {
 	distribute := make(map[string]uint64)
 	for _, wrap := range utxos {
-		sc := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+		sc := script.NewScriptFromBytes(wrap.Script())
 		addr, err := sc.ExtractAddress()
 		if err != nil || addr == nil {
 			continue
 		}
 		addrStr := addr.String()
 		if val, ok := distribute[addrStr]; ok {
-			distribute[addrStr] = val + wrap.Output.Value
+			distribute[addrStr] = val + wrap.Value()
 		} else {
-			distribute[addrStr] = wrap.Output.Value
+			distribute[addrStr] = wrap.Value()
 		}
 	}
 	return distribute
@@ -537,7 +537,7 @@ func (s *webapiServer) analyzeDistribute(utxos map[types.OutPoint]*types.UtxoWra
 func (s *webapiServer) analyzeTokenDistribute(utxos map[types.OutPoint]*types.UtxoWrap, token *script.TokenID) (map[string]uint64, error) {
 	distribute := make(map[string]uint64)
 	for op, wrap := range utxos {
-		sc := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
+		sc := script.NewScriptFromBytes(wrap.Script())
 		if sc.IsTokenIssue() {
 			addr, err := sc.ExtractAddress()
 			if err != nil {
@@ -585,13 +585,17 @@ func (s *webapiServer) loadGeneratedUtxoForTx(txs []*types.Transaction) (map[typ
 				Hash:  *hash,
 				Index: uint32(idx),
 			}
-			wrap := &types.UtxoWrap{
-				Output:      out,
-				BlockHeight: 0,
-				IsCoinBase:  i == 0,
-				IsSpent:     false,
-				IsModified:  false,
+			wrap := types.NewUtxoWrap(out.Value, out.ScriptPubKey, 0)
+			if i == 0 {
+				wrap.SetCoinBase()
 			}
+			// wrap := &types.UtxoWrap{
+			// 	Output:      out,
+			// 	BlockHeight: 0,
+			// 	IsCoinBase:  i == 0,
+			// 	IsSpent:     false,
+			// 	IsModified:  false,
+			// }
 			generated[outpoint] = wrap
 		}
 	}
@@ -637,13 +641,17 @@ func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoi
 				Hash:  *hash,
 				Index: uint32(idx),
 			}
-			wrap := &types.UtxoWrap{
-				Output:      out,
-				BlockHeight: 0,
-				IsCoinBase:  i == 0,
-				IsSpent:     false,
-				IsModified:  false,
+			wrap := types.NewUtxoWrap(out.Value, out.ScriptPubKey, 0)
+			if i == 0 {
+				wrap.SetCoinBase()
 			}
+			// wrap := &types.UtxoWrap{
+			// 	Output:      out,
+			// 	BlockHeight: 0,
+			// 	IsCoinBase:  i == 0,
+			// 	IsSpent:     false,
+			// 	IsModified:  false,
+			// }
 			generated[outpoint] = wrap
 		}
 	}
@@ -722,13 +730,13 @@ func (s *webapiServer) convertTransaction(tx *types.Transaction, utxos map[types
 				PrevOutPoint: opInfo,
 				ScriptSig:    i.ScriptSig,
 				Sequence:     i.Sequence,
-				Value:        utxo.Output.Value,
+				Value:        utxo.Value(),
 			}
-			sc := *script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+			sc := *script.NewScriptFromBytes(utxo.Script())
 			if addr, err := sc.ExtractAddress(); err == nil {
 				info.Addr = addr.String()
 			}
-			totalIn += utxo.Output.Value
+			totalIn += utxo.Value()
 			inInfos = append(inInfos, info)
 		} else {
 			info := &rpcpb.TxInInfo{

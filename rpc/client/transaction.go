@@ -226,12 +226,9 @@ func (r *rpcTransactionHelper) Fund(fromAddr types.Address, amountRequired uint6
 			Hash:  *hash,
 			Index: u.OutPoint.Index,
 		}
-		wrap := &types.UtxoWrap{
-			Output:      u.TxOut,
-			BlockHeight: u.BlockHeight,
-			IsCoinBase:  u.IsCoinbase,
-			IsSpent:     u.IsSpent,
-			IsModified:  false,
+		wrap := types.NewUtxoWrap(u.TxOut.Value, u.TxOut.ScriptPubKey, u.BlockHeight)
+		if u.IsCoinbase {
+			wrap.SetCoinBase()
 		}
 		utxos[op] = wrap
 	}

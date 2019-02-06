@@ -248,12 +248,12 @@ func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist", txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}
-		if utxo.IsSpent {
+		if utxo.IsSpent() {
 			logger.Errorf("output %v referenced from transaction %s:%d has already been spent", txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}
 
-		prevScriptPubKey := script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+		prevScriptPubKey := script.NewScriptFromBytes(utxo.Script())
 		scriptSig := script.NewScriptFromBytes(txIn.ScriptSig)
 
 		if skipValidation {
@@ -283,15 +283,15 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 	for txInIndex, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsSpent {
+		if utxo == nil || utxo.IsSpent() {
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
 			return 0, core.ErrMissingTxOut
 		}
 
 		// Immature coinbase coins cannot be spent.
-		if utxo.IsCoinBase {
-			originHeight := utxo.BlockHeight
+		if utxo.IsCoinBase() {
+			originHeight := utxo.Height()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev < CoinbaseMaturity {
 				logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
@@ -318,7 +318,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 		}
 
 		// token tx input amount
-		scriptPubKey := script.NewScriptFromBytes(utxo.Output.GetScriptPubKey())
+		scriptPubKey := script.NewScriptFromBytes(utxo.Script())
 		if scriptPubKey.IsTokenIssue() {
 			tokenID := script.NewTokenID(txIn.PrevOutPoint.Hash, txIn.PrevOutPoint.Index)
 			// no need to check error since it will not err

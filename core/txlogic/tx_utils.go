@@ -75,13 +75,11 @@ func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
 
 // NewUtxoWrap makes a UtxoWrap
 func NewUtxoWrap(addr string, height uint32, value uint64) *types.UtxoWrap {
-	return &types.UtxoWrap{
-		Output:      MakeVout(addr, value),
-		BlockHeight: height,
-		IsCoinBase:  false,
-		IsModified:  true,
-		IsSpent:     false,
-	}
+	address, _ := types.NewAddress(addr)
+	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
+	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
+
+	return types.NewUtxoWrap(value, addrScript, height)
 }
 
 // NewPbOutPoint constructs a OutPoint
@@ -116,11 +114,14 @@ func ConvOutPoint(op *types.OutPoint) *corepb.OutPoint {
 // MakePbUtxo make pb.Utxo from Op and utxo wrap
 func MakePbUtxo(op *types.OutPoint, uw *types.UtxoWrap) *rpcpb.Utxo {
 	return &rpcpb.Utxo{
-		BlockHeight: uw.BlockHeight,
-		IsCoinbase:  uw.IsCoinBase,
-		IsSpent:     uw.IsSpent,
+		BlockHeight: uw.Height(),
+		IsCoinbase:  uw.IsCoinBase(),
+		IsSpent:     uw.IsSpent(),
 		OutPoint:    NewPbOutPoint(&op.Hash, op.Index),
-		TxOut:       uw.Output,
+		TxOut: &corepb.TxOut{
+			Value:        uw.Value(),
+			ScriptPubKey: uw.Script(),
+		},
 	}
 }
 
