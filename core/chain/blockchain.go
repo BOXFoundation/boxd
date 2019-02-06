@@ -429,7 +429,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 				logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
 				return err
 			}
-			return core.ErrExpiredBlock
+			return core.ErrBlockInSideChain
 		}
 		logger.Warnf("Block %v extends a side chain height[%d] is lower than eternal block height[%d]", blockHash, block.Height, chain.eternal.Height)
 		return core.ErrExpiredBlock
