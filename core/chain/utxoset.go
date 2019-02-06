@@ -358,7 +358,6 @@ func utxoEntryHeaderCode(utxoWrap *types.UtxoWrap) (uint64, error) {
 // SerializeUtxoEntry returns the entry serialized to a format that is suitable
 // for long-term storage.  The format is described in detail above.
 func SerializeUtxoEntry(utxoWrap *types.UtxoWrap) ([]byte, error) {
-	logger.Errorf("serialize utxo wrap script: %v", utxoWrap.Script())
 	// Spent outputs have no serialization.
 	if utxoWrap.IsSpent() {
 		return nil, nil
