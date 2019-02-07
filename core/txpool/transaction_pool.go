@@ -222,8 +222,8 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 		txHash, _ := tx.TxHash()
 		tx_pool.txcache.Add(*txHash, true)
 		// Since the passed tx is confirmed in a new block, all its childrent remain valid, thus no recursive removal.
-		tx_pool.removeTx(tx, false /* non-recursive */)
-		tx_pool.removeDoubleSpendTxs(tx)
+		tx_pool.removeTx(tx, true /* non-recursive */)
+		// tx_pool.removeDoubleSpendTxs(tx)
 		tx_pool.removeOrphan(tx)
 		tx_pool.removeDoubleSpendOrphans(tx)
 	}
@@ -522,6 +522,11 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
+		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+			// tx_pool.removeTx(doubleSpentTx, true /* recursive */)
+			doubleSpentTxHash, _ := doubleSpentTx.TxHash()
+			tx_pool.hashToTx.Delete(*doubleSpentTxHash)
+		}
 		tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
 	}
 	tx_pool.hashToTx.Delete(*txHash)

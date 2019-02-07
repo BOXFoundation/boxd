@@ -222,7 +222,7 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		// 	// IsCoinBase:  IsCoinBase(prevTx),
 		// 	// flag:        true,
 		// }
-		utxoWrap.Modified()
+		// utxoWrap.Modified()
 		if IsCoinBase(prevTx) {
 			utxoWrap.SetCoinBase()
 		}
