@@ -364,7 +364,8 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 		if err := sm.chain.ProcessBlock(b, core.DefaultMode, false, ""); err != nil {
 			if err == core.ErrBlockExists ||
 				err == core.ErrOrphanBlockExists ||
-				err == core.ErrExpiredBlock {
+				err == core.ErrExpiredBlock ||
+				err == core.ErrBlockInSideChain {
 				continue
 			}
 			logger.Errorf("Failed to process block while handling LightSyncResponse message. Err: %s", err.Error())
