@@ -636,6 +636,8 @@ func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	// verify crypto signatures for each input
 	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false /* validate script */); err != nil {
 		// remove
+		txHash, _ := txScript.tx.TxHash()
+		logger.Errorf("tx %v script verification failed", txHash)
 		tx_pool.removeTx(txScript.tx, true)
 		return
 	}
