@@ -128,7 +128,7 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) error {
 	if !ok {
 		return fmt.Errorf("can't convert transaction into protobuf")
 	}
-	txReq := &rpcpb.SendTransactionRequest{Tx: txPb}
+	txReq := &rpcpb.SendTransactionReq{Tx: txPb}
 
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)

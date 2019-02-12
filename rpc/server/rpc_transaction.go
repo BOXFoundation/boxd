@@ -149,9 +149,17 @@ func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceReques
 	return &rpcpb.GetFeePriceResponse{BoxPerByte: 1}, nil
 }
 
+func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransactionResp {
+	return &rpcpb.SendTransactionResp{
+		Code:    code,
+		Message: msg,
+		Hash:    hash,
+	}
+}
+
 func (s *txServer) SendTransaction(
-	ctx context.Context, req *rpcpb.SendTransactionRequest) (
-	*rpcpb.BaseResponse, error) {
+	ctx context.Context, req *rpcpb.SendTransactionReq,
+) (*rpcpb.SendTransactionResp, error) {
 
 	tx := &types.Transaction{}
 	if err := tx.FromProtoMessage(req.Tx); err != nil {
@@ -159,11 +167,16 @@ func (s *txServer) SendTransaction(
 	}
 
 	txpool := s.server.GetTxHandler()
-	err := txpool.ProcessTx(tx, core.BroadcastMode)
-	return &rpcpb.BaseResponse{}, err
+	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), err
+	}
+	hash, _ := tx.TxHash()
+	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 
-func (s *txServer) GetRawTransaction(ctx context.Context, req *rpcpb.GetRawTransactionRequest) (*rpcpb.GetRawTransactionResponse, error) {
+func (s *txServer) GetRawTransaction(
+	ctx context.Context, req *rpcpb.GetRawTransactionRequest,
+) (*rpcpb.GetRawTransactionResponse, error) {
 	hash := crypto.HashType{}
 	if err := hash.SetBytes(req.Hash); err != nil {
 		return &rpcpb.GetRawTransactionResponse{}, err
