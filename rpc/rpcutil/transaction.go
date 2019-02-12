@@ -138,6 +138,9 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 	if err != nil {
 		return "", err
 	}
+	if resp.GetCode() != 0 {
+		return "", errors.New(resp.GetMessage())
+	}
 	return resp.Hash, nil
 }
 
