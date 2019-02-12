@@ -168,7 +168,7 @@ func (s *txServer) SendTransaction(
 
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
-		return newSendTransactionResp(-1, err.Error(), ""), err
+		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil

@@ -109,12 +109,11 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("new tx error: ", err)
 		return
 	}
-	err = rpcutil.SendTransaction(conn, tx)
+	hash, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		fmt.Println(err)
 	}
-	hash, _ := tx.TxHash()
-	fmt.Println("Tx Hash:", hash.String())
+	fmt.Println("Tx Hash:", hash)
 	fmt.Println(util.PrettyPrint(tx))
 }
 
