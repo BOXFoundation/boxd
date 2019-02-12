@@ -178,7 +178,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	if err != nil {
 		logger.Panic(err)
 	}
-	err = rpcutil.SendTransaction(conn, tx)
+	_, err = rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
 	}
@@ -233,7 +233,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Panic(<-errChans)
 	}
 	for _, tx := range txs {
-		err = rpcutil.SendTransaction(conn, tx)
+		_, err = rpcutil.SendTransaction(conn, tx)
 		if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
@@ -276,7 +276,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 
 			for _, txs := range txss {
 				for _, tx := range txs {
-					err := rpcutil.SendTransaction(conn, tx)
+					_, err := rpcutil.SendTransaction(conn, tx)
 					if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 						logger.Panic(err)
 					}

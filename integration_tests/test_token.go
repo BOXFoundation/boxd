@@ -85,7 +85,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		logger.Error(err)
 		return
 	}
-	if err := rpcutil.SendTransaction(conn, tx); err != nil &&
+	if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Error(err)
 		return
@@ -119,7 +119,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	if err != nil {
 		logger.Panic(err)
 	}
-	if err := rpcutil.SendTransaction(conn, tx); err != nil &&
+	if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
 	}
@@ -155,7 +155,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	logger.Infof("start to send %d token txs from %s to %s on %s",
 		times, sender, receiver, peerAddr)
 	for _, tx := range txs {
-		if err := rpcutil.SendTransaction(conn, tx); err != nil &&
+		if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 			!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}

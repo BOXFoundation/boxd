@@ -83,7 +83,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		logger.Error(err)
 		return
 	}
-	if err := rpcutil.SendTransaction(conn, senderTx); err != nil {
+	if _, err := rpcutil.SendTransaction(conn, senderTx); err != nil {
 		logger.Error(err)
 		return
 	}
@@ -102,7 +102,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		logger.Error(err)
 		return
 	}
-	if err := rpcutil.SendTransaction(conn, splitTx); err != nil {
+	if _, err := rpcutil.SendTransaction(conn, splitTx); err != nil {
 		logger.Error(err)
 		return
 	}
@@ -173,7 +173,7 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 			//bytes, _ := json.MarshalIndent(tx, "", "  ")
 			//hash, _ := tx.CalcTxHash()
 			//logger.Infof("send split tx hash: %v\nbody: %s", hash[:], string(bytes))
-			if err := rpcutil.SendTransaction(conn, tx); err != nil {
+			if _, err := rpcutil.SendTransaction(conn, tx); err != nil {
 				logger.Panic(err)
 			}
 			atomic.AddUint64(txCnt, 1)

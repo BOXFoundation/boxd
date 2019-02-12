@@ -119,14 +119,14 @@ func NewIssueTokenTx(
 }
 
 // SendTransaction sends an signed transaction to node server through grpc connection
-func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) error {
+func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, error) {
 	txProtoMsg, err := tx.ToProtoMessage()
 	if err != nil {
-		return err
+		return "", err
 	}
 	txPb, ok := txProtoMsg.(*corepb.Transaction)
 	if !ok {
-		return fmt.Errorf("can't convert transaction into protobuf")
+		return "", fmt.Errorf("can't convert transaction into protobuf")
 	}
 	txReq := &rpcpb.SendTransactionReq{Tx: txPb}
 
@@ -134,11 +134,11 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) error {
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 
-	_, err = c.SendTransaction(ctx, txReq)
+	resp, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return resp.Hash, nil
 }
 
 // GetRawTransaction get the transaction info of given hash

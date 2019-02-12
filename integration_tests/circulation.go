@@ -124,7 +124,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 			//}
 
 			for _, tx := range txs {
-				if err := rpcutil.SendTransaction(conn, tx); err != nil &&
+				if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 					!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 					logger.Panic(err)
 				}

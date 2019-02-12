@@ -13,6 +13,7 @@ import (
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -113,13 +114,13 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	err = rpcutil.SendTransaction(conn, tx)
+	hashStr, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		fmt.Println(err)
 		return
 	}
-
-	hash, _ := tx.TxHash()
+	hash := new(crypto.HashType)
+	hash.SetString(hashStr)
 	tk := types.NewTokenFromOutpoint(types.OutPoint{
 		Hash:  *hash,
 		Index: 0,
