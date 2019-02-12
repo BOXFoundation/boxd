@@ -145,13 +145,7 @@ func NewIssueTokenUtxoWrap(
 	if err != nil {
 		return nil, err
 	}
-	return &types.UtxoWrap{
-		Output:      vout,
-		BlockHeight: height,
-		IsCoinBase:  false,
-		IsModified:  true,
-		IsSpent:     false,
-	}, nil
+	return types.NewUtxoWrap(value, vout.GetScriptPubKey(), height), nil
 }
 
 // NewTokenUtxoWrap makes a UtxoWrap
@@ -162,13 +156,7 @@ func NewTokenUtxoWrap(
 	if err != nil {
 		return nil, err
 	}
-	return &types.UtxoWrap{
-		Output:      vout,
-		BlockHeight: height,
-		IsCoinBase:  false,
-		IsModified:  true,
-		IsSpent:     false,
-	}, nil
+	return types.NewUtxoWrap(value, vout.GetScriptPubKey(), height), nil
 }
 
 // NewPbOutPoint constructs a OutPoint

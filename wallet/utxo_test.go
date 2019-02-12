@@ -381,7 +381,7 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 			param, err := sc.GetTransferParams()
 			if err != nil {
 				logger.Warnf("get token utxo ScriptPubKey %+v transfer params error: %s",
-					u.Output.ScriptPubKey, err)
+					u.Script(), err)
 			}
 			tid := types.TokenID(param.TokenID.OutPoint)
 			utxoKey = chain.AddrTokenUtxoKey(addr.String(), tid, o)

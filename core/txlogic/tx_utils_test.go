@@ -19,7 +19,7 @@ func TestNewIssueTokenUtxoWrap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sc := script.NewScriptFromBytes(uw.Output.ScriptPubKey)
+	sc := script.NewScriptFromBytes(uw.Script())
 	if !sc.IsTokenIssue() {
 		t.Fatal("expect token issue script")
 	}

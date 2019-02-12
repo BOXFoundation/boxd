@@ -175,7 +175,7 @@ func makeUtxosFromDB(
 			continue
 		}
 		// check utxo type
-		spk := utxoWrap.Output.GetScriptPubKey()
+		spk := utxoWrap.Script()
 		var filter scriptPubKeyFilter = filterPayToPubKeyHash
 		if tid != nil {
 			filter = filterToken
