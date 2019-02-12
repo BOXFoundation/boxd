@@ -347,44 +347,6 @@ func decompressScript(compressedPkScript []byte) []byte {
 	return pkScript
 }
 
-// -----------------------------------------------------------------------------
-// In order to reduce the size of stored amounts, a domain specific compression
-// algorithm is used which relies on there typically being a lot of zeroes at
-// end of the amounts.  The compression algorithm used here was obtained from
-// Bitcoin Core, so all credits for the algorithm go to it.
-//
-// While this is simply exchanging one uint64 for another, the resulting value
-// for typical amounts has a much smaller magnitude which results in fewer bytes
-// when encoded as variable length quantity.  For example, consider the amount
-// of 0.1 BTC which is 10000000 satoshi.  Encoding 10000000 as a VLQ would take
-// 4 bytes while encoding the compressed value of 8 as a VLQ only takes 1 byte.
-//
-// Essentially the compression is achieved by splitting the value into an
-// exponent in the range [0-9] and a digit in the range [1-9], when possible,
-// and encoding them in a way that can be decoded.  More specifically, the
-// encoding is as follows:
-// - 0 is 0
-// - Find the exponent, e, as the largest power of 10 that evenly divides the
-//   value up to a maximum of 9
-// - When e < 9, the final digit can't be 0 so store it as d and remove it by
-//   dividing the value by 10 (call the result n).  The encoded value is thus:
-//   1 + 10*(9*n + d-1) + e
-// - When e==9, the only thing known is the amount is not 0.  The encoded value
-//   is thus:
-//   1 + 10*(n-1) + e   ==   10 + 10*(n-1)
-//
-// Example encodings:
-// (The numbers in parenthesis are the number of bytes when serialized as a VLQ)
-//            0 (1) -> 0        (1)           *  0.00000000 BTC
-//         1000 (2) -> 4        (1)           *  0.00001000 BTC
-//        10000 (2) -> 5        (1)           *  0.00010000 BTC
-//     12345678 (4) -> 111111101(4)           *  0.12345678 BTC
-//     50000000 (4) -> 47       (1)           *  0.50000000 BTC
-//    100000000 (4) -> 9        (1)           *  1.00000000 BTC
-//    500000000 (5) -> 49       (1)           *  5.00000000 BTC
-//   1000000000 (5) -> 10       (1)           * 10.00000000 BTC
-// -----------------------------------------------------------------------------
-
 // compressTxOutAmount compresses the passed amount according to the domain
 // specific compression algorithm described above.
 func compressTxOutAmount(amount uint64) uint64 {
@@ -453,20 +415,6 @@ func decompressTxOutAmount(amount uint64) uint64 {
 
 	return n
 }
-
-// -----------------------------------------------------------------------------
-// Compressed transaction outputs consist of an amount and a public key script
-// both compressed using the domain specific compression algorithms previously
-// described.
-//
-// The serialized format is:
-//
-//   <compressed amount><compressed script>
-//
-//   Field                 Type     Size
-//     compressed amount   VLQ      variable
-//     compressed script   []byte   variable
-// -----------------------------------------------------------------------------
 
 // compressedTxOutSize returns the number of bytes the passed transaction output
 // fields would take when encoded with the format described above.
