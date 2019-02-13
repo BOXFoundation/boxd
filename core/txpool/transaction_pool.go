@@ -523,9 +523,11 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
 		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
-			tx_pool.removeTx(doubleSpentTx, true)
+			tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
+			doubleSpentTxHash, _ := doubleSpentTx.TxHash()
+			tx_pool.hashToTx.Delete(*doubleSpentTxHash)
 		}
-		tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
+
 	}
 	tx_pool.hashToTx.Delete(*txHash)
 
