@@ -631,9 +631,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	// Split tx outputs if any
 	chain.splitBlockOutputs(blockCopy)
 	ttt1 := time.Now().UnixNano()
-	// if err := utxoSet.LoadBlockUtxos(blockCopy, chain.db); err != nil {
-	// 	return err
-	// }
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
@@ -642,12 +639,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		return err
 	}
 	ttt2 := time.Now().UnixNano()
-	// if err := chain.filterHolder.AddFilter(block.Height, *block.BlockHash(), chain.DB(), batch, func() bloom.Filter {
-	// 	return GetFilterForTransactionScript(blockCopy, utxoSet.utxoMap)
-	// }); err != nil {
-	// 	return err
-	// }
-	ttt3 := time.Now().UnixNano()
 	// save candidate context
 	if err := chain.consensus.StoreCandidateContext(block, batch); err != nil {
 		return err
@@ -657,18 +648,18 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if err := chain.WriteTxIndex(block, batch); err != nil {
 		return err
 	}
-	ttt4 := time.Now().UnixNano()
+	ttt3 := time.Now().UnixNano()
 	// store split addr index
 	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
 		logger.Error(err)
 		return err
 	}
-	ttt5 := time.Now().UnixNano()
+	ttt4 := time.Now().UnixNano()
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
-	ttt6 := time.Now().UnixNano()
+	ttt5 := time.Now().UnixNano()
 	// save current tail to database
 	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
@@ -678,20 +669,17 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Height, err.Error())
 	}
-	ttt7 := time.Now().UnixNano()
+	ttt6 := time.Now().UnixNano()
 	chain.tryToClearCache([]*types.Block{block}, nil)
-
-	// notify when batch write success
-	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
 	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
-	ttt8 := time.Now().UnixNano()
+	ttt7 := time.Now().UnixNano()
 	if needToTracking((ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
-		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ttt7` = %d", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6, (ttt8-ttt7)/1e6)
+		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
 	}
 	return nil
 }
@@ -786,10 +774,6 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		return err
 	}
 	dtt5 := time.Now().UnixNano()
-	// save current tail to database
-	// if err := chain.StoreTailBlock(block, batch); err != nil {
-	// 	return err
-	// }
 
 	if err := batch.Write(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
@@ -797,9 +781,6 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	}
 	dtt6 := time.Now().UnixNano()
 	chain.tryToClearCache(nil, []*types.Block{block})
-
-	// notify when batch write success
-	// chain.notifyUtxoChange(utxoSet)
 
 	// notify mem_pool when chain update
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
@@ -1287,58 +1268,6 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 		idx++
 	}
 	return blocks, nil
-}
-
-// GetFilterForTransactionScript returns the bloom filter for all the script address
-// of the transactions in the block, it will use the pre-calculated filter if there
-// is any
-func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoint]*types.UtxoWrap) bloom.Filter {
-	var vin, vout [][]byte
-	for _, tx := range block.Txs {
-		for _, out := range tx.Vout {
-			vout = append(vout, out.ScriptPubKey)
-		}
-	}
-	for _, utxo := range utxoUsed {
-		if utxo != nil {
-			// TODO: add script index for previous output
-			vin = append(vin, utxo.Script())
-		}
-	}
-	filter := bloom.NewFilter(uint32(len(vin)+len(vout)+1), 0.0001)
-	for _, scriptBytes := range vin {
-		filter.Add(scriptBytes)
-	}
-	for _, tx := range block.Txs {
-		for idx, out := range tx.Vout {
-			indexedBytes := out.ScriptPubKey
-			sc := script.NewScriptFromBytes(out.ScriptPubKey)
-			if sc.IsTokenIssue() || sc.IsTokenTransfer() {
-				// token output: only store the p2pkh prefix part so we can retrieve it later
-				indexedBytes = *sc.P2PKHScriptPrefix()
-			} else if sc.IsSplitAddrScript() {
-				// split address output: only store up to the hashed address part so we can retrieve it later
-				indexedBytes = *sc.GetSplitAddrScriptPrefix()
-			}
-			filter.Add(indexedBytes)
-			hash, _ := tx.TxHash()
-			if sc.IsTokenIssue() {
-				filter.Add([]byte(tokenIssueFilterKey))
-				tokenID := &script.TokenID{
-					OutPoint: types.OutPoint{
-						Hash:  *hash,
-						Index: uint32(idx),
-					},
-				}
-				filter.Add([]byte(tokenID.String()))
-			} else if sc.IsTokenTransfer() {
-				param, _ := sc.GetTransferParams()
-				filter.Add([]byte(param.TokenID.String()))
-			}
-		}
-	}
-	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
-	return filter
 }
 
 // GetTransactionsByAddr search the main chain about transaction relate to give address
