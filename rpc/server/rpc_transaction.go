@@ -217,7 +217,7 @@ func newMakeTxResp(
 	}
 }
 
-func (s *txServer) MakeTxWithoutSign(
+func (s *txServer) MakeUnsignedTx(
 	ctx context.Context, req *rpcpb.MakeTxReq,
 ) (*rpcpb.MakeTxResp, error) {
 	wa := s.server.GetWalletAgent()
