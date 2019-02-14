@@ -82,7 +82,6 @@ type BlockChain struct {
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               types.SyncManager
-	filterHolder              BloomFilterHolder
 	status                    int32
 }
 
@@ -102,7 +101,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
-		filterHolder:              NewFilterHolder(),
 		bus:                       eventbus.Default(),
 		status:                    free,
 	}
@@ -132,12 +130,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 	b.LongestChainHeight = b.tail.Height
-	// logger.Info("Begin to load bloom filter...")
-	// if err = b.loadFilters(); err != nil {
-	// 	logger.Error("Fail to load filters", err)
-	// 	return nil, err
-	// }
-	// logger.Info("Finish Loading bloom filter...")
 
 	return b, nil
 }
@@ -1347,47 +1339,6 @@ func GetFilterForTransactionScript(block *types.Block, utxoUsed map[types.OutPoi
 	}
 	logger.Debugf("Create Block filter with %d inputs and %d outputs", len(vin), len(vout))
 	return filter
-}
-
-func (chain *BlockChain) loadFilters() error {
-	start := time.Now()
-	var i uint32 = 1
-	var utxoSet *UtxoSet
-	batch := chain.db.NewBatch()
-	defer batch.Close()
-	heightHashMapping, err := chain.loadAllBlockHeightHash()
-	if err != nil {
-		heightHashMapping = make(map[uint32]*crypto.HashType)
-	}
-	for ; i <= chain.LongestChainHeight; i++ {
-		hash, ok := heightHashMapping[uint32(i)]
-		if !ok {
-			hash, err = chain.GetBlockHash(uint32(i))
-			if err != nil {
-				logger.Errorf("Failed to get block info. i: %d tail_height: %d Err: %v", i, chain.LongestChainHeight, err)
-				return err
-			}
-		}
-		if err := chain.filterHolder.AddFilter(i, *hash, chain.DB(), batch, func() bloom.Filter {
-			block, err := chain.LoadBlockByHash(*hash)
-			if err != nil {
-				logger.Error("Error try to load block at height", i, err)
-				return nil
-			}
-			utxoSet = NewUtxoSet()
-			if err = utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
-				logger.Error("Error Loading block utxo", err)
-				return nil
-			}
-			return GetFilterForTransactionScript(block, utxoSet.utxoMap)
-		}); err != nil {
-			logger.Error("Failed to addFilter", err)
-			return err
-		}
-	}
-	utxoSet = nil
-	logger.Debugf("bloom filter start cost: %v block count: %v", time.Since(start), chain.LongestChainHeight)
-	return batch.Write()
 }
 
 // GetTransactionsByAddr search the main chain about transaction relate to give address
