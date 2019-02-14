@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"hash/crc64"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -31,7 +32,8 @@ import (
 )
 
 var (
-	logger = log.NewLogger("p2p")
+	logger     = log.NewLogger("p2p")
+	crc64Table = crc64.MakeTable(crc64.ECMA)
 
 	isSynced = false
 )
@@ -227,7 +229,12 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
 			return true
 		}
-		go conn.Write(code, body)
+		// go conn.Write(code, body)
+		go func(conn *Conn) {
+			if err := conn.Write(code, body); err != nil {
+				logger.Errorf("Failed to broadcast message to remote peer.Code: %X, Err: %v", code, err)
+			}
+		}(conn)
 		return true
 	})
 	return nil
@@ -250,9 +257,40 @@ func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []
 		}
 		if c, ok := p.conns.Load(pid); ok {
 			conn := c.(*Conn)
-			go conn.Write(code, body)
+			// go conn.Write(code, body)
+			go func(conn *Conn) {
+				if err := conn.Write(code, body); err != nil {
+					logger.Errorf("Failed to broadcast message to remote miner peer.Code: %X, Err: %v", code, err)
+				}
+			}(conn)
 		}
 	}
+	return nil
+}
+
+// Relay business message.
+func (p *BoxPeer) Relay(code uint32, msg conv.Convertible) error {
+
+	body, err := conv.MarshalConvertible(msg)
+	if err != nil {
+		return err
+	}
+
+	cnt := 0
+	p.conns.Range(func(k, v interface{}) bool {
+		conn := v.(*Conn)
+		if uint32(cnt) >= p.config.RelaySize {
+			return false
+		}
+		// go connTmp.Write(code, body)
+		go func(conn *Conn) {
+			if err := conn.Write(code, body); err != nil {
+				logger.Errorf("Failed to relay message to remote peer.Code: %X, Err: %v", code, err)
+			}
+		}(conn)
+		cnt++
+		return true
+	})
 	return nil
 }
 
@@ -268,7 +306,12 @@ func (p *BoxPeer) SendMessageToPeer(code uint32, msg conv.Convertible, pid peer.
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
 			return ErrFailedToSendMessageToPeer
 		}
-		go conn.Write(code, body)
+		// go conn.Write(code, body)
+		go func(conn *Conn) {
+			if err := conn.Write(code, body); err != nil {
+				logger.Errorf("Failed to send message to remote peer.Code: %X, Err: %v", code, err)
+			}
+		}(conn)
 		return nil
 	}
 	return ErrFailedToSendMessageToPeer

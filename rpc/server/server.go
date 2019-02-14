@@ -6,6 +6,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,17 +19,34 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
+	"github.com/rs/cors"
+	"github.com/satori/go.uuid"
+	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
 )
 
 var logger = log.NewLogger("rpc")
 
+// Define const
+const (
+	DefaultGrpcLimits = 128
+	DefaultHTTPLimits = 128
+)
+
+//
+var (
+	ErrAPINotSupported = errors.New("api not supported")
+)
+
 // Config defines the configurations of rpc server
 type Config struct {
-	Enabled bool       `mapstructure:"enabled"`
-	Address string     `mapstructure:"address"`
-	Port    int        `mapstructure:"port"`
-	HTTP    HTTPConfig `mapstructure:"http"`
+	Enabled    bool       `mapstructure:"enabled"`
+	Address    string     `mapstructure:"address"`
+	Port       int        `mapstructure:"port"`
+	HTTP       HTTPConfig `mapstructure:"http"`
+	GrpcLimits int        `mapstructure:"grpc_limits"`
+	HTTPLimits int        `mapstructure:"http_limits"`
+	HTTPCors   []string   `mapstructure:"http_cors"`
 }
 
 // HTTPConfig defines the address/port of rest api over http
@@ -43,6 +61,7 @@ type Server struct {
 
 	ChainReader service.ChainReader
 	TxHandler   service.TxHandler
+	WalletAgent service.WalletAgent
 	eventBus    eventbus.Bus
 	server      *grpc.Server
 	gRPCProc    goprocess.Process
@@ -83,21 +102,26 @@ func RegisterServiceWithGatewayHandler(name string, s Service, h GatewayHandler)
 type GRPCServer interface {
 	GetChainReader() service.ChainReader
 	GetTxHandler() service.TxHandler
+	GetWalletAgent() service.WalletAgent
 	GetEventBus() eventbus.Bus
+	Proc() goprocess.Process
 	Stop()
 }
 
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config, cr service.ChainReader, txh service.TxHandler, bus eventbus.Bus) (*Server, error) {
+func NewServer(parent goprocess.Process, cfg *Config,
+	cr service.ChainReader, txh service.TxHandler,
+	wa service.WalletAgent, bus eventbus.Bus) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
 		TxHandler:   txh,
 		eventBus:    bus,
+		WalletAgent: wa,
 		gRPCProc:    goprocess.WithParent(parent),
 	}
 
-	return server, nil
+	return server
 }
 
 // implement interface service.Server
@@ -130,6 +154,11 @@ func (s *Server) GetTxHandler() service.TxHandler {
 	return s.TxHandler
 }
 
+// GetWalletAgent returns the wallet related service handler
+func (s *Server) GetWalletAgent() service.WalletAgent {
+	return s.WalletAgent
+}
+
 // GetEventBus returns a interface to publish events
 func (s *Server) GetEventBus() eventbus.Bus {
 	return s.eventBus
@@ -143,13 +172,32 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 		logger.Fatalf("failed to listen: %v", err)
 	}
 
-	s.server = grpc.NewServer()
+	var opts []grpc.ServerOption
+	var interceptor grpc.UnaryServerInterceptor
+	interceptor = func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		start := time.Now()
+		uid := uuid.NewV4()
+		resp, err := handler(ctx, req)
+		logger.Debugf("grpc access log: %v %v %v", uid, info.FullMethod, time.Since(start))
+		return resp, err
+	}
+	opts = append(opts, grpc.UnaryInterceptor(interceptor))
+
+	s.server = grpc.NewServer(opts...)
 
 	// regist all gRPC services for the server
 	for name, service := range services {
 		logger.Debugf("register gRPC service: %s", name)
 		service(s)
 	}
+
+	// Limit the total number of grpc connections.
+	grpcLimits := s.cfg.GrpcLimits
+	if grpcLimits == 0 {
+		grpcLimits = DefaultGrpcLimits
+	}
+
+	lis = netutil.LimitListener(lis, grpcLimits)
 
 	go func() {
 		s.wggRPC.Add(1)
@@ -197,7 +245,7 @@ func (s *Server) serveHTTP(proc goprocess.Process) {
 	}
 
 	var httpendpoint = fmt.Sprintf("%s:%d", s.cfg.HTTP.Address, s.cfg.HTTP.Port)
-	s.httpserver = &http.Server{Addr: httpendpoint, Handler: mux}
+	s.httpserver = &http.Server{Addr: httpendpoint, Handler: s.withHTTPLimits(mux)}
 	go func() {
 		s.wgHTTP.Add(1)
 		defer s.wgHTTP.Done()
@@ -222,4 +270,35 @@ func (s *Server) serveHTTP(proc goprocess.Process) {
 
 	s.wgHTTP.Wait()
 	logger.Info("RPC:http server is down.")
+}
+
+func (s *Server) withHTTPLimits(h http.Handler) http.Handler {
+	httpLimit := s.cfg.HTTPLimits
+	if httpLimit == 0 {
+		httpLimit = DefaultHTTPLimits
+	}
+	httpCh := make(chan bool, httpLimit)
+
+	c := cors.New(cors.Options{
+		AllowedHeaders: []string{"Content-Type", "Accept"},
+		AllowedMethods: []string{"GET", "HEAD", "POST", "PUT", "DELETE"},
+		AllowedOrigins: s.cfg.HTTPCors,
+		MaxAge:         600,
+	})
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case httpCh <- true:
+			defer func() { <-httpCh }()
+			c.Handler(h).ServeHTTP(w, r)
+		default:
+			serviceUnavailableHandler(w, r)
+		}
+	})
+}
+
+func serviceUnavailableHandler(w http.ResponseWriter, r *http.Request) {
+	logger.Errorf("Sorry, the server is busy due to too many requests")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	w.Write([]byte("{\"Err:\",\"Sorry, the server is busy due to too many requests.\nPlease try again later.\"}"))
 }

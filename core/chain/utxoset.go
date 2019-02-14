@@ -5,43 +5,51 @@
 package chain
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 )
 
 // UtxoSet contains all utxos
 type UtxoSet struct {
-	utxoMap map[types.OutPoint]*types.UtxoWrap
+	utxoMap types.UtxoMap
 }
 
 // NewUtxoSet new utxo set
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
-		utxoMap: make(map[types.OutPoint]*types.UtxoWrap),
+		utxoMap: make(types.UtxoMap),
 	}
 }
 
 // NewUtxoSetFromMap returns the underlying utxos as a map
-func NewUtxoSetFromMap(utxoMap map[types.OutPoint]*types.UtxoWrap) *UtxoSet {
+func NewUtxoSetFromMap(utxoMap types.UtxoMap) *UtxoSet {
 	return &UtxoSet{
 		utxoMap: utxoMap,
 	}
 }
 
 // GetUtxos returns the unspent utxos
-func (u *UtxoSet) GetUtxos() map[types.OutPoint]*types.UtxoWrap {
-	result := make(map[types.OutPoint]*types.UtxoWrap)
+func (u *UtxoSet) GetUtxos() types.UtxoMap {
+	result := make(types.UtxoMap)
 	for outPoint, utxoWrap := range u.utxoMap {
-		if !utxoWrap.IsSpent {
+		if !utxoWrap.IsSpent() {
 			result[outPoint] = utxoWrap
 		}
 	}
 	return result
+}
+
+// All returns all utxo contained including spent utxo
+func (u *UtxoSet) All() types.UtxoMap {
+	return u.utxoMap
 }
 
 // FindUtxo returns information about an outpoint.
@@ -61,14 +69,18 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
 	}
-	utxoWrap := types.UtxoWrap{
-		Output:      tx.Vout[txOutIdx],
-		BlockHeight: blockHeight,
-		IsCoinBase:  IsCoinBase(tx),
-		IsModified:  true,
-		IsSpent:     false,
+	utxoWrap := types.NewUtxoWrap(tx.Vout[txOutIdx].Value, tx.Vout[txOutIdx].ScriptPubKey, blockHeight)
+	if IsCoinBase(tx) {
+		utxoWrap.SetCoinBase()
 	}
-	u.utxoMap[outPoint] = &utxoWrap
+	// utxoWrap := types.UtxoWrap{
+	// 	// Output:      tx.Vout[txOutIdx],
+	// 	// BlockHeight: blockHeight,
+	// 	// IsCoinBase:  IsCoinBase(tx),
+	// 	// IsModified:  true,
+	// 	// IsSpent:     false,
+	// }
+	u.utxoMap[outPoint] = utxoWrap
 	return nil
 }
 
@@ -76,22 +88,28 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 	utxoWrap := u.utxoMap[outPoint]
 	if utxoWrap == nil {
-		return
+		// Mark the utxo entry as spent so it could be deleted from db later
+		utxoWrap = &types.UtxoWrap{}
+		u.utxoMap[outPoint] = utxoWrap
 	}
-	utxoWrap.IsSpent = true
-	utxoWrap.IsModified = true
+	utxoWrap.Spend()
+	// utxoWrap.IsSpent = true
+	// utxoWrap.IsModified = true
 }
 
-// IsTxFunded returns if a tx is funded, i.e., if all of its spending utxos exist
-func (u *UtxoSet) IsTxFunded(tx *types.Transaction) bool {
+// TxInputAmount returns total amount from tx's inputs
+// Return 0 if a tx is not fully funded, i.e., if not all of its spending utxos exist
+func (u *UtxoSet) TxInputAmount(tx *types.Transaction) uint64 {
+	totalInputAmount := uint64(0)
 	for _, txIn := range tx.Vin {
 		utxo := u.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsSpent {
-			return false
+		if utxo == nil || utxo.IsSpent() {
+			return uint64(0)
 		}
+		totalInputAmount += utxo.Value()
 	}
 
-	return true
+	return totalInputAmount
 }
 
 // TxWrap wrap transaction
@@ -100,6 +118,7 @@ type TxWrap struct {
 	AddedTimestamp int64
 	Height         uint32
 	FeePerKB       uint64
+	IsScriptValid  bool
 }
 
 // GetExtendedTxUtxoSet returns tx's utxo set from both db & txs in spendableTxs
@@ -114,7 +133,7 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 	// Outputs of existing txs in spendableTxs can also be spent
 	for _, txIn := range tx.Vin {
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo != nil && !utxo.IsSpent {
+		if utxo != nil && !utxo.IsSpent() {
 			continue
 		}
 		if v, exists := spendableTxs.Load(txIn.PrevOutPoint.Hash); exists {
@@ -164,7 +183,7 @@ func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 
 // RevertTx updates utxos with the passed tx: delete all utxos in outputs and add all utxos in inputs.
 // It undoes the effect of ApplyTx on utxo set
-func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight uint32) error {
+func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 	txHash, _ := tx.TxHash()
 
 	// Remove added utxos
@@ -180,24 +199,47 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, blockHeight uint32) error {
 	// "Unspend" the referenced utxos
 	for _, txIn := range tx.Vin {
 		utxoWrap := u.utxoMap[txIn.PrevOutPoint]
-		if utxoWrap == nil {
+		if utxoWrap != nil {
+			// utxoWrap.IsSpent = false
+			// utxoWrap.IsModified = true
+			utxoWrap.UnSpend()
+			continue
+		}
+		// This can happen when the block the tx is in is being reverted
+		// The UTXO txIn spends have been deleted from UTXO set, so we load it from tx index
+		block, txIdx, err := chain.LoadBlockInfoByTxHash(txIn.PrevOutPoint.Hash)
+		if err != nil {
 			logger.Panicf("Trying to unspend non-existing spent output %v", txIn.PrevOutPoint)
 		}
-		utxoWrap.IsSpent = false
-		utxoWrap.IsModified = true
+		prevTx := block.Txs[txIdx]
+		utxoWrap = types.NewUtxoWrap(prevTx.Vout[txIn.PrevOutPoint.Index].Value,
+			prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey, block.Height)
+		// utxoWrap = &types.UtxoWrap{
+		// 	// Output:      prevTx.Vout[txIn.PrevOutPoint.Index],
+		// 	value:       prevTx.Vout[txIn.PrevOutPoint.Index].Value,
+		// 	script:      prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey,
+		// 	blockHeight: block.Height,
+		// 	// IsCoinBase:  IsCoinBase(prevTx),
+		// 	// flag:        true,
+		// }
+		// utxoWrap.Modified()
+		if IsCoinBase(prevTx) {
+			utxoWrap.SetCoinBase()
+		}
+		u.utxoMap[txIn.PrevOutPoint] = utxoWrap
 	}
 	return nil
 }
 
 // RevertBlock undoes utxo changes made with all the transactions in the passed block
 // It undoes the effect of ApplyBlock on utxo set
-func (u *UtxoSet) RevertBlock(block *types.Block) error {
+func (u *UtxoSet) RevertBlock(block *types.Block, chain *BlockChain) error {
 	// Loop backwards through all transactions so everything is unspent in reverse order.
 	// This is necessary since transactions later in a block can spend from previous ones.
 	txs := block.Txs
 	for txIdx := len(txs) - 1; txIdx >= 0; txIdx-- {
 		tx := txs[txIdx]
-		if err := u.RevertTx(tx, block.Height); err != nil {
+		if err := u.RevertTx(tx, chain); err != nil {
 			return err
 		}
 	}
@@ -240,64 +282,204 @@ func (u *UtxoSet) ApplyTxWithScriptFilter(tx *types.Transaction, blockHeight uin
 	return nil
 }
 
+var maxUint32VLQSerializeSize = serializeSizeVLQ(1<<32 - 1)
+
+// outpointKeyPool defines a concurrent safe free list of byte slices used to
+// provide temporary buffers for outpoint database keys.
+var outpointKeyPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, crypto.HashSize+maxUint32VLQSerializeSize)
+		return &b // Pointer to slice to avoid boxing alloc.
+	},
+}
+
+func utxoKey(outpoint types.OutPoint) *[]byte {
+	key := outpointKeyPool.Get().(*[]byte)
+	idx := uint64(outpoint.Index)
+	*key = (*key)[:crypto.HashSize+serializeSizeVLQ(idx)]
+	copy(*key, outpoint.Hash[:])
+	putVLQ((*key)[crypto.HashSize:], idx)
+	return key
+}
+
+func recycleOutpointKey(key *[]byte) {
+	outpointKeyPool.Put(key)
+}
+
+// func serializeSizeVLQ(n uint64) int {
+// 	size := 1
+// 	for ; n > 0x7f; n = (n >> 7) - 1 {
+// 		size++
+// 	}
+
+// 	return size
+// }
+
+// func putVLQ(target []byte, n uint64) int {
+// 	offset := 0
+// 	for ; ; offset++ {
+// 		// The high bit is set when another byte follows.
+// 		highBitMask := byte(0x80)
+// 		if offset == 0 {
+// 			highBitMask = 0x00
+// 		}
+
+// 		target[offset] = byte(n&0x7f) | highBitMask
+// 		if n <= 0x7f {
+// 			break
+// 		}
+// 		n = (n >> 7) - 1
+// 	}
+
+// 	// Reverse the bytes so it is MSB-encoded.
+// 	for i, j := 0, offset; i < j; i, j = i+1, j-1 {
+// 		target[i], target[j] = target[j], target[i]
+// 	}
+
+// 	return offset + 1
+// }
+
+func utxoEntryHeaderCode(utxoWrap *types.UtxoWrap) (uint64, error) {
+	if utxoWrap.IsSpent() {
+		return 0, errors.New("attempt to serialize spent utxo header")
+	}
+
+	// As described in the serialization format comments, the header code
+	// encodes the height shifted over one bit and the coinbase flag in the
+	// lowest bit.
+	headerCode := uint64(utxoWrap.Height()) << 1
+	if utxoWrap.IsCoinBase() {
+		headerCode |= 0x01
+	}
+
+	return headerCode, nil
+}
+
+// SerializeUtxoEntry returns the entry serialized to a format that is suitable
+// for long-term storage.  The format is described in detail above.
+func SerializeUtxoEntry(utxoWrap *types.UtxoWrap) ([]byte, error) {
+	// Spent outputs have no serialization.
+	if utxoWrap.IsSpent() {
+		return nil, nil
+	}
+
+	// Encode the header code.
+	headerCode, err := utxoEntryHeaderCode(utxoWrap)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate the size needed to serialize the entry.
+	size := serializeSizeVLQ(headerCode) +
+		compressedTxOutSize(utxoWrap.Value(), utxoWrap.Script())
+
+	// Serialize the header code followed by the compressed unspent
+	// transaction output.
+	serialized := make([]byte, size)
+	offset := putVLQ(serialized, headerCode)
+	offset += putCompressedTxOut(serialized[offset:], uint64(utxoWrap.Value()),
+		utxoWrap.Script())
+
+	return serialized, nil
+}
+
+// DeserializeUtxoEntry returns UtxoWrap form serialized bytes.
+func DeserializeUtxoEntry(serialized []byte) (*types.UtxoWrap, error) {
+
+	// Deserialize the header code.
+	code, offset := deserializeVLQ(serialized)
+	if offset >= len(serialized) {
+		return nil, errors.New("unexpected end of data after header")
+	}
+
+	// Decode the header code.
+	//
+	// Bit 0 indicates whether the containing transaction is a coinbase.
+	// Bits 1-x encode height of containing transaction.
+	isCoinBase := code&0x01 != 0
+	blockHeight := uint32(code >> 1)
+
+	// Decode the compressed unspent transaction output.
+	value, pkScript, _, err := decodeCompressedTxOut(serialized[offset:])
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("unable to decode "+
+			"utxo: %v", err))
+	}
+
+	utxoWrap := types.NewUtxoWrap(value, pkScript, blockHeight)
+	if isCoinBase {
+		utxoWrap.SetCoinBase()
+	}
+
+	return utxoWrap, nil
+}
+
 // WriteUtxoSetToDB store utxo set to database.
-func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
+func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 
 	for outpoint, utxoWrap := range u.utxoMap {
-		if utxoWrap == nil || !utxoWrap.IsModified {
+		if utxoWrap == nil || !utxoWrap.IsModified() {
 			continue
 		}
-		utxoKey := UtxoKey(&outpoint)
+		utxoKey := utxoKey(outpoint)
+		var addrUtxoKey []byte
+		sc := *script.NewScriptFromBytes(utxoWrap.Script())
+		addr, err := sc.ExtractAddress()
+		if err != nil {
+			logger.Warnf("Failed to extract address. Err: %v", err)
+			return err
+		}
+		if sc.IsTokenTransfer() || sc.IsTokenIssue() {
+			var tokenID types.OutPoint
+			if sc.IsTokenTransfer() {
+				v, err := sc.GetTransferParams()
+				if err != nil {
+					logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
+				}
+				tokenID = v.OutPoint
+			} else {
+				tokenID = outpoint
+			}
+			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
+		} else {
+			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+		}
+
 		// Remove the utxo entry if it is spent.
-		if utxoWrap.IsSpent {
-			err := db.Del(utxoKey)
-			if err != nil {
-				return err
-			}
+		if utxoWrap.IsSpent() {
+			batch.Del(*utxoKey)
+			batch.Del(addrUtxoKey)
+			recycleOutpointKey(utxoKey)
 			continue
-		} else if utxoWrap.IsModified {
+		} else if utxoWrap.IsModified() {
 			// Serialize and store the utxo entry.
-			serialized, err := utxoWrap.Marshal()
+			serialized, err := SerializeUtxoEntry(utxoWrap)
 			if err != nil {
 				return err
 			}
-			err = db.Put(utxoKey, serialized)
-			if err != nil {
-				return err
-			}
+			batch.Put(*utxoKey, serialized)
+			batch.Put(addrUtxoKey, serialized)
 		}
 	}
-	// free memory
-	u.utxoMap = nil
 	return nil
 }
 
 // LoadTxUtxos loads the unspent transaction outputs related to tx
 func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 
-	emptySet := make(map[types.OutPoint]struct{})
-
-	hash, _ := tx.TxHash()
-	prevOut := types.OutPoint{Hash: *hash}
-	for idx := range tx.Vout {
-		prevOut.Index = uint32(idx)
-		emptySet[prevOut] = struct{}{}
-	}
-	if !IsCoinBase(tx) {
-		for _, txIn := range tx.Vin {
-			emptySet[txIn.PrevOutPoint] = struct{}{}
-		}
+	if IsCoinBase(tx) {
+		return nil
 	}
 
-	if len(emptySet) > 0 {
-		if err := u.fetchUtxosFromOutPointSet(emptySet, db); err != nil {
-			return err
-		}
+	outPointsToFetch := make(map[types.OutPoint]struct{})
+	for _, txIn := range tx.Vin {
+		outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
 	}
-	return nil
+
+	return u.fetchUtxosFromOutPointSet(outPointsToFetch, db)
 }
 
-// LoadBlockUtxos loads the unspent transaction outputs related to block
+// LoadBlockUtxos loads UTXOs txs in the block spend
 func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 
 	txs := map[crypto.HashType]int{}
@@ -310,6 +492,8 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 	for i, tx := range block.Txs[1:] {
 		for _, txIn := range tx.Vin {
 			preHash := &txIn.PrevOutPoint.Hash
+			// i points to txs[i + 1], which should be after txs[index]
+			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
 				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
@@ -331,28 +515,77 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 
 }
 
+// LoadBlockAllUtxos loads all UTXOs txs in the block
+func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error {
+
+	txs := map[crypto.HashType]int{}
+	outPointsToFetch := make(map[types.OutPoint]struct{})
+
+	for index, tx := range block.Txs {
+		hash, _ := tx.TxHash()
+		txs[*hash] = index
+	}
+	for i, tx := range block.Txs[1:] {
+		for _, txIn := range tx.Vin {
+			preHash := &txIn.PrevOutPoint.Hash
+			// i points to txs[i + 1], which should be after txs[index]
+			// Thus (i + 1) > index, equavalently, i >= index
+			if index, ok := txs[*preHash]; ok && i >= index {
+				originTx := block.Txs[index]
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
+				continue
+			}
+			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
+				continue
+			}
+			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
+		}
+
+	}
+
+	for _, tx := range block.Txs {
+		hash, _ := tx.TxHash()
+		outPoint := types.OutPoint{Hash: *hash}
+		for idx := range tx.Vout {
+			outPoint.Index = uint32(idx)
+			outPointsToFetch[outPoint] = struct{}{}
+		}
+	}
+
+	if len(outPointsToFetch) > 0 {
+		if err := u.fetchUtxosFromOutPointSet(outPointsToFetch, db); err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
+
 func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{}, db storage.Table) error {
 	for outPoint := range outPoints {
 		entry, err := u.fetchUtxoWrapFromDB(db, outPoint)
 		if err != nil {
 			return err
 		}
-		u.utxoMap[outPoint] = entry
+		if entry != nil {
+			u.utxoMap[outPoint] = entry
+		}
 	}
 	return nil
 }
 
 func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint) (*types.UtxoWrap, error) {
-	utxoKey := UtxoKey(&outpoint)
-	serializedUtxoWrap, err := db.Get(utxoKey)
+	utxoKey := utxoKey(outpoint)
+	serializedUtxoWrap, err := db.Get(*utxoKey)
+	recycleOutpointKey(utxoKey)
 	if err != nil {
 		return nil, err
 	}
 	if serializedUtxoWrap == nil {
 		return nil, nil
 	}
-	utxoWrap := new(types.UtxoWrap)
-	if err := utxoWrap.Unmarshal(serializedUtxoWrap); err != nil {
+	var utxoWrap *types.UtxoWrap
+	if utxoWrap, err = DeserializeUtxoEntry(serializedUtxoWrap); err != nil {
 		return nil, err
 	}
 	return utxoWrap, nil

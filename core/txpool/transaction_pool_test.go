@@ -94,7 +94,7 @@ func getTxHash(tx *types.Transaction) *crypto.HashType {
 func verifyProcessTx(t *testing.T, tx *types.Transaction, expectedErr error,
 	isTransactionInPool, isOrphanInPool bool) {
 
-	err := txpool.ProcessTx(tx, false /* do not broadcast */)
+	err := txpool.ProcessTx(tx, core.DefaultMode)
 	ensure.DeepEqual(t, err, expectedErr)
 	verifyTxInPool(t, tx, isTransactionInPool, isOrphanInPool)
 }
@@ -155,6 +155,8 @@ func TestProcessTx(t *testing.T) {
 	verifyProcessTx(t, tx6, core.ErrOrphanTransaction, false, true)
 
 	ensure.DeepEqual(t, len(txpool.GetAllTxs()), 3)
+
+	ensure.DeepEqual(t, len(txpool.GetOrphaTxs()), 3)
 
 	// Add missing tx3
 	verifyProcessTx(t, tx3, nil, true, false)

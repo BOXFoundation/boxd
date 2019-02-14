@@ -89,6 +89,19 @@ func (t *rtable) Get(key []byte) ([]byte, error) {
 	return data(value), nil
 }
 
+// return values associate with the keys in the Storage
+func (t *rtable) MultiGet(key ...[]byte) ([][]byte, error) {
+	slices, err := t.rocksdb.MultiGetCF(t.readOptions, t.cf, key...)
+	if err != nil {
+		return nil, err
+	}
+	values := make([][]byte, 0, len(slices))
+	for _, slice := range slices {
+		values = append(values, data(slice))
+	}
+	return values, nil
+}
+
 // check if the entry associate with key exists
 func (t *rtable) Has(key []byte) (bool, error) {
 	var iter = t.rocksdb.NewIteratorCF(t.readOptions, t.cf)

@@ -6,16 +6,16 @@ package rpc
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"reflect"
 
-	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/pb"
-	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/util"
-
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 func registerTransaction(s *Server) {
@@ -34,8 +34,105 @@ type txServer struct {
 	server GRPCServer
 }
 
+func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBalanceResp {
+	return &rpcpb.GetBalanceResp{
+		Code:     code,
+		Message:  msg,
+		Balances: balances,
+	}
+}
+
+func (s *txServer) GetBalance(
+	ctx context.Context, req *rpcpb.GetBalanceReq) (
+	*rpcpb.GetBalanceResp, error,
+) {
+	logger.Infof("get balance req: %+v", req)
+	walletAgent := s.server.GetWalletAgent()
+	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
+		logger.Warn("get balance error ", ErrAPINotSupported)
+		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
+	}
+	balances := make([]uint64, len(req.GetAddrs()))
+	for i, addr := range req.Addrs {
+		amount, err := walletAgent.Balance(addr, nil)
+		if err != nil {
+			logger.Warnf("get balance for %s error %s", addr, err)
+			return newGetBalanceResp(-1, err.Error()), nil
+		}
+		balances[i] = amount
+	}
+	logger.Infof("get balance for %v result: %v", req.Addrs, balances)
+	return newGetBalanceResp(0, "ok", balances...), nil
+}
+
+func (s *txServer) GetTokenBalance(
+	ctx context.Context, req *rpcpb.GetTokenBalanceReq) (
+	*rpcpb.GetBalanceResp, error,
+) {
+	logger.Infof("get token balance req: %+v", req)
+	walletAgent := s.server.GetWalletAgent()
+	if walletAgent == nil {
+		logger.Warn("get token balance error ", ErrAPINotSupported)
+		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
+	}
+	balances := make([]uint64, len(req.GetAddrs()))
+	tid := (*types.TokenID)(txlogic.ConvPbOutPoint(req.TokenID))
+	for i, addr := range req.Addrs {
+		amount, err := walletAgent.Balance(addr, tid)
+		if err != nil {
+			logger.Warnf("get token balance for %s error %s", addr, err)
+			return newGetBalanceResp(-1, err.Error()), nil
+		}
+		balances[i] = amount
+	}
+	logger.Infof("get balance for %v result: %v", req.Addrs, balances)
+	return newGetBalanceResp(0, "ok", balances...), nil
+}
+
+func newFetchUtxosResp(code int32, msg string, utxos ...*rpcpb.Utxo) *rpcpb.FetchUtxosResp {
+	return &rpcpb.FetchUtxosResp{
+		Code:    code,
+		Message: msg,
+		Utxos:   utxos,
+	}
+}
+
+// FetchUtxos fetch utxos from chain
+func (s *txServer) FetchUtxos(
+	ctx context.Context, req *rpcpb.FetchUtxosReq) (
+	*rpcpb.FetchUtxosResp, error) {
+
+	logger.Infof("fetch utxos req: %+v", req)
+	walletAgent := s.server.GetWalletAgent()
+	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
+		logger.Warn("fetch utxos error ", ErrAPINotSupported)
+		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
+	}
+	var tid *types.TokenID
+	if req.GetTokenID() != nil {
+		tid = (*types.TokenID)(txlogic.ConvPbOutPoint(req.GetTokenID()))
+	}
+	utxos, err := walletAgent.Utxos(req.GetAddr(), tid, req.GetAmount())
+	if err != nil {
+		logger.Warnf("fetch utxos for %+v error %s", req, err)
+		return newFetchUtxosResp(-1, err.Error()), nil
+	}
+	total := uint64(0)
+	for _, u := range utxos {
+		amount, _, err := txlogic.ParseUtxoAmount(u)
+		if err != nil {
+			logger.Warnf("fetch utxos for %+v error %s", req, err)
+			continue
+		}
+		total += amount
+	}
+	logger.Infof("fetch utxos for %+v return %d utxos total %d",
+		req, len(utxos), total)
+	return newFetchUtxosResp(0, "ok", utxos...), nil
+}
+
 func (s *txServer) GetTransactionPool(ctx context.Context, req *rpcpb.GetTransactionPoolRequest) (*rpcpb.GetTransactionsResponse, error) {
-	txs := s.server.GetTxHandler().GetTransactionsInPool()
+	txs, _ := s.server.GetTxHandler().GetTransactionsInPool()
 	respTxs := []*corepb.Transaction{}
 	for _, tx := range txs {
 		respTx, err := tx.ToProtoMessage()
@@ -52,231 +149,34 @@ func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceReques
 	return &rpcpb.GetFeePriceResponse{BoxPerByte: 1}, nil
 }
 
-func (s *txServer) ListUtxos(ctx context.Context, req *rpcpb.ListUtxosRequest) (*rpcpb.ListUtxosResponse, error) {
-	bc := s.server.GetChainReader()
-	utxos, err := bc.ListAllUtxos()
-	if err != nil {
-		return &rpcpb.ListUtxosResponse{
-			Code:    1,
-			Message: err.Error(),
-		}, err
+func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransactionResp {
+	return &rpcpb.SendTransactionResp{
+		Code:    code,
+		Message: msg,
+		Hash:    hash,
 	}
-	res := &rpcpb.ListUtxosResponse{
-		Code:    0,
-		Message: "ok",
-		Count:   uint32(len(utxos)),
-	}
-	res.Utxos = []*rpcpb.Utxo{}
-	for out, utxo := range utxos {
-		res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
-	}
-	return res, nil
 }
 
-func (s *txServer) GetBalance(ctx context.Context, req *rpcpb.GetBalanceRequest) (*rpcpb.GetBalanceResponse, error) {
-	balances := make(map[string]uint64)
-	for _, addrStr := range req.Addrs {
-		addr, err := types.NewAddress(addrStr)
-		if err != nil {
-			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
-		}
-		amount, err := s.getbalance(ctx, addr)
-		if err != nil {
-			return &rpcpb.GetBalanceResponse{Code: -1, Message: err.Error()}, err
-		}
-		balances[addrStr] = amount
-	}
-	return &rpcpb.GetBalanceResponse{Code: 0, Message: "ok", Balances: balances}, nil
-}
+func (s *txServer) SendTransaction(
+	ctx context.Context, req *rpcpb.SendTransactionReq,
+) (*rpcpb.SendTransactionResp, error) {
 
-func (s *txServer) GetTokenBalance(ctx context.Context, req *rpcpb.GetTokenBalanceRequest) (*rpcpb.GetTokenBalanceResponse, error) {
-	balances := make(map[string]uint64)
-	token := &types.OutPoint{}
-	if err := token.FromProtoMessage(req.Token); err != nil {
-		return &rpcpb.GetTokenBalanceResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
-	}
-	for _, addrStr := range req.Addrs {
-		addr, err := types.NewAddress(addrStr)
-		if err != nil {
-			return &rpcpb.GetTokenBalanceResponse{
-				Code:    -1,
-				Message: err.Error(),
-			}, err
-		}
-		amount, err := s.getTokenBalance(ctx, addr, token)
-		if err != nil {
-			return &rpcpb.GetTokenBalanceResponse{Code: -1, Message: err.Error()}, err
-		}
-		balances[addrStr] = amount
-	}
-	return &rpcpb.GetTokenBalanceResponse{
-		Code:     0,
-		Message:  "ok",
-		Balances: balances,
-	}, nil
-}
-
-func (s *txServer) getbalance(ctx context.Context, addr types.Address) (uint64, error) {
-	utxos, err := s.server.GetChainReader().LoadUtxoByAddress(addr)
-	if err != nil {
-		return 0, err
-	}
-	var amount uint64
-	for _, value := range utxos {
-		amount += value.Output.Value
-	}
-	return amount, nil
-}
-
-func (s *txServer) getTokenBalance(ctx context.Context, addr types.Address, token *types.OutPoint) (uint64, error) {
-	utxos, err := s.server.GetChainReader().LoadUtxoByAddress(addr)
-	if err != nil {
-		return 0, err
-	}
-	var amount uint64
-	for outpoint, value := range utxos {
-		s := script.NewScriptFromBytes(value.Output.ScriptPubKey)
-		if s.IsTokenIssue() {
-			if outpoint != *token {
-				// token type not match
-				continue
-			}
-			issueParam, err := s.GetIssueParams()
-			if err != nil {
-				return 0, err
-			}
-			amount += issueParam.TotalSupply
-		}
-		if s.IsTokenTransfer() {
-			transferParam, err := s.GetTransferParams()
-			if err != nil {
-				return 0, err
-			}
-			if transferParam.OutPoint != *token {
-				// token type not match
-				continue
-			}
-			amount += transferParam.Amount
-		}
-	}
-	return amount, nil
-}
-
-func (s *txServer) FundTransaction(ctx context.Context, req *rpcpb.FundTransactionRequest) (*rpcpb.ListUtxosResponse, error) {
-	bc := s.server.GetChainReader()
-	addr, err := types.NewAddress(req.Addr)
-	payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
-	if err != nil {
-		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
-	}
-	utxos, err := bc.LoadUtxoByAddress(addr)
-	if err != nil {
-		return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
-	}
-
-	nextHeight := s.server.GetChainReader().GetBlockHeight() + 1
-
-	// apply mempool txs as if they were mined into a block with 0 confirmation
-	utxoSet := chain.NewUtxoSetFromMap(utxos)
-	memPoolTxs := s.server.GetTxHandler().GetTransactionsInPool()
-	// Note: we add utxo first and spend them later to maintain tx topological order within mempool. Since memPoolTxs may not
-	// be topologically ordered, if tx1 spends tx2 but tx1 comes after tx2, tx1's output is mistakenly marked as unspent
-	// Add utxos first
-	for _, tx := range memPoolTxs {
-		for txOutIdx, txOut := range tx.Vout {
-			// utxo for this address
-			if util.IsPrefixed(txOut.ScriptPubKey, payToPubKeyHashScript) {
-				if err := utxoSet.AddUtxo(tx, uint32(txOutIdx), nextHeight); err != nil {
-					return &rpcpb.ListUtxosResponse{Code: 1, Message: err.Error()}, nil
-				}
-			}
-		}
-	}
-	// Then spend
-	for _, tx := range memPoolTxs {
-		for _, txIn := range tx.Vin {
-			utxoSet.SpendUtxo(txIn.PrevOutPoint)
-		}
-	}
-	utxos = utxoSet.GetUtxos()
-
-	res := &rpcpb.ListUtxosResponse{
-		Code:    0,
-		Message: "ok",
-		Count:   uint32(len(utxos)),
-	}
-	res.Utxos = []*rpcpb.Utxo{}
-	var current uint64
-	tokenAmount := make(map[types.OutPoint]uint64)
-	if req.TokenBudgets != nil && len(req.TokenBudgets) > 0 {
-		for _, budget := range req.TokenBudgets {
-			outpoint := &types.OutPoint{}
-			outpoint.FromProtoMessage(budget.Token)
-			tokenAmount[*outpoint] = budget.Amount
-		}
-	}
-	for out, utxo := range utxos {
-		token, amount, isToken := getTokenInfo(out, utxo)
-		if isToken {
-			if val, ok := tokenAmount[token]; ok && val > 0 {
-				if val > amount {
-					tokenAmount[token] = val - amount
-				} else {
-					delete(tokenAmount, token)
-				}
-				current += utxo.Value()
-				res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
-			} else {
-				// Do not include token utxos not needed
-				continue
-			}
-		} else if current < req.GetAmount() {
-			res.Utxos = append(res.Utxos, generateUtxoMessage(&out, utxo))
-			current += utxo.Value()
-		}
-		if current >= req.GetAmount() && len(tokenAmount) == 0 {
-			break
-		}
-	}
-	if current < req.GetAmount() || len(tokenAmount) > 0 {
-		errMsg := "Not enough balance"
-		return &rpcpb.ListUtxosResponse{
-			Code:    -1,
-			Message: errMsg,
-		}, fmt.Errorf(errMsg)
-	}
-	return res, nil
-}
-
-func getTokenInfo(outpoint types.OutPoint, wrap *types.UtxoWrap) (types.OutPoint, uint64, bool) {
-	s := script.NewScriptFromBytes(wrap.Output.ScriptPubKey)
-	if issueParam, err := s.GetIssueParams(); err == nil {
-		return outpoint, issueParam.TotalSupply, true
-	}
-	if transferParam, err := s.GetTransferParams(); err == nil {
-		return transferParam.OutPoint, transferParam.Amount, true
-	}
-	return types.OutPoint{}, 0, false
-}
-
-func (s *txServer) SendTransaction(ctx context.Context, req *rpcpb.SendTransactionRequest) (*rpcpb.BaseResponse, error) {
-	for _, v := range req.Tx.Vin {
-		hash := new(crypto.HashType)
-		copy(hash[:], v.PrevOutPoint.Hash[:])
-	}
-	txpool := s.server.GetTxHandler()
-	tx, err := generateTransaction(req.Tx)
-	if err != nil {
+	tx := &types.Transaction{}
+	if err := tx.FromProtoMessage(req.Tx); err != nil {
 		return nil, err
 	}
-	err = txpool.ProcessTx(tx, true /* relay */)
-	return &rpcpb.BaseResponse{}, err
+
+	txpool := s.server.GetTxHandler()
+	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), nil
+	}
+	hash, _ := tx.TxHash()
+	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 
-func (s *txServer) GetRawTransaction(ctx context.Context, req *rpcpb.GetRawTransactionRequest) (*rpcpb.GetRawTransactionResponse, error) {
+func (s *txServer) GetRawTransaction(
+	ctx context.Context, req *rpcpb.GetRawTransactionRequest,
+) (*rpcpb.GetRawTransactionResponse, error) {
 	hash := crypto.HashType{}
 	if err := hash.SetBytes(req.Hash); err != nil {
 		return &rpcpb.GetRawTransactionResponse{}, err
@@ -292,34 +192,77 @@ func (s *txServer) GetRawTransaction(ctx context.Context, req *rpcpb.GetRawTrans
 
 func generateUtxoMessage(outPoint *types.OutPoint, entry *types.UtxoWrap) *rpcpb.Utxo {
 	return &rpcpb.Utxo{
-		BlockHeight: entry.BlockHeight,
-		IsCoinbase:  entry.IsCoinBase,
-		IsSpent:     entry.IsSpent,
+		BlockHeight: entry.Height(),
+		IsCoinbase:  entry.IsCoinBase(),
+		IsSpent:     entry.IsSpent(),
 		OutPoint: &corepb.OutPoint{
 			Hash:  outPoint.Hash.GetBytes(),
 			Index: outPoint.Index,
 		},
 		TxOut: &corepb.TxOut{
 			Value:        entry.Value(),
-			ScriptPubKey: entry.Output.ScriptPubKey,
+			ScriptPubKey: entry.Script(),
 		},
 	}
 }
 
-func generateTransaction(txMsg *corepb.Transaction) (*types.Transaction, error) {
-	tx := &types.Transaction{}
-	if err := tx.FromProtoMessage(txMsg); err != nil {
-		return nil, err
+func newMakeTxResp(
+	code int32, msg string, tx *corepb.Transaction, rawMsgs [][]byte,
+) *rpcpb.MakeTxResp {
+	return &rpcpb.MakeTxResp{
+		Code:    code,
+		Message: msg,
+		Tx:      tx,
+		RawMsgs: rawMsgs,
 	}
-
-	return tx, nil
 }
 
-func generateTxIn(txIn *corepb.TxIn) (*types.TxIn, error) {
-	txin := &types.TxIn{}
-	if err := txin.FromProtoMessage(txIn); err != nil {
-		return nil, err
+func (s *txServer) MakeUnsignedTx(
+	ctx context.Context, req *rpcpb.MakeTxReq,
+) (*rpcpb.MakeTxResp, error) {
+	wa := s.server.GetWalletAgent()
+	if wa == nil || reflect.ValueOf(wa).IsNil() {
+		logger.Warn("get balance error ", ErrAPINotSupported)
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), ErrAPINotSupported
 	}
+	from, to := req.GetFrom(), req.GetTo()
+	amounts, fee := req.GetAmounts(), req.GetFee()
+	tx, utxos, err := rpcutil.MakeTxWithoutSign(wa, from, to, amounts, fee)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	pbTx, err := tx.ConvToPbTx()
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
+}
 
-	return txin, nil
+// MakeTxRawMsgsForSign make tx raw msg for sign
+func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte, error) {
+	if len(tx.Vin) != len(utxos) {
+		return nil, errors.New("invalid param")
+	}
+	msgs := make([][]byte, 0, len(tx.Vin))
+	for i, u := range utxos {
+		spk := u.GetTxOut().GetScriptPubKey()
+		newTx := tx.Copy()
+		for j, in := range newTx.Vin {
+			if i != j {
+				in.ScriptSig = nil
+			} else {
+				in.ScriptSig = spk
+			}
+		}
+		data, err := newTx.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, data)
+	}
+	return msgs, nil
 }

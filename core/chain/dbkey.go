@@ -6,6 +6,8 @@ package chain
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -13,15 +15,17 @@ import (
 )
 
 const (
-	readable = true // readable db key or compact key
-)
-
-const (
 	// BlockTableName is the table name of db to store block chain data
 	BlockTableName = "core"
 
+	// WalletTableName is the table name of db to store wallet data
+	WalletTableName = "wl"
+
 	// Tail is the db key name of tail block
 	Tail = "/tail"
+
+	// Genesis is the db key name of genesis block
+	Genesis = "/genesis"
 
 	// Eternal is the db key name of eternal block
 	Eternal = "/eternal"
@@ -65,6 +69,19 @@ const (
 	// key: /bf/1113b8bdad74cdc045e64e09b3e2f0502d1b7f9bd8123b28239a3360bd3a8757
 	// value: crypto hash
 	FilterPrefix = "/bf"
+	// SplitAddressPrefix is the key prefix of split address
+	SplitAddressPrefix = "/sap"
+
+	// AddressUtxoPrefix is the key prefix of database key to store address related utxo
+	AddressUtxoPrefix = "/aut"
+
+	// AddressTokenUtxoPrefix is the key prefix of database key to store address related token utxo
+	AddressTokenUtxoPrefix = "/atut"
+
+	// AddrBalancePrefix is the key prefix of database key to store address box balance
+	AddrBalancePrefix = "/bal"
+	// AddrTokenBalancePrefix is the key prefix of database key to store address token balance
+	AddrTokenBalancePrefix = "/tbal"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -73,48 +90,137 @@ var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
 var filterBase = key.NewKey(FilterPrefix)
-var genesisBlockKey = BlockKey(GenesisBlock.BlockHash())
+var splitAddrBase = key.NewKey(SplitAddressPrefix)
+var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
+var addrTokenUtxoBase = key.NewKey(AddressTokenUtxoPrefix)
+var addrBalanceBase = key.NewKey(AddrBalancePrefix)
+var addrTokenBalanceBase = key.NewKey(AddrTokenBalancePrefix)
 
-// TailKey is the db key to stoare tail block content
+// TailKey is the db key to store tail block content
 var TailKey = []byte(Tail)
 
-// EternalKey is the db key to stoare eternal block content
+// GenesisKey is the db key to store genesis block content
+var GenesisKey = []byte(Genesis)
+
+// EternalKey is the db key to store eternal block content
 var EternalKey = []byte(Eternal)
 
-// PeriodKey is the db key to stoare current period contex content
+// PeriodKey is the db key to store current period contex content
 var PeriodKey = []byte(Period)
 
-// BlockKey returns the db key to stoare block content of the hash
+// BlockKey returns the db key to store block content of the hash
 func BlockKey(h *crypto.HashType) []byte {
 	return blkBase.ChildString(h.String()).Bytes()
 }
 
-// BlockHashKey returns the db key to stoare block hash content of the height
+// BlockHashKey returns the db key to store block hash content of the height
 func BlockHashKey(height uint32) []byte {
 	return blkHashBase.ChildString(fmt.Sprintf("%x", height)).Bytes()
 }
 
-// TxIndexKey returns the db key to stoare tx index of the hash
+// BlockHeightFromBlockHashKey parse height info from a BlockHashKey
+func BlockHeightFromBlockHashKey(k []byte) uint32 {
+	key := key.NewKeyFromBytes(k)
+	segs := key.List()
+	if len(segs) > 1 {
+		num, err := strconv.ParseUint(segs[1], 16, 32)
+		if err == nil {
+			return uint32(num)
+		}
+		logger.Infof("error parsing key: %s", segs[1])
+	}
+	return math.MaxUint32
+}
+
+// BlockHeightPrefix returns the db key prefix to store hash content of the height
+func BlockHeightPrefix() []byte {
+	return blkHashBase.Bytes()
+}
+
+// TxIndexKey returns the db key to store tx index of the hash
 func TxIndexKey(h *crypto.HashType) []byte {
 	return txixBase.ChildString(h.String()).Bytes()
 }
 
-// UtxoKey returns the db key to stoare utxo content of the Outpoint
-func UtxoKey(op *types.OutPoint) []byte {
-	return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
-}
+// UtxoKey returns the db key to store utxo content of the Outpoint
+// func UtxoKey(op *types.OutPoint) []byte {
+// 	return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
+// }
 
-// CandidatesKey returns the db key to stoare candidates.
+// CandidatesKey returns the db key to store candidates.
 func CandidatesKey(h *crypto.HashType) []byte {
 	return candidatesBase.ChildString(h.String()).Bytes()
 }
 
 // FilterKey returns the db key to store bloom filter of block
-func FilterKey(hash crypto.HashType) []byte {
-	if readable {
-		return filterBase.ChildString(hash.String()).Bytes()
+func FilterKey(height uint32, hash crypto.HashType) []byte {
+	return filterBase.
+		ChildString(fmt.Sprintf("%x", height)).
+		ChildString(hash.String()).
+		Bytes()
+}
+
+// FilterKeyPrefix returns the db key prefix to store bloom filter of block
+func FilterKeyPrefix() []byte {
+	return filterBase.Bytes()
+}
+
+// FilterHeightHashFromKey parse height and hash info from a FilterKey
+func FilterHeightHashFromKey(k []byte) (uint32, string) {
+	key := key.NewKeyFromBytes(k)
+	segs := key.List()
+	if len(segs) > 2 {
+		num, err := strconv.ParseUint(segs[1], 16, 32)
+		if err == nil {
+			return uint32(num), segs[2]
+		}
+		logger.Infof("error parsing key. num: %s, segs: %v", segs[1], segs)
 	}
-	buf := filterBase.Base().Bytes()
-	buf = append(buf[:], hash.GetBytes()...)
-	return buf
+	return math.MaxUint32, ""
+}
+
+// SplitAddrKey returns the db key to store split address
+func SplitAddrKey(hash []byte) []byte {
+	return splitAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
+}
+
+// AddrUtxoKey is the key to store an utxo which belongs to the input param address
+func AddrUtxoKey(addr string, op types.OutPoint) []byte {
+	return addrUtxoBase.
+		ChildString(addr).
+		ChildString(op.Hash.String()).
+		ChildString(fmt.Sprintf("%x", op.Index)).
+		Bytes()
+}
+
+// AddrAllUtxoKey is the key prefix to explore all utxos of an address
+func AddrAllUtxoKey(addr string) []byte {
+	return addrUtxoBase.ChildString(addr).Bytes()
+}
+
+// AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
+func AddrTokenUtxoKey(addr string, tid types.TokenID, op types.OutPoint) []byte {
+	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
+		ChildString(fmt.Sprintf("%x", tid.Index)).ChildString(op.Hash.String()).
+		ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
+}
+
+// AddrAllTokenUtxoKey is the key prefix to explore all token utxos of an address
+func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
+	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
+		ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
+}
+
+// AddrBalanceKey is the key to store an address's balance
+func AddrBalanceKey(addr string) []byte {
+	return addrBalanceBase.ChildString(addr).Bytes()
+}
+
+// AddrTokenBalanceKey is the key to store an address's token balance
+func AddrTokenBalanceKey(addr string, token types.OutPoint) []byte {
+	return addrTokenBalanceBase.
+		ChildString(addr).
+		ChildString(token.Hash.String()).
+		ChildString(fmt.Sprintf("%x", token.Index)).
+		Bytes()
 }

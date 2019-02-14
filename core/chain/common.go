@@ -21,15 +21,26 @@ var (
 	zeroHash crypto.HashType
 
 	// TotalSupply is the total supply of box: 3 billion
-	TotalSupply = (uint64)(3e9 * math.Pow10(core.Decimals))
+	TotalSupply = (uint64)(3e9 * core.DuPerBox)
 
 	// CoinbaseMaturity coinbase only spendable after this many blocks
 	CoinbaseMaturity = (uint32)(0)
 
 	// BaseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
-	BaseSubsidy = (uint64)(50 * math.Pow10(core.Decimals))
+	BaseSubsidy = (uint64)(50 * core.DuPerBox)
+
+	// CandidatePledge is pledge for candidate to mint.
+	CandidatePledge = (uint64)(1e6 * core.DuPerBox)
+
+	// MinNumOfVotes is Minimum number of votes
+	MinNumOfVotes = (uint64)(100)
 )
+
+// CalcCandidatePledgeHeight calc current candidate pledge height
+func CalcCandidatePledgeHeight(tailHeight int64) int64 {
+	return (tailHeight/PeriodDuration + 2) * PeriodDuration
+}
 
 // isNullOutPoint determines whether or not a previous transaction output point is set.
 func isNullOutPoint(outPoint *types.OutPoint) bool {

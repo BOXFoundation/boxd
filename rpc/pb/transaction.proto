@@ -10,21 +10,29 @@ import "google/api/annotations.proto";
 import "common.proto";
 
 service TransactionCommand {
-    rpc ListUtxos(ListUtxosRequest) returns (ListUtxosResponse) {
+
+    rpc GetBalance(GetBalanceReq) returns (GetBalanceResp) {
         option (google.api.http) = {
-            post: "/v1/tx/listutxos"
+            post: "/v1/tx/getbalance"
             body: "*"
         };
     }
 
-    rpc FundTransaction(FundTransactionRequest) returns (ListUtxosResponse) {
+    rpc GetTokenBalance(GetTokenBalanceReq) returns (GetBalanceResp) {
         option (google.api.http) = {
-            post: "/v1/tx/fundtransaction"
+            post: "/v1/tx/gettokenbalance"
             body: "*"
         };
     }
 
-    rpc SendTransaction(SendTransactionRequest) returns (BaseResponse) {
+    rpc FetchUtxos(FetchUtxosReq) returns (FetchUtxosResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/fetchutxos"
+            body: "*"
+        };
+    }
+
+    rpc SendTransaction(SendTransactionReq) returns (SendTransactionResp) {
         option (google.api.http) = {
             post: "/v1/tx/sendtransaction"
             body: "*"
@@ -34,20 +42,6 @@ service TransactionCommand {
     rpc GetRawTransaction(GetRawTransactionRequest) returns (GetRawTransactionResponse) {
         option (google.api.http) = {
             post: "/v1/tx/getrawtransaction"
-            body: "*"
-        };
-    }
-
-    rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse) {
-        option (google.api.http) = {
-            post: "/v1/tx/getbalance"
-            body: "*"
-        };
-    }
-
-    rpc GetTokenBalance(GetTokenBalanceRequest) returns (GetTokenBalanceResponse) {
-        option (google.api.http) = {
-            post: "/v1/tx/gettokenbalance"
             body: "*"
         };
     }
@@ -65,14 +59,46 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc MakeUnsignedTx(MakeTxReq) returns (MakeTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedtx"
+            body: "*"
+        };
+    }
 }
 
-message ListUtxosRequest {
+message GetBalanceReq {
+    repeated string addrs = 1;
+}
+
+message GetBalanceResp {
+    int32 code = 1;
+    string message = 2;
+    repeated uint64 balances = 3;
+}
+
+message GetTokenBalanceReq {
+    repeated string addrs = 1;
+    corepb.OutPoint tokenID = 2;
+}
+
+message FetchUtxosReq {
+  string addr = 1;
+  corepb.OutPoint tokenID = 2;
+  uint64 amount = 3;
+}
+
+message FetchUtxosResp {
+    int32 code = 1;
+    string message = 2;
+    repeated Utxo utxos = 3;
 }
 
 message GetRawTransactionRequest {
     bytes hash = 1;
 }
+
 message GetRawTransactionResponse {
     corepb.Transaction tx = 1;
 }
@@ -85,19 +111,14 @@ message GetTransactionsResponse {
     repeated corepb.Transaction txs = 1;
 }
 
-message TokenAmount{
-    corepb.OutPoint token = 1;
-    uint64 amount = 2;
-}
-
-message FundTransactionRequest {
-    string addr = 1;
-    uint64 amount = 2;
-    repeated TokenAmount tokenBudgets= 3;
-}
-
-message SendTransactionRequest {
+message SendTransactionReq {
     corepb.Transaction tx = 1;
+}
+
+message SendTransactionResp {
+    int32 code = 1;
+    string message = 2;
+    string hash = 3;
 }
 
 message ListUtxosResponse {
@@ -107,30 +128,23 @@ message ListUtxosResponse {
     repeated Utxo utxos = 4;
 }
 
-message GetBalanceRequest {
-    repeated string addrs = 1;
-}
-
-message GetBalanceResponse {
-    int32 code = 1;
-    string message = 2;
-    map<string, uint64> balances = 3;
-}
-
-message GetTokenBalanceRequest {
-    repeated string addrs = 1;
-    corepb.OutPoint token = 2;
-}
-
-message GetTokenBalanceResponse {
-    int32 code = 1;
-    string message = 2;
-    map<string, uint64> balances = 3;
-}
-
 message GetFeePriceRequest{
 }
 
 message GetFeePriceResponse {
     uint64 box_per_byte = 1;
+}
+
+message MakeTxReq {
+    string from = 1;
+    repeated string to = 2;
+    repeated uint64 amounts = 3;
+    uint64 fee = 4;
+}
+
+message MakeTxResp {
+    int32 code = 1;
+    string message = 2;
+    corepb.Transaction tx = 3;
+    repeated bytes rawMsgs = 4;
 }

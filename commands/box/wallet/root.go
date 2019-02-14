@@ -12,7 +12,7 @@ import (
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -237,9 +237,9 @@ func listTransactionsCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		offset = 0
 	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	txs, err := client.ListTransactions(conn, addr, offset, limit)
+	txs, err := rpcutil.ListTransactions(conn, addr, offset, limit)
 	if err != nil {
 		fmt.Println(err)
 		return

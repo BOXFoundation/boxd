@@ -46,14 +46,6 @@ func NewTxIn(prevOutPoint OutPoint) *TxIn {
 	}
 }
 
-// NewOutPoint generates a new OutPoint
-func NewOutPoint(hash crypto.HashType) *OutPoint {
-	return &OutPoint{
-		Hash:  hash,
-		Index: 1,
-	}
-}
-
 // NewTransaction generates a new Transaction
 func NewTransaction(prevOutPoint OutPoint, value uint64, lockTime int64) *Transaction {
 	return &Transaction{

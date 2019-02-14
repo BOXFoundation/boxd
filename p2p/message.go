@@ -7,6 +7,7 @@ package p2p
 import (
 	"bytes"
 	"hash/crc32"
+	"hash/crc64"
 	"io"
 	"unsafe"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p/pb"
 	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
@@ -24,6 +26,10 @@ const (
 	Mainnet         uint32 = 0x11de784a
 	Testnet         uint32 = 0x54455354
 	FixHeaderLength        = 4
+
+	compressFlag = 1 << 7
+	relayFlag    = 3 << 5
+	relayTimes   = 2 << 5
 
 	// dont forget to set messageAttribute below
 	Ping              uint32 = 0x00
@@ -56,24 +62,41 @@ const (
 	topPriority
 )
 
-var defaultMessageAttribute = &messageAttribute{compress: false, priority: midPriority}
+const (
+	repeatable uint8 = iota
+	unique
+	uniquePerPeer
+)
+
+var defaultMessageAttribute = &messageAttribute{priority: midPriority, frequency: repeatable}
 
 var msgToAttribute = map[uint32]*messageAttribute{
-	Ping:                    &messageAttribute{compress: false, priority: lowPriority},
-	Pong:                    &messageAttribute{compress: false, priority: lowPriority},
-	PeerDiscover:            &messageAttribute{compress: false, priority: lowPriority},
-	PeerDiscoverReply:       &messageAttribute{compress: true, priority: midPriority},
-	NewBlockMsg:             &messageAttribute{compress: true, priority: topPriority},
-	TransactionMsg:          &messageAttribute{compress: true, priority: highPriority},
-	LocateForkPointRequest:  &messageAttribute{compress: false, priority: midPriority},
-	LocateForkPointResponse: &messageAttribute{compress: true, priority: midPriority},
-	LocateCheckRequest:      &messageAttribute{compress: false, priority: midPriority},
-	LocateCheckResponse:     &messageAttribute{compress: false, priority: midPriority},
-	BlockChunkRequest:       &messageAttribute{compress: true, priority: midPriority},
-	BlockChunkResponse:      &messageAttribute{compress: true, priority: midPriority},
-	EternalBlockMsg:         &messageAttribute{compress: false, priority: highPriority},
-	LightSyncRequest:        &messageAttribute{compress: false, priority: midPriority},
-	LightSyncReponse:        &messageAttribute{compress: false, priority: midPriority},
+	Ping:                    &messageAttribute{compress: false, priority: lowPriority, frequency: repeatable},
+	Pong:                    &messageAttribute{compress: false, priority: lowPriority, frequency: repeatable},
+	PeerDiscover:            &messageAttribute{compress: false, priority: lowPriority, frequency: repeatable},
+	PeerDiscoverReply:       &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
+	NewBlockMsg:             &messageAttribute{compress: true, priority: topPriority, frequency: unique, relay: true},
+	TransactionMsg:          &messageAttribute{compress: true, priority: highPriority, frequency: unique, relay: true},
+	LocateForkPointRequest:  &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
+	LocateForkPointResponse: &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
+	LocateCheckRequest:      &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
+	LocateCheckResponse:     &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
+	BlockChunkRequest:       &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
+	BlockChunkResponse:      &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
+	EternalBlockMsg:         &messageAttribute{compress: false, priority: highPriority, frequency: repeatable},
+	LightSyncRequest:        &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
+	LightSyncReponse:        &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
+}
+
+func init() {
+	for _, attr := range msgToAttribute {
+		if attr.frequency != repeatable {
+			attr.cache, _ = lru.New(4096)
+		}
+		if attr.relay {
+			attr.relayCache, _ = lru.New(4096)
+		}
+	}
 }
 
 // NetworkNamtToMagic is a map from network name to magic number.
@@ -165,8 +188,33 @@ func readMessageData(r io.Reader) (*message, error) {
 
 // message defines the full message content from network.
 type messageAttribute struct {
-	compress bool
-	priority uint8
+	compress   bool
+	priority   uint8
+	frequency  uint8
+	relay      bool
+	cache      *lru.Cache
+	relayCache *lru.Cache
+}
+
+func (msgAttr *messageAttribute) duplicateFilter(body []byte, pid peer.ID, frequency uint8) bool {
+	if frequency == repeatable {
+		return true
+	}
+	key := msgAttr.lruKey(body, pid, frequency)
+	if ok, _ := msgAttr.cache.ContainsOrAdd(key, struct{}{}); ok {
+		return false
+	}
+	return true
+}
+
+func (msgAttr *messageAttribute) lruKey(body []byte, pid peer.ID, frequency uint8) uint64 {
+	key := body
+	if frequency == uniquePerPeer {
+		key = append(key, pid...)
+	}
+
+	hash := crc64.Checksum(key, crc64Table)
+	return hash
 }
 
 ////////////////////////////////////////////////////////////////////////////////

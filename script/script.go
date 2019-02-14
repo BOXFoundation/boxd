@@ -19,14 +19,23 @@ import (
 
 var logger = log.NewLogger("script") // logger
 
+// constants
 const (
 	p2PKHScriptLen = 25
 	p2SHScriptLen  = 23
+
+	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 )
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
 	return NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+}
+
+// PayToPubKeyHashCLTVScript creates a script to lock a transaction output to the specified address till a specific time or block height.
+func PayToPubKeyHashCLTVScript(pubKeyHash []byte, blockTimeOrHeight int64) *Script {
+	return NewScript().AddOperand(big.NewInt(blockTimeOrHeight).Bytes()).AddOpCode(OPCHECKLOCKTIMEVERIFY).AddOpCode(OPDUP).AddOpCode(OPHASH160).
+		AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 }
 
 // SignatureScript creates a script to unlock a utxo.
@@ -37,6 +46,21 @@ func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
 // StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
 func StandardCoinbaseSignatureScript(height uint32) *Script {
 	return NewScript().AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
+}
+
+// SplitAddrScript returns a script to store a split address output
+func SplitAddrScript(addrs []types.Address, weights []uint64) *Script {
+	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+	s := NewScript()
+	weight := big.NewInt(0)
+	// use as many address/weight pairs as possbile
+	for i := 0; i < len(addrs) && i < len(weights); i++ {
+		weight.SetUint64(weights[i])
+		s.AddOperand(addrs[i].Hash()).AddOperand(weight.Bytes())
+	}
+	// Hash acts as address, like in p2sh
+	scriptHash := crypto.Hash160(*s)
+	return NewScript().AddOpCode(OPRETURN).AddOperand(scriptHash).AddScript(s)
 }
 
 // Script represents scripts
@@ -125,7 +149,7 @@ func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx in
 func (s *Script) evaluate(tx *types.Transaction, txInIdx int) error {
 	script := *s
 	scriptLen := len(script)
-	logger.Debugf("script len %d: %s", scriptLen, s.Disasm())
+	// logger.Debugf("script len %d: %s", scriptLen, s.Disasm())
 
 	stack := newStack()
 	for pc, scriptPubKeyStart := 0, 0; pc < scriptLen; {
@@ -201,22 +225,25 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 
 	// Push value
 	if opCode <= OPPUSHDATA4 {
-		if opCode < OPPUSHDATA1 {
-			logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
-		} else {
-			logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
-		}
+		// if opCode < OPPUSHDATA1 {
+		// 	logger.Debugf("push data len: %d, pc: %d", len(pushData), pc)
+		// } else {
+		// 	logger.Debugf("opcode: %s, push data len: %d, pc: %d", opCodeToName(opCode), len(pushData), pc)
+		// }
 		stack.push(pushData)
 		return nil
 	} else if opCode <= OP16 && opCode != OPRESERVED {
 		op := big.NewInt(int64(opCode) - int64(OP1) + 1)
-		logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
+		// logger.Debugf("opcode: %s, push data: %v, pc: %d", opCodeToName(opCode), op, pc)
 		stack.push(Operand(op.Bytes()))
 		return nil
 	}
 
-	logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
+	// logger.Debugf("opcode: %s, pc: %d", opCodeToName(opCode), pc)
 	switch opCode {
+	case OPRETURN:
+		return ErrOpReturn
+
 	case OPDROP:
 		if stack.size() < 1 {
 			return ErrInvalidStackOperation
@@ -398,10 +425,32 @@ func (s *Script) execOp(opCode OpCode, pushData Operand, tx *types.Transaction,
 			}
 		}
 
+	case OPCHECKLOCKTIMEVERIFY:
+		if stack.size() < 1 {
+			return ErrInvalidStackOperation
+		}
+		op := big.NewInt(0)
+		op.SetBytes(stack.topN(1))
+		lockTime := op.Int64()
+		if checkLockTime(lockTime, tx.LockTime) {
+			stack.pop()
+		} else {
+			return ErrScriptLockTimeVerifyFail
+		}
+
 	default:
 		return ErrBadOpcode
 	}
 	return nil
+}
+
+func checkLockTime(lockTime, txLockTime int64) bool {
+	// same type: either both block height or both UTC seconds
+	if !(lockTime < LockTimeThreshold && txLockTime < LockTimeThreshold ||
+		lockTime >= LockTimeThreshold && txLockTime >= LockTimeThreshold) {
+		return false
+	}
+	return lockTime <= txLockTime
 }
 
 // verify if signature is right
@@ -428,17 +477,14 @@ func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *type
 }
 
 // CalcTxHashForSig calculates the hash of a tx input, used for signature
-func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (*crypto.HashType, error) {
-	if txInIdx >= len(tx.Vin) {
+func CalcTxHashForSig(scriptPubKey []byte, originalTx *types.Transaction, txInIdx int) (*crypto.HashType, error) {
+	if txInIdx >= len(originalTx.Vin) {
 		return nil, ErrInputIndexOutOfBound
 	}
 
-	// We do not want to change the original tx script sig, so make a copy
-	oldScriptSigs := make([][]byte, 0, len(tx.Vin))
-
+	// Make a hard copy here to avoid racing conditions when verifying signature in parallel
+	tx := originalTx.Copy()
 	for i, txIn := range tx.Vin {
-		oldScriptSigs = append(oldScriptSigs, txIn.ScriptSig)
-
 		if i != txInIdx {
 			// Blank out other inputs' signatures
 			txIn.ScriptSig = nil
@@ -448,14 +494,7 @@ func CalcTxHashForSig(scriptPubKey []byte, tx *types.Transaction, txInIdx int) (
 		}
 	}
 
-	// force to recompute hash instead of getting from cached hash since tx has changed
-	sigHash, err := tx.CalcTxHash()
-
-	// recover script sig
-	for i, txIn := range tx.Vin {
-		txIn.ScriptSig = oldScriptSigs[i]
-	}
-	return sigHash, err
+	return tx.CalcTxHash()
 }
 
 // parses the entire script and returns operator/operand sequences.
@@ -513,6 +552,12 @@ func (s *Script) IsPayToPubKeyHash() bool {
 		isOperandOfLen(r[2], 20) && reflect.DeepEqual(r[3], OPEQUALVERIFY) && reflect.DeepEqual(r[4], OPCHECKSIG)
 }
 
+// IsPayToPubKeyHashCLTVScript returns if the script is p2pkhCLTV
+func (s *Script) IsPayToPubKeyHashCLTVScript() bool {
+	r := s.parse()
+	return len(r) == 7 && reflect.DeepEqual(r[1], OPCHECKLOCKTIMEVERIFY) && reflect.DeepEqual(r[2], OPDUP) && reflect.DeepEqual(r[3], OPHASH160) && isOperandOfLen(r[4], 20) && reflect.DeepEqual(r[5], OPEQUALVERIFY) && reflect.DeepEqual(r[6], OPCHECKSIG)
+}
+
 // IsPayToScriptHash returns if the script is p2sh
 func (s *Script) IsPayToScriptHash() bool {
 	if len(*s) != p2SHScriptLen {
@@ -522,6 +567,38 @@ func (s *Script) IsPayToScriptHash() bool {
 	// OP_HASH160 <160-bit redeemp script hash> OP_EQUAL
 	r := s.parse()
 	return len(r) == 3 && reflect.DeepEqual(r[0], OPHASH160) && isOperandOfLen(r[1], 20) && reflect.DeepEqual(r[2], OPEQUAL)
+}
+
+// IsSplitAddrScript returns if the script is split address
+// Note: assume OP_RETURN is only used for split address here. Add a magic number if OP_RETURN is used for something else
+func (s *Script) IsSplitAddrScript() bool {
+	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+	r := s.parse()
+	return len(r) >= 4 && len(r)%2 == 0 && reflect.DeepEqual(r[0], OPRETURN) && isOperandOfLen(r[1], 20)
+}
+
+// IsRegisterCandidateScript returns if the script is register candidate script
+func (s *Script) IsRegisterCandidateScript(blockTimeOrHeight int64) bool {
+	r := s.parse()
+	value, err := r[0].(Operand).int64()
+	if err != nil {
+		return false
+	}
+	return len(r) >= 7 && value == blockTimeOrHeight
+}
+
+// GetSplitAddrScriptPrefix returns prefix of split addr script without and list of addresses and weights
+// only called on split address script, so no need to check error
+func (s *Script) GetSplitAddrScriptPrefix() *Script {
+	opCode, _, pc, _ := s.getNthOp(0, 0)
+	_, operandHash, _, _ := s.getNthOp(pc, 0)
+
+	return NewScript().AddOpCode(opCode).AddOperand(operandHash)
+}
+
+// CreateSplitAddrScriptPrefix creates a script prefix for split address with a hashed address
+func CreateSplitAddrScriptPrefix(addr types.Address) *Script {
+	return NewScript().AddOpCode(OPRETURN).AddOperand(addr.Hash())
 }
 
 // is i of type Operand and of specified length
@@ -546,18 +623,98 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
-	// only applies to p2pkh & token txs
-	if !s.IsPayToPubKeyHash() && !s.IsTokenIssue() && !s.IsTokenTransfer() {
-		return nil, ErrAddressNotApplicable
+
+	if s.IsPayToPubKeyHash() || s.IsTokenIssue() || s.IsTokenTransfer() {
+		// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
+		_, pubKeyHash, _, err := s.getNthOp(0, 2)
+		if err != nil {
+			return nil, err
+
+		}
+		return types.NewAddressPubKeyHash(pubKeyHash)
 	}
 
-	// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
-	_, pubKeyHash, _, err := s.getNthOp(0, 2)
-	if err != nil {
-		return nil, err
+	if s.IsSplitAddrScript() {
+		str := s.Disasm()
+		segs := strings.Split(str, " ")
+		pubKeyHash, err := hex.DecodeString(segs[1])
+		if err != nil {
+			return nil, err
+		}
+		addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+		if err != nil {
+			return nil, err
+		}
+		return addr, nil
 	}
 
-	return types.NewAddressPubKeyHash(pubKeyHash)
+	if s.IsPayToPubKeyHashCLTVScript() {
+		_, pubKeyHash, _, err := s.getNthOp(0, 4)
+		if err != nil {
+			return nil, err
+		}
+		return types.NewAddressPubKeyHash(pubKeyHash)
+	}
+
+	return nil, ErrAddressNotApplicable
+}
+
+// ParseSplitAddrScript returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]
+// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint64, error) {
+	opCode, _, pc, err := s.getNthOp(0, 0)
+	if err != nil || opCode != OPRETURN {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+
+	_, operandHash, pc, err := s.getNthOp(pc, 0)
+	if err != nil || opCode != OPRETURN {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+
+	addrs := make([]types.Address, 0)
+	weights := make([]uint64, 0)
+
+	for i := 0; ; i++ {
+		// public key
+		_, operand, _, err := s.getNthOp(pc, i)
+		if err != nil {
+			if err == ErrScriptBound {
+				// reached end
+				break
+			}
+			return nil, nil, ErrInvalidSplitAddrScript
+		}
+		if i%2 == 0 {
+			// address
+			addr, err := types.NewAddressPubKeyHash(operand)
+			if err != nil {
+				return nil, nil, ErrInvalidSplitAddrScript
+			}
+			addrs = append(addrs, addr)
+		} else {
+			// weight
+			weight, err := operand.int()
+			if err != nil {
+				return nil, nil, ErrInvalidSplitAddrScript
+			}
+			weights = append(weights, uint64(weight))
+		}
+	}
+
+	script := NewScript()
+	weight := big.NewInt(0)
+	for i := 0; i < len(addrs); i++ {
+		weight.SetUint64(weights[i])
+		script.AddOperand(addrs[i].Hash()).AddOperand(weight.Bytes())
+	}
+	scriptHash := crypto.Hash160(*script)
+	// Check hash is expected
+	if !bytes.Equal(scriptHash, operandHash) {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+
+	return addrs, weights, nil
 }
 
 // GetSigOpCount returns number of signature operations in a script

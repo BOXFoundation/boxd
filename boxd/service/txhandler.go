@@ -4,11 +4,14 @@
 
 package service
 
-import "github.com/BOXFoundation/boxd/core/types"
+import (
+	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/types"
+)
 
 // TxHandler defines basic operations txpool exposes
 type TxHandler interface {
-	ProcessTx(tx *types.Transaction, broadcast bool) error
+	ProcessTx(*types.Transaction, core.TransferMode) error
 	// GetTransactionsInPool gets all transactions in memory pool
-	GetTransactionsInPool() []*types.Transaction
+	GetTransactionsInPool() ([]*types.Transaction, []int64)
 }

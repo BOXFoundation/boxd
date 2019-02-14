@@ -1,0 +1,61 @@
+{
+  "peer_cnt": 6,
+  "test_scope": "basic",
+  "pass_phrase": "1",
+  "ticker_duration_txs": 5,
+  "times_to_update_addrs": 50,
+  "wallet_dir": "./.devconfig/ws1/box_keystore/",
+  "docker_compose_file": "../docker/docker-compose.yml",
+  "local_ws": "./.devconfig/",
+  "docker_ws": "../docker/.devconfig/",
+  "transaction_test": {
+    "enable": true,
+    "collection_accounts": 8,
+    "collection_unit_accounts": 4,
+    "circulation_accounts": 6,
+    "circulation_unit_accounts": 3,
+    "circulation_repeat_times": 400
+  },
+  "token_test": {
+    "enable": true,
+    "accounts": 6,
+    "unit_accounts": 3,
+    "repeat_times": 50
+  },
+  "split_addr_test": {
+    "enable": false,
+    "accounts": 10,
+    "unit_accounts": 5,
+    "repeat_times": 50
+  },
+  "iplist": {
+    "docker": [
+	    "127.0.0.1:19111",
+	    "127.0.0.1:19121",
+	    "127.0.0.1:19131",
+	    "127.0.0.1:19141",
+	    "127.0.0.1:19151",
+	    "127.0.0.1:19161"
+    ],
+    "local": [
+	    "127.0.0.1:19111",
+	    "127.0.0.1:19121",
+	    "127.0.0.1:19131",
+	    "127.0.0.1:19141",
+	    "127.0.0.1:19151",
+	    "127.0.0.1:19161"
+    ],
+    "testnet": [
+	    "192.168.0.227:19111",
+	    "192.168.0.227:19121",
+	    "192.168.0.227:19131",
+	    "192.168.0.226:19141",
+	    "192.168.0.226:19151",
+	    "192.168.0.226:19161"
+    ],
+    "tx_peers": [
+	    "127.0.0.1:19111",
+	    "127.0.0.1:19121"
+    ]
+  }
+}

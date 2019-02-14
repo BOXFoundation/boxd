@@ -179,6 +179,19 @@ func (db *rocksdb) Get(key []byte) ([]byte, error) {
 	return data(value), nil
 }
 
+// return values associate with the keys in the Storage
+func (db *rocksdb) MultiGet(key ...[]byte) ([][]byte, error) {
+	slices, err := db.rocksdb.MultiGet(db.readOptions, key...)
+	if err != nil {
+		return nil, err
+	}
+	values := make([][]byte, 0, len(slices))
+	for _, slice := range slices {
+		values = append(values, data(slice))
+	}
+	return values, nil
+}
+
 // check if the entry associate with key exists
 func (db *rocksdb) Has(key []byte) (bool, error) {
 	var iter = db.rocksdb.NewIterator(db.readOptions)

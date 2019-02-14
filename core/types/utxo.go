@@ -5,59 +5,118 @@
 package types
 
 import (
-	"github.com/BOXFoundation/boxd/core"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
-	conv "github.com/BOXFoundation/boxd/p2p/convert"
-	proto "github.com/gogo/protobuf/proto"
+	"github.com/BOXFoundation/boxd/crypto"
 )
+
+type utxoFlags uint8
+
+const (
+	coinBase utxoFlags = 1 << iota
+
+	spent
+
+	modified
+)
+
+// TokenTag defines token tag
+type TokenTag struct {
+	Name    string
+	Symbol  string
+	Decimal uint8
+}
+
+// NewTokenTag news a TokenTag
+func NewTokenTag(name, sym string, decimal uint8) *TokenTag {
+	return &TokenTag{
+		Name:    name,
+		Symbol:  sym,
+		Decimal: decimal,
+	}
+}
+
+// TokenID defines token id
+type TokenID OutPoint
+
+// NewTokenID constructs a token id
+func NewTokenID(hash *crypto.HashType, index uint32) *TokenID {
+	return (*TokenID)(NewOutPoint(hash, index))
+}
 
 // UtxoWrap contains info about utxo
 type UtxoWrap struct {
-	Output      *corepb.TxOut
-	BlockHeight uint32
-	IsCoinBase  bool
-	IsSpent     bool
-	IsModified  bool
+	value  uint64
+	script []byte // The public key script for the output.
+	height uint32 // Height of block containing tx.
+	flags  utxoFlags
 }
 
-// ToProtoMessage converts utxo wrap to proto message.
-func (utxoWrap *UtxoWrap) ToProtoMessage() (proto.Message, error) {
-	return &corepb.UtxoWrap{
-		Output:      utxoWrap.Output,
-		BlockHeight: utxoWrap.BlockHeight,
-		IsCoinbase:  utxoWrap.IsCoinBase,
-		IsSpent:     utxoWrap.IsSpent,
-	}, nil
-}
+// UtxoMap defines a map type with OutPoint to UtxoWrap
+type UtxoMap map[OutPoint]*UtxoWrap
 
-// FromProtoMessage converts proto message to utxo wrap.
-func (utxoWrap *UtxoWrap) FromProtoMessage(message proto.Message) error {
-	if message, ok := message.(*corepb.UtxoWrap); ok {
-		utxoWrap.Output = message.Output
-		utxoWrap.BlockHeight = message.BlockHeight
-		utxoWrap.IsCoinBase = message.IsCoinbase
-		utxoWrap.IsSpent = message.IsSpent
-		utxoWrap.IsModified = false
-		return nil
+// NewUtxoWrap returns new utxoWrap.
+func NewUtxoWrap(value uint64, script []byte, height uint32) *UtxoWrap {
+	return &UtxoWrap{
+		value:  value,
+		script: script,
+		height: height,
+		flags:  modified,
 	}
-	return core.ErrInvalidUtxoWrapProtoMessage
 }
 
-// Marshal method marshal UtxoWrap object to binary
-func (utxoWrap *UtxoWrap) Marshal() (data []byte, err error) {
-	return conv.MarshalConvertible(utxoWrap)
+// IsModified returns whether or not the output ismodified.
+func (utxoWrap *UtxoWrap) IsModified() bool {
+	return utxoWrap.flags&modified == modified
 }
 
-// Unmarshal method unmarshal binary data to UtxoWrap object
-func (utxoWrap *UtxoWrap) Unmarshal(data []byte) error {
-	msg := &corepb.UtxoWrap{}
-	if err := proto.Unmarshal(data, msg); err != nil {
-		return err
+// Modified marks the output as modified.
+func (utxoWrap *UtxoWrap) Modified() {
+	utxoWrap.flags |= modified
+}
+
+// IsCoinBase returns whether or not the output was contained in a coinbase
+// transaction.
+func (utxoWrap *UtxoWrap) IsCoinBase() bool {
+	return utxoWrap.flags&coinBase == coinBase
+}
+
+// SetCoinBase marks the output as coinBase.
+func (utxoWrap *UtxoWrap) SetCoinBase() {
+	utxoWrap.flags |= coinBase
+}
+
+// IsSpent returns whether or not the output has been spent.
+func (utxoWrap *UtxoWrap) IsSpent() bool {
+	return utxoWrap.flags&spent == spent
+}
+
+// Height returns the height of the block containing the output.
+func (utxoWrap *UtxoWrap) Height() uint32 {
+	return utxoWrap.height
+}
+
+// Spend marks the output as spent.
+func (utxoWrap *UtxoWrap) Spend() {
+
+	if utxoWrap.IsSpent() {
+		return
 	}
-	return utxoWrap.FromProtoMessage(msg)
+	utxoWrap.flags |= spent | modified
 }
 
-// Value returns utxo amount
+// UnSpend marks the output as unspent.
+func (utxoWrap *UtxoWrap) UnSpend() {
+	utxoWrap.flags = modified
+	if utxoWrap.IsCoinBase() {
+		utxoWrap.SetCoinBase()
+	}
+}
+
+// Value returns the value of the output.
 func (utxoWrap *UtxoWrap) Value() uint64 {
-	return utxoWrap.Output.Value
+	return utxoWrap.value
+}
+
+// Script returns the pubkey script of the output.
+func (utxoWrap *UtxoWrap) Script() []byte {
+	return utxoWrap.script
 }

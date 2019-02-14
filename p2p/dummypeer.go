@@ -22,6 +22,11 @@ func (d *DummyPeer) Broadcast(uint32, conv.Convertible) error {
 	return nil
 }
 
+// Relay for testing
+func (d *DummyPeer) Relay(uint32, conv.Convertible) error {
+	return nil
+}
+
 // SendMessageToPeer for testing
 func (d *DummyPeer) SendMessageToPeer(uint32, conv.Convertible, peer.ID) error {
 	return nil

@@ -18,7 +18,9 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -26,19 +28,30 @@ import (
 const (
 	TxMsgBufferChSize          = 65536
 	ChainUpdateMsgBufferChSize = 65536
+	TxScriptBufferChSize       = 65536
 
-	metricsLoopInterval = 2 * time.Second
+	metricsLoopInterval = 1 * time.Second
+
+	// Note: reuse metrics ticker to save cost
+	txTTL = 3600 * time.Second
 )
 
 var logger = log.NewLogger("txpool") // logger
 
 var _ service.TxHandler = (*TransactionPool)(nil)
 
+// Wrapper for info needed to validate a tx's script
+type txScriptWrap struct {
+	tx      *types.Transaction
+	utxoSet *chain.UtxoSet
+}
+
 // TransactionPool define struct.
 type TransactionPool struct {
 	notifiee            p2p.Net
 	newTxMsgCh          chan p2p.Message
 	newChainUpdateMsgCh chan *chain.UpdateMsg
+	newTxScriptCh       chan *txScriptWrap
 	txNotifee           *p2p.Notifiee
 	proc                goprocess.Process
 	chain               *chain.BlockChain
@@ -48,20 +61,23 @@ type TransactionPool struct {
 	// types.OutPoint -> *types.Transaction
 	outPointToTx *sync.Map
 	txMutex      sync.Mutex
-	// crypto.HashType -> *types.Transaction
+	// crypto.HashType -> *types.TxWrap
 	hashToOrphanTx *sync.Map
 	// outpoint -> orphans spending it; outpoints can be arbitrary, valid or invalid
 	// Use map here since there can be multiple spending txs and we don't know which
 	// one will be accepted, unlike in outPointToTx where first seen tx is accepted
 	// types.OutPoint -> (crypto.HashType -> *types.Transaction)
 	outPointToOrphan *sync.Map
+	txcache          *lru.Cache
 }
 
 // NewTransactionPool new a transaction pool.
 func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.BlockChain, bus eventbus.Bus) *TransactionPool {
+	txcache, _ := lru.New(65536)
 	return &TransactionPool{
 		newTxMsgCh:          make(chan p2p.Message, TxMsgBufferChSize),
 		newChainUpdateMsgCh: make(chan *chain.UpdateMsg, ChainUpdateMsgBufferChSize),
+		newTxScriptCh:       make(chan *txScriptWrap, TxScriptBufferChSize),
 		proc:                goprocess.WithParent(parent),
 		notifiee:            notifiee,
 		chain:               c,
@@ -70,6 +86,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		hashToOrphanTx:      new(sync.Map),
 		outPointToOrphan:    new(sync.Map),
 		outPointToTx:        new(sync.Map),
+		txcache:             txcache,
 	}
 }
 
@@ -79,13 +96,15 @@ var _ service.Server = (*TransactionPool)(nil)
 // Run launch transaction pool.
 func (tx_pool *TransactionPool) Run() error {
 	// p2p tx msg
-	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, p2p.Unique, tx_pool.newTxMsgCh)
+	tx_pool.txNotifee = p2p.NewNotifiee(p2p.TransactionMsg, tx_pool.newTxMsgCh)
 	tx_pool.notifiee.Subscribe(tx_pool.txNotifee)
 
 	// chain update msg
-	tx_pool.bus.Subscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
+	tx_pool.bus.SubscribeAsync(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg, true)
 
-	tx_pool.proc.Go(tx_pool.loop).SetTeardown(tx_pool.teardown)
+	tx_pool.proc.Go(tx_pool.loop)
+
+	tx_pool.proc.Go(tx_pool.cleanExpiredTxsLoop)
 	return nil
 }
 
@@ -97,13 +116,6 @@ func (tx_pool *TransactionPool) Proc() goprocess.Process {
 // Stop the server
 func (tx_pool *TransactionPool) Stop() {
 	tx_pool.proc.Close()
-}
-
-// teardown to clean the process
-func (tx_pool *TransactionPool) teardown() error {
-	close(tx_pool.newChainUpdateMsgCh)
-	close(tx_pool.newTxMsgCh)
-	return nil
 }
 
 func (tx_pool *TransactionPool) receiveChainUpdateMsg(msg *chain.UpdateMsg) {
@@ -118,12 +130,30 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	for {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
-			tx_pool.processTxMsg(msg)
+			if err := tx_pool.processTxMsg(msg); err != nil {
+				logger.Errorf("Failed to processTxMsg. Err: %v", err)
+			}
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
 		case <-metricsTicker.C:
 			metrics.MetricsTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToTx)))
 			metrics.MetricsOrphanTxPoolSizeGauge.Update(int64(lengthOfSyncMap(tx_pool.hashToOrphanTx)))
+			if time.Now().Unix()%30 == 0 {
+				var hashstr string
+				tx_pool.hashToTx.Range(func(k, v interface{}) bool {
+					txwrap := v.(*chain.TxWrap)
+					hash, _ := txwrap.Tx.TxHash()
+					hashstr += hash.String()
+					hashstr += ","
+					return true
+				})
+				if len(hashstr) > 1 {
+					logger.Debugf("tx_pool info: %s", string([]rune(hashstr)[:len(hashstr)-1]))
+				}
+			}
+
+		case txScript := <-tx_pool.newTxScriptCh:
+			go tx_pool.checkTxScript(txScript)
 		case <-p.Closing():
 			logger.Info("Quit transaction pool loop.")
 			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
@@ -133,33 +163,67 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	}
 }
 
-// chain update message from blockchain: block connection/disconnection
-func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) error {
-	block := msg.Block
-	if msg.Connected {
-		logger.Infof("Block %v connects to main chain", block.BlockHash())
-		return tx_pool.removeBlockTxs(block)
-	}
-	logger.Infof("Block %v disconnects from main chain", block.BlockHash())
-	return tx_pool.addBlockTxs(block)
-}
+func (tx_pool *TransactionPool) cleanExpiredTxsLoop(p goprocess.Process) {
 
-// Add all transactions contained in this block into mempool
-func (tx_pool *TransactionPool) addBlockTxs(block *types.Block) error {
-	for _, tx := range block.Txs[1:] {
-		if err := tx_pool.maybeAcceptTx(tx, false /* do not broadcast */, true); err != nil {
-			return err
+	ticker := time.NewTicker(txTTL)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			tx_pool.cleanExpiredTxs()
+		case <-p.Closing():
+			logger.Info("Quit cleanUpTxPool loop.")
+			return
 		}
 	}
-	return nil
+}
+
+// chain update message from blockchain: block connection/disconnection
+func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
+
+	for _, v := range msg.DetachBlocks {
+		logger.Debugf("Block %v disconnects from main chain", v.BlockHash())
+		for _, tx := range v.Txs[1:] {
+			txHash, _ := tx.TxHash()
+			if tx_pool.txcache.Contains(*txHash) {
+				tx_pool.txcache.Remove(*txHash)
+			}
+			if err := tx_pool.maybeAcceptTx(tx, core.DefaultMode /* do not broadcast */, true); err != nil {
+				logger.Errorf("Failed to add tx into mem_pool when block disconnect. TxHash: %s, err: %v", txHash, err)
+			}
+		}
+		// remove related child txs.
+		for _, tx := range v.Txs {
+			removedTxHash, _ := tx.TxHash()
+			outPoint := types.OutPoint{Hash: *removedTxHash}
+			for txOutIdx := range tx.Vout {
+				outPoint.Index = uint32(txOutIdx)
+				childTx, exists := tx_pool.findTransaction(outPoint)
+				if !exists {
+					continue
+				}
+				hash, _ := childTx.TxHash()
+				logger.Debugf("Remove related child tx %s when block %v disconnects from main chain", hash, v.BlockHash())
+				tx_pool.removeTx(childTx, true)
+			}
+		}
+	}
+
+	for _, v := range msg.AttachBlocks {
+		logger.Debugf("Block %v connects to main chain", v.BlockHash())
+		tx_pool.removeBlockTxs(v)
+	}
+
 }
 
 // Remove all transactions contained in this block and their double spends from main and orphan pool
 func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
+		txHash, _ := tx.TxHash()
+		tx_pool.txcache.Add(*txHash, true)
 		// Since the passed tx is confirmed in a new block, all its childrent remain valid, thus no recursive removal.
 		tx_pool.removeTx(tx, false /* non-recursive */)
-		tx_pool.removeDoubleSpendTxs(tx)
+		// tx_pool.removeDoubleSpendTxs(tx)
 		tx_pool.removeOrphan(tx)
 		tx_pool.removeDoubleSpendOrphans(tx)
 	}
@@ -172,8 +236,10 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	if err := tx.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
+	hash, _ := tx.TxHash()
+	logger.Debugf("Start to process tx from network. Hash: %v", hash)
 
-	if err := tx_pool.ProcessTx(tx, false); err != nil && util.InArray(err, core.EvilBehavior) {
+	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil && util.InArray(err, core.EvilBehavior) {
 		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
 		return err
 	}
@@ -183,24 +249,29 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 
 // ProcessTx is used to handle new transactions.
 // utxoSet: utxos associated with the tx
-func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, broadcast bool) error {
-
-	if err := tx_pool.maybeAcceptTx(tx, broadcast, true); err != nil {
+func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
+	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
+		txHash, _ := tx.TxHash()
+		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash, err)
 		return err
 	}
 	return tx_pool.processOrphans(tx)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, detectDupOrphan bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
+	transferMode core.TransferMode, detectDupOrphan bool) error {
 
+	txHash, _ := tx.TxHash()
+	logger.Debugf("Maybe accept tx. Hash: %v", txHash)
 	tx_pool.txMutex.Lock()
 	defer tx_pool.txMutex.Unlock()
-	txHash, _ := tx.TxHash()
 
 	// Don't accept the transaction if it already exists in the pool.
 	// This applies to orphan transactions as well
-	if tx_pool.isTransactionInPool(txHash) || detectDupOrphan && tx_pool.isOrphanInPool(txHash) {
+	if tx_pool.isTransactionInPool(txHash) ||
+		detectDupOrphan && tx_pool.isOrphanInPool(txHash) ||
+		tx_pool.txcache.Contains(*txHash) {
 		logger.Debugf("Tx %v already exists", txHash.String())
 		return core.ErrDuplicateTxInPool
 	}
@@ -209,26 +280,31 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 
 	// Perform preliminary sanity checks on the transaction.
 	if err := chain.ValidateTransactionPreliminary(tx); err != nil {
-		logger.Debugf("Tx %v fails sanity check: %v", txHash.String(), err)
+		logger.Errorf("Tx %v fails sanity check: %v", txHash.String(), err)
 		return err
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
 	if chain.IsCoinBase(tx) {
-		logger.Debugf("Tx %v is an individual coinbase", txHash.String())
+		logger.Errorf("Tx %v is an individual coinbase", txHash.String())
 		return core.ErrCoinbaseTx
 	}
 
 	// ensure it is a standard transaction
 	if err := tx_pool.checkTransactionStandard(tx); err != nil {
-		logger.Debugf("Tx %v is not standard: %v", txHash.String(), err)
+		logger.Errorf("Tx %v is not standard: %v", txHash.String(), err)
 		return core.ErrNonStandardTransaction
+	}
+
+	if err := tx_pool.checkRegisterOrVoteTx(tx); err != nil {
+		logger.Errorf("Tx %v is a invalid Register or Vote tx. Err: %v", txHash.String(), err)
+		return err
 	}
 
 	// Quickly detects if the tx double spends with any transaction in the pool.
 	// Double spending with the main chain txs will be checked in ValidateTxInputs.
 	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
-		logger.Debugf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
+		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
 		return err
 	}
 
@@ -239,7 +315,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 	}
 
 	// A tx is an orphan if any of its spending utxo does not exist
-	if !utxoSet.IsTxFunded(tx) {
+	if utxoSet.TxInputAmount(tx) == 0 {
 		// Add orphan transaction
 		tx_pool.addOrphan(tx)
 		return core.ErrOrphanTransaction
@@ -271,18 +347,23 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction, broadcast, 
 
 	// TODO: free-to-relay rate limit
 
-	// verify crypto signatures for each input
-	if err = chain.ValidateTxScripts(utxoSet, tx); err != nil {
-		return err
-	}
+	// To check script later so main thread is not blocked
+	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
-
-	// Broadcast this tx.
-	if broadcast {
-		tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
+	// body, _ := conv.MarshalConvertible(tx)
+	// key := fmt.Sprintf("%x", (md5.Sum(body)))
+	// logger.Infof("Accepted new tx. Hash: %v, transferMode: %v, key: %s", txHash, transferMode, key)
+	logger.Debugf("Accepted new tx. Hash: %v", txHash)
+	tx_pool.txcache.Add(*txHash, true)
+	switch transferMode {
+	case core.BroadcastMode:
+		return tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
+	case core.RelayMode:
+		return tx_pool.notifiee.Relay(p2p.TransactionMsg, tx)
+	default:
 	}
 	return nil
 }
@@ -307,6 +388,63 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
 	// TODO:
 	return nil
+}
+
+func (tx_pool *TransactionPool) checkRegisterOrVoteTx(tx *types.Transaction) error {
+	if tx.Data == nil {
+		return nil
+	}
+	content := tx.Data.Content
+	switch int(tx.Data.Type) {
+	case types.RegisterCandidateTx:
+		registerCandidateContent := new(types.RegisterCandidateContent)
+		if err := registerCandidateContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if tx_pool.chain.Consensus().IsCandidateExist(registerCandidateContent.Addr()) {
+			return core.ErrCandidateIsAlreadyExist
+		}
+		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
+			return core.ErrInvalidRegisterCandidateOrVoteTx
+		}
+	case types.VoteTx:
+		votesContent := new(types.VoteContent)
+		if err := votesContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if !tx_pool.chain.Consensus().IsCandidateExist(votesContent.Addr()) {
+			return core.ErrCandidateNotFound
+		}
+		if !tx_pool.checkRegisterCandidateOrVoteTx(tx) {
+			return core.ErrInvalidRegisterCandidateOrVoteTx
+		}
+	}
+
+	return nil
+}
+
+func (tx_pool *TransactionPool) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
+	for _, vout := range tx.Vout {
+		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
+		if scriptPubKey.IsRegisterCandidateScript(chain.CalcCandidatePledgeHeight(int64(tx_pool.chain.TailBlock().Height))) {
+			if tx.Data.Type == types.RegisterCandidateTx {
+				if vout.Value >= chain.CandidatePledge {
+					return true
+				}
+			} else if tx.Data.Type == types.VoteTx {
+				if vout.Value >= chain.MinNumOfVotes {
+					votesContent := new(types.VoteContent)
+					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
+						return false
+					}
+					if votesContent.Votes() == int64(vout.Value) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
@@ -339,7 +477,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			orphans := v.(*sync.Map)
 			orphans.Range(func(k, v interface{}) bool {
 				orphan := v.(*types.Transaction)
-				if err := tx_pool.maybeAcceptTx(orphan, false, false); err != nil {
+				if err := tx_pool.maybeAcceptTx(orphan, core.DefaultMode, false); err != nil {
 					return true
 				}
 				tx_pool.removeOrphan(orphan)
@@ -366,6 +504,7 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
 		FeePerKB:       feePerKB,
+		IsScriptValid:  false,
 	}
 	tx_pool.hashToTx.Store(*txHash, txWrap)
 
@@ -383,7 +522,12 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
-		tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
+		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+			tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
+			doubleSpentTxHash, _ := doubleSpentTx.TxHash()
+			tx_pool.hashToTx.Delete(*doubleSpentTxHash)
+		}
+
 	}
 	tx_pool.hashToTx.Delete(*txHash)
 
@@ -427,14 +571,17 @@ func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 
 // Add orphan
 func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
+	txWrap := &chain.TxWrap{
+		Tx:             tx,
+		AddedTimestamp: time.Now().Unix(),
+	}
 
 	txHash, _ := tx.TxHash()
-	tx_pool.hashToOrphanTx.Store(*txHash, tx)
+	tx_pool.hashToOrphanTx.Store(*txHash, txWrap)
 	for _, txIn := range tx.Vin {
 		v := new(sync.Map)
 		v.Store(*txHash, tx)
 		tx_pool.outPointToOrphan.LoadOrStore(txIn.PrevOutPoint, v)
-
 	}
 
 	logger.Debugf("Stored orphan transaction %v", txHash.String())
@@ -468,7 +615,6 @@ func (tx_pool *TransactionPool) removeOrphan(tx *types.Transaction) {
 	}
 
 	tx_pool.hashToOrphanTx.Delete(*txHash)
-	logger.Debugf("Removed orphan transaction %v", txHash.String())
 }
 
 // removeDoubleSpendOrphans removes all orphans from the orphan pool, which double spend the passed transaction.
@@ -485,6 +631,63 @@ func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) 
 	}
 }
 
+// check admitted tx's script
+func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
+	// verify crypto signatures for each input
+	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false /* validate script */); err != nil {
+		// remove
+		txHash, _ := txScript.tx.TxHash()
+		logger.Errorf("tx %v script verification failed", txHash)
+		tx_pool.removeTx(txScript.tx, true)
+		return
+	}
+
+	txHash, _ := txScript.tx.TxHash()
+	v, exists := tx_pool.hashToTx.Load(*txHash)
+	if !exists {
+		// already removed
+		return
+	}
+	tx := v.(*chain.TxWrap)
+	tx.IsScriptValid = true
+}
+
+func (tx_pool *TransactionPool) cleanExpiredTxs() {
+	var expiredOrphans []*types.Transaction
+	var expiredTxs []*types.Transaction
+
+	now := time.Now()
+	tx_pool.hashToOrphanTx.Range(func(k, v interface{}) bool {
+		orphan := v.(*chain.TxWrap)
+		if now.After(time.Unix(orphan.AddedTimestamp, 0).Add(txTTL)) {
+			// Note: do not delete while range looping over map; delete after loop is over
+			expiredOrphans = append(expiredOrphans, orphan.Tx)
+		}
+		return true
+	})
+
+	tx_pool.hashToTx.Range(func(k, v interface{}) bool {
+		txWrap := v.(*chain.TxWrap)
+		if now.After(time.Unix(txWrap.AddedTimestamp, 0).Add(txTTL)) {
+			// Note: do not delete while range looping over map; delete after loop is over
+			expiredTxs = append(expiredTxs, txWrap.Tx)
+		}
+		return true
+	})
+
+	for _, expiredOrphan := range expiredOrphans {
+		txHash, _ := expiredOrphan.TxHash()
+		logger.Debugf("Remove expired orphan %v", txHash)
+		tx_pool.removeOrphan(expiredOrphan)
+	}
+
+	for _, expiredTx := range expiredTxs {
+		txHash, _ := expiredTx.TxHash()
+		logger.Debugf("Remove expired tx %v", txHash)
+		tx_pool.removeTx(expiredTx, true)
+	}
+}
+
 // GetAllTxs returns all transactions in mempool
 func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
 	var txs []*chain.TxWrap
@@ -495,16 +698,28 @@ func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
 	return txs
 }
 
+// GetOrphaTxs returns all orpha txs in mempool
+func (tx_pool *TransactionPool) GetOrphaTxs() []*chain.TxWrap {
+	var txs []*chain.TxWrap
+	tx_pool.hashToOrphanTx.Range(func(k, v interface{}) bool {
+		txs = append(txs, v.(*chain.TxWrap))
+		return true
+	})
+	return txs
+}
+
 // GetTransactionsInPool gets all transactions in memory pool
-func (tx_pool *TransactionPool) GetTransactionsInPool() []*types.Transaction {
+func (tx_pool *TransactionPool) GetTransactionsInPool() ([]*types.Transaction, []int64) {
 
 	allTxs := tx_pool.GetAllTxs()
 
-	var txs []*types.Transaction
+	txs := make([]*types.Transaction, 0, len(allTxs))
+	addedTimes := make([]int64, 0, len(allTxs))
 	for _, tx := range allTxs {
 		txs = append(txs, tx.Tx)
+		addedTimes = append(addedTimes, tx.AddedTimestamp)
 	}
-	return txs
+	return txs, addedTimes
 }
 
 func calcRequiredMinFee(txSize int) uint64 {

@@ -26,18 +26,9 @@ var (
 	isModified   = true
 )
 
-func createUtxoWrap(val uint64, blkHeight uint32) types.UtxoWrap {
-	txOut := &corepb.TxOut{
-		Value:        val,
-		ScriptPubKey: []byte{},
-	}
-	utxoWrap := types.UtxoWrap{
-		Output:      txOut,
-		BlockHeight: blkHeight,
-		IsCoinBase:  isCoinBase,
-		IsSpent:     isSpent,
-		IsModified:  isModified,
-	}
+func createUtxoWrap(val uint64, blkHeight uint32) *types.UtxoWrap {
+
+	utxoWrap := types.NewUtxoWrap(val, []byte{}, blkHeight)
 	return utxoWrap
 }
 
@@ -111,10 +102,10 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 	ensure.NotNil(t, err4)
 	ensure.DeepEqual(t, err4, core.ErrAddExistingUtxo)
 
-	result := *utxoSet.FindUtxo(outPointOrigin)
+	result := utxoSet.FindUtxo(outPointOrigin)
 	ensure.DeepEqual(t, result, utxoWrapOrigin)
 
-	result1 := *utxoSet.FindUtxo(outPointNew)
+	result1 := utxoSet.FindUtxo(outPointNew)
 	ensure.DeepEqual(t, result1, utxoWrapNew)
 
 	// test for non-existing utxoSet
@@ -123,5 +114,5 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 
 	utxoSet.SpendUtxo(outPointOrigin)
 	spendResult := utxoSet.FindUtxo(outPointOrigin)
-	ensure.DeepEqual(t, true, spendResult.IsSpent)
+	ensure.DeepEqual(t, true, spendResult.IsSpent())
 }

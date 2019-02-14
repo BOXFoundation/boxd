@@ -31,14 +31,14 @@ func (sm *SyncManager) Run() {
 }
 
 func (sm *SyncManager) subscribeMessageNotifiee() {
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncRequest, p2p.Repeatable, sm.messageCh))
-	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncReponse, p2p.Repeatable, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateForkPointResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LocateCheckResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.BlockChunkResponse, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncRequest, sm.messageCh))
+	sm.p2pNet.Subscribe(p2p.NewNotifiee(p2p.LightSyncReponse, sm.messageCh))
 }
 
 func (sm *SyncManager) handleSyncMessage() {
@@ -196,7 +196,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 		return fmt.Errorf("receive LocateCheckResponse from non-sync peer[%s]",
 			pid.Pretty())
 	}
-	checkNum := atomic.AddInt32(&sm.checkNum, 1)
+	checkNum := atomic.LoadInt32(&sm.checkNum)
 	if checkNum > int32(maxCheckPeers) {
 		sm.stalePeers.Store(pid, errPeerStatus)
 		tryPushErrFlagChan(sm.checkErrCh, errFlagCheckNumTooBig)
@@ -224,6 +224,7 @@ func (sm *SyncManager) onCheckResponse(msg p2p.Message) error {
 	}
 	sm.stalePeers.Store(pid, checkedDonePeerStatus)
 	tryPushEmptyChan(sm.checkOkCh)
+	checkNum = atomic.AddInt32(&sm.checkNum, 1)
 	logger.Infof("success to check %d times", checkNum)
 	return nil
 }
@@ -310,9 +311,12 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
-			err := sm.chain.ProcessBlock(b, false, false, "")
+			err := sm.chain.ProcessBlock(b, core.DefaultMode, false, "")
 			if err != nil {
-				if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
+				if err == core.ErrBlockExists ||
+					err == core.ErrOrphanBlockExists ||
+					err == core.ErrExpiredBlock {
+					logger.Warnf("Failed to process block. Err: %v", err)
 					continue
 				} else {
 					panic(err)
@@ -357,8 +361,11 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 		return err
 	}
 	for _, b := range sb.Blocks {
-		if err := sm.chain.ProcessBlock(b, false, false, ""); err != nil {
-			if err == core.ErrBlockExists || err == core.ErrOrphanBlockExists {
+		if err := sm.chain.ProcessBlock(b, core.DefaultMode, false, ""); err != nil {
+			if err == core.ErrBlockExists ||
+				err == core.ErrOrphanBlockExists ||
+				err == core.ErrExpiredBlock ||
+				err == core.ErrBlockInSideChain {
 				continue
 			}
 			logger.Errorf("Failed to process block while handling LightSyncResponse message. Err: %s", err.Error())

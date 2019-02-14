@@ -9,7 +9,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/jbenet/goprocess"
@@ -58,7 +57,7 @@ func (dpos *DummyDpos) Run() error { return nil }
 func (dpos *DummyDpos) Stop() {}
 
 // StoreCandidateContext store candidate context
-func (dpos *DummyDpos) StoreCandidateContext(*crypto.HashType) error { return nil }
+func (dpos *DummyDpos) StoreCandidateContext(*types.Block, storage.Batch) error { return nil }
 
 // VerifySign verify sign
 func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) { return true, nil }
@@ -77,3 +76,15 @@ func (dpos *DummyDpos) BroadcastEternalMsgToMiners(block *types.Block) error { r
 
 // ValidateMiner validate miner
 func (dpos *DummyDpos) ValidateMiner() bool { return true }
+
+// TryToUpdateEternalBlock try to update eternal block.
+func (dpos *DummyDpos) TryToUpdateEternalBlock(src *types.Block) {}
+
+// IsCandidateExist check candidate is exist.
+func (dpos *DummyDpos) IsCandidateExist(addr types.AddressHash) bool { return false }
+
+// VerifyCandidates vefiry if the block candidates hash is right.
+func (dpos *DummyDpos) VerifyCandidates(block *types.Block) error { return nil }
+
+// UpdateCandidateContext update candidate context in memory.
+func (dpos *DummyDpos) UpdateCandidateContext(block *types.Block) error { return nil }

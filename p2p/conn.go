@@ -6,6 +6,7 @@ package p2p
 
 import (
 	"errors"
+	"hash/crc64"
 	"io"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 	libp2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
+	"github.com/whyrusleeping/yamux"
 )
 
 // const
@@ -30,7 +32,7 @@ const (
 
 	// [Low, Mid, High, Top]
 	PriorityMsgTypeSize = 4
-	PriorityQueueCap    = 1024
+	PriorityQueueCap    = 65536
 )
 
 // Conn represents a connection to a remote node
@@ -70,10 +72,11 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 		go conn.pq.Run(conn.proc, func(i interface{}) {
 			data := i.([]byte)
 			if _, err := conn.stream.Write(data); err != nil {
-				logger.Error("Failed to write message. ", err)
+				logger.Errorf("Failed to write message to %v, %v. ", conn.peer.id.Pretty(), err)
 			} else {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}
+			// logger.Warnf("pq data: %v, err: %v", crc32.ChecksumIEEE(data), err)
 		})
 	}
 	conn.mutex.Unlock()
@@ -105,7 +108,13 @@ func (conn *Conn) loop(proc goprocess.Process) {
 
 		msg, err := conn.readMessage(conn.stream)
 		if err != nil {
-			logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
+			if err == yamux.ErrConnectionReset {
+				logger.Warnf("ReadMessage occurs error. Err: %s", err.Error())
+			} else if err == ErrDuplicateMessage {
+				continue
+			} else {
+				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
+			}
 			return
 		}
 		//logger.Debugf("Receiving message %02x from peer %s", msg.Code(), conn.remotePeer.Pretty())
@@ -127,13 +136,28 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 		return nil, err
 	}
 
-	reserved := msg.messageHeader.reserved
-	if len(reserved) != 0 && int(reserved[0])&compressFlag != 0 {
-		data, err := decompress(nil, msg.body)
-		if err != nil {
-			return nil, err
+	// filter out the duplicate messages.
+	attr := msgToAttribute[msg.code]
+	if attr == nil {
+		attr = defaultMessageAttribute
+	}
+	if !attr.duplicateFilter(msg.body, conn.peer.id, attr.frequency) {
+		return nil, ErrDuplicateMessage
+	}
+
+	reserved := msg.reserved
+	if len(reserved) != 0 {
+		if int(reserved[0])&compressFlag != 0 {
+			data, err := decompress(nil, msg.body)
+			if err != nil {
+				return nil, err
+			}
+			msg.body = data
 		}
-		msg.body = data
+		if attr.relay {
+			// attr.relayCache.Add(fmt.Sprintf("%x", (md5.Sum(msg.body))), int(reserved[0])&relayFlag)
+			attr.relayCache.Add(crc64.Checksum(msg.body, crc64Table), int(reserved[0])&relayFlag)
+		}
 	}
 
 	metricsReadMeter.Mark(msg.Len())
@@ -278,21 +302,77 @@ func (conn *Conn) OnPeerDiscoverReply(body []byte) error {
 }
 
 func (conn *Conn) Write(opcode uint32, body []byte) error {
+	// md5 := fmt.Sprintf("%x", (md5.Sum(body)))
+	reserve, body, err := conn.reserve(opcode, body)
+	// if opcode == TransactionMsg {
+	// 	logger.Warnf("Write md5 %v result: %v, %v, %v, %v", md5, len(reserve), len(body), err, crc32.ChecksumIEEE(body))
+	// }
+	if err != nil {
+		if err == ErrNoNeedToRelay {
+			return nil
+		}
+		return err
+	}
+	return conn.write(newMessageData(conn.peer.config.Magic, opcode, reserve, body))
+}
+
+func (conn *Conn) write(msg *message) error {
+	msgAttr := msgToAttribute[msg.code]
+	if msgAttr == nil {
+		msgAttr = defaultMessageAttribute
+	}
+
+	// bodyChecksum := crc32.ChecksumIEEE(msg.body)
+	data, err := msg.Marshal()
+	if err != nil {
+		return err
+	}
+
+	err = conn.pq.Push(data, int(msgAttr.priority))
+	// if TransactionMsg == msg.code {
+	// 	logger.Warnf("write body %v, %v, %v", bodyChecksum, crc32.ChecksumIEEE(data), err)
+	// }
+	return err
+}
+
+func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 	msgAttr := msgToAttribute[opcode]
 	if msgAttr == nil {
 		msgAttr = defaultMessageAttribute
 	}
 	reserve := []byte{}
-	if msgAttr != nil && msgAttr.compress {
-		reserve = append(reserve, byte(compressFlag))
+	flags := []int{}
+
+	if msgAttr.relay {
+		times := relayTimes
+
+		if v, ok := msgAttr.relayCache.Get(crc64.Checksum(body, crc64Table)); ok {
+			if v.(int) == 0 {
+				return nil, nil, ErrNoNeedToRelay
+			}
+			times = v.(int) - (1 << 5)
+		}
+
+		if len(flags) > 0 {
+			flags[0] += times
+		} else {
+			flags = append(flags, times)
+		}
+	}
+	if msgAttr.compress {
+		if len(flags) > 0 {
+			flags[0] += compressFlag
+		} else {
+			flags = append(flags, compressFlag)
+		}
 		body = compress(nil, body)
 	}
-	data, err := newMessageData(conn.peer.config.Magic, opcode, reserve, body).Marshal()
-	if err != nil {
-		return err
+	for _, flag := range flags {
+		reserve = append(reserve, byte(flag))
 	}
-	err = conn.pq.Push(data, int(msgAttr.priority))
-	return err
+	msgAttr.duplicateFilter(body, conn.peer.id, msgAttr.frequency)
+
+	return reserve, body, nil
 }
 
 // Close connection to remote peer.
@@ -305,6 +385,7 @@ func (conn *Conn) Close() error {
 	if _, ok := conn.peer.conns.Load(pid); ok {
 		conn.peer.conns.Delete(pid)
 	}
+	conn.pq.Close()
 	if conn.stream != nil {
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
 		addrs := conn.peer.table.peerStore.Addrs(pid)

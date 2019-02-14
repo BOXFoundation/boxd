@@ -7,6 +7,9 @@ package boxd
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	_ "net/http/pprof" // init pprof
 	"os"
 	"runtime"
 	"sync"
@@ -26,6 +29,7 @@ import (
 	storage "github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"   // init memdb
 	_ "github.com/BOXFoundation/boxd/storage/rocksdb" // init rocksdb
+	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/jbenet/goprocess"
 )
 
@@ -46,6 +50,7 @@ type Server struct {
 	txPool      *txpool.TransactionPool
 	syncManager *blocksync.SyncManager
 	consensus   *dpos.Dpos
+	wallet      *wallet.Server
 }
 
 // NewServer new a boxd server
@@ -79,6 +84,19 @@ func (server *Server) teardown() error {
 		logger.Info("Box server teardown finished.")
 		return nil
 	}
+}
+
+// StartPprof start pprof service
+func (server *Server) StartPprof(addrs string) error {
+
+	dial, err := net.DialTimeout("tcp", addrs, time.Second)
+	if err == nil {
+		dial.Close()
+		return err
+	}
+	go http.ListenAndServe(addrs, nil)
+	logger.Debugf("Start pprof service at %s", addrs)
+	return nil
 }
 
 // Prepare to run the boxd server
@@ -137,9 +155,13 @@ func (server *Server) Prepare() {
 	}
 	server.consensus = consensus
 
+	if cfg.Wallet.Enable {
+		server.wallet, _ = wallet.NewServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
+	}
+
 	// prepare grpc server.
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.bus)
+		server.grpcsvr = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.wallet, server.bus)
 	}
 
 	// prepare sync manager.
@@ -156,6 +178,12 @@ func (server *Server) Run() error {
 
 	var proc = server.proc
 	var cfg = server.cfg
+
+	if cfg.Pprof != "" {
+		if err := server.StartPprof(cfg.Pprof); err != nil {
+			logger.Fatalf("Failed to start pprof service. Err: %v", err)
+		}
+	}
 
 	if err := server.peer.Run(); err != nil {
 		logger.Fatalf("Failed to start peer. Err: %v", err)
@@ -181,11 +209,17 @@ func (server *Server) Run() error {
 	server.syncManager.Run()
 	metrics.Run(&cfg.Metrics, proc)
 	if len(cfg.P2p.Seeds) > 0 {
+		server.consensus.StopMint()
 		server.syncManager.StartSync()
 	}
 
+	if cfg.Wallet.Enable && server.wallet != nil {
+		server.wallet.Run()
+	}
+
 	if cfg.RPC.Enabled {
-		server.grpcsvr, _ = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain, server.txPool, server.bus)
+		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain,
+			server.txPool, server.wallet, server.bus)
 		server.grpcsvr.Run()
 	}
 
@@ -231,10 +265,19 @@ func (server *Server) initEventListener() {
 		out <- log.SetLogLevel(newLevel)
 	}, false)
 
+	// NOTE: should be remove in product env
 	// TopicUpdateNetworkID
 	server.bus.Reply(eventbus.TopicUpdateNetworkID, func(magic uint32, out chan<- bool) {
 		server.cfg.P2p.Magic = magic
 		out <- true
+	}, false)
+
+	server.bus.Reply(eventbus.TopicP2PAddPeer, func(peerAddr string, out chan<- error) {
+		out <- server.peer.AddAddrToPeerstore(peerAddr)
+	}, false)
+
+	server.bus.Reply(eventbus.TopicGetNetworkID, func(out chan<- uint32) {
+		out <- server.cfg.P2p.Magic
 	}, false)
 
 	// TopicGetDatabaseKeys

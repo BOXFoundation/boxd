@@ -1,6 +1,6 @@
 # Boxd
 
-A Go implementation of BOX Payout blockchain.[![Build Status](https://travis-ci.com/BOXFoundation/boxd.svg?token=v6N8VybyjmC1GLSWZv92&branch=develop)](https://travis-ci.com/BOXFoundation/boxd)
+A Go implementation of BOX Payout blockchain. [![Build Status](https://travis-ci.com/BOXFoundation/boxd.svg?branch=master)](https://travis-ci.com/BOXFoundation/boxd)
 
 ## Overview
 
@@ -32,6 +32,7 @@ As a node OS we will use:
 	
 		```
 		brew install go
+		```
 	
 	2. Install rocksdb:
 	
@@ -135,7 +136,6 @@ Edit your node's yaml and add seeds' link to it.
 	    key_path: peer.key
 	    port: 19189
 	    seeds:
-	        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
 	        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
 	    bucket_size: 16
 	    latency: 10

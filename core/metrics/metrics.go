@@ -28,6 +28,10 @@ var (
 	MetricsCachedBlockMsgGauge = metrics.NewGauge("box.block.new.cached")
 	// MetricsLruCacheBlockGauge records the size of lru cache
 	MetricsLruCacheBlockGauge = metrics.NewGauge("box.block.lru.cached")
+	// MetricsUtxoSizeGauge records the size of utxos
+	MetricsUtxoSizeGauge = metrics.NewGauge("box.chain.utxo.size")
+	// MetricsBloomFilterGauge records the size of bloomfilter
+	MetricsBloomFilterGauge = metrics.NewGauge("box.block.bloomfilter.size")
 
 	// txpool metrics
 

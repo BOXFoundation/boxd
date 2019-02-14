@@ -20,10 +20,11 @@ var logger = log.NewLogger("core:types") // logger
 // transactions on their first access so subsequent accesses don't have to
 // repeat the relatively expensive hashing operations.
 type Block struct {
-	Hash      *crypto.HashType
-	Header    *BlockHeader
-	Txs       []*Transaction
-	Signature []byte
+	Hash             *crypto.HashType
+	Header           *BlockHeader
+	Txs              []*Transaction
+	Signature        []byte
+	IrreversibleInfo *IrreversibleInfo
 
 	Height uint32
 }
@@ -47,7 +48,14 @@ func NewBlock(parent *Block) *Block {
 func (block *Block) ToProtoMessage() (proto.Message, error) {
 
 	header, _ := block.Header.ToProtoMessage()
+
 	if header, ok := header.(*corepb.BlockHeader); ok {
+		var ii *corepb.IrreversibleInfo
+		if block.IrreversibleInfo != nil {
+			v, _ := block.IrreversibleInfo.ToProtoMessage()
+			ii = v.(*corepb.IrreversibleInfo)
+		}
+
 		var txs []*corepb.Transaction
 		for _, v := range block.Txs {
 			tx, err := v.ToProtoMessage()
@@ -59,10 +67,11 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 			}
 		}
 		return &corepb.Block{
-			Header:    header,
-			Txs:       txs,
-			Signature: block.Signature,
-			Height:    block.Height,
+			Header:           header,
+			Txs:              txs,
+			Signature:        block.Signature,
+			IrreversibleInfo: ii,
+			Height:           block.Height,
 		}, nil
 	}
 
@@ -78,6 +87,14 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			if err := header.FromProtoMessage(message.Header); err != nil {
 				return err
 			}
+			var ii *IrreversibleInfo
+			if message.IrreversibleInfo != nil {
+				ii = new(IrreversibleInfo)
+				if err := ii.FromProtoMessage(message.IrreversibleInfo); err != nil {
+					return err
+				}
+			}
+
 			var txs []*Transaction
 			for _, v := range message.Txs {
 				tx := new(Transaction)
@@ -92,12 +109,54 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			block.Txs = txs
 			block.Height = message.Height
 			block.Signature = message.Signature
+			block.IrreversibleInfo = ii
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
 	}
 
 	return core.ErrInvalidBlockProtoMessage
+}
+
+// Copy returns a deep copy: used only for splitBlockOutputs()
+// Only copy needed fields to save efforts: height & vin & vout
+func (block *Block) Copy() *Block {
+	newBlock := &Block{
+		Height: block.Height,
+	}
+
+	txs := make([]*Transaction, len(block.Txs))
+	for k, tx := range block.Txs {
+		vin := make([]*TxIn, len(tx.Vin))
+		for idx, txIn := range tx.Vin {
+			txInCopy := &TxIn{
+				PrevOutPoint: txIn.PrevOutPoint,
+				ScriptSig:    txIn.ScriptSig,
+				Sequence:     txIn.Sequence,
+			}
+			vin[idx] = txInCopy
+		}
+
+		vout := make([]*corepb.TxOut, len(tx.Vout))
+		for idx, txOut := range tx.Vout {
+			txOutCopy := &corepb.TxOut{
+				Value:        txOut.Value,
+				ScriptPubKey: txOut.ScriptPubKey,
+			}
+			vout[idx] = txOutCopy
+		}
+
+		txHash, _ := tx.TxHash()
+		txCopy := &Transaction{
+			hash: txHash,
+			Vin:  vin,
+			Vout: vout,
+		}
+		txs[k] = txCopy
+	}
+
+	newBlock.Txs = txs
+	return newBlock
 }
 
 // Marshal method marshal Block object to binary
@@ -213,4 +272,49 @@ func (header *BlockHeader) Unmarshal(data []byte) error {
 		return err
 	}
 	return header.FromProtoMessage(msg)
+}
+
+var _ conv.Convertible = (*IrreversibleInfo)(nil)
+var _ conv.Serializable = (*IrreversibleInfo)(nil)
+
+// IrreversibleInfo defines information about irreversible blocks
+type IrreversibleInfo struct {
+	Hash       crypto.HashType
+	Signatures [][]byte
+}
+
+// ToProtoMessage converts IrreversibleInfo to proto message.
+func (ii *IrreversibleInfo) ToProtoMessage() (proto.Message, error) {
+	return &corepb.IrreversibleInfo{
+		Hash:       ii.Hash[:],
+		Signatures: ii.Signatures,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to IrreversibleInfo.
+func (ii *IrreversibleInfo) FromProtoMessage(message proto.Message) error {
+	if message, ok := message.(*corepb.IrreversibleInfo); ok {
+		if message != nil {
+			copy(ii.Hash[:], message.Hash[:])
+			ii.Signatures = message.Signatures
+			return nil
+		}
+		return core.ErrEmptyProtoMessage
+	}
+
+	return core.ErrInvalidOutPointProtoMessage
+}
+
+// Marshal method marshal IrreversibleInfo object to binary
+func (ii *IrreversibleInfo) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(ii)
+}
+
+// Unmarshal method unmarshal binary data to IrreversibleInfo object
+func (ii *IrreversibleInfo) Unmarshal(data []byte) error {
+	msg := &corepb.IrreversibleInfo{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return ii.FromProtoMessage(msg)
 }

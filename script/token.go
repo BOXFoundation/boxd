@@ -16,8 +16,12 @@ import (
 var (
 	// TokenNameKey is the key for writing token name onchain
 	TokenNameKey = []byte("Name")
+	// TokenSymbolKey is the key for writing token symbol onchain
+	TokenSymbolKey = []byte("Symbol")
 	// TokenAmountKey is the key for writing token amount onchain
 	TokenAmountKey = []byte("Amount")
+	// TokenDecimalsKey is the key for writing token decimals onchain
+	TokenDecimalsKey = []byte("Decimals")
 
 	// TokenTxHashKey is the key for writing tx hash of token id onchain
 	TokenTxHashKey = []byte("TokenTxHash")
@@ -25,12 +29,12 @@ var (
 	TokenTxOutIdxKey = []byte("TokenTxOutIdx")
 )
 
-// IssueParams defines parameters for issuing tokens
+// IssueParams defines parameters for issuing ERC20-like tokens
 type IssueParams struct {
-	// token name
-	Name string
-	// token total supply
+	Name        string
+	Symbol      string
 	TotalSupply uint64
+	Decimals    uint8
 }
 
 // TokenID uniquely identifies a token, consisting of tx hash and output index
@@ -38,6 +42,10 @@ type TokenID struct {
 	// An outpoint uniquely identifies a token by its issurance tx and output index,
 	// which contains all parameters of the token
 	types.OutPoint
+}
+
+func (t *TokenID) String() string {
+	return fmt.Sprintf("%x#%d", t.Hash, t.Index)
 }
 
 // TransferParams defines parameters for transferring tokens
@@ -60,18 +68,29 @@ func IssueTokenScript(pubKeyHash []byte, params *IssueParams) *Script {
 	script := PayToPubKeyHashScript(pubKeyHash)
 	// Append parameters to p2pkh:
 	// TokenNameKey OP_DROP <token name> OP_DROP
+	// TokenSymbolKey OP_DROP <token symbol> OP_DROP
 	// TokenAmountKey OP_DROP <token supply> OP_DROP
+	// TokenDecimalsKey OP_DROP <token decimals> OP_DROP
 	nameOperand := []byte(params.Name)
+	symbolOperand := []byte(params.Symbol)
 	totalSupplyOperand := make([]byte, 8)
 	binary.LittleEndian.PutUint64(totalSupplyOperand, params.TotalSupply)
+	decimalsOperand := []byte{params.Decimals}
+
 	script.AddOperand(TokenNameKey).AddOpCode(OPDROP).AddOperand(nameOperand).AddOpCode(OPDROP)
-	return script.AddOperand(TokenAmountKey).AddOpCode(OPDROP).AddOperand(totalSupplyOperand).AddOpCode(OPDROP)
+	script.AddOperand(TokenSymbolKey).AddOpCode(OPDROP).AddOperand(symbolOperand).AddOpCode(OPDROP)
+	script.AddOperand(TokenAmountKey).AddOpCode(OPDROP).AddOperand(totalSupplyOperand).AddOpCode(OPDROP)
+	script.AddOperand(TokenDecimalsKey).AddOpCode(OPDROP).AddOperand(decimalsOperand).AddOpCode(OPDROP)
+	return script
 }
 
 // GetIssueParams returns token issue parameters embedded in the script
 func (s *Script) GetIssueParams() (*IssueParams, error) {
 	// OPDUP OPHASH160 pubKeyHash OPEQUALVERIFY OPCHECKSIG
-	// TokenNameKey OP_DROP <token name> OP_DROP TokenAmountKey OP_DROP <token supply> OP_DROP
+	// TokenNameKey OP_DROP <token name> OP_DROP
+	// TokenSymbolKey OP_DROP <token symbol> OP_DROP
+	// TokenAmountKey OP_DROP <token supply> OP_DROP
+	// TokenDecimalsKey OP_DROP <token decimals> OP_DROP
 	params := &IssueParams{}
 	// pc points to second OP_DROP
 	_, operand, pc, err := s.getNthOp(0, 7)
@@ -80,10 +99,20 @@ func (s *Script) GetIssueParams() (*IssueParams, error) {
 	}
 	params.Name = string(operand)
 
-	if _, operand, _, err = s.getNthOp(pc, 3); err != nil {
+	if _, operand, pc, err = s.getNthOp(pc, 3); err != nil {
+		return nil, err
+	}
+	params.Symbol = string(operand)
+
+	if _, operand, pc, err = s.getNthOp(pc, 3); err != nil {
 		return nil, err
 	}
 	params.TotalSupply = binary.LittleEndian.Uint64(operand)
+
+	if _, operand, _, err = s.getNthOp(pc, 3); err != nil {
+		return nil, err
+	}
+	params.Decimals = operand[0]
 
 	return params, nil
 }
@@ -136,6 +165,10 @@ func (s *Script) GetTransferParams() (*TransferParams, error) {
 
 // IsTokenIssue returns if the script is token issurance
 func (s *Script) IsTokenIssue() bool {
+	if len(*s) < p2PKHScriptLen {
+		return false
+	}
+
 	// two parts: p2pkh + issue parameters
 
 	p2PKHSubScript := NewScriptFromBytes((*s)[:p2PKHScriptLen])
@@ -145,14 +178,20 @@ func (s *Script) IsTokenIssue() bool {
 
 	paramsSubScript := NewScriptFromBytes((*s)[p2PKHScriptLen:])
 	r := paramsSubScript.parse()
-	return len(r) == 8 && reflect.DeepEqual([]byte(r[0].(Operand)), TokenNameKey) && reflect.DeepEqual(r[1], OPDROP) &&
-		reflect.DeepEqual(r[3], OPDROP) && reflect.DeepEqual([]byte(r[4].(Operand)), TokenAmountKey) &&
-		reflect.DeepEqual(r[5], OPDROP) && reflect.DeepEqual(r[7], OPDROP)
+	return len(r) == 16 &&
+		reflect.DeepEqual([]byte(r[0].(Operand)), TokenNameKey) && reflect.DeepEqual(r[1], OPDROP) && reflect.DeepEqual(r[3], OPDROP) &&
+		reflect.DeepEqual([]byte(r[4].(Operand)), TokenSymbolKey) && reflect.DeepEqual(r[5], OPDROP) && reflect.DeepEqual(r[7], OPDROP) &&
+		reflect.DeepEqual([]byte(r[8].(Operand)), TokenAmountKey) && reflect.DeepEqual(r[9], OPDROP) && reflect.DeepEqual(r[11], OPDROP) &&
+		reflect.DeepEqual([]byte(r[12].(Operand)), TokenDecimalsKey) && reflect.DeepEqual(r[13], OPDROP) && reflect.DeepEqual(r[15], OPDROP)
 }
 
 // IsTokenTransfer returns if the script is token issurance
 func (s *Script) IsTokenTransfer() bool {
-	// two parts: p2pkh + issue parameters
+	if len(*s) < p2PKHScriptLen {
+		return false
+	}
+
+	// two parts: p2pkh + transfer parameters
 
 	p2PKHSubScript := NewScriptFromBytes((*s)[:p2PKHScriptLen])
 	if !p2PKHSubScript.IsPayToPubKeyHash() {

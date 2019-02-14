@@ -5,7 +5,7 @@
 package types
 
 import (
-	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/storage"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
@@ -13,13 +13,17 @@ import (
 type Consensus interface {
 	Run() error
 	Stop()
-	StoreCandidateContext(*crypto.HashType) error
+	StoreCandidateContext(*Block, storage.Batch) error
 	VerifySign(*Block) (bool, error)
 	VerifyMinerEpoch(*Block) error
 	StopMint()
 	RecoverMint()
 	BroadcastEternalMsgToMiners(*Block) error
 	ValidateMiner() bool
+	TryToUpdateEternalBlock(*Block)
+	IsCandidateExist(AddressHash) bool
+	VerifyCandidates(*Block) error
+	UpdateCandidateContext(*Block) error
 }
 
 // SyncManager define sync manager interface

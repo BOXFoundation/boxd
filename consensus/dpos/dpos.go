@@ -12,14 +12,17 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
-	"github.com/BOXFoundation/boxd/wallet"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -28,10 +31,10 @@ var logger = log.NewLogger("dpos") // logger
 // Define const
 const (
 	SecondInMs           = int64(1000)
-	NewBlockTimeInterval = int64(5000)
-	MaxPackedTxTime      = int64(2000)
-	MaxBlockTimeOut      = 2
+	MinerRefreshInterval = int64(5000)
+	MaxPackedTxTime      = int64(100)
 	PeriodSize           = 6
+	BlockNumPerPeiod     = 5
 )
 
 // Config defines the configurations of dpos
@@ -43,27 +46,30 @@ type Config struct {
 
 // Dpos define dpos struct
 type Dpos struct {
-	chain       *chain.BlockChain
-	txpool      *txpool.TransactionPool
-	context     *ConsensusContext
-	net         p2p.Net
-	proc        goprocess.Process
-	cfg         *Config
-	miner       *wallet.Account
-	enableMint  bool
-	disableMint bool
+	chain                       *chain.BlockChain
+	txpool                      *txpool.TransactionPool
+	context                     *ConsensusContext
+	net                         p2p.Net
+	proc                        goprocess.Process
+	cfg                         *Config
+	miner                       *acc.Account
+	canMint                     bool
+	disableMint                 bool
+	bftservice                  *BftService
+	blockHashToCandidateContext *lru.Cache
 }
 
 // NewDpos new a dpos implement.
 func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Dpos, error) {
 	dpos := &Dpos{
-		chain:  chain,
-		txpool: txpool,
-		net:    net,
-		proc:   goprocess.WithParent(parent),
-		cfg:    cfg,
+		chain:   chain,
+		txpool:  txpool,
+		net:     net,
+		proc:    goprocess.WithParent(parent),
+		cfg:     cfg,
+		canMint: false,
 	}
-
+	dpos.blockHashToCandidateContext, _ = lru.New(512)
 	context := &ConsensusContext{}
 	dpos.context = context
 	period, err := dpos.LoadPeriodContext()
@@ -71,6 +77,9 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		return nil, err
 	}
 	context.periodContext = period
+	if err := dpos.LoadCandidates(); err != nil {
+		return nil, err
+	}
 
 	return dpos, nil
 }
@@ -82,7 +91,7 @@ func (dpos *Dpos) EnableMint() bool {
 
 // Setup setup dpos
 func (dpos *Dpos) Setup() error {
-	account, err := wallet.NewAccountFromFile(dpos.cfg.Keypath)
+	account, err := acc.NewAccountFromFile(dpos.cfg.Keypath)
 	if err != nil {
 		return err
 	}
@@ -107,6 +116,7 @@ func (dpos *Dpos) Run() error {
 	if err != nil {
 		return err
 	}
+	dpos.bftservice = bftService
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
@@ -134,13 +144,16 @@ func (dpos *Dpos) RecoverMint() {
 }
 
 func (dpos *Dpos) loop(p goprocess.Process) {
-	logger.Info("Start block mint")
+	logger.Info("Start block mint loop")
 	timeChan := time.NewTicker(time.Second)
 	defer timeChan.Stop()
 	for {
 		select {
 		case <-timeChan.C:
-			dpos.mint(time.Now().Unix())
+			if !dpos.chain.IsBusy() {
+				dpos.mint(time.Now().Unix())
+			}
+
 		case <-p.Closing():
 			logger.Info("Stopped Dpos Mining.")
 			return
@@ -158,13 +171,10 @@ func (dpos *Dpos) mint(timestamp int64) error {
 	if err := dpos.checkMiner(timestamp); err != nil {
 		return err
 	}
-	MetricsMintTurnCounter.Inc(1)
-	logger.Infof("My turn to mint a block, time: %d", timestamp)
-	if err := dpos.LoadCandidates(); err != nil {
-		return err
-	}
 	dpos.context.timestamp = timestamp
+	MetricsMintTurnCounter.Inc(1)
 
+	logger.Infof("My turn to mint a block, time: %d", timestamp)
 	return dpos.mintBlock()
 }
 
@@ -192,6 +202,10 @@ func (dpos *Dpos) ValidateMiner() bool {
 		return false
 	}
 
+	if dpos.canMint {
+		return true
+	}
+
 	addr, err := types.NewAddress(dpos.miner.Addr())
 	if err != nil {
 		return false
@@ -203,6 +217,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 		logger.Error(err)
 		return false
 	}
+	dpos.canMint = true
 	return true
 }
 
@@ -224,10 +239,13 @@ func (dpos *Dpos) mintBlock() error {
 		logger.Warnf("Failed to sign block. err: %s", err.Error())
 		return err
 	}
-	if err := dpos.chain.ProcessBlock(block, true, true, ""); err != nil {
-		logger.Warnf("Failed to process block. err: %s", err.Error())
-		return err
-	}
+
+	go func() {
+		if err := dpos.chain.ProcessBlock(block, core.BroadcastMode, true, ""); err != nil {
+			logger.Warnf("Failed to process block mint by self. err: %s", err.Error())
+		}
+	}()
+
 	return nil
 }
 
@@ -241,21 +259,51 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 	return txi.FeePerKB < txj.FeePerKB
 }
 
+// getChainedTxs returns all chained ancestor txs in mempool of the passed tx, including itself
+// From child to ancestors
+func getChainedTxs(tx *chain.TxWrap, hashToTx map[crypto.HashType]*chain.TxWrap) []*chain.TxWrap {
+	hashSet := make(map[crypto.HashType]struct{})
+	chainedTxs := []*chain.TxWrap{tx}
+
+	// Note: use index here instead of range because chainedTxs can be extended inside the loop
+	for i := 0; i < len(chainedTxs); i++ {
+		tx := chainedTxs[i].Tx
+
+		for _, txIn := range tx.Vin {
+			prevTxHash := txIn.PrevOutPoint.Hash
+			if prevTx, exists := hashToTx[prevTxHash]; exists {
+				if _, exists := hashSet[prevTxHash]; !exists {
+					chainedTxs = append(chainedTxs, prevTx)
+					hashSet[prevTxHash] = struct{}{}
+				}
+			}
+		}
+	}
+
+	return chainedTxs
+}
+
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs() []*chain.TxWrap {
+func (dpos *Dpos) sortPendingTxs() ([]*chain.TxWrap, map[crypto.HashType]*chain.TxWrap) {
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := dpos.txpool.GetAllTxs()
 	for _, pendingTx := range pendingTxs {
 		// place onto heap sorted by FeePerKB
-		heap.Push(pool, pendingTx)
+		// only pack txs whose scripts have been verified
+		if pendingTx.IsScriptValid {
+			heap.Push(pool, pendingTx)
+		}
 	}
 
 	var sortedTxs []*chain.TxWrap
+	hashToTx := make(map[crypto.HashType]*chain.TxWrap)
 	for pool.Len() > 0 {
 		txWrap := heap.Pop(pool).(*chain.TxWrap)
 		sortedTxs = append(sortedTxs, txWrap)
+		txHash, _ := txWrap.Tx.TxHash()
+		hashToTx[*txHash] = txWrap
 	}
-	return sortedTxs
+	return sortedTxs, hashToTx
 }
 
 // PackTxs packed txs and add them to block.
@@ -263,62 +311,99 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
 	// otherwise the former's utxo is missing
-	sortedTxs := dpos.sortPendingTxs()
-	// if i-th sortedTxs is packed into the block
-	txPacked := make([]bool, len(sortedTxs))
+	sortedTxs, hashToTx := dpos.sortPendingTxs()
+	candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
+	if err != nil {
+		logger.Error("Failed to load candidate context")
+		return err
+	}
 
 	var blockTxns []*types.Transaction
 	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
 	if err != nil || coinbaseTx == nil {
-		logger.Error("Failed to create coinbaseTx")
 		return errors.New("Failed to create coinbaseTx")
 	}
 	blockTxns = append(blockTxns, coinbaseTx)
-	remainTimeInMs := dpos.context.timestamp + MaxPackedTxTime - time.Now().Unix()*SecondInMs
-	remainTimer := time.NewTimer(time.Duration(remainTimeInMs) * time.Millisecond)
-
+	remainTimeInMs := dpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	spendableTxs := new(sync.Map)
 
-PackingTxs:
-	for {
-		select {
-		case <-remainTimer.C:
-			break PackingTxs
-		default:
-			found := true
-			for found {
-				found = false
-				for i, txWrap := range sortedTxs {
-					if txPacked[i] {
-						continue
-					}
+	// Total fees of all packed txs
+	totalTxFee := uint64(0)
+	stopPack := false
+	stopPackCh := make(chan bool, 1)
+	continueCh := make(chan bool, 1)
 
-					if err := dpos.prepareCandidateContext(txWrap.Tx); err != nil {
-						// TODO: abandon the error tx
-						continue
-					}
+	go func() {
+		for txIdx, tx := range sortedTxs {
+			if stopPack {
+				continueCh <- true
+				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(blockTxns)-1, len(sortedTxs))
+				return
+			}
 
-					txHash, _ := txWrap.Tx.TxHash()
-					utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
-					if err != nil {
-						logger.Errorf("Could not get extended utxo set for tx %v", txHash)
-						continue
-					}
-					// This is to ensure within mempool, a parent tx is packed before its children txs
-					if !utxoSet.IsTxFunded(txWrap.Tx) {
-						// This can only occur for a mempool tx if its parent txs (also in mempool) are not packed yet
-						continue
-					}
-					spendableTxs.Store(*txHash, txWrap)
-					blockTxns = append(blockTxns, txWrap.Tx)
-					txPacked[i] = true
-					found = true
+			// logger.Debugf("Iterating over %d-th tx: packed %d txs out of %d so far", txIdx, len(blockTxns)-1, len(sortedTxs))
+			chainedTxs := getChainedTxs(tx, hashToTx)
+			// Add ancestors first
+			for i := len(chainedTxs) - 1; i >= 0; i-- {
+				txWrap := chainedTxs[i]
+				txHash, _ := txWrap.Tx.TxHash()
+				// Already packed
+				if _, exists := spendableTxs.Load(*txHash); exists {
+					continue
 				}
+
+				if err := dpos.prepareCandidateContext(candidateContext, txWrap.Tx); err != nil {
+					// TODO: abandon the error tx
+					continue
+				}
+
+				utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
+				if err != nil {
+					logger.Warnf("Could not get extended utxo set for tx %v", txHash)
+					continue
+				}
+
+				totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
+				if totalInputAmount == 0 {
+					// This can only occur when a tx's parent is removed from mempool but not written to utxo db yet
+					logger.Errorf("This can not occur totalInputAmount == 0, tx hash: %v", txHash)
+					continue
+				}
+				totalOutputAmount := txWrap.Tx.OutputAmount()
+				if totalInputAmount < totalOutputAmount {
+					// This must not happen since the tx already passed the check when admitted into mempool
+					logger.Warnf("total value of all transaction outputs for "+
+						"transaction %v is %v, which exceeds the input amount "+
+						"of %v", txHash, totalOutputAmount, totalInputAmount)
+					// TODO: abandon the error tx from pool.
+					continue
+				}
+				txFee := totalInputAmount - totalOutputAmount
+				totalTxFee += txFee
+
+				spendableTxs.Store(*txHash, txWrap)
+				blockTxns = append(blockTxns, txWrap.Tx)
 			}
 		}
+		continueCh <- true
+		stopPackCh <- true
+	}()
+
+	select {
+	case <-time.After(time.Duration(remainTimeInMs) * time.Millisecond):
+		logger.Debug("Packing timeout")
+		stopPack = true
+	case <-stopPackCh:
+		logger.Debug("Packing completed")
 	}
 
-	candidateHash, err := dpos.context.candidateContext.CandidateContextHash()
+	// Important: wait for packing complete and exit
+	<-continueCh
+
+	// Pay tx fees to miner in addition to block reward in coinbase
+	blockTxns[0].Vout[0].Value += totalTxFee
+
+	candidateHash, err := candidateContext.CandidateContextHash()
 	if err != nil {
 		return err
 	}
@@ -326,7 +411,8 @@ PackingTxs:
 	merkles := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
-	logger.Infof("Finish packing txs. Height: %d, TxsNum: %d", block.Height, len(blockTxns))
+	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Height, len(blockTxns), len(sortedTxs))
 	return nil
 }
 
@@ -365,9 +451,9 @@ func (dpos *Dpos) BroadcastEternalMsgToMiners(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	eternalBlockMsg.hash = *hash
-	eternalBlockMsg.signature = signature
-	eternalBlockMsg.timestamp = block.Header.TimeStamp
+	eternalBlockMsg.Hash = *hash
+	eternalBlockMsg.Signature = signature
+	eternalBlockMsg.Timestamp = block.Header.TimeStamp
 	miners := dpos.context.periodContext.periodPeers
 
 	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg, miners)
@@ -399,7 +485,6 @@ func (dpos *Dpos) LoadCandidates() error {
 		if err := candidatesContext.Unmarshal(candidates); err != nil {
 			return err
 		}
-		candidatesContext.height = tail.Height + 1
 		dpos.context.candidateContext = candidatesContext
 		return nil
 	}
@@ -409,40 +494,103 @@ func (dpos *Dpos) LoadCandidates() error {
 	return nil
 }
 
-// StoreCandidateContext store candidate context
-func (dpos *Dpos) StoreCandidateContext(hash *crypto.HashType) error {
-	if dpos.context.candidateContext == nil {
-		if err := dpos.LoadCandidates(); err != nil {
-			return err
-		}
-	}
-	bytes, err := dpos.context.candidateContext.Marshal()
+// UpdateCandidateContext update candidate context in memory.
+func (dpos *Dpos) UpdateCandidateContext(block *types.Block) error {
+	candidateContext, err := dpos.LoadCandidateByBlockHash(block.BlockHash())
 	if err != nil {
 		return err
 	}
-	db := dpos.chain.DB()
-	return db.Put(chain.CandidatesKey(hash), bytes)
+	dpos.context.candidateContext = candidateContext
+	return nil
+}
+
+// LoadCandidateByBlockHash load candidate by block hash
+func (dpos *Dpos) LoadCandidateByBlockHash(hash *crypto.HashType) (*CandidateContext, error) {
+
+	if v, ok := dpos.blockHashToCandidateContext.Get(*hash); ok {
+		return v.(*CandidateContext), nil
+	}
+	candidateContextBin, err := dpos.chain.DB().Get(chain.CandidatesKey(hash))
+	if err != nil {
+		return nil, err
+	}
+	candidateContext := new(CandidateContext)
+	if err := candidateContext.Unmarshal(candidateContextBin); err != nil {
+		return nil, err
+	}
+	return candidateContext, nil
+}
+
+// StoreCandidateContext store candidate context
+// The cache is not used here to avoid problems caused by revert block.
+// So when block revert occurs, here we don't have to do revert.
+func (dpos *Dpos) StoreCandidateContext(block *types.Block, batch storage.Batch) error {
+
+	parentBlock := dpos.chain.GetParentBlock(block)
+	candidateContext, err := dpos.LoadCandidateByBlockHash(parentBlock.BlockHash())
+	if err != nil {
+		return err
+	}
+	for _, tx := range block.Txs {
+		if err := dpos.prepareCandidateContext(candidateContext, tx); err != nil {
+			return err
+		}
+	}
+	bytes, err := candidateContext.Marshal()
+	if err != nil {
+		return err
+	}
+	batch.Put(chain.CandidatesKey(block.BlockHash()), bytes)
+	dpos.blockHashToCandidateContext.Add(*block.BlockHash(), candidateContext)
+	return nil
+}
+
+// IsCandidateExist check candidate is exist.
+func (dpos *Dpos) IsCandidateExist(addr types.AddressHash) bool {
+
+	for _, v := range dpos.context.candidateContext.addrs {
+		if v == addr {
+			return true
+		}
+	}
+	return false
+}
+
+// VerifyCandidates vefiry if the block candidates hash is right.
+func (dpos *Dpos) VerifyCandidates(block *types.Block) error {
+
+	candidateContext := dpos.context.candidateContext.Copy()
+	for _, tx := range block.Txs {
+		if err := dpos.prepareCandidateContext(candidateContext, tx); err != nil {
+			return err
+		}
+	}
+	candidateHash, err := candidateContext.CandidateContextHash()
+	if err != nil {
+		return err
+	}
+	if !candidateHash.IsEqual(&block.Header.CandidatesHash) {
+		return ErrInvalidCandidateHash
+	}
+
+	return nil
 }
 
 // prepareCandidateContext prepare to update CandidateContext.
-func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
+func (dpos *Dpos) prepareCandidateContext(candidateContext *CandidateContext, tx *types.Transaction) error {
 
 	if tx.Data == nil {
 		return nil
 	}
 	content := tx.Data.Content
-	candidateContext := dpos.context.candidateContext
 	switch int(tx.Data.Type) {
 	case types.RegisterCandidateTx:
-		signUpContent := new(types.SignUpContent)
-		if err := signUpContent.Unmarshal(content); err != nil {
+		registerCandidateContent := new(types.RegisterCandidateContent)
+		if err := registerCandidateContent.Unmarshal(content); err != nil {
 			return err
 		}
-		if util.InArray(signUpContent.Addr(), candidateContext.addrs) {
-			return ErrDuplicateSignUpTx
-		}
 		candidate := &Candidate{
-			addr:  signUpContent.Addr(),
+			addr:  registerCandidateContent.Addr(),
 			votes: 0,
 		}
 		candidateContext.candidates = append(candidateContext.candidates, candidate)
@@ -450,9 +598,6 @@ func (dpos *Dpos) prepareCandidateContext(tx *types.Transaction) error {
 		votesContent := new(types.VoteContent)
 		if err := votesContent.Unmarshal(content); err != nil {
 			return err
-		}
-		if !util.InArray(votesContent.Addr(), dpos.context.candidateContext.addrs) {
-			return ErrCandidateNotFound
 		}
 		for _, v := range candidateContext.candidates {
 			if v.addr == votesContent.Addr() {
@@ -529,32 +674,15 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 	return false, nil
 }
 
-// func (dpos *Dpos) buildMinerEpoch() error {
-
-// 	minerEpoch := make(map[types.AddressHash]bool)
-// 	tail := dpos.chain.TailBlock()
-// 	if tail.Height == 0 {
-// 		dpos.minerEpoch = minerEpoch
-// 		return nil
-// 	}
-// 	for idx := 0; idx < PeriodSize; {
-// 		height := tail.Height - uint32(idx)
-// 		if height == 0 {
-// 			break
-// 		}
-// 		block, err := dpos.chain.LoadBlockByHeight(height)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if _, ok := dpos.minerEpoch[*miner]; !ok {
-// 			minerEpoch[*miner] = true
-// 		}
-// 		idx++
-// 	}
-// 	dpos.minerEpoch = minerEpoch
-// 	return nil
-// }
+// TryToUpdateEternalBlock try to update eternal block.
+func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
+	irreversibleInfo := src.IrreversibleInfo
+	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > MinConfirmMsgNumberForEternalBlock {
+		block, err := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		if err != nil {
+			logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
+			return
+		}
+		dpos.bftservice.updateEternal(block)
+	}
+}

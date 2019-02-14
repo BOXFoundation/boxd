@@ -6,16 +6,19 @@ package rocksdb
 
 import (
 	"io/ioutil"
+	"strconv"
+	"time"
 
 	"github.com/BOXFoundation/boxd/log"
 	storage "github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/metrics"
 	"github.com/tecbot/gorocksdb"
 )
 
 var logger = log.NewLogger("rocksdb")
 
 const number = 10
-const cache = 3 << 30
+const cachesize = 3 << 30
 
 func init() {
 	// register rocksdb impl
@@ -34,16 +37,25 @@ func prepare(path string) {
 func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	logger.Infof("Creating rocksdb at %s", name)
 
-	// bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
-	// filter := gorocksdb.NewBloomFilter(number)
-	// bbto.SetFilterPolicy(filter)
-
-	// bbto.SetBlockCache(gorocksdb.NewLRUCache(cache))
 	options := gorocksdb.NewDefaultOptions()
-	// options.SetBlockBasedTableFactory(bbto)
+
+	blockBasedTableOptions := gorocksdb.NewDefaultBlockBasedTableOptions()
+	filter := gorocksdb.NewBloomFilter(number)
+	blockBasedTableOptions.SetFilterPolicy(filter)
+	blockBasedTableOptions.SetCacheIndexAndFilterBlocks(true)
+	blockBasedTableOptions.SetPinL0FilterAndIndexBlocksInCache(true)
+	blockBasedTableOptions.SetBlockSize(16 * 1024)
+
+	cache := gorocksdb.NewLRUCache(cachesize)
+	blockBasedTableOptions.SetBlockCache(cache)
+
+	options.SetBlockBasedTableFactory(blockBasedTableOptions)
 	options.SetCreateIfMissing(true)
 	options.SetCreateIfMissingColumnFamilies(true)
-	options.SetMaxBackgroundFlushes(4)
+	options.SetMaxBackgroundFlushes(2)
+	options.SetMaxBackgroundCompactions(4)
+	options.SetBytesPerSync(1024 * 1024) // 1M
+	options.SetMaxOpenFiles(512)
 
 	prepare(name)
 	// get all column families
@@ -82,6 +94,39 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	}
 	// d.flushOptions.SetWait(true)
 	// d.writeOptions.SetSync(true)
+
+	go func() {
+		tickerCache := cache
+		rocks := d
+		ticker := time.NewTicker(20 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				indexFilterMem := 0
+				mmtMem := 0
+				for _, val := range rocks.tables {
+					tmp, err := strconv.Atoi(db.GetPropertyCF("rocksdb.estimate-table-readers-mem", val.cf))
+					if err != nil {
+						logger.Errorf("db.GetPropertyCF estimate-table-readers-mem fail. Err: %v", err)
+						continue
+					}
+					indexFilterMem += tmp
+					tmp, err = strconv.Atoi(db.GetPropertyCF("rocksdb.cur-size-all-mem-tables", val.cf))
+					if err != nil {
+						logger.Errorf("db.GetPropertyCF cur-size-all-mem-tables fail. Err: %v", err)
+						continue
+					}
+					mmtMem += tmp
+				}
+				// indexFilterMem := db.GetProperty("rocksdb.estimate-table-readers-mem")
+				// mmtMem := db.GetProperty("rocksdb.cur-size-all-mem-tables")
+				// pinMem := cache.GetPinnedUsage()
+				// logger.Errorf("mem usage = %v, %v, %v, %v", indexFilterMem, mmtMem, pinMem, ticherCache.GetUsage())
+				metrics.MetricsRocksdbCacheGauge.Update(int64(tickerCache.GetUsage()))
+			}
+		}
+	}()
 
 	for i, cfhandler := range cfhandlers {
 		d.cfs[cfnames[i]] = cfhandler

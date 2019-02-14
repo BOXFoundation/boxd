@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package main
+package utils
 
 import (
 	"encoding/json"
@@ -39,7 +39,8 @@ func LoadJSONFromFile(fileName string, result interface{}) error {
 	return nil
 }
 
-func parseIPlist(fileName string) ([]string, error) {
+// ParseIPlist parse ip list from json file
+func ParseIPlist(fileName string) ([]string, error) {
 	var list []interface{}
 	if err := LoadJSONFromFile(fileName, &list); err != nil {
 		return nil, err
@@ -55,10 +56,11 @@ func parseIPlist(fileName string) ([]string, error) {
 	return ipList, nil
 }
 
-func startLocalNodes(peerCount int) ([]*os.Process, error) {
+// StartLocalNodes start local nodes
+func StartLocalNodes(peerCount int) ([]*os.Process, error) {
 	var processes []*os.Process
 	for i := 0; i < peerCount; i++ {
-		cfg := fmt.Sprintf("--config=%s.box-%d.yaml", localConf.ConfDir, i+1)
+		cfg := fmt.Sprintf("--config=%s.box-%d.yaml", LocalConf.ConfDir, i+1)
 		args := []string{"../box", "start", cfg, "&"}
 		logger.Infof("startLocalNodes: %v", args)
 		p, err := StartProcess(args...)
@@ -70,7 +72,8 @@ func startLocalNodes(peerCount int) ([]*os.Process, error) {
 	return processes, nil
 }
 
-func stopLocalNodes(processes ...*os.Process) error {
+// StopLocalNodes stop local nodes
+func StopLocalNodes(processes ...*os.Process) error {
 	if len(processes) == 0 {
 		return nil
 	}
@@ -97,7 +100,8 @@ func stopLocalNodes(processes ...*os.Process) error {
 	return nil
 }
 
-func startNodes() error {
+// StartDockerNodes start nodes
+func StartDockerNodes() error {
 	cmd := exec.Command("docker-compose", "-f", dockerComposeFile, "up",
 		"--force-recreate", "-d")
 	logger.Infof("exec: docker-compose -f %s up --force-recreate -d",
@@ -110,7 +114,8 @@ func startNodes() error {
 	return nil
 }
 
-func stopNodes() error {
+// StopNodes stop nodes
+func StopNodes() error {
 	cmd := exec.Command("docker-compose", "down")
 	logger.Infof("exec: docker-compose down")
 	if err := cmd.Run(); err != nil {
@@ -121,13 +126,14 @@ func stopNodes() error {
 	return nil
 }
 
-func prepareEnv(count int) error {
+// PrepareEnv prepare env
+func PrepareEnv(count int) error {
 	logger.Info("prepare test workspace")
 	var workDir string
-	if *enableDocker {
-		workDir = dockerConf.WorkDir
+	if *EnableDocker {
+		workDir = DockerConf.WorkDir
 	} else {
-		workDir = localConf.WorkDir
+		workDir = LocalConf.WorkDir
 	}
 	for i := 0; i < count; i++ {
 		// remove database and logs directories in ../.devconfig/ ws
@@ -141,10 +147,10 @@ func prepareEnv(count int) error {
 		}
 		// check .box-*.yaml exists
 		var cfgFile string
-		if *enableDocker {
-			cfgFile = dockerConf.ConfDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
+		if *EnableDocker {
+			cfgFile = DockerConf.ConfDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
 		} else {
-			cfgFile = localConf.ConfDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
+			cfgFile = LocalConf.ConfDir + ".box-" + strconv.Itoa(i+1) + ".yaml"
 		}
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
 			return err
@@ -159,12 +165,13 @@ func prepareEnv(count int) error {
 	return nil
 }
 
-func tearDown(count int) error {
+// TearDown clean resource and files
+func TearDown(count int) error {
 	var workDir string
-	if *enableDocker {
-		workDir = dockerConf.WorkDir
+	if *EnableDocker {
+		workDir = DockerConf.WorkDir
 	} else {
-		workDir = localConf.WorkDir
+		workDir = LocalConf.WorkDir
 	}
 	// remove database and logs directories in ../.devconfig/ ws
 	for i := 0; i < count; i++ {
@@ -197,12 +204,11 @@ func GetIniKV(iniBuf, key string) string {
 	return ""
 }
 
-func removeKeystoreFiles(addrs ...string) {
+// RemoveKeystoreFiles removes key store files
+func RemoveKeystoreFiles(addrs ...string) {
 	for _, v := range addrs {
 		path := walletDir + v + ".keystore"
-		if err := os.Remove(path); err != nil {
-			logger.Error(err)
-		}
+		os.Remove(path)
 	}
 	logger.Infof("remove %d keystore files", len(addrs))
 }
@@ -240,4 +246,17 @@ func TryRecordError(err error) bool {
 	}
 	ErrItems = append(ErrItems, err)
 	return true
+}
+
+// Closing check if receive quit signal
+func Closing(quitCh <-chan os.Signal) bool {
+	select {
+	case s := <-quitCh:
+		if s == os.Interrupt || s == os.Kill {
+			return true
+		}
+		return false
+	default:
+		return false
+	}
 }

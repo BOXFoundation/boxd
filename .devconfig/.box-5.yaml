@@ -26,6 +26,7 @@ p2p:
     latency: 10
     conn_max_capacity: 200
     conn_load_factor: 0.8
+    relay_size: 32
 rpc:
     port: 19151
     http:
@@ -41,3 +42,6 @@ metrics:
     user: 
     password: 
     tags: [region:us-west, host:box-5]
+wallet:
+    enable: true
+    cache_size: 512

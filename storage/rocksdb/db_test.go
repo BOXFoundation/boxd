@@ -65,6 +65,8 @@ func TestDBPut(t *testing.T) {
 	t.Run("put2", dbtest.StoragePutGetDelTest(db, []byte("tk2"), []byte("tv2")))
 	t.Run("put3", dbtest.StoragePutGetDelTest(db, []byte("tk3"), []byte("tv3")))
 	t.Run("put4", dbtest.StoragePutGetDelTest(db, []byte("tk4"), []byte("tv4")))
+	t.Run("put5", dbtest.StoragePutGetDelTest(db, []byte("tk5"), []byte("")))
+	t.Run("put6", dbtest.StoragePutGetDelTest(db, []byte("tk6"), nil))
 }
 
 func TestDBDelNotExists(t *testing.T) {

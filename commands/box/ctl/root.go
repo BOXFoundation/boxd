@@ -13,7 +13,8 @@ import (
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -58,7 +59,7 @@ func init() {
 		&cobra.Command{
 			Use:   "networkid [id]",
 			Short: "Update networkid of boxd",
-			Run:   debugLevelCmdFunc,
+			Run:   updateNetworkID,
 		},
 		&cobra.Command{
 			Use:   "decoderawtx",
@@ -168,13 +169,14 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		level = args[0]
 	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	client.SetDebugLevel(conn, level)
+	rpcutil.SetDebugLevel(conn, level)
 }
 
+// NOTE: should be remove in product env
 func updateNetworkID(cmd *cobra.Command, args []string) {
-	id := uint32(0x54455354) // default is testnet
+	id := p2p.Testnet // default is testnet
 	if len(args) > 0 {
 		n, err := strconv.Atoi(args[0])
 		if err != nil {
@@ -183,9 +185,9 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 		}
 		id = uint32(n)
 	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	client.UpdateNetworkID(conn, id)
+	rpcutil.UpdateNetworkID(conn, id)
 }
 
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
@@ -202,16 +204,15 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		addrs = append(addrs, args[0])
 	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	balances, err := client.GetBalance(conn, addrs)
+	balances, err := rpcutil.GetBalance(conn, addrs)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	var total uint64
-	for addr, balance := range balances {
-		fmt.Printf("Addr: %s\t Balance: %d\n", addr, balance)
+	for _, balance := range balances {
 		total += balance
 	}
 	if len(balances) > 1 {
@@ -226,9 +227,9 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	block, err := client.GetBlock(conn, hash)
+	block, err := rpcutil.GetBlock(conn, hash)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -238,9 +239,9 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getblockcount called")
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	height, err := client.GetBlockCount(conn)
+	height, err := rpcutil.GetBlockCount(conn)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -259,9 +260,9 @@ func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	height := uint32(height64)
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	hash, err := client.GetBlockHash(conn, height)
+	hash, err := rpcutil.GetBlockHash(conn, height)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -276,9 +277,9 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	header, err := client.GetBlockHeader(conn, hash)
+	header, err := rpcutil.GetBlockHeader(conn, hash)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -294,9 +295,9 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	hash := crypto.HashType{}
 	hash.SetString(args[0])
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.GetRawTransaction(conn, hash.GetBytes())
+	tx, err := rpcutil.GetRawTransaction(conn, hash.GetBytes())
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -305,9 +306,9 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func getTxPoolCmdFunc(cmd *cobra.Command, args []string) {
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	txs, err := client.GetTransactionsInPool(conn)
+	txs, err := rpcutil.GetTransactionsInPool(conn)
 	if err != nil {
 		fmt.Println(err)
 	} else {

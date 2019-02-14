@@ -5,6 +5,8 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -49,10 +51,27 @@ type OutPoint struct {
 	Index uint32
 }
 
+// NewOutPoint constructs a OutPoint
+func NewOutPoint(hash *crypto.HashType, index uint32) *OutPoint {
+	return &OutPoint{
+		Hash:  *hash,
+		Index: index,
+	}
+}
+
+func (op OutPoint) String() string {
+	return fmt.Sprintf("{Hash: %s, Index: %d}", op.Hash, op.Index)
+}
+
 var _ conv.Convertible = (*OutPoint)(nil)
 var _ conv.Serializable = (*OutPoint)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+func (txin *TxIn) String() string {
+	return fmt.Sprintf("{PrevOutPoint: %s, ScriptSig: %s, Sequence: %d}",
+		txin.PrevOutPoint, string(txin.ScriptSig), txin.Sequence)
+}
 
 // ToProtoMessage converts txin to proto message.
 func (txin *TxIn) ToProtoMessage() (proto.Message, error) {
@@ -187,6 +206,15 @@ func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 	}, nil
 }
 
+// ConvToPbTx convert a types tx to corepb tx
+func (tx *Transaction) ConvToPbTx() (*corepb.Transaction, error) {
+	data, err := tx.ToProtoMessage()
+	if err != nil {
+		return nil, err
+	}
+	return data.(*corepb.Transaction), nil
+}
+
 // FromProtoMessage converts proto message to transaction.
 func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.Transaction); ok {
@@ -215,6 +243,15 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 	return core.ErrInvalidTxProtoMessage
 }
 
+// ConvPbTx  convert a pb tx to types tx
+func ConvPbTx(orig *corepb.Transaction) (*Transaction, error) {
+	tx := new(Transaction)
+	if err := tx.FromProtoMessage(orig); err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
 // Marshal method marshal tx object to binary
 func (tx *Transaction) Marshal() (data []byte, err error) {
 	return conv.MarshalConvertible(tx)
@@ -238,6 +275,46 @@ func (tx *Transaction) SerializeSize() (int, error) {
 	return len(serializedTx), nil
 }
 
+// Copy returns a deep copy, mostly for parallel script verification
+// Do not copy hash since it will be updated anyway in script verification
+func (tx *Transaction) Copy() *Transaction {
+	vin := make([]*TxIn, 0)
+	for _, txIn := range tx.Vin {
+		txInCopy := &TxIn{
+			PrevOutPoint: txIn.PrevOutPoint,
+			ScriptSig:    txIn.ScriptSig,
+			Sequence:     txIn.Sequence,
+		}
+		vin = append(vin, txInCopy)
+	}
+
+	vout := make([]*corepb.TxOut, 0)
+	for _, txOut := range tx.Vout {
+		txOutCopy := &corepb.TxOut{
+			Value:        txOut.Value,
+			ScriptPubKey: txOut.ScriptPubKey,
+		}
+		vout = append(vout, txOutCopy)
+	}
+
+	data := &corepb.Data{}
+	if tx.Data != nil {
+		data.Type = tx.Data.Type
+		copy(data.Content, tx.Data.Content)
+	} else {
+		data = nil
+	}
+
+	return &Transaction{
+		Version:  tx.Version,
+		Vin:      vin,
+		Vout:     vout,
+		Data:     data,
+		Magic:    tx.Magic,
+		LockTime: tx.LockTime,
+	}
+}
+
 // calcProtoMsgDoubleHash calculates double hash of proto msg
 func calcProtoMsgDoubleHash(pb proto.Message) (*crypto.HashType, error) {
 	data, err := proto.Marshal(pb)
@@ -251,4 +328,13 @@ func calcProtoMsgDoubleHash(pb proto.Message) (*crypto.HashType, error) {
 func calcDoubleHash(data []byte) (*crypto.HashType, error) {
 	hash := crypto.DoubleHashH(data)
 	return &hash, nil
+}
+
+// OutputAmount returns total amount from tx's outputs
+func (tx *Transaction) OutputAmount() uint64 {
+	totalOutputAmount := uint64(0)
+	for _, txOut := range tx.Vout {
+		totalOutputAmount += txOut.Value
+	}
+	return totalOutputAmount
 }

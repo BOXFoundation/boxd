@@ -7,6 +7,7 @@ package chain
 import (
 	"math"
 	"reflect"
+	"runtime"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -25,9 +26,11 @@ type LockTime struct {
 func VerifyBlockTimeOut(block *types.Block) error {
 	now := time.Now().Unix()
 	if now-block.Header.TimeStamp > core.MaxBlockTimeOut {
+		logger.Warnf("The block is timeout. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
 		return core.ErrBlockTimeOut
 	} else if now < block.Header.TimeStamp {
-		return core.ErrInvalidBlockTimeStamp
+		logger.Warnf("The block is a future block. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
+		return core.ErrFutureBlock
 	}
 	return nil
 }
@@ -125,7 +128,7 @@ func IsTxFinalized(tx *types.Transaction, blockHeight uint32, blockTime int64) b
 	// When lock time field is less than the threshold, it is a block height.
 	// Otherwise it is a timestamp.
 	blockTimeOrHeight := int64(0)
-	if lockTime < LockTimeThreshold {
+	if lockTime < script.LockTimeThreshold {
 		blockTimeOrHeight = int64(blockHeight)
 	} else {
 		blockTimeOrHeight = blockTime
@@ -144,41 +147,126 @@ func IsTxFinalized(tx *types.Transaction, blockHeight uint32, blockTime int64) b
 }
 
 func validateBlockScripts(utxoSet *UtxoSet, block *types.Block) error {
+	var scriptItems []*ScriptItem
+
 	// Skip coinbases.
 	for _, tx := range block.Txs[1:] {
-		if err := ValidateTxScripts(utxoSet, tx); err != nil {
+		txScriptItems, err := CheckTxScripts(utxoSet, tx, true /* do not validate script here */)
+		if err != nil {
 			return err
+		}
+		scriptItems = append(scriptItems, txScriptItems...)
+	}
+
+	return newScriptValidator().validate(scriptItems)
+}
+
+type scriptValidator struct {
+	scriptItemCh chan *ScriptItem
+	resultCh     chan error
+	quitCh       chan struct{}
+}
+
+func newScriptValidator() *scriptValidator {
+	return &scriptValidator{
+		scriptItemCh: make(chan *ScriptItem),
+		resultCh:     make(chan error),
+		quitCh:       make(chan struct{}),
+	}
+}
+
+func (sv *scriptValidator) validate(scriptItems []*ScriptItem) error {
+	totalValidatorWorkers := runtime.NumCPU()
+
+	for i := 0; i < totalValidatorWorkers; i++ {
+		go sv.doValidate()
+	}
+
+	totalItems := len(scriptItems)
+	nextItemIdx := 0
+	validatedItems := 0
+
+	for validatedItems < totalItems {
+		var scriptItemCh chan *ScriptItem
+		var scriptItem *ScriptItem
+		if nextItemIdx < totalItems {
+			scriptItem = scriptItems[nextItemIdx]
+			scriptItemCh = sv.scriptItemCh
+		}
+
+		select {
+		// This will be ignored by "select" if scriptItemCh is nil
+		case scriptItemCh <- scriptItem:
+			nextItemIdx++
+
+		case err := <-sv.resultCh:
+			validatedItems++
+			if err != nil {
+				close(sv.quitCh)
+				return err
+			}
 		}
 	}
 
+	close(sv.quitCh)
 	return nil
 }
 
-// ValidateTxScripts verifies unlocking script for each input to ensure it is authorized to spend the utxo
+// Worker
+func (sv *scriptValidator) doValidate() {
+	for {
+		select {
+		case it := <-sv.scriptItemCh:
+			if err := script.Validate(it.scriptSig, it.prevScriptPubKey, it.tx, it.txInIdx); err != nil {
+				sv.resultCh <- err
+				return
+			}
+			sv.resultCh <- nil
+		case <-sv.quitCh:
+			return
+		}
+	}
+}
+
+// ScriptItem saves scripts for parallel validation
+type ScriptItem struct {
+	tx               *types.Transaction
+	txInIdx          int
+	scriptSig        *script.Script
+	prevScriptPubKey *script.Script
+}
+
+// CheckTxScripts verifies unlocking script for each input to ensure it is authorized to spend the utxo
 // Coinbase tx will not reach here
-func ValidateTxScripts(utxoSet *UtxoSet, tx *types.Transaction) error {
+func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool) ([]*ScriptItem, error) {
+	var scriptItems []*ScriptItem
 	txHash, _ := tx.TxHash()
 	for txInIdx, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist", txIn.PrevOutPoint, txHash, txInIdx)
-			return core.ErrMissingTxOut
+			return nil, core.ErrMissingTxOut
 		}
-		if utxo.IsSpent {
+		if utxo.IsSpent() {
 			logger.Errorf("output %v referenced from transaction %s:%d has already been spent", txIn.PrevOutPoint, txHash, txInIdx)
-			return core.ErrMissingTxOut
+			return nil, core.ErrMissingTxOut
 		}
 
-		prevScriptPubKey := script.NewScriptFromBytes(utxo.Output.ScriptPubKey)
+		prevScriptPubKey := script.NewScriptFromBytes(utxo.Script())
 		scriptSig := script.NewScriptFromBytes(txIn.ScriptSig)
 
+		if skipValidation {
+			scriptItems = append(scriptItems, &ScriptItem{tx, txInIdx, scriptSig, prevScriptPubKey})
+			continue
+		}
+
 		if err := script.Validate(scriptSig, prevScriptPubKey, tx, txInIdx); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return scriptItems, nil
 }
 
 // ValidateTxInputs validates the inputs of a tx.
@@ -195,15 +283,15 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 	for txInIndex, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsSpent {
+		if utxo == nil || utxo.IsSpent() {
 			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
 				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
 			return 0, core.ErrMissingTxOut
 		}
 
 		// Immature coinbase coins cannot be spent.
-		if utxo.IsCoinBase {
-			originHeight := utxo.BlockHeight
+		if utxo.IsCoinBase() {
+			originHeight := utxo.Height()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev < CoinbaseMaturity {
 				logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
@@ -230,12 +318,12 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 		}
 
 		// token tx input amount
-		scriptPubKey := script.NewScriptFromBytes(utxo.Output.GetScriptPubKey())
+		scriptPubKey := script.NewScriptFromBytes(utxo.Script())
 		if scriptPubKey.IsTokenIssue() {
 			tokenID := script.NewTokenID(txIn.PrevOutPoint.Hash, txIn.PrevOutPoint.Index)
 			// no need to check error since it will not err
 			params, _ := scriptPubKey.GetIssueParams()
-			tokenInputAmounts[tokenID] += params.TotalSupply
+			tokenInputAmounts[tokenID] += params.TotalSupply * uint64(math.Pow10(int(params.Decimals)))
 		} else if scriptPubKey.IsTokenTransfer() {
 			// no need to check error since it will not err
 			params, _ := scriptPubKey.GetTransferParams()
