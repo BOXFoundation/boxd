@@ -15,7 +15,7 @@ func TestBlockCovertWithProtoMessage(t *testing.T) {
 	var prevBlockHash = crypto.HashType{0x0010}
 	var txsRoot = crypto.HashType{0x0022}
 	var timestamp int64 = 12345678900000
-	var prevOutPoint = NewOutPoint(crypto.HashType{0x0012})
+	var prevOutPoint = NewOutPoint(&crypto.HashType{0x0012}, 0)
 	var value uint64 = 111111
 	var lockTime int64 = 19871654300000000
 	var height uint32 = 10

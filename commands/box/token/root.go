@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -96,20 +99,28 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	fromAddr, err := types.NewAddress(args[0])
+	_, err = types.NewAddress(args[0])
 	if err != nil {
 		fmt.Println("Invalid address: ", args[0])
 		return
 	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tx, err := client.CreateTokenIssueTx(conn, fromAddr, toAddr, account.PublicKey(),
-		tokenName, tokenSymbol, uint64(tokenTotalSupply), uint8(tokenDecimals), account)
+
+	tag := types.NewTokenTag(tokenName, tokenSymbol, uint8(tokenDecimals))
+	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.String(), tag,
+		uint64(tokenTotalSupply), conn)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	hash, _ := tx.TxHash()
+	hashStr, err := rpcutil.SendTransaction(conn, tx)
+	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
+		fmt.Println(err)
+		return
+	}
+	hash := new(crypto.HashType)
+	hash.SetString(hashStr)
 	tk := types.NewTokenFromOutpoint(types.OutPoint{
 		Hash:  *hash,
 		Index: 0,
@@ -158,10 +169,10 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	//	fmt.Println("Invalid address: ", args[0])
 	//	return
 	//}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
 	tx := new(types.Transaction)
-	//tx, err := client.CreateTokenTransferTx(conn, fromAddr, targets,
+	//tx, err := rpcutil.CreateTokenTransferTx(conn, fromAddr, targets,
 	//	account.PublicKey(), token.OutPoint().Hash, token.OutPoint().Index, account)
 	//if err != nil {
 	//	fmt.Println(err)
@@ -182,16 +193,16 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid token address")
 		return
 	}
-	addr := args[0]
+	addrs := args[0:1]
 	//addr, err := types.NewAddress(args[0])
 	//if err != nil {
 	//	fmt.Println("Invalid address: ", args[0])
 	//	return
 	//}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	balance, _ := client.GetTokenBalance(conn, addr, token.OutPoint().Hash,
-		uint32(token.OutPoint().Index))
+	tid := types.TokenID(token.OutPoint())
+	balance, _ := rpcutil.GetTokenBalance(conn, addrs, &tid)
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }
 

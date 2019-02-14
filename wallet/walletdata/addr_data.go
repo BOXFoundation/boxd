@@ -8,8 +8,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/BOXFoundation/boxd/core/txlogic"
-
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -22,7 +20,6 @@ type AddrProcessor interface {
 	ApplyTransaction(tx *types.Transaction, height uint32)
 	GetBalance() uint64
 	RevertHeight(uint32)
-	CreateSendTransaction([]byte, map[types.Address]uint64, crypto.Signer) (*types.Transaction, error)
 }
 
 // MemAddrProcessor holds utxo info of a certain address in memory
@@ -148,27 +145,4 @@ func (m *MemAddrProcessor) GetBalance() (balance uint64) {
 		balance += val.Value()
 	}
 	return
-}
-
-// CreateSendTransaction creates transaction using utxo in blockchain or in memory cache
-func (m *MemAddrProcessor) CreateSendTransaction(pubKeyBytes []byte, targets map[types.Address]uint64, signer crypto.Signer) (*types.Transaction, error) {
-	tx, err := txlogic.CreateTransaction(m, m.addr, targets, pubKeyBytes, signer)
-	if err != nil {
-		return nil, err
-	}
-	for _, vin := range tx.Vin {
-		m.utxos.SpendUtxo(vin.PrevOutPoint)
-		delete(m.caching, vin.PrevOutPoint)
-	}
-	hash, err := tx.TxHash()
-	if err != nil {
-		return nil, err
-	}
-	for idx, vout := range tx.Vout {
-		if bytes.HasPrefix(vout.ScriptPubKey, m.filter) {
-			wrap := types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, 0)
-			m.caching[types.OutPoint{Hash: *hash, Index: uint32(idx)}] = wrap
-		}
-	}
-	return tx, nil
 }

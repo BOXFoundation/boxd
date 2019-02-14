@@ -440,7 +440,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			} else {
 				tokenID = outpoint
 			}
-			addrUtxoKey = AddrTokenUtxoKey(addr.String(), tokenID, outpoint)
+			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}

@@ -12,7 +12,7 @@ import (
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -117,26 +117,7 @@ func init() {
 			Short: "List transactions for an account",
 			Run:   listTransactionsCmdFunc,
 		},
-		&cobra.Command{
-			Use:   "console",
-			Short: "Start wallet interactive console",
-			Run:   walletConsoleCmdFunc,
-		},
 	)
-}
-
-func walletConsoleCmdFunc(cmd *cobra.Command, args []string) {
-	wltMgr, err := wallet.NewWalletManager(walletDir)
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	for _, acc := range wltMgr.ListAccounts() {
-		fmt.Println("Managed Address:", acc.Addr(), "Public Key Hash:", hex.EncodeToString(acc.PubKeyHash()))
-	}
-	cli := client.NewConnectionWithViper(viper.GetViper())
-	defer cli.Close()
-	startConsole(cli, wltMgr)
 }
 
 func newAccountCmdFunc(cmd *cobra.Command, args []string) {
@@ -256,9 +237,9 @@ func listTransactionsCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		offset = 0
 	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
+	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	txs, err := client.ListTransactions(conn, addr, offset, limit)
+	txs, err := rpcutil.ListTransactions(conn, addr, offset, limit)
 	if err != nil {
 		fmt.Println(err)
 		return

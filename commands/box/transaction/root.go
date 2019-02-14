@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/rpc/client"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -48,11 +51,6 @@ func init() {
 			Run:   sendFromCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "sendmany [fromaccount] [toaddresslist]",
-			Short: "Send coins to multiple addresses",
-			Run:   sendManyCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "sendtoaddress [address]",
 			Short: "Send coins to an address",
 			Run: func(cmd *cobra.Command, args []string) {
@@ -74,7 +72,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	target, err := parseSendTarget(args[1:])
+	addrs, amounts, err := parseSendParams(args[1:])
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -98,82 +96,39 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	fromAddr, err := types.NewAddress(args[0])
-	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
-		return
-	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
-	defer conn.Close()
-	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account, nil, nil)
+	var cfg config.Config
+	viper.Unmarshal(&cfg)
+	peerAddr := fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		fmt.Println(err)
+	}
+	defer conn.Close()
+	tx, _, _, err := rpcutil.NewTx(account, addrs, amounts, conn)
+	if err != nil {
+		fmt.Println("new tx error: ", err)
 		return
 	}
-	hash, _ := tx.TxHash()
-	fmt.Println("Tx Hash:", hash.String())
+	hash, err := rpcutil.SendTransaction(conn, tx)
+	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
+		fmt.Println(err)
+	}
+	fmt.Println("Tx Hash:", hash)
 	fmt.Println(util.PrettyPrint(tx))
 }
 
-func parseSendTarget(args []string) (map[types.Address]uint64, error) {
-	targets := make(map[types.Address]uint64)
+func parseSendParams(args []string) (addrs []string, amounts []uint64, err error) {
 	for i := 0; i < len(args)/2; i++ {
-		addr, err := types.NewAddress(args[i*2])
+		_, err := types.NewAddress(args[i*2])
 		if err != nil {
-			return targets, err
+			return nil, nil, err
 		}
+		addrs = append(addrs, args[i*2])
 		amount, err := strconv.Atoi(args[i*2+1])
 		if err != nil {
-			return targets, err
+			return nil, nil, err
 		}
-		targets[addr] = uint64(amount)
+		amounts = append(amounts, uint64(amount))
 	}
-	return targets, nil
-}
-
-func sendManyCmdFunc(cmd *cobra.Command, args []string) {
-	if len(args) < 3 {
-		fmt.Println("Invalid argument number")
-		return
-	}
-
-	target, err := parseSendTarget(args[1:])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	wltMgr, err := wallet.NewWalletManager(walletDir)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	account, exists := wltMgr.GetAccount(args[0])
-	if !exists {
-		fmt.Printf("Account %s not managed\n", args[0])
-		return
-	}
-	passphrase, err := wallet.ReadPassphraseStdin()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if err := account.UnlockWithPassphrase(passphrase); err != nil {
-		fmt.Println("Fail to unlock account", err)
-		return
-	}
-	fromAddr, err := types.NewAddress(args[0])
-	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
-		return
-	}
-	conn := client.NewConnectionWithViper(viper.GetViper())
-	defer conn.Close()
-	tx, err := client.CreateTransaction(conn, fromAddr, target, account.PublicKey(), account, nil, nil)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	hash, _ := tx.TxHash()
-	fmt.Println("Tx Hash:", hash.String())
-	fmt.Println(util.PrettyPrint(tx))
+	return addrs, amounts, nil
 }

@@ -193,14 +193,22 @@ func AddrUtxoKey(addr string, op types.OutPoint) []byte {
 		Bytes()
 }
 
-// AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
-func AddrTokenUtxoKey(addr string, tokenID, op types.OutPoint) []byte {
-	return addrTokenUtxoBase.ChildString(addr).ChildString(tokenID.Hash.String()).ChildString(fmt.Sprintf("%x", tokenID.Index)).ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
-}
-
 // AddrAllUtxoKey is the key prefix to explore all utxos of an address
 func AddrAllUtxoKey(addr string) []byte {
 	return addrUtxoBase.ChildString(addr).Bytes()
+}
+
+// AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
+func AddrTokenUtxoKey(addr string, tid types.TokenID, op types.OutPoint) []byte {
+	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
+		ChildString(fmt.Sprintf("%x", tid.Index)).ChildString(op.Hash.String()).
+		ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
+}
+
+// AddrAllTokenUtxoKey is the key prefix to explore all token utxos of an address
+func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
+	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
+		ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
 }
 
 // AddrBalanceKey is the key to store an address's balance

@@ -16,8 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/client"
-	"google.golang.org/grpc"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 // Circulation manage circulation of transaction
@@ -91,15 +90,19 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
 	logger.Infof("start to construct txs from %s to %s %d times", fromAddr, toAddr, times)
 	start := time.Now()
-	txss, transfer, fee, count, err := utils.NewTxs(AddrToAcc[fromAddr], toAddr,
-		times, execPeer)
+	conn, err := rpcutil.GetGRPCConn(execPeer)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
+	defer conn.Close()
+	txss, transfer, fee, count, err := rpcutil.NewTxs(AddrToAcc[fromAddr], toAddr,
+		times, conn)
 	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
 	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {
 		logger.Panic(err)
 	}
-	conn, _ := grpc.Dial(execPeer, grpc.WithInsecure())
-	defer conn.Close()
 	var wg sync.WaitGroup
 	errChans := make(chan error, len(txss))
 	logger.Infof("start to send tx from %s to %s %d times", fromAddr, toAddr, times)
@@ -121,11 +124,11 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 			//}
 
 			for _, tx := range txs {
-				if err := client.SendTransaction(conn, tx); err != nil &&
+				if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 					!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 					logger.Panic(err)
 				}
-				time.Sleep(2 * time.Millisecond)
+				time.Sleep(4 * time.Millisecond)
 				atomic.AddUint64(txCnt, 1)
 			}
 		}(txs)
