@@ -226,7 +226,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					ctx, cancel := context.WithTimeout(context.Background(), 18*time.Second)
 					defer cancel()
 					i := 0
-					for range chain.db.IterKeysWithPrefix(ctx, utxoBase.Bytes()) {
+					for range chain.db.IterKeysWithPrefix(ctx, addrUtxoBase.Bytes()) {
 						i++
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
