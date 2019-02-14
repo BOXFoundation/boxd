@@ -62,9 +62,8 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 		}
 		tid := (*types.TokenID)(&param.TokenID.OutPoint)
 		return param.Amount, tid, nil
-	} else {
-		return 0, nil, errors.New("utxo not recognized")
 	}
+	return 0, nil, errors.New("utxo not recognized")
 }
 
 // ParseTokenAmount parse token amount from script pubkey

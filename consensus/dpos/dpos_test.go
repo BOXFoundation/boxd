@@ -30,7 +30,7 @@ var (
 	}
 
 	cfgMiner = &Config{
-		Keypath:    "../../keyfile/key1.keystore",
+		Keypath:    "../../keyfile/testnet.keystore",
 		EnableMint: true,
 		Passphrase: "1",
 	}
