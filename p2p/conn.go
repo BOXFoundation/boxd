@@ -202,7 +202,7 @@ func (conn *Conn) heartBeatService(p goprocess.Process) {
 		select {
 		case <-t.C:
 			if err := conn.Ping(); err != nil {
-				logger.Errorf("Failed to ping peer. PeerID: %s", conn.remotePeer.Pretty())
+				logger.Errorf("Failed to ping peer. PeerID: %s, err: %v", conn.remotePeer.Pretty(), err)
 			}
 		case <-p.Closing():
 			logger.Debug("closing heart beat service with ", conn.remotePeer.Pretty())
