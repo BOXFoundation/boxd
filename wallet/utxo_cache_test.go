@@ -12,7 +12,8 @@ import (
 )
 
 func TestLiveUtxoCache(t *testing.T) {
-	cache := NewLiveUtxoCache(3)
+	cache := NewLiveUtxoCache()
+	cache.SetLiveDuration(3)
 
 	n := 4
 	nonExists := make([]*types.OutPoint, 0, n)
