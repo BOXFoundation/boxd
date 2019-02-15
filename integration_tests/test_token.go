@@ -93,8 +93,11 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
 	tag := types.NewTokenTag("box token", "BOX", 6)
-	times := utils.TokenRepeatTxTimes()
-	tokenRepeatTest(issuer, sender, receivers, tag, times, &t.txCnt, peerAddr)
+	curTimes := utils.TokenRepeatTxTimes()
+	if utils.TokenRepeatRandom() {
+		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
+	}
+	tokenRepeatTest(issuer, sender, receivers, tag, curTimes, &t.txCnt, peerAddr)
 	//
 	return
 }
@@ -103,6 +106,11 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	tag *types.TokenTag, times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
+
+	if times <= 0 {
+		logger.Warn("times is 0, exit")
+		return
+	}
 
 	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
