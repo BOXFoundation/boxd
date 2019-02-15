@@ -19,6 +19,10 @@ import (
 
 var logger = log.NewLogger("wallet")
 
+var (
+	utxoLiveCache = NewLiveUtxoCache()
+)
+
 // Server is the struct type of an wallet service
 type Server struct {
 	proc  goprocess.Process
@@ -44,6 +48,7 @@ func NewServer(parent goprocess.Process, config *Config, s storage.Storage,
 		cfg:   config,
 		//utxosQueue: list.New(),
 	}
+	utxoLiveCache.SetLiveDuration(config.UtxoCacheTime)
 	return wServer, nil
 }
 

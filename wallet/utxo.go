@@ -24,10 +24,6 @@ const (
 	utxoSelUnitCnt = 256
 )
 
-var (
-	liveCache = NewLiveUtxoCache(5)
-)
-
 type scriptPubKeyFilter func(raw []byte) bool
 
 func filterPayToPubKeyHash(raw []byte) bool {
@@ -109,7 +105,7 @@ func FetchUtxosOf(
 	logger.Infof("fetch utxos for %s amount %d get %d utxos", addr, total, len(utxos))
 	// add utxos to LiveUtxoCache
 	for _, u := range utxos {
-		liveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
+		utxoLiveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
 	}
 
 	return utxos, nil
@@ -119,6 +115,7 @@ func fetchModerateUtxos(
 	keys [][]byte, tid *types.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
+	utxoLiveCache.Shrink()
 	result := make([]*rpcpb.Utxo, 0)
 	remain := total
 	for start := 0; start < len(keys) && remain <= total; start += utxoSelUnitCnt {
@@ -128,9 +125,17 @@ func fetchModerateUtxos(
 			end = len(keys)
 		}
 		// fetch utxo from db
-		utxos, err := makeUtxosFromDB(keys[start:end], tid, db)
+		origUtxos, err := makeUtxosFromDB(keys[start:end], tid, db)
 		if err != nil {
 			return nil, err
+		}
+		// filter utxos in cache
+		utxos := make([]*rpcpb.Utxo, 0, len(origUtxos))
+		for _, u := range origUtxos {
+			if utxoLiveCache.Contains(txlogic.ConvPbOutPoint(u.OutPoint)) {
+				continue
+			}
+			utxos = append(utxos, u)
 		}
 		// select utxos
 		selUtxos, amount := selectUtxos(utxos, tid, remain)
@@ -249,13 +254,9 @@ func selectUtxos(
 		sort.Sort(sort.Interface(txlogic.SortByTokenUTXOValue(utxos)))
 	}
 	// select
-	liveCache.Shrink()
 	i, total := 0, uint64(0)
 	for k := 0; k < len(utxos) && total < amount; k++ {
 		// filter utxos already in cache
-		if liveCache.Contains(txlogic.ConvPbOutPoint(utxos[i].OutPoint)) {
-			continue
-		}
 		// have check tid and err in the front
 		amount, _, _ := txlogic.ParseUtxoAmount(utxos[i])
 		total += amount
