@@ -449,7 +449,9 @@ func (tx_pool *TransactionPool) checkRegisterCandidateOrVoteTx(tx *types.Transac
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
 	for _, txIn := range tx.Vin {
-		if _, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+		if tx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+			txHash, _ := tx.TxHash()
+			logger.Debugf("Double spend prev hash: %v, first tx hash: %v", txIn.PrevOutPoint.Hash.String(), txHash.String())
 			return core.ErrOutPutAlreadySpent
 		}
 	}

@@ -6,6 +6,7 @@ package wallet
 
 // Config contains config information for wallet server
 type Config struct {
-	Enable    bool `mapstructure:"enable"`
-	CacheSize int  `mapstructure:"cache_size"`
+	Enable        bool `mapstructure:"enable"`
+	CacheSize     int  `mapstructure:"cache_size"`
+	UtxoCacheTime int  `mapstructure:"utxo_cache_time"`
 }

@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -121,16 +122,24 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
-	times := utils.SplitAddrRepeatTxTimes()
-	splitAddrRepeatTest(sender, receivers, weights, times, &t.txCnt, peerAddr)
+	curTimes := utils.SplitAddrRepeatTxTimes()
+	if utils.SplitAddrRepeatRandom() {
+		curTimes = rand.Intn(utils.SplitAddrRepeatTxTimes())
+	}
+	splitAddrRepeatTest(sender, receivers, weights, curTimes, &t.txCnt, peerAddr)
 	//
-
 	return
 }
 
 func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   splitAddrRepeatTest")
+	defer logger.Infof("--- DONE: splitAddrRepeatTest")
+
+	if times <= 0 {
+		logger.Warn("times is 0, exit")
+		return
+	}
 
 	if len(receivers) != 4 {
 		logger.Errorf("split addr test require 4 accounts at leat, now %d", len(receivers))
@@ -203,5 +212,4 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 			logger.Panic(err)
 		}
 	}
-	logger.Infof("--- DONE: splitAddrRepeatTest")
 }

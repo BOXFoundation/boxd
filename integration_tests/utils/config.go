@@ -18,16 +18,19 @@ var (
 	circuAccounts      = 10
 	circuUnitAccounts  = 5
 	circuRepeatTxTimes = 200
+	circuRepeatRandom  = true
 
 	tokenTestEnable    = true
 	tokenAccounts      = 6
 	tokenUnitAccounts  = 3
 	tokenRepeatTxTimes = 50
+	tokenRepeatRandom  = true
 
 	splitAddrTestEnable    = true
 	splitAddrAccounts      = 8
 	splitAddrUnitAccounts  = 4
 	splitAddrRepeatTxTimes = 50
+	splitAddrRepeatRandom  = true
 
 	timesToUpdateAddrs = 100
 
@@ -60,6 +63,8 @@ func LoadConf() error {
 	}
 	logger.Infof("ticker duration = %d", tickerDurationTxs)
 
+	// transaction test
+	// collection
 	txTestEnable, err = GetBoolCfgVal(true, "transaction_test", "enable")
 	if err != nil {
 		return err
@@ -78,6 +83,7 @@ func LoadConf() error {
 	}
 	logger.Infof("collection unit accounts = %d", collUnitAccounts)
 
+	// circulation
 	circuAccounts, err = GetIntCfgVal(10, "transaction_test", "circulation_accounts")
 	if err != nil {
 		return err
@@ -97,6 +103,13 @@ func LoadConf() error {
 	}
 	logger.Infof("circulation repeat tx times = %d", circuRepeatTxTimes)
 
+	circuRepeatRandom, err = GetBoolCfgVal(true, "transaction_test", "enable_repeat_random")
+	if err != nil {
+		return err
+	}
+	logger.Infof("transaction test enable_repeat_random = %t", circuRepeatRandom)
+
+	// token
 	tokenTestEnable, err = GetBoolCfgVal(true, "token_test", "enable")
 	if err != nil {
 		return err
@@ -121,6 +134,13 @@ func LoadConf() error {
 	}
 	logger.Infof("token repeat tx times = %d", tokenRepeatTxTimes)
 
+	tokenRepeatRandom, err = GetBoolCfgVal(true, "token_test", "enable_repeat_random")
+	if err != nil {
+		return err
+	}
+	logger.Infof("token test enable_repeat_random = %t", tokenRepeatRandom)
+
+	// split addr
 	splitAddrTestEnable, err = GetBoolCfgVal(true, "split_addr_test", "enable")
 	if err != nil {
 		return err
@@ -144,6 +164,12 @@ func LoadConf() error {
 		return err
 	}
 	logger.Infof("splitAddr repeat tx times = %d", splitAddrRepeatTxTimes)
+
+	splitAddrRepeatRandom, err = GetBoolCfgVal(true, "split_addr_test", "enable_repeat_random")
+	if err != nil {
+		return err
+	}
+	logger.Infof("splitAddr test enable_repeat_random = %t", splitAddrRepeatRandom)
 
 	timesToUpdateAddrs, err = GetIntCfgVal(100, "times_to_update_addrs")
 	if err != nil {
@@ -232,6 +258,16 @@ func TokenRepeatTxTimes() int {
 	return tokenRepeatTxTimes
 }
 
+// CircuRepeatRandom return circuRepeatRandom
+func CircuRepeatRandom() bool {
+	return circuRepeatRandom
+}
+
+// TokenRepeatRandom return circuRepeatRandom
+func TokenRepeatRandom() bool {
+	return tokenRepeatRandom
+}
+
 // TokenTestEnable return tokenTestEnable
 func TokenTestEnable() bool {
 	return tokenTestEnable
@@ -260,6 +296,11 @@ func SplitAddrUnitAccounts() int {
 // SplitAddrRepeatTxTimes return splitAddrRepeatTxTimes
 func SplitAddrRepeatTxTimes() int {
 	return splitAddrRepeatTxTimes
+}
+
+// SplitAddrRepeatRandom return splitAddrRepeatRandom
+func SplitAddrRepeatRandom() bool {
+	return splitAddrRepeatRandom
 }
 
 // TimesToUpdateAddrs return timesToUpdateAddrs

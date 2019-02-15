@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
@@ -52,7 +53,11 @@ func (c *Circulation) HandleFunc(addrs []string, idx *int) (exit bool) {
 		case cirInfo, ok := <-c.cirInfoCh:
 			if ok {
 				logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-				txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
+				curTimes := utils.CircuRepeatTxTimes()
+				if utils.CircuRepeatRandom() {
+					curTimes = rand.Intn(utils.CircuRepeatTxTimes())
+				}
+				txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, curTimes, &c.txCnt)
 				return false
 			}
 		case s := <-quitCh:

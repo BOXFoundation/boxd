@@ -60,9 +60,9 @@ service TransactionCommand {
         };
     }
 
-    rpc MakeTxWithoutSign(MakeTxReq) returns (MakeTxResp) {
+    rpc MakeUnsignedTx(MakeTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
-            post: "/v1/tx/makeneedsigntx"
+            post: "/v1/tx/makeunsignedtx"
             body: "*"
         };
     }

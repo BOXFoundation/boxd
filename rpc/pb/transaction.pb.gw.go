@@ -147,7 +147,7 @@ func request_TransactionCommand_GetTransactionPool_0(ctx context.Context, marsha
 
 }
 
-func request_TransactionCommand_MakeTxWithoutSign_0(ctx context.Context, marshaler runtime.Marshaler, client TransactionCommandClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_TransactionCommand_MakeUnsignedTx_0(ctx context.Context, marshaler runtime.Marshaler, client TransactionCommandClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq MakeTxReq
 	var metadata runtime.ServerMetadata
 
@@ -159,7 +159,7 @@ func request_TransactionCommand_MakeTxWithoutSign_0(ctx context.Context, marshal
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.MakeTxWithoutSign(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.MakeUnsignedTx(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
@@ -342,7 +342,7 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 
 	})
 
-	mux.Handle("POST", pattern_TransactionCommand_MakeTxWithoutSign_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_TransactionCommand_MakeUnsignedTx_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
@@ -351,14 +351,14 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_TransactionCommand_MakeTxWithoutSign_0(rctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_TransactionCommand_MakeUnsignedTx_0(rctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_TransactionCommand_MakeTxWithoutSign_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_TransactionCommand_MakeUnsignedTx_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -380,7 +380,7 @@ var (
 
 	pattern_TransactionCommand_GetTransactionPool_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "gettxpool"}, ""))
 
-	pattern_TransactionCommand_MakeTxWithoutSign_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "makeneedsigntx"}, ""))
+	pattern_TransactionCommand_MakeUnsignedTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "makeunsignedtx"}, ""))
 )
 
 var (
@@ -398,5 +398,5 @@ var (
 
 	forward_TransactionCommand_GetTransactionPool_0 = runtime.ForwardResponseMessage
 
-	forward_TransactionCommand_MakeTxWithoutSign_0 = runtime.ForwardResponseMessage
+	forward_TransactionCommand_MakeUnsignedTx_0 = runtime.ForwardResponseMessage
 )

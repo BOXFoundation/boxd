@@ -497,7 +497,10 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		}
 		blockInfo.Confirmed = eternalBlock.Height >= block.Height
 		// send block info
-		stream.Send(blockInfo)
+		if err := stream.Send(blockInfo); err != nil {
+			logger.Warnf("webapi send block error %s, exit listen connection!", err)
+			return err
+		}
 		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
 			block.BlockHash(), block.Height)
 	}
