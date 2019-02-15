@@ -11,6 +11,10 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 )
 
+const (
+	defaultUtxoLiveDuration = 10
+)
+
 // LiveUtxoCache defines a cache in that utxos keep alive
 type LiveUtxoCache struct {
 	sync.RWMutex
@@ -21,13 +25,21 @@ type LiveUtxoCache struct {
 }
 
 // NewLiveUtxoCache new a LiveUtxoCache instance with expired seconds
-func NewLiveUtxoCache(expired int) *LiveUtxoCache {
+func NewLiveUtxoCache() *LiveUtxoCache {
 	return &LiveUtxoCache{
-		liveDuration: int64(expired),
+		liveDuration: defaultUtxoLiveDuration,
 		ts2Op:        make(map[int64][]*types.OutPoint),
 		Op2ts:        make(map[types.OutPoint]int64),
 		oldest:       time.Now().Unix(),
 	}
+}
+
+// SetLiveDuration sets live duration
+func (cache *LiveUtxoCache) SetLiveDuration(expired int) {
+	if expired <= 0 {
+		expired = defaultUtxoLiveDuration
+	}
+	cache.liveDuration = int64(expired)
 }
 
 // Add adds a OutPoint to cache

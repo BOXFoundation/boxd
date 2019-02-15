@@ -17,8 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/client"
-	"google.golang.org/grpc"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 // Collection manage transaction creation and collection
@@ -130,6 +129,7 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 				logger.Infof("receive quit signal %v, quiting HandleFunc[%d]!", s, idx)
 				return true
 			default:
+				time.Sleep(time.Second)
 			}
 		}
 		select {
@@ -169,13 +169,16 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
 		c.minerAddr, peerAddr)
-	tx, _, _, err := utils.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Panic(err)
 	}
-	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
 	defer conn.Close()
-	err = client.SendTransaction(conn, tx)
+	tx, _, _, err := rpcutil.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, conn)
+	if err != nil {
+		logger.Panic(err)
+	}
+	_, err = rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
 	}
@@ -216,7 +219,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 				amountsSend[i] += amounts2[j]
 				amountsRecv[j] += amounts2[j]
 			}
-			tx, _, fee, err := utils.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, peerAddr)
+			tx, _, fee, err := rpcutil.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
@@ -230,10 +233,13 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Panic(<-errChans)
 	}
 	for _, tx := range txs {
-		err = client.SendTransaction(conn, tx)
+		_, err = rpcutil.SendTransaction(conn, tx)
 		if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
+		//bytes, _ := json.MarshalIndent(tx, "", "  ")
+		//hash, _ := tx.CalcTxHash()
+		//logger.Infof("tx: %s, hash: %s", string(bytes), hash)
 	}
 	logger.Infof("complete to send tx from each to each")
 	// check balance
@@ -263,14 +269,14 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
 				i, addr, peerAddr)
 			fromAddr := addrs[i]
-			txss, transfer, _, _, err := utils.NewTxs(AddrToAcc[fromAddr], addr, count, peerAddr)
+			txss, transfer, _, _, err := rpcutil.NewTxs(AddrToAcc[fromAddr], addr, count, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
 
 			for _, txs := range txss {
 				for _, tx := range txs {
-					err := client.SendTransaction(conn, tx)
+					_, err := rpcutil.SendTransaction(conn, tx)
 					if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 						logger.Panic(err)
 					}

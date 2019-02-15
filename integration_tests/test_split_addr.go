@@ -6,13 +6,13 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/client"
-	"google.golang.org/grpc"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
 // SplitAddrTest manage circulation of token
@@ -71,16 +71,20 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	weights := []uint64{1, 2, 3, 4}
 
 	// send box to sender
-	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
-	defer conn.Close()
-	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
-	senderTx, _, _, err := utils.NewTx(AddrToAcc[miner], []string{sender},
-		[]uint64{testAmount + splitFee}, peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	if err := client.SendTransaction(conn, senderTx); err != nil {
+	defer conn.Close()
+	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
+	senderTx, _, _, err := rpcutil.NewTx(AddrToAcc[miner], []string{sender},
+		[]uint64{testAmount + splitFee}, conn)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	if _, err := rpcutil.SendTransaction(conn, senderTx); err != nil {
 		logger.Error(err)
 		return
 	}
@@ -93,13 +97,13 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	// create split addr
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
-	splitTx, _, _, err := utils.NewSplitAddrTxWithFee(AddrToAcc[sender], receivers,
-		weights, splitFee, peerAddr)
+	splitTx, _, _, err := rpcutil.NewSplitAddrTxWithFee(AddrToAcc[sender], receivers,
+		weights, splitFee, conn)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	if err := client.SendTransaction(conn, splitTx); err != nil {
+	if _, err := rpcutil.SendTransaction(conn, splitTx); err != nil {
 		logger.Error(err)
 		return
 	}
@@ -118,16 +122,24 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
-	times := utils.SplitAddrRepeatTxTimes()
-	splitAddrRepeatTest(sender, receivers, weights, times, &t.txCnt, peerAddr)
+	curTimes := utils.SplitAddrRepeatTxTimes()
+	if utils.SplitAddrRepeatRandom() {
+		curTimes = rand.Intn(utils.SplitAddrRepeatTxTimes())
+	}
+	splitAddrRepeatTest(sender, receivers, weights, curTimes, &t.txCnt, peerAddr)
 	//
-
 	return
 }
 
 func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   splitAddrRepeatTest")
+	defer logger.Infof("--- DONE: splitAddrRepeatTest")
+
+	if times <= 0 {
+		logger.Warn("times is 0, exit")
+		return
+	}
 
 	if len(receivers) != 4 {
 		logger.Errorf("split addr test require 4 accounts at leat, now %d", len(receivers))
@@ -155,20 +167,22 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	//}
 
 	// transfer
-	txss, transfer, fee, count, err := utils.NewTxs(AddrToAcc[sender], addr, 1,
-		peerAddr)
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		logger.Panic(err)
+	}
+	defer conn.Close()
+	txss, transfer, fee, count, err := rpcutil.NewTxs(AddrToAcc[sender], addr, 1, conn)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	conn, _ := grpc.Dial(peerAddr, grpc.WithInsecure())
-	defer conn.Close()
 	for _, txs := range txss {
 		for _, tx := range txs {
 			//bytes, _ := json.MarshalIndent(tx, "", "  ")
 			//hash, _ := tx.CalcTxHash()
 			//logger.Infof("send split tx hash: %v\nbody: %s", hash[:], string(bytes))
-			if err := client.SendTransaction(conn, tx); err != nil {
+			if _, err := rpcutil.SendTransaction(conn, tx); err != nil {
 				logger.Panic(err)
 			}
 			atomic.AddUint64(txCnt, 1)
@@ -198,5 +212,4 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 			logger.Panic(err)
 		}
 	}
-	logger.Infof("--- DONE: splitAddrRepeatTest")
 }
