@@ -9,37 +9,16 @@ import "github.com/BOXFoundation/boxd/core/pb/block.proto";
 import "google/api/annotations.proto";
 
 service WebApi {
-    rpc GetTransaction (GetTransactionInfoRequest) returns (GetTransactionInfoResponse) {
+    rpc ViewTxDetail (ViewTxDetailReq) returns (ViewTxDetailResp) {
         option (google.api.http) = {
-            post: "/v1/webapi/gettransaction"
+            post: "/v1/tx/detail"
             body: "*"
         };
     }
 
-    rpc GetBlock (GetBlockInfoRequest) returns (BlockInfo) {
+    rpc ViewBlockDetail (ViewBlockDetailReq) returns (ViewBlockDetailResp) {
         option (google.api.http) = {
             post: "/v1/webapi/getblock"
-            body: "*"
-        };
-    }
-
-    rpc GetPendingTransaction (GetPendingTransactionRequest) returns (GetTransactionsInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/getpendingtxs"
-            body: "*"
-        };
-    }
-
-    rpc GetTransactionHistory (GetTransactionHistoryRequest) returns (GetTransactionsInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/gettxhistory"
-            body: "*"
-        };
-    }
-
-    rpc ListTokens (ListTokensRequest) returns (ListTokensResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/listtokens"
             body: "*"
         };
     }
@@ -51,138 +30,37 @@ service WebApi {
         };
     }
 
-    rpc GetTokenTransactions (GetTokenTransactionsRequest) returns (GetTransactionsInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/gettokentxs"
-            body: "*"
-        };
+    rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
+}
+
+message ViewTxDetailReq {
+    string hash = 1;
+}
+
+message ViewTxDetailResp {
+    int32 code = 1;
+    string message = 2;
+    int32 version = 3;
+    int64 block_time = 4;
+    uint32 block_height = 5;
+    enum TxStatus {
+        unknown = 0;
+        pending = 1;
+        onchain = 2;
+        confirmed = 3;
     }
-
-    rpc ListenAndReadNewBlock(ListenBlockRequest) returns (stream BlockInfo);
+    TxStatus status = 6;
+    TxDetail detail = 7;
 }
 
-message GetTransactionsInfoResponse {
-    uint32 total = 1;
-    repeated TransactionInfo txs = 2;
-}
-
-message GetTransactionHistoryRequest {
-    string addr = 1;
-    uint32 limit = 2;
-    uint32 offset = 3;
-}
-
-message GetPendingTransactionRequest {
-    uint32 limit = 1;
-    uint32 offset = 2;
-}
-
-message GetBlockInfoRequest {
+message ViewBlockDetailReq {
     string hash = 1;
 }
 
-message GetTransactionInfoRequest {
-    string hash = 1;
-}
-
-message AddressAmount {
-    string addr = 1;
-    uint64 amount = 2;
-}
-
-message HeaderInfo {
-    int32 version = 1;
-    string prev_block_hash = 2;
-    string txs_root = 3;
-    int64 time_stamp = 4;
-    uint32 magic = 5;
-    string period_hash = 6;
-    string candidates_hash = 7;
-}
-
-message TransactionInfo {
-    int32 version = 1;
-    repeated TxInInfo vin = 2;
-    repeated TxOutInfo vout = 3;
-    corepb.Data data = 4;
-    uint32 magic = 5;
-    int64 lock_time = 6;
-    string hash = 7;
-    uint64 fee = 8;
-    uint64 size = 9;
-    uint64 addedTime = 10;
-}
-
-message TransactionExtraInfo {
-    int64 block_time = 1;
-    uint32 block_height = 2;
-}
-
-message GetTransactionInfoResponse {
-    TransactionInfo txInfo = 1;
-    TransactionExtraInfo extraInfo = 2;
-}
-
-message TokenTransferInfo {
-    string addr = 1;
-    uint64 amount = 2;
-}
-
-message TokenIssueInfo {
-    string name = 1;
-    uint64 total_supply = 2;
-    string symbol = 3;
-    uint32 decimals = 4;
-    string addr = 5;
-}
-
-message TxOutInfo {
-    uint64 value = 1;
-    bytes script_pub_key = 2;
-    string script_disasm = 3;
-    TokenIssueInfo issue_info = 4;
-    TokenTransferInfo transfer_info = 5;
-    string addr = 6;
-}
-
-message OutPointInfo {
-    string hash = 1;
-    uint32 index = 2;
-}
-
-message TxInInfo {
-    OutPointInfo prev_out_point = 1;
-    bytes script_sig = 2;
-    uint32 sequence = 3;
-    uint64 value = 4;
-    string addr = 5;
-}
-
-message BlockInfo {
-    HeaderInfo header = 1;
-    repeated TransactionInfo txs = 2;
-    uint32 height = 3;
-    bytes signature = 4;
-    string hash = 5;
-    uint64 size = 6;
-    string coin_base = 7;
-    bool confirmed = 8;
-}
-
-message Token {
-    string hash = 1;
-    uint32 index = 2;
-}
-
-message ListTokensRequest {
-    uint32 offset = 1;
-    uint32 limit = 2;
-}
-
-message GetTokenTransactionsRequest {
-    string addr = 1;
-    uint32 offset = 2;
-    uint32 limit = 3;
+message ViewBlockDetailResp {
+    int32 code = 1;
+    string message = 2;
+    BlockDetail detail = 3;
 }
 
 message GetTokenInfoRequest {
@@ -191,6 +69,68 @@ message GetTokenInfoRequest {
 
 message GetTokenInfoResponse {
     TokenBasicInfo info = 1;
+}
+
+message ListenBlocksReq {
+}
+
+message TxDetail {
+    string hash = 1;
+    repeated TxInDetail vin = 2;
+    repeated TxOutDetail vout = 3;
+}
+
+message TxInDetail {
+    TxOutDetail prev_out_detail = 1;
+    bytes script_sig = 2;
+    uint32 sequence = 3;
+    corepb.OutPoint prev_out_point = 4;
+}
+
+message TxOutDetail {
+    string addr = 1;
+    uint64 value = 2;
+    bytes script_pub_key = 3;
+    string script_disasm = 4;
+    enum TxOutType {
+        unknown = 0;
+        pay_to_pubkey = 1;
+        pay_to_pubkey_cltv_script = 2;
+        pay_to_script = 3;
+        pay_to_split_script = 4;
+        token_issue = 5;
+        token_transfer = 6;
+    }
+    TxOutType type = 5; 
+    oneof appendix {
+        TokenIssueInfo token_issue_info = 6; 
+        TokenTransferInfo token_transfer_info= 7;
+    }
+}
+
+message BlockDetail {
+    int32 version = 1;
+    uint32 height = 2;
+    int64 time_stamp = 3;
+    string hash = 4;
+    string prev_block_hash = 5;
+    string coin_base = 6;
+    bool confirmed = 7;
+    bytes signature = 8;
+    repeated TxDetail txs = 9;
+}
+
+message TokenIssueInfo {
+    corepb.TokenTag token_tag = 2;
+}
+
+message TokenTransferInfo {
+    corepb.OutPoint token_id = 1;
+}
+
+message Token {
+    string hash = 1;
+    uint32 index = 2;
 }
 
 message TokenBasicInfo {
@@ -203,11 +143,4 @@ message TokenBasicInfo {
     uint32 decimals = 6;
     string symbol = 7;
     string addr = 8;
-}
-
-message ListTokensResponse {
-    uint32 count = 1;
-    repeated TokenBasicInfo tokens = 2;
-}
-message ListenBlockRequest {
 }

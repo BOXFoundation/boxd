@@ -12,12 +12,14 @@ import (
 	"log"
 	"net"
 	"os"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/jbenet/goprocess"
@@ -93,7 +95,7 @@ func NoTestListenAndReadNewBlock(t *testing.T) {
 			defer conn.Close()
 			client := rpcpb.NewWebApiClient(conn)
 
-			blockReq := &rpcpb.ListenBlockRequest{}
+			blockReq := &rpcpb.ListenBlocksReq{}
 			stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
 			if err != nil {
 				t.Fatal(err)
@@ -188,4 +190,82 @@ func newTestBlock(count int) []*types.Block {
 	}
 
 	return blocks
+}
+
+func TestDetailTxOut(t *testing.T) {
+	addr, amount := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o", uint64(12345)
+	// normal txout
+	txOut := txlogic.MakeVout(addr, amount)
+	tx := types.NewTx(0, 4455, time.Now().Unix()).AppendVout(txOut)
+	txHash, _ := tx.TxHash()
+	detail, err := detailTxOut(txHash, tx.Vout[0], 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disasmScript := "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6" +
+		" OP_EQUALVERIFY OP_CHECKSIG"
+	if detail.Addr != addr || detail.Value != amount ||
+		detail.ScriptDisasm != disasmScript ||
+		detail.Type != rpcpb.TxOutDetail_pay_to_pubkey {
+		t.Fatalf("normal detail tx out, want: %s %d %s %v, got: %+v", addr, amount,
+			disasmScript, rpcpb.TxOutDetail_pay_to_pubkey, detail)
+	}
+
+	// pay to token issue
+	name, sym, decimal, supply := "fox", "FOX", uint8(3), uint64(1000000)
+	tag := types.NewTokenTag(name, sym, decimal)
+	txOut, _ = txlogic.MakeIssueTokenVout(addr, tag, supply)
+	tx = types.NewTx(0, 4455, time.Now().Unix()).AppendVout(txOut)
+	txHash, _ = tx.TxHash()
+	detail, err = detailTxOut(txHash, tx.Vout[0], 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disasmScript = "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6" +
+		" OP_EQUALVERIFY OP_CHECKSIG 4e616d65 OP_DROP 666f78 OP_DROP 53796d626f6c" +
+		" OP_DROP 464f58 OP_DROP 416d6f756e74 OP_DROP 40420f0000000000 OP_DROP" +
+		" 446563696d616c73 OP_DROP 03 OP_DROP"
+	tokenIssueInfo, ok := detail.Appendix.(*rpcpb.TxOutDetail_TokenIssueInfo)
+	if !ok {
+		t.Fatalf("detail token issue, Appendix want Type: *TxOutDetail_TokenIssueInfo"+
+			", got: %T, value: %+v", detail.Appendix, detail.Appendix)
+	}
+	tokenPbTag := tokenIssueInfo.TokenIssueInfo.TokenTag
+	wantValue := supply
+	for i := uint8(0); i < decimal; i++ {
+		wantValue *= 10
+	}
+	if detail.Addr != addr || detail.Value != wantValue ||
+		detail.ScriptDisasm != disasmScript ||
+		detail.Type != rpcpb.TxOutDetail_token_issue ||
+		tokenPbTag.Name != name || tokenPbTag.Symbol != sym ||
+		tokenPbTag.Decimals != uint32(decimal) || tokenPbTag.Supply != supply {
+		t.Fatalf("detail token issue tx out, want: %s %d %s %v, got: %+v",
+			addr, wantValue, disasmScript, rpcpb.TxOutDetail_token_issue, detail)
+	}
+
+	// pay to token transfer
+	tid := types.NewTokenID(txHash, 0)
+	txOut, _ = txlogic.MakeTokenVout(addr, tid, amount)
+	tx = types.NewTx(0, 4455, time.Now().Unix()).AppendVout(txOut)
+	txHash, _ = tx.TxHash()
+	detail, err = detailTxOut(txHash, tx.Vout[0], 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokenTransferInfo, ok := detail.Appendix.(*rpcpb.TxOutDetail_TokenTransferInfo)
+	if !ok {
+		t.Fatalf("detail token transfer tx out, Appendix want Type: "+
+			"*TxOutDetail_TokenIssueInfo, got: %T, value: %+v",
+			detail.Appendix, detail.Appendix)
+	}
+	gotTid := tokenTransferInfo.TokenTransferInfo.TokenId
+	if detail.Addr != addr || detail.Value != amount ||
+		//detail.ScriptDisasm != disasmScript || // need reverse hash string
+		detail.Type != rpcpb.TxOutDetail_token_transfer ||
+		!reflect.DeepEqual(gotTid.Hash, tid.Hash[:]) ||
+		gotTid.Index != tid.Index {
+		t.Fatalf("detail token transfer tx out, want: %s %d %s %v, got: %+v",
+			addr, amount, disasmScript, rpcpb.TxOutDetail_token_transfer, detail)
+	}
 }

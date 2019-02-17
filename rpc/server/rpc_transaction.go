@@ -43,9 +43,8 @@ func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBal
 }
 
 func (s *txServer) GetBalance(
-	ctx context.Context, req *rpcpb.GetBalanceReq) (
-	*rpcpb.GetBalanceResp, error,
-) {
+	ctx context.Context, req *rpcpb.GetBalanceReq,
+) (*rpcpb.GetBalanceResp, error) {
 	logger.Infof("get balance req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
@@ -66,9 +65,8 @@ func (s *txServer) GetBalance(
 }
 
 func (s *txServer) GetTokenBalance(
-	ctx context.Context, req *rpcpb.GetTokenBalanceReq) (
-	*rpcpb.GetBalanceResp, error,
-) {
+	ctx context.Context, req *rpcpb.GetTokenBalanceReq,
+) (*rpcpb.GetBalanceResp, error) {
 	logger.Infof("get token balance req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil {
@@ -99,8 +97,8 @@ func newFetchUtxosResp(code int32, msg string, utxos ...*rpcpb.Utxo) *rpcpb.Fetc
 
 // FetchUtxos fetch utxos from chain
 func (s *txServer) FetchUtxos(
-	ctx context.Context, req *rpcpb.FetchUtxosReq) (
-	*rpcpb.FetchUtxosResp, error) {
+	ctx context.Context, req *rpcpb.FetchUtxosReq,
+) (*rpcpb.FetchUtxosResp, error) {
 
 	logger.Infof("fetch utxos req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()

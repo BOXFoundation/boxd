@@ -931,38 +931,6 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 	return chain.eternal
 }
 
-// LoadSpentUtxos loads UtxoWrap info of input outpoints
-func (chain *BlockChain) LoadSpentUtxos(outpoints []types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error) {
-	var relatedTxHashes = make(map[crypto.HashType]bool)
-	for _, op := range outpoints {
-		relatedTxHashes[op.Hash] = true
-	}
-	var relatedTxs = make(map[crypto.HashType]*types.Transaction)
-	for h := range relatedTxHashes {
-		tx, err := chain.LoadTxByHash(h)
-		if err != nil {
-			return nil, err
-		}
-		relatedTxs[h] = tx
-	}
-
-	utxos := make(map[types.OutPoint]*types.UtxoWrap)
-	for _, op := range outpoints {
-		tx, ok := relatedTxs[op.Hash]
-		if !ok || tx == nil || len(tx.Vout) <= int(op.Index) {
-			return nil, fmt.Errorf("fail to find transaction: %v", op.Hash)
-		}
-		txOut := tx.Vout[op.Index]
-		utxos[op] = types.NewUtxoWrap(txOut.Value, txOut.ScriptPubKey, 0)
-		if IsCoinBase(tx) {
-			utxos[op].SetCoinBase()
-		}
-		utxos[op].Spend()
-	}
-
-	return utxos, nil
-}
-
 // GetBlockHeight returns current height of main chain
 func (chain *BlockChain) GetBlockHeight() uint32 {
 	return chain.LongestChainHeight
