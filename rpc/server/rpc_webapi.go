@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
-	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -43,6 +42,18 @@ type webapiServer struct {
 	GRPCServer
 	newBlockMutex  sync.RWMutex
 	newBlocksQueue *list.List
+}
+
+// ChainTxReader defines chain tx reader interface
+type ChainTxReader interface {
+	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
+}
+
+// ChainBlockReader defines chain block reader interface
+type ChainBlockReader interface {
+	ChainTxReader
+	LoadBlockByHash(crypto.HashType) (*types.Block, error)
+	EternalBlock() *types.Block
 }
 
 func newWebAPIServer(s *Server) *webapiServer {
@@ -257,10 +268,7 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	}
 }
 
-func detailTx(
-	tx *types.Transaction, r service.ChainReader,
-) (*rpcpb.TxDetail, error) {
-
+func detailTx(tx *types.Transaction, r ChainTxReader) (*rpcpb.TxDetail, error) {
 	detail := new(rpcpb.TxDetail)
 	hash, _ := tx.TxHash()
 	detail.Hash = hash.String()
@@ -284,9 +292,7 @@ func detailTx(
 	return detail, nil
 }
 
-func detailBlock(
-	block *types.Block, r service.ChainReader,
-) (*rpcpb.BlockDetail, error) {
+func detailBlock(block *types.Block, r ChainBlockReader) (*rpcpb.BlockDetail, error) {
 
 	if block == nil || block.Header == nil {
 		return nil, fmt.Errorf("detailBlock error for block: %+v", block)
@@ -315,9 +321,7 @@ func detailBlock(
 	return detail, nil
 }
 
-func detailTxIn(
-	txIn *types.TxIn, r service.ChainReader,
-) (*rpcpb.TxInDetail, error) {
+func detailTxIn(txIn *types.TxIn, r ChainTxReader) (*rpcpb.TxInDetail, error) {
 
 	detail := new(rpcpb.TxInDetail)
 	// if tx in is coin base
@@ -426,7 +430,7 @@ func parseVoutType(txOut *corepb.TxOut) rpcpb.TxOutDetail_TxOutType {
 	}
 }
 
-func blockConfirmed(b *types.Block, r service.ChainReader) bool {
+func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
 	if b == nil {
 		return false
 	}
