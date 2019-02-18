@@ -125,9 +125,9 @@ func TestBlocksQueue(t *testing.T) {
 	newBlocksQueue := list.New()
 
 	go func() {
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 30; i++ {
 			newBlockMutex.Lock()
-			if newBlocksQueue.Len() == 100 {
+			if newBlocksQueue.Len() == 30 {
 				newBlocksQueue.Remove(newBlocksQueue.Front())
 			}
 			newBlocksQueue.PushBack(i)
@@ -136,6 +136,7 @@ func TestBlocksQueue(t *testing.T) {
 		}
 	}()
 
+	ch := make(chan bool)
 	go func() {
 		var elm *list.Element
 		for {
@@ -161,14 +162,16 @@ func TestBlocksQueue(t *testing.T) {
 					break
 				}
 				newBlockMutex.RUnlock()
-				time.Sleep(500 * time.Millisecond)
+				time.Sleep(200 * time.Millisecond)
 			}
 			t.Logf("value in queue: %d", elm.Value)
-			time.Sleep(500 * time.Millisecond)
+			if elm.Value == 10 {
+				<-ch
+			}
+			time.Sleep(200 * time.Millisecond)
 		}
 	}()
-
-	time.Sleep(2 * time.Second)
+	ch <- true
 }
 
 func newTestBlock(count int) []*types.Block {
