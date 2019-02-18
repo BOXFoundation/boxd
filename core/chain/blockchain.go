@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -212,9 +213,16 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 	goprocess.WithParent(parent).Go(
 		func(p goprocess.Process) {
 			ticker := time.NewTicker(metricsUtxosLoopInterval)
+			memstats := &runtime.MemStats{}
 			for {
 				select {
 				case <-ticker.C:
+					runtime.ReadMemStats(memstats)
+					metrics.MetricsMemHeapInuseGauge.Update(int64(memstats.HeapInuse))
+					metrics.MetricsMemHeapReleasedGauge.Update(int64(memstats.HeapReleased))
+					metrics.MetricsMemStackInuseGauge.Update(int64(memstats.StackInuse))
+					metrics.MetricsMemStackSysGauge.Update(int64(memstats.StackSys))
+
 					ctx, cancel := context.WithTimeout(context.Background(), 18*time.Second)
 					defer cancel()
 					i := 0

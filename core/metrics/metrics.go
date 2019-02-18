@@ -39,4 +39,15 @@ var (
 	MetricsTxPoolSizeGauge = metrics.NewGauge("box.txpool.size")
 	// MetricsOrphanTxPoolSizeGauge records the size of new block cache
 	MetricsOrphanTxPoolSizeGauge = metrics.NewGauge("box.txpool.orphan_size")
+
+	// memory details
+
+	// MetricsMemHeapInuseGauge records the heap inused
+	MetricsMemHeapInuseGauge = metrics.NewGauge("box.mem.heap.inuse")
+	// MetricsMemHeapReleasedGauge records the heap released
+	MetricsMemHeapReleasedGauge = metrics.NewGauge("box.mem.heap.released")
+	// MetricsMemStackInuseGauge records the stack inused
+	MetricsMemStackInuseGauge = metrics.NewGauge("box.mem.stack.inuse")
+	// MetricsMemStackSysGauge records the stack allocated by sys
+	MetricsMemStackSysGauge = metrics.NewGauge("box.mem.stack.sys")
 )
