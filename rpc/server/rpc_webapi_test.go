@@ -5,6 +5,7 @@
 package rpc
 
 import (
+	"container/list"
 	"context"
 	"encoding/json"
 	"io"
@@ -80,7 +81,7 @@ func NoTestListenAndReadNewBlock(t *testing.T) {
 	}()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -100,6 +101,7 @@ func NoTestListenAndReadNewBlock(t *testing.T) {
 			for i := 0; i < blockCnt+1; i++ {
 				block, err := stream.Recv()
 				if err == io.EOF {
+					t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
 					break
 				}
 				if err != nil {
@@ -112,9 +114,64 @@ func NoTestListenAndReadNewBlock(t *testing.T) {
 				bytes, err := json.MarshalIndent(block, "", "  ")
 				t.Logf("[%d] recv block: %s", idx, string(bytes))
 			}
+
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestBlocksQueue(t *testing.T) {
+	var newBlockMutex sync.RWMutex
+	newBlocksQueue := list.New()
+
+	go func() {
+		for i := 0; i < 30; i++ {
+			newBlockMutex.Lock()
+			if newBlocksQueue.Len() == 30 {
+				newBlocksQueue.Remove(newBlocksQueue.Front())
+			}
+			newBlocksQueue.PushBack(i)
+			newBlockMutex.Unlock()
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	ch := make(chan bool)
+	go func() {
+		var elm *list.Element
+		for {
+			newBlockMutex.RLock()
+			if newBlocksQueue.Len() != 0 {
+				elm = newBlocksQueue.Front()
+				newBlockMutex.RUnlock()
+				break
+			}
+			newBlockMutex.RUnlock()
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		for {
+			// move to next element
+			for {
+				newBlockMutex.RLock()
+				next := elm.Next()
+				t.Logf("next: %v", next)
+				if next != nil {
+					elm = next
+					newBlockMutex.RUnlock()
+					break
+				}
+				newBlockMutex.RUnlock()
+				time.Sleep(200 * time.Millisecond)
+			}
+			t.Logf("value in queue: %d", elm.Value)
+			if elm.Value == 10 {
+				<-ch
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
+	ch <- true
 }
 
 func newTestBlock(count int) []*types.Block {
