@@ -17,6 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
 )
 
@@ -39,7 +40,8 @@ func registerWebapi(s *Server) {
 }
 
 type webapiServer struct {
-	GRPCServer
+	ChainBlockReader
+	proc           goprocess.Process
 	newBlockMutex  sync.RWMutex
 	newBlocksQueue *list.List
 }
@@ -52,20 +54,22 @@ type ChainTxReader interface {
 // ChainBlockReader defines chain block reader interface
 type ChainBlockReader interface {
 	ChainTxReader
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
 	LoadBlockByHash(crypto.HashType) (*types.Block, error)
 	EternalBlock() *types.Block
 }
 
 func newWebAPIServer(s *Server) *webapiServer {
 	return &webapiServer{
-		GRPCServer:     s,
-		newBlocksQueue: list.New(),
+		ChainBlockReader: s.GetChainReader(),
+		proc:             s.Proc(),
+		newBlocksQueue:   list.New(),
 	}
 }
 
 func (s *webapiServer) Closing() bool {
 	select {
-	case <-s.Proc().Closing():
+	case <-s.proc.Closing():
 		return true
 	default:
 		return false
@@ -99,8 +103,8 @@ func (s *webapiServer) ViewTxDetail(
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
 	}
-	chainReader := s.GetChainReader()
-	block, index, err := chainReader.LoadBlockInfoByTxHash(*hash)
+	br := s.ChainBlockReader
+	block, index, err := br.LoadBlockInfoByTxHash(*hash)
 	if err != nil {
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
@@ -112,13 +116,13 @@ func (s *webapiServer) ViewTxDetail(
 	resp.BlockTime = block.Header.TimeStamp
 	resp.BlockHeight = block.Height
 	// calc tx status
-	if blockConfirmed(block, chainReader) {
+	if blockConfirmed(block, br) {
 		resp.Status = rpcpb.ViewTxDetailResp_confirmed
 	} else {
 		resp.Status = rpcpb.ViewTxDetailResp_pending
 	}
 	// fetch tx details
-	detail, err := detailTx(tx, chainReader)
+	detail, err := detailTx(tx, br)
 	if err != nil {
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
@@ -146,13 +150,13 @@ func (s *webapiServer) ViewBlockDetail(
 		return newViewBlockDetailResp(-1, err.Error()), nil
 	}
 
-	chainReader := s.GetChainReader()
-	block, err := chainReader.LoadBlockByHash(*hash)
+	br := s.ChainBlockReader
+	block, err := br.LoadBlockByHash(*hash)
 	if err != nil {
 		logger.Warn("view block detail error: ", err)
 		return newViewBlockDetailResp(-1, err.Error()), nil
 	}
-	detail, err := detailBlock(block, chainReader)
+	detail, err := detailBlock(block, br)
 	if err != nil {
 		logger.Warn("view block detail error: ", err)
 		return newViewBlockDetailResp(-1, err.Error()), nil
@@ -170,11 +174,12 @@ func (s *webapiServer) GetTokenInfo(
 	if err := tokenAddr.SetString(req.Addr); err != nil {
 		return nil, err
 	}
-	tx, err := s.GetChainReader().LoadTxByHash(tokenAddr.OutPoint().Hash)
+	br := s.ChainBlockReader
+	tx, err := br.LoadTxByHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
-	block, _, err := s.GetChainReader().LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
+	block, _, err := br.LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +223,7 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	var elm *list.Element
 	for {
 		if s.Closing() {
-			logger.Info("blocks queue is empty, exit ListenAndReadNewBlock ...")
+			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
 			return nil
 		}
 		s.newBlockMutex.RLock()
@@ -231,28 +236,12 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		time.Sleep(100 * time.Millisecond)
 	}
 	for {
-		// move to next element
-		for {
-			if s.Closing() {
-				logger.Info("exit ListenAndReadNewBlock ...")
-				return nil
-			}
-			s.newBlockMutex.RLock()
-			next := elm.Next()
-			if next != nil {
-				elm = next
-				s.newBlockMutex.RUnlock()
-				break
-			}
-			s.newBlockMutex.RUnlock()
-			time.Sleep(100 * time.Millisecond)
-		}
 		// get block
 		block := elm.Value.(*types.Block)
 		logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
 			block.BlockHash(), block.Height)
 		// detail block
-		blockDetail, err := detailBlock(block, s.GetChainReader())
+		blockDetail, err := detailBlock(block, s.ChainBlockReader)
 		if err != nil {
 			logger.Warnf("detail block %s height %d error: %s",
 				block.BlockHash(), block.Height, err)
@@ -265,6 +254,27 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		}
 		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
 			block.BlockHash(), block.Height)
+		// move to next element
+		for {
+			if s.Closing() {
+				logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
+				return nil
+			}
+			s.newBlockMutex.RLock()
+			next := elm.Next()
+			if next != nil {
+				elm = next
+				s.newBlockMutex.RUnlock()
+				break
+			} else if elm.Prev() == nil {
+				// if this element is removed, move to the fromt of list
+				elm = s.newBlocksQueue.Front()
+				s.newBlockMutex.RUnlock()
+				break
+			}
+			s.newBlockMutex.RUnlock()
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 }
 

@@ -45,22 +45,22 @@ func init() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 }
 
-type webapiServerTest struct {
-	webapiServer
-}
-
 func setupWebAPIMockSvr() {
 	lis, err := net.Listen("tcp", ":0")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
+	br := new(TestDetailBlockChainReader)
+	was := &webapiServer{
+		ChainBlockReader: br,
+		proc:             goprocess.WithSignals(os.Interrupt),
+		newBlocksQueue:   list.New(),
+	}
+	grpcSvr := grpc.NewServer()
+	rpcpb.RegisterWebApiServer(grpcSvr, was)
+	testWebAPIBus.Subscribe(eventbus.TopicRPCSendNewBlock, was.receiveNewBlockMsg)
 
-	origServer := NewServer(goprocess.WithSignals(os.Interrupt), nil, nil, nil, nil,
-		testWebAPIBus)
-	origServer.server = grpc.NewServer()
-	registerWebapi(origServer)
-
-	go origServer.server.Serve(lis)
+	go grpcSvr.Serve(lis)
 	rpcAddr = lis.Addr()
 	time.Sleep(200 * time.Millisecond)
 }
@@ -77,7 +77,7 @@ func sendWebAPITestBlocks() {
 	proc.Signal(os.Interrupt)
 }
 
-func NoTestListenAndReadNewBlock(t *testing.T) {
+func TestListenAndReadNewBlock(t *testing.T) {
 	// start grpc server
 	starter.Do(setupWebAPIMockSvr)
 	// start send blocks goroutine
@@ -87,7 +87,8 @@ func NoTestListenAndReadNewBlock(t *testing.T) {
 	}()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
+	clientCnt := 4
+	for i := 0; i < clientCnt; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -104,7 +105,7 @@ func NoTestListenAndReadNewBlock(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for i := 0; i < blockCnt+1; i++ {
+			for i := 1; i < blockCnt+1; i++ {
 				block, err := stream.Recv()
 				if err == io.EOF {
 					t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
@@ -116,11 +117,9 @@ func NoTestListenAndReadNewBlock(t *testing.T) {
 				if uint32(i) != block.Height {
 					t.Fatalf("block height mismatch, want: %d, got: %d", i, block.Height)
 				}
-
-				bytes, err := json.MarshalIndent(block, "", "  ")
-				t.Logf("[%d] recv block: %s", idx, string(bytes))
+				//bytes, err := json.MarshalIndent(block, "", "  ")
+				//t.Logf("[%d] recv block: %s", idx, string(bytes))
 			}
-
 		}(i)
 	}
 	wg.Wait()
@@ -133,7 +132,7 @@ func TestBlocksQueue(t *testing.T) {
 	go func() {
 		for i := 0; i < 30; i++ {
 			newBlockMutex.Lock()
-			if newBlocksQueue.Len() == 30 {
+			if newBlocksQueue.Len() == 5 {
 				newBlocksQueue.Remove(newBlocksQueue.Front())
 			}
 			newBlocksQueue.PushBack(i)
@@ -142,7 +141,7 @@ func TestBlocksQueue(t *testing.T) {
 		}
 	}()
 
-	ch := make(chan bool)
+	//ch := make(chan bool)
 	go func() {
 		var elm *list.Element
 		for {
@@ -166,29 +165,37 @@ func TestBlocksQueue(t *testing.T) {
 					elm = next
 					newBlockMutex.RUnlock()
 					break
+				} else if elm.Prev() == nil {
+					// if this element is removed
+					elm = newBlocksQueue.Front()
+					newBlockMutex.RUnlock()
+					break
 				}
 				newBlockMutex.RUnlock()
 				time.Sleep(200 * time.Millisecond)
 			}
 			t.Logf("value in queue: %d", elm.Value)
 			if elm.Value == 10 {
-				<-ch
+				//<-ch
 			}
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
-	ch <- true
+	time.Sleep(5 * time.Second)
+	t.Log("done")
+	//ch <- true
 }
 
 func newTestBlock(count int) []*types.Block {
 	var blocks []*types.Block
+	prevBlock := &chain.GenesisBlock
 
-	genesisBlock := &chain.GenesisBlock
-	blocks = append(blocks, genesisBlock)
-
-	prevBlock := genesisBlock
-	for i := 0; i < count-1; i++ {
-		b := types.NewBlock(prevBlock)
+	miner, coinBaseAmount := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o", uint64(50000)
+	for i := 0; i < count; i++ {
+		coinBaseTx := types.NewTx(0, 4455, 100).
+			AppendVin(txlogic.NewCoinBaseTxIn()).
+			AppendVout(txlogic.MakeVout(miner, coinBaseAmount))
+		b := types.NewBlock(prevBlock).AppendTx(coinBaseTx)
 		blocks = append(blocks, b)
 		prevBlock = b
 	}
@@ -335,6 +342,12 @@ func (r *TestDetailBlockChainReader) LoadBlockByHash(crypto.HashType) (*types.Bl
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
 	block.Height = 10
 	return block, nil
+}
+
+func (r *TestDetailBlockChainReader) LoadBlockInfoByTxHash(
+	hash crypto.HashType,
+) (*types.Block, uint32, error) {
+	return nil, 0, nil
 }
 
 func (r *TestDetailBlockChainReader) EternalBlock() *types.Block {
