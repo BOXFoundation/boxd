@@ -222,6 +222,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					metrics.MetricsMemHeapReleasedGauge.Update(int64(memstats.HeapReleased))
 					metrics.MetricsMemStackInuseGauge.Update(int64(memstats.StackInuse))
 					metrics.MetricsMemStackSysGauge.Update(int64(memstats.StackSys))
+					logger.Infof("MemStats: %v", memstats)
 
 					ctx, cancel := context.WithTimeout(context.Background(), 18*time.Second)
 					defer cancel()
