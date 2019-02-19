@@ -396,7 +396,7 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 		if u.IsSpent() {
 			batch.Del(utxoKey)
 		} else {
-			serialized, err := chain.SerializeUtxoEntry(u)
+			serialized, err := chain.SerializeUtxoWrap(u)
 			if err != nil {
 				return err
 			}
