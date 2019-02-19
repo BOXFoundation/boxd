@@ -278,6 +278,9 @@ func NewTxs(
 			transfer += amount
 			totalFee += fee
 			num++
+			if change == nil {
+				break
+			}
 		}
 		txss = append(txss, txs)
 	}
@@ -383,6 +386,9 @@ func NewTokenTxs(
 		}
 		txs = append(txs, tx)
 		utxos = []*rpcpb.Utxo{change, changeT}
+		if change == nil {
+			break
+		}
 	}
 	return txs, nil
 }

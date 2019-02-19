@@ -38,27 +38,31 @@ func NewIssueTokenTxWithUtxos(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// vout for change of from
-	fromOut := MakeVout(fromAcc.Addr(), changeAmt)
-
 	// construct transaction
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
-	tx.Vout = append(tx.Vout, tokenVout, fromOut)
-
+	tx.Vout = append(tx.Vout, tokenVout)
+	// vout for change of from
+	var fromOut *corepb.TxOut
+	if changeAmt > 0 {
+		fromOut = MakeVout(fromAcc.Addr(), changeAmt)
+		tx.Vout = append(tx.Vout, fromOut)
+	}
 	// sign vin
 	if err := SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
 		return nil, nil, nil, err
 	}
-
 	// create change utxo
 	txHash, _ := tx.TxHash()
-	change := &rpcpb.Utxo{
-		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-		TxOut:       fromOut,
-		BlockHeight: 0,
-		IsCoinbase:  false,
-		IsSpent:     false,
+	var change *rpcpb.Utxo
+	if changeAmt > 0 {
+		change = &rpcpb.Utxo{
+			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
+			TxOut:       fromOut,
+			BlockHeight: 0,
+			IsCoinbase:  false,
+			IsSpent:     false,
+		}
 	}
 
 	return tx, types.NewTokenID(txHash, 0), change, nil
@@ -101,7 +105,10 @@ func MakeUnsignedTx(
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
 	tx.Vout = append(tx.Vout, vouts...)
-	tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
+	// change
+	if changeAmt > 0 {
+		tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
+	}
 	return tx, nil
 }
 
@@ -119,13 +126,16 @@ func NewTxWithUtxos(
 		return nil, nil, err
 	}
 	// create change utxo
-	txHash, _ := tx.TxHash()
-	change := &rpcpb.Utxo{
-		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-		TxOut:       MakeVout(fromAcc.Addr(), changeAmt),
-		BlockHeight: 0,
-		IsCoinbase:  false,
-		IsSpent:     false,
+	var change *rpcpb.Utxo
+	if changeAmt > 0 {
+		txHash, _ := tx.TxHash()
+		change = &rpcpb.Utxo{
+			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
+			TxOut:       MakeVout(fromAcc.Addr(), changeAmt),
+			BlockHeight: 0,
+			IsCoinbase:  false,
+			IsSpent:     false,
+		}
 	}
 
 	return tx, change, nil
@@ -150,12 +160,17 @@ func NewSplitAddrTxWithUtxos(
 
 	// vout for toAddrs
 	splitAddrOut := MakeSplitAddrVout(addrs, weights)
-	changeOut := MakeVout(acc.Addr(), changeAmt)
 
 	// construct transaction
 	tx = new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
-	tx.Vout = append(tx.Vout, splitAddrOut, changeOut)
+	tx.Vout = append(tx.Vout, splitAddrOut)
+	// change
+	var changeOut *corepb.TxOut
+	if changeAmt > 0 {
+		changeOut = MakeVout(acc.Addr(), changeAmt)
+		tx.Vout = append(tx.Vout, changeOut)
+	}
 
 	// sign vin
 	if err = SignTxWithUtxos(tx, utxos, acc); err != nil {
@@ -163,13 +178,15 @@ func NewSplitAddrTxWithUtxos(
 	}
 
 	// create change utxo
-	txHash, _ := tx.TxHash()
-	change = &rpcpb.Utxo{
-		OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-		TxOut:       changeOut,
-		BlockHeight: 0,
-		IsCoinbase:  false,
-		IsSpent:     false,
+	if changeOut != nil {
+		txHash, _ := tx.TxHash()
+		change = &rpcpb.Utxo{
+			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
+			TxOut:       changeOut,
+			BlockHeight: 0,
+			IsCoinbase:  false,
+			IsSpent:     false,
+		}
 	}
 
 	splitAddr, err = MakeSplitAddr(addrs, weights)
