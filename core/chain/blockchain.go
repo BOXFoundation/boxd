@@ -214,7 +214,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 		func(p goprocess.Process) {
 			ticker := time.NewTicker(20 * time.Second)
 			gcTicker := time.NewTicker(time.Hour)
-			missRateTicker := time.NewTicker(5 * time.Minute)
+			missRateTicker := time.NewTicker(20 * time.Second)
 
 			memstats := &runtime.MemStats{}
 			var ts int64
@@ -256,6 +256,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
 				case <-missRateTicker.C:
+					logger.Errorf("-missRateTicker.C invoked")
 					height, total, miss, ts = chain.calMissRate(height, total, miss, ts)
 					logger.Errorf("total: %v, miss: %v, %v", total, miss, int64(miss*1000000/total))
 					if total != 0 {
@@ -315,6 +316,8 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 		if curTs > tstmp {
 			miss++
 		}
+		logger.Errorf("height: %v, miss: %v", height, miss)
+
 	}
 
 	return tail.Height, tail.Height / uint32(len(miners)), miss, tail.Header.TimeStamp
