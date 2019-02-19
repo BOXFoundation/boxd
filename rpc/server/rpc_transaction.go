@@ -157,7 +157,16 @@ func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransaction
 
 func (s *txServer) SendTransaction(
 	ctx context.Context, req *rpcpb.SendTransactionReq,
-) (*rpcpb.SendTransactionResp, error) {
+) (resp *rpcpb.SendTransactionResp, err error) {
+
+	logger.Infof("send tx req >> %+v", req)
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("send tx %+v error: %s", req, resp.Message)
+		} else {
+			logger.Infof("send tx: %+v succeeded, response: %+v", resp)
+		}
+	}()
 
 	tx := &types.Transaction{}
 	if err := tx.FromProtoMessage(req.Tx); err != nil {
@@ -217,15 +226,23 @@ func newMakeTxResp(
 
 func (s *txServer) MakeUnsignedTx(
 	ctx context.Context, req *rpcpb.MakeTxReq,
-) (*rpcpb.MakeTxResp, error) {
+) (resp *rpcpb.MakeTxResp, err error) {
+
+	logger.Infof("make unsigned tx: %+v", req)
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned tx %+v error: %s", req, resp.Message)
+		} else {
+			logger.Infof("make unsigned tx: %+v succeeded, response: %+v", resp)
+		}
+	}()
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
-		logger.Warn("get balance error ", ErrAPINotSupported)
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), ErrAPINotSupported
 	}
 	from, to := req.GetFrom(), req.GetTo()
 	amounts, fee := req.GetAmounts(), req.GetFee()
-	tx, utxos, err := rpcutil.MakeTxWithoutSign(wa, from, to, amounts, fee)
+	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, fee)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), err
 	}

@@ -64,8 +64,8 @@ func NewIssueTokenTxWithUtxos(
 	return tx, types.NewTokenID(txHash, 0), change, nil
 }
 
-// MakeTxWithoutSign make a tx without signature
-func MakeTxWithoutSign(
+// MakeUnsignedTx make a tx without signature
+func MakeUnsignedTx(
 	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 	utxoValue := uint64(0)
@@ -110,7 +110,7 @@ func NewTxWithUtxos(
 	fromAcc *acc.Account, utxos []*rpcpb.Utxo, toAddrs []string,
 	amounts []uint64, changeAmt uint64,
 ) (*types.Transaction, *rpcpb.Utxo, error) {
-	tx, err := MakeTxWithoutSign(fromAcc.Addr(), toAddrs, amounts, changeAmt, utxos...)
+	tx, err := MakeUnsignedTx(fromAcc.Addr(), toAddrs, amounts, changeAmt, utxos...)
 	if err != nil {
 		return nil, nil, err
 	}

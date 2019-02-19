@@ -47,7 +47,7 @@ func (twa *TestWalletAgent) Utxos(
 	return
 }
 
-func TestMakeTxWithoutSign(t *testing.T) {
+func TestMakeUnsignedTx(t *testing.T) {
 	from := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
 	to := []string{
 		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
@@ -57,7 +57,7 @@ func TestMakeTxWithoutSign(t *testing.T) {
 	fee := uint64(1000)
 
 	wa := new(TestWalletAgent)
-	tx, utxos, err := rpcutil.MakeTxWithoutSign(wa, from, to, amounts, fee)
+	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, fee)
 	if err != nil {
 		t.Fatal(err)
 	}
