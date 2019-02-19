@@ -214,7 +214,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 		func(p goprocess.Process) {
 			ticker := time.NewTicker(20 * time.Second)
 			gcTicker := time.NewTicker(time.Hour)
-			missRateTicker := time.NewTicker(5 * time.Second)
+			missRateTicker := time.NewTicker(10 * time.Minute)
 
 			memstats := &runtime.MemStats{}
 			var ts int64
@@ -256,9 +256,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
 				case <-missRateTicker.C:
-					logger.Errorf("-missRateTicker.C invoked")
 					height, total, miss, ts = chain.calMissRate(height, total, miss, ts)
-					logger.Errorf("total: %v, miss: %v, %v", total, miss, int64(miss*1000000/total))
 					if total != 0 {
 						metrics.MetricsBlockMissRateGauge.Update(int64(miss * 1000000 / total))
 					}
@@ -286,7 +284,6 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 	if ts == 0 {
 		block, err := chain.LoadBlockByHeight(1)
 		if err != nil {
-			logger.Errorf("LoadBlockByHeight 1 Err: %v", err)
 			return height, total, miss, ts
 		}
 		ts = block.Header.TimeStamp
@@ -295,16 +292,18 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 
 	errCh := make(chan error)
 	var curTs int64
+	var err error
+	var block *types.Block
 	for tstmp := ts; tstmp < tail.Header.TimeStamp; tstmp++ {
 		chain.bus.Send(eventbus.TopicCheckMiner, tstmp, errCh)
-		err := <-errCh
+		err = <-errCh
 
 		if err != nil {
 			continue
 		}
 		curTs = 0
 		for ; ; height++ {
-			block, err := chain.LoadBlockByHeight(height)
+			block, err = chain.LoadBlockByHeight(height)
 			if err != nil || block == nil {
 				break
 			}
@@ -317,10 +316,6 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 		if curTs > tstmp {
 			miss++
 		}
-		if height%1000 == 0 {
-			logger.Errorf("height: %v, miss: %v", height, miss)
-		}
-
 	}
 
 	return tail.Height, tail.Height / uint32(len(miners)), miss, tail.Header.TimeStamp
