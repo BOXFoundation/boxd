@@ -214,15 +214,6 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		prevTx := block.Txs[txIdx]
 		utxoWrap = types.NewUtxoWrap(prevTx.Vout[txIn.PrevOutPoint.Index].Value,
 			prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey, block.Height)
-		// utxoWrap = &types.UtxoWrap{
-		// 	// Output:      prevTx.Vout[txIn.PrevOutPoint.Index],
-		// 	value:       prevTx.Vout[txIn.PrevOutPoint.Index].Value,
-		// 	script:      prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey,
-		// 	blockHeight: block.Height,
-		// 	// IsCoinBase:  IsCoinBase(prevTx),
-		// 	// flag:        true,
-		// }
-		// utxoWrap.Modified()
 		if IsCoinBase(prevTx) {
 			utxoWrap.SetCoinBase()
 		}
@@ -306,40 +297,7 @@ func recycleOutpointKey(key *[]byte) {
 	outpointKeyPool.Put(key)
 }
 
-// func serializeSizeVLQ(n uint64) int {
-// 	size := 1
-// 	for ; n > 0x7f; n = (n >> 7) - 1 {
-// 		size++
-// 	}
-
-// 	return size
-// }
-
-// func putVLQ(target []byte, n uint64) int {
-// 	offset := 0
-// 	for ; ; offset++ {
-// 		// The high bit is set when another byte follows.
-// 		highBitMask := byte(0x80)
-// 		if offset == 0 {
-// 			highBitMask = 0x00
-// 		}
-
-// 		target[offset] = byte(n&0x7f) | highBitMask
-// 		if n <= 0x7f {
-// 			break
-// 		}
-// 		n = (n >> 7) - 1
-// 	}
-
-// 	// Reverse the bytes so it is MSB-encoded.
-// 	for i, j := 0, offset; i < j; i, j = i+1, j-1 {
-// 		target[i], target[j] = target[j], target[i]
-// 	}
-
-// 	return offset + 1
-// }
-
-func utxoEntryHeaderCode(utxoWrap *types.UtxoWrap) (uint64, error) {
+func utxoWrapHeaderCode(utxoWrap *types.UtxoWrap) (uint64, error) {
 	if utxoWrap.IsSpent() {
 		return 0, errors.New("attempt to serialize spent utxo header")
 	}
@@ -355,36 +313,33 @@ func utxoEntryHeaderCode(utxoWrap *types.UtxoWrap) (uint64, error) {
 	return headerCode, nil
 }
 
-// SerializeUtxoEntry returns the entry serialized to a format that is suitable
-// for long-term storage.  The format is described in detail above.
-func SerializeUtxoEntry(utxoWrap *types.UtxoWrap) ([]byte, error) {
+// SerializeUtxoWrap returns the utxoWrap serialized to a format that is suitable
+// for long-term storage.
+func SerializeUtxoWrap(utxoWrap *types.UtxoWrap) ([]byte, error) {
 	// Spent outputs have no serialization.
 	if utxoWrap.IsSpent() {
 		return nil, nil
 	}
 
 	// Encode the header code.
-	headerCode, err := utxoEntryHeaderCode(utxoWrap)
+	headerCode, err := utxoWrapHeaderCode(utxoWrap)
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate the size needed to serialize the entry.
 	size := serializeSizeVLQ(headerCode) +
 		compressedTxOutSize(utxoWrap.Value(), utxoWrap.Script())
 
-	// Serialize the header code followed by the compressed unspent
-	// transaction output.
 	serialized := make([]byte, size)
 	offset := putVLQ(serialized, headerCode)
-	offset += putCompressedTxOut(serialized[offset:], uint64(utxoWrap.Value()),
+	offset += compressedTxOut(serialized[offset:], uint64(utxoWrap.Value()),
 		utxoWrap.Script())
 
 	return serialized, nil
 }
 
-// DeserializeUtxoEntry returns UtxoWrap form serialized bytes.
-func DeserializeUtxoEntry(serialized []byte) (*types.UtxoWrap, error) {
+// DeserializeUtxoWrap returns UtxoWrap form serialized bytes.
+func DeserializeUtxoWrap(serialized []byte) (*types.UtxoWrap, error) {
 
 	// Deserialize the header code.
 	code, offset := deserializeVLQ(serialized)
@@ -392,10 +347,6 @@ func DeserializeUtxoEntry(serialized []byte) (*types.UtxoWrap, error) {
 		return nil, errors.New("unexpected end of data after header")
 	}
 
-	// Decode the header code.
-	//
-	// Bit 0 indicates whether the containing transaction is a coinbase.
-	// Bits 1-x encode height of containing transaction.
 	isCoinBase := code&0x01 != 0
 	blockHeight := uint32(code >> 1)
 
@@ -453,7 +404,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			continue
 		} else if utxoWrap.IsModified() {
 			// Serialize and store the utxo entry.
-			serialized, err := SerializeUtxoEntry(utxoWrap)
+			serialized, err := SerializeUtxoWrap(utxoWrap)
 			if err != nil {
 				return err
 			}
@@ -585,7 +536,7 @@ func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint)
 		return nil, nil
 	}
 	var utxoWrap *types.UtxoWrap
-	if utxoWrap, err = DeserializeUtxoEntry(serializedUtxoWrap); err != nil {
+	if utxoWrap, err = DeserializeUtxoWrap(serializedUtxoWrap); err != nil {
 		return nil, err
 	}
 	return utxoWrap, nil
