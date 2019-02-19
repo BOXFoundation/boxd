@@ -170,7 +170,7 @@ func makeUtxosFromDB(
 		// 	continue
 		// }
 		var utxoWrap *types.UtxoWrap
-		if utxoWrap, err = chain.DeserializeUtxoEntry(value); err != nil {
+		if utxoWrap, err = chain.DeserializeUtxoWrap(value); err != nil {
 			logger.Warnf("Deserialize error %s, key = %s, body = %v",
 				err, string(keys[i]), string(value))
 			continue
