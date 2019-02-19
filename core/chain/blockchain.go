@@ -214,7 +214,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 		func(p goprocess.Process) {
 			ticker := time.NewTicker(20 * time.Second)
 			gcTicker := time.NewTicker(time.Hour)
-			missRateTicker := time.NewTicker(20 * time.Second)
+			missRateTicker := time.NewTicker(5 * time.Second)
 
 			memstats := &runtime.MemStats{}
 			var ts int64
@@ -293,15 +293,16 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 		total = uint32(tail.Header.TimeStamp - ts)
 	}
 
+	errCh := make(chan error)
+	var curTs int64
 	for tstmp := ts; tstmp < tail.Header.TimeStamp; tstmp++ {
-		errCh := make(chan error)
 		chain.bus.Send(eventbus.TopicCheckMiner, tstmp, errCh)
 		err := <-errCh
 
 		if err != nil {
 			continue
 		}
-		var curTs int64
+		curTs = 0
 		for ; ; height++ {
 			block, err := chain.LoadBlockByHeight(height)
 			if err != nil || block == nil {
@@ -316,7 +317,9 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 		if curTs > tstmp {
 			miss++
 		}
-		logger.Errorf("height: %v, miss: %v", height, miss)
+		if height%1000 == 0 {
+			logger.Errorf("height: %v, miss: %v", height, miss)
+		}
 
 	}
 
