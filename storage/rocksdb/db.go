@@ -106,14 +106,7 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 				blockCache, indexFilterMem, mmtMem := 0, 0, 0
 				for _, val := range rocks.tables {
 					// Indexes and filter blocks
-					tmp, err := strconv.Atoi(db.GetPropertyCF("rocksdb.block-cache-usage", val.cf))
-					if err != nil {
-						logger.Errorf("db.GetPropertyCF block-cache-usage fail. Err: %v", err)
-						continue
-					}
-					blockCache += tmp
-					// Indexes and filter blocks
-					tmp, err = strconv.Atoi(db.GetPropertyCF("rocksdb.estimate-table-readers-mem", val.cf))
+					tmp, err := strconv.Atoi(db.GetPropertyCF("rocksdb.estimate-table-readers-mem", val.cf))
 					if err != nil {
 						logger.Errorf("db.GetPropertyCF estimate-table-readers-mem fail. Err: %v", err)
 						continue
@@ -128,10 +121,9 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 					mmtMem += tmp
 				}
 				metrics.MetricsRocksdbCacheGauge.Update(int64(tickerCache.GetUsage()))
-				metrics.MetricsRocksdbCacheCFGauge.Update(int64(blockCache))
 				metrics.MetricsRocksdbIdxFilterGauge.Update(int64(indexFilterMem))
 				metrics.MetricsRocksdbMemtableGauge.Update(int64(mmtMem))
-				metrics.MetricsRocksdbPinnedGauge.Update(int64(cache.GetPinnedUsage()))
+				metrics.MetricsRocksdbCacheGauge.Update(int64(cache.GetPinnedUsage()))
 			}
 		}
 	}()

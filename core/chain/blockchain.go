@@ -284,6 +284,7 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 	if ts == 0 {
 		block, err := chain.LoadBlockByHeight(1)
 		if err != nil {
+			logger.Errorf("LoadBlockByHeight 1 Err: %v", err)
 			return height, total, miss, ts
 		}
 		ts = block.Header.TimeStamp
