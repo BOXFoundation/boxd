@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -213,6 +214,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 	goprocess.WithParent(parent).Go(
 		func(p goprocess.Process) {
 			ticker := time.NewTicker(metricsUtxosLoopInterval)
+			gcTicker := time.NewTicker(time.Hour)
 			memstats := &runtime.MemStats{}
 			for {
 				select {
@@ -249,6 +251,9 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 						i++
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
+				case <-gcTicker.C:
+					logger.Infof("FreeOSMemory invoked.")
+					debug.FreeOSMemory()
 				case <-p.Closing():
 					logger.Info("Quit metricsUtxos loop.")
 					return
