@@ -48,10 +48,9 @@ const (
 
 	MaxBlocksPerSync = 1024
 
-	metricsLoopInterval      = 500 * time.Millisecond
-	metricsUtxosLoopInterval = 20 * time.Second
-	tokenIssueFilterKey      = "token_issue"
-	Threshold                = 32
+	metricsLoopInterval = 500 * time.Millisecond
+	tokenIssueFilterKey = "token_issue"
+	Threshold           = 32
 )
 
 const (
@@ -213,9 +212,14 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 	goprocess.WithParent(parent).Go(
 		func(p goprocess.Process) {
-			ticker := time.NewTicker(metricsUtxosLoopInterval)
+			ticker := time.NewTicker(20 * time.Second)
 			gcTicker := time.NewTicker(time.Hour)
+			missRateTicker := time.NewTicker(5 * time.Minute)
+
 			memstats := &runtime.MemStats{}
+			var ts int64
+			var height, total, miss uint32
+
 			for {
 				select {
 				case <-ticker.C:
@@ -251,6 +255,11 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 						i++
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
+				case <-missRateTicker.C:
+					height, total, miss, ts = chain.calMissRate(height, total, miss, ts)
+					if total != 0 {
+						metrics.MetricsBlockMissRateGauge.update(int64(miss * 1000000 / total))
+					}
 				case <-gcTicker.C:
 					logger.Infof("FreeOSMemory invoked.")
 					debug.FreeOSMemory()
@@ -260,6 +269,54 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 				}
 			}
 		})
+}
+
+func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint32, uint32, uint32, int64) {
+	tail := chain.tail
+	if tail == nil {
+		return height, total, miss, ts
+	}
+
+	minersCh := make(chan []string)
+	chain.bus.Send(eventbus.TopicMiners, minersCh)
+	miners := <-minersCh
+
+	if ts == 0 {
+		block, err := chain.LoadBlockByHeight(1)
+		if err != nil {
+			logger.Errorf("LoadBlockByHeight 1 Err: %v", err)
+			return height, total, miss, ts
+		}
+		ts = block.Header.TimeStamp
+		total = uint32(tail.Header.TimeStamp - ts)
+	}
+
+	for tstmp := ts; tstmp < tail.Header.TimeStamp; tstmp++ {
+		errCh := make(chan error)
+		chain.bus.Send(eventbus.TopicCheckMiner, tstmp, errCh)
+		err := <-errCh
+
+		if err != nil {
+			continue
+		}
+		var curTs int64
+		for ; ; height++ {
+			block, err := chain.LoadBlockByHeight(height)
+			if err != nil || block == nil {
+				break
+			}
+			if block.Header.TimeStamp >= tstmp {
+				curTs = block.Header.TimeStamp
+				height = block.Height + 1
+				break
+			}
+		}
+		if curTs > tstmp {
+			miss++
+		}
+	}
+
+	return tail.Height, tail.Height / uint32(len(miners)), miss, tail.Header.TimeStamp
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {

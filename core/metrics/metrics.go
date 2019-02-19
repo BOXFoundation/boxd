@@ -22,6 +22,8 @@ var (
 	MetricsBlockOrphanPoolSizeGauge = metrics.NewGauge("box.block.orphanpool.size")
 	// MetricsBlockRevertMeter records the bc revert times
 	MetricsBlockRevertMeter = metrics.NewMeter("box.block.revert")
+	// MetricsBlockMissRateGauge records the miner block miss rate
+	MetricsBlockMissRateGauge = metrics.NewGauge("box.block.missrate")
 
 	// block_pool metrics
 
@@ -49,7 +51,7 @@ var (
 	MetricsMemLookupsGauge    = metrics.NewGauge("box.mem.lookups")
 	MetricsMemMallocsGauge    = metrics.NewGauge("box.mem.mallocs")
 	MetricsMemFreesGauge      = metrics.NewGauge("box.mem.frees")
-	MetricsMemHeapAllocGauge   = metrics.NewGauge("box.mem.heap.alloc")
+	MetricsMemHeapAllocGauge  = metrics.NewGauge("box.mem.heap.alloc")
 	MetricsMemHeapSysGauge    = metrics.NewGauge("box.mem.heap.sys")
 	MetricsMemHeapIdleGauge   = metrics.NewGauge("box.mem.heap.idle")
 	// MetricsMemHeapInuseGauge records the heap inused

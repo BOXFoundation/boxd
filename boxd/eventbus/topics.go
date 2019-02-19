@@ -37,4 +37,11 @@ const (
 	TopicGetDatabaseValue = "rpc:database:get"
 	// TopicRPCSendNewBlock is topic for sending new block to explorer
 	TopicRPCSendNewBlock = "rpc:newblock:send"
+
+	////////////////////////////// dpos /////////////////////////////
+
+	// TopicMiners is topic for replying current miners
+	TopicMiners = "dpos:miners"
+	// TopicCheckMiner is topic for checking ts with miner
+	TopicCheckMiner = "dpos:checkminer"
 )
