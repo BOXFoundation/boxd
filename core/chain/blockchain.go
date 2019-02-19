@@ -257,6 +257,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
 				case <-missRateTicker.C:
 					height, total, miss, ts = chain.calMissRate(height, total, miss, ts)
+					logger.Errorf("total: %v, miss: %v, %v", total, miss, int64(miss*1000000/total))
 					if total != 0 {
 						metrics.MetricsBlockMissRateGauge.Update(int64(miss * 1000000 / total))
 					}
