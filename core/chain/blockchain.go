@@ -258,7 +258,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 				case <-missRateTicker.C:
 					height, total, miss, ts = chain.calMissRate(height, total, miss, ts)
 					if total != 0 {
-						metrics.MetricsBlockMissRateGauge.update(int64(miss * 1000000 / total))
+						metrics.MetricsBlockMissRateGauge.Update(int64(miss * 1000000 / total))
 					}
 				case <-gcTicker.C:
 					logger.Infof("FreeOSMemory invoked.")
