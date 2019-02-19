@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -117,6 +118,7 @@ func (dpos *Dpos) Run() error {
 		return err
 	}
 	dpos.bftservice = bftService
+	dpos.subscribe()
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
@@ -685,4 +687,13 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 		}
 		dpos.bftservice.updateEternal(block)
 	}
+}
+
+func (dpos *Dpos) subscribe() {
+	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
+		out <- dpos.context.periodContext.periodPeers
+	}, false)
+	dpos.chain.Bus().Reply(eventbus.TopicCheckMiner, func(timestamp int64, out chan<- error) {
+		out <- dpos.checkMiner(timestamp)
+	}, false)
 }
