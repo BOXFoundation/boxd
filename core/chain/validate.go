@@ -45,15 +45,6 @@ func validateBlock(block *types.Block) error {
 		return core.ErrNoTransactions
 	}
 
-	// TODO: check before deserialization
-	// // A block must not exceed the maximum allowed block payload when serialized.
-	// serializedSize := msgBlock.SerializeSizeStripped()
-	// if serializedSize > MaxBlockSize {
-	// 	logger.Errorf("serialized block is too big - got %d, "+
-	// 		"max %d", serializedSize, MaxBlockSize)
-	// 	return ErrBlockTooBig
-	// }
-
 	// First tx must be coinbase.
 	transactions := block.Txs
 	if !IsCoinBase(transactions[0]) {

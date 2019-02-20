@@ -276,8 +276,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 		return core.ErrDuplicateTxInPool
 	}
 
-	// TODO: check tx is already exist in the main chain??
-
 	// Perform preliminary sanity checks on the transaction.
 	if err := chain.ValidateTransactionPreliminary(tx); err != nil {
 		logger.Errorf("Tx %v fails sanity check: %v", txHash.String(), err)
@@ -328,11 +326,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 		return err
 	}
 
-	// TODO: checkInputsStandard
-
-	// TODO: GetSigOpCost check
-
-	// TODO: Whether the minfee limit is needed？
 	// how to calc the minfee, or use a fixed value.
 	txSize, err := tx.SerializeSize()
 	if err != nil {
@@ -342,10 +335,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	if txFee < minFee {
 		return errors.New("txFee is less than minFee")
 	}
-
-	// TODO: priority check
-
-	// TODO: free-to-relay rate limit
 
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
