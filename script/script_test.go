@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
@@ -18,7 +18,6 @@ import (
 )
 
 var (
-	// TODO: to be wrapped in a helper function
 	outPoint = types.OutPoint{
 		Hash:  crypto.HashType{0x0010},
 		Index: 0,

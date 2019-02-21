@@ -9,7 +9,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/BOXFoundation/boxd/p2p/pb"
+	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 	kbucket "github.com/libp2p/go-libp2p-kbucket"

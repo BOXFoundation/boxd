@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -213,24 +213,6 @@ func TestBlockProcessing(t *testing.T) {
 	//		   \-> b2A -> b3A
 	b11 := nextBlock(b10)
 	verifyProcessBlock(t, b11, nil, 11, b11)
-
-	// TODOs
-	// Double spend
-
-	// Create a fork that ends with block that generates too much coinbase
-
-	// Create block that spends a transaction from a block that failed to connect (due to containing a double spend)
-
-	// Create block with an otherwise valid transaction in place of where the coinbase must be
-
-	// Create block with no transactions
-
-	// Create block with two coinbase transactions
-
-	// Create block with duplicate transactions
-
-	// Create a block that spends a transaction that does not exist
-
 }
 
 func TestBlockChain_WriteDelTxIndex(t *testing.T) {
