@@ -69,6 +69,7 @@ func (pq *PriorityMsgQueue) Push(item interface{}, p int) error {
 	select {
 	case pq.queues[p] <- item:
 	default:
+		logger.Debugf("pq size: %v, %v, %v, %v", len(pq.queues[0]), len(pq.queues[1]), len(pq.queues[2]), len(pq.queues[3]))
 		return errPQFull
 	}
 	select {
