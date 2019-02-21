@@ -36,12 +36,13 @@ func New(n int, l int) *PriorityMsgQueue {
 // Run is a loop popping items from the priority message queues
 func (pq *PriorityMsgQueue) Run(proc goprocess.Process, f func(interface{})) {
 	var q chan interface{}
+	var x interface{}
 	top := len(pq.queues) - 1
 	p := top
 	for {
 		q = pq.queues[p]
 		select {
-		case x := <-q:
+		case x = <-q:
 			f(x)
 			p = top
 		case <-proc.Closing():
