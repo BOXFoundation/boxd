@@ -7,6 +7,7 @@ package service
 import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 // TxHandler defines basic operations txpool exposes
@@ -14,4 +15,5 @@ type TxHandler interface {
 	ProcessTx(*types.Transaction, core.TransferMode) error
 	// GetTransactionsInPool gets all transactions in memory pool
 	GetTransactionsInPool() ([]*types.Transaction, []int64)
+	GetTxByHash(hash *crypto.HashType) (*types.TxWrap, bool)
 }

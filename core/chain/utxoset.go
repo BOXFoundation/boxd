@@ -112,15 +112,6 @@ func (u *UtxoSet) TxInputAmount(tx *types.Transaction) uint64 {
 	return totalInputAmount
 }
 
-// TxWrap wrap transaction
-type TxWrap struct {
-	Tx             *types.Transaction
-	AddedTimestamp int64
-	Height         uint32
-	FeePerKB       uint64
-	IsScriptValid  bool
-}
-
 // GetExtendedTxUtxoSet returns tx's utxo set from both db & txs in spendableTxs
 func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 	spendableTxs *sync.Map) (*UtxoSet, error) {
@@ -137,7 +128,7 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 			continue
 		}
 		if v, exists := spendableTxs.Load(txIn.PrevOutPoint.Hash); exists {
-			spendableTxWrap := v.(*TxWrap)
+			spendableTxWrap := v.(*types.TxWrap)
 			utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index, spendableTxWrap.Height)
 		}
 	}

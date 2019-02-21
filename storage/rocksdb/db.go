@@ -103,7 +103,7 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 		for {
 			select {
 			case <-ticker.C:
-				blockCache, indexFilterMem, mmtMem := 0, 0, 0
+				indexFilterMem, mmtMem := 0, 0
 				for _, val := range rocks.tables {
 					// Indexes and filter blocks
 					tmp, err := strconv.Atoi(db.GetPropertyCF("rocksdb.estimate-table-readers-mem", val.cf))

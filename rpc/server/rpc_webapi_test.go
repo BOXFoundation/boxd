@@ -310,7 +310,7 @@ func TestDetailTxAndBlock(t *testing.T) {
 	tx := genTestTx(from, to, amount, &prevHash)
 	// detail tx
 	blockReader := new(TestDetailBlockChainReader)
-	detail, err := detailTx(tx, blockReader)
+	detail, err := detailTx(tx, blockReader, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +353,7 @@ func TestDetailTxAndBlock(t *testing.T) {
 		AppendVin(txlogic.NewCoinBaseTxIn()).
 		AppendVout(txlogic.MakeVout(from, coinBaseAmount))
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
-	blockDetail, err := detailBlock(block, blockReader)
+	blockDetail, err := detailBlock(block, blockReader, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

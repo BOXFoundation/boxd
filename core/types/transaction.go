@@ -32,6 +32,15 @@ type Transaction struct {
 	LockTime int64
 }
 
+// TxWrap wrap transaction
+type TxWrap struct {
+	Tx             *Transaction
+	AddedTimestamp int64
+	Height         uint32
+	FeePerKB       uint64
+	IsScriptValid  bool
+}
+
 var _ conv.Convertible = (*Transaction)(nil)
 var _ conv.Serializable = (*Transaction)(nil)
 
