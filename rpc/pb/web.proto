@@ -82,15 +82,15 @@ message TxDetail {
 
 message TxInDetail {
     TxOutDetail prev_out_detail = 1;
-    bytes script_sig = 2;
+    string script_sig = 2;
     uint32 sequence = 3;
-    corepb.OutPoint prev_out_point = 4;
+    string prev_out_point = 4;
 }
 
 message TxOutDetail {
     string addr = 1;
     uint64 value = 2;
-    bytes script_pub_key = 3;
+    string script_pub_key = 3;
     string script_disasm = 4;
     enum TxOutType {
         unknown = 0;
@@ -116,7 +116,7 @@ message BlockDetail {
     string prev_block_hash = 5;
     string coin_base = 6;
     bool confirmed = 7;
-    bytes signature = 8;
+    string signature = 8;
     repeated TxDetail txs = 9;
 }
 
@@ -125,7 +125,7 @@ message TokenIssueInfo {
 }
 
 message TokenTransferInfo {
-    corepb.OutPoint token_id = 1;
+    string token_id = 1;
 }
 
 message Token {

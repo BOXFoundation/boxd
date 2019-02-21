@@ -23,6 +23,9 @@ func init() {
 	initMinerAcc()
 }
 
+// NOTE: want to run this test case, need start a node
+// with miner: b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o
+// port: 19111
 func NoTestSignTx(t *testing.T) {
 
 	// get grpc conn

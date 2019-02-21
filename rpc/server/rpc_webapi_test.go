@@ -12,7 +12,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -195,7 +194,7 @@ func TestDetailTxOut(t *testing.T) {
 	detailStr := `{
   "addr": "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o",
   "value": 1000000000,
-  "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrAROYW1ldQNmb3h1BlN5bWJvbHUDRk9YdQZBbW91bnR1CEBCDwAAAAAAdQhEZWNpbWFsc3UBA3U=",
+  "script_pub_key": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac044e616d657503666f78750653796d626f6c7503464f587506416d6f756e74750840420f00000000007508446563696d616c7375010375",
   "script_disasm": "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6 OP_EQUALVERIFY OP_CHECKSIG 4e616d65 OP_DROP 666f78 OP_DROP 53796d626f6c OP_DROP 464f58 OP_DROP 416d6f756e74 OP_DROP 40420f0000000000 OP_DROP 446563696d616c73 OP_DROP 03 OP_DROP",
   "type": 5,
   "Appendix": {
@@ -239,8 +238,7 @@ func TestDetailTxOut(t *testing.T) {
 	if detail.Addr != testAddr || detail.Value != testAmount ||
 		//detail.ScriptDisasm != disasmScript || // need reverse hash string
 		detail.Type != rpcpb.TxOutDetail_token_transfer ||
-		!reflect.DeepEqual(gotTid.Hash, tid.Hash[:]) ||
-		gotTid.Index != tid.Index {
+		gotTid != convOutPoint(txlogic.ConvOutPoint((*types.OutPoint)(tid))) {
 		t.Fatalf("detail token transfer tx out, want: %s %d %s %v, got: %+v",
 			testAddr, testAmount, disasmScript, rpcpb.TxOutDetail_token_transfer, detail)
 	}
@@ -248,19 +246,18 @@ func TestDetailTxOut(t *testing.T) {
 	detailStr = `{
   "addr": "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o",
   "value": 12345,
-  "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrAtUb2tlblR4SGFzaHUgXD0hWiS6DyGHBWlhNaF7yHmpBRUZG9IGd9co7ALegXZ1DVRva2VuVHhPdXRJZHh1BAAAAAB1BkFtb3VudHUIOTAAAAAAAAB1",
+  "script_pub_key": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac0b546f6b656e54784861736875205c3d215a24ba0f218705696135a17bc879a90515191bd20677d728ec02de8176750d546f6b656e54784f75744964787504000000007506416d6f756e747508393000000000000075",
   "script_disasm": "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6 OP_EQUALVERIFY OP_CHECKSIG 546f6b656e547848617368 OP_DROP 5c3d215a24ba0f218705696135a17bc879a90515191bd20677d728ec02de8176 OP_DROP 546f6b656e54784f7574496478 OP_DROP 00000000 OP_DROP 416d6f756e74 OP_DROP 3930000000000000 OP_DROP",
   "type": 6,
   "Appendix": {
     "TokenTransferInfo": {
-      "token_id": {
-        "hash": "XD0hWiS6DyGHBWlhNaF7yHmpBRUZG9IGd9co7ALegXY="
-      }
+      "token_id": "4yN36qpbC4xZVaZ353Czt5TaowNovq55CpDQomCpQXDKR61chHh"
     }
   }
 }`
 	if detailStr != string(bytes) {
-		t.Errorf("token transfer vout want: %s, got: %s", detailStr, string(bytes))
+		t.Errorf("token transfer vout want: %s, len: %d, got: %s, len: %d",
+			detailStr, len(detailStr), string(bytes), len(string(bytes)))
 	}
 }
 
@@ -324,21 +321,19 @@ func TestDetailTxAndBlock(t *testing.T) {
       "prev_out_detail": {
         "addr": "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
         "value": 300,
-        "script_pub_key": "dqkUUFcMxzuxilH8QVPuxo0h0RBdMm6IrA==",
+        "script_pub_key": "76a91450570cc73bb18a51fc4153eec68d21d1105d326e88ac",
         "script_disasm": "OP_DUP OP_HASH160 50570cc73bb18a51fc4153eec68d21d1105d326e OP_EQUALVERIFY OP_CHECKSIG",
         "type": 1,
         "Appendix": null
       },
-      "prev_out_point": {
-        "hash": "CFM/a71JdRE+TwyxBKvN7B2G2Z1XgrSpp/YnDA67aic="
-      }
+      "prev_out_point": "2Kd3Ayy6YBECCW4KAZAdP1K7Y3XFMkoPEy5oq3JZWxeG6DoWzL7"
     }
   ],
   "vout": [
     {
       "addr": "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
       "value": 300,
-      "script_pub_key": "dqkUUFcMxzuxilH8QVPuxo0h0RBdMm6IrA==",
+      "script_pub_key": "76a91450570cc73bb18a51fc4153eec68d21d1105d326e88ac",
       "script_disasm": "OP_DUP OP_HASH160 50570cc73bb18a51fc4153eec68d21d1105d326e OP_EQUALVERIFY OP_CHECKSIG",
       "type": 1,
       "Appendix": null
@@ -347,7 +342,8 @@ func TestDetailTxAndBlock(t *testing.T) {
 }`
 	txDetailBytes, _ := json.MarshalIndent(detail, "", "  ")
 	if string(txDetailBytes) != txDetailStr {
-		t.Fatalf("tx detail want: %s, got: %s", txDetailStr, string(txDetailBytes))
+		t.Fatalf("tx detail want: %s, len: %d, got: %s, len: %d",
+			txDetailStr, len(txDetailStr), string(txDetailBytes), len(string(txDetailBytes)))
 	}
 
 	// test block
@@ -378,7 +374,7 @@ func TestDetailTxAndBlock(t *testing.T) {
         {
           "addr": "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o",
           "value": 50000,
-          "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrA==",
+          "script_pub_key": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac",
           "script_disasm": "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6 OP_EQUALVERIFY OP_CHECKSIG",
           "type": 1,
           "Appendix": null
@@ -392,21 +388,19 @@ func TestDetailTxAndBlock(t *testing.T) {
           "prev_out_detail": {
             "addr": "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
             "value": 300,
-            "script_pub_key": "dqkUUFcMxzuxilH8QVPuxo0h0RBdMm6IrA==",
+            "script_pub_key": "76a91450570cc73bb18a51fc4153eec68d21d1105d326e88ac",
             "script_disasm": "OP_DUP OP_HASH160 50570cc73bb18a51fc4153eec68d21d1105d326e OP_EQUALVERIFY OP_CHECKSIG",
             "type": 1,
             "Appendix": null
           },
-          "prev_out_point": {
-            "hash": "CFM/a71JdRE+TwyxBKvN7B2G2Z1XgrSpp/YnDA67aic="
-          }
+          "prev_out_point": "HBcs4DAqX6VdHvVmthqTkDh2mLC8bsmQtA3L2KoQiL7co8MzXZ"
         }
       ],
       "vout": [
         {
           "addr": "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
           "value": 300,
-          "script_pub_key": "dqkUUFcMxzuxilH8QVPuxo0h0RBdMm6IrA==",
+          "script_pub_key": "76a91450570cc73bb18a51fc4153eec68d21d1105d326e88ac",
           "script_disasm": "OP_DUP OP_HASH160 50570cc73bb18a51fc4153eec68d21d1105d326e OP_EQUALVERIFY OP_CHECKSIG",
           "type": 1,
           "Appendix": null
@@ -418,5 +412,20 @@ func TestDetailTxAndBlock(t *testing.T) {
 	blockDetailBytes, _ := json.MarshalIndent(blockDetail, "", "  ")
 	if blockDetailStr != string(blockDetailBytes) {
 		t.Fatalf("block detail want: %s, got: %s", blockDetailStr, string(blockDetailBytes))
+	}
+}
+
+func TestConvOutPoint(t *testing.T) {
+	hashStr := "c0e96e998eb01eea5d5acdaeb80acd943477e6119dcd82a419089331229c7453"
+	hash := new(crypto.HashType)
+	if err := hash.SetString(hashStr); err != nil {
+		t.Fatal(err)
+	}
+	index := uint32(3)
+	op := txlogic.NewPbOutPoint(hash, index)
+	got := convOutPoint(op)
+	want := "7TzjaadMY4QYchK4obssFrE7BSPs7HkShdfSHux9z8ddYJghQMm"
+	if got != want {
+		t.Fatalf("want: %s, got: %s", want, got)
 	}
 }

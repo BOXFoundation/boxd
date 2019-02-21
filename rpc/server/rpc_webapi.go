@@ -6,6 +6,8 @@ package rpc
 
 import (
 	"container/list"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
 )
@@ -320,7 +323,7 @@ func detailBlock(block *types.Block, r ChainBlockReader) (*rpcpb.BlockDetail, er
 	}
 	detail.CoinBase = coinBase
 	detail.Confirmed = blockConfirmed(block, r)
-	detail.Signature = block.Signature
+	detail.Signature = hex.EncodeToString(block.Signature)
 	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r)
 		if err != nil {
@@ -343,9 +346,9 @@ func detailTxIn(txIn *types.TxIn, r ChainTxReader) (*rpcpb.TxInDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	detail.ScriptSig = txIn.ScriptSig
+	detail.ScriptSig = hex.EncodeToString(txIn.ScriptSig)
 	detail.Sequence = txIn.Sequence
-	detail.PrevOutPoint = txlogic.ConvOutPoint(&txIn.PrevOutPoint)
+	detail.PrevOutPoint = convOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
 	index := txIn.PrevOutPoint.Index
 	prevTxHash, _ := prevTx.TxHash()
 	detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
@@ -379,7 +382,7 @@ func detailTxOut(
 	}
 	detail.Value = amount
 	// script pubic key
-	detail.ScriptPubKey = txOut.ScriptPubKey
+	detail.ScriptPubKey = hex.EncodeToString(txOut.ScriptPubKey)
 	// script disasm
 	detail.ScriptDisasm = sc.Disasm()
 	// type
@@ -410,7 +413,7 @@ func detailTxOut(
 		}
 		transferInfo := &rpcpb.TxOutDetail_TokenTransferInfo{
 			TokenTransferInfo: &rpcpb.TokenTransferInfo{
-				TokenId: txlogic.ConvOutPoint(&param.TokenID.OutPoint),
+				TokenId: convOutPoint(txlogic.ConvOutPoint(&param.TokenID.OutPoint)),
 			},
 		}
 		detail.Appendix = transferInfo
@@ -460,4 +463,20 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 		return "", err
 	}
 	return address.String(), nil
+}
+
+func convOutPoint(op *corepb.OutPoint) string {
+	buf := op.GetHash()
+	// reverse bytes
+	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
+		buf[i], buf[j] = buf[j], buf[i]
+	}
+	// append separator ':'
+	buf = append(buf, ':')
+	// put index
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, op.GetIndex())
+	buf = append(buf, b...)
+
+	return base58.Encode(buf)
 }
