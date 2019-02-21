@@ -18,7 +18,6 @@ const (
 
 	// CommandSize is the fixed size of all commands (MessageHeader.Code) in the common message
 	// header.  Shorter commands must be zero padded.
-	// TODO: double check w/ @leon
 	CommandSize = 4
 )
 
