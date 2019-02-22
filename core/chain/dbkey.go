@@ -113,7 +113,7 @@ var EternalKey = []byte(Eternal)
 var PeriodKey = []byte(Period)
 
 // MissrateKey is the db key to store miner's blocks miss rate
-var MissrateKey = []byte(Period)
+var MissrateKey = []byte(MissCount)
 
 // BlockKey returns the db key to store block content of the hash
 func BlockKey(h *crypto.HashType) []byte {
