@@ -11,8 +11,6 @@ import (
 var (
 	// MetricsRocksdbCacheGauge records the base cache of default Options.
 	MetricsRocksdbCacheGauge = metrics.NewGauge("box.rocksdb.cache.size")
-	// MetricsRocksdbCacheCFGauge records the base cache of default Options.
-	MetricsRocksdbCacheCFGauge = metrics.NewGauge("box.rocksdb.cache.CF.size")
 	// MetricsRocksdbIdxFilterGauge records the Indexes and filter blocks.
 	MetricsRocksdbIdxFilterGauge = metrics.NewGauge("box.rocksdb.idxfilter.size")
 	// MetricsRocksdbMemtableGauge records the Memtable.
