@@ -32,8 +32,44 @@ type Transaction struct {
 	LockTime int64
 }
 
+// TxWrap wrap transaction
+type TxWrap struct {
+	Tx             *Transaction
+	AddedTimestamp int64
+	Height         uint32
+	FeePerKB       uint64
+	IsScriptValid  bool
+}
+
 var _ conv.Convertible = (*Transaction)(nil)
 var _ conv.Serializable = (*Transaction)(nil)
+
+// NewTx generates a new Transaction
+func NewTx(ver int32, magic uint32, lockTime int64) *Transaction {
+	return &Transaction{
+		Version:  ver,
+		Magic:    magic,
+		LockTime: lockTime,
+	}
+}
+
+// AppendVin appends a tx in to tx
+func (tx *Transaction) AppendVin(in ...*TxIn) *Transaction {
+	tx.Vin = append(tx.Vin, in...)
+	return tx
+}
+
+// AppendVout appends a tx out to tx
+func (tx *Transaction) AppendVout(out ...*corepb.TxOut) *Transaction {
+	tx.Vout = append(tx.Vout, out...)
+	return tx
+}
+
+// WithData sets Data to tx
+func (tx *Transaction) WithData(data *corepb.Data) *Transaction {
+	tx.Data = data
+	return tx
+}
 
 // TxIn defines a transaction input.
 type TxIn struct {

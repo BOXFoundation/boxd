@@ -299,3 +299,16 @@ func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
 	}
 	return addr.String(), nil
 }
+
+// IsCoinBaseTxIn check whether tx in is coin base tx in
+func IsCoinBaseTxIn(txIn *types.TxIn) bool {
+	return ((txIn.PrevOutPoint.Index == math.MaxUint32) &&
+		(txIn.PrevOutPoint.Hash == crypto.HashType{}))
+}
+
+// NewCoinBaseTxIn new a coinbase tx in
+func NewCoinBaseTxIn() *types.TxIn {
+	return &types.TxIn{
+		PrevOutPoint: types.OutPoint{Index: math.MaxUint32},
+	}
+}

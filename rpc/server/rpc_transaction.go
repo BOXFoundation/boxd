@@ -43,9 +43,8 @@ func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBal
 }
 
 func (s *txServer) GetBalance(
-	ctx context.Context, req *rpcpb.GetBalanceReq) (
-	*rpcpb.GetBalanceResp, error,
-) {
+	ctx context.Context, req *rpcpb.GetBalanceReq,
+) (*rpcpb.GetBalanceResp, error) {
 	logger.Infof("get balance req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
@@ -66,9 +65,8 @@ func (s *txServer) GetBalance(
 }
 
 func (s *txServer) GetTokenBalance(
-	ctx context.Context, req *rpcpb.GetTokenBalanceReq) (
-	*rpcpb.GetBalanceResp, error,
-) {
+	ctx context.Context, req *rpcpb.GetTokenBalanceReq,
+) (*rpcpb.GetBalanceResp, error) {
 	logger.Infof("get token balance req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil {
@@ -99,8 +97,8 @@ func newFetchUtxosResp(code int32, msg string, utxos ...*rpcpb.Utxo) *rpcpb.Fetc
 
 // FetchUtxos fetch utxos from chain
 func (s *txServer) FetchUtxos(
-	ctx context.Context, req *rpcpb.FetchUtxosReq) (
-	*rpcpb.FetchUtxosResp, error) {
+	ctx context.Context, req *rpcpb.FetchUtxosReq,
+) (*rpcpb.FetchUtxosResp, error) {
 
 	logger.Infof("fetch utxos req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
@@ -159,7 +157,16 @@ func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransaction
 
 func (s *txServer) SendTransaction(
 	ctx context.Context, req *rpcpb.SendTransactionReq,
-) (*rpcpb.SendTransactionResp, error) {
+) (resp *rpcpb.SendTransactionResp, err error) {
+
+	logger.Infof("send tx req >> %+v", req)
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("send tx %+v error: %s", req, resp.Message)
+		} else {
+			logger.Infof("send tx: %+v succeeded, response: %+v", resp)
+		}
+	}()
 
 	tx := &types.Transaction{}
 	if err := tx.FromProtoMessage(req.Tx); err != nil {
@@ -219,15 +226,23 @@ func newMakeTxResp(
 
 func (s *txServer) MakeUnsignedTx(
 	ctx context.Context, req *rpcpb.MakeTxReq,
-) (*rpcpb.MakeTxResp, error) {
+) (resp *rpcpb.MakeTxResp, err error) {
+
+	logger.Infof("make unsigned tx: %+v", req)
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned tx %+v error: %s", req, resp.Message)
+		} else {
+			logger.Infof("make unsigned tx: %+v succeeded, response: %+v", resp)
+		}
+	}()
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
-		logger.Warn("get balance error ", ErrAPINotSupported)
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), ErrAPINotSupported
 	}
 	from, to := req.GetFrom(), req.GetTo()
 	amounts, fee := req.GetAmounts(), req.GetFee()
-	tx, utxos, err := rpcutil.MakeTxWithoutSign(wa, from, to, amounts, fee)
+	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, fee)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), err
 	}

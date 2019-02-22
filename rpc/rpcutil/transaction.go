@@ -278,14 +278,17 @@ func NewTxs(
 			transfer += amount
 			totalFee += fee
 			num++
+			if change == nil {
+				break
+			}
 		}
 		txss = append(txss, txs)
 	}
 	return txss, transfer, totalFee, num, nil
 }
 
-// MakeTxWithoutSign make a tx without signature
-func MakeTxWithoutSign(
+// MakeUnsignedTx make a tx without signature
+func MakeUnsignedTx(
 	wa service.WalletAgent, from string, to []string, amounts []uint64, fee uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	total := fee
@@ -302,7 +305,7 @@ func MakeTxWithoutSign(
 		uv += amount
 	}
 	changeAmt := uv - total
-	tx, err := txlogic.MakeTxWithoutSign(from, to, amounts, changeAmt, utxos...)
+	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
 	return tx, utxos, err
 }
 
@@ -383,6 +386,9 @@ func NewTokenTxs(
 		}
 		txs = append(txs, tx)
 		utxos = []*rpcpb.Utxo{change, changeT}
+		if change == nil {
+			break
+		}
 	}
 	return txs, nil
 }
