@@ -257,6 +257,13 @@ func (s *txServer) MakeUnsignedTx(
 	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
 }
 
+func (s *txServer) MakeUnsignedSplitAddrTx(
+	ctx context.Context, req *rpcpb.MakeSplitAddrTxReq,
+) (resp *rpcpb.MakeSplitAddrTxResp, err error) {
+
+	return nil, nil
+}
+
 // MakeTxRawMsgsForSign make tx raw msg for sign
 func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte, error) {
 	if len(tx.Vin) != len(utxos) {

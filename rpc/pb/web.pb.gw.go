@@ -183,9 +183,9 @@ func RegisterWebApiHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 var (
 	pattern_WebApi_ViewTxDetail_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "detail"}, ""))
 
-	pattern_WebApi_ViewBlockDetail_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "webapi", "getblock"}, ""))
+	pattern_WebApi_ViewBlockDetail_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "block", "detail"}, ""))
 
-	pattern_WebApi_GetTokenInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "webapi", "gettoken"}, ""))
+	pattern_WebApi_GetTokenInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "token", "detail"}, ""))
 )
 
 var (

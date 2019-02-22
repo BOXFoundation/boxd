@@ -29,6 +29,7 @@ rpc:
     port: 19191
     http:
         port: 19190
+    faucet_keyfile: ./keyfile/key1.keystore
 dpos:
     keypath: key.keystore
     enable_mint: true
