@@ -238,30 +238,69 @@ func (s *txServer) MakeUnsignedTx(
 	}()
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
-		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), ErrAPINotSupported
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, to := req.GetFrom(), req.GetTo()
 	amounts, fee := req.GetAmounts(), req.GetFee()
 	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, fee)
 	if err != nil {
-		return newMakeTxResp(-1, err.Error(), nil, nil), err
-	}
-	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
-	if err != nil {
-		return newMakeTxResp(-1, err.Error(), nil, nil), err
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	pbTx, err := tx.ConvToPbTx()
 	if err != nil {
-		return newMakeTxResp(-1, err.Error(), nil, nil), err
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
+}
+
+func newMakeSplitAddrTxResp(code int32, msg string) *rpcpb.MakeSplitAddrTxResp {
+	return &rpcpb.MakeSplitAddrTxResp{
+		Code:    code,
+		Message: msg,
+	}
 }
 
 func (s *txServer) MakeUnsignedSplitAddrTx(
 	ctx context.Context, req *rpcpb.MakeSplitAddrTxReq,
 ) (resp *rpcpb.MakeSplitAddrTxResp, err error) {
 
-	return nil, nil
+	logger.Infof("make unsigned tx: %+v", req)
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned tx %+v error: %s", req, resp.Message)
+		} else {
+			logger.Infof("make unsigned tx: %+v succeeded, response: %+v", resp)
+		}
+	}()
+	//
+	wa := s.server.GetWalletAgent()
+	if wa == nil || reflect.ValueOf(wa).IsNil() {
+		return newMakeSplitAddrTxResp(-1, ErrAPINotSupported.Error()), nil
+	}
+	from, addrs := req.GetFrom(), req.GetAddrs()
+	weights, fee := req.GetWeights(), req.GetFee()
+	// make tx without sign
+	tx, splitAddr, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs,
+		weights, fee)
+	if err != nil {
+		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+	}
+	pbTx, err := tx.ConvToPbTx()
+	if err != nil {
+		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+	}
+	// calc raw msgs
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+	}
+	resp = newMakeSplitAddrTxResp(0, "success")
+	resp.SplitAddr, resp.Tx, resp.RawMsgs = splitAddr, pbTx, rawMsgs
+	return resp, nil
 }
 
 // MakeTxRawMsgsForSign make tx raw msg for sign

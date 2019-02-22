@@ -158,8 +158,8 @@ message MakeTxResp {
 
 message MakeSplitAddrTxReq {
     string from = 1;
-    repeated string to = 2;
-    repeated uint64 amounts = 3;
+    repeated string addrs = 2;
+    repeated uint64 weights = 3;
     uint64 fee = 4;
 }
 
