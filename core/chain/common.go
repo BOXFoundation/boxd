@@ -147,3 +147,34 @@ func UnmarshalTxIndex(data []byte) (height uint32, index uint32, err error) {
 	}
 	return
 }
+
+// MarshalMissData writes miss rate data to bytes
+func MarshalMissData(height, miss uint32, ts int64) (data []byte, err error) {
+	var buf bytes.Buffer
+	if err := util.WriteUint32(&buf, height); err != nil {
+		return nil, err
+	}
+	if err := util.WriteUint32(&buf, miss); err != nil {
+		return nil, err
+	}
+	if err := util.WriteInt64(&buf, ts); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalMissData return tx index from bytes
+func UnmarshalMissData(data []byte) (height uint32, miss uint32, ts int64, err error) {
+	buf := bytes.NewBuffer(data)
+	if height, err = util.ReadUint32(buf); err != nil {
+		return
+	}
+	if miss, err = util.ReadUint32(buf); err != nil {
+		return
+	}
+	if ts, err = util.ReadInt64(buf); err != nil {
+		return
+	}
+	return
+}

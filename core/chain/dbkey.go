@@ -33,6 +33,10 @@ const (
 	// Period is the db key name of current period
 	Period = "/period/current"
 
+	// MissCount is the db key name of minuer's block miss rate data
+	// value: 4 bytes height + 4 bytes miss count + 10 bytes ts
+	MissCount = "/missrate"
+
 	// BlockPrefix is the key prefix of database key to store block content
 	// /bk/{hex encoded block hash}
 	// e.g.
@@ -107,6 +111,9 @@ var EternalKey = []byte(Eternal)
 
 // PeriodKey is the db key to store current period contex content
 var PeriodKey = []byte(Period)
+
+// MissrateKey is the db key to store miner's blocks miss rate
+var MissrateKey = []byte(Period)
 
 // BlockKey returns the db key to store block content of the hash
 func BlockKey(h *crypto.HashType) []byte {

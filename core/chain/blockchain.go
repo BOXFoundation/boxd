@@ -217,9 +217,6 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 			missRateTicker := time.NewTicker(10 * time.Minute)
 
 			memstats := &runtime.MemStats{}
-			var ts int64
-			var height, total, miss uint32
-
 			for {
 				select {
 				case <-ticker.C:
@@ -256,7 +253,7 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
 				case <-missRateTicker.C:
-					height, total, miss, ts = chain.calMissRate(height, total, miss, ts)
+					total, miss := chain.calMissRate()
 					if total != 0 {
 						metrics.MetricsBlockMissRateGauge.Update(int64(miss * 1000000 / total))
 					}
@@ -271,10 +268,24 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 		})
 }
 
-func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint32, uint32, uint32, int64) {
+func (chain *BlockChain) calMissRate() (total uint32, miss uint32) {
+
+	var ts int64
+	var height uint32
+
+	val, err := chain.db.Get(MissrateKey)
+	if err == nil {
+		h, m, t, err := UnmarshalMissData(val)
+		if err == nil {
+			height, miss, ts = h, m, t
+		} else {
+			logger.Errorf("UnmarshalMissData Err: %v.", err)
+		}
+	}
+
 	tail := chain.tail
 	if tail == nil {
-		return height, total, miss, ts
+		return 0, miss
 	}
 
 	minersCh := make(chan []string)
@@ -284,7 +295,7 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 	if ts == 0 {
 		block, err := chain.LoadBlockByHeight(1)
 		if err != nil {
-			return height, total, miss, ts
+			return 0, miss
 		}
 		ts = block.Header.TimeStamp
 		total = uint32(tail.Header.TimeStamp - ts)
@@ -292,7 +303,6 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 
 	errCh := make(chan error)
 	var curTs int64
-	var err error
 	var block *types.Block
 	for tstmp := ts; tstmp < tail.Header.TimeStamp; tstmp++ {
 		chain.bus.Send(eventbus.TopicCheckMiner, tstmp, errCh)
@@ -318,7 +328,10 @@ func (chain *BlockChain) calMissRate(height, total, miss uint32, ts int64) (uint
 		}
 	}
 
-	return tail.Height, tail.Height / uint32(len(miners)), miss, tail.Header.TimeStamp
+	if val, err := MarshalMissData(tail.Height, miss, tail.Header.TimeStamp); err == nil {
+		chain.db.Put(MissrateKey, val)
+	}
+	return tail.Height / uint32(len(miners)), miss
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
