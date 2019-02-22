@@ -269,7 +269,7 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		if err != nil {
 			logger.Warnf("detail block %s height %d error: %s",
 				block.BlockHash(), block.Height, err)
-			if elm, exit = s.moveNextElem(elm); exit {
+			if elm, exit = s.moveToNextElem(elm); exit {
 				return nil
 			}
 			continue
@@ -281,13 +281,13 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		}
 		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
 			block.BlockHash(), block.Height)
-		if elm, exit = s.moveNextElem(elm); exit {
+		if elm, exit = s.moveToNextElem(elm); exit {
 			return nil
 		}
 	}
 }
 
-func (s *webapiServer) moveNextElem(elm *list.Element) (elmA *list.Element, exit bool) {
+func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, exit bool) {
 	// move to next element
 	for {
 		if s.Closing() {

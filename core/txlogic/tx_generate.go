@@ -68,15 +68,12 @@ func NewIssueTokenTxWithUtxos(
 	return tx, types.NewTokenID(txHash, 0), change, nil
 }
 
-// MakeUnsignedTx make a tx without signature
-func MakeUnsignedTx(
-	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*types.Transaction, error) {
+func checkAmount(amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo) bool {
 	utxoValue := uint64(0)
 	for _, u := range utxos {
 		amount, tid, err := ParseUtxoAmount(u)
 		if err != nil || tid != nil {
-			return nil, fmt.Errorf("error: %v or tid(%+v) is not nil", err, tid)
+			continue
 		}
 		utxoValue += amount
 	}
@@ -84,9 +81,17 @@ func MakeUnsignedTx(
 	for _, a := range amounts {
 		amount += a
 	}
-	if utxoValue < amount+changeAmt {
-		return nil, fmt.Errorf("input %d is less than output %d",
-			utxoValue, amount+changeAmt)
+	return utxoValue >= amount+changeAmt
+}
+
+// MakeUnsignedTx make a tx without signature
+func MakeUnsignedTx(
+	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, error) {
+
+	if !checkAmount(amounts, changeAmt, utxos...) {
+		return nil, fmt.Errorf("input utxos[%+v] is less than output[amounts: %v,"+
+			" changeAmt: %d]", utxos, amounts, changeAmt)
 	}
 
 	// vin
@@ -141,55 +146,69 @@ func NewTxWithUtxos(
 	return tx, change, nil
 }
 
-// NewSplitAddrTxWithUtxos new split address tx
-func NewSplitAddrTxWithUtxos(
-	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
-) (tx *types.Transaction, change *rpcpb.Utxo, splitAddr string, err error) {
+// MakeUnsignedSplitAddrTx make unsigned split addr tx
+func MakeUnsignedSplitAddrTx(
+	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, string, error) {
 
-	utxoValue := uint64(0)
-	for _, u := range utxos {
-		utxoValue += u.GetTxOut().GetValue()
+	if !checkAmount(nil, changeAmt, utxos...) {
+		return nil, "", fmt.Errorf("input utxos[%+v] is less than output[amounts: "+
+			"%v, changeAmt: %d]", utxos, nil, changeAmt)
 	}
-	changeAmt := utxoValue - fee
-
 	// vin
 	vins := make([]*types.TxIn, 0)
 	for _, utxo := range utxos {
 		vins = append(vins, MakeVin(utxo, 0))
 	}
-
 	// vout for toAddrs
 	splitAddrOut := MakeSplitAddrVout(addrs, weights)
-
 	// construct transaction
-	tx = new(types.Transaction)
+	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
 	tx.Vout = append(tx.Vout, splitAddrOut)
 	// change
 	var changeOut *corepb.TxOut
 	if changeAmt > 0 {
-		changeOut = MakeVout(acc.Addr(), changeAmt)
+		changeOut = MakeVout(from, changeAmt)
 		tx.Vout = append(tx.Vout, changeOut)
 	}
+	// calc split addr
+	addr, err := MakeSplitAddr(addrs, weights)
+	//
+	return tx, addr, err
+}
 
+// NewSplitAddrTxWithUtxos new split address tx
+func NewSplitAddrTxWithUtxos(
+	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
+) (tx *types.Transaction, change *rpcpb.Utxo, splitAddr string, err error) {
+
+	// calc change amount
+	utxoValue := uint64(0)
+	for _, u := range utxos {
+		utxoValue += u.GetTxOut().GetValue()
+	}
+	changeAmt := utxoValue - fee
+	// make unsigned split addr tx
+	tx, splitAddr, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
+		changeAmt, utxos...)
+	if err != nil {
+		return
+	}
 	// sign vin
 	if err = SignTxWithUtxos(tx, utxos, acc); err != nil {
 		return
 	}
-
 	// create change utxo
-	if changeOut != nil {
+	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		change = &rpcpb.Utxo{
 			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-			TxOut:       changeOut,
+			TxOut:       tx.Vout[len(tx.Vout)-1],
 			BlockHeight: 0,
 			IsCoinbase:  false,
 			IsSpent:     false,
 		}
 	}
-
-	splitAddr, err = MakeSplitAddr(addrs, weights)
-
 	return
 }

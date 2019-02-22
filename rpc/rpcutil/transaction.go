@@ -298,9 +298,10 @@ func MakeUnsignedTx(
 	utxos, err := wa.Utxos(from, nil, total)
 	uv := uint64(0)
 	for _, u := range utxos {
-		amount, _, err := txlogic.ParseUtxoAmount(u)
-		if err != nil {
-			return nil, nil, err
+		amount, tid, err := txlogic.ParseUtxoAmount(u)
+		if err != nil || tid != nil {
+			logger.Warnf("parse utxo amout: %+v, error: %v, token id: %+v", u, err, tid)
+			continue
 		}
 		uv += amount
 	}
@@ -500,4 +501,25 @@ func NewSplitAddrTxWithFee(
 		return
 	}
 	return txlogic.NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, fee)
+}
+
+// MakeUnsignedSplitAddrTx news tx to make split addr without signature
+func MakeUnsignedSplitAddrTx(
+	wa service.WalletAgent, from string, addrs []string, weights []uint64, fee uint64,
+) (*types.Transaction, string, []*rpcpb.Utxo, error) {
+	total := fee
+	utxos, err := wa.Utxos(from, nil, total)
+	uv := uint64(0)
+	for _, u := range utxos {
+		amount, tid, err := txlogic.ParseUtxoAmount(u)
+		if err != nil || tid != nil {
+			logger.Warnf("parse utxo amout: %+v, error: %v, token id: %+v", u, err, tid)
+			continue
+		}
+		uv += amount
+	}
+	changeAmt := uv - total
+	tx, splitAddr, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights,
+		changeAmt, utxos...)
+	return tx, splitAddr, utxos, err
 }
