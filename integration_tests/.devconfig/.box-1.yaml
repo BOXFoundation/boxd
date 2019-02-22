@@ -29,6 +29,7 @@ rpc:
     port: 19111
     http:
         port: 19110
+    faucet_keyfile: ../keyfile/key1.keystore
 
 dpos:
     keypath: key.keystore

@@ -173,8 +173,6 @@ func UnmarshalMissData(data []byte) (height uint32, miss uint32, ts int64, err e
 	if miss, err = util.ReadUint32(buf); err != nil {
 		return
 	}
-	if ts, err = util.ReadInt64(buf); err != nil {
-		return
-	}
+	ts, err = util.ReadInt64(buf)
 	return
 }
