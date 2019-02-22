@@ -66,7 +66,7 @@ func NoTestSignTx(t *testing.T) {
 		sigHashes = append(sigHashes, &hash)
 	}
 	// sign msg
-	acc, ok := AddrToAcc[from]
+	acc, ok := AddrToAcc.Load(from)
 	if !ok {
 		t.Fatalf("account for %s not initialled", from)
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 // Collection manage transaction creation and collection
@@ -174,7 +175,8 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		logger.Panic(err)
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTx(AddrToAcc[c.minerAddr], addrs, amounts, conn)
+	minerAcc, _ := AddrToAcc.Load(c.minerAddr)
+	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), addrs, amounts, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -219,7 +221,8 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 				amountsSend[i] += amounts2[j]
 				amountsRecv[j] += amounts2[j]
 			}
-			tx, _, fee, err := rpcutil.NewTx(AddrToAcc[addrs[i]], addrs, amounts2, conn)
+			account, _ := AddrToAcc.Load(addrs[i])
+			tx, _, fee, err := rpcutil.NewTx(account.(*acc.Account), addrs, amounts2, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
@@ -269,7 +272,8 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
 				i, addr, peerAddr)
 			fromAddr := addrs[i]
-			txss, transfer, _, _, err := rpcutil.NewTxs(AddrToAcc[fromAddr], addr, count, conn)
+			fromAcc, _ := AddrToAcc.Load(fromAddr)
+			txss, transfer, _, _, err := rpcutil.NewTxs(fromAcc.(*acc.Account), addr, count, conn)
 			if err != nil {
 				logger.Panic(err)
 			}

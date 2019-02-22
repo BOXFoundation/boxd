@@ -39,7 +39,7 @@ func NewBaseFmw(accCnt, partLen int) *BaseFmw {
 	logger.Debugf("addrs: %v\ntestsAcc: %v", b.addrs, b.accAddrs)
 	for _, addr := range b.addrs {
 		acc := utils.UnlockAccount(addr)
-		AddrToAcc[addr] = acc
+		AddrToAcc.Store(addr, acc)
 	}
 	utils.RemoveKeystoreFiles(b.accAddrs...)
 	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
@@ -105,7 +105,7 @@ func (b *BaseFmw) doTest(index int, handle HandleFunc) {
 		times++
 		if times%utils.TimesToUpdateAddrs() == 0 {
 			for _, addr := range addrs {
-				delete(AddrToAcc, addr)
+				AddrToAcc.Delete(addr)
 			}
 			select {
 			case <-b.quitCh[index]:
@@ -125,7 +125,7 @@ func genAddrs(n int, addrsCh chan<- []string) {
 		addrs, accAddrs := utils.GenTestAddr(n)
 		for _, addr := range addrs {
 			acc := utils.UnlockAccount(addr)
-			AddrToAcc[addr] = acc
+			AddrToAcc.Store(addr, acc)
 		}
 		logger.Infof("done to gen %d address", n)
 		utils.RemoveKeystoreFiles(accAddrs...)

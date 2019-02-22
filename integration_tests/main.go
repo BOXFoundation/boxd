@@ -36,7 +36,7 @@ var (
 	minerAccs  []*acc.Account
 
 	//AddrToAcc stores addr to account
-	AddrToAcc = make(map[string]*acc.Account)
+	AddrToAcc = new(sync.Map)
 )
 
 func init() {
@@ -52,7 +52,7 @@ func initMinerAcc() {
 	minerAddrs, minerAccs = utils.MinerAccounts(files...)
 	logger.Infof("minersAddrs: %v", minerAddrs)
 	for i, addr := range minerAddrs {
-		AddrToAcc[addr] = minerAccs[i]
+		AddrToAcc.Store(addr, minerAccs[i])
 	}
 }
 

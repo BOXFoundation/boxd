@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 // TokenTest manage circulation of token
@@ -79,7 +80,8 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return false
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTx(AddrToAcc[miner], []string{issuer, sender},
+	minerAcc, _ := AddrToAcc.Load(miner)
+	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{issuer, sender},
 		[]uint64{subsidy, testFee}, conn)
 	if err != nil {
 		logger.Error(err)
@@ -122,7 +124,8 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	totalSupply := uint64(10000)
 	logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
 
-	tx, tid, _, err := rpcutil.NewIssueTokenTx(AddrToAcc[issuer], sender, tag,
+	issuerAcc, _ := AddrToAcc.Load(issuer)
+	tx, tid, _, err := rpcutil.NewIssueTokenTx(issuerAcc.(*acc.Account), sender, tag,
 		totalSupply, conn)
 	if err != nil {
 		logger.Panic(err)
@@ -153,7 +156,8 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	logger.Infof("start to create %d token txs from %s to %s on %s",
 		times, sender, receiver, peerAddr)
 	txTotalAmount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount)/2))
-	txs, err := rpcutil.NewTokenTxs(AddrToAcc[sender], receiver, txTotalAmount, times,
+	senderAcc, _ := AddrToAcc.Load(sender)
+	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver, txTotalAmount, times,
 		tid, conn)
 	if err != nil {
 		logger.Panic(err)
