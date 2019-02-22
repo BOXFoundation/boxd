@@ -66,6 +66,13 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc MakeUnsignedSplitAddrTx(MakeSplitAddrTxReq) returns (MakeSplitAddrTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedsplitaddrtx"
+            body: "*"
+        };
+    }
 }
 
 message GetBalanceReq {
@@ -147,4 +154,19 @@ message MakeTxResp {
     string message = 2;
     corepb.Transaction tx = 3;
     repeated bytes rawMsgs = 4;
+}
+
+message MakeSplitAddrTxReq {
+    string from = 1;
+    repeated string to = 2;
+    repeated uint64 amounts = 3;
+    uint64 fee = 4;
+}
+
+message MakeSplitAddrTxResp {
+    int32 code = 1;
+    string message = 2;
+    string splitAddr = 3;
+    corepb.Transaction tx = 4;
+    repeated bytes rawMsgs = 5;
 }

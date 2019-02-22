@@ -18,14 +18,14 @@ service WebApi {
 
     rpc ViewBlockDetail (ViewBlockDetailReq) returns (ViewBlockDetailResp) {
         option (google.api.http) = {
-            post: "/v1/webapi/getblock"
+            post: "/v1/block/detail"
             body: "*"
         };
     }
 
     rpc GetTokenInfo (GetTokenInfoRequest) returns (GetTokenInfoResponse) {
         option (google.api.http) = {
-            post: "/v1/webapi/gettoken"
+            post: "/v1/token/detail"
             body: "*"
         };
     }

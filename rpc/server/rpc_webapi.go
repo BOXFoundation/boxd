@@ -164,6 +164,7 @@ func (s *webapiServer) ViewBlockDetail(
 	ctx context.Context, req *rpcpb.ViewBlockDetailReq,
 ) (*rpcpb.ViewBlockDetailResp, error) {
 
+	logger.Infof("view block detail req: %+v", req)
 	hash := new(crypto.HashType)
 	if err := hash.SetString(req.Hash); err != nil {
 		logger.Warn("view block detail error: ", err)
