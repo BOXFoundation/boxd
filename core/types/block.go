@@ -44,6 +44,12 @@ func NewBlock(parent *Block) *Block {
 	}
 }
 
+// AppendTx appends tx to block
+func (block *Block) AppendTx(txs ...*Transaction) *Block {
+	block.Txs = append(block.Txs, txs...)
+	return block
+}
+
 // ToProtoMessage converts block to proto message.
 func (block *Block) ToProtoMessage() (proto.Message, error) {
 

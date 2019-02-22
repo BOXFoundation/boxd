@@ -141,7 +141,7 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 			if time.Now().Unix()%30 == 0 {
 				var hashstr string
 				tx_pool.hashToTx.Range(func(k, v interface{}) bool {
-					txwrap := v.(*chain.TxWrap)
+					txwrap := v.(*types.TxWrap)
 					hash, _ := txwrap.Tx.TxHash()
 					hashstr += hash.String()
 					hashstr += ","
@@ -490,7 +490,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feePerKB uint64) {
 	txHash, _ := tx.TxHash()
 
-	txWrap := &chain.TxWrap{
+	txWrap := &types.TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
@@ -562,7 +562,7 @@ func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 
 // Add orphan
 func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
-	txWrap := &chain.TxWrap{
+	txWrap := &types.TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
 	}
@@ -639,7 +639,7 @@ func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 		// already removed
 		return
 	}
-	tx := v.(*chain.TxWrap)
+	tx := v.(*types.TxWrap)
 	tx.IsScriptValid = true
 }
 
@@ -649,7 +649,7 @@ func (tx_pool *TransactionPool) cleanExpiredTxs() {
 
 	now := time.Now()
 	tx_pool.hashToOrphanTx.Range(func(k, v interface{}) bool {
-		orphan := v.(*chain.TxWrap)
+		orphan := v.(*types.TxWrap)
 		if now.After(time.Unix(orphan.AddedTimestamp, 0).Add(txTTL)) {
 			// Note: do not delete while range looping over map; delete after loop is over
 			expiredOrphans = append(expiredOrphans, orphan.Tx)
@@ -658,7 +658,7 @@ func (tx_pool *TransactionPool) cleanExpiredTxs() {
 	})
 
 	tx_pool.hashToTx.Range(func(k, v interface{}) bool {
-		txWrap := v.(*chain.TxWrap)
+		txWrap := v.(*types.TxWrap)
 		if now.After(time.Unix(txWrap.AddedTimestamp, 0).Add(txTTL)) {
 			// Note: do not delete while range looping over map; delete after loop is over
 			expiredTxs = append(expiredTxs, txWrap.Tx)
@@ -680,20 +680,20 @@ func (tx_pool *TransactionPool) cleanExpiredTxs() {
 }
 
 // GetAllTxs returns all transactions in mempool
-func (tx_pool *TransactionPool) GetAllTxs() []*chain.TxWrap {
-	var txs []*chain.TxWrap
+func (tx_pool *TransactionPool) GetAllTxs() []*types.TxWrap {
+	var txs []*types.TxWrap
 	tx_pool.hashToTx.Range(func(k, v interface{}) bool {
-		txs = append(txs, v.(*chain.TxWrap))
+		txs = append(txs, v.(*types.TxWrap))
 		return true
 	})
 	return txs
 }
 
 // GetOrphaTxs returns all orpha txs in mempool
-func (tx_pool *TransactionPool) GetOrphaTxs() []*chain.TxWrap {
-	var txs []*chain.TxWrap
+func (tx_pool *TransactionPool) GetOrphaTxs() []*types.TxWrap {
+	var txs []*types.TxWrap
 	tx_pool.hashToOrphanTx.Range(func(k, v interface{}) bool {
-		txs = append(txs, v.(*chain.TxWrap))
+		txs = append(txs, v.(*types.TxWrap))
 		return true
 	})
 	return txs
@@ -711,6 +711,23 @@ func (tx_pool *TransactionPool) GetTransactionsInPool() ([]*types.Transaction, [
 		addedTimes = append(addedTimes, tx.AddedTimestamp)
 	}
 	return txs, addedTimes
+}
+
+// GetTxByHash get a transaction by hash from pool or orphan pool
+// return a tx and tell whether it is in pool or in orphan pool
+func (tx_pool *TransactionPool) GetTxByHash(
+	hash *crypto.HashType,
+) (*types.TxWrap, bool) {
+
+	v, ok := tx_pool.hashToTx.Load(*hash)
+	if ok {
+		return v.(*types.TxWrap), true
+	}
+	v, ok = tx_pool.hashToOrphanTx.Load(*hash)
+	if ok {
+		return v.(*types.TxWrap), false
+	}
+	return nil, false
 }
 
 func calcRequiredMinFee(txSize int) uint64 {

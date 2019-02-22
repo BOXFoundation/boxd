@@ -6,29 +6,27 @@ package rpc
 
 import (
 	"container/list"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/util"
+	"github.com/btcsuite/btcutil/base58"
+	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
 )
 
 const (
 	newBlockMsgSize = 60
 )
-
-func registerWebapi(s *Server) {
-	was := newWebAPIServer(s)
-	rpcpb.RegisterWebApiServer(s.server, was)
-	s.eventBus.Subscribe(eventbus.TopicRPCSendNewBlock, was.receiveNewBlockMsg)
-}
 
 func init() {
 	RegisterServiceWithGatewayHandler(
@@ -38,22 +36,50 @@ func init() {
 	)
 }
 
+func registerWebapi(s *Server) {
+	was := newWebAPIServer(s)
+	rpcpb.RegisterWebApiServer(s.server, was)
+	s.eventBus.Subscribe(eventbus.TopicRPCSendNewBlock, was.receiveNewBlockMsg)
+}
+
 type webapiServer struct {
-	GRPCServer
+	ChainBlockReader
+	TxPoolReader
+	proc           goprocess.Process
 	newBlockMutex  sync.RWMutex
 	newBlocksQueue *list.List
 }
 
+// ChainTxReader defines chain tx reader interface
+type ChainTxReader interface {
+	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
+}
+
+// ChainBlockReader defines chain block reader interface
+type ChainBlockReader interface {
+	ChainTxReader
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
+	LoadBlockByHash(crypto.HashType) (*types.Block, error)
+	EternalBlock() *types.Block
+}
+
+// TxPoolReader defines tx pool reader interface
+type TxPoolReader interface {
+	GetTxByHash(hash *crypto.HashType) (*types.TxWrap, bool)
+}
+
 func newWebAPIServer(s *Server) *webapiServer {
 	return &webapiServer{
-		GRPCServer:     s,
-		newBlocksQueue: list.New(),
+		ChainBlockReader: s.GetChainReader(),
+		TxPoolReader:     s.GetTxHandler(),
+		proc:             s.Proc(),
+		newBlocksQueue:   list.New(),
 	}
 }
 
 func (s *webapiServer) Closing() bool {
 	select {
-	case <-s.Proc().Closing():
+	case <-s.proc.Closing():
 		return true
 	default:
 		return false
@@ -69,78 +95,111 @@ func (s *webapiServer) receiveNewBlockMsg(msg *types.Block) {
 	s.newBlockMutex.Unlock()
 }
 
-func (s *webapiServer) ListTokens(ctx context.Context, req *rpcpb.ListTokensRequest) (*rpcpb.ListTokensResponse, error) {
-	tokenIssueTransactions, headers, err := s.GetChainReader().ListTokenIssueTransactions()
-	if err != nil {
-		return nil, err
+func newViewTxDetailResp(code int32, msg string) *rpcpb.ViewTxDetailResp {
+	return &rpcpb.ViewTxDetailResp{
+		Code:    code,
+		Message: msg,
 	}
-	if len(tokenIssueTransactions) != len(headers) {
-		return nil, fmt.Errorf("missing block header")
-	}
-	var tokenInfos []*rpcpb.TokenBasicInfo
-	var txInRange []*types.Transaction
-	total := uint32(len(tokenIssueTransactions))
-	logger.Infof("%v transactions found related to token issue", total)
-	if total < req.Offset {
-		return &rpcpb.ListTokensResponse{
-			Count:  total,
-			Tokens: []*rpcpb.TokenBasicInfo{},
-		}, nil
-	} else if total < req.Offset+req.Limit {
-		txInRange = tokenIssueTransactions[req.Offset:]
-	} else {
-		txInRange = tokenIssueTransactions[req.Offset : req.Offset+req.Limit]
-	}
-	for i, tx := range txInRange {
-		hash, err := tx.TxHash()
-		if err != nil {
-			return nil, err
-		}
-		for idx, vout := range tx.Vout {
-			sc := script.NewScriptFromBytes(vout.ScriptPubKey)
-			if sc.IsTokenIssue() {
-				params, err := sc.GetIssueParams()
-				if err != nil {
-					return nil, err
-				}
-				addr, err := sc.ExtractAddress()
-				if err != nil {
-					return nil, err
-				}
-				tokenAddr := types.NewTokenFromOutpoint(types.OutPoint{
-					Hash:  *hash,
-					Index: uint32(idx),
-				})
-				tokenInfo := &rpcpb.TokenBasicInfo{
-					Addr:        tokenAddr.String(),
-					Name:        params.Name,
-					TotalSupply: params.TotalSupply,
-					CreatorAddr: addr.String(),
-					CreatorTime: uint64(headers[int(req.Offset)+i].TimeStamp),
-					Decimals:    uint32(params.Decimals),
-					Symbol:      params.Symbol,
-				}
-				tokenInfos = append(tokenInfos, tokenInfo)
-				break
-			}
-		}
-	}
-	return &rpcpb.ListTokensResponse{
-		Count:  total,
-		Tokens: tokenInfos,
-	}, nil
 }
 
-func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfoRequest) (*rpcpb.GetTokenInfoResponse, error) {
+func (s *webapiServer) ViewTxDetail(
+	ctx context.Context, req *rpcpb.ViewTxDetailReq,
+) (*rpcpb.ViewTxDetailResp, error) {
+
+	logger.Infof("view tx detail req: %+v", req)
+	// fetch hash from request
+	hash := new(crypto.HashType)
+	if err := hash.SetString(req.Hash); err != nil {
+		logger.Warn("view tx detail error: ", err)
+		return newViewTxDetailResp(-1, err.Error()), nil
+	}
+	// new resp
+	resp := new(rpcpb.ViewTxDetailResp)
+	// fetch tx from chain and set status
+	var tx *types.Transaction
+	br, tr := s.ChainBlockReader, s.TxPoolReader
+	if block, index, err := br.LoadBlockInfoByTxHash(*hash); err == nil {
+		tx = block.Txs[index]
+		// calc tx status
+		if blockConfirmed(block, br) {
+			resp.Status = rpcpb.ViewTxDetailResp_confirmed
+		} else {
+			resp.Status = rpcpb.ViewTxDetailResp_onchain
+		}
+		resp.BlockTime = block.Header.TimeStamp
+		resp.BlockHeight = block.Height
+	} else {
+		logger.Warnf("view tx detail load block by tx hash %s error: %s,"+
+			" try get it from tx pool", hash, err)
+		txWrap, _ := tr.GetTxByHash(hash)
+		if txWrap == nil {
+			return newViewTxDetailResp(-1, "tx not found"), nil
+		}
+		tx = txWrap.Tx
+		resp.Status = rpcpb.ViewTxDetailResp_pending
+		resp.BlockTime = txWrap.AddedTimestamp
+		resp.BlockHeight = txWrap.Height
+	}
+	resp.Version = tx.Version
+	// fetch tx details
+	detail, err := detailTx(tx, br, tr)
+	if err != nil {
+		logger.Warn("view tx detail error: ", err)
+		return newViewTxDetailResp(-1, err.Error()), nil
+	}
+	//
+	resp.Detail = detail
+	logger.Infof("view tx detail resp: %+v", resp)
+	return resp, nil
+}
+
+func newViewBlockDetailResp(code int32, msg string) *rpcpb.ViewBlockDetailResp {
+	return &rpcpb.ViewBlockDetailResp{
+		Code:    code,
+		Message: msg,
+	}
+}
+
+func (s *webapiServer) ViewBlockDetail(
+	ctx context.Context, req *rpcpb.ViewBlockDetailReq,
+) (*rpcpb.ViewBlockDetailResp, error) {
+
+	hash := new(crypto.HashType)
+	if err := hash.SetString(req.Hash); err != nil {
+		logger.Warn("view block detail error: ", err)
+		return newViewBlockDetailResp(-1, err.Error()), nil
+	}
+
+	br, tr := s.ChainBlockReader, s.TxPoolReader
+	block, err := br.LoadBlockByHash(*hash)
+	if err != nil {
+		logger.Warn("view block detail error: ", err)
+		return newViewBlockDetailResp(-1, err.Error()), nil
+	}
+	detail, err := detailBlock(block, br, tr)
+	if err != nil {
+		logger.Warn("view block detail error: ", err)
+		return newViewBlockDetailResp(-1, err.Error()), nil
+	}
+	resp := newViewBlockDetailResp(0, "")
+	resp.Detail = detail
+	return resp, nil
+}
+
+func (s *webapiServer) GetTokenInfo(
+	ctx context.Context, req *rpcpb.GetTokenInfoRequest,
+) (*rpcpb.GetTokenInfoResponse, error) {
+
 	tokenAddr := types.Token{}
 	if err := tokenAddr.SetString(req.Addr); err != nil {
 		return nil, err
 	}
-	tx, err := s.GetChainReader().LoadTxByHash(tokenAddr.OutPoint().Hash)
+	br := s.ChainBlockReader
+	tx, err := br.LoadTxByHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
-	block, _, err := s.GetChainReader().LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
+	block, _, err := br.LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -177,279 +236,14 @@ func (s *webapiServer) GetTokenInfo(ctx context.Context, req *rpcpb.GetTokenInfo
 	}, nil
 }
 
-func (s *webapiServer) GetTokenTransactions(ctx context.Context, req *rpcpb.GetTokenTransactionsRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	tokenAddr := new(types.Token)
-	if err := tokenAddr.SetString(req.Addr); err != nil {
-		return nil, err
-	}
-	tokenID := &script.TokenID{OutPoint: tokenAddr.OutPoint()}
-	allTxs, err := s.GetChainReader().GetTokenTransactions(tokenID)
-	if err != nil {
-		return nil, err
-	}
-	total := uint32(len(allTxs))
-	logger.Infof("%v txs found related to token %v", total, tokenID)
-	var txInRange []*types.Transaction
-	if total <= req.Offset {
-		return &rpcpb.GetTransactionsInfoResponse{
-			Total: total,
-			Txs:   []*rpcpb.TransactionInfo{},
-		}, nil
-	} else if total < req.Offset+req.Limit {
-		txInRange = allTxs[:total-req.Offset]
-	} else {
-		txInRange = allTxs[total-req.Offset-req.Limit : total-req.Offset]
-	}
-	utxos, err := s.loadUtxoForTx(txInRange)
-	if err != nil {
-		return nil, err
-	}
-	logger.Infof("%v txs found related to token %v", len(txInRange))
-	txInfos, err := s.convertTransactionInfos(txInRange, utxos)
-	if err != nil {
-		return nil, err
-	}
-	for i := 0; i < len(txInfos)/2; i++ {
-		j := len(txInfos) - i - 1
-		txInfos[i], txInfos[j] = txInfos[j], txInfos[i]
-	}
-	return &rpcpb.GetTransactionsInfoResponse{
-		Total: total,
-		Txs:   txInfos,
-	}, nil
-}
-
-func (s *webapiServer) GetPendingTransaction(ctx context.Context, req *rpcpb.GetPendingTransactionRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	txs, addedTime := s.GetTxHandler().GetTransactionsInPool()
-	var txInRange []*types.Transaction
-	if len(txs) <= int(req.Offset) {
-		txInRange = []*types.Transaction{}
-	} else if len(txs) < int(req.Offset+req.Limit) {
-		txInRange = txs[req.Offset:]
-	} else {
-		txInRange = txs[req.Offset : req.Offset+req.Limit]
-	}
-	generatedUtxo, err := s.loadGeneratedUtxoForTx(txs)
-	if err != nil {
-		return nil, err
-	}
-	utxos, err := s.loadUsedUtxoForTx(generatedUtxo, txInRange)
-	if err != nil {
-		return nil, err
-	}
-	logger.Debugf("utxos %v", utxos)
-	var txInfos []*rpcpb.TransactionInfo
-	for idx, tx := range txInRange {
-		msg, err := tx.ToProtoMessage()
-		if err != nil {
-			return nil, err
-		}
-		txPb, ok := msg.(*corepb.Transaction)
-		if !ok {
-			return nil, fmt.Errorf("invalid transacton format")
-		}
-		hash, err := tx.TxHash()
-		if err != nil {
-			return nil, err
-		}
-		var totalIn, totalOut uint64
-		for _, in := range tx.Vin {
-			if wrap, ok := utxos[in.PrevOutPoint]; ok && wrap != nil {
-				totalIn += wrap.Value()
-				logger.Debugf("input value %v", wrap.Value())
-			} else {
-				return nil, fmt.Errorf("previous input not found %v", in)
-			}
-		}
-		for _, out := range tx.Vout {
-			totalOut += out.Value
-		}
-		fee := totalIn - totalOut
-		var outInfos []*rpcpb.TxOutInfo
-		for idx, o := range txPb.Vout {
-			outInfo, err := convertVout(*hash, uint32(idx), o)
-			if err != nil {
-				return nil, err
-			}
-			outInfos = append(outInfos, outInfo)
-		}
-		var inInfos []*rpcpb.TxInInfo
-		for _, i := range tx.Vin {
-			opInfo := &rpcpb.OutPointInfo{
-				Hash:  i.PrevOutPoint.Hash.String(),
-				Index: i.PrevOutPoint.Index,
-			}
-			utxo, ok := utxos[i.PrevOutPoint]
-			if !ok {
-				return nil, fmt.Errorf("previous input not found %v", i.PrevOutPoint)
-			}
-			info := &rpcpb.TxInInfo{
-				PrevOutPoint: opInfo,
-				ScriptSig:    i.ScriptSig,
-				Sequence:     i.Sequence,
-				Value:        utxo.Value(),
-			}
-			sc := *script.NewScriptFromBytes(utxo.Script())
-			if addr, err := sc.ExtractAddress(); err == nil {
-				info.Addr = addr.String()
-			}
-			inInfos = append(inInfos, info)
-		}
-		txInfo := &rpcpb.TransactionInfo{
-			Version:   tx.Version,
-			Vin:       inInfos,
-			Vout:      outInfos,
-			Data:      txPb.Data,
-			Magic:     tx.Magic,
-			LockTime:  tx.LockTime,
-			Hash:      hash.String(),
-			Fee:       fee,
-			Size_:     0,
-			AddedTime: uint64(addedTime[int(req.Offset)+idx]),
-		}
-		txInfos = append(txInfos, txInfo)
-	}
-	return &rpcpb.GetTransactionsInfoResponse{
-		Total: uint32(len(txs)),
-		Txs:   txInfos,
-	}, nil
-}
-
-func convertVout(hash crypto.HashType, index uint32, vout *corepb.TxOut) (*rpcpb.TxOutInfo, error) {
-	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
-	out := &rpcpb.TxOutInfo{
-		Value:        vout.Value,
-		ScriptPubKey: vout.ScriptPubKey,
-		ScriptDisasm: sc.Disasm(),
-	}
-	if sc.IsTokenIssue() {
-		params, err := sc.GetIssueParams()
-		if err != nil {
-			return nil, err
-		}
-		tokenAddr := types.NewTokenFromOutpoint(types.OutPoint{
-			Hash:  hash,
-			Index: index,
-		})
-		out.IssueInfo = &rpcpb.TokenIssueInfo{
-			Name:        params.Name,
-			TotalSupply: params.TotalSupply,
-			Symbol:      params.Symbol,
-			Decimals:    uint32(params.Decimals),
-			Addr:        tokenAddr.String(),
-		}
-	} else if sc.IsTokenTransfer() {
-		params, err := sc.GetTransferParams()
-		if err != nil {
-			return nil, err
-		}
-		tokenAddr := types.NewTokenFromOutpoint(types.OutPoint{
-			Hash:  params.Hash,
-			Index: params.Index,
-		})
-		out.TransferInfo = &rpcpb.TokenTransferInfo{
-			Addr:   tokenAddr.String(),
-			Amount: params.Amount,
-		}
-	}
-	if addr, err := sc.ExtractAddress(); err == nil {
-		out.Addr = addr.String()
-	}
-	return out, nil
-}
-
-func (s *webapiServer) GetTransactionHistory(ctx context.Context, req *rpcpb.GetTransactionHistoryRequest) (*rpcpb.GetTransactionsInfoResponse, error) {
-	addr := &types.AddressPubKeyHash{}
-	if err := addr.SetString(req.Addr); err != nil {
-		return nil, err
-	}
-	txs, err := s.GetChainReader().GetTransactionsByAddr(addr)
-	if err != nil {
-		return nil, err
-	}
-	var txInRange []*types.Transaction
-	if len(txs) <= int(req.Offset) {
-		txInRange = []*types.Transaction{}
-	} else if len(txs) < int(req.Offset+req.Limit) {
-		txInRange = txs[:len(txs)-int(req.Offset)]
-	} else {
-		txInRange = txs[len(txs)-int(req.Offset)-int(req.Limit) : len(txs)-int(req.Offset)]
-	}
-	logger.Infof("transactions inf range: %v", len(txInRange))
-	utxos, err := s.loadUtxoForTx(txInRange)
-	logger.Debugf("utxos %v", util.PrettyPrint(utxos))
-	if err != nil {
-		return nil, err
-	}
-	txInfos, err := s.convertTransactionInfos(txInRange, utxos)
-	for i := 0; i < len(txInfos)/2; i++ {
-		j := len(txInfos) - i - 1
-		txInfos[i], txInfos[j] = txInfos[j], txInfos[i]
-	}
-	return &rpcpb.GetTransactionsInfoResponse{
-		Total: uint32(len(txs)),
-		Txs:   txInfos,
-	}, nil
-}
-
-func (s *webapiServer) GetTransaction(ctx context.Context, req *rpcpb.GetTransactionInfoRequest) (*rpcpb.GetTransactionInfoResponse, error) {
-	hash := &crypto.HashType{}
-	if err := hash.SetString(req.Hash); err != nil {
-		return nil, err
-	}
-	block, index, err := s.GetChainReader().LoadBlockInfoByTxHash(*hash)
-	//tx, err := s.GetChainReader().LoadTxByHash(*hash)
-	if err != nil {
-		return nil, err
-	}
-	tx := block.Txs[index]
-	utxos, err := s.loadUtxoForTx([]*types.Transaction{tx})
-	if err != nil {
-		return nil, err
-	}
-	txInfo, err := s.convertTransaction(tx, utxos)
-	if err != nil {
-		return nil, err
-	}
-	return &rpcpb.GetTransactionInfoResponse{
-		TxInfo: txInfo,
-		ExtraInfo: &rpcpb.TransactionExtraInfo{
-			BlockTime:   block.Header.TimeStamp,
-			BlockHeight: block.Height,
-		},
-	}, nil
-}
-
-func (s *webapiServer) GetBlock(ctx context.Context, req *rpcpb.GetBlockInfoRequest) (*rpcpb.BlockInfo, error) {
-	hash := &crypto.HashType{}
-	if err := hash.SetString(req.Hash); err != nil {
-		return nil, err
-	}
-
-	eternalBlock := s.GetChainReader().EternalBlock()
-	block, err := s.GetChainReader().LoadBlockByHash(*hash)
-	if err != nil {
-		return nil, err
-	}
-	blockInfo, err := s.convertBlock(block)
-	if err != nil {
-		return nil, err
-	}
-	blockInfo.Confirmed = eternalBlock.Height >= block.Height
-	if err != nil {
-		return nil, err
-	}
-	return blockInfo, nil
-}
-
 func (s *webapiServer) ListenAndReadNewBlock(
-	req *rpcpb.ListenBlockRequest,
+	req *rpcpb.ListenBlocksReq,
 	stream rpcpb.WebApi_ListenAndReadNewBlockServer,
 ) error {
 	var elm *list.Element
 	for {
 		if s.Closing() {
-			logger.Info("blocks queue is empty, exit ListenAndReadNewBlock ...")
+			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
 			return nil
 		}
 		s.newBlockMutex.RLock()
@@ -462,10 +256,28 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		time.Sleep(100 * time.Millisecond)
 	}
 	for {
+		// get block
+		block := elm.Value.(*types.Block)
+		logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
+			block.BlockHash(), block.Height)
+		// detail block
+		blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader)
+		if err != nil {
+			logger.Warnf("detail block %s height %d error: %s",
+				block.BlockHash(), block.Height, err)
+			continue
+		}
+		// send block info
+		if err := stream.Send(blockDetail); err != nil {
+			logger.Warnf("webapi send block error %s, exit listen connection!", err)
+			return err
+		}
+		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
+			block.BlockHash(), block.Height)
 		// move to next element
 		for {
 			if s.Closing() {
-				logger.Info("exit ListenAndReadNewBlock ...")
+				logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
 				return nil
 			}
 			s.newBlockMutex.RLock()
@@ -474,359 +286,227 @@ func (s *webapiServer) ListenAndReadNewBlock(
 				elm = next
 				s.newBlockMutex.RUnlock()
 				break
+			} else if elm.Prev() == nil {
+				// if this element is removed, move to the fromt of list
+				elm = s.newBlocksQueue.Front()
+				s.newBlockMutex.RUnlock()
+				break
 			}
 			s.newBlockMutex.RUnlock()
 			time.Sleep(100 * time.Millisecond)
 		}
-		// get block
-		block := elm.Value.(*types.Block)
-		logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
-			block.BlockHash(), block.Height)
-		// convert block to block info
-		// NOTE: need refine to reduce db access and to improve performance
-		blockInfo, err := s.convertBlock(block)
-		if err != nil {
-			logger.Warnf("convert block %s error: %s", block.BlockHash(), err)
-			continue
-		}
-		// assign Confirmed field
-		eternalBlock := s.GetChainReader().EternalBlock()
-		if eternalBlock == nil {
-			logger.Warnf("get EternalBlock is nil")
-			continue
-		}
-		blockInfo.Confirmed = eternalBlock.Height >= block.Height
-		// send block info
-		if err := stream.Send(blockInfo); err != nil {
-			logger.Warnf("webapi send block error %s, exit listen connection!", err)
-			return err
-		}
-		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
-			block.BlockHash(), block.Height)
 	}
 }
 
-func (s *webapiServer) countAddresses(utxos map[types.OutPoint]*types.UtxoWrap) uint32 {
-	addrs := make(map[string]bool)
-	for _, wrap := range utxos {
-		sc := script.NewScriptFromBytes(wrap.Script())
-		addr, err := sc.ExtractAddress()
-		if err != nil || addr == nil {
-			continue
-		}
-		addrs[addr.String()] = true
-	}
-	return uint32(len(addrs))
-}
+func detailTx(
+	tx *types.Transaction, br ChainTxReader, tr TxPoolReader,
+) (*rpcpb.TxDetail, error) {
 
-func (s *webapiServer) analyzeDistribute(utxos map[types.OutPoint]*types.UtxoWrap) map[string]uint64 {
-	distribute := make(map[string]uint64)
-	for _, wrap := range utxos {
-		sc := script.NewScriptFromBytes(wrap.Script())
-		addr, err := sc.ExtractAddress()
-		if err != nil || addr == nil {
-			continue
-		}
-		addrStr := addr.String()
-		if val, ok := distribute[addrStr]; ok {
-			distribute[addrStr] = val + wrap.Value()
-		} else {
-			distribute[addrStr] = wrap.Value()
-		}
-	}
-	return distribute
-}
-
-func (s *webapiServer) analyzeTokenDistribute(utxos map[types.OutPoint]*types.UtxoWrap, token *script.TokenID) (map[string]uint64, error) {
-	distribute := make(map[string]uint64)
-	for op, wrap := range utxos {
-		sc := script.NewScriptFromBytes(wrap.Script())
-		if sc.IsTokenIssue() {
-			addr, err := sc.ExtractAddress()
-			if err != nil {
-				return nil, err
-			}
-			param, err := sc.GetIssueParams()
-			if err != nil {
-				return nil, err
-			}
-			if op.Hash.IsEqual(&token.Hash) && op.Index == token.Index {
-				distribute[addr.String()] = param.TotalSupply
-				// an utxo of issue yet implies no transfer tx yet
-				return distribute, nil
-			}
-		} else if sc.IsTokenTransfer() {
-			param, err := sc.GetTransferParams()
-			if err != nil {
-				return nil, err
-			}
-			addr, err := sc.ExtractAddress()
-			if err != nil {
-				return nil, err
-			}
-			if param.Hash.IsEqual(&token.Hash) && param.Index == token.Index {
-				if val, ok := distribute[addr.String()]; ok {
-					distribute[addr.String()] = val + param.Amount
-				} else {
-					distribute[addr.String()] = param.Amount
-				}
-			}
-		}
-	}
-	return distribute, nil
-}
-
-func (s *webapiServer) loadGeneratedUtxoForTx(txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
-	generated := make(map[types.OutPoint]*types.UtxoWrap)
-	for i, tx := range txs {
-		hash, err := tx.TxHash()
+	detail := new(rpcpb.TxDetail)
+	hash, _ := tx.TxHash()
+	detail.Hash = hash.String()
+	// parse vin
+	for _, in := range tx.Vin {
+		inDetail, err := detailTxIn(in, br, tr)
 		if err != nil {
 			return nil, err
 		}
-		for idx, out := range tx.Vout {
-			outpoint := types.OutPoint{
-				Hash:  *hash,
-				Index: uint32(idx),
-			}
-			wrap := types.NewUtxoWrap(out.Value, out.ScriptPubKey, 0)
-			if i == 0 {
-				wrap.SetCoinBase()
-			}
-			// wrap := &types.UtxoWrap{
-			// 	Output:      out,
-			// 	BlockHeight: 0,
-			// 	IsCoinBase:  i == 0,
-			// 	IsSpent:     false,
-			// 	IsModified:  false,
-			// }
-			generated[outpoint] = wrap
-		}
+		detail.Vin = append(detail.Vin, inDetail)
 	}
-	return generated, nil
-}
-
-func (s *webapiServer) loadUsedUtxoForTx(memUtxoSource map[types.OutPoint]*types.UtxoWrap, txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
-	var missing []types.OutPoint
-	final := make(map[types.OutPoint]*types.UtxoWrap)
-	for k, v := range memUtxoSource {
-		final[k] = v
-	}
-	for _, tx := range txs {
-		if s.GetChainReader().IsCoinBase(tx) {
-			continue
-		}
-		for _, txIn := range tx.Vin {
-			if _, ok := memUtxoSource[txIn.PrevOutPoint]; ok {
-				continue
-			}
-			missing = append(missing, txIn.PrevOutPoint)
-		}
-	}
-	stored, err := s.GetChainReader().LoadSpentUtxos(missing)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range stored {
-		final[k] = v
-	}
-	return final, nil
-}
-
-func (s *webapiServer) loadUtxoForTx(txs []*types.Transaction) (map[types.OutPoint]*types.UtxoWrap, error) {
-	generated := make(map[types.OutPoint]*types.UtxoWrap)
-	for i, tx := range txs {
-		hash, err := tx.TxHash()
+	// parse vout
+	for i := range tx.Vout {
+		txHash, _ := tx.TxHash()
+		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i))
 		if err != nil {
 			return nil, err
 		}
-		for idx, out := range tx.Vout {
-			outpoint := types.OutPoint{
-				Hash:  *hash,
-				Index: uint32(idx),
-			}
-			wrap := types.NewUtxoWrap(out.Value, out.ScriptPubKey, 0)
-			if i == 0 {
-				wrap.SetCoinBase()
-			}
-			// wrap := &types.UtxoWrap{
-			// 	Output:      out,
-			// 	BlockHeight: 0,
-			// 	IsCoinBase:  i == 0,
-			// 	IsSpent:     false,
-			// 	IsModified:  false,
-			// }
-			generated[outpoint] = wrap
-		}
+		detail.Vout = append(detail.Vout, outDetail)
 	}
-	var missing []types.OutPoint
-	for _, tx := range txs {
-		if s.GetChainReader().IsCoinBase(tx) {
-			continue
-		}
-		for _, txIn := range tx.Vin {
-			if _, ok := generated[txIn.PrevOutPoint]; ok {
-				continue
-			}
-			missing = append(missing, txIn.PrevOutPoint)
-		}
+	return detail, nil
+}
+
+func detailBlock(
+	block *types.Block, r ChainBlockReader, tr TxPoolReader,
+) (*rpcpb.BlockDetail, error) {
+
+	if block == nil || block.Header == nil {
+		return nil, fmt.Errorf("detailBlock error for block: %+v", block)
 	}
-	stored, err := s.GetChainReader().LoadSpentUtxos(missing)
+	detail := new(rpcpb.BlockDetail)
+	detail.Version = block.Header.Version
+	detail.Height = block.Height
+	detail.TimeStamp = block.Header.TimeStamp
+	detail.Hash = block.BlockHash().String()
+	detail.PrevBlockHash = block.Header.PrevBlockHash.String()
+	// coin base is miner address or block fee receiver
+	coinBase, err := getCoinbaseAddr(block)
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range stored {
-		generated[k] = v
-	}
-	return generated, nil
-}
-
-func (s *webapiServer) convertTransactionInfos(txs []*types.Transaction, utxos map[types.OutPoint]*types.UtxoWrap) ([]*rpcpb.TransactionInfo, error) {
-	var result []*rpcpb.TransactionInfo
-	for _, tx := range txs {
-		txPb, err := s.convertTransaction(tx, utxos)
+	detail.CoinBase = coinBase
+	detail.Confirmed = blockConfirmed(block, r)
+	detail.Signature = hex.EncodeToString(block.Signature)
+	for _, tx := range block.Txs {
+		txDetail, err := detailTx(tx, r, tr)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, txPb)
+		detail.Txs = append(detail.Txs, txDetail)
 	}
-	return result, nil
+	return detail, nil
 }
 
-func (s *webapiServer) convertTransaction(tx *types.Transaction, utxos map[types.OutPoint]*types.UtxoWrap) (*rpcpb.TransactionInfo, error) {
-	hash, err := tx.TxHash()
+func detailTxIn(
+	txIn *types.TxIn, r ChainTxReader, tr TxPoolReader,
+) (*rpcpb.TxInDetail, error) {
+
+	detail := new(rpcpb.TxInDetail)
+	// if tx in is coin base
+	if txlogic.IsCoinBaseTxIn(txIn) {
+		return detail, nil
+	}
+	//
+	hash := &txIn.PrevOutPoint.Hash
+	prevTx, err := r.LoadTxByHash(*hash)
+	if err != nil {
+		logger.Infof("load tx by hash %s from chain error: %s, try tx pool", hash, err)
+		txWrap, _ := tr.GetTxByHash(hash)
+		if txWrap == nil {
+			return nil, fmt.Errorf("tx not found for detail txIn %+v", txIn.PrevOutPoint)
+		}
+		prevTx = txWrap.Tx
+	}
+	detail.ScriptSig = hex.EncodeToString(txIn.ScriptSig)
+	detail.Sequence = txIn.Sequence
+	detail.PrevOutPoint = convOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
+	index := txIn.PrevOutPoint.Index
+	prevTxHash, _ := prevTx.TxHash()
+	detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
+		txIn.PrevOutPoint.Index)
 	if err != nil {
 		return nil, err
 	}
-	protoMsg, err := tx.ToProtoMessage()
+	return detail, nil
+}
+
+func detailTxOut(
+	txHash *crypto.HashType, txOut *corepb.TxOut, index uint32,
+) (*rpcpb.TxOutDetail, error) {
+
+	detail := new(rpcpb.TxOutDetail)
+	// addr
+	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+	address, err := sc.ExtractAddress()
 	if err != nil {
 		return nil, err
 	}
-	txPb, ok := protoMsg.(*corepb.Transaction)
-	if !ok {
-		return nil, fmt.Errorf("invalid transaction message")
-	}
-	bts, err := tx.Marshal()
+	detail.Addr = address.String()
+	// value
+	op := types.NewOutPoint(txHash, index)
+	// height 0 is unused
+	wrap := types.NewUtxoWrap(txOut.Value, txOut.ScriptPubKey, 0)
+	utxo := txlogic.MakePbUtxo(op, wrap)
+	amount, _, err := txlogic.ParseUtxoAmount(utxo)
 	if err != nil {
 		return nil, err
 	}
-	var outInfos []*rpcpb.TxOutInfo
-	for idx, o := range txPb.Vout {
-		outInfo, err := convertVout(*hash, uint32(idx), o)
+	detail.Value = amount
+	// script pubic key
+	detail.ScriptPubKey = hex.EncodeToString(txOut.ScriptPubKey)
+	// script disasm
+	detail.ScriptDisasm = sc.Disasm()
+	// type
+	detail.Type = parseVoutType(txOut)
+	//  appendix
+	switch detail.Type {
+	default:
+	case rpcpb.TxOutDetail_token_issue:
+		param, err := sc.GetIssueParams()
 		if err != nil {
 			return nil, err
 		}
-		outInfos = append(outInfos, outInfo)
-	}
-	var inInfos []*rpcpb.TxInInfo
-	var totalIn, totalOut, fee uint64
-	for _, i := range tx.Vin {
-		opInfo := &rpcpb.OutPointInfo{
-			Hash:  i.PrevOutPoint.Hash.String(),
-			Index: i.PrevOutPoint.Index,
+		issueInfo := &rpcpb.TxOutDetail_TokenIssueInfo{
+			TokenIssueInfo: &rpcpb.TokenIssueInfo{
+				TokenTag: &corepb.TokenTag{
+					Name:     param.Name,
+					Symbol:   param.Symbol,
+					Supply:   param.TotalSupply,
+					Decimals: uint32(param.Decimals),
+				},
+			},
 		}
-		if !s.GetChainReader().IsCoinBase(tx) {
-			utxo, ok := utxos[i.PrevOutPoint]
-			if !ok {
-				return nil, fmt.Errorf("previous input not found %v", i.PrevOutPoint)
-			}
-			info := &rpcpb.TxInInfo{
-				PrevOutPoint: opInfo,
-				ScriptSig:    i.ScriptSig,
-				Sequence:     i.Sequence,
-				Value:        utxo.Value(),
-			}
-			sc := *script.NewScriptFromBytes(utxo.Script())
-			if addr, err := sc.ExtractAddress(); err == nil {
-				info.Addr = addr.String()
-			}
-			totalIn += utxo.Value()
-			inInfos = append(inInfos, info)
-		} else {
-			info := &rpcpb.TxInInfo{
-				PrevOutPoint: opInfo,
-				ScriptSig:    i.ScriptSig,
-				Sequence:     i.Sequence,
-				Value:        0,
-			}
-			inInfos = append(inInfos, info)
+		detail.Appendix = issueInfo
+	case rpcpb.TxOutDetail_token_transfer:
+		param, err := sc.GetTransferParams()
+		if err != nil {
+			return nil, err
 		}
+		transferInfo := &rpcpb.TxOutDetail_TokenTransferInfo{
+			TokenTransferInfo: &rpcpb.TokenTransferInfo{
+				TokenId: convOutPoint(txlogic.ConvOutPoint(&param.TokenID.OutPoint)),
+			},
+		}
+		detail.Appendix = transferInfo
+	case rpcpb.TxOutDetail_pay_to_split_script:
+		//addresses, amounts, err := sc.ParseSplitAddrScript()
 	}
-	for _, o := range tx.Vout {
-		totalOut += o.Value
-	}
-	if s.GetChainReader().IsCoinBase(tx) {
-		fee = 0
+	//
+	return detail, nil
+}
+
+func parseVoutType(txOut *corepb.TxOut) rpcpb.TxOutDetail_TxOutType {
+	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+	if sc.IsTokenIssue() {
+		return rpcpb.TxOutDetail_token_issue
+	} else if sc.IsTokenTransfer() {
+		return rpcpb.TxOutDetail_token_transfer
+	} else if sc.IsPayToPubKeyHash() {
+		return rpcpb.TxOutDetail_pay_to_pubkey
+	} else if sc.IsSplitAddrScript() {
+		return rpcpb.TxOutDetail_pay_to_split_script
+	} else if sc.IsPayToPubKeyHashCLTVScript() {
+		return rpcpb.TxOutDetail_pay_to_pubkey_cltv_script
+	} else if sc.IsPayToScriptHash() {
+		return rpcpb.TxOutDetail_pay_to_script
 	} else {
-		fee = totalIn - totalOut
+		return rpcpb.TxOutDetail_unknown
 	}
-	out := &rpcpb.TransactionInfo{
-		Version:  tx.Version,
-		Vin:      inInfos,
-		Vout:     outInfos,
-		Data:     txPb.Data,
-		Magic:    txPb.Magic,
-		LockTime: txPb.LockTime,
-		Hash:     hash.String(),
-		Fee:      fee,
-		Size_:    uint64(len(bts)),
-	}
-	return out, nil
 }
 
-func (s *webapiServer) convertBlock(block *types.Block) (*rpcpb.BlockInfo, error) {
-
-	headerPb, err := convertHeader(block.Header)
-	if err != nil {
-		return nil, err
+func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
+	if b == nil {
+		return false
 	}
-	bts, err := block.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	utxos, err := s.loadUtxoForTx(block.Txs)
-	if err != nil {
-		return nil, err
-	}
-	txsPb, err := s.convertTransactionInfos(block.Txs, utxos)
-	if err != nil {
-		return nil, err
-	}
-	coinbase, err := getCoinbaseAddr(block)
-	if err != nil {
-		return nil, err
-	}
-	out := &rpcpb.BlockInfo{
-		Header:    headerPb,
-		Txs:       txsPb,
-		Height:    block.Height,
-		Signature: block.Signature,
-		Hash:      block.Hash.String(),
-		Size_:     uint64(len(bts)),
-		CoinBase:  coinbase.String(),
-	}
-	return out, nil
+	eternalHeight := r.EternalBlock().Height
+	return eternalHeight >= b.Height
 }
 
-func getCoinbaseAddr(block *types.Block) (types.Address, error) {
+func getCoinbaseAddr(block *types.Block) (string, error) {
 	if block.Txs == nil || len(block.Txs) == 0 {
-		return nil, fmt.Errorf("coinbase transaction does not exist")
+		return "", fmt.Errorf("coinbase does not exist in block %s height %d",
+			block.BlockHash(), block.Height)
 	}
 	tx := block.Txs[0]
 	sc := *script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
-	return sc.ExtractAddress()
+	address, err := sc.ExtractAddress()
+	if err != nil {
+		return "", err
+	}
+	return address.String(), nil
 }
 
-func convertHeader(header *types.BlockHeader) (*rpcpb.HeaderInfo, error) {
-	if header == nil {
-		return nil, nil
+func convOutPoint(op *corepb.OutPoint) string {
+	buf := op.GetHash()
+	// reverse bytes
+	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
+		buf[i], buf[j] = buf[j], buf[i]
 	}
-	return &rpcpb.HeaderInfo{
-		Version:        header.Version,
-		PrevBlockHash:  header.PrevBlockHash.String(),
-		TxsRoot:        header.TxsRoot.String(),
-		TimeStamp:      header.TimeStamp,
-		Magic:          header.Magic,
-		PeriodHash:     header.PeriodHash.String(),
-		CandidatesHash: header.CandidatesHash.String(),
-	}, nil
+	// append separator ':'
+	buf = append(buf, ':')
+	// put index
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, op.GetIndex())
+	buf = append(buf, b...)
+
+	return base58.Encode(buf)
 }

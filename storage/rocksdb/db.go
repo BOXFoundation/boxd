@@ -123,7 +123,7 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 				metrics.MetricsRocksdbCacheGauge.Update(int64(tickerCache.GetUsage()))
 				metrics.MetricsRocksdbIdxFilterGauge.Update(int64(indexFilterMem))
 				metrics.MetricsRocksdbMemtableGauge.Update(int64(mmtMem))
-				metrics.MetricsRocksdbPinnedGauge.Update(int64(cache.GetPinnedUsage()))
+				metrics.MetricsRocksdbCacheGauge.Update(int64(cache.GetPinnedUsage()))
 			}
 		}
 	}()

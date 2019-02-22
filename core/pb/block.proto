@@ -54,6 +54,13 @@ message OutPoint {
     uint32 index =2;
 }
 
+message TokenTag {
+  string name = 1;
+  string symbol = 2;
+  uint64 supply = 3;
+  uint32 decimals = 4;
+}
+
 message Data {
     int32 type = 1;
     bytes content = 2;
