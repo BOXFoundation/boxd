@@ -240,7 +240,10 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	req *rpcpb.ListenBlocksReq,
 	stream rpcpb.WebApi_ListenAndReadNewBlockServer,
 ) error {
-	var elm *list.Element
+	var (
+		elm  *list.Element
+		exit bool
+	)
 	for {
 		if s.Closing() {
 			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
@@ -265,6 +268,9 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		if err != nil {
 			logger.Warnf("detail block %s height %d error: %s",
 				block.BlockHash(), block.Height, err)
+			if elm, exit = s.moveNextElem(elm); exit {
+				return nil
+			}
 			continue
 		}
 		// send block info
@@ -274,27 +280,33 @@ func (s *webapiServer) ListenAndReadNewBlock(
 		}
 		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
 			block.BlockHash(), block.Height)
-		// move to next element
-		for {
-			if s.Closing() {
-				logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
-				return nil
-			}
-			s.newBlockMutex.RLock()
-			next := elm.Next()
-			if next != nil {
-				elm = next
-				s.newBlockMutex.RUnlock()
-				break
-			} else if elm.Prev() == nil {
-				// if this element is removed, move to the fromt of list
-				elm = s.newBlocksQueue.Front()
-				s.newBlockMutex.RUnlock()
-				break
-			}
-			s.newBlockMutex.RUnlock()
-			time.Sleep(100 * time.Millisecond)
+		if elm, exit = s.moveNextElem(elm); exit {
+			return nil
 		}
+	}
+}
+
+func (s *webapiServer) moveNextElem(elm *list.Element) (elmA *list.Element, exit bool) {
+	// move to next element
+	for {
+		if s.Closing() {
+			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
+			return nil, true
+		}
+		s.newBlockMutex.RLock()
+		next := elm.Next()
+		if next != nil {
+			elmA = next
+			s.newBlockMutex.RUnlock()
+			return elmA, false
+		} else if elm.Prev() == nil {
+			// if this element is removed, move to the fromt of list
+			elmA = s.newBlocksQueue.Front()
+			s.newBlockMutex.RUnlock()
+			return elmA, false
+		}
+		s.newBlockMutex.RUnlock()
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
