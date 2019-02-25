@@ -5,7 +5,7 @@
 package txlogic
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -13,109 +13,10 @@ import (
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
-// NewIssueTokenTxWithUtxos new issue token tx with utxos
-func NewIssueTokenTxWithUtxos(
-	fromAcc *acc.Account, utxos []*rpcpb.Utxo, to string,
-	tag *types.TokenTag, supply uint64, changeAmt uint64) (
-	*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
-
-	// check input and output amount
-	utxoValue := uint64(0)
-	for _, u := range utxos {
-		utxoValue += u.GetTxOut().GetValue()
-	}
-	if utxoValue < changeAmt {
-		return nil, nil, nil, fmt.Errorf("input %d is less than output %d",
-			utxoValue, changeAmt)
-	}
-	// vin
-	vins := make([]*types.TxIn, 0, len(utxos))
-	for _, u := range utxos {
-		vins = append(vins, MakeVin(u, 0))
-	}
-	// token vout 0
-	tokenVout, err := MakeIssueTokenVout(to, tag, supply)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	// construct transaction
-	tx := new(types.Transaction)
-	tx.Vin = append(tx.Vin, vins...)
-	tx.Vout = append(tx.Vout, tokenVout)
-	// vout for change of from
-	var fromOut *corepb.TxOut
-	if changeAmt > 0 {
-		fromOut = MakeVout(fromAcc.Addr(), changeAmt)
-		tx.Vout = append(tx.Vout, fromOut)
-	}
-	// sign vin
-	if err := SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
-		return nil, nil, nil, err
-	}
-	// create change utxo
-	txHash, _ := tx.TxHash()
-	var change *rpcpb.Utxo
-	if changeAmt > 0 {
-		change = &rpcpb.Utxo{
-			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-			TxOut:       fromOut,
-			BlockHeight: 0,
-			IsCoinbase:  false,
-			IsSpent:     false,
-		}
-	}
-
-	return tx, types.NewTokenID(txHash, 0), change, nil
-}
-
-func checkAmount(amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo) bool {
-	utxoValue := uint64(0)
-	for _, u := range utxos {
-		amount, tid, err := ParseUtxoAmount(u)
-		if err != nil || tid != nil {
-			continue
-		}
-		utxoValue += amount
-	}
-	amount := uint64(0)
-	for _, a := range amounts {
-		amount += a
-	}
-	return utxoValue >= amount+changeAmt
-}
-
-// MakeUnsignedTx make a tx without signature
-func MakeUnsignedTx(
-	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*types.Transaction, error) {
-
-	if !checkAmount(amounts, changeAmt, utxos...) {
-		return nil, fmt.Errorf("input utxos[%+v] is less than output[amounts: %v,"+
-			" changeAmt: %d]", utxos, amounts, changeAmt)
-	}
-
-	// vin
-	vins := make([]*types.TxIn, 0, len(utxos))
-	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
-	}
-
-	// vout for toAddrs
-	vouts := make([]*corepb.TxOut, 0, len(to))
-	for i, addr := range to {
-		vouts = append(vouts, MakeVout(addr, amounts[i]))
-	}
-
-	// construct transaction
-	tx := new(types.Transaction)
-	tx.Vin = append(tx.Vin, vins...)
-	tx.Vout = append(tx.Vout, vouts...)
-	// change
-	if changeAmt > 0 {
-		tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
-	}
-	return tx, nil
-}
+//
+var (
+	ErrInsufficientBalance = errors.New("insufficient account balance")
+)
 
 // NewTxWithUtxos new a transaction
 func NewTxWithUtxos(
@@ -146,36 +47,34 @@ func NewTxWithUtxos(
 	return tx, change, nil
 }
 
-// MakeUnsignedSplitAddrTx make unsigned split addr tx
-func MakeUnsignedSplitAddrTx(
-	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*types.Transaction, string, error) {
+// NewIssueTokenTxWithUtxos new issue token tx with utxos
+func NewIssueTokenTxWithUtxos(
+	fromAcc *acc.Account, utxos []*rpcpb.Utxo, to string, tag *rpcpb.TokenTag,
+	changeAmt uint64,
+) (*types.Transaction, *TokenID, *rpcpb.Utxo, error) {
 
-	if !checkAmount(nil, changeAmt, utxos...) {
-		return nil, "", fmt.Errorf("input utxos[%+v] is less than output[amounts: "+
-			"%v, changeAmt: %d]", utxos, nil, changeAmt)
+	tx, issueOutIndex, err := MakeUnsignedTokenIssueTx(fromAcc.Addr(), to, tag,
+		changeAmt, utxos...)
+	if err != nil {
+		return nil, nil, nil, err
 	}
-	// vin
-	vins := make([]*types.TxIn, 0)
-	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+	// sign vin
+	if err = SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
+		return nil, nil, nil, err
 	}
-	// vout for toAddrs
-	splitAddrOut := MakeSplitAddrVout(addrs, weights)
-	// construct transaction
-	tx := new(types.Transaction)
-	tx.Vin = append(tx.Vin, vins...)
-	tx.Vout = append(tx.Vout, splitAddrOut)
-	// change
-	var changeOut *corepb.TxOut
+	// create change utxo
+	txHash, _ := tx.TxHash()
+	var change *rpcpb.Utxo
 	if changeAmt > 0 {
-		changeOut = MakeVout(from, changeAmt)
-		tx.Vout = append(tx.Vout, changeOut)
+		change = &rpcpb.Utxo{
+			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
+			TxOut:       tx.Vout[len(tx.Vout)-1],
+			BlockHeight: 0,
+			IsCoinbase:  false,
+			IsSpent:     false,
+		}
 	}
-	// calc split addr
-	addr, err := MakeSplitAddr(addrs, weights)
-	//
-	return tx, addr, err
+	return tx, NewTokenID(txHash, issueOutIndex), change, nil
 }
 
 // NewSplitAddrTxWithUtxos new split address tx
@@ -211,4 +110,116 @@ func NewSplitAddrTxWithUtxos(
 		}
 	}
 	return
+}
+
+// MakeUnsignedTx make a tx without signature
+func MakeUnsignedTx(
+	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, error) {
+
+	if !checkAmount(amounts, changeAmt, utxos...) {
+		return nil, ErrInsufficientBalance
+	}
+
+	// vin
+	vins := make([]*types.TxIn, 0, len(utxos))
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(utxo, 0))
+	}
+
+	// vout for toAddrs
+	vouts := make([]*corepb.TxOut, 0, len(to))
+	for i, addr := range to {
+		vouts = append(vouts, MakeVout(addr, amounts[i]))
+	}
+
+	// construct transaction
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, vouts...)
+	// change
+	if changeAmt > 0 {
+		tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
+	}
+	return tx, nil
+}
+
+// MakeUnsignedSplitAddrTx make unsigned split addr tx
+func MakeUnsignedSplitAddrTx(
+	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, string, error) {
+
+	if !checkAmount(nil, changeAmt, utxos...) {
+		return nil, "", ErrInsufficientBalance
+	}
+	// vin
+	vins := make([]*types.TxIn, 0)
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(utxo, 0))
+	}
+	// vout for toAddrs
+	splitAddrOut := MakeSplitAddrVout(addrs, weights)
+	// construct transaction
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, splitAddrOut)
+	// change
+	var changeOut *corepb.TxOut
+	if changeAmt > 0 {
+		changeOut = MakeVout(from, changeAmt)
+		tx.Vout = append(tx.Vout, changeOut)
+	}
+	// calc split addr
+	addr, err := MakeSplitAddr(addrs, weights)
+	//
+	return tx, addr, err
+}
+
+// MakeUnsignedTokenIssueTx make unsigned token issue tx
+func MakeUnsignedTokenIssueTx(
+	issuer string, issuee string, tag *rpcpb.TokenTag, changeAmt uint64,
+	utxos ...*rpcpb.Utxo,
+) (*types.Transaction, uint32, error) {
+
+	if !checkAmount(nil, changeAmt, utxos...) {
+		return nil, 0, ErrInsufficientBalance
+	}
+	// vin
+	vins := make([]*types.TxIn, 0)
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(utxo, 0))
+	}
+	// vout for toAddrs
+	issueOut, err := MakeIssueTokenVout(issuee, tag)
+	if err != nil {
+		return nil, 0, err
+	}
+	// construct transaction
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, issueOut)
+	// change
+	var changeOut *corepb.TxOut
+	if changeAmt > 0 {
+		changeOut = MakeVout(issuer, changeAmt)
+		tx.Vout = append(tx.Vout, changeOut)
+	}
+	// issue token vout is set to 0 defaultly
+	return tx, 0, err
+}
+
+func checkAmount(amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo) bool {
+	utxoValue := uint64(0)
+	for _, u := range utxos {
+		amount, tid, err := ParseUtxoAmount(u)
+		if err != nil || tid != nil {
+			continue
+		}
+		utxoValue += amount
+	}
+	amount := uint64(0)
+	for _, a := range amounts {
+		amount += a
+	}
+	return utxoValue >= amount+changeAmt
 }

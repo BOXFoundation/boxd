@@ -12,6 +12,7 @@ import (
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -107,7 +108,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
 
-	tag := types.NewTokenTag(tokenName, tokenSymbol, uint8(tokenDecimals))
+	tag := txlogic.NewTokenTag(tokenName, tokenSymbol, uint32(tokenDecimals), uint64(tokenTotalSupply))
 	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.String(), tag,
 		uint64(tokenTotalSupply), conn)
 	if err != nil {
@@ -201,7 +202,7 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	//}
 	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
 	defer conn.Close()
-	tid := types.TokenID(token.OutPoint())
+	tid := txlogic.TokenID(token.OutPoint())
 	balance, _ := rpcutil.GetTokenBalance(conn, addrs, &tid)
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }

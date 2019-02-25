@@ -440,11 +440,11 @@ func detailTxOut(
 		}
 		issueInfo := &rpcpb.TxOutDetail_TokenIssueInfo{
 			TokenIssueInfo: &rpcpb.TokenIssueInfo{
-				TokenTag: &corepb.TokenTag{
-					Name:     param.Name,
-					Symbol:   param.Symbol,
-					Supply:   param.TotalSupply,
-					Decimals: uint32(param.Decimals),
+				TokenTag: &rpcpb.TokenTag{
+					Name:    param.Name,
+					Symbol:  param.Symbol,
+					Supply:  param.TotalSupply,
+					Decimal: uint32(param.Decimals),
 				},
 			},
 		}

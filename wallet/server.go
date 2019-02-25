@@ -10,7 +10,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/storage"
@@ -106,7 +106,7 @@ func (w *Server) onUtxoChange(utxoSet *chain.UtxoSet) {
 }
 
 // Balance returns the total balance of an address
-func (w *Server) Balance(addr string, tokenID *types.TokenID) (uint64, error) {
+func (w *Server) Balance(addr string, tokenID *txlogic.TokenID) (uint64, error) {
 	if w.cfg == nil || !w.cfg.Enable {
 		err := errors.New("not supported for non-wallet node")
 		logger.Warn(err)
@@ -120,7 +120,7 @@ func (w *Server) Balance(addr string, tokenID *types.TokenID) (uint64, error) {
 }
 
 // Utxos returns all utxos of an address
-func (w *Server) Utxos(addr string, tokenID *types.TokenID, amount uint64) (
+func (w *Server) Utxos(addr string, tokenID *txlogic.TokenID, amount uint64) (
 	[]*rpcpb.Utxo, error) {
 
 	if w.cfg == nil || !w.cfg.Enable {

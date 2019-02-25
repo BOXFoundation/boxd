@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/pb"
@@ -267,7 +268,7 @@ func WaitBalanceEqual(addr string, amount uint64, checkPeer string,
 }
 
 // WaitTokenBalanceEnough wait tokken balance of addr is more than amount
-func WaitTokenBalanceEnough(addr string, amount uint64, tid *types.TokenID,
+func WaitTokenBalanceEnough(addr string, amount uint64, tid *txlogic.TokenID,
 	checkPeer string, timeout time.Duration) (uint64, error) {
 	// return eagerly
 	b := TokenBalanceFor(addr, tid, checkPeer)
@@ -292,7 +293,7 @@ func WaitTokenBalanceEnough(addr string, amount uint64, tid *types.TokenID,
 }
 
 // WaitTokenBalanceEqualTo wait token balance of addr equal to amount
-func WaitTokenBalanceEqualTo(addr string, amount uint64, tid *types.TokenID,
+func WaitTokenBalanceEqualTo(addr string, amount uint64, tid *txlogic.TokenID,
 	checkPeer string, timeout time.Duration) error {
 	// return eagerly
 	b := TokenBalanceFor(addr, tid, checkPeer)
@@ -317,7 +318,7 @@ func WaitTokenBalanceEqualTo(addr string, amount uint64, tid *types.TokenID,
 }
 
 // TokenBalanceFor get token balance of addr
-func TokenBalanceFor(addr string, tid *types.TokenID, peerAddr string) uint64 {
+func TokenBalanceFor(addr string, tid *txlogic.TokenID, peerAddr string) uint64 {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		logger.Panic(err)

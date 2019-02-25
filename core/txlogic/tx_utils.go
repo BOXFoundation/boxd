@@ -21,6 +21,24 @@ import (
 
 var logger = log.NewLogger("txlogic") // logger
 
+// NewTokenTag news a TokenTag
+func NewTokenTag(name, sym string, decimal uint32, supply uint64) *rpcpb.TokenTag {
+	return &rpcpb.TokenTag{
+		Name:    name,
+		Symbol:  sym,
+		Decimal: decimal,
+		Supply:  supply,
+	}
+}
+
+// TokenID defines token id
+type TokenID types.OutPoint
+
+// NewTokenID constructs a token id
+func NewTokenID(hash *crypto.HashType, index uint32) *TokenID {
+	return (*TokenID)(types.NewOutPoint(hash, index))
+}
+
 // SortByUTXOValue defines a type suited for sort
 type SortByUTXOValue []*rpcpb.Utxo
 
@@ -46,13 +64,13 @@ func (x SortByTokenUTXOValue) Less(i, j int) bool {
 }
 
 // ParseUtxoAmount parse amount from utxo and return amount, is token
-func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
+func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *TokenID, error) {
 	scp := utxo.TxOut.GetScriptPubKey()
 	s := script.NewScriptFromBytes(scp)
 	if s.IsPayToPubKeyHash() {
 		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
-		tid := (*types.TokenID)(ConvPbOutPoint(utxo.OutPoint))
+		tid := (*TokenID)(ConvPbOutPoint(utxo.OutPoint))
 		amount, err := ParseTokenAmount(scp)
 		return amount, tid, err
 	} else if s.IsTokenTransfer() {
@@ -60,7 +78,7 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 		if err != nil {
 			return 0, nil, err
 		}
-		tid := (*types.TokenID)(&param.TokenID.OutPoint)
+		tid := (*TokenID)(&param.TokenID.OutPoint)
 		return param.Amount, tid, nil
 	}
 	return 0, nil, errors.New("utxo not recognized")
@@ -138,18 +156,18 @@ func NewUtxoWrap(addr string, height uint32, value uint64) *types.UtxoWrap {
 
 // NewIssueTokenUtxoWrap makes a UtxoWrap
 func NewIssueTokenUtxoWrap(
-	addr string, tag *types.TokenTag, height uint32, value uint64,
+	addr string, tag *rpcpb.TokenTag, height uint32,
 ) (*types.UtxoWrap, error) {
-	vout, err := MakeIssueTokenVout(addr, tag, value)
+	vout, err := MakeIssueTokenVout(addr, tag)
 	if err != nil {
 		return nil, err
 	}
-	return types.NewUtxoWrap(value, vout.GetScriptPubKey(), height), nil
+	return types.NewUtxoWrap(tag.Supply, vout.GetScriptPubKey(), height), nil
 }
 
 // NewTokenUtxoWrap makes a UtxoWrap
 func NewTokenUtxoWrap(
-	addr string, tid *types.TokenID, height uint32, value uint64,
+	addr string, tid *TokenID, height uint32, value uint64,
 ) (*types.UtxoWrap, error) {
 	vout, err := MakeTokenVout(addr, tid, value)
 	if err != nil {
@@ -222,7 +240,7 @@ func SignTxWithUtxos(
 }
 
 // MakeIssueTokenScript make issue token script for addr with supply and tokent ag
-func MakeIssueTokenScript(addr string, tag *types.TokenTag, supply uint64) ([]byte, error) {
+func MakeIssueTokenScript(addr string, tag *rpcpb.TokenTag) ([]byte, error) {
 	address, err := types.NewAddress(addr)
 	if err != nil {
 		return nil, err
@@ -234,15 +252,15 @@ func MakeIssueTokenScript(addr string, tag *types.TokenTag, supply uint64) ([]by
 	issueParams := &script.IssueParams{
 		Name:        tag.Name,
 		Symbol:      tag.Symbol,
-		Decimals:    tag.Decimal,
-		TotalSupply: supply,
+		Decimals:    uint8(tag.Decimal),
+		TotalSupply: tag.Supply,
 	}
 	return *script.IssueTokenScript(addrPkh.Hash(), issueParams), nil
 }
 
 // MakeIssueTokenVout make issue token vout
-func MakeIssueTokenVout(addr string, tag *types.TokenTag, supply uint64) (*corepb.TxOut, error) {
-	spk, err := MakeIssueTokenScript(addr, tag, supply)
+func MakeIssueTokenVout(addr string, tag *rpcpb.TokenTag) (*corepb.TxOut, error) {
+	spk, err := MakeIssueTokenScript(addr, tag)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +268,7 @@ func MakeIssueTokenVout(addr string, tag *types.TokenTag, supply uint64) (*corep
 }
 
 // MakeTokenVout make token tx vout
-func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.TxOut, error) {
+func MakeTokenVout(addr string, tokenID *TokenID, amount uint64) (*corepb.TxOut, error) {
 	address, err := types.NewAddress(addr)
 	if err != nil {
 		return nil, err

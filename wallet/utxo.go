@@ -44,7 +44,7 @@ func filterTokenTransfer(raw []byte) bool {
 }
 
 // BalanceFor returns balance amount of an address using balance index
-func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, error) {
+func BalanceFor(addr string, tid *txlogic.TokenID, db storage.Table) (uint64, error) {
 	utxos, err := FetchUtxosOf(addr, tid, 0, db)
 	logger.Infof("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
@@ -75,7 +75,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 // NOTE: if total is 0, fetch all utxos
 // NOTE: if tokenID is nil, fetch box utxos
 func FetchUtxosOf(
-	addr string, tid *types.TokenID, total uint64, db storage.Table,
+	addr string, tid *txlogic.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	var utxoKey []byte
@@ -112,7 +112,7 @@ func FetchUtxosOf(
 }
 
 func fetchModerateUtxos(
-	keys [][]byte, tid *types.TokenID, total uint64, db storage.Table,
+	keys [][]byte, tid *txlogic.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	utxoLiveCache.Shrink()
@@ -147,7 +147,7 @@ func fetchModerateUtxos(
 }
 
 func makeUtxosFromDB(
-	keys [][]byte, tid *types.TokenID, db storage.Table,
+	keys [][]byte, tid *txlogic.TokenID, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	ts := time.Now()
@@ -202,7 +202,7 @@ func makeUtxosFromDB(
 		// check utxo token id
 		if tid != nil {
 			if filterTokenIssue(spk) {
-				if *tid != types.TokenID(*op) {
+				if *tid != txlogic.TokenID(*op) {
 					logger.Warnf("tid: %+v, op: %+v", tid, op)
 					continue
 				}
@@ -213,7 +213,7 @@ func makeUtxosFromDB(
 					logger.Warn(err)
 					continue
 				}
-				if *tid != types.TokenID(param.TokenID.OutPoint) {
+				if *tid != txlogic.TokenID(param.TokenID.OutPoint) {
 					continue
 				}
 			} else {
@@ -227,7 +227,7 @@ func makeUtxosFromDB(
 }
 
 func selectUtxos(
-	utxos []*rpcpb.Utxo, tid *types.TokenID, amount uint64,
+	utxos []*rpcpb.Utxo, tid *txlogic.TokenID, amount uint64,
 ) ([]*rpcpb.Utxo, uint64) {
 
 	total := uint64(0)
@@ -273,13 +273,13 @@ func parseOutPointFromDbKey(key []byte) (*types.OutPoint, error) {
 	return parseOutPointFromKeys(segs[2:4])
 }
 
-func parseTokenIDFromDbKey(key []byte) (*types.TokenID, error) {
+func parseTokenIDFromDbKey(key []byte) (*txlogic.TokenID, error) {
 	segs := sk.NewKeyFromBytes(key).List()
 	if len(segs) != 6 {
 		return nil, fmt.Errorf("invalid address token utxo db key %s", string(key))
 	}
 	op, err := parseOutPointFromKeys(segs[2:4])
-	return (*types.TokenID)(op), err
+	return (*txlogic.TokenID)(op), err
 }
 
 func parseTokenOutPoint(key []byte) (*types.OutPoint, error) {
