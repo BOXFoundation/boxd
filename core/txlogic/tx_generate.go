@@ -9,6 +9,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
@@ -31,56 +32,22 @@ func NewTxWithUtxos(
 	if err := SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
 		return nil, nil, err
 	}
-	// create change utxo
+	// change
 	var change *rpcpb.Utxo
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
-		change = &rpcpb.Utxo{
-			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-			TxOut:       MakeVout(fromAcc.Addr(), changeAmt),
-			BlockHeight: 0,
-			IsCoinbase:  false,
-			IsSpent:     false,
-		}
+		idx := uint32(len(tx.Vout)) - 1
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		change = MakePbUtxo(op, uw)
 	}
-
+	//
 	return tx, change, nil
-}
-
-// NewIssueTokenTxWithUtxos new issue token tx with utxos
-func NewIssueTokenTxWithUtxos(
-	fromAcc *acc.Account, utxos []*rpcpb.Utxo, to string, tag *rpcpb.TokenTag,
-	changeAmt uint64,
-) (*types.Transaction, *TokenID, *rpcpb.Utxo, error) {
-
-	tx, issueOutIndex, err := MakeUnsignedTokenIssueTx(fromAcc.Addr(), to, tag,
-		changeAmt, utxos...)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	// sign vin
-	if err = SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
-		return nil, nil, nil, err
-	}
-	// create change utxo
-	txHash, _ := tx.TxHash()
-	var change *rpcpb.Utxo
-	if changeAmt > 0 {
-		change = &rpcpb.Utxo{
-			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-			TxOut:       tx.Vout[len(tx.Vout)-1],
-			BlockHeight: 0,
-			IsCoinbase:  false,
-			IsSpent:     false,
-		}
-	}
-	return tx, NewTokenID(txHash, issueOutIndex), change, nil
 }
 
 // NewSplitAddrTxWithUtxos new split address tx
 func NewSplitAddrTxWithUtxos(
 	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
-) (tx *types.Transaction, change *rpcpb.Utxo, splitAddr string, err error) {
+) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
 
 	// calc change amount
 	utxoValue := uint64(0)
@@ -101,15 +68,85 @@ func NewSplitAddrTxWithUtxos(
 	// create change utxo
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
-		change = &rpcpb.Utxo{
-			OutPoint:    NewPbOutPoint(txHash, uint32(len(tx.Vout))-1),
-			TxOut:       tx.Vout[len(tx.Vout)-1],
-			BlockHeight: 0,
-			IsCoinbase:  false,
-			IsSpent:     false,
-		}
+		idx := uint32(len(tx.Vout)) - 1
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(acc.Addr(), 0, changeAmt)
+		change = MakePbUtxo(op, uw)
 	}
 	return
+}
+
+// NewTokenIssueTxWithUtxos new token issue tx with utxos
+func NewTokenIssueTxWithUtxos(
+	fromAcc *acc.Account, to string, tag *rpcpb.TokenTag, changeAmt uint64,
+	utxos ...*rpcpb.Utxo,
+) (*types.Transaction, *TokenID, *rpcpb.Utxo, error) {
+
+	tx, issueOutIndex, err := MakeUnsignedTokenIssueTx(fromAcc.Addr(), to, tag,
+		changeAmt, utxos...)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	// sign vin
+	if err = SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
+		return nil, nil, nil, err
+	}
+	// create change utxo
+	txHash, _ := tx.TxHash()
+	var change *rpcpb.Utxo
+	if changeAmt > 0 {
+		txHash, _ := tx.TxHash()
+		idx := uint32(len(tx.Vout)) - 1
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		change = MakePbUtxo(op, uw)
+	}
+	return tx, NewTokenID(txHash, issueOutIndex), change, nil
+}
+
+// NewTokenTransferTxWithUtxos new token Transfer tx with utxos
+// it returns tx, box change and token change
+func NewTokenTransferTxWithUtxos(
+	fromAcc *acc.Account, to []string, amounts []uint64, tid *TokenID,
+	changeAmt uint64, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
+
+	// unsigned tx
+	tx, tokenRemain, err := MakeUnsignedTokenTransferTx(fromAcc.Addr(), to, amounts,
+		tid, changeAmt, utxos...)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	// sign vin
+	if err = SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
+		return nil, nil, nil, err
+	}
+	// change
+	var (
+		boxChange   *rpcpb.Utxo
+		tokenChange *rpcpb.Utxo
+		txHash      *crypto.HashType
+	)
+	if changeAmt > 0 || tokenRemain > 0 {
+		txHash, _ = tx.TxHash()
+	}
+	if changeAmt > 0 {
+		idx := uint32(len(tx.Vout)) - 1
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		boxChange = MakePbUtxo(op, uw)
+	}
+	if tokenRemain > 0 {
+		idx := uint32(len(tx.Vout)) - 1
+		if changeAmt > 0 {
+			idx--
+		}
+		op := types.NewOutPoint(txHash, idx)
+		uw, err := NewTokenUtxoWrap(fromAcc.Addr(), tid, 0, tokenRemain)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		tokenChange = MakePbUtxo(op, uw)
+	}
+	//
+	return tx, boxChange, tokenChange, nil
 }
 
 // MakeUnsignedTx make a tx without signature
@@ -164,10 +201,8 @@ func MakeUnsignedSplitAddrTx(
 	tx.Vin = append(tx.Vin, vins...)
 	tx.Vout = append(tx.Vout, splitAddrOut)
 	// change
-	var changeOut *corepb.TxOut
 	if changeAmt > 0 {
-		changeOut = MakeVout(from, changeAmt)
-		tx.Vout = append(tx.Vout, changeOut)
+		tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
 	}
 	// calc split addr
 	addr, err := MakeSplitAddr(addrs, weights)
@@ -199,21 +234,67 @@ func MakeUnsignedTokenIssueTx(
 	tx.Vin = append(tx.Vin, vins...)
 	tx.Vout = append(tx.Vout, issueOut)
 	// change
-	var changeOut *corepb.TxOut
 	if changeAmt > 0 {
-		changeOut = MakeVout(issuer, changeAmt)
-		tx.Vout = append(tx.Vout, changeOut)
+		tx.Vout = append(tx.Vout, MakeVout(issuer, changeAmt))
 	}
 	// issue token vout is set to 0 defaultly
 	return tx, 0, err
+}
+
+// MakeUnsignedTokenTransferTx make unsigned token transfer tx
+func MakeUnsignedTokenTransferTx(
+	from string, to []string, amounts []uint64, tid *TokenID, changeAmt uint64,
+	utxos ...*rpcpb.Utxo,
+) (*types.Transaction, uint64, error) {
+
+	ok, tokenRemain := checkTokenAmount(tid, amounts, changeAmt, utxos...)
+	if !ok {
+		return nil, 0, ErrInsufficientBalance
+	}
+	// vin
+	vins := make([]*types.TxIn, 0)
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(utxo, 0))
+	}
+	// vout
+	vouts := make([]*corepb.TxOut, 0)
+	for i, addr := range to {
+		o, err := MakeTokenVout(addr, tid, amounts[i])
+		if err != nil {
+			return nil, 0, err
+		}
+		vouts = append(vouts, o)
+	}
+	// vout for token change
+	if tokenRemain > 0 {
+		o, err := MakeTokenVout(from, tid, tokenRemain)
+		if err != nil {
+			return nil, 0, err
+		}
+		vouts = append(vouts, o)
+	}
+	// vout for box change
+	if changeAmt > 0 {
+		vouts = append(vouts, MakeVout(from, changeAmt))
+	}
+	// construct transaction
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, vins...)
+	tx.Vout = append(tx.Vout, vouts...)
+
+	return tx, tokenRemain, nil
 }
 
 func checkAmount(amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo) bool {
 	utxoValue := uint64(0)
 	for _, u := range utxos {
 		amount, tid, err := ParseUtxoAmount(u)
-		if err != nil || tid != nil {
+		if err != nil {
+			logger.Warn(err)
 			continue
+		}
+		if tid != nil {
+			logger.Warnf("have fetched un-relevant utxo: %+v, wanted non-token utxo", u)
 		}
 		utxoValue += amount
 	}
@@ -222,4 +303,29 @@ func checkAmount(amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo) bool 
 		amount += a
 	}
 	return utxoValue >= amount+changeAmt
+}
+
+func checkTokenAmount(
+	tid *TokenID, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+) (ok bool, tokenRemain uint64) {
+	amt, tAmt := uint64(0), uint64(0)
+	for _, u := range utxos {
+		v, id, err := ParseUtxoAmount(u)
+		if err != nil {
+			logger.Warn(err)
+			continue
+		}
+		if tid != nil && id != nil && *id == *tid {
+			tAmt += v
+		} else if id == nil {
+			amt += v
+		} else {
+			logger.Warnf("have fetched un-relevant utxo: %+v, wanted token id: %+v", u, tid)
+		}
+	}
+	amount := uint64(0)
+	for _, a := range amounts {
+		amount += a
+	}
+	return (amt > changeAmt && tAmt >= amount), tAmt - amount
 }

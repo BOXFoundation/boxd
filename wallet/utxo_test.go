@@ -72,7 +72,7 @@ func TestTokenSaveUtxos(t *testing.T) {
 		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
 		"b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva",
 	}
-	t.Run("t1", walletUtxosSaveGetTest(db, tokenTest, 2, addr1))
+	t.Run("t1", walletUtxosSaveGetTest(db, tokenTest, 1, addr1))
 	t.Run("t2", walletUtxosSaveGetTest(db, tokenTest, 300, addr2))
 	t.Run("t3", walletUtxosSaveGetTest(db, tokenTest, 400, addrs1...))
 }

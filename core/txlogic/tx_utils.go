@@ -130,7 +130,7 @@ func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
 	hash := new(crypto.HashType)
 	copy(hash[:], utxo.GetOutPoint().Hash)
 	return &types.TxIn{
-		PrevOutPoint: *types.NewOutPoint(hash, utxo.OutPoint.Index),
+		PrevOutPoint: *types.NewOutPoint(hash, utxo.GetOutPoint().GetIndex()),
 		ScriptSig:    []byte{},
 		Sequence:     seq,
 	}
@@ -162,7 +162,7 @@ func NewIssueTokenUtxoWrap(
 	if err != nil {
 		return nil, err
 	}
-	return types.NewUtxoWrap(tag.Supply, vout.GetScriptPubKey(), height), nil
+	return types.NewUtxoWrap(0, vout.GetScriptPubKey(), height), nil
 }
 
 // NewTokenUtxoWrap makes a UtxoWrap
@@ -173,7 +173,7 @@ func NewTokenUtxoWrap(
 	if err != nil {
 		return nil, err
 	}
-	return types.NewUtxoWrap(value, vout.GetScriptPubKey(), height), nil
+	return types.NewUtxoWrap(0, vout.GetScriptPubKey(), height), nil
 }
 
 // NewPbOutPoint constructs a OutPoint
@@ -207,13 +207,18 @@ func ConvOutPoint(op *types.OutPoint) *corepb.OutPoint {
 
 // MakePbUtxo make pb.Utxo from Op and utxo wrap
 func MakePbUtxo(op *types.OutPoint, uw *types.UtxoWrap) *rpcpb.Utxo {
+	s := script.NewScriptFromBytes(uw.Script())
+	value := uw.Value()
+	if s.IsTokenIssue() || s.IsTokenTransfer() {
+		value = 0
+	}
 	return &rpcpb.Utxo{
 		BlockHeight: uw.Height(),
 		IsCoinbase:  uw.IsCoinBase(),
 		IsSpent:     uw.IsSpent(),
 		OutPoint:    NewPbOutPoint(&op.Hash, op.Index),
 		TxOut: &corepb.TxOut{
-			Value:        uw.Value(),
+			Value:        value,
 			ScriptPubKey: uw.Script(),
 		},
 	}

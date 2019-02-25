@@ -348,6 +348,41 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	return resp, nil
 }
 
+func (s *txServer) MakeUnsignedTokenTransferTx(
+	ctx context.Context, req *rpcpb.MakeTokenTransferTxReq,
+) (resp *rpcpb.MakeTxResp, err error) {
+
+	logger.Infof("make unsigned token transfer tx: %+v", req)
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned token transfer tx %+v error: %s", req, resp.Message)
+		} else {
+			logger.Infof("make unsigned token transfer tx: %+v succeeded, response: %+v", resp)
+		}
+	}()
+	wa := s.server.GetWalletAgent()
+	if wa == nil || reflect.ValueOf(wa).IsNil() {
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
+	}
+	from, tid, fee := req.GetFrom(), req.GetTokenID(), req.GetFee()
+	to, amounts := req.GetTo(), req.GetAmounts()
+	tokenID := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(tid))
+	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, from, to, amounts,
+		tokenID, fee)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	pbTx, err := tx.ConvToPbTx()
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
+}
+
 // MakeTxRawMsgsForSign make tx raw msg for sign
 func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte, error) {
 	if len(tx.Vin) != len(utxos) {
