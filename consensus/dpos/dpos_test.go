@@ -63,7 +63,7 @@ func TestDpos_ValidateMiner(t *testing.T) {
 
 func TestDpos_checkMiner(t *testing.T) {
 
-	timestamp := int64(1541824620)
+	timestamp := int64(1541824650)
 
 	// check miner in right time but wrong miner.
 	result := dpos.dpos.checkMiner(timestamp)
@@ -86,14 +86,14 @@ func TestDpos_mint(t *testing.T) {
 	result = dposMiner.dpos.mint(timestamp)
 	ensure.DeepEqual(t, result, ErrNotMyTurnToMint)
 
-	timestamp1 := int64(1541824620)
+	timestamp1 := int64(1541824650)
 	result = dposMiner.dpos.mint(timestamp1)
 	ensure.Nil(t, result)
 
 }
 
 func TestDpos_FindMinerWithTimeStamp(t *testing.T) {
-	hash, err := dposMiner.dpos.context.periodContext.FindMinerWithTimeStamp(1541824620)
+	hash, err := dposMiner.dpos.context.periodContext.FindMinerWithTimeStamp(1541824650)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, *hash, dposMiner.dpos.context.periodContext.period[0].addr)
 }
@@ -109,7 +109,7 @@ func TestDpos_signBlock(t *testing.T) {
 	ok, err := dposMiner.dpos.VerifySign(block)
 	ensure.DeepEqual(t, ok, false)
 
-	block.Header.TimeStamp = 1541824620
+	block.Header.TimeStamp = 1541824650
 	err = dposMiner.dpos.signBlock(block)
 	ensure.Nil(t, err)
 	ok, err = dposMiner.dpos.VerifySign(block)
