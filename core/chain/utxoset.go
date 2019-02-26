@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -382,7 +383,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			} else {
 				tokenID = outpoint
 			}
-			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
+			addrUtxoKey = AddrTokenUtxoKey(addr.String(), txlogic.TokenID(tokenID), outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}

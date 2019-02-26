@@ -4,10 +4,6 @@
 
 package types
 
-import (
-	"github.com/BOXFoundation/boxd/crypto"
-)
-
 type utxoFlags uint8
 
 const (
@@ -17,30 +13,6 @@ const (
 
 	modified
 )
-
-// TokenTag defines token tag
-type TokenTag struct {
-	Name    string
-	Symbol  string
-	Decimal uint8
-}
-
-// NewTokenTag news a TokenTag
-func NewTokenTag(name, sym string, decimal uint8) *TokenTag {
-	return &TokenTag{
-		Name:    name,
-		Symbol:  sym,
-		Decimal: decimal,
-	}
-}
-
-// TokenID defines token id
-type TokenID OutPoint
-
-// NewTokenID constructs a token id
-func NewTokenID(hash *crypto.HashType, index uint32) *TokenID {
-	return (*TokenID)(NewOutPoint(hash, index))
-}
 
 // UtxoWrap contains info about utxo
 type UtxoWrap struct {

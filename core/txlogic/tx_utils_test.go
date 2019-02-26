@@ -7,15 +7,14 @@ package txlogic
 import (
 	"testing"
 
-	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/script"
 )
 
 func TestNewIssueTokenUtxoWrap(t *testing.T) {
 	addr := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	name, sym, deci := "box token", "BOX", uint8(8)
-	tag := types.NewTokenTag(name, sym, deci)
-	uw, err := NewIssueTokenUtxoWrap(addr, tag, 1, 10000)
+	name, sym, deci := "box token", "BOX", uint32(8)
+	tag := NewTokenTag(name, sym, deci, 10000)
+	uw, err := NewIssueTokenUtxoWrap(addr, tag, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +23,7 @@ func TestNewIssueTokenUtxoWrap(t *testing.T) {
 		t.Fatal("expect token issue script")
 	}
 	param, _ := sc.GetIssueParams()
-	if param.Name != name || param.Symbol != sym || param.Decimals != deci {
+	if param.Name != name || param.Symbol != sym || param.Decimals != uint8(deci) {
 		t.Fatalf("issue params want: %+v, got: %+v", tag, param)
 	}
 }

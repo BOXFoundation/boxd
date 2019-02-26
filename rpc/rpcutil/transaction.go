@@ -39,7 +39,7 @@ func GetBalance(conn *grpc.ClientConn, addresses []string) ([]uint64, error) {
 
 // GetTokenBalance returns total amount of an address with specified token id
 func GetTokenBalance(
-	conn *grpc.ClientConn, addresses []string, tid *types.TokenID,
+	conn *grpc.ClientConn, addresses []string, tid *txlogic.TokenID,
 ) ([]uint64, error) {
 
 	c := rpcpb.NewTransactionCommandClient(conn)
@@ -63,7 +63,7 @@ func newFetchUtxosReq(addr string, amount uint64) *rpcpb.FetchUtxosReq {
 
 // FetchUtxos fetch utxos from chain
 func FetchUtxos(
-	conn *grpc.ClientConn, addr string, amount uint64, tid *types.TokenID,
+	conn *grpc.ClientConn, addr string, amount uint64, tid *txlogic.TokenID,
 ) ([]*rpcpb.Utxo, error) {
 
 	c := rpcpb.NewTransactionCommandClient(conn)
@@ -91,9 +91,9 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 
 // NewIssueTokenTx new a issue token transaction
 func NewIssueTokenTx(
-	acc *acc.Account, to string, tag *types.TokenTag, supply uint64,
+	acc *acc.Account, to string, tag *rpcpb.TokenTag, supply uint64,
 	conn *grpc.ClientConn,
-) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
+) (*types.Transaction, *txlogic.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
 	utxos, err := fetchUtxos(conn, acc.Addr(), maxTokenFee, nil)
@@ -107,8 +107,8 @@ func NewIssueTokenTx(
 	// fee
 	fee := calcFee()
 	//
-	tx, tid, change, err := txlogic.NewIssueTokenTxWithUtxos(acc, utxos, to, tag,
-		supply, inputAmt-fee)
+	tx, tid, change, err := txlogic.NewTokenIssueTxWithUtxos(acc, to, tag,
+		inputAmt-fee, utxos...)
 	if err != nil {
 		logger.Warnf("new issue token tx with utxos from %s to %s tag %+v "+
 			"supply %d change %d with utxos: %+v error: %s", acc.Addr(), to, tag,
@@ -287,30 +287,7 @@ func NewTxs(
 	return txss, transfer, totalFee, num, nil
 }
 
-// MakeUnsignedTx make a tx without signature
-func MakeUnsignedTx(
-	wa service.WalletAgent, from string, to []string, amounts []uint64, fee uint64,
-) (*types.Transaction, []*rpcpb.Utxo, error) {
-	total := fee
-	for _, a := range amounts {
-		total += a
-	}
-	utxos, err := wa.Utxos(from, nil, total)
-	uv := uint64(0)
-	for _, u := range utxos {
-		amount, tid, err := txlogic.ParseUtxoAmount(u)
-		if err != nil || tid != nil {
-			logger.Warnf("parse utxo amout: %+v, error: %v, token id: %+v", u, err, tid)
-			continue
-		}
-		uv += amount
-	}
-	changeAmt := uv - total
-	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
-	return tx, utxos, err
-}
-
-func fetchUtxos(conn *grpc.ClientConn, addr string, amount uint64, tid *types.TokenID) (
+func fetchUtxos(conn *grpc.ClientConn, addr string, amount uint64, tid *txlogic.TokenID) (
 	utxos []*rpcpb.Utxo, err error) {
 	for t := 0; t < 30; t++ {
 		utxos, err = FetchUtxos(conn, addr, amount, tid)
@@ -335,7 +312,7 @@ func GetGRPCConn(peerAddr string) (*grpc.ClientConn, error) {
 
 // NewTokenTx new a token tx
 func NewTokenTx(
-	acc *acc.Account, toAddrs []string, amounts []uint64, tid *types.TokenID,
+	acc *acc.Account, toAddrs []string, amounts []uint64, tid *txlogic.TokenID,
 	conn *grpc.ClientConn,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 
@@ -354,12 +331,12 @@ func NewTokenTx(
 		return nil, nil, nil, err
 	}
 	utxos := append(boxUtxos, tokenUtxos...)
-	return NewTokenTxWithUtxos(acc, toAddrs, amounts, tid, utxos)
+	return txlogic.NewTokenTransferTxWithUtxos(acc, toAddrs, amounts, tid, 0, utxos...)
 }
 
 // NewTokenTxs new a token tx
 func NewTokenTxs(
-	acc *acc.Account, toAddr string, amountT uint64, count int, tid *types.TokenID,
+	acc *acc.Account, toAddr string, amountT uint64, count int, tid *txlogic.TokenID,
 	conn *grpc.ClientConn,
 ) ([]*types.Transaction, error) {
 	// get utxos
@@ -376,12 +353,14 @@ func NewTokenTxs(
 	//
 	var txs []*types.Transaction
 	unitT := amountT / uint64(count)
+	changeAmt := amount
 	for i := 0; i < count; i++ {
 		if i == count-1 {
 			unitT = amountT - unitT*uint64(i)
 		}
-		tx, change, changeT, err := NewTokenTxWithUtxos(acc, []string{toAddr},
-			[]uint64{unitT}, tid, utxos)
+		changeAmt -= maxTokenFee
+		tx, change, changeT, err := txlogic.NewTokenTransferTxWithUtxos(acc, []string{toAddr},
+			[]uint64{unitT}, tid, changeAmt, utxos...)
 		if err != nil {
 			return nil, err
 		}
@@ -394,107 +373,10 @@ func NewTokenTxs(
 	return txs, nil
 }
 
-// NewTokenTxWithUtxos new a token tx
-func NewTokenTxWithUtxos(acc *acc.Account, toAddrs []string, amounts []uint64,
-	tid *types.TokenID, utxos []*rpcpb.Utxo) (*types.Transaction,
-	*rpcpb.Utxo, *rpcpb.Utxo, error) {
-	// check amount
-	val, valT := uint64(0), uint64(0)
-
-	for _, u := range utxos {
-		amount, tidR, err := txlogic.ParseUtxoAmount(u)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if tidR == nil {
-			val += amount
-		} else if tid != nil && *tidR == *tid {
-			valT += amount
-		} else {
-			logger.Errorf("utxo: %+v have wrong token id", u)
-		}
-	}
-	remain := val - uint64(len(toAddrs)) - maxTokenFee
-	if remain > val {
-		return nil, nil, nil, errors.New("insuffience box")
-	}
-	total := uint64(0)
-	for _, a := range amounts {
-		total += a
-	}
-	remainT := valT - total
-	if remainT > valT {
-		return nil, nil, nil, errors.New("insuffience token")
-	}
-
-	// construct transaction
-	tx := new(types.Transaction)
-	// vin
-	for _, utxo := range utxos {
-		tx.Vin = append(tx.Vin, txlogic.MakeVin(utxo, 0))
-	}
-	// vout for toAddrs
-	for i, toAddr := range toAddrs {
-		o, err := txlogic.MakeTokenVout(toAddr, tid, amounts[i])
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("make token vout error %s", err)
-		}
-		tx.Vout = append(tx.Vout, o)
-	}
-	// vout for change of fromAddress
-	changeIdx, changeTIdx := uint32(0), uint32(0)
-	if remain > 0 {
-		tx.Vout = append(tx.Vout, txlogic.MakeVout(acc.Addr(), remain))
-		changeIdx = uint32(len(tx.Vout)) - 1
-	}
-	// vout for token change of fromAddress
-	if remainT > 0 {
-		o, err := txlogic.MakeTokenVout(acc.Addr(), tid, remainT)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("make token vout error %s", err)
-		}
-		tx.Vout = append(tx.Vout, o)
-		changeTIdx = uint32(len(tx.Vout)) - 1
-	}
-
-	// sign vin
-	if err := txlogic.SignTxWithUtxos(tx, utxos, acc); err != nil {
-		return nil, nil, nil, err
-	}
-
-	// construct change and token change utxo
-	var change, changeT *rpcpb.Utxo
-	txHash, _ := tx.TxHash()
-	if remain > 0 {
-		change = &rpcpb.Utxo{
-			OutPoint:    txlogic.NewPbOutPoint(txHash, changeIdx),
-			TxOut:       txlogic.MakeVout(acc.Addr(), remain),
-			BlockHeight: 0,
-			IsCoinbase:  false,
-			IsSpent:     false,
-		}
-	}
-	if remainT > 0 {
-		o, err := txlogic.MakeTokenVout(acc.Addr(), tid, remainT)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("make token vout error %s", err)
-		}
-		changeT = &rpcpb.Utxo{
-			OutPoint:    txlogic.NewPbOutPoint(txHash, changeTIdx),
-			TxOut:       o,
-			BlockHeight: 0,
-			IsCoinbase:  false,
-			IsSpent:     false,
-		}
-	}
-
-	return tx, change, changeT, nil
-}
-
 // NewSplitAddrTxWithFee new split address tx
 func NewSplitAddrTxWithFee(
 	acc *acc.Account, addrs []string, weights []uint64, fee uint64, conn *grpc.ClientConn,
-) (tx *types.Transaction, change *rpcpb.Utxo, splitAddr string, err error) {
+) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
 	// get utxos
 	utxos, err := fetchUtxos(conn, acc.Addr(), fee, nil)
 	if err != nil {
@@ -503,23 +385,100 @@ func NewSplitAddrTxWithFee(
 	return txlogic.NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, fee)
 }
 
+// MakeUnsignedTx make a tx without signature
+func MakeUnsignedTx(
+	wa service.WalletAgent, from string, to []string, amounts []uint64, fee uint64,
+) (*types.Transaction, []*rpcpb.Utxo, error) {
+	total := fee
+	for _, a := range amounts {
+		total += a
+	}
+	utxos, err := wa.Utxos(from, nil, total)
+	if err != nil {
+		return nil, nil, err
+	}
+	changeAmt := calcChangeAmount(amounts, fee, utxos...)
+	if changeAmt < 0 {
+		return nil, nil, txlogic.ErrInsufficientBalance
+	}
+	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
+	return tx, utxos, err
+}
+
 // MakeUnsignedSplitAddrTx news tx to make split addr without signature
+// it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
 	wa service.WalletAgent, from string, addrs []string, weights []uint64, fee uint64,
 ) (*types.Transaction, string, []*rpcpb.Utxo, error) {
+	utxos, err := wa.Utxos(from, nil, fee)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	changeAmt := calcChangeAmount(nil, fee, utxos...)
+	if changeAmt < 0 {
+		return nil, "", nil, txlogic.ErrInsufficientBalance
+	}
+	tx, splitAddr, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights,
+		changeAmt, utxos...)
+	return tx, splitAddr, utxos, err
+}
+
+// MakeUnsignedTokenIssueTx news tx to issue token without signature
+func MakeUnsignedTokenIssueTx(
+	wa service.WalletAgent, issuer, issuee string, tag *rpcpb.TokenTag, fee uint64,
+) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
+	utxos, err := wa.Utxos(issuer, nil, fee)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	changeAmt := calcChangeAmount(nil, fee, utxos...)
+	if changeAmt < 0 {
+		return nil, 0, nil, txlogic.ErrInsufficientBalance
+	}
+	tx, issueOutIndex, err := txlogic.MakeUnsignedTokenIssueTx(issuer, issuee, tag,
+		changeAmt, utxos...)
+	return tx, issueOutIndex, utxos, err
+}
+
+// MakeUnsignedTokenTransferTx news tx to transfer token without signature
+func MakeUnsignedTokenTransferTx(
+	wa service.WalletAgent, from string, to []string, amounts []uint64,
+	tid *txlogic.TokenID, fee uint64,
+) (*types.Transaction, []*rpcpb.Utxo, error) {
+	utxos, err := wa.Utxos(from, nil, fee)
+	if err != nil {
+		return nil, nil, err
+	}
+	tAmt := uint64(0)
+	for _, a := range amounts {
+		tAmt += a
+	}
+	tokenUtxos, err := wa.Utxos(from, tid, tAmt)
+	if err != nil {
+		return nil, nil, err
+	}
+	changeAmt := calcChangeAmount(nil, fee, utxos...)
+	if changeAmt < 0 {
+		return nil, nil, txlogic.ErrInsufficientBalance
+	}
+	mixUtxos := append(utxos, tokenUtxos...)
+	tx, _, err := txlogic.MakeUnsignedTokenTransferTx(from, to, amounts, tid,
+		changeAmt, mixUtxos...)
+	return tx, mixUtxos, err
+}
+
+func calcChangeAmount(amounts []uint64, fee uint64, utxos ...*rpcpb.Utxo) uint64 {
 	total := fee
-	utxos, err := wa.Utxos(from, nil, total)
+	for _, a := range amounts {
+		total += a
+	}
 	uv := uint64(0)
 	for _, u := range utxos {
 		amount, tid, err := txlogic.ParseUtxoAmount(u)
 		if err != nil || tid != nil {
-			logger.Warnf("parse utxo amout: %+v, error: %v, token id: %+v", u, err, tid)
 			continue
 		}
 		uv += amount
 	}
-	changeAmt := uv - total
-	tx, splitAddr, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights,
-		changeAmt, utxos...)
-	return tx, splitAddr, utxos, err
+	return uv - total
 }

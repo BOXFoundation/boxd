@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage/key"
@@ -206,14 +207,14 @@ func AddrAllUtxoKey(addr string) []byte {
 }
 
 // AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
-func AddrTokenUtxoKey(addr string, tid types.TokenID, op types.OutPoint) []byte {
+func AddrTokenUtxoKey(addr string, tid txlogic.TokenID, op types.OutPoint) []byte {
 	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
 		ChildString(fmt.Sprintf("%x", tid.Index)).ChildString(op.Hash.String()).
 		ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
 }
 
 // AddrAllTokenUtxoKey is the key prefix to explore all token utxos of an address
-func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
+func AddrAllTokenUtxoKey(addr string, tid txlogic.TokenID) []byte {
 	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
 		ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
 }

@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
@@ -94,7 +95,8 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
-	tag := types.NewTokenTag("box token", "BOX", 6)
+	totalSupply := uint64(10000)
+	tag := txlogic.NewTokenTag("box token", "BOX", 6, totalSupply)
 	curTimes := utils.TokenRepeatTxTimes()
 	if utils.TokenRepeatRandom() {
 		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
@@ -105,7 +107,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 }
 
 func tokenRepeatTest(issuer, sender string, receivers []string,
-	tag *types.TokenTag, times int, txCnt *uint64, peerAddr string) {
+	tag *rpcpb.TokenTag, times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
 
@@ -121,12 +123,11 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	defer conn.Close()
 
 	// issue some token
-	totalSupply := uint64(10000)
-	logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
+	logger.Infof("%s issue %d token to %s", issuer, tag.Supply, sender)
 
 	issuerAcc, _ := AddrToAcc.Load(issuer)
 	tx, tid, _, err := rpcutil.NewIssueTokenTx(issuerAcc.(*acc.Account), sender, tag,
-		totalSupply, conn)
+		tag.Supply, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -137,7 +138,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	atomic.AddUint64(txCnt, 1)
 
 	// check issue result
-	totalAmount := totalSupply * uint64(tag.Decimal)
+	totalAmount := tag.Supply * uint64(tag.Decimal)
 	logger.Infof("wait for token balance of sender %s equal to %d, timeout %v",
 		sender, totalAmount, timeoutToChain)
 	blcSenderPre, err := utils.WaitTokenBalanceEnough(sender, totalAmount, tid,

@@ -160,9 +160,9 @@ func TestDetailTxOut(t *testing.T) {
 	}
 
 	// pay to token issue
-	name, sym, decimal, supply := "fox", "FOX", uint8(3), uint64(1000000)
-	tag := types.NewTokenTag(name, sym, decimal)
-	txOut, _ = txlogic.MakeIssueTokenVout(testAddr, tag, supply)
+	name, sym, decimal, supply := "fox", "FOX", uint32(3), uint64(1000000)
+	tag := txlogic.NewTokenTag(name, sym, decimal, supply)
+	txOut, _ = txlogic.MakeIssueTokenVout(testAddr, tag)
 	tx = types.NewTx(0, 4455, 1000).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
 	detail, err = detailTxOut(txHash, tx.Vout[0], 0)
@@ -180,14 +180,14 @@ func TestDetailTxOut(t *testing.T) {
 	}
 	tokenPbTag := tokenIssueInfo.TokenIssueInfo.TokenTag
 	wantValue := supply
-	for i := uint8(0); i < decimal; i++ {
+	for i := uint32(0); i < decimal; i++ {
 		wantValue *= 10
 	}
 	if detail.Addr != testAddr || detail.Value != wantValue ||
 		detail.ScriptDisasm != disasmScript ||
 		detail.Type != rpcpb.TxOutDetail_token_issue ||
 		tokenPbTag.Name != name || tokenPbTag.Symbol != sym ||
-		tokenPbTag.Decimals != uint32(decimal) || tokenPbTag.Supply != supply {
+		tokenPbTag.Decimal != uint32(decimal) || tokenPbTag.Supply != supply {
 		t.Fatalf("detail token issue tx out, want: %s %d %s %v, got: %+v",
 			testAddr, wantValue, disasmScript, rpcpb.TxOutDetail_token_issue, detail)
 	}
@@ -203,7 +203,7 @@ func TestDetailTxOut(t *testing.T) {
         "name": "fox",
         "symbol": "FOX",
         "supply": 1000000,
-        "decimals": 3
+        "decimal": 3
       }
     }
   }
@@ -214,7 +214,7 @@ func TestDetailTxOut(t *testing.T) {
 	}
 
 	// pay to token transfer
-	tid := types.NewTokenID(txHash, 0)
+	tid := txlogic.NewTokenID(txHash, 0)
 	txOut, _ = txlogic.MakeTokenVout(testAddr, tid, testAmount)
 	tx = types.NewTx(0, 4455, 100).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
