@@ -66,6 +66,18 @@ func (cache *LiveUtxoCache) Add(op *types.OutPoint) {
 	cache.Unlock()
 }
 
+// Del deletes a OutPoint in cache
+func (cache *LiveUtxoCache) Del(op ...*types.OutPoint) {
+	if op == nil {
+		return
+	}
+	cache.Lock()
+	for _, o := range op {
+		delete(cache.Op2ts, *o)
+	}
+	cache.Unlock()
+}
+
 // Shrink shrinks phase out OutPoints
 func (cache *LiveUtxoCache) Shrink() {
 	now := time.Now().Unix()
