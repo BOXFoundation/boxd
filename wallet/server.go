@@ -126,6 +126,9 @@ func (w *Server) Utxos(addr string, tokenID *txlogic.TokenID, amount uint64) (
 	if w.cfg == nil || !w.cfg.Enable {
 		return nil, fmt.Errorf("fetch utxos not supported for non-wallet node")
 	}
+	if amount == 0 {
+		amount = 1
+	}
 	utxos, err := FetchUtxosOf(addr, tokenID, amount, w.table)
 	if err != nil {
 		logger.Warnf("Utxos for %s error %s", addr, err)

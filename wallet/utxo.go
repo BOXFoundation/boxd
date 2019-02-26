@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -22,6 +23,10 @@ import (
 
 const (
 	utxoSelUnitCnt = 256
+)
+
+var (
+	utxoCacheMtx sync.Mutex
 )
 
 type scriptPubKeyFilter func(raw []byte) bool
@@ -89,7 +94,7 @@ func FetchUtxosOf(
 	keys := db.KeysWithPrefix(utxoKey)
 	logger.Infof("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
 		total, time.Since(start))
-	// fetch all utxos fir total equals to 0
+	// fetch all utxos if total equals to 0
 	if total == 0 {
 		utxos, err := makeUtxosFromDB(keys, tid, db)
 		if err != nil {
@@ -103,10 +108,6 @@ func FetchUtxosOf(
 		return nil, err
 	}
 	logger.Infof("fetch utxos for %s amount %d get %d utxos", addr, total, len(utxos))
-	// add utxos to LiveUtxoCache
-	for _, u := range utxos {
-		utxoLiveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
-	}
 
 	return utxos, nil
 }
@@ -131,6 +132,7 @@ func fetchModerateUtxos(
 		}
 		// filter utxos in cache
 		utxos := make([]*rpcpb.Utxo, 0, len(origUtxos))
+		utxoCacheMtx.Lock()
 		for _, u := range origUtxos {
 			if utxoLiveCache.Contains(txlogic.ConvPbOutPoint(u.OutPoint)) {
 				continue
@@ -139,6 +141,12 @@ func fetchModerateUtxos(
 		}
 		// select utxos
 		selUtxos, amount := selectUtxos(utxos, tid, remain)
+		// add utxos to LiveUtxoCache
+		for _, u := range utxos {
+			utxoLiveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
+		}
+		utxoCacheMtx.Unlock()
+
 		remain -= amount
 		result = append(result, selUtxos...)
 	}

@@ -27,7 +27,7 @@ func init() {
 // NOTE: want to run this test case, need start a node
 // with miner: b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o
 // port: 19111
-func NoTestSignTx(t *testing.T) {
+func TestSignTx(t *testing.T) {
 
 	// get grpc conn
 	conn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")

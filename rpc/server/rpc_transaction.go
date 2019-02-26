@@ -170,7 +170,7 @@ func (s *txServer) SendTransaction(
 
 	tx := &types.Transaction{}
 	if err := tx.FromProtoMessage(req.Tx); err != nil {
-		return nil, err
+		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 
 	txpool := s.server.GetTxHandler()
