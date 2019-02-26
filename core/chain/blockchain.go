@@ -1014,6 +1014,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, err
 	}
 	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
+	batch.Put(GenesisKey, genesisBin)
 	if err := batch.Write(); err != nil {
 		return nil, err
 	}
