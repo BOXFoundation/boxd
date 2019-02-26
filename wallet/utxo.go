@@ -100,14 +100,7 @@ func FetchUtxosOf(
 		if err != nil {
 			return nil, err
 		}
-		validUtxos := make([]*rpcpb.Utxo, 0, len(utxos))
-		for _, u := range utxos {
-			if utxoLiveCache.Contains(txlogic.ConvPbOutPoint(u.OutPoint)) {
-				continue
-			}
-			validUtxos = append(validUtxos, u)
-		}
-		return validUtxos, nil
+		return utxos, nil
 	}
 	// fetch moderate utxos by adjustint to total
 	utxos, err := fetchModerateUtxos(keys, tid, total, db)
