@@ -45,7 +45,7 @@ func registerFaucet(s *Server) {
 		logger.Warnf("rpc register faucet unlock account error: %s", err)
 		return
 	}
-	logger.Warnf("rpc register faucet account: %+v", account)
+	logger.Infof("rpc register faucet account: %+v", account)
 	f := newFaucet(s.GetTxHandler(), s.GetWalletAgent(), account)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
@@ -55,8 +55,8 @@ type txHandler interface {
 }
 
 type walletAgent interface {
-	Utxos(addr string, tid *types.TokenID, amount uint64) ([]*rpcpb.Utxo, error)
-	Balance(addr string, tid *types.TokenID) (uint64, error)
+	Utxos(addr string, tid *txlogic.TokenID, amount uint64) ([]*rpcpb.Utxo, error)
+	Balance(addr string, tid *txlogic.TokenID) (uint64, error)
 }
 
 type faucet struct {

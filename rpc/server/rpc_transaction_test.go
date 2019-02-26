@@ -20,12 +20,12 @@ import (
 type TestWalletAgent struct {
 }
 
-func (twa *TestWalletAgent) Balance(addr string, tid *types.TokenID) (uint64, error) {
+func (twa *TestWalletAgent) Balance(addr string, tid *txlogic.TokenID) (uint64, error) {
 	return 0, nil
 }
 
 func (twa *TestWalletAgent) Utxos(
-	addr string, tid *types.TokenID, amount uint64,
+	addr string, tid *txlogic.TokenID, amount uint64,
 ) (utxos []*rpcpb.Utxo, err error) {
 
 	count := uint64(2)

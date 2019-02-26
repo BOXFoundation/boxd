@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/script"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 func init() {
@@ -66,17 +67,18 @@ func NoTestSignTx(t *testing.T) {
 		sigHashes = append(sigHashes, &hash)
 	}
 	// sign msg
-	acc, ok := AddrToAcc[from]
+	accI, ok := AddrToAcc.Load(from)
 	if !ok {
 		t.Fatalf("account for %s not initialled", from)
 	}
+	account := accI.(*acc.Account)
 	var scriptSigs [][]byte
 	for _, sigHash := range sigHashes {
-		sig, err := acc.Sign(sigHash)
+		sig, err := account.Sign(sigHash)
 		if err != nil {
 			t.Fatalf("sign error for %+v: %s", sigHash, err)
 		}
-		scriptSig := script.SignatureScript(sig, acc.PublicKey())
+		scriptSig := script.SignatureScript(sig, account.PublicKey())
 		scriptSigs = append(scriptSigs, *scriptSig)
 		t.Logf("sigHash: %s", sigHash)
 		t.Logf("scriptSig: %s", hex.EncodeToString(*scriptSig))

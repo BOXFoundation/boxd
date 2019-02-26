@@ -86,12 +86,23 @@ func (s *webapiServer) Closing() bool {
 	}
 }
 
-func (s *webapiServer) receiveNewBlockMsg(msg *types.Block) {
+func (s *webapiServer) receiveNewBlockMsg(block *types.Block) {
 	s.newBlockMutex.Lock()
 	if s.newBlocksQueue.Len() == newBlockMsgSize {
 		s.newBlocksQueue.Remove(s.newBlocksQueue.Front())
 	}
-	s.newBlocksQueue.PushBack(msg)
+	// detail block
+	logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
+		block.BlockHash(), block.Height)
+	blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader)
+	if err != nil {
+		logger.Warnf("detail block %s height %d error: %s",
+			block.BlockHash(), block.Height, err)
+		s.newBlockMutex.Unlock()
+		return
+	}
+	// push
+	s.newBlocksQueue.PushBack(blockDetail)
 	s.newBlockMutex.Unlock()
 }
 
@@ -261,33 +272,21 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	}
 	for {
 		// get block
-		block := elm.Value.(*types.Block)
-		logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
-			block.BlockHash(), block.Height)
-		// detail block
-		blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader)
-		if err != nil {
-			logger.Warnf("detail block %s height %d error: %s",
-				block.BlockHash(), block.Height, err)
-			if elm, exit = s.moveNextElem(elm); exit {
-				return nil
-			}
-			continue
-		}
+		blockDetail := elm.Value.(*rpcpb.BlockDetail)
 		// send block info
 		if err := stream.Send(blockDetail); err != nil {
 			logger.Warnf("webapi send block error %s, exit listen connection!", err)
 			return err
 		}
 		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
-			block.BlockHash(), block.Height)
-		if elm, exit = s.moveNextElem(elm); exit {
+			blockDetail.Hash, blockDetail.Height)
+		if elm, exit = s.moveToNextElem(elm); exit {
 			return nil
 		}
 	}
 }
 
-func (s *webapiServer) moveNextElem(elm *list.Element) (elmA *list.Element, exit bool) {
+func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, exit bool) {
 	// move to next element
 	for {
 		if s.Closing() {
@@ -440,11 +439,11 @@ func detailTxOut(
 		}
 		issueInfo := &rpcpb.TxOutDetail_TokenIssueInfo{
 			TokenIssueInfo: &rpcpb.TokenIssueInfo{
-				TokenTag: &corepb.TokenTag{
-					Name:     param.Name,
-					Symbol:   param.Symbol,
-					Supply:   param.TotalSupply,
-					Decimals: uint32(param.Decimals),
+				TokenTag: &rpcpb.TokenTag{
+					Name:    param.Name,
+					Symbol:  param.Symbol,
+					Supply:  param.TotalSupply,
+					Decimal: uint32(param.Decimals),
 				},
 			},
 		}

@@ -69,7 +69,21 @@ service TransactionCommand {
 
     rpc MakeUnsignedSplitAddrTx(MakeSplitAddrTxReq) returns (MakeSplitAddrTxResp) {
         option (google.api.http) = {
-            post: "/v1/tx/makeunsignedsplitaddrtx"
+            post: "/v1/tx/makeunsignedtx/splitaddr"
+            body: "*"
+        };
+    }
+
+    rpc MakeUnsignedTokenIssueTx(MakeTokenIssueTxReq) returns (MakeTokenIssueTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedtx/token/issue"
+            body: "*"
+        };
+    }
+
+    rpc MakeUnsignedTokenTransferTx(MakeTokenTransferTxReq) returns (MakeTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedtx/token/transfer"
             body: "*"
         };
     }
@@ -158,8 +172,8 @@ message MakeTxResp {
 
 message MakeSplitAddrTxReq {
     string from = 1;
-    repeated string to = 2;
-    repeated uint64 amounts = 3;
+    repeated string addrs = 2;
+    repeated uint64 weights = 3;
     uint64 fee = 4;
 }
 
@@ -169,4 +183,34 @@ message MakeSplitAddrTxResp {
     string splitAddr = 3;
     corepb.Transaction tx = 4;
     repeated bytes rawMsgs = 5;
+}
+
+message MakeTokenIssueTxReq {
+    string issuer = 1;
+    string issuee = 2;
+    TokenTag tag = 3;
+    uint64 fee = 4;
+} 
+
+message MakeTokenIssueTxResp {
+    int32 code = 1;
+    string message = 2;
+    uint32 issue_out_index = 3;
+    corepb.Transaction tx = 4;
+    repeated bytes rawMsgs = 5;
+}
+
+message MakeTokenTransferTxReq {
+    string from = 1;
+    repeated string to = 2;
+    repeated uint64 amounts = 3;
+    corepb.OutPoint tokenID = 4;
+    uint64 fee = 5;
+}
+
+message TokenTag {
+  string name = 1;
+  string symbol = 2;
+  uint64 supply = 3;
+  uint32 decimal = 4;
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 // Circulation manage circulation of transaction
@@ -101,8 +102,9 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		return
 	}
 	defer conn.Close()
-	txss, transfer, fee, count, err := rpcutil.NewTxs(AddrToAcc[fromAddr], toAddr,
-		times, conn)
+	fromAcc, _ := AddrToAcc.Load(fromAddr)
+	txss, transfer, fee, count, err := rpcutil.NewTxs(fromAcc.(*acc.Account),
+		toAddr, times, conn)
 	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
 	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {

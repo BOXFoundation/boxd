@@ -8,6 +8,7 @@ import (
 	"math"
 	"reflect"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -314,6 +315,11 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 			tokenID := script.NewTokenID(txIn.PrevOutPoint.Hash, txIn.PrevOutPoint.Index)
 			// no need to check error since it will not err
 			params, _ := scriptPubKey.GetIssueParams()
+			// case insensitive comparison
+			if strings.EqualFold(params.Name, "box") {
+				logger.Errorf("Token name %s cannot be box", params.Name)
+				return 0, core.ErrTokenInvalidName
+			}
 			tokenInputAmounts[tokenID] += params.TotalSupply * uint64(math.Pow10(int(params.Decimals)))
 		} else if scriptPubKey.IsTokenTransfer() {
 			// no need to check error since it will not err

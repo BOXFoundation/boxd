@@ -30,6 +30,7 @@ var (
 	ErrOrphanBlockExists            = errors.New("Orphan block already exists")
 	ErrFailedToSetEternal           = errors.New("Failed to set eternal block")
 	ErrTokenInputsOutputNotEqual    = errors.New("Tx input tokens and output tokens unequal")
+	ErrTokenInvalidName             = errors.New("Token name cannot be box")
 	ErrParentBlockNotExist          = errors.New("Parent block does not exist")
 	ErrBlockTimeOut                 = errors.New("The block is timeout")
 	ErrFutureBlock                  = errors.New("Received a future block")
