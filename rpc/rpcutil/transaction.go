@@ -221,8 +221,8 @@ func NewTxWithFee(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
 	}
 	changeAmt := total - amount - fee
 	if changeAmt >= total {
-		err = fmt.Errorf("invalid arguments, utxo total=%d, amount=%d, fee=%d, "+
-			"changeAmt=%d", total, amount, fee, changeAmt)
+		err = fmt.Errorf("invalid arguments, addr %s utxo total=%d, amount=%d, "+
+			"fee=%d, changeAmt=%d", fromAcc.Addr(), total, amount, fee, changeAmt)
 		return
 	}
 	//
