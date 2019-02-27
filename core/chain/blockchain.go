@@ -1199,14 +1199,17 @@ func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction,
 func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, uint32, error) {
 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
 	if err != nil {
+		logger.Errorf("Failed to get txIndex. err: %v", err)
 		return nil, 0, err
 	}
 	height, idx, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
+		logger.Errorf("Failed to UnmarshalTxIndex. err: %v", err)
 		return nil, 0, err
 	}
 	block, err := chain.LoadBlockByHeight(height)
 	if err != nil {
+		logger.Errorf("Failed to LoadBlockByHeight. err: %v", err)
 		return nil, 0, err
 	}
 
