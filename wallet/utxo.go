@@ -100,14 +100,7 @@ func FetchUtxosOf(
 		if err != nil {
 			return nil, err
 		}
-		validUtxos := make([]*rpcpb.Utxo, 0, len(utxos))
-		for _, u := range utxos {
-			if utxoLiveCache.Contains(txlogic.ConvPbOutPoint(u.OutPoint)) {
-				continue
-			}
-			validUtxos = append(validUtxos, u)
-		}
-		return validUtxos, nil
+		return utxos, nil
 	}
 	// fetch moderate utxos by adjustint to total
 	utxos, err := fetchModerateUtxos(keys, tid, total, db)
@@ -319,42 +312,3 @@ func parseOutPointFromKeys(segs []string) (*types.OutPoint, error) {
 	}
 	return types.NewOutPoint(hash, uint32(index)), nil
 }
-
-//func updateBalanceFor(addr types.Address, db storage.Table,
-//	batch storage.Batch) error {
-//	utxos, err := FetchUtxosOf(addr, db)
-//	if err != nil {
-//		return err
-//	}
-//	var balance uint64
-//	for _, u := range utxos {
-//		if u != nil && !u.IsSpent {
-//			balance += u.Output.Value
-//		}
-//	}
-//
-//	return saveBalanceToDB(addr, balance, batch)
-//}
-//
-//func fetchBalanceFromDB(addr types.Address, db storage.Table) (uint64, error) {
-//	bKey := chain.AddrBalanceKey(addr.String())
-//	buf, err := db.Get(bKey)
-//	if err != nil {
-//		return 0, err
-//	}
-//	if buf == nil {
-//		return 0, nil
-//	}
-//	if len(buf) != 8 {
-//		return 0, fmt.Errorf("invalid balance record")
-//	}
-//	return binary.LittleEndian.Uint64(buf), nil
-//}
-//
-//func saveBalanceToDB(addr types.Address, balance uint64, batch storage.Batch) error {
-//	buf := make([]byte, 8)
-//	binary.LittleEndian.PutUint64(buf, balance)
-//	key := chain.AddrBalanceKey(addr.String())
-//	batch.Put(key, buf)
-//	return nil
-//}
