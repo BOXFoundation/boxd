@@ -62,7 +62,7 @@ type ChainTxReader interface {
 type ChainBlockReader interface {
 	ChainTxReader
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
-	LoadBlockByHash(crypto.HashType) (*types.Block, error)
+	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
 }
 
@@ -188,7 +188,7 @@ func (s *webapiServer) ViewBlockDetail(
 	}
 
 	br, tr := s.ChainBlockReader, s.TxPoolReader
-	block, err := br.LoadBlockByHash(*hash)
+	block, n, err := br.ReadBlockFromDB(hash)
 	if err != nil {
 		logger.Warn("view block detail error: ", err)
 		return newViewBlockDetailResp(-1, err.Error()), nil
@@ -200,6 +200,7 @@ func (s *webapiServer) ViewBlockDetail(
 	}
 	resp := newViewBlockDetailResp(0, "")
 	resp.Detail = detail
+	resp.Detail.Size_ = uint32(n)
 	return resp, nil
 }
 

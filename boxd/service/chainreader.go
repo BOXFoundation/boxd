@@ -15,11 +15,11 @@ type ChainReader interface {
 	// interface to read transactions
 	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
+	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 
 	//interface to reader block status
 	GetBlockHeight() uint32
 	GetBlockHash(uint32) (*crypto.HashType, error)
-	LoadBlockByHash(crypto.HashType) (*types.Block, error)
 	EternalBlock() *types.Block
 
 	// address related search method

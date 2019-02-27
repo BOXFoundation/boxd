@@ -1088,6 +1088,25 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 	return block, nil
 }
 
+// ReadBlockFromDB reads a block from db by hash and returns block and it's size
+func (chain *BlockChain) ReadBlockFromDB(hash *crypto.HashType) (*types.Block, int, error) {
+
+	blockBin, err := chain.db.Get(BlockKey(hash))
+	if err != nil {
+		return nil, 0, err
+	}
+	if blockBin == nil {
+		return nil, 0, core.ErrBlockIsNil
+	}
+	n := len(blockBin)
+	block := new(types.Block)
+	if err := block.Unmarshal(blockBin); err != nil {
+		return nil, 0, err
+	}
+
+	return block, n, nil
+}
+
 // LoadBlockByHeight load block by height from db.
 func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) {
 	if height == 0 {

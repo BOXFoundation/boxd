@@ -112,12 +112,13 @@ message BlockDetail {
     int32 version = 1;
     uint32 height = 2;
     int64 time_stamp = 3;
-    string hash = 4;
-    string prev_block_hash = 5;
-    string coin_base = 6;
-    bool confirmed = 7;
-    string signature = 8;
-    repeated TxDetail txs = 9;
+    uint32 size = 4;
+    string hash = 5;
+    string prev_block_hash = 6;
+    string coin_base = 7;
+    bool confirmed = 8;
+    string signature = 9;
+    repeated TxDetail txs = 10;
 }
 
 message TokenIssueInfo {

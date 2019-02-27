@@ -143,7 +143,7 @@ func (s *ctlserver) GetBlockHeader(ctx context.Context, req *rpcpb.GetBlockReque
 			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
 		}, err
 	}
-	block, err := s.server.GetChainReader().LoadBlockByHash(*hash)
+	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
 		return &rpcpb.GetBlockHeaderResponse{
 			Code:    -1,
@@ -179,7 +179,7 @@ func (s *ctlserver) GetBlock(ctx context.Context, req *rpcpb.GetBlockRequest) (*
 			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
 		}, err
 	}
-	block, err := s.server.GetChainReader().LoadBlockByHash(*hash)
+	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
 		return &rpcpb.GetBlockResponse{
 			Code:    -1,
