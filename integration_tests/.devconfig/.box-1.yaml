@@ -30,6 +30,7 @@ rpc:
     http:
         port: 19110
     faucet_keyfile: ../keyfile/key1.keystore
+    subscribe_blocks: true
 
 dpos:
     keypath: key.keystore

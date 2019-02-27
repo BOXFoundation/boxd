@@ -53,11 +53,12 @@ func setupWebAPIMockSvr() {
 	was := &webapiServer{
 		ChainBlockReader: br,
 		proc:             goprocess.WithSignals(os.Interrupt),
+		subscribeBlocks:  true,
+		eventBus:         testWebAPIBus,
 		newBlocksQueue:   list.New(),
 	}
 	grpcSvr := grpc.NewServer()
 	rpcpb.RegisterWebApiServer(grpcSvr, was)
-	testWebAPIBus.Subscribe(eventbus.TopicRPCSendNewBlock, was.receiveNewBlockMsg)
 
 	go grpcSvr.Serve(lis)
 	rpcAddr = lis.Addr()
