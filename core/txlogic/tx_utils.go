@@ -67,7 +67,9 @@ func (x SortByTokenUTXOValue) Less(i, j int) bool {
 func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *TokenID, error) {
 	scp := utxo.TxOut.GetScriptPubKey()
 	s := script.NewScriptFromBytes(scp)
-	if s.IsPayToPubKeyHash() {
+	if s.IsPayToPubKeyHash() ||
+		s.IsPayToPubKeyHashCLTVScript() ||
+		s.IsPayToScriptHash() {
 		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
 		tid := (*TokenID)(ConvPbOutPoint(utxo.OutPoint))
@@ -80,6 +82,8 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *TokenID, error) {
 		}
 		tid := (*TokenID)(&param.TokenID.OutPoint)
 		return param.Amount, tid, nil
+	} else if s.IsSplitAddrScript() {
+		return 0, nil, nil
 	}
 	return 0, nil, errors.New("utxo not recognized")
 }

@@ -397,8 +397,8 @@ func MakeUnsignedTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt := calcChangeAmount(amounts, fee, utxos...)
-	if changeAmt < 0 {
+	changeAmt, overflowed := calcChangeAmount(amounts, fee, utxos...)
+	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
 	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
@@ -414,8 +414,8 @@ func MakeUnsignedSplitAddrTx(
 	if err != nil {
 		return nil, "", nil, err
 	}
-	changeAmt := calcChangeAmount(nil, fee, utxos...)
-	if changeAmt < 0 {
+	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
+	if overflowed {
 		return nil, "", nil, txlogic.ErrInsufficientBalance
 	}
 	tx, splitAddr, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights,
@@ -431,8 +431,8 @@ func MakeUnsignedTokenIssueTx(
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	changeAmt := calcChangeAmount(nil, fee, utxos...)
-	if changeAmt < 0 {
+	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
+	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
 	}
 	tx, issueOutIndex, err := txlogic.MakeUnsignedTokenIssueTx(issuer, issuee, tag,
@@ -457,8 +457,8 @@ func MakeUnsignedTokenTransferTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt := calcChangeAmount(nil, fee, utxos...)
-	if changeAmt < 0 {
+	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
+	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
 	mixUtxos := append(utxos, tokenUtxos...)
@@ -467,7 +467,7 @@ func MakeUnsignedTokenTransferTx(
 	return tx, mixUtxos, err
 }
 
-func calcChangeAmount(amounts []uint64, fee uint64, utxos ...*rpcpb.Utxo) uint64 {
+func calcChangeAmount(amounts []uint64, fee uint64, utxos ...*rpcpb.Utxo) (uint64, bool) {
 	total := fee
 	for _, a := range amounts {
 		total += a
@@ -480,5 +480,6 @@ func calcChangeAmount(amounts []uint64, fee uint64, utxos ...*rpcpb.Utxo) uint64
 		}
 		uv += amount
 	}
-	return uv - total
+	changeAmt := uv - total
+	return changeAmt, changeAmt > uv
 }

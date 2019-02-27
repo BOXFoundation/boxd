@@ -315,7 +315,8 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 			if err != nil {
 				if err == core.ErrBlockExists ||
 					err == core.ErrOrphanBlockExists ||
-					err == core.ErrExpiredBlock {
+					err == core.ErrExpiredBlock ||
+					err == core.ErrBlockInSideChain {
 					logger.Warnf("Failed to process block. Err: %v", err)
 					continue
 				} else {
