@@ -39,15 +39,18 @@ func init() {
 func registerWebapi(s *Server) {
 	was := newWebAPIServer(s)
 	rpcpb.RegisterWebApiServer(s.server, was)
-	s.eventBus.Subscribe(eventbus.TopicRPCSendNewBlock, was.receiveNewBlockMsg)
 }
 
 type webapiServer struct {
 	ChainBlockReader
 	TxPoolReader
-	proc           goprocess.Process
-	newBlockMutex  sync.RWMutex
-	newBlocksQueue *list.List
+	proc            goprocess.Process
+	newBlockMutex   sync.RWMutex
+	newBlocksQueue  *list.List
+	eventBus        eventbus.Bus
+	subscribeBlocks bool
+	subscribeMutex  sync.Mutex
+	subscribeCnt    int
 }
 
 // ChainTxReader defines chain tx reader interface
@@ -74,6 +77,8 @@ func newWebAPIServer(s *Server) *webapiServer {
 		TxPoolReader:     s.GetTxHandler(),
 		proc:             s.Proc(),
 		newBlocksQueue:   list.New(),
+		eventBus:         s.eventBus,
+		subscribeBlocks:  s.cfg.SubScribeBlocks,
 	}
 }
 
@@ -252,6 +257,18 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	req *rpcpb.ListenBlocksReq,
 	stream rpcpb.WebApi_ListenAndReadNewBlockServer,
 ) error {
+	if !s.subscribeBlocks {
+		return ErrAPINotSupported
+	}
+	if err := s.subscribe(); err != nil {
+		logger.Error(err)
+		return err
+	}
+	defer func() {
+		if err := s.unsubscribe(); err != nil {
+			logger.Error(err)
+		}
+	}()
 	var (
 		elm  *list.Element
 		exit bool
@@ -308,6 +325,34 @@ func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, ex
 		s.newBlockMutex.RUnlock()
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func (s *webapiServer) subscribe() error {
+	s.subscribeMutex.Lock()
+	if s.subscribeCnt == 0 {
+		err := s.eventBus.Subscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
+		if err != nil {
+			s.subscribeMutex.Unlock()
+			return err
+		}
+	}
+	s.subscribeCnt++
+	s.subscribeMutex.Unlock()
+	return nil
+}
+
+func (s *webapiServer) unsubscribe() error {
+	s.subscribeMutex.Lock()
+	if s.subscribeCnt == 1 {
+		err := s.eventBus.Unsubscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
+		if err != nil {
+			s.subscribeMutex.Unlock()
+			return err
+		}
+	}
+	s.subscribeCnt--
+	s.subscribeMutex.Unlock()
+	return nil
 }
 
 func detailTx(

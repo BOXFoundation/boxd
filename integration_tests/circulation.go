@@ -136,6 +136,7 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 					logger.Panic(err)
 				}
 				atomic.AddUint64(txCnt, 1)
+				time.Sleep(4 * time.Millisecond)
 			}
 		}(txs)
 	}

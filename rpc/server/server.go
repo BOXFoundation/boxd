@@ -40,14 +40,15 @@ var (
 
 // Config defines the configurations of rpc server
 type Config struct {
-	Enabled       bool       `mapstructure:"enabled"`
-	Address       string     `mapstructure:"address"`
-	Port          int        `mapstructure:"port"`
-	HTTP          HTTPConfig `mapstructure:"http"`
-	GrpcLimits    int        `mapstructure:"grpc_limits"`
-	HTTPLimits    int        `mapstructure:"http_limits"`
-	HTTPCors      []string   `mapstructure:"http_cors"`
-	FaucetKeyFile string     `mapstructure:"faucet_keyfile"`
+	Enabled         bool       `mapstructure:"enabled"`
+	Address         string     `mapstructure:"address"`
+	Port            int        `mapstructure:"port"`
+	HTTP            HTTPConfig `mapstructure:"http"`
+	GrpcLimits      int        `mapstructure:"grpc_limits"`
+	HTTPLimits      int        `mapstructure:"http_limits"`
+	HTTPCors        []string   `mapstructure:"http_cors"`
+	FaucetKeyFile   string     `mapstructure:"faucet_keyfile"`
+	SubScribeBlocks bool       `mapstructure:"subscribe_blocks"`
 }
 
 // HTTPConfig defines the address/port of rest api over http
