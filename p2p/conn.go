@@ -378,8 +378,12 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 // Close connection to remote peer.
 func (conn *Conn) Close() error {
 	conn.mutex.Lock()
-	defer conn.proc.Close()
-	defer conn.mutex.Unlock()
+	defer func() {
+		if conn.procHeartbeat != nil {
+			conn.procHeartbeat.Close()
+		}
+		conn.mutex.Unlock()
+	}()
 
 	pid := conn.remotePeer
 	logger.Info("Closing connection with ", pid.Pretty())
