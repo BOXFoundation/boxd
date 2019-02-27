@@ -112,7 +112,12 @@ func ParseTokenAmount(spk []byte) (uint64, error) {
 
 // MakeVout makes txOut
 func MakeVout(addr string, amount uint64) *corepb.TxOut {
-	address, _ := types.NewAddress(addr)
+	var address types.Address
+	if strings.HasPrefix(addr, "b2") {
+		address, _ = types.NewSplitAddress(addr)
+	} else {
+		address, _ = types.NewAddress(addr)
+	}
 	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
 	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
 	return &corepb.TxOut{
@@ -308,6 +313,8 @@ func MakeSplitAddrPubkey(addrs []string, weights []uint64) []byte {
 	for i, addr := range addrs {
 		addresses[i], _ = types.NewAddress(addr)
 	}
+	value := *script.SplitAddrScript(addresses, weights)
+	logger.Infof("]]]] %s", hex.EncodeToString(value))
 	return *script.SplitAddrScript(addresses, weights)
 }
 
@@ -320,7 +327,7 @@ func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+	addr, err := types.NewSplitAddressFromHash(pubKeyHash)
 	if err != nil {
 		return "", err
 	}

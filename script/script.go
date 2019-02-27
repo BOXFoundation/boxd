@@ -641,7 +641,7 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 		if err != nil {
 			return nil, err
 		}
-		addr, err := types.NewAddressPubKeyHash(pubKeyHash)
+		addr, err := types.NewSplitAddressFromHash(pubKeyHash)
 		if err != nil {
 			return nil, err
 		}
@@ -657,6 +657,18 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 	}
 
 	return nil, ErrAddressNotApplicable
+}
+
+// ExtractP2PKHAddress returns address within the script
+func (s *Script) ExtractP2PKHAddress() ([]byte, error) {
+	if s.IsPayToPubKeyHash() {
+		_, pubKeyHash, _, err := s.getNthOp(0, 2)
+		if err != nil {
+			return nil, err
+		}
+		return pubKeyHash, nil
+	}
+	return nil, nil
 }
 
 // ParseSplitAddrScript returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]

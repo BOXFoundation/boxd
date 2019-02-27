@@ -6,6 +6,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 
@@ -159,12 +160,12 @@ func (s *txServer) SendTransaction(
 	ctx context.Context, req *rpcpb.SendTransactionReq,
 ) (resp *rpcpb.SendTransactionResp, err error) {
 
-	logger.Infof("send tx req >> %+v", req)
 	defer func() {
+		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("send tx %+v error: %s", req, resp.Message)
+			logger.Warnf("send tx req: %s error: %s", string(bytes), resp.Message)
 		} else {
-			logger.Infof("send tx: %+v succeeded, response: %+v", resp)
+			logger.Infof("send tx req: %s succeeded, response: %+v", string(bytes), resp)
 		}
 	}()
 
@@ -228,12 +229,12 @@ func (s *txServer) MakeUnsignedTx(
 	ctx context.Context, req *rpcpb.MakeTxReq,
 ) (resp *rpcpb.MakeTxResp, err error) {
 
-	logger.Infof("make unsigned tx: %+v", req)
 	defer func() {
+		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned tx %+v error: %s", req, resp.Message)
+			logger.Warnf("make unsigned tx: %s error: %s", string(bytes), resp.Message)
 		} else {
-			logger.Infof("make unsigned tx: %+v succeeded, response: %+v", resp)
+			logger.Infof("make unsigned tx: %s succeeded, response: %+v", string(bytes), resp)
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -268,12 +269,13 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 	ctx context.Context, req *rpcpb.MakeSplitAddrTxReq,
 ) (resp *rpcpb.MakeSplitAddrTxResp, err error) {
 
-	logger.Infof("make unsigned split addr tx: %+v", req)
 	defer func() {
+		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned split addr tx %+v error: %s", req, resp.Message)
+			logger.Warnf("make unsigned split addr tx: %s error: %s", string(bytes), resp.Message)
 		} else {
-			logger.Infof("make unsigned split addr tx: %+v succeeded, response: %+v", resp)
+			logger.Infof("make unsigned split addr tx: %s succeeded, response: %+v",
+				string(bytes), resp)
 		}
 	}()
 	//
@@ -314,12 +316,13 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	ctx context.Context, req *rpcpb.MakeTokenIssueTxReq,
 ) (resp *rpcpb.MakeTokenIssueTxResp, err error) {
 
-	logger.Infof("make unsigned token issue tx: %+v", req)
 	defer func() {
+		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned token issue tx %+v error: %s", req, resp.Message)
+			logger.Warnf("make unsigned token issue tx: %s error: %s", string(bytes), resp.Message)
 		} else {
-			logger.Infof("make unsigned token issue tx: %+v succeeded, response: %+v", resp)
+			logger.Infof("make unsigned token issue tx: %s succeeded, response: %+v",
+				string(bytes), resp)
 		}
 	}()
 	//
@@ -352,12 +355,14 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	ctx context.Context, req *rpcpb.MakeTokenTransferTxReq,
 ) (resp *rpcpb.MakeTxResp, err error) {
 
-	logger.Infof("make unsigned token transfer tx: %+v", req)
 	defer func() {
+		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned token transfer tx %+v error: %s", req, resp.Message)
+			logger.Warnf("make unsigned token transfer tx: %s error: %s", string(bytes),
+				resp.Message)
 		} else {
-			logger.Infof("make unsigned token transfer tx: %+v succeeded, response: %+v", resp)
+			logger.Infof("make unsigned token transfer tx: %s succeeded, response: %+v",
+				string(bytes), resp)
 		}
 	}()
 	wa := s.server.GetWalletAgent()

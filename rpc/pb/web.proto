@@ -94,17 +94,18 @@ message TxOutDetail {
     string script_disasm = 4;
     enum TxOutType {
         unknown = 0;
-        pay_to_pubkey = 1;
-        pay_to_pubkey_cltv_script = 2;
-        pay_to_script = 3;
-        pay_to_split_script = 4;
-        token_issue = 5;
-        token_transfer = 6;
+        pay_to_pubkey_hash = 1;
+        pay_to_pubkey_hash_cltv = 2;
+        token_issue = 3;
+        token_transfer = 4;
+        new_split_addr = 5;
+        pay_to_script_hash = 6;
     }
     TxOutType type = 5; 
     oneof appendix {
         TokenIssueInfo token_issue_info = 6; 
         TokenTransferInfo token_transfer_info= 7;
+        SplitContractInfo split_contract_info= 8;
     }
 }
 
@@ -122,7 +123,12 @@ message BlockDetail {
 }
 
 message TokenIssueInfo {
-    TokenTag token_tag = 2;
+    TokenTag token_tag = 1;
+}
+
+message SplitContractInfo  {
+    repeated string addrs = 1;
+    repeated uint64 weights = 2;
 }
 
 message TokenTransferInfo {

@@ -1487,6 +1487,7 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	if !isSplitAddr {
 		return txOuts
 	}
+	logger.Errorf("======= addr: %s, isSplitAddr: %t, sai: %+v", addr, isSplitAddr, sai)
 	if err != nil {
 		logger.Errorf("Split address %v parse error: %v", addr, err)
 		return txOuts
@@ -1588,6 +1589,11 @@ func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, *splitAddrInfo
 		return false, nil, err
 	}
 	return true, info, nil
+}
+
+// GetDataFromDB get data from db
+func (chain *BlockChain) GetDataFromDB(key []byte) ([]byte, error) {
+	return chain.db.Get(key)
 }
 
 // WriteSplitAddrIndex writes split addr info index
