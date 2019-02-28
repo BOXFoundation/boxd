@@ -48,7 +48,7 @@ type webapiServer struct {
 	proc            goprocess.Process
 	newBlockMutex   sync.RWMutex
 	newBlocksQueue  *list.List
-	eventBus        eventbus.Bus
+	bus             eventbus.Bus
 	subscribeBlocks bool
 	subscribeMutex  sync.Mutex
 	subscribeCnt    int
@@ -79,7 +79,7 @@ func newWebAPIServer(s *Server) *webapiServer {
 		TxPoolReader:     s.GetTxHandler(),
 		proc:             s.Proc(),
 		newBlocksQueue:   list.New(),
-		eventBus:         s.eventBus,
+		bus:              s.eventBus,
 		subscribeBlocks:  s.cfg.SubScribeBlocks,
 	}
 }
@@ -263,6 +263,7 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	if !s.subscribeBlocks {
 		return ErrAPINotSupported
 	}
+	logger.Info("start listen new blocks")
 	if err := s.subscribe(); err != nil {
 		logger.Error(err)
 		return err
@@ -314,14 +315,14 @@ func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, ex
 			return nil, true
 		}
 		s.newBlockMutex.RLock()
-		next := elm.Next()
-		if next != nil {
+		if next := elm.Next(); next != nil {
 			elmA = next
-			s.newBlockMutex.RUnlock()
-			return elmA, false
 		} else if elm.Prev() == nil {
 			// if this element is removed, move to the fromt of list
 			elmA = s.newBlocksQueue.Front()
+		}
+		// occur when elm is the front
+		if elmA != nil && elm != elmA {
 			s.newBlockMutex.RUnlock()
 			return elmA, false
 		}
@@ -333,7 +334,7 @@ func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, ex
 func (s *webapiServer) subscribe() error {
 	s.subscribeMutex.Lock()
 	if s.subscribeCnt == 0 {
-		err := s.eventBus.Subscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
+		err := s.bus.Subscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
 		if err != nil {
 			s.subscribeMutex.Unlock()
 			return err
@@ -341,13 +342,14 @@ func (s *webapiServer) subscribe() error {
 	}
 	s.subscribeCnt++
 	s.subscribeMutex.Unlock()
+	logger.Infof("subscribe new blocks#%d", s.subscribeCnt)
 	return nil
 }
 
 func (s *webapiServer) unsubscribe() error {
 	s.subscribeMutex.Lock()
 	if s.subscribeCnt == 1 {
-		err := s.eventBus.Unsubscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
+		err := s.bus.Unsubscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
 		if err != nil {
 			s.subscribeMutex.Unlock()
 			return err
@@ -355,6 +357,7 @@ func (s *webapiServer) unsubscribe() error {
 	}
 	s.subscribeCnt--
 	s.subscribeMutex.Unlock()
+	logger.Infof("unsubscribe new blocks#%d", s.subscribeCnt)
 	return nil
 }
 
