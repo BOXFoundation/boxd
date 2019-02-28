@@ -147,7 +147,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut := txlogic.MakeVout(testAddr, testAmount)
 	tx := types.NewTx(0, 4455, 1000).AppendVout(txOut)
 	txHash, _ := tx.TxHash()
-	detail, err := detailTxOut(txHash, tx.Vout[0], 0)
+	detail, err := detailTxOut(txHash, tx.Vout[0], 0, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut, _ = txlogic.MakeIssueTokenVout(testAddr, tag)
 	tx = types.NewTx(0, 4455, 1000).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
-	detail, err = detailTxOut(txHash, tx.Vout[0], 0)
+	detail, err = detailTxOut(txHash, tx.Vout[0], 0, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut, _ = txlogic.MakeTokenVout(testAddr, tid, testAmount)
 	tx = types.NewTx(0, 4455, 100).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
-	detail, err = detailTxOut(txHash, tx.Vout[0], 0)
+	detail, err = detailTxOut(txHash, tx.Vout[0], 0, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,10 +264,18 @@ func TestDetailTxOut(t *testing.T) {
 
 type TestDetailBlockChainReader struct{}
 
+var (
+	testDetailReader = new(TestDetailBlockChainReader)
+)
+
 func (r *TestDetailBlockChainReader) LoadTxByHash(crypto.HashType) (*types.Transaction, error) {
 	from, to, amount := testAddr, "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(300)
 	prevHash := hashFromUint64(1)
 	return genTestTx(from, to, amount, &prevHash), nil
+}
+
+func (r *TestDetailBlockChainReader) GetDataFromDB([]byte) ([]byte, error) {
+	return nil, nil
 }
 
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {

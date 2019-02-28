@@ -126,7 +126,7 @@ func flow(t *testing.T, respFunc makeTxRespFunc) {
 // NOTE: want to run this test case, need start a node
 // with miner: b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o
 // port: 19111
-func TestNormalTx(t *testing.T) {
+func NoTestNormalTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	to := []string{
@@ -158,7 +158,7 @@ func TestNormalTx(t *testing.T) {
 // NOTE: want to run this test case, need start a node
 // with miner: b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o
 // port: 19111
-func TestSplitAddrTx(t *testing.T) {
+func NoTestSplitAddrTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	addrs := []string{

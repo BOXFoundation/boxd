@@ -455,9 +455,7 @@ func detailTxOut(
 
 	detail := new(rpcpb.TxOutDetail)
 	// addr
-
 	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-
 	var addr string
 	//address, err := sc.ExtractAddress()
 	//if err != nil {
