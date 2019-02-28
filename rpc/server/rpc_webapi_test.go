@@ -99,7 +99,7 @@ func _TestClientListenNewBlocks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
 		}
-		logger.Infof("block hegiht: %d", block.Height)
+		logger.Infof("block hegiht: %d, size: %d", block.Height, block.Size_)
 	}
 }
 
