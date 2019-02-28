@@ -54,7 +54,7 @@ func setupWebAPIMockSvr() {
 		ChainBlockReader: br,
 		proc:             goprocess.WithSignals(os.Interrupt),
 		subscribeBlocks:  true,
-		eventBus:         testWebAPIBus,
+		bus:              testWebAPIBus,
 		newBlocksQueue:   list.New(),
 	}
 	grpcSvr := grpc.NewServer()
@@ -75,6 +75,32 @@ func sendWebAPITestBlocks() {
 	time.Sleep(2 * time.Second)
 	proc, _ := os.FindProcess(os.Getpid())
 	proc.Signal(os.Interrupt)
+}
+
+func _TestClientListenNewBlocks(t *testing.T) {
+	rpcAddr := "127.0.0.1:19111"
+	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	client := rpcpb.NewWebApiClient(conn)
+	blockReq := &rpcpb.ListenBlocksReq{}
+	stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		block, err := stream.Recv()
+		if err == io.EOF {
+			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
+			break
+		}
+		if err != nil {
+			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
+		}
+		logger.Infof("block hegiht: %d", block.Height)
+	}
 }
 
 func TestListenAndReadNewBlock(t *testing.T) {
