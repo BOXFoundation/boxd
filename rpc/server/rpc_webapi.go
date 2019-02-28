@@ -334,7 +334,7 @@ func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, ex
 func (s *webapiServer) subscribe() error {
 	s.subscribeMutex.Lock()
 	if s.subscribeCnt == 0 {
-		err := s.bus.Subscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
+		err := s.bus.SubscribeUniq(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
 		if err != nil {
 			s.subscribeMutex.Unlock()
 			return err
