@@ -1088,6 +1088,25 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 	return block, nil
 }
 
+// ReadBlockFromDB reads a block from db by hash and returns block and it's size
+func (chain *BlockChain) ReadBlockFromDB(hash *crypto.HashType) (*types.Block, int, error) {
+
+	blockBin, err := chain.db.Get(BlockKey(hash))
+	if err != nil {
+		return nil, 0, err
+	}
+	if blockBin == nil {
+		return nil, 0, core.ErrBlockIsNil
+	}
+	n := len(blockBin)
+	block := new(types.Block)
+	if err := block.Unmarshal(blockBin); err != nil {
+		return nil, 0, err
+	}
+
+	return block, n, nil
+}
+
 // LoadBlockByHeight load block by height from db.
 func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) {
 	if height == 0 {
@@ -1471,6 +1490,7 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	if !isSplitAddr {
 		return txOuts
 	}
+	logger.Errorf("======= addr: %s, isSplitAddr: %t, sai: %+v", addr, isSplitAddr, sai)
 	if err != nil {
 		logger.Errorf("Split address %v parse error: %v", addr, err)
 		return txOuts
@@ -1572,6 +1592,11 @@ func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, *splitAddrInfo
 		return false, nil, err
 	}
 	return true, info, nil
+}
+
+// GetDataFromDB get data from db
+func (chain *BlockChain) GetDataFromDB(key []byte) ([]byte, error) {
+	return chain.db.Get(key)
 }
 
 // WriteSplitAddrIndex writes split addr info index

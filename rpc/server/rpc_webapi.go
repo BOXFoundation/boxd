@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -56,13 +57,14 @@ type webapiServer struct {
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
 	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
+	GetDataFromDB([]byte) ([]byte, error)
 }
 
 // ChainBlockReader defines chain block reader interface
 type ChainBlockReader interface {
 	ChainTxReader
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
-	LoadBlockByHash(crypto.HashType) (*types.Block, error)
+	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
 }
 
@@ -188,7 +190,7 @@ func (s *webapiServer) ViewBlockDetail(
 	}
 
 	br, tr := s.ChainBlockReader, s.TxPoolReader
-	block, err := br.LoadBlockByHash(*hash)
+	block, n, err := br.ReadBlockFromDB(hash)
 	if err != nil {
 		logger.Warn("view block detail error: ", err)
 		return newViewBlockDetailResp(-1, err.Error()), nil
@@ -200,6 +202,7 @@ func (s *webapiServer) ViewBlockDetail(
 	}
 	resp := newViewBlockDetailResp(0, "")
 	resp.Detail = detail
+	resp.Detail.Size_ = uint32(n)
 	return resp, nil
 }
 
@@ -373,7 +376,7 @@ func detailTx(
 	// parse vout
 	for i := range tx.Vout {
 		txHash, _ := tx.TxHash()
-		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i))
+		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), br)
 		if err != nil {
 			return nil, err
 		}
@@ -439,7 +442,7 @@ func detailTxIn(
 	index := txIn.PrevOutPoint.Index
 	prevTxHash, _ := prevTx.TxHash()
 	detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
-		txIn.PrevOutPoint.Index)
+		txIn.PrevOutPoint.Index, r)
 	if err != nil {
 		return nil, err
 	}
@@ -447,17 +450,40 @@ func detailTxIn(
 }
 
 func detailTxOut(
-	txHash *crypto.HashType, txOut *corepb.TxOut, index uint32,
+	txHash *crypto.HashType, txOut *corepb.TxOut, index uint32, br ChainTxReader,
 ) (*rpcpb.TxOutDetail, error) {
 
 	detail := new(rpcpb.TxOutDetail)
 	// addr
+
 	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-	address, err := sc.ExtractAddress()
-	if err != nil {
-		return nil, err
+
+	var addr string
+	//address, err := sc.ExtractAddress()
+	//if err != nil {
+	//	return nil, err
+	//}
+	addrBytes, err := sc.ExtractP2PKHAddress()
+	address, err := types.NewSplitAddressFromHash(addrBytes)
+	if err == nil {
+		data, _ := br.GetDataFromDB(chain.SplitAddrKey(address.Hash()))
+		if data != nil {
+			addr = address.String()
+		} else {
+			address, err := sc.ExtractAddress()
+			if err != nil {
+				return nil, err
+			}
+			addr = address.String()
+		}
+	} else {
+		address, err := sc.ExtractAddress()
+		if err != nil {
+			return nil, err
+		}
+		addr = address.String()
 	}
-	detail.Addr = address.String()
+	detail.Addr = addr
 	// value
 	op := types.NewOutPoint(txHash, index)
 	// height 0 is unused
@@ -504,8 +530,22 @@ func detailTxOut(
 			},
 		}
 		detail.Appendix = transferInfo
-	case rpcpb.TxOutDetail_pay_to_split_script:
-		//addresses, amounts, err := sc.ParseSplitAddrScript()
+	case rpcpb.TxOutDetail_new_split_addr:
+		addresses, weights, err := sc.ParseSplitAddrScript()
+		if err != nil {
+			return nil, err
+		}
+		addrs := make([]string, 0, len(addresses))
+		for _, a := range addresses {
+			addrs = append(addrs, a.String())
+		}
+		splitContractInfo := &rpcpb.TxOutDetail_SplitContractInfo{
+			SplitContractInfo: &rpcpb.SplitContractInfo{
+				Addrs:   addrs,
+				Weights: weights,
+			},
+		}
+		detail.Appendix = splitContractInfo
 	}
 	//
 	return detail, nil
@@ -513,18 +553,18 @@ func detailTxOut(
 
 func parseVoutType(txOut *corepb.TxOut) rpcpb.TxOutDetail_TxOutType {
 	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-	if sc.IsTokenIssue() {
+	if sc.IsPayToPubKeyHash() {
+		return rpcpb.TxOutDetail_pay_to_pubkey_hash
+	} else if sc.IsPayToPubKeyHashCLTVScript() {
+		return rpcpb.TxOutDetail_pay_to_pubkey_hash_cltv
+	} else if sc.IsTokenIssue() {
 		return rpcpb.TxOutDetail_token_issue
 	} else if sc.IsTokenTransfer() {
 		return rpcpb.TxOutDetail_token_transfer
-	} else if sc.IsPayToPubKeyHash() {
-		return rpcpb.TxOutDetail_pay_to_pubkey
 	} else if sc.IsSplitAddrScript() {
-		return rpcpb.TxOutDetail_pay_to_split_script
-	} else if sc.IsPayToPubKeyHashCLTVScript() {
-		return rpcpb.TxOutDetail_pay_to_pubkey_cltv_script
+		return rpcpb.TxOutDetail_new_split_addr
 	} else if sc.IsPayToScriptHash() {
-		return rpcpb.TxOutDetail_pay_to_script
+		return rpcpb.TxOutDetail_pay_to_script_hash
 	} else {
 		return rpcpb.TxOutDetail_unknown
 	}

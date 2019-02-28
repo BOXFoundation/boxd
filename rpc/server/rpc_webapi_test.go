@@ -155,9 +155,9 @@ func TestDetailTxOut(t *testing.T) {
 		" OP_EQUALVERIFY OP_CHECKSIG"
 	if detail.Addr != testAddr || detail.Value != testAmount ||
 		detail.ScriptDisasm != disasmScript ||
-		detail.Type != rpcpb.TxOutDetail_pay_to_pubkey {
+		detail.Type != rpcpb.TxOutDetail_pay_to_pubkey_hash {
 		t.Fatalf("normal detail tx out, want: %s %d %s %v, got: %+v", testAddr,
-			testAmount, disasmScript, rpcpb.TxOutDetail_pay_to_pubkey, detail)
+			testAmount, disasmScript, rpcpb.TxOutDetail_pay_to_pubkey_hash, detail)
 	}
 
 	// pay to token issue
@@ -197,7 +197,7 @@ func TestDetailTxOut(t *testing.T) {
   "value": 1000000000,
   "script_pub_key": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac044e616d657503666f78750653796d626f6c7503464f587506416d6f756e74750840420f00000000007508446563696d616c7375010375",
   "script_disasm": "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6 OP_EQUALVERIFY OP_CHECKSIG 4e616d65 OP_DROP 666f78 OP_DROP 53796d626f6c OP_DROP 464f58 OP_DROP 416d6f756e74 OP_DROP 40420f0000000000 OP_DROP 446563696d616c73 OP_DROP 03 OP_DROP",
-  "type": 5,
+  "type": 3,
   "Appendix": {
     "TokenIssueInfo": {
       "token_tag": {
@@ -249,7 +249,7 @@ func TestDetailTxOut(t *testing.T) {
   "value": 12345,
   "script_pub_key": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac0b546f6b656e54784861736875205c3d215a24ba0f218705696135a17bc879a90515191bd20677d728ec02de8176750d546f6b656e54784f75744964787504000000007506416d6f756e747508393000000000000075",
   "script_disasm": "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6 OP_EQUALVERIFY OP_CHECKSIG 546f6b656e547848617368 OP_DROP 5c3d215a24ba0f218705696135a17bc879a90515191bd20677d728ec02de8176 OP_DROP 546f6b656e54784f7574496478 OP_DROP 00000000 OP_DROP 416d6f756e74 OP_DROP 3930000000000000 OP_DROP",
-  "type": 6,
+  "type": 4,
   "Appendix": {
     "TokenTransferInfo": {
       "token_id": "4yN36qpbC4xZVaZ353Czt5TaowNovq55CpDQomCpQXDKR61chHh"
@@ -270,7 +270,7 @@ func (r *TestDetailBlockChainReader) LoadTxByHash(crypto.HashType) (*types.Trans
 	return genTestTx(from, to, amount, &prevHash), nil
 }
 
-func (r *TestDetailBlockChainReader) LoadBlockByHash(crypto.HashType) (*types.Block, error) {
+func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {
 	addr, amount := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
 		AppendVin(txlogic.NewCoinBaseTxIn()).
@@ -278,7 +278,7 @@ func (r *TestDetailBlockChainReader) LoadBlockByHash(crypto.HashType) (*types.Bl
 	tx, _ := r.LoadTxByHash(crypto.HashType{})
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
 	block.Height = 10
-	return block, nil
+	return block, 10240, nil
 }
 
 func (r *TestDetailBlockChainReader) LoadBlockInfoByTxHash(
@@ -288,7 +288,7 @@ func (r *TestDetailBlockChainReader) LoadBlockInfoByTxHash(
 }
 
 func (r *TestDetailBlockChainReader) EternalBlock() *types.Block {
-	block, _ := r.LoadBlockByHash(crypto.HashType{})
+	block, _, _ := r.ReadBlockFromDB(&crypto.HashType{})
 	block.Height = 1
 	return block
 }
