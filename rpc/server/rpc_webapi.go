@@ -108,6 +108,12 @@ func (s *webapiServer) receiveNewBlockMsg(block *types.Block) {
 		s.newBlockMutex.Unlock()
 		return
 	}
+	br := s.ChainBlockReader
+	_, n, err := br.ReadBlockFromDB(block.BlockHash())
+	if err != nil {
+		logger.Warn(err)
+	}
+	blockDetail.Size_ = uint32(n)
 	// push
 	s.newBlocksQueue.PushBack(blockDetail)
 	s.newBlockMutex.Unlock()
