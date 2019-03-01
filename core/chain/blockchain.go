@@ -734,7 +734,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	blockCopy := block.Copy()
 
 	// Split tx outputs if any
-	chain.splitBlockOutputs(blockCopy)
+	splitTxs := chain.splitBlockOutputs(blockCopy)
 	ttt1 := time.Now().UnixNano()
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
@@ -750,7 +750,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	}
 
 	// save tx index
-	if err := chain.WriteTxIndex(block, batch); err != nil {
+	if err := chain.WriteTxIndex(block, splitTxs, batch); err != nil {
 		return err
 	}
 	ttt3 := time.Now().UnixNano()
@@ -851,7 +851,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	blockCopy := block.Copy()
 
 	// Split tx outputs if any
-	chain.splitBlockOutputs(blockCopy)
+	splitTxs := chain.splitBlockOutputs(blockCopy)
 	dtt1 := time.Now().UnixNano()
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockAllUtxos(blockCopy, chain.db); err != nil {
@@ -867,7 +867,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	// chain.filterHolder.ResetFilters(block.Height)
 	dtt3 := time.Now().UnixNano()
 	// save tx index
-	if err := chain.DelTxIndex(block, batch); err != nil {
+	if err := chain.DelTxIndex(block, splitTxs, batch); err != nil {
 		return err
 	}
 
@@ -1010,7 +1010,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		}
 	}
 	utxoSet.WriteUtxoSetToDB(batch)
-	if err := chain.WriteTxIndex(&genesis, batch); err != nil {
+	if err := chain.WriteTxIndex(&genesis, []*types.Transaction{}, batch); err != nil {
 		return nil, err
 	}
 	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
@@ -1242,9 +1242,12 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 }
 
 // WriteTxIndex builds tx index in block
-func (chain *BlockChain) WriteTxIndex(block *types.Block, batch storage.Batch) error {
+// Save split transaction copies before and after split. The latter is needed when reverting a transaction during reorg,
+// spending from utxo/coin received at a split address
+func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
+	allTxs := append(block.Txs, splitTxs...)
 
-	for idx, tx := range block.Txs {
+	for idx, tx := range allTxs {
 		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
 		if err != nil {
 			return err
@@ -1259,9 +1262,11 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, batch storage.Batch) e
 }
 
 // DelTxIndex deletes tx index in block
-func (chain *BlockChain) DelTxIndex(block *types.Block, batch storage.Batch) error {
+// Delete split transaction copies saved earlier, both before and after split
+func (chain *BlockChain) DelTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
+	allTxs := append(block.Txs, splitTxs...)
 
-	for _, tx := range block.Txs {
+	for _, tx := range allTxs {
 		txHash, err := tx.TxHash()
 		if err != nil {
 			return err
@@ -1364,20 +1369,35 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 }
 
 // split outputs of txs in the block where applicable
-func (chain *BlockChain) splitBlockOutputs(block *types.Block) {
+// return all split transactions, i.e., transactions containing at least one output to a split address
+func (chain *BlockChain) splitBlockOutputs(block *types.Block) []*types.Transaction {
+	splitTxs := make([]*types.Transaction, 0)
+
 	for _, tx := range block.Txs {
-		chain.splitTxOutputs(tx)
+		if chain.splitTxOutputs(tx) {
+			splitTxs = append(splitTxs, tx)
+		}
 	}
+
+	return splitTxs
 }
 
 // split outputs in the tx where applicable
-func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) {
+// return if the transaction contains split address output
+func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) bool {
+	isSplitTx := false
 	vout := make([]*corepb.TxOut, 0)
+
 	for _, txOut := range tx.Vout {
 		txOuts := chain.splitTxOutput(txOut)
 		vout = append(vout, txOuts...)
+
+		if !isSplitTx && len(txOuts) > 1 {
+			isSplitTx = true
+		}
 	}
 	tx.Vout = vout
+	return isSplitTx
 }
 
 // split an output to a split address into  multiple outputs to composite addresses
