@@ -91,10 +91,10 @@ func (wlt *Manager) ListAccounts() []*acc.Account {
 // NewAccount creates a ecdsa key pair and store them in a file encrypted
 // by the passphrase user entered
 // returns a hexstring format public key hash, address and error
-func (wlt *Manager) NewAccount(passphrase string) (string, string, error) {
+func (wlt *Manager) NewAccount(passphrase string) (string, error) {
 	privateKey, _, err := crypto.NewKeyPair()
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	return wlt.NewAccountWithPrivKey(privateKey, passphrase)
 }
@@ -102,21 +102,21 @@ func (wlt *Manager) NewAccount(passphrase string) (string, string, error) {
 // NewAccountWithPrivKey store the give private key in a file encrypted
 // by the passphrase user entered
 // returns a hexstring format public key hash, address and error
-func (wlt *Manager) NewAccountWithPrivKey(privKey *crypto.PrivateKey, passphrase string) (string, string, error) {
+func (wlt *Manager) NewAccountWithPrivKey(privKey *crypto.PrivateKey, passphrase string) (string, error) {
 	address, err := btypes.NewAddressFromPubKey(privKey.PubKey())
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	account := &acc.Account{
-		Path:     path.Join(wlt.path, fmt.Sprintf("%x.keystore", address.Hash())),
+		Path:     path.Join(wlt.path, fmt.Sprintf("%s.keystore", address.String())),
 		PrivKey:  privKey,
 		Address:  address,
 		Unlocked: true,
 	}
 	if err := account.SaveWithPassphrase(passphrase); err != nil {
-		return "", "", err
+		return "", err
 	}
-	return hex.EncodeToString(address.Hash()), address.String(), nil
+	return address.String(), nil
 }
 
 // DumpPrivKey returns an account's private key bytes in hex string format

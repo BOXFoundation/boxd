@@ -166,27 +166,26 @@ func MinerAccounts(keyFiles ...string) ([]string, []*acc.Account) {
 }
 
 // GenTestAddr defines generate test address
-func GenTestAddr(count int) ([]string, []string) {
-	var addresses, accounts []string
+func GenTestAddr(count int) []string {
+	var addresses []string
 	for i := 0; i < count; i++ {
 		var (
-			acc, addr string
-			err       error
+			addr string
+			err  error
 		)
-		acc, addr, err = newAccountFromWallet()
+		addr, err = newAccountFromWallet()
 		if err != nil {
 			logger.Panic(err)
 		}
 		addresses = append(addresses, addr)
-		accounts = append(accounts, acc)
 	}
-	return addresses, accounts
+	return addresses
 }
 
-func newAccountFromWallet() (string, string, error) {
+func newAccountFromWallet() (string, error) {
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	return wltMgr.NewAccount(testPassphrase)
 }
