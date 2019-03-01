@@ -131,12 +131,12 @@ func newAccountCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	acc, addr, err := wltMgr.NewAccount(passphrase)
+	addr, err := wltMgr.NewAccount(passphrase)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Created new account: %s\nAddress:%s", acc, addr)
+	fmt.Printf("Created new account. Address:%s", addr)
 }
 
 func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
@@ -164,12 +164,12 @@ func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	acc, addr, err := wltMgr.NewAccountWithPrivKey(privKey, passphrase)
+	addr, err := wltMgr.NewAccountWithPrivKey(privKey, passphrase)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Created new account: %s\nAddress:%s", acc, addr)
+	fmt.Printf("Created new account. Address:%s", addr)
 }
 
 func listAccountCmdFunc(cmd *cobra.Command, args []string) {

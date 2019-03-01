@@ -20,12 +20,11 @@ type HandleFunc func(addrs []string, idx *int) bool
 
 // BaseFmw define a base test framework
 type BaseFmw struct {
-	accCnt   int
-	partLen  int
-	txCnt    uint64
-	addrs    []string
-	accAddrs []string
-	quitCh   []chan os.Signal
+	accCnt  int
+	partLen int
+	txCnt   uint64
+	addrs   []string
+	quitCh  []chan os.Signal
 }
 
 // NewBaseFmw construct a BaseFmw instance
@@ -35,13 +34,13 @@ func NewBaseFmw(accCnt, partLen int) *BaseFmw {
 	b.accCnt = accCnt
 	b.partLen = partLen
 	logger.Infof("start to gen %d address", accCnt)
-	b.addrs, b.accAddrs = utils.GenTestAddr(b.accCnt)
-	logger.Debugf("addrs: %v\ntestsAcc: %v", b.addrs, b.accAddrs)
+	b.addrs = utils.GenTestAddr(b.accCnt)
+	logger.Debugf("addrs: %v\n", b.addrs)
 	for _, addr := range b.addrs {
 		acc := utils.UnlockAccount(addr)
 		AddrToAcc.Store(addr, acc)
 	}
-	utils.RemoveKeystoreFiles(b.accAddrs...)
+	utils.RemoveKeystoreFiles(b.addrs...)
 	for i := 0; i < (accCnt+partLen-1)/partLen; i++ {
 		b.quitCh = append(b.quitCh, make(chan os.Signal, 1))
 		signal.Notify(b.quitCh[i], os.Interrupt, os.Kill)
@@ -51,7 +50,7 @@ func NewBaseFmw(accCnt, partLen int) *BaseFmw {
 
 // TearDown clean test accounts files
 func (b *BaseFmw) TearDown() {
-	utils.RemoveKeystoreFiles(b.accAddrs...)
+	utils.RemoveKeystoreFiles(b.addrs...)
 }
 
 // Run consumes transaction pending on circulation channel
@@ -122,13 +121,13 @@ func genAddrs(n int, addrsCh chan<- []string) {
 	quitCh := make(chan os.Signal, 1)
 	signal.Notify(quitCh, os.Interrupt, os.Kill)
 	for {
-		addrs, accAddrs := utils.GenTestAddr(n)
+		addrs := utils.GenTestAddr(n)
 		for _, addr := range addrs {
 			acc := utils.UnlockAccount(addr)
 			AddrToAcc.Store(addr, acc)
 		}
 		logger.Infof("done to gen %d address", n)
-		utils.RemoveKeystoreFiles(accAddrs...)
+		utils.RemoveKeystoreFiles(addrs...)
 		select {
 		case <-quitCh:
 			logger.Infof("receive quit signal, quiting genAddrs")
