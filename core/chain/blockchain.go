@@ -1287,7 +1287,7 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs []*types.Tran
 	}
 
 	for idx, tx := range splitTxs {
-		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
+		tiBuf, err := MarshalTxIndex(block.Height, uint32(len(block.Txs))+uint32(idx))
 		if err != nil {
 			return err
 		}
