@@ -603,7 +603,8 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 }
 
 func convOutPoint(op *corepb.OutPoint) string {
-	buf := op.GetHash()
+	buf := make([]byte, len(op.GetHash()))
+	copy(buf, op.GetHash())
 	// reverse bytes
 	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
 		buf[i], buf[j] = buf[j], buf[i]
