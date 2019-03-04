@@ -152,7 +152,6 @@ func TestBlockProcessing(t *testing.T) {
 	b2.Txs = append(b2.Txs, createChildTx(b1.Txs[0]))
 	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
 	verifyProcessBlock(t, b2, nil, 2, b2)
-
 	// extend side chain: fork from b1
 	// b0 -> b1 -> b2
 	//		   \-> b2A
@@ -229,12 +228,12 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	ensure.Nil(t, blockChain.WriteTxIndex(b1, []*types.Transaction{}, batch))
 	batch.Write()
 
-	tx, err := blockChain.LoadTxByHash(*txhash)
+	_, tx, err := blockChain.LoadBlockInfoByTxHash(*txhash)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, b1.Txs[0], tx)
 
 	ensure.Nil(t, blockChain.DelTxIndex(b1, []*types.Transaction{}, batch))
 	batch.Write()
-	_, err = blockChain.LoadTxByHash(*txhash)
+	_, _, err = blockChain.LoadBlockInfoByTxHash(*txhash)
 	ensure.NotNil(t, err)
 }

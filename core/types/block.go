@@ -152,11 +152,15 @@ func (block *Block) Copy() *Block {
 			vout[idx] = txOutCopy
 		}
 
-		txHash, _ := tx.TxHash()
+		txHash, _ := tx.CalcTxHash()
 		txCopy := &Transaction{
-			hash: txHash,
-			Vin:  vin,
-			Vout: vout,
+			hash:     txHash,
+			Vin:      vin,
+			Vout:     vout,
+			Data:     tx.Data,
+			Magic:    tx.Magic,
+			LockTime: tx.LockTime,
+			Version:  tx.Version,
 		}
 		txs[k] = txCopy
 	}

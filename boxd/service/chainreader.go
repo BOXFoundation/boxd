@@ -12,7 +12,6 @@ import (
 // ChainReader defines basic operations blockchain exposes
 type ChainReader interface {
 	// interface to read transactions
-	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 

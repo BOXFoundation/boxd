@@ -65,7 +65,8 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 		return core.ErrTxOutIndexOob
 	}
 
-	txHash, _ := tx.TxHash()
+	// txHash, _ := tx.TxHash()
+	txHash, _ := tx.CalcTxHash()
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
 	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo

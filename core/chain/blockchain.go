@@ -737,6 +737,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	splitTxs := chain.splitBlockOutputs(blockCopy)
 
 	ttt1 := time.Now().UnixNano()
+
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
@@ -1199,32 +1200,32 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 }
 
 // LoadTxByHash load transaction with hash.
-func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
-	txIndex, err := chain.db.Get(TxIndexKey(&hash))
-	if err != nil {
-		return nil, err
-	}
-	height, idx, err := UnmarshalTxIndex(txIndex)
-	if err != nil {
-		return nil, err
-	}
+// func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
+// 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	height, idx, err := UnmarshalTxIndex(txIndex)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	block, err := chain.LoadBlockByHeight(height)
-	if err != nil {
-		return nil, err
-	}
+// 	block, err := chain.LoadBlockByHeight(height)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	tx := block.Txs[idx]
-	target, err := tx.TxHash()
-	if err != nil {
-		return nil, err
-	}
-	if *target == hash {
-		return tx, nil
-	}
-	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
-	return nil, errors.New("Failed to load tx with hash")
-}
+// 	tx := block.Txs[idx]
+// 	target, err := tx.TxHash()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if *target == hash {
+// 		return tx, nil
+// 	}
+// 	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
+// 	return nil, errors.New("Failed to load tx with hash")
+// }
 
 // LoadBlockInfoByTxHash returns block and txIndex of transaction with the input param hash
 func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, *types.Transaction, error) {
@@ -1472,9 +1473,9 @@ func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) bool {
 
 		if !isSplitTx && len(txOuts) > 1 {
 			isSplitTx = true
+			tx.Vout = vout
 		}
 	}
-	tx.Vout = vout
 	return isSplitTx
 }
 
