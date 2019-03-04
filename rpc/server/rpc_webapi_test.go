@@ -317,8 +317,8 @@ func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.B
 
 func (r *TestDetailBlockChainReader) LoadBlockInfoByTxHash(
 	hash crypto.HashType,
-) (*types.Block, uint32, error) {
-	return nil, 0, nil
+) (*types.Block, *types.Transaction, error) {
+	return nil, nil, nil
 }
 
 func (r *TestDetailBlockChainReader) EternalBlock() *types.Block {

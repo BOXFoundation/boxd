@@ -45,6 +45,9 @@ const (
 	// value: block binary
 	BlockPrefix = "/bk"
 
+	// TxPrefix is the key prefix of database key to store tx content
+	TxPrefix = "/tx"
+
 	// BlockHashPrefix is the key prefix of database key to store block hash of specified height
 	// /bh/{hex encoded height}
 	//e.g.
@@ -90,6 +93,7 @@ const (
 )
 
 var blkBase = key.NewKey(BlockPrefix)
+var txBase = key.NewKey(TxPrefix)
 var blkHashBase = key.NewKey(BlockHashPrefix)
 var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
@@ -119,6 +123,11 @@ var MissrateKey = []byte(MissCount)
 // BlockKey returns the db key to store block content of the hash
 func BlockKey(h *crypto.HashType) []byte {
 	return blkBase.ChildString(h.String()).Bytes()
+}
+
+// TxKey returns the db key to store tx content of the hash
+func TxKey(h *crypto.HashType) []byte {
+	return txBase.ChildString(h.String()).Bytes()
 }
 
 // BlockHashKey returns the db key to store block hash content of the height

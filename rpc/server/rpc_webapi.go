@@ -63,7 +63,7 @@ type ChainTxReader interface {
 // ChainBlockReader defines chain block reader interface
 type ChainBlockReader interface {
 	ChainTxReader
-	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
 }
@@ -141,9 +141,11 @@ func (s *webapiServer) ViewTxDetail(
 	resp := new(rpcpb.ViewTxDetailResp)
 	// fetch tx from chain and set status
 	var tx *types.Transaction
+	var block *types.Block
+	var err error
 	br, tr := s.ChainBlockReader, s.TxPoolReader
-	if block, index, err := br.LoadBlockInfoByTxHash(*hash); err == nil {
-		tx = block.Txs[index]
+	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
+		// tx = block.Txs[index]
 		// calc tx status
 		if blockConfirmed(block, br) {
 			resp.Status = rpcpb.ViewTxDetailResp_confirmed
