@@ -735,6 +735,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 
 	// Split tx outputs if any
 	splitTxs := chain.splitBlockOutputs(blockCopy)
+
 	ttt1 := time.Now().UnixNano()
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
@@ -754,8 +755,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		return err
 	}
 
-	// save spilt tx
-	if err := chain.StoreSpiltTxs(splitTxs, batch); err != nil {
+	// save split tx
+	if err := chain.StoreSplitTxs(splitTxs, batch); err != nil {
 		return err
 	}
 
@@ -877,8 +878,8 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		return err
 	}
 
-	// del spilt tx
-	if err := chain.DelSpiltTxs(splitTxs, batch); err != nil {
+	// del split tx
+	if err := chain.DelSplitTxs(splitTxs, batch); err != nil {
 		return err
 	}
 
@@ -1249,7 +1250,7 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 			return nil, nil, err
 		}
 		if txBin == nil {
-			return nil, nil, errors.New("failed to load spilt tx with hash")
+			return nil, nil, errors.New("failed to load split tx with hash")
 		}
 		tx = new(types.Transaction)
 		if err := tx.Unmarshal(txBin); err != nil {
@@ -1272,9 +1273,8 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 // Save split transaction copies before and after split. The latter is needed when reverting a transaction during reorg,
 // spending from utxo/coin received at a split address
 func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
-	allTxs := append(block.Txs, splitTxs...)
 
-	for idx, tx := range allTxs {
+	for idx, tx := range block.Txs {
 		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
 		if err != nil {
 			return err
@@ -1285,13 +1285,27 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs []*types.Tran
 		}
 		batch.Put(TxIndexKey(txHash), tiBuf)
 	}
+
+	for idx, tx := range splitTxs {
+		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
+		if err != nil {
+			return err
+		}
+		// important! don't use TxHash() here.
+		txHash, err := tx.CalcTxHash()
+		if err != nil {
+			return err
+		}
+		batch.Put(TxIndexKey(txHash), tiBuf)
+	}
 	return nil
 }
 
-// StoreSpiltTxs store spilt txs.
-func (chain *BlockChain) StoreSpiltTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
+// StoreSplitTxs store split txs.
+func (chain *BlockChain) StoreSplitTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
 	for _, tx := range splitTxs {
-		txHash, err := tx.TxHash()
+		// important! don't use TxHash() here.
+		txHash, err := tx.CalcTxHash()
 		if err != nil {
 			return err
 		}
@@ -1307,10 +1321,18 @@ func (chain *BlockChain) StoreSpiltTxs(splitTxs []*types.Transaction, batch stor
 // DelTxIndex deletes tx index in block
 // Delete split transaction copies saved earlier, both before and after split
 func (chain *BlockChain) DelTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
-	allTxs := append(block.Txs, splitTxs...)
 
-	for _, tx := range allTxs {
+	for _, tx := range block.Txs {
 		txHash, err := tx.TxHash()
+		if err != nil {
+			return err
+		}
+		batch.Del(TxIndexKey(txHash))
+	}
+
+	for _, tx := range splitTxs {
+		// important! don't use TxHash() here.
+		txHash, err := tx.CalcTxHash()
 		if err != nil {
 			return err
 		}
@@ -1320,10 +1342,11 @@ func (chain *BlockChain) DelTxIndex(block *types.Block, splitTxs []*types.Transa
 	return nil
 }
 
-// DelSpiltTxs del spilt txs.
-func (chain *BlockChain) DelSpiltTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
+// DelSplitTxs del split txs.
+func (chain *BlockChain) DelSplitTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
 	for _, tx := range splitTxs {
-		txHash, err := tx.TxHash()
+		// important! don't use TxHash() here.
+		txHash, err := tx.CalcTxHash()
 		if err != nil {
 			return err
 		}
