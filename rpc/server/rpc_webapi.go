@@ -101,7 +101,7 @@ func (s *webapiServer) receiveNewBlockMsg(block *types.Block) {
 	// detail block
 	logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
 		block.BlockHash(), block.Height)
-	blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader, false)
+	blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader, true)
 	if err != nil {
 		logger.Warnf("detail block %s height %d error: %s",
 			block.BlockHash(), block.Height, err)
