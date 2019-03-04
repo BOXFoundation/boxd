@@ -6,12 +6,12 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/pb"
@@ -40,11 +40,7 @@ type makeTxRespFunc func(
 	ctx context.Context, client rpcpb.TransactionCommandClient,
 ) (string, makeTxResp)
 
-// NOTE: want to run this test case, need start a node
-// with miner: b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o
-// port: 19111
-func flow(t *testing.T, respFunc makeTxRespFunc) {
-
+func flow(t *testing.T, respFunc makeTxRespFunc) string {
 	// get grpc conn
 	conn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")
 	if err != nil {
@@ -79,9 +75,6 @@ func flow(t *testing.T, respFunc makeTxRespFunc) {
 		}
 		scriptSig := script.SignatureScript(sig, account.PublicKey())
 		scriptSigs = append(scriptSigs, *scriptSig)
-		t.Logf("sigHash: %s", sigHash)
-		t.Logf("scriptSig: %s", hex.EncodeToString(*scriptSig))
-		t.Logf("sig: %s", hex.EncodeToString(sig.Serialize()))
 	}
 
 	// make tx with sig
@@ -121,12 +114,13 @@ func flow(t *testing.T, respFunc makeTxRespFunc) {
 	}
 	bytes, _ := json.MarshalIndent(txDetailResp, "", "  ")
 	t.Logf("tx detail: %s", string(bytes))
+
+	return txDetailResp.Detail.Hash
 }
 
-// NOTE: want to run this test case, need start a node
-// with miner: b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o
+// NOTE: to run this test case needs to start a node
 // port: 19111
-func NoTestNormalTx(t *testing.T) {
+func _TestNormalTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	to := []string{
@@ -155,10 +149,9 @@ func NoTestNormalTx(t *testing.T) {
 	})
 }
 
-// NOTE: want to run this test case, need start a node
-// with miner: b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o
+// NOTE: to run this test case needs to start a node
 // port: 19111
-func NoTestSplitAddrTx(t *testing.T) {
+func _TestSplitAddrTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	addrs := []string{
@@ -178,6 +171,64 @@ func NoTestSplitAddrTx(t *testing.T) {
 	flow(t, func(ctx context.Context,
 		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
 		resp, err := client.MakeUnsignedSplitAddrTx(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return from, resp
+	})
+}
+
+// NOTE: to run this test case needs to start a node
+// port: 19111
+func _TestTokenTx(t *testing.T) {
+
+	issuer := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	issuee := issuer
+	tag := txlogic.NewTokenTag("box test token", "XOX", 4, 20000)
+	req := &rpcpb.MakeTokenIssueTxReq{
+		Issuer: issuer,
+		Issuee: issuee,
+		Tag:    tag,
+		Fee:    10,
+	}
+	//
+	hashStr := flow(t, func(ctx context.Context,
+		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+		resp, err := client.MakeUnsignedTokenIssueTx(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return issuer, resp
+	})
+	// test token transfer
+	tokenTxTest(t, hashStr)
+}
+
+// NOTE: to run this test case needs to start a node
+// port: 19111
+func tokenTxTest(t *testing.T, hashStr string) {
+
+	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	to := []string{
+		"b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
+		"b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
+	}
+	amounts := []uint64{1000, 4000}
+	// read hash from terminal
+	hash, idx := new(crypto.HashType), uint32(0)
+	hash.SetString(hashStr)
+	tid := txlogic.NewPbOutPoint(hash, idx)
+	req := &rpcpb.MakeTokenTransferTxReq{
+		From:    from,
+		To:      to,
+		Amounts: amounts,
+		Fee:     50,
+		TokenID: tid,
+	}
+	//
+	flow(t, func(ctx context.Context,
+		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+		resp, err := client.MakeUnsignedTokenTransferTx(ctx, req)
 		if err != nil {
 			t.Fatal(err)
 		}
