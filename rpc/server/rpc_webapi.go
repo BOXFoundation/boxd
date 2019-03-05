@@ -56,14 +56,14 @@ type webapiServer struct {
 
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
-	LoadTxByHash(crypto.HashType) (*types.Transaction, error)
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	GetDataFromDB([]byte) ([]byte, error)
 }
 
 // ChainBlockReader defines chain block reader interface
 type ChainBlockReader interface {
 	ChainTxReader
-	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, uint32, error)
+	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
 }
@@ -101,7 +101,7 @@ func (s *webapiServer) receiveNewBlockMsg(block *types.Block) {
 	// detail block
 	logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
 		block.BlockHash(), block.Height)
-	blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader)
+	blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader, true)
 	if err != nil {
 		logger.Warnf("detail block %s height %d error: %s",
 			block.BlockHash(), block.Height, err)
@@ -141,9 +141,11 @@ func (s *webapiServer) ViewTxDetail(
 	resp := new(rpcpb.ViewTxDetailResp)
 	// fetch tx from chain and set status
 	var tx *types.Transaction
+	var block *types.Block
+	var err error
 	br, tr := s.ChainBlockReader, s.TxPoolReader
-	if block, index, err := br.LoadBlockInfoByTxHash(*hash); err == nil {
-		tx = block.Txs[index]
+	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
+		// tx = block.Txs[index]
 		// calc tx status
 		if blockConfirmed(block, br) {
 			resp.Status = rpcpb.ViewTxDetailResp_confirmed
@@ -166,7 +168,7 @@ func (s *webapiServer) ViewTxDetail(
 	}
 	resp.Version = tx.Version
 	// fetch tx details
-	detail, err := detailTx(tx, br, tr)
+	detail, err := detailTx(tx, br, tr, true)
 	if err != nil {
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
@@ -201,7 +203,7 @@ func (s *webapiServer) ViewBlockDetail(
 		logger.Warn("view block detail error: ", err)
 		return newViewBlockDetailResp(-1, err.Error()), nil
 	}
-	detail, err := detailBlock(block, br, tr)
+	detail, err := detailBlock(block, br, tr, true)
 	if err != nil {
 		logger.Warn("view block detail error: ", err)
 		return newViewBlockDetailResp(-1, err.Error()), nil
@@ -210,56 +212,6 @@ func (s *webapiServer) ViewBlockDetail(
 	resp.Detail = detail
 	resp.Detail.Size_ = uint32(n)
 	return resp, nil
-}
-
-func (s *webapiServer) GetTokenInfo(
-	ctx context.Context, req *rpcpb.GetTokenInfoRequest,
-) (*rpcpb.GetTokenInfoResponse, error) {
-
-	tokenAddr := types.Token{}
-	if err := tokenAddr.SetString(req.Addr); err != nil {
-		return nil, err
-	}
-	br := s.ChainBlockReader
-	tx, err := br.LoadTxByHash(tokenAddr.OutPoint().Hash)
-	if err != nil {
-		return nil, err
-	}
-	block, _, err := br.LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
-	if err != nil {
-		return nil, err
-	}
-	if uint32(len(tx.Vout)) <= tokenAddr.OutPoint().Index {
-		return nil, fmt.Errorf("invalid token index")
-	}
-	out := tx.Vout[tokenAddr.OutPoint().Index]
-	sc := script.NewScriptFromBytes(out.ScriptPubKey)
-	if !sc.IsTokenIssue() {
-		return nil, fmt.Errorf("invalid token id")
-	}
-	param, err := sc.GetIssueParams()
-	if err != nil {
-		return nil, err
-	}
-	addr, err := sc.ExtractAddress()
-	if err != nil {
-		return nil, err
-	}
-	return &rpcpb.GetTokenInfoResponse{
-		Info: &rpcpb.TokenBasicInfo{
-			Token: &rpcpb.Token{
-				Hash:  tokenAddr.OutPoint().Hash.String(),
-				Index: tokenAddr.OutPoint().Index,
-			},
-			Name:        param.Name,
-			TotalSupply: param.TotalSupply,
-			CreatorAddr: addr.String(),
-			CreatorTime: uint64(block.Header.TimeStamp),
-			Decimals:    uint32(param.Decimals),
-			Symbol:      param.Symbol,
-			Addr:        tokenAddr.String(),
-		},
-	}, nil
 }
 
 func (s *webapiServer) ListenAndReadNewBlock(
@@ -368,7 +320,7 @@ func (s *webapiServer) unsubscribe() error {
 }
 
 func detailTx(
-	tx *types.Transaction, br ChainTxReader, tr TxPoolReader,
+	tx *types.Transaction, br ChainTxReader, tr TxPoolReader, detailVin bool,
 ) (*rpcpb.TxDetail, error) {
 
 	detail := new(rpcpb.TxDetail)
@@ -376,7 +328,7 @@ func detailTx(
 	detail.Hash = hash.String()
 	// parse vin
 	for _, in := range tx.Vin {
-		inDetail, err := detailTxIn(in, br, tr)
+		inDetail, err := detailTxIn(in, br, tr, detailVin)
 		if err != nil {
 			return nil, err
 		}
@@ -395,7 +347,7 @@ func detailTx(
 }
 
 func detailBlock(
-	block *types.Block, r ChainBlockReader, tr TxPoolReader,
+	block *types.Block, r ChainBlockReader, tr TxPoolReader, detailVin bool,
 ) (*rpcpb.BlockDetail, error) {
 
 	if block == nil || block.Header == nil {
@@ -416,7 +368,7 @@ func detailBlock(
 	detail.Confirmed = blockConfirmed(block, r)
 	detail.Signature = hex.EncodeToString(block.Signature)
 	for _, tx := range block.Txs {
-		txDetail, err := detailTx(tx, r, tr)
+		txDetail, err := detailTx(tx, r, tr, detailVin)
 		if err != nil {
 			return nil, err
 		}
@@ -426,7 +378,7 @@ func detailBlock(
 }
 
 func detailTxIn(
-	txIn *types.TxIn, r ChainTxReader, tr TxPoolReader,
+	txIn *types.TxIn, r ChainTxReader, tr TxPoolReader, detailVin bool,
 ) (*rpcpb.TxInDetail, error) {
 
 	detail := new(rpcpb.TxInDetail)
@@ -435,25 +387,28 @@ func detailTxIn(
 		return detail, nil
 	}
 	//
-	hash := &txIn.PrevOutPoint.Hash
-	prevTx, err := r.LoadTxByHash(*hash)
-	if err != nil {
-		logger.Infof("load tx by hash %s from chain error: %s, try tx pool", hash, err)
-		txWrap, _ := tr.GetTxByHash(hash)
-		if txWrap == nil {
-			return nil, fmt.Errorf("tx not found for detail txIn %+v", txIn.PrevOutPoint)
-		}
-		prevTx = txWrap.Tx
-	}
 	detail.ScriptSig = hex.EncodeToString(txIn.ScriptSig)
 	detail.Sequence = txIn.Sequence
 	detail.PrevOutPoint = convOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
-	index := txIn.PrevOutPoint.Index
-	prevTxHash, _ := prevTx.TxHash()
-	detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
-		txIn.PrevOutPoint.Index, r)
-	if err != nil {
-		return nil, err
+
+	if detailVin {
+		hash := &txIn.PrevOutPoint.Hash
+		_, prevTx, err := r.LoadBlockInfoByTxHash(*hash)
+		if err != nil {
+			logger.Infof("load tx by hash %s from chain error: %s, try tx pool", hash, err)
+			txWrap, _ := tr.GetTxByHash(hash)
+			if txWrap == nil {
+				return nil, fmt.Errorf("tx not found for detail txIn %+v", txIn.PrevOutPoint)
+			}
+			prevTx = txWrap.Tx
+		}
+		index := txIn.PrevOutPoint.Index
+		prevTxHash, _ := prevTx.TxHash()
+		detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
+			txIn.PrevOutPoint.Index, r)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return detail, nil
 }
@@ -600,7 +555,8 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 }
 
 func convOutPoint(op *corepb.OutPoint) string {
-	buf := op.GetHash()
+	buf := make([]byte, len(op.GetHash()))
+	copy(buf, op.GetHash())
 	// reverse bytes
 	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
 		buf[i], buf[j] = buf[j], buf[i]

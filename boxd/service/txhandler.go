@@ -13,7 +13,5 @@ import (
 // TxHandler defines basic operations txpool exposes
 type TxHandler interface {
 	ProcessTx(*types.Transaction, core.TransferMode) error
-	// GetTransactionsInPool gets all transactions in memory pool
-	GetTransactionsInPool() ([]*types.Transaction, []int64)
 	GetTxByHash(hash *crypto.HashType) (*types.TxWrap, bool)
 }

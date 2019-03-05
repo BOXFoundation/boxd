@@ -154,9 +154,13 @@ func (block *Block) Copy() *Block {
 
 		txHash, _ := tx.TxHash()
 		txCopy := &Transaction{
-			hash: txHash,
-			Vin:  vin,
-			Vout: vout,
+			hash:     txHash,
+			Vin:      vin,
+			Vout:     vout,
+			Data:     tx.Data,
+			Magic:    tx.Magic,
+			LockTime: tx.LockTime,
+			Version:  tx.Version,
 		}
 		txs[k] = txCopy
 	}

@@ -53,13 +53,6 @@ service TransactionCommand {
         };
     }
 
-    rpc GetTransactionPool(GetTransactionPoolRequest) returns (GetTransactionsResponse) {
-        option (google.api.http) = {
-            post: "/v1/tx/gettxpool"
-            body: "*"
-        };
-    }
-
     rpc MakeUnsignedTx(MakeTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx"
@@ -124,14 +117,6 @@ message GetRawTransactionResponse {
     corepb.Transaction tx = 1;
 }
 
-message GetTransactionPoolRequest {
-
-}
-
-message GetTransactionsResponse {
-    repeated corepb.Transaction txs = 1;
-}
-
 message SendTransactionReq {
     corepb.Transaction tx = 1;
 }
@@ -140,13 +125,6 @@ message SendTransactionResp {
     int32 code = 1;
     string message = 2;
     string hash = 3;
-}
-
-message ListUtxosResponse {
-    int32 code = 1;
-    string message = 2;
-    uint32 count = 3;
-    repeated Utxo utxos = 4;
 }
 
 message GetFeePriceRequest{

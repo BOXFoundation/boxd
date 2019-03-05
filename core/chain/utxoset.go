@@ -66,6 +66,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	}
 
 	txHash, _ := tx.TxHash()
+	// txHash, _ := tx.CalcTxHash()
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
 	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
@@ -199,12 +200,12 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		}
 		// This can happen when the block the tx is in is being reverted
 		// The UTXO txIn spends have been deleted from UTXO set, so we load it from tx index
-		block, txIdx, err := chain.LoadBlockInfoByTxHash(txIn.PrevOutPoint.Hash)
+		block, prevTx, err := chain.LoadBlockInfoByTxHash(txIn.PrevOutPoint.Hash)
 		if err != nil {
 			logger.Errorf("Failed to load block info by txhash. Err: %v", err)
 			logger.Panicf("Trying to unspend non-existing spent output %v", txIn.PrevOutPoint)
 		}
-		prevTx := block.Txs[txIdx]
+		// prevTx := block.Txs[txIdx]
 		utxoWrap = types.NewUtxoWrap(prevTx.Vout[txIn.PrevOutPoint.Index].Value,
 			prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey, block.Height)
 		if IsCoinBase(prevTx) {

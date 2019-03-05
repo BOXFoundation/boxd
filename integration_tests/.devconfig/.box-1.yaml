@@ -5,7 +5,7 @@ database:
 log:
     out:
         name: null # stdout|stderr|null
-    level: info # debug|info|warning|error|fatal
+    level: warning # debug|info|warning|error|fatal
     formatter:
         name: text # json|text
     hooks:

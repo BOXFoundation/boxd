@@ -96,7 +96,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
 	totalSupply := uint64(10000)
-	tag := txlogic.NewTokenTag("box token", "BOX", 6, totalSupply)
+	tag := txlogic.NewTokenTag("box token", "FOX", 6, totalSupply)
 	curTimes := utils.TokenRepeatTxTimes()
 	if utils.TokenRepeatRandom() {
 		curTimes = rand.Intn(utils.TokenRepeatTxTimes())

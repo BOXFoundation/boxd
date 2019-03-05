@@ -50,6 +50,11 @@ func filterTokenTransfer(raw []byte) bool {
 
 // BalanceFor returns balance amount of an address using balance index
 func BalanceFor(addr string, tid *txlogic.TokenID, db storage.Table) (uint64, error) {
+	// check addr
+	if _, err := types.NewAddress(addr); err != nil {
+		return 0, err
+	}
+	//
 	utxos, err := FetchUtxosOf(addr, tid, 0, db)
 	logger.Infof("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {

@@ -23,13 +23,6 @@ service WebApi {
         };
     }
 
-    rpc GetTokenInfo (GetTokenInfoRequest) returns (GetTokenInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/token/detail"
-            body: "*"
-        };
-    }
-
     rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
 }
 
@@ -61,14 +54,6 @@ message ViewBlockDetailResp {
     int32 code = 1;
     string message = 2;
     BlockDetail detail = 3;
-}
-
-message GetTokenInfoRequest {
-    string addr = 1;
-}
-
-message GetTokenInfoResponse {
-    TokenBasicInfo info = 1;
 }
 
 message ListenBlocksReq {
@@ -133,21 +118,4 @@ message SplitContractInfo  {
 
 message TokenTransferInfo {
     string token_id = 1;
-}
-
-message Token {
-    string hash = 1;
-    uint32 index = 2;
-}
-
-message TokenBasicInfo {
-    Token token = 1;
-    string name = 2;
-    uint64 total_supply = 3;
-    string creator_addr = 4;
-    uint64 creator_time = 5;
-    // should be uint8, using smallest type uint32 instead
-    uint32 decimals = 6;
-    string symbol = 7;
-    string addr = 8;
 }

@@ -33,6 +33,13 @@ type Server struct {
 	//utxosQueue *list.List
 }
 
+// Config contains config information for wallet server
+type Config struct {
+	Enable        bool `mapstructure:"enable"`
+	CacheSize     int  `mapstructure:"cache_size"`
+	UtxoCacheTime int  `mapstructure:"utxo_cache_time"`
+}
+
 // NewServer creates an Server instance using config and storage
 func NewServer(parent goprocess.Process, config *Config, s storage.Storage,
 	bus eventbus.Bus) (*Server, error) {
