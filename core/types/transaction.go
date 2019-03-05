@@ -219,6 +219,11 @@ func (tx *Transaction) CalcTxHash() (*crypto.HashType, error) {
 	return calcDoubleHash(data)
 }
 
+// ResetTxHash reset txhash
+func (tx *Transaction) ResetTxHash() {
+	tx.hash = nil
+}
+
 // ToProtoMessage converts transaction to proto message.
 func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 	var vins []*corepb.TxIn

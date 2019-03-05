@@ -1275,7 +1275,8 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 // spending from utxo/coin received at a split address
 func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
 
-	for idx, tx := range block.Txs {
+	allTxs := append(block.Txs, splitTxs...)
+	for idx, tx := range allTxs {
 		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
 		if err != nil {
 			return err
@@ -1287,26 +1288,13 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs []*types.Tran
 		batch.Put(TxIndexKey(txHash), tiBuf)
 	}
 
-	for idx, tx := range splitTxs {
-		tiBuf, err := MarshalTxIndex(block.Height, uint32(len(block.Txs))+uint32(idx))
-		if err != nil {
-			return err
-		}
-		// important! don't use TxHash() here.
-		txHash, err := tx.CalcTxHash()
-		if err != nil {
-			return err
-		}
-		batch.Put(TxIndexKey(txHash), tiBuf)
-	}
 	return nil
 }
 
 // StoreSplitTxs store split txs.
 func (chain *BlockChain) StoreSplitTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
 	for _, tx := range splitTxs {
-		// important! don't use TxHash() here.
-		txHash, err := tx.CalcTxHash()
+		txHash, err := tx.TxHash()
 		if err != nil {
 			return err
 		}
@@ -1323,17 +1311,10 @@ func (chain *BlockChain) StoreSplitTxs(splitTxs []*types.Transaction, batch stor
 // Delete split transaction copies saved earlier, both before and after split
 func (chain *BlockChain) DelTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
 
-	for _, tx := range block.Txs {
-		txHash, err := tx.TxHash()
-		if err != nil {
-			return err
-		}
-		batch.Del(TxIndexKey(txHash))
-	}
+	allTxs := append(block.Txs, splitTxs...)
 
-	for _, tx := range splitTxs {
-		// important! don't use TxHash() here.
-		txHash, err := tx.CalcTxHash()
+	for _, tx := range allTxs {
+		txHash, err := tx.TxHash()
 		if err != nil {
 			return err
 		}
@@ -1346,8 +1327,7 @@ func (chain *BlockChain) DelTxIndex(block *types.Block, splitTxs []*types.Transa
 // DelSplitTxs del split txs.
 func (chain *BlockChain) DelSplitTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
 	for _, tx := range splitTxs {
-		// important! don't use TxHash() here.
-		txHash, err := tx.CalcTxHash()
+		txHash, err := tx.TxHash()
 		if err != nil {
 			return err
 		}
@@ -1474,6 +1454,7 @@ func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) bool {
 		if !isSplitTx && len(txOuts) > 1 {
 			isSplitTx = true
 			tx.Vout = vout
+			tx.ResetTxHash()
 		}
 	}
 	return isSplitTx

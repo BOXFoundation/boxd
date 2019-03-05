@@ -152,7 +152,7 @@ func (block *Block) Copy() *Block {
 			vout[idx] = txOutCopy
 		}
 
-		txHash, _ := tx.CalcTxHash()
+		txHash, _ := tx.TxHash()
 		txCopy := &Transaction{
 			hash:     txHash,
 			Vin:      vin,
