@@ -105,7 +105,7 @@ func NewIssueTokenTx(
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	// fee
-	fee := uint64(100000000) // 1 box
+	fee := uint64(100)
 	//
 	tx, tid, change, err := txlogic.NewTokenIssueTxWithUtxos(acc, to, tag,
 		inputAmt-fee, utxos...)
