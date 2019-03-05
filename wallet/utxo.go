@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -25,7 +26,7 @@ const (
 )
 
 var (
-	liveCache = NewLiveUtxoCache(5)
+	utxoCacheMtx sync.Mutex
 )
 
 type scriptPubKeyFilter func(raw []byte) bool
@@ -48,7 +49,12 @@ func filterTokenTransfer(raw []byte) bool {
 }
 
 // BalanceFor returns balance amount of an address using balance index
-func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, error) {
+func BalanceFor(addr string, tid *txlogic.TokenID, db storage.Table) (uint64, error) {
+	// check addr
+	if _, err := types.NewAddress(addr); err != nil {
+		return 0, err
+	}
+	//
 	utxos, err := FetchUtxosOf(addr, tid, 0, db)
 	logger.Infof("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
@@ -79,7 +85,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 // NOTE: if total is 0, fetch all utxos
 // NOTE: if tokenID is nil, fetch box utxos
 func FetchUtxosOf(
-	addr string, tid *types.TokenID, total uint64, db storage.Table,
+	addr string, tid *txlogic.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	var utxoKey []byte
@@ -93,7 +99,7 @@ func FetchUtxosOf(
 	keys := db.KeysWithPrefix(utxoKey)
 	logger.Infof("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
 		total, time.Since(start))
-	// fetch all utxos fir total equals to 0
+	// fetch all utxos if total equals to 0
 	if total == 0 {
 		utxos, err := makeUtxosFromDB(keys, tid, db)
 		if err != nil {
@@ -107,18 +113,15 @@ func FetchUtxosOf(
 		return nil, err
 	}
 	logger.Infof("fetch utxos for %s amount %d get %d utxos", addr, total, len(utxos))
-	// add utxos to LiveUtxoCache
-	for _, u := range utxos {
-		liveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
-	}
 
 	return utxos, nil
 }
 
 func fetchModerateUtxos(
-	keys [][]byte, tid *types.TokenID, total uint64, db storage.Table,
+	keys [][]byte, tid *txlogic.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
+	utxoLiveCache.Shrink()
 	result := make([]*rpcpb.Utxo, 0)
 	remain := total
 	for start := 0; start < len(keys) && remain <= total; start += utxoSelUnitCnt {
@@ -128,12 +131,27 @@ func fetchModerateUtxos(
 			end = len(keys)
 		}
 		// fetch utxo from db
-		utxos, err := makeUtxosFromDB(keys[start:end], tid, db)
+		origUtxos, err := makeUtxosFromDB(keys[start:end], tid, db)
 		if err != nil {
 			return nil, err
 		}
+		// filter utxos in cache
+		utxos := make([]*rpcpb.Utxo, 0, len(origUtxos))
+		utxoCacheMtx.Lock()
+		for _, u := range origUtxos {
+			if utxoLiveCache.Contains(txlogic.ConvPbOutPoint(u.OutPoint)) {
+				continue
+			}
+			utxos = append(utxos, u)
+		}
 		// select utxos
 		selUtxos, amount := selectUtxos(utxos, tid, remain)
+		// add utxos to LiveUtxoCache
+		for _, u := range utxos {
+			utxoLiveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
+		}
+		utxoCacheMtx.Unlock()
+
 		remain -= amount
 		result = append(result, selUtxos...)
 	}
@@ -142,7 +160,7 @@ func fetchModerateUtxos(
 }
 
 func makeUtxosFromDB(
-	keys [][]byte, tid *types.TokenID, db storage.Table,
+	keys [][]byte, tid *txlogic.TokenID, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	ts := time.Now()
@@ -165,7 +183,7 @@ func makeUtxosFromDB(
 		// 	continue
 		// }
 		var utxoWrap *types.UtxoWrap
-		if utxoWrap, err = chain.DeserializeUtxoEntry(value); err != nil {
+		if utxoWrap, err = chain.DeserializeUtxoWrap(value); err != nil {
 			logger.Warnf("Deserialize error %s, key = %s, body = %v",
 				err, string(keys[i]), string(value))
 			continue
@@ -197,7 +215,7 @@ func makeUtxosFromDB(
 		// check utxo token id
 		if tid != nil {
 			if filterTokenIssue(spk) {
-				if *tid != types.TokenID(*op) {
+				if *tid != txlogic.TokenID(*op) {
 					logger.Warnf("tid: %+v, op: %+v", tid, op)
 					continue
 				}
@@ -208,7 +226,7 @@ func makeUtxosFromDB(
 					logger.Warn(err)
 					continue
 				}
-				if *tid != types.TokenID(param.TokenID.OutPoint) {
+				if *tid != txlogic.TokenID(param.TokenID.OutPoint) {
 					continue
 				}
 			} else {
@@ -222,7 +240,7 @@ func makeUtxosFromDB(
 }
 
 func selectUtxos(
-	utxos []*rpcpb.Utxo, tid *types.TokenID, amount uint64,
+	utxos []*rpcpb.Utxo, tid *txlogic.TokenID, amount uint64,
 ) ([]*rpcpb.Utxo, uint64) {
 
 	total := uint64(0)
@@ -249,13 +267,9 @@ func selectUtxos(
 		sort.Sort(sort.Interface(txlogic.SortByTokenUTXOValue(utxos)))
 	}
 	// select
-	liveCache.Shrink()
 	i, total := 0, uint64(0)
 	for k := 0; k < len(utxos) && total < amount; k++ {
 		// filter utxos already in cache
-		if liveCache.Contains(txlogic.ConvPbOutPoint(utxos[i].OutPoint)) {
-			continue
-		}
 		// have check tid and err in the front
 		amount, _, _ := txlogic.ParseUtxoAmount(utxos[i])
 		total += amount
@@ -272,13 +286,13 @@ func parseOutPointFromDbKey(key []byte) (*types.OutPoint, error) {
 	return parseOutPointFromKeys(segs[2:4])
 }
 
-func parseTokenIDFromDbKey(key []byte) (*types.TokenID, error) {
+func parseTokenIDFromDbKey(key []byte) (*txlogic.TokenID, error) {
 	segs := sk.NewKeyFromBytes(key).List()
 	if len(segs) != 6 {
 		return nil, fmt.Errorf("invalid address token utxo db key %s", string(key))
 	}
 	op, err := parseOutPointFromKeys(segs[2:4])
-	return (*types.TokenID)(op), err
+	return (*txlogic.TokenID)(op), err
 }
 
 func parseTokenOutPoint(key []byte) (*types.OutPoint, error) {
@@ -303,42 +317,3 @@ func parseOutPointFromKeys(segs []string) (*types.OutPoint, error) {
 	}
 	return types.NewOutPoint(hash, uint32(index)), nil
 }
-
-//func updateBalanceFor(addr types.Address, db storage.Table,
-//	batch storage.Batch) error {
-//	utxos, err := FetchUtxosOf(addr, db)
-//	if err != nil {
-//		return err
-//	}
-//	var balance uint64
-//	for _, u := range utxos {
-//		if u != nil && !u.IsSpent {
-//			balance += u.Output.Value
-//		}
-//	}
-//
-//	return saveBalanceToDB(addr, balance, batch)
-//}
-//
-//func fetchBalanceFromDB(addr types.Address, db storage.Table) (uint64, error) {
-//	bKey := chain.AddrBalanceKey(addr.String())
-//	buf, err := db.Get(bKey)
-//	if err != nil {
-//		return 0, err
-//	}
-//	if buf == nil {
-//		return 0, nil
-//	}
-//	if len(buf) != 8 {
-//		return 0, fmt.Errorf("invalid balance record")
-//	}
-//	return binary.LittleEndian.Uint64(buf), nil
-//}
-//
-//func saveBalanceToDB(addr types.Address, balance uint64, batch storage.Batch) error {
-//	buf := make([]byte, 8)
-//	binary.LittleEndian.PutUint64(buf, balance)
-//	key := chain.AddrBalanceKey(addr.String())
-//	batch.Put(key, buf)
-//	return nil
-//}

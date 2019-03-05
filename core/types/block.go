@@ -44,6 +44,12 @@ func NewBlock(parent *Block) *Block {
 	}
 }
 
+// AppendTx appends tx to block
+func (block *Block) AppendTx(txs ...*Transaction) *Block {
+	block.Txs = append(block.Txs, txs...)
+	return block
+}
+
 // ToProtoMessage converts block to proto message.
 func (block *Block) ToProtoMessage() (proto.Message, error) {
 
@@ -148,9 +154,13 @@ func (block *Block) Copy() *Block {
 
 		txHash, _ := tx.TxHash()
 		txCopy := &Transaction{
-			hash: txHash,
-			Vin:  vin,
-			Vout: vout,
+			hash:     txHash,
+			Vin:      vin,
+			Vout:     vout,
+			Data:     tx.Data,
+			Magic:    tx.Magic,
+			LockTime: tx.LockTime,
+			Version:  tx.Version,
 		}
 		txs[k] = txCopy
 	}

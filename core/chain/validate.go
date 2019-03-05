@@ -8,6 +8,7 @@ import (
 	"math"
 	"reflect"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -44,15 +45,6 @@ func validateBlock(block *types.Block) error {
 		logger.Errorf("block does not contain any transactions")
 		return core.ErrNoTransactions
 	}
-
-	// TODO: check before deserialization
-	// // A block must not exceed the maximum allowed block payload when serialized.
-	// serializedSize := msgBlock.SerializeSizeStripped()
-	// if serializedSize > MaxBlockSize {
-	// 	logger.Errorf("serialized block is too big - got %d, "+
-	// 		"max %d", serializedSize, MaxBlockSize)
-	// 	return ErrBlockTooBig
-	// }
 
 	// First tx must be coinbase.
 	transactions := block.Txs
@@ -323,6 +315,11 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 			tokenID := script.NewTokenID(txIn.PrevOutPoint.Hash, txIn.PrevOutPoint.Index)
 			// no need to check error since it will not err
 			params, _ := scriptPubKey.GetIssueParams()
+			// case insensitive comparison
+			if strings.EqualFold(params.Name, "box") {
+				logger.Errorf("Token name %s cannot be box", params.Name)
+				return 0, core.ErrTokenInvalidName
+			}
 			tokenInputAmounts[tokenID] += params.TotalSupply * uint64(math.Pow10(int(params.Decimals)))
 		} else if scriptPubKey.IsTokenTransfer() {
 			// no need to check error since it will not err

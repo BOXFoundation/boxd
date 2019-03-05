@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -152,7 +152,6 @@ func TestBlockProcessing(t *testing.T) {
 	b2.Txs = append(b2.Txs, createChildTx(b1.Txs[0]))
 	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
 	verifyProcessBlock(t, b2, nil, 2, b2)
-
 	// extend side chain: fork from b1
 	// b0 -> b1 -> b2
 	//		   \-> b2A
@@ -213,24 +212,6 @@ func TestBlockProcessing(t *testing.T) {
 	//		   \-> b2A -> b3A
 	b11 := nextBlock(b10)
 	verifyProcessBlock(t, b11, nil, 11, b11)
-
-	// TODOs
-	// Double spend
-
-	// Create a fork that ends with block that generates too much coinbase
-
-	// Create block that spends a transaction from a block that failed to connect (due to containing a double spend)
-
-	// Create block with an otherwise valid transaction in place of where the coinbase must be
-
-	// Create block with no transactions
-
-	// Create block with two coinbase transactions
-
-	// Create block with duplicate transactions
-
-	// Create a block that spends a transaction that does not exist
-
 }
 
 func TestBlockChain_WriteDelTxIndex(t *testing.T) {
@@ -244,15 +225,15 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	txhash, _ := b1.Txs[0].TxHash()
 
-	ensure.Nil(t, blockChain.WriteTxIndex(b1, batch))
+	ensure.Nil(t, blockChain.WriteTxIndex(b1, []*types.Transaction{}, batch))
 	batch.Write()
 
-	tx, err := blockChain.LoadTxByHash(*txhash)
+	_, tx, err := blockChain.LoadBlockInfoByTxHash(*txhash)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, b1.Txs[0], tx)
 
-	ensure.Nil(t, blockChain.DelTxIndex(b1, batch))
+	ensure.Nil(t, blockChain.DelTxIndex(b1, []*types.Transaction{}, batch))
 	batch.Write()
-	_, err = blockChain.LoadTxByHash(*txhash)
+	_, _, err = blockChain.LoadBlockInfoByTxHash(*txhash)
 	ensure.NotNil(t, err)
 }

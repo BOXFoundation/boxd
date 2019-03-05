@@ -39,6 +39,18 @@ func TestSubscribeOnce(t *testing.T) {
 	ensure.NotNil(t, bus.SubscribeOnce("topic", "String"))
 }
 
+func TestSubscribeUniq(t *testing.T) {
+	bus := New()
+	event := "topic"
+	flag := 0
+	fn := func() { flag++ }
+	bus.SubscribeUniq(event, fn)
+	bus.SubscribeUniq(event, fn)
+	bus.Publish(event)
+
+	ensure.DeepEqual(t, flag, 1)
+}
+
 func TestSubscribeOnceAndManySubscribe(t *testing.T) {
 	bus := New()
 	event := "topic"

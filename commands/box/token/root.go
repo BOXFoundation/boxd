@@ -12,18 +12,22 @@ import (
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-var cfgFile string
-var walletDir string
-var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+var (
+	peerAddr = "127.0.0.1:19111"
+
+	cfgFile          string
+	walletDir        string
+	defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -104,10 +108,14 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid address: ", args[0])
 		return
 	}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 
-	tag := types.NewTokenTag(tokenName, tokenSymbol, uint8(tokenDecimals))
+	tag := txlogic.NewTokenTag(tokenName, tokenSymbol, uint32(tokenDecimals), uint64(tokenTotalSupply))
 	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.String(), tag,
 		uint64(tokenTotalSupply), conn)
 	if err != nil {
@@ -169,7 +177,11 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	//	fmt.Println("Invalid address: ", args[0])
 	//	return
 	//}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	tx := new(types.Transaction)
 	//tx, err := rpcutil.CreateTokenTransferTx(conn, fromAddr, targets,
@@ -199,9 +211,13 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	//	fmt.Println("Invalid address: ", args[0])
 	//	return
 	//}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
-	tid := types.TokenID(token.OutPoint())
+	tid := txlogic.TokenID(token.OutPoint())
 	balance, _ := rpcutil.GetTokenBalance(conn, addrs, &tid)
 	fmt.Printf("Token balance of %s: %d\n", args[0], balance)
 }

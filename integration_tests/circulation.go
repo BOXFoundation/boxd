@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 // Circulation manage circulation of transaction
@@ -52,7 +54,11 @@ func (c *Circulation) HandleFunc(addrs []string, idx *int) (exit bool) {
 		case cirInfo, ok := <-c.cirInfoCh:
 			if ok {
 				logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
-				txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, utils.CircuRepeatTxTimes(), &c.txCnt)
+				curTimes := utils.CircuRepeatTxTimes()
+				if utils.CircuRepeatRandom() {
+					curTimes = rand.Intn(utils.CircuRepeatTxTimes())
+				}
+				txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, curTimes, &c.txCnt)
 				return false
 			}
 		case s := <-quitCh:
@@ -96,8 +102,9 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 		return
 	}
 	defer conn.Close()
-	txss, transfer, fee, count, err := rpcutil.NewTxs(AddrToAcc[fromAddr], toAddr,
-		times, conn)
+	fromAcc, _ := AddrToAcc.Load(fromAddr)
+	txss, transfer, fee, count, err := rpcutil.NewTxs(fromAcc.(*acc.Account),
+		toAddr, times, conn)
 	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
 	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {
@@ -128,8 +135,8 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 					!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 					logger.Panic(err)
 				}
-				time.Sleep(4 * time.Millisecond)
 				atomic.AddUint64(txCnt, 1)
+				time.Sleep(4 * time.Millisecond)
 			}
 		}(txs)
 	}

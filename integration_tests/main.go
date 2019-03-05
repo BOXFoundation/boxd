@@ -36,7 +36,7 @@ var (
 	minerAccs  []*acc.Account
 
 	//AddrToAcc stores addr to account
-	AddrToAcc = make(map[string]*acc.Account)
+	AddrToAcc = new(sync.Map)
 )
 
 func init() {
@@ -52,7 +52,7 @@ func initMinerAcc() {
 	minerAddrs, minerAccs = utils.MinerAccounts(files...)
 	logger.Infof("minersAddrs: %v", minerAddrs)
 	for i, addr := range minerAddrs {
-		AddrToAcc[addr] = minerAccs[i]
+		AddrToAcc.Store(addr, minerAccs[i])
 	}
 }
 
@@ -118,7 +118,7 @@ func main() {
 		// use panic to exit since it need to execute defer clause above
 		logger.Panicf("integration tests exits with %d errors", len(utils.ErrItems))
 	}
-	logger.Info("\r\n\n====>> CONGRATULATION! All CASES PASSED, GREATE JOB! <<====\n\n\r")
+	logger.Info("\r\n\n====>> CONGRATULATION! All CASES PASSED, GREAT JOB! <<====\n\n\r")
 }
 
 func testItems() []func() {

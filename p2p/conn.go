@@ -72,7 +72,7 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 		go conn.pq.Run(conn.proc, func(i interface{}) {
 			data := i.([]byte)
 			if _, err := conn.stream.Write(data); err != nil {
-				logger.Errorf("Failed to write message to %v, %v. ", conn.peer.id.Pretty(), err)
+				logger.Errorf("Failed to write message to %v, %v. ", conn.remotePeer.Pretty(), err)
 			} else {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}
@@ -109,7 +109,7 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		msg, err := conn.readMessage(conn.stream)
 		if err != nil {
 			if err == yamux.ErrConnectionReset {
-				logger.Warnf("ReadMessage occurs error. Err: %s", err.Error())
+				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
 			} else if err == ErrDuplicateMessage {
 				continue
 			} else {
@@ -202,7 +202,7 @@ func (conn *Conn) heartBeatService(p goprocess.Process) {
 		select {
 		case <-t.C:
 			if err := conn.Ping(); err != nil {
-				logger.Errorf("Failed to ping peer. PeerID: %s", conn.remotePeer.Pretty())
+				logger.Errorf("Failed to ping peer. PeerID: %s, err: %v", conn.remotePeer.Pretty(), err)
 			}
 		case <-p.Closing():
 			logger.Debug("closing heart beat service with ", conn.remotePeer.Pretty())
@@ -378,7 +378,12 @@ func (conn *Conn) reserve(opcode uint32, body []byte) ([]byte, []byte, error) {
 // Close connection to remote peer.
 func (conn *Conn) Close() error {
 	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
+	defer func() {
+		if conn.procHeartbeat != nil {
+			conn.procHeartbeat.Close()
+		}
+		conn.mutex.Unlock()
+	}()
 
 	pid := conn.remotePeer
 	logger.Info("Closing connection with ", pid.Pretty())

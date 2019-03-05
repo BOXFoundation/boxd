@@ -8,6 +8,7 @@ import (
 	"github.com/BOXFoundation/boxd/metrics"
 )
 
+//
 var (
 	// block Metrics
 
@@ -21,6 +22,8 @@ var (
 	MetricsBlockOrphanPoolSizeGauge = metrics.NewGauge("box.block.orphanpool.size")
 	// MetricsBlockRevertMeter records the bc revert times
 	MetricsBlockRevertMeter = metrics.NewMeter("box.block.revert")
+	// MetricsBlockMissRateGauge records the miner block miss rate
+	MetricsBlockMissRateGauge = metrics.NewGauge("box.block.missrate")
 
 	// block_pool metrics
 
@@ -39,4 +42,34 @@ var (
 	MetricsTxPoolSizeGauge = metrics.NewGauge("box.txpool.size")
 	// MetricsOrphanTxPoolSizeGauge records the size of new block cache
 	MetricsOrphanTxPoolSizeGauge = metrics.NewGauge("box.txpool.orphan_size")
+
+	// memory details
+
+	MetricsMemAllocGauge      = metrics.NewGauge("box.mem.alloc")
+	MetricsMemTotalAllocGauge = metrics.NewGauge("box.mem.total.alloc")
+	MetricsMemSysGauge        = metrics.NewGauge("box.mem.sys")
+	MetricsMemLookupsGauge    = metrics.NewGauge("box.mem.lookups")
+	MetricsMemMallocsGauge    = metrics.NewGauge("box.mem.mallocs")
+	MetricsMemFreesGauge      = metrics.NewGauge("box.mem.frees")
+	MetricsMemHeapAllocGauge  = metrics.NewGauge("box.mem.heap.alloc")
+	MetricsMemHeapSysGauge    = metrics.NewGauge("box.mem.heap.sys")
+	MetricsMemHeapIdleGauge   = metrics.NewGauge("box.mem.heap.idle")
+	// MetricsMemHeapInuseGauge records the heap inused
+	MetricsMemHeapInuseGauge = metrics.NewGauge("box.mem.heap.inuse")
+	// MetricsMemHeapReleasedGauge records the heap released
+	MetricsMemHeapReleasedGauge = metrics.NewGauge("box.mem.heap.released")
+	MetricsMemHeapObjectsGauge  = metrics.NewGauge("box.mem.heap.objects")
+	// MetricsMemStackInuseGauge records the stack inused
+	MetricsMemStackInuseGauge = metrics.NewGauge("box.mem.stack.inuse")
+	// MetricsMemStackSysGauge records the stack allocated by sys
+	MetricsMemStackSysGauge    = metrics.NewGauge("box.mem.stack.sys")
+	MetricsMemMSpanInuseGauge  = metrics.NewGauge("box.mem.mspan.inuse")
+	MetricsMemMSpanSysGauge    = metrics.NewGauge("box.mem.mspan.sys")
+	MetricsMemMCacheInuseGauge = metrics.NewGauge("box.mem.mcache.inuse")
+	MetricsMemMCacheSysGauge   = metrics.NewGauge("box.mem.mcache.sys")
+	MetricsMemBuckHashSysGauge = metrics.NewGauge("box.mem.buckHash.sys")
+	MetricsMemGCSysGauge       = metrics.NewGauge("box.mem.gc.sys")
+	MetricsMemOtherSysGauge    = metrics.NewGauge("box.mem.other.sys")
+	MetricsMemNextGCGauge      = metrics.NewGauge("box.mem.gc.next")
+	MetricsMemNumForcedGCGauge = metrics.NewGauge("box.mem.gc.forceNum")
 )

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -117,6 +118,7 @@ func (dpos *Dpos) Run() error {
 		return err
 	}
 	dpos.bftservice = bftService
+	dpos.subscribe()
 	bftService.Start()
 	dpos.proc.Go(dpos.loop)
 
@@ -251,8 +253,8 @@ func (dpos *Dpos) mintBlock() error {
 
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 
-	txi := queue.Items(i).(*chain.TxWrap)
-	txj := queue.Items(j).(*chain.TxWrap)
+	txi := queue.Items(i).(*types.TxWrap)
+	txj := queue.Items(j).(*types.TxWrap)
 	if txi.FeePerKB == txj.FeePerKB {
 		return txi.AddedTimestamp < txj.AddedTimestamp
 	}
@@ -261,9 +263,9 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 
 // getChainedTxs returns all chained ancestor txs in mempool of the passed tx, including itself
 // From child to ancestors
-func getChainedTxs(tx *chain.TxWrap, hashToTx map[crypto.HashType]*chain.TxWrap) []*chain.TxWrap {
+func getChainedTxs(tx *types.TxWrap, hashToTx map[crypto.HashType]*types.TxWrap) []*types.TxWrap {
 	hashSet := make(map[crypto.HashType]struct{})
-	chainedTxs := []*chain.TxWrap{tx}
+	chainedTxs := []*types.TxWrap{tx}
 
 	// Note: use index here instead of range because chainedTxs can be extended inside the loop
 	for i := 0; i < len(chainedTxs); i++ {
@@ -284,7 +286,7 @@ func getChainedTxs(tx *chain.TxWrap, hashToTx map[crypto.HashType]*chain.TxWrap)
 }
 
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs() ([]*chain.TxWrap, map[crypto.HashType]*chain.TxWrap) {
+func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, map[crypto.HashType]*types.TxWrap) {
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := dpos.txpool.GetAllTxs()
 	for _, pendingTx := range pendingTxs {
@@ -295,10 +297,10 @@ func (dpos *Dpos) sortPendingTxs() ([]*chain.TxWrap, map[crypto.HashType]*chain.
 		}
 	}
 
-	var sortedTxs []*chain.TxWrap
-	hashToTx := make(map[crypto.HashType]*chain.TxWrap)
+	var sortedTxs []*types.TxWrap
+	hashToTx := make(map[crypto.HashType]*types.TxWrap)
 	for pool.Len() > 0 {
-		txWrap := heap.Pop(pool).(*chain.TxWrap)
+		txWrap := heap.Pop(pool).(*types.TxWrap)
 		sortedTxs = append(sortedTxs, txWrap)
 		txHash, _ := txWrap.Tx.TxHash()
 		hashToTx[*txHash] = txWrap
@@ -685,4 +687,13 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 		}
 		dpos.bftservice.updateEternal(block)
 	}
+}
+
+func (dpos *Dpos) subscribe() {
+	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
+		out <- dpos.context.periodContext.periodPeers
+	}, false)
+	dpos.chain.Bus().Reply(eventbus.TopicCheckMiner, func(timestamp int64, out chan<- error) {
+		out <- dpos.checkMiner(timestamp)
+	}, false)
 }

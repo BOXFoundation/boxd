@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,10 +48,9 @@ const (
 
 	MaxBlocksPerSync = 1024
 
-	metricsLoopInterval      = 500 * time.Millisecond
-	metricsUtxosLoopInterval = 20 * time.Second
-	tokenIssueFilterKey      = "token_issue"
-	Threshold                = 32
+	metricsLoopInterval = 500 * time.Millisecond
+	tokenIssueFilterKey = "token_issue"
+	Threshold           = 32
 )
 
 const (
@@ -211,10 +212,39 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 	goprocess.WithParent(parent).Go(
 		func(p goprocess.Process) {
-			ticker := time.NewTicker(metricsUtxosLoopInterval)
+			ticker := time.NewTicker(20 * time.Second)
+			gcTicker := time.NewTicker(time.Hour)
+			missRateTicker := time.NewTicker(10 * time.Minute)
+
+			memstats := &runtime.MemStats{}
 			for {
 				select {
 				case <-ticker.C:
+					runtime.ReadMemStats(memstats)
+					metrics.MetricsMemAllocGauge.Update(int64(memstats.Alloc))
+					metrics.MetricsMemTotalAllocGauge.Update(int64(memstats.TotalAlloc))
+					metrics.MetricsMemSysGauge.Update(int64(memstats.Sys))
+					metrics.MetricsMemLookupsGauge.Update(int64(memstats.Lookups))
+					metrics.MetricsMemMallocsGauge.Update(int64(memstats.Mallocs))
+					metrics.MetricsMemFreesGauge.Update(int64(memstats.Frees))
+					metrics.MetricsMemHeapAllocGauge.Update(int64(memstats.HeapAlloc))
+					metrics.MetricsMemHeapSysGauge.Update(int64(memstats.HeapSys))
+					metrics.MetricsMemHeapIdleGauge.Update(int64(memstats.HeapIdle))
+					metrics.MetricsMemHeapInuseGauge.Update(int64(memstats.HeapInuse))
+					metrics.MetricsMemHeapReleasedGauge.Update(int64(memstats.HeapReleased))
+					metrics.MetricsMemHeapObjectsGauge.Update(int64(memstats.HeapObjects))
+					metrics.MetricsMemStackInuseGauge.Update(int64(memstats.StackInuse))
+					metrics.MetricsMemStackSysGauge.Update(int64(memstats.StackSys))
+					metrics.MetricsMemMSpanInuseGauge.Update(int64(memstats.MSpanInuse))
+					metrics.MetricsMemMSpanSysGauge.Update(int64(memstats.MSpanSys))
+					metrics.MetricsMemMCacheInuseGauge.Update(int64(memstats.MCacheInuse))
+					metrics.MetricsMemMCacheSysGauge.Update(int64(memstats.MCacheInuse))
+					metrics.MetricsMemBuckHashSysGauge.Update(int64(memstats.BuckHashSys))
+					metrics.MetricsMemGCSysGauge.Update(int64(memstats.GCSys))
+					metrics.MetricsMemOtherSysGauge.Update(int64(memstats.OtherSys))
+					metrics.MetricsMemNextGCGauge.Update(int64(memstats.NextGC))
+					metrics.MetricsMemNumForcedGCGauge.Update(int64(memstats.NumForcedGC))
+
 					ctx, cancel := context.WithTimeout(context.Background(), 18*time.Second)
 					defer cancel()
 					i := 0
@@ -222,12 +252,87 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 						i++
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
+				case <-missRateTicker.C:
+					total, miss := chain.calMissRate()
+					if total != 0 {
+						metrics.MetricsBlockMissRateGauge.Update(int64(miss * 1000000 / total))
+					}
+				case <-gcTicker.C:
+					logger.Infof("FreeOSMemory invoked.")
+					debug.FreeOSMemory()
 				case <-p.Closing():
 					logger.Info("Quit metricsUtxos loop.")
 					return
 				}
 			}
 		})
+}
+
+func (chain *BlockChain) calMissRate() (total uint32, miss uint32) {
+	logger.Debugf("calMissRate invoked")
+
+	var ts int64
+	var height uint32
+
+	val, err := chain.db.Get(MissrateKey)
+	if err == nil {
+		h, m, t, err := UnmarshalMissData(val)
+		if err == nil {
+			height, miss, ts = h, m, t
+		} else {
+			logger.Errorf("UnmarshalMissData Err: %v.", err)
+		}
+	}
+
+	tail := chain.tail
+	if tail == nil {
+		return 0, miss
+	}
+
+	minersCh := make(chan []string)
+	chain.bus.Send(eventbus.TopicMiners, minersCh)
+	miners := <-minersCh
+
+	if ts == 0 {
+		block, err := chain.LoadBlockByHeight(1)
+		if err != nil {
+			return 0, miss
+		}
+		ts = block.Header.TimeStamp
+		total = uint32(tail.Header.TimeStamp - ts)
+	}
+
+	errCh := make(chan error)
+	var curTs int64
+	var block *types.Block
+	for tstmp := ts; tstmp < tail.Header.TimeStamp; tstmp++ {
+		chain.bus.Send(eventbus.TopicCheckMiner, tstmp, errCh)
+		err = <-errCh
+
+		if err != nil {
+			continue
+		}
+		curTs = 0
+		for ; ; height++ {
+			block, err = chain.LoadBlockByHeight(height)
+			if err != nil || block == nil {
+				break
+			}
+			if block.Header.TimeStamp >= tstmp {
+				curTs = block.Header.TimeStamp
+				height = block.Height + 1
+				break
+			}
+		}
+		if curTs > tstmp {
+			miss++
+		}
+	}
+
+	if val, err := MarshalMissData(tail.Height, miss, tail.Header.TimeStamp); err == nil {
+		chain.db.Put(MissrateKey, val)
+	}
+	return tail.Height / uint32(len(miners)), miss
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
@@ -629,8 +734,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	blockCopy := block.Copy()
 
 	// Split tx outputs if any
-	chain.splitBlockOutputs(blockCopy)
+	splitTxs := chain.splitBlockOutputs(blockCopy)
+
 	ttt1 := time.Now().UnixNano()
+
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
@@ -645,9 +752,15 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	}
 
 	// save tx index
-	if err := chain.WriteTxIndex(block, batch); err != nil {
+	if err := chain.WriteTxIndex(block, splitTxs, batch); err != nil {
 		return err
 	}
+
+	// save split tx
+	if err := chain.StoreSplitTxs(splitTxs, batch); err != nil {
+		return err
+	}
+
 	ttt3 := time.Now().UnixNano()
 	// store split addr index
 	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
@@ -746,7 +859,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	blockCopy := block.Copy()
 
 	// Split tx outputs if any
-	chain.splitBlockOutputs(blockCopy)
+	splitTxs := chain.splitBlockOutputs(blockCopy)
 	dtt1 := time.Now().UnixNano()
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockAllUtxos(blockCopy, chain.db); err != nil {
@@ -761,8 +874,13 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// chain.filterHolder.ResetFilters(block.Height)
 	dtt3 := time.Now().UnixNano()
-	// save tx index
-	if err := chain.DelTxIndex(block, batch); err != nil {
+	// del tx index
+	if err := chain.DelTxIndex(block, splitTxs, batch); err != nil {
+		return err
+	}
+
+	// del split tx
+	if err := chain.DelSplitTxs(splitTxs, batch); err != nil {
 		return err
 	}
 
@@ -840,38 +958,6 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 	return chain.eternal
 }
 
-// LoadSpentUtxos loads UtxoWrap info of input outpoints
-func (chain *BlockChain) LoadSpentUtxos(outpoints []types.OutPoint) (map[types.OutPoint]*types.UtxoWrap, error) {
-	var relatedTxHashes = make(map[crypto.HashType]bool)
-	for _, op := range outpoints {
-		relatedTxHashes[op.Hash] = true
-	}
-	var relatedTxs = make(map[crypto.HashType]*types.Transaction)
-	for h := range relatedTxHashes {
-		tx, err := chain.LoadTxByHash(h)
-		if err != nil {
-			return nil, err
-		}
-		relatedTxs[h] = tx
-	}
-
-	utxos := make(map[types.OutPoint]*types.UtxoWrap)
-	for _, op := range outpoints {
-		tx, ok := relatedTxs[op.Hash]
-		if !ok || tx == nil || len(tx.Vout) <= int(op.Index) {
-			return nil, fmt.Errorf("fail to find transaction: %v", op.Hash)
-		}
-		txOut := tx.Vout[op.Index]
-		utxos[op] = types.NewUtxoWrap(txOut.Value, txOut.ScriptPubKey, 0)
-		if IsCoinBase(tx) {
-			utxos[op].SetCoinBase()
-		}
-		utxos[op].Spend()
-	}
-
-	return utxos, nil
-}
-
 // GetBlockHeight returns current height of main chain
 func (chain *BlockChain) GetBlockHeight() uint32 {
 	return chain.LongestChainHeight
@@ -937,10 +1023,11 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		}
 	}
 	utxoSet.WriteUtxoSetToDB(batch)
-	if err := chain.WriteTxIndex(&genesis, batch); err != nil {
+	if err := chain.WriteTxIndex(&genesis, []*types.Transaction{}, batch); err != nil {
 		return nil, err
 	}
 	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
+	batch.Put(GenesisKey, genesisBin)
 	if err := batch.Write(); err != nil {
 		return nil, err
 	}
@@ -1012,6 +1099,25 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 	}
 
 	return block, nil
+}
+
+// ReadBlockFromDB reads a block from db by hash and returns block and it's size
+func (chain *BlockChain) ReadBlockFromDB(hash *crypto.HashType) (*types.Block, int, error) {
+
+	blockBin, err := chain.db.Get(BlockKey(hash))
+	if err != nil {
+		return nil, 0, err
+	}
+	if blockBin == nil {
+		return nil, 0, core.ErrBlockIsNil
+	}
+	n := len(blockBin)
+	block := new(types.Block)
+	if err := block.Unmarshal(blockBin); err != nil {
+		return nil, 0, err
+	}
+
+	return block, n, nil
 }
 
 // LoadBlockByHeight load block by height from db.
@@ -1094,64 +1200,83 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 }
 
 // LoadTxByHash load transaction with hash.
-func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
-	txIndex, err := chain.db.Get(TxIndexKey(&hash))
-	if err != nil {
-		return nil, err
-	}
-	height, idx, err := UnmarshalTxIndex(txIndex)
-	if err != nil {
-		return nil, err
-	}
+// func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
+// 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	height, idx, err := UnmarshalTxIndex(txIndex)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	block, err := chain.LoadBlockByHeight(height)
-	if err != nil {
-		return nil, err
-	}
+// 	block, err := chain.LoadBlockByHeight(height)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	tx := block.Txs[idx]
-	target, err := tx.TxHash()
-	if err != nil {
-		return nil, err
-	}
-	if *target == hash {
-		return tx, nil
-	}
-	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
-	return nil, errors.New("Failed to load tx with hash")
-}
+// 	tx := block.Txs[idx]
+// 	target, err := tx.TxHash()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if *target == hash {
+// 		return tx, nil
+// 	}
+// 	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
+// 	return nil, errors.New("Failed to load tx with hash")
+// }
 
 // LoadBlockInfoByTxHash returns block and txIndex of transaction with the input param hash
-func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, uint32, error) {
+func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, *types.Transaction, error) {
 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	height, idx, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	block, err := chain.LoadBlockByHeight(height)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
-	tx := block.Txs[idx]
+	var tx *types.Transaction
+	if idx < uint32(len(block.Txs)) {
+		tx = block.Txs[idx]
+	} else {
+		txBin, err := chain.db.Get(TxKey(&hash))
+		if err != nil {
+			return nil, nil, err
+		}
+		if txBin == nil {
+			return nil, nil, errors.New("failed to load split tx with hash")
+		}
+		tx = new(types.Transaction)
+		if err := tx.Unmarshal(txBin); err != nil {
+			return nil, nil, err
+		}
+	}
+	// tx := block.Txs[idx]
 	target, err := tx.TxHash()
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	if *target == hash {
-		return block, idx, nil
+		return block, tx, nil
 	}
 	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
-	return nil, 0, errors.New("failed to load tx with hash")
+	return nil, nil, errors.New("failed to load tx with hash")
 }
 
 // WriteTxIndex builds tx index in block
-func (chain *BlockChain) WriteTxIndex(block *types.Block, batch storage.Batch) error {
+// Save split transaction copies before and after split. The latter is needed when reverting a transaction during reorg,
+// spending from utxo/coin received at a split address
+func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
 
-	for idx, tx := range block.Txs {
+	allTxs := append(block.Txs, splitTxs...)
+	for idx, tx := range allTxs {
 		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
 		if err != nil {
 			return err
@@ -1162,13 +1287,33 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, batch storage.Batch) e
 		}
 		batch.Put(TxIndexKey(txHash), tiBuf)
 	}
+
+	return nil
+}
+
+// StoreSplitTxs store split txs.
+func (chain *BlockChain) StoreSplitTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
+	for _, tx := range splitTxs {
+		txHash, err := tx.TxHash()
+		if err != nil {
+			return err
+		}
+		txBin, err := tx.Marshal()
+		if err != nil {
+			return err
+		}
+		batch.Put(TxKey(txHash), txBin)
+	}
 	return nil
 }
 
 // DelTxIndex deletes tx index in block
-func (chain *BlockChain) DelTxIndex(block *types.Block, batch storage.Batch) error {
+// Delete split transaction copies saved earlier, both before and after split
+func (chain *BlockChain) DelTxIndex(block *types.Block, splitTxs []*types.Transaction, batch storage.Batch) error {
 
-	for _, tx := range block.Txs {
+	allTxs := append(block.Txs, splitTxs...)
+
+	for _, tx := range allTxs {
 		txHash, err := tx.TxHash()
 		if err != nil {
 			return err
@@ -1176,6 +1321,18 @@ func (chain *BlockChain) DelTxIndex(block *types.Block, batch storage.Batch) err
 		batch.Del(TxIndexKey(txHash))
 	}
 
+	return nil
+}
+
+// DelSplitTxs del split txs.
+func (chain *BlockChain) DelSplitTxs(splitTxs []*types.Transaction, batch storage.Batch) error {
+	for _, tx := range splitTxs {
+		txHash, err := tx.TxHash()
+		if err != nil {
+			return err
+		}
+		batch.Del(TxKey(txHash))
+	}
 	return nil
 }
 
@@ -1270,111 +1427,39 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	return blocks, nil
 }
 
-// GetTransactionsByAddr search the main chain about transaction relate to give address
-func (chain *BlockChain) GetTransactionsByAddr(addr types.Address) ([]*types.Transaction, error) {
-	// payToPubKeyHashScript := *script.PayToPubKeyHashScript(addr.Hash())
-	// hashes := chain.filterHolder.ListMatchedBlockHashes(payToPubKeyHashScript)
-	// utxoSet := NewUtxoSet()
-	var txs []*types.Transaction
-	// for _, hash := range hashes {
-	// 	block, err := chain.LoadBlockByHash(hash)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	for _, tx := range block.Txs {
-	// 		isRelated := false
-	// 		for index, vout := range tx.Vout {
-	// 			if bytes.Equal(vout.ScriptPubKey, payToPubKeyHashScript) {
-	// 				utxoSet.AddUtxo(tx, uint32(index), block.Height)
-	// 				isRelated = true
-	// 			}
-	// 		}
-	// 		for _, vin := range tx.Vin {
-	// 			if utxoSet.FindUtxo(vin.PrevOutPoint) != nil {
-	// 				delete(utxoSet.utxoMap, vin.PrevOutPoint)
-	// 				isRelated = true
-	// 			}
-	// 		}
-	// 		if isRelated {
-	// 			txs = append(txs, tx)
-	// 		}
-	// 	}
-	// }
-	// utxoSet = nil
-	return txs, nil
-}
-
-// ListTokenIssueTransactions returns transactions which contains token issue info
-// TODO: issue token change to separate storage
-func (chain *BlockChain) ListTokenIssueTransactions() ([]*types.Transaction, []*types.BlockHeader, error) {
-	// hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenIssueFilterKey))
-	// logger.Debugf("%v blocks related to token issue", len(hashes))
-	var txs []*types.Transaction
-	var blockHeaders []*types.BlockHeader
-	// for _, hash := range hashes {
-	// 	block, err := chain.LoadBlockByHash(hash)
-	// 	if err != nil {
-	// 		return nil, nil, err
-	// 	}
-	// 	for _, tx := range block.Txs {
-	// 		for _, vout := range tx.Vout {
-	// 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
-	// 			if sc.IsTokenIssue() {
-	// 				txs = append(txs, tx)
-	// 				blockHeaders = append(blockHeaders, block.Header)
-	// 			}
-	// 		}
-	// 	}
-	// }
-	return txs, blockHeaders, nil
-}
-
-// GetTokenTransactions returns transactions history of a tokenID
-func (chain *BlockChain) GetTokenTransactions(tokenID *script.TokenID) ([]*types.Transaction, error) {
-	// hashes := chain.filterHolder.ListMatchedBlockHashes([]byte(tokenID.String()))
-	// logger.Debugf("%v blocks related to token %v", len(hashes), tokenID)
-	var txs []*types.Transaction
-	// for _, hash := range hashes {
-	// 	block, err := chain.LoadBlockByHash(hash)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	for _, tx := range block.Txs {
-	// 		hash, _ := tx.TxHash()
-	// 		for idx, vout := range tx.Vout {
-	// 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
-	// 			if sc.IsTokenIssue() && hash.IsEqual(&tokenID.Hash) && uint32(idx) == tokenID.Index {
-	// 				txs = append(txs, tx)
-	// 				break
-	// 			}
-	// 			if sc.IsTokenTransfer() {
-	// 				params, _ := sc.GetTransferParams()
-	// 				if params.Hash.IsEqual(&tokenID.Hash) && params.Index == tokenID.Index {
-	// 					txs = append(txs, tx)
-	// 					break
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-	return txs, nil
-}
-
 // split outputs of txs in the block where applicable
-func (chain *BlockChain) splitBlockOutputs(block *types.Block) {
+// return all split transactions, i.e., transactions containing at least one output to a split address
+func (chain *BlockChain) splitBlockOutputs(block *types.Block) []*types.Transaction {
+	splitTxs := make([]*types.Transaction, 0)
+
 	for _, tx := range block.Txs {
-		chain.splitTxOutputs(tx)
+		if chain.splitTxOutputs(tx) {
+			splitTxs = append(splitTxs, tx)
+		}
 	}
+
+	return splitTxs
 }
 
 // split outputs in the tx where applicable
-func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) {
+// return if the transaction contains split address output
+func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) bool {
+	isSplitTx := false
 	vout := make([]*corepb.TxOut, 0)
+
 	for _, txOut := range tx.Vout {
 		txOuts := chain.splitTxOutput(txOut)
 		vout = append(vout, txOuts...)
+
+		if !isSplitTx && len(txOuts) > 1 {
+			isSplitTx = true
+		}
 	}
-	tx.Vout = vout
+	if isSplitTx {
+		tx.ResetTxHash()
+		tx.Vout = vout
+	}
+	return isSplitTx
 }
 
 // split an output to a split address into  multiple outputs to composite addresses
@@ -1495,6 +1580,11 @@ func (chain *BlockChain) findSplitAddr(addr types.Address) (bool, *splitAddrInfo
 		return false, nil, err
 	}
 	return true, info, nil
+}
+
+// GetDataFromDB get data from db
+func (chain *BlockChain) GetDataFromDB(key []byte) ([]byte, error) {
+	return chain.db.Get(key)
 }
 
 // WriteSplitAddrIndex writes split addr info index

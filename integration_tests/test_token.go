@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
 // TokenTest manage circulation of token
@@ -79,7 +81,8 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return false
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTx(AddrToAcc[miner], []string{issuer, sender},
+	minerAcc, _ := AddrToAcc.Load(miner)
+	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{issuer, sender},
 		[]uint64{subsidy, testFee}, conn)
 	if err != nil {
 		logger.Error(err)
@@ -92,17 +95,26 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
-	tag := types.NewTokenTag("box token", "BOX", 6)
-	times := utils.TokenRepeatTxTimes()
-	tokenRepeatTest(issuer, sender, receivers, tag, times, &t.txCnt, peerAddr)
+	totalSupply := uint64(10000)
+	tag := txlogic.NewTokenTag("box token", "FOX", 6, totalSupply)
+	curTimes := utils.TokenRepeatTxTimes()
+	if utils.TokenRepeatRandom() {
+		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
+	}
+	tokenRepeatTest(issuer, sender, receivers, tag, curTimes, &t.txCnt, peerAddr)
 	//
 	return
 }
 
 func tokenRepeatTest(issuer, sender string, receivers []string,
-	tag *types.TokenTag, times int, txCnt *uint64, peerAddr string) {
+	tag *rpcpb.TokenTag, times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
+
+	if times <= 0 {
+		logger.Warn("times is 0, exit")
+		return
+	}
 
 	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
@@ -111,11 +123,11 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	defer conn.Close()
 
 	// issue some token
-	totalSupply := uint64(10000)
-	logger.Infof("%s issue %d token to %s", issuer, totalSupply, sender)
+	logger.Infof("%s issue %d token to %s", issuer, tag.Supply, sender)
 
-	tx, tid, _, err := rpcutil.NewIssueTokenTx(AddrToAcc[issuer], sender, tag,
-		totalSupply, conn)
+	issuerAcc, _ := AddrToAcc.Load(issuer)
+	tx, tid, _, err := rpcutil.NewIssueTokenTx(issuerAcc.(*acc.Account), sender, tag,
+		tag.Supply, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -126,7 +138,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	atomic.AddUint64(txCnt, 1)
 
 	// check issue result
-	totalAmount := totalSupply * uint64(tag.Decimal)
+	totalAmount := tag.Supply * uint64(tag.Decimal)
 	logger.Infof("wait for token balance of sender %s equal to %d, timeout %v",
 		sender, totalAmount, timeoutToChain)
 	blcSenderPre, err := utils.WaitTokenBalanceEnough(sender, totalAmount, tid,
@@ -145,7 +157,8 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	logger.Infof("start to create %d token txs from %s to %s on %s",
 		times, sender, receiver, peerAddr)
 	txTotalAmount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount)/2))
-	txs, err := rpcutil.NewTokenTxs(AddrToAcc[sender], receiver, txTotalAmount, times,
+	senderAcc, _ := AddrToAcc.Load(sender)
+	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver, txTotalAmount, times,
 		tid, conn)
 	if err != nil {
 		logger.Panic(err)

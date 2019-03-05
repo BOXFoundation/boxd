@@ -10,7 +10,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/storage"
@@ -18,6 +18,10 @@ import (
 )
 
 var logger = log.NewLogger("wallet")
+
+var (
+	utxoLiveCache = NewLiveUtxoCache()
+)
 
 // Server is the struct type of an wallet service
 type Server struct {
@@ -27,6 +31,13 @@ type Server struct {
 	cfg   *Config
 	//sync.Mutex
 	//utxosQueue *list.List
+}
+
+// Config contains config information for wallet server
+type Config struct {
+	Enable        bool `mapstructure:"enable"`
+	CacheSize     int  `mapstructure:"cache_size"`
+	UtxoCacheTime int  `mapstructure:"utxo_cache_time"`
 }
 
 // NewServer creates an Server instance using config and storage
@@ -44,6 +55,7 @@ func NewServer(parent goprocess.Process, config *Config, s storage.Storage,
 		cfg:   config,
 		//utxosQueue: list.New(),
 	}
+	utxoLiveCache.SetLiveDuration(config.UtxoCacheTime)
 	return wServer, nil
 }
 
@@ -101,7 +113,7 @@ func (w *Server) onUtxoChange(utxoSet *chain.UtxoSet) {
 }
 
 // Balance returns the total balance of an address
-func (w *Server) Balance(addr string, tokenID *types.TokenID) (uint64, error) {
+func (w *Server) Balance(addr string, tokenID *txlogic.TokenID) (uint64, error) {
 	if w.cfg == nil || !w.cfg.Enable {
 		err := errors.New("not supported for non-wallet node")
 		logger.Warn(err)
@@ -115,7 +127,8 @@ func (w *Server) Balance(addr string, tokenID *types.TokenID) (uint64, error) {
 }
 
 // Utxos returns all utxos of an address
-func (w *Server) Utxos(addr string, tokenID *types.TokenID, amount uint64) (
+// NOTE: return all utxos of addr if amount is equal to 0
+func (w *Server) Utxos(addr string, tokenID *txlogic.TokenID, amount uint64) (
 	[]*rpcpb.Utxo, error) {
 
 	if w.cfg == nil || !w.cfg.Enable {

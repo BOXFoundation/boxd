@@ -17,7 +17,7 @@ import (
 	"os"
 	"path/filepath"
 
-	ctypes "github.com/BOXFoundation/boxd/core/types"
+	types "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	bcrypto "github.com/BOXFoundation/boxd/crypto"
 	"golang.org/x/crypto/scrypt"
@@ -33,7 +33,7 @@ const (
 // Account offers method to operate ecdsa keys stored in a keystore file path
 type Account struct {
 	Path     string
-	Address  ctypes.Address
+	Address  types.Address
 	PrivKey  *crypto.PrivateKey
 	Unlocked bool
 }
@@ -48,6 +48,7 @@ type keyStoreJSON struct {
 	ID      string     `json:"id"`
 	Address string     `json:"address"`
 	Crypto  cryptoJSON `json:"crypto"`
+	Version string     `json:"version"`
 }
 
 type cryptoJSON struct {
@@ -76,7 +77,7 @@ func (acc *Account) Addr() string {
 }
 
 // AddrType returns Address interface of the account
-func (acc *Account) AddrType() ctypes.Address {
+func (acc *Account) AddrType() types.Address {
 	return acc.Address
 }
 
@@ -114,7 +115,7 @@ func (acc *Account) UnlockWithPassphrase(passphrase string) error {
 	if err != nil {
 		return err
 	}
-	addr, err := ctypes.NewAddressFromPubKey(acc.PrivKey.PubKey())
+	addr, err := types.NewAddressFromPubKey(acc.PrivKey.PubKey())
 	if err != nil {
 		return err
 	}
@@ -138,15 +139,11 @@ func (acc *Account) Sign(messageHash *crypto.HashType) (*crypto.Signature, error
 
 // NewAccountFromFile create account from file.
 func NewAccountFromFile(filePath string) (*Account, error) {
-	pubKeyHashString, err := GetKeystoreAddress(filePath)
+	addressString, err := GetKeystoreAddress(filePath)
 	if err != nil {
 		return nil, err
 	}
-	pubKeyHashBytes, err := hex.DecodeString(pubKeyHashString)
-	if err != nil {
-		return nil, err
-	}
-	addr, err := ctypes.NewAddressPubKeyHash(pubKeyHashBytes)
+	addr, err := types.NewAddress(addressString)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +156,7 @@ func NewAccountFromFile(filePath string) (*Account, error) {
 }
 
 func savePrivateKeyWithPassphrase(privatekey *bcrypto.PrivateKey, passphrase, path string) error {
-	addr, err := ctypes.NewAddressFromPubKey(privatekey.PubKey())
+	addr, err := types.NewAddressFromPubKey(privatekey.PubKey())
 	if err != nil {
 		return err
 	}
@@ -169,7 +166,8 @@ func savePrivateKeyWithPassphrase(privatekey *bcrypto.PrivateKey, passphrase, pa
 	}
 	ksJSON := &keyStoreJSON{
 		Crypto:  cpt,
-		Address: hex.EncodeToString(addr.Hash()),
+		Address: addr.String(),
+		Version: "0.1.0",
 	}
 	content, err := json.Marshal(ksJSON)
 	if err != nil {

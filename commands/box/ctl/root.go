@@ -18,11 +18,14 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-var walletDir string
-var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+var (
+	peerAddr  = "127.0.0.1:19111"
+	walletDir string
+
+	defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -119,11 +122,6 @@ to quickly create a Cobra application.`,
 			Run:   getRawTxCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "gettxpool",
-			Short: "Get transactions in pool",
-			Run:   getTxPoolCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "searchrawtxs [address]",
 			Short: "Search transactions for a given address",
 			Run: func(cmd *cobra.Command, args []string) {
@@ -169,7 +167,11 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		level = args[0]
 	}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	rpcutil.SetDebugLevel(conn, level)
 }
@@ -185,7 +187,11 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 		}
 		id = uint32(n)
 	}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	rpcutil.UpdateNetworkID(conn, id)
 }
@@ -204,7 +210,11 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		addrs = append(addrs, args[0])
 	}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	balances, err := rpcutil.GetBalance(conn, addrs)
 	if err != nil {
@@ -227,7 +237,11 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	block, err := rpcutil.GetBlock(conn, hash)
 	if err != nil {
@@ -239,7 +253,11 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getblockcount called")
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	height, err := rpcutil.GetBlockCount(conn)
 	if err != nil {
@@ -260,7 +278,11 @@ func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	height := uint32(height64)
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	hash, err := rpcutil.GetBlockHash(conn, height)
 	if err != nil {
@@ -277,7 +299,11 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	header, err := rpcutil.GetBlockHeader(conn, hash)
 	if err != nil {
@@ -295,30 +321,17 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	hash := crypto.HashType{}
 	hash.SetString(args[0])
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	tx, err := rpcutil.GetRawTransaction(conn, hash.GetBytes())
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		fmt.Println(util.PrettyPrint(tx))
-	}
-}
-
-func getTxPoolCmdFunc(cmd *cobra.Command, args []string) {
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
-	defer conn.Close()
-	txs, err := rpcutil.GetTransactionsInPool(conn)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		for _, tx := range txs {
-			hash, err := tx.TxHash()
-			if err == nil {
-				fmt.Println("Tx Hash: ", hash)
-			}
-			fmt.Println(util.PrettyPrint(tx))
-		}
 	}
 }
 

@@ -78,7 +78,7 @@ var tokenPreAllocation = []map[string]string{
 		"locktime": "94608000",
 	},
 	{
-		"addr":  "b1pNwCEUkAgwNbzGfFWcUDZBfSofXAL2ELr",
+		"addr":  "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m",
 		"value": "330000000",
 	},
 	{

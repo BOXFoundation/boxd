@@ -5,209 +5,117 @@
 syntax = "proto3";
 package rpcpb;
 
-import "github.com/BOXFoundation/boxd/core/pb/block.proto";
+import "transaction.proto";
 import "google/api/annotations.proto";
 
 service WebApi {
-    rpc GetTransaction (GetTransactionInfoRequest) returns (GetTransactionInfoResponse) {
+    rpc ViewTxDetail (ViewTxDetailReq) returns (ViewTxDetailResp) {
         option (google.api.http) = {
-            post: "/v1/webapi/gettransaction"
+            post: "/v1/tx/detail"
             body: "*"
         };
     }
 
-    rpc GetBlock (GetBlockInfoRequest) returns (BlockInfo) {
+    rpc ViewBlockDetail (ViewBlockDetailReq) returns (ViewBlockDetailResp) {
         option (google.api.http) = {
-            post: "/v1/webapi/getblock"
+            post: "/v1/block/detail"
             body: "*"
         };
     }
 
-    rpc GetPendingTransaction (GetPendingTransactionRequest) returns (GetTransactionsInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/getpendingtxs"
-            body: "*"
-        };
-    }
-
-    rpc GetTransactionHistory (GetTransactionHistoryRequest) returns (GetTransactionsInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/gettxhistory"
-            body: "*"
-        };
-    }
-
-    rpc ListTokens (ListTokensRequest) returns (ListTokensResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/listtokens"
-            body: "*"
-        };
-    }
-
-    rpc GetTokenInfo (GetTokenInfoRequest) returns (GetTokenInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/gettoken"
-            body: "*"
-        };
-    }
-
-    rpc GetTokenTransactions (GetTokenTransactionsRequest) returns (GetTransactionsInfoResponse) {
-        option (google.api.http) = {
-            post: "/v1/webapi/gettokentxs"
-            body: "*"
-        };
-    }
-
-    rpc ListenAndReadNewBlock(ListenBlockRequest) returns (stream BlockInfo);
+    rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
 }
 
-message GetTransactionsInfoResponse {
-    uint32 total = 1;
-    repeated TransactionInfo txs = 2;
-}
-
-message GetTransactionHistoryRequest {
-    string addr = 1;
-    uint32 limit = 2;
-    uint32 offset = 3;
-}
-
-message GetPendingTransactionRequest {
-    uint32 limit = 1;
-    uint32 offset = 2;
-}
-
-message GetBlockInfoRequest {
+message ViewTxDetailReq {
     string hash = 1;
 }
 
-message GetTransactionInfoRequest {
+message ViewTxDetailResp {
+    int32 code = 1;
+    string message = 2;
+    int32 version = 3;
+    int64 block_time = 4;
+    uint32 block_height = 5;
+    enum TxStatus {
+        unknown = 0;
+        pending = 1;
+        onchain = 2;
+        confirmed = 3;
+    }
+    TxStatus status = 6;
+    TxDetail detail = 7;
+}
+
+message ViewBlockDetailReq {
     string hash = 1;
 }
 
-message AddressAmount {
+message ViewBlockDetailResp {
+    int32 code = 1;
+    string message = 2;
+    BlockDetail detail = 3;
+}
+
+message ListenBlocksReq {
+}
+
+message TxDetail {
+    string hash = 1;
+    repeated TxInDetail vin = 2;
+    repeated TxOutDetail vout = 3;
+}
+
+message TxInDetail {
+    TxOutDetail prev_out_detail = 1;
+    string script_sig = 2;
+    uint32 sequence = 3;
+    string prev_out_point = 4;
+}
+
+message TxOutDetail {
     string addr = 1;
-    uint64 amount = 2;
+    uint64 value = 2;
+    string script_pub_key = 3;
+    string script_disasm = 4;
+    enum TxOutType {
+        unknown = 0;
+        pay_to_pubkey_hash = 1;
+        pay_to_pubkey_hash_cltv = 2;
+        token_issue = 3;
+        token_transfer = 4;
+        new_split_addr = 5;
+        pay_to_script_hash = 6;
+    }
+    TxOutType type = 5; 
+    oneof appendix {
+        TokenIssueInfo token_issue_info = 6; 
+        TokenTransferInfo token_transfer_info= 7;
+        SplitContractInfo split_contract_info= 8;
+    }
 }
 
-message HeaderInfo {
+message BlockDetail {
     int32 version = 1;
-    string prev_block_hash = 2;
-    string txs_root = 3;
-    int64 time_stamp = 4;
-    uint32 magic = 5;
-    string period_hash = 6;
-    string candidates_hash = 7;
-}
-
-message TransactionInfo {
-    int32 version = 1;
-    repeated TxInInfo vin = 2;
-    repeated TxOutInfo vout = 3;
-    corepb.Data data = 4;
-    uint32 magic = 5;
-    int64 lock_time = 6;
-    string hash = 7;
-    uint64 fee = 8;
-    uint64 size = 9;
-    uint64 addedTime = 10;
-}
-
-message TransactionExtraInfo {
-    int64 block_time = 1;
-    uint32 block_height = 2;
-}
-
-message GetTransactionInfoResponse {
-    TransactionInfo txInfo = 1;
-    TransactionExtraInfo extraInfo = 2;
-}
-
-message TokenTransferInfo {
-    string addr = 1;
-    uint64 amount = 2;
+    uint32 height = 2;
+    int64 time_stamp = 3;
+    uint32 size = 4;
+    string hash = 5;
+    string prev_block_hash = 6;
+    string coin_base = 7;
+    bool confirmed = 8;
+    string signature = 9;
+    repeated TxDetail txs = 10;
 }
 
 message TokenIssueInfo {
-    string name = 1;
-    uint64 total_supply = 2;
-    string symbol = 3;
-    uint32 decimals = 4;
-    string addr = 5;
+    TokenTag token_tag = 1;
 }
 
-message TxOutInfo {
-    uint64 value = 1;
-    bytes script_pub_key = 2;
-    string script_disasm = 3;
-    TokenIssueInfo issue_info = 4;
-    TokenTransferInfo transfer_info = 5;
-    string addr = 6;
+message SplitContractInfo  {
+    repeated string addrs = 1;
+    repeated uint64 weights = 2;
 }
 
-message OutPointInfo {
-    string hash = 1;
-    uint32 index = 2;
-}
-
-message TxInInfo {
-    OutPointInfo prev_out_point = 1;
-    bytes script_sig = 2;
-    uint32 sequence = 3;
-    uint64 value = 4;
-    string addr = 5;
-}
-
-message BlockInfo {
-    HeaderInfo header = 1;
-    repeated TransactionInfo txs = 2;
-    uint32 height = 3;
-    bytes signature = 4;
-    string hash = 5;
-    uint64 size = 6;
-    string coin_base = 7;
-    bool confirmed = 8;
-}
-
-message Token {
-    string hash = 1;
-    uint32 index = 2;
-}
-
-message ListTokensRequest {
-    uint32 offset = 1;
-    uint32 limit = 2;
-}
-
-message GetTokenTransactionsRequest {
-    string addr = 1;
-    uint32 offset = 2;
-    uint32 limit = 3;
-}
-
-message GetTokenInfoRequest {
-    string addr = 1;
-}
-
-message GetTokenInfoResponse {
-    TokenBasicInfo info = 1;
-}
-
-message TokenBasicInfo {
-    Token token = 1;
-    string name = 2;
-    uint64 total_supply = 3;
-    string creator_addr = 4;
-    uint64 creator_time = 5;
-    // should be uint8, using smallest type uint32 instead
-    uint32 decimals = 6;
-    string symbol = 7;
-    string addr = 8;
-}
-
-message ListTokensResponse {
-    uint32 count = 1;
-    repeated TokenBasicInfo tokens = 2;
-}
-message ListenBlockRequest {
+message TokenTransferInfo {
+    string token_id = 1;
 }

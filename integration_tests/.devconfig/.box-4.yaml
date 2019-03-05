@@ -31,6 +31,7 @@ rpc:
     port: 19141
     http:
         port: 19140
+    subscribe_blocks: true
 dpos:
     keypath: key.keystore
     enable_mint: true
@@ -45,3 +46,4 @@ metrics:
 wallet:
     enable: true
     cache_size: 512
+    utxo_cache_time: 1

@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage/key"
@@ -33,12 +34,19 @@ const (
 	// Period is the db key name of current period
 	Period = "/period/current"
 
+	// MissCount is the db key name of minuer's block miss rate data
+	// value: 4 bytes height + 4 bytes miss count + 10 bytes ts
+	MissCount = "/missrate"
+
 	// BlockPrefix is the key prefix of database key to store block content
 	// /bk/{hex encoded block hash}
 	// e.g.
 	// key: /bk/005973c44c4879b137c3723c96d2e341eeaf83fe58845b2975556c9f3bd640bb
 	// value: block binary
 	BlockPrefix = "/bk"
+
+	// TxPrefix is the key prefix of database key to store tx content
+	TxPrefix = "/tx"
 
 	// BlockHashPrefix is the key prefix of database key to store block hash of specified height
 	// /bh/{hex encoded height}
@@ -85,6 +93,7 @@ const (
 )
 
 var blkBase = key.NewKey(BlockPrefix)
+var txBase = key.NewKey(TxPrefix)
 var blkHashBase = key.NewKey(BlockHashPrefix)
 var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
@@ -108,9 +117,17 @@ var EternalKey = []byte(Eternal)
 // PeriodKey is the db key to store current period contex content
 var PeriodKey = []byte(Period)
 
+// MissrateKey is the db key to store miner's blocks miss rate
+var MissrateKey = []byte(MissCount)
+
 // BlockKey returns the db key to store block content of the hash
 func BlockKey(h *crypto.HashType) []byte {
 	return blkBase.ChildString(h.String()).Bytes()
+}
+
+// TxKey returns the db key to store tx content of the hash
+func TxKey(h *crypto.HashType) []byte {
+	return txBase.ChildString(h.String()).Bytes()
 }
 
 // BlockHashKey returns the db key to store block hash content of the height
@@ -199,14 +216,14 @@ func AddrAllUtxoKey(addr string) []byte {
 }
 
 // AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
-func AddrTokenUtxoKey(addr string, tid types.TokenID, op types.OutPoint) []byte {
+func AddrTokenUtxoKey(addr string, tid txlogic.TokenID, op types.OutPoint) []byte {
 	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
 		ChildString(fmt.Sprintf("%x", tid.Index)).ChildString(op.Hash.String()).
 		ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
 }
 
 // AddrAllTokenUtxoKey is the key prefix to explore all token utxos of an address
-func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
+func AddrAllTokenUtxoKey(addr string, tid txlogic.TokenID) []byte {
 	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
 		ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
 }

@@ -29,6 +29,8 @@ rpc:
     port: 19111
     http:
         port: 19110
+    faucet_keyfile: ../keyfile/key1.keystore
+    subscribe_blocks: true
 
 dpos:
     keypath: key.keystore
@@ -47,3 +49,4 @@ metrics:
 wallet:
     enable: true
     cache_size: 512
+    utxo_cache_time: 1

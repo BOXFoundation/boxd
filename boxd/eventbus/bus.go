@@ -19,6 +19,7 @@ var logger = log.NewLogger("boxd") // logger for node package
 //BusSubscriber defines subscription-related bus behavior
 type BusSubscriber interface {
 	Subscribe(topic string, fn interface{}) error
+	SubscribeUniq(topic string, fn interface{}) error
 	SubscribeAsync(topic string, fn interface{}, transactional bool) error
 	SubscribeOnce(topic string, fn interface{}) error
 	SubscribeOnceAsync(topic string, fn interface{}) error
@@ -115,6 +116,23 @@ func (bus *EventBus) Subscribe(topic string, fn interface{}) error {
 	return bus.doSubscribe(topic, fn, &eventHandler{
 		reflect.ValueOf(fn), false, false, false, sync.Mutex{},
 	})
+}
+
+// SubscribeUniq subscribes to a topic uniq.
+func (bus *EventBus) SubscribeUniq(topic string, fn interface{}) error {
+	bus.subLock.Lock()
+	defer bus.subLock.Unlock()
+	if !(reflect.TypeOf(fn).Kind() == reflect.Func) {
+		return fmt.Errorf("%s is not of type reflect.Func", reflect.TypeOf(fn).Kind())
+	}
+	handler := &eventHandler{
+		reflect.ValueOf(fn), false, false, false, sync.Mutex{},
+	}
+	if len(bus.pubHandlers[topic]) > 0 {
+		return nil
+	}
+	bus.pubHandlers[topic] = []*eventHandler{handler}
+	return nil
 }
 
 // SubscribeAsync subscribes to a topic with an asynchronous callback
