@@ -329,13 +329,6 @@ func makeUtxoMapFromPbUtxos(utxos []*rpcpb.Utxo) types.UtxoMap {
 		if u.IsCoinbase {
 			m[*op].SetCoinBase()
 		}
-		// m[*op] = &types.UtxoWrap{
-		// 	Output:      u.TxOut,
-		// 	BlockHeight: u.BlockHeight,
-		// 	IsCoinBase:  u.IsCoinbase,
-		// 	IsSpent:     u.IsSpent,
-		// 	IsModified:  false,
-		// }
 	}
 	return m
 }

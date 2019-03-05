@@ -8,15 +8,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
-	"strconv"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var cfgFile string
@@ -68,13 +65,6 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "getbalance [account]",
-			Short: "Get the balance for an account",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("getbalance called")
-			},
-		},
-		&cobra.Command{
 			Use:   "getwalletinfo",
 			Short: "Get the basic informatio for a wallet",
 			Run: func(cmd *cobra.Command, args []string) {
@@ -97,25 +87,6 @@ func init() {
 			Use:   "listaccounts",
 			Short: "List local accounts",
 			Run:   listAccountCmdFunc,
-		},
-		&cobra.Command{
-			Use:   "listreceivedbyaccount",
-			Short: "List received transactions groups by account",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("listreceivedbyaccount called")
-			},
-		},
-		&cobra.Command{
-			Use:   "listreceivedbyaddress",
-			Short: "List received transactions grouped by address",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("listreceivedbyaddress called")
-			},
-		},
-		&cobra.Command{
-			Use:   "listtransactions [account] [offset] [limit]",
-			Short: "List transactions for an account",
-			Run:   listTransactionsCmdFunc,
 		},
 	)
 }
@@ -207,42 +178,4 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf("Address: %s\nPrivate Key: %s", addr, privateKey)
-}
-
-func listTransactionsCmdFunc(cmd *cobra.Command, args []string) {
-	var addr string
-	var offset, limit uint32
-	if len(args) < 1 {
-		fmt.Println("Param address required")
-		return
-	}
-	addr = args[0]
-	if len(args) > 2 {
-		uint64Val, err := strconv.ParseUint(args[2], 10, 32)
-		if err != nil {
-			fmt.Println("Invalid param limit", err)
-			return
-		}
-		offset = uint32(uint64Val)
-	} else {
-		limit = 20
-	}
-	if len(args) > 1 {
-		uint64Val, err := strconv.ParseUint(args[1], 10, 32)
-		if err != nil {
-			fmt.Println("Invalid param offset", err)
-			return
-		}
-		limit = uint32(uint64Val)
-	} else {
-		offset = 0
-	}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
-	defer conn.Close()
-	txs, err := rpcutil.ListTransactions(conn, addr, offset, limit)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(util.PrettyPrint(txs))
 }

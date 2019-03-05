@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/log"
 	pb "github.com/BOXFoundation/boxd/rpc/pb"
 	"google.golang.org/grpc"
 )
+
+var logger = log.NewLogger("rpcclient") // logger for client package
 
 // SetDebugLevel calls the DebugLevel gRPC methods.
 func SetDebugLevel(conn *grpc.ClientConn, level string) error {

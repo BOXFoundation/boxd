@@ -19,12 +19,15 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-var cfgFile string
-var walletDir string
-var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+var (
+	peerAddr = "127.0.0.1:19111"
+
+	cfgFile          string
+	walletDir        string
+	defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -105,7 +108,11 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid address: ", args[0])
 		return
 	}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 
 	tag := txlogic.NewTokenTag(tokenName, tokenSymbol, uint32(tokenDecimals), uint64(tokenTotalSupply))
@@ -170,7 +177,11 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	//	fmt.Println("Invalid address: ", args[0])
 	//	return
 	//}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	tx := new(types.Transaction)
 	//tx, err := rpcutil.CreateTokenTransferTx(conn, fromAddr, targets,
@@ -200,7 +211,11 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	//	fmt.Println("Invalid address: ", args[0])
 	//	return
 	//}
-	conn := rpcutil.NewConnectionWithViper(viper.GetViper())
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer conn.Close()
 	tid := txlogic.TokenID(token.OutPoint())
 	balance, _ := rpcutil.GetTokenBalance(conn, addrs, &tid)

@@ -212,56 +212,6 @@ func (s *webapiServer) ViewBlockDetail(
 	return resp, nil
 }
 
-func (s *webapiServer) GetTokenInfo(
-	ctx context.Context, req *rpcpb.GetTokenInfoRequest,
-) (*rpcpb.GetTokenInfoResponse, error) {
-
-	tokenAddr := types.Token{}
-	if err := tokenAddr.SetString(req.Addr); err != nil {
-		return nil, err
-	}
-	br := s.ChainBlockReader
-	tx, err := br.LoadTxByHash(tokenAddr.OutPoint().Hash)
-	if err != nil {
-		return nil, err
-	}
-	block, _, err := br.LoadBlockInfoByTxHash(tokenAddr.OutPoint().Hash)
-	if err != nil {
-		return nil, err
-	}
-	if uint32(len(tx.Vout)) <= tokenAddr.OutPoint().Index {
-		return nil, fmt.Errorf("invalid token index")
-	}
-	out := tx.Vout[tokenAddr.OutPoint().Index]
-	sc := script.NewScriptFromBytes(out.ScriptPubKey)
-	if !sc.IsTokenIssue() {
-		return nil, fmt.Errorf("invalid token id")
-	}
-	param, err := sc.GetIssueParams()
-	if err != nil {
-		return nil, err
-	}
-	addr, err := sc.ExtractAddress()
-	if err != nil {
-		return nil, err
-	}
-	return &rpcpb.GetTokenInfoResponse{
-		Info: &rpcpb.TokenBasicInfo{
-			Token: &rpcpb.Token{
-				Hash:  tokenAddr.OutPoint().Hash.String(),
-				Index: tokenAddr.OutPoint().Index,
-			},
-			Name:        param.Name,
-			TotalSupply: param.TotalSupply,
-			CreatorAddr: addr.String(),
-			CreatorTime: uint64(block.Header.TimeStamp),
-			Decimals:    uint32(param.Decimals),
-			Symbol:      param.Symbol,
-			Addr:        tokenAddr.String(),
-		},
-	}, nil
-}
-
 func (s *webapiServer) ListenAndReadNewBlock(
 	req *rpcpb.ListenBlocksReq,
 	stream rpcpb.WebApi_ListenAndReadNewBlockServer,

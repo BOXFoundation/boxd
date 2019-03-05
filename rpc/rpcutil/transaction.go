@@ -105,7 +105,7 @@ func NewIssueTokenTx(
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	// fee
-	fee := calcFee()
+	fee := uint64(100000000) // 1 box
 	//
 	tx, tid, change, err := txlogic.NewTokenIssueTxWithUtxos(acc, to, tag,
 		inputAmt-fee, utxos...)
@@ -158,27 +158,6 @@ func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, 
 	tx := &types.Transaction{}
 	err = tx.FromProtoMessage(r.Tx)
 	return tx, err
-}
-
-// GetTransactionsInPool gets all transactions in memory pool
-func GetTransactionsInPool(conn *grpc.ClientConn) ([]*types.Transaction, error) {
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
-	r, err := c.GetTransactionPool(ctx, &rpcpb.GetTransactionPoolRequest{})
-	if err != nil {
-		return nil, err
-	}
-	var txs []*types.Transaction
-	for _, txMsg := range r.Txs {
-		tx := &types.Transaction{}
-		err := tx.FromProtoMessage(txMsg)
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, tx)
-	}
-	return txs, nil
 }
 
 // NewTx new a tx and return change utxo

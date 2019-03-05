@@ -428,7 +428,7 @@ func TestDetailTxAndBlock(t *testing.T) {
             "type": 1,
             "Appendix": null
           },
-          "prev_out_point": "HBcs4DAqX6VdHvVmthqTkDh2mLC8bsmQtA3L2KoQiL7co8MzXZ"
+          "prev_out_point": "2Kd3Ayy6YBECCW4KAZAdP1K7Y3XFMkoPEy5oq3JZWxeG6DoWzL7"
         }
       ],
       "vout": [

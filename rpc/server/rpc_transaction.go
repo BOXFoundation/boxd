@@ -130,20 +130,6 @@ func (s *txServer) FetchUtxos(
 	return newFetchUtxosResp(0, "ok", utxos...), nil
 }
 
-func (s *txServer) GetTransactionPool(ctx context.Context, req *rpcpb.GetTransactionPoolRequest) (*rpcpb.GetTransactionsResponse, error) {
-	txs, _ := s.server.GetTxHandler().GetTransactionsInPool()
-	respTxs := []*corepb.Transaction{}
-	for _, tx := range txs {
-		respTx, err := tx.ToProtoMessage()
-		if err != nil {
-			return &rpcpb.GetTransactionsResponse{}, err
-		}
-
-		respTxs = append(respTxs, respTx.(*corepb.Transaction))
-	}
-	return &rpcpb.GetTransactionsResponse{Txs: respTxs}, nil
-}
-
 func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceRequest) (*rpcpb.GetFeePriceResponse, error) {
 	return &rpcpb.GetFeePriceResponse{BoxPerByte: 1}, nil
 }
@@ -196,22 +182,6 @@ func (s *txServer) GetRawTransaction(
 	}
 	rpcTx, err := tx.ToProtoMessage()
 	return &rpcpb.GetRawTransactionResponse{Tx: rpcTx.(*corepb.Transaction)}, err
-}
-
-func generateUtxoMessage(outPoint *types.OutPoint, entry *types.UtxoWrap) *rpcpb.Utxo {
-	return &rpcpb.Utxo{
-		BlockHeight: entry.Height(),
-		IsCoinbase:  entry.IsCoinBase(),
-		IsSpent:     entry.IsSpent(),
-		OutPoint: &corepb.OutPoint{
-			Hash:  outPoint.Hash.GetBytes(),
-			Index: outPoint.Index,
-		},
-		TxOut: &corepb.TxOut{
-			Value:        entry.Value(),
-			ScriptPubKey: entry.Script(),
-		},
-	}
 }
 
 func newMakeTxResp(

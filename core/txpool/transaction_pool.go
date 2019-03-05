@@ -699,20 +699,6 @@ func (tx_pool *TransactionPool) GetOrphaTxs() []*types.TxWrap {
 	return txs
 }
 
-// GetTransactionsInPool gets all transactions in memory pool
-func (tx_pool *TransactionPool) GetTransactionsInPool() ([]*types.Transaction, []int64) {
-
-	allTxs := tx_pool.GetAllTxs()
-
-	txs := make([]*types.Transaction, 0, len(allTxs))
-	addedTimes := make([]int64, 0, len(allTxs))
-	for _, tx := range allTxs {
-		txs = append(txs, tx.Tx)
-		addedTimes = append(addedTimes, tx.AddedTimestamp)
-	}
-	return txs, addedTimes
-}
-
 // GetTxByHash get a transaction by hash from pool or orphan pool
 // return a tx and tell whether it is in pool or in orphan pool
 func (tx_pool *TransactionPool) GetTxByHash(
