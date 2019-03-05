@@ -403,7 +403,6 @@ func detailTxIn(
 			prevTx = txWrap.Tx
 		}
 		index := txIn.PrevOutPoint.Index
-		logger.Errorf("detailTxIn prevTx: %+v", prevTx)
 		prevTxHash, _ := prevTx.TxHash()
 		detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
 			txIn.PrevOutPoint.Index, r)
