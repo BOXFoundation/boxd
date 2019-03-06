@@ -130,7 +130,7 @@ func (s *webapiServer) ViewTxDetail(
 	ctx context.Context, req *rpcpb.ViewTxDetailReq,
 ) (*rpcpb.ViewTxDetailResp, error) {
 
-	logger.Infof("view tx detail req: %+v", req)
+	// logger.Infof("view tx detail req: %+v", req)
 	// fetch hash from request
 	hash := new(crypto.HashType)
 	if err := hash.SetString(req.Hash); err != nil {
@@ -175,7 +175,7 @@ func (s *webapiServer) ViewTxDetail(
 	}
 	//
 	resp.Detail = detail
-	logger.Infof("view tx detail resp: %+v", resp)
+	// logger.Infof("view tx detail resp: %+v", resp)
 	return resp, nil
 }
 
