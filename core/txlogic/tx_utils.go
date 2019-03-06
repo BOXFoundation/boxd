@@ -313,8 +313,6 @@ func MakeSplitAddrPubkey(addrs []string, weights []uint64) []byte {
 	for i, addr := range addrs {
 		addresses[i], _ = types.NewAddress(addr)
 	}
-	value := *script.SplitAddrScript(addresses, weights)
-	logger.Infof("]]]] %s", hex.EncodeToString(value))
 	return *script.SplitAddrScript(addresses, weights)
 }
 
