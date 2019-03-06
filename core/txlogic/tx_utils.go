@@ -5,8 +5,10 @@
 package txlogic
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	base58 "github.com/jbenet/go-base58"
 )
 
 var logger = log.NewLogger("txlogic") // logger
@@ -343,4 +346,42 @@ func NewCoinBaseTxIn() *types.TxIn {
 	return &types.TxIn{
 		PrevOutPoint: types.OutPoint{Index: math.MaxUint32},
 	}
+}
+
+// EncodeOutPoint encode token to string
+func EncodeOutPoint(op *corepb.OutPoint) string {
+	buf := make([]byte, len(op.Hash))
+	copy(buf, op.Hash[:])
+	// reverse bytes
+	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
+		buf[i], buf[j] = buf[j], buf[i]
+	}
+	// append separator ':'
+	buf = append(buf, ':')
+	// put index
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, op.Index)
+	buf = append(buf, b...)
+
+	return base58.Encode(buf)
+}
+
+// DecodeOutPoint string token id to TokenID
+func DecodeOutPoint(id string) (*corepb.OutPoint, error) {
+	buf := base58.Decode(id)
+	if len(buf) != crypto.HashSize+5 {
+		return nil, fmt.Errorf("decode tokenID error, length(%d) mismatch, data: %s",
+			crypto.HashSize+5, id)
+	}
+	if buf[crypto.HashSize] != ':' {
+		return nil, fmt.Errorf("token id delimiter want ':', got: %c, data: %s",
+			buf[crypto.HashSize], id)
+	}
+	for i, j := 0, crypto.HashSize-1; i < j; i, j = i+1, j-1 {
+		buf[i], buf[j] = buf[j], buf[i]
+	}
+	index := binary.LittleEndian.Uint32(buf[crypto.HashSize+1:])
+	hash := new(crypto.HashType)
+	hash.SetBytes(buf[:crypto.HashSize])
+	return NewPbOutPoint(hash, index), nil
 }

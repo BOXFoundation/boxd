@@ -6,7 +6,6 @@ package rpc
 
 import (
 	"container/list"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"sync"
@@ -20,7 +19,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
 )
@@ -389,7 +387,7 @@ func detailTxIn(
 	//
 	detail.ScriptSig = hex.EncodeToString(txIn.ScriptSig)
 	detail.Sequence = txIn.Sequence
-	detail.PrevOutPoint = convOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
+	detail.PrevOutPoint = txlogic.EncodeOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
 
 	if detailVin {
 		hash := &txIn.PrevOutPoint.Hash
@@ -488,7 +486,7 @@ func detailTxOut(
 		}
 		transferInfo := &rpcpb.TxOutDetail_TokenTransferInfo{
 			TokenTransferInfo: &rpcpb.TokenTransferInfo{
-				TokenId: convOutPoint(txlogic.ConvOutPoint(&param.TokenID.OutPoint)),
+				TokenId: txlogic.EncodeOutPoint(txlogic.ConvOutPoint(&param.TokenID.OutPoint)),
 			},
 		}
 		detail.Appendix = transferInfo
@@ -552,21 +550,4 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 		return "", err
 	}
 	return address.String(), nil
-}
-
-func convOutPoint(op *corepb.OutPoint) string {
-	buf := make([]byte, len(op.GetHash()))
-	copy(buf, op.GetHash())
-	// reverse bytes
-	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
-		buf[i], buf[j] = buf[j], buf[i]
-	}
-	// append separator ':'
-	buf = append(buf, ':')
-	// put index
-	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, op.GetIndex())
-	buf = append(buf, b...)
-
-	return base58.Encode(buf)
 }
