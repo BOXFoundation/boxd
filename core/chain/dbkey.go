@@ -48,6 +48,9 @@ const (
 	// TxPrefix is the key prefix of database key to store tx content
 	TxPrefix = "/tx"
 
+	// SplitTxHashPrefix is the key prefix of database key to store split tx mapping
+	SplitTxHashPrefix = "/split"
+
 	// BlockHashPrefix is the key prefix of database key to store block hash of specified height
 	// /bh/{hex encoded height}
 	//e.g.
@@ -94,6 +97,7 @@ const (
 
 var blkBase = key.NewKey(BlockPrefix)
 var txBase = key.NewKey(TxPrefix)
+var splitTxHashBase = key.NewKey(SplitTxHashPrefix)
 var blkHashBase = key.NewKey(BlockHashPrefix)
 var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
@@ -128,6 +132,11 @@ func BlockKey(h *crypto.HashType) []byte {
 // TxKey returns the db key to store tx content of the hash
 func TxKey(h *crypto.HashType) []byte {
 	return txBase.ChildString(h.String()).Bytes()
+}
+
+// SplitTxHashKey returns the db key to store split tx mapping
+func SplitTxHashKey(h *crypto.HashType) []byte {
+	return splitTxHashBase.ChildString(h.String()).Bytes()
 }
 
 // BlockHashKey returns the db key to store block hash content of the height

@@ -371,7 +371,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 		sc := *script.NewScriptFromBytes(utxoWrap.Script())
 		addr, err := sc.ExtractAddress()
 		if err != nil {
-			logger.Warnf("Failed to extract address. Err: %v", err)
+			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, Err: %v", utxoWrap, sc.Disasm(), err)
 			return err
 		}
 		if sc.IsTokenTransfer() || sc.IsTokenIssue() {

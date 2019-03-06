@@ -225,14 +225,14 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	txhash, _ := b1.Txs[0].TxHash()
 
-	ensure.Nil(t, blockChain.WriteTxIndex(b1, []*types.Transaction{}, batch))
+	ensure.Nil(t, blockChain.WriteTxIndex(b1, map[crypto.HashType]*types.Transaction{}, batch))
 	batch.Write()
 
 	_, tx, err := blockChain.LoadBlockInfoByTxHash(*txhash)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, b1.Txs[0], tx)
 
-	ensure.Nil(t, blockChain.DelTxIndex(b1, []*types.Transaction{}, batch))
+	ensure.Nil(t, blockChain.DelTxIndex(b1, map[crypto.HashType]*types.Transaction{}, batch))
 	batch.Write()
 	_, _, err = blockChain.LoadBlockInfoByTxHash(*txhash)
 	ensure.NotNil(t, err)
