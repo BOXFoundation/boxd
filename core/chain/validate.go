@@ -63,6 +63,7 @@ func validateBlock(block *types.Block) error {
 
 	// checks each transaction.
 	blockTime := block.Header.TimeStamp
+	existingOutPoints := make(map[types.OutPoint]struct{})
 	for _, tx := range transactions {
 		if !IsTxFinalized(tx, block.Height, blockTime) {
 			txHash, _ := tx.TxHash()
@@ -71,6 +72,14 @@ func validateBlock(block *types.Block) error {
 		}
 		if err := ValidateTransactionPreliminary(tx); err != nil {
 			return err
+		}
+
+		// Check for double spent in transactions in the same block.
+		for _, txIn := range tx.Vin {
+			if _, exists := existingOutPoints[txIn.PrevOutPoint]; exists {
+				return core.ErrDoubleSpendTx
+			}
+			existingOutPoints[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
 
@@ -411,15 +420,6 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 				"allowed value of %v", totalValue, TotalSupply)
 			return core.ErrBadTxOutValue
 		}
-	}
-
-	// Check for duplicate transaction inputs.
-	existingOutPoints := make(map[types.OutPoint]struct{})
-	for _, txIn := range tx.Vin {
-		if _, exists := existingOutPoints[txIn.PrevOutPoint]; exists {
-			return core.ErrDuplicateTxInputs
-		}
-		existingOutPoints[txIn.PrevOutPoint] = struct{}{}
 	}
 
 	if IsCoinBase(tx) {
