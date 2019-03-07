@@ -345,7 +345,7 @@ func _TestDetailTxAndBlock(t *testing.T) {
 	tx := genTestTx(from, to, amount, &prevHash)
 	// detail tx
 	blockReader := new(TestDetailBlockChainReader)
-	detail, err := detailTx(tx, blockReader, nil, true)
+	detail, err := detailTx(tx, blockReader, nil, false, true)
 	if err != nil {
 		t.Fatal(err)
 	}

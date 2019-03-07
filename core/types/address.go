@@ -10,9 +10,15 @@ import (
 	"golang.org/x/crypto/ripemd160"
 )
 
-var addressTypeP2PKHPrefix = [2]byte{FixPrefix, 0x26}     // p2pkh addresses start with b1
-var addressTypeP2SHPrefix = [2]byte{FixPrefix, 0x2b}      //b3
-var addressTypeSplitAddrPrefix = [2]byte{FixPrefix, 0x29} //b2
+//
+var (
+	AddressTypeP2PKHPrefix     = [2]byte{FixPrefix, 0x26} // p2pkh addresses start with b1
+	AddrTypeP2PKHPrefix        = "b1"
+	AddressTypeSplitAddrPrefix = [2]byte{FixPrefix, 0x29} //b2
+	AddrTypeSplitAddrPrefix    = "b2"
+	AddressTypeP2SHPrefix      = [2]byte{FixPrefix, 0x2b} //b3
+	AddrTypeP2SHPrefix         = "b3"
+)
 
 // const
 const (
@@ -76,7 +82,7 @@ func (a *AddressPubKeyHash) Hash() []byte {
 
 // String returns a human-readable string for the pay-to-pubkey-hash address.
 func (a *AddressPubKeyHash) String() string {
-	return encodeAddress(a.hash[:], addressTypeP2PKHPrefix)
+	return encodeAddress(a.hash[:], AddressTypeP2PKHPrefix)
 }
 
 // SetString sets the Address's internal byte array using byte array decoded from input
@@ -94,7 +100,7 @@ func (a *AddressPubKeyHash) SetString(in string) error {
 	}
 	var prefix [2]byte
 	copy(prefix[:], rawBytes[:2])
-	if prefix != addressTypeP2PKHPrefix && prefix != addressTypeP2SHPrefix {
+	if prefix != AddressTypeP2PKHPrefix && prefix != AddressTypeP2SHPrefix {
 		return core.ErrInvalidAddressString
 	}
 	copy(a.hash[:], rawBytes[2:])
@@ -131,7 +137,7 @@ type AddressTypeSplit struct {
 
 // String returns a human-readable string for the split address.
 func (a *AddressTypeSplit) String() string {
-	return encodeAddress(a.hash[:], addressTypeSplitAddrPrefix)
+	return encodeAddress(a.hash[:], AddressTypeSplitAddrPrefix)
 }
 
 // SetString sets the Address's internal byte array using byte array decoded from input
@@ -149,7 +155,7 @@ func (a *AddressTypeSplit) SetString(in string) error {
 	}
 	var prefix [2]byte
 	copy(prefix[:], rawBytes[:2])
-	if prefix != addressTypeSplitAddrPrefix {
+	if prefix != AddressTypeSplitAddrPrefix {
 		return core.ErrInvalidAddressString
 	}
 	copy(a.hash[:], rawBytes[2:])

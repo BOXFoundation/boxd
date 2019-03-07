@@ -120,15 +120,15 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 
 // NOTE: to run this test case needs to start a node
 // port: 19111
-func TestNormalTx(t *testing.T) {
+func _TestNormalTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	to := []string{
-		//"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh",
-		//"b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU",
-		//"b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N",
+		//"b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn",
+		//"b1fJy9WSDDn1vwiDb8Cd7GiF3mPzaYFPEdy",
+		//"b1fNm3MuBgAKD7WwZbLZBWJ6nV2JVVcFAv7",
+		//"b1n4ffVkctWmXptM6ojVkrA3vsrtyf9nm1e",
 		"b2ir3paoqze6Ft7GqKAdCk1ePkt4cbE2mZ9",
-		//"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
 	}
 	//amounts := []uint64{100, 200, 300, 400}
 	amounts := []uint64{1000}
@@ -151,7 +151,7 @@ func TestNormalTx(t *testing.T) {
 
 // NOTE: to run this test case needs to start a node
 // port: 19111
-func TestSplitAddrTx(t *testing.T) {
+func _TestSplitAddrTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	addrs := []string{
