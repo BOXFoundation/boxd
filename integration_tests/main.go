@@ -75,7 +75,7 @@ func main() {
 		if err := utils.PrepareEnv(len(minerAddrs)); err != nil {
 			logger.Panic(err)
 		}
-		//defer utils.TearDown(len(minerAddrs))
+		defer utils.TearDown(len(minerAddrs))
 
 		// start nodes
 		if *utils.EnableDocker {
