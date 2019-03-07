@@ -54,7 +54,7 @@ func (s *txServer) GetBalance(
 	}
 	balances := make([]uint64, len(req.GetAddrs()))
 	for i, addr := range req.Addrs {
-		if err := checkAddr(addr); err != nil {
+		if err := types.ValidateAddr(addr); err != nil {
 			logger.Warn(err)
 			return newGetBalanceResp(-1, err.Error()), nil
 		}
@@ -81,7 +81,7 @@ func (s *txServer) GetTokenBalance(
 	balances := make([]uint64, len(req.GetAddrs()))
 	tid := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(req.TokenID))
 	for i, addr := range req.Addrs {
-		if err := checkAddr(addr); err != nil {
+		if err := types.ValidateAddr(addr); err != nil {
 			logger.Warn(err)
 			return newGetBalanceResp(-1, err.Error()), nil
 		}
@@ -138,7 +138,7 @@ func (s *txServer) FetchUtxos(
 		tid = (*txlogic.TokenID)(txlogic.ConvPbOutPoint(req.GetTokenID()))
 	}
 	addr := req.GetAddr()
-	if err := checkAddr(addr); err != nil {
+	if err := types.ValidateAddr(addr); err != nil {
 		logger.Warn(err)
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
@@ -233,7 +233,7 @@ func (s *txServer) MakeUnsignedTx(
 	}
 	from, to := req.GetFrom(), req.GetTo()
 	// check address
-	if err := checkAddr(append(to, from)...); err != nil {
+	if err := types.ValidateAddr(append(to, from)...); err != nil {
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -279,7 +279,7 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 		return newMakeSplitAddrTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	from, addrs := req.GetFrom(), req.GetAddrs()
-	if err := checkAddr(append(addrs, from)...); err != nil {
+	if err := types.ValidateAddr(append(addrs, from)...); err != nil {
 		logger.Warn(err)
 		return newMakeSplitAddrTxResp(-1, err.Error()), nil
 	}
@@ -330,7 +330,7 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	issuer, issuee, tag, fee := req.GetIssuer(), req.GetIssuee(), req.GetTag(), req.GetFee()
-	if err := checkAddr(issuer, issuee); err != nil {
+	if err := types.ValidateAddr(issuer, issuee); err != nil {
 		logger.Warn(err)
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
@@ -374,7 +374,7 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	}
 	from, tid, fee := req.GetFrom(), req.GetTokenID(), req.GetFee()
 	to, amounts := req.GetTo(), req.GetAmounts()
-	if err := checkAddr(append(to, from)...); err != nil {
+	if err := types.ValidateAddr(append(to, from)...); err != nil {
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -418,13 +418,4 @@ func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte
 		msgs = append(msgs, data)
 	}
 	return msgs, nil
-}
-
-func checkAddr(addrs ...string) error {
-	for _, addr := range addrs {
-		if _, err := types.NewAddress(addr); err != nil {
-			return err
-		}
-	}
-	return nil
 }

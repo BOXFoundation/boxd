@@ -6,11 +6,12 @@ package types
 
 import (
 	"bytes"
+	"reflect"
+	"testing"
+
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
 	"golang.org/x/crypto/ripemd160"
-	"reflect"
-	"testing"
 )
 
 func TestNewAddressPubKeyHash(t *testing.T) {

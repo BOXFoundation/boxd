@@ -120,7 +120,7 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 
 // NOTE: to run this test case needs to start a node
 // port: 19111
-func _TestNormalTx(t *testing.T) {
+func TestNormalTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	to := []string{
@@ -151,7 +151,7 @@ func _TestNormalTx(t *testing.T) {
 
 // NOTE: to run this test case needs to start a node
 // port: 19111
-func _TestSplitAddrTx(t *testing.T) {
+func TestSplitAddrTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	addrs := []string{

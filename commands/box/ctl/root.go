@@ -210,7 +210,7 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 			addrs = append(addrs, acc.Addr())
 		}
 	} else {
-		addrs = append(addrs, args[0])
+		addrs = args
 	}
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
@@ -218,15 +218,17 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer conn.Close()
+	if err := types.ValidateAddr(addrs...); err != nil {
+		fmt.Println(err)
+		return
+	}
 	balances, err := rpcutil.GetBalance(conn, addrs)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	var total uint64
-	for i, balance := range balances {
-		fmt.Printf("%s: %d\n", addrs[i], balance)
-		total += balance
+	for i, b := range balances {
+		fmt.Printf("%s: %d\n", addrs[i], b)
 	}
 }
 

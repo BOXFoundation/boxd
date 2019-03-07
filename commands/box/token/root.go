@@ -105,7 +105,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	_, err = types.NewAddress(args[0])
 	if err != nil {
-		fmt.Println("Invalid address: ", args[0])
+		fmt.Printf("Invalid address: %s, error: %s\n", args[0], err)
 		return
 	}
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
@@ -179,6 +179,10 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		}
 		amounts = append(amounts, a)
 	}
+	if err := types.ValidateAddr(to...); err != nil {
+		fmt.Println(err)
+		return
+	}
 	//
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
@@ -221,6 +225,10 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 			fmt.Println("Invalid address: ", addr)
 			return
 		}
+	}
+	if err := types.ValidateAddr(addrs...); err != nil {
+		fmt.Println(err)
+		return
 	}
 	// call rpc
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())

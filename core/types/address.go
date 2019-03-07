@@ -108,7 +108,7 @@ func (a *AddressPubKeyHash) Hash160() *AddressHash {
 
 // NewSplitAddress creates an address with a string prefixed by "b2"
 func NewSplitAddress(address string) (Address, error) {
-	addr := &AddressTypeSplit{}
+	addr := new(AddressTypeSplit)
 	err := addr.SetString(address)
 	return addr, err
 }
@@ -171,4 +171,23 @@ func encodeAddress(hash []byte, prefix [2]byte) string {
 	b = append(b, prefix[:]...)
 	b = append(b, hash[:]...)
 	return crypto.Base58CheckEncode(b)
+}
+
+// ValidateAddr validetes addr
+func ValidateAddr(addrs ...string) error {
+	for _, addr := range addrs {
+		switch addr[:2] {
+		default:
+			return core.ErrInvalidAddressString
+		case "b1":
+			if _, err := NewAddress(addr); err != nil {
+				return err
+			}
+		case "b2":
+			if _, err := NewSplitAddress(addr); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
