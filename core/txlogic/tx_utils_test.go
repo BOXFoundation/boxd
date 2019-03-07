@@ -5,6 +5,7 @@
 package txlogic
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/BOXFoundation/boxd/script"
@@ -25,5 +26,35 @@ func TestNewIssueTokenUtxoWrap(t *testing.T) {
 	param, _ := sc.GetIssueParams()
 	if param.Name != name || param.Symbol != sym || param.Decimals != uint8(deci) {
 		t.Fatalf("issue params want: %+v, got: %+v", tag, param)
+	}
+}
+
+func TestMakeSplitAddrVout(t *testing.T) {
+	addrs := []string{
+		"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh",
+		"b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU",
+		"b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N",
+		"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
+	}
+	weights := []uint64{1, 2, 3, 4}
+	out := MakeSplitAddrVout(addrs, weights)
+
+	sc := script.NewScriptFromBytes(out.ScriptPubKey)
+	if !sc.IsSplitAddrScript() {
+		t.Fatalf("vout should be split addr script")
+	}
+	as, ws, err := sc.ParseSplitAddrScript()
+	if err != nil {
+		t.Fatal(err)
+	}
+	aas := make([]string, 0)
+	for _, a := range as {
+		aas = append(aas, a.String())
+	}
+	if !reflect.DeepEqual(aas, addrs) {
+		t.Fatalf("addrs want: %v, got %v", addrs, aas)
+	}
+	if !reflect.DeepEqual(ws, weights) {
+		t.Fatalf("weights want: %v, got %v", weights, ws)
 	}
 }
