@@ -173,7 +173,6 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("token index %s invalid\n", args[1])
 		return
 	}
-	tokenID := (*txlogic.TokenID)(types.NewOutPoint(tHash, uint32(tIdx)))
 	// to address
 	to, amounts := make([]string, 0), make([]uint64, 0)
 	for i := 2; i < len(args)-1; i += 2 {
@@ -196,7 +195,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTokenTx(account, to, amounts, tokenID, conn)
+	tx, _, _, err := rpcutil.NewTokenTx(account, to, amounts, hashStr, uint32(tIdx), conn)
 	if err != nil {
 		fmt.Println(err)
 		return

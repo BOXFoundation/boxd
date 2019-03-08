@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	"google.golang.org/grpc"
@@ -59,15 +60,20 @@ func newFetchUtxosReq(addr string, amount uint64) *rpcpb.FetchUtxosReq {
 
 // FetchUtxos fetch utxos from chain
 func FetchUtxos(
-	conn *grpc.ClientConn, addr string, amount uint64, tid *txlogic.TokenID,
+	conn *grpc.ClientConn, addr string, amount uint64, tHashStr string, tIdx uint32,
 ) ([]*rpcpb.Utxo, error) {
 
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
 	req := newFetchUtxosReq(addr, amount)
-	if tid != nil {
-		req.TokenID = txlogic.ConvOutPoint((*types.OutPoint)(tid))
+	if tHashStr != "" {
+		hash := new(crypto.HashType)
+		if err := hash.SetString(tHashStr); err != nil {
+			return nil, err
+		}
+		req.TokenHash = tHashStr
+		req.TokenIndex = tIdx
 	}
 	resp, err := c.FetchUtxos(ctx, req)
 	if err != nil {
@@ -92,7 +98,7 @@ func NewIssueTokenTx(
 ) (*types.Transaction, *txlogic.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
-	utxos, err := fetchUtxos(conn, acc.Addr(), maxTokenFee, nil)
+	utxos, err := fetchUtxos(conn, acc.Addr(), maxTokenFee, "", 0)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -173,15 +179,17 @@ func NewTx(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
 }
 
 // NewTxWithFee new a tx and return change utxo
-func NewTxWithFee(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
-	fee uint64, conn *grpc.ClientConn) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
+func NewTxWithFee(
+	fromAcc *acc.Account, toAddrs []string, amounts []uint64, fee uint64,
+	conn *grpc.ClientConn,
+) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// calc amount
 	amount := uint64(0)
 	for _, a := range amounts {
 		amount += a
 	}
 	// get utxos
-	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+fee, nil)
+	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+fee, "", 0)
 	if err != nil {
 		err = fmt.Errorf("fetchUtxos error for %s amount %d: %s",
 			fromAcc.Addr(), amount+fee, err)
@@ -211,7 +219,7 @@ func NewTxs(
 ) (txss [][]*types.Transaction, transfer, totalFee uint64, num int, err error) {
 
 	// get utxoes
-	utxos, err := fetchUtxos(conn, fromAcc.Addr(), 0, nil)
+	utxos, err := fetchUtxos(conn, fromAcc.Addr(), 0, "", 0)
 	if err != nil {
 		return
 	}
@@ -262,10 +270,12 @@ func NewTxs(
 	return txss, transfer, totalFee, num, nil
 }
 
-func fetchUtxos(conn *grpc.ClientConn, addr string, amount uint64, tid *txlogic.TokenID) (
+func fetchUtxos(
+	conn *grpc.ClientConn, addr string, amount uint64, tHashStr string, tIdx uint32,
+) (
 	utxos []*rpcpb.Utxo, err error) {
 	for t := 0; t < 30; t++ {
-		utxos, err = FetchUtxos(conn, addr, amount, tid)
+		utxos, err = FetchUtxos(conn, addr, amount, tHashStr, tIdx)
 		if len(utxos) == 0 {
 			err = fmt.Errorf("fetch no utxo for %s amount %d", addr, amount)
 		}
@@ -287,8 +297,8 @@ func GetGRPCConn(peerAddr string) (*grpc.ClientConn, error) {
 
 // NewTokenTx new a token tx
 func NewTokenTx(
-	acc *acc.Account, toAddrs []string, amounts []uint64, tid *txlogic.TokenID,
-	conn *grpc.ClientConn,
+	acc *acc.Account, toAddrs []string, amounts []uint64, tHashStr string,
+	tIdx uint32, conn *grpc.ClientConn,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 
 	fee := uint64(100)
@@ -297,34 +307,45 @@ func NewTokenTx(
 	for _, a := range amounts {
 		amountT += a
 	}
-	boxUtxos, err := fetchUtxos(conn, acc.Addr(), amount, nil)
+	boxUtxos, err := fetchUtxos(conn, acc.Addr(), amount, "", 0)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	tokenUtxos, err := fetchUtxos(conn, acc.Addr(), amountT, tid)
+	tokenUtxos, err := fetchUtxos(conn, acc.Addr(), amountT, tHashStr, tIdx)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	utxos := append(boxUtxos, tokenUtxos...)
+	tHash := new(crypto.HashType)
+	if err := tHash.SetString(tHashStr); err != nil {
+		return nil, nil, nil, err
+	}
+	tid := (*txlogic.TokenID)(types.NewOutPoint(tHash, tIdx))
 	return txlogic.NewTokenTransferTxWithUtxos(acc, toAddrs, amounts, tid, 0, utxos...)
 }
 
 // NewTokenTxs new a token tx
 func NewTokenTxs(
-	acc *acc.Account, toAddr string, amountT uint64, count int, tid *txlogic.TokenID,
-	conn *grpc.ClientConn,
+	acc *acc.Account, toAddr string, amountT uint64, count int, tHashStr string,
+	tIdx uint32, conn *grpc.ClientConn,
 ) ([]*types.Transaction, error) {
 	// get utxos
 	amount := maxTokenFee * uint64(count)
-	boxUtxos, err := fetchUtxos(conn, acc.Addr(), amount, nil)
+	boxUtxos, err := fetchUtxos(conn, acc.Addr(), amount, "", 0)
 	if err != nil {
 		return nil, err
 	}
-	tokenUtxos, err := fetchUtxos(conn, acc.Addr(), amountT, tid)
+	tokenUtxos, err := fetchUtxos(conn, acc.Addr(), amountT, tHashStr, tIdx)
 	if err != nil {
 		return nil, err
 	}
 	utxos := append(boxUtxos, tokenUtxos...)
+	// tid
+	tHash := new(crypto.HashType)
+	if err := tHash.SetString(tHashStr); err != nil {
+		return nil, err
+	}
+	tid := (*txlogic.TokenID)(types.NewOutPoint(tHash, tIdx))
 	//
 	var txs []*types.Transaction
 	unitT := amountT / uint64(count)
@@ -353,7 +374,7 @@ func NewSplitAddrTxWithFee(
 	acc *acc.Account, addrs []string, weights []uint64, fee uint64, conn *grpc.ClientConn,
 ) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
 	// get utxos
-	utxos, err := fetchUtxos(conn, acc.Addr(), fee, nil)
+	utxos, err := fetchUtxos(conn, acc.Addr(), fee, "", 0)
 	if err != nil {
 		return
 	}

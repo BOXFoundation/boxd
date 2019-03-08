@@ -141,8 +141,13 @@ func (s *txServer) FetchUtxos(
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	var tid *txlogic.TokenID
-	if req.GetTokenID() != nil {
-		tid = (*txlogic.TokenID)(txlogic.ConvPbOutPoint(req.GetTokenID()))
+	tHashStr, tIdx := req.GetTokenHash(), req.GetTokenIndex()
+	if tHashStr != "" {
+		tHash := new(crypto.HashType)
+		if err := tHash.SetString(tHashStr); err != nil {
+			return newFetchUtxosResp(-1, err.Error()), nil
+		}
+		tid = txlogic.NewTokenID(tHash, tIdx)
 	}
 	addr := req.GetAddr()
 	if err := types.ValidateAddr(addr); err != nil {

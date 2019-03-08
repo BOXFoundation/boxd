@@ -158,8 +158,8 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 		times, sender, receiver, peerAddr)
 	txTotalAmount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount)/2))
 	senderAcc, _ := AddrToAcc.Load(sender)
-	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver, txTotalAmount, times,
-		tid, conn)
+	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver,
+		txTotalAmount, times, tid.Hash.String(), tid.Index, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
