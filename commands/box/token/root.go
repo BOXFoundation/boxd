@@ -137,7 +137,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("transferToken called")
-	if len(args) < 4 {
+	if len(args) < 5 {
 		fmt.Println("Invalid argument number")
 		return
 	}
@@ -162,12 +162,18 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	// token id
-	tid, err := txlogic.DecodeOutPoint(args[1])
-	if err != nil {
-		fmt.Println("Invalid token address")
+	hashStr := args[1]
+	tHash := new(crypto.HashType)
+	if err := tHash.SetString(hashStr); err != nil {
+		fmt.Println(err)
 		return
 	}
-	tokenID := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(tid))
+	tIdx, err := strconv.ParseUint(args[2], 10, 64)
+	if err != nil {
+		fmt.Printf("token index %s invalid\n", args[1])
+		return
+	}
+	tokenID := (*txlogic.TokenID)(types.NewOutPoint(tHash, uint32(tIdx)))
 	// to address
 	to, amounts := make([]string, 0), make([]uint64, 0)
 	for i := 2; i < len(args)-1; i += 2 {
@@ -195,7 +201,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	hashStr, err := rpcutil.SendTransaction(conn, tx)
+	hashStr, err = rpcutil.SendTransaction(conn, tx)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -206,19 +212,19 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getTokenBalance called")
-	if len(args) < 2 {
+	if len(args) < 3 {
 		fmt.Println("Invalid argument number")
 		return
 	}
 	// tokenID
-	tid, err := txlogic.DecodeOutPoint(args[0])
+	hashStr := args[0]
+	tokenIndex, err := strconv.ParseUint(args[1], 10, 64)
 	if err != nil {
-		fmt.Println("Invalid token address")
+		fmt.Printf("token index %s invalid\n", args[1])
 		return
 	}
-	tokenID := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(tid))
 	// address
-	addrs := args[1:]
+	addrs := args[2:]
 	for _, addr := range addrs {
 		_, err := types.NewAddress(addr)
 		if err != nil {
@@ -237,7 +243,7 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer conn.Close()
-	balances, err := rpcutil.GetTokenBalance(conn, addrs, tokenID)
+	balances, err := rpcutil.GetTokenBalance(conn, addrs, hashStr, uint32(tokenIndex))
 	if err != nil {
 		fmt.Println(err)
 		return

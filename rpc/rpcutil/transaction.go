@@ -39,18 +39,14 @@ func GetBalance(conn *grpc.ClientConn, addresses []string) ([]uint64, error) {
 
 // GetTokenBalance returns total amount of an address with specified token id
 func GetTokenBalance(
-	conn *grpc.ClientConn, addresses []string, tid *txlogic.TokenID,
+	conn *grpc.ClientConn, addresses []string, tokenHash string, tokenIndex uint32,
 ) ([]uint64, error) {
 
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
-	if tid == nil {
-		return nil, errors.New("token id cannot be empty")
-	}
-	pbTid := txlogic.ConvOutPoint((*types.OutPoint)(tid))
 	req, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceReq{
-		Addrs: addresses, TokenID: pbTid})
+		Addrs: addresses, TokenHash: tokenHash, TokenIndex: tokenIndex})
 	if err != nil {
 		return nil, err
 	}
