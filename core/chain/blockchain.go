@@ -829,7 +829,8 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 	for _, detachBlock := range detachBlocks {
 		stt0 := time.Now().UnixNano()
 		if err := chain.tryDisConnectBlockFromMainChain(detachBlock); err != nil {
-			return err
+			logger.Errorf("Failed to disconnect block from main chain. Err: %v", err)
+			panic("Failed to disconnect block from main chain")
 		}
 		stt1 := time.Now().UnixNano()
 		logger.Infof("Disconnet time tracking: %d", (stt1-stt0)/1e6)

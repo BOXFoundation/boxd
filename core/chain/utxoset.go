@@ -394,7 +394,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 		if utxoWrap.IsSpent() {
 			batch.Del(*utxoKey)
 			batch.Del(addrUtxoKey)
-			recycleOutpointKey(utxoKey)
+			// recycleOutpointKey(utxoKey)
 			continue
 		} else if utxoWrap.IsModified() {
 			// Serialize and store the utxo entry.
