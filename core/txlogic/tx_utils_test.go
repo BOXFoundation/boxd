@@ -81,3 +81,61 @@ func TestEncodeDecodeOutPoint(t *testing.T) {
 		t.Fatalf("decode op, want: %s:%d, got: %s:%d", hashStr, index, hash, op2.Index)
 	}
 }
+
+func TestMakeSplitAddress(t *testing.T) {
+
+	var tests = []struct {
+		addrs     []string
+		weights   []uint64
+		splitAddr string
+	}{
+		{
+			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
+			[]uint64{5, 5},
+			"b2f5cgAGvk5BTL35AUawcfCVDmVpzECpqt1",
+		},
+		{
+			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
+			[]uint64{3, 7},
+			"b2MTibyHLXk8CmmKrw8dJzYSemZwjxHtF67",
+		},
+		{
+			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD"},
+			[]uint64{1, 2},
+			"b2e94cGe8fk5VsaDxpLv7pxrK56XC5gGnhu",
+		},
+		{
+			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1WkepSk6YEeBwd3UxBLoQPHJ5k74c1ZGcg",
+				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
+			[]uint64{1, 2, 3},
+			"b2Nq13XAxsWPaTWko82ErntqHkHUbh4nvVg",
+		},
+		{
+			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
+				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
+			[]uint64{2, 3, 4},
+			"b2RFDWeqUbgYE4Fqp2NumLqF7EC3ms9LReV",
+		},
+		{
+			[]string{"b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
+				"b1YVsw5ZUfPNmANEhpBezDMfg2Xvj2U2Wrk"},
+			[]uint64{2, 2, 4},
+			"b2bE1z7CB2jEAkDRSEfAw8PNnAmQQfDMcft",
+		},
+		{
+			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
+				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt", "b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
+			[]uint64{1, 2, 3},
+			"b2b38PF4WDYgGMDWBh7mGUFmft49qYVq9ks",
+		},
+	}
+	for _, tc := range tests {
+		splitAddr, err := MakeSplitAddr(tc.addrs, tc.weights)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if splitAddr != tc.splitAddr {
+			t.Errorf("split addr for %v want: %s, got: %s", tc.addrs, tc.splitAddr, splitAddr)
+		}
+	}
+}

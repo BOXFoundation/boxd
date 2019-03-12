@@ -6,6 +6,7 @@ package crypto
 
 import (
 	"bytes"
+
 	"github.com/btcsuite/btcutil/base58"
 )
 

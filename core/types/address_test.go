@@ -6,11 +6,13 @@ package types
 
 import (
 	"bytes"
+	"encoding/hex"
 	"reflect"
 	"testing"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
+	base58 "github.com/jbenet/go-base58"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -165,5 +167,35 @@ func TestNewAddress(t *testing.T) {
 				t.Errorf("NewAddress() got Hash160: %v, want: %v", addr.Hash160(), test.pkhash)
 			}
 		})
+	}
+}
+
+func TestAddressPrefix(t *testing.T) {
+	var tests = []struct {
+		addr, hexAddr string
+	}{
+		{
+			"b1111111111111111111111111111111111",
+			"1324d9f2a535969f9668fbdad0494b4095e44d3532c800000000",
+		},
+		{
+			"b2111111111111111111111111111111111",
+			"13275629f0d8cbcb8bf89d79b0f9e2022d13480de40200000000",
+		},
+		{
+			"b3111111111111111111111111111111111",
+			"1329d2613c7c00f781883f1891aa78c3c44242e6953c00000000",
+		},
+		{
+			"b4111111111111111111111111111111111",
+			"132c4e98881f36237717e0b7725b0f855b713dbf467600000000",
+		},
+	}
+	for _, tc := range tests {
+		rawBytes := base58.Decode(tc.addr)
+		hexAddr := hex.EncodeToString(rawBytes)
+		if tc.hexAddr != hexAddr {
+			t.Errorf("hex addr for %s want: %s, got: %s", tc.addr, tc.hexAddr, hexAddr)
+		}
 	}
 }

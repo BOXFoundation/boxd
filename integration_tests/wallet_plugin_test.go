@@ -182,6 +182,7 @@ func _TestSplitAddrTx(t *testing.T) {
 // port: 19111
 func _TestTokenTx(t *testing.T) {
 
+	// token issue
 	issuer := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	issuee := issuer
 	tag := txlogic.NewTokenTag("box test token", "XOX", 4, 20000)
@@ -191,6 +192,8 @@ func _TestTokenTx(t *testing.T) {
 		Tag:    tag,
 		Fee:    10,
 	}
+	bytes, _ := json.MarshalIndent(req, "", "  ")
+	logger.Errorf("make unsigned token issue tx: %s", string(bytes))
 	//
 	hashStr := flow(t, func(ctx context.Context,
 		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
@@ -200,14 +203,8 @@ func _TestTokenTx(t *testing.T) {
 		}
 		return issuer, resp
 	})
-	// test token transfer
-	tokenTxTest(t, hashStr)
-}
 
-// NOTE: to run this test case needs to start a node
-// port: 19111
-func tokenTxTest(t *testing.T, hashStr string) {
-
+	// token transfer
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	to := []string{
 		"b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
@@ -215,7 +212,7 @@ func tokenTxTest(t *testing.T, hashStr string) {
 	}
 	amounts := []uint64{1000, 4000}
 	// read hash from terminal
-	req := &rpcpb.MakeTokenTransferTxReq{
+	reqT := &rpcpb.MakeTokenTransferTxReq{
 		From:       from,
 		To:         to,
 		Amounts:    amounts,
@@ -226,7 +223,7 @@ func tokenTxTest(t *testing.T, hashStr string) {
 	//
 	flow(t, func(ctx context.Context,
 		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedTokenTransferTx(ctx, req)
+		resp, err := client.MakeUnsignedTokenTransferTx(ctx, reqT)
 		if err != nil {
 			t.Fatal(err)
 		}
