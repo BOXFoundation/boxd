@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 )
 
@@ -56,5 +57,27 @@ func TestMakeSplitAddrVout(t *testing.T) {
 	}
 	if !reflect.DeepEqual(ws, weights) {
 		t.Fatalf("weights want: %v, got %v", weights, ws)
+	}
+}
+
+func TestEncodeDecodeOutPoint(t *testing.T) {
+	hashStr, index := "92755682dde3c99e1482391c5fb957d5415dd2083689fb55892194f8a93dab93", uint32(1)
+	hash := new(crypto.HashType)
+	hash.SetString(hashStr)
+	op := NewPbOutPoint(hash, index)
+	// encode
+	encodeStr := EncodeOutPoint(op)
+	wantEncodeOp := "5uhMzn4A3qdonGiEb9WpkqCFNNUX4tnCcnH3LcQX7pLqxGXzb6o"
+	if encodeStr != wantEncodeOp {
+		t.Fatalf("encode op, want: %s, got: %s", wantEncodeOp, encodeStr)
+	}
+	// decode
+	op2, err := DecodeOutPoint(encodeStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash.SetBytes(op2.Hash)
+	if hashStr != hash.String() || index != op2.Index {
+		t.Fatalf("decode op, want: %s:%d, got: %s:%d", hashStr, index, hash, op2.Index)
 	}
 }

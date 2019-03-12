@@ -141,15 +141,15 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	totalAmount := tag.Supply * uint64(tag.Decimal)
 	logger.Infof("wait for token balance of sender %s equal to %d, timeout %v",
 		sender, totalAmount, timeoutToChain)
-	blcSenderPre, err := utils.WaitTokenBalanceEnough(sender, totalAmount, tid,
-		peerAddr, timeoutToChain)
+	blcSenderPre, err := utils.WaitTokenBalanceEnough(sender, totalAmount,
+		tid.Hash.String(), tid.Index, peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
 
 	// check status before transfer
 	receiver := receivers[0]
-	blcRcvPre := utils.TokenBalanceFor(receiver, tid, peerAddr)
+	blcRcvPre := utils.TokenBalanceFor(receiver, tid.Hash.String(), tid.Index, peerAddr)
 	logger.Infof("before token transfer, sender %s has %d token, receiver %s"+
 		" has %d token", sender, blcSenderPre, receiver, blcRcvPre)
 
@@ -158,8 +158,8 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 		times, sender, receiver, peerAddr)
 	txTotalAmount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount)/2))
 	senderAcc, _ := AddrToAcc.Load(sender)
-	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver, txTotalAmount, times,
-		tid, conn)
+	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver,
+		txTotalAmount, times, tid.Hash.String(), tid.Index, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -181,15 +181,15 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	// query and check token balance
 	logger.Infof("wait for token balance of %s equal to %d, timeout %v",
 		sender, blcSenderPre-txTotalAmount, timeoutToChain)
-	err = utils.WaitTokenBalanceEqualTo(sender, blcSenderPre-txTotalAmount, tid,
-		peerAddr, timeoutToChain)
+	err = utils.WaitTokenBalanceEqualTo(sender, blcSenderPre-txTotalAmount,
+		tid.Hash.String(), tid.Index, peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
 	logger.Infof("wait for token balance of receiver %s equal to %d, timeout %v",
 		receiver, blcRcvPre+txTotalAmount, timeoutToChain)
-	err = utils.WaitTokenBalanceEqualTo(receiver, blcRcvPre+txTotalAmount, tid,
-		peerAddr, timeoutToChain)
+	err = utils.WaitTokenBalanceEqualTo(receiver, blcRcvPre+txTotalAmount,
+		tid.Hash.String(), tid.Index, peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}

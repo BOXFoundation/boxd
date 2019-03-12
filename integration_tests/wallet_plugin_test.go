@@ -215,15 +215,13 @@ func tokenTxTest(t *testing.T, hashStr string) {
 	}
 	amounts := []uint64{1000, 4000}
 	// read hash from terminal
-	hash, idx := new(crypto.HashType), uint32(0)
-	hash.SetString(hashStr)
-	tid := txlogic.NewPbOutPoint(hash, idx)
 	req := &rpcpb.MakeTokenTransferTxReq{
-		From:    from,
-		To:      to,
-		Amounts: amounts,
-		Fee:     50,
-		TokenID: tid,
+		From:       from,
+		To:         to,
+		Amounts:    amounts,
+		Fee:        50,
+		TokenHash:  hashStr,
+		TokenIndex: 0,
 	}
 	//
 	flow(t, func(ctx context.Context,
