@@ -66,7 +66,7 @@ var _ service.ChainReader = (*BlockChain)(nil)
 type BlockChain struct {
 	notifiee                  p2p.Net
 	newblockMsgCh             chan p2p.Message
-	consensus                 types.Consensus
+	consensus                 Consensus
 	db                        storage.Table
 	batch                     storage.Batch
 	genesis                   *types.Block
@@ -82,7 +82,7 @@ type BlockChain struct {
 	chainLock                 sync.RWMutex
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
-	syncManager               types.SyncManager
+	syncManager               SyncManager
 	status                    int32
 }
 
@@ -142,7 +142,7 @@ func (chain *BlockChain) IsBusy() bool {
 }
 
 // Setup prepare blockchain.
-func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.SyncManager) {
+func (chain *BlockChain) Setup(consensus Consensus, syncManager SyncManager) {
 	chain.consensus = consensus
 	chain.syncManager = syncManager
 }
@@ -158,7 +158,7 @@ func (chain *BlockChain) Run() error {
 }
 
 // Consensus return chain consensus.
-func (chain *BlockChain) Consensus() types.Consensus {
+func (chain *BlockChain) Consensus() Consensus {
 	return chain.consensus
 }
 
