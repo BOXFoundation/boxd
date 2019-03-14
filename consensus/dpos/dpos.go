@@ -243,7 +243,8 @@ func (dpos *Dpos) mintBlock() error {
 	}
 
 	go func() {
-		if err := dpos.chain.ProcessBlock(block, core.BroadcastMode, true, ""); err != nil {
+		dpos.chain.BroadcastOrRelayBlock(block, core.BroadcastMode)
+		if err := dpos.chain.ProcessBlock(block, core.DefaultMode, true, ""); err != nil {
 			logger.Warnf("Failed to process block mint by self. err: %s", err.Error())
 		}
 	}()

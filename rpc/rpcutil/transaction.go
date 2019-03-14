@@ -95,7 +95,7 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 func NewIssueTokenTx(
 	acc *acc.Account, to string, tag *rpcpb.TokenTag, supply uint64,
 	conn *grpc.ClientConn,
-) (*types.Transaction, *txlogic.TokenID, *rpcpb.Utxo, error) {
+) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
 	utxos, err := fetchUtxos(conn, acc.Addr(), maxTokenFee, "", 0)
@@ -320,7 +320,7 @@ func NewTokenTx(
 	if err := tHash.SetString(tHashStr); err != nil {
 		return nil, nil, nil, err
 	}
-	tid := (*txlogic.TokenID)(types.NewOutPoint(tHash, tIdx))
+	tid := (*types.TokenID)(types.NewOutPoint(tHash, tIdx))
 	return txlogic.NewTokenTransferTxWithUtxos(acc, toAddrs, amounts, tid, 0, utxos...)
 }
 
@@ -345,7 +345,7 @@ func NewTokenTxs(
 	if err := tHash.SetString(tHashStr); err != nil {
 		return nil, err
 	}
-	tid := (*txlogic.TokenID)(types.NewOutPoint(tHash, tIdx))
+	tid := (*types.TokenID)(types.NewOutPoint(tHash, tIdx))
 	//
 	var txs []*types.Transaction
 	unitT := amountT / uint64(count)
@@ -439,7 +439,7 @@ func MakeUnsignedTokenIssueTx(
 // MakeUnsignedTokenTransferTx news tx to transfer token without signature
 func MakeUnsignedTokenTransferTx(
 	wa service.WalletAgent, from string, to []string, amounts []uint64,
-	tid *txlogic.TokenID, fee uint64,
+	tid *types.TokenID, fee uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	utxos, err := wa.Utxos(from, nil, fee)
 	if err != nil {

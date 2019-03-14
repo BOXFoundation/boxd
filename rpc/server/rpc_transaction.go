@@ -85,7 +85,7 @@ func (s *txServer) GetTokenBalance(
 		return newGetBalanceResp(-1, "invalid token hash"), nil
 	}
 	op := txlogic.NewPbOutPoint(thash, req.GetTokenIndex())
-	tid := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(op))
+	tid := (*types.TokenID)(txlogic.ConvPbOutPoint(op))
 	// valide addrs
 	if err := types.ValidateAddr(req.Addrs...); err != nil {
 		logger.Warn(err)
@@ -140,7 +140,7 @@ func (s *txServer) FetchUtxos(
 		logger.Warn("fetch utxos error ", ErrAPINotSupported)
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), nil
 	}
-	var tid *txlogic.TokenID
+	var tid *types.TokenID
 	tHashStr, tIdx := req.GetTokenHash(), req.GetTokenIndex()
 	if tHashStr != "" {
 		tHash := new(crypto.HashType)
@@ -400,7 +400,7 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	op := types.NewOutPoint(tHash, tIdx)
 	//
 	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, from, to, amounts,
-		(*txlogic.TokenID)(op), fee)
+		(*types.TokenID)(op), fee)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}

@@ -509,7 +509,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		chain.broadcastOrRelayBlock(block, transferMode)
+		chain.BroadcastOrRelayBlock(block, transferMode)
 		return chain.tryConnectBlockToMainChain(block)
 	}
 
@@ -538,7 +538,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	return chain.reorganize(block, transferMode)
 }
 
-func (chain *BlockChain) broadcastOrRelayBlock(block *types.Block, transferMode core.TransferMode) {
+// BroadcastOrRelayBlock broadcast or relay block to other peers.
+func (chain *BlockChain) BroadcastOrRelayBlock(block *types.Block, transferMode core.TransferMode) {
 
 	blockHash := block.BlockHash()
 	switch transferMode {
@@ -824,7 +825,7 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 		return nil
 	}
 
-	chain.broadcastOrRelayBlock(block, transferMode)
+	chain.BroadcastOrRelayBlock(block, transferMode)
 
 	for _, detachBlock := range detachBlocks {
 		stt0 := time.Now().UnixNano()

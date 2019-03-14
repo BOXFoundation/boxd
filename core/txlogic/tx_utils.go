@@ -34,12 +34,9 @@ func NewTokenTag(name, sym string, decimal uint32, supply uint64) *rpcpb.TokenTa
 	}
 }
 
-// TokenID defines token id
-type TokenID types.OutPoint
-
 // NewTokenID constructs a token id
-func NewTokenID(hash *crypto.HashType, index uint32) *TokenID {
-	return (*TokenID)(types.NewOutPoint(hash, index))
+func NewTokenID(hash *crypto.HashType, index uint32) *types.TokenID {
+	return (*types.TokenID)(types.NewOutPoint(hash, index))
 }
 
 // SortByUTXOValue defines a type suited for sort
@@ -67,7 +64,7 @@ func (x SortByTokenUTXOValue) Less(i, j int) bool {
 }
 
 // ParseUtxoAmount parse amount from utxo and return amount, is token
-func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *TokenID, error) {
+func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 	scp := utxo.TxOut.GetScriptPubKey()
 	s := script.NewScriptFromBytes(scp)
 	if s.IsPayToPubKeyHash() ||
@@ -75,7 +72,7 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *TokenID, error) {
 		s.IsPayToScriptHash() {
 		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
-		tid := (*TokenID)(ConvPbOutPoint(utxo.OutPoint))
+		tid := (*types.TokenID)(ConvPbOutPoint(utxo.OutPoint))
 		amount, err := ParseTokenAmount(scp)
 		return amount, tid, err
 	} else if s.IsTokenTransfer() {
@@ -83,7 +80,7 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *TokenID, error) {
 		if err != nil {
 			return 0, nil, err
 		}
-		tid := (*TokenID)(&param.TokenID.OutPoint)
+		tid := (*types.TokenID)(&param.TokenID.OutPoint)
 		return param.Amount, tid, nil
 	} else if s.IsSplitAddrScript() {
 		return 0, nil, nil
@@ -179,7 +176,7 @@ func NewIssueTokenUtxoWrap(
 
 // NewTokenUtxoWrap makes a UtxoWrap
 func NewTokenUtxoWrap(
-	addr string, tid *TokenID, height uint32, value uint64,
+	addr string, tid *types.TokenID, height uint32, value uint64,
 ) (*types.UtxoWrap, error) {
 	vout, err := MakeTokenVout(addr, tid, value)
 	if err != nil {
@@ -285,7 +282,7 @@ func MakeIssueTokenVout(addr string, tag *rpcpb.TokenTag) (*corepb.TxOut, error)
 }
 
 // MakeTokenVout make token tx vout
-func MakeTokenVout(addr string, tokenID *TokenID, amount uint64) (*corepb.TxOut, error) {
+func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.TxOut, error) {
 	address, err := types.NewAddress(addr)
 	if err != nil {
 		return nil, err
