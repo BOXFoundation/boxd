@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -18,10 +19,10 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
-	peerAddr  = "127.0.0.1:19111"
 	walletDir string
 
 	defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
@@ -167,13 +168,14 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		level = args[0]
 	}
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
 	rpcutil.SetDebugLevel(conn, level)
+	fmt.Println("success")
 }
 
 // NOTE: should be remove in product env
@@ -187,7 +189,7 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 		}
 		id = uint32(n)
 	}
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -208,25 +210,25 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 			addrs = append(addrs, acc.Addr())
 		}
 	} else {
-		addrs = append(addrs, args[0])
+		addrs = args
 	}
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
+	if err := types.ValidateAddr(addrs...); err != nil {
+		fmt.Println(err)
+		return
+	}
 	balances, err := rpcutil.GetBalance(conn, addrs)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	var total uint64
-	for _, balance := range balances {
-		total += balance
-	}
-	if len(balances) > 1 {
-		fmt.Println("Total balance: ", total)
+	for i, b := range balances {
+		fmt.Printf("%s: %d\n", addrs[i], b)
 	}
 }
 
@@ -237,7 +239,7 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -253,7 +255,7 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getblockcount called")
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -278,7 +280,7 @@ func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	height := uint32(height64)
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -299,7 +301,7 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	hash := args[0]
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -321,7 +323,7 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	hash := crypto.HashType{}
 	hash.SetString(args[0])
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -379,4 +381,10 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println(args[0], " is a valid address")
 	}
+}
+
+func getRPCAddr() string {
+	var cfg config.Config
+	viper.Unmarshal(&cfg)
+	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

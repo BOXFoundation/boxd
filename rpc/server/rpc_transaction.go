@@ -54,6 +54,10 @@ func (s *txServer) GetBalance(
 	}
 	balances := make([]uint64, len(req.GetAddrs()))
 	for i, addr := range req.Addrs {
+		if err := types.ValidateAddr(addr); err != nil {
+			logger.Warn(err)
+			return newGetBalanceResp(-1, err.Error()), nil
+		}
 		amount, err := walletAgent.Balance(addr, nil)
 		if err != nil {
 			logger.Warnf("get balance for %s error %s", addr, err)
@@ -68,14 +72,25 @@ func (s *txServer) GetBalance(
 func (s *txServer) GetTokenBalance(
 	ctx context.Context, req *rpcpb.GetTokenBalanceReq,
 ) (*rpcpb.GetBalanceResp, error) {
-	logger.Infof("get token balance req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil {
 		logger.Warn("get token balance error ", ErrAPINotSupported)
-		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
+		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	balances := make([]uint64, len(req.GetAddrs()))
-	tid := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(req.TokenID))
+	// parse tid
+	thash := new(crypto.HashType)
+	if err := thash.SetString(req.GetTokenHash()); err != nil {
+		logger.Warn("get token balance error, invalid token hash %s", req.GetTokenHash())
+		return newGetBalanceResp(-1, "invalid token hash"), nil
+	}
+	op := txlogic.NewPbOutPoint(thash, req.GetTokenIndex())
+	tid := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(op))
+	// valide addrs
+	if err := types.ValidateAddr(req.Addrs...); err != nil {
+		logger.Warn(err)
+		return newGetBalanceResp(-1, err.Error()), nil
+	}
 	for i, addr := range req.Addrs {
 		amount, err := walletAgent.Balance(addr, tid)
 		if err != nil {
@@ -99,34 +114,51 @@ func newFetchUtxosResp(code int32, msg string, utxos ...*rpcpb.Utxo) *rpcpb.Fetc
 // FetchUtxos fetch utxos from chain
 func (s *txServer) FetchUtxos(
 	ctx context.Context, req *rpcpb.FetchUtxosReq,
-) (*rpcpb.FetchUtxosResp, error) {
+) (resp *rpcpb.FetchUtxosResp, err error) {
 
-	logger.Infof("fetch utxos req: %+v", req)
+	defer func() {
+		bytes, _ := json.Marshal(req)
+		if resp.Code != 0 {
+			logger.Warnf("fetch utxos: %s error: %s", string(bytes), resp.Message)
+		} else {
+			total := uint64(0)
+			for _, u := range resp.GetUtxos() {
+				amount, _, err := txlogic.ParseUtxoAmount(u)
+				if err != nil {
+					logger.Warnf("fetch utxos for %+v error %s", req, err)
+					continue
+				}
+				total += amount
+			}
+			logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
+				string(bytes), len(resp.GetUtxos()), total)
+		}
+	}()
+
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
 		logger.Warn("fetch utxos error ", ErrAPINotSupported)
-		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
+		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	var tid *txlogic.TokenID
-	if req.GetTokenID() != nil {
-		tid = (*txlogic.TokenID)(txlogic.ConvPbOutPoint(req.GetTokenID()))
+	tHashStr, tIdx := req.GetTokenHash(), req.GetTokenIndex()
+	if tHashStr != "" {
+		tHash := new(crypto.HashType)
+		if err := tHash.SetString(tHashStr); err != nil {
+			return newFetchUtxosResp(-1, err.Error()), nil
+		}
+		tid = txlogic.NewTokenID(tHash, tIdx)
 	}
-	utxos, err := walletAgent.Utxos(req.GetAddr(), tid, req.GetAmount())
+	addr := req.GetAddr()
+	if err := types.ValidateAddr(addr); err != nil {
+		logger.Warn(err)
+		return newFetchUtxosResp(-1, err.Error()), nil
+	}
+	utxos, err := walletAgent.Utxos(addr, tid, req.GetAmount())
 	if err != nil {
 		logger.Warnf("fetch utxos for %+v error %s", req, err)
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
-	total := uint64(0)
-	for _, u := range utxos {
-		amount, _, err := txlogic.ParseUtxoAmount(u)
-		if err != nil {
-			logger.Warnf("fetch utxos for %+v error %s", req, err)
-			continue
-		}
-		total += amount
-	}
-	logger.Infof("fetch utxos for %+v return %d utxos total %d",
-		req, len(utxos), total)
 	return newFetchUtxosResp(0, "ok", utxos...), nil
 }
 
@@ -212,6 +244,11 @@ func (s *txServer) MakeUnsignedTx(
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, to := req.GetFrom(), req.GetTo()
+	// check address
+	if err := types.ValidateAddr(append(to, from)...); err != nil {
+		logger.Warn(err)
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
 	amounts, fee := req.GetAmounts(), req.GetFee()
 	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, fee)
 	if err != nil {
@@ -254,6 +291,10 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 		return newMakeSplitAddrTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	from, addrs := req.GetFrom(), req.GetAddrs()
+	if err := types.ValidateAddr(append(addrs, from)...); err != nil {
+		logger.Warn(err)
+		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+	}
 	weights, fee := req.GetWeights(), req.GetFee()
 	// make tx without sign
 	tx, splitAddr, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs,
@@ -301,6 +342,10 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	issuer, issuee, tag, fee := req.GetIssuer(), req.GetIssuee(), req.GetTag(), req.GetFee()
+	if err := types.ValidateAddr(issuer, issuee); err != nil {
+		logger.Warn(err)
+		return newMakeTokenIssueTxResp(-1, err.Error()), nil
+	}
 	// make tx without sign
 	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa, issuer,
 		issuee, tag, fee)
@@ -339,11 +384,23 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
-	from, tid, fee := req.GetFrom(), req.GetTokenID(), req.GetFee()
+	from, fee := req.GetFrom(), req.GetFee()
 	to, amounts := req.GetTo(), req.GetAmounts()
-	tokenID := (*txlogic.TokenID)(txlogic.ConvPbOutPoint(tid))
+	if err := types.ValidateAddr(append(to, from)...); err != nil {
+		logger.Warn(err)
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	// parse token id
+	tHashStr, tIdx := req.GetTokenHash(), req.GetTokenIndex()
+	tHash := new(crypto.HashType)
+	if err := tHash.SetString(tHashStr); err != nil {
+		logger.Warn(err)
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	op := types.NewOutPoint(tHash, tIdx)
+	//
 	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, from, to, amounts,
-		tokenID, fee)
+		(*txlogic.TokenID)(op), fee)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}

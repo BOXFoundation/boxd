@@ -5,30 +5,50 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
 	"golang.org/x/crypto/ripemd160"
 )
 
-var addressTypeP2PKHPrefix = [2]byte{FixPrefix, 0x26}     // p2pkh addresses start with b1
-var addressTypeP2SHPrefix = [2]byte{FixPrefix, 0x2b}      //b3
-var addressTypeSplitAddrPrefix = [2]byte{FixPrefix, 0x29} //b2
+//
+var (
+	AddressTypeP2PKHPrefix     = [2]byte{FixBoxPrefix, FixP2PKHPrefix} // p2pkh addresses start with b1
+	AddrTypeP2PKHPrefix        = "b1"
+	AddressTypeSplitAddrPrefix = [2]byte{FixBoxPrefix, FixSplitPrefix} // b2
+	AddrTypeSplitAddrPrefix    = "b2"
+	AddressTypeP2SHPrefix      = [2]byte{FixBoxPrefix, FixP2SHPrefix} // b3
+	AddrTypeP2SHPrefix         = "b3"
+)
 
 // const
 const (
 	BoxPrefix           = 'b'
 	AddressPrefixLength = 2
-	FixPrefix           = 0x13
+	FixBoxPrefix        = 0x13
+	FixP2PKHPrefix      = 0x26
+	FixSplitPrefix      = 0x28
+	FixP2SHPrefix       = 0x2a
 
 	AddressLength       = 26
 	EncodeAddressLength = 35
+
+	AddressUnkownType AddressType = iota
+	AddressP2PKHType
+	AddressSplitType
+	AddressP2SHType
 )
+
+// AddressType defines address type
+type AddressType int
 
 // AddressHash Alias for address hash
 type AddressHash [ripemd160.Size]byte
 
 // Address is an interface type for any type of destination a transaction output may spend to.
 type Address interface {
+	Type() AddressType
 	String() string
 	SetString(string) error
 	Hash() []byte
@@ -74,9 +94,14 @@ func (a *AddressPubKeyHash) Hash() []byte {
 	return a.hash[:]
 }
 
+// Type returns AddressP2PKHType
+func (a *AddressPubKeyHash) Type() AddressType {
+	return AddressP2PKHType
+}
+
 // String returns a human-readable string for the pay-to-pubkey-hash address.
 func (a *AddressPubKeyHash) String() string {
-	return encodeAddress(a.hash[:], addressTypeP2PKHPrefix)
+	return encodeAddress(a.hash[:], AddressTypeP2PKHPrefix)
 }
 
 // SetString sets the Address's internal byte array using byte array decoded from input
@@ -94,7 +119,7 @@ func (a *AddressPubKeyHash) SetString(in string) error {
 	}
 	var prefix [2]byte
 	copy(prefix[:], rawBytes[:2])
-	if prefix != addressTypeP2PKHPrefix && prefix != addressTypeP2SHPrefix {
+	if prefix != AddressTypeP2PKHPrefix && prefix != AddressTypeP2SHPrefix {
 		return core.ErrInvalidAddressString
 	}
 	copy(a.hash[:], rawBytes[2:])
@@ -108,7 +133,7 @@ func (a *AddressPubKeyHash) Hash160() *AddressHash {
 
 // NewSplitAddress creates an address with a string prefixed by "b2"
 func NewSplitAddress(address string) (Address, error) {
-	addr := &AddressTypeSplit{}
+	addr := new(AddressTypeSplit)
 	err := addr.SetString(address)
 	return addr, err
 }
@@ -129,9 +154,14 @@ type AddressTypeSplit struct {
 	hash AddressHash
 }
 
+// Type returns AddressSplitType
+func (a *AddressTypeSplit) Type() AddressType {
+	return AddressSplitType
+}
+
 // String returns a human-readable string for the split address.
 func (a *AddressTypeSplit) String() string {
-	return encodeAddress(a.hash[:], addressTypeSplitAddrPrefix)
+	return encodeAddress(a.hash[:], AddressTypeSplitAddrPrefix)
 }
 
 // SetString sets the Address's internal byte array using byte array decoded from input
@@ -149,7 +179,7 @@ func (a *AddressTypeSplit) SetString(in string) error {
 	}
 	var prefix [2]byte
 	copy(prefix[:], rawBytes[:2])
-	if prefix != addressTypeSplitAddrPrefix {
+	if prefix != AddressTypeSplitAddrPrefix {
 		return core.ErrInvalidAddressString
 	}
 	copy(a.hash[:], rawBytes[2:])
@@ -171,4 +201,37 @@ func encodeAddress(hash []byte, prefix [2]byte) string {
 	b = append(b, prefix[:]...)
 	b = append(b, hash[:]...)
 	return crypto.Base58CheckEncode(b)
+}
+
+// ValidateAddr validetes addr
+func ValidateAddr(addrs ...string) error {
+	for _, addr := range addrs {
+		if _, err := ParseAddress(addr); err != nil {
+			return fmt.Errorf("addr %s is invalid, error: %s", addr, err)
+		}
+	}
+	return nil
+}
+
+// ParseAddress parses address
+func ParseAddress(in string) (Address, error) {
+	if len(in) != EncodeAddressLength || in[0] != BoxPrefix {
+		return nil, core.ErrInvalidAddressString
+	}
+	var (
+		a   Address
+		err error
+	)
+	switch in[:AddressPrefixLength] {
+	default:
+		return nil, core.ErrInvalidAddressString
+	case AddrTypeP2PKHPrefix:
+		a, err = NewAddress(in)
+	case AddrTypeSplitAddrPrefix:
+		a, err = NewSplitAddress(in)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return a, nil
 }

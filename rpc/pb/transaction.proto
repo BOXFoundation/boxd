@@ -94,13 +94,15 @@ message GetBalanceResp {
 
 message GetTokenBalanceReq {
     repeated string addrs = 1;
-    corepb.OutPoint tokenID = 2;
+    string token_hash = 2;
+    uint32 token_index = 3;
 }
 
 message FetchUtxosReq {
-  string addr = 1;
-  corepb.OutPoint tokenID = 2;
-  uint64 amount = 3;
+    string addr = 1;
+    uint64 amount = 2;
+    string token_hash = 3;
+    uint32 token_index = 4;
 }
 
 message FetchUtxosResp {
@@ -182,8 +184,9 @@ message MakeTokenTransferTxReq {
     string from = 1;
     repeated string to = 2;
     repeated uint64 amounts = 3;
-    corepb.OutPoint tokenID = 4;
-    uint64 fee = 5;
+    string token_hash = 4;
+    uint32 token_index = 5;
+    uint64 fee = 6;
 }
 
 message TokenTag {

@@ -72,11 +72,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	addrs, amounts, err := parseSendParams(args[1:])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	// account
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
 		fmt.Println(err)
@@ -96,10 +92,23 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	peerAddr := fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	// to address
+	addrs, amounts := make([]string, 0), make([]uint64, 0)
+	for i := 1; i < len(args)-1; i += 2 {
+		addrs = append(addrs, args[i])
+		a, err := strconv.ParseUint(args[i+1], 10, 64)
+		if err != nil {
+			fmt.Printf("Invalid amount %s", args[i+1])
+			return
+		}
+		amounts = append(amounts, a)
+	}
+	if err := types.ValidateAddr(addrs...); err != nil {
+		fmt.Println(err)
+		return
+	}
+	//
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -131,4 +140,10 @@ func parseSendParams(args []string) (addrs []string, amounts []uint64, err error
 		amounts = append(amounts, uint64(amount))
 	}
 	return addrs, amounts, nil
+}
+
+func getRPCAddr() string {
+	var cfg config.Config
+	viper.Unmarshal(&cfg)
+	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

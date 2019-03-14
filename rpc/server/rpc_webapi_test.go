@@ -265,7 +265,7 @@ func TestDetailTxOut(t *testing.T) {
 	if detail.Addr != testAddr || detail.Value != testAmount ||
 		//detail.ScriptDisasm != disasmScript || // need reverse hash string
 		detail.Type != rpcpb.TxOutDetail_token_transfer ||
-		gotTid != convOutPoint(txlogic.ConvOutPoint((*types.OutPoint)(tid))) {
+		gotTid != txlogic.EncodeOutPoint(txlogic.ConvOutPoint((*types.OutPoint)(tid))) {
 		t.Fatalf("detail token transfer tx out, want: %s %d %s %v, got: %+v",
 			testAddr, testAmount, disasmScript, rpcpb.TxOutDetail_token_transfer, detail)
 	}
@@ -345,7 +345,7 @@ func _TestDetailTxAndBlock(t *testing.T) {
 	tx := genTestTx(from, to, amount, &prevHash)
 	// detail tx
 	blockReader := new(TestDetailBlockChainReader)
-	detail, err := detailTx(tx, blockReader, nil, true)
+	detail, err := detailTx(tx, blockReader, nil, false, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +458,7 @@ func TestConvOutPoint(t *testing.T) {
 	}
 	index := uint32(3)
 	op := txlogic.NewPbOutPoint(hash, index)
-	got := convOutPoint(op)
+	got := txlogic.EncodeOutPoint(op)
 	want := "7TzjaadMY4QYchK4obssFrE7BSPs7HkShdfSHux9z8ddYJghQMm"
 	if got != want {
 		t.Fatalf("want: %s, got: %s", want, got)
