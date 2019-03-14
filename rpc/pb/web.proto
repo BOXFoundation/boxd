@@ -28,6 +28,7 @@ service WebApi {
 
 message ViewTxDetailReq {
     string hash = 1;
+    bool spread_split = 2;
 }
 
 message ViewTxDetailResp {

@@ -17,6 +17,7 @@ import (
 //
 var (
 	ErrInsufficientBalance = errors.New("insufficient account balance")
+	ErrInvalidArguments    = errors.New("invalid arguments")
 )
 
 // NewTxWithUtxos new a transaction
@@ -49,6 +50,10 @@ func NewSplitAddrTxWithUtxos(
 	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
 ) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
 
+	if len(addrs) != len(weights) {
+		err = ErrInvalidArguments
+		return
+	}
 	// calc change amount
 	utxoValue := uint64(0)
 	for _, u := range utxos {
@@ -109,6 +114,9 @@ func NewTokenTransferTxWithUtxos(
 	changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 
+	if len(to) != len(amounts) {
+		return nil, nil, nil, ErrInvalidArguments
+	}
 	// unsigned tx
 	tx, tokenRemain, err := MakeUnsignedTokenTransferTx(fromAcc.Addr(), to, amounts,
 		tid, changeAmt, utxos...)
@@ -154,6 +162,10 @@ func MakeUnsignedTx(
 	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
+	if len(to) != len(amounts) {
+		return nil, ErrInvalidArguments
+	}
+
 	if !checkAmount(amounts, changeAmt, utxos...) {
 		return nil, ErrInsufficientBalance
 	}
@@ -185,6 +197,10 @@ func MakeUnsignedTx(
 func MakeUnsignedSplitAddrTx(
 	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, string, error) {
+
+	if len(addrs) != len(weights) {
+		return nil, "", ErrInvalidArguments
+	}
 
 	if !checkAmount(nil, changeAmt, utxos...) {
 		return nil, "", ErrInsufficientBalance
@@ -247,6 +263,9 @@ func MakeUnsignedTokenTransferTx(
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint64, error) {
 
+	if len(to) != len(amounts) {
+		return nil, 0, ErrInvalidArguments
+	}
 	ok, tokenRemain := checkTokenAmount(tid, amounts, changeAmt, utxos...)
 	if !ok {
 		return nil, 0, ErrInsufficientBalance

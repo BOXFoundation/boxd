@@ -124,11 +124,11 @@ func _TestNormalTx(t *testing.T) {
 
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	to := []string{
-		//"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh",
-		//"b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU",
-		//"b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N",
+		//"b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn",
+		//"b1fJy9WSDDn1vwiDb8Cd7GiF3mPzaYFPEdy",
+		//"b1fNm3MuBgAKD7WwZbLZBWJ6nV2JVVcFAv7",
+		//"b1n4ffVkctWmXptM6ojVkrA3vsrtyf9nm1e",
 		"b2ir3paoqze6Ft7GqKAdCk1ePkt4cbE2mZ9",
-		//"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
 	}
 	//amounts := []uint64{100, 200, 300, 400}
 	amounts := []uint64{1000}
@@ -182,6 +182,7 @@ func _TestSplitAddrTx(t *testing.T) {
 // port: 19111
 func _TestTokenTx(t *testing.T) {
 
+	// token issue
 	issuer := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	issuee := issuer
 	tag := txlogic.NewTokenTag("box test token", "XOX", 4, 20000)
@@ -191,6 +192,8 @@ func _TestTokenTx(t *testing.T) {
 		Tag:    tag,
 		Fee:    10,
 	}
+	bytes, _ := json.MarshalIndent(req, "", "  ")
+	logger.Errorf("make unsigned token issue tx: %s", string(bytes))
 	//
 	hashStr := flow(t, func(ctx context.Context,
 		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
@@ -200,14 +203,8 @@ func _TestTokenTx(t *testing.T) {
 		}
 		return issuer, resp
 	})
-	// test token transfer
-	tokenTxTest(t, hashStr)
-}
 
-// NOTE: to run this test case needs to start a node
-// port: 19111
-func tokenTxTest(t *testing.T, hashStr string) {
-
+	// token transfer
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	to := []string{
 		"b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
@@ -215,20 +212,18 @@ func tokenTxTest(t *testing.T, hashStr string) {
 	}
 	amounts := []uint64{1000, 4000}
 	// read hash from terminal
-	hash, idx := new(crypto.HashType), uint32(0)
-	hash.SetString(hashStr)
-	tid := txlogic.NewPbOutPoint(hash, idx)
-	req := &rpcpb.MakeTokenTransferTxReq{
-		From:    from,
-		To:      to,
-		Amounts: amounts,
-		Fee:     50,
-		TokenID: tid,
+	reqT := &rpcpb.MakeTokenTransferTxReq{
+		From:       from,
+		To:         to,
+		Amounts:    amounts,
+		Fee:        50,
+		TokenHash:  hashStr,
+		TokenIndex: 0,
 	}
 	//
 	flow(t, func(ctx context.Context,
 		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedTokenTransferTx(ctx, req)
+		resp, err := client.MakeUnsignedTokenTransferTx(ctx, reqT)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -5,17 +5,18 @@
 package splitaddrcmd
 
 import (
-	"encoding/hex"
 	"fmt"
 	"path"
 	"strconv"
-	"strings"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -55,95 +56,74 @@ func init() {
 }
 
 func createCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("create called")
+	fmt.Println("splitaddr create called")
 	if len(args) < 3 || len(args)%2 == 0 {
 		fmt.Println("Invalid argument number: expect odd number larger than or equal to 3")
 		return
 	}
-	//addrs, weights, err := parseAddrWeight(args[1:])
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-
-	//wltMgr, err := wallet.NewWalletManager(walletDir)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-	//account, exists := wltMgr.GetAccount(args[0])
-	//if !exists {
-	//	fmt.Printf("Account %s not managed\n", args[0])
-	//	return
-	//}
-	//passphrase, err := wallet.ReadPassphraseStdin()
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-	//if err := account.UnlockWithPassphrase(passphrase); err != nil {
-	//	fmt.Println("Fail to unlock account", err)
-	//	return
-	//}
-	//fromAddr, err := types.NewAddress(args[0])
-	//if err != nil {
-	//	fmt.Println("Invalid address: ", args[0])
-	//	return
-	//}
-	//target := make(map[types.Address]uint64)
-	//target[fromAddr /* just a dummy value here */] = opReturnAmount
-
-	//conn := client.NewConnectionWithViper(viper.GetViper())
-	//defer conn.Close()
-	//tx, err := client.CreateSplitAddrTransaction(conn, fromAddr, account.PublicKey(), addrs, weights, account)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-	//hash, _ := tx.TxHash()
-	//fmt.Println("Tx Hash:", hash.String())
-	//fmt.Println(util.PrettyPrint(tx))
-
-	//splitAddr, err := getSplitAddr(tx.Vout[0].ScriptPubKey)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-	//fmt.Printf("Split address generated for `%s`: %v\n", args[1:], splitAddr)
+	// account
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	account, exists := wltMgr.GetAccount(args[0])
+	if !exists {
+		fmt.Printf("Account %s not managed\n", args[0])
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := account.UnlockWithPassphrase(passphrase); err != nil {
+		fmt.Println("Fail to unlock account", err)
+		return
+	}
+	// addrs and weights
+	addrs, weights := make([]string, 0), make([]uint64, 0)
+	for i := 1; i < len(args)-1; i += 2 {
+		addrs = append(addrs, args[i])
+		a, err := strconv.ParseUint(args[i+1], 10, 64)
+		if err != nil {
+			fmt.Printf("Invalid amount %s\n", args[i+1])
+			return
+		}
+		weights = append(weights, a)
+	}
+	if err := types.ValidateAddr(addrs...); err != nil {
+		fmt.Println(err)
+		return
+	}
+	// fee
+	fee := uint64(10)
+	// conn
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	// send tx
+	tx, splitAddr, _, err := rpcutil.NewSplitAddrTxWithFee(account, addrs,
+		weights, fee, conn)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	hashStr, err := rpcutil.SendTransaction(conn, tx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("SplitAddr generated: %s\n", splitAddr)
+	fmt.Println("Tx Hash: ", hashStr)
+	fmt.Println(util.PrettyPrint(tx))
 }
 
-func parseAddrWeight(args []string) ([]types.Address, []uint64, error) {
-	addrs := make([]types.Address, 0)
-	weights := make([]uint64, 0)
-	for i := 0; i < len(args)/2; i++ {
-		addr, err := types.NewAddress(args[i*2])
-		if err != nil {
-			return nil, nil, err
-		}
-		addrs = append(addrs, addr)
-
-		weight, err := strconv.Atoi(args[i*2+1])
-		if err != nil {
-			return nil, nil, err
-		}
-		weights = append(weights, uint64(weight))
-	}
-	return addrs, weights, nil
-}
-
-// create a split address from arguments
-func getSplitAddr(scriptPubKey []byte) (string, error) {
-	// e.g., OP_RETURN aaeb7c5e48182fbd309a4e6a7e0de57e56f4cb16 ce86056786e3415530f8cc739fb414a87435b4b6 01 3ba03e454aed097836f2957a120f95ecf76a2771 04
-	splitAddrScriptStr := script.NewScriptFromBytes(scriptPubKey).Disasm()
-	s := strings.Split(splitAddrScriptStr, " ")
-	// e.g., aaeb7c5e48182fbd309a4e6a7e0de57e56f4cb16
-	pubKeyHash, err := hex.DecodeString(s[1])
-	if err != nil {
-		return "", err
-	}
-	addr, err := types.NewAddressPubKeyHash(pubKeyHash)
-	if err != nil {
-		return "", err
-	}
-	return addr.String(), nil
+func getRPCAddr() string {
+	var cfg config.Config
+	viper.Unmarshal(&cfg)
+	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

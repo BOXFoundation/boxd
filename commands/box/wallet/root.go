@@ -107,7 +107,7 @@ func newAccountCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Created new account. Address:%s", addr)
+	fmt.Printf("Created new account. Address:%s\n", addr)
 }
 
 func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
@@ -140,7 +140,7 @@ func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Created new account. Address:%s", addr)
+	fmt.Printf("Created new account. Address:%s\n", addr)
 }
 
 func listAccountCmdFunc(cmd *cobra.Command, args []string) {
@@ -177,5 +177,5 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Address: %s\nPrivate Key: %s", addr, privateKey)
+	fmt.Printf("Address: %s\nPrivate Key: %s\n", addr, privateKey)
 }

@@ -6,9 +6,9 @@ package rpc
 
 import (
 	"container/list"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +20,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
 )
@@ -145,7 +144,6 @@ func (s *webapiServer) ViewTxDetail(
 	var err error
 	br, tr := s.ChainBlockReader, s.TxPoolReader
 	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
-		// tx = block.Txs[index]
 		// calc tx status
 		if blockConfirmed(block, br) {
 			resp.Status = rpcpb.ViewTxDetailResp_confirmed
@@ -168,14 +166,13 @@ func (s *webapiServer) ViewTxDetail(
 	}
 	resp.Version = tx.Version
 	// fetch tx details
-	detail, err := detailTx(tx, br, tr, true)
+	detail, err := detailTx(tx, br, tr, req.GetSpreadSplit(), true)
 	if err != nil {
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
 	}
 	//
 	resp.Detail = detail
-	logger.Infof("view tx detail resp: %+v", resp)
 	return resp, nil
 }
 
@@ -320,12 +317,50 @@ func (s *webapiServer) unsubscribe() error {
 }
 
 func detailTx(
-	tx *types.Transaction, br ChainTxReader, tr TxPoolReader, detailVin bool,
+	tx *types.Transaction, br ChainTxReader, tr TxPoolReader, spread bool, detailVin bool,
 ) (*rpcpb.TxDetail, error) {
 
 	detail := new(rpcpb.TxDetail)
-	hash, _ := tx.TxHash()
-	detail.Hash = hash.String()
+	needSpread := false
+	// parse vout
+	txHash, _ := tx.TxHash()
+	for i := range tx.Vout {
+		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), br)
+		if err != nil {
+			return nil, err
+		}
+		if strings.HasPrefix(outDetail.Addr, types.AddrTypeSplitAddrPrefix) &&
+			outDetail.Type != rpcpb.TxOutDetail_new_split_addr {
+			needSpread = true
+			if spread {
+				break
+			}
+		}
+		detail.Vout = append(detail.Vout, outDetail)
+	}
+	if spread && needSpread {
+		logger.Infof("spread split addr original tx: %s", txHash)
+		buf, err := br.GetDataFromDB(chain.SplitTxHashKey(txHash))
+		if err != nil {
+			return nil, err
+		}
+		tx = new(types.Transaction)
+		if err := tx.Unmarshal(buf); err != nil {
+			return nil, err
+		}
+		detail.Vout = nil
+		hash, _ := tx.TxHash()
+		logger.Infof("spread split addr tx: %s", hash)
+		for i := range tx.Vout {
+			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), br)
+			if err != nil {
+				return nil, err
+			}
+			detail.Vout = append(detail.Vout, outDetail)
+		}
+	}
+	// hash
+	detail.Hash = txHash.String()
 	// parse vin
 	for _, in := range tx.Vin {
 		inDetail, err := detailTxIn(in, br, tr, detailVin)
@@ -333,15 +368,6 @@ func detailTx(
 			return nil, err
 		}
 		detail.Vin = append(detail.Vin, inDetail)
-	}
-	// parse vout
-	for i := range tx.Vout {
-		txHash, _ := tx.TxHash()
-		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), br)
-		if err != nil {
-			return nil, err
-		}
-		detail.Vout = append(detail.Vout, outDetail)
 	}
 	return detail, nil
 }
@@ -368,7 +394,7 @@ func detailBlock(
 	detail.Confirmed = blockConfirmed(block, r)
 	detail.Signature = hex.EncodeToString(block.Signature)
 	for _, tx := range block.Txs {
-		txDetail, err := detailTx(tx, r, tr, detailVin)
+		txDetail, err := detailTx(tx, r, tr, false, detailVin)
 		if err != nil {
 			return nil, err
 		}
@@ -389,7 +415,7 @@ func detailTxIn(
 	//
 	detail.ScriptSig = hex.EncodeToString(txIn.ScriptSig)
 	detail.Sequence = txIn.Sequence
-	detail.PrevOutPoint = convOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
+	detail.PrevOutPoint = txlogic.EncodeOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
 
 	if detailVin {
 		hash := &txIn.PrevOutPoint.Hash
@@ -418,32 +444,11 @@ func detailTxOut(
 ) (*rpcpb.TxOutDetail, error) {
 
 	detail := new(rpcpb.TxOutDetail)
+	sc := script.NewScriptFromBytes(txOut.GetScriptPubKey())
 	// addr
-	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-	var addr string
-	//address, err := sc.ExtractAddress()
-	//if err != nil {
-	//	return nil, err
-	//}
-	addrBytes, err := sc.ExtractP2PKHAddress()
-	address, err := types.NewSplitAddressFromHash(addrBytes)
-	if err == nil {
-		data, _ := br.GetDataFromDB(chain.SplitAddrKey(address.Hash()))
-		if data != nil {
-			addr = address.String()
-		} else {
-			address, err := sc.ExtractAddress()
-			if err != nil {
-				return nil, err
-			}
-			addr = address.String()
-		}
-	} else {
-		address, err := sc.ExtractAddress()
-		if err != nil {
-			return nil, err
-		}
-		addr = address.String()
+	addr, err := ParseAddrFrom(sc, br)
+	if err != nil {
+		return nil, err
 	}
 	detail.Addr = addr
 	// value
@@ -488,7 +493,7 @@ func detailTxOut(
 		}
 		transferInfo := &rpcpb.TxOutDetail_TokenTransferInfo{
 			TokenTransferInfo: &rpcpb.TokenTransferInfo{
-				TokenId: convOutPoint(txlogic.ConvOutPoint(&param.TokenID.OutPoint)),
+				TokenId: txlogic.EncodeOutPoint(txlogic.ConvOutPoint(&param.TokenID.OutPoint)),
 			},
 		}
 		detail.Appendix = transferInfo
@@ -554,19 +559,24 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 	return address.String(), nil
 }
 
-func convOutPoint(op *corepb.OutPoint) string {
-	buf := make([]byte, len(op.GetHash()))
-	copy(buf, op.GetHash())
-	// reverse bytes
-	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
-		buf[i], buf[j] = buf[j], buf[i]
+// ParseAddrFrom parse addr from scriptPubkey
+func ParseAddrFrom(sc *script.Script, tr ChainTxReader) (string, error) {
+	addrBytes, err := sc.ExtractP2PKHAddress()
+	address, err := types.NewSplitAddressFromHash(addrBytes)
+	if err != nil {
+		address, err := sc.ExtractAddress()
+		if err != nil {
+			return "", err
+		}
+		return address.String(), nil
 	}
-	// append separator ':'
-	buf = append(buf, ':')
-	// put index
-	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, op.GetIndex())
-	buf = append(buf, b...)
-
-	return base58.Encode(buf)
+	data, _ := tr.GetDataFromDB(chain.SplitAddrKey(address.Hash()))
+	if data != nil {
+		return address.String(), nil
+	}
+	address, err = sc.ExtractAddress()
+	if err != nil {
+		return "", err
+	}
+	return address.String(), nil
 }
