@@ -55,7 +55,7 @@ var GenesisPeriod = []map[string]string{
 }
 
 // tokenPreAllocation token pre_allocation
-// total 3 billion, 2.1 billion pre_allocation and 0.9 billion pay for miner.
+// total 3 billion, 2.1 billion pre_allocation and 0.9 billion pay for bookkeeper.
 // 0.45 billion for team, unlocked in four years, 112.5 million per year.
 var tokenPreAllocation = []map[string]string{
 	{ // token for team

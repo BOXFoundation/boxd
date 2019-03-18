@@ -9,18 +9,20 @@ import "errors"
 // Define err message
 var (
 	// dpos
-	ErrNoLegalPowerToMint            = errors.New("No legal power to mint")
-	ErrNotMyTurnToMint               = errors.New("Not my turn to mint")
-	ErrWrongTimeToMint               = errors.New("Wrong time to mint")
-	ErrNotFoundMiner                 = errors.New("Failed to find miner")
-	ErrDuplicateSignUpTx             = errors.New("Duplicate sign up tx")
-	ErrCandidateNotFound             = errors.New("Candidate not found")
-	ErrRepeatedMintAtSameTime        = errors.New("Repeated mint at same time")
-	ErrFailedToVerifySign            = errors.New("Failed to verify sign block")
-	ErrNotMintPeer                   = errors.New("Invalid mint peer")
-	ErrInvalidMinerEpoch             = errors.New("Invalid miner epoch")
-	ErrInvalidCandidateHash          = errors.New("Invalid candidate hash")
-	ErrFailedToStoreCandidateContext = errors.New("Failed to store candidate context")
+	ErrNoLegalPowerToProduce            = errors.New("No legal power to produce block")
+	ErrNotMyTurnToProduce               = errors.New("Not my turn to produce block")
+	ErrWrongTimeToProduce               = errors.New("Wrong time to produce block")
+	ErrNotFoundBookkeeper               = errors.New("Failed to find bookkeeper")
+	ErrDuplicateSignUpTx                = errors.New("Duplicate sign up tx")
+	ErrCandidateNotFound                = errors.New("Candidate not found")
+	ErrRepeatedMintAtSameTime           = errors.New("Repeated produce block at same time")
+	ErrFailedToVerifySign               = errors.New("Failed to verify sign block")
+	ErrNotBookkeeperPeer                = errors.New("Invalid bookkeeper peer")
+	ErrInvalidBookkeeperEpoch           = errors.New("Invalid bookkeeper epoch")
+	ErrInvalidCandidateHash             = errors.New("Invalid candidate hash")
+	ErrFailedToStoreCandidateContext    = errors.New("Failed to store candidate context")
+	ErrCandidateIsAlreadyExist          = errors.New("The candidate is already exist")
+	ErrInvalidRegisterCandidateOrVoteTx = errors.New("Invalid register candidate or vote tx")
 
 	// context
 	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")

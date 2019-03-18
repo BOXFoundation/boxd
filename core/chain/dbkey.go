@@ -120,7 +120,7 @@ var EternalKey = []byte(Eternal)
 // PeriodKey is the db key to store current period contex content
 var PeriodKey = []byte(Period)
 
-// MissrateKey is the db key to store miner's blocks miss rate
+// MissrateKey is the db key to store bookkeeper's blocks miss rate
 var MissrateKey = []byte(MissCount)
 
 // BlockKey returns the db key to store block content of the hash

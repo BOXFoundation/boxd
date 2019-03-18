@@ -29,18 +29,7 @@ var (
 	// BaseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
 	BaseSubsidy = (uint64)(50 * core.DuPerBox)
-
-	// CandidatePledge is pledge for candidate to mint.
-	CandidatePledge = (uint64)(1e6 * core.DuPerBox)
-
-	// MinNumOfVotes is Minimum number of votes
-	MinNumOfVotes = (uint64)(100)
 )
-
-// CalcCandidatePledgeHeight calc current candidate pledge height
-func CalcCandidatePledgeHeight(tailHeight int64) int64 {
-	return (tailHeight/PeriodDuration + 2) * PeriodDuration
-}
 
 // isNullOutPoint determines whether or not a previous transaction output point is set.
 func isNullOutPoint(outPoint *types.OutPoint) bool {
@@ -75,7 +64,7 @@ func CalcBlockSubsidy(height uint32) uint64 {
 	return BaseSubsidy >> uint(height/core.SubsidyReductionInterval)
 }
 
-// CreateCoinbaseTx creates a coinbase give miner address and block height
+// CreateCoinbaseTx creates a coinbase give bookkeeper address and block height
 func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, error) {
 	var pkScript []byte
 	blockReward := CalcBlockSubsidy(blockHeight)

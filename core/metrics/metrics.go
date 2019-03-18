@@ -22,7 +22,7 @@ var (
 	MetricsBlockOrphanPoolSizeGauge = metrics.NewGauge("box.block.orphanpool.size")
 	// MetricsBlockRevertMeter records the bc revert times
 	MetricsBlockRevertMeter = metrics.NewMeter("box.block.revert")
-	// MetricsBlockMissRateGauge records the miner block miss rate
+	// MetricsBlockMissRateGauge records the bookkeeper block miss rate
 	MetricsBlockMissRateGauge = metrics.NewGauge("box.block.missrate")
 
 	// block_pool metrics

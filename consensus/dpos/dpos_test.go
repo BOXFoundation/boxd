@@ -18,8 +18,8 @@ import (
 )
 
 type DummyDpos struct {
-	dpos    *Dpos
-	isMiner bool
+	dpos         *Dpos
+	isBookkeeper bool
 }
 
 var (
@@ -29,15 +29,15 @@ var (
 		Passphrase: "1",
 	}
 
-	cfgMiner = &Config{
+	cfgBookkeeper = &Config{
 		Keypath:    "../../keyfile/key1.keystore",
 		EnableMint: true,
 		Passphrase: "1",
 	}
 
-	dpos      = NewDummyDpos(cfg)
-	dposMiner = NewDummyDpos(cfgMiner)
-	bus       = eventbus.New()
+	dpos           = NewDummyDpos(cfg)
+	dposBookkeeper = NewDummyDpos(cfgBookkeeper)
+	bus            = eventbus.New()
 )
 
 func NewDummyDpos(cfg *Config) *DummyDpos {
@@ -47,79 +47,79 @@ func NewDummyDpos(cfg *Config) *DummyDpos {
 	dpos, _ := NewDpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
 	blockchain.Setup(dpos, nil)
 	dpos.Setup()
-	isMiner := dpos.ValidateMiner()
+	isBookkeeper := dpos.IsBookkeeper()
 	bftService, _ := NewBftService(dpos)
 	dpos.bftservice = bftService
 	return &DummyDpos{
-		dpos:    dpos,
-		isMiner: isMiner,
+		dpos:         dpos,
+		isBookkeeper: isBookkeeper,
 	}
 }
 
 func TestDpos_ValidateMiner(t *testing.T) {
-	ensure.DeepEqual(t, dpos.isMiner, false)
-	ensure.DeepEqual(t, dposMiner.isMiner, true)
+	ensure.DeepEqual(t, dpos.isBookkeeper, false)
+	ensure.DeepEqual(t, dposBookkeeper.isBookkeeper, true)
 }
 
-func TestDpos_checkMiner(t *testing.T) {
+func TestDpos_verifyBookkeeper(t *testing.T) {
 
 	timestamp := int64(1541824620)
 
-	// check miner in right time but wrong miner.
-	result := dpos.dpos.checkMiner(timestamp)
-	ensure.DeepEqual(t, result, ErrNotMyTurnToMint)
+	// check bookkeeper in right time but wrong bookkeeper.
+	result := dpos.dpos.verifyBookkeeper(timestamp)
+	ensure.DeepEqual(t, result, ErrNotMyTurnToProduce)
 
-	// check miner with right miner and right time.
-	result = dposMiner.dpos.checkMiner(timestamp)
+	// check bookkeeper with right bookkeeper and right time.
+	result = dposBookkeeper.dpos.verifyBookkeeper(timestamp)
 	ensure.Nil(t, result)
 }
 
-func TestDpos_mint(t *testing.T) {
+func TestDpos_run(t *testing.T) {
 
-	dposMiner.dpos.StopMint()
-	result := dposMiner.dpos.mint(time.Now().Unix())
-	ensure.DeepEqual(t, result, ErrNoLegalPowerToMint)
+	dposBookkeeper.dpos.StopMint()
+	result := dposBookkeeper.dpos.run(time.Now().Unix())
+	ensure.DeepEqual(t, result, ErrNoLegalPowerToProduce)
 
-	dposMiner.dpos.RecoverMint()
+	dposBookkeeper.dpos.RecoverMint()
 
 	timestamp := int64(1541824625)
-	result = dposMiner.dpos.mint(timestamp)
-	ensure.DeepEqual(t, result, ErrNotMyTurnToMint)
+	result = dposBookkeeper.dpos.run(timestamp)
+	ensure.DeepEqual(t, result, ErrNotMyTurnToProduce)
 
 	timestamp1 := int64(1541824620)
-	result = dposMiner.dpos.mint(timestamp1)
+	result = dposBookkeeper.dpos.run(timestamp1)
 	ensure.Nil(t, result)
 
 }
 
-func TestDpos_FindMinerWithTimeStamp(t *testing.T) {
-	hash, err := dposMiner.dpos.context.periodContext.FindMinerWithTimeStamp(1541824620)
+func TestDpos_FindProposerWithTimeStamp(t *testing.T) {
+	hash, err := dposBookkeeper.dpos.context.periodContext.FindProposerWithTimeStamp(1541824620)
 	ensure.Nil(t, err)
-	ensure.DeepEqual(t, *hash, dposMiner.dpos.context.periodContext.period[0].addr)
+	ensure.DeepEqual(t, *hash, dposBookkeeper.dpos.context.periodContext.period[0].addr)
 }
 
 func TestDpos_signBlock(t *testing.T) {
 
-	ensure.DeepEqual(t, dposMiner.isMiner, true)
+	ensure.DeepEqual(t, dposBookkeeper.isBookkeeper, true)
 	block := &chain.GenesisBlock
 
 	block.Header.TimeStamp = 1541824626
-	err := dposMiner.dpos.signBlock(block)
+	err := dposBookkeeper.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err := dposMiner.dpos.VerifySign(block)
+	ok, err := dposBookkeeper.dpos.VerifySign(block)
 	ensure.DeepEqual(t, ok, false)
 
 	block.Header.TimeStamp = 1541824620
-	err = dposMiner.dpos.signBlock(block)
+	err = dposBookkeeper.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err = dposMiner.dpos.VerifySign(block)
+	ok, err = dposBookkeeper.dpos.VerifySign(block)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, ok, true)
 }
 
 func TestDpos_LoadPeriodContext(t *testing.T) {
 
-	result, err := dposMiner.dpos.LoadPeriodContext()
+	result, err := dposBookkeeper.dpos.LoadPeriodContext()
 	ensure.Nil(t, err)
 
 	initperiod, err := InitPeriodContext()
@@ -127,15 +127,15 @@ func TestDpos_LoadPeriodContext(t *testing.T) {
 
 	ensure.DeepEqual(t, result.period, initperiod.period)
 
-	dposMiner.dpos.context.periodContext.period = append(dposMiner.dpos.context.periodContext.period, &Period{
+	dposBookkeeper.dpos.context.periodContext.period = append(dposBookkeeper.dpos.context.periodContext.period, &Period{
 		addr:   types.AddressHash{156, 17, 133, 165, 197, 233, 252, 84, 97, 40, 8, 151, 126, 232, 245, 72, 178, 37, 141, 49},
 		peerID: "",
 	})
-	err = dposMiner.dpos.StorePeriodContext()
+	err = dposBookkeeper.dpos.StorePeriodContext()
 	ensure.Nil(t, err)
-	result, err = dposMiner.dpos.LoadPeriodContext()
+	result, err = dposBookkeeper.dpos.LoadPeriodContext()
 	ensure.Nil(t, err)
 
-	ensure.DeepEqual(t, result.period, dposMiner.dpos.context.periodContext.period)
+	ensure.DeepEqual(t, result.period, dposBookkeeper.dpos.context.periodContext.period)
 
 }

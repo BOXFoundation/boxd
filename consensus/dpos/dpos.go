@@ -20,6 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
@@ -31,11 +32,17 @@ var logger = log.NewLogger("dpos") // logger
 
 // Define const
 const (
-	SecondInMs           = int64(1000)
-	MinerRefreshInterval = int64(5000)
-	MaxPackedTxTime      = int64(100)
-	PeriodSize           = 6
-	BlockNumPerPeiod     = 5
+	SecondInMs                = int64(1000)
+	BookkeeperRefreshInterval = int64(5000)
+	MaxPackedTxTime           = int64(100)
+	PeriodSize                = 6
+	BlockNumPerPeiod          = 5
+	PeriodDuration            = 21 * 5 * 10000
+
+	// CandidatePledge is pledge for candidate to mint.
+	CandidatePledge = (uint64)(1e6 * core.DuPerBox)
+	// MinNumOfVotes is Minimum number of votes
+	MinNumOfVotes = (uint64)(100)
 )
 
 // Config defines the configurations of dpos
@@ -53,7 +60,7 @@ type Dpos struct {
 	net                         p2p.Net
 	proc                        goprocess.Process
 	cfg                         *Config
-	miner                       *acc.Account
+	bookkeeper                  *acc.Account
 	canMint                     bool
 	disableMint                 bool
 	bftservice                  *BftService
@@ -96,7 +103,7 @@ func (dpos *Dpos) Setup() error {
 	if err != nil {
 		return err
 	}
-	dpos.miner = account
+	dpos.bookkeeper = account
 
 	return nil
 }
@@ -107,19 +114,19 @@ var _ service.Server = (*Dpos)(nil)
 // Run start dpos
 func (dpos *Dpos) Run() error {
 	logger.Info("Dpos run")
-	if !dpos.ValidateMiner() {
-		logger.Warn("You have no authority to mint block")
-		return ErrNoLegalPowerToMint
+	if !dpos.IsBookkeeper() {
+		logger.Warn("You have no authority to produce block")
+		return ErrNoLegalPowerToProduce
 	}
 
-	// peer can mint, start bftService.
+	// peer is proposer, start bftService.
 	bftService, err := NewBftService(dpos)
 	if err != nil {
 		return err
 	}
 	dpos.bftservice = bftService
 	dpos.subscribe()
-	bftService.Start()
+	bftService.Run()
 	dpos.proc.Go(dpos.loop)
 
 	return nil
@@ -135,7 +142,7 @@ func (dpos *Dpos) Stop() {
 	dpos.proc.Close()
 }
 
-// StopMint stops generating blocks.
+// StopMint stops producing blocks.
 func (dpos *Dpos) StopMint() {
 	dpos.disableMint = true
 }
@@ -146,14 +153,14 @@ func (dpos *Dpos) RecoverMint() {
 }
 
 func (dpos *Dpos) loop(p goprocess.Process) {
-	logger.Info("Start block mint loop")
+	logger.Info("Start dpos loop")
 	timeChan := time.NewTicker(time.Second)
 	defer timeChan.Stop()
 	for {
 		select {
 		case <-timeChan.C:
 			if !dpos.chain.IsBusy() {
-				dpos.mint(time.Now().Unix())
+				dpos.run(time.Now().Unix())
 			}
 
 		case <-p.Closing():
@@ -163,44 +170,44 @@ func (dpos *Dpos) loop(p goprocess.Process) {
 	}
 }
 
-func (dpos *Dpos) mint(timestamp int64) error {
+func (dpos *Dpos) run(timestamp int64) error {
 
 	// disableMint might be set true by sync business or others
 	if dpos.disableMint {
-		return ErrNoLegalPowerToMint
+		return ErrNoLegalPowerToProduce
 	}
 
-	if err := dpos.checkMiner(timestamp); err != nil {
+	if err := dpos.verifyBookkeeper(timestamp); err != nil {
 		return err
 	}
 	dpos.context.timestamp = timestamp
 	MetricsMintTurnCounter.Inc(1)
 
-	logger.Infof("My turn to mint a block, time: %d", timestamp)
-	return dpos.mintBlock()
+	logger.Infof("My turn to produce a block, time: %d", timestamp)
+	return dpos.produceBlock()
 }
 
-// checkMiner check to verify if miner can mint at the timestamp
-func (dpos *Dpos) checkMiner(timestamp int64) error {
+// verifyProposer check to verify if bookkeeper can mint at the timestamp
+func (dpos *Dpos) verifyBookkeeper(timestamp int64) error {
 
-	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(timestamp)
+	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(timestamp)
 	if err != nil {
 		return err
 	}
-	addr, err := types.NewAddress(dpos.miner.Addr())
+	addr, err := types.NewAddress(dpos.bookkeeper.Addr())
 	if err != nil {
 		return err
 	}
-	if *miner != *addr.Hash160() {
-		return ErrNotMyTurnToMint
+	if *bookkeeper != *addr.Hash160() {
+		return ErrNotMyTurnToProduce
 	}
 	return nil
 }
 
-// ValidateMiner verifies whether the miner has authority to mint.
-func (dpos *Dpos) ValidateMiner() bool {
+// IsBookkeeper verifies whether the peer has authority to produce block.
+func (dpos *Dpos) IsBookkeeper() bool {
 
-	if dpos.miner == nil {
+	if dpos.bookkeeper == nil {
 		return false
 	}
 
@@ -208,14 +215,14 @@ func (dpos *Dpos) ValidateMiner() bool {
 		return true
 	}
 
-	addr, err := types.NewAddress(dpos.miner.Addr())
+	addr, err := types.NewAddress(dpos.bookkeeper.Addr())
 	if err != nil {
 		return false
 	}
 	if !util.InArray(*addr.Hash160(), dpos.context.periodContext.periodAddrs) {
 		return false
 	}
-	if err := dpos.miner.UnlockWithPassphrase(dpos.cfg.Passphrase); err != nil {
+	if err := dpos.bookkeeper.UnlockWithPassphrase(dpos.cfg.Passphrase); err != nil {
 		logger.Error(err)
 		return false
 	}
@@ -223,7 +230,7 @@ func (dpos *Dpos) ValidateMiner() bool {
 	return true
 }
 
-func (dpos *Dpos) mintBlock() error {
+func (dpos *Dpos) produceBlock() error {
 
 	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
@@ -233,7 +240,7 @@ func (dpos *Dpos) mintBlock() error {
 	} else {
 		block.Header.PeriodHash = tail.Header.PeriodHash
 	}
-	if err := dpos.PackTxs(block, dpos.miner.PubKeyHash()); err != nil {
+	if err := dpos.PackTxs(block, dpos.bookkeeper.PubKeyHash()); err != nil {
 		logger.Warnf("Failed to pack txs. err: %s", err.Error())
 		return err
 	}
@@ -244,7 +251,7 @@ func (dpos *Dpos) mintBlock() error {
 
 	go func() {
 		dpos.chain.BroadcastOrRelayBlock(block, core.BroadcastMode)
-		if err := dpos.chain.ProcessBlock(block, core.DefaultMode, true, ""); err != nil {
+		if err := dpos.chain.ProcessBlock(block, core.DefaultMode, ""); err != nil {
 			logger.Warnf("Failed to process block mint by self. err: %s", err.Error())
 		}
 	}()
@@ -403,7 +410,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// Important: wait for packing complete and exit
 	<-continueCh
 
-	// Pay tx fees to miner in addition to block reward in coinbase
+	// Pay tx fees to bookkeeper in addition to block reward in coinbase
 	blockTxns[0].Vout[0].Value += totalTxFee
 
 	candidateHash, err := candidateContext.CandidateContextHash()
@@ -445,21 +452,21 @@ func (dpos *Dpos) LoadPeriodContext() (*PeriodContext, error) {
 	return periodContext, nil
 }
 
-// BroadcastEternalMsgToMiners broadcast eternal message to miners
-func (dpos *Dpos) BroadcastEternalMsgToMiners(block *types.Block) error {
+// BroadcastEternalMsgToBookkeepers broadcast eternal message to bookkeepers
+func (dpos *Dpos) BroadcastEternalMsgToBookkeepers(block *types.Block) error {
 
 	eternalBlockMsg := &EternalBlockMsg{}
 	hash := block.BlockHash()
-	signature, err := crypto.SignCompact(dpos.miner.PrivateKey(), hash[:])
+	signature, err := crypto.SignCompact(dpos.bookkeeper.PrivateKey(), hash[:])
 	if err != nil {
 		return err
 	}
 	eternalBlockMsg.Hash = *hash
 	eternalBlockMsg.Signature = signature
 	eternalBlockMsg.Timestamp = block.Header.TimeStamp
-	miners := dpos.context.periodContext.periodPeers
+	bookkeepers := dpos.context.periodContext.periodPeers
 
-	return dpos.net.BroadcastToMiners(p2p.EternalBlockMsg, eternalBlockMsg, miners)
+	return dpos.net.BroadcastToBookkeepers(p2p.EternalBlockMsg, eternalBlockMsg, bookkeepers)
 }
 
 // StorePeriodContext store period context
@@ -615,7 +622,7 @@ func (dpos *Dpos) prepareCandidateContext(candidateContext *CandidateContext, tx
 func (dpos *Dpos) signBlock(block *types.Block) error {
 
 	hash := block.BlockHash()
-	signature, err := crypto.SignCompact(dpos.miner.PrivateKey(), hash[:])
+	signature, err := crypto.SignCompact(dpos.bookkeeper.PrivateKey(), hash[:])
 	if err != nil {
 		return err
 	}
@@ -623,11 +630,11 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 	return nil
 }
 
-// VerifyMinerEpoch verifies miner epoch.
-func (dpos *Dpos) VerifyMinerEpoch(block *types.Block) error {
+// VerifyBookkeeperEpoch verifies bookkeeper epoch.
+func (dpos *Dpos) VerifyBookkeeperEpoch(block *types.Block) error {
 
 	tail := dpos.chain.TailBlock()
-	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
+	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
 	if err != nil {
 		return err
 	}
@@ -641,12 +648,12 @@ func (dpos *Dpos) VerifyMinerEpoch(block *types.Block) error {
 		if err != nil {
 			return err
 		}
-		target, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
+		target, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
 		if err != nil {
 			return err
 		}
-		if target == miner {
-			return ErrInvalidMinerEpoch
+		if target == bookkeeper {
+			return ErrInvalidBookkeeperEpoch
 		}
 		idx++
 	}
@@ -656,12 +663,12 @@ func (dpos *Dpos) VerifyMinerEpoch(block *types.Block) error {
 // VerifySign consensus verifies signature info.
 func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 
-	miner, err := dpos.context.periodContext.FindMinerWithTimeStamp(block.Header.TimeStamp)
+	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
 	if err != nil {
 		return false, err
 	}
-	if miner == nil {
-		return false, ErrNotFoundMiner
+	if bookkeeper == nil {
+		return false, ErrNotFoundBookkeeper
 	}
 
 	if pubkey, ok := crypto.RecoverCompact(block.BlockHash()[:], block.Signature); ok {
@@ -669,7 +676,7 @@ func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if *addr.Hash160() == *miner {
+		if *addr.Hash160() == *bookkeeper {
 			return true, nil
 		}
 	}
@@ -695,6 +702,103 @@ func (dpos *Dpos) subscribe() {
 		out <- dpos.context.periodContext.periodPeers
 	}, false)
 	dpos.chain.Bus().Reply(eventbus.TopicCheckMiner, func(timestamp int64, out chan<- error) {
-		out <- dpos.checkMiner(timestamp)
+		out <- dpos.verifyBookkeeper(timestamp)
 	}, false)
+}
+
+// Verify check the legality of the block.
+func (dpos *Dpos) Verify(block *types.Block) error {
+	ok, err := dpos.VerifySign(block)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("Failed to verify sign block")
+	}
+
+	return dpos.VerifyCandidates(block)
+}
+
+// Seal notify consensus to change new tail.
+func (dpos *Dpos) Seal(tail *types.Block) error {
+	if err := dpos.UpdateCandidateContext(tail); err != nil {
+		return err
+	}
+	if dpos.IsBookkeeper() && time.Now().Unix()-tail.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
+		go dpos.BroadcastEternalMsgToBookkeepers(tail)
+	}
+	go dpos.TryToUpdateEternalBlock(tail)
+	return nil
+}
+
+// Process notify consensus to process new block.
+func (dpos *Dpos) Process(block *types.Block, db interface{}) error {
+	return dpos.StoreCandidateContext(block, db.(storage.Batch))
+}
+
+// VerifyTx notify consensus to verify new tx.
+func (dpos *Dpos) VerifyTx(tx *types.Transaction) error {
+	return dpos.checkRegisterOrVoteTx(tx)
+}
+
+func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
+	if tx.Data == nil {
+		return nil
+	}
+	content := tx.Data.Content
+	switch int(tx.Data.Type) {
+	case types.RegisterCandidateTx:
+		registerCandidateContent := new(types.RegisterCandidateContent)
+		if err := registerCandidateContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if dpos.IsCandidateExist(registerCandidateContent.Addr()) {
+			return ErrCandidateIsAlreadyExist
+		}
+		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
+			return ErrInvalidRegisterCandidateOrVoteTx
+		}
+	case types.VoteTx:
+		votesContent := new(types.VoteContent)
+		if err := votesContent.Unmarshal(content); err != nil {
+			return err
+		}
+		if !dpos.IsCandidateExist(votesContent.Addr()) {
+			return ErrCandidateNotFound
+		}
+		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
+			return ErrInvalidRegisterCandidateOrVoteTx
+		}
+	}
+
+	return nil
+}
+
+func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
+	for _, vout := range tx.Vout {
+		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
+		if scriptPubKey.IsRegisterCandidateScript(calcCandidatePledgeHeight(int64(dpos.chain.TailBlock().Height))) {
+			if tx.Data.Type == types.RegisterCandidateTx {
+				if vout.Value >= CandidatePledge {
+					return true
+				}
+			} else if tx.Data.Type == types.VoteTx {
+				if vout.Value >= MinNumOfVotes {
+					votesContent := new(types.VoteContent)
+					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
+						return false
+					}
+					if votesContent.Votes() == int64(vout.Value) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+// calcCandidatePledgeHeight calc current candidate pledge height
+func calcCandidatePledgeHeight(tailHeight int64) int64 {
+	return (tailHeight/PeriodDuration + 2) * PeriodDuration
 }

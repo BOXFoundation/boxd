@@ -25,6 +25,6 @@ type Net interface {
 	UnSubscribe(*Notifiee)
 	Notify(Message)
 	PickOnePeer(peersExclusive ...peer.ID) peer.ID
-	BroadcastToMiners(uint32, conv.Convertible, []string) error
+	BroadcastToBookkeepers(uint32, conv.Convertible, []string) error
 	PeerSynced(peers peer.ID) (bool, bool)
 }
