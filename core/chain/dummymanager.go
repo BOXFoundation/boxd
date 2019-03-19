@@ -56,35 +56,20 @@ func (dpos *DummyDpos) Run() error { return nil }
 // Stop dummy dpos
 func (dpos *DummyDpos) Stop() {}
 
-// StoreCandidateContext store candidate context
-func (dpos *DummyDpos) StoreCandidateContext(*types.Block, storage.Batch) error { return nil }
-
-// VerifySign verify sign
-func (dpos *DummyDpos) VerifySign(*types.Block) (bool, error) { return true, nil }
-
-// VerifyMinerEpoch verify miner epoch
-func (dpos *DummyDpos) VerifyMinerEpoch(*types.Block) error { return nil }
-
 // RecoverMint revover mint
 func (dpos *DummyDpos) RecoverMint() {}
 
 // StopMint stop mint
 func (dpos *DummyDpos) StopMint() {}
 
-// BroadcastEternalMsgToMiners broadcast etrnalmsg to miners
-func (dpos *DummyDpos) BroadcastEternalMsgToMiners(block *types.Block) error { return nil }
+// Verify verify block.
+func (dpos *DummyDpos) Verify(*types.Block) error { return nil }
 
-// ValidateMiner validate miner
-func (dpos *DummyDpos) ValidateMiner() bool { return true }
+// Process notify consensus to process new block.
+func (dpos *DummyDpos) Process(*types.Block, interface{}) error { return nil }
 
-// TryToUpdateEternalBlock try to update eternal block.
-func (dpos *DummyDpos) TryToUpdateEternalBlock(src *types.Block) {}
+// Seal notify consensus to change new tail.
+func (dpos *DummyDpos) Seal(*types.Block) error { return nil }
 
-// IsCandidateExist check candidate is exist.
-func (dpos *DummyDpos) IsCandidateExist(addr types.AddressHash) bool { return false }
-
-// VerifyCandidates vefiry if the block candidates hash is right.
-func (dpos *DummyDpos) VerifyCandidates(block *types.Block) error { return nil }
-
-// UpdateCandidateContext update candidate context in memory.
-func (dpos *DummyDpos) UpdateCandidateContext(block *types.Block) error { return nil }
+// VerifyTx notify consensus to verify new tx.
+func (dpos *DummyDpos) VerifyTx(*types.Transaction) error { return nil }

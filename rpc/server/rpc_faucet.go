@@ -55,8 +55,8 @@ type txHandler interface {
 }
 
 type walletAgent interface {
-	Utxos(addr string, tid *txlogic.TokenID, amount uint64) ([]*rpcpb.Utxo, error)
-	Balance(addr string, tid *txlogic.TokenID) (uint64, error)
+	Utxos(addr string, tid *types.TokenID, amount uint64) ([]*rpcpb.Utxo, error)
+	Balance(addr string, tid *types.TokenID) (uint64, error)
 }
 
 type faucet struct {

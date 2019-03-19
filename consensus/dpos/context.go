@@ -141,24 +141,24 @@ func (pc *PeriodContext) Unmarshal(data []byte) error {
 	return pc.FromProtoMessage(msg)
 }
 
-// FindMinerWithTimeStamp find miner in given timestamp
-func (pc *PeriodContext) FindMinerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
+// FindProposerWithTimeStamp find proposer in given timestamp
+func (pc *PeriodContext) FindProposerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
 
 	period := pc.period
-	offsetPeriod := (timestamp * SecondInMs) % (MinerRefreshInterval * PeriodSize)
+	offsetPeriod := (timestamp * SecondInMs) % (BookkeeperRefreshInterval * PeriodSize)
 	// if (offsetPeriod % MinerRefreshInterval) != 0 {
 	// 	return nil, ErrWrongTimeToMint
 	// }
-	offset := offsetPeriod / MinerRefreshInterval
+	offset := offsetPeriod / BookkeeperRefreshInterval
 	offset = offset % PeriodSize
 
-	var miner *types.AddressHash
+	var bookkeeper *types.AddressHash
 	if offset >= 0 && int(offset) < len(period) {
-		miner = &period[offset].addr
+		bookkeeper = &period[offset].addr
 	} else {
-		return nil, ErrNotFoundMiner
+		return nil, ErrNotFoundBookkeeper
 	}
-	return miner, nil
+	return bookkeeper, nil
 }
 
 // Period represents period info.
@@ -209,7 +209,7 @@ func (period *Period) Unmarshal(data []byte) error {
 ///////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
-// CandidateContext represents possible to be the miner.
+// CandidateContext represents possible to be the bookkeepers.
 type CandidateContext struct {
 	candidates []*Candidate
 	addrs      []types.AddressHash

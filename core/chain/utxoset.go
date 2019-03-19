@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -66,7 +65,6 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	}
 
 	txHash, _ := tx.TxHash()
-	// txHash, _ := tx.CalcTxHash()
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
 	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
@@ -75,13 +73,6 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	if IsCoinBase(tx) {
 		utxoWrap.SetCoinBase()
 	}
-	// utxoWrap := types.UtxoWrap{
-	// 	// Output:      tx.Vout[txOutIdx],
-	// 	// BlockHeight: blockHeight,
-	// 	// IsCoinBase:  IsCoinBase(tx),
-	// 	// IsModified:  true,
-	// 	// IsSpent:     false,
-	// }
 	u.utxoMap[outPoint] = utxoWrap
 	return nil
 }
@@ -385,7 +376,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			} else {
 				tokenID = outpoint
 			}
-			addrUtxoKey = AddrTokenUtxoKey(addr.String(), txlogic.TokenID(tokenID), outpoint)
+			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}

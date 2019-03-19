@@ -66,7 +66,7 @@ var _ service.ChainReader = (*BlockChain)(nil)
 type BlockChain struct {
 	notifiee                  p2p.Net
 	newblockMsgCh             chan p2p.Message
-	consensus                 types.Consensus
+	consensus                 Consensus
 	db                        storage.Table
 	batch                     storage.Batch
 	genesis                   *types.Block
@@ -82,7 +82,7 @@ type BlockChain struct {
 	chainLock                 sync.RWMutex
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
-	syncManager               types.SyncManager
+	syncManager               SyncManager
 	status                    int32
 }
 
@@ -142,7 +142,7 @@ func (chain *BlockChain) IsBusy() bool {
 }
 
 // Setup prepare blockchain.
-func (chain *BlockChain) Setup(consensus types.Consensus, syncManager types.SyncManager) {
+func (chain *BlockChain) Setup(consensus Consensus, syncManager SyncManager) {
 	chain.consensus = consensus
 	chain.syncManager = syncManager
 }
@@ -158,7 +158,7 @@ func (chain *BlockChain) Run() error {
 }
 
 // Consensus return chain consensus.
-func (chain *BlockChain) Consensus() types.Consensus {
+func (chain *BlockChain) Consensus() Consensus {
 	return chain.consensus
 }
 
@@ -356,7 +356,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, core.RelayMode, true, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
+	if err := chain.ProcessBlock(block, core.RelayMode, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
 		return err
 	}
@@ -365,7 +365,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 }
 
 // ProcessBlock is used to handle new blocks.
-func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, fastConfirm bool, messageFrom peer.ID) error {
+func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, messageFrom peer.ID) error {
 	chain.chainLock.Lock()
 	defer func() {
 		chain.chainLock.Unlock()
@@ -375,17 +375,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	atomic.StoreInt32(&chain.status, busy)
 
 	t0 := time.Now().UnixNano()
-	if ok, err := chain.consensus.VerifySign(block); err != nil || !ok {
-		logger.Errorf("Failed to verify block signature. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
-		return core.ErrFailedToVerifyWithConsensus
-	}
-
 	blockHash := block.BlockHash()
 	logger.Infof("Prepare to process block. Hash: %s, Height: %d", blockHash.String(), block.Height)
-
-	if err := chain.consensus.VerifyCandidates(block); err != nil {
-		return core.ErrFailedToVerifyWithCandidates
-	}
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.verifyExists(*blockHash); exists {
@@ -395,6 +386,11 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	if ok := chain.verifyRepeatedMint(block); !ok {
 		return core.ErrRepeatedMintAtSameTime
+	}
+
+	if err := chain.consensus.Verify(block); err != nil {
+		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+		return err
 	}
 
 	if err := validateBlock(block); err != nil {
@@ -430,11 +426,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	if err := chain.processOrphans(block); err != nil {
 		logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
 		return err
-	}
-
-	if chain.consensus.ValidateMiner() && fastConfirm {
-		go chain.consensus.BroadcastEternalMsgToMiners(block)
-		go chain.consensus.TryToUpdateEternalBlock(block)
 	}
 
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
@@ -487,12 +478,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 		return core.ErrParentBlockNotExist
 	}
 
-	// verify miner epoch
-	// if err := chain.consensus.VerifyMinerEpoch(block); err != nil {
-	// 	logger.Errorf("Failed to verify miner epoch. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
-	// 	return core.ErrFailedToVerifyWithConsensus
-	// }
-
 	// The height of this block must be one more than the referenced parent block.
 	if block.Height != parentBlock.Height+1 {
 		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash.String(), block.Height, parentBlock.Height)
@@ -509,7 +494,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		chain.broadcastOrRelayBlock(block, transferMode)
+		chain.BroadcastOrRelayBlock(block, transferMode)
 		return chain.tryConnectBlockToMainChain(block)
 	}
 
@@ -538,7 +523,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	return chain.reorganize(block, transferMode)
 }
 
-func (chain *BlockChain) broadcastOrRelayBlock(block *types.Block, transferMode core.TransferMode) {
+// BroadcastOrRelayBlock broadcast or relay block to other peers.
+func (chain *BlockChain) BroadcastOrRelayBlock(block *types.Block, transferMode core.TransferMode) {
 
 	blockHash := block.BlockHash()
 	switch transferMode {
@@ -746,8 +732,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		return err
 	}
 	ttt2 := time.Now().UnixNano()
-	// save candidate context
-	if err := chain.consensus.StoreCandidateContext(block, batch); err != nil {
+
+	if err := chain.consensus.Process(block, batch); err != nil {
 		return err
 	}
 
@@ -824,7 +810,7 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 		return nil
 	}
 
-	chain.broadcastOrRelayBlock(block, transferMode)
+	chain.BroadcastOrRelayBlock(block, transferMode)
 
 	for _, detachBlock := range detachBlocks {
 		stt0 := time.Now().UnixNano()
@@ -976,9 +962,10 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 // ChangeNewTail change chain tail block.
 func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 
-	if err := chain.consensus.UpdateCandidateContext(tail); err != nil {
-		panic("Failed to update candidate context")
+	if err := chain.consensus.Seal(tail); err != nil {
+		panic("Failed to change new tail in consensus.")
 	}
+
 	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
 	// chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Height

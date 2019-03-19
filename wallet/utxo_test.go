@@ -144,7 +144,7 @@ func newTestUtxoSet(n int, addrs ...string) (types.UtxoMap, map[string]uint64,
 }
 
 func newTestTokenUtxoSet(n int, addrs ...string) (types.UtxoMap, map[string]uint64,
-	map[string]types.UtxoMap, *txlogic.TokenID) {
+	map[string]types.UtxoMap, *types.TokenID) {
 
 	// initial variables
 	utxoMap := make(types.UtxoMap, n)
@@ -207,7 +207,7 @@ func walletUtxosSaveGetTest(
 			utxoMap  types.UtxoMap
 			balances map[string]uint64
 			utxos    map[string]types.UtxoMap
-			tid      *txlogic.TokenID
+			tid      *types.TokenID
 		)
 		if flag == tokenTest {
 			utxoMap, balances, utxos, tid = newTestTokenUtxoSet(n, addrs...)
@@ -376,10 +376,10 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 				logger.Warnf("get token utxo ScriptPubKey %+v transfer params error: %s",
 					u.Script(), err)
 			}
-			tid := txlogic.TokenID(param.TokenID.OutPoint)
+			tid := types.TokenID(param.TokenID.OutPoint)
 			utxoKey = chain.AddrTokenUtxoKey(addr.String(), tid, o)
 		} else if sc.IsTokenIssue() {
-			utxoKey = chain.AddrTokenUtxoKey(addr.String(), txlogic.TokenID(o), o)
+			utxoKey = chain.AddrTokenUtxoKey(addr.String(), types.TokenID(o), o)
 		} else if sc.IsPayToPubKeyHash() {
 			utxoKey = chain.AddrUtxoKey(addr.String(), o)
 		} else {

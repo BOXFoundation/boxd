@@ -84,7 +84,7 @@ func NewSplitAddrTxWithUtxos(
 func NewTokenIssueTxWithUtxos(
 	fromAcc *acc.Account, to string, tag *rpcpb.TokenTag, changeAmt uint64,
 	utxos ...*rpcpb.Utxo,
-) (*types.Transaction, *TokenID, *rpcpb.Utxo, error) {
+) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	tx, issueOutIndex, err := MakeUnsignedTokenIssueTx(fromAcc.Addr(), to, tag,
 		changeAmt, utxos...)
@@ -110,7 +110,7 @@ func NewTokenIssueTxWithUtxos(
 // NewTokenTransferTxWithUtxos new token Transfer tx with utxos
 // it returns tx, box change and token change
 func NewTokenTransferTxWithUtxos(
-	fromAcc *acc.Account, to []string, amounts []uint64, tid *TokenID,
+	fromAcc *acc.Account, to []string, amounts []uint64, tid *types.TokenID,
 	changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 
@@ -259,7 +259,7 @@ func MakeUnsignedTokenIssueTx(
 
 // MakeUnsignedTokenTransferTx make unsigned token transfer tx
 func MakeUnsignedTokenTransferTx(
-	from string, to []string, amounts []uint64, tid *TokenID, changeAmt uint64,
+	from string, to []string, amounts []uint64, tid *types.TokenID, changeAmt uint64,
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint64, error) {
 
@@ -325,7 +325,7 @@ func checkAmount(amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo) bool 
 }
 
 func checkTokenAmount(
-	tid *TokenID, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+	tid *types.TokenID, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (ok bool, tokenRemain uint64) {
 	amt, tAmt := uint64(0), uint64(0)
 	for _, u := range utxos {
