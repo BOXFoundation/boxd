@@ -119,7 +119,7 @@ func (dpos *Dpos) Run() error {
 		return ErrNoLegalPowerToProduce
 	}
 
-	// peer is proposer, start bftService.
+	// peer is bookkeeper, start bftService.
 	bftService, err := NewBftService(dpos)
 	if err != nil {
 		return err
@@ -147,9 +147,48 @@ func (dpos *Dpos) StopMint() {
 	dpos.disableMint = true
 }
 
-// RecoverMint resumes generating blocks.
+// RecoverMint resumes producing blocks.
 func (dpos *Dpos) RecoverMint() {
 	dpos.disableMint = false
+}
+
+// Verify check the legality of the block.
+func (dpos *Dpos) Verify(block *types.Block) error {
+	ok, err := dpos.verifySign(block)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("Failed to verify sign block")
+	}
+
+	if err := dpos.verifyCandidates(block); err != nil {
+		return err
+	}
+
+	return dpos.verifyIrreversibleInfo(block)
+}
+
+// Seal notify consensus to change new tail.
+func (dpos *Dpos) Seal(tail *types.Block) error {
+	if err := dpos.UpdateCandidateContext(tail); err != nil {
+		return err
+	}
+	if dpos.IsBookkeeper() && time.Now().Unix()-tail.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
+		go dpos.BroadcastEternalMsgToBookkeepers(tail)
+	}
+	go dpos.TryToUpdateEternalBlock(tail)
+	return nil
+}
+
+// Process notify consensus to process new block.
+func (dpos *Dpos) Process(block *types.Block, db interface{}) error {
+	return dpos.StoreCandidateContext(block, db.(storage.Batch))
+}
+
+// VerifyTx notify consensus to verify new tx.
+func (dpos *Dpos) VerifyTx(tx *types.Transaction) error {
+	return dpos.checkRegisterOrVoteTx(tx)
 }
 
 func (dpos *Dpos) loop(p goprocess.Process) {
@@ -566,8 +605,8 @@ func (dpos *Dpos) IsCandidateExist(addr types.AddressHash) bool {
 	return false
 }
 
-// VerifyCandidates vefiry if the block candidates hash is right.
-func (dpos *Dpos) VerifyCandidates(block *types.Block) error {
+// verifyCandidates vefiry if the block candidates hash is right.
+func (dpos *Dpos) verifyCandidates(block *types.Block) error {
 
 	candidateContext := dpos.context.candidateContext.Copy()
 	for _, tx := range block.Txs {
@@ -583,6 +622,48 @@ func (dpos *Dpos) VerifyCandidates(block *types.Block) error {
 		return ErrInvalidCandidateHash
 	}
 
+	return nil
+}
+
+// verifyIrreversibleInfo vefiry if the block irreversibleInfo is right.
+func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
+
+	irreversibleInfo := block.IrreversibleInfo
+	if irreversibleInfo != nil {
+		if len(irreversibleInfo.Signatures) <= MinConfirmMsgNumberForEternalBlock {
+			return errors.New("the number of irreversibleInfo signatures is not enough")
+		}
+		addrs := dpos.context.periodContext.periodAddrs
+		remains := []types.AddressHash{}
+		for _, v := range irreversibleInfo.Signatures {
+			if pubkey, ok := crypto.RecoverCompact(irreversibleInfo.Hash[:], v); ok {
+				addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
+				if err != nil {
+					return err
+				}
+				addr := *addrPubKeyHash.Hash160()
+				if util.InArray(addr, addrs) {
+					if !util.InArray(addr, remains) {
+						remains = append(remains, addr)
+					} else {
+						logger.Errorf("Duplicated irreversible signature %v in block. Hash: %s, Height: %d",
+							v, block.BlockHash().String(), block.Height)
+						return errors.New("Duplicated irreversible signature in block")
+					}
+				} else {
+					logger.Errorf("Invalid irreversible signature %v in block. Hash: %s, Height: %d",
+						v, block.BlockHash().String(), block.Height)
+					return errors.New("Invalid irreversible signature in block")
+				}
+			} else {
+				return errors.New("Invalid irreversible signature in block")
+			}
+		}
+		if len(remains) <= MinConfirmMsgNumberForEternalBlock {
+			logger.Errorf("Invalid irreversible info in block. Hash: %s, Height: %d, remains: %d", block.BlockHash().String(), block.Height, len(remains))
+			return errors.New("Invalid irreversible info in block")
+		}
+	}
 	return nil
 }
 
@@ -630,8 +711,8 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 	return nil
 }
 
-// VerifyBookkeeperEpoch verifies bookkeeper epoch.
-func (dpos *Dpos) VerifyBookkeeperEpoch(block *types.Block) error {
+// verifies bookkeeper epoch.
+func (dpos *Dpos) verifyBookkeeperEpoch(block *types.Block) error {
 
 	tail := dpos.chain.TailBlock()
 	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
@@ -660,8 +741,8 @@ func (dpos *Dpos) VerifyBookkeeperEpoch(block *types.Block) error {
 	return nil
 }
 
-// VerifySign consensus verifies signature info.
-func (dpos *Dpos) VerifySign(block *types.Block) (bool, error) {
+// verifySign consensus verifies signature info.
+func (dpos *Dpos) verifySign(block *types.Block) (bool, error) {
 
 	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
 	if err != nil {
@@ -704,41 +785,6 @@ func (dpos *Dpos) subscribe() {
 	dpos.chain.Bus().Reply(eventbus.TopicCheckMiner, func(timestamp int64, out chan<- error) {
 		out <- dpos.verifyBookkeeper(timestamp)
 	}, false)
-}
-
-// Verify check the legality of the block.
-func (dpos *Dpos) Verify(block *types.Block) error {
-	ok, err := dpos.VerifySign(block)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return errors.New("Failed to verify sign block")
-	}
-
-	return dpos.VerifyCandidates(block)
-}
-
-// Seal notify consensus to change new tail.
-func (dpos *Dpos) Seal(tail *types.Block) error {
-	if err := dpos.UpdateCandidateContext(tail); err != nil {
-		return err
-	}
-	if dpos.IsBookkeeper() && time.Now().Unix()-tail.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
-		go dpos.BroadcastEternalMsgToBookkeepers(tail)
-	}
-	go dpos.TryToUpdateEternalBlock(tail)
-	return nil
-}
-
-// Process notify consensus to process new block.
-func (dpos *Dpos) Process(block *types.Block, db interface{}) error {
-	return dpos.StoreCandidateContext(block, db.(storage.Batch))
-}
-
-// VerifyTx notify consensus to verify new tx.
-func (dpos *Dpos) VerifyTx(tx *types.Transaction) error {
-	return dpos.checkRegisterOrVoteTx(tx)
 }
 
 func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {

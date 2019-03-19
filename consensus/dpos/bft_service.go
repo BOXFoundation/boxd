@@ -97,7 +97,7 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 		if value, ok := bft.msgCache.Load(blockHash); ok {
 			signatures := value.([][]byte)
 			if len(signatures) > MinConfirmMsgNumberForEternalBlock {
-				go bft.updateEternal(block)
+				// go bft.updateEternal(block)
 				irreversibleInfo := new(types.IrreversibleInfo)
 				irreversibleInfo.Hash = blockHash
 				irreversibleInfo.Signatures = value.([][]byte)
