@@ -2,10 +2,10 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package types
+package chain
 
 import (
-	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/core/types"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
@@ -13,17 +13,14 @@ import (
 type Consensus interface {
 	Run() error
 	Stop()
-	StoreCandidateContext(*Block, storage.Batch) error
-	VerifySign(*Block) (bool, error)
-	VerifyMinerEpoch(*Block) error
 	StopMint()
 	RecoverMint()
-	BroadcastEternalMsgToMiners(*Block) error
-	ValidateMiner() bool
-	TryToUpdateEternalBlock(*Block)
-	IsCandidateExist(AddressHash) bool
-	VerifyCandidates(*Block) error
-	UpdateCandidateContext(*Block) error
+
+	Verify(*types.Block) error
+	Process(*types.Block, interface{}) error
+	Seal(*types.Block) error
+
+	VerifyTx(*types.Transaction) error
 }
 
 // SyncManager define sync manager interface

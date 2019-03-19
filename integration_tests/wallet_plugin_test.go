@@ -128,7 +128,7 @@ func _TestNormalTx(t *testing.T) {
 		//"b1fJy9WSDDn1vwiDb8Cd7GiF3mPzaYFPEdy",
 		//"b1fNm3MuBgAKD7WwZbLZBWJ6nV2JVVcFAv7",
 		//"b1n4ffVkctWmXptM6ojVkrA3vsrtyf9nm1e",
-		"b2ir3paoqze6Ft7GqKAdCk1ePkt4cbE2mZ9",
+		"b2KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twqz",
 	}
 	//amounts := []uint64{100, 200, 300, 400}
 	amounts := []uint64{1000}

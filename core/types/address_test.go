@@ -199,3 +199,45 @@ func TestAddressPrefix(t *testing.T) {
 		}
 	}
 }
+
+func TestAddressValidate(t *testing.T) {
+	var tests = []struct {
+		addr  string
+		valid bool
+	}{
+		{
+			"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x",
+			true,
+		},
+		{
+			"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x0",
+			false,
+		},
+		{
+			"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9",
+			false,
+		},
+		{
+			"b1bfGiSykHFaiCeXgYibFN141aBwZURsA90",
+			false,
+		},
+		{
+			"b2KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twqz",
+			true,
+		},
+		{
+			"b2KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twq0",
+			false,
+		},
+		{
+			"b3KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twq0",
+			false,
+		},
+	}
+	for _, tc := range tests {
+		_, err := ParseAddress(tc.addr)
+		if err != nil && tc.valid {
+			t.Error(err)
+		}
+	}
+}

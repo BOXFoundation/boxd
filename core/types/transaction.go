@@ -21,6 +21,9 @@ const (
 	VoteTx
 )
 
+// TokenID defines token id
+type TokenID OutPoint
+
 // Transaction defines a transaction.
 type Transaction struct {
 	hash     *crypto.HashType

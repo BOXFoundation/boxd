@@ -81,7 +81,7 @@ func getTailBlock() *types.Block {
 
 func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
 
-	err := blockChain.ProcessBlock(newBlock, core.DefaultMode /* not broadcast */, false, "")
+	err := blockChain.ProcessBlock(newBlock, core.DefaultMode /* not broadcast */, "")
 
 	ensure.DeepEqual(t, err, expectedErr)
 	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)

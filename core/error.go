@@ -40,17 +40,14 @@ var (
 	ErrBlockInSideChain             = errors.New("The block is in side chain")
 
 	//transaciton_pool.go
-	ErrDuplicateTxInPool                = errors.New("Duplicate transactions in tx pool")
-	ErrDuplicateTxInOrphanPool          = errors.New("Duplicate transactions in orphan pool")
-	ErrCoinbaseTx                       = errors.New("Transaction must not be a coinbase transaction")
-	ErrNonStandardTransaction           = errors.New("Transaction is not a standard transaction")
-	ErrOutPutAlreadySpent               = errors.New("Output already spent by transaction in the pool")
-	ErrOrphanTransaction                = errors.New("Orphan transaction cannot be admitted into the pool")
-	ErrNonLocalMessage                  = errors.New("Received non-local message")
-	ErrLocalMessageNotChainUpdate       = errors.New("Received local message is not a chain update")
-	ErrCandidateIsAlreadyExist          = errors.New("The candidate is already exist")
-	ErrInvalidRegisterCandidateOrVoteTx = errors.New("Invalid register candidate or vote tx")
-	ErrCandidateNotFound                = errors.New("The candidate not found")
+	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
+	ErrDuplicateTxInOrphanPool    = errors.New("Duplicate transactions in orphan pool")
+	ErrCoinbaseTx                 = errors.New("Transaction must not be a coinbase transaction")
+	ErrNonStandardTransaction     = errors.New("Transaction is not a standard transaction")
+	ErrOutPutAlreadySpent         = errors.New("Output already spent by transaction in the pool")
+	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
+	ErrNonLocalMessage            = errors.New("Received non-local message")
+	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
 
 	//block.go
 	ErrSerializeHeader                = errors.New("Serialize block header error")

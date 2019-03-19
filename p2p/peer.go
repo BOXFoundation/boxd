@@ -240,14 +240,14 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 	return nil
 }
 
-// BroadcastToMiners business message to miners.
-func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []string) error {
+// BroadcastToBookkeepers business message to bookkeepers.
+func (p *BoxPeer) BroadcastToBookkeepers(code uint32, msg conv.Convertible, bookkeepers []string) error {
 
 	body, err := conv.MarshalConvertible(msg)
 	if err != nil {
 		return err
 	}
-	for _, v := range miners {
+	for _, v := range bookkeepers {
 		if p.id.Pretty() == v {
 			continue
 		}
@@ -260,7 +260,7 @@ func (p *BoxPeer) BroadcastToMiners(code uint32, msg conv.Convertible, miners []
 			// go conn.Write(code, body)
 			go func(conn *Conn) {
 				if err := conn.Write(code, body); err != nil {
-					logger.Errorf("Failed to broadcast message to remote miner peer.Code: %X, Err: %v", code, err)
+					logger.Errorf("Failed to broadcast message to remote bookkeepers peer.Code: %X, Err: %v", code, err)
 				}
 			}(conn)
 		}

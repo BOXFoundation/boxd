@@ -51,8 +51,8 @@ func NewBftService(consensus *Dpos) (*BftService, error) {
 	return bft, nil
 }
 
-// Start bft service to handle eternalBlockMsg.
-func (bft *BftService) Start() {
+// Run bft service to handle eternalBlockMsg.
+func (bft *BftService) Run() {
 	bft.subscribeMessageNotifiee()
 	bft.proc.Go(bft.loop)
 	// bft.proc.Go(bft.checkEternalBlock)
@@ -81,8 +81,8 @@ func (bft *BftService) loop(p goprocess.Process) {
 func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 
 	tailHeight := bft.chain.TailBlock().Height
-	MinerRefreshIntervalInSecond := MinerRefreshInterval / SecondInMs
-	offset := time.Now().Unix() % MinerRefreshIntervalInSecond
+	BookkeeperRefreshIntervalInSecond := BookkeeperRefreshInterval / SecondInMs
+	offset := time.Now().Unix() % BookkeeperRefreshIntervalInSecond
 
 	if tailHeight == 0 {
 		return nil
@@ -108,7 +108,7 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 		height--
 		offset--
 	}
-	if offset == MinerRefreshIntervalInSecond-1 {
+	if offset == BookkeeperRefreshIntervalInSecond-1 {
 		bft.msgCache = &sync.Map{}
 	}
 
@@ -162,7 +162,7 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 	// quick check
 	peerID := msg.From().Pretty()
 	if !util.InArray(peerID, bft.consensus.context.periodContext.periodPeers) {
-		return ErrNotMintPeer
+		return ErrNotBookkeeperPeer
 	}
 
 	eternalBlockMsg := new(EternalBlockMsg)
@@ -181,16 +181,16 @@ func (bft *BftService) handleEternalBlockMsg(msg p2p.Message) error {
 		return ErrIllegalMsg
 	}
 
-	miner, err := bft.consensus.context.periodContext.FindMinerWithTimeStamp(now + 1)
+	proposer, err := bft.consensus.context.periodContext.FindProposerWithTimeStamp(now + 1)
 	if err != nil {
 		return err
 	}
-	addr, err := types.NewAddress(bft.consensus.miner.Addr())
+	addr, err := types.NewAddress(bft.consensus.bookkeeper.Addr())
 	if err != nil {
 		return err
 	}
 	// No need to deal with messages that were not in my production block time period
-	if *miner != *addr.Hash160() {
+	if *proposer != *addr.Hash160() {
 		return nil
 	}
 
