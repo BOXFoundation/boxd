@@ -633,6 +633,13 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 		if len(irreversibleInfo.Signatures) <= MinConfirmMsgNumberForEternalBlock {
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
+		// check hash is exist
+		block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		if block == nil {
+			logger.Errorf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
+			return errors.New("the block hash is not exist on the chain")
+		}
+		// FIXME: period switching requires extra processing
 		addrs := dpos.context.periodContext.periodAddrs
 		remains := []types.AddressHash{}
 		for _, v := range irreversibleInfo.Signatures {
