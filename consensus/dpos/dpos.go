@@ -169,8 +169,8 @@ func (dpos *Dpos) Verify(block *types.Block) error {
 	return dpos.verifyIrreversibleInfo(block)
 }
 
-// Seal notify consensus to change new tail.
-func (dpos *Dpos) Seal(tail *types.Block) error {
+// Finalize notify consensus to change new tail.
+func (dpos *Dpos) Finalize(tail *types.Block) error {
 	if err := dpos.UpdateCandidateContext(tail); err != nil {
 		return err
 	}
