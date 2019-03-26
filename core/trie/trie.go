@@ -9,13 +9,16 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/storage"
 )
 
+var logger = log.NewLogger("trie") // logger
+
 // Trie is a Merkle Patricia Trie.
 type Trie struct {
-	root Node
-	db   storage.Storage
+	rootHash *crypto.HashType
+	db       storage.Storage
 }
 
 // New creates a trie with an existing root node from db.
@@ -24,8 +27,7 @@ func New(root *Node, db storage.Storage) (*Trie, error) {
 		panic("trie.New called without a database")
 	}
 	trie := &Trie{
-		db:   db,
-		root: *root,
+		db: db,
 	}
 	if root == nil {
 		return trie, nil
@@ -35,20 +37,6 @@ func New(root *Node, db storage.Storage) (*Trie, error) {
 		return nil, err
 	}
 	return trie, nil
-}
-
-func (t *Trie) newNode(value [][]byte) *Node {
-	return &Node{Value: value}
-}
-
-func (t *Trie) newEmptyBranchNode() *Node {
-	value := [][]byte{nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil}
-	return t.newNode(value)
-}
-
-func (t *Trie) newExtensionNode(key, value []byte) *Node {
-	v := [][]byte{key, value}
-	return t.newNode(v)
 }
 
 func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
@@ -67,19 +55,20 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 func (t *Trie) commit(node *Node) error {
 
 	if node.Type() == unknown {
-		return errors.New("Failed to commit node for invalid node type")
+		return core.ErrNodeNotFound
 	}
 	nodeBin, err := node.Marshal()
 	if err != nil {
 		return err
 	}
-	copy(node.Hash[:], crypto.Sha3256(nodeBin))
+	node.Hash = new(crypto.HashType)
+	node.Hash.SetBytes(crypto.Sha3256(nodeBin))
 	return t.db.Put(node.Hash[:], nodeBin)
 }
 
 // Get value by key in the trie.
 func (t *Trie) Get(key []byte) ([]byte, error) {
-	return t.get(t.root.Hash, keyToHex(key))
+	return t.get(t.rootHash, keyToHex(key))
 }
 
 func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
@@ -92,13 +81,13 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 		return nil, err
 	}
 	if root.Type() == unknown {
-		return nil, errors.New("Failed to update trie for invalid node type")
+		return nil, core.ErrNodeNotFound
 	}
 	prefixs, err := commonPrefixes(root.Value[0], key)
 	if err != nil {
 		return nil, err
 	}
-	var tmpHash *crypto.HashType
+	var tmpHash = new(crypto.HashType)
 	var rootKeyLen = len(root.Value[0])
 	var prefixsLen = len(prefixs)
 	var keyLen = len(key)
@@ -109,10 +98,10 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 		}
 		return root.Value[1], nil
 	case branch:
-		copy(tmpHash[:], root.Value[key[0]])
+		tmpHash.SetBytes(root.Value[key[0]])
 		return t.get(tmpHash, key[1:])
 	case extension:
-		copy(tmpHash[:], root.Value[1])
+		tmpHash.SetBytes(root.Value[1])
 		return t.get(tmpHash, key[prefixsLen:])
 	}
 
@@ -126,22 +115,22 @@ func (t *Trie) Update(key, value []byte) error {
 	var rootHash *crypto.HashType
 	var err error
 	if len(value) != 0 {
-		if rootHash, err = t.update(t.root.Hash, k, value); err != nil {
+		if rootHash, err = t.update(t.rootHash, k, value); err != nil {
 			return err
 		}
 	} else {
-		if rootHash, err = t.delete(t.root.Hash, k); err != nil {
+		if rootHash, err = t.delete(t.rootHash, k); err != nil {
 			return err
 		}
 	}
-	t.root.Hash = rootHash
+	t.rootHash = rootHash
 	return nil
 }
 
 func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashType, error) {
 	if hash == nil {
 		value := [][]byte{key, value, termintor}
-		node := t.newNode(value)
+		node := newNode(value)
 		if err := t.commit(node); err != nil {
 			return nil, err
 		}
@@ -153,7 +142,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		return nil, err
 	}
 	if root.Type() == unknown {
-		return nil, errors.New("Failed to update trie for invalid node type")
+		return nil, core.ErrNodeNotFound
 	}
 
 	prefixs, err := commonPrefixes(root.Value[0], key)
@@ -172,7 +161,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 			}
 			return root.Hash, nil
 		default:
-			branch := t.newEmptyBranchNode()
+			branch := newEmptyBranchNode()
 			oldleafHash, err := t.update(nil, root.Value[0][prefixsLen+1:], root.Value[1])
 			if err != nil {
 				return nil, err
@@ -181,8 +170,8 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 			if err != nil {
 				return nil, err
 			}
-			branch.Value[root.Value[0][0]] = oldleafHash[:]
-			branch.Value[key[0]] = newLeafHash[:]
+			branch.Value[root.Value[0][prefixsLen]] = oldleafHash[:]
+			branch.Value[key[prefixsLen]] = newLeafHash[:]
 			if err := t.commit(branch); err != nil {
 				return nil, err
 			}
@@ -191,7 +180,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 			}
 
 			// extension node is needed
-			extension := t.newExtensionNode(prefixs, branch.Hash[:])
+			extension := newExtensionNode(prefixs, branch.Hash[:])
 			if err := t.commit(extension); err != nil {
 				return nil, err
 			}
@@ -210,8 +199,8 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		//*****************************************
 		switch prefixsLen {
 		case rootKeyLen:
-			var tmpHash *crypto.HashType
-			copy(tmpHash[:], root.Value[1])
+			var tmpHash = new(crypto.HashType)
+			tmpHash.SetBytes(root.Value[1])
 			return t.updateBranchNode(root, tmpHash, key, value, prefixsLen+1)
 
 		//*****************************************
@@ -225,7 +214,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		//     e       2
 		//******************************************
 		case 0:
-			branch := t.newEmptyBranchNode()
+			branch := newEmptyBranchNode()
 			newLeafHash, err := t.update(nil, key[1:], value)
 			if err != nil {
 				return nil, err
@@ -233,7 +222,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 			if rootKeyLen == 1 {
 				branch.Value[root.Value[0][0]] = root.Value[1]
 			} else {
-				extension := t.newExtensionNode(root.Value[0][1:], root.Value[1])
+				extension := newExtensionNode(root.Value[0][1:], root.Value[1])
 				if err := t.commit(extension); err != nil {
 					return nil, err
 				}
@@ -258,7 +247,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		//   e       2
 		//******************************************
 		default:
-			branch := t.newEmptyBranchNode()
+			branch := newEmptyBranchNode()
 			newLeafHash, err := t.update(nil, key[prefixsLen+1:], value)
 			if err != nil {
 				return nil, err
@@ -266,7 +255,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 			if prefixsLen == rootKeyLen-1 {
 				branch.Value[root.Value[0][prefixsLen]] = root.Value[1]
 			} else {
-				extension := t.newExtensionNode(root.Value[0][prefixsLen+1:], root.Value[1])
+				extension := newExtensionNode(root.Value[0][prefixsLen+1:], root.Value[1])
 				if err := t.commit(extension); err != nil {
 					return nil, err
 				}
@@ -277,7 +266,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 				return nil, err
 			}
 
-			newRoot := t.newExtensionNode(prefixs, branch.Hash[:])
+			newRoot := newExtensionNode(prefixs, branch.Hash[:])
 			if err := t.commit(newRoot); err != nil {
 				return nil, err
 			}
@@ -285,8 +274,8 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		}
 
 	case branch:
-		var tmpHash *crypto.HashType
-		copy(tmpHash[:], root.Value[key[0]])
+		var tmpHash = new(crypto.HashType)
+		tmpHash.SetBytes(root.Value[key[0]])
 		return t.updateBranchNode(root, tmpHash, key, value, 1)
 	}
 	return nil, nil
@@ -322,7 +311,7 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 	if err != nil || prefixsLen == 0 {
 		return nil, core.ErrNodeNotFound
 	}
-	var tmpHash *crypto.HashType
+	var tmpHash = new(crypto.HashType)
 	var rootKeyLen = len(root.Value[0])
 	var keyLen = len(key)
 	switch root.Type() {
@@ -332,7 +321,7 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 		}
 		return nil, nil
 	case branch:
-		copy(tmpHash[:], root.Value[key[0]])
+		tmpHash.SetBytes(root.Value[key[0]])
 		newHash, err := t.delete(tmpHash, key[1:])
 		if err != nil {
 			return nil, err
@@ -355,11 +344,11 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 				subNode.Value[0] = append([]byte{byte(index)}, subNode.Value[0]...)
 				newNode = subNode
 			case branch: // ext -> branch ->
-				extension := t.newExtensionNode([]byte{byte(index)}, subHash[:])
+				extension := newExtensionNode([]byte{byte(index)}, subHash[:])
 				newNode = extension
 			case extension: // ext -> ext ->
 				tempkey := append([]byte{byte(index)}, subNode.Value[0]...)
-				extension := t.newExtensionNode(tempkey, subNode.Value[1])
+				extension := newExtensionNode(tempkey, subNode.Value[1])
 				newNode = extension
 			default:
 				return nil, core.ErrInvalidNodeType
@@ -374,8 +363,7 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 		}
 		return root.Hash, nil
 	case extension:
-		var tmpHash *crypto.HashType
-		copy(tmpHash[:], root.Value[1])
+		tmpHash.SetBytes(root.Value[1])
 		newHash, err := t.delete(tmpHash, key[prefixsLen:])
 		if err != nil {
 			return nil, err

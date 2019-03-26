@@ -52,7 +52,8 @@ func (n *Node) FromProtoMessage(msg proto.Message) error {
 				return err
 			}
 			// n.Hash = crypto.Sha3256(bytes)
-			copy(n.Hash[:], crypto.Sha3256(bytes))
+			n.Hash = new(crypto.HashType)
+			n.Hash.SetBytes(crypto.Sha3256(bytes))
 			n.Value = msg.Value
 			return nil
 		}
@@ -73,6 +74,20 @@ func (n *Node) Unmarshal(data []byte) error {
 		return err
 	}
 	return n.FromProtoMessage(msg)
+}
+
+func newNode(value [][]byte) *Node {
+	return &Node{Value: value}
+}
+
+func newEmptyBranchNode() *Node {
+	value := [][]byte{nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil}
+	return newNode(value)
+}
+
+func newExtensionNode(key, value []byte) *Node {
+	v := [][]byte{key, value}
+	return newNode(v)
 }
 
 // Type returns the type of node.
