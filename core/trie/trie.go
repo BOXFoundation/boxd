@@ -126,13 +126,11 @@ func (t *Trie) Update(key, value []byte) error {
 	var rootHash *crypto.HashType
 	var err error
 	if len(value) != 0 {
-		rootHash, err = t.update(t.root.Hash, k, value)
-		if err != nil {
+		if rootHash, err = t.update(t.root.Hash, k, value); err != nil {
 			return err
 		}
 	} else {
-		rootHash, err = t.delete(t.root.Hash, k)
-		if err != nil {
+		if rootHash, err = t.delete(t.root.Hash, k); err != nil {
 			return err
 		}
 	}
