@@ -88,3 +88,26 @@ func (n *Node) Type() Flag {
 		return unknown
 	}
 }
+
+// BranchLen returns the length of branch node.
+func (n *Node) BranchLen() int {
+	var count int
+	for _, v := range n.Value {
+		if len(v) > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+// FirstSubNodeHashInBranch returns the first sub node hash in branch node.
+func (n *Node) FirstSubNodeHashInBranch() (*crypto.HashType, int) {
+	var hash *crypto.HashType
+	for idx, v := range n.Value {
+		if len(v) > 0 {
+			copy(hash[:], v)
+			return hash, idx
+		}
+	}
+	return nil, 0
+}

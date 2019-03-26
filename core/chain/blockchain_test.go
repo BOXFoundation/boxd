@@ -182,6 +182,8 @@ func TestBlockProcessing(t *testing.T) {
 	blanceSplitB := getBlances(splitAddrB.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(25*core.DuPerBox))
 
+	//TODO: add insuffient balance check
+
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// Extend b3 fork twice to make first chain longer and force reorg
 	// b0 -> b1 -> b2  -> b3  -> b4 -> b5
