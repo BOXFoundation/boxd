@@ -5,8 +5,6 @@
 package trie
 
 import (
-	"errors"
-
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -393,7 +391,7 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 func commonPrefixes(old, new []byte) ([]byte, error) {
 
 	if len(old) > len(new) {
-		return []byte{}, errors.New("Invalid prefixes")
+		return []byte{}, core.ErrInvalidKeyPath
 	}
 	var i int
 	for ; i < len(old); i++ {

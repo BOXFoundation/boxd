@@ -59,6 +59,7 @@ var (
 	ErrInvalidTrieProtoMessage = errors.New("Invalid trie proto message")
 	ErrNodeNotFound            = errors.New("node is not found")
 	ErrInvalidNodeType         = errors.New("Invalid node type")
+	ErrInvalidKeyPath          = errors.New("Invalid key path")
 
 	//transaction.go
 	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
