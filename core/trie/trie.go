@@ -60,7 +60,6 @@ func (t *Trie) commit(node *Node) error {
 		return err
 	}
 	node.Hash = bytesToHash(crypto.Sha3256(nodeBin))
-	logger.Errorf("commit node. Hash: %v key: %v value: %v", node.Hash, node.Value[0], node.Value[1])
 	return t.db.Put(node.Hash[:], nodeBin)
 }
 
@@ -137,7 +136,6 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		return nil, err
 	}
 	if root.Type() == unknown {
-		logger.Errorf("error")
 		return nil, core.ErrNodeNotFound
 	}
 
@@ -294,7 +292,6 @@ func (t *Trie) updateBranchNode(root *Node, rootHash *crypto.HashType, key, valu
 }
 
 func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, error) {
-	logger.Errorf("delete. hash: %v key: %v", hash, key)
 	if hash == nil || len(key) == 0 {
 		return nil, core.ErrNodeNotFound
 	}
@@ -309,7 +306,6 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 	var prefixsLen int
 	if root.Type() != branch {
 		prefixs, err = commonPrefixes(root.Value[0], key)
-		logger.Errorf("delete. prefixs: %v", prefixs)
 		prefixsLen = len(prefixs)
 		if err != nil || prefixsLen == 0 {
 			return nil, core.ErrNodeNotFound
@@ -325,7 +321,6 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 		}
 		return nil, nil
 	case branch:
-		logger.Errorf("meet branch. key: %v", key)
 		newHash, err := t.delete(bytesToHash(root.Value[key[0]]), key[1:])
 		if err != nil {
 			return nil, err
@@ -345,7 +340,6 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 			var newNode *Node
 			switch subNode.Type() {
 			case leaf: // ext -> leaf
-				logger.Errorf("haha")
 				subNode.Value[0] = append([]byte{byte(index)}, subNode.Value[0]...)
 				newNode = subNode
 			case branch: // ext -> branch ->
@@ -368,7 +362,6 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 		}
 		return root.Hash, nil
 	case extension:
-		logger.Errorf("meet extension. key: %v prefixs: %v", key, prefixs)
 		newHash, err := t.delete(bytesToHash(root.Value[1]), key[prefixsLen:])
 		if err != nil {
 			return nil, err
