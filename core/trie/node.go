@@ -117,11 +117,9 @@ func (n *Node) BranchLen() int {
 
 // FirstSubNodeHashInBranch returns the first sub node hash in branch node.
 func (n *Node) FirstSubNodeHashInBranch() (*crypto.HashType, int) {
-	var hash *crypto.HashType
 	for idx, v := range n.Value {
 		if len(v) > 0 {
-			copy(hash[:], v)
-			return hash, idx
+			return bytesToHash(v), idx
 		}
 	}
 	return nil, 0

@@ -59,8 +59,8 @@ func (t *Trie) commit(node *Node) error {
 	if err != nil {
 		return err
 	}
-	node.Hash = new(crypto.HashType)
-	node.Hash.SetBytes(crypto.Sha3256(nodeBin))
+	node.Hash = bytesToHash(crypto.Sha3256(nodeBin))
+	logger.Errorf("commit node. Hash: %v key: %v value: %v", node.Hash, node.Value[0], node.Value[1])
 	return t.db.Put(node.Hash[:], nodeBin)
 }
 
@@ -85,7 +85,6 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var tmpHash = new(crypto.HashType)
 	var rootKeyLen = len(root.Value[0])
 	var prefixsLen = len(prefixs)
 	var keyLen = len(key)
@@ -96,11 +95,9 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 		}
 		return root.Value[1], nil
 	case branch:
-		tmpHash.SetBytes(root.Value[key[0]])
-		return t.get(tmpHash, key[1:])
+		return t.get(bytesToHash(root.Value[key[0]]), key[1:])
 	case extension:
-		tmpHash.SetBytes(root.Value[1])
-		return t.get(tmpHash, key[prefixsLen:])
+		return t.get(bytesToHash(root.Value[1]), key[prefixsLen:])
 	}
 
 	return nil, core.ErrNodeNotFound
@@ -140,6 +137,7 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		return nil, err
 	}
 	if root.Type() == unknown {
+		logger.Errorf("error")
 		return nil, core.ErrNodeNotFound
 	}
 
@@ -197,9 +195,15 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		//*****************************************
 		switch prefixsLen {
 		case rootKeyLen:
-			var tmpHash = new(crypto.HashType)
-			tmpHash.SetBytes(root.Value[1])
-			return t.updateBranchNode(root, tmpHash, key, value, prefixsLen+1)
+			hash, err := t.update(bytesToHash(root.Value[1]), key[prefixsLen:], value)
+			if err != nil {
+				return nil, err
+			}
+			root.Value[1] = hash[:]
+			if err := t.commit(root); err != nil {
+				return nil, err
+			}
+			return root.Hash, nil
 
 		//*****************************************
 		// there are two scenarios
@@ -272,20 +276,17 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		}
 
 	case branch:
-		var tmpHash = new(crypto.HashType)
-		tmpHash.SetBytes(root.Value[key[0]])
-		return t.updateBranchNode(root, tmpHash, key, value, 1)
+		return t.updateBranchNode(root, bytesToHash(root.Value[key[0]]), key, value)
 	}
 	return nil, nil
 }
 
-func (t *Trie) updateBranchNode(root *Node, rootHash *crypto.HashType, key, value []byte, prefixsIndex int) (*crypto.HashType, error) {
-
-	hash, err := t.update(rootHash, key[prefixsIndex:], value)
+func (t *Trie) updateBranchNode(root *Node, rootHash *crypto.HashType, key, value []byte) (*crypto.HashType, error) {
+	hash, err := t.update(rootHash, key[1:], value)
 	if err != nil {
 		return nil, err
 	}
-	root.Value[key[0]] = hash[:]
+	root.Value[key[0]] = hashToBytes(hash)
 	if err := t.commit(root); err != nil {
 		return nil, err
 	}
@@ -293,7 +294,7 @@ func (t *Trie) updateBranchNode(root *Node, rootHash *crypto.HashType, key, valu
 }
 
 func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, error) {
-
+	logger.Errorf("delete. hash: %v key: %v", hash, key)
 	if hash == nil || len(key) == 0 {
 		return nil, core.ErrNodeNotFound
 	}
@@ -304,12 +305,17 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 	if root.Type() == unknown {
 		return nil, core.ErrInvalidNodeType
 	}
-	prefixs, err := commonPrefixes(root.Value[0], key)
-	var prefixsLen = len(prefixs)
-	if err != nil || prefixsLen == 0 {
-		return nil, core.ErrNodeNotFound
+	var prefixs []byte
+	var prefixsLen int
+	if root.Type() != branch {
+		prefixs, err = commonPrefixes(root.Value[0], key)
+		logger.Errorf("delete. prefixs: %v", prefixs)
+		prefixsLen = len(prefixs)
+		if err != nil || prefixsLen == 0 {
+			return nil, core.ErrNodeNotFound
+		}
 	}
-	var tmpHash = new(crypto.HashType)
+
 	var rootKeyLen = len(root.Value[0])
 	var keyLen = len(key)
 	switch root.Type() {
@@ -319,12 +325,12 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 		}
 		return nil, nil
 	case branch:
-		tmpHash.SetBytes(root.Value[key[0]])
-		newHash, err := t.delete(tmpHash, key[1:])
+		logger.Errorf("meet branch. key: %v", key)
+		newHash, err := t.delete(bytesToHash(root.Value[key[0]]), key[1:])
 		if err != nil {
 			return nil, err
 		}
-		root.Value[key[0]] = newHash[:]
+		root.Value[key[0]] = hashToBytes(newHash)
 		// the branch node will change to a extension node.
 		// 3 scenarios
 		// ext -> branch ->
@@ -339,6 +345,7 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 			var newNode *Node
 			switch subNode.Type() {
 			case leaf: // ext -> leaf
+				logger.Errorf("haha")
 				subNode.Value[0] = append([]byte{byte(index)}, subNode.Value[0]...)
 				newNode = subNode
 			case branch: // ext -> branch ->
@@ -361,8 +368,8 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 		}
 		return root.Hash, nil
 	case extension:
-		tmpHash.SetBytes(root.Value[1])
-		newHash, err := t.delete(tmpHash, key[prefixsLen:])
+		logger.Errorf("meet extension. key: %v prefixs: %v", key, prefixs)
+		newHash, err := t.delete(bytesToHash(root.Value[1]), key[prefixsLen:])
 		if err != nil {
 			return nil, err
 		}
@@ -419,4 +426,20 @@ func hexToKey(hex []byte) []byte {
 		key[i] = hex[i*2]<<4 + hex[i*2+1]
 	}
 	return key
+}
+
+func bytesToHash(bytes []byte) *crypto.HashType {
+	if len(bytes) == 0 {
+		return nil
+	}
+	var hash = new(crypto.HashType)
+	hash.SetBytes(bytes)
+	return hash
+}
+
+func hashToBytes(hash *crypto.HashType) []byte {
+	if hash == nil {
+		return nil
+	}
+	return hash[:]
 }
