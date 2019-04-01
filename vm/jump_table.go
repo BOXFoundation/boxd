@@ -20,7 +20,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/xujingshi/go-evm/common/types"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 type (

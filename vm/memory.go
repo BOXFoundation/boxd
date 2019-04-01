@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/xujingshi/go-evm/common/math"
+	"github.com/BOXFoundation/boxd/vm/common/math"
 )
 
 // Memory implements a simple memory model for the ethereum virtual machine.

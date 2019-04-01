@@ -17,7 +17,7 @@
 package types
 
 import (
-	"github.com/xujingshi/go-evm/common"
+	"github.com/BOXFoundation/boxd/vm/common"
 )
 
 //go:generate gencodec -type Log -field-override logMarshaling -out gen_log_json.go

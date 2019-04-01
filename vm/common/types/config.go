@@ -19,7 +19,7 @@ package types
 import (
 	"math/big"
 
-	"github.com/xujingshi/go-evm/common"
+	"github.com/BOXFoundation/boxd/vm/common"
 )
 
 var (

@@ -19,7 +19,7 @@ package vm
 import (
 	"testing"
 
-	"github.com/xujingshi/go-evm/crypto"
+	"github.com/BOXFoundation/boxd/vm/crypto"
 )
 
 func TestJumpDestAnalysis(t *testing.T) {

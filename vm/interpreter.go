@@ -21,9 +21,9 @@ import (
 	"hash"
 	"sync/atomic"
 
-	"github.com/xujingshi/go-evm/common"
-	"github.com/xujingshi/go-evm/common/math"
-	"github.com/xujingshi/go-evm/common/types"
+	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/vm/common/math"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // Config are the configuration options for the Interpreter

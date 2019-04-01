@@ -21,7 +21,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/xujingshi/go-evm/common"
+	"github.com/BOXFoundation/boxd/vm/common"
 )
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.

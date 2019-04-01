@@ -21,9 +21,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/xujingshi/go-evm/common"
-	"github.com/xujingshi/go-evm/common/types"
-	"github.com/xujingshi/go-evm/crypto"
+	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/vm/common/types"
+	"github.com/BOXFoundation/boxd/vm/crypto"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already

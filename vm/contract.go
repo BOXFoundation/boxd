@@ -19,7 +19,7 @@ package vm
 import (
 	"math/big"
 
-	"github.com/xujingshi/go-evm/common"
+	"github.com/BOXFoundation/boxd/vm/common"
 )
 
 // ContractRef is a reference to the contract's backing object

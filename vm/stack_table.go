@@ -19,7 +19,7 @@ package vm
 import (
 	"fmt"
 
-	"github.com/xujingshi/go-evm/common/types"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 func makeStackFunc(pop, push int) stackValidationFunc {

@@ -20,7 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/xujingshi/go-evm/common"
+	"github.com/BOXFoundation/boxd/vm/common"
 	"golang.org/x/crypto/sha3"
 )
 

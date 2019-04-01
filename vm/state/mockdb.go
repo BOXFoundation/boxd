@@ -4,8 +4,8 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/xujingshi/go-evm/common"
-	"github.com/xujingshi/go-evm/common/types"
+	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 func NewMockdb() *Mockdb {

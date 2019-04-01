@@ -21,11 +21,11 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/xujingshi/go-evm/common"
-	"github.com/xujingshi/go-evm/common/math"
-	"github.com/xujingshi/go-evm/crypto"
+	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/vm/common/math"
+	"github.com/BOXFoundation/boxd/vm/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
-	"github.com/xujingshi/go-evm/common/types"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 	"golang.org/x/crypto/ripemd160"
 )
 

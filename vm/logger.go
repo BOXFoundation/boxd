@@ -23,10 +23,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/xujingshi/go-evm/common"
-	"github.com/xujingshi/go-evm/common/hexutil"
-	"github.com/xujingshi/go-evm/common/math"
-	"github.com/xujingshi/go-evm/common/types"
+	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/vm/common/hexutil"
+	"github.com/BOXFoundation/boxd/vm/common/math"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // Storage represents a contract's storage.

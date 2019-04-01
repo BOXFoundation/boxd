@@ -17,9 +17,9 @@
 package vm
 
 import (
-	"github.com/xujingshi/go-evm/common"
-	"github.com/xujingshi/go-evm/common/math"
-	"github.com/xujingshi/go-evm/common/types"
+	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/vm/common/math"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // memoryGasCosts calculates the quadratic gas for memory expansion. It does so

@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/vm"
+	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/vm/common/hexutil"
+	"github.com/BOXFoundation/boxd/vm/common/types"
+	"github.com/BOXFoundation/boxd/vm/core"
+	"github.com/BOXFoundation/boxd/vm/state"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/xujingshi/go-evm/common"
-	"github.com/xujingshi/go-evm/common/hexutil"
-	"github.com/xujingshi/go-evm/common/types"
-	"github.com/xujingshi/go-evm/core"
-	"github.com/xujingshi/go-evm/state"
-	"github.com/xujingshi/go-evm/vm"
 )
 
 var (
@@ -97,7 +97,7 @@ func TestEVMWithoutStorage(t *testing.T) {
 	msg := core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), data, false)
 	cc := ChainContext{}
 	ctx := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
-	dataPath := "/Users/mac/development/src/github.com/xujingshi/go-evm/test/data"
+	dataPath := "/Users/mac/development/src/github.com/BOXFoundation/boxd/vm/test/data"
 	os.Remove(dataPath)
 
 	balance := uint64(big.NewInt(1e18).Uint64())
@@ -196,7 +196,7 @@ func TestMsg(t *testing.T) {
 
 	msg = core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), dataB, false)
 	ctxB := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
-	dataPath := "/Users/mac/development/src/github.com/xujingshi/go-evm/test/data"
+	dataPath := "/Users/mac/development/src/github.com/BOXFoundation/boxd/vm/test/data"
 	os.Remove(dataPath)
 
 	balance := uint64(big.NewInt(1e18).Uint64())
@@ -301,7 +301,7 @@ func TestMsg(t *testing.T) {
 // 	msg := ec.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), data, false)
 // 	cc := ChainContext{}
 // 	ctx := ec.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
-// 	dataPath := "/Users/mac/development/src/github.com/xujingshi/go-evm/test/data"
+// 	dataPath := "/Users/mac/development/src/github.com/BOXFoundation/boxd/vm/test/data"
 // 	os.Remove(dataPath)
 // 	mdb, err := ethdb.NewLDBDatabase(dataPath, 100, 100)
 // 	must(err)
