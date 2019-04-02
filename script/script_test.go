@@ -5,7 +5,9 @@
 package script
 
 import (
+	"bytes"
 	"encoding/hex"
+	"math"
 	"math/big"
 	"strings"
 	"testing"
@@ -351,4 +353,50 @@ func TestCheckLockTimeVerify(t *testing.T) {
 	scriptSig, scriptPubKey, _ = genP2PKHScript(true /* prepend CLTV */, false, tx.LockTime+1)
 	err = Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.DeepEqual(t, err, ErrScriptLockTimeVerifyFail)
+}
+
+func TestContractScript(t *testing.T) {
+	// contract Temp {
+	//     function () payable {}
+	// }
+	code := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+	var tests = []struct {
+		addrStr      string
+		code         string
+		price, limit uint64
+		version      int32
+		err          error
+	}{
+		{"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", code, 100, 20000, 1, nil},
+		{"", code, 100, 20000, 1, nil},
+		{"", code, math.MaxUint64, 20000, 1, ErrInvalidContractParams},
+	}
+	for _, tc := range tests {
+		var addr types.Address
+		if tc.addrStr != "" {
+			addr, _ = types.NewAddress(tc.addrStr)
+		}
+		code, _ := hex.DecodeString(tc.code)
+		cs, err := MakeContractScript(addr, code, tc.price, tc.limit, tc.version)
+		if tc.err != err {
+			t.Fatal(err)
+		}
+		if err != nil {
+			continue
+		}
+		newAddrHash, newGasPrice, newGasLimit, newVersion, newCode, err := cs.ParseContractParams()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (addr != nil && !bytes.Equal(newAddrHash, addr.Hash())) ||
+			newGasPrice != tc.price ||
+			newGasLimit != tc.limit ||
+			newVersion != tc.version ||
+			!bytes.Equal(newCode, code) {
+			t.Fatalf("parse contract params got: %s, %d, %d, %d, %s, want: %s, %d, %d, %d, %s",
+				hex.EncodeToString(newAddrHash), newGasPrice, newGasLimit, newVersion,
+				hex.EncodeToString(newCode),
+				hex.EncodeToString(addr.Hash()), tc.price, tc.limit, tc.version, code)
+		}
+	}
 }

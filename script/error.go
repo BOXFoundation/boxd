@@ -25,6 +25,8 @@ var (
 	ErrOpReturn                  = errors.New("Encounter OP_RETURN")
 	ErrInvalidSplitAddrScript    = errors.New("Invalid split address script")
 	ErrScriptLockTimeVerifyFail  = errors.New("Check lock time verification failure")
+	ErrInvalidContractScript     = errors.New("Invalid contract script")
+	ErrInvalidContractParams     = errors.New("Invalid contract params")
 
 	// stack.go
 	ErrFinalStackEmpty       = errors.New("Final stack empty")
