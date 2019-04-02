@@ -1,0 +1,58 @@
+[
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "x",
+		"outputs": [
+			{
+				"name": "",
+				"type": "int256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_contractAddress",
+				"type": "address"
+			}
+		],
+		"name": "inc_callcode",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_contractAddress",
+				"type": "address"
+			}
+		],
+		"name": "inc_delegatecall",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_contractAddress",
+				"type": "address"
+			}
+		],
+		"name": "inc_call",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+]

@@ -49,7 +49,7 @@ func loadAbi(filename string) abi.ABI {
 	return abiObj
 }
 
-// func getVariables(statedb *state.StateDB, hash common.Address) {
+// func getVariables(statedb *StateDB, hash common.Address) {
 // 	cb := func(key, value common.Hash) bool {
 // 		fmt.Printf("key=%x,value=%x\n", key, value)
 // 		return true
@@ -97,8 +97,6 @@ func TestEVMWithoutStorage(t *testing.T) {
 	msg := core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), data, false)
 	cc := ChainContext{}
 	ctx := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
-	dataPath := "/Users/mac/development/src/github.com/BOXFoundation/boxd/vm/test/data"
-	os.Remove(dataPath)
 
 	balance := uint64(big.NewInt(1e18).Uint64())
 	fmt.Println("init balance =", balance)
@@ -179,9 +177,9 @@ func TestEVMWithoutStorage(t *testing.T) {
 	Print(outputs, "balances")
 	fmt.Println("after get sender balance, balance =", balance)
 
-	for _, log := range structLogger.StructLogs() {
-		fmt.Println(log)
-	}
+	// for _, log := range structLogger.StructLogs() {
+	// 	fmt.Println(log)
+	// }
 }
 
 func TestMsg(t *testing.T) {
@@ -196,8 +194,6 @@ func TestMsg(t *testing.T) {
 
 	msg = core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), dataB, false)
 	ctxB := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
-	dataPath := "/Users/mac/development/src/github.com/BOXFoundation/boxd/vm/test/data"
-	os.Remove(dataPath)
 
 	balance := uint64(big.NewInt(1e18).Uint64())
 	fmt.Println("init balance =", balance)
@@ -307,9 +303,9 @@ func TestMsg(t *testing.T) {
 // 	must(err)
 
 // 	// FIXME: whats the diff from db and statedb?
-// 	db := state.NewDatabase(mdb)
+// 	db := NewDatabase(mdb)
 // 	root := common.Hash{}
-// 	statedb, err := state.New(root, db)
+// 	statedb, err := New(root, db)
 // 	must(err)
 
 // 	//set balance
@@ -417,8 +413,8 @@ func TestMsg(t *testing.T) {
 // 	mdb2, err := ethdb.NewLDBDatabase(dataPath, 100, 100)
 // 	defer mdb2.Close()
 // 	must(err)
-// 	db2 := state.NewDatabase(mdb2)
-// 	statedb2, err := state.New(root, db2)
+// 	db2 := NewDatabase(mdb2)
+// 	statedb2, err := New(root, db2)
 // 	must(err)
 // 	fmt.Println("get testBalance =", statedb2.GetBalance(fromAddress))
 // 	if !bytes.Equal(contractCode, statedb2.GetCode(contractAddr)) {

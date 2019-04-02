@@ -1,0 +1,37 @@
+[
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "x",
+		"outputs": [
+			{
+				"name": "",
+				"type": "int256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [],
+		"name": "inc",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "senderAddr",
+		"type": "event"
+	}
+]
