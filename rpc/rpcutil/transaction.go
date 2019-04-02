@@ -421,7 +421,7 @@ func MakeUnsignedSplitAddrTx(
 
 // MakeUnsignedTokenIssueTx news tx to issue token without signature
 func MakeUnsignedTokenIssueTx(
-	wa service.WalletAgent, issuer, issuee string, tag *rpcpb.TokenTag, fee uint64,
+	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, fee uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
 	utxos, err := wa.Utxos(issuer, nil, fee)
 	if err != nil {
@@ -431,7 +431,7 @@ func MakeUnsignedTokenIssueTx(
 	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
 	}
-	tx, issueOutIndex, err := txlogic.MakeUnsignedTokenIssueTx(issuer, issuee, tag,
+	tx, issueOutIndex, err := txlogic.MakeUnsignedTokenIssueTx(issuer, owner, tag,
 		changeAmt, utxos...)
 	return tx, issueOutIndex, utxos, err
 }
