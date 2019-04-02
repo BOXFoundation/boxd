@@ -228,7 +228,7 @@ func MakeUnsignedSplitAddrTx(
 
 // MakeUnsignedTokenIssueTx make unsigned token issue tx
 func MakeUnsignedTokenIssueTx(
-	issuer string, issuee string, tag *rpcpb.TokenTag, changeAmt uint64,
+	issuer string, Owner string, tag *rpcpb.TokenTag, changeAmt uint64,
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint32, error) {
 
@@ -241,7 +241,7 @@ func MakeUnsignedTokenIssueTx(
 		vins = append(vins, MakeVin(utxo, 0))
 	}
 	// vout for toAddrs
-	issueOut, err := MakeIssueTokenVout(issuee, tag)
+	issueOut, err := MakeIssueTokenVout(Owner, tag)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -50,7 +50,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "issue issuer issuee name symbol supply decimal",
+			Use:   "issue issuer owner name symbol supply decimal",
 			Short: "issue a new token",
 			Run:   createTokenCmdFunc,
 		},

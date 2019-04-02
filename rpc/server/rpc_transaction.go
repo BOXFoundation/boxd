@@ -341,14 +341,14 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
-	issuer, issuee, tag, fee := req.GetIssuer(), req.GetIssuee(), req.GetTag(), req.GetFee()
-	if err := types.ValidateAddr(issuer, issuee); err != nil {
+	issuer, owner, tag, fee := req.GetIssuer(), req.GetOwner(), req.GetTag(), req.GetFee()
+	if err := types.ValidateAddr(issuer, owner); err != nil {
 		logger.Warn(err)
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
 	// make tx without sign
 	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa, issuer,
-		issuee, tag, fee)
+		owner, tag, fee)
 	if err != nil {
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}

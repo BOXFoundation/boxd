@@ -167,7 +167,7 @@ message MakeSplitAddrTxResp {
 
 message MakeTokenIssueTxReq {
     string issuer = 1;
-    string issuee = 2;
+    string owner = 2;
     TokenTag tag = 3;
     uint64 fee = 4;
 } 
