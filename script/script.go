@@ -794,8 +794,7 @@ func MakeContractScript(
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack
-func (s *Script) ParseContractParams() (
-	addrHash []byte, gasPrice, gasLimit uint64, version int32, code []byte, err error) {
+func (s *Script) ParseContractParams() (params *types.BoxTxParams, err error) {
 	// OPCONTRACT
 	opCode, _, pc, err := s.getNthOp(0, 0)
 	if err != nil || opCode != OPCONTRACT {
@@ -809,8 +808,9 @@ func (s *Script) ParseContractParams() (
 	if err != nil {
 		return
 	}
+	params = new(types.BoxTxParams)
 	if len(operand) == ripemd160.Size {
-		addrHash = operand
+		params.Receiver = operand
 	} else {
 		// gasPrice
 		n, e := operand.int64()
@@ -819,17 +819,17 @@ func (s *Script) ParseContractParams() (
 			return
 		}
 		bCreation = true
-		gasPrice = uint64(n)
+		params.GasPrice = uint64(n)
 	}
 	// gasPrice
 	if !bCreation {
-		gasPrice, pc, err = s.readUint64(pc)
+		params.GasPrice, pc, err = s.readUint64(pc)
 		if err != nil {
 			return
 		}
 	}
 	// gasLimit
-	gasLimit, pc, err = s.readUint64(pc)
+	params.GasLimit, pc, err = s.readUint64(pc)
 	if err != nil {
 		return
 	}
@@ -839,13 +839,13 @@ func (s *Script) ParseContractParams() (
 		err = e
 		return
 	}
-	version = int32(n)
+	params.Version = int32(n)
 	// code
 	_, operand, pc, err = s.getNthOp(pc, 0)
 	if err != nil {
 		return
 	}
-	code = operand
+	params.Code = operand
 	// checksum
 	cs := crypto.Hash160((*s)[1:pc])
 	_, operand, pc, err = s.getNthOp(pc, 0)
@@ -858,6 +858,10 @@ func (s *Script) ParseContractParams() (
 	}
 	if !bytes.Equal(operand, cs[:4]) {
 		logger.Warnf("contract script checksum mismatched")
+		err = ErrInvalidContractScript
+		return
+	}
+	if _, _, _, e := s.getNthOp(pc, 0); e != ErrScriptBound {
 		err = ErrInvalidContractScript
 		return
 	}
