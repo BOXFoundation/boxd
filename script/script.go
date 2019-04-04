@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"math"
 	"math/big"
 	"reflect"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
+	"golang.org/x/crypto/ripemd160"
 )
 
 var logger = log.NewLogger("script") // logger
@@ -747,4 +749,141 @@ func (s *Script) GetSigOpCount() int {
 	}
 
 	return numSigs
+}
+
+// IsContractSig returns true if the script sig contains OPCONTRACT code
+func (s *Script) IsContractSig() bool {
+	return len(*s) == 1 && (*s)[0] == byte(OPCONTRACT)
+}
+
+// IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
+func (s *Script) IsContractPubkey() bool {
+	return len(*s) > 1 && (*s)[0] == byte(OPCONTRACT)
+}
+
+// MakeContractScript makes a script pubkey for contract vout
+func MakeContractScript(
+	addr types.Address, code []byte, gasPrice, gasLimit uint64, version int32,
+) (*Script, error) {
+	// OP_CONTRACT addr code gasPrice gasLimit version checksum
+	// check params
+	if len(code) == 0 {
+		return nil, ErrInvalidContractParams
+	}
+	overflowVal := uint64(math.MaxInt64)
+	if gasPrice > overflowVal || gasLimit > overflowVal {
+		return nil, ErrInvalidContractParams
+	}
+	if gasPrice > overflowVal/gasLimit {
+		return nil, ErrInvalidContractParams
+	}
+	// set params
+	s := NewScript()
+	if addr != nil && !reflect.ValueOf(addr).IsNil() {
+		s.AddOperand(addr.Hash())
+	}
+	s.AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
+		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
+		AddOperand(big.NewInt(int64(version)).Bytes()).
+		AddOperand(code)
+	// add checksum
+	scriptHash := crypto.Hash160(*s)
+	checksum := scriptHash[:4]
+
+	return NewScript().AddOpCode(OPCONTRACT).AddScript(s).AddOperand(checksum), nil
+}
+
+// ParseContractParams parse script pubkey with OPCONTRACT to stack
+func (s *Script) ParseContractParams() (params *types.BoxTxParams, err error) {
+	// OPCONTRACT
+	opCode, _, pc, err := s.getNthOp(0, 0)
+	if err != nil || opCode != OPCONTRACT {
+		err = ErrInvalidContractScript
+		return
+	}
+
+	bCreation := false
+	// addr or gasPrice
+	_, operand, pc, err := s.getNthOp(pc, 0)
+	if err != nil {
+		return
+	}
+	params = new(types.BoxTxParams)
+	if len(operand) == ripemd160.Size {
+		params.Receiver = operand
+	} else {
+		// gasPrice
+		n, e := operand.int64()
+		if e != nil {
+			err = e
+			return
+		}
+		bCreation = true
+		params.GasPrice = uint64(n)
+	}
+	// gasPrice
+	if !bCreation {
+		params.GasPrice, pc, err = s.readUint64(pc)
+		if err != nil {
+			return
+		}
+	}
+	// gasLimit
+	params.GasLimit, pc, err = s.readUint64(pc)
+	if err != nil {
+		return
+	}
+	// version
+	n, pc, e := s.readUint64(pc)
+	if err != nil {
+		err = e
+		return
+	}
+	params.Version = int32(n)
+	// code
+	_, operand, pc, err = s.getNthOp(pc, 0)
+	if err != nil {
+		return
+	}
+	params.Code = operand
+	// checksum
+	cs := crypto.Hash160((*s)[1:pc])
+	_, operand, pc, err = s.getNthOp(pc, 0)
+	if err != nil {
+		return
+	}
+	if len(operand) != 4 {
+		err = ErrInvalidContractScript
+		return
+	}
+	if !bytes.Equal(operand, cs[:4]) {
+		logger.Warnf("contract script checksum mismatched")
+		err = ErrInvalidContractScript
+		return
+	}
+	if _, _, _, e := s.getNthOp(pc, 0); e != ErrScriptBound {
+		err = ErrInvalidContractScript
+		return
+	}
+	return
+}
+
+func (s *Script) readInt64(pc int) (int64, int /* pc */, error) {
+	_, operand, pc, err := s.getNthOp(pc, 0)
+	if err != nil {
+		return 0, pc, err
+	}
+	n, err := operand.int64()
+	if err != nil {
+		return 0, pc, err
+	}
+	return n, pc, nil
+}
+
+func (s *Script) readUint64(pc int) (uint64, int /* pc */, error) {
+	n, pc, err := s.readInt64(pc)
+	if err != nil {
+		return 0, pc, err
+	}
+	return uint64(n), pc, nil
 }

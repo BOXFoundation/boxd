@@ -3,6 +3,7 @@ module github.com/BOXFoundation/boxd
 require (
 	github.com/btcsuite/btcd v0.0.0-20190315201642-aa6e0f35703c
 	github.com/btcsuite/btcutil v0.0.0-20190316010144-3ac1210f4b38
+	github.com/ethereum/go-ethereum v1.8.23
 	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
