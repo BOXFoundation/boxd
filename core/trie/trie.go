@@ -121,6 +121,11 @@ func (t *Trie) Update(key, value []byte) error {
 	return nil
 }
 
+// Delete node in the trie.
+func (t *Trie) Delete(key []byte) error {
+	return t.Update(key, nil)
+}
+
 func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashType, error) {
 	if hash == nil {
 		value := [][]byte{key, value, termintor}
