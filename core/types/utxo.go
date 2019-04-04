@@ -14,6 +14,17 @@ const (
 	modified
 )
 
+// UtxoType descript utxo type
+type UtxoType string
+
+//
+const (
+	PayToPubkeyUtxo   UtxoType = "pay_to_pubkey_utxo"
+	TokenIssueUtxo    UtxoType = "token_issue_utxo"
+	TokenTransferUtxo UtxoType = "token_transfer_utxo"
+	SplitAddrUtxo     UtxoType = "split_addr_utxo"
+)
+
 // UtxoWrap contains info about utxo
 type UtxoWrap struct {
 	value  uint64

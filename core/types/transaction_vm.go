@@ -12,7 +12,7 @@ import (
 type BoxTransaction struct {
 	Version     int32
 	SenderNonce uint64
-	Hash        *crypto.HashType // Cached
+	HashWith    *crypto.HashType
 	Sender      *AddressHash
 	Receiver    *AddressHash
 	Value       uint64
@@ -28,7 +28,7 @@ type BoxTxParams struct {
 	GasLimit uint64
 	Version  int32
 	Code     []byte
-	Receiver []byte
+	Receiver *AddressHash
 }
 
 // NewBoxTransaction new a BoxTransaction instance with given parameters
@@ -49,6 +49,18 @@ func NewBoxTransaction(
 // WithSenderNonce sets SenderNonce
 func (tx *BoxTransaction) WithSenderNonce(n uint64) *BoxTransaction {
 	tx.SenderNonce = n
+	return tx
+}
+
+// WithSender sets SenderNonce
+func (tx *BoxTransaction) WithSender(sender *AddressHash) *BoxTransaction {
+	tx.Sender = sender
+	return tx
+}
+
+// WithHashWith sets SenderNonce
+func (tx *BoxTransaction) WithHashWith(hash *crypto.HashType) *BoxTransaction {
+	tx.HashWith = hash
 	return tx
 }
 

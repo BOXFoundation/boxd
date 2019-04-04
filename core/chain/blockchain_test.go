@@ -5,6 +5,9 @@
 package chain
 
 import (
+	"context"
+	"encoding/hex"
+	"math"
 	"testing"
 	"time"
 
@@ -468,4 +471,90 @@ func getBlances(address string, db storage.Table) uint64 {
 		blances += utxoWrap.Value()
 	}
 	return blances
+}
+
+type testDBReader struct{}
+
+func (r *testDBReader) Get(key []byte) ([]byte, error) {
+	addr := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+	address, _ := types.NewAddress(addr)
+	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
+	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
+	utxoWrap := types.NewUtxoWrap(1000, addrScript, 0)
+	return SerializeUtxoWrap(utxoWrap)
+}
+
+func (r *testDBReader) MultiGet(key ...[]byte) ([][]byte, error) { return nil, nil }
+
+func (r *testDBReader) Has(key []byte) (bool, error) { return false, nil }
+
+func (r *testDBReader) Keys() [][]byte { return nil }
+
+func (r *testDBReader) IterKeys(ctx context.Context) <-chan []byte { return nil }
+
+func (r *testDBReader) KeysWithPrefix(prefix []byte) [][]byte { return nil }
+
+func (r *testDBReader) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
+	return nil
+}
+
+const (
+	testExtractPrevHash = "c0e96e998eb01eea5d5acdaeb80acd943477e6119dcd82a419089331229c7453"
+	// contract Temp {
+	//     function () payable {}
+	// }
+	testVMCode = "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+)
+
+func TestExtractBoxTx(t *testing.T) {
+	var tests = []struct {
+		value        uint64
+		addrStr      string
+		code         string
+		price, limit uint64
+		version      int32
+		err          error
+	}{
+		{100, "b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", testVMCode, 100, 20000, 0, nil},
+		{0, "", testVMCode, 100, 20000, 0, nil},
+	}
+	reader := new(testDBReader)
+	for _, tc := range tests {
+		var addr types.Address
+		if tc.addrStr != "" {
+			addr, _ = types.NewAddress(tc.addrStr)
+		}
+		code, _ := hex.DecodeString(tc.code)
+		cs, err := script.MakeContractScript(addr, code, tc.price, tc.limit, tc.version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hash := new(crypto.HashType)
+		hashBytes, _ := hex.DecodeString(testExtractPrevHash)
+		hash.SetBytes(hashBytes)
+		prevOp := types.NewOutPoint(hash, 0)
+		txin := types.NewTxIn(prevOp, nil, 0)
+		txout := types.NewTxOut(tc.value, *cs)
+		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout)
+		btxs, err := ExtractBoxTransactions(tx, reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// check
+		btx := btxs[0]
+		sender, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+		hashWith, _ := tx.TxHash()
+		if *btx.HashWith != *hashWith || btx.SenderNonce != math.MaxUint64 ||
+			*btx.Sender != *sender.Hash160() ||
+			(btx.Receiver != nil && *btx.Receiver != *addr.Hash160()) ||
+			btx.Value != tc.value || btx.GasPrice != tc.price ||
+			btx.Gas != tc.limit || btx.Version != tc.version {
+			t.Fatalf("want: %+v, got BoxTransaction: %+v", tc, btx)
+		}
+
+		//for _, x := range btx {
+		//	bytes, _ := json.MarshalIndent(x, "", "  ")
+		//	t.Logf("box transaction: %s", string(bytes))
+		//}
+	}
 }

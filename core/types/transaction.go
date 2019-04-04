@@ -6,6 +6,7 @@ package types
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -53,6 +54,36 @@ func NewTx(ver int32, magic uint32, lockTime int64) *Transaction {
 		Version:  ver,
 		Magic:    magic,
 		LockTime: lockTime,
+	}
+}
+
+// NewTxOut generates a new TxOut
+func NewTxOut(value uint64, scriptPubKey []byte) *corepb.TxOut {
+	return &corepb.TxOut{
+		Value:        value,
+		ScriptPubKey: scriptPubKey,
+	}
+}
+
+// NewTxIn generates a new TxIn
+func NewTxIn(prevOutPoint *OutPoint, scriptSig []byte, seq uint32) *TxIn {
+	return &TxIn{
+		PrevOutPoint: *prevOutPoint,
+		ScriptSig:    scriptSig,
+		Sequence:     seq,
+	}
+}
+
+// IsCoinBaseTxIn check whether tx in is coin base tx in
+func IsCoinBaseTxIn(txIn *TxIn) bool {
+	return ((txIn.PrevOutPoint.Index == math.MaxUint32) &&
+		(txIn.PrevOutPoint.Hash == crypto.HashType{}))
+}
+
+// NewCoinBaseTxIn new a coinbase tx in
+func NewCoinBaseTxIn() *TxIn {
+	return &TxIn{
+		PrevOutPoint: OutPoint{Index: math.MaxUint32},
 	}
 }
 

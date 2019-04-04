@@ -499,7 +499,7 @@ func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error 
 
 func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{}, db storage.Table) error {
 	for outPoint := range outPoints {
-		entry, err := u.fetchUtxoWrapFromDB(db, outPoint)
+		entry, err := fetchUtxoWrapFromDB(db, &outPoint)
 		if err != nil {
 			return err
 		}
@@ -510,9 +510,9 @@ func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{
 	return nil
 }
 
-func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint) (*types.UtxoWrap, error) {
-	utxoKey := utxoKey(outpoint)
-	serializedUtxoWrap, err := db.Get(*utxoKey)
+func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*types.UtxoWrap, error) {
+	utxoKey := utxoKey(*outpoint)
+	serializedUtxoWrap, err := reader.Get(*utxoKey)
 	recycleOutpointKey(utxoKey)
 	if err != nil {
 		return nil, err

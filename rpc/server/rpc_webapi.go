@@ -14,11 +14,11 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
@@ -409,7 +409,7 @@ func detailTxIn(
 
 	detail := new(rpcpb.TxInDetail)
 	// if tx in is coin base
-	if txlogic.IsCoinBaseTxIn(txIn) {
+	if types.IsCoinBaseTxIn(txIn) {
 		return detail, nil
 	}
 	//

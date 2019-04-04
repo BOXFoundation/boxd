@@ -21,7 +21,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/jbenet/goprocess"
 	"google.golang.org/grpc"
 )
@@ -158,7 +158,7 @@ func newTestBlock(count int) []*types.Block {
 	miner, coinBaseAmount := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o", uint64(50000)
 	for i := 0; i < count; i++ {
 		coinBaseTx := types.NewTx(0, 4455, 100).
-			AppendVin(txlogic.NewCoinBaseTxIn()).
+			AppendVin(types.NewCoinBaseTxIn()).
 			AppendVout(txlogic.MakeVout(miner, coinBaseAmount))
 		b := types.NewBlock(prevBlock).AppendTx(coinBaseTx)
 		blocks = append(blocks, b)
@@ -307,7 +307,7 @@ func (r *TestDetailBlockChainReader) GetDataFromDB([]byte) ([]byte, error) {
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {
 	addr, amount := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
-		AppendVin(txlogic.NewCoinBaseTxIn()).
+		AppendVin(types.NewCoinBaseTxIn()).
 		AppendVout(txlogic.MakeVout(addr, amount))
 	_, tx, _ := r.LoadBlockInfoByTxHash(crypto.HashType{})
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
@@ -385,7 +385,7 @@ func _TestDetailTxAndBlock(t *testing.T) {
 	// gen coinbase tx
 	coinBaseAmount := uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
-		AppendVin(txlogic.NewCoinBaseTxIn()).
+		AppendVin(types.NewCoinBaseTxIn()).
 		AppendVout(txlogic.MakeVout(from, coinBaseAmount))
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
 	blockDetail, err := detailBlock(block, blockReader, nil, true)

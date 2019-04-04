@@ -1634,3 +1634,68 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 	}
 	return nil
 }
+
+// ExtractBoxTransactions extract Transaction to BoxTransaction
+func ExtractBoxTransactions(
+	tx *types.Transaction, reader storage.Reader,
+) ([]*types.BoxTransaction, error) {
+
+	var btx []*types.BoxTransaction
+	if !HasContractVout(tx) {
+		return nil, nil
+	}
+	// sender
+	// use sender in vin[0] as BoxTransaction sender
+	utxo, err := fetchUtxoWrapFromDB(reader, &tx.Vin[0].PrevOutPoint)
+	if err != nil {
+		return nil, err
+	}
+	sc := script.NewScriptFromBytes(utxo.Script())
+	if !sc.IsPayToPubKeyHash() {
+		return nil, fmt.Errorf("cannot extract box tx from tx that does not contain box utxo")
+	}
+	addr, err := sc.ExtractAddress()
+	if err != nil {
+		return nil, err
+	}
+	sender := addr.Hash160()
+	// HashWith
+	txHash, _ := tx.TxHash()
+
+	for i, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			p, _, e := sc.ParseContractParams()
+			if e != nil {
+				return nil, err
+			}
+			t := types.NewBoxTransaction(o.Value, p.GasPrice, p.GasLimit, p.Receiver, p.Code).
+				WithHashWith(txHash).WithSender(sender).WithVoutNum(uint32(i))
+
+			btx = append(btx, t)
+		}
+	}
+	return btx, nil
+}
+
+// HasContractVout return true if tx has a vout with contract creation or call
+func HasContractVout(tx *types.Transaction) bool {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return true
+		}
+	}
+	return false
+}
+
+// HasContractSpend return true if tx has a vin with Op Spend script sig
+func HasContractSpend(tx *types.Transaction) bool {
+	for _, i := range tx.Vin {
+		sc := script.NewScriptFromBytes(i.ScriptSig)
+		if sc.IsContractSig() {
+			return true
+		}
+	}
+	return false
+}

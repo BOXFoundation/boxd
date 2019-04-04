@@ -29,29 +29,12 @@ func NewBlocks(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp
 	}
 }
 
-// NewTxOut generates a new TxOut
-func NewTxOut(value uint64) *corepb.TxOut {
-	return &corepb.TxOut{
-		Value:        value,
-		ScriptPubKey: []byte{0},
-	}
-}
-
-// NewTxIn generates a new TxIn
-func NewTxIn(prevOutPoint OutPoint) *TxIn {
-	return &TxIn{
-		PrevOutPoint: prevOutPoint,
-		ScriptSig:    []byte{0},
-		Sequence:     1,
-	}
-}
-
 // NewTransaction generates a new Transaction
 func NewTransaction(prevOutPoint OutPoint, value uint64, lockTime int64) *Transaction {
 	return &Transaction{
 		Version:  0,
-		Vin:      []*TxIn{NewTxIn(prevOutPoint)},
-		Vout:     []*corepb.TxOut{NewTxOut(value)},
+		Vin:      []*TxIn{NewTxIn(&prevOutPoint, nil, 0)},
+		Vout:     []*corepb.TxOut{NewTxOut(value, nil)},
 		Magic:    0,
 		LockTime: lockTime,
 	}

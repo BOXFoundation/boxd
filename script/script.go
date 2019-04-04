@@ -21,6 +21,16 @@ import (
 
 var logger = log.NewLogger("script") // logger
 
+// ContractType defines script contract type
+type ContractType string
+
+//
+const (
+	ContractUnkownType   ContractType = "contract_unkown"
+	ContractCreationType ContractType = "contract_creation"
+	ContractCallType     ContractType = "contract_call"
+)
+
 // constants
 const (
 	p2PKHScriptLen = 25
@@ -794,7 +804,8 @@ func MakeContractScript(
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack
-func (s *Script) ParseContractParams() (params *types.BoxTxParams, err error) {
+func (s *Script) ParseContractParams() (params *types.BoxTxParams, typ ContractType, err error) {
+	typ = ContractUnkownType
 	// OPCONTRACT
 	opCode, _, pc, err := s.getNthOp(0, 0)
 	if err != nil || opCode != OPCONTRACT {
@@ -810,8 +821,12 @@ func (s *Script) ParseContractParams() (params *types.BoxTxParams, err error) {
 	}
 	params = new(types.BoxTxParams)
 	if len(operand) == ripemd160.Size {
-		params.Receiver = operand
+		addrHash := new(types.AddressHash)
+		copy(addrHash[:], operand[:])
+		params.Receiver = addrHash
+		typ = ContractCallType
 	} else {
+		typ = ContractCreationType
 		// gasPrice
 		n, e := operand.int64()
 		if e != nil {

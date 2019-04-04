@@ -12,11 +12,11 @@ import (
 	"math"
 	"strings"
 
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	base58 "github.com/jbenet/go-base58"
@@ -330,19 +330,6 @@ func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
 		return "", err
 	}
 	return addr.String(), nil
-}
-
-// IsCoinBaseTxIn check whether tx in is coin base tx in
-func IsCoinBaseTxIn(txIn *types.TxIn) bool {
-	return ((txIn.PrevOutPoint.Index == math.MaxUint32) &&
-		(txIn.PrevOutPoint.Hash == crypto.HashType{}))
-}
-
-// NewCoinBaseTxIn new a coinbase tx in
-func NewCoinBaseTxIn() *types.TxIn {
-	return &types.TxIn{
-		PrevOutPoint: types.OutPoint{Index: math.MaxUint32},
-	}
 }
 
 // EncodeOutPoint encode token to string
