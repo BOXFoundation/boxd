@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -1669,7 +1670,8 @@ func ExtractBoxTransactions(
 			if e != nil {
 				return nil, err
 			}
-			t := types.NewBoxTransaction(o.Value, p.GasPrice, p.GasLimit, p.Receiver, p.Code).
+			t := types.NewBoxTransaction(big.NewInt(int64(o.Value)),
+				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Receiver, p.Code).
 				WithHashWith(txHash).WithSender(sender).WithVoutNum(uint32(i))
 
 			btx = append(btx, t)

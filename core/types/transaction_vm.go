@@ -5,6 +5,8 @@
 package types
 
 import (
+	"math/big"
+
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
@@ -15,8 +17,8 @@ type BoxTransaction struct {
 	HashWith    *crypto.HashType
 	Sender      *AddressHash
 	Receiver    *AddressHash
-	Value       uint64
-	GasPrice    uint64
+	Value       *big.Int
+	GasPrice    *big.Int
 	Gas         uint64
 	Code        []byte
 	VoutNum     uint32
@@ -33,7 +35,7 @@ type BoxTxParams struct {
 
 // NewBoxTransaction new a BoxTransaction instance with given parameters
 func NewBoxTransaction(
-	value, gasPrice, gas uint64, receiver *AddressHash, code []byte,
+	value, gasPrice *big.Int, gas uint64, receiver *AddressHash, code []byte,
 ) *BoxTransaction {
 	return &BoxTransaction{
 		Version:     0,

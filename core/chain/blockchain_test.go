@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/hex"
 	"math"
+	"math/big"
 	"testing"
 	"time"
 
@@ -547,14 +548,10 @@ func TestExtractBoxTx(t *testing.T) {
 		if *btx.HashWith != *hashWith || btx.SenderNonce != math.MaxUint64 ||
 			*btx.Sender != *sender.Hash160() ||
 			(btx.Receiver != nil && *btx.Receiver != *addr.Hash160()) ||
-			btx.Value != tc.value || btx.GasPrice != tc.price ||
+			btx.Value.Cmp(big.NewInt(int64(tc.value))) != 0 ||
+			btx.GasPrice.Cmp(big.NewInt(int64(tc.price))) != 0 ||
 			btx.Gas != tc.limit || btx.Version != tc.version {
 			t.Fatalf("want: %+v, got BoxTransaction: %+v", tc, btx)
 		}
-
-		//for _, x := range btx {
-		//	bytes, _ := json.MarshalIndent(x, "", "  ")
-		//	t.Logf("box transaction: %s", string(bytes))
-		//}
 	}
 }
