@@ -17,7 +17,8 @@
 package types
 
 import (
-	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 //go:generate gencodec -type Log -field-override logMarshaling -out gen_log_json.go
@@ -27,9 +28,9 @@ import (
 type Log struct {
 	// Consensus fields:
 	// address of the contract that generated the event
-	Address common.Address `json:"address" gencodec:"required"`
+	Address types.AddressHash `json:"address" gencodec:"required"`
 	// list of topics provided by the contract.
-	Topics []common.Hash `json:"topics" gencodec:"required"`
+	Topics []crypto.HashType `json:"topics" gencodec:"required"`
 	// supplied by the contract, usually ABI-encoded
 	Data []byte `json:"data" gencodec:"required"`
 
@@ -38,11 +39,11 @@ type Log struct {
 	// block in which the transaction was included
 	BlockNumber uint64 `json:"blockNumber"`
 	// hash of the transaction
-	TxHash common.Hash `json:"transactionHash" gencodec:"required"`
+	TxHash crypto.HashType `json:"transactionHash" gencodec:"required"`
 	// index of the transaction in the block
 	TxIndex uint `json:"transactionIndex" gencodec:"required"`
 	// hash of the block in which the transaction was included
-	BlockHash common.Hash `json:"blockHash"`
+	BlockHash crypto.HashType `json:"blockHash"`
 	// index of the log in the block
 	Index uint `json:"logIndex" gencodec:"required"`
 

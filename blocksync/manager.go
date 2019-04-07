@@ -471,7 +471,7 @@ func (sm *SyncManager) verifyPeerStatus(status peerStatus, id peer.ID) bool {
 // and log2(height-@beginSeqHashes) entries to geneses for the skip portion.
 func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 	hashes := make([]*crypto.HashType, 0)
-	tailHeight := sm.chain.TailBlock().Height
+	tailHeight := sm.chain.TailBlock().Header.Height
 	if tailHeight == 0 {
 		return []*crypto.HashType{sm.chain.Genesis().BlockHash()}, nil
 	}

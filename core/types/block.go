@@ -25,8 +25,6 @@ type Block struct {
 	Txs              []*Transaction
 	Signature        []byte
 	IrreversibleInfo *IrreversibleInfo
-
-	Height uint32
 }
 
 var _ conv.Convertible = (*Block)(nil)
@@ -38,9 +36,9 @@ func NewBlock(parent *Block) *Block {
 		Header: &BlockHeader{
 			Magic:         parent.Header.Magic,
 			PrevBlockHash: *parent.BlockHash(),
+			Height:        parent.Header.Height + 1,
 		},
-		Txs:    make([]*Transaction, 0),
-		Height: parent.Height + 1,
+		Txs: make([]*Transaction, 0),
 	}
 }
 
@@ -77,7 +75,6 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 			Txs:              txs,
 			Signature:        block.Signature,
 			IrreversibleInfo: ii,
-			Height:           block.Height,
 		}, nil
 	}
 
@@ -113,7 +110,6 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 			// Fill in hash after header is set
 			block.Hash = block.BlockHash()
 			block.Txs = txs
-			block.Height = message.Height
 			block.Signature = message.Signature
 			block.IrreversibleInfo = ii
 			return nil
@@ -128,7 +124,7 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 // Only copy needed fields to save efforts: height & vin & vout
 func (block *Block) Copy() *Block {
 	newBlock := &Block{
-		Height: block.Height,
+		Header: &BlockHeader{Height: block.Header.Height},
 	}
 
 	txs := make([]*Transaction, len(block.Txs))
@@ -228,9 +224,13 @@ type BlockHeader struct {
 	// Distinguish between mainnet and testnet.
 	Magic uint32
 
+	RootHash crypto.HashType
+
 	PeriodHash crypto.HashType
 
 	CandidatesHash crypto.HashType
+
+	Height uint32
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
@@ -248,6 +248,8 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		Magic:          header.Magic,
 		PeriodHash:     header.PeriodHash[:],
 		CandidatesHash: header.CandidatesHash[:],
+		RootHash:       header.RootHash[:],
+		Height:         header.Height,
 	}, nil
 }
 
@@ -262,6 +264,8 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			header.Magic = message.Magic
 			copy(header.PeriodHash[:], message.PeriodHash)
 			copy(header.CandidatesHash[:], message.CandidatesHash)
+			copy(header.RootHash[:], message.RootHash)
+			header.Height = message.Height
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

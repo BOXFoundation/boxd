@@ -17,9 +17,8 @@
 package vm
 
 import (
-	"math/big"
 	"github.com/BOXFoundation/boxd/vm/common/types"
-
+	"math/big"
 )
 
 // Gas costs

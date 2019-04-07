@@ -406,12 +406,12 @@ func newFrontierInstructionSet() [256]operation {
 			validateStack: makeStackFunc(0, 1),
 			valid:         true,
 		},
-		DIFFICULTY: {
-			execute:       opDifficulty,
-			gasCost:       constGasFunc(GasQuickStep),
-			validateStack: makeStackFunc(0, 1),
-			valid:         true,
-		},
+		// DIFFICULTY: {
+		// 	execute:       opDifficulty,
+		// 	gasCost:       constGasFunc(GasQuickStep),
+		// 	validateStack: makeStackFunc(0, 1),
+		// 	valid:         true,
+		// },
 		GASLIMIT: {
 			execute:       opGasLimit,
 			gasCost:       constGasFunc(GasQuickStep),

@@ -157,7 +157,7 @@ func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.ApplyTx(tx, block.Height); err != nil {
+		if err := u.ApplyTx(tx, block.Header.Height); err != nil {
 			return err
 		}
 	}
@@ -198,7 +198,7 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		}
 		// prevTx := block.Txs[txIdx]
 		utxoWrap = types.NewUtxoWrap(prevTx.Vout[txIn.PrevOutPoint.Index].Value,
-			prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey, block.Height)
+			prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey, block.Header.Height)
 		if IsCoinBase(prevTx) {
 			utxoWrap.SetCoinBase()
 		}
@@ -227,7 +227,7 @@ func (u *UtxoSet) RevertBlock(block *types.Block, chain *BlockChain) error {
 func (u *UtxoSet) ApplyBlockWithScriptFilter(block *types.Block, targetScript []byte) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.ApplyTxWithScriptFilter(tx, block.Height, targetScript); err != nil {
+		if err := u.ApplyTxWithScriptFilter(tx, block.Header.Height, targetScript); err != nil {
 			return err
 		}
 	}
@@ -432,7 +432,7 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height)
 				continue
 			}
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
@@ -468,7 +468,7 @@ func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error 
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height)
 				continue
 			}
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {

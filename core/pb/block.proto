@@ -14,6 +14,8 @@ message BlockHeader {
     uint32 magic = 5;
     bytes period_hash = 6;
     bytes candidates_hash = 7;
+    bytes root_hash = 8;
+    uint32 height = 9;
 }
 
 message IrreversibleInfo {
@@ -24,9 +26,8 @@ message IrreversibleInfo {
 message Block {
     BlockHeader header = 1;
     repeated Transaction txs = 2;
-    uint32 height = 3;
-    bytes signature = 4;
-    IrreversibleInfo irreversible_info = 5;
+    bytes signature = 3;
+    IrreversibleInfo irreversible_info = 4;
 }
 
 message Transaction {

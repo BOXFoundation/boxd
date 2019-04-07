@@ -23,14 +23,14 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/BOXFoundation/boxd/vm/common/math"
-	"github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // Storage represents a contract's storage.
-type Storage map[common.Hash]common.Hash
+type Storage map[crypto.HashType]crypto.HashType
 
 // Copy duplicates the current storage.
 func (s Storage) Copy() Storage {
@@ -56,18 +56,18 @@ type LogConfig struct {
 // StructLog is emitted to the EVM each cycle and lists information about the current internal state
 // prior to the execution of the statement.
 type StructLog struct {
-	Pc            uint64                      `json:"pc"`
-	Op            OpCode                      `json:"op"`
-	Gas           uint64                      `json:"gas"`
-	GasCost       uint64                      `json:"gasCost"`
-	Memory        []byte                      `json:"memory"`
-	MemorySize    int                         `json:"memSize"`
-	Stack         []*big.Int                  `json:"stack"`
-	IntPool       []*big.Int                  `json:"intPool"`
-	Storage       map[common.Hash]common.Hash `json:"-"`
-	Depth         int                         `json:"depth"`
-	RefundCounter uint64                      `json:"refund"`
-	Err           error                       `json:"-"`
+	Pc            uint64                              `json:"pc"`
+	Op            OpCode                              `json:"op"`
+	Gas           uint64                              `json:"gas"`
+	GasCost       uint64                              `json:"gasCost"`
+	Memory        []byte                              `json:"memory"`
+	MemorySize    int                                 `json:"memSize"`
+	Stack         []*big.Int                          `json:"stack"`
+	IntPool       []*big.Int                          `json:"intPool"`
+	Storage       map[crypto.HashType]crypto.HashType `json:"-"`
+	Depth         int                                 `json:"depth"`
+	RefundCounter uint64                              `json:"refund"`
+	Err           error                               `json:"-"`
 }
 
 // overrides for gencodec
@@ -99,7 +99,7 @@ func (s *StructLog) ErrorString() string {
 // Note that reference types are actual VM data structures; make copies
 // if you need to retain them beyond the current call.
 type Tracer interface {
-	CaptureStart(from common.Address, to common.Address, call bool, input []byte, gas uint64, value *big.Int) error
+	CaptureStart(from types.AddressHash, to types.AddressHash, call bool, input []byte, gas uint64, value *big.Int) error
 	CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, ip *intPool, contract *Contract, depth int, err error) error
 	CaptureFault(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, ip *intPool, contract *Contract, depth int, err error) error
 	CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error) error
@@ -114,7 +114,7 @@ type StructLogger struct {
 	cfg LogConfig
 
 	logs          []StructLog
-	changedValues map[common.Address]Storage
+	changedValues map[types.AddressHash]Storage
 	output        []byte
 	err           error
 }
@@ -122,7 +122,7 @@ type StructLogger struct {
 // NewStructLogger returns a new logger
 func NewStructLogger(cfg *LogConfig) *StructLogger {
 	logger := &StructLogger{
-		changedValues: make(map[common.Address]Storage),
+		changedValues: make(map[types.AddressHash]Storage),
 	}
 	if cfg != nil {
 		logger.cfg = *cfg
@@ -131,7 +131,7 @@ func NewStructLogger(cfg *LogConfig) *StructLogger {
 }
 
 // CaptureStart implements the Tracer interface to initialize the tracing operation.
-func (l *StructLogger) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {
+func (l *StructLogger) CaptureStart(from types.AddressHash, to types.AddressHash, create bool, input []byte, gas uint64, value *big.Int) error {
 	return nil
 }
 
@@ -154,8 +154,8 @@ func (l *StructLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost ui
 	// it in the local storage container.
 	if op == SSTORE && stack.len() >= 2 {
 		var (
-			value   = common.BigToHash(stack.data[stack.len()-2])
-			address = common.BigToHash(stack.data[stack.len()-1])
+			value   = crypto.BigToHash(stack.data[stack.len()-2])
+			address = crypto.BigToHash(stack.data[stack.len()-1])
 		)
 		l.changedValues[contract.Address()][address] = value
 	}
@@ -243,15 +243,15 @@ func WriteTrace(writer io.Writer, logs []StructLog) {
 }
 
 // WriteLogs writes vm logs in a readable format to the given writer
-func WriteLogs(writer io.Writer, logs []*types.Log) {
-	for _, log := range logs {
-		fmt.Fprintf(writer, "LOG%d: %x bn=%d txi=%x\n", len(log.Topics), log.Address, log.BlockNumber, log.TxIndex)
+// func WriteLogs(writer io.Writer, logs []*types.Log) {
+// 	for _, log := range logs {
+// 		fmt.Fprintf(writer, "LOG%d: %x bn=%d txi=%x\n", len(log.Topics), log.Address, log.BlockNumber, log.TxIndex)
 
-		for i, topic := range log.Topics {
-			fmt.Fprintf(writer, "%08d  %x\n", i, topic)
-		}
+// 		for i, topic := range log.Topics {
+// 			fmt.Fprintf(writer, "%08d  %x\n", i, topic)
+// 		}
 
-		fmt.Fprint(writer, hex.Dump(log.Data))
-		fmt.Fprintln(writer)
-	}
-}
+// 		fmt.Fprint(writer, hex.Dump(log.Data))
+// 		fmt.Fprintln(writer)
+// 	}
+// }

@@ -21,7 +21,7 @@ import (
 	"hash"
 	"sync/atomic"
 
-	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/vm/common/math"
 	"github.com/BOXFoundation/boxd/vm/common/types"
 )
@@ -86,8 +86,8 @@ type EVMInterpreter struct {
 
 	intPool *intPool
 
-	hasher    keccakState // Keccak256 hasher instance shared across opcodes
-	hasherBuf common.Hash // Keccak256 hasher result array shared aross opcodes
+	hasher    keccakState     // Keccak256 hasher instance shared across opcodes
+	hasherBuf crypto.HashType // Keccak256 hasher result array shared aross opcodes
 
 	readOnly   bool   // Whether to throw on stateful modifications
 	returnData []byte // Last CALL's return data for subsequent reuse
@@ -98,23 +98,24 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 	// We use the STOP instruction whether to see
 	// the jump table was initialised. If it was not
 	// we'll set the default jump table.
-	if !cfg.JumpTable[STOP].valid {
-		switch {
-		case evm.ChainConfig().IsConstantinople(evm.BlockNumber):
-			cfg.JumpTable = constantinopleInstructionSet
-		case evm.ChainConfig().IsByzantium(evm.BlockNumber):
-			cfg.JumpTable = byzantiumInstructionSet
-		case evm.ChainConfig().IsHomestead(evm.BlockNumber):
-			cfg.JumpTable = homesteadInstructionSet
-		default:
-			cfg.JumpTable = frontierInstructionSet
-		}
-	}
+	// if !cfg.JumpTable[STOP].valid {
+	// 	switch {
+	// 	case evm.ChainConfig().IsConstantinople(evm.BlockNumber):
+	// 		cfg.JumpTable = constantinopleInstructionSet
+	// 	case evm.ChainConfig().IsByzantium(evm.BlockNumber):
+	// 		cfg.JumpTable = byzantiumInstructionSet
+	// 	case evm.ChainConfig().IsHomestead(evm.BlockNumber):
+	// 		cfg.JumpTable = homesteadInstructionSet
+	// 	default:
+	// 		cfg.JumpTable = frontierInstructionSet
+	// 	}
+	// }
 
 	return &EVMInterpreter{
-		evm:      evm,
-		cfg:      cfg,
-		gasTable: evm.ChainConfig().GasTable(evm.BlockNumber),
+		evm: evm,
+		cfg: cfg,
+		// gasTable: evm.ChainConfig().GasTable(evm.BlockNumber),
+		gasTable: types.GasTableConstantinople,
 	}
 }
 

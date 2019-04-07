@@ -21,7 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/BOXFoundation/boxd/vm/common"
+	coretypes "github.com/BOXFoundation/boxd/core/types"
+	corecrypto "github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/vm/common/types"
 	"github.com/BOXFoundation/boxd/vm/crypto"
 )
@@ -32,12 +33,12 @@ var emptyCodeHash = crypto.Keccak256Hash(nil)
 
 type (
 	// CanTransferFunc is the signature of a transfer guard function
-	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
+	CanTransferFunc func(StateDB, coretypes.AddressHash, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
-	TransferFunc func(StateDB, common.Address, common.Address, *big.Int)
+	TransferFunc func(StateDB, coretypes.AddressHash, coretypes.AddressHash, *big.Int)
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
-	GetHashFunc func(uint64) common.Hash
+	GetHashFunc func(uint64) *corecrypto.HashType
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -80,15 +81,15 @@ type Context struct {
 	GetHash GetHashFunc
 
 	// Message information
-	Origin   common.Address // Provides information for ORIGIN
-	GasPrice *big.Int       // Provides information for GASPRICE
+	Origin   coretypes.AddressHash // Provides information for ORIGIN
+	GasPrice *big.Int              // Provides information for GASPRICE
 
 	// Block information
-	Coinbase    common.Address // Provides information for COINBASE
-	GasLimit    uint64         // Provides information for GASLIMIT
-	BlockNumber *big.Int       // Provides information for NUMBER
-	Time        *big.Int       // Provides information for TIME
-	Difficulty  *big.Int       // Provides information for DIFFICULTY
+	Coinbase    coretypes.AddressHash // Provides information for COINBASE
+	GasLimit    uint64                // Provides information for GASLIMIT
+	BlockNumber *big.Int              // Provides information for NUMBER
+	Time        *big.Int              // Provides information for TIME
+	// Difficulty  *big.Int              // Provides information for DIFFICULTY
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -130,31 +131,31 @@ type EVM struct {
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
-func NewEVM(ctx Context, statedb StateDB, chainConfig *types.ChainConfig, vmConfig Config) *EVM {
+func NewEVM(ctx Context, statedb StateDB, vmConfig Config) *EVM {
 	evm := &EVM{
-		Context:      ctx,
-		StateDB:      statedb,
-		vmConfig:     vmConfig,
-		chainConfig:  chainConfig,
-		chainRules:   chainConfig.Rules(ctx.BlockNumber),
+		Context:  ctx,
+		StateDB:  statedb,
+		vmConfig: vmConfig,
+		// chainConfig:  chainConfig,
+		// chainRules:   chainConfig.Rules(ctx.BlockNumber),
 		interpreters: make([]Interpreter, 0, 1),
 	}
 
-	if chainConfig.IsEWASM(ctx.BlockNumber) {
-		// to be implemented by EVM-C and Wagon PRs.
-		// if vmConfig.EWASMInterpreter != "" {
-		//  extIntOpts := strings.Split(vmConfig.EWASMInterpreter, ":")
-		//  path := extIntOpts[0]
-		//  options := []string{}
-		//  if len(extIntOpts) > 1 {
-		//    options = extIntOpts[1..]
-		//  }
-		//  evm.interpreters = append(evm.interpreters, NewEVMVCInterpreter(evm, vmConfig, options))
-		// } else {
-		// 	evm.interpreters = append(evm.interpreters, NewEWASMInterpreter(evm, vmConfig))
-		// }
-		panic("No supported ewasm interpreter yet.")
-	}
+	// if chainConfig.IsEWASM(ctx.BlockNumber) {
+	// to be implemented by EVM-C and Wagon PRs.
+	// if vmConfig.EWASMInterpreter != "" {
+	//  extIntOpts := strings.Split(vmConfig.EWASMInterpreter, ":")
+	//  path := extIntOpts[0]
+	//  options := []string{}
+	//  if len(extIntOpts) > 1 {
+	//    options = extIntOpts[1..]
+	//  }
+	//  evm.interpreters = append(evm.interpreters, NewEVMVCInterpreter(evm, vmConfig, options))
+	// } else {
+	// 	evm.interpreters = append(evm.interpreters, NewEWASMInterpreter(evm, vmConfig))
+	// }
+	// 	panic("No supported ewasm interpreter yet.")
+	// }
 
 	// vmConfig.EVMInterpreter will be used by EVM-C, it won't be checked here
 	// as we always want to have the built-in EVM as the failover option.
@@ -179,7 +180,7 @@ func (evm *EVM) Interpreter() Interpreter {
 // parameters. It also handles any necessary value transfer required and takes
 // the necessary steps to create accounts and reverses the state in case of an
 // execution error or failed value transfer.
-func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
@@ -197,21 +198,21 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		to       = AccountRef(addr)
 		snapshot = evm.StateDB.Snapshot()
 	)
-	if !evm.StateDB.Exist(addr) {
-		precompiles := PrecompiledContractsHomestead
-		if evm.ChainConfig().IsByzantium(evm.BlockNumber) {
-			precompiles = PrecompiledContractsByzantium
-		}
-		if precompiles[addr] == nil && evm.ChainConfig().IsEIP158(evm.BlockNumber) && value.Sign() == 0 {
-			// Calling a non existing account, don't do anything, but ping the tracer
-			if evm.vmConfig.Debug && evm.depth == 0 {
-				evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
-				evm.vmConfig.Tracer.CaptureEnd(ret, 0, 0, nil)
-			}
-			return nil, gas, nil
-		}
-		evm.StateDB.CreateAccount(addr)
-	}
+	// if !evm.StateDB.Exist(addr) {
+	// 	precompiles := PrecompiledContractsHomestead
+	// 	if evm.ChainConfig().IsByzantium(evm.BlockNumber) {
+	// 		precompiles = PrecompiledContractsByzantium
+	// 	}
+	// 	if precompiles[addr] == nil && evm.ChainConfig().IsEIP158(evm.BlockNumber) && value.Sign() == 0 {
+	// 		// Calling a non existing account, don't do anything, but ping the tracer
+	// 		if evm.vmConfig.Debug && evm.depth == 0 {
+	// 			evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
+	// 			evm.vmConfig.Tracer.CaptureEnd(ret, 0, 0, nil)
+	// 		}
+	// 		return nil, gas, nil
+	// 	}
+	// 	evm.StateDB.CreateAccount(addr)
+	// }
 	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -219,16 +220,16 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	contract.SetCallCode(&addr, evm.StateDB.GetCodeHash(addr), evm.StateDB.GetCode(addr))
 
 	// Even if the account has no code, we need to continue because it might be a precompile
-	start := time.Now()
+	// start := time.Now()
 
 	// Capture the tracer start/end events in debug mode
-	if evm.vmConfig.Debug && evm.depth == 0 {
-		evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
+	// if evm.vmConfig.Debug && evm.depth == 0 {
+	// 	evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
 
-		defer func() { // Lazy evaluation of the parameters
-			evm.vmConfig.Tracer.CaptureEnd(ret, gas-contract.Gas, time.Since(start), err)
-		}()
-	}
+	// 	defer func() { // Lazy evaluation of the parameters
+	// 		evm.vmConfig.Tracer.CaptureEnd(ret, gas-contract.Gas, time.Since(start), err)
+	// 	}()
+	// }
 	ret, err = run(evm, contract, input, false)
 
 	// When an error was returned by the EVM or when setting the creation code
@@ -250,7 +251,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 //
 // CallCode differs from Call in the sense that it executes the given address'
 // code with the caller as context.
-func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (evm *EVM) CallCode(caller ContractRef, addr coretypes.AddressHash, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
@@ -289,7 +290,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 //
 // DelegateCall differs from CallCode in the sense that it executes the given address'
 // code with the caller as context and the caller is set to the caller of the caller.
-func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+func (evm *EVM) DelegateCall(caller ContractRef, addr coretypes.AddressHash, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
@@ -321,7 +322,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 // as parameters while disallowing any modifications to the state during the call.
 // Opcodes that attempt to perform such modifications will result in exceptions
 // instead of performing the modifications.
-func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+func (evm *EVM) StaticCall(caller ContractRef, addr coretypes.AddressHash, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
@@ -361,33 +362,33 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 
 type codeAndHash struct {
 	code []byte
-	hash common.Hash
+	hash corecrypto.HashType
 }
 
-func (c *codeAndHash) Hash() common.Hash {
-	if c.hash == (common.Hash{}) {
+func (c *codeAndHash) Hash() corecrypto.HashType {
+	if c.hash == (corecrypto.HashType{}) {
 		c.hash = crypto.Keccak256Hash(c.code)
 	}
 	return c.hash
 }
 
 // create creates a new contract using code as deployment code.
-func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address) ([]byte, common.Address, uint64, error) {
+func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address coretypes.AddressHash) ([]byte, coretypes.AddressHash, uint64, error) {
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(types.CallCreateDepth) {
-		return nil, common.Address{}, gas, ErrDepth
+		return nil, coretypes.AddressHash{}, gas, ErrDepth
 	}
 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
-		return nil, common.Address{}, gas, ErrInsufficientBalance
+		return nil, coretypes.AddressHash{}, gas, ErrInsufficientBalance
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address()) // FIXME: nonce到底是干啥用的
 	evm.StateDB.SetNonce(caller.Address(), nonce+1)
 
 	// Ensure there's no existing contract already at the designated address
 	contractHash := evm.StateDB.GetCodeHash(address)
-	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != emptyCodeHash) {
-		return nil, common.Address{}, 0, ErrContractAddressCollision
+	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (corecrypto.HashType{}) && contractHash != emptyCodeHash) {
+		return nil, coretypes.AddressHash{}, 0, ErrContractAddressCollision
 	}
 	// Create a new account on the state
 	snapshot := evm.StateDB.Snapshot()
@@ -408,9 +409,9 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		return nil, address, gas, nil
 	}
 
-	if evm.vmConfig.Debug && evm.depth == 0 {
-		evm.vmConfig.Tracer.CaptureStart(caller.Address(), address, true, codeAndHash.code, gas, value)
-	}
+	// if evm.vmConfig.Debug && evm.depth == 0 {
+	// 	evm.vmConfig.Tracer.CaptureStart(caller.Address(), address, true, codeAndHash.code, gas, value)
+	// }
 	start := time.Now()
 
 	ret, err := run(evm, contract, nil, false)
@@ -451,7 +452,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 }
 
 // Create creates a new contract using code as deployment code.
-func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.Int) (ret []byte, contractAddr common.Address, leftOverGas uint64, err error) {
+func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.Int) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
 	contractAddr = crypto.CreateAddress(caller.Address(), evm.StateDB.GetNonce(caller.Address()))
 
 	return evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr)
@@ -461,9 +462,9 @@ func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.I
 //
 // The different between Create2 with Create is Create2 uses sha3(0xff ++ msg.sender ++ salt ++ sha3(init_code))[12:]
 // instead of the usual sender-and-nonce-hash as the address where the contract is initialized at.
-func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *big.Int, salt *big.Int) (ret []byte, contractAddr common.Address, leftOverGas uint64, err error) {
+func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *big.Int, salt *big.Int) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
 	codeAndHash := &codeAndHash{code: code}
-	contractAddr = crypto.CreateAddress2(caller.Address(), common.BigToHash(salt), codeAndHash.Hash().Bytes())
+	contractAddr = crypto.CreateAddress2(caller.Address(), corecrypto.BigToHash(salt), codeAndHash.Hash().Bytes())
 	return evm.create(caller, codeAndHash, gas, endowment, contractAddr)
 }
 

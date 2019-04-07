@@ -274,7 +274,7 @@ func (dpos *Dpos) produceBlock() error {
 	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
 	block.Header.TimeStamp = dpos.context.timestamp
-	if block.Height > 0 && block.Height%chain.PeriodDuration == 0 {
+	if block.Header.Height > 0 && block.Header.Height%chain.PeriodDuration == 0 {
 		// TODO: period changed
 	} else {
 		block.Header.PeriodHash = tail.Header.PeriodHash
@@ -461,7 +461,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	block.Header.TxsRoot = *merkles
 	block.Txs = blockTxns
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
-	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Height, len(blockTxns), len(sortedTxs))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height, len(blockTxns), len(sortedTxs))
 	return nil
 }
 
@@ -654,12 +654,12 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 						remains = append(remains, addr)
 					} else {
 						logger.Errorf("Duplicated irreversible signature %v in block. Hash: %s, Height: %d",
-							v, block.BlockHash().String(), block.Height)
+							v, block.BlockHash().String(), block.Header.Height)
 						return errors.New("Duplicated irreversible signature in block")
 					}
 				} else {
 					logger.Errorf("Invalid irreversible signature %v in block. Hash: %s, Height: %d",
-						v, block.BlockHash().String(), block.Height)
+						v, block.BlockHash().String(), block.Header.Height)
 					return errors.New("Invalid irreversible signature in block")
 				}
 			} else {
@@ -667,7 +667,7 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 			}
 		}
 		if len(remains) <= MinConfirmMsgNumberForEternalBlock {
-			logger.Errorf("Invalid irreversible info in block. Hash: %s, Height: %d, remains: %d", block.BlockHash().String(), block.Height, len(remains))
+			logger.Errorf("Invalid irreversible info in block. Hash: %s, Height: %d, remains: %d", block.BlockHash().String(), block.Header.Height, len(remains))
 			return errors.New("Invalid irreversible info in block")
 		}
 	}
@@ -728,7 +728,7 @@ func (dpos *Dpos) verifyBookkeeperEpoch(block *types.Block) error {
 	}
 
 	for idx := 0; idx < 2*PeriodSize/3; {
-		height := tail.Height - uint32(idx)
+		height := tail.Header.Height - uint32(idx)
 		if height == 0 {
 			break
 		}
@@ -830,7 +830,7 @@ func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
 func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
 	for _, vout := range tx.Vout {
 		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
-		if scriptPubKey.IsRegisterCandidateScript(calcCandidatePledgeHeight(int64(dpos.chain.TailBlock().Height))) {
+		if scriptPubKey.IsRegisterCandidateScript(calcCandidatePledgeHeight(int64(dpos.chain.TailBlock().Header.Height))) {
 			if tx.Data.Type == types.RegisterCandidateTx {
 				if vout.Value >= CandidatePledge {
 					return true

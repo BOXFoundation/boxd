@@ -80,7 +80,7 @@ func (bft *BftService) loop(p goprocess.Process) {
 // FetchIrreversibleInfo fetch Irreversible block info.
 func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 
-	tailHeight := bft.chain.TailBlock().Height
+	tailHeight := bft.chain.TailBlock().Header.Height
 	BookkeeperRefreshIntervalInSecond := BookkeeperRefreshInterval / SecondInMs
 	offset := time.Now().Unix() % BookkeeperRefreshIntervalInSecond
 
@@ -132,8 +132,8 @@ func (bft *BftService) checkEternalBlock(p goprocess.Process) {
 }
 
 func (bft *BftService) maybeUpdateEternalBlock() {
-	if bft.chain.TailBlock().Height-bft.chain.EternalBlock().Height > MinConfirmMsgNumberForEternalBlock*BlockNumPerPeiod {
-		block, err := bft.chain.LoadBlockByHeight(bft.chain.EternalBlock().Height + 1)
+	if bft.chain.TailBlock().Header.Height-bft.chain.EternalBlock().Header.Height > MinConfirmMsgNumberForEternalBlock*BlockNumPerPeiod {
+		block, err := bft.chain.LoadBlockByHeight(bft.chain.EternalBlock().Header.Height + 1)
 		if err != nil {
 			logger.Errorf("Failed to update eternal block. LoadBlockByHeight occurs error: %s", err.Error())
 		} else {
@@ -144,16 +144,16 @@ func (bft *BftService) maybeUpdateEternalBlock() {
 
 func (bft *BftService) updateEternal(block *types.Block) {
 
-	if block.Height <= bft.chain.EternalBlock().Height {
+	if block.Header.Height <= bft.chain.EternalBlock().Header.Height {
 		//logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
 		return
 	}
 	if err := bft.chain.SetEternal(block); err != nil {
 		logger.Info("Failed to update eternal block.Hash: %s, Height: %d, Err: %s",
-			block.BlockHash().String(), block.Height, err.Error())
+			block.BlockHash().String(), block.Header.Height, err.Error())
 		return
 	}
-	logger.Infof("Eternal block has changed! Hash: %s Height: %d", block.BlockHash(), block.Height)
+	logger.Infof("Eternal block has changed! Hash: %s Height: %d", block.BlockHash(), block.Header.Height)
 
 }
 

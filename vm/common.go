@@ -64,7 +64,7 @@ func bigUint64(v *big.Int) (uint64, bool) {
 
 // toWordSize returns the ceiled word size required for memory expansion.
 func toWordSize(size uint64) uint64 {
-	if size > math.MaxUint64-31 { 	// the return code will be overflow without this 'if' in case of size > math.MaxUint64-31
+	if size > math.MaxUint64-31 { // the return code will be overflow without this 'if' in case of size > math.MaxUint64-31
 		return math.MaxUint64/32 + 1
 	}
 

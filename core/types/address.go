@@ -6,9 +6,11 @@ package types
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/util"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -45,6 +47,39 @@ type AddressType int
 
 // AddressHash Alias for address hash
 type AddressHash [ripemd160.Size]byte
+
+// SetBytes set bytes for a addressHash.
+func (a *AddressHash) SetBytes(b []byte) {
+	if len(b) > len(a) {
+		b = b[len(b)-ripemd160.Size:]
+	}
+	copy(a[ripemd160.Size-len(b):], b)
+}
+
+// Bytes returns the bytes of a addressHash.
+func (a *AddressHash) Bytes() []byte {
+	return a[:]
+}
+
+// BytesToAddressHash converts bytes to addressHash.
+func BytesToAddressHash(b []byte) AddressHash {
+	var a AddressHash
+	a.SetBytes(b)
+	return a
+}
+
+// Big converts an address to a big integer.
+func (a AddressHash) Big() *big.Int { return new(big.Int).SetBytes(a[:]) }
+
+// BigToAddressHash returns Address with byte values of b.
+func BigToAddressHash(b *big.Int) AddressHash { return BytesToAddressHash(b.Bytes()) }
+
+// HexToAddressHash returns AddressHash with byte values of s.
+// If s is larger than len(h), s will be cropped from the left.
+func HexToAddressHash(s string) AddressHash {
+	hexBytes, _ := util.FromHex(s)
+	return BytesToAddressHash(hexBytes)
+}
 
 // Address is an interface type for any type of destination a transaction output may spend to.
 type Address interface {

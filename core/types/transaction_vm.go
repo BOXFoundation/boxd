@@ -12,15 +12,15 @@ import (
 
 // BoxTransaction defines the transaction used to interact with vm
 type BoxTransaction struct {
-	Version     int32
-	SenderNonce uint64
-	HashWith    *crypto.HashType
-	Sender      *AddressHash
-	Receiver    *AddressHash
-	Value       *big.Int
-	GasPrice    *big.Int
-	Gas         uint64
-	Code        []byte
+	version     int32
+	senderNonce uint64
+	hashWith    *crypto.HashType
+	sender      *AddressHash
+	receiver    *AddressHash
+	value       *big.Int
+	gasPrice    *big.Int
+	gas         uint64
+	code        []byte
 	VoutNum     uint32
 }
 
@@ -38,31 +38,31 @@ func NewBoxTransaction(
 	value, gasPrice *big.Int, gas uint64, receiver *AddressHash, code []byte,
 ) *BoxTransaction {
 	return &BoxTransaction{
-		Version:     0,
-		SenderNonce: ^(uint64(0)),
-		Receiver:    receiver,
-		Value:       value,
-		GasPrice:    gasPrice,
-		Gas:         gas,
-		Code:        code,
+		version:     0,
+		senderNonce: ^(uint64(0)),
+		receiver:    receiver,
+		value:       value,
+		gasPrice:    gasPrice,
+		gas:         gas,
+		code:        code,
 	}
 }
 
 // WithSenderNonce sets SenderNonce
 func (tx *BoxTransaction) WithSenderNonce(n uint64) *BoxTransaction {
-	tx.SenderNonce = n
+	tx.senderNonce = n
 	return tx
 }
 
 // WithSender sets SenderNonce
 func (tx *BoxTransaction) WithSender(sender *AddressHash) *BoxTransaction {
-	tx.Sender = sender
+	tx.sender = sender
 	return tx
 }
 
 // WithHashWith sets SenderNonce
 func (tx *BoxTransaction) WithHashWith(hash *crypto.HashType) *BoxTransaction {
-	tx.HashWith = hash
+	tx.hashWith = hash
 	return tx
 }
 
@@ -70,4 +70,44 @@ func (tx *BoxTransaction) WithHashWith(hash *crypto.HashType) *BoxTransaction {
 func (tx *BoxTransaction) WithVoutNum(n uint32) *BoxTransaction {
 	tx.VoutNum = n
 	return tx
+}
+
+// From returns the tx from addressHash.
+func (tx *BoxTransaction) From() AddressHash {
+	return *tx.sender
+}
+
+// To returns the tx to addressHash.
+func (tx *BoxTransaction) To() *AddressHash {
+	return tx.receiver
+}
+
+// GasPrice returns the gasprice of the tx.
+func (tx *BoxTransaction) GasPrice() *big.Int {
+	return tx.gasPrice
+}
+
+// Gas returns the gaslimit of the tx.
+func (tx *BoxTransaction) Gas() uint64 {
+	return tx.gas
+}
+
+// Value returns the transfer value of the tx.
+func (tx *BoxTransaction) Value() *big.Int {
+	return tx.value
+}
+
+// Nonce returns the nonce of the tx.
+func (tx *BoxTransaction) Nonce() uint64 {
+	return tx.senderNonce
+}
+
+// CheckNonce returns if check nonce with the tx.
+func (tx *BoxTransaction) CheckNonce() bool {
+	return true
+}
+
+// Data returns the code of the tx.
+func (tx *BoxTransaction) Data() []byte {
+	return tx.code
 }

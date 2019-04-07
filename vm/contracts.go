@@ -21,11 +21,12 @@ import (
 	"errors"
 	"math/big"
 
+	coretypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/vm/common"
 	"github.com/BOXFoundation/boxd/vm/common/math"
+	"github.com/BOXFoundation/boxd/vm/common/types"
 	"github.com/BOXFoundation/boxd/vm/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
-	"github.com/BOXFoundation/boxd/vm/common/types"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -39,24 +40,24 @@ type PrecompiledContract interface {
 
 // PrecompiledContractsHomestead contains the default set of pre-compiled Ethereum
 // contracts used in the Frontier and Homestead releases.
-var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
+var PrecompiledContractsHomestead = map[coretypes.AddressHash]PrecompiledContract{
+	coretypes.BytesToAddressHash([]byte{1}): &ecrecover{},
+	coretypes.BytesToAddressHash([]byte{2}): &sha256hash{},
+	coretypes.BytesToAddressHash([]byte{3}): &ripemd160hash{},
+	coretypes.BytesToAddressHash([]byte{4}): &dataCopy{},
 }
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
-var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{},
-	common.BytesToAddress([]byte{6}): &bn256Add{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMul{},
-	common.BytesToAddress([]byte{8}): &bn256Pairing{},
+var PrecompiledContractsByzantium = map[coretypes.AddressHash]PrecompiledContract{
+	coretypes.BytesToAddressHash([]byte{1}): &ecrecover{},
+	coretypes.BytesToAddressHash([]byte{2}): &sha256hash{},
+	coretypes.BytesToAddressHash([]byte{3}): &ripemd160hash{},
+	coretypes.BytesToAddressHash([]byte{4}): &dataCopy{},
+	coretypes.BytesToAddressHash([]byte{5}): &bigModExp{},
+	coretypes.BytesToAddressHash([]byte{6}): &bn256Add{},
+	coretypes.BytesToAddressHash([]byte{7}): &bn256ScalarMul{},
+	coretypes.BytesToAddressHash([]byte{8}): &bn256Pairing{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.

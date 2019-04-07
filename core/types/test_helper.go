@@ -10,22 +10,22 @@ import (
 )
 
 // NewBlockHeader generates a new BlockHeader
-func NewBlockHeader(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp int64) *BlockHeader {
+func NewBlockHeader(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp int64, height uint32) *BlockHeader {
 	return &BlockHeader{
 		Version:       0,
 		PrevBlockHash: prevBlockHash,
 		TxsRoot:       txsRoot,
 		TimeStamp:     timestamp,
 		Magic:         0,
+		Height:        height,
 	}
 }
 
 // NewBlocks generates a new Block
 func NewBlocks(prevBlockHash crypto.HashType, txsRoot crypto.HashType, timestamp int64, prevOutPoint OutPoint, value uint64, lockTime int64, height uint32) *Block {
 	return &Block{
-		Header: NewBlockHeader(prevBlockHash, txsRoot, timestamp),
+		Header: NewBlockHeader(prevBlockHash, txsRoot, timestamp, height),
 		Txs:    []*Transaction{NewTransaction(prevOutPoint, value, lockTime)},
-		Height: height,
 	}
 }
 

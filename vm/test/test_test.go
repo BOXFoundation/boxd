@@ -1,9 +1,9 @@
 package test
 
 import (
-	"github.com/jbenet/goprocess"
 	"bytes"
 	"fmt"
+	"github.com/jbenet/goprocess"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/BOXFoundation/boxd/vm/common/types"
-	"github.com/BOXFoundation/boxd/vm/core"
+
+	// "github.com/BOXFoundation/boxd/vm/core"
 	"github.com/BOXFoundation/boxd/vm/state"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )

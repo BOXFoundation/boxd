@@ -19,7 +19,7 @@ package types
 import (
 	"math/big"
 
-	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 var (
@@ -51,7 +51,7 @@ var (
 		PetersburgBlock:     big.NewInt(4939394),
 	}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil}
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), crypto.HashType{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil}
 )
 
 // ChainConfig is the core config which determines the blockchain settings.
@@ -68,8 +68,8 @@ type ChainConfig struct {
 	DAOForkSupport bool     `json:"daoForkSupport,omitempty"` // Whether the nodes supports or opposes the DAO hard-fork
 
 	// EIP150 implements the Gas price changes (https://github.com/ethereum/EIPs/issues/150)
-	EIP150Block *big.Int    `json:"eip150Block,omitempty"` // EIP150 HF block (nil = no fork)
-	EIP150Hash  common.Hash `json:"eip150Hash,omitempty"`  // EIP150 HF hash (needed for header only clients as only gas pricing changed)
+	EIP150Block *big.Int        `json:"eip150Block,omitempty"` // EIP150 HF block (nil = no fork)
+	EIP150Hash  crypto.HashType `json:"eip150Hash,omitempty"`  // EIP150 HF hash (needed for header only clients as only gas pricing changed)
 
 	EIP155Block *big.Int `json:"eip155Block,omitempty"` // EIP155 HF block
 	EIP158Block *big.Int `json:"eip158Block,omitempty"` // EIP158 HF block

@@ -99,11 +99,11 @@ func (s *webapiServer) receiveNewBlockMsg(block *types.Block) {
 	}
 	// detail block
 	logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
-		block.BlockHash(), block.Height)
+		block.BlockHash(), block.Header.Height)
 	blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader, true)
 	if err != nil {
 		logger.Warnf("detail block %s height %d error: %s",
-			block.BlockHash(), block.Height, err)
+			block.BlockHash(), block.Header.Height, err)
 		s.newBlockMutex.Unlock()
 		return
 	}
@@ -151,7 +151,7 @@ func (s *webapiServer) ViewTxDetail(
 			resp.Status = rpcpb.ViewTxDetailResp_onchain
 		}
 		resp.BlockTime = block.Header.TimeStamp
-		resp.BlockHeight = block.Height
+		resp.BlockHeight = block.Header.Height
 	} else {
 		logger.Warnf("view tx detail load block by tx hash %s error: %s,"+
 			" try get it from tx pool", hash, err)
@@ -381,7 +381,7 @@ func detailBlock(
 	}
 	detail := new(rpcpb.BlockDetail)
 	detail.Version = block.Header.Version
-	detail.Height = block.Height
+	detail.Height = block.Header.Height
 	detail.TimeStamp = block.Header.TimeStamp
 	detail.Hash = block.BlockHash().String()
 	detail.PrevBlockHash = block.Header.PrevBlockHash.String()
@@ -541,14 +541,14 @@ func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
 	if b == nil {
 		return false
 	}
-	eternalHeight := r.EternalBlock().Height
-	return eternalHeight >= b.Height
+	eternalHeight := r.EternalBlock().Header.Height
+	return eternalHeight >= b.Header.Height
 }
 
 func getCoinbaseAddr(block *types.Block) (string, error) {
 	if block.Txs == nil || len(block.Txs) == 0 {
 		return "", fmt.Errorf("coinbase does not exist in block %s height %d",
-			block.BlockHash(), block.Height)
+			block.BlockHash(), block.Header.Height)
 	}
 	tx := block.Txs[0]
 	sc := *script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)

@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"time"
 
+	coretypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/vm/common"
 	"github.com/BOXFoundation/boxd/vm/common/math"
 )
@@ -41,7 +42,7 @@ func NewJSONLogger(cfg *LogConfig, writer io.Writer) *JSONLogger {
 	return l
 }
 
-func (l *JSONLogger) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {
+func (l *JSONLogger) CaptureStart(from coretypes.AddressHash, to coretypes.AddressHash, create bool, input []byte, gas uint64, value *big.Int) error {
 	return nil
 }
 

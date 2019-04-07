@@ -19,8 +19,10 @@ package crypto
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -40,7 +42,7 @@ func Keccak256(data ...[]byte) []byte {
 
 // Keccak256Hash calculates and returns the Keccak256 hash of the input data,
 // converting it to an internal Hash data structure.
-func Keccak256Hash(data ...[]byte) (h common.Hash) {
+func Keccak256Hash(data ...[]byte) (h crypto.HashType) {
 	d := sha3.NewLegacyKeccak256()
 	for _, b := range data {
 		d.Write(b)
@@ -58,15 +60,15 @@ func Keccak256Hash(data ...[]byte) (h common.Hash) {
 //	data: [214,148,0,0,0,0,0,0,0,0,0,0,120,117,106,105,110,103,115,104,105,128]
 //		  0xd6(0xc0 + 22 data len) 0x94(0x80 + 20 b len) + b + 0x80(means 0)
 //
-func CreateAddress(b common.Address, nonce uint64) common.Address {
+func CreateAddress(b types.AddressHash, nonce uint64) types.AddressHash {
 	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce}) // rlp encode
-	return common.BytesToAddress(Keccak256(data)[12:])	// hash by Keccak256
+	return types.BytesToAddressHash(Keccak256(data)[12:]) // hash by Keccak256
 }
 
 // CreateAddress2 creates an ethereum address given the address bytes, initial
 // contract code hash and a salt.
-func CreateAddress2(b common.Address, salt [32]byte, inithash []byte) common.Address {
-	return common.BytesToAddress(Keccak256([]byte{0xff}, b.Bytes(), salt[:], inithash)[12:])
+func CreateAddress2(b types.AddressHash, salt [32]byte, inithash []byte) types.AddressHash {
+	return types.BytesToAddressHash(Keccak256([]byte{0xff}, b[:], salt[:], inithash)[12:])
 }
 
 // ValidateSignatureValues verifies whether the signature values are valid with

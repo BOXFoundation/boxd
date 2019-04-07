@@ -19,12 +19,13 @@ package vm
 import (
 	"math/big"
 
-	"github.com/BOXFoundation/boxd/vm/common"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 // ContractRef is a reference to the contract's backing object
 type ContractRef interface {
-	Address() common.Address
+	Address() types.AddressHash
 }
 
 // AccountRef implements ContractRef.
@@ -34,10 +35,10 @@ type ContractRef interface {
 // proves difficult because of the cached jump destinations which
 // are fetched from the parent contract (i.e. the caller), which
 // is a ContractRef.
-type AccountRef common.Address
+type AccountRef types.AddressHash
 
 // Address casts AccountRef to a Address
-func (ar AccountRef) Address() common.Address { return (common.Address)(ar) }
+func (ar AccountRef) Address() types.AddressHash { return (types.AddressHash)(ar) }
 
 // Contract represents an ethereum contract in the state database. It contains
 // the contract code, calling arguments. Contract implements ContractRef
@@ -45,16 +46,16 @@ type Contract struct {
 	// CallerAddress is the result of the caller which initialised this
 	// contract. However when the "call method" is delegated this value
 	// needs to be initialised to that of the caller's caller.
-	CallerAddress common.Address
+	CallerAddress types.AddressHash
 	caller        ContractRef
 	self          ContractRef
 
-	jumpdests map[common.Hash]bitvec // Aggregated result of JUMPDEST analysis.
-	analysis  bitvec                 // Locally cached result of JUMPDEST analysis
+	jumpdests map[crypto.HashType]bitvec // Aggregated result of JUMPDEST analysis.
+	analysis  bitvec                     // Locally cached result of JUMPDEST analysis
 
 	Code     []byte
-	CodeHash common.Hash
-	CodeAddr *common.Address
+	CodeHash crypto.HashType
+	CodeAddr *types.AddressHash
 	Input    []byte
 
 	Gas   uint64
@@ -69,7 +70,7 @@ func NewContract(caller ContractRef, object ContractRef, value *big.Int, gas uin
 		// Reuse JUMPDEST analysis from parent context if available.
 		c.jumpdests = parent.jumpdests
 	} else {
-		c.jumpdests = make(map[common.Hash]bitvec)
+		c.jumpdests = make(map[crypto.HashType]bitvec)
 	}
 
 	// Gas should be a pointer so it can safely be reduced through the run
@@ -93,7 +94,7 @@ func (c *Contract) validJumpdest(dest *big.Int) bool {
 		return false
 	}
 	// Do we have a contract hash already?
-	if c.CodeHash != (common.Hash{}) {
+	if c.CodeHash != (crypto.HashType{}) {
 		// Does parent context have the analysis?
 		analysis, exist := c.jumpdests[c.CodeHash]
 		if !exist {
@@ -144,7 +145,7 @@ func (c *Contract) GetByte(n uint64) byte {
 //
 // Caller will recursively call caller when the contract is a delegate
 // call, including that of caller's caller.
-func (c *Contract) Caller() common.Address {
+func (c *Contract) Caller() types.AddressHash {
 	return c.CallerAddress
 }
 
@@ -158,7 +159,7 @@ func (c *Contract) UseGas(gas uint64) (ok bool) {
 }
 
 // Address returns the contracts address
-func (c *Contract) Address() common.Address {
+func (c *Contract) Address() types.AddressHash {
 	return c.self.Address()
 }
 
@@ -169,7 +170,7 @@ func (c *Contract) Value() *big.Int {
 
 // SetCallCode sets the code of the contract and address of the backing data
 // object
-func (c *Contract) SetCallCode(addr *common.Address, hash common.Hash, code []byte) {
+func (c *Contract) SetCallCode(addr *types.AddressHash, hash crypto.HashType, code []byte) {
 	c.Code = code
 	c.CodeHash = hash
 	c.CodeAddr = addr
@@ -177,7 +178,7 @@ func (c *Contract) SetCallCode(addr *common.Address, hash common.Hash, code []by
 
 // SetCodeOptionalHash can be used to provide code, but it's optional to provide hash.
 // In case hash is not provided, the jumpdest analysis will not be saved to the parent context
-func (c *Contract) SetCodeOptionalHash(addr *common.Address, codeAndHash *codeAndHash) {
+func (c *Contract) SetCodeOptionalHash(addr *types.AddressHash, codeAndHash *codeAndHash) {
 	c.Code = codeAndHash.code
 	c.CodeHash = codeAndHash.hash
 	c.CodeAddr = addr

@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"runtime"
 	"runtime/debug"
@@ -22,6 +21,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -30,6 +30,7 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/util/bloom"
+	"github.com/BOXFoundation/boxd/vm"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -85,6 +86,8 @@ type BlockChain struct {
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               SyncManager
 	status                    int32
+	stateProcessor            *StateProcessor
+	vmConfig                  vm.Config
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -113,6 +116,9 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.heightToBlock, _ = lru.New(512)
 	b.splitAddrFilter = bloom.NewFilter(bloom.MaxFilterSize, 0.0001)
 
+	stateProcessor := NewStateProcessor(b)
+	b.stateProcessor = stateProcessor
+
 	if b.db, err = db.Table(BlockTableName); err != nil {
 		return nil, err
 	}
@@ -131,7 +137,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		logger.Error("Failed to load tail block ", err)
 		return nil, err
 	}
-	b.LongestChainHeight = b.tail.Height
+	b.LongestChainHeight = b.tail.Header.Height
 
 	return b, nil
 }
@@ -321,7 +327,7 @@ func (chain *BlockChain) calMissRate() (total uint32, miss uint32) {
 			}
 			if block.Header.TimeStamp >= tstmp {
 				curTs = block.Header.TimeStamp
-				height = block.Height + 1
+				height = block.Header.Height + 1
 				break
 			}
 		}
@@ -330,10 +336,10 @@ func (chain *BlockChain) calMissRate() (total uint32, miss uint32) {
 		}
 	}
 
-	if val, err := MarshalMissData(tail.Height, miss, tail.Header.TimeStamp); err == nil {
+	if val, err := MarshalMissData(tail.Header.Height, miss, tail.Header.TimeStamp); err == nil {
 		chain.db.Put(MissrateKey, val)
 	}
-	return tail.Height / uint32(len(miners)), miss
+	return tail.Header.Height / uint32(len(miners)), miss
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
@@ -377,11 +383,11 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	t0 := time.Now().UnixNano()
 	blockHash := block.BlockHash()
-	logger.Infof("Prepare to process block. Hash: %s, Height: %d", blockHash.String(), block.Height)
+	logger.Infof("Prepare to process block. Hash: %s, Height: %d", blockHash.String(), block.Header.Height)
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.verifyExists(*blockHash); exists {
-		logger.Warnf("The block already exists. Hash: %s, Height: %d", blockHash.String(), block.Height)
+		logger.Warnf("The block already exists. Hash: %s, Height: %d", blockHash.String(), block.Header.Height)
 		return core.ErrBlockExists
 	}
 
@@ -390,12 +396,12 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	}
 
 	if err := chain.consensus.Verify(block); err != nil {
-		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Height, err)
+		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Header.Height, err)
 		return err
 	}
 
 	if err := validateBlock(block); err != nil {
-		logger.Errorf("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Height, err.Error())
+		logger.Errorf("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Header.Height, err.Error())
 		return err
 	}
 	prevHash := block.Header.PrevBlockHash
@@ -405,9 +411,9 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
 		chain.addOrphanBlock(block, *blockHash, prevHash)
 		chain.repeatedMintCache.Add(block.Header.TimeStamp, block)
-		height := chain.tail.Height
-		if height < block.Height && messageFrom != "" {
-			if block.Height-height < Threshold {
+		height := chain.tail.Header.Height
+		if height < block.Header.Height && messageFrom != "" {
+			if block.Header.Height-height < Threshold {
 				return chain.syncManager.ActiveLightSync(messageFrom)
 			}
 			// trigger sync
@@ -431,7 +437,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
-	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Height, len(block.Txs))
+	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Header.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
 	if needToTracking((t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6) {
 		logger.Infof("Time tracking: t0` = %d t1` = %d t2` = %d", (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6)
@@ -480,8 +486,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	}
 
 	// The height of this block must be one more than the referenced parent block.
-	if block.Height != parentBlock.Height+1 {
-		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash.String(), block.Height, parentBlock.Height)
+	if block.Header.Height != parentBlock.Header.Height+1 {
+		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash.String(), block.Header.Height, parentBlock.Header.Height)
 		return core.ErrWrongBlockHeight
 	}
 
@@ -500,10 +506,10 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
-	if block.Height <= chain.LongestChainHeight {
-		if block.Height > chain.eternal.Height {
+	if block.Header.Height <= chain.LongestChainHeight {
+		if block.Header.Height > chain.eternal.Header.Height {
 			logger.Warnf("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
-				blockHash, block.Height, chain.LongestChainHeight)
+				blockHash, block.Header.Height, chain.LongestChainHeight)
 			// we can store the side chain block, But we should not go on the chain.
 			if err := chain.StoreBlock(block); err != nil {
 				return err
@@ -514,7 +520,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 			}
 			return core.ErrBlockInSideChain
 		}
-		logger.Warnf("Block %v extends a side chain height[%d] is lower than eternal block height[%d]", blockHash, block.Height, chain.eternal.Height)
+		logger.Warnf("Block %v extends a side chain height[%d] is lower than eternal block height[%d]", blockHash, block.Header.Height, chain.eternal.Header.Height)
 		return core.ErrExpiredBlock
 	}
 
@@ -530,14 +536,14 @@ func (chain *BlockChain) BroadcastOrRelayBlock(block *types.Block, transferMode 
 	blockHash := block.BlockHash()
 	switch transferMode {
 	case core.BroadcastMode:
-		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+		logger.Debugf("Broadcast New Block. Hash: %v Height: %d", blockHash.String(), block.Header.Height)
 		go func() {
 			if err := chain.notifiee.Broadcast(p2p.NewBlockMsg, block); err != nil {
 				logger.Errorf("Failed to broadcast block. Hash: %s Err: %v", blockHash.String(), err)
 			}
 		}()
 	case core.RelayMode:
-		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Height)
+		logger.Debugf("Relay New Block. Hash: %v Height: %d", blockHash.String(), block.Header.Height)
 		go func() {
 			if err := chain.notifiee.Relay(p2p.NewBlockMsg, block); err != nil {
 				logger.Errorf("Failed to relay block. Hash: %s Err: %v", blockHash.String(), err)
@@ -605,7 +611,7 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	tt0 := time.Now().UnixNano()
-	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Height)
+	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 		return err
@@ -621,7 +627,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	// Also accumulate the total fees.
 	var totalFees uint64
 	for _, tx := range transactions {
-		txFee, err := ValidateTxInputs(utxoSet, tx, block.Height)
+		txFee, err := ValidateTxInputs(utxoSet, tx, block.Header.Height)
 		if err != nil {
 			return err
 		}
@@ -639,7 +645,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 	for _, txOut := range transactions[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
-	expectedCoinbaseOutput := CalcBlockSubsidy(block.Height) + totalFees
+	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalFees
 	if totalCoinbaseOutput > expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
 			totalCoinbaseOutput, expectedCoinbaseOutput)
@@ -670,16 +676,16 @@ func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Blo
 // findFork returns final common block between the passed block and the main chain (i.e., fork point)
 // and blocks to be detached and attached
 func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Block, []*types.Block) {
-	if block.Height <= chain.LongestChainHeight {
+	if block.Header.Height <= chain.LongestChainHeight {
 		logger.Panicf("Side chain (height: %d) is not longer than main chain (height: %d) during chain reorg",
-			block.Height, chain.LongestChainHeight)
+			block.Header.Height, chain.LongestChainHeight)
 	}
 	detachBlocks := make([]*types.Block, 0)
 	attachBlocks := make([]*types.Block, 0)
 
 	// Start both chain from same height by moving up side chain
 	sideChainBlock := block
-	for i := block.Height; i > chain.LongestChainHeight; i-- {
+	for i := block.Header.Height; i > chain.LongestChainHeight; i-- {
 		if sideChainBlock == nil {
 			logger.Panicf("Block on side chain shall not be nil before reaching main chain height during reorg")
 		}
@@ -690,7 +696,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	// Compare two blocks at the same height till they are identical: the fork point
 	mainChainBlock, found := chain.TailBlock(), false
 	for mainChainBlock != nil && sideChainBlock != nil {
-		if mainChainBlock.Height != sideChainBlock.Height {
+		if mainChainBlock.Header.Height != sideChainBlock.Header.Height {
 			logger.Panicf("Expect to compare main chain and side chain block at same height")
 		}
 		mainChainHash := mainChainBlock.BlockHash()
@@ -726,6 +732,25 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	ttt1 := time.Now().UnixNano()
 
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+		return err
+	}
+
+	parent := chain.GetParentBlock(block)
+	var rootHash *crypto.HashType
+	if parent != nil && len(parent.Header.RootHash) > 0 {
+		rootHash = &parent.Header.RootHash
+	}
+	statedb, err := state.New(rootHash, chain.db)
+	if err != nil {
+		return err
+	}
+
+	usedGas, err := chain.stateProcessor.Process(block, statedb, chain.vmConfig)
+	if err != nil {
+		return err
+	}
+
+	if err := chain.validateState(block, statedb, usedGas); err != nil {
 		return err
 	}
 
@@ -767,7 +792,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 
 	if err := batch.Write(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
-			block.BlockHash().String(), block.Height, err.Error())
+			block.BlockHash().String(), block.Header.Height, err.Error())
 	}
 	ttt6 := time.Now().UnixNano()
 	chain.tryToClearCache([]*types.Block{block}, nil)
@@ -781,6 +806,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if needToTracking((ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
 		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
 	}
+	return nil
+}
+
+func (chain *BlockChain) validateState(block *types.Block, statedb *state.StateDB, usedGas uint64) error {
 	return nil
 }
 
@@ -799,7 +828,7 @@ func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
 func (chain *BlockChain) reorganize(block *types.Block, transferMode core.TransferMode) error {
 	// Find the common ancestor of the main chain and side chain
 	forkpoint, detachBlocks, attachBlocks := chain.findFork(block)
-	if forkpoint.Height < chain.eternal.Height {
+	if forkpoint.Header.Height < chain.eternal.Header.Height {
 		// delete all block from forkpoint.
 		for _, attachBlock := range attachBlocks {
 			delete(chain.hashToOrphanBlock, *attachBlock.BlockHash())
@@ -807,7 +836,7 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 			chain.RemoveBlock(attachBlock)
 		}
 
-		logger.Warnf("No need to reorganize, because the forkpoint height[%d] is lower than the latest eternal block height[%d].", forkpoint.Height, chain.eternal.Height)
+		logger.Warnf("No need to reorganize, because the forkpoint height[%d] is lower than the latest eternal block height[%d].", forkpoint.Header.Height, chain.eternal.Header.Height)
 		return nil
 	}
 
@@ -839,7 +868,7 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 
 func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
 	dtt0 := time.Now().UnixNano()
-	logger.Debugf("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Height)
+	logger.Debugf("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Header.Height)
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
@@ -858,7 +887,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	}
 	dtt2 := time.Now().UnixNano()
 	// batch.Del(BlockKey(block.BlockHash()))
-	batch.Del(BlockHashKey(block.Height))
+	batch.Del(BlockHashKey(block.Header.Height))
 
 	// chain.filterHolder.ResetFilters(block.Height)
 	dtt3 := time.Now().UnixNano()
@@ -883,7 +912,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	if err := batch.Write(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
-			block.BlockHash().String(), block.Height, err.Error())
+			block.BlockHash().String(), block.Header.Height, err.Error())
 	}
 	dtt6 := time.Now().UnixNano()
 	chain.tryToClearCache(nil, []*types.Block{block})
@@ -922,7 +951,7 @@ func (chain *BlockChain) Genesis() *types.Block {
 // SetEternal set block eternal status.
 func (chain *BlockChain) SetEternal(block *types.Block) error {
 	eternal := chain.eternal
-	if eternal.Height < block.Height {
+	if eternal.Header.Height < block.Header.Height {
 		if err := chain.StoreEternalBlock(block); err != nil {
 			return err
 		}
@@ -969,11 +998,11 @@ func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 
 	chain.repeatedMintCache.Add(tail.Header.TimeStamp, tail)
 	// chain.heightToBlock.Add(tail.Height, tail)
-	chain.LongestChainHeight = tail.Height
+	chain.LongestChainHeight = tail.Header.Height
 	chain.tail = tail
-	logger.Infof("Change New Tail. Hash: %s Height: %d txsNum: %d", tail.BlockHash().String(), tail.Height, len(tail.Txs))
+	logger.Infof("Change New Tail. Hash: %s Height: %d txsNum: %d", tail.BlockHash().String(), tail.Header.Height, len(tail.Txs))
 
-	metrics.MetricsBlockHeightGauge.Update(int64(tail.Height))
+	metrics.MetricsBlockHeightGauge.Update(int64(tail.Header.Height))
 	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))
 }
 
@@ -1008,7 +1037,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	utxoSet := NewUtxoSet()
 	for _, v := range genesis.Txs {
 		for idx := range v.Vout {
-			utxoSet.AddUtxo(v, uint32(idx), genesis.Height)
+			utxoSet.AddUtxo(v, uint32(idx), genesis.Header.Height)
 		}
 	}
 	utxoSet.WriteUtxoSetToDB(batch)
@@ -1135,29 +1164,11 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
-func (chain *BlockChain) loadAllBlockHeightHash() (map[uint32]*crypto.HashType, error) {
-	keys := chain.db.KeysWithPrefix(FilterKeyPrefix())
-	res := make(map[uint32]*crypto.HashType)
-	for _, k := range keys {
-		height, bytes := FilterHeightHashFromKey(k)
-		if height == math.MaxUint32 {
-			continue
-		}
-		hash := &crypto.HashType{}
-		if err := hash.SetString(bytes); err == nil {
-			res[height] = hash
-		} else {
-			logger.Warnf("HashType parse fail. Err: %v", err)
-		}
-	}
-	return res, nil
-}
-
 // StoreBlockInBatch store block to db in batch mod.
 func (chain *BlockChain) StoreBlockInBatch(block *types.Block, batch storage.Batch) error {
 
 	hash := block.BlockHash()
-	batch.Put(BlockHashKey(block.Height), hash[:])
+	batch.Put(BlockHashKey(block.Header.Height), hash[:])
 
 	data, err := block.Marshal()
 	if err != nil {
@@ -1269,7 +1280,7 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs map[crypto.Ha
 		allTxs = append(block.Txs, v)
 	}
 	for idx, tx := range allTxs {
-		tiBuf, err := MarshalTxIndex(block.Height, uint32(idx))
+		tiBuf, err := MarshalTxIndex(block.Header.Height, uint32(idx))
 		if err != nil {
 			return err
 		}
@@ -1335,21 +1346,21 @@ func (chain *BlockChain) DelSplitTxs(splitTxs map[crypto.HashType]*types.Transac
 
 // LocateForkPointAndFetchHeaders return block headers when get locate fork point request for sync service.
 func (chain *BlockChain) LocateForkPointAndFetchHeaders(hashes []*crypto.HashType) ([]*crypto.HashType, error) {
-	tailHeight := chain.tail.Height
+	tailHeight := chain.tail.Header.Height
 	for index := range hashes {
 		block, err := chain.LoadBlockByHash(*hashes[index])
 		if err != nil {
 			continue
 		}
 		// Important: make sure the block is on main chain !!!
-		b, _ := chain.LoadBlockByHeight(block.Height)
+		b, _ := chain.LoadBlockByHeight(block.Header.Height)
 		if !b.BlockHash().IsEqual(block.BlockHash()) {
 			continue
 		}
 
 		result := []*crypto.HashType{}
-		currentHeight := block.Height + 1
-		if tailHeight-block.Height+1 < MaxBlocksPerSync {
+		currentHeight := block.Header.Height + 1
+		if tailHeight-block.Header.Height+1 < MaxBlocksPerSync {
 			for currentHeight <= tailHeight {
 				block, err := chain.LoadBlockByHeight(currentHeight)
 				if err != nil {
@@ -1382,14 +1393,14 @@ func (chain *BlockChain) CalcRootHashForNBlocks(hash crypto.HashType, num uint32
 	if err != nil {
 		return nil, err
 	}
-	if chain.tail.Height-block.Height+1 < num {
+	if chain.tail.Header.Height-block.Header.Height+1 < num {
 		return nil, fmt.Errorf("Invalid params num[%d] (tailHeight[%d], "+
-			"currentHeight[%d])", num, chain.tail.Height, block.Height)
+			"currentHeight[%d])", num, chain.tail.Header.Height, block.Header.Height)
 	}
 	var idx uint32
 	hashes := make([]*crypto.HashType, num)
 	for idx < num {
-		block, err := chain.LoadBlockByHeight(block.Height + idx)
+		block, err := chain.LoadBlockByHeight(block.Header.Height + idx)
 		if err != nil {
 			return nil, err
 		}
@@ -1407,14 +1418,14 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	if err != nil {
 		return nil, err
 	}
-	if num <= 0 || chain.tail.Height-block.Height+1 < num {
+	if num <= 0 || chain.tail.Header.Height-block.Header.Height+1 < num {
 		return nil, fmt.Errorf("Invalid params num[%d], tail.Height[%d],"+
-			" block height[%d]", num, chain.tail.Height, block.Height)
+			" block height[%d]", num, chain.tail.Header.Height, block.Header.Height)
 	}
 	var idx uint32
 	blocks := make([]*types.Block, num)
 	for idx < num {
-		block, err := chain.LoadBlockByHeight(block.Height + idx)
+		block, err := chain.LoadBlockByHeight(block.Header.Height + idx)
 		if err != nil {
 			return nil, err
 		}
@@ -1639,7 +1650,7 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 // ExtractBoxTransactions extract Transaction to BoxTransaction
 func ExtractBoxTransactions(
 	tx *types.Transaction, reader storage.Reader,
-) ([]*types.BoxTransaction, error) {
+) (*types.BoxTransaction, error) {
 
 	var btx []*types.BoxTransaction
 	if !HasContractVout(tx) {
@@ -1677,7 +1688,7 @@ func ExtractBoxTransactions(
 			btx = append(btx, t)
 		}
 	}
-	return btx, nil
+	return btx[0], nil
 }
 
 // HasContractVout return true if tx has a vout with contract creation or call

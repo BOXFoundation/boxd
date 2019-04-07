@@ -17,7 +17,8 @@
 package vm
 
 import (
-	"github.com/BOXFoundation/boxd/vm/common"
+	coretypes "github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/vm/common/math"
 	"github.com/BOXFoundation/boxd/vm/common/types"
 )
@@ -121,7 +122,7 @@ func gasReturnDataCopy(gt types.GasTable, evm *EVM, contract *Contract, stack *S
 func gasSStore(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	var (
 		y, x    = stack.Back(1), stack.Back(0)
-		current = evm.StateDB.GetState(contract.Address(), common.BigToHash(x))
+		current = evm.StateDB.GetState(contract.Address(), crypto.BigToHash(x))
 	)
 	// The legacy gas metering only takes into consideration the current state
 	// Legacy rules should be applied if we are in Petersburg (removal of EIP-1283)
@@ -133,9 +134,9 @@ func gasSStore(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, me
 		// 2. From a non-zero value address to a zero-value address (DELETE)
 		// 3. From a non-zero to a non-zero                         (CHANGE)
 		switch {
-		case current == (common.Hash{}) && y.Sign() != 0: // 0 => non 0
+		case current == (crypto.HashType{}) && y.Sign() != 0: // 0 => non 0
 			return types.SstoreSetGas, nil
-		case current != (common.Hash{}) && y.Sign() == 0: // non 0 => 0
+		case current != (crypto.HashType{}) && y.Sign() == 0: // non 0 => 0
 			evm.StateDB.AddRefund(types.SstoreRefundGas)
 			return types.SstoreClearGas, nil
 		default: // non 0 => non 0 (or 0 => 0)
@@ -156,29 +157,29 @@ func gasSStore(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, me
 	// 	  2.2.2. If original value equals new value (this storage slot is reset)
 	//       2.2.2.1. If original value is 0, add 19800 gas to refund counter.
 	// 	     2.2.2.2. Otherwise, add 4800 gas to refund counter.
-	value := common.BigToHash(y)
+	value := crypto.BigToHash(y)
 	if current == value { // noop (1)
 		return types.NetSstoreNoopGas, nil
 	}
-	original := evm.StateDB.GetCommittedState(contract.Address(), common.BigToHash(x))
+	original := evm.StateDB.GetCommittedState(contract.Address(), crypto.BigToHash(x))
 	if original == current {
-		if original == (common.Hash{}) { // create slot (2.1.1)
+		if original == (crypto.HashType{}) { // create slot (2.1.1)
 			return types.NetSstoreInitGas, nil
 		}
-		if value == (common.Hash{}) { // delete slot (2.1.2b)
+		if value == (crypto.HashType{}) { // delete slot (2.1.2b)
 			evm.StateDB.AddRefund(types.NetSstoreClearRefund)
 		}
 		return types.NetSstoreCleanGas, nil // write existing slot (2.1.2)
 	}
-	if original != (common.Hash{}) {
-		if current == (common.Hash{}) { // recreate slot (2.2.1.1)
+	if original != (crypto.HashType{}) {
+		if current == (crypto.HashType{}) { // recreate slot (2.2.1.1)
 			evm.StateDB.SubRefund(types.NetSstoreClearRefund)
-		} else if value == (common.Hash{}) { // delete slot (2.2.1.2)
+		} else if value == (crypto.HashType{}) { // delete slot (2.2.1.2)
 			evm.StateDB.AddRefund(types.NetSstoreClearRefund)
 		}
 	}
 	if original == value {
-		if original == (common.Hash{}) { // reset to original inexistent slot (2.2.2.1)
+		if original == (crypto.HashType{}) { // reset to original inexistent slot (2.2.2.1)
 			evm.StateDB.AddRefund(types.NetSstoreResetClearRefund)
 		} else { // reset to original existing slot (2.2.2.2)
 			evm.StateDB.AddRefund(types.NetSstoreResetRefund)
@@ -395,7 +396,7 @@ func gasCall(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, mem 
 	var (
 		gas            = gt.Calls
 		transfersValue = stack.Back(2).Sign() != 0
-		address        = common.BigToAddress(stack.Back(1))
+		address        = coretypes.BigToAddressHash(stack.Back(1))
 		eip158         = evm.ChainConfig().IsEIP158(evm.BlockNumber)
 	)
 	if eip158 {
@@ -465,7 +466,7 @@ func gasSuicide(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, m
 	if evm.ChainConfig().IsEIP150(evm.BlockNumber) {
 		gas = gt.Suicide
 		var (
-			address = common.BigToAddress(stack.Back(0))
+			address = coretypes.BigToAddressHash(stack.Back(0))
 			eip158  = evm.ChainConfig().IsEIP158(evm.BlockNumber)
 		)
 

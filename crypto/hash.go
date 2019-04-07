@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 
 	"golang.org/x/crypto/ripemd160"
 	"golang.org/x/crypto/sha3"
@@ -125,4 +126,16 @@ func (hash *HashType) GetBytes() []byte {
 	hashBytes := make([]byte, HashSize)
 	copy(hashBytes, hash[:])
 	return hashBytes
+}
+
+func (hash HashType) Bytes() []byte { return hash[:] }
+
+func (hash *HashType) Big() *big.Int { return new(big.Int).SetBytes(hash[:]) }
+
+func BigToHash(b *big.Int) HashType { return BytesToHash(b.Bytes()) }
+
+func BytesToHash(b []byte) HashType {
+	var h HashType
+	h.SetBytes(b)
+	return h
 }
