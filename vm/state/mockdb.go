@@ -6,6 +6,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"golang.org/x/crypto/ripemd160"
 )
 
 func NewMockdb() *Mockdb {
@@ -95,14 +96,14 @@ func (self *Mockdb) GetCommittedState(address types.AddressHash, key crypto.Hash
 func (self *Mockdb) GetState(address types.AddressHash, key crypto.HashType) crypto.HashType {
 	newKey := []byte{}
 	newKey = append(newKey, address.Bytes()...)
-	newKey = append(newKey, key.Bytes()...)
+	newKey = append(newKey, key.Bytes()[:crypto.HashSize-ripemd160.Size]...)
 	return self.states[crypto.BytesToHash(newKey)]
 }
 
 func (self *Mockdb) SetState(address types.AddressHash, key, value crypto.HashType) {
 	newKey := []byte{}
 	newKey = append(newKey, address.Bytes()...)
-	newKey = append(newKey, key.Bytes()...)
+	newKey = append(newKey, key.Bytes()[:crypto.HashSize-ripemd160.Size]...)
 	self.states[crypto.BytesToHash(newKey)] = value
 }
 
