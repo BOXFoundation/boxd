@@ -962,7 +962,7 @@ func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, err
 // ChangeNewTail change chain tail block.
 func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 
-	if err := chain.consensus.Seal(tail); err != nil {
+	if err := chain.consensus.Finalize(tail); err != nil {
 		panic("Failed to change new tail in consensus.")
 	}
 

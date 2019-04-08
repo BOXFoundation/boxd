@@ -55,6 +55,12 @@ var (
 	ErrInvalidBlockHeaderProtoMessage = errors.New("Invalid block header proto message")
 	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
 
+	//trie.go
+	ErrInvalidTrieProtoMessage = errors.New("Invalid trie proto message")
+	ErrNodeNotFound            = errors.New("node is not found")
+	ErrInvalidNodeType         = errors.New("Invalid node type")
+	ErrInvalidKeyPath          = errors.New("Invalid key path")
+
 	//transaction.go
 	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
 	ErrInvalidOutPointProtoMessage         = errors.New("Invalid OutPoint proto message")
