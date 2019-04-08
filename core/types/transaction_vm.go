@@ -72,6 +72,11 @@ func (tx *BoxTransaction) WithVoutNum(n uint32) *BoxTransaction {
 	return tx
 }
 
+// Version returns the version of the tx.
+func (tx *BoxTransaction) Version() int32 {
+	return tx.version
+}
+
 // From returns the tx from addressHash.
 func (tx *BoxTransaction) From() AddressHash {
 	return *tx.sender
@@ -110,4 +115,9 @@ func (tx *BoxTransaction) CheckNonce() bool {
 // Data returns the code of the tx.
 func (tx *BoxTransaction) Data() []byte {
 	return tx.code
+}
+
+// HashWith returns the hashWith of the tx.
+func (tx *BoxTransaction) HashWith() *crypto.HashType {
+	return tx.hashWith
 }

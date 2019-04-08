@@ -25,7 +25,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/vm/common"
 	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 	"github.com/BOXFoundation/boxd/vm/crypto"
@@ -51,7 +50,7 @@ var (
 // * Contracts
 // * Accounts
 type StateDB struct {
-	db   storage.Storage
+	db   Database
 	trie *trie.Trie
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
@@ -83,8 +82,8 @@ type StateDB struct {
 }
 
 // New a new state from a given trie.
-func New(db storage.Storage) (*StateDB, error) {
-	tr, err := trie.New(nil, db)
+func New(db Database) (*StateDB, error) {
+	tr, err := db.OpenTrie(corecrypto.HashType{})
 	if err != nil {
 		return nil, err
 	}
@@ -227,20 +226,19 @@ func (s *StateDB) GetCode(addr types.AddressHash) []byte {
 	return nil
 }
 
-func (s *StateDB) GetCodeSize(addr types.AddressHash) int {
-	// stateObject := s.getStateObject(addr)
-	// if stateObject == nil {
-	// 	return 0
-	// }
-	// if stateObject.code != nil {
-	// 	return len(stateObject.code)
-	// }
-	// size, err := s.db.ContractCodeSize(stateObject.addrHash, common.BytesToHash(stateObject.CodeHash()))
-	// if err != nil {
-	// 	s.setError(err)
-	// }
-	// return size
-	return 0
+func (self *StateDB) GetCodeSize(addr types.AddressHash) int {
+	stateObject := self.getStateObject(addr)
+	if stateObject == nil {
+		return 0
+	}
+	if stateObject.code != nil {
+		return len(stateObject.code)
+	}
+	size, err := self.db.ContractCodeSize(stateObject.addrHash, corecrypto.BytesToHash(stateObject.CodeHash()))
+	if err != nil {
+		self.setError(err)
+	}
+	return size
 }
 
 func (s *StateDB) GetCodeHash(addr types.AddressHash) corecrypto.HashType {
@@ -269,7 +267,7 @@ func (s *StateDB) GetCommittedState(addr types.AddressHash, hash corecrypto.Hash
 }
 
 // Database retrieves the low level database supporting the lower level trie ops.
-func (s *StateDB) Database() storage.Storage {
+func (s *StateDB) Database() Database {
 	return s.db
 }
 

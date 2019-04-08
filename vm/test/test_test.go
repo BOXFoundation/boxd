@@ -3,7 +3,6 @@ package test
 import (
 	"bytes"
 	"fmt"
-	"github.com/jbenet/goprocess"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -11,25 +10,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/chain"
+	coretypes "github.com/BOXFoundation/boxd/core/types"
+	corecrypto "github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
+	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/BOXFoundation/boxd/vm"
-	"github.com/BOXFoundation/boxd/vm/common"
-	"github.com/BOXFoundation/boxd/vm/common/hexutil"
-	"github.com/BOXFoundation/boxd/vm/common/types"
-
-	// "github.com/BOXFoundation/boxd/vm/core"
+	"github.com/BOXFoundation/boxd/vm/common/hexutil" // "github.com/BOXFoundation/boxd/vm/core"
 	"github.com/BOXFoundation/boxd/vm/state"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/jbenet/goprocess"
 )
 
 var (
-	testHash    = common.BytesToHash([]byte("xujingshi"))
-	fromAddress = common.BytesToAddress([]byte("xujingshi"))
-	toAddress   = common.BytesToAddress([]byte("andone"))
+	testHash    = corecrypto.BytesToHash([]byte("xujingshi"))
+	fromAddress = coretypes.BytesToAddressHash([]byte("xujingshi"))
+	toAddress   = coretypes.BytesToAddressHash([]byte("andone"))
 	amount      = big.NewInt(0)
 	nonce       = uint64(0)
 	gasLimit    = uint64(100000)
 	coinbase    = fromAddress
+	blockChain  = chain.NewTestBlockChain()
 )
 
 func must(err error) {
@@ -79,24 +80,11 @@ func Print(outputs []byte, name string) {
 type ChainContext struct{}
 
 // get block header
-func (cc ChainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
+func (cc ChainContext) GetHeader(number uint32) *coretypes.BlockHeader {
 
-	return &types.Header{
-		// ParentHash: common.Hash{},
-		// UncleHash:  common.Hash{},
-		Coinbase: common.Address(fromAddress),
-		//	Root:        common.Hash{},
-		//	TxHash:      common.Hash{},
-		//	ReceiptHash: common.Hash{},
-		//	Bloom:      types.BytesToBloom([]byte("xujingshi")),
-		Difficulty: big.NewInt(1),
-		Number:     big.NewInt(1).SetUint64(number),
-		GasLimit:   gasLimit,
-		GasUsed:    0,
-		Time:       big.NewInt(time.Now().Unix()),
-		Extra:      nil,
-		//MixDigest:  testHash,
-		//Nonce:      types.EncodeNonce(1),
+	return &coretypes.BlockHeader{
+		Height:    number,
+		TimeStamp: time.Now().Unix(),
 	}
 }
 
@@ -107,23 +95,22 @@ func TestEVM(t *testing.T) {
 	data := loadBin(binFileName)
 
 	// init db
-	msg := core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), data, false)
+	msg := NewMessage(fromAddress, big.NewInt(0))
 	cc := ChainContext{}
-	ctx := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
+	ctx := chain.NewEVMContext(msg, cc.GetHeader(0), blockChain)
 
 	balance := uint64(big.NewInt(1e18).Uint64())
 	fmt.Println("init balance =", balance)
 
 	// log config
-	config := types.MainnetChainConfig
 	logConfig := vm.LogConfig{}
 	// common.Address => Storage
 	structLogger := vm.NewStructLogger(&logConfig)
 	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
 
 	// load evm
-	stateDb, err := state.New(initDB())
-	evm := vm.NewEVM(ctx, stateDb, config, vmConfig)
+	// stateDb, err := state.New(initDB())
+	evm := vm.NewEVM(ctx, state.NewMockdb(), vmConfig)
 	// caller
 	contractRef := vm.AccountRef(fromAddress)
 	// all balance used to create contract as contract.gas
@@ -146,7 +133,7 @@ func TestEVM(t *testing.T) {
 	// fmt.Printf("minter is %x\n", common.BytesToAddress(outputs))
 	// fmt.Printf("call address %x\n", contractRef)
 
-	sender := common.BytesToAddress(outputs)
+	sender := coretypes.BytesToAddressHash(outputs)
 
 	if !bytes.Equal(sender.Bytes(), fromAddress.Bytes()) {
 		fmt.Println("caller are not equal to minter!!")
@@ -203,22 +190,21 @@ func TestEVMWithoutStorage(t *testing.T) {
 	data := loadBin(binFileName)
 
 	// init db
-	msg := core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), data, false)
+	msg := NewMessage(fromAddress, big.NewInt(0))
 	cc := ChainContext{}
-	ctx := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
+	ctx := chain.NewEVMContext(msg, cc.GetHeader(7280001), nil)
 
 	balance := uint64(big.NewInt(1e18).Uint64())
 	fmt.Println("init balance =", balance)
 
 	// log config
-	config := types.MainnetChainConfig
 	logConfig := vm.LogConfig{}
 	// common.Address => Storage
 	structLogger := vm.NewStructLogger(&logConfig)
 	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
 
 	// load evm
-	evm := vm.NewEVM(ctx, state.NewMockdb(), config, vmConfig)
+	evm := vm.NewEVM(ctx, state.NewMockdb(), vmConfig)
 	// caller
 	contractRef := vm.AccountRef(fromAddress)
 	// all balance used to create contract as contract.gas
@@ -241,7 +227,7 @@ func TestEVMWithoutStorage(t *testing.T) {
 	// fmt.Printf("minter is %x\n", common.BytesToAddress(outputs))
 	// fmt.Printf("call address %x\n", contractRef)
 
-	sender := common.BytesToAddress(outputs)
+	sender := coretypes.BytesToAddressHash(outputs)
 
 	if !bytes.Equal(sender.Bytes(), fromAddress.Bytes()) {
 		fmt.Println("caller are not equal to minter!!")
@@ -297,26 +283,23 @@ func TestMsg(t *testing.T) {
 	dataB := loadBin("./msg_sol_Msg_2.bin")
 
 	// init db
-	msg := core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), dataA, false)
+	msg := NewMessage(fromAddress, big.NewInt(0))
 	cc := ChainContext{}
-	ctxA := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
-
-	msg = core.NewMessage(fromAddress, &toAddress, nonce, amount, gasLimit, big.NewInt(0), dataB, false)
-	ctxB := core.NewEVMContext(msg, cc.GetHeader(testHash, 7280001), cc, &fromAddress)
+	ctxA := chain.NewEVMContext(msg, cc.GetHeader(7280001), nil)
+	ctxB := chain.NewEVMContext(msg, cc.GetHeader(7280001), nil)
 
 	balance := uint64(big.NewInt(1e18).Uint64())
 	fmt.Println("init balance =", balance)
 
 	// log config
-	config := types.MainnetChainConfig
 	logConfig := vm.LogConfig{}
 	// common.Address => Storage
 	structLogger := vm.NewStructLogger(&logConfig)
 	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
 
 	// load evm
-	evmA := vm.NewEVM(ctxA, state.NewMockdb(), config, vmConfig)
-	evmB := vm.NewEVM(ctxB, state.NewMockdb(), config, vmConfig)
+	evmA := vm.NewEVM(ctxA, state.NewMockdb(), vmConfig)
+	evmB := vm.NewEVM(ctxB, state.NewMockdb(), vmConfig)
 
 	// caller
 	contractRef := vm.AccountRef(fromAddress)
