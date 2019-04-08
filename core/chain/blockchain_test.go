@@ -537,7 +537,7 @@ func TestExtractBoxTx(t *testing.T) {
 		txin := types.NewTxIn(prevOp, nil, 0)
 		txout := types.NewTxOut(tc.value, *cs)
 		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout)
-		btxs, err := ExtractBoxTransactions(tx, reader)
+		btxs, err := ExtractVMTransactions(tx, reader)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -551,7 +551,7 @@ func TestExtractBoxTx(t *testing.T) {
 			btx.Value.Cmp(big.NewInt(int64(tc.value))) != 0 ||
 			btx.GasPrice.Cmp(big.NewInt(int64(tc.price))) != 0 ||
 			btx.Gas != tc.limit || btx.Version != tc.version {
-			t.Fatalf("want: %+v, got BoxTransaction: %+v", tc, btx)
+			t.Fatalf("want: %+v, got VMTransaction: %+v", tc, btx)
 		}
 	}
 }

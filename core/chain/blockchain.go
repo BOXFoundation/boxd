@@ -1647,17 +1647,17 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 	return nil
 }
 
-// ExtractBoxTransactions extract Transaction to BoxTransaction
-func ExtractBoxTransactions(
+// ExtractVMTransactions extract Transaction to VMTransaction
+func ExtractVMTransactions(
 	tx *types.Transaction, reader storage.Reader,
-) (*types.BoxTransaction, error) {
+) (*types.VMTransaction, error) {
 
-	var btx []*types.BoxTransaction
+	var btx []*types.VMTransaction
 	if !HasContractVout(tx) {
 		return nil, nil
 	}
 	// sender
-	// use sender in vin[0] as BoxTransaction sender
+	// use sender in vin[0] as VMTransaction sender
 	utxo, err := fetchUtxoWrapFromDB(reader, &tx.Vin[0].PrevOutPoint)
 	if err != nil {
 		return nil, err
@@ -1681,7 +1681,7 @@ func ExtractBoxTransactions(
 			if e != nil {
 				return nil, err
 			}
-			t := types.NewBoxTransaction(big.NewInt(int64(o.Value)),
+			t := types.NewVMTransaction(big.NewInt(int64(o.Value)),
 				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Receiver, p.Code).
 				WithHashWith(txHash).WithSender(sender).WithVoutNum(uint32(i))
 

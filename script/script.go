@@ -804,7 +804,7 @@ func MakeContractScript(
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack
-func (s *Script) ParseContractParams() (params *types.BoxTxParams, typ ContractType, err error) {
+func (s *Script) ParseContractParams() (params *types.VMTxParams, typ ContractType, err error) {
 	typ = ContractUnkownType
 	// OPCONTRACT
 	opCode, _, pc, err := s.getNthOp(0, 0)
@@ -819,7 +819,7 @@ func (s *Script) ParseContractParams() (params *types.BoxTxParams, typ ContractT
 	if err != nil {
 		return
 	}
-	params = new(types.BoxTxParams)
+	params = new(types.VMTxParams)
 	if len(operand) == ripemd160.Size {
 		addrHash := new(types.AddressHash)
 		copy(addrHash[:], operand[:])

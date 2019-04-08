@@ -10,8 +10,8 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
-// BoxTransaction defines the transaction used to interact with vm
-type BoxTransaction struct {
+// VMTransaction defines the transaction used to interact with vm
+type VMTransaction struct {
 	version     int32
 	senderNonce uint64
 	hashWith    *crypto.HashType
@@ -24,8 +24,8 @@ type BoxTransaction struct {
 	VoutNum     uint32
 }
 
-// BoxTxParams defines BoxTx params parsed from script pubkey
-type BoxTxParams struct {
+// VMTxParams defines BoxTx params parsed from script pubkey
+type VMTxParams struct {
 	GasPrice uint64
 	GasLimit uint64
 	Version  int32
@@ -33,11 +33,11 @@ type BoxTxParams struct {
 	Receiver *AddressHash
 }
 
-// NewBoxTransaction new a BoxTransaction instance with given parameters
-func NewBoxTransaction(
+// NewVMTransaction new a VMTransaction instance with given parameters
+func NewVMTransaction(
 	value, gasPrice *big.Int, gas uint64, receiver *AddressHash, code []byte,
-) *BoxTransaction {
-	return &BoxTransaction{
+) *VMTransaction {
+	return &VMTransaction{
 		version:     0,
 		senderNonce: ^(uint64(0)),
 		receiver:    receiver,
@@ -49,65 +49,65 @@ func NewBoxTransaction(
 }
 
 // WithSenderNonce sets SenderNonce
-func (tx *BoxTransaction) WithSenderNonce(n uint64) *BoxTransaction {
+func (tx *VMTransaction) WithSenderNonce(n uint64) *VMTransaction {
 	tx.senderNonce = n
 	return tx
 }
 
 // WithSender sets SenderNonce
-func (tx *BoxTransaction) WithSender(sender *AddressHash) *BoxTransaction {
+func (tx *VMTransaction) WithSender(sender *AddressHash) *VMTransaction {
 	tx.sender = sender
 	return tx
 }
 
 // WithHashWith sets SenderNonce
-func (tx *BoxTransaction) WithHashWith(hash *crypto.HashType) *BoxTransaction {
+func (tx *VMTransaction) WithHashWith(hash *crypto.HashType) *VMTransaction {
 	tx.hashWith = hash
 	return tx
 }
 
 // WithVoutNum sets VoutNum
-func (tx *BoxTransaction) WithVoutNum(n uint32) *BoxTransaction {
+func (tx *VMTransaction) WithVoutNum(n uint32) *VMTransaction {
 	tx.VoutNum = n
 	return tx
 }
 
 // From returns the tx from addressHash.
-func (tx *BoxTransaction) From() AddressHash {
+func (tx *VMTransaction) From() AddressHash {
 	return *tx.sender
 }
 
 // To returns the tx to addressHash.
-func (tx *BoxTransaction) To() *AddressHash {
+func (tx *VMTransaction) To() *AddressHash {
 	return tx.receiver
 }
 
 // GasPrice returns the gasprice of the tx.
-func (tx *BoxTransaction) GasPrice() *big.Int {
+func (tx *VMTransaction) GasPrice() *big.Int {
 	return tx.gasPrice
 }
 
 // Gas returns the gaslimit of the tx.
-func (tx *BoxTransaction) Gas() uint64 {
+func (tx *VMTransaction) Gas() uint64 {
 	return tx.gas
 }
 
 // Value returns the transfer value of the tx.
-func (tx *BoxTransaction) Value() *big.Int {
+func (tx *VMTransaction) Value() *big.Int {
 	return tx.value
 }
 
 // Nonce returns the nonce of the tx.
-func (tx *BoxTransaction) Nonce() uint64 {
+func (tx *VMTransaction) Nonce() uint64 {
 	return tx.senderNonce
 }
 
 // CheckNonce returns if check nonce with the tx.
-func (tx *BoxTransaction) CheckNonce() bool {
+func (tx *VMTransaction) CheckNonce() bool {
 	return true
 }
 
 // Data returns the code of the tx.
-func (tx *BoxTransaction) Data() []byte {
+func (tx *VMTransaction) Data() []byte {
 	return tx.code
 }

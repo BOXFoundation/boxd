@@ -30,7 +30,7 @@ func (sp *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cf
 	usedGas := new(uint64)
 
 	for _, tx := range block.Txs {
-		boxTx, err := ExtractBoxTransactions(tx, statedb.DB())
+		boxTx, err := ExtractVMTransactions(tx, statedb.DB())
 		if err != nil {
 			return 0, err
 		}
@@ -46,7 +46,7 @@ func (sp *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cf
 
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment.
-func ApplyTransaction(tx *types.BoxTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB, cfg vm.Config) (uint64, error) {
+func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB, cfg vm.Config) (uint64, error) {
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
 	_, gas, _, err := ApplyMessage(vmenv, tx)
