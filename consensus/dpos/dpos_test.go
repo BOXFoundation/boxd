@@ -87,13 +87,13 @@ func TestDpos_run(t *testing.T) {
 	ensure.DeepEqual(t, result, ErrNotMyTurnToProduce)
 
 	timestamp1 := int64(1541824650)
-	result = dposBookkeeper.dpos.mint(timestamp1)
+	result = dposBookkeeper.dpos.run(timestamp1)
 	ensure.Nil(t, result)
 
 }
 
 func TestDpos_FindProposerWithTimeStamp(t *testing.T) {
-	hash, err := dposBookkeeper.dpos.context.periodContext.FindMinerWithTimeStamp(1541824650)
+	hash, err := dposBookkeeper.dpos.context.periodContext.FindProposerWithTimeStamp(1541824650)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, *hash, dposBookkeeper.dpos.context.periodContext.period[0].addr)
 }
