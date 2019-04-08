@@ -188,7 +188,7 @@ func _TestTokenTx(t *testing.T) {
 	tag := txlogic.NewTokenTag("box test token", "XOX", 4, 20000)
 	req := &rpcpb.MakeTokenIssueTxReq{
 		Issuer: issuer,
-		Owner: owner,
+		Owner:  owner,
 		Tag:    tag,
 		Fee:    10,
 	}
