@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"reflect"
 	"testing"
 )

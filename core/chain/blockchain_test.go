@@ -529,7 +529,7 @@ func TestExtractBoxTx(t *testing.T) {
 			addr, _ = types.NewAddress(tc.addrStr)
 		}
 		code, _ := hex.DecodeString(tc.code)
-		cs, err := script.MakeContractScript(addr, code, tc.price, tc.limit, tc.version)
+		cs, err := script.MakeContractScriptPubkey(addr, code, tc.price, tc.limit, tc.version)
 		if err != nil {
 			t.Fatal(err)
 		}

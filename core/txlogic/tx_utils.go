@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"strings"
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -113,7 +114,7 @@ func ParseTokenAmount(spk []byte) (uint64, error) {
 // MakeVout makes txOut
 func MakeVout(addr string, amount uint64) *corepb.TxOut {
 	var address types.Address
-	if strings.HasPrefix(addr, "b2") {
+	if strings.HasPrefix(addr, types.AddrTypeSplitAddrPrefix) {
 		address, _ = types.NewSplitAddress(addr)
 	} else {
 		address, _ = types.NewAddress(addr)
@@ -134,6 +135,24 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 	}
 }
 
+// MakeContractCreationVout makes txOut
+func MakeContractCreationVout(
+	receiver string, amount uint64, gas uint64, gasPrice *big.Int, code []byte,
+	VoutNum uint32,
+) (*corepb.TxOut, error) {
+
+	if !strings.HasPrefix(receiver, types.AddrTypeContractPrefix) {
+		return nil, errors.New("MakeContractCreationVout need contract receiver")
+	}
+	var address types.Address
+	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
+	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
+	return &corepb.TxOut{
+		Value:        amount,
+		ScriptPubKey: addrScript,
+	}, nil
+}
+
 // MakeVin makes txIn
 func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
 	hash := new(crypto.HashType)
@@ -141,6 +160,17 @@ func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
 	return &types.TxIn{
 		PrevOutPoint: *types.NewOutPoint(hash, utxo.GetOutPoint().GetIndex()),
 		ScriptSig:    []byte{},
+		Sequence:     seq,
+	}
+}
+
+// MakeContractVin makes txIn
+func MakeContractVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
+	hash := new(crypto.HashType)
+	copy(hash[:], utxo.GetOutPoint().Hash)
+	return &types.TxIn{
+		PrevOutPoint: *types.NewOutPoint(hash, utxo.GetOutPoint().GetIndex()),
+		ScriptSig:    *script.MakeContractScriptSig(),
 		Sequence:     seq,
 	}
 }

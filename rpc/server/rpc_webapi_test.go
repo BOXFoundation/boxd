@@ -311,7 +311,7 @@ func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.B
 		AppendVout(txlogic.MakeVout(addr, amount))
 	_, tx, _ := r.LoadBlockInfoByTxHash(crypto.HashType{})
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
-	block.Height = 10
+	block.Header.Height = 10
 	return block, 10240, nil
 }
 
@@ -323,7 +323,7 @@ func (r *TestDetailBlockChainReader) LoadBlockInfoByTxHash(
 
 func (r *TestDetailBlockChainReader) EternalBlock() *types.Block {
 	block, _, _ := r.ReadBlockFromDB(&crypto.HashType{})
-	block.Height = 1
+	block.Header.Height = 1
 	return block
 }
 

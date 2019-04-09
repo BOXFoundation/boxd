@@ -377,7 +377,7 @@ func TestContractScript(t *testing.T) {
 			addr, _ = types.NewAddress(tc.addrStr)
 		}
 		code, _ := hex.DecodeString(tc.code)
-		cs, err := MakeContractScript(addr, code, tc.price, tc.limit, tc.version)
+		cs, err := MakeContractScriptPubkey(addr, code, tc.price, tc.limit, tc.version)
 		if tc.err != err {
 			t.Fatal(err)
 		}

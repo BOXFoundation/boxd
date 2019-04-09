@@ -1652,7 +1652,6 @@ func ExtractVMTransactions(
 	tx *types.Transaction, reader storage.Reader,
 ) (*types.VMTransaction, error) {
 
-	var btx []*types.VMTransaction
 	if !HasContractVout(tx) {
 		return nil, nil
 	}
@@ -1681,14 +1680,12 @@ func ExtractVMTransactions(
 			if e != nil {
 				return nil, err
 			}
-			t := types.NewVMTransaction(big.NewInt(int64(o.Value)),
+			return types.NewVMTransaction(big.NewInt(int64(o.Value)),
 				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Receiver, p.Code).
-				WithHashWith(txHash).WithSender(sender).WithVoutNum(uint32(i))
-
-			btx = append(btx, t)
+				WithHashWith(txHash).WithSender(sender).WithVoutNum(uint32(i)), nil
 		}
 	}
-	return btx[0], nil
+	return nil, nil
 }
 
 // HasContractVout return true if tx has a vout with contract creation or call

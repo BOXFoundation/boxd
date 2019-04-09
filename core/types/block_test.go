@@ -23,7 +23,7 @@ func TestBlockCovertWithProtoMessage(t *testing.T) {
 	block := NewBlocks(prevBlockHash, txsRoot, timestamp, *prevOutPoint, value, lockTime, height)
 
 	blockCopy := block.Copy()
-	ensure.DeepEqual(t, blockCopy.Height, block.Height)
+	ensure.DeepEqual(t, blockCopy.Header.Height, block.Header.Height)
 	ensure.DeepEqual(t, len(blockCopy.Txs), len(block.Txs))
 	txHash, _ := block.Txs[0].TxHash()
 	txCopyHash, _ := blockCopy.Txs[0].TxHash()
@@ -51,7 +51,7 @@ func TestBlockHeaderConvertWithProtoMessage(t *testing.T) {
 	var prevBlockHash = crypto.HashType{0x0011}
 	var txsRoot = crypto.HashType{0x0020}
 	var timestamp int64 = 98765432100000
-	header := NewBlockHeader(prevBlockHash, txsRoot, timestamp)
+	header := NewBlockHeader(prevBlockHash, txsRoot, timestamp, 0)
 	var header1 = &BlockHeader{}
 	msg, err := header.ToProtoMessage()
 	ensure.Nil(t, err)

@@ -771,8 +771,8 @@ func (s *Script) IsContractPubkey() bool {
 	return len(*s) > 1 && (*s)[0] == byte(OPCONTRACT)
 }
 
-// MakeContractScript makes a script pubkey for contract vout
-func MakeContractScript(
+// MakeContractScriptPubkey makes a script pubkey for contract vout
+func MakeContractScriptPubkey(
 	addr types.Address, code []byte, gasPrice, gasLimit uint64, version int32,
 ) (*Script, error) {
 	// OP_CONTRACT addr code gasPrice gasLimit version checksum
@@ -801,6 +801,12 @@ func MakeContractScript(
 	checksum := scriptHash[:4]
 
 	return NewScript().AddOpCode(OPCONTRACT).AddScript(s).AddOperand(checksum), nil
+}
+
+// MakeContractScriptSig makes a script sig for contract vin
+func MakeContractScriptSig() *Script {
+	s := Script([]byte{byte(OPCONTRACT)})
+	return &s
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack

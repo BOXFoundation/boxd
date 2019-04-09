@@ -22,6 +22,8 @@ var (
 	AddrTypeSplitAddrPrefix    = "b2"
 	AddressTypeP2SHPrefix      = [2]byte{FixBoxPrefix, FixP2SHPrefix} // b3
 	AddrTypeP2SHPrefix         = "b3"
+	AddrTypeContractPrefix     = "b5"
+	AddressTypeContractPrefix  = [2]byte{FixBoxPrefix, FixSplitPrefix} // b2
 )
 
 // const
@@ -32,6 +34,7 @@ const (
 	FixP2PKHPrefix      = 0x26
 	FixSplitPrefix      = 0x28
 	FixP2SHPrefix       = 0x2a
+	FixContractPrefix   = 0x30
 
 	AddressLength       = 26
 	EncodeAddressLength = 35
@@ -40,6 +43,7 @@ const (
 	AddressP2PKHType
 	AddressSplitType
 	AddressP2SHType
+	AddressContractType
 )
 
 // AddressType defines address type
@@ -228,6 +232,71 @@ func (a *AddressTypeSplit) Hash() []byte {
 
 // Hash160 returns the underlying array of the pubkey hash.
 func (a *AddressTypeSplit) Hash160() *AddressHash {
+	return &a.hash
+}
+
+// AddressContract is an Address for a contract
+type AddressContract struct {
+	hash AddressHash
+}
+
+// Hash returns the bytes to be included in a txout script to pay to contract
+func (a *AddressContract) Hash() []byte {
+	return a.hash[:]
+}
+
+// Type returns AddressContractType
+func (a *AddressContract) Type() AddressType {
+	return AddressContractType
+}
+
+// String returns a human-readable string for the split address.
+func (a *AddressContract) String() string {
+	return encodeAddress(a.hash[:], AddressTypeContractPrefix)
+}
+
+// NewContractAddress returns a new contract address.  pkHash mustbe 20 bytes.
+func NewContractAddress(address string) (*AddressContract, error) {
+	addr := new(AddressContract)
+	err := addr.SetString(address)
+	return addr, err
+}
+
+// NewContractAddressFromHash creates an contract address from hash
+func NewContractAddressFromHash(hash []byte) (Address, error) {
+	// Check for a valid pubkey hash length.
+	if len(hash) != ripemd160.Size {
+		return nil, core.ErrInvalidPKHash
+	}
+	addr := new(AddressContract)
+	copy(addr.hash[:], hash)
+	return addr, nil
+}
+
+// SetString sets the Address's internal byte array using byte array decoded from input
+// base58 format string, returns error if input string is invalid
+func (a *AddressContract) SetString(in string) error {
+	if len(in) != EncodeAddressLength || in[0] != BoxPrefix {
+		return core.ErrInvalidAddressString
+	}
+	rawBytes, err := crypto.Base58CheckDecode(in)
+	if err != nil {
+		return err
+	}
+	if len(rawBytes) != 22 {
+		return core.ErrInvalidAddressString
+	}
+	var prefix [2]byte
+	copy(prefix[:], rawBytes[:2])
+	if prefix != AddressTypeContractPrefix {
+		return core.ErrInvalidAddressString
+	}
+	copy(a.hash[:], rawBytes[2:])
+	return nil
+}
+
+// Hash160 returns the underlying array of the contract hash.
+func (a *AddressContract) Hash160() *AddressHash {
 	return &a.hash
 }
 

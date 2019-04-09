@@ -73,7 +73,7 @@ func (tx *VMTransaction) WithVoutNum(n uint32) *VMTransaction {
 }
 
 // Version returns the version of the tx.
-func (tx *BoxTransaction) Version() int32 {
+func (tx *VMTransaction) Version() int32 {
 	return tx.version
 }
 
@@ -118,6 +118,6 @@ func (tx *VMTransaction) Data() []byte {
 }
 
 // HashWith returns the hashWith of the tx.
-func (tx *BoxTransaction) HashWith() *crypto.HashType {
+func (tx *VMTransaction) HashWith() *crypto.HashType {
 	return tx.hashWith
 }
