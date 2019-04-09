@@ -45,6 +45,9 @@ var (
 	weights = []uint64{5, 5}
 )
 
+func TestAppendInLoop2(t *testing.T) {
+}
+
 // Test if appending a slice while looping over it using index works.
 // Just to make sure compiler is not optimizing len() condition away.
 func TestAppendInLoop(t *testing.T) {
@@ -69,7 +72,7 @@ func nextBlock(parentBlock *types.Block) *types.Block {
 	timestamp++
 	newBlock := types.NewBlock(parentBlock)
 
-	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parentBlock.Height+1)
+	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parentBlock.Header.Height+1)
 	// use time to ensure we create a different/unique block each time
 	coinbaseTx.Vin[0].Sequence = uint32(time.Now().UnixNano())
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
@@ -537,21 +540,20 @@ func TestExtractBoxTx(t *testing.T) {
 		txin := types.NewTxIn(prevOp, nil, 0)
 		txout := types.NewTxOut(tc.value, *cs)
 		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout)
-		btxs, err := ExtractVMTransactions(tx, reader)
+		btx, err := ExtractBoxTransactions(tx, reader)
 		if err != nil {
 			t.Fatal(err)
 		}
 		// check
-		btx := btxs[0]
 		sender, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 		hashWith, _ := tx.TxHash()
-		if *btx.HashWith != *hashWith || btx.SenderNonce != math.MaxUint64 ||
-			*btx.Sender != *sender.Hash160() ||
-			(btx.Receiver != nil && *btx.Receiver != *addr.Hash160()) ||
-			btx.Value.Cmp(big.NewInt(int64(tc.value))) != 0 ||
-			btx.GasPrice.Cmp(big.NewInt(int64(tc.price))) != 0 ||
-			btx.Gas != tc.limit || btx.Version != tc.version {
-			t.Fatalf("want: %+v, got VMTransaction: %+v", tc, btx)
+		if *btx.HashWith() != *hashWith || btx.Nonce() != math.MaxUint64 ||
+			btx.From() != *sender.Hash160() ||
+			(btx.To() != nil && *btx.To() != *addr.Hash160()) ||
+			btx.Value().Cmp(big.NewInt(int64(tc.value))) != 0 ||
+			btx.GasPrice().Cmp(big.NewInt(int64(tc.price))) != 0 ||
+			btx.Gas() != tc.limit || btx.Version() != tc.version {
+			t.Fatalf("want: %+v, got BoxTransaction: %+v", tc, btx)
 		}
 	}
 }

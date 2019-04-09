@@ -25,7 +25,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/vm/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -152,7 +151,7 @@ func (s *stateObject) touch() {
 	}
 }
 
-func (s *stateObject) getTrie(db storage.Storage) *trie.Trie {
+func (s *stateObject) getTrie(db Database) *trie.Trie {
 	// if s.trie == nil {
 	// 	var err error
 	// 	s.trie, err = db.OpenStorageTrie(s.addrHash, s.data.Root)
@@ -165,7 +164,7 @@ func (s *stateObject) getTrie(db storage.Storage) *trie.Trie {
 }
 
 // GetState returns a value in account storage.
-func (s *stateObject) GetState(db storage.Storage, key corecrypto.HashType) corecrypto.HashType {
+func (s *stateObject) GetState(db Database, key corecrypto.HashType) corecrypto.HashType {
 	// If we have a dirty value for this state entry, return it
 	value, dirty := s.dirtyStorage[key]
 	if dirty {
@@ -176,7 +175,7 @@ func (s *stateObject) GetState(db storage.Storage, key corecrypto.HashType) core
 }
 
 // GetCommittedState retrieves a value from the committed account storage trie.
-func (s *stateObject) GetCommittedState(db storage.Storage, key corecrypto.HashType) corecrypto.HashType {
+func (s *stateObject) GetCommittedState(db Database, key corecrypto.HashType) corecrypto.HashType {
 	// If we have the original value cached, return that
 	value, cached := s.originStorage[key]
 	if cached {
@@ -200,7 +199,7 @@ func (s *stateObject) GetCommittedState(db storage.Storage, key corecrypto.HashT
 }
 
 // SetState updates a value in account storage.
-func (s *stateObject) SetState(db storage.Storage, key, value corecrypto.HashType) {
+func (s *stateObject) SetState(db Database, key, value corecrypto.HashType) {
 	// If the new value is the same as old, don't set
 	prev := s.GetState(db, key)
 	if prev == value {
@@ -220,7 +219,7 @@ func (s *stateObject) setState(key, value corecrypto.HashType) {
 }
 
 // updateTrie writes cached storage modifications into the object's storage trie.
-func (s *stateObject) updateTrie(db storage.Storage) *trie.Trie {
+func (s *stateObject) updateTrie(db Database) *trie.Trie {
 	tr := s.getTrie(db)
 	for key, value := range s.dirtyStorage {
 		delete(s.dirtyStorage, key)
@@ -243,14 +242,14 @@ func (s *stateObject) updateTrie(db storage.Storage) *trie.Trie {
 }
 
 // UpdateRoot sets the trie root to the current root hash of
-func (s *stateObject) updateRoot(db storage.Storage) {
+func (s *stateObject) updateRoot(db Database) {
 	// s.updateTrie(db)
 	// s.data.Root = s.trie.Hash()
 }
 
 // CommitTrie the storage trie of the object to dwb.
 // This updates the trie root.
-func (s *stateObject) CommitTrie(db storage.Storage) error {
+func (s *stateObject) CommitTrie(db Database) error {
 	// s.updateTrie(db)
 	// if s.dbErr != nil {
 	// 	return s.dbErr
@@ -327,7 +326,7 @@ func (s *stateObject) Address() types.AddressHash {
 }
 
 // Code returns the contract code associated with this object, if any.
-func (s *stateObject) Code(db storage.Storage) []byte {
+func (s *stateObject) Code(db Database) []byte {
 	// if s.code != nil {
 	// 	return s.code
 	// }
