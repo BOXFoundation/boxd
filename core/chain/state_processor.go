@@ -24,34 +24,47 @@ func NewStateProcessor(bc *BlockChain) *StateProcessor {
 }
 
 // Process processes the state changes using the statedb.
-func (sp *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (uint64, error) {
+func (sp *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (uint64, []*types.Transaction, error) {
 
 	header := block.Header
 	usedGas := new(uint64)
-
+	var utxoTxs []*types.Transaction
 	for _, tx := range block.Txs {
-		boxTx, err := ExtractVMTransactions(tx, statedb.DB())
+		vmTx, err := ExtractVMTransactions(tx, statedb.DB())
 		if err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 		// statedb.Prepare(tx.Hash(), block.Hash(), i)
-		gasUsedPerTx, err := ApplyTransaction(boxTx, header, sp.bc, statedb, cfg)
+		gasUsedPerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, statedb, cfg)
 		if err != nil {
-			return 0, err
+			return 0, nil, err
+		}
+		if txs != nil {
+			utxoTxs = append(utxoTxs, txs...)
 		}
 		*usedGas += gasUsedPerTx
 	}
-	return *usedGas, nil
+	return *usedGas, utxoTxs, nil
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment.
-func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB, cfg vm.Config) (uint64, error) {
+func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB, cfg vm.Config) (uint64, []*types.Transaction, error) {
+	var txs []*types.Transaction
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	_, gas, _, err := ApplyMessage(vmenv, tx)
+	_, gas, success, err := ApplyMessage(vmenv, tx)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	return gas, nil
+	if success && len(Transfers) > 0 {
+		txs = createUtxoTx()
+		Transfers = nil
+		return gas, txs, nil
+	}
+	return gas, nil, nil
+}
+
+func createUtxoTx() []*types.Transaction {
+	return nil
 }

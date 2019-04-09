@@ -745,8 +745,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		return err
 	}
 
-	usedGas, err := chain.stateProcessor.Process(block, statedb, chain.vmConfig)
+	usedGas, utxoTxs, err := chain.stateProcessor.Process(block, statedb, chain.vmConfig)
 	if err != nil {
+		return err
+	}
+	if err := chain.checkExtraTxs(block, utxoTxs); err != nil {
 		return err
 	}
 
@@ -806,6 +809,10 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 	if needToTracking((ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
 		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
 	}
+	return nil
+}
+
+func (chain *BlockChain) checkExtraTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 	return nil
 }
 

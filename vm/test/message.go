@@ -19,7 +19,7 @@ func NewMessage(from types.AddressHash, gasPrice *big.Int) *Message {
 }
 
 func (msg *Message) From() types.AddressHash { return msg.from }
-func (msg *Message) To() *types.AddressHash   { return &types.AddressHash{} }
+func (msg *Message) To() *types.AddressHash  { return &types.AddressHash{} }
 
 func (msg *Message) GasPrice() *big.Int { return msg.gasPrice }
 func (msg *Message) Gas() uint64        { return 0 }

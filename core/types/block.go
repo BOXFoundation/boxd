@@ -23,6 +23,7 @@ type Block struct {
 	Hash             *crypto.HashType
 	Header           *BlockHeader
 	Txs              []*Transaction
+	ExtraTxs         []*Transaction
 	Signature        []byte
 	IrreversibleInfo *IrreversibleInfo
 }
@@ -38,7 +39,8 @@ func NewBlock(parent *Block) *Block {
 			PrevBlockHash: *parent.BlockHash(),
 			Height:        parent.Header.Height + 1,
 		},
-		Txs: make([]*Transaction, 0),
+		Txs:      make([]*Transaction, 0),
+		ExtraTxs: make([]*Transaction, 0),
 	}
 }
 
@@ -70,9 +72,22 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 				txs = append(txs, tx)
 			}
 		}
+
+		var extraTxs []*corepb.Transaction
+		for _, v := range block.ExtraTxs {
+			tx, err := v.ToProtoMessage()
+			if err != nil {
+				return nil, err
+			}
+			if tx, ok := tx.(*corepb.Transaction); ok {
+				extraTxs = append(extraTxs, tx)
+			}
+		}
+
 		return &corepb.Block{
 			Header:           header,
 			Txs:              txs,
+			ExtraTxs:         extraTxs,
 			Signature:        block.Signature,
 			IrreversibleInfo: ii,
 		}, nil
@@ -106,10 +121,20 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 				}
 				txs = append(txs, tx)
 			}
+
+			var extraTxs []*Transaction
+			for _, v := range message.ExtraTxs {
+				tx := new(Transaction)
+				if err := tx.FromProtoMessage(v); err != nil {
+					return err
+				}
+				extraTxs = append(extraTxs, tx)
+			}
 			block.Header = header
 			// Fill in hash after header is set
 			block.Hash = block.BlockHash()
 			block.Txs = txs
+			block.ExtraTxs = extraTxs
 			block.Signature = message.Signature
 			block.IrreversibleInfo = ii
 			return nil

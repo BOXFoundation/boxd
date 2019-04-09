@@ -26,8 +26,9 @@ message IrreversibleInfo {
 message Block {
     BlockHeader header = 1;
     repeated Transaction txs = 2;
-    bytes signature = 3;
-    IrreversibleInfo irreversible_info = 4;
+    repeated Transaction extra_txs = 3;
+    bytes signature = 4;
+    IrreversibleInfo irreversible_info = 5;
 }
 
 message Transaction {

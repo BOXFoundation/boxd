@@ -24,6 +24,25 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 )
 
+// Transfers used to record the transfer information
+var Transfers []*TransferInfo
+
+// TransferInfo used to record the transfer information occurred during the execution of the contract
+type TransferInfo struct {
+	from  types.AddressHash
+	to    types.AddressHash
+	value *big.Int
+}
+
+// NewTransferInfo creates a new transferInfo.
+func NewTransferInfo(from, to types.AddressHash, value *big.Int) *TransferInfo {
+	return &TransferInfo{
+		from:  from,
+		to:    to,
+		value: value,
+	}
+}
+
 // NewEVMContext creates a new context for use in the EVM.
 func NewEVMContext(msg Message, header *types.BlockHeader, bc *BlockChain) vm.Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
@@ -58,4 +77,8 @@ func CanTransfer(db vm.StateDB, addr types.AddressHash, amount *big.Int) bool {
 func Transfer(db vm.StateDB, sender, recipient types.AddressHash, amount *big.Int) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
+	if amount.Uint64() > 0 {
+		transferInfo := NewTransferInfo(sender, recipient, amount)
+		Transfers = append(Transfers, transferInfo)
+	}
 }

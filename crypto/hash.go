@@ -132,7 +132,7 @@ func (hash HashType) Bytes() []byte { return hash[:] }
 
 func (hash *HashType) Big() *big.Int { return new(big.Int).SetBytes(hash[:]) }
 
-func BigToHash(b *big.Int) HashType { 
+func BigToHash(b *big.Int) HashType {
 	var h HashType
 	bb := b.Bytes()
 
@@ -141,8 +141,8 @@ func BigToHash(b *big.Int) HashType {
 	}
 
 	copy(h[HashSize-len(bb):], bb)
-	
-	return BytesToHash(h.Bytes()) 
+
+	return BytesToHash(h.Bytes())
 }
 
 func BytesToHash(b []byte) HashType {
