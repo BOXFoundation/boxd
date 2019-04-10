@@ -561,8 +561,12 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 
 // ParseAddrFrom parse addr from scriptPubkey
 func ParseAddrFrom(sc *script.Script, tr ChainTxReader) (string, error) {
-	addrBytes, err := sc.ExtractP2PKHAddress()
-	address, err := types.NewSplitAddressFromHash(addrBytes)
+	addrBytes, _ := sc.ExtractP2PKHAddress()
+	var (
+		address types.Address
+		err     error
+	)
+	address, err = types.NewSplitAddressFromHash(addrBytes)
 	if err != nil {
 		address, err := sc.ExtractAddress()
 		if err != nil {

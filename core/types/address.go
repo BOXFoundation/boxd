@@ -5,7 +5,10 @@
 package types
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -111,7 +114,7 @@ func NewAddressFromPubKey(pubKey *crypto.PublicKey) (*AddressPubKeyHash, error) 
 }
 
 // NewAddress creates an address from string
-func NewAddress(address string) (Address, error) {
+func NewAddress(address string) (*AddressPubKeyHash, error) {
 	addr := &AddressPubKeyHash{}
 	err := addr.SetString(address)
 	return addr, err
@@ -171,14 +174,14 @@ func (a *AddressPubKeyHash) Hash160() *AddressHash {
 }
 
 // NewSplitAddress creates an address with a string prefixed by "b2"
-func NewSplitAddress(address string) (Address, error) {
+func NewSplitAddress(address string) (*AddressTypeSplit, error) {
 	addr := new(AddressTypeSplit)
 	err := addr.SetString(address)
 	return addr, err
 }
 
 // NewSplitAddressFromHash creates an address with byte array of size 20
-func NewSplitAddressFromHash(hash []byte) (Address, error) {
+func NewSplitAddressFromHash(hash []byte) (*AddressTypeSplit, error) {
 	if len(hash) != ripemd160.Size {
 		return nil, core.ErrInvalidPKHash
 	}
@@ -256,14 +259,14 @@ func (a *AddressContract) String() string {
 }
 
 // NewContractAddress returns a new contract address.  pkHash mustbe 20 bytes.
-func NewContractAddress(address string) (Address, error) {
+func NewContractAddress(address string) (*AddressContract, error) {
 	addr := new(AddressContract)
 	err := addr.SetString(address)
 	return addr, err
 }
 
 // NewContractAddressFromHash creates an contract address from hash
-func NewContractAddressFromHash(hash []byte) (Address, error) {
+func NewContractAddressFromHash(hash []byte) (*AddressContract, error) {
 	// Check for a valid pubkey hash length.
 	if len(hash) != ripemd160.Size {
 		return nil, core.ErrInvalidPKHash
@@ -340,4 +343,23 @@ func ParseAddress(in string) (Address, error) {
 		return nil, err
 	}
 	return a, nil
+}
+
+// MakeContractAddress make a contract address from sender and tx hash
+func MakeContractAddress(
+	sender *AddressPubKeyHash, txHash *crypto.HashType, voutNum uint32,
+) (*AddressContract, error) {
+	// check
+	if sender == nil || txHash == nil || voutNum == math.MaxUint32 {
+		return nil, errors.New("invalid parameters for contract address")
+	}
+	// bytes
+	bytes := append(sender.Hash(), txHash[:]...)
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, voutNum)
+	bytes = append(bytes, b...)
+	// hash160
+	addrHash := crypto.Hash160(bytes)
+	//
+	return NewContractAddressFromHash(addrHash)
 }

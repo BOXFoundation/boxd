@@ -258,3 +258,22 @@ func TestAddressValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestMakeContractAddress(t *testing.T) {
+	// parameters
+	senderStr := "b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x"
+	txHashStr := "e11ab659fe76e3db55e58716f241f8eaa5257358b851f6edb57f19ec480b32d8"
+	voutNum := uint32(6)
+	sender, _ := NewAddress(senderStr)
+	txHash := new(crypto.HashType)
+	txHash.SetString(txHashStr)
+	//
+	ca, err := MakeContractAddress(sender, txHash, voutNum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAddr := "b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod"
+	if ca.String() != wantAddr {
+		t.Fatalf("want: %s, got: %s", wantAddr, ca)
+	}
+}

@@ -540,7 +540,7 @@ func TestExtractBoxTx(t *testing.T) {
 		txin := types.NewTxIn(prevOp, nil, 0)
 		txout := types.NewTxOut(tc.value, *cs)
 		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout)
-		btx, err := ExtractBoxTransactions(tx, reader)
+		btx, err := ExtractVMTransactions(tx, reader)
 		if err != nil {
 			t.Fatal(err)
 		}
