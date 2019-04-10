@@ -10,6 +10,11 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
+//
+const (
+	VMVersion = 0
+)
+
 // VMTransaction defines the transaction used to interact with vm
 type VMTransaction struct {
 	version     int32

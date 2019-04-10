@@ -256,7 +256,7 @@ func (a *AddressContract) String() string {
 }
 
 // NewContractAddress returns a new contract address.  pkHash mustbe 20 bytes.
-func NewContractAddress(address string) (*AddressContract, error) {
+func NewContractAddress(address string) (Address, error) {
 	addr := new(AddressContract)
 	err := addr.SetString(address)
 	return addr, err

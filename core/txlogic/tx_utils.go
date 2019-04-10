@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/big"
 	"strings"
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -137,19 +136,39 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 
 // MakeContractCreationVout makes txOut
 func MakeContractCreationVout(
-	receiver string, amount uint64, gas uint64, gasPrice *big.Int, code []byte,
+	amount uint64, gas, gasPrice uint64, code []byte, VoutNum uint32,
+) (*corepb.TxOut, error) {
+
+	vs, err := script.MakeContractScriptPubkey(nil, code, gasPrice, gas, types.VMVersion)
+	if err != nil {
+		return nil, err
+	}
+	return &corepb.TxOut{
+		Value:        amount,
+		ScriptPubKey: *vs,
+	}, nil
+}
+
+// MakeContractCallVout makes txOut
+func MakeContractCallVout(
+	receiver string, amount uint64, gas, gasPrice uint64, code []byte,
 	VoutNum uint32,
 ) (*corepb.TxOut, error) {
 
 	if !strings.HasPrefix(receiver, types.AddrTypeContractPrefix) {
 		return nil, errors.New("MakeContractCreationVout need contract receiver")
 	}
-	var address types.Address
-	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
-	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
+	address, err := types.NewContractAddress(receiver)
+	if err != nil {
+		return nil, err
+	}
+	vs, err := script.MakeContractScriptPubkey(address, code, gasPrice, gas, types.VMVersion)
+	if err != nil {
+		return nil, err
+	}
 	return &corepb.TxOut{
 		Value:        amount,
-		ScriptPubKey: addrScript,
+		ScriptPubKey: *vs,
 	}, nil
 }
 
