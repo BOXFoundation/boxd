@@ -6,8 +6,10 @@ package rpcutil
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"time"
 
@@ -401,6 +403,30 @@ func MakeUnsignedTx(
 	return tx, utxos, err
 }
 
+func CreateRawTx(
+	 from string,txid []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
+) (*types.Transaction, []*rpcpb.Utxo, error) {
+	total := uint64(0)
+	for _, a := range amounts {
+		total += a
+	}
+
+	utxos:=make([]*rpcpb.Utxo,0)
+	for i:=0;i<len(txid);i++ {
+		hash := txid[i]
+		op := types.NewOutPoint(&hash, vout[i])
+		uw := txlogic.NewUtxoWrap(from, height, total)
+		utxo := txlogic.MakePbUtxo(op, uw)
+		utxos = append(utxos, utxo)
+	}
+	changeAmt, overflowed := calcChangeAmount(amounts, 0, utxos...)
+	if overflowed {
+		return nil, nil, txlogic.ErrInsufficientBalance
+	}
+	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
+	return tx, utxos, err
+}
+
 // MakeUnsignedSplitAddrTx news tx to make split addr without signature
 // it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
@@ -423,9 +449,15 @@ func MakeUnsignedSplitAddrTx(
 func MakeUnsignedTokenIssueTx(
 	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, fee uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
+	if tag.GetDecimal()<0 || tag.GetDecimal()>8 {
+		return nil,0,nil,txlogic.ErrInvalidArguments
+	}
+	if uint64(tag.GetSupply()*uint64(math.Pow10(int(tag.GetDecimal()))))>uint64(math.MaxUint64) {
+		return nil,0,nil,txlogic.ErrInvalidArguments
+	}
 	utxos, err := wa.Utxos(issuer, nil, fee)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, txlogic.ErrInvalidArguments
 	}
 	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
 	if overflowed {
@@ -478,4 +510,9 @@ func calcChangeAmount(amounts []uint64, fee uint64, utxos ...*rpcpb.Utxo) (uint6
 	}
 	changeAmt := uv - total
 	return changeAmt, changeAmt > uv
+}
+func hashFromUint64(n uint64) crypto.HashType {
+	bs := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bs, n)
+	return crypto.DoubleHashH(bs)
 }

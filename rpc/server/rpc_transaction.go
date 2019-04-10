@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -326,7 +327,6 @@ func newMakeTokenIssueTxResp(code int32, msg string) *rpcpb.MakeTokenIssueTxResp
 func (s *txServer) MakeUnsignedTokenIssueTx(
 	ctx context.Context, req *rpcpb.MakeTokenIssueTxReq,
 ) (resp *rpcpb.MakeTokenIssueTxResp, err error) {
-
 	defer func() {
 		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
@@ -336,7 +336,12 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 				string(bytes), resp)
 		}
 	}()
-	//
+	if req.GetTag().GetDecimal()>8 {
+		return newMakeTokenIssueTxResp(-1, "The range of decimal must be between 0 and 8"), nil
+	}
+	if uint64(req.Tag.Supply)>uint64(math.MaxUint64)/uint64(math.Pow10(int(req.Tag.Decimal))){
+		return newMakeTokenIssueTxResp(-1, "the value is too bigger"), nil
+	}
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil

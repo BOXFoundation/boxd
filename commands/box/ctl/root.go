@@ -7,9 +7,6 @@ package ctl
 import (
 	"encoding/hex"
 	"fmt"
-	"path"
-	"strconv"
-
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -20,6 +17,9 @@ import (
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"path"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -51,9 +51,7 @@ func init() {
 		&cobra.Command{
 			Use:   "createrawtx",
 			Short: "Create a raw transaction",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("createrawtx called")
-			},
+			Run: createRawTx,
 		},
 		&cobra.Command{
 			Use:   "debuglevel [debug|info|warning|error|fatal]",
@@ -336,6 +334,60 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(util.PrettyPrint(tx))
 	}
 }
+
+func createRawTx(cmd *cobra.Command,args []string){
+	if len(args)<4{
+		fmt.Println("Invalide argument number")
+		return
+	}
+	from:=args[0]
+	txid_str:=strings.Split(args[1],",")
+	vout_str:=strings.Split(args[2],",")
+	to_str:=strings.Split(args[3],",")
+	amount_str:=strings.Split(args[4],",")
+	txid:=make([]crypto.HashType,0)
+	vout:=make([]uint32,0)
+	to:=make([]string,0)
+	amount:=make([]uint64,0)
+	for _,x:=range txid_str{
+		tmp:=crypto.HashType{}
+		tmp.SetString(x)
+		fmt.Println(tmp)
+		txid=append(txid,tmp)
+	}
+	for _,x:=range vout_str{
+		tmp,_:=strconv.Atoi(x)
+		vout=append(vout,uint32(tmp))
+	}
+	for _,x:=range to_str{
+		to=append(to,x)
+	}
+	for _,x:=range amount_str{
+		tmp,_:=strconv.Atoi(x)
+		amount=append(amount,uint64(tmp))
+	}
+	if len(txid)!=len(vout){
+		fmt.Println("Invalide argument number")
+		return
+	}
+	if len(to)!=len(amount){
+		fmt.Println("Invalide argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	height, err := rpcutil.GetBlockCount(conn)
+	if err != nil {
+		fmt.Println(err)
+	}
+	tx,_,err:=rpcutil.CreateRawTx(from,txid,vout,to,amount,height)
+	fmt.Println(util.PrettyPrint(tx))
+
+	}
 
 func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("signmessage called")

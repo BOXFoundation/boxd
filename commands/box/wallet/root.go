@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"path"
 
-	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -65,11 +65,9 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "getwalletinfo",
+			Use:   "getwalletinfo [address]",
 			Short: "Get the basic informatio for a wallet",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("getwalletinfo called")
-			},
+			Run: getwalletinfo,
 		},
 		&cobra.Command{
 			Use:   "importprivkey [privatekey]",
@@ -155,6 +153,38 @@ func listAccountCmdFunc(cmd *cobra.Command, args []string) {
 	}
 }
 
+func getwalletinfo(cmd *cobra.Command,args []string){
+	fmt.Println("getwalletinfo called")
+	if len(args)< 1 {
+		fmt.Println("address needed")
+		return
+	}
+	addr:=args[0]
+	wltMgr, err:=wallet.NewWalletManager(walletDir)
+	if err!=nil{
+		fmt.Println(err)
+		return
+	}
+	passphrase,err:=wallet.ReadPassphraseStdin()
+	if err!=nil {
+		fmt.Println(err)
+		return
+	}
+	privkey,err:=wltMgr.DumpPrivKey(addr,passphrase)
+	if err!=nil {
+		fmt.Println(err)
+		return
+	}
+	walletinfo,exist:=wltMgr.GetAccount(addr)
+	fmt.Println(exist)
+	if exist{
+		fmt.Println("path: " ,walletinfo.Path)
+		fmt.Println("Address: ", walletinfo.Addr())
+		fmt.Printf("Pubkey Hash: %x \n",walletinfo.PubKeyHash())
+		fmt.Println("PrivKey: ",privkey)
+		fmt.Println("UnLocked: ",walletinfo.Unlocked)
+	}
+}
 func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("dumprivkey called")
 	if len(args) < 1 {

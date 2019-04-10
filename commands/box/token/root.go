@@ -6,11 +6,12 @@ package tokencmd
 
 import (
 	"fmt"
+	"math"
 	"path"
 	"strconv"
 	"strings"
 
-	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -79,6 +80,14 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	tokenSymbol := args[3]
 	tokenTotalSupply, err2 := strconv.Atoi(args[4])
 	tokenDecimals, err3 := strconv.Atoi(args[5])
+	if tokenDecimals<0||tokenDecimals>8 {
+		fmt.Println("Invalid argument format")
+		return
+	}
+	if uint64(tokenTotalSupply)>uint64(math.MaxUint64)/uint64(math.Pow10(tokenDecimals)) {
+		fmt.Println("Invalid argument format")
+		return
+	}
 	if err1 != nil && err2 != nil && err3 != nil {
 		fmt.Println("Invalid argument format")
 		return
