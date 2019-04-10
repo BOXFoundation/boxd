@@ -775,7 +775,7 @@ func (s *Script) IsContractPubkey() bool {
 func MakeContractScriptPubkey(
 	addr types.Address, code []byte, gasPrice, gasLimit uint64, version int32,
 ) (*Script, error) {
-	// OP_CONTRACT addr code gasPrice gasLimit version checksum
+	// OP_CONTRACT addr gasPrice gasLimit version code checksum
 	// check params
 	if len(code) == 0 {
 		return nil, ErrInvalidContractParams

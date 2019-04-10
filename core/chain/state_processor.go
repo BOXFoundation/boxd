@@ -30,7 +30,11 @@ func (sp *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cf
 	usedGas := new(uint64)
 	var utxoTxs []*types.Transaction
 	for _, tx := range block.Txs {
-		vmTx, err := ExtractVMTransactions(tx, statedb.DB())
+		sender, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, statedb.DB())
+		if err != nil {
+			return 0, nil, err
+		}
+		vmTx, err := ExtractVMTransactions(tx, sender)
 		if err != nil {
 			return 0, nil, err
 		}

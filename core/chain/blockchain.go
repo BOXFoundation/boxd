@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1654,29 +1655,28 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 	return nil
 }
 
+// FetchOwnerOfOutPoint fetches the owner of an outpoint
+func FetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Address, error) {
+	// use sender in vin[0] as VMTransaction sender
+	utxo, err := fetchUtxoWrapFromDB(reader, op)
+	if err != nil {
+		return nil, err
+	}
+	return script.NewScriptFromBytes(utxo.Script()).ExtractAddress()
+}
+
 // ExtractVMTransactions extract Transaction to VMTransaction
 func ExtractVMTransactions(
-	tx *types.Transaction, reader storage.Reader,
+	tx *types.Transaction, sender types.Address,
 ) (*types.VMTransaction, error) {
 
+	// check
 	if !HasContractVout(tx) {
 		return nil, nil
 	}
-	// sender
-	// use sender in vin[0] as VMTransaction sender
-	utxo, err := fetchUtxoWrapFromDB(reader, &tx.Vin[0].PrevOutPoint)
-	if err != nil {
-		return nil, err
+	if !strings.HasPrefix(sender.String(), types.AddrTypeP2PKHPrefix) {
+		return nil, fmt.Errorf("cannot extract vm tx from tx that does not contain box utxo")
 	}
-	sc := script.NewScriptFromBytes(utxo.Script())
-	if !sc.IsPayToPubKeyHash() {
-		return nil, fmt.Errorf("cannot extract box tx from tx that does not contain box utxo")
-	}
-	addr, err := sc.ExtractAddress()
-	if err != nil {
-		return nil, err
-	}
-	sender := addr.Hash160()
 	// HashWith
 	txHash, _ := tx.TxHash()
 
@@ -1685,14 +1685,14 @@ func ExtractVMTransactions(
 		if sc.IsContractPubkey() {
 			p, _, e := sc.ParseContractParams()
 			if e != nil {
-				return nil, err
+				return nil, e
 			}
 			return types.NewVMTransaction(big.NewInt(int64(o.Value)),
 				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Receiver, p.Code).
-				WithHashWith(txHash).WithSender(sender).WithVoutNum(uint32(i)), nil
+				WithHashWith(txHash).WithSender(sender.Hash160()).WithVoutNum(uint32(i)), nil
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("no vm tx in tx: %s", txHash)
 }
 
 // HasContractVout return true if tx has a vout with contract creation or call
