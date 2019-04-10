@@ -173,31 +173,27 @@ func MakeContractCallVout(
 }
 
 // MakeVin makes txIn
-func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
-	hash := new(crypto.HashType)
-	copy(hash[:], utxo.GetOutPoint().Hash)
+func MakeVin(op *types.OutPoint, seq uint32) *types.TxIn {
 	return &types.TxIn{
-		PrevOutPoint: *types.NewOutPoint(hash, utxo.GetOutPoint().GetIndex()),
+		PrevOutPoint: *op,
 		ScriptSig:    []byte{},
 		Sequence:     seq,
 	}
 }
 
 // MakeContractVin makes txIn
-func MakeContractVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
-	hash := new(crypto.HashType)
-	copy(hash[:], utxo.GetOutPoint().Hash)
+func MakeContractVin(op *types.OutPoint, seq uint32) *types.TxIn {
 	return &types.TxIn{
-		PrevOutPoint: *types.NewOutPoint(hash, utxo.GetOutPoint().GetIndex()),
+		PrevOutPoint: *op,
 		ScriptSig:    *script.MakeContractScriptSig(),
 		Sequence:     seq,
 	}
 }
 
 // MakePbVin makes txIn
-func MakePbVin(utxo *rpcpb.Utxo, seq uint32) *corepb.TxIn {
+func MakePbVin(op *corepb.OutPoint, seq uint32) *corepb.TxIn {
 	return &corepb.TxIn{
-		PrevOutPoint: utxo.OutPoint,
+		PrevOutPoint: op,
 		ScriptSig:    []byte{},
 		Sequence:     seq,
 	}

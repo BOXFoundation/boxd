@@ -7,10 +7,10 @@ package txlogic
 import (
 	"errors"
 
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
@@ -173,7 +173,7 @@ func MakeUnsignedTx(
 	// vin
 	vins := make([]*types.TxIn, 0, len(utxos))
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 
 	// vout for toAddrs
@@ -208,7 +208,7 @@ func MakeUnsignedSplitAddrTx(
 	// vin
 	vins := make([]*types.TxIn, 0)
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
 	splitAddrOut := MakeSplitAddrVout(addrs, weights)
@@ -238,7 +238,7 @@ func MakeUnsignedTokenIssueTx(
 	// vin
 	vins := make([]*types.TxIn, 0)
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
 	issueOut, err := MakeIssueTokenVout(issuee, tag)
@@ -273,7 +273,7 @@ func MakeUnsignedTokenTransferTx(
 	// vin
 	vins := make([]*types.TxIn, 0)
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout
 	vouts := make([]*corepb.TxOut, 0)

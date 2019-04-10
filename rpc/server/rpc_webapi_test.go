@@ -331,9 +331,8 @@ func genTestTx(from, to string, amount uint64, prevHash *crypto.HashType) *types
 	// make tx
 	tx := types.NewTx(0, 4455, 1000)
 	// append vin
-	op, uw := types.NewOutPoint(prevHash, 0), txlogic.NewUtxoWrap(from, 10, amount+1)
-	inUtxo := txlogic.MakePbUtxo(op, uw)
-	tx.AppendVin(txlogic.MakeVin(inUtxo, 0))
+	op := types.NewOutPoint(prevHash, 0)
+	tx.AppendVin(txlogic.MakeVin(op, 0))
 	// append vout
 	tx.AppendVout(txlogic.MakeVout(to, amount))
 	return tx
