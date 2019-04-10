@@ -24,19 +24,21 @@ var logger = log.NewLogger("script") // logger
 // ContractType defines script contract type
 type ContractType string
 
-//
+// constants
 const (
 	ContractUnkownType   ContractType = "contract_unkown"
 	ContractCreationType ContractType = "contract_creation"
 	ContractCallType     ContractType = "contract_call"
-)
 
-// constants
-const (
 	p2PKHScriptLen = 25
 	p2SHScriptLen  = 23
 
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
+)
+
+// variables
+var (
+	ZeroContractAddress = types.AddressHash{}
 )
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
@@ -789,10 +791,12 @@ func MakeContractScriptPubkey(
 	}
 	// set params
 	s := NewScript()
+	receiverHash := ZeroContractAddress
 	if addr != nil && !reflect.ValueOf(addr).IsNil() {
-		s.AddOperand(addr.Hash())
+		receiverHash = *addr.Hash160()
 	}
-	s.AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
+	s.AddOperand(receiverHash[:]).
+		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
 		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
 		AddOperand(big.NewInt(int64(version)).Bytes()).
 		AddOperand(code)
@@ -819,35 +823,30 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ ContractTy
 		return
 	}
 
-	bCreation := false
-	// addr or gasPrice
+	params = new(types.VMTxParams)
+	// addr
 	_, operand, pc, err := s.getNthOp(pc, 0)
 	if err != nil {
 		return
 	}
-	params = new(types.VMTxParams)
-	if len(operand) == ripemd160.Size {
-		addrHash := new(types.AddressHash)
-		copy(addrHash[:], operand[:])
-		params.Receiver = addrHash
-		typ = ContractCallType
-	} else {
-		typ = ContractCreationType
-		// gasPrice
-		n, e := operand.int64()
-		if e != nil {
-			err = e
-			return
-		}
-		bCreation = true
-		params.GasPrice = uint64(n)
+	if len(operand) != ripemd160.Size {
+		err = ErrInvalidContractScript
+		return
 	}
+	addrHash := new(types.AddressHash)
+	copy(addrHash[:], operand[:])
+	if *addrHash == ZeroContractAddress {
+		typ = ContractCreationType
+		params.Receiver = nil
+	} else {
+		typ = ContractCallType
+	}
+	params.Receiver = addrHash
+
 	// gasPrice
-	if !bCreation {
-		params.GasPrice, pc, err = s.readUint64(pc)
-		if err != nil {
-			return
-		}
+	params.GasPrice, pc, err = s.readUint64(pc)
+	if err != nil {
+		return
 	}
 	// gasLimit
 	params.GasLimit, pc, err = s.readUint64(pc)

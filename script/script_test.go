@@ -367,14 +367,14 @@ func TestContractScript(t *testing.T) {
 		version      int32
 		err          error
 	}{
-		{"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", code, 100, 20000, 1, nil},
+		{"b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", code, 100, 20000, 1, nil},
 		{"", code, 100, 20000, 1, nil},
 		{"", code, math.MaxUint64, 20000, 1, ErrInvalidContractParams},
 	}
 	for _, tc := range tests {
 		var addr types.Address
 		if tc.addrStr != "" {
-			addr, _ = types.NewAddress(tc.addrStr)
+			addr, _ = types.NewContractAddress(tc.addrStr)
 		}
 		code, _ := hex.DecodeString(tc.code)
 		cs, err := MakeContractScriptPubkey(addr, code, tc.price, tc.limit, tc.version)
@@ -391,7 +391,8 @@ func TestContractScript(t *testing.T) {
 		if (addr != nil && !bytes.Equal(p.Receiver[:], addr.Hash160()[:])) ||
 			p.GasPrice != tc.price || p.GasLimit != tc.limit ||
 			p.Version != tc.version ||
-			(tc.addrStr != "" && typ != ContractCallType || tc.addrStr == "" && typ != ContractCreationType) ||
+			(tc.addrStr != "" && typ != ContractCallType ||
+				tc.addrStr == "" && typ != ContractCreationType) ||
 			!bytes.Equal(p.Code, code) {
 			t.Fatalf("parse contract params got: %s, %d, %d, %d, %s, want: %s, %d, %d, %d, %s",
 				hex.EncodeToString(p.Receiver[:]), p.GasPrice, p.GasLimit, p.Version,
