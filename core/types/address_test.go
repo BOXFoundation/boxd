@@ -242,10 +242,15 @@ func TestAddressValidate(t *testing.T) {
 			false,
 		},
 		{
+			"b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT",
+			true,
+		},
+		{
 			"b5KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twq0",
 			false,
 		},
 	}
+
 	for _, tc := range tests {
 		_, err := ParseAddress(tc.addr)
 		if err != nil && tc.valid {

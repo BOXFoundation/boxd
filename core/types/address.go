@@ -23,7 +23,7 @@ var (
 	AddressTypeP2SHPrefix      = [2]byte{FixBoxPrefix, FixP2SHPrefix} // b3
 	AddrTypeP2SHPrefix         = "b3"
 	AddrTypeContractPrefix     = "b5"
-	AddressTypeContractPrefix  = [2]byte{FixBoxPrefix, FixSplitPrefix} // b2
+	AddressTypeContractPrefix  = [2]byte{FixBoxPrefix, FixContractPrefix} // b5
 )
 
 // const
@@ -333,6 +333,8 @@ func ParseAddress(in string) (Address, error) {
 		a, err = NewAddress(in)
 	case AddrTypeSplitAddrPrefix:
 		a, err = NewSplitAddress(in)
+	case AddrTypeContractPrefix:
+		a, err = NewContractAddress(in)
 	}
 	if err != nil {
 		return nil, err
