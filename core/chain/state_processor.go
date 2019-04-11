@@ -32,7 +32,7 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB) (u
 	usedGas := new(uint64)
 	var utxoTxs []*types.Transaction
 	for _, tx := range block.Txs {
-		sender, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, statedb.DB())
+		sender, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, stateDB.DB())
 		if err != nil {
 			return 0, nil, err
 		}
