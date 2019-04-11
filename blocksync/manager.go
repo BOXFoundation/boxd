@@ -7,11 +7,13 @@ package blocksync
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -29,6 +31,8 @@ var (
 	errCheckFailed  = errors.New("check failed")
 	errNoResponding = errors.New("no responding when node is in sync")
 	zeroHash        = &crypto.HashType{}
+
+	maxChunks = chain.MaxBlocksPerSync / syncBlockChunkSize
 )
 
 type peerStatus int
@@ -124,6 +128,8 @@ type SyncManager struct {
 	blocksDoneCh      chan struct{}
 	blocksErrCh       chan FetchBlockHeaders
 	blocksProcessedCh chan struct{}
+	// blocks queue that the node has received
+	receivedBlocksChunkCh chan SyncBlocks
 }
 
 func (sm *SyncManager) reset() {
@@ -146,24 +152,21 @@ func (sm *SyncManager) resetAll() {
 func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
 	consensus *dpos.Dpos, parent goprocess.Process) *SyncManager {
 	return &SyncManager{
-		status:       freeStatus,
-		chain:        blockChain,
-		consensus:    consensus,
-		p2pNet:       p2pNet,
-		proc:         goprocess.WithParent(parent),
-		stalePeers:   new(sync.Map),
-		messageCh:    make(chan p2p.Message, 512),
-		locateErrCh:  make(chan errFlag),
-		locateDoneCh: make(chan struct{}),
-		checkErrCh:   make(chan errFlag),
-		checkOkCh:    make(chan struct{}, maxCheckPeers),
-		syncErrCh:    make(chan struct{}),
-		blocksDoneCh: make(chan struct{},
-			chain.MaxBlocksPerSync/syncBlockChunkSize),
-		blocksErrCh: make(chan FetchBlockHeaders,
-			chain.MaxBlocksPerSync/syncBlockChunkSize),
-		blocksProcessedCh: make(chan struct{},
-			chain.MaxBlocksPerSync/syncBlockChunkSize),
+		status:            freeStatus,
+		chain:             blockChain,
+		consensus:         consensus,
+		p2pNet:            p2pNet,
+		proc:              goprocess.WithParent(parent),
+		stalePeers:        new(sync.Map),
+		messageCh:         make(chan p2p.Message, 512),
+		locateErrCh:       make(chan errFlag),
+		locateDoneCh:      make(chan struct{}),
+		checkErrCh:        make(chan errFlag),
+		checkOkCh:         make(chan struct{}, maxCheckPeers),
+		syncErrCh:         make(chan struct{}),
+		blocksDoneCh:      make(chan struct{}, maxChunks),
+		blocksErrCh:       make(chan FetchBlockHeaders, maxChunks),
+		blocksProcessedCh: make(chan struct{}, maxChunks),
 	}
 }
 
@@ -302,10 +305,14 @@ out_sync:
 		// sync blocks
 		sm.setStatus(blocksStatus)
 		sm.drainBlocksChan()
+		// prepare received blocks chunk channel
+		sm.receivedBlocksChunkCh = make(chan SyncBlocks, maxChunks)
+		// start blocks processing routine
+		go sm.processReceivedBlocks(sm.proc)
+		//
 		if err := sm.fetchAllBlocks(sm.fetchHashes); err != nil {
 			logger.Warn(err)
-			sm.blocksProcessedCh = make(chan struct{},
-				chain.MaxBlocksPerSync/syncBlockChunkSize)
+			sm.blocksProcessedCh = make(chan struct{}, maxChunks)
 			return
 		}
 		logger.Infof("wait sync %d blocks done", len(sm.fetchHashes))
@@ -324,8 +331,7 @@ out_sync:
 						needMore = true
 						continue out_sync
 					} else {
-						sm.blocksProcessedCh = make(chan struct{},
-							chain.MaxBlocksPerSync/syncBlockChunkSize)
+						sm.blocksProcessedCh = make(chan struct{}, maxChunks)
 						return
 					}
 				}
@@ -337,8 +343,7 @@ out_sync:
 				_, err := sm.fetchRemoteBlocksWithRetry(&fbh, retryTimes, retryInterval)
 				if err != nil {
 					logger.Warn(err)
-					sm.blocksProcessedCh = make(chan struct{},
-						chain.MaxBlocksPerSync/syncBlockChunkSize)
+					sm.blocksProcessedCh = make(chan struct{}, maxChunks)
 					return
 				}
 				drainTimer(timer.C)
@@ -356,8 +361,7 @@ out_sync:
 							retryInterval)
 						if err != nil {
 							logger.Warn(err)
-							sm.blocksProcessedCh = make(chan struct{},
-								chain.MaxBlocksPerSync/syncBlockChunkSize)
+							sm.blocksProcessedCh = make(chan struct{}, maxChunks)
 							return
 						}
 					}
@@ -485,6 +489,44 @@ func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 		hashes = append(hashes, b.Hash)
 	}
 	return hashes, nil
+}
+
+func (sm *SyncManager) processReceivedBlocks(parent goprocess.Process) {
+	logger.Info("enter received blocks processing ")
+	readyChunks := make([]SyncBlocks, maxChunks)
+	for i := 0; i < len(readyChunks); i++ {
+		readyChunks[i].Idx = math.MaxUint32
+	}
+	idx := 0
+	childProc := goprocess.WithParent(parent)
+	for idx*syncBlockChunkSize < len(sm.fetchHashes) {
+		for readyChunks[idx].Idx != uint32(idx) {
+			select {
+			case sb := <-sm.receivedBlocksChunkCh:
+				readyChunks[sb.Idx] = sb
+			case <-childProc.Closing():
+				logger.Info("Quit processReceivedBlocks wait loop")
+				return
+			}
+		}
+		logger.Infof("start process blocks chunk[%d]", idx)
+		for _, b := range readyChunks[idx].Blocks {
+			err := sm.chain.ProcessBlock(b, core.DefaultMode, "")
+			if err != nil {
+				if err == core.ErrBlockExists ||
+					err == core.ErrOrphanBlockExists ||
+					err == core.ErrExpiredBlock ||
+					err == core.ErrBlockInSideChain {
+					logger.Warnf("Failed to process block. Err: %v", err)
+					continue
+				} else {
+					panic(err)
+				}
+			}
+		}
+		tryPushEmptyChan(sm.blocksProcessedCh)
+		idx++
+	}
 }
 
 func heightLocator(height uint32) []uint32 {

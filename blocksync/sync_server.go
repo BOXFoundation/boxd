@@ -307,25 +307,13 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	count := atomic.AddInt32(&sm.blocksSynced, int32(len(sb.Blocks)))
 	logger.Infof("has sync %d/%d blocks, current peer[%s]",
 		count, len(sm.fetchHashes), pid.Pretty())
+	// push received blocks to receivedBlocks queue
+	if sb.Idx >= uint32(maxChanLen) {
+		return fmt.Errorf("block chunk index %d out of receivedBlocks range %d",
+			sb.Idx, maxChanLen)
+	}
+	sm.receivedBlocksChunkCh <- *sb
 	tryPushEmptyChan(sm.blocksDoneCh)
-	// process blocks
-	go func() {
-		for _, b := range sb.Blocks {
-			err := sm.chain.ProcessBlock(b, core.DefaultMode, "")
-			if err != nil {
-				if err == core.ErrBlockExists ||
-					err == core.ErrOrphanBlockExists ||
-					err == core.ErrExpiredBlock ||
-					err == core.ErrBlockInSideChain {
-					logger.Warnf("Failed to process block. Err: %v", err)
-					continue
-				} else {
-					panic(err)
-				}
-			}
-		}
-		tryPushEmptyChan(sm.blocksProcessedCh)
-	}()
 	return nil
 }
 
