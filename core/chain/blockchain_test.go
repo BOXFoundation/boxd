@@ -346,7 +346,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	b1 := nextBlock(b0)
 	batch := blockChain.db.NewBatch()
-	ensure.Nil(t, blockChain.StoreBlockInBatch(b1, batch))
+	ensure.Nil(t, blockChain.StoreBlockWithStateInBatch(b1, nil, batch))
 
 	txhash, _ := b1.Txs[0].TxHash()
 
@@ -522,7 +522,6 @@ func TestExtractBoxTx(t *testing.T) {
 		{100, "b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", testVMCode, 100, 20000, 0, nil},
 		{0, "", testVMCode, 100, 20000, 0, nil},
 	}
-	reader := new(testDBReader)
 	for _, tc := range tests {
 		var addr types.Address
 		if tc.addrStr != "" {
@@ -540,7 +539,7 @@ func TestExtractBoxTx(t *testing.T) {
 		txin := types.NewTxIn(prevOp, nil, 0)
 		txout := types.NewTxOut(tc.value, *cs)
 		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout)
-		btx, err := ExtractVMTransactions(tx, reader)
+		btx, err := blockChain.ExtractVMTransactions(tx)
 		if err != nil {
 			t.Fatal(err)
 		}

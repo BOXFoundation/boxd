@@ -1675,9 +1675,9 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 }
 
 // FetchOwnerOfOutPoint fetches the owner of an outpoint
-func FetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Address, error) {
+func (chain *BlockChain) fetchOwnerOfOutPoint(op *types.OutPoint) (types.Address, error) {
 	// use sender in vin[0] as VMTransaction sender
-	utxo, err := fetchUtxoWrapFromDB(reader, op)
+	utxo, err := fetchUtxoWrapFromDB(chain.DB(), op)
 	if err != nil {
 		return nil, err
 	}
@@ -1685,10 +1685,11 @@ func FetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Addr
 }
 
 // ExtractVMTransactions extract Transaction to VMTransaction
-func ExtractVMTransactions(
-	tx *types.Transaction, sender types.Address,
-) (*types.VMTransaction, error) {
-
+func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VMTransaction, error) {
+	sender, err := chain.fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint)
+	if err != nil {
+		return nil, err
+	}
 	// check
 	if !HasContractVout(tx) {
 		return nil, nil
