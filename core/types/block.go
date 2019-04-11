@@ -242,6 +242,8 @@ type BlockHeader struct {
 	// Merkle tree reference to hash of all transactions for the block.
 	TxsRoot crypto.HashType
 
+	ExtraTxsRoot crypto.HashType
+
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
 	TimeStamp int64
@@ -269,6 +271,7 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		Version:        header.Version,
 		PrevBlockHash:  header.PrevBlockHash[:],
 		TxsRoot:        header.TxsRoot[:],
+		ExtraTxsRoot:   header.ExtraTxsRoot[:],
 		TimeStamp:      header.TimeStamp,
 		Magic:          header.Magic,
 		PeriodHash:     header.PeriodHash[:],
@@ -285,6 +288,7 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			header.Version = message.Version
 			copy(header.PrevBlockHash[:], message.PrevBlockHash)
 			copy(header.TxsRoot[:], message.TxsRoot)
+			copy(header.ExtraTxsRoot[:], message.ExtraTxsRoot)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
 			copy(header.PeriodHash[:], message.PeriodHash)

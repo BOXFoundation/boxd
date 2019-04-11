@@ -13,18 +13,20 @@ import (
 // StateProcessor is a basic Processor, which takes care of transitioning
 // state from one point to another.
 type StateProcessor struct {
-	bc *BlockChain
+	bc  *BlockChain
+	cfg vm.Config
 }
 
 // NewStateProcessor initialises a new StateProcessor.
 func NewStateProcessor(bc *BlockChain) *StateProcessor {
 	return &StateProcessor{
-		bc: bc,
+		bc:  bc,
+		cfg: bc.vmConfig,
 	}
 }
 
 // Process processes the state changes using the statedb.
-func (sp *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (uint64, []*types.Transaction, error) {
+func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB) (uint64, []*types.Transaction, error) {
 
 	header := block.Header
 	usedGas := new(uint64)
@@ -39,7 +41,7 @@ func (sp *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cf
 			return 0, nil, err
 		}
 		// statedb.Prepare(tx.Hash(), block.Hash(), i)
-		gasUsedPerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, statedb, cfg)
+		gasUsedPerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg)
 		if err != nil {
 			return 0, nil, err
 		}

@@ -89,6 +89,7 @@ type BlockChain struct {
 	status                    int32
 	stateProcessor            *StateProcessor
 	vmConfig                  vm.Config
+	stateDBCache              map[uint32]*state.StateDB
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -107,6 +108,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
+		stateDBCache:              make(map[uint32]*state.StateDB),
 		bus:                       eventbus.Default(),
 		status:                    free,
 	}
@@ -173,6 +175,16 @@ func (chain *BlockChain) Consensus() Consensus {
 // DB return chain db storage.
 func (chain *BlockChain) DB() storage.Table {
 	return chain.db
+}
+
+// StateProcessor returns chain stateProcessor.
+func (chain *BlockChain) StateProcessor() *StateProcessor {
+	return chain.stateProcessor
+}
+
+// StateDBCache returns chain stateDB cache.
+func (chain *BlockChain) StateDBCache() map[uint32]*state.StateDB {
+	return chain.stateDBCache
 }
 
 // Proc returns the goprocess of the BlockChain
@@ -425,17 +437,18 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	t1 := time.Now().UnixNano()
 	// All context-free checks pass, try to accept the block into the chain.
-	if err := chain.tryAcceptBlock(block, transferMode); err != nil {
+	if err := chain.tryAcceptBlock(block, messageFrom); err != nil {
 		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err.Error())
 		return err
 	}
 
 	t2 := time.Now().UnixNano()
-	if err := chain.processOrphans(block); err != nil {
+	if err := chain.processOrphans(block, messageFrom); err != nil {
 		logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
 		return err
 	}
 
+	chain.BroadcastOrRelayBlock(block, transferMode)
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
 	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Header.Height, len(block.Txs))
@@ -478,7 +491,7 @@ func (chain *BlockChain) isInOrphanPool(blockHash crypto.HashType) bool {
 
 // tryAcceptBlock validates block within the chain context and see if it can be accepted.
 // Return whether it is on the main chain or not.
-func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.TransferMode) error {
+func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID) error {
 	blockHash := block.BlockHash()
 	// must not be orphan if reaching here
 	parentBlock := chain.GetParentBlock(block)
@@ -502,8 +515,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	// Case 1): The new block extends the main chain.
 	// We expect this to be the most common case.
 	if parentHash.IsEqual(tailHash) {
-		chain.BroadcastOrRelayBlock(block, transferMode)
-		return chain.tryConnectBlockToMainChain(block)
+		return chain.tryConnectBlockToMainChain(block, messageFrom)
 	}
 
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
@@ -515,7 +527,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 			if err := chain.StoreBlock(block); err != nil {
 				return err
 			}
-			if err := chain.processOrphans(block); err != nil {
+			if err := chain.processOrphans(block, messageFrom); err != nil {
 				logger.Errorf("Failed to processOrphans. Err: %s", err.Error())
 				return err
 			}
@@ -528,7 +540,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, transferMode core.Tr
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
 	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
 
-	return chain.reorganize(block, transferMode)
+	return chain.reorganize(block, messageFrom)
 }
 
 // BroadcastOrRelayBlock broadcast or relay block to other peers.
@@ -560,7 +572,7 @@ func (chain *BlockChain) addOrphanBlock(orphan *types.Block, orphanHash crypto.H
 	chain.orphanBlockHashToChildren[parentHash] = append(chain.orphanBlockHashToChildren[parentHash], orphan)
 }
 
-func (chain *BlockChain) processOrphans(block *types.Block) error {
+func (chain *BlockChain) processOrphans(block *types.Block, messageFrom peer.ID) error {
 
 	// Start with processing at least the passed block.
 	acceptedBlocks := []*types.Block{block}
@@ -578,7 +590,7 @@ func (chain *BlockChain) processOrphans(block *types.Block) error {
 			// since it will not be accepted later if rejected once.
 			delete(chain.hashToOrphanBlock, *orphanHash)
 			// Potentially accept the block into the block chain.
-			if err := chain.tryAcceptBlock(orphan, core.DefaultMode); err != nil {
+			if err := chain.tryAcceptBlock(orphan, messageFrom); err != nil {
 				return err
 			}
 			// Add this block to the list of blocks to process so any orphan
@@ -610,7 +622,7 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
-func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
+func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageFrom peer.ID) error {
 	tt0 := time.Now().UnixNano()
 	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
 	utxoSet := NewUtxoSet()
@@ -653,7 +665,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block) error {
 		return core.ErrBadCoinbaseValue
 	}
 	tt3 := time.Now().UnixNano()
-	if err := chain.applyBlock(block, utxoSet); err != nil {
+	if err := chain.applyBlock(block, utxoSet, messageFrom); err != nil {
 		return err
 	}
 	tt4 := time.Now().UnixNano()
@@ -719,7 +731,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error {
+func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messageFrom peer.ID) error {
 	ttt0 := time.Now().UnixNano()
 	batch := chain.db.NewBatch()
 	defer batch.Close()
@@ -736,29 +748,38 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet) error 
 		return err
 	}
 
-	parent := chain.GetParentBlock(block)
-	var rootHash *crypto.HashType
-	if parent != nil && len(parent.Header.RootHash) > 0 {
-		rootHash = &parent.Header.RootHash
-	}
-	statedb, err := state.New(rootHash, chain.db)
-	if err != nil {
-		return err
+	var stateDB *state.StateDB
+	if messageFrom != "" {
+		parent := chain.GetParentBlock(block)
+		var rootHash *crypto.HashType
+		if parent != nil && len(parent.Header.RootHash) > 0 {
+			rootHash = &parent.Header.RootHash
+		}
+		statedb, err := state.New(rootHash, chain.db)
+		if err != nil {
+			return err
+		}
+		usedGas, utxoTxs, err := chain.stateProcessor.Process(block, statedb)
+		if err != nil {
+			return err
+		}
+		if err := chain.checkExtraTxs(block, utxoTxs); err != nil {
+			return err
+		}
+
+		if err := chain.ValidateState(block, statedb, usedGas); err != nil {
+			return err
+		}
+		stateDB = statedb
+	} else {
+		if _, ok := chain.stateDBCache[block.Header.Height]; !ok {
+			return errors.New("The stateDB reference is not exist")
+		}
+		stateDB = chain.stateDBCache[block.Header.Height]
+		delete(chain.stateDBCache, block.Header.Height)
 	}
 
-	usedGas, utxoTxs, err := chain.stateProcessor.Process(block, statedb, chain.vmConfig)
-	if err != nil {
-		return err
-	}
-	if err := chain.checkExtraTxs(block, utxoTxs); err != nil {
-		return err
-	}
-
-	if err := chain.validateState(block, statedb, usedGas); err != nil {
-		return err
-	}
-
-	if err := chain.StoreBlockInBatch(block, batch); err != nil {
+	if err := chain.StoreBlockWithStateInBatch(block, stateDB, batch); err != nil {
 		return err
 	}
 	ttt2 := time.Now().UnixNano()
@@ -817,7 +838,7 @@ func (chain *BlockChain) checkExtraTxs(block *types.Block, utxoTxs []*types.Tran
 	return nil
 }
 
-func (chain *BlockChain) validateState(block *types.Block, statedb *state.StateDB, usedGas uint64) error {
+func (chain *BlockChain) ValidateState(block *types.Block, statedb *state.StateDB, usedGas uint64) error {
 	return nil
 }
 
@@ -833,7 +854,7 @@ func (chain *BlockChain) notifyUtxoChange(utxoSet *UtxoSet) {
 	chain.bus.Publish(eventbus.TopicUtxoUpdate, utxoSet)
 }
 
-func (chain *BlockChain) reorganize(block *types.Block, transferMode core.TransferMode) error {
+func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) error {
 	// Find the common ancestor of the main chain and side chain
 	forkpoint, detachBlocks, attachBlocks := chain.findFork(block)
 	if forkpoint.Header.Height < chain.eternal.Header.Height {
@@ -848,8 +869,6 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 		return nil
 	}
 
-	chain.BroadcastOrRelayBlock(block, transferMode)
-
 	for _, detachBlock := range detachBlocks {
 		stt0 := time.Now().UnixNano()
 		if err := chain.tryDisConnectBlockFromMainChain(detachBlock); err != nil {
@@ -863,7 +882,7 @@ func (chain *BlockChain) reorganize(block *types.Block, transferMode core.Transf
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		stt0 := time.Now().UnixNano()
 		attachBlock := attachBlocks[blockIdx]
-		if err := chain.tryConnectBlockToMainChain(attachBlock); err != nil {
+		if err := chain.tryConnectBlockToMainChain(attachBlock, messageFrom); err != nil {
 			return err
 		}
 		stt1 := time.Now().UnixNano()
@@ -1172,8 +1191,8 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
-// StoreBlockInBatch store block to db in batch mod.
-func (chain *BlockChain) StoreBlockInBatch(block *types.Block, batch storage.Batch) error {
+// StoreBlockWithStateInBatch store block to db in batch mod.
+func (chain *BlockChain) StoreBlockWithStateInBatch(block *types.Block, stateDB *state.StateDB, batch storage.Batch) error {
 
 	hash := block.BlockHash()
 	batch.Put(BlockHashKey(block.Header.Height), hash[:])

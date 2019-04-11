@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -456,9 +457,37 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
+
+	parentHash := block.Header.PrevBlockHash
+	parent, err := dpos.chain.LoadBlockByHash(parentHash)
+	if err != nil {
+		return err
+	}
+
+	statedb, err := state.New(&parent.Header.RootHash, dpos.chain.DB())
+	if err != nil {
+		return err
+	}
+
+	usedGas, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb)
+	if err != nil {
+		return err
+	}
+	if err := dpos.chain.ValidateState(block, statedb, usedGas); err != nil {
+		return err
+	}
+	dpos.chain.StateDBCache()[block.Header.Height] = statedb
+
 	block.Header.CandidatesHash = *candidateHash
-	merkles := chain.CalcTxsHash(blockTxns)
-	block.Header.TxsRoot = *merkles
+	txsRoot := chain.CalcTxsHash(blockTxns)
+	block.Header.TxsRoot = *txsRoot
+	if len(utxoTxs) > 0 {
+		extraTxsRoot := chain.CalcTxsHash(blockTxns)
+		block.Header.ExtraTxsRoot = *extraTxsRoot
+		block.ExtraTxs = utxoTxs
+	}
+
+	block.Header.TxsRoot = *txsRoot
 	block.Txs = blockTxns
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height, len(blockTxns), len(sortedTxs))
