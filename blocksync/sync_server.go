@@ -312,7 +312,11 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 		return fmt.Errorf("block chunk index %d out of receivedBlocks range %d",
 			sb.Idx, maxChanLen)
 	}
-	sm.receivedBlocksChunkCh <- *sb
+	select {
+	case sm.receivedBlocksChunkCh <- *sb:
+	default:
+		logger.Warn("cannot push SyncBlocks received to chan receivedBlocksChunk")
+	}
 	tryPushEmptyChan(sm.blocksDoneCh)
 	return nil
 }
