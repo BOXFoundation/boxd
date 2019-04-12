@@ -481,14 +481,13 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	block.Header.CandidatesHash = *candidateHash
 	txsRoot := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *txsRoot
+	block.Txs = blockTxns
 	if len(utxoTxs) > 0 {
-		extraTxsRoot := chain.CalcTxsHash(blockTxns)
+		extraTxsRoot := chain.CalcTxsHash(utxoTxs)
 		block.Header.ExtraTxsRoot = *extraTxsRoot
 		block.ExtraTxs = utxoTxs
 	}
 
-	block.Header.TxsRoot = *txsRoot
-	block.Txs = blockTxns
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height, len(blockTxns), len(sortedTxs))
 	return nil

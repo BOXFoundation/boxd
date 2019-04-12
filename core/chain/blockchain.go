@@ -772,6 +772,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 		}
 		stateDB = statedb
 	} else {
+		// locally generated block
 		if _, ok := chain.stateDBCache[block.Header.Height]; !ok {
 			return errors.New("The stateDB reference is not exist")
 		}

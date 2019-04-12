@@ -242,6 +242,7 @@ type BlockHeader struct {
 	// Merkle tree reference to hash of all transactions for the block.
 	TxsRoot crypto.HashType
 
+	// Merkle tree reference to hash of all internal transactions generated during contract execution for the block.
 	ExtraTxsRoot crypto.HashType
 
 	// Time the block was created.  This is, unfortunately, encoded as a
