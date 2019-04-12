@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/consensus/dpos"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -316,7 +317,8 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 				if err == core.ErrBlockExists ||
 					err == core.ErrOrphanBlockExists ||
 					err == core.ErrExpiredBlock ||
-					err == core.ErrBlockInSideChain {
+					err == core.ErrBlockInSideChain ||
+					err == dpos.ErrInvalidHashInIrreversibleInfo {
 					logger.Warnf("Failed to process block. Err: %v", err)
 					continue
 				} else {
@@ -366,7 +368,8 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 			if err == core.ErrBlockExists ||
 				err == core.ErrOrphanBlockExists ||
 				err == core.ErrExpiredBlock ||
-				err == core.ErrBlockInSideChain {
+				err == core.ErrBlockInSideChain ||
+				err == dpos.ErrInvalidHashInIrreversibleInfo {
 				continue
 			}
 			logger.Errorf("Failed to process block while handling LightSyncResponse message. Err: %s", err.Error())
