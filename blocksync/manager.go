@@ -196,7 +196,6 @@ func (sm *SyncManager) ActiveLightSync(pid peer.ID) error {
 	return sm.p2pNet.SendMessageToPeer(p2p.LightSyncRequest, data, pid)
 }
 
-// NOTE: may need a sync round number to simplify check logic between two sync
 func (sm *SyncManager) startSync() {
 	p2p.UpdateSynced(false)
 	// prevent startSync being executed again
@@ -500,15 +499,11 @@ func (sm *SyncManager) processReceivedBlocks(parent goprocess.Process) {
 	}
 	idx := 0
 	childProc := goprocess.WithParent(parent)
-	timer := time.NewTimer(blocksTimeout)
 	for idx*syncBlockChunkSize < len(sm.fetchHashes) {
 		for readyChunks[idx].Idx != uint32(idx) {
 			select {
 			case sb := <-sm.receivedBlocksChunkCh:
 				readyChunks[sb.Idx] = sb
-			case <-timer.C:
-				logger.Info("timeout for waiting received blocks to process!")
-				return
 			case <-childProc.Closing():
 				logger.Info("Quit processReceivedBlocks wait loop")
 				return
