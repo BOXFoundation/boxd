@@ -19,6 +19,12 @@ package state
 import (
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/storage"
+)
+
+const (
+	// Number of codehash->size associations to keep.
+	codeSizeCacheSize = 100000
 )
 
 // Database wraps access to tries and contract code.
@@ -26,18 +32,54 @@ type Database interface {
 	// OpenTrie opens the main account trie.
 	OpenTrie(root crypto.HashType) (*trie.Trie, error)
 
-	// OpenStorageTrie opens the storage trie of an account.
-	OpenStorageTrie(addrHash, root crypto.HashType) (*trie.Trie, error)
-
 	// CopyTrie returns an independent copy of the given trie.
 	CopyTrie(*trie.Trie) *trie.Trie
 
-	// ContractCode retrieves a particular contract's code.
-	ContractCode(addrHash, codeHash crypto.HashType) ([]byte, error)
-
-	// ContractCodeSize retrieves a particular contracts code's size.
-	ContractCodeSize(addrHash, codeHash crypto.HashType) (int, error)
-
 	// TrieDB retrieves the low level trie database used for data storage.
-	// TrieDB() *trie.Database
+	TrieDB() *storage.Database
+}
+
+func NewDatabase(db *storage.Database) Database {
+	return &cachingDB{
+		db: db,
+	}
+}
+
+type cachingDB struct {
+	db *storage.Database
+}
+
+// OpenTrie opens the main account trie.
+func (db *cachingDB) OpenTrie(root crypto.HashType) (*trie.Trie, error) {
+	return trie.NewByHash(&root, db.db)
+}
+
+// func (db *cachingDB) pushTrie(t *trie.SecureTrie) {
+// 	db.mu.Lock()
+// 	defer db.mu.Unlock()
+
+// 	if len(db.pastTries) >= maxPastTries {
+// 		copy(db.pastTries, db.pastTries[1:])
+// 		db.pastTries[len(db.pastTries)-1] = t
+// 	} else {
+// 		db.pastTries = append(db.pastTries, t)
+// 	}
+// }
+
+// CopyTrie returns an independent copy of the given trie.
+func (db *cachingDB) CopyTrie(t *trie.Trie) *trie.Trie {
+	// switch t := t.(type) {
+	// case cachedTrie:
+	// 	return cachedTrie{t.SecureTrie.Copy(), db}
+	// case *trie.SecureTrie:
+	// 	return t.Copy()
+	// default:
+	// 	panic(fmt.Errorf("unknown trie type %T", t))
+	// }
+	return nil
+}
+
+// TrieDB retrieves any intermediate trie-node caching layer.
+func (db *cachingDB) TrieDB() *storage.Database {
+	return db.db
 }

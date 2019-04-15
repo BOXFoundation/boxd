@@ -31,10 +31,36 @@ func New(root *Node, db storage.Storage) (*Trie, error) {
 		return trie, nil
 	}
 
-	if _, err := trie.db.Get(root.Hash[:]); err != nil {
+	if _, err := trie.Get(root.Hash[:]); err != nil {
 		return nil, err
 	}
 	return trie, nil
+}
+
+// NewByHash creates a trie with an existing root hash from db.
+func NewByHash(rootHash *crypto.HashType, db storage.Storage) (*Trie, error) {
+	if db == nil {
+		panic("trie.New called without a database")
+	}
+	trie := &Trie{
+		db: db,
+	}
+	if *rootHash == (crypto.HashType{}) {
+		return trie, nil
+	}
+
+	if _, err := trie.Get(rootHash[:]); err != nil {
+		return nil, err
+	}
+	return trie, nil
+}
+
+// Hash return root hash of trie.
+func (t *Trie) Hash() crypto.HashType {
+	if t.rootHash == nil {
+		return crypto.HashType{}
+	}
+	return *t.rootHash
 }
 
 func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
@@ -48,6 +74,11 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 		return nil, err
 	}
 	return node, nil
+}
+
+// Commit persistent the data of the trie.
+func (t *Trie) Commit() error {
+	return nil
 }
 
 func (t *Trie) commit(node *Node) error {

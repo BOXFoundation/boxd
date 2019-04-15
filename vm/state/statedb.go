@@ -111,21 +111,21 @@ func (s *StateDB) Error() error {
 
 // Reset clears out all ephemeral state objects from the state db, but keeps
 // the underlying state trie to avoid reloading data for the next operations.
-func (s *StateDB) Reset(root corecrypto.HashType) error {
-	// tr, err := s.db.OpenTrie(root)
-	// if err != nil {
-	// 	return err
-	// }
-	// s.trie = tr
-	// s.stateObjects = make(map[types.AddressHash]*stateObject)
-	// s.stateObjectsDirty = make(map[types.AddressHash]struct{})
-	// s.thash = corecrypto.HashType{}
-	// s.bhash = corecrypto.HashType{}
-	// s.txIndex = 0
-	// s.logs = make(map[corecrypto.HashType][]*vmtypes.Log)
-	// s.logSize = 0
-	// s.preimages = make(map[corecrypto.HashType][]byte)
-	// s.clearJournalAndRefund()
+func (s *StateDB) Reset() error {
+	tr, err := s.db.OpenTrie(s.trie.Hash())
+	if err != nil {
+		return err
+	}
+	s.trie = tr
+	s.stateObjects = make(map[types.AddressHash]*stateObject)
+	s.stateObjectsDirty = make(map[types.AddressHash]struct{})
+	s.thash = corecrypto.HashType{}
+	s.bhash = corecrypto.HashType{}
+	s.txIndex = 0
+	s.logs = make(map[corecrypto.HashType][]*vmtypes.Log)
+	s.logSize = 0
+	s.preimages = make(map[corecrypto.HashType][]byte)
+	s.clearJournalAndRefund()
 	return nil
 }
 
@@ -221,7 +221,7 @@ func (s *StateDB) GetNonce(addr types.AddressHash) uint64 {
 func (s *StateDB) GetCode(addr types.AddressHash) []byte {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
-		return stateObject.Code(s.db)
+		return stateObject.Code()
 	}
 	return nil
 }
@@ -231,14 +231,10 @@ func (self *StateDB) GetCodeSize(addr types.AddressHash) int {
 	if stateObject == nil {
 		return 0
 	}
-	if stateObject.code != nil {
-		return len(stateObject.code)
+	if code := stateObject.Code(); code != nil {
+		return len(code)
 	}
-	size, err := self.db.ContractCodeSize(stateObject.addrHash, corecrypto.BytesToHash(stateObject.CodeHash()))
-	if err != nil {
-		self.setError(err)
-	}
-	return size
+	return 0
 }
 
 func (s *StateDB) GetCodeHash(addr types.AddressHash) corecrypto.HashType {
@@ -471,50 +467,49 @@ func (db *StateDB) ForEachStorage(addr types.AddressHash, cb func(key, value cor
 // Snapshots of the copied state cannot be applied to the copy.
 func (s *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
-	// state := &StateDB{
-	// 	db:                s.db,
-	// 	trie:              s.db.CopyTrie(s.trie),
-	// 	stateObjects:      make(map[types.AddressHash]*stateObject, len(s.journal.dirties)),
-	// 	stateObjectsDirty: make(map[types.AddressHash]struct{}, len(s.journal.dirties)),
-	// 	refund:            s.refund,
-	// 	logs:              make(map[corecrypto.HashType][]*vmtypes.Log, len(s.logs)),
-	// 	logSize:           s.logSize,
-	// 	preimages:         make(map[corecrypto.HashType][]byte),
-	// 	journal:           newJournal(),
-	// }
-	// // Copy the dirty states, logs, and preimages
-	// for addr := range s.journal.dirties {
-	// 	// As documented [here](https://github.com/ethereum/go-ethereum/pull/16485#issuecomment-380438527),
-	// 	// and in the Finalise-method, there is a case where an object is in the journal but not
-	// 	// in the stateObjects: OOG after touch on ripeMD prior to Byzantium. Thus, we need to check for
-	// 	// nil
-	// 	if object, exist := s.stateObjects[addr]; exist {
-	// 		state.stateObjects[addr] = object.deepCopy(state)
-	// 		state.stateObjectsDirty[addr] = struct{}{}
-	// 	}
-	// }
-	// // Above, we don't copy the actual journal. This means that if the copy is copied, the
-	// // loop above will be a no-op, since the copy's journal is empty.
-	// // Thus, here we iterate over stateObjects, to enable copies of copies
-	// for addr := range s.stateObjectsDirty {
-	// 	if _, exist := state.stateObjects[addr]; !exist {
-	// 		state.stateObjects[addr] = s.stateObjects[addr].deepCopy(state)
-	// 		state.stateObjectsDirty[addr] = struct{}{}
-	// 	}
-	// }
-	// for hash, logs := range s.logs {
-	// 	cpy := make([]*vmtypes.Log, len(logs))
-	// 	for i, l := range logs {
-	// 		cpy[i] = new(vmtypes.Log)
-	// 		*cpy[i] = *l
-	// 	}
-	// 	state.logs[hash] = cpy
-	// }
-	// for hash, preimage := range s.preimages {
-	// 	state.preimages[hash] = preimage
-	// }
-	// return state
-	return nil
+	state := &StateDB{
+		db:                s.db,
+		trie:              s.db.CopyTrie(s.trie),
+		stateObjects:      make(map[types.AddressHash]*stateObject, len(s.journal.dirties)),
+		stateObjectsDirty: make(map[types.AddressHash]struct{}, len(s.journal.dirties)),
+		refund:            s.refund,
+		logs:              make(map[corecrypto.HashType][]*vmtypes.Log, len(s.logs)),
+		logSize:           s.logSize,
+		preimages:         make(map[corecrypto.HashType][]byte),
+		journal:           newJournal(),
+	}
+	// Copy the dirty states, logs, and preimages
+	for addr := range s.journal.dirties {
+		// As documented [here](https://github.com/ethereum/go-ethereum/pull/16485#issuecomment-380438527),
+		// and in the Finalise-method, there is a case where an object is in the journal but not
+		// in the stateObjects: OOG after touch on ripeMD prior to Byzantium. Thus, we need to check for
+		// nil
+		if object, exist := s.stateObjects[addr]; exist {
+			state.stateObjects[addr] = object.deepCopy(state)
+			state.stateObjectsDirty[addr] = struct{}{}
+		}
+	}
+	// Above, we don't copy the actual journal. This means that if the copy is copied, the
+	// loop above will be a no-op, since the copy's journal is empty.
+	// Thus, here we iterate over stateObjects, to enable copies of copies
+	for addr := range s.stateObjectsDirty {
+		if _, exist := state.stateObjects[addr]; !exist {
+			state.stateObjects[addr] = s.stateObjects[addr].deepCopy(state)
+			state.stateObjectsDirty[addr] = struct{}{}
+		}
+	}
+	for hash, logs := range s.logs {
+		cpy := make([]*vmtypes.Log, len(logs))
+		for i, l := range logs {
+			cpy[i] = new(vmtypes.Log)
+			*cpy[i] = *l
+		}
+		state.logs[hash] = cpy
+	}
+	for hash, preimage := range s.preimages {
+		state.preimages[hash] = preimage
+	}
+	return state
 }
 
 // Snapshot returns an identifier for the current revision of the state.
@@ -577,9 +572,8 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) corecrypto.HashType {
-	// s.Finalise(deleteEmptyObjects)
-	// return s.trie.Hash()
-	return corecrypto.HashType{}
+	s.Finalise(deleteEmptyObjects)
+	return s.trie.Hash()
 }
 
 // Prepare sets the current transaction hash and index and block hash which is
@@ -597,51 +591,35 @@ func (s *StateDB) clearJournalAndRefund() {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *StateDB) Commit(deleteEmptyObjects bool) (root corecrypto.HashType, err error) {
-	// defer s.clearJournalAndRefund()
+func (s *StateDB) Commit(deleteEmptyObjects bool) error {
+	defer s.clearJournalAndRefund()
 
-	// for addr := range s.journal.dirties {
-	// 	s.stateObjectsDirty[addr] = struct{}{}
-	// }
-	// // Commit objects to the trie.
-	// for addr, stateObject := range s.stateObjects {
-	// 	_, isDirty := s.stateObjectsDirty[addr]
-	// 	switch {
-	// 	case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.empty()):
-	// 		// If the object has been removed, don't bother syncing it
-	// 		// and just mark it for deletion in the trie.
-	// 		s.deleteStateObject(stateObject)
-	// 	case isDirty:
-	// 		// Write any contract code associated with the state object
-	// 		if stateObject.code != nil && stateObject.dirtyCode {
-	// 			s.db.TrieDB().InsertBlob(common.BytesToHash(stateObject.CodeHash()), stateObject.code)
-	// 			stateObject.dirtyCode = false
-	// 		}
-	// 		// Write any storage changes in the state object to its storage trie.
-	// 		if err := stateObject.CommitTrie(s.db); err != nil {
-	// 			return corecrypto.HashType{}, err
-	// 		}
-	// 		// Update the object in the main account trie.
-	// 		s.updateStateObject(stateObject)
-	// 	}
-	// 	delete(s.stateObjectsDirty, addr)
-	// }
-	// // Write trie changes.
-	// root, err = s.trie.Commit(func(leaf []byte, parent corecrypto.HashType) error {
-	// 	var account Account
-	// 	if err := rlp.DecodeBytes(leaf, &account); err != nil {
-	// 		return nil
-	// 	}
-	// 	if account.Root != emptyState {
-	// 		s.db.TrieDB().Reference(account.Root, parent)
-	// 	}
-	// 	code := common.BytesToHash(account.CodeHash)
-	// 	if code != emptyCode {
-	// 		s.db.TrieDB().Reference(code, parent)
-	// 	}
-	// 	return nil
-	// })
-	// log.Debug("Trie cache stats after commit", "misses", trie.CacheMisses(), "unloads", trie.CacheUnloads())
-	// return root, err
-	return corecrypto.HashType{}, nil
+	for addr := range s.journal.dirties {
+		s.stateObjectsDirty[addr] = struct{}{}
+	}
+	// Commit objects to the trie.
+	for addr, stateObject := range s.stateObjects {
+		_, isDirty := s.stateObjectsDirty[addr]
+		switch {
+		case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.empty()):
+			// If the object has been removed, don't bother syncing it
+			// and just mark it for deletion in the trie.
+			s.deleteStateObject(stateObject)
+		case isDirty:
+			// Write any contract code associated with the state object
+			if stateObject.code != nil && stateObject.dirtyCode {
+				s.db.TrieDB().Put(corecrypto.BytesToHash(stateObject.CodeHash()).Bytes(), stateObject.code[:])
+				stateObject.dirtyCode = false
+			}
+			// Write any storage changes in the state object to its storage trie.
+			if err := stateObject.CommitTrie(s.db); err != nil {
+				return err
+			}
+			// Update the object in the main account trie.
+			s.updateStateObject(stateObject)
+		}
+		delete(s.stateObjectsDirty, addr)
+	}
+	// Write trie changes.
+	return s.trie.Commit()
 }

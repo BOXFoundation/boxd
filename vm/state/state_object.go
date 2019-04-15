@@ -22,6 +22,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
@@ -152,14 +153,14 @@ func (s *stateObject) touch() {
 }
 
 func (s *stateObject) getTrie(db Database) *trie.Trie {
-	// if s.trie == nil {
-	// 	var err error
-	// 	s.trie, err = db.OpenStorageTrie(s.addrHash, s.data.Root)
-	// 	if err != nil {
-	// 		s.trie, _ = db.OpenStorageTrie(s.addrHash, corecrypto.HashType{})
-	// 		s.setError(fmt.Errorf("can't create storage trie: %v", err))
-	// 	}
-	// }
+	if s.trie == nil {
+		var err error
+		s.trie, err = db.OpenTrie(s.data.Root)
+		if err != nil {
+			s.trie, _ = db.OpenTrie(corecrypto.HashType{})
+			s.setError(fmt.Errorf("can't create storage trie: %v", err))
+		}
+	}
 	return s.trie
 }
 
@@ -183,7 +184,7 @@ func (s *stateObject) GetCommittedState(db Database, key corecrypto.HashType) co
 	}
 	// Otherwise load the value from the database
 	enc, err := s.getTrie(db).Get(key[:])
-	if err != nil {
+	if err != nil && err != core.ErrNodeNotFound {
 		s.setError(err)
 		return corecrypto.HashType{}
 	}
@@ -243,23 +244,18 @@ func (s *stateObject) updateTrie(db Database) *trie.Trie {
 
 // UpdateRoot sets the trie root to the current root hash of
 func (s *stateObject) updateRoot(db Database) {
-	// s.updateTrie(db)
-	// s.data.Root = s.trie.Hash()
+	s.updateTrie(db)
+	s.data.Root = s.trie.Hash()
 }
 
 // CommitTrie the storage trie of the object to dwb.
 // This updates the trie root.
 func (s *stateObject) CommitTrie(db Database) error {
-	// s.updateTrie(db)
-	// if s.dbErr != nil {
-	// 	return s.dbErr
-	// }
-	// root, err := s.trie.Commit(nil)
-	// if err == nil {
-	// 	s.data.Root = root
-	// }
-	// return err
-	return nil
+	s.updateTrie(db)
+	if s.dbErr != nil {
+		return s.dbErr
+	}
+	return s.trie.Commit()
 }
 
 // AddBalance removes amount from c's balance.
@@ -302,18 +298,17 @@ func (s *stateObject) setBalance(amount *big.Int) {
 func (s *stateObject) ReturnGas(gas *big.Int) {}
 
 func (s *stateObject) deepCopy(db *StateDB) *stateObject {
-	// stateObject := newObject(db, s.address, s.data)
-	// if s.trie != nil {
-	// 	stateObject.trie = db.db.CopyTrie(s.trie)
-	// }
-	// stateObject.code = s.code
-	// stateObject.dirtyStorage = s.dirtyStorage.Copy()
-	// stateObject.originStorage = s.originStorage.Copy()
-	// stateObject.suicided = s.suicided
-	// stateObject.dirtyCode = s.dirtyCode
-	// stateObject.deleted = s.deleted
-	// return stateObject
-	return nil
+	stateObject := newObject(db, s.address, s.data)
+	if s.trie != nil {
+		stateObject.trie = db.db.CopyTrie(s.trie)
+	}
+	stateObject.code = s.code
+	stateObject.dirtyStorage = s.dirtyStorage.Copy()
+	stateObject.originStorage = s.originStorage.Copy()
+	stateObject.suicided = s.suicided
+	stateObject.dirtyCode = s.dirtyCode
+	stateObject.deleted = s.deleted
+	return stateObject
 }
 
 //
@@ -326,24 +321,23 @@ func (s *stateObject) Address() types.AddressHash {
 }
 
 // Code returns the contract code associated with this object, if any.
-func (s *stateObject) Code(db Database) []byte {
-	// if s.code != nil {
-	// 	return s.code
-	// }
-	// if bytes.Equal(s.CodeHash(), emptyCodeHash) {
-	// 	return nil
-	// }
-	// code, err := db.ContractCode(s.addrHash, common.BytesToHash(s.CodeHash()))
-	// if err != nil {
-	// 	s.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
-	// }
-	// s.code = code
-	// return code
-	return nil
+func (s *stateObject) Code() []byte {
+	if s.code != nil {
+		return s.code
+	}
+	if bytes.Equal(s.CodeHash(), emptyCodeHash) {
+		return nil
+	}
+	code, err := s.trie.Get(s.CodeHash())
+	if err != nil {
+		s.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
+	}
+	s.code = code
+	return code
 }
 
 func (s *stateObject) SetCode(codeHash corecrypto.HashType, code []byte) {
-	prevcode := s.Code(s.db.db)
+	prevcode := s.Code()
 	s.db.journal.append(codeChange{
 		account:  &s.address,
 		prevhash: s.CodeHash(),
