@@ -340,6 +340,7 @@ func createRawTx(cmd *cobra.Command,args []string){
 		fmt.Println("Invalide argument number")
 		return
 	}
+	fmt.Println("createRawTx called")
 	from:=args[0]
 	txid_str:=strings.Split(args[1],",")
 	vout_str:=strings.Split(args[2],",")
@@ -352,7 +353,6 @@ func createRawTx(cmd *cobra.Command,args []string){
 	for _,x:=range txid_str{
 		tmp:=crypto.HashType{}
 		tmp.SetString(x)
-		fmt.Println(tmp)
 		txid=append(txid,tmp)
 	}
 	for _,x:=range vout_str{
@@ -385,8 +385,12 @@ func createRawTx(cmd *cobra.Command,args []string){
 		fmt.Println(err)
 	}
 	tx,_,err:=rpcutil.CreateRawTx(from,txid,vout,to,amount,height)
-	fmt.Println(util.PrettyPrint(tx))
-
+	mashal_tx,err:=tx.Marshal()
+	if err!=nil{
+		fmt.Println(err)
+	}
+	str_tx:=hex.EncodeToString(mashal_tx)
+	fmt.Println(str_tx)
 	}
 
 func signMessageCmdFunc(cmd *cobra.Command, args []string) {
