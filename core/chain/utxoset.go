@@ -22,6 +22,9 @@ type UtxoSet struct {
 	utxoMap types.UtxoMap
 }
 
+// BalanceChangeMap defines the balance changes of accounts (add or subtract)
+type BalanceChangeMap map[types.AddressHash]uint64
+
 // NewUtxoSet new utxo set
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
@@ -525,4 +528,25 @@ func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*type
 		return nil, err
 	}
 	return utxoWrap, nil
+}
+
+func (u *UtxoSet) calcBalanceChanges() (add, sub BalanceChangeMap) {
+	add = make(BalanceChangeMap)
+	sub = make(BalanceChangeMap)
+	for _, w := range u.utxoMap {
+		sc := script.NewScriptFromBytes(w.Script())
+		// calc balance for account state, here only EOA (external owned account)
+		// have balance state
+		if !sc.IsPayToPubKeyHash() {
+			continue
+		}
+		address, _ := sc.ExtractAddress()
+		addr := address.Hash160()
+		if w.IsSpent() {
+			sub[*addr] += w.Value()
+			continue
+		}
+		add[*addr] += w.Value()
+	}
+	return
 }

@@ -780,6 +780,15 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 		delete(chain.stateDBCache, block.Header.Height)
 	}
 
+	// update EOA accounts' balance state
+	bAdd, bSub := utxoSet.calcBalanceChanges()
+	for a, v := range bAdd {
+		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
+	}
+	for a, v := range bSub {
+		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
+	}
+
 	if err := chain.StoreBlockWithStateInBatch(block, stateDB, batch); err != nil {
 		return err
 	}
@@ -839,6 +848,7 @@ func (chain *BlockChain) checkExtraTxs(block *types.Block, utxoTxs []*types.Tran
 	return nil
 }
 
+// ValidateState validates state
 func (chain *BlockChain) ValidateState(block *types.Block, statedb *state.StateDB, usedGas uint64) error {
 	return nil
 }
@@ -913,6 +923,16 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
 		return err
 	}
+
+	// update EOA accounts' balance state
+	//bAdd, bSub := utxoSet.calcBalanceChanges()
+	//for a, v := range bAdd {
+	//	stateDB.AddBalance(a, new(big.Int).SetUint64(v))
+	//}
+	//for a, v := range bSub {
+	//	stateDB.SubBalance(a, new(big.Int).SetUint64(v))
+	//}
+
 	dtt2 := time.Now().UnixNano()
 	// batch.Del(BlockKey(block.BlockHash()))
 	batch.Del(BlockHashKey(block.Header.Height))
