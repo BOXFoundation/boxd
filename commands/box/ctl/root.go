@@ -72,9 +72,7 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("decoderawtx called")
-			},
+			Run: decoderawtx,
 		},
 		&cobra.Command{
 			Use:   "getbalance [address]",
@@ -333,6 +331,26 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println(util.PrettyPrint(tx))
 	}
+}
+
+func decoderawtx(cmd *cobra.Command,args []string){
+	fmt.Println("decoderawtx called")
+	if len(args)<1{
+		fmt.Println("")
+		return
+	}
+	tx_byte,err:=hex.DecodeString(args[0])
+	if err!=nil{
+		fmt.Println(err)
+		return
+	}
+	 tx:=types.Transaction{}
+	 error:=tx.Unmarshal(tx_byte)
+	 if error!=nil{
+	 	fmt.Println(error)
+	 	return
+	 }
+	fmt.Println(util.PrettyPrint(tx))
 }
 
 func createRawTx(cmd *cobra.Command,args []string){
