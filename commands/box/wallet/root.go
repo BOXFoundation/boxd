@@ -7,7 +7,9 @@ package walletcmd
 import (
 	"encoding/hex"
 	"fmt"
+	"os"
 	"path"
+	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -53,9 +55,7 @@ func init() {
 		&cobra.Command{
 			Use:   "dumpwallet [filename]",
 			Short: "Dump wallet to a file",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("dumpwallet called")
-			},
+			Run: dumpwallet,
 		},
 		&cobra.Command{
 			Use:   "encryptwallet [passphrase]",
@@ -208,4 +208,73 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf("Address: %s\nPrivate Key: %s\n", addr, privateKey)
+}
+func dumpwallet(cmd *cobra.Command,args []string){
+	fmt.Println("dumpwallet called")
+	if len(args)<1 {
+		fmt.Println("file name needed")
+		return
+	}
+	if len(args[0])<=4{
+		fmt.Println("file name error")
+		return
+	}
+	if args[0][len(args[0])-4:]!=".txt" {
+		fmt.Println("Input file type must be in txt file format")
+		return
+	}
+	_,err:=os.Stat(args[0])
+	if err==nil{
+		fmt.Println("The file already exists and the command will overwrite the contents of the file.")
+	}
+	file,err:=os.OpenFile(args[0],os.O_WRONLY|os.O_APPEND|os.O_CREATE,0666)
+	if err!=nil{
+		fmt.Println(err)
+		return
+	}
+	file.Write([]byte("# Wallet dump created by ContentBox\n"+"# * Created on "+time.Now().Format("2006-01-02 15:04:05")+"\n"))
+
+	addrs:=make([]string,0)
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for _, acc := range wltMgr.ListAccounts() {
+		addrs = append(addrs, acc.Addr())
+		}
+	success_num:=0
+	failed_num:=0
+	for _,x:=range addrs{
+		addr:=x
+		wltMgr, err := wallet.NewWalletManager(walletDir)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Print("addr: "+addr)
+		for i:=3;i>=1;i-- {
+			fmt.Printf(" You have %d remaining input opportunities\n",i)
+			passphrase, err := wallet.ReadPassphraseStdin()
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			privateKey, err := wltMgr.DumpPrivKey(addr, passphrase)
+			if err != nil {
+				fmt.Print("Wrong password ")
+			}else{
+				fmt.Printf("Address: %s dump successful \n", addr)
+				file.Write([]byte("privateKey: "+privateKey+" "+time.Now().Format("2006-01-02 15:04:05")+" # addr="+addr+"\n"))
+				success_num++
+				break
+			}
+			if i==1&&err!=nil {
+				fmt.Println("This wallet dump failed ")
+				failed_num++
+			}
+		}
+		fmt.Println()
+	}
+	fmt.Printf("All wallets are dumped. %d successful %d failed\n",success_num,failed_num)
 }
