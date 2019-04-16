@@ -140,7 +140,7 @@ message MakeTxReq {
     string from = 1;
     repeated string to = 2;
     repeated uint64 amounts = 3;
-    uint64 fee = 4;
+    uint64 gas_price = 4;
 }
 
 message MakeTxResp {
@@ -154,7 +154,7 @@ message MakeSplitAddrTxReq {
     string from = 1;
     repeated string addrs = 2;
     repeated uint64 weights = 3;
-    uint64 fee = 4;
+    uint64 gas_price = 4;
 }
 
 message MakeSplitAddrTxResp {
@@ -169,7 +169,7 @@ message MakeTokenIssueTxReq {
     string issuer = 1;
     string issuee = 2;
     TokenTag tag = 3;
-    uint64 fee = 4;
+    uint64 gas_price = 4;
 } 
 
 message MakeTokenIssueTxResp {
@@ -186,7 +186,7 @@ message MakeTokenTransferTxReq {
     repeated uint64 amounts = 3;
     string token_hash = 4;
     uint32 token_index = 5;
-    uint64 fee = 6;
+    uint64 gas_price = 6;
 }
 
 message TokenTag {

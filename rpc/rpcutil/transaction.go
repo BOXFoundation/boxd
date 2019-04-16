@@ -371,21 +371,21 @@ func NewTokenTxs(
 
 // NewSplitAddrTxWithFee new split address tx
 func NewSplitAddrTxWithFee(
-	acc *acc.Account, addrs []string, weights []uint64, fee uint64, conn *grpc.ClientConn,
+	acc *acc.Account, addrs []string, weights []uint64, gasUsed uint64, conn *grpc.ClientConn,
 ) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
 	// get utxos
-	utxos, err := fetchUtxos(conn, acc.Addr(), fee, "", 0)
+	utxos, err := fetchUtxos(conn, acc.Addr(), gasUsed, "", 0)
 	if err != nil {
 		return
 	}
-	return txlogic.NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, fee)
+	return txlogic.NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, gasUsed)
 }
 
 // MakeUnsignedTx make a tx without signature
 func MakeUnsignedTx(
-	wa service.WalletAgent, from string, to []string, amounts []uint64, fee uint64,
+	wa service.WalletAgent, from string, to []string, amounts []uint64, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
-	total := fee
+	total := gasUsed
 	for _, a := range amounts {
 		total += a
 	}
@@ -393,7 +393,7 @@ func MakeUnsignedTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(amounts, fee, utxos...)
+	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
@@ -404,13 +404,13 @@ func MakeUnsignedTx(
 // MakeUnsignedSplitAddrTx news tx to make split addr without signature
 // it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
-	wa service.WalletAgent, from string, addrs []string, weights []uint64, fee uint64,
+	wa service.WalletAgent, from string, addrs []string, weights []uint64, gasUsed uint64,
 ) (*types.Transaction, string, []*rpcpb.Utxo, error) {
-	utxos, err := wa.Utxos(from, nil, fee)
+	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
 		return nil, "", nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
+	changeAmt, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, "", nil, txlogic.ErrInsufficientBalance
 	}
@@ -421,13 +421,13 @@ func MakeUnsignedSplitAddrTx(
 
 // MakeUnsignedTokenIssueTx news tx to issue token without signature
 func MakeUnsignedTokenIssueTx(
-	wa service.WalletAgent, issuer, issuee string, tag *rpcpb.TokenTag, fee uint64,
+	wa service.WalletAgent, issuer, issuee string, tag *rpcpb.TokenTag, gasUsed uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
-	utxos, err := wa.Utxos(issuer, nil, fee)
+	utxos, err := wa.Utxos(issuer, nil, gasUsed)
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
+	changeAmt, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
 	}
@@ -439,9 +439,9 @@ func MakeUnsignedTokenIssueTx(
 // MakeUnsignedTokenTransferTx news tx to transfer token without signature
 func MakeUnsignedTokenTransferTx(
 	wa service.WalletAgent, from string, to []string, amounts []uint64,
-	tid *types.TokenID, fee uint64,
+	tid *types.TokenID, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
-	utxos, err := wa.Utxos(from, nil, fee)
+	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -453,7 +453,7 @@ func MakeUnsignedTokenTransferTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
+	changeAmt, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
@@ -463,8 +463,8 @@ func MakeUnsignedTokenTransferTx(
 	return tx, mixUtxos, err
 }
 
-func calcChangeAmount(amounts []uint64, fee uint64, utxos ...*rpcpb.Utxo) (uint64, bool) {
-	total := fee
+func calcChangeAmount(amounts []uint64, gasUsed uint64, utxos ...*rpcpb.Utxo) (uint64, bool) {
+	total := gasUsed
 	for _, a := range amounts {
 		total += a
 	}

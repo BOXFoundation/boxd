@@ -21,6 +21,9 @@ const (
 	MaxCoinbaseScriptLen = 1000
 
 	MaxBlockTimeOut = 1
+
+	TransferGasLimit = 21000
+	MinGasPrice      = 10000
 )
 
 // TransferMode

@@ -325,25 +325,29 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 		return err
 	}
 
-	// how to calc the minfee, or use a fixed value.
-	txSize, err := tx.SerializeSize()
-	if err != nil {
-		return err
-	}
-	minFee := calcRequiredMinFee(txSize)
-	if txFee < minFee {
-		return errors.New("txFee is less than minFee")
-	}
-
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
+	var gasPrice uint64
+	if chain.HasContractVout(tx) { // smart contract tx.
+		vmTx, err := tx_pool.chain.ExtractVMTransactions(tx)
+		if err != nil {
+			return err
+		}
+		if txFee != vmTx.GasPrice().Uint64()*vmTx.Gas() {
+			return errors.New("Invalid contract transaction params")
+		}
+		gasPrice = vmTx.GasPrice().Uint64()
+	} else {
+		gasPrice = txFee / core.TransferGasLimit
+	}
 
-	feePerKB := txFee * 1000 / (uint64)(txSize)
+	if gasPrice < core.MinGasPrice {
+		return errors.New("tx gasPrice is too low")
+	}
+
 	// add transaction to pool.
-	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
-	// body, _ := conv.MarshalConvertible(tx)
-	// key := fmt.Sprintf("%x", (md5.Sum(body)))
-	// logger.Infof("Accepted new tx. Hash: %v, transferMode: %v, key: %s", txHash, transferMode, key)
+	tx_pool.addTx(tx, nextBlockHeight, gasPrice)
+
 	logger.Debugf("Accepted new tx. Hash: %v", txHash)
 	tx_pool.txcache.Add(*txHash, true)
 	switch transferMode {
@@ -429,14 +433,14 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 }
 
 // Add transaction into tx pool
-func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feePerKB uint64) {
+func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, gasPrice uint64) {
 	txHash, _ := tx.TxHash()
 
 	txWrap := &types.TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
-		FeePerKB:       feePerKB,
+		GasPrice:       gasPrice,
 		IsScriptValid:  false,
 	}
 	tx_pool.hashToTx.Store(*txHash, txWrap)
@@ -656,10 +660,6 @@ func (tx_pool *TransactionPool) GetTxByHash(
 		return v.(*types.TxWrap), false
 	}
 	return nil, false
-}
-
-func calcRequiredMinFee(txSize int) uint64 {
-	return 0
 }
 
 func lengthOfSyncMap(target *sync.Map) int {

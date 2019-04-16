@@ -41,7 +41,7 @@ type TxWrap struct {
 	Tx             *Transaction
 	AddedTimestamp int64
 	Height         uint32
-	FeePerKB       uint64
+	GasPrice       uint64
 	IsScriptValid  bool
 }
 

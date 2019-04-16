@@ -249,8 +249,9 @@ func (s *txServer) MakeUnsignedTx(
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	amounts, fee := req.GetAmounts(), req.GetFee()
-	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, fee)
+	amounts, gasPrice := req.GetAmounts(), req.GasPrice
+	gasUsed := gasPrice * core.TransferGasLimit
+	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, gasUsed)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -295,10 +296,11 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 		logger.Warn(err)
 		return newMakeSplitAddrTxResp(-1, err.Error()), nil
 	}
-	weights, fee := req.GetWeights(), req.GetFee()
+	weights, gasPrice := req.GetWeights(), req.GasPrice
+	gasUsed := gasPrice * core.TransferGasLimit
 	// make tx without sign
 	tx, splitAddr, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs,
-		weights, fee)
+		weights, gasUsed)
 	if err != nil {
 		return newMakeSplitAddrTxResp(-1, err.Error()), nil
 	}
@@ -341,14 +343,15 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
-	issuer, issuee, tag, fee := req.GetIssuer(), req.GetIssuee(), req.GetTag(), req.GetFee()
+	issuer, issuee, tag, gasPrice := req.GetIssuer(), req.GetIssuee(), req.GetTag(), req.GasPrice
 	if err := types.ValidateAddr(issuer, issuee); err != nil {
 		logger.Warn(err)
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
+	gasUsed := gasPrice * core.TransferGasLimit
 	// make tx without sign
 	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa, issuer,
-		issuee, tag, fee)
+		issuee, tag, gasUsed)
 	if err != nil {
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
@@ -384,7 +387,8 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
-	from, fee := req.GetFrom(), req.GetFee()
+	from, gasPrice := req.GetFrom(), req.GasPrice
+	gasUsed := gasPrice * core.TransferGasLimit
 	to, amounts := req.GetTo(), req.GetAmounts()
 	if err := types.ValidateAddr(append(to, from)...); err != nil {
 		logger.Warn(err)
@@ -400,7 +404,7 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	op := types.NewOutPoint(tHash, tIdx)
 	//
 	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, from, to, amounts,
-		(*types.TokenID)(op), fee)
+		(*types.TokenID)(op), gasUsed)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}

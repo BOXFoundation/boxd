@@ -303,10 +303,10 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 
 	txi := queue.Items(i).(*types.TxWrap)
 	txj := queue.Items(j).(*types.TxWrap)
-	if txi.FeePerKB == txj.FeePerKB {
+	if txi.GasPrice == txj.GasPrice {
 		return txi.AddedTimestamp < txj.AddedTimestamp
 	}
-	return txi.FeePerKB < txj.FeePerKB
+	return txi.GasPrice < txj.GasPrice
 }
 
 // getChainedTxs returns all chained ancestor txs in mempool of the passed tx, including itself
@@ -338,7 +338,7 @@ func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, map[crypto.HashType]*types.
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := dpos.txpool.GetAllTxs()
 	for _, pendingTx := range pendingTxs {
-		// place onto heap sorted by FeePerKB
+		// place onto heap sorted by gasPrice
 		// only pack txs whose scripts have been verified
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
