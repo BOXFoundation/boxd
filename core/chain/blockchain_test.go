@@ -556,3 +556,47 @@ func TestExtractBoxTx(t *testing.T) {
 		}
 	}
 }
+
+// generate a child block with contract tx
+func nextBlockWithTxs(parent *types.Block, txs ...*types.Transaction) *types.Block {
+	timestamp++
+	newBlock := types.NewBlock(parent)
+
+	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parent.Header.Height+1)
+	// use time to ensure we create a different/unique block each time
+	coinbaseTx.Vin[0].Sequence = uint32(time.Now().UnixNano())
+	newBlock.Txs = append(append(newBlock.Txs, coinbaseTx), txs...)
+	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
+	newBlock.Header.TimeStamp = timestamp
+	return newBlock
+}
+
+func TestBlockProcessingWithContractTX(t *testing.T) {
+	ensure.NotNil(t, blockChain)
+	ensure.True(t, blockChain.LongestChainHeight == 0)
+
+	b0 := getTailBlock()
+	// try to append an existing block: genesis block
+	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b0 -> b1
+	// make contract tx
+	vmValue, gasPrice, gasLimit := uint64(0), uint64(100), uint64(20000)
+	byteCode, _ := hex.DecodeString(testVMCode)
+	contractVout1, err := txlogic.MakeContractCreationVout(vmValue, gasLimit,
+		gasPrice, byteCode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prevHash, _ := b0.Txs[0].TxHash()
+	vmTx1 := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout1)
+	b1 := nextBlockWithTxs(b0, vmTx1)
+	verifyProcessBlock(t, b1, nil, 1, b1)
+
+	//blance := getBlances(minerAddr.String(), blockChain.db)
+	//ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+}

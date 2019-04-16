@@ -160,10 +160,10 @@ func TestMakeContractTx(t *testing.T) {
 	hash, idx, value := hashFromUint64(1), uint32(2), uint64(100)
 
 	// normal vin, contract creation vout
-	gas, gasPrice, voutNum := uint64(200), uint64(5), uint32(3)
+	gas, gasPrice := uint64(200), uint64(5)
 	codeStr := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
 	code, _ := hex.DecodeString(codeStr)
-	cvout, _ := MakeContractCreationVout(value, gas, gasPrice, code, voutNum)
+	cvout, _ := MakeContractCreationVout(value, gas, gasPrice, code)
 	tx := types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout)
@@ -181,7 +181,7 @@ func TestMakeContractTx(t *testing.T) {
 	receiver := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
 	codeStr = "60fe47b10000000000000000000000000000000000000000000000000000000000000006"
 	code, _ = hex.DecodeString(codeStr)
-	cvout, _ = MakeContractCallVout(receiver, value, gas, gasPrice, code, voutNum)
+	cvout, _ = MakeContractCallVout(receiver, value, gas, gasPrice, code)
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout)
