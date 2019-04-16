@@ -403,11 +403,13 @@ func createRawTx(cmd *cobra.Command, args []string) {
 	height, err := rpcutil.GetBlockCount(conn)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	tx, _, err := rpcutil.CreateRawTx(from, txid, vout, to, amount, height)
 	mashal_tx, err := tx.Marshal()
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	str_tx := hex.EncodeToString(mashal_tx)
 	fmt.Println(str_tx)
