@@ -759,7 +759,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 		if err != nil {
 			return err
 		}
-		usedGas, utxoTxs, err := chain.stateProcessor.Process(block, statedb)
+		gasRemaining, utxoTxs, err := chain.stateProcessor.Process(block, statedb)
 		if err != nil {
 			return err
 		}
@@ -767,7 +767,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 			return err
 		}
 
-		if err := chain.ValidateState(block, statedb, usedGas); err != nil {
+		if err := chain.ValidateState(block, statedb, gasRemaining); err != nil {
 			return err
 		}
 		stateDB = statedb

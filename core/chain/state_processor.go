@@ -63,7 +63,7 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 	var txs []*types.Transaction
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	_, gas, success, gasRefundTx, err := ApplyMessage(vmenv, tx)
+	_, gasRemaining, success, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -74,7 +74,7 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 		txs = createUtxoTx()
 		Transfers = nil
 	}
-	return gas, txs, nil
+	return gasRemaining, txs, nil
 }
 
 func createUtxoTx() []*types.Transaction {

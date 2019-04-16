@@ -50,6 +50,7 @@ type StateTransition struct {
 	state        vm.StateDB
 	evm          *vm.EVM
 	gasRefoundTx *types.Transaction
+	remaining    *big.Int
 }
 
 // Message represents a message sent to a contract.
@@ -195,7 +196,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value, false)
 	} else {
 		// Increment the nonce for the next transaction
-		st.state.SetNonce(*msg.From(), st.state.GetNonce(sender.Address())+1)
+		// st.state.SetNonce(*msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value, false)
 	}
 	if vmerr != nil {
@@ -210,7 +211,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	st.refundGas()
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 
-	return ret, st.gasUsed(), vmerr != nil, st.gasRefoundTx, err
+	return ret, st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, err
 }
 
 func (st *StateTransition) refundGas() {
@@ -223,6 +224,7 @@ func (st *StateTransition) refundGas() {
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
 	if remaining.Uint64() > 0 {
 		st.gasRefoundTx = st.createGasRefundUtxoTx(remaining.Uint64())
+		st.remaining = remaining
 	}
 	st.state.AddBalance(*st.msg.From(), remaining)
 }
