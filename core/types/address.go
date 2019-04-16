@@ -78,6 +78,11 @@ func BytesToAddressHash(b []byte) AddressHash {
 // Big converts an address to a big integer.
 func (a AddressHash) Big() *big.Int { return new(big.Int).SetBytes(a[:]) }
 
+// String returns a human-readable string for the address hash.
+func (a AddressHash) String() string {
+	return encodeAddress(a[:], AddressTypeP2PKHPrefix)
+}
+
 // BigToAddressHash returns Address with byte values of b.
 func BigToAddressHash(b *big.Int) AddressHash { return BytesToAddressHash(b.Bytes()) }
 

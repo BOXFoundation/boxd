@@ -25,6 +25,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/vm/common"
 	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 	"github.com/BOXFoundation/boxd/vm/crypto"
@@ -50,7 +51,7 @@ var (
 // * Contracts
 // * Accounts
 type StateDB struct {
-	db   Database
+	db   *storage.Database
 	trie *trie.Trie
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
@@ -82,8 +83,8 @@ type StateDB struct {
 }
 
 // New a new state from a given trie.
-func New(db Database) (*StateDB, error) {
-	tr, err := db.OpenTrie(corecrypto.HashType{})
+func New(db *storage.Database) (*StateDB, error) {
+	tr, err := trie.NewByHash(&corecrypto.HashType{}, db)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +113,8 @@ func (s *StateDB) Error() error {
 // Reset clears out all ephemeral state objects from the state db, but keeps
 // the underlying state trie to avoid reloading data for the next operations.
 func (s *StateDB) Reset() error {
-	tr, err := s.db.OpenTrie(s.trie.Hash())
+	roothash := s.trie.Hash()
+	tr, err := trie.NewByHash(&roothash, s.db)
 	if err != nil {
 		return err
 	}
@@ -248,7 +250,7 @@ func (s *StateDB) GetCodeHash(addr types.AddressHash) corecrypto.HashType {
 func (s *StateDB) GetState(a types.AddressHash, b corecrypto.HashType) corecrypto.HashType {
 	stateObject := s.getStateObject(a)
 	if stateObject != nil {
-		return stateObject.GetState(s.db, b)
+		return stateObject.GetState(b)
 	}
 	return corecrypto.HashType{}
 }
@@ -257,13 +259,13 @@ func (s *StateDB) GetState(a types.AddressHash, b corecrypto.HashType) corecrypt
 func (s *StateDB) GetCommittedState(addr types.AddressHash, hash corecrypto.HashType) corecrypto.HashType {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
-		return stateObject.GetCommittedState(s.db, hash)
+		return stateObject.GetCommittedState(hash)
 	}
 	return corecrypto.HashType{}
 }
 
 // Database retrieves the low level database supporting the lower level trie ops.
-func (s *StateDB) Database() Database {
+func (s *StateDB) Database() *storage.Database {
 	return s.db
 }
 
@@ -275,7 +277,7 @@ func (s *StateDB) StorageTrie(a types.AddressHash) *trie.Trie {
 		return nil
 	}
 	cpy := stateObject.deepCopy(s)
-	return cpy.updateTrie(s.db)
+	return cpy.updateTrie()
 }
 
 func (s *StateDB) HasSuicided(addr types.AddressHash) bool {
@@ -330,7 +332,7 @@ func (s *StateDB) SetCode(addr types.AddressHash, code []byte) {
 func (s *StateDB) SetState(addr types.AddressHash, key corecrypto.HashType, value corecrypto.HashType) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
-		stateObject.SetState(s.db, key, value)
+		stateObject.SetState(key, value)
 	}
 }
 
@@ -468,8 +470,10 @@ func (db *StateDB) ForEachStorage(addr types.AddressHash, cb func(key, value cor
 func (s *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	state := &StateDB{
-		db:                s.db,
-		trie:              s.db.CopyTrie(s.trie),
+		db: s.db,
+		// FIXME:
+		trie: nil,
+		// trie:              s.db.CopyTrie(s.trie),
 		stateObjects:      make(map[types.AddressHash]*stateObject, len(s.journal.dirties)),
 		stateObjectsDirty: make(map[types.AddressHash]struct{}, len(s.journal.dirties)),
 		refund:            s.refund,
@@ -559,7 +563,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 		if stateObject.suicided || (deleteEmptyObjects && stateObject.empty()) {
 			s.deleteStateObject(stateObject)
 		} else {
-			stateObject.updateRoot(s.db)
+			stateObject.updateRoot()
 			s.updateStateObject(stateObject)
 		}
 		s.stateObjectsDirty[addr] = struct{}{}
@@ -608,11 +612,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) error {
 		case isDirty:
 			// Write any contract code associated with the state object
 			if stateObject.code != nil && stateObject.dirtyCode {
-				s.db.TrieDB().Put(corecrypto.BytesToHash(stateObject.CodeHash()).Bytes(), stateObject.code[:])
+				s.db.Put(corecrypto.BytesToHash(stateObject.CodeHash()).Bytes(), stateObject.code[:])
 				stateObject.dirtyCode = false
 			}
 			// Write any storage changes in the state object to its storage trie.
-			if err := stateObject.CommitTrie(s.db); err != nil {
+			if err := stateObject.CommitTrie(); err != nil {
 				return err
 			}
 			// Update the object in the main account trie.

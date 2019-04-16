@@ -88,7 +88,7 @@ var toAddr = types.BytesToAddressHash
 
 func (s *StateSuite) SetUpTest(t *testing.T) {
 	s.db = initDB()
-	s.state, _ = New(NewDatabase(s.db))
+	s.state, _ = New(s.db)
 }
 
 func (s *StateSuite) TestNull(t *testing.T) {
@@ -140,7 +140,7 @@ func (s *StateSuite) TestSnapshotEmpty(t *testing.T) {
 // use testing instead of checker because checker does not support
 // printing/logging in tests (-check.vv does not work)
 func TestSnapshot2(t *testing.T) {
-	state, _ := New(NewDatabase(initDB()))
+	state, _ := New(initDB())
 
 	stateobjaddr0 := toAddr([]byte("so0"))
 	stateobjaddr1 := toAddr([]byte("so1"))
@@ -183,8 +183,8 @@ func TestSnapshot2(t *testing.T) {
 
 	so0Restored := state.getStateObject(stateobjaddr0)
 	// Update lazily-loaded values before comparing.
-	so0Restored.GetState(state.db, storageaddr)
-	so0Restored.Code(state.db)
+	so0Restored.GetState(storageaddr)
+	so0Restored.Code()
 	// non-deleted is equal (restored)
 	compareStateObjects(so0Restored, so0, t)
 

@@ -152,12 +152,12 @@ func (s *stateObject) touch() {
 	}
 }
 
-func (s *stateObject) getTrie(db Database) *trie.Trie {
+func (s *stateObject) getTrie() *trie.Trie {
 	if s.trie == nil {
 		var err error
-		s.trie, err = db.OpenTrie(s.data.Root)
+		s.trie, err = trie.NewByHash(&s.data.Root, s.db.db)
 		if err != nil {
-			s.trie, _ = db.OpenTrie(corecrypto.HashType{})
+			s.trie, _ = trie.NewByHash(&corecrypto.HashType{}, s.db.db)
 			s.setError(fmt.Errorf("can't create storage trie: %v", err))
 		}
 	}
@@ -165,25 +165,25 @@ func (s *stateObject) getTrie(db Database) *trie.Trie {
 }
 
 // GetState returns a value in account storage.
-func (s *stateObject) GetState(db Database, key corecrypto.HashType) corecrypto.HashType {
+func (s *stateObject) GetState(key corecrypto.HashType) corecrypto.HashType {
 	// If we have a dirty value for this state entry, return it
 	value, dirty := s.dirtyStorage[key]
 	if dirty {
 		return value
 	}
 	// Otherwise return the entry's original value
-	return s.GetCommittedState(db, key)
+	return s.GetCommittedState(key)
 }
 
 // GetCommittedState retrieves a value from the committed account storage trie.
-func (s *stateObject) GetCommittedState(db Database, key corecrypto.HashType) corecrypto.HashType {
+func (s *stateObject) GetCommittedState(key corecrypto.HashType) corecrypto.HashType {
 	// If we have the original value cached, return that
 	value, cached := s.originStorage[key]
 	if cached {
 		return value
 	}
 	// Otherwise load the value from the database
-	enc, err := s.getTrie(db).Get(key[:])
+	enc, err := s.getTrie().Get(key[:])
 	if err != nil && err != core.ErrNodeNotFound {
 		s.setError(err)
 		return corecrypto.HashType{}
@@ -200,9 +200,9 @@ func (s *stateObject) GetCommittedState(db Database, key corecrypto.HashType) co
 }
 
 // SetState updates a value in account storage.
-func (s *stateObject) SetState(db Database, key, value corecrypto.HashType) {
+func (s *stateObject) SetState(key, value corecrypto.HashType) {
 	// If the new value is the same as old, don't set
-	prev := s.GetState(db, key)
+	prev := s.GetState(key)
 	if prev == value {
 		return
 	}
@@ -220,8 +220,8 @@ func (s *stateObject) setState(key, value corecrypto.HashType) {
 }
 
 // updateTrie writes cached storage modifications into the object's storage trie.
-func (s *stateObject) updateTrie(db Database) *trie.Trie {
-	tr := s.getTrie(db)
+func (s *stateObject) updateTrie() *trie.Trie {
+	tr := s.getTrie()
 	for key, value := range s.dirtyStorage {
 		delete(s.dirtyStorage, key)
 
@@ -243,15 +243,15 @@ func (s *stateObject) updateTrie(db Database) *trie.Trie {
 }
 
 // UpdateRoot sets the trie root to the current root hash of
-func (s *stateObject) updateRoot(db Database) {
-	s.updateTrie(db)
+func (s *stateObject) updateRoot() {
+	s.updateTrie()
 	s.data.Root = s.trie.Hash()
 }
 
 // CommitTrie the storage trie of the object to dwb.
 // This updates the trie root.
-func (s *stateObject) CommitTrie(db Database) error {
-	s.updateTrie(db)
+func (s *stateObject) CommitTrie() error {
+	s.updateTrie()
 	if s.dbErr != nil {
 		return s.dbErr
 	}
@@ -300,7 +300,9 @@ func (s *stateObject) ReturnGas(gas *big.Int) {}
 func (s *stateObject) deepCopy(db *StateDB) *stateObject {
 	stateObject := newObject(db, s.address, s.data)
 	if s.trie != nil {
-		stateObject.trie = db.db.CopyTrie(s.trie)
+		// FIXME:
+		// stateObject.trie = db.db.CopyTrie(s.trie)
+		stateObject.trie = nil
 	}
 	stateObject.code = s.code
 	stateObject.dirtyStorage = s.dirtyStorage.Copy()
