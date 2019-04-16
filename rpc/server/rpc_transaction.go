@@ -19,7 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
-
+const maxDecimal=8
 func registerTransaction(s *Server) {
 	rpcpb.RegisterTransactionCommandServer(s.server, &txServer{server: s})
 }
@@ -336,10 +336,10 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 				string(bytes), resp)
 		}
 	}()
-	if req.GetTag().GetDecimal()>8 {
+	if req.GetTag().GetDecimal() > maxDecimal {
 		return newMakeTokenIssueTxResp(-1, "The range of decimal must be between 0 and 8"), nil
 	}
-	if uint64(req.Tag.Supply)>uint64(math.MaxUint64)/uint64(math.Pow10(int(req.Tag.Decimal))){
+	if uint64(req.Tag.Supply) > math.MaxUint64/uint64(math.Pow10(int(req.Tag.Decimal))) {
 		return newMakeTokenIssueTxResp(-1, "the value is too bigger"), nil
 	}
 	wa := s.server.GetWalletAgent()

@@ -128,9 +128,7 @@ to quickly create a Cobra application.`,
 		&cobra.Command{
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("sendrawtx called")
-			},
+			Run: sendrawtx,
 		},
 		&cobra.Command{
 			Use:   "signmessage [message] [optional publickey]",
@@ -360,36 +358,40 @@ func createRawTx(cmd *cobra.Command, args []string) {
 	}
 	fmt.Println("createRawTx called")
 	from := args[0]
+	//Cut characters around commas
 	txid_str := strings.Split(args[1], ",")
-	vout_str := strings.Split(args[2], ",")
-	to_str := strings.Split(args[3], ",")
-	amount_str := strings.Split(args[4], ",")
 	txid := make([]crypto.HashType, 0)
-	vout := make([]uint32, 0)
-	to := make([]string, 0)
-	amount := make([]uint64, 0)
 	for _, x := range txid_str {
 		tmp := crypto.HashType{}
 		tmp.SetString(x)
 		txid = append(txid, tmp)
 	}
+
+	vout_str := strings.Split(args[2], ",")
+	vout := make([]uint32, 0)
 	for _, x := range vout_str {
 		tmp, _ := strconv.Atoi(x)
 		vout = append(vout, uint32(tmp))
 	}
+
+	to_str := strings.Split(args[3], ",")
+	to := make([]string, 0)
 	for _, x := range to_str {
 		to = append(to, x)
 	}
+
+	amount_str := strings.Split(args[4], ",")
+	amount := make([]uint64, 0)
 	for _, x := range amount_str {
 		tmp, _ := strconv.Atoi(x)
 		amount = append(amount, uint64(tmp))
 	}
 	if len(txid) != len(vout) {
-		fmt.Println("Invalide argument number")
+		fmt.Println(" The number of [txid] should be the same as the number of [vout]")
 		return
 	}
 	if len(to) != len(amount) {
-		fmt.Println("Invalide argument number")
+		fmt.Println("The number of [to] should be the same as the number of [amount]")
 		return
 	}
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
@@ -454,6 +456,33 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 	} else {
 		fmt.Println(args[0], " is a valid address")
+	}
+}
+func sendrawtx(cmd *cobra.Command, args []string) {
+	fmt.Println("sendrawtx called")
+	if len(args) < 1 {
+		fmt.Println("Invalide argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	tx_byte, err := hex.DecodeString(args[0])
+	tx := types.Transaction{}
+	error := tx.Unmarshal(tx_byte)
+	if error != nil {
+		fmt.Println(error)
+		return
+	}
+	resp, err := rpcutil.SendTransaction(conn, &tx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	} else {
+		fmt.Println(util.PrettyPrint(resp))
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 const (
 	connTimeout = 30
 	maxTokenFee = 100
+	maxDecimal=8
 )
 
 // GetBalance returns total amount of an address
@@ -449,11 +450,11 @@ func MakeUnsignedSplitAddrTx(
 func MakeUnsignedTokenIssueTx(
 	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, fee uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
-	if tag.GetDecimal()<0 || tag.GetDecimal()>8 {
-		return nil,0,nil,txlogic.ErrInvalidArguments
+	if tag.GetDecimal() < 0 || tag.GetDecimal() > maxDecimal {
+		return nil, 0, nil, txlogic.ErrInvalidArguments
 	}
-	if uint64(tag.GetSupply())>math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
-		return nil,0,nil,txlogic.ErrInvalidArguments
+	if uint64(tag.GetSupply()) > math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
+		return nil, 0, nil, txlogic.ErrInvalidArguments
 	}
 	utxos, err := wa.Utxos(issuer, nil, fee)
 	if err != nil {
