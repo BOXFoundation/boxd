@@ -404,15 +404,15 @@ func MakeUnsignedTx(
 }
 
 func CreateRawTx(
-	 from string,txid []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
+	from string, txid []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	total := uint64(0)
 	for _, a := range amounts {
 		total += a
 	}
 
-	utxos:=make([]*rpcpb.Utxo,0)
-	for i:=0;i<len(txid);i++ {
+	utxos := make([]*rpcpb.Utxo, 0)
+	for i := 0; i < len(txid); i++ {
 		hash := txid[i]
 		op := types.NewOutPoint(&hash, vout[i])
 		uw := txlogic.NewUtxoWrap(from, height, total)
@@ -452,7 +452,7 @@ func MakeUnsignedTokenIssueTx(
 	if tag.GetDecimal()<0 || tag.GetDecimal()>8 {
 		return nil,0,nil,txlogic.ErrInvalidArguments
 	}
-	if uint64(tag.GetSupply()*uint64(math.Pow10(int(tag.GetDecimal()))))>uint64(math.MaxUint64) {
+	if uint64(tag.GetSupply())>math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
 		return nil,0,nil,txlogic.ErrInvalidArguments
 	}
 	utxos, err := wa.Utxos(issuer, nil, fee)

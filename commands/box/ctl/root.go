@@ -333,62 +333,62 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	}
 }
 
-func decoderawtx(cmd *cobra.Command,args []string){
+func decoderawtx(cmd *cobra.Command, args []string) {
 	fmt.Println("decoderawtx called")
-	if len(args)<1{
+	if len(args) < 1 {
 		fmt.Println("")
 		return
 	}
-	tx_byte,err:=hex.DecodeString(args[0])
-	if err!=nil{
+	tx_byte, err := hex.DecodeString(args[0])
+	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	 tx:=types.Transaction{}
-	 error:=tx.Unmarshal(tx_byte)
-	 if error!=nil{
-	 	fmt.Println(error)
-	 	return
-	 }
+	tx := types.Transaction{}
+	error := tx.Unmarshal(tx_byte)
+	if error != nil {
+		fmt.Println(error)
+		return
+	}
 	fmt.Println(util.PrettyPrint(tx))
 }
 
-func createRawTx(cmd *cobra.Command,args []string){
-	if len(args)<4{
+func createRawTx(cmd *cobra.Command, args []string) {
+	if len(args) < 4 {
 		fmt.Println("Invalide argument number")
 		return
 	}
 	fmt.Println("createRawTx called")
-	from:=args[0]
-	txid_str:=strings.Split(args[1],",")
-	vout_str:=strings.Split(args[2],",")
-	to_str:=strings.Split(args[3],",")
-	amount_str:=strings.Split(args[4],",")
-	txid:=make([]crypto.HashType,0)
-	vout:=make([]uint32,0)
-	to:=make([]string,0)
-	amount:=make([]uint64,0)
-	for _,x:=range txid_str{
-		tmp:=crypto.HashType{}
+	from := args[0]
+	txid_str := strings.Split(args[1], ",")
+	vout_str := strings.Split(args[2], ",")
+	to_str := strings.Split(args[3], ",")
+	amount_str := strings.Split(args[4], ",")
+	txid := make([]crypto.HashType, 0)
+	vout := make([]uint32, 0)
+	to := make([]string, 0)
+	amount := make([]uint64, 0)
+	for _, x := range txid_str {
+		tmp := crypto.HashType{}
 		tmp.SetString(x)
-		txid=append(txid,tmp)
+		txid = append(txid, tmp)
 	}
-	for _,x:=range vout_str{
-		tmp,_:=strconv.Atoi(x)
-		vout=append(vout,uint32(tmp))
+	for _, x := range vout_str {
+		tmp, _ := strconv.Atoi(x)
+		vout = append(vout, uint32(tmp))
 	}
-	for _,x:=range to_str{
-		to=append(to,x)
+	for _, x := range to_str {
+		to = append(to, x)
 	}
-	for _,x:=range amount_str{
-		tmp,_:=strconv.Atoi(x)
-		amount=append(amount,uint64(tmp))
+	for _, x := range amount_str {
+		tmp, _ := strconv.Atoi(x)
+		amount = append(amount, uint64(tmp))
 	}
-	if len(txid)!=len(vout){
+	if len(txid) != len(vout) {
 		fmt.Println("Invalide argument number")
 		return
 	}
-	if len(to)!=len(amount){
+	if len(to) != len(amount) {
 		fmt.Println("Invalide argument number")
 		return
 	}
@@ -402,14 +402,14 @@ func createRawTx(cmd *cobra.Command,args []string){
 	if err != nil {
 		fmt.Println(err)
 	}
-	tx,_,err:=rpcutil.CreateRawTx(from,txid,vout,to,amount,height)
-	mashal_tx,err:=tx.Marshal()
-	if err!=nil{
+	tx, _, err := rpcutil.CreateRawTx(from, txid, vout, to, amount, height)
+	mashal_tx, err := tx.Marshal()
+	if err != nil {
 		fmt.Println(err)
 	}
-	str_tx:=hex.EncodeToString(mashal_tx)
+	str_tx := hex.EncodeToString(mashal_tx)
 	fmt.Println(str_tx)
-	}
+}
 
 func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("signmessage called")

@@ -80,11 +80,11 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	tokenSymbol := args[3]
 	tokenTotalSupply, err2 := strconv.Atoi(args[4])
 	tokenDecimals, err3 := strconv.Atoi(args[5])
-	if tokenDecimals<0||tokenDecimals>8 {
+	if tokenDecimals < 0 || tokenDecimals > 8 {
 		fmt.Println("Invalid argument format")
 		return
 	}
-	if uint64(tokenTotalSupply)>uint64(math.MaxUint64)/uint64(math.Pow10(tokenDecimals)) {
+	if uint64(tokenTotalSupply) > math.MaxUint64/uint64(math.Pow10(tokenDecimals)) {
 		fmt.Println("Invalid argument format")
 		return
 	}
