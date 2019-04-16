@@ -8,6 +8,7 @@ require (
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
 	github.com/go-akka/configuration v0.0.0-20190109144621-439b15a79294 // indirect
+	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gogap/config v0.0.0-20180418140818-a1522129698c // indirect
 	github.com/gogap/env_json v0.0.0-20150503135429-86150085ddbe // indirect
 	github.com/gogap/env_strings v0.0.1 // indirect

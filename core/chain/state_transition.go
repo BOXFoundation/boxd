@@ -21,7 +21,9 @@ import (
 	"math"
 	"math/big"
 
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 )
 
@@ -39,19 +41,20 @@ var (
 
 // StateTransition the State Transitioning Model
 type StateTransition struct {
-	msg        Message
-	gas        uint64
-	gasPrice   *big.Int
-	initialGas uint64
-	value      *big.Int
-	data       []byte
-	state      vm.StateDB
-	evm        *vm.EVM
+	msg          Message
+	gas          uint64
+	gasPrice     *big.Int
+	initialGas   uint64
+	value        *big.Int
+	data         []byte
+	state        vm.StateDB
+	evm          *vm.EVM
+	gasRefoundTx *types.Transaction
 }
 
 // Message represents a message sent to a contract.
 type Message interface {
-	From() types.AddressHash
+	From() *types.AddressHash
 	//FromFrontier() (common.Address, error)
 	To() *types.AddressHash
 
@@ -111,7 +114,7 @@ func NewStateTransition(evm *vm.EVM, msg Message) *StateTransition {
 
 // ApplyMessage computes the new state by applying the given message
 // against the old state within the environment.
-func ApplyMessage(evm *vm.EVM, msg Message) ([]byte, uint64, bool, error) {
+func ApplyMessage(evm *vm.EVM, msg Message) ([]byte, uint64, bool, *types.Transaction, error) {
 	return NewStateTransition(evm, msg).TransitionDb()
 }
 
@@ -134,13 +137,13 @@ func (st *StateTransition) useGas(amount uint64) error {
 
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
+	if st.state.GetBalance(*st.msg.From()).Cmp(mgval) < 0 {
 		return errInsufficientBalanceForGas
 	}
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-	st.state.SubBalance(st.msg.From(), mgval)
+	st.state.SubBalance(*st.msg.From(), mgval)
 	return nil
 }
 
@@ -158,23 +161,26 @@ func (st *StateTransition) preCheck() error {
 }
 
 // TransitionDb will transition the state by applying the current message and
-// returning the result including the used gas. It returns an error if failed.
-// An error indicates a consensus issue.
-func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
+// returning the result including the used gas.
+// There are three scenarios for executing a tx:
+// case 1: the tx is invalid before it is actually executed by evm. The tx is not on chain and returns an error.
+// case 2: error returned after tx is executed by evm (the error is not an insufficient balance error). The tx is on chain but it's failed 	and the gas is used.
+// case 3: the tx execution successful. The tx is on chain and it`s successful.
+func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, gasRefundTx *types.Transaction, err error) {
 	if err = st.preCheck(); err != nil {
 		return
 	}
 	msg := st.msg
-	sender := vm.AccountRef(msg.From())
+	sender := vm.AccountRef(*msg.From())
 	contractCreation := msg.To() == nil
 
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation)
 	if err != nil {
-		return nil, 0, false, err
+		return nil, 0, false, nil, err
 	}
 	if err = st.useGas(gas); err != nil {
-		return nil, 0, false, err
+		return nil, 0, false, nil, err
 	}
 
 	var (
@@ -185,11 +191,12 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		vmerr error
 	)
 	if contractCreation {
-		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
+		//
+		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value, false)
 	} else {
 		// Increment the nonce for the next transaction
-		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
-		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
+		st.state.SetNonce(*msg.From(), st.state.GetNonce(sender.Address())+1)
+		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value, false)
 	}
 	if vmerr != nil {
 		// log.Debug("VM returned with error", "err", vmerr)
@@ -197,13 +204,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		// sufficient balance to make the transfer happen. The first
 		// balance transfer may never fail.
 		if vmerr == vm.ErrInsufficientBalance {
-			return nil, 0, false, vmerr
+			return nil, 0, false, nil, vmerr
 		}
 	}
 	st.refundGas()
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 
-	return ret, st.gasUsed(), vmerr != nil, err
+	return ret, st.gasUsed(), vmerr != nil, st.gasRefoundTx, err
 }
 
 func (st *StateTransition) refundGas() {
@@ -214,7 +221,32 @@ func (st *StateTransition) refundGas() {
 	st.gas += refund
 
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-	st.state.AddBalance(st.msg.From(), remaining)
+	if remaining.Uint64() > 0 {
+		st.gasRefoundTx = st.createGasRefundUtxoTx(remaining.Uint64())
+	}
+	st.state.AddBalance(*st.msg.From(), remaining)
+}
+
+func (st *StateTransition) createGasRefundUtxoTx(value uint64) *types.Transaction {
+
+	var vouts []*corepb.TxOut
+	addrScript := *script.PayToPubKeyHashScript(st.msg.From().Bytes())
+	vout := &corepb.TxOut{
+		Value:        value,
+		ScriptPubKey: addrScript,
+	}
+	vouts = append(vouts, vout)
+	vin := &types.TxIn{
+		PrevOutPoint: types.OutPoint{
+			Hash:  zeroHash,
+			Index: math.MaxUint32,
+		},
+		ScriptSig: *script.MakeContractScriptSig(),
+	}
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, vin)
+	tx.Vout = append(tx.Vout, vouts...)
+	return tx
 }
 
 // gasUsed returns the amount of gas used up by the state transition.

@@ -83,8 +83,8 @@ func (tx *VMTransaction) Version() int32 {
 }
 
 // From returns the tx from addressHash.
-func (tx *VMTransaction) From() AddressHash {
-	return *tx.sender
+func (tx *VMTransaction) From() *AddressHash {
+	return tx.sender
 }
 
 // To returns the tx to addressHash.

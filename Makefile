@@ -100,7 +100,7 @@ clean:
 	@rm -rf ${BIN}
 
 .PHONY: build
-build: lint fullnode 
+build:  fullnode 
 
 .PHONY: fullnode
 fullnode:		

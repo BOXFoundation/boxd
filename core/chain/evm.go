@@ -25,7 +25,11 @@ import (
 )
 
 // Transfers used to record the transfer information
-var Transfers []*TransferInfo
+var (
+	// Transfers          map[types.AddressHash][]*TransferInfo
+	// TransferToContract *types.Transaction
+	Transfers map[types.AddressHash][]*TransferInfo
+)
 
 // TransferInfo used to record the transfer information occurred during the execution of the contract
 type TransferInfo struct {
@@ -51,7 +55,7 @@ func NewEVMContext(msg Message, header *types.BlockHeader, bc *BlockChain) vm.Co
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
 		GetHash:     GetHashFn(bc),
-		Origin:      msg.From(),
+		Origin:      *msg.From(),
 		BlockNumber: new(big.Int).Set(big.NewInt(int64(header.Height))),
 		Time:        new(big.Int).Set(big.NewInt(header.TimeStamp)),
 		// GasLimit:    header.GasLimit,
@@ -74,11 +78,15 @@ func CanTransfer(db vm.StateDB, addr types.AddressHash, amount *big.Int) bool {
 }
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
-func Transfer(db vm.StateDB, sender, recipient types.AddressHash, amount *big.Int) {
+func Transfer(db vm.StateDB, sender, recipient types.AddressHash, amount *big.Int, interpreterInvoke bool) {
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
-	if amount.Uint64() > 0 {
+	if interpreterInvoke && amount.Uint64() > 0 {
 		transferInfo := NewTransferInfo(sender, recipient, amount)
-		Transfers = append(Transfers, transferInfo)
+		if v, ok := Transfers[sender]; ok {
+			v = append(v, transferInfo)
+		} else {
+			Transfers[sender] = []*TransferInfo{transferInfo}
+		}
 	}
 }

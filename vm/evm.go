@@ -35,7 +35,7 @@ type (
 	// CanTransferFunc is the signature of a transfer guard function
 	CanTransferFunc func(StateDB, coretypes.AddressHash, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
-	TransferFunc func(StateDB, coretypes.AddressHash, coretypes.AddressHash, *big.Int)
+	TransferFunc func(StateDB, coretypes.AddressHash, coretypes.AddressHash, *big.Int, bool)
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) *corecrypto.HashType
@@ -177,7 +177,7 @@ func (evm *EVM) Interpreter() Interpreter {
 // parameters. It also handles any necessary value transfer required and takes
 // the necessary steps to create accounts and reverses the state in case of an
 // execution error or failed value transfer.
-func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byte, gas uint64, value *big.Int, interpreterInvoke bool) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
@@ -210,7 +210,7 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 	// 	}
 	// 	evm.StateDB.CreateAccount(addr)
 	// }
-	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value)
+	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value, interpreterInvoke)
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
@@ -370,7 +370,8 @@ func (c *codeAndHash) Hash() corecrypto.HashType {
 }
 
 // create creates a new contract using code as deployment code.
-func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address coretypes.AddressHash) ([]byte, coretypes.AddressHash, uint64, error) {
+func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int,
+	address coretypes.AddressHash, interpreterInvoke bool) ([]byte, coretypes.AddressHash, uint64, error) {
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(types.CallCreateDepth) {
@@ -393,7 +394,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	evm.StateDB.SetNonce(address, 1)
 
 	// modify account state in stateDB
-	evm.Transfer(evm.StateDB, caller.Address(), address, value)
+	evm.Transfer(evm.StateDB, caller.Address(), address, value, false)
 
 	// initialise a new contract and set the code that is to be used by the
 	// EVM. The contract is a scoped environment for this execution context
@@ -448,10 +449,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 }
 
 // Create creates a new contract using code as deployment code.
-func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.Int) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
+func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.Int, interpreterInvoke bool) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
 	contractAddr = crypto.CreateAddress(caller.Address(), evm.StateDB.GetNonce(caller.Address()))
 
-	return evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr)
+	return evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr, interpreterInvoke)
 }
 
 // Create2 creates a new contract using code as deployment code.
@@ -461,7 +462,7 @@ func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.I
 func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *big.Int, salt *big.Int) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
 	codeAndHash := &codeAndHash{code: code}
 	contractAddr = crypto.CreateAddress2(caller.Address(), corecrypto.BigToHash(salt), codeAndHash.Hash().Bytes())
-	return evm.create(caller, codeAndHash, gas, endowment, contractAddr)
+	return evm.create(caller, codeAndHash, gas, endowment, contractAddr, false)
 }
 
 // ChainConfig returns the environment's chain configuration
