@@ -399,5 +399,9 @@ func TestContractScript(t *testing.T) {
 				hex.EncodeToString(p.Code),
 				hex.EncodeToString(addr.Hash()), tc.price, tc.limit, tc.version, code)
 		}
+		if eAddr, err := cs.ExtractAddress(); err != nil ||
+			(addr != nil && *eAddr.Hash160() != *addr.Hash160()) {
+			t.Fatalf("extract addr mismatch, error: %v, want: %s, got: %s", err, addr, eAddr)
+		}
 	}
 }
