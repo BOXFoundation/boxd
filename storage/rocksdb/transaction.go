@@ -141,6 +141,7 @@ func (tr *dbtx) Commit() error {
 		return storage.ErrTransactionClosed
 	}
 
+	tr.writeLock <- struct{}{}
 	err := tr.batch.Write()
 	tr.closed = true
 	<-tr.writeLock
@@ -158,6 +159,5 @@ func (tr *dbtx) Discard() {
 
 	if !tr.closed {
 		tr.closed = true
-		<-tr.writeLock
 	}
 }
