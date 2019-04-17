@@ -23,7 +23,7 @@ type Block struct {
 	Hash             *crypto.HashType
 	Header           *BlockHeader
 	Txs              []*Transaction
-	ExtraTxs         []*Transaction
+	InternalTxs      []*Transaction
 	Signature        []byte
 	IrreversibleInfo *IrreversibleInfo
 }
@@ -39,8 +39,8 @@ func NewBlock(parent *Block) *Block {
 			PrevBlockHash: *parent.BlockHash(),
 			Height:        parent.Header.Height + 1,
 		},
-		Txs:      make([]*Transaction, 0),
-		ExtraTxs: make([]*Transaction, 0),
+		Txs:         make([]*Transaction, 0),
+		InternalTxs: make([]*Transaction, 0),
 	}
 }
 
@@ -73,21 +73,21 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 			}
 		}
 
-		var extraTxs []*corepb.Transaction
-		for _, v := range block.ExtraTxs {
+		var internalTxs []*corepb.Transaction
+		for _, v := range block.InternalTxs {
 			tx, err := v.ToProtoMessage()
 			if err != nil {
 				return nil, err
 			}
 			if tx, ok := tx.(*corepb.Transaction); ok {
-				extraTxs = append(extraTxs, tx)
+				internalTxs = append(internalTxs, tx)
 			}
 		}
 
 		return &corepb.Block{
 			Header:           header,
 			Txs:              txs,
-			ExtraTxs:         extraTxs,
+			InternalTxs:      internalTxs,
 			Signature:        block.Signature,
 			IrreversibleInfo: ii,
 		}, nil
@@ -122,19 +122,19 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 				txs = append(txs, tx)
 			}
 
-			var extraTxs []*Transaction
-			for _, v := range message.ExtraTxs {
+			var internalTxs []*Transaction
+			for _, v := range message.InternalTxs {
 				tx := new(Transaction)
 				if err := tx.FromProtoMessage(v); err != nil {
 					return err
 				}
-				extraTxs = append(extraTxs, tx)
+				internalTxs = append(internalTxs, tx)
 			}
 			block.Header = header
 			// Fill in hash after header is set
 			block.Hash = block.BlockHash()
 			block.Txs = txs
-			block.ExtraTxs = extraTxs
+			block.InternalTxs = internalTxs
 			block.Signature = message.Signature
 			block.IrreversibleInfo = ii
 			return nil
@@ -243,7 +243,7 @@ type BlockHeader struct {
 	TxsRoot crypto.HashType
 
 	// Merkle tree reference to hash of all internal transactions generated during contract execution for the block.
-	ExtraTxsRoot crypto.HashType
+	InternalTxsRoot crypto.HashType
 
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
@@ -269,16 +269,16 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 
 	// todo check error if necessary
 	return &corepb.BlockHeader{
-		Version:        header.Version,
-		PrevBlockHash:  header.PrevBlockHash[:],
-		TxsRoot:        header.TxsRoot[:],
-		ExtraTxsRoot:   header.ExtraTxsRoot[:],
-		TimeStamp:      header.TimeStamp,
-		Magic:          header.Magic,
-		PeriodHash:     header.PeriodHash[:],
-		CandidatesHash: header.CandidatesHash[:],
-		RootHash:       header.RootHash[:],
-		Height:         header.Height,
+		Version:         header.Version,
+		PrevBlockHash:   header.PrevBlockHash[:],
+		TxsRoot:         header.TxsRoot[:],
+		InternalTxsRoot: header.InternalTxsRoot[:],
+		TimeStamp:       header.TimeStamp,
+		Magic:           header.Magic,
+		PeriodHash:      header.PeriodHash[:],
+		CandidatesHash:  header.CandidatesHash[:],
+		RootHash:        header.RootHash[:],
+		Height:          header.Height,
 	}, nil
 }
 
@@ -289,7 +289,7 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			header.Version = message.Version
 			copy(header.PrevBlockHash[:], message.PrevBlockHash)
 			copy(header.TxsRoot[:], message.TxsRoot)
-			copy(header.ExtraTxsRoot[:], message.ExtraTxsRoot)
+			copy(header.InternalTxsRoot[:], message.InternalTxsRoot)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
 			copy(header.PeriodHash[:], message.PeriodHash)

@@ -484,9 +484,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	block.Header.TxsRoot = *txsRoot
 	block.Txs = blockTxns
 	if len(utxoTxs) > 0 {
-		extraTxsRoot := chain.CalcTxsHash(utxoTxs)
-		block.Header.ExtraTxsRoot = *extraTxsRoot
-		block.ExtraTxs = utxoTxs
+		internalTxsRoot := chain.CalcTxsHash(utxoTxs)
+		block.Header.InternalTxsRoot = *internalTxsRoot
+		block.InternalTxs = utxoTxs
 	}
 
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()

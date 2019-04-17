@@ -10,7 +10,7 @@ message BlockHeader {
     int32 version = 1;
     bytes prev_block_hash = 2;
     bytes txs_root = 3;
-    bytes extra_txs_root = 4;
+    bytes internal_txs_root = 4;
     int64 time_stamp = 5;
     uint32 magic = 6;
     bytes period_hash = 7;
@@ -27,7 +27,7 @@ message IrreversibleInfo {
 message Block {
     BlockHeader header = 1;
     repeated Transaction txs = 2;
-    repeated Transaction extra_txs = 3;
+    repeated Transaction internal_txs = 3;
     bytes signature = 4;
     IrreversibleInfo irreversible_info = 5;
 }

@@ -763,7 +763,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 		if err != nil {
 			return err
 		}
-		if err := chain.checkExtraTxs(block, utxoTxs); err != nil {
+		if err := chain.checkInternalTxs(block, utxoTxs); err != nil {
 			return err
 		}
 
@@ -844,7 +844,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 	return nil
 }
 
-func (chain *BlockChain) checkExtraTxs(block *types.Block, utxoTxs []*types.Transaction) error {
+func (chain *BlockChain) checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 	return nil
 }
 
