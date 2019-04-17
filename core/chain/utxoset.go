@@ -14,7 +14,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
-	"github.com/BOXFoundation/boxd/util"
 )
 
 // UtxoSet contains all utxos
@@ -61,18 +60,69 @@ func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 }
 
 // AddUtxo adds a tx's outputs as utxos
-func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
+func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32, reader storage.Reader) error {
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
 	}
 
 	txHash, _ := tx.TxHash()
+	sc := script.NewScriptFromBytes(tx.Vout[txOutIdx].ScriptPubKey)
+	var utxoWrap *types.UtxoWrap
+	if sc.IsContractPubkey() && tx.Vout[txOutIdx].Value > 0 { // smart contract utxo
+		address, err := sc.ExtractAddress()
+		if err != nil {
+			return err
+		}
+		hash := new(crypto.HashType)
+		if err := hash.SetBytes(address.Hash()); err != nil {
+			return err
+		}
+		if hash.IsEqual(&zeroHash) { // deploy smart contract
+			sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
+			if err != nil {
+				return err
+			}
+			senderPubkeyHash, err := types.NewAddressPubKeyHash(sender.Hash())
+			if err != nil {
+				return err
+			}
+			contractAddress, err := types.MakeContractAddress(senderPubkeyHash, txHash, txOutIdx)
+			if err != nil {
+				return err
+			}
+			if err := hash.SetBytes(contractAddress.Hash()); err != nil {
+				return err
+			}
+		}
+
+		outPoint := types.OutPoint{Hash: *hash, Index: 0}
+		if utxoWrap = u.utxoMap[outPoint]; utxoWrap == nil {
+			utxoWrap, err = fetchUtxoWrapFromDB(reader, &outPoint)
+			if err != nil {
+				return err
+			}
+			if utxoWrap == nil {
+				utxoWrap = types.NewUtxoWrap(tx.Vout[txOutIdx].Value, address.Hash(), 0)
+				if IsCoinBase(tx) {
+					return errors.New("Invalid smart contract tx")
+				}
+				u.utxoMap[outPoint] = utxoWrap
+				return nil
+			}
+		}
+		value := utxoWrap.Value() + tx.Vout[txOutIdx].Value
+		utxoWrap.SetValue(value)
+		u.utxoMap[outPoint] = utxoWrap
+		return nil
+	}
+
+	// common tx
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
-	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
+	if utxoWrap = u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
 	}
-	utxoWrap := types.NewUtxoWrap(tx.Vout[txOutIdx].Value, tx.Vout[txOutIdx].ScriptPubKey, blockHeight)
+	utxoWrap = types.NewUtxoWrap(tx.Vout[txOutIdx].Value, tx.Vout[txOutIdx].ScriptPubKey, blockHeight)
 	if IsCoinBase(tx) {
 		utxoWrap.SetCoinBase()
 	}
@@ -125,17 +175,17 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 		}
 		if v, exists := spendableTxs.Load(txIn.PrevOutPoint.Hash); exists {
 			spendableTxWrap := v.(*types.TxWrap)
-			utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index, spendableTxWrap.Height)
+			utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index, spendableTxWrap.Height, db)
 		}
 	}
 	return utxoSet, nil
 }
 
-// ApplyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
+// applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
+func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, db storage.Table) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
-		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight, db); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				// This can occur when a tx spends from another tx in front of it in the same block
 				continue
@@ -157,10 +207,10 @@ func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 }
 
 // ApplyBlock updates utxos with all transactions in the passed block
-func (u *UtxoSet) ApplyBlock(block *types.Block) error {
+func (u *UtxoSet) ApplyBlock(block *types.Block, db storage.Table) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.ApplyTx(tx, block.Header.Height); err != nil {
+		if err := u.applyTx(tx, block.Header.Height, db); err != nil {
 			return err
 		}
 	}
@@ -221,42 +271,6 @@ func (u *UtxoSet) RevertBlock(block *types.Block, chain *BlockChain) error {
 		if err := u.RevertTx(tx, chain); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// ApplyBlockWithScriptFilter adds or remove all utxos that transactions use or generate
-// with the specified script bytes
-func (u *UtxoSet) ApplyBlockWithScriptFilter(block *types.Block, targetScript []byte) error {
-	txs := block.Txs
-	for _, tx := range txs {
-		if err := u.ApplyTxWithScriptFilter(tx, block.Header.Height, targetScript); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ApplyTxWithScriptFilter adds or remove an utxo if the transaction uses or generates an utxo
-// with the specified script bytes
-func (u *UtxoSet) ApplyTxWithScriptFilter(tx *types.Transaction, blockHeight uint32, targetScript []byte) error {
-	// Add new utxos
-	for txOutIdx := range tx.Vout {
-		if util.IsPrefixed(tx.Vout[txOutIdx].ScriptPubKey, targetScript) {
-			if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) {
-		return nil
-	}
-
-	// Spend the referenced utxos
-	for _, txIn := range tx.Vin {
-		delete(u.utxoMap, txIn.PrevOutPoint)
 	}
 	return nil
 }
@@ -435,7 +449,7 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height)
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db)
 				continue
 			}
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
@@ -471,7 +485,7 @@ func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error 
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height)
+				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db)
 				continue
 			}
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {

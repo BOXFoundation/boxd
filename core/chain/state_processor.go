@@ -33,39 +33,41 @@ func NewStateProcessor(bc *BlockChain) *StateProcessor {
 }
 
 // Process processes the state changes using the statedb.
-func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB) (uint64, []*types.Transaction, error) {
+func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB) (uint64, uint64, []*types.Transaction, error) {
 
 	header := block.Header
 	usedGas := new(uint64)
+	gasRemainingFee := new(uint64)
 	var utxoTxs []*types.Transaction
 	for _, tx := range block.Txs {
 		vmTx, err := sp.bc.ExtractVMTransactions(tx)
 		if err != nil {
-			return 0, nil, err
+			return 0, 0, nil, err
 		}
 		// statedb.Prepare(tx.Hash(), block.Hash(), i)
-		gasUsedPerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg)
+		gasUsedPerTx, gasRemainingFeePerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg)
 		if err != nil {
-			return 0, nil, err
+			return 0, 0, nil, err
 		}
 		if txs != nil {
 			utxoTxs = append(utxoTxs, txs...)
 		}
 		*usedGas += gasUsedPerTx
+		*gasRemainingFee += gasRemainingFeePerTx
 	}
-	return *usedGas, utxoTxs, nil
+	return *usedGas, *gasRemainingFee, utxoTxs, nil
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment.
 func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB,
-	cfg vm.Config) (uint64, []*types.Transaction, error) {
+	cfg vm.Config) (uint64, uint64, []*types.Transaction, error) {
 	var txs []*types.Transaction
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	_, gasRemaining, success, gasRefundTx, err := ApplyMessage(vmenv, tx)
+	_, gasUsed, gasRemainingFee, success, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
-		return 0, nil, err
+		return 0, 0, nil, err
 	}
 	if gasRefundTx != nil {
 		txs = append(txs, gasRefundTx)
@@ -74,7 +76,7 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 		txs = createUtxoTx()
 		Transfers = nil
 	}
-	return gasRemaining, txs, nil
+	return gasUsed, gasRemainingFee, txs, nil
 }
 
 func createUtxoTx() []*types.Transaction {

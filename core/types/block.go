@@ -259,6 +259,8 @@ type BlockHeader struct {
 	CandidatesHash crypto.HashType
 
 	Height uint32
+
+	GasUsed uint64
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
@@ -279,6 +281,7 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		CandidatesHash:  header.CandidatesHash[:],
 		RootHash:        header.RootHash[:],
 		Height:          header.Height,
+		GasUsed:         header.GasUsed,
 	}, nil
 }
 
@@ -296,6 +299,7 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			copy(header.CandidatesHash[:], message.CandidatesHash)
 			copy(header.RootHash[:], message.RootHash)
 			header.Height = message.Height
+			header.GasUsed = message.GasUsed
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

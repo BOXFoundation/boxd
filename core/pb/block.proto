@@ -17,6 +17,7 @@ message BlockHeader {
     bytes candidates_hash = 8;
     bytes root_hash = 9;
     uint32 height = 10;
+    uint64 gas_used = 11;
 }
 
 message IrreversibleInfo {

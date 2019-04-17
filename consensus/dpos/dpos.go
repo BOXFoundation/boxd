@@ -469,17 +469,18 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	gasRemaining, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb)
+	gasUsed, gasRemainingFee, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb)
 	if err != nil {
 		return err
 	}
-	if err := dpos.chain.ValidateState(block, statedb, gasRemaining); err != nil {
-		return err
-	}
+	// if err := dpos.chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee); err != nil {
+	// 	return err
+	// }
 	dpos.chain.StateDBCache()[block.Header.Height] = statedb
 
-	blockTxns[0].Vout[0].Value -= gasRemaining
+	blockTxns[0].Vout[0].Value -= gasRemainingFee
 	block.Header.CandidatesHash = *candidateHash
+	block.Header.GasUsed = gasUsed
 	txsRoot := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *txsRoot
 	block.Txs = blockTxns

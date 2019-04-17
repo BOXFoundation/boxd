@@ -654,18 +654,18 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 	}
 
 	// Ensure coinbase does not output more than block reward.
-	var totalCoinbaseOutput uint64
-	for _, txOut := range transactions[0].Vout {
-		totalCoinbaseOutput += txOut.Value
-	}
-	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalFees
-	if totalCoinbaseOutput > expectedCoinbaseOutput {
-		logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
-			totalCoinbaseOutput, expectedCoinbaseOutput)
-		return core.ErrBadCoinbaseValue
-	}
+	// var totalCoinbaseOutput uint64
+	// for _, txOut := range transactions[0].Vout {
+	// 	totalCoinbaseOutput += txOut.Value
+	// }
+	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalFees
+	// if totalCoinbaseOutput > expectedCoinbaseOutput {
+	// 	logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
+	// 		totalCoinbaseOutput, expectedCoinbaseOutput)
+	// 	return core.ErrBadCoinbaseValue
+	// }
 	tt3 := time.Now().UnixNano()
-	if err := chain.applyBlock(block, utxoSet, messageFrom); err != nil {
+	if err := chain.applyBlock(block, utxoSet, totalFees, messageFrom); err != nil {
 		return err
 	}
 	tt4 := time.Now().UnixNano()
@@ -731,7 +731,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messageFrom peer.ID) error {
+func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID) error {
 	ttt0 := time.Now().UnixNano()
 	batch := chain.db.NewBatch()
 	defer batch.Close()
@@ -744,7 +744,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 
 	ttt1 := time.Now().UnixNano()
 
-	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
 		return err
 	}
 
@@ -759,15 +759,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 		if err != nil {
 			return err
 		}
-		gasRemaining, utxoTxs, err := chain.stateProcessor.Process(block, statedb)
+		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, statedb)
 		if err != nil {
 			return err
 		}
-		if err := chain.checkInternalTxs(block, utxoTxs); err != nil {
-			return err
-		}
-
-		if err := chain.ValidateState(block, statedb, gasRemaining); err != nil {
+		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee, totalTxsFee); err != nil {
 			return err
 		}
 		stateDB = statedb
@@ -844,12 +840,40 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, messag
 	return nil
 }
 
-func (chain *BlockChain) checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
+func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
+
+	if len(utxoTxs) != len(block.InternalTxs) {
+		return core.ErrInvalidInternalTxs
+	}
+	txsRoot := CalcTxsHash(utxoTxs)
+	if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
+		return core.ErrInvalidInternalTxs
+	}
+
 	return nil
 }
 
-// ValidateState validates state
-func (chain *BlockChain) ValidateState(block *types.Block, statedb *state.StateDB, usedGas uint64) error {
+// ValidateExecuteResult validates evm execute result
+func (chain *BlockChain) ValidateExecuteResult(block *types.Block, utxoTxs []*types.Transaction, usedGas, gasRemainingFee, totalTxsFee uint64) error {
+
+	if err := checkInternalTxs(block, utxoTxs); err != nil {
+		return err
+	}
+	if block.Header.GasUsed != usedGas {
+		return errors.New("Invalid gasUsed in block header")
+	}
+
+	// Ensure coinbase does not output more than block reward.
+	var totalCoinbaseOutput uint64
+	for _, txOut := range block.Txs[0].Vout {
+		totalCoinbaseOutput += txOut.Value
+	}
+	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
+	if totalCoinbaseOutput > expectedCoinbaseOutput {
+		logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
+			totalCoinbaseOutput, expectedCoinbaseOutput)
+		return core.ErrBadCoinbaseValue
+	}
 	return nil
 }
 
@@ -1085,7 +1109,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	utxoSet := NewUtxoSet()
 	for _, v := range genesis.Txs {
 		for idx := range v.Vout {
-			utxoSet.AddUtxo(v, uint32(idx), genesis.Header.Height)
+			utxoSet.AddUtxo(v, uint32(idx), genesis.Header.Height, chain.db)
 		}
 	}
 	utxoSet.WriteUtxoSetToDB(batch)
@@ -1696,8 +1720,9 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 }
 
 // FetchOwnerOfOutPoint fetches the owner of an outpoint
-func (chain *BlockChain) fetchOwnerOfOutPoint(op *types.OutPoint) (types.Address, error) {
-	utxo, err := fetchUtxoWrapFromDB(chain.DB(), op)
+func fetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Address, error) {
+	// use sender in vin[0] as VMTransaction sender
+	utxo, err := fetchUtxoWrapFromDB(reader, op)
 	if err != nil {
 		return nil, err
 	}
@@ -1706,7 +1731,7 @@ func (chain *BlockChain) fetchOwnerOfOutPoint(op *types.OutPoint) (types.Address
 
 // ExtractVMTransactions extract Transaction to VMTransaction
 func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VMTransaction, error) {
-	sender, err := chain.fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint)
+	sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
 	if err != nil {
 		return nil, err
 	}
