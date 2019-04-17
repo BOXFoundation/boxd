@@ -352,16 +352,16 @@ func ParseAddress(in string) (Address, error) {
 
 // MakeContractAddress make a contract address from sender and tx hash
 func MakeContractAddress(
-	sender *AddressPubKeyHash, txHash *crypto.HashType, voutNum uint32,
+	sender *AddressPubKeyHash, txHash *crypto.HashType, voutIdx uint32,
 ) (*AddressContract, error) {
 	// check
-	if sender == nil || txHash == nil || voutNum == math.MaxUint32 {
+	if sender == nil || txHash == nil || voutIdx == math.MaxUint32 {
 		return nil, errors.New("invalid parameters for contract address")
 	}
 	// bytes
 	bytes := append(sender.Hash(), txHash[:]...)
 	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, voutNum)
+	binary.LittleEndian.PutUint32(b, voutIdx)
 	bytes = append(bytes, b...)
 	// hash160
 	addrHash := crypto.Hash160(bytes)
