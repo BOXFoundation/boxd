@@ -648,14 +648,19 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 		return types.NewAddressPubKeyHash(pubKeyHash)
 	}
 
-	if s.IsSplitAddrScript() {
+	if s.IsSplitAddrScript() || s.IsContractPubkey() {
 		str := s.Disasm()
 		segs := strings.Split(str, " ")
 		pubKeyHash, err := hex.DecodeString(segs[1])
 		if err != nil {
 			return nil, err
 		}
-		addr, err := types.NewSplitAddressFromHash(pubKeyHash)
+		var addr types.Address
+		if s.IsSplitAddrScript() {
+			addr, err = types.NewSplitAddressFromHash(pubKeyHash)
+		} else {
+			addr, err = types.NewContractAddressFromHash(pubKeyHash)
+		}
 		if err != nil {
 			return nil, err
 		}

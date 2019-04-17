@@ -1697,7 +1697,6 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, batch storage.
 
 // FetchOwnerOfOutPoint fetches the owner of an outpoint
 func (chain *BlockChain) fetchOwnerOfOutPoint(op *types.OutPoint) (types.Address, error) {
-	// use sender in vin[0] as VMTransaction sender
 	utxo, err := fetchUtxoWrapFromDB(chain.DB(), op)
 	if err != nil {
 		return nil, err
