@@ -86,7 +86,7 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 			return 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs...)
-	} else if !success { // tx failed
+	} else if !success && tx.Value().Uint64() > 0 { // tx failed
 		internalTxs, err := createRefundTx(tx, utxoSet)
 		if err != nil {
 			return 0, 0, nil, err
