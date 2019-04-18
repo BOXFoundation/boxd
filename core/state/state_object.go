@@ -155,9 +155,9 @@ func (s *stateObject) touch() {
 func (s *stateObject) getTrie() *trie.Trie {
 	if s.trie == nil {
 		var err error
-		s.trie, err = trie.NewByHash(&s.data.Root, s.db.db)
+		s.trie, err = trie.New(&s.data.Root, s.db.db)
 		if err != nil {
-			s.trie, _ = trie.NewByHash(&corecrypto.HashType{}, s.db.db)
+			s.trie, _ = trie.New(&corecrypto.HashType{}, s.db.db)
 			s.setError(fmt.Errorf("can't create storage trie: %v", err))
 		}
 	}

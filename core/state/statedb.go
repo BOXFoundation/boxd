@@ -85,7 +85,7 @@ type StateDB struct {
 // New a new state from a given trie.
 func New(rootHash *corecrypto.HashType, db storage.Table) (*StateDB, error) {
 
-	tr, err := trie.NewByHash(rootHash, db)
+	tr, err := trie.New(rootHash, db)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (s *StateDB) Error() error {
 // the underlying state trie to avoid reloading data for the next operations.
 func (s *StateDB) Reset() error {
 	roothash := s.trie.Hash()
-	tr, err := trie.NewByHash(&roothash, s.db)
+	tr, err := trie.New(&roothash, s.db)
 	if err != nil {
 		return err
 	}

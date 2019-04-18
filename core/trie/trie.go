@@ -20,39 +20,21 @@ type Trie struct {
 	batch    storage.Batch
 }
 
-// New creates a trie with an existing root node from db.
-func New(root *Node, db storage.Table) (*Trie, error) {
+// New creates a trie with an existing root hash from db.
+func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 	if db == nil {
 		panic("trie.New called without a database")
 	}
 	trie := &Trie{
-		db:    db,
-		batch: db.NewBatch(),
-	}
-	if root == nil {
-		return trie, nil
-	}
-
-	if _, err := trie.Get(root.Hash[:]); err != nil {
-		return nil, err
-	}
-	return trie, nil
-}
-
-// NewByHash creates a trie with an existing root hash from db.
-func NewByHash(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
-	if db == nil {
-		panic("trie.New called without a database")
-	}
-	trie := &Trie{
-		db:    db,
-		batch: db.NewBatch(),
+		db:       db,
+		rootHash: rootHash,
+		batch:    db.NewBatch(),
 	}
 	if rootHash == nil || *rootHash == (crypto.HashType{}) {
 		return trie, nil
 	}
 
-	if _, err := trie.Get(rootHash[:]); err != nil {
+	if _, err := trie.db.Get(rootHash[:]); err != nil {
 		return nil, err
 	}
 	return trie, nil
