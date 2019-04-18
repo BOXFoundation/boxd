@@ -13,7 +13,7 @@ fi
 
 showusage()
 {
-    cmd='$(basename "$0")'
+    cmd=$(basename "$0")
     echo "Usage:"
     echo "\tStart node #1 or #2 or #3:"
     echo "\t\t${cmd} 1|2|3|4|5|6"
