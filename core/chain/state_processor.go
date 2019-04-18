@@ -73,20 +73,20 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	_, gasUsed, gasRemainingFee, success, gasRefundTx, err := ApplyMessage(vmenv, tx)
+	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		return 0, 0, nil, err
 	}
 	if gasRefundTx != nil {
 		txs = append(txs, gasRefundTx)
 	}
-	if success && len(Transfers) > 0 {
+	if !fail && len(Transfers) > 0 {
 		internalTxs, err := createUtxoTx(utxoSet)
 		if err != nil {
 			return 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs...)
-	} else if !success && tx.Value().Uint64() > 0 { // tx failed
+	} else if fail && tx.Value().Uint64() > 0 { // tx failed
 		internalTxs, err := createRefundTx(tx, utxoSet)
 		if err != nil {
 			return 0, 0, nil, err
