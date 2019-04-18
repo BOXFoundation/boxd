@@ -26,7 +26,7 @@ type VMTransaction struct {
 	gasPrice    *big.Int
 	gas         uint64
 	code        []byte
-	VoutNum     uint32
+	voutIdx     uint32
 }
 
 // VMTxParams defines BoxTx params parsed from script pubkey
@@ -71,9 +71,9 @@ func (tx *VMTransaction) WithHashWith(hash *crypto.HashType) *VMTransaction {
 	return tx
 }
 
-// WithVoutNum sets VoutNum
-func (tx *VMTransaction) WithVoutNum(n uint32) *VMTransaction {
-	tx.VoutNum = n
+// WithVoutIdx sets voutIdx
+func (tx *VMTransaction) WithVoutIdx(n uint32) *VMTransaction {
+	tx.voutIdx = n
 	return tx
 }
 
@@ -120,6 +120,11 @@ func (tx *VMTransaction) CheckNonce() bool {
 // Data returns the code of the tx.
 func (tx *VMTransaction) Data() []byte {
 	return tx.code
+}
+
+// VoutIdx returns the voutIdx of the tx.
+func (tx *VMTransaction) VoutIdx() uint32 {
+	return tx.voutIdx
 }
 
 // HashWith returns the hashWith of the tx.

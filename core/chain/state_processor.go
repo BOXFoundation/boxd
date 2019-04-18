@@ -5,9 +5,12 @@
 package chain
 
 import (
+	"errors"
+
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 )
@@ -33,7 +36,7 @@ func NewStateProcessor(bc *BlockChain) *StateProcessor {
 }
 
 // Process processes the state changes using the statedb.
-func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB) (uint64, uint64, []*types.Transaction, error) {
+func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, utxoSet *UtxoSet) (uint64, uint64, []*types.Transaction, error) {
 
 	header := block.Header
 	usedGas := new(uint64)
@@ -44,8 +47,7 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB) (u
 		if err != nil {
 			return 0, 0, nil, err
 		}
-		// statedb.Prepare(tx.Hash(), block.Hash(), i)
-		gasUsedPerTx, gasRemainingFeePerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg)
+		gasUsedPerTx, gasRemainingFeePerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err != nil {
 			return 0, 0, nil, err
 		}
@@ -61,8 +63,11 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB) (u
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment.
 func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB,
-	cfg vm.Config) (uint64, uint64, []*types.Transaction, error) {
+	cfg vm.Config, utxoSet *UtxoSet) (uint64, uint64, []*types.Transaction, error) {
 	var txs []*types.Transaction
+	defer func() {
+		Transfers = nil
+	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
 	_, gasUsed, gasRemainingFee, success, gasRefundTx, err := ApplyMessage(vmenv, tx)
@@ -73,13 +78,24 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 		txs = append(txs, gasRefundTx)
 	}
 	if success && len(Transfers) > 0 {
-		txs = createUtxoTx()
-		Transfers = nil
+		internalTxs, err := createUtxoTx(utxoSet)
+		if err != nil {
+			return 0, 0, nil, err
+		}
+		txs = append(txs, internalTxs...)
+	} else if !success { // tx failed
+		internalTxs, err := createRefundTx(tx, utxoSet)
+		if err != nil {
+			return 0, 0, nil, err
+		}
+		txs = append(txs, internalTxs)
 	}
+
 	return gasUsed, gasRemainingFee, txs, nil
 }
 
-func createUtxoTx() []*types.Transaction {
+func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
+
 	var txs []*types.Transaction
 	for _, v := range Transfers {
 		if len(v) > VoutLimit {
@@ -92,18 +108,85 @@ func createUtxoTx() []*types.Transaction {
 				} else {
 					end = len(v) - begin
 				}
-				tx := makeTx(v, begin, end)
+				tx, err := makeTx(v, begin, end, utxoSet)
+				if err != nil {
+					return nil, err
+				}
 				txs = append(txs, tx)
 			}
 		} else {
-			tx := makeTx(v, 0, len(v))
+			tx, err := makeTx(v, 0, len(v), utxoSet)
+			if err != nil {
+				return nil, err
+			}
 			txs = append(txs, tx)
 		}
 	}
-	return txs
+	return txs, nil
 }
 
-func makeTx(transferInfos []*TransferInfo, voutBegin int, voutEnd int) *types.Transaction {
+func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transaction, error) {
+
+	hash := new(crypto.HashType)
+	if err := hash.SetBytes(vmtx.To().Bytes()); err != nil {
+		return nil, err
+	}
+	if hash.IsEqual(&zeroHash) {
+		senderPubkeyHash, err := types.NewAddressPubKeyHash(vmtx.From().Bytes())
+		if err != nil {
+			return nil, err
+		}
+		contractAddress, err := types.MakeContractAddress(senderPubkeyHash, vmtx.HashWith(), vmtx.VoutIdx())
+		if err != nil {
+			return nil, err
+		}
+		if err := hash.SetBytes(contractAddress.Hash()); err != nil {
+			return nil, err
+		}
+	}
+	var utxoWrap *types.UtxoWrap
+	outPoint := types.OutPoint{Hash: *hash, Index: 0}
+	if utxoWrap = utxoSet.utxoMap[outPoint]; utxoWrap == nil {
+		return nil, errors.New("contract utxo does not exist")
+	}
+	if utxoWrap.Value() < vmtx.Value().Uint64() {
+		return nil, errors.New("Insufficient balance of smart contract")
+	}
+	value := utxoWrap.Value() - vmtx.Value().Uint64()
+	utxoWrap.SetValue(value)
+	utxoSet.utxoMap[outPoint] = utxoWrap
+
+	var vouts []*corepb.TxOut
+	vin := &types.TxIn{
+		PrevOutPoint: outPoint,
+		ScriptSig:    *script.MakeContractScriptSig(),
+	}
+	addrScript := *script.PayToPubKeyHashScript(vmtx.From().Bytes())
+	vout := &corepb.TxOut{
+		Value:        vmtx.Value().Uint64(),
+		ScriptPubKey: addrScript,
+	}
+	vouts = append(vouts, vout)
+	tx := new(types.Transaction)
+	tx.Vin = append(tx.Vin, vin)
+	tx.Vout = append(tx.Vout, vouts...)
+	return tx, nil
+}
+
+func makeTx(transferInfos []*TransferInfo, voutBegin int, voutEnd int, utxoSet *UtxoSet) (*types.Transaction, error) {
+
+	hash := new(crypto.HashType)
+	if err := hash.SetBytes(transferInfos[0].from.Bytes()); err != nil {
+		return nil, err
+	}
+	if hash.IsEqual(&zeroHash) {
+		return nil, errors.New("Invalid contract address")
+	}
+	var utxoWrap *types.UtxoWrap
+	outPoint := types.OutPoint{Hash: *hash, Index: 0}
+	if utxoWrap = utxoSet.utxoMap[outPoint]; utxoWrap == nil {
+		return nil, errors.New("contract utxo does not exist")
+	}
 	var vouts []*corepb.TxOut
 	for i := voutBegin; i < voutEnd; i++ {
 		to := transferInfos[i].to
@@ -113,13 +196,19 @@ func makeTx(transferInfos []*TransferInfo, voutBegin int, voutEnd int) *types.Tr
 			ScriptPubKey: addrScript,
 		}
 		vouts = append(vouts, vout)
+		value := utxoWrap.Value() - transferInfos[i].value.Uint64()
+		if value < 0 {
+			return nil, errors.New("Insufficient balance of smart contract")
+		}
+		utxoWrap.SetValue(value)
 	}
 	vin := &types.TxIn{
-		PrevOutPoint: types.OutPoint{},
+		PrevOutPoint: outPoint,
 		ScriptSig:    *script.MakeContractScriptSig(),
 	}
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)
 	tx.Vout = append(tx.Vout, vouts...)
-	return tx
+	utxoSet.utxoMap[outPoint] = utxoWrap
+	return tx, nil
 }

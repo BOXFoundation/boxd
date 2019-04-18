@@ -62,6 +62,11 @@ func StandardCoinbaseSignatureScript(height uint32) *Script {
 	return NewScript().AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
 }
 
+// GasRefundSignatureScript returns a standard signature script for gas refound transaction.
+func GasRefundSignatureScript() *Script {
+	return NewScript().AddOperand(big.NewInt(0).Bytes())
+}
+
 // SplitAddrScript returns a script to store a split address output
 func SplitAddrScript(addrs []types.Address, weights []uint64) *Script {
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]

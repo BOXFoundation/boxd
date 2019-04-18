@@ -469,14 +469,23 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	gasUsed, gasRemainingFee, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb)
+	utxoSet := chain.NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, dpos.chain.DB()); err != nil {
+		return err
+	}
+	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+	blockCopy := block.Copy()
+
+	if err := utxoSet.ApplyBlock(blockCopy, dpos.chain.DB()); err != nil {
+		return err
+	}
+	gasUsed, gasRemainingFee, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
-	// if err := dpos.chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee); err != nil {
-	// 	return err
-	// }
+
 	dpos.chain.StateDBCache()[block.Header.Height] = statedb
+	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
 	blockTxns[0].Vout[0].Value -= gasRemainingFee
 	block.Header.CandidatesHash = *candidateHash

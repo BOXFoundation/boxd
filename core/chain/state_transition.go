@@ -243,7 +243,7 @@ func (st *StateTransition) createGasRefundUtxoTx(value uint64) *types.Transactio
 			Hash:  zeroHash,
 			Index: math.MaxUint32,
 		},
-		ScriptSig: *script.MakeContractScriptSig(),
+		ScriptSig: *script.GasRefundSignatureScript(),
 	}
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)

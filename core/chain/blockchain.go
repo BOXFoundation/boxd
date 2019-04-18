@@ -90,6 +90,7 @@ type BlockChain struct {
 	stateProcessor            *StateProcessor
 	vmConfig                  vm.Config
 	stateDBCache              map[uint32]*state.StateDB
+	utxoSetCache              map[uint32]*UtxoSet
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -109,6 +110,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
 		stateDBCache:              make(map[uint32]*state.StateDB),
+		utxoSetCache:              make(map[uint32]*UtxoSet),
 		bus:                       eventbus.Default(),
 		status:                    free,
 	}
@@ -185,6 +187,11 @@ func (chain *BlockChain) StateProcessor() *StateProcessor {
 // StateDBCache returns chain stateDB cache.
 func (chain *BlockChain) StateDBCache() map[uint32]*state.StateDB {
 	return chain.stateDBCache
+}
+
+// UtxoSetCache returns chain utxoSet cache.
+func (chain *BlockChain) UtxoSetCache() map[uint32]*UtxoSet {
+	return chain.utxoSetCache
 }
 
 // Proc returns the goprocess of the BlockChain
@@ -623,18 +630,27 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageFrom peer.ID) error {
-	tt0 := time.Now().UnixNano()
+
 	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
-	utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
-		return err
+	var utxoSet *UtxoSet
+	if messageFrom == "" { // locally generated block
+		us, ok := chain.utxoSetCache[block.Header.Height]
+		if !ok {
+			return errors.New("utxoSet does not exist in cache")
+		}
+		delete(chain.utxoSetCache, block.Header.Height)
+		utxoSet = us
+	} else {
+		utxoSet = NewUtxoSet()
+		if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+			return err
+		}
 	}
-	tt1 := time.Now().UnixNano()
+
 	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
 	if err := validateBlockScripts(utxoSet, block); err != nil {
 		return err
 	}
-	tt2 := time.Now().UnixNano()
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -644,7 +660,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		if err != nil {
 			return err
 		}
-
 		// Check for overflow.
 		lastTotalFees := totalFees
 		totalFees += txFee
@@ -653,24 +668,8 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 	}
 
-	// Ensure coinbase does not output more than block reward.
-	// var totalCoinbaseOutput uint64
-	// for _, txOut := range transactions[0].Vout {
-	// 	totalCoinbaseOutput += txOut.Value
-	// }
-	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalFees
-	// if totalCoinbaseOutput > expectedCoinbaseOutput {
-	// 	logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
-	// 		totalCoinbaseOutput, expectedCoinbaseOutput)
-	// 	return core.ErrBadCoinbaseValue
-	// }
-	tt3 := time.Now().UnixNano()
 	if err := chain.applyBlock(block, utxoSet, totalFees, messageFrom); err != nil {
 		return err
-	}
-	tt4 := time.Now().UnixNano()
-	if needToTracking((tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6, (tt4-tt3)/1e6) {
-		logger.Infof("tt Time tracking: tt0` = %d tt1` = %d tt2` = %d tt3` = %d", (tt1-tt0)/1e6, (tt2-tt1)/1e6, (tt3-tt2)/1e6, (tt4-tt3)/1e6)
 	}
 
 	return nil
@@ -736,20 +735,19 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
-	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-	blockCopy := block.Copy()
+	ttt1 := time.Now().UnixNano()
 
+	blockCopy := block.Copy()
 	// Split tx outputs if any
 	splitTxs := chain.splitBlockOutputs(blockCopy)
 
-	ttt1 := time.Now().UnixNano()
-
-	if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
-		return err
-	}
-
 	var stateDB *state.StateDB
 	if messageFrom != "" {
+		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+
+		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
+			return err
+		}
 		parent := chain.GetParentBlock(block)
 		var rootHash *crypto.HashType
 		if parent != nil && len(parent.Header.RootHash) > 0 {
@@ -759,7 +757,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		if err != nil {
 			return err
 		}
-		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, statedb)
+		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, statedb, utxoSet)
 		if err != nil {
 			return err
 		}
@@ -1754,7 +1752,7 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 			}
 			return types.NewVMTransaction(big.NewInt(int64(o.Value)),
 				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Receiver, p.Code).
-				WithHashWith(txHash).WithSender(sender.Hash160()).WithVoutNum(uint32(i)), nil
+				WithHashWith(txHash).WithSender(sender.Hash160()).WithVoutIdx(uint32(i)), nil
 		}
 	}
 	return nil, fmt.Errorf("no vm tx in tx: %s", txHash)
