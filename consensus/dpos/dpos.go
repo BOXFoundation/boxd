@@ -458,27 +458,26 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
+	utxoSet := chain.NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, dpos.chain.DB()); err != nil {
+		return err
+	}
+	blockCopy := block.Copy()
+	dpos.chain.SplitBlockOutputs(blockCopy)
+	if err := utxoSet.ApplyBlock(blockCopy, dpos.chain.DB()); err != nil {
+		return err
+	}
+
 	parentHash := block.Header.PrevBlockHash
 	parent, err := dpos.chain.LoadBlockByHash(parentHash)
 	if err != nil {
 		return err
 	}
-
 	statedb, err := state.New(&parent.Header.RootHash, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
 
-	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, dpos.chain.DB()); err != nil {
-		return err
-	}
-	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-	blockCopy := block.Copy()
-
-	if err := utxoSet.ApplyBlock(blockCopy, dpos.chain.DB()); err != nil {
-		return err
-	}
 	gasUsed, gasRemainingFee, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err

@@ -739,12 +739,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 	blockCopy := block.Copy()
 	// Split tx outputs if any
-	splitTxs := chain.splitBlockOutputs(blockCopy)
+	splitTxs := chain.SplitBlockOutputs(blockCopy)
 
 	var stateDB *state.StateDB
 	if messageFrom != "" {
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-
 		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
 			return err
 		}
@@ -936,7 +935,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	blockCopy := block.Copy()
 
 	// Split tx outputs if any
-	splitTxs := chain.splitBlockOutputs(blockCopy)
+	splitTxs := chain.SplitBlockOutputs(blockCopy)
 	dtt1 := time.Now().UnixNano()
 	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadBlockAllUtxos(blockCopy, chain.db); err != nil {
@@ -1505,9 +1504,9 @@ func (chain *BlockChain) FetchNBlockAfterSpecificHash(hash crypto.HashType, num 
 	return blocks, nil
 }
 
-// split outputs of txs in the block where applicable
+// SplitBlockOutputs split outputs of txs in the block where applicable
 // return all split transactions, i.e., transactions containing at least one output to a split address
-func (chain *BlockChain) splitBlockOutputs(block *types.Block) map[crypto.HashType]*types.Transaction {
+func (chain *BlockChain) SplitBlockOutputs(block *types.Block) map[crypto.HashType]*types.Transaction {
 	splitTxs := make(map[crypto.HashType]*types.Transaction, 0)
 
 	for _, tx := range block.Txs {
