@@ -22,7 +22,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/vm/state"
+	"github.com/BOXFoundation/boxd/core/state"
 )
 
 type dummyContractRef struct {

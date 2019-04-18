@@ -23,6 +23,7 @@ import (
 
 	coretypes "github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/vm/common"
 	"github.com/BOXFoundation/boxd/vm/crypto"
 )
@@ -566,10 +567,14 @@ func TestCreate2Addreses(t *testing.T) {
 			expected: "0xE33C0C7F7df4809055C3ebA6c09CFe4BaF1BD9e0",
 		},
 	} {
-
-		origin := coretypes.BytesToAddressHash(common.FromHex(tt.origin))
-		salt := corecrypto.BytesToHash(common.FromHex(tt.salt))
-		code := common.FromHex(tt.code)
+		hex, _ := util.FromHex(tt.origin)
+		origin := coretypes.BytesToAddressHash(hex)
+		hex, _ = util.FromHex(tt.salt)
+		salt := corecrypto.BytesToHash(hex)
+		code, _ := util.FromHex(tt.code)
+		// origin := coretypes.BytesToAddressHash(common.FromHex(tt.origin))
+		// salt := corecrypto.BytesToHash(common.FromHex(tt.salt))
+		// code := common.FromHex(tt.code)
 		codeHash := crypto.Keccak256(code)
 		address := crypto.CreateAddress2(origin, salt, codeHash)
 		/*
@@ -583,7 +588,7 @@ func TestCreate2Addreses(t *testing.T) {
 		*/
 		expected := coretypes.BytesToAddressHash(common.FromHex(tt.expected))
 		if !bytes.Equal(expected.Bytes(), address.Bytes()) {
-			t.Skipf("test %d: expected %s, got %s", i, expected.String(), address.String())
+			t.Errorf("test %d: expected %s, got %s", i, expected.String(), address.String())
 		}
 
 	}

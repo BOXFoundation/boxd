@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/state"
 	coretypes "github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil" // "github.com/BOXFoundation/boxd/vm/core"
-	"github.com/BOXFoundation/boxd/vm/state"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/jbenet/goprocess"
 )
@@ -94,9 +94,9 @@ func TestEVM(t *testing.T) {
 	data := loadBin(binFileName)
 
 	// init db
-	stateDb, err := state.New(initDB())
+	stateDb, err := state.New(nil, initDB())
 
-	msg := NewMessage(fromAddress, big.NewInt(0))
+	msg := NewMessage(&fromAddress, big.NewInt(0))
 	cc := ChainContext{}
 	ctx := chain.NewEVMContext(msg, cc.GetHeader(0), blockChain)
 
@@ -114,7 +114,7 @@ func TestEVM(t *testing.T) {
 	// caller
 	contractRef := vm.AccountRef(fromAddress)
 	// all balance used to create contract as contract.gas
-	contractCode, contractAddr, balance, vmerr := evm.Create(contractRef, data, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), nil)
+	contractCode, contractAddr, balance, vmerr := evm.Create(contractRef, data, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 
 	must(vmerr)
@@ -128,7 +128,7 @@ func TestEVM(t *testing.T) {
 	// method_id(4B) + args0(32B) + args1(32B) + ...
 	input, err := abiObj.Pack("minter")
 	must(err)
-	outputs, balance, vmerr := evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), nil)
+	outputs, balance, vmerr := evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 	must(vmerr)
 
@@ -147,14 +147,14 @@ func TestEVM(t *testing.T) {
 	// mint
 	input, err = abiObj.Pack("mint", sender, big.NewInt(1000000))
 	must(err)
-	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), nil)
+	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 	must(vmerr)
 	fmt.Println("after mint, balance =", balance)
 
 	//send
 	input, err = abiObj.Pack("send", toAddress, big.NewInt(11))
-	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), nil)
+	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 	must(vmerr)
 	fmt.Println("after send 11, balance =", balance)
@@ -162,18 +162,19 @@ func TestEVM(t *testing.T) {
 	//send
 	input, err = abiObj.Pack("send", toAddress, big.NewInt(19))
 	must(err)
-	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), nil)
+	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 	must(vmerr)
 	fmt.Println("after send 19, balance =", balance)
 
+	stateDb.Finalise(false)
 	stateDb.Commit(false)
 	stateDb.Reset()
 
 	// get receiver balance
 	input, err = abiObj.Pack("balances", toAddress)
 	must(err)
-	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), nil)
+	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 	must(vmerr)
 	Print(outputs, "balances")
@@ -182,7 +183,7 @@ func TestEVM(t *testing.T) {
 	// get sender balance
 	input, err = abiObj.Pack("balances", sender)
 	must(err)
-	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), nil)
+	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 	must(vmerr)
 	Print(outputs, "balances")

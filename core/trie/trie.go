@@ -16,16 +16,18 @@ var logger = log.NewLogger("trie") // logger
 // Trie is a Merkle Patricia Trie.
 type Trie struct {
 	rootHash *crypto.HashType
-	db       storage.Storage
+	db       storage.Table
+	batch    storage.Batch
 }
 
 // New creates a trie with an existing root node from db.
-func New(root *Node, db storage.Storage) (*Trie, error) {
+func New(root *Node, db storage.Table) (*Trie, error) {
 	if db == nil {
 		panic("trie.New called without a database")
 	}
 	trie := &Trie{
-		db: db,
+		db:    db,
+		batch: db.NewBatch(),
 	}
 	if root == nil {
 		return trie, nil
@@ -38,14 +40,15 @@ func New(root *Node, db storage.Storage) (*Trie, error) {
 }
 
 // NewByHash creates a trie with an existing root hash from db.
-func NewByHash(rootHash *crypto.HashType, db storage.Storage) (*Trie, error) {
+func NewByHash(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 	if db == nil {
 		panic("trie.New called without a database")
 	}
 	trie := &Trie{
-		db: db,
+		db:    db,
+		batch: db.NewBatch(),
 	}
-	if *rootHash == (crypto.HashType{}) {
+	if rootHash == nil || *rootHash == (crypto.HashType{}) {
 		return trie, nil
 	}
 
@@ -78,7 +81,7 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 
 // Commit persistent the data of the trie.
 func (t *Trie) Commit() error {
-	return nil
+	return t.batch.Write()
 }
 
 func (t *Trie) commit(node *Node) error {
@@ -91,7 +94,8 @@ func (t *Trie) commit(node *Node) error {
 		return err
 	}
 	node.Hash = bytesToHash(crypto.Sha3256(nodeBin))
-	return t.db.Put(node.Hash[:], nodeBin)
+	t.batch.Put(node.Hash[:], nodeBin)
+	return nil
 }
 
 // Get value by key in the trie.
