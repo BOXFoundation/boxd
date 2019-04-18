@@ -393,7 +393,6 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, messageFrom peer.ID) error {
-	logger.Errorf("messageFrom: %s", messageFrom)
 	chain.chainLock.Lock()
 	defer func() {
 		chain.chainLock.Unlock()
@@ -743,7 +742,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 
 	var stateDB *state.StateDB
-	logger.Errorf("messageFrom: %s", messageFrom)
 	if messageFrom != "" {
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
@@ -844,11 +842,14 @@ func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 	if len(utxoTxs) != len(block.InternalTxs) {
 		return core.ErrInvalidInternalTxs
 	}
-	txsRoot := CalcTxsHash(utxoTxs)
-	if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
-		return core.ErrInvalidInternalTxs
+	if len(utxoTxs) > 0 {
+		txsRoot := CalcTxsHash(utxoTxs)
+		if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
+			return core.ErrInvalidInternalTxs
+		}
+	} else { //FIXME: @dudu why need me? i don`t know.
+		block.InternalTxs = make([]*types.Transaction, 0)
 	}
-
 	return nil
 }
 
@@ -1730,13 +1731,13 @@ func fetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Addr
 
 // ExtractVMTransactions extract Transaction to VMTransaction
 func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VMTransaction, error) {
-	sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
-	if err != nil {
-		return nil, err
-	}
 	// check
 	if !HasContractVout(tx) {
 		return nil, nil
+	}
+	sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
+	if err != nil {
+		return nil, err
 	}
 	if !strings.HasPrefix(sender.String(), types.AddrTypeP2PKHPrefix) {
 		return nil, fmt.Errorf("cannot extract vm tx from tx that does not contain box utxo")

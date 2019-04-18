@@ -47,6 +47,9 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, ut
 		if err != nil {
 			return 0, 0, nil, err
 		}
+		if vmTx == nil {
+			continue
+		}
 		gasUsedPerTx, gasRemainingFeePerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err != nil {
 			return 0, 0, nil, err
