@@ -772,7 +772,12 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		stateDB = chain.stateDBCache[block.Header.Height]
 		delete(chain.stateDBCache, block.Header.Height)
 	}
-
+	// apply internal txs.
+	if len(block.InternalTxs) > 0 {
+		if err := utxoSet.applyInternalTxs(block, chain.db); err != nil {
+			return err
+		}
+	}
 	// update EOA accounts' balance state
 	bAdd, bSub := utxoSet.calcBalanceChanges()
 	for a, v := range bAdd {

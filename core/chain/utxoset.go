@@ -206,6 +206,27 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, db storage.
 	return nil
 }
 
+func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, db storage.Table) error {
+	for txOutIdx := range tx.Vout {
+		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight, db); err != nil {
+			if err == core.ErrAddExistingUtxo {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (u *UtxoSet) applyInternalTxs(block *types.Block, db storage.Table) error {
+	for _, tx := range block.InternalTxs {
+		if err := u.applyTx(tx, block.Header.Height, db); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ApplyBlock updates utxos with all transactions in the passed block
 func (u *UtxoSet) ApplyBlock(block *types.Block, db storage.Table) error {
 	txs := block.Txs
