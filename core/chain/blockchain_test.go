@@ -95,6 +95,15 @@ func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedErr error, 
 	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
 }
 
+func verifyProcessBlockFromNet(t *testing.T, newBlock *types.Block, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
+
+	err := blockChain.ProcessBlock(newBlock, core.DefaultMode /* not broadcast */, "abc")
+
+	ensure.DeepEqual(t, err, expectedErr)
+	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)
+	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
+}
+
 // Test blockchain block processing
 func TestBlockProcessing(t *testing.T) {
 	ensure.NotNil(t, blockChain)
@@ -547,7 +556,7 @@ func TestExtractBoxTx(t *testing.T) {
 		sender, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 		hashWith, _ := tx.TxHash()
 		if *btx.HashWith() != *hashWith || btx.Nonce() != math.MaxUint64 ||
-			btx.From() != *sender.Hash160() ||
+			*btx.From() != *sender.Hash160() ||
 			(btx.To() != nil && *btx.To() != *addr.Hash160()) ||
 			btx.Value().Cmp(big.NewInt(int64(tc.value))) != 0 ||
 			btx.GasPrice().Cmp(big.NewInt(int64(tc.price))) != 0 ||
@@ -577,7 +586,12 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 
 	b0 := getTailBlock()
 	// try to append an existing block: genesis block
-	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)
+	verifyProcessBlockFromNet(t, b0, core.ErrBlockExists, 0, b0)
+
+	b1 := nextBlock(b0)
+	verifyProcessBlock(t, b1, nil, 1, b1)
+	blance := getBlances(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
@@ -590,12 +604,13 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prevHash, _ := b0.Txs[0].TxHash()
+	prevHash, _ := b1.Txs[0].TxHash()
 	vmTx1 := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout1)
-	b1 := nextBlockWithTxs(b0, vmTx1)
-	verifyProcessBlock(t, b1, nil, 1, b1)
+	signTx(vmTx1, privKeyMiner, pubKeyMiner)
+	b2 := nextBlockWithTxs(b1, vmTx1)
+	verifyProcessBlockFromNet(t, b2, nil, 1, b2)
 
 	//blance := getBlances(minerAddr.String(), blockChain.db)
 	//ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))

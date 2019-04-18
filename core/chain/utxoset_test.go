@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/facebookgo/ensure"
@@ -86,19 +86,19 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 
 	utxoSet := NewUtxoSet()
 
-	err := utxoSet.AddUtxo(tx, txOutIdx, blockHeight)
+	err := utxoSet.AddUtxo(tx, txOutIdx, blockHeight, nil)
 	ensure.Nil(t, err)
 
-	err2 := utxoSet.AddUtxo(tx1, txOutIdx, blockHeight1)
+	err2 := utxoSet.AddUtxo(tx1, txOutIdx, blockHeight1, nil)
 	ensure.Nil(t, err2)
 
 	// test for ErrTxOutIndexOob
-	err3 := utxoSet.AddUtxo(tx1, txOutIdxErr, blockHeight)
+	err3 := utxoSet.AddUtxo(tx1, txOutIdxErr, blockHeight, nil)
 	ensure.NotNil(t, err3)
 	ensure.DeepEqual(t, err3, core.ErrTxOutIndexOob)
 
 	// test for ErrAddExistingUtxo
-	err4 := utxoSet.AddUtxo(tx, txOutIdx, blockHeight)
+	err4 := utxoSet.AddUtxo(tx, txOutIdx, blockHeight, nil)
 	ensure.NotNil(t, err4)
 	ensure.DeepEqual(t, err4, core.ErrAddExistingUtxo)
 

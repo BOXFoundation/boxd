@@ -393,6 +393,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 
 // ProcessBlock is used to handle new blocks.
 func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.TransferMode, messageFrom peer.ID) error {
+	logger.Errorf("messageFrom: %s", messageFrom)
 	chain.chainLock.Lock()
 	defer func() {
 		chain.chainLock.Unlock()
@@ -742,6 +743,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 
 	var stateDB *state.StateDB
+	logger.Errorf("messageFrom: %s", messageFrom)
 	if messageFrom != "" {
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
