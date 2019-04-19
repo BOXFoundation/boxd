@@ -107,7 +107,7 @@ type Address interface {
 // NormalizeAddressHash converts AddressHash to common Hash
 func NormalizeAddressHash(addrHash *AddressHash) *crypto.HashType {
 	hash := new(crypto.HashType)
-	copy(hash[:], addrHash[:])
+	copy(hash[12:], addrHash[:])
 	return hash
 }
 

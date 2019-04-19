@@ -413,7 +413,12 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 				tokenID = outpoint
 			}
 			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
-			//} else if sc.IsContractPubkey() && addr != nil {
+		} else if sc.IsContractPubkey() {
+			contractAddress := types.BytesToAddressHash(outpoint.Hash[:])
+			if len(addr.Hash()) > 0 && contractAddress.String() != addr.Hash160().String() {
+				return errors.New("Invalid contract address")
+			}
+			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}
