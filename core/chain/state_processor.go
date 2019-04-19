@@ -42,24 +42,35 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, ut
 	usedGas := new(uint64)
 	gasRemainingFee := new(uint64)
 	var utxoTxs []*types.Transaction
+	var err error
+	snapID := stateDB.Snapshot()
 	for _, tx := range block.Txs {
 		vmTx, err := sp.bc.ExtractVMTransactions(tx)
 		if err != nil {
-			return 0, 0, nil, err
+			break
 		}
 		if vmTx == nil {
 			continue
 		}
 		gasUsedPerTx, gasRemainingFeePerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err != nil {
-			return 0, 0, nil, err
+			break
 		}
 		if txs != nil {
 			utxoTxs = append(utxoTxs, txs...)
 		}
 		*usedGas += gasUsedPerTx
 		*gasRemainingFee += gasRemainingFeePerTx
+
+		stateDB.Finalise(true)
 	}
+
+	if err != nil {
+		stateDB.RevertToSnapshot(snapID)
+		return 0, 0, nil, err
+	}
+
+	stateDB.Commit(true)
 	return *usedGas, *gasRemainingFee, utxoTxs, nil
 }
 
