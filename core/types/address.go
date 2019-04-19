@@ -29,6 +29,10 @@ var (
 	AddressTypeContractPrefix  = [2]byte{FixBoxPrefix, FixContractPrefix} // b5
 
 	ZeroAddressHash = AddressHash{}
+
+	_ Address = (*AddressPubKeyHash)(nil)
+	_ Address = (*AddressTypeSplit)(nil)
+	_ Address = (*AddressContract)(nil)
 )
 
 // const
@@ -67,6 +71,9 @@ func (a *AddressHash) SetBytes(b []byte) {
 
 // Bytes returns the bytes of a addressHash.
 func (a *AddressHash) Bytes() []byte {
+	if a == nil {
+		return nil
+	}
 	return a[:]
 }
 
@@ -147,6 +154,9 @@ func newAddressPubKeyHash(pkHash []byte) (*AddressPubKeyHash, error) {
 
 // Hash returns the bytes to be included in a txout script to pay to a pubkey hash.
 func (a *AddressPubKeyHash) Hash() []byte {
+	if a == nil {
+		return nil
+	}
 	return a.hash[:]
 }
 
@@ -157,6 +167,9 @@ func (a *AddressPubKeyHash) Type() AddressType {
 
 // String returns a human-readable string for the pay-to-pubkey-hash address.
 func (a *AddressPubKeyHash) String() string {
+	if a == nil {
+		return ""
+	}
 	return encodeAddress(a.hash[:], AddressTypeP2PKHPrefix)
 }
 
@@ -184,6 +197,9 @@ func (a *AddressPubKeyHash) SetString(in string) error {
 
 // Hash160 returns the underlying array of the pubkey hash.
 func (a *AddressPubKeyHash) Hash160() *AddressHash {
+	if a == nil {
+		return nil
+	}
 	return &a.hash
 }
 
@@ -217,6 +233,9 @@ func (a *AddressTypeSplit) Type() AddressType {
 
 // String returns a human-readable string for the split address.
 func (a *AddressTypeSplit) String() string {
+	if a == nil {
+		return ""
+	}
 	return encodeAddress(a.hash[:], AddressTypeSplitAddrPrefix)
 }
 
@@ -244,11 +263,17 @@ func (a *AddressTypeSplit) SetString(in string) error {
 
 // Hash returns the bytes to be included in a txout script to pay to a split addr.
 func (a *AddressTypeSplit) Hash() []byte {
+	if a == nil {
+		return nil
+	}
 	return a.hash[:]
 }
 
 // Hash160 returns the underlying array of the pubkey hash.
 func (a *AddressTypeSplit) Hash160() *AddressHash {
+	if a == nil {
+		return nil
+	}
 	return &a.hash
 }
 
@@ -259,6 +284,9 @@ type AddressContract struct {
 
 // Hash returns the bytes to be included in a txout script to pay to contract
 func (a *AddressContract) Hash() []byte {
+	if a == nil {
+		return nil
+	}
 	return a.hash[:]
 }
 
@@ -269,6 +297,9 @@ func (a *AddressContract) Type() AddressType {
 
 // String returns a human-readable string for the split address.
 func (a *AddressContract) String() string {
+	if a == nil {
+		return ""
+	}
 	return encodeAddress(a.hash[:], AddressTypeContractPrefix)
 }
 
@@ -314,6 +345,9 @@ func (a *AddressContract) SetString(in string) error {
 
 // Hash160 returns the underlying array of the contract hash.
 func (a *AddressContract) Hash160() *AddressHash {
+	if a == nil {
+		return nil
+	}
 	return &a.hash
 }
 
