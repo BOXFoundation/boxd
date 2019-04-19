@@ -758,7 +758,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		//	return err
 		//}
 		var err error
-		if block.Header.Height == 0 {
+		if block.Header.Height == 1 {
 			stateDB, err = state.New(rootHash, chain.db)
 			if err != nil {
 				return err
