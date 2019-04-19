@@ -516,7 +516,9 @@ const (
 	// contract Temp {
 	//     function () payable {}
 	// }
-	testVMCode = "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+	testVMCode         = "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+	testVMCreationCode = "608060405234801561001057600080fd5b50336000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555061042d806100606000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c8063075461721461005157806327e235e31461009b57806340c10f19146100f3578063d0679d3414610141575b600080fd5b61005961018f565b604051808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390f35b6100dd600480360360208110156100b157600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1690602001909291905050506101b4565b6040518082815260200191505060405180910390f35b61013f6004803603604081101561010957600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803590602001909291905050506101cc565b005b61018d6004803603604081101561015757600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919080359060200190929190505050610277565b005b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b60016020528060005260406000206000915090505481565b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161461022557610273565b80600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055505b5050565b80600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410156102c3576103fd565b80600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555080600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055507f3990db2d31862302a685e8086b5755072a6e2b5b780af1ee81ece35ee3cd3345338383604051808473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001828152602001935050505060405180910390a15b505056fea165627a7a72305820d4ff0436c11bf91157f3e014c548d6882bebfa6238aa6cbb2806c2abc271f4470029"
+	testVMCallCode     = "07546172"
 )
 
 func _TestExtractBoxTx(t *testing.T) {
@@ -595,23 +597,46 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
-	// b0 -> b1
-	// make contract tx
-	vmValue, gasPrice, gasLimit := uint64(0), uint64(100), uint64(20000)
-	byteCode, _ := hex.DecodeString(testVMCode)
-	contractVout1, err := txlogic.MakeContractCreationVout(vmValue, gasLimit,
+	// b1 -> b2
+	// make creation contract tx
+	vmValue, gasPrice, gasLimit := uint64(0), uint64(100), uint64(200000)
+	byteCode, _ := hex.DecodeString(testVMCreationCode)
+	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit,
 		gasPrice, byteCode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
 	prevHash, _ := b1.Txs[0].TxHash()
-	vmTx1 := types.NewTx(0, 4455, 0).
+	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(contractVout1)
-	signTx(vmTx1, privKeyMiner, pubKeyMiner)
-	b2 := nextBlockWithTxs(b1, vmTx1)
-	verifyProcessBlockFromNet(t, b2, nil, 1, b2)
+		AppendVout(contractVout)
+	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	b2 := nextBlockWithTxs(b1, vmTx)
+	b2.InternalTxs = append(b2.InternalTxs, createGasRefundUtxoTx(minerAddr.Hash160(), 10246800))
+	b2.Header.InternalTxsRoot.SetBytes(CalcTxsHash(b2.InternalTxs)[:])
+	b2.Header.GasUsed = 97532
+	verifyProcessBlockFromNet(t, b2, nil, 2, b2)
 
-	//blance := getBlances(minerAddr.String(), blockChain.db)
-	//ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+	vmTx1Hash, _ := vmTx.TxHash()
+	contractAddr, _ := types.MakeContractAddress(minerAddr, vmTx1Hash, 0)
+	t.Logf("contract address: %s", contractAddr)
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b2 -> b3
+	// make call contract tx
+	vmValue, gasPrice, gasLimit = uint64(666), uint64(100), uint64(200000)
+	byteCode, _ = hex.DecodeString(testVMCallCode)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(), vmValue, gasLimit,
+		gasPrice, byteCode)
+	ensure.Nil(t, err)
+	prevHash, _ = b2.Txs[0].TxHash()
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout)
+	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	b3 := nextBlockWithTxs(b2, vmTx)
+	b3.InternalTxs = append(b3.InternalTxs, createGasRefundUtxoTx(minerAddr.Hash160(), 17872800))
+	b3.Header.InternalTxsRoot.SetBytes(CalcTxsHash(b3.InternalTxs)[:])
+	b3.Header.GasUsed = 21272
+
+	verifyProcessBlockFromNet(t, b3, nil, 2, b3)
 }

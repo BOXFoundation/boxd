@@ -74,10 +74,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 		if err != nil {
 			return err
 		}
-		hash := new(crypto.HashType)
-		if err := hash.SetBytes(address.Hash()); err != nil {
-			return err
-		}
+		hash := types.NormalizeAddressHash(address.Hash160())
 		if hash.IsEqual(&zeroHash) { // deploy smart contract
 			sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
 			if err != nil {
@@ -91,9 +88,9 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 			if err != nil {
 				return err
 			}
-			if err := hash.SetBytes(contractAddress.Hash()); err != nil {
-				return err
-			}
+			logger.Infof("contract address created by sender %s tx hash: %s vout idx: %d %s",
+				address.Hash160(), txHash, txOutIdx, contractAddress)
+			hash = types.NormalizeAddressHash(contractAddress.Hash160())
 		}
 
 		outPoint := types.OutPoint{Hash: *hash, Index: 0}
@@ -398,9 +395,11 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 		utxoKey := utxoKey(outpoint)
 		var addrUtxoKey []byte
 		sc := *script.NewScriptFromBytes(utxoWrap.Script())
+		logger.Warnf("utxoWrap script: %s", sc.Disasm())
 		addr, err := sc.ExtractAddress()
 		if err != nil {
-			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, Err: %v", utxoWrap, sc.Disasm(), err)
+			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, Err: %v",
+				utxoWrap, sc.Disasm(), err)
 			return err
 		}
 		if sc.IsTokenTransfer() || sc.IsTokenIssue() {

@@ -75,8 +75,13 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 	vmenv := vm.NewEVM(context, statedb, cfg)
 	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
+		logger.Warn(err)
 		return 0, 0, nil, err
 	}
+	gasRefundTxHash, _ := gasRefundTx.TxHash()
+	logger.Infof("result for ApplyMessage tx %s, gasUsed: %d, gasRemainingFee: %d, "+
+		"failed: %t, gasRefundTx: %+v", tx.HashWith(), gasUsed, gasRemainingFee, fail,
+		gasRefundTxHash)
 	if gasRefundTx != nil {
 		txs = append(txs, gasRefundTx)
 	}
@@ -89,6 +94,7 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
 		internalTxs, err := createRefundTx(tx, utxoSet)
 		if err != nil {
+			logger.Warn(err)
 			return 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs)
@@ -130,10 +136,7 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 
 func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transaction, error) {
 
-	hash := new(crypto.HashType)
-	if err := hash.SetBytes(vmtx.To().Bytes()); err != nil {
-		return nil, err
-	}
+	hash := types.NormalizeAddressHash(vmtx.To())
 	if hash.IsEqual(&zeroHash) {
 		senderPubkeyHash, err := types.NewAddressPubKeyHash(vmtx.From().Bytes())
 		if err != nil {
@@ -143,9 +146,9 @@ func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transac
 		if err != nil {
 			return nil, err
 		}
-		if err := hash.SetBytes(contractAddress.Hash()); err != nil {
-			return nil, err
-		}
+		logger.Infof("contract address created by sender %s tx hash: %s vout idx: %d %s",
+			vmtx.From(), vmtx.HashWith(), vmtx.VoutIdx, contractAddress)
+		hash = types.NormalizeAddressHash(contractAddress.Hash160())
 	}
 	var utxoWrap *types.UtxoWrap
 	outPoint := types.OutPoint{Hash: *hash, Index: 0}

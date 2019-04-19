@@ -7,6 +7,7 @@ package chain
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -845,11 +846,17 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 
 	if len(utxoTxs) != len(block.InternalTxs) {
+		logger.Warnf("utxo txs len: %d, internal txs in block len: %d", len(utxoTxs),
+			len(block.InternalTxs))
 		return core.ErrInvalidInternalTxs
 	}
 	if len(utxoTxs) > 0 {
 		txsRoot := CalcTxsHash(utxoTxs)
 		if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
+			utxoTxsBytes, _ := json.MarshalIndent(utxoTxs, "", "  ")
+			internalTxs, _ := json.MarshalIndent(block.InternalTxs, "", "  ")
+			logger.Warnf("utxo txs: %s, internal txs: %v", string(utxoTxsBytes), string(internalTxs))
+			logger.Warnf("utxo txs root: %s, internal txs root: %s", txsRoot, block.Header.InternalTxsRoot)
 			return core.ErrInvalidInternalTxs
 		}
 	} else { //FIXME: @dudu why need me? i don`t know.
@@ -865,6 +872,7 @@ func (chain *BlockChain) ValidateExecuteResult(block *types.Block, utxoTxs []*ty
 		return err
 	}
 	if block.Header.GasUsed != usedGas {
+		logger.Warnf("gas used in block header: %d, usedGas: %d", block.Header.GasUsed, usedGas)
 		return errors.New("Invalid gasUsed in block header")
 	}
 

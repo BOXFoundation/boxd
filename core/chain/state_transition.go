@@ -129,6 +129,7 @@ func (st *StateTransition) to() types.AddressHash {
 
 func (st *StateTransition) useGas(amount uint64) error {
 	if st.gas < amount {
+		logger.Warnf("state transition gas: %d, use gas: %d", st.gas, amount)
 		return vm.ErrOutOfGas
 	}
 	st.gas -= amount
@@ -139,6 +140,8 @@ func (st *StateTransition) useGas(amount uint64) error {
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 	if st.state.GetBalance(*st.msg.From()).Cmp(mgval) < 0 {
+		logger.Warnf("state transition balance for %s: %d, mgval: %d", st.msg.From(),
+			st.state.GetBalance(*st.msg.From()), mgval)
 		return errInsufficientBalanceForGas
 	}
 	st.gas += st.msg.Gas()
@@ -178,9 +181,11 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation)
 	if err != nil {
+		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
 	}
 	if err = st.useGas(gas); err != nil {
+		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
 	}
 
@@ -204,6 +209,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		// The only possible consensus-error would be if there wasn't
 		// sufficient balance to make the transfer happen. The first
 		// balance transfer may never fail.
+		logger.Warn(vmerr)
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, 0, false, nil, vmerr
 		}
@@ -223,16 +229,16 @@ func (st *StateTransition) refundGas() {
 
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
 	if remaining.Uint64() > 0 {
-		st.gasRefoundTx = st.createGasRefundUtxoTx(remaining.Uint64())
+		st.gasRefoundTx = createGasRefundUtxoTx(st.msg.From(), remaining.Uint64())
 		st.remaining = remaining
 	}
 	st.state.AddBalance(*st.msg.From(), remaining)
 }
 
-func (st *StateTransition) createGasRefundUtxoTx(value uint64) *types.Transaction {
+func createGasRefundUtxoTx(addrHash *types.AddressHash, value uint64) *types.Transaction {
 
 	var vouts []*corepb.TxOut
-	addrScript := *script.PayToPubKeyHashScript(st.msg.From().Bytes())
+	addrScript := *script.PayToPubKeyHashScript(addrHash[:])
 	vout := &corepb.TxOut{
 		Value:        value,
 		ScriptPubKey: addrScript,

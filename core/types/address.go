@@ -27,6 +27,8 @@ var (
 	AddrTypeP2SHPrefix         = "b3"
 	AddrTypeContractPrefix     = "b5"
 	AddressTypeContractPrefix  = [2]byte{FixBoxPrefix, FixContractPrefix} // b5
+
+	ZeroAddressHash = AddressHash{}
 )
 
 // const
@@ -100,6 +102,13 @@ type Address interface {
 	SetString(string) error
 	Hash() []byte
 	Hash160() *AddressHash
+}
+
+// NormalizeAddressHash converts AddressHash to common Hash
+func NormalizeAddressHash(addrHash *AddressHash) *crypto.HashType {
+	hash := new(crypto.HashType)
+	copy(hash[:], addrHash[:])
+	return hash
 }
 
 // AddressPubKeyHash is an Address for a pay-to-pubkey-hash (P2PKH) transaction.

@@ -663,8 +663,11 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 		var addr types.Address
 		if s.IsSplitAddrScript() {
 			addr, err = types.NewSplitAddressFromHash(pubKeyHash)
-		} else {
+		} else if !reflect.DeepEqual(pubKeyHash, types.ZeroAddressHash[:]) {
 			addr, err = types.NewContractAddressFromHash(pubKeyHash)
+		} else { // contract creation script, there is not contract address
+			logger.Infof("cannot extract address from contract creation script pubkey")
+			return nil, nil
 		}
 		if err != nil {
 			return nil, err
