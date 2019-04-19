@@ -627,6 +627,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	byteCode, _ = hex.DecodeString(testVMCallCode)
 	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(), vmValue, gasLimit,
 		gasPrice, byteCode)
+	logger.Infof("contract vout script: %s", hex.EncodeToString(contractVout.ScriptPubKey))
 	ensure.Nil(t, err)
 	prevHash, _ = b2.Txs[0].TxHash()
 	vmTx = types.NewTx(0, 4455, 0).
@@ -638,5 +639,5 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	b3.Header.InternalTxsRoot.SetBytes(CalcTxsHash(b3.InternalTxs)[:])
 	b3.Header.GasUsed = 21272
 
-	verifyProcessBlockFromNet(t, b3, nil, 2, b3)
+	verifyProcessBlockFromNet(t, b3, nil, 3, b3)
 }

@@ -669,11 +669,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 	}
 
-	if err := chain.applyBlock(block, utxoSet, totalFees, messageFrom); err != nil {
-		return err
-	}
-
-	return nil
+	return chain.applyBlock(block, utxoSet, totalFees, messageFrom)
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
@@ -758,7 +754,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		//	return err
 		//}
 		var err error
-		if block.Header.Height == 0 {
+		if block.Header.Height == 1 {
 			stateDB, err = state.New(rootHash, chain.db)
 			if err != nil {
 				return err

@@ -667,7 +667,7 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 			addr, err = types.NewContractAddressFromHash(pubKeyHash)
 		} else { // contract creation script, there is not contract address
 			logger.Infof("cannot extract address from contract creation script pubkey")
-			return nil, nil
+			return (*types.AddressContract)(nil), nil
 		}
 		if err != nil {
 			return nil, err

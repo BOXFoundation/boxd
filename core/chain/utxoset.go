@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -104,6 +105,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 				if IsCoinBase(tx) {
 					return errors.New("Invalid smart contract tx")
 				}
+				utxoWrap.SetScript(tx.Vout[txOutIdx].ScriptPubKey)
 				u.utxoMap[outPoint] = utxoWrap
 				return nil
 			}
@@ -397,8 +399,8 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 		sc := *script.NewScriptFromBytes(utxoWrap.Script())
 		addr, err := sc.ExtractAddress()
 		if err != nil {
-			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, Err: %v",
-				utxoWrap, sc.Disasm(), err)
+			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s %s, Err: %v",
+				utxoWrap, sc.Disasm(), hex.EncodeToString(utxoWrap.Script()), err)
 			return err
 		}
 		if sc.IsTokenTransfer() || sc.IsTokenIssue() {
@@ -413,7 +415,15 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 				tokenID = outpoint
 			}
 			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
-			//} else if sc.IsContractPubkey() && addr != nil {
+		} else if sc.IsContractPubkey() {
+			contractAddress := types.BytesToAddressHash(outpoint.Hash[:])
+			//if len(addr.Hash()) > 0 && contractAddress.String() != addr.Hash160().String() {
+			if len(addr.Hash()) > 0 {
+				if contractAddress.String() != addr.Hash160().String() {
+					return errors.New("Invalid contract address")
+				}
+			}
+			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}
