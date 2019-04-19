@@ -669,11 +669,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 	}
 
-	if err := chain.applyBlock(block, utxoSet, totalFees, messageFrom); err != nil {
-		return err
-	}
-
-	return nil
+	return chain.applyBlock(block, utxoSet, totalFees, messageFrom)
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
