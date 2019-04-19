@@ -395,7 +395,6 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 		utxoKey := utxoKey(outpoint)
 		var addrUtxoKey []byte
 		sc := *script.NewScriptFromBytes(utxoWrap.Script())
-		logger.Warnf("utxoWrap script: %s", sc.Disasm())
 		addr, err := sc.ExtractAddress()
 		if err != nil {
 			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, Err: %v",
@@ -414,6 +413,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 				tokenID = outpoint
 			}
 			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
+			//} else if sc.IsContractPubkey() && addr != nil {
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		}

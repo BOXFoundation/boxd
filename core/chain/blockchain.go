@@ -753,18 +753,27 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		if parent != nil && len(parent.Header.RootHash) > 0 {
 			rootHash = &parent.Header.RootHash
 		}
-		statedb, err := state.New(rootHash, chain.db)
-		if err != nil {
-			return err
+		//statedb, err := state.New(rootHash, chain.db)
+		//if err != nil {
+		//	return err
+		//}
+		var err error
+		if block.Header.Height == 0 {
+			stateDB, err = state.New(rootHash, chain.db)
+			if err != nil {
+				return err
+			}
+		} else {
+			stateDB = chain.stateDBCache[block.Header.Height-1]
 		}
-		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, statedb, utxoSet)
+		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			return err
 		}
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee, totalTxsFee); err != nil {
 			return err
 		}
-		stateDB = statedb
+		//stateDB = statedb
 	} else {
 		// locally generated block
 		if _, ok := chain.stateDBCache[block.Header.Height]; !ok {
@@ -787,6 +796,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	for a, v := range bSub {
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
+	chain.stateDBCache[block.Header.Height] = stateDB
 
 	if err := chain.StoreBlockWithStateInBatch(block, stateDB, batch); err != nil {
 		return err
