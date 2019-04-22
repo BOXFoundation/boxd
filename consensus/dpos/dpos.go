@@ -637,8 +637,8 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 		// check hash is exist
 		block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
 		if block == nil {
-			logger.Errorf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
-			return errors.New("the block hash is not exist on the chain")
+			logger.Warnf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
+			return ErrInvalidHashInIrreversibleInfo
 		}
 		//TODO: period switching requires extra processing
 		addrs := dpos.context.periodContext.periodAddrs

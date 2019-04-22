@@ -38,6 +38,7 @@ var (
 	ErrFailedToVerifyWithCandidates = errors.New("Failed to verify block with candidates")
 	ErrExpiredBlock                 = errors.New("Expired block")
 	ErrBlockInSideChain             = errors.New("The block is in side chain")
+	ErrInvalidMessageSender         = errors.New("Invalid message sender")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
