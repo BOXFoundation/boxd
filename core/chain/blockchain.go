@@ -746,7 +746,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 		parent := chain.GetParentBlock(block)
 		var rootHash *crypto.HashType
-		if parent != nil && len(parent.Header.RootHash) > 0 {
+		if parent != nil && parent.Header.RootHash != zeroHash {
 			rootHash = &parent.Header.RootHash
 		}
 		//statedb, err := state.New(rootHash, chain.db)
@@ -1069,6 +1069,15 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 // GetBlockHeight returns current height of main chain
 func (chain *BlockChain) GetBlockHeight() uint32 {
 	return chain.LongestChainHeight
+}
+
+// GetBalance finds the block in target height of main chain and returns it's hash
+func (chain *BlockChain) GetBalance(addr *types.AddressHash) (uint64, error) {
+	stateDB := chain.stateDBCache[chain.LongestChainHeight]
+	if stateDB == nil {
+		return 0, errors.New("state db is nil")
+	}
+	return stateDB.GetBalance(*addr).Uint64(), nil
 }
 
 // GetBlockHash finds the block in target height of main chain and returns it's hash

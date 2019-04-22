@@ -89,16 +89,17 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 		logger.Warn(err)
 		return 0, 0, nil, err
 	}
-	gasRefundTxHash, _ := gasRefundTx.TxHash()
 	logger.Infof("result for ApplyMessage tx %s, gasUsed: %d, gasRemainingFee: %d, "+
-		"failed: %t, gasRefundTx: %+v", tx.HashWith(), gasUsed, gasRemainingFee, fail,
-		gasRefundTxHash)
+		"failed: %t", tx.HashWith(), gasUsed, gasRemainingFee, fail)
 	if gasRefundTx != nil {
+		txHash, _ := gasRefundTx.TxHash()
+		logger.Infof("gasRefund tx: %s", txHash)
 		txs = append(txs, gasRefundTx)
 	}
 	if !fail && len(Transfers) > 0 {
 		internalTxs, err := createUtxoTx(utxoSet)
 		if err != nil {
+			logger.Warn(err)
 			return 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs...)
@@ -173,20 +174,17 @@ func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transac
 	utxoWrap.SetValue(value)
 	utxoSet.utxoMap[outPoint] = utxoWrap
 
-	var vouts []*corepb.TxOut
 	vin := &types.TxIn{
 		PrevOutPoint: outPoint,
 		ScriptSig:    *script.MakeContractScriptSig(),
 	}
-	addrScript := *script.PayToPubKeyHashScript(vmtx.From().Bytes())
 	vout := &corepb.TxOut{
 		Value:        vmtx.Value().Uint64(),
-		ScriptPubKey: addrScript,
+		ScriptPubKey: *script.PayToPubKeyHashScript(vmtx.From().Bytes()),
 	}
-	vouts = append(vouts, vout)
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)
-	tx.Vout = append(tx.Vout, vouts...)
+	tx.Vout = append(tx.Vout, vout)
 	return tx, nil
 }
 
@@ -214,7 +212,7 @@ func makeTx(transferInfos []*TransferInfo, voutBegin int, voutEnd int, utxoSet *
 		}
 		vouts = append(vouts, vout)
 		value := utxoWrap.Value() - transferInfos[i].value.Uint64()
-		if value < 0 {
+		if value > utxoWrap.Value() {
 			return nil, errors.New("Insufficient balance of smart contract")
 		}
 		utxoWrap.SetValue(value)
