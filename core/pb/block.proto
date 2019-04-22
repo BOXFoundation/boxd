@@ -11,13 +11,14 @@ message BlockHeader {
     bytes prev_block_hash = 2;
     bytes txs_root = 3;
     bytes internal_txs_root = 4;
-    int64 time_stamp = 5;
-    uint32 magic = 6;
-    bytes period_hash = 7;
-    bytes candidates_hash = 8;
-    bytes root_hash = 9;
-    uint32 height = 10;
-    uint64 gas_used = 11;
+    bytes utxo_root = 5;
+    int64 time_stamp = 6;
+    uint32 magic = 7;
+    bytes period_hash = 8;
+    bytes candidates_hash = 9;
+    bytes root_hash = 10;
+    uint32 height = 11;
+    uint64 gas_used = 12;
 }
 
 message IrreversibleInfo {
