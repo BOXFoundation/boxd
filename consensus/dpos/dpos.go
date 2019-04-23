@@ -184,7 +184,7 @@ func (dpos *Dpos) Finalize(tail *types.Block) error {
 
 // Process notify consensus to process new block.
 func (dpos *Dpos) Process(block *types.Block, db interface{}) error {
-	return dpos.StoreCandidateContext(block, db.(storage.Batch))
+	return dpos.StoreCandidateContext(block, db.(storage.Table))
 }
 
 // VerifyTx notify consensus to verify new tx.
@@ -611,7 +611,7 @@ func (dpos *Dpos) LoadCandidateByBlockHash(hash *crypto.HashType) (*CandidateCon
 // StoreCandidateContext store candidate context
 // The cache is not used here to avoid problems caused by revert block.
 // So when block revert occurs, here we don't have to do revert.
-func (dpos *Dpos) StoreCandidateContext(block *types.Block, batch storage.Batch) error {
+func (dpos *Dpos) StoreCandidateContext(block *types.Block, db storage.Table) error {
 
 	parentBlock := dpos.chain.GetParentBlock(block)
 	candidateContext, err := dpos.LoadCandidateByBlockHash(parentBlock.BlockHash())
@@ -627,7 +627,7 @@ func (dpos *Dpos) StoreCandidateContext(block *types.Block, batch storage.Batch)
 	if err != nil {
 		return err
 	}
-	batch.Put(chain.CandidatesKey(block.BlockHash()), bytes)
+	db.Put(chain.CandidatesKey(block.BlockHash()), bytes)
 	dpos.blockHashToCandidateContext.Add(*block.BlockHash(), candidateContext)
 	return nil
 }
