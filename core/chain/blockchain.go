@@ -727,9 +727,9 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
-func (chain *BlockChain) updateBalanceState(utxoSet *UtxoSet, stateDB *state.StateDB) {
+func (chain *BlockChain) updateNormalTxBalanceState(utxoSet *UtxoSet, stateDB *state.StateDB) {
 	// update EOA accounts' balance state
-	bAdd, bSub := utxoSet.calcBalanceChanges()
+	bAdd, bSub := utxoSet.calcNormalTxBalanceChanges()
 	for a, v := range bAdd {
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
 	}
@@ -775,7 +775,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		} else {
 			stateDB = chain.stateDBCache[block.Header.Height-1]
 		}
-		chain.updateBalanceState(utxoSet, stateDB)
+		chain.updateNormalTxBalanceState(utxoSet, stateDB)
 		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			return err
@@ -791,7 +791,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 		stateDB = chain.stateDBCache[block.Header.Height]
 		delete(chain.stateDBCache, block.Header.Height)
-		chain.updateBalanceState(utxoSet, stateDB)
+		chain.updateNormalTxBalanceState(utxoSet, stateDB)
 	}
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {

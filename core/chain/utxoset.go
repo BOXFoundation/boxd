@@ -19,7 +19,8 @@ import (
 
 // UtxoSet contains all utxos
 type UtxoSet struct {
-	utxoMap types.UtxoMap
+	utxoMap         types.UtxoMap
+	normalTxUtxoSet map[types.OutPoint]struct{}
 }
 
 // BalanceChangeMap defines the balance changes of accounts (add or subtract)
@@ -28,7 +29,8 @@ type BalanceChangeMap map[types.AddressHash]uint64
 // NewUtxoSet new utxo set
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
-		utxoMap: make(types.UtxoMap),
+		utxoMap:         make(types.UtxoMap),
+		normalTxUtxoSet: make(map[types.OutPoint]struct{}),
 	}
 }
 
@@ -126,6 +128,9 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 		utxoWrap.SetCoinBase()
 	}
 	u.utxoMap[outPoint] = utxoWrap
+	if !HasContractVout(tx) {
+		u.normalTxUtxoSet[outPoint] = struct{}{}
+	}
 	return nil
 }
 
@@ -201,6 +206,9 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, db storage.
 	// Spend the referenced utxos
 	for _, txIn := range tx.Vin {
 		u.SpendUtxo(txIn.PrevOutPoint)
+		if !HasContractVout(tx) {
+			u.normalTxUtxoSet[txIn.PrevOutPoint] = struct{}{}
+		}
 	}
 	return nil
 }
@@ -574,10 +582,13 @@ func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*type
 	return utxoWrap, nil
 }
 
-func (u *UtxoSet) calcBalanceChanges() (add, sub BalanceChangeMap) {
+func (u *UtxoSet) calcNormalTxBalanceChanges() (add, sub BalanceChangeMap) {
 	add = make(BalanceChangeMap)
 	sub = make(BalanceChangeMap)
-	for _, w := range u.utxoMap {
+	for o, w := range u.utxoMap {
+		if _, exists := u.normalTxUtxoSet[o]; !exists {
+			continue
+		}
 		sc := script.NewScriptFromBytes(w.Script())
 		// calc balance for account state, here only EOA (external owned account)
 		// have balance state
