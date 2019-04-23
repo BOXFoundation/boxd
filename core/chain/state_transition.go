@@ -29,10 +29,10 @@ import (
 
 // define const
 const (
-	TxGas                 uint64 = 21000
-	TxGasContractCreation uint64 = 53000
-	TxDataZeroGas         uint64 = 4
-	TxDataNonZeroGas      uint64 = 68
+	TxGas                 uint64 = 2100
+	TxGasContractCreation uint64 = 5300
+	TxDataZeroGas         uint64 = 1
+	TxDataNonZeroGas      uint64 = 6
 )
 
 var (

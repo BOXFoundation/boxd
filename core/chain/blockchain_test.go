@@ -512,6 +512,8 @@ func (r *testDBReader) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-
 }
 
 const (
+	testBlockSubsidy = 50 * uint64(core.DuPerBox)
+
 	testExtractPrevHash = "c0e96e998eb01eea5d5acdaeb80acd943477e6119dcd82a419089331229c7453"
 	// contract Temp {
 	//     function () payable {}
@@ -591,78 +593,115 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)
 
 	b01 := nextBlock(b0)
-	verifyProcessBlock(t, b01, nil, 1, b01)
+	height := uint32(1)
+	verifyProcessBlock(t, b01, nil, height, b01)
+	height++
 	balance := getBalance(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
+	stateBalance, _ := blockChain.GetBalance(minerAddr.Hash160())
+	ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, balance, testBlockSubsidy)
+	t.Logf("b0 -> b01 passed")
 
 	// transfer some box to userAddr
 	userBalance := uint64(600000)
-	//prevHash, _ := b01.Txs[0].TxHash()
-	tx := createGeneralTx(b01.Txs[0], 0, userBalance, userAddr.String(),
-		privKeyMiner, pubKeyMiner)
-	//types.NewTx(0, 4455, 0).
-	//	AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-	//	AppendVout(txlogic.MakeVout(userAddr.String(), userBalance))
-	//err := signTx(tx, privKeyMiner, pubKeyMiner)
-	//ensure.DeepEqual(t, err, nil)
+	prevHash, _ := b01.Txs[0].TxHash()
+	tx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), userBalance)).
+		AppendVout(txlogic.MakeVout(minerAddr.String(), testBlockSubsidy-userBalance))
+	err := signTx(tx, privKeyMiner, pubKeyMiner)
+	ensure.DeepEqual(t, err, nil)
 
-	b1 := nextBlock(b01)
-	b1.Txs = append(b1.Txs, tx)
-	b1.Header.TxsRoot = *CalcTxsHash(b1.Txs)
-
-	//b1 := nextBlockWithTxs(b01, tx)
-	verifyProcessBlock(t, b1, nil, 2, b1)
-	// balance = getBalance(minerAddr.String(), blockChain.db)
-	// ensure.DeepEqual(t, balance, uint64(2*50*core.DuPerBox)-userBalance)
-
+	b1 := nextBlockWithTxs(b01, tx)
+	verifyProcessBlock(t, b1, nil, height, b1)
+	height++
+	// check balance
+	// for userAddr
 	balance = getBalance(userAddr.String(), blockChain.db)
+	stateBalance, _ = blockChain.GetBalance(userAddr.Hash160())
+	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, userBalance)
+	// for miner
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	stateBalance, _ = blockChain.GetBalance(minerAddr.Hash160())
+	ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, balance, 2*testBlockSubsidy-userBalance)
+	minerBalance := balance
+
+	t.Logf("b01 -> b1 passed")
+
+	// contract blocks test
+	var (
+		gasUsed, refundValue, vmValue, gasPrice, gasLimit uint64
+	)
+
+	var contractBlockFunc = func(vmTx *types.Transaction, parent *types.Block) *types.Block {
+
+		block := nextBlockWithTxs(parent, vmTx)
+		refundValue = gasPrice * (gasLimit - gasUsed)
+		block.Header.GasUsed = gasUsed
+		block.InternalTxs = append(block.InternalTxs, createGasRefundUtxoTx(userAddr.Hash160(), refundValue))
+		block.Header.InternalTxsRoot.SetBytes(CalcTxsHash(block.InternalTxs)[:])
+		block.Txs[0].Vout[0].Value += gasUsed * gasPrice
+		verifyProcessBlockFromNet(t, block, nil, height, block)
+		height++
+		// check balance
+		// for userAddr
+		balance := getBalance(userAddr.String(), blockChain.db)
+		stateBalance, _ := blockChain.GetBalance(userAddr.Hash160())
+		ensure.DeepEqual(t, balance, stateBalance)
+		ensure.DeepEqual(t, balance, userBalance-vmValue-gasUsed*gasPrice)
+		userBalance = balance
+		// for miner
+		balance = getBalance(minerAddr.String(), blockChain.db)
+		stateBalance, _ = blockChain.GetBalance(minerAddr.Hash160())
+		ensure.DeepEqual(t, balance, stateBalance)
+		ensure.DeepEqual(t, balance, minerBalance+testBlockSubsidy+gasUsed*gasPrice)
+		minerBalance = balance
+		return block
+	}
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b1 -> b2
 	// make creation contract tx
-	vmValue, gasPrice, gasLimit := uint64(0), uint64(100), uint64(200000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(10), uint64(20000)
+	gasUsed = uint64(8880)
 	byteCode, _ := hex.DecodeString(testVMCreationCode)
 	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
-	prevHash, _ := b1.Txs[0].TxHash()
+	prevHash, _ = b1.Txs[1].TxHash()
+	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(contractVout)
-	signTx(vmTx, privKeyMiner, pubKeyMiner)
-	b2 := nextBlockWithTxs(b1, vmTx)
-	b2.InternalTxs = append(b2.InternalTxs, createGasRefundUtxoTx(minerAddr.Hash160(), 10246800))
-	b2.Header.InternalTxsRoot.SetBytes(CalcTxsHash(b2.InternalTxs)[:])
-	b2.Header.GasUsed = 97532
-	verifyProcessBlockFromNet(t, b2, nil, 2, b2)
-	// check balance
-	ub := getBalance(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, ub, 5010246800)
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+	signTx(vmTx, privKey, pubKey)
+	b2 := contractBlockFunc(vmTx, b1)
 
 	vmTx1Hash, _ := vmTx.TxHash()
-	contractAddr, _ := types.MakeContractAddress(minerAddr, vmTx1Hash, 0)
+	contractAddr, _ := types.MakeContractAddress(userAddr, vmTx1Hash, 0)
 	t.Logf("contract address: %s", contractAddr)
+	t.Logf("b1 -> b2 passed")
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b2 -> b3
 	// make call contract tx
-	vmValue, gasPrice, gasLimit = uint64(666), uint64(100), uint64(200000)
+	vmValue, gasPrice, gasLimit = uint64(666), uint64(6), uint64(3000)
+	gasUsed = 2124
 	byteCode, _ = hex.DecodeString(testVMCallCode)
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(), vmValue, gasLimit,
-		gasPrice, byteCode)
-	logger.Infof("contract vout script: %s", hex.EncodeToString(contractVout.ScriptPubKey))
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
-	prevHash, _ = b2.Txs[0].TxHash()
+	// use internal tx vout
+	prevHash, _ = b2.InternalTxs[0].TxHash()
+	changeValue = refundValue - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(contractVout)
-	signTx(vmTx, privKeyMiner, pubKeyMiner)
-	b3 := nextBlockWithTxs(b2, vmTx)
-	b3.InternalTxs = append(b3.InternalTxs, createGasRefundUtxoTx(minerAddr.Hash160(), 17872800))
-	b3.Header.InternalTxsRoot.SetBytes(CalcTxsHash(b3.InternalTxs)[:])
-	b3.Header.GasUsed = 21272
-
-	verifyProcessBlockFromNet(t, b3, nil, 3, b3)
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+	signTx(vmTx, privKey, pubKey)
+	contractBlockFunc(vmTx, b2)
+	t.Logf("b2 -> b3 passed")
 }

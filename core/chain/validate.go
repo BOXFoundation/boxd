@@ -405,7 +405,7 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 		value := txOut.Value
 		if value > TotalSupply {
 			logger.Errorf("transaction output value of %v is "+
-				"higher than max allowed value of %v", TotalSupply)
+				"higher than max allowed value of %v", value, TotalSupply)
 			return core.ErrBadTxOutValue
 		}
 

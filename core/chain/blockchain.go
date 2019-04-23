@@ -727,6 +727,17 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
+func (chain *BlockChain) updateBalanceState(utxoSet *UtxoSet, stateDB *state.StateDB) {
+	// update EOA accounts' balance state
+	bAdd, bSub := utxoSet.calcBalanceChanges()
+	for a, v := range bAdd {
+		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
+	}
+	for a, v := range bSub {
+		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
+	}
+}
+
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID) error {
 	ttt0 := time.Now().UnixNano()
 	// batch := chain.db.NewBatch()
@@ -764,6 +775,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		} else {
 			stateDB = chain.stateDBCache[block.Header.Height-1]
 		}
+		chain.updateBalanceState(utxoSet, stateDB)
 		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			return err
@@ -779,20 +791,13 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 		stateDB = chain.stateDBCache[block.Header.Height]
 		delete(chain.stateDBCache, block.Header.Height)
+		chain.updateBalanceState(utxoSet, stateDB)
 	}
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
 		if err := utxoSet.applyInternalTxs(block, chain.db); err != nil {
 			return err
 		}
-	}
-	// update EOA accounts' balance state
-	bAdd, bSub := utxoSet.calcBalanceChanges()
-	for a, v := range bAdd {
-		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
-	}
-	for a, v := range bSub {
-		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
 	chain.stateDBCache[block.Header.Height] = stateDB
 
@@ -891,8 +896,9 @@ func (chain *BlockChain) ValidateExecuteResult(block *types.Block, utxoTxs []*ty
 	}
 	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
 	if totalCoinbaseOutput > expectedCoinbaseOutput {
-		logger.Errorf("coinbase transaction for block pays %v which is more than expected value of %v",
-			totalCoinbaseOutput, expectedCoinbaseOutput)
+		logger.Errorf("coinbase transaction for block pays %v which is more than expected value %v("+
+			"totalTxsFee: %d, gas remaining: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,
+			totalTxsFee, gasRemainingFee)
 		return core.ErrBadCoinbaseValue
 	}
 	return nil
