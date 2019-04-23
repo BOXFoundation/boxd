@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
+	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // define const.
@@ -52,7 +53,7 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, ut
 		if vmTx == nil {
 			continue
 		}
-		gasUsedPerTx, gasRemainingFeePerTx, txs, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
+		gasUsedPerTx, gasRemainingFeePerTx, txs, _, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err != nil {
 			break
 		}
@@ -77,7 +78,7 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, ut
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment.
 func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB,
-	cfg vm.Config, utxoSet *UtxoSet) (uint64, uint64, []*types.Transaction, error) {
+	cfg vm.Config, utxoSet *UtxoSet) (uint64, uint64, []*types.Transaction, []*vmtypes.Log, error) {
 	var txs []*types.Transaction
 	defer func() {
 		Transfers = nil
@@ -87,7 +88,7 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		logger.Warn(err)
-		return 0, 0, nil, err
+		return 0, 0, nil, nil, err
 	}
 	gasRefundTxHash, _ := gasRefundTx.TxHash()
 	logger.Infof("result for ApplyMessage tx %s, gasUsed: %d, gasRemainingFee: %d, "+
@@ -99,19 +100,19 @@ func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *Bl
 	if !fail && len(Transfers) > 0 {
 		internalTxs, err := createUtxoTx(utxoSet)
 		if err != nil {
-			return 0, 0, nil, err
+			return 0, 0, nil, nil, err
 		}
 		txs = append(txs, internalTxs...)
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
 		internalTxs, err := createRefundTx(tx, utxoSet)
 		if err != nil {
 			logger.Warn(err)
-			return 0, 0, nil, err
+			return 0, 0, nil, nil, err
 		}
 		txs = append(txs, internalTxs)
 	}
 
-	return gasUsed, gasRemainingFee, txs, nil
+	return gasUsed, gasRemainingFee, txs, statedb.Logs(), nil
 }
 
 func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {

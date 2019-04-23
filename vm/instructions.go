@@ -898,16 +898,16 @@ func makeLog(size int) executionFunc {
 			topics[i] = crypto.BigToHash(stack.pop())
 		}
 
-		// d := memory.Get(mStart.Int64(), mSize.Int64())
-		// interpreter.evm.StateDB.AddLog(&types.Log{
-		// 	Address: contract.Address(),
-		// 	Topics:  topics,
-		// 	// Address: contract.Address(),
-		// 	Data: d,
-		// 	// This is a non-consensus field, but assigned here because
-		// 	// core/state doesn't know the current block number.
-		// 	BlockNumber: interpreter.evm.BlockNumber.Uint64(),
-		// })
+		d := memory.Get(mStart.Int64(), mSize.Int64())
+		interpreter.evm.StateDB.AddLog(&types.Log{
+			Address: contract.Address(),
+			Topics:  topics,
+			// Address: contract.Address(),
+			Data: d,
+			// This is a non-consensus field, but assigned here because
+			// core/state doesn't know the current block number.
+			BlockNumber: interpreter.evm.BlockNumber.Uint64(),
+		})
 
 		interpreter.intPool.put(mStart, mSize)
 		return nil, nil
