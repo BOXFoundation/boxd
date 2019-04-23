@@ -119,14 +119,14 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1
 	b1 := nextBlock(b0)
 	verifyProcessBlock(t, b1, nil, 1, b1)
-	blance := getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+	balance := getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 
 	b1DoubleMint := nextBlock(b1)
 	b1DoubleMint.Header.TimeStamp = b1.Header.TimeStamp
 	verifyProcessBlock(t, b1DoubleMint, core.ErrRepeatedMintAtSameTime, 1, b1)
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// double spend check
@@ -137,8 +137,8 @@ func TestBlockProcessing(t *testing.T) {
 	b2ds.Txs = append(b2ds.Txs, splitTx)
 	b2ds.Header.TxsRoot = *CalcTxsHash(b2ds.Txs)
 	verifyProcessBlock(t, b2ds, core.ErrDoubleSpendTx, 1, b1)
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
@@ -150,12 +150,12 @@ func TestBlockProcessing(t *testing.T) {
 	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
 	verifyProcessBlock(t, b2, nil, 2, b2)
 
-	// miner blance: 100 - 50 = 50
-	// user blance: 50
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
-	blance = getBlances(userAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+	// miner balance: 100 - 50 = 50
+	// user balance: 50
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
+	balance = getBalance(userAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
@@ -163,8 +163,8 @@ func TestBlockProcessing(t *testing.T) {
 	b3 := nextBlock(b2)
 	b3.Header.TxsRoot = *CalcTxsHash(b3.Txs)
 	verifyProcessBlock(t, b3, nil, 3, b3)
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(100*core.DuPerBox))
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(100*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend side chain: fork from b1
@@ -188,14 +188,14 @@ func TestBlockProcessing(t *testing.T) {
 	b4A.Header.TxsRoot = *CalcTxsHash(b4A.Txs)
 	verifyProcessBlock(t, b4A, nil, 4, b4A)
 
-	// check blance
-	// miner blance: 4 * 50 - 50 - 50 = 100
-	// splitA blance: 25  splitB blance: 25
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(100*core.DuPerBox))
-	blanceSplitA := getBlances(splitAddrA.String(), blockChain.db)
+	// check balance
+	// miner balance: 4 * 50 - 50 - 50 = 100
+	// splitA balance: 25  splitB balance: 25
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(100*core.DuPerBox))
+	blanceSplitA := getBalance(splitAddrA.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(25*core.DuPerBox))
-	blanceSplitB := getBlances(splitAddrB.String(), blockChain.db)
+	blanceSplitB := getBalance(splitAddrB.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(25*core.DuPerBox))
 
 	//TODO: add insuffient balance check
@@ -210,13 +210,13 @@ func TestBlockProcessing(t *testing.T) {
 	b5 := nextBlock(b4)
 	verifyProcessBlock(t, b5, nil, 5, b5)
 
-	// check blance
-	// miner blance: 5 * 50 - 50 = 200
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(200*core.DuPerBox))
-	blanceSplitA = getBlances(splitAddrA.String(), blockChain.db)
+	// check balance
+	// miner balance: 5 * 50 - 50 = 200
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(200*core.DuPerBox))
+	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(0))
-	blanceSplitB = getBlances(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(0))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -242,13 +242,13 @@ func TestBlockProcessing(t *testing.T) {
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
 	verifyProcessBlock(t, b6A, nil, 6, b6A)
 
-	// check blance
-	// miner blance: 6 * 50 - 50 -50 -50 -50 = 100
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(100*core.DuPerBox))
-	blanceSplitA = getBlances(splitAddrA.String(), blockChain.db)
+	// check balance
+	// miner balance: 6 * 50 - 50 -50 -50 -50 = 100
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(100*core.DuPerBox))
+	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(25*core.DuPerBox))
-	blanceSplitB = getBlances(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(25*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -276,19 +276,19 @@ func TestBlockProcessing(t *testing.T) {
 	b7A.Header.TxsRoot = *CalcTxsHash(b7A.Txs)
 	verifyProcessBlock(t, b7A, nil, 7, b7A)
 
-	// check blance
-	// miner blance: 7 * 50 - 50 -50 -50 -50 = 150
-	// splitAddrA blance: 0
-	// splitAddrB blance: 25
-	// user blance: 50 + 50 + 50 + 25 = 175
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(150*core.DuPerBox))
-	blanceSplitA = getBlances(splitAddrA.String(), blockChain.db)
+	// check balance
+	// miner balance: 7 * 50 - 50 -50 -50 -50 = 150
+	// splitAddrA balance: 0
+	// splitAddrB balance: 25
+	// user balance: 50 + 50 + 50 + 25 = 175
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(150*core.DuPerBox))
+	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(0))
-	blanceSplitB = getBlances(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(25*core.DuPerBox))
-	blance = getBlances(userAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(175*core.DuPerBox))
+	balance = getBalance(userAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(175*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// force reorg split tx
@@ -305,16 +305,16 @@ func TestBlockProcessing(t *testing.T) {
 	b8B := nextBlock(b7B)
 	verifyProcessBlock(t, b8B, nil, 8, b8B)
 
-	// check blance
-	// splitAddrA blance: 25
-	// splitAddrB blance: 25
-	// user blance: 175 25 = 150
-	blanceSplitA = getBlances(splitAddrA.String(), blockChain.db)
+	// check balance
+	// splitAddrA balance: 25
+	// splitAddrB balance: 25
+	// user balance: 175 25 = 150
+	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(25*core.DuPerBox))
-	blanceSplitB = getBlances(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(25*core.DuPerBox))
-	blance = getBlances(userAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(150*core.DuPerBox))
+	balance = getBalance(userAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(150*core.DuPerBox))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// force reorg split tx
@@ -333,19 +333,19 @@ func TestBlockProcessing(t *testing.T) {
 	b9 := nextBlock(b8)
 	verifyProcessBlock(t, b9, nil, 9, b9)
 
-	// check blance
-	// miner blance: 9 * 50 - 50 = 400
-	// splitAddrA blance: 0
-	// splitAddrB blance: 0
-	// user blance: 50
-	blance = getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(400*core.DuPerBox))
-	blanceSplitA = getBlances(splitAddrA.String(), blockChain.db)
+	// check balance
+	// miner balance: 9 * 50 - 50 = 400
+	// splitAddrA balance: 0
+	// splitAddrB balance: 0
+	// user balance: 50
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(400*core.DuPerBox))
+	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(0))
-	blanceSplitB = getBlances(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(0))
-	blance = getBlances(userAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+	balance = getBalance(userAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 }
 
 func TestBlockChain_WriteDelTxIndex(t *testing.T) {
@@ -462,7 +462,7 @@ func getTxHash(tx *types.Transaction) *crypto.HashType {
 	return txHash
 }
 
-func getBlances(address string, db storage.Table) uint64 {
+func getBalance(address string, db storage.Table) uint64 {
 	utxoKey := AddrAllUtxoKey(address)
 	keys := db.KeysWithPrefix(utxoKey)
 	values, err := db.MultiGet(keys...)
@@ -588,12 +588,35 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 
 	b0 := getTailBlock()
 	// try to append an existing block: genesis block
-	verifyProcessBlockFromNet(t, b0, core.ErrBlockExists, 0, b0)
+	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)
 
-	b1 := nextBlock(b0)
-	verifyProcessBlock(t, b1, nil, 1, b1)
-	blance := getBlances(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, blance, uint64(50*core.DuPerBox))
+	b01 := nextBlock(b0)
+	verifyProcessBlock(t, b01, nil, 1, b01)
+	balance := getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
+
+	// transfer some box to userAddr
+	userBalance := uint64(600000)
+	//prevHash, _ := b01.Txs[0].TxHash()
+	tx := createGeneralTx(b01.Txs[0], 0, userBalance, userAddr.String(),
+		privKeyMiner, pubKeyMiner)
+	//types.NewTx(0, 4455, 0).
+	//	AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+	//	AppendVout(txlogic.MakeVout(userAddr.String(), userBalance))
+	//err := signTx(tx, privKeyMiner, pubKeyMiner)
+	//ensure.DeepEqual(t, err, nil)
+
+	b1 := nextBlock(b01)
+	b1.Txs = append(b1.Txs, tx)
+	b1.Header.TxsRoot = *CalcTxsHash(b1.Txs)
+
+	//b1 := nextBlockWithTxs(b01, tx)
+	verifyProcessBlock(t, b1, nil, 2, b1)
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, uint64(2*50*core.DuPerBox)-userBalance)
+
+	balance = getBalance(userAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, balance, userBalance)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
@@ -601,8 +624,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	// make creation contract tx
 	vmValue, gasPrice, gasLimit := uint64(0), uint64(100), uint64(200000)
 	byteCode, _ := hex.DecodeString(testVMCreationCode)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit,
-		gasPrice, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b1.Txs[0].TxHash()
 	vmTx := types.NewTx(0, 4455, 0).
@@ -614,6 +636,9 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	b2.Header.InternalTxsRoot.SetBytes(CalcTxsHash(b2.InternalTxs)[:])
 	b2.Header.GasUsed = 97532
 	verifyProcessBlockFromNet(t, b2, nil, 2, b2)
+	// check balance
+	ub := getBalance(minerAddr.String(), blockChain.db)
+	ensure.DeepEqual(t, ub, 5010246800)
 
 	vmTx1Hash, _ := vmTx.TxHash()
 	contractAddr, _ := types.MakeContractAddress(minerAddr, vmTx1Hash, 0)
