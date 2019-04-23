@@ -26,9 +26,25 @@ type rocksdb struct {
 	tr        *dbtx
 	writeLock chan struct{}
 
+	enableBatch bool
+	batch       storage.Batch
+
 	smcfhandlers sync.Mutex
 	cfs          map[string]*gorocksdb.ColumnFamilyHandle
 	tables       map[string]*rtable
+}
+
+func (db *rocksdb) EnableBatch() {
+	db.enableBatch = true
+	db.batch = db.NewBatch()
+}
+
+// DisableBatch disable batch write.
+func (db *rocksdb) DisableBatch() {
+	db.sm.Lock()
+	defer db.sm.Unlock()
+	db.enableBatch = false
+	db.batch = nil
 }
 
 // Create or Get the table associate with the name
@@ -155,16 +171,40 @@ func (db *rocksdb) Close() error {
 
 // put the value to entry associate with the key
 func (db *rocksdb) Put(key, value []byte) error {
-	db.writeLock <- struct{}{}
-	err := db.rocksdb.Put(db.writeOptions, key, value)
-	<-db.writeLock
+	var err error
+	if db.enableBatch {
+		db.batch.Put(key, value)
+	} else {
+		db.writeLock <- struct{}{}
+		err = db.rocksdb.Put(db.writeOptions, key, value)
+		<-db.writeLock
+	}
 	return err
 }
 
 // delete the entry associate with the key in the Storage
 func (db *rocksdb) Del(key []byte) error {
+	var err error
+	if db.enableBatch {
+		db.batch.Del(key)
+	} else {
+		db.writeLock <- struct{}{}
+		err = db.rocksdb.Delete(db.writeOptions, key)
+		<-db.writeLock
+	}
+
+	return err
+}
+
+// Flush atomic writes all enqueued put/delete
+func (db *rocksdb) Flush() error {
+	var err error
 	db.writeLock <- struct{}{}
-	err := db.rocksdb.Delete(db.writeOptions, key)
+	if db.enableBatch {
+		err = db.batch.Write()
+	} else {
+		err = storage.ErrOnlySupportBatchOpt
+	}
 	<-db.writeLock
 	return err
 }

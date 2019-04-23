@@ -7,16 +7,22 @@ package rocksdb
 import (
 	"bytes"
 	"context"
+	"sync"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/tecbot/gorocksdb"
 )
 
 type rtable struct {
+	sm sync.Mutex
+
 	rocksdb      *gorocksdb.DB
 	cf           *gorocksdb.ColumnFamilyHandle
 	readOptions  *gorocksdb.ReadOptions
 	writeOptions *gorocksdb.WriteOptions
+
+	enableBatch bool
+	batch       storage.Batch
 
 	writeLock chan struct{}
 }
@@ -51,6 +57,19 @@ func (t *rtable) NewTransaction() (tr storage.Transaction, err error) {
 	return tr, nil
 }
 
+func (t *rtable) EnableBatch() {
+	t.enableBatch = true
+	t.batch = t.NewBatch()
+}
+
+// DisableBatch disable batch write.
+func (t *rtable) DisableBatch() {
+	t.sm.Lock()
+	defer t.sm.Unlock()
+	t.enableBatch = false
+	t.batch.Close()
+}
+
 // put the value to entry associate with the key
 func (t *rtable) Put(key, value []byte) (err error) {
 	defer func() {
@@ -59,9 +78,14 @@ func (t *rtable) Put(key, value []byte) (err error) {
 		}
 	}()
 
-	t.writeLock <- struct{}{}
-	err = t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
-	<-t.writeLock
+	if t.enableBatch {
+		t.batch.Put(key, value)
+	} else {
+		t.writeLock <- struct{}{}
+		err = t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
+		<-t.writeLock
+	}
+
 	return err
 }
 
@@ -73,9 +97,30 @@ func (t *rtable) Del(key []byte) (err error) {
 		}
 	}()
 
-	t.writeLock <- struct{}{}
-	err = t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
-	<-t.writeLock
+	if t.enableBatch {
+		t.batch.Del(key)
+	} else {
+		t.writeLock <- struct{}{}
+		err = t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
+		<-t.writeLock
+	}
+
+	return err
+}
+
+// Flush atomic writes all enqueued put/delete
+func (t *rtable) Flush() (err error) {
+	defer func() {
+		if recover() != nil {
+			err = storage.ErrDatabasePanic
+		}
+	}()
+
+	if t.enableBatch {
+		err = t.batch.Write()
+	} else {
+		err = storage.ErrOnlySupportBatchOpt
+	}
 	return err
 }
 

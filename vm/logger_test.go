@@ -20,9 +20,9 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/core/state"
 )
 
 type dummyContractRef struct {

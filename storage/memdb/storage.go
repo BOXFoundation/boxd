@@ -15,9 +15,11 @@ import (
 )
 
 type memorydb struct {
-	sm        sync.RWMutex
-	writeLock chan struct{}
-	db        map[string][]byte
+	sm          sync.RWMutex
+	writeLock   chan struct{}
+	db          map[string][]byte
+	enableBatch bool
+	batch       storage.Batch
 }
 
 var _ storage.Storage = (*memorydb)(nil)
@@ -53,6 +55,19 @@ func (db *memorydb) DropTable(name string) error {
 	}
 
 	return nil
+}
+
+func (db *memorydb) EnableBatch() {
+	db.enableBatch = true
+	db.batch = db.NewBatch()
+}
+
+// DisableBatch disable batch write.
+func (db *memorydb) DisableBatch() {
+	db.sm.Lock()
+	defer db.sm.Unlock()
+	db.enableBatch = false
+	db.batch = nil
 }
 
 // create a new write batch
@@ -94,31 +109,46 @@ func (db *memorydb) Close() error {
 
 // put the value to entry associate with the key
 func (db *memorydb) Put(key, value []byte) error {
-	db.writeLock <- struct{}{}
-	defer func() {
-		<-db.writeLock
-	}()
 
-	db.sm.Lock()
-	defer db.sm.Unlock()
+	if db.enableBatch {
+		db.batch.Put(key, value)
+	} else {
+		db.writeLock <- struct{}{}
+		defer func() {
+			<-db.writeLock
+		}()
+		db.db[string(key)] = value
+	}
 
-	db.db[string(key)] = value
 	return nil
 }
 
 // delete the entry associate with the key in the Storage
 func (db *memorydb) Del(key []byte) error {
-	db.writeLock <- struct{}{}
-	defer func() {
-		<-db.writeLock
-	}()
 
-	db.sm.Lock()
-	defer db.sm.Unlock()
-
-	delete(db.db, string(key))
+	if db.enableBatch {
+		db.batch.Del(key)
+	} else {
+		db.writeLock <- struct{}{}
+		defer func() {
+			<-db.writeLock
+		}()
+		delete(db.db, string(key))
+	}
 
 	return nil
+}
+
+// Flush atomic writes all enqueued put/delete
+func (db *memorydb) Flush() error {
+
+	var err error
+	if db.enableBatch {
+		err = db.batch.Write()
+	} else {
+		err = storage.ErrOnlySupportBatchOpt
+	}
+	return err
 }
 
 // return value associate with the key in the Storage

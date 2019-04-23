@@ -612,8 +612,8 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 
 	//b1 := nextBlockWithTxs(b01, tx)
 	verifyProcessBlock(t, b1, nil, 2, b1)
-	balance = getBalance(minerAddr.String(), blockChain.db)
-	ensure.DeepEqual(t, balance, uint64(2*50*core.DuPerBox)-userBalance)
+	// balance = getBalance(minerAddr.String(), blockChain.db)
+	// ensure.DeepEqual(t, balance, uint64(2*50*core.DuPerBox)-userBalance)
 
 	balance = getBalance(userAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, userBalance)

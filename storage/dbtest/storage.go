@@ -89,16 +89,17 @@ func StorageBatchAndTrans(t *testing.T, s storage.Table) {
 		tx.Commit()
 	}(c)
 
-	var batch = s.NewBatch()
+	// var batch = s.NewBatch()
+	s.EnableBatch()
 	var keys [][]byte
 	var values [][]byte
 	for k := range c {
 		keys = append(keys, k[0])
 		v := append(k[1], 0x00, 0x01, 0x02)
 		values = append(values, v)
-		batch.Put(k[0], v)
+		s.Put(k[0], v)
 	}
-	ensure.Nil(t, batch.Write())
+	ensure.Nil(t, s.Flush())
 
 	for i, k := range keys {
 		v, err := s.Get(k)
@@ -542,20 +543,19 @@ func StorageBatch(t *testing.T, s storage.Table) {
 		}
 	}
 
-	var batch = s.NewBatch()
-	defer batch.Close()
+	s.EnableBatch()
 
 	for k, v := range kvs {
-		batch.Put([]byte(k), v)
+		s.Put([]byte(k), v)
 	}
-	ensure.True(t, batch.Count() == count)
+	// ensure.True(t, batch.Count() == count)
 
 	for _, k := range delkeys {
-		batch.Del([]byte(k))
+		s.Del([]byte(k))
 	}
-	var countAfterDel = count + len(delkeys)
-	ensure.True(t, batch.Count() == countAfterDel)
-	ensure.Nil(t, batch.Write())
+	// var countAfterDel = count + len(delkeys)
+	// ensure.True(t, s.Count() == countAfterDel)
+	ensure.Nil(t, s.Flush())
 
 	for _, k := range delkeys {
 		delete(kvs, k)

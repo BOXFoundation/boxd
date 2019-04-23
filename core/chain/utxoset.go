@@ -388,7 +388,7 @@ func DeserializeUtxoWrap(serialized []byte) (*types.UtxoWrap, error) {
 }
 
 // WriteUtxoSetToDB store utxo set to database.
-func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
+func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 
 	for outpoint, utxoWrap := range u.utxoMap {
 		if utxoWrap == nil || !utxoWrap.IsModified() {
@@ -430,8 +430,8 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent() {
-			batch.Del(*utxoKey)
-			batch.Del(addrUtxoKey)
+			db.Del(*utxoKey)
+			db.Del(addrUtxoKey)
 			// recycleOutpointKey(utxoKey)
 			continue
 		} else if utxoWrap.IsModified() {
@@ -440,8 +440,8 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			if err != nil {
 				return err
 			}
-			batch.Put(*utxoKey, serialized)
-			batch.Put(addrUtxoKey, serialized)
+			db.Put(*utxoKey, serialized)
+			db.Put(addrUtxoKey, serialized)
 		}
 	}
 	return nil

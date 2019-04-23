@@ -17,7 +17,6 @@ var logger = log.NewLogger("trie") // logger
 type Trie struct {
 	rootHash *crypto.HashType
 	db       storage.Table
-	batch    storage.Batch
 }
 
 // New creates a trie with an existing root hash from db.
@@ -28,7 +27,6 @@ func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 	trie := &Trie{
 		db:       db,
 		rootHash: rootHash,
-		batch:    db.NewBatch(),
 	}
 	if rootHash == nil || *rootHash == (crypto.HashType{}) {
 		return trie, nil
@@ -63,7 +61,7 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 
 // Commit persistent the data of the trie.
 func (t *Trie) Commit() error {
-	return t.batch.Write()
+	return t.db.Flush()
 }
 
 func (t *Trie) commit(node *Node) error {
@@ -76,7 +74,7 @@ func (t *Trie) commit(node *Node) error {
 		return err
 	}
 	node.Hash = bytesToHash(crypto.Sha3256(nodeBin))
-	t.batch.Put(node.Hash[:], nodeBin)
+	t.db.Put(node.Hash[:], nodeBin)
 	return nil
 }
 
