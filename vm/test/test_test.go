@@ -194,3 +194,11 @@ func TestEVM(t *testing.T) {
 	// 	fmt.Println(log)
 	// }
 }
+
+func TestPack(t *testing.T) {
+	abiFileName := "./faucet.abi"
+	abiObj := loadAbi(abiFileName)
+
+	input, err := abiObj.Pack("withdraw", big.NewInt(1000000))
+	println(input, err)
+}
