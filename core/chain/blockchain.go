@@ -775,7 +775,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		} else {
 			stateDB = chain.stateDBCache[block.Header.Height-1]
 		}
-		chain.updateNormalTxBalanceState(utxoSet, stateDB)
 		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			return err
@@ -791,8 +790,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 		stateDB = chain.stateDBCache[block.Header.Height]
 		delete(chain.stateDBCache, block.Header.Height)
-		chain.updateNormalTxBalanceState(utxoSet, stateDB)
 	}
+	chain.updateNormalTxBalanceState(utxoSet, stateDB)
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
 		if err := utxoSet.applyInternalTxs(block, chain.db); err != nil {
