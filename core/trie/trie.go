@@ -32,7 +32,7 @@ func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 		return trie, nil
 	}
 
-	if _, err := trie.db.Get(rootHash[:]); err != nil {
+	if _, err := trie.Get(rootHash[:]); err != nil {
 		return nil, err
 	}
 	return trie, nil
@@ -61,7 +61,7 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 
 // Commit persistent the data of the trie.
 func (t *Trie) Commit() error {
-	return t.db.Flush()
+	return nil
 }
 
 func (t *Trie) commit(node *Node) error {

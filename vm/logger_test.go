@@ -23,6 +23,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 type dummyContractRef struct {
@@ -46,7 +47,8 @@ type dummyStatedb struct {
 	state.Mockdb
 }
 
-func (*dummyStatedb) GetRefund() uint64 { return 1337 }
+func (*dummyStatedb) GetRefund() uint64       { return 1337 }
+func (*dummyStatedb) AddLog(log *vmtypes.Log) {}
 
 func TestStoreCapture(t *testing.T) {
 	var (
