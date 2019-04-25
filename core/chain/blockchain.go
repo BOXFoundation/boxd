@@ -1789,13 +1789,20 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 	for i, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		if sc.IsContractPubkey() {
-			p, _, e := sc.ParseContractParams()
+			p, t, e := sc.ParseContractParams()
 			if e != nil {
 				return nil, e
 			}
-			return types.NewVMTransaction(big.NewInt(int64(o.Value)),
-				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Receiver, p.Code).
-				WithHashWith(txHash).WithSender(sender.Hash160()).WithVoutIdx(uint32(i)), nil
+			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
+				big.NewInt(int64(p.GasPrice)), p.GasLimit, txHash, t, p.Code).
+				WithSender(sender.Hash160())
+			if t == types.ContractCreationType {
+				senderPk, _ := types.NewAddressPubKeyHash(sender.Hash())
+				newContractAddr, _ :=
+					types.MakeContractAddress(senderPk, txHash, uint32(i))
+				vmTx.WithReceiver(newContractAddr.Hash160())
+			}
+			return vmTx, nil
 		}
 	}
 	return nil, fmt.Errorf("no vm tx in tx: %s", txHash)

@@ -63,8 +63,10 @@ type Message interface {
 	Gas() uint64
 	Value() *big.Int
 
-	Nonce() uint64
-	CheckNonce() bool
+	Type() types.ContractType
+
+	//Nonce() uint64
+	//CheckNonce() bool
 	Data() []byte
 }
 
@@ -104,12 +106,13 @@ func IntrinsicGas(data []byte, contractCreation bool) (uint64, error) {
 // NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message) *StateTransition {
 	return &StateTransition{
-		evm:      evm,
-		msg:      msg,
-		gasPrice: msg.GasPrice(),
-		value:    msg.Value(),
-		data:     msg.Data(),
-		state:    evm.StateDB,
+		evm:       evm,
+		msg:       msg,
+		gasPrice:  msg.GasPrice(),
+		value:     msg.Value(),
+		data:      msg.Data(),
+		state:     evm.StateDB,
+		remaining: big.NewInt(0),
 	}
 }
 
@@ -176,7 +179,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	}
 	msg := st.msg
 	sender := vm.AccountRef(*msg.From())
-	contractCreation := msg.To() == nil
+	contractCreation := msg.Type() == types.ContractCreationType
 
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation)
@@ -217,6 +220,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	st.refundGas()
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 
+	logger.Infof("gasUsed: %d, remaining: %v", st.gasUsed(), st.remaining)
 	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, err
 }
 

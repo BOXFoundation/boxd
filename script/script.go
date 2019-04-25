@@ -21,15 +21,8 @@ import (
 
 var logger = log.NewLogger("script") // logger
 
-// ContractType defines script contract type
-type ContractType string
-
 // constants
 const (
-	ContractUnkownType   ContractType = "contract_unkown"
-	ContractCreationType ContractType = "contract_creation"
-	ContractCallType     ContractType = "contract_call"
-
 	p2PKHScriptLen = 25
 	p2SHScriptLen  = 23
 
@@ -827,8 +820,8 @@ func MakeContractScriptSig() *Script {
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack
-func (s *Script) ParseContractParams() (params *types.VMTxParams, typ ContractType, err error) {
-	typ = ContractUnkownType
+func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.ContractType, err error) {
+	typ = types.ContractUnkownType
 	// OPCONTRACT
 	opCode, _, pc, err := s.getNthOp(0, 0)
 	if err != nil || opCode != OPCONTRACT {
@@ -849,10 +842,9 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ ContractTy
 	addrHash := new(types.AddressHash)
 	copy(addrHash[:], operand[:])
 	if *addrHash == ZeroContractAddress {
-		typ = ContractCreationType
-		params.Receiver = nil
+		typ = types.ContractCreationType
 	} else {
-		typ = ContractCallType
+		typ = types.ContractCallType
 	}
 	params.Receiver = addrHash
 

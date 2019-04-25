@@ -7,7 +7,6 @@ package chain
 import (
 	"context"
 	"encoding/hex"
-	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -560,7 +559,7 @@ func _TestExtractBoxTx(t *testing.T) {
 		// check
 		sender, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 		hashWith, _ := tx.TxHash()
-		if *btx.HashWith() != *hashWith || btx.Nonce() != math.MaxUint64 ||
+		if *btx.OriginTxHash() != *hashWith ||
 			*btx.From() != *sender.Hash160() ||
 			(btx.To() != nil && *btx.To() != *addr.Hash160()) ||
 			btx.Value().Cmp(big.NewInt(int64(tc.value))) != 0 ||
@@ -702,7 +701,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	// extend main chain
 	// b2 -> b3
 	// make creation contract tx
-	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(20000)
+	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
 		8880, vmValue, gasPrice, gasLimit, vmValue, nil,
@@ -724,7 +723,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil)
 
 	refundValue := vmParam.gasPrice * (vmParam.gasLimit - vmParam.gasUsed)
-	t.Logf("b1 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
+	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
