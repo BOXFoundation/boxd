@@ -10,23 +10,29 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
+// ContractType defines script contract type
+type ContractType string
+
 //
 const (
 	VMVersion = 0
+
+	ContractUnkownType   ContractType = "contract_unkown"
+	ContractCreationType ContractType = "contract_creation"
+	ContractCallType     ContractType = "contract_call"
 )
 
 // VMTransaction defines the transaction used to interact with vm
 type VMTransaction struct {
-	version     int32
-	senderNonce uint64
-	hashWith    *crypto.HashType
-	sender      *AddressHash
-	receiver    *AddressHash
-	value       *big.Int
-	gasPrice    *big.Int
-	gas         uint64
-	code        []byte
-	voutIdx     uint32
+	version  int32
+	sender   *AddressHash
+	originTx *crypto.HashType
+	receiver *AddressHash
+	value    *big.Int
+	gasPrice *big.Int
+	gas      uint64
+	code     []byte
+	typ      ContractType
 }
 
 // VMTxParams defines BoxTx params parsed from script pubkey
@@ -40,40 +46,29 @@ type VMTxParams struct {
 
 // NewVMTransaction new a VMTransaction instance with given parameters
 func NewVMTransaction(
-	value, gasPrice *big.Int, gas uint64, receiver *AddressHash, code []byte,
+	value, gasPrice *big.Int, gas uint64, hash *crypto.HashType, typ ContractType,
+	code []byte,
 ) *VMTransaction {
 	return &VMTransaction{
-		version:     0,
-		senderNonce: ^(uint64(0)),
-		receiver:    receiver,
-		value:       value,
-		gasPrice:    gasPrice,
-		gas:         gas,
-		code:        code,
+		version:  VMVersion,
+		typ:      typ,
+		value:    value,
+		originTx: hash,
+		gasPrice: gasPrice,
+		gas:      gas,
+		code:     code,
 	}
 }
 
-// WithSenderNonce sets SenderNonce
-func (tx *VMTransaction) WithSenderNonce(n uint64) *VMTransaction {
-	tx.senderNonce = n
-	return tx
-}
-
-// WithSender sets SenderNonce
+// WithSender sets sender
 func (tx *VMTransaction) WithSender(sender *AddressHash) *VMTransaction {
 	tx.sender = sender
 	return tx
 }
 
-// WithHashWith sets SenderNonce
-func (tx *VMTransaction) WithHashWith(hash *crypto.HashType) *VMTransaction {
-	tx.hashWith = hash
-	return tx
-}
-
-// WithVoutIdx sets voutIdx
-func (tx *VMTransaction) WithVoutIdx(n uint32) *VMTransaction {
-	tx.voutIdx = n
+// WithReceiver sets receiver
+func (tx *VMTransaction) WithReceiver(receiver *AddressHash) *VMTransaction {
+	tx.receiver = receiver
 	return tx
 }
 
@@ -107,27 +102,27 @@ func (tx *VMTransaction) Value() *big.Int {
 	return tx.value
 }
 
-// Nonce returns the nonce of the tx.
-func (tx *VMTransaction) Nonce() uint64 {
-	return tx.senderNonce
-}
-
-// CheckNonce returns if check nonce with the tx.
-func (tx *VMTransaction) CheckNonce() bool {
-	return true
-}
+//// Nonce returns the nonce of the tx.
+//func (tx *VMTransaction) Nonce() uint64 {
+//	return 0
+//}
+//
+//// CheckNonce returns if check nonce with the tx.
+//func (tx *VMTransaction) CheckNonce() bool {
+//	return true
+//}
 
 // Data returns the code of the tx.
 func (tx *VMTransaction) Data() []byte {
 	return tx.code
 }
 
-// VoutIdx returns the voutIdx of the tx.
-func (tx *VMTransaction) VoutIdx() uint32 {
-	return tx.voutIdx
+// Type returns the type of the contract tx.
+func (tx *VMTransaction) Type() ContractType {
+	return tx.typ
 }
 
-// HashWith returns the hashWith of the tx.
-func (tx *VMTransaction) HashWith() *crypto.HashType {
-	return tx.hashWith
+// OriginTxHash returns the origin tx hash of the contract tx.
+func (tx *VMTransaction) OriginTxHash() *crypto.HashType {
+	return tx.originTx
 }

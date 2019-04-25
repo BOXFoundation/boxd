@@ -11,10 +11,12 @@ import (
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
+	vmcrypto "github.com/BOXFoundation/boxd/vm/crypto"
 )
 
 // UtxoSet contains all utxos
@@ -72,49 +74,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	txHash, _ := tx.TxHash()
 	sc := script.NewScriptFromBytes(tx.Vout[txOutIdx].ScriptPubKey)
 	var utxoWrap *types.UtxoWrap
-	if sc.IsContractPubkey() && tx.Vout[txOutIdx].Value > 0 { // smart contract utxo
-		address, err := sc.ExtractAddress()
-		if err != nil {
-			return err
-		}
-		hash := types.NormalizeAddressHash(address.Hash160())
-		if hash.IsEqual(&zeroHash) { // deploy smart contract
-			sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
-			if err != nil {
-				return err
-			}
-			senderPubkeyHash, err := types.NewAddressPubKeyHash(sender.Hash())
-			if err != nil {
-				return err
-			}
-			contractAddress, err := types.MakeContractAddress(senderPubkeyHash, txHash, txOutIdx)
-			if err != nil {
-				return err
-			}
-			logger.Infof("contract address created by sender %s tx hash: %s vout idx: %d %s",
-				address.Hash160(), txHash, txOutIdx, contractAddress)
-			hash = types.NormalizeAddressHash(contractAddress.Hash160())
-		}
-
-		outPoint := types.OutPoint{Hash: *hash, Index: 0}
-		if utxoWrap = u.utxoMap[outPoint]; utxoWrap == nil {
-			utxoWrap, err = fetchUtxoWrapFromDB(reader, &outPoint)
-			if err != nil {
-				return err
-			}
-			if utxoWrap == nil {
-				utxoWrap = types.NewUtxoWrap(tx.Vout[txOutIdx].Value, address.Hash(), 0)
-				if IsCoinBase(tx) {
-					return errors.New("Invalid smart contract tx")
-				}
-				utxoWrap.SetScript(tx.Vout[txOutIdx].ScriptPubKey)
-				u.utxoMap[outPoint] = utxoWrap
-				return nil
-			}
-		}
-		value := utxoWrap.Value() + tx.Vout[txOutIdx].Value
-		utxoWrap.SetValue(value)
-		u.utxoMap[outPoint] = utxoWrap
+	if sc.IsContractPubkey() { // smart contract utxo
 		return nil
 	}
 
@@ -185,11 +145,72 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 	return utxoSet, nil
 }
 
+func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32, stateDB *state.StateDB, reader storage.Reader) error {
+	if txOutIdx >= uint32(len(tx.Vout)) {
+		return core.ErrTxOutIndexOob
+	}
+
+	txHash, _ := tx.TxHash()
+	sc := script.NewScriptFromBytes(tx.Vout[txOutIdx].ScriptPubKey)
+	var utxoWrap *types.UtxoWrap
+	if sc.IsContractPubkey() && tx.Vout[txOutIdx].Value > 0 { // smart contract utxo
+		address, err := sc.ExtractAddress()
+		if err != nil {
+			return err
+		}
+		addressHash := types.NormalizeAddressHash(address.Hash160())
+		if addressHash.IsEqual(&zeroHash) { // deploy smart contract
+			sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
+			if err != nil {
+				return err
+			}
+			contractAddr := vmcrypto.CreateAddress(*sender.Hash160(), stateDB.GetNonce(*sender.Hash160()))
+			addressHash = types.NormalizeAddressHash(&contractAddr)
+		}
+
+		outPoint := types.OutPoint{Hash: *addressHash, Index: 0}
+		if utxoWrap = u.utxoMap[outPoint]; utxoWrap == nil {
+			utxoWrap, err = fetchUtxoWrapFromDB(reader, &outPoint)
+			if err != nil {
+				return err
+			}
+			if utxoWrap == nil {
+				utxoWrap = types.NewUtxoWrap(tx.Vout[txOutIdx].Value, address.Hash(), 0)
+				if IsCoinBase(tx) {
+					return errors.New("Invalid smart contract tx")
+				}
+				utxoWrap.SetScript(tx.Vout[txOutIdx].ScriptPubKey)
+				u.utxoMap[outPoint] = utxoWrap
+				return nil
+			}
+		}
+		value := utxoWrap.Value() + tx.Vout[txOutIdx].Value
+		utxoWrap.SetValue(value)
+		u.utxoMap[outPoint] = utxoWrap
+		return nil
+	}
+
+	// common tx
+	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
+	if utxoWrap = u.utxoMap[outPoint]; utxoWrap != nil {
+		return core.ErrAddExistingUtxo
+	}
+	utxoWrap = types.NewUtxoWrap(tx.Vout[txOutIdx].Value, tx.Vout[txOutIdx].ScriptPubKey, blockHeight)
+	if IsCoinBase(tx) {
+		utxoWrap.SetCoinBase()
+	}
+	u.utxoMap[outPoint] = utxoWrap
+	if !HasContractVout(tx) {
+		u.normalTxUtxoSet[outPoint] = struct{}{}
+	}
+	return nil
+}
+
 // applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, db storage.Table) error {
+func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, stateDB *state.StateDB, db storage.Table) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
-		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight, db); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, stateDB, db); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				// This can occur when a tx spends from another tx in front of it in the same block
 				continue
@@ -225,9 +246,9 @@ func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, db 
 	return nil
 }
 
-func (u *UtxoSet) applyInternalTxs(block *types.Block, db storage.Table) error {
+func (u *UtxoSet) applyInternalTxs(block *types.Block, stateDB *state.StateDB, db storage.Table) error {
 	for _, tx := range block.InternalTxs {
-		if err := u.applyTx(tx, block.Header.Height, db); err != nil {
+		if err := u.applyTx(tx, block.Header.Height, stateDB, db); err != nil {
 			return err
 		}
 	}
@@ -235,10 +256,10 @@ func (u *UtxoSet) applyInternalTxs(block *types.Block, db storage.Table) error {
 }
 
 // ApplyBlock updates utxos with all transactions in the passed block
-func (u *UtxoSet) ApplyBlock(block *types.Block, db storage.Table) error {
+func (u *UtxoSet) ApplyBlock(block *types.Block, stateDB *state.StateDB, db storage.Table) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.applyTx(tx, block.Header.Height, db); err != nil {
+		if err := u.applyTx(tx, block.Header.Height, stateDB, db); err != nil {
 			return err
 		}
 	}

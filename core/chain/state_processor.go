@@ -90,13 +90,17 @@ func ApplyTransaction(
 	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
+	to, _ := types.NewContractAddressFromHash(tx.To()[:])
+	logger.Infof("params for ApplyMessage sender: %s, receiver: %s, gas: %d, "+
+		"gasPrice: %d, value: %d, type: %s, header: %+v", tx.From(), to, tx.Gas(),
+		tx.GasPrice(), tx.Value(), tx.Type(), header)
 	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		logger.Warn(err)
 		return 0, 0, nil, nil, err
 	}
 	logger.Infof("result for ApplyMessage tx %s, gasUsed: %d, gasRemainingFee: %d, "+
-		"failed: %t", tx.HashWith(), gasUsed, gasRemainingFee, fail)
+		"failed: %t", tx.OriginTxHash(), gasUsed, gasRemainingFee, fail)
 	if gasRefundTx != nil {
 		txHash, _ := gasRefundTx.TxHash()
 		logger.Infof("gasRefund tx: %s", txHash)
@@ -155,22 +159,9 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transaction, error) {
 
 	hash := types.NormalizeAddressHash(vmtx.To())
-	if hash.IsEqual(&zeroHash) {
-		senderPubkeyHash, err := types.NewAddressPubKeyHash(vmtx.From().Bytes())
-		if err != nil {
-			return nil, err
-		}
-		contractAddress, err := types.MakeContractAddress(senderPubkeyHash, vmtx.HashWith(), vmtx.VoutIdx())
-		if err != nil {
-			return nil, err
-		}
-		logger.Infof("contract address created by sender %s tx hash: %s vout idx: %d %s",
-			vmtx.From(), vmtx.HashWith(), vmtx.VoutIdx, contractAddress)
-		hash = types.NormalizeAddressHash(contractAddress.Hash160())
-	}
-	var utxoWrap *types.UtxoWrap
-	outPoint := types.OutPoint{Hash: *hash, Index: 0}
-	if utxoWrap = utxoSet.utxoMap[outPoint]; utxoWrap == nil {
+	outPoint := *types.NewOutPoint(hash, 0)
+	utxoWrap, ok := utxoSet.utxoMap[outPoint]
+	if !ok {
 		return nil, errors.New("contract utxo does not exist")
 	}
 	if utxoWrap.Value() < vmtx.Value().Uint64() {

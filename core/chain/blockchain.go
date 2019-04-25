@@ -446,7 +446,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	t1 := time.Now().UnixNano()
 	// All context-free checks pass, try to accept the block into the chain.
 	if err := chain.tryAcceptBlock(block, messageFrom); err != nil {
-		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err.Error())
+		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err)
 		return err
 	}
 
@@ -753,10 +753,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 	var stateDB *state.StateDB
 	if messageFrom != "" {
-		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
-			return err
-		}
+
 		parent := chain.GetParentBlock(block)
 		var rootHash *crypto.HashType
 		if parent != nil && parent.Header.RootHash != zeroHash {
@@ -775,6 +772,12 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		} else {
 			stateDB = chain.stateDBCache[block.Header.Height-1]
 		}
+
+		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+		if err := utxoSet.ApplyBlock(blockCopy, stateDB, chain.db); err != nil {
+			return err
+		}
+
 		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			return err
@@ -794,7 +797,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	chain.updateNormalTxBalanceState(utxoSet, stateDB)
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
-		if err := utxoSet.applyInternalTxs(block, chain.db); err != nil {
+		if err := utxoSet.applyInternalTxs(block, stateDB, chain.db); err != nil {
 			return err
 		}
 	}
@@ -1794,13 +1797,22 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 	for i, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		if sc.IsContractPubkey() {
-			p, _, e := sc.ParseContractParams()
+			p, t, e := sc.ParseContractParams()
 			if e != nil {
 				return nil, e
 			}
-			return types.NewVMTransaction(big.NewInt(int64(o.Value)),
-				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Receiver, p.Code).
-				WithHashWith(txHash).WithSender(sender.Hash160()).WithVoutIdx(uint32(i)), nil
+			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
+				big.NewInt(int64(p.GasPrice)), p.GasLimit, txHash, t, p.Code).
+				WithSender(sender.Hash160())
+			if t == types.ContractCreationType {
+				senderPk, _ := types.NewAddressPubKeyHash(sender.Hash())
+				newContractAddr, _ :=
+					types.MakeContractAddress(senderPk, txHash, uint32(i))
+				vmTx.WithReceiver(newContractAddr.Hash160())
+			} else {
+				vmTx.WithReceiver(p.Receiver)
+			}
+			return vmTx, nil
 		}
 	}
 	return nil, fmt.Errorf("no vm tx in tx: %s", txHash)
