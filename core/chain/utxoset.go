@@ -16,7 +16,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
-	vmcrypto "github.com/BOXFoundation/boxd/vm/crypto"
 )
 
 // UtxoSet contains all utxos
@@ -164,8 +163,12 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 			if err != nil {
 				return err
 			}
-			contractAddr := vmcrypto.CreateAddress(*sender.Hash160(), stateDB.GetNonce(*sender.Hash160()))
-			addressHash = types.NormalizeAddressHash(&contractAddr)
+			senderAddr, ok := sender.(*types.AddressPubKeyHash)
+			if !ok {
+				return fmt.Errorf("non pubkey hash is not supported to create contract ")
+			}
+			contractAddr, _ := types.MakeContractAddress(senderAddr, stateDB.GetNonce(*sender.Hash160()))
+			addressHash = types.NormalizeAddressHash(contractAddr.Hash160())
 		}
 
 		outPoint := types.OutPoint{Hash: *addressHash, Index: 0}

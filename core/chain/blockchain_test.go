@@ -520,6 +520,20 @@ const (
 	// }
 	testVMScriptCode = "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
 
+	/*
+		pragma solidity ^0.5.1;
+		contract Faucet {
+				// Give out box to anyone who asks
+		    function withdraw(uint withdraw_amount) public {
+						// Limit withdrawal amount
+		        require(withdraw_amount <= 10000);
+		        // Send the amount to the address that requested it
+		        msg.sender.transfer(withdraw_amount);
+		    }
+		    // Accept any incoming amount
+		    function () external payable  {}
+		}
+	*/
 	testVMCreationCode = "608060405234801561001057600080fd5b5060f78061001f6000396000f3fe60806" +
 		"04052600436106039576000357c010000000000000000000000000000000000000000000000000" +
 		"0000000900480632e1a7d4d14603b575b005b348015604657600080fd5b5060706004803603602" +
@@ -593,7 +607,7 @@ func nextBlockWithTxs(parent *types.Block, txs ...*types.Transaction) *types.Blo
 }
 
 var (
-	userBalance, minerBalance uint64
+	userBalance, minerBalance, contractBalance uint64
 )
 
 type testContractParam struct {
@@ -604,9 +618,6 @@ type testContractParam struct {
 
 func genTestChain(t *testing.T) *types.Block {
 	b0 := getTailBlock()
-	// try to append an existing block: genesis block
-	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)
-
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b0 -> b1
@@ -667,6 +678,8 @@ func contractBlockHandle(
 	block.Txs[0].Vout[0].Value += gasCost
 	tailBlock := block
 	expectUserBalance := userBalance - param.vmValue - gasCost
+	//t.Logf("expectUserBalance: %d, userBalance: %d, vmValue: %d, gasCost: %d",
+	//	expectUserBalance, userBalance, param.vmValue, gasCost)
 	expectMinerBalance := minerBalance + testBlockSubsidy + gasCost
 	if err != nil && err == vm.ErrInsufficientBalance {
 		tailBlock = parent
@@ -678,10 +691,10 @@ func contractBlockHandle(
 	// for userAddr
 	balance := getBalance(userAddr.String(), blockChain.db)
 	stateBalance, _ := blockChain.GetBalance(userAddr)
+	t.Logf("userBalance: %d in utxos, %d in state", balance, stateBalance)
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, expectUserBalance)
 	userBalance = balance
-	t.Logf("user balance: %d, refundValue: %d", userBalance, refundValue)
 	// for miner
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(minerAddr)
@@ -689,11 +702,11 @@ func contractBlockHandle(
 	ensure.DeepEqual(t, balance, expectMinerBalance)
 	minerBalance = balance
 	// for contract address
-	//balance = getBalance(param.contractAddr.String(), blockChain.db)
-	//stateBalance, _ = blockChain.GetBalance(param.contractAddr)
-	//ensure.DeepEqual(t, balance, stateBalance)
-	//ensure.DeepEqual(t, balance, param.contractBalance)
-	//userBalance = balance
+	balance = getBalance(param.contractAddr.String(), blockChain.db)
+	stateBalance, _ = blockChain.GetBalance(param.contractAddr)
+	ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, balance, param.contractBalance)
+	contractBalance = balance
 
 	return block
 }
@@ -725,8 +738,9 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2))
 	signTx(vmTx, privKey, pubKey)
-	txHash, _ := vmTx.TxHash()
-	vmParam.contractAddr, _ = types.MakeContractAddress(userAddr, txHash, 0)
+	stateDB := blockChain.stateDBCache[blockChain.LongestChainHeight]
+	nonce := stateDB.GetNonce(*userAddr.Hash160())
+	vmParam.contractAddr, _ = types.MakeContractAddress(userAddr, nonce)
 	t.Logf("contract address: %s", vmParam.contractAddr)
 	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil)
 
@@ -740,7 +754,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	vmValue, gasPrice, gasLimit = uint64(666), uint64(6), uint64(3000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		2124, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
+		2203, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCallCode)
 	contractVout, err = txlogic.MakeContractCallVout(vmParam.contractAddr.String(),
@@ -764,7 +778,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	vmValue, gasPrice, gasLimit = uint64(0), uint64(10), uint64(8000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		8000, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
+		8000, vmValue, gasPrice, gasLimit, 666, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCreationCode)
 	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
@@ -778,62 +792,40 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	contractBlockHandle(t, vmTx, b4, vmParam, core.ErrInvalidInternalTxs)
 
-	t.Logf("b4 -> b5 failed, now tail height: %d", blockChain.LongestChainHeight)
+	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
 }
 
 func TestFaucetContractBlock(t *testing.T) {
-
-	/*
-		pragma solidity ^0.5.1;
-		contract Faucet {
-				// Give out box to anyone who asks
-		    function withdraw(uint withdraw_amount) public {
-						// Limit withdrawal amount
-		        require(withdraw_amount <= 10000);
-		        // Send the amount to the address that requested it
-		        msg.sender.transfer(withdraw_amount);
-		    }
-		    // Accept any incoming amount
-		    function () external payable  {}
-		}
-	*/
-	byteCodeStr := "608060405234801561001057600080fd5b5060f78061001f6000396000f3fe60806" +
-		"04052600436106039576000357c010000000000000000000000000000000000000000000000000" +
-		"0000000900480632e1a7d4d14603b575b005b348015604657600080fd5b5060706004803603602" +
-		"0811015605b57600080fd5b81019080803590602001909291905050506072565b005b612710811" +
-		"1151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829" +
-		"081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d600" +
-		"0fd5b505056fea165627a7a723058202f9f6d2a7c03458fe70c89e92de0447e8e0d48be3411c23" +
-		"0a56f9057cc10c9ad0029"
 	ensure.NotNil(t, blockChain)
 	ensure.True(t, blockChain.LongestChainHeight == 0)
 
 	// contract blocks test
-	b1 := genTestChain(t)
+	b2 := genTestChain(t)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b2 -> b3
 	// make creation contract tx
-	vmValue, gasPrice, gasLimit := uint64(3000000), uint64(10), uint64(20000)
+	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		3553, vmValue, gasPrice, gasLimit, vmValue, nil,
+		56252, vmValue, gasPrice, gasLimit, vmValue, nil,
 	}
-	byteCode, _ := hex.DecodeString(byteCodeStr)
+	byteCode, _ := hex.DecodeString(testVMCreationCode)
 	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
-	prevHash, _ := b1.Txs[1].TxHash()
+	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue2 := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2))
 	signTx(vmTx, privKey, pubKey)
-	txHash, _ := vmTx.TxHash()
-	vmParam.contractAddr, _ = types.MakeContractAddress(userAddr, txHash, 0)
+	stateDB := blockChain.stateDBCache[blockChain.LongestChainHeight]
+	nonce := stateDB.GetNonce(*userAddr.Hash160())
+	vmParam.contractAddr, _ = types.MakeContractAddress(userAddr, nonce)
 	t.Logf("contract address: %s", vmParam.contractAddr)
-	contractBlockHandle(t, vmTx, b1, vmParam, nil)
+	contractBlockHandle(t, vmTx, b2, vmParam, nil)
 
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 

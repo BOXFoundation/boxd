@@ -90,9 +90,8 @@ func ApplyTransaction(
 	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	to, _ := types.NewContractAddressFromHash(tx.To()[:])
 	logger.Infof("params for ApplyMessage sender: %s, receiver: %s, gas: %d, "+
-		"gasPrice: %d, value: %d, type: %s, header: %+v", tx.From(), to, tx.Gas(),
+		"gasPrice: %d, value: %d, type: %s, header: %+v", tx.From(), tx.Gas(),
 		tx.GasPrice(), tx.Value(), tx.Type(), header)
 	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {

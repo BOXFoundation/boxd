@@ -806,7 +806,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	if err := chain.StoreBlockWithStateInBatch(block, stateDB, chain.db); err != nil {
 		return err
 	}
-	
+
 	if err := stateDB.Commit(false); err != nil {
 		logger.Errorf("stateDB commit failed")
 	}
@@ -1794,7 +1794,7 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 	// HashWith
 	txHash, _ := tx.TxHash()
 
-	for i, o := range tx.Vout {
+	for _, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		if sc.IsContractPubkey() {
 			p, t, e := sc.ParseContractParams()
@@ -1804,12 +1804,7 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
 				big.NewInt(int64(p.GasPrice)), p.GasLimit, txHash, t, p.Code).
 				WithSender(sender.Hash160())
-			if t == types.ContractCreationType {
-				senderPk, _ := types.NewAddressPubKeyHash(sender.Hash())
-				newContractAddr, _ :=
-					types.MakeContractAddress(senderPk, txHash, uint32(i))
-				vmTx.WithReceiver(newContractAddr.Hash160())
-			} else {
+			if t == types.ContractCallType {
 				vmTx.WithReceiver(p.Receiver)
 			}
 			return vmTx, nil

@@ -5,15 +5,15 @@
 package types
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
+	vmcrypto "github.com/BOXFoundation/boxd/vm/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -398,19 +398,32 @@ func ParseAddress(in string) (Address, error) {
 
 // MakeContractAddress make a contract address from sender and tx hash
 func MakeContractAddress(
-	sender *AddressPubKeyHash, txHash *crypto.HashType, voutIdx uint32,
+	sender *AddressPubKeyHash, nonce uint64,
 ) (*AddressContract, error) {
 	// check
-	if sender == nil || txHash == nil || voutIdx == math.MaxUint32 {
+	if sender == nil || sender.hash == ZeroAddressHash {
 		return nil, errors.New("invalid parameters for contract address")
 	}
-	// bytes
-	bytes := append(sender.Hash(), txHash[:]...)
-	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, voutIdx)
-	bytes = append(bytes, b...)
-	// hash160
-	addrHash := crypto.Hash160(bytes)
-	//
-	return NewContractAddressFromHash(addrHash)
+	ah := CreateAddress(sender.hash, nonce)
+	return NewContractAddressFromHash(ah[:])
+}
+
+// CreateAddress creates an ethereum address given the bytes and the nonce
+//
+//  e.g.
+//	b: [0,0,0,0,0,0,0,0,0,0,120,117,106,105,110,103,115,104,105]
+//	nonce: 0
+//
+//	data: [214,148,0,0,0,0,0,0,0,0,0,0,120,117,106,105,110,103,115,104,105,128]
+//		  0xd6(0xc0 + 22 data len) 0x94(0x80 + 20 b len) + b + 0x80(means 0)
+//
+func CreateAddress(b AddressHash, nonce uint64) AddressHash {
+	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce})    // rlp encode
+	return BytesToAddressHash(vmcrypto.Keccak256(data)[12:]) // hash by Keccak256
+}
+
+// CreateAddress2 creates an ethereum address given the address bytes, initial
+// contract code hash and a salt.
+func CreateAddress2(b AddressHash, salt [32]byte, inithash []byte) AddressHash {
+	return BytesToAddressHash(vmcrypto.Keccak256([]byte{0xff}, b[:], salt[:], inithash)[12:])
 }
