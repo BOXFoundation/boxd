@@ -803,6 +803,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	if err := chain.StoreBlockWithStateInBatch(block, stateDB, chain.db); err != nil {
 		return err
 	}
+	
+	if err := stateDB.Commit(false); err != nil {
+		logger.Errorf("stateDB commit failed")
+	}
+
 	ttt2 := time.Now().UnixNano()
 
 	if err := chain.consensus.Process(block, chain.db); err != nil {

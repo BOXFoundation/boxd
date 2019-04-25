@@ -46,7 +46,6 @@ func (sp *StateProcessor) Process(
 	gasRemainingFee := new(uint64)
 	var utxoTxs []*types.Transaction
 	var err error
-	snapID := stateDB.Snapshot()
 	for _, tx := range block.Txs {
 		vmTx, err1 := sp.bc.ExtractVMTransactions(tx)
 		if err1 != nil {
@@ -72,11 +71,9 @@ func (sp *StateProcessor) Process(
 	}
 
 	if err != nil {
-		stateDB.RevertToSnapshot(snapID)
 		return 0, 0, nil, err
 	}
 
-	stateDB.Commit(true)
 	return *usedGas, *gasRemainingFee, utxoTxs, nil
 }
 
