@@ -753,10 +753,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 	var stateDB *state.StateDB
 	if messageFrom != "" {
-		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
-			return err
-		}
+
 		parent := chain.GetParentBlock(block)
 		var rootHash *crypto.HashType
 		if parent != nil && parent.Header.RootHash != zeroHash {
@@ -775,6 +772,12 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		} else {
 			stateDB = chain.stateDBCache[block.Header.Height-1]
 		}
+
+		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+		if err := utxoSet.ApplyBlock(blockCopy, stateDB, chain.db); err != nil {
+			return err
+		}
+
 		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			return err
@@ -794,7 +797,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	chain.updateNormalTxBalanceState(utxoSet, stateDB)
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
-		if err := utxoSet.applyInternalTxs(block, chain.db); err != nil {
+		if err := utxoSet.applyInternalTxs(block, stateDB, chain.db); err != nil {
 			return err
 		}
 	}

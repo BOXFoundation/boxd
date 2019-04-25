@@ -458,16 +458,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, dpos.chain.DB()); err != nil {
-		return err
-	}
-	blockCopy := block.Copy()
-	dpos.chain.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy, dpos.chain.DB()); err != nil {
-		return err
-	}
-
 	parentHash := block.Header.PrevBlockHash
 	parent, err := dpos.chain.LoadBlockByHash(parentHash)
 	if err != nil {
@@ -475,6 +465,15 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 	statedb, err := state.New(&parent.Header.RootHash, dpos.chain.DB())
 	if err != nil {
+		return err
+	}
+	utxoSet := chain.NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, dpos.chain.DB()); err != nil {
+		return err
+	}
+	blockCopy := block.Copy()
+	dpos.chain.SplitBlockOutputs(blockCopy)
+	if err := utxoSet.ApplyBlock(blockCopy, statedb, dpos.chain.DB()); err != nil {
 		return err
 	}
 
