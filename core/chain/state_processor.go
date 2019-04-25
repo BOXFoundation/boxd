@@ -37,7 +37,9 @@ func NewStateProcessor(bc *BlockChain) *StateProcessor {
 }
 
 // Process processes the state changes using the statedb.
-func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, utxoSet *UtxoSet) (uint64, uint64, []*types.Transaction, error) {
+func (sp *StateProcessor) Process(
+	block *types.Block, stateDB *state.StateDB, utxoSet *UtxoSet,
+) (uint64, uint64, []*types.Transaction, error) {
 
 	header := block.Header
 	usedGas := new(uint64)
@@ -46,15 +48,18 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, ut
 	var err error
 	snapID := stateDB.Snapshot()
 	for _, tx := range block.Txs {
-		vmTx, err := sp.bc.ExtractVMTransactions(tx)
-		if err != nil {
+		vmTx, err1 := sp.bc.ExtractVMTransactions(tx)
+		if err1 != nil {
+			err = err1
 			break
 		}
 		if vmTx == nil {
 			continue
 		}
-		gasUsedPerTx, gasRemainingFeePerTx, txs, _, err := ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
-		if err != nil {
+		gasUsedPerTx, gasRemainingFeePerTx, txs, _, err1 :=
+			ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
+		if err1 != nil {
+			err = err1
 			break
 		}
 		if txs != nil {
@@ -77,8 +82,11 @@ func (sp *StateProcessor) Process(block *types.Block, stateDB *state.StateDB, ut
 
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment.
-func ApplyTransaction(tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain, statedb *state.StateDB,
-	cfg vm.Config, utxoSet *UtxoSet) (uint64, uint64, []*types.Transaction, []*vmtypes.Log, error) {
+func ApplyTransaction(
+	tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain,
+	statedb *state.StateDB, cfg vm.Config, utxoSet *UtxoSet,
+) (uint64, uint64, []*types.Transaction, []*vmtypes.Log, error) {
+
 	var txs []*types.Transaction
 	defer func() {
 		Transfers = nil
@@ -189,7 +197,9 @@ func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transac
 	return tx, nil
 }
 
-func makeTx(transferInfos []*TransferInfo, voutBegin int, voutEnd int, utxoSet *UtxoSet) (*types.Transaction, error) {
+func makeTx(
+	transferInfos []*TransferInfo, voutBegin int, voutEnd int, utxoSet *UtxoSet,
+) (*types.Transaction, error) {
 
 	hash := new(crypto.HashType)
 	if err := hash.SetBytes(transferInfos[0].from.Bytes()); err != nil {

@@ -867,7 +867,8 @@ func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 		if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
 			utxoTxsBytes, _ := json.MarshalIndent(utxoTxs, "", "  ")
 			internalTxs, _ := json.MarshalIndent(block.InternalTxs, "", "  ")
-			logger.Warnf("utxo txs: %s, internal txs: %v", string(utxoTxsBytes), string(internalTxs))
+			logger.Warnf("utxo txs generated: %s, internal txs in block: %v",
+				string(utxoTxsBytes), string(internalTxs))
 			logger.Warnf("utxo txs root: %s, internal txs root: %s", txsRoot, block.Header.InternalTxsRoot)
 			return core.ErrInvalidInternalTxs
 		}
@@ -1081,12 +1082,12 @@ func (chain *BlockChain) GetBlockHeight() uint32 {
 }
 
 // GetBalance finds the block in target height of main chain and returns it's hash
-func (chain *BlockChain) GetBalance(addr *types.AddressHash) (uint64, error) {
+func (chain *BlockChain) GetBalance(addr types.Address) (uint64, error) {
 	stateDB := chain.stateDBCache[chain.LongestChainHeight]
 	if stateDB == nil {
 		return 0, errors.New("state db is nil")
 	}
-	return stateDB.GetBalance(*addr).Uint64(), nil
+	return stateDB.GetBalance(*addr.Hash160()).Uint64(), nil
 }
 
 // GetBlockHash finds the block in target height of main chain and returns it's hash

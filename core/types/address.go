@@ -113,6 +113,9 @@ type Address interface {
 
 // NormalizeAddressHash converts AddressHash to common Hash
 func NormalizeAddressHash(addrHash *AddressHash) *crypto.HashType {
+	if addrHash == nil || *addrHash == ZeroAddressHash {
+		return new(crypto.HashType)
+	}
 	hash := new(crypto.HashType)
 	copy(hash[12:], addrHash[:])
 	return hash
