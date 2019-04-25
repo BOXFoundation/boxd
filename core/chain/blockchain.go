@@ -446,7 +446,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	t1 := time.Now().UnixNano()
 	// All context-free checks pass, try to accept the block into the chain.
 	if err := chain.tryAcceptBlock(block, messageFrom); err != nil {
-		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err.Error())
+		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err)
 		return err
 	}
 
@@ -1804,6 +1804,8 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 				newContractAddr, _ :=
 					types.MakeContractAddress(senderPk, txHash, uint32(i))
 				vmTx.WithReceiver(newContractAddr.Hash160())
+			} else {
+				vmTx.WithReceiver(p.Receiver)
 			}
 			return vmTx, nil
 		}

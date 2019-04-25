@@ -221,7 +221,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 
 	logger.Infof("gasUsed: %d, remaining: %v", st.gasUsed(), st.remaining)
-	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, err
+	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, nil
 }
 
 func (st *StateTransition) refundGas() {

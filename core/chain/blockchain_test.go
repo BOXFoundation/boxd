@@ -518,9 +518,17 @@ const (
 	// contract Temp {
 	//     function () payable {}
 	// }
-	testVMCode         = "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
-	testVMCreationCode = "608060405234801561001057600080fd5b50336000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555061042d806100606000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c8063075461721461005157806327e235e31461009b57806340c10f19146100f3578063d0679d3414610141575b600080fd5b61005961018f565b604051808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390f35b6100dd600480360360208110156100b157600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1690602001909291905050506101b4565b6040518082815260200191505060405180910390f35b61013f6004803603604081101561010957600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803590602001909291905050506101cc565b005b61018d6004803603604081101561015757600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919080359060200190929190505050610277565b005b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b60016020528060005260406000206000915090505481565b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161461022557610273565b80600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055505b5050565b80600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410156102c3576103fd565b80600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555080600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055507f3990db2d31862302a685e8086b5755072a6e2b5b780af1ee81ece35ee3cd3345338383604051808473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001828152602001935050505060405180910390a15b505056fea165627a7a72305820d4ff0436c11bf91157f3e014c548d6882bebfa6238aa6cbb2806c2abc271f4470029"
-	testVMCallCode     = "07546172"
+	testVMScriptCode = "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+
+	testVMCreationCode = "608060405234801561001057600080fd5b5060f78061001f6000396000f3fe60806" +
+		"04052600436106039576000357c010000000000000000000000000000000000000000000000000" +
+		"0000000900480632e1a7d4d14603b575b005b348015604657600080fd5b5060706004803603602" +
+		"0811015605b57600080fd5b81019080803590602001909291905050506072565b005b612710811" +
+		"1151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829" +
+		"081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d600" +
+		"0fd5b505056fea165627a7a723058202f9f6d2a7c03458fe70c89e92de0447e8e0d48be3411c23" +
+		"0a56f9057cc10c9ad0029"
+	testVMCallCode = "07546172"
 )
 
 func _TestExtractBoxTx(t *testing.T) {
@@ -532,8 +540,8 @@ func _TestExtractBoxTx(t *testing.T) {
 		version      int32
 		err          error
 	}{
-		{100, "b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", testVMCode, 100, 20000, 0, nil},
-		{0, "", testVMCode, 100, 20000, 0, nil},
+		{100, "b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", testVMScriptCode, 100, 20000, 0, nil},
+		{0, "", testVMScriptCode, 100, 20000, 0, nil},
 	}
 	for _, tc := range tests {
 		var addr types.Address
@@ -651,21 +659,21 @@ func contractBlockHandle(
 	refundValue := uint64(0)
 	if err == nil {
 		refundValue = param.gasPrice*param.gasLimit - gasCost
+		block.InternalTxs = append(block.InternalTxs,
+			createGasRefundUtxoTx(userAddr.Hash160(), refundValue))
+		block.Header.InternalTxsRoot.SetBytes(CalcTxsHash(block.InternalTxs)[:])
 	}
 	block.Header.GasUsed = param.gasUsed
-	block.InternalTxs = append(block.InternalTxs,
-		createGasRefundUtxoTx(userAddr.Hash160(), refundValue))
-	block.Header.InternalTxsRoot.SetBytes(CalcTxsHash(block.InternalTxs)[:])
 	block.Txs[0].Vout[0].Value += gasCost
 	tailBlock := block
 	expectUserBalance := userBalance - param.vmValue - gasCost
 	expectMinerBalance := minerBalance + testBlockSubsidy + gasCost
-	if err != nil {
+	if err != nil && err == vm.ErrInsufficientBalance {
 		tailBlock = parent
 		expectUserBalance, expectMinerBalance = userBalance, minerBalance
 	}
 	height := tailBlock.Header.Height
-	verifyProcessBlockFromNet(t, block, err, height, tailBlock)
+	verifyProcessBlockFromNet(t, block, nil, height, tailBlock)
 	// check balance
 	// for userAddr
 	balance := getBalance(userAddr.String(), blockChain.db)
@@ -704,7 +712,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		8880, vmValue, gasPrice, gasLimit, vmValue, nil,
+		56252, vmValue, gasPrice, gasLimit, vmValue, nil,
 	}
 
 	byteCode, _ := hex.DecodeString(testVMCreationCode)
@@ -756,7 +764,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	vmValue, gasPrice, gasLimit = uint64(0), uint64(10), uint64(8000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		8880, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
+		8000, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCreationCode)
 	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
@@ -768,7 +776,7 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue4))
 	signTx(vmTx, privKey, pubKey)
-	contractBlockHandle(t, vmTx, b4, vmParam, vm.ErrOutOfGas)
+	contractBlockHandle(t, vmTx, b4, vmParam, core.ErrInvalidInternalTxs)
 
 	t.Logf("b4 -> b5 failed, now tail height: %d", blockChain.LongestChainHeight)
 }
