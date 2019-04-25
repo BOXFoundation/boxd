@@ -634,11 +634,11 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
 		// check hash is exist
-		block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
-		if block == nil {
-			logger.Warnf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
-			return ErrInvalidHashInIrreversibleInfo
-		}
+		// block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		// if block == nil {
+		// 	logger.Warnf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
+		// 	return ErrInvalidHashInIrreversibleInfo
+		// }
 		//TODO: period switching requires extra processing
 		addrs := dpos.context.periodContext.periodAddrs
 		remains := []types.AddressHash{}
