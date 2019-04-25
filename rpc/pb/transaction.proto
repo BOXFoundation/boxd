@@ -11,70 +11,81 @@ import "common.proto";
 
 service TransactionCommand {
 
-    rpc GetBalance(GetBalanceReq) returns (GetBalanceResp) {
+    rpc GetBalance (GetBalanceReq) returns (GetBalanceResp) {
         option (google.api.http) = {
             post: "/v1/tx/getbalance"
             body: "*"
         };
     }
 
-    rpc GetTokenBalance(GetTokenBalanceReq) returns (GetBalanceResp) {
+    rpc GetTokenBalance (GetTokenBalanceReq) returns (GetBalanceResp) {
         option (google.api.http) = {
             post: "/v1/tx/gettokenbalance"
             body: "*"
         };
     }
 
-    rpc FetchUtxos(FetchUtxosReq) returns (FetchUtxosResp) {
+    rpc FetchUtxos (FetchUtxosReq) returns (FetchUtxosResp) {
         option (google.api.http) = {
             post: "/v1/tx/fetchutxos"
             body: "*"
         };
     }
 
-    rpc SendTransaction(SendTransactionReq) returns (SendTransactionResp) {
+    rpc SendTransaction (SendTransactionReq) returns (SendTransactionResp) {
         option (google.api.http) = {
             post: "/v1/tx/sendtransaction"
             body: "*"
         };
     }
 
-    rpc GetRawTransaction(GetRawTransactionRequest) returns (GetRawTransactionResponse) {
+    rpc GetRawTransaction (GetRawTransactionRequest) returns (GetRawTransactionResponse) {
         option (google.api.http) = {
             post: "/v1/tx/getrawtransaction"
             body: "*"
         };
     }
 
-    rpc GetFeePrice(GetFeePriceRequest) returns (GetFeePriceResponse) {
+    rpc GetFeePrice (GetFeePriceRequest) returns (GetFeePriceResponse) {
         option (google.api.http) = {
             post: "/v1/tx/getfeeprice"
             body: "*"
         };
     }
 
-    rpc MakeUnsignedTx(MakeTxReq) returns (MakeTxResp) {
+    rpc MakeUnsignedTx (MakeTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx"
             body: "*"
         };
     }
 
-    rpc MakeUnsignedSplitAddrTx(MakeSplitAddrTxReq) returns (MakeSplitAddrTxResp) {
+    rpc MakeUnsignedSplitAddrTx (MakeSplitAddrTxReq) returns (MakeSplitAddrTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/splitaddr"
             body: "*"
         };
     }
 
-    rpc MakeUnsignedTokenIssueTx(MakeTokenIssueTxReq) returns (MakeTokenIssueTxResp) {
+    rpc MakeUnsignedTokenIssueTx (MakeTokenIssueTxReq) returns (MakeTokenIssueTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/token/issue"
             body: "*"
         };
     }
-
-    rpc MakeUnsignedTokenTransferTx(MakeTokenTransferTxReq) returns (MakeTxResp) {
+    rpc SendRawTransaction (SendRawTransactionReq) returns (SendTransactionResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/sendrawtransaction"
+            body: "*"
+        };
+    }
+    rpc CreateRawTransaction (CreateRawTransactionReq) returns (CreateRawTransactionResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/createrawtransaction"
+            body: "*"
+        };
+    }
+    rpc MakeUnsignedTokenTransferTx (MakeTokenTransferTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/token/transfer"
             body: "*"
@@ -82,6 +93,21 @@ service TransactionCommand {
     }
 }
 
+message SendRawTransactionReq {
+    string tx = 1;
+}
+message CreateRawTransactionReq {
+    string from = 1;
+    repeated string txid = 2;
+    repeated uint32 vout = 3;
+    repeated string to = 4;
+    repeated uint64 amount = 5;
+}
+message CreateRawTransactionResp {
+    int32 code = 1;
+    string message = 2;
+    string hextx = 3;
+}
 message GetBalanceReq {
     repeated string addrs = 1;
 }

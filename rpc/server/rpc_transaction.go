@@ -6,8 +6,10 @@ package rpc
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"reflect"
 
@@ -174,7 +176,68 @@ func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransaction
 		Hash:    hash,
 	}
 }
+func newCreateRawTransactionResp(code int32, msg, hextx string) *rpcpb.CreateRawTransactionResp {
+	return &rpcpb.CreateRawTransactionResp{
+		Code:    code,
+		Message: msg,
+		Hextx:   hextx,
+	}
+}
+func (s *txServer) SendRawTransaction(
+	ctx context.Context, req *rpcpb.SendRawTransactionReq,
+) (resp *rpcpb.SendTransactionResp, err error) {
+	tx_byte, err := hex.DecodeString(req.Tx)
+	tx := &types.Transaction{}
+	error := tx.Unmarshal(tx_byte)
+	if error != nil {
+		fmt.Println(error)
+		return
+	}
 
+	txpool := s.server.GetTxHandler()
+	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), nil
+	}
+	hash, _ := tx.TxHash()
+	return newSendTransactionResp(0, "success", hash.String()), nil
+}
+func (s *txServer) CreateRawTransaction(
+	ctx context.Context, req *rpcpb.CreateRawTransactionReq,
+) (resp *rpcpb.CreateRawTransactionResp, err error) {
+	defer func() {
+		bytes, _ := json.Marshal(req)
+		if resp.Code != 0 {
+			logger.Warnf("send tx req: %s error: %s", string(bytes), resp.Message)
+		} else {
+			logger.Infof("send tx req: %s succeeded, response: %+v", string(bytes), resp)
+		}
+	}()
+	from, txid_str, vout, to, amount := req.GetFrom(), req.GetTxid(), req.GetVout(), req.GetTo(), req.GetAmount()
+	txid := make([]crypto.HashType, 0)
+	tmp := crypto.HashType{}
+	for _, x := range txid_str {
+		err := tmp.SetString(x)
+		if err != nil {
+			logger.Debug(err)
+			return newCreateRawTransactionResp(-1, err.Error(), ""), nil
+		}
+		txid = append(txid, tmp)
+	}
+
+	tx, _, err := rpcutil.CreateRawTransaction(from, txid, vout, to, amount, 1)
+	if err != nil {
+		logger.Debug(err)
+		return newCreateRawTransactionResp(-1, err.Error(), ""), nil
+	}
+	mashal_tx, err := tx.Marshal()
+	if err != nil {
+		logger.Debug(err)
+		return
+	}
+	hex_tx := hex.EncodeToString(mashal_tx)
+
+	return newCreateRawTransactionResp(0, "success", hex_tx), nil
+}
 func (s *txServer) SendTransaction(
 	ctx context.Context, req *rpcpb.SendTransactionReq,
 ) (resp *rpcpb.SendTransactionResp, err error) {

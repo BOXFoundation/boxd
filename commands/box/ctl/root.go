@@ -51,7 +51,7 @@ func init() {
 		&cobra.Command{
 			Use:   "createrawtx",
 			Short: "Create a raw transaction",
-			Run: createRawTx,
+			Run: createRawTransaction,
 		},
 		&cobra.Command{
 			Use:   "debuglevel [debug|info|warning|error|fatal]",
@@ -351,7 +351,7 @@ func decoderawtx(cmd *cobra.Command, args []string) {
 	fmt.Println(util.PrettyPrint(tx))
 }
 
-func createRawTx(cmd *cobra.Command, args []string) {
+func createRawTransaction(cmd *cobra.Command, args []string) {
 	if len(args) < 4 {
 		fmt.Println("Invalide argument number")
 		return
@@ -405,7 +405,7 @@ func createRawTx(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	tx, _, err := rpcutil.CreateRawTx(from, txid, vout, to, amount, height)
+	tx, _, err := rpcutil.CreateRawTransaction(from, txid, vout, to, amount, height)
 	mashal_tx, err := tx.Marshal()
 	if err != nil {
 		fmt.Println(err)
