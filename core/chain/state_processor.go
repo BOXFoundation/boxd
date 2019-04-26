@@ -6,11 +6,11 @@ package chain
 
 import (
 	"errors"
+	"fmt"
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
@@ -90,9 +90,9 @@ func ApplyTransaction(
 	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	logger.Infof("params for ApplyMessage sender: %s, receiver: %s, gas: %d, "+
-		"gasPrice: %d, value: %d, type: %s, header: %+v", tx.From(), tx.Gas(),
-		tx.GasPrice(), tx.Value(), tx.Type(), header)
+	logger.Infof("params for ApplyMessage sender: %s, receiver: %v, gas: %d, "+
+		"gasPrice: %d, value: %d, type: %s, header: %+v", tx.From(), tx.To(),
+		tx.Gas(), tx.GasPrice(), tx.Value(), tx.Type(), header)
 	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		logger.Warn(err)
@@ -140,6 +140,7 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 				}
 				tx, err := makeTx(v, begin, end, utxoSet)
 				if err != nil {
+					logger.Error("create utxo tx error: ", err)
 					return nil, err
 				}
 				txs = append(txs, tx)
@@ -147,6 +148,7 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 		} else {
 			tx, err := makeTx(v, 0, len(v), utxoSet)
 			if err != nil {
+				logger.Error("create utxo tx error: ", err)
 				return nil, err
 			}
 			txs = append(txs, tx)
@@ -188,17 +190,15 @@ func makeTx(
 	transferInfos []*TransferInfo, voutBegin int, voutEnd int, utxoSet *UtxoSet,
 ) (*types.Transaction, error) {
 
-	hash := new(crypto.HashType)
-	if err := hash.SetBytes(transferInfos[0].from.Bytes()); err != nil {
-		return nil, err
-	}
+	hash := types.NormalizeAddressHash(&transferInfos[0].from)
 	if hash.IsEqual(&zeroHash) {
 		return nil, errors.New("Invalid contract address")
 	}
 	var utxoWrap *types.UtxoWrap
-	outPoint := types.OutPoint{Hash: *hash, Index: 0}
-	if utxoWrap = utxoSet.utxoMap[outPoint]; utxoWrap == nil {
-		return nil, errors.New("contract utxo does not exist")
+	outPoint := types.NewOutPoint(hash, 0)
+	if utxoWrap = utxoSet.utxoMap[*outPoint]; utxoWrap == nil {
+		logger.Errorf("outpoint hash: %v, index: %d", outPoint.Hash[:], outPoint.Index)
+		return nil, fmt.Errorf("contract utxo outpoint %+v does not exist", outPoint)
 	}
 	var vouts []*corepb.TxOut
 	for i := voutBegin; i < voutEnd; i++ {
@@ -216,12 +216,12 @@ func makeTx(
 		utxoWrap.SetValue(value)
 	}
 	vin := &types.TxIn{
-		PrevOutPoint: outPoint,
+		PrevOutPoint: *outPoint,
 		ScriptSig:    *script.MakeContractScriptSig(),
 	}
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)
 	tx.Vout = append(tx.Vout, vouts...)
-	utxoSet.utxoMap[outPoint] = utxoWrap
+	utxoSet.utxoMap[*outPoint] = utxoWrap
 	return tx, nil
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -144,7 +145,10 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 	return utxoSet, nil
 }
 
-func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32, stateDB *state.StateDB, reader storage.Reader) error {
+func (u *UtxoSet) applyUtxo(
+	tx *types.Transaction, txOutIdx uint32, blockHeight uint32,
+	stateDB *state.StateDB, reader storage.Reader,
+) error {
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
 	}
@@ -152,7 +156,7 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	txHash, _ := tx.TxHash()
 	sc := script.NewScriptFromBytes(tx.Vout[txOutIdx].ScriptPubKey)
 	var utxoWrap *types.UtxoWrap
-	if sc.IsContractPubkey() && tx.Vout[txOutIdx].Value > 0 { // smart contract utxo
+	if sc.IsContractPubkey() { // smart contract utxo
 		address, err := sc.ExtractAddress()
 		if err != nil {
 			return err
@@ -170,10 +174,9 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 			contractAddr, _ := types.MakeContractAddress(senderAddr, stateDB.GetNonce(*sender.Hash160()))
 			addressHash = types.NormalizeAddressHash(contractAddr.Hash160())
 		}
-
-		outPoint := types.OutPoint{Hash: *addressHash, Index: 0}
-		if utxoWrap = u.utxoMap[outPoint]; utxoWrap == nil {
-			utxoWrap, err = fetchUtxoWrapFromDB(reader, &outPoint)
+		outPoint := types.NewOutPoint(addressHash, 0)
+		if utxoWrap = u.utxoMap[*outPoint]; utxoWrap == nil {
+			utxoWrap, err = fetchUtxoWrapFromDB(reader, outPoint)
 			if err != nil {
 				return err
 			}
@@ -183,28 +186,30 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 					return errors.New("Invalid smart contract tx")
 				}
 				utxoWrap.SetScript(tx.Vout[txOutIdx].ScriptPubKey)
-				u.utxoMap[outPoint] = utxoWrap
+				u.utxoMap[*outPoint] = utxoWrap
+				logger.Infof("create contract utxo, outpoint: %+v, value: %d", outPoint, utxoWrap.Value())
 				return nil
 			}
 		}
 		value := utxoWrap.Value() + tx.Vout[txOutIdx].Value
 		utxoWrap.SetValue(value)
-		u.utxoMap[outPoint] = utxoWrap
+		u.utxoMap[*outPoint] = utxoWrap
+		logger.Infof("create contract utxo, outpoint: %+v, value: %d", outPoint, utxoWrap.Value())
 		return nil
 	}
 
 	// common tx
-	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
-	if utxoWrap = u.utxoMap[outPoint]; utxoWrap != nil {
+	outPoint := types.NewOutPoint(txHash, txOutIdx)
+	if utxoWrap = u.utxoMap[*outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
 	}
 	utxoWrap = types.NewUtxoWrap(tx.Vout[txOutIdx].Value, tx.Vout[txOutIdx].ScriptPubKey, blockHeight)
 	if IsCoinBase(tx) {
 		utxoWrap.SetCoinBase()
 	}
-	u.utxoMap[outPoint] = utxoWrap
+	u.utxoMap[*outPoint] = utxoWrap
 	if !HasContractVout(tx) {
-		u.normalTxUtxoSet[outPoint] = struct{}{}
+		u.normalTxUtxoSet[*outPoint] = struct{}{}
 	}
 	return nil
 }
@@ -448,12 +453,10 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			}
 			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
 		} else if sc.IsContractPubkey() {
-			contractAddress := types.BytesToAddressHash(outpoint.Hash[:])
-			//if len(addr.Hash()) > 0 && contractAddress.String() != addr.Hash160().String() {
-			if len(addr.Hash()) > 0 {
-				if contractAddress.String() != addr.Hash160().String() {
-					return errors.New("Invalid contract address")
-				}
+			if len(addr.Hash()) > 0 && outpoint.Hash != *types.NormalizeAddressHash(addr.Hash160()) {
+				logger.Errorf("WriteUtxoSetToDB for contract error, contractAddress: %s, addr: %v",
+					outpoint.Hash, addr.Hash())
+				return errors.New("Invalid contract address")
 			}
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		} else {
@@ -518,6 +521,23 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 				continue
 			}
 			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
+		}
+		// add utxo for contract vout script pubkey
+		for _, txOut := range tx.Vout {
+			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+			if sc.IsContractPubkey() {
+				contractAddr, err := sc.ExtractAddress()
+				if err != nil {
+					logger.Warn(err)
+					return err
+				}
+				if contractAddr == nil || reflect.ValueOf(contractAddr).IsNil() {
+					continue
+				}
+				hash := types.NormalizeAddressHash(contractAddr.Hash160())
+				outPoint := types.NewOutPoint(hash, 0)
+				outPointsToFetch[*outPoint] = struct{}{}
+			}
 		}
 	}
 

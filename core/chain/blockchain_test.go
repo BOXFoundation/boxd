@@ -95,15 +95,6 @@ func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedErr error, 
 	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
 }
 
-func verifyProcessBlockFromNet(t *testing.T, newBlock *types.Block, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
-
-	err := blockChain.ProcessBlock(newBlock, core.DefaultMode /* not broadcast */, "abc")
-
-	ensure.DeepEqual(t, err, expectedErr)
-	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)
-	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
-}
-
 // Test blockchain block processing
 func TestBlockProcessing(t *testing.T) {
 	ensure.NotNil(t, blockChain)
@@ -546,7 +537,7 @@ const (
 	//	"0a56f9057cc10c9ad0029"
 
 	testVMCreationCode = "608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
-	//testVMCallCode     = "07546172"
+	// withdraw 2000
 	testVMCallCode = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
 )
 
@@ -616,7 +607,7 @@ var (
 )
 
 type testContractParam struct {
-	gasUsed, vmValue, gasPrice, gasLimit, contractBalance uint64
+	gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv uint64
 
 	contractAddr *types.AddressContract
 }
@@ -679,7 +670,7 @@ func contractBlockHandle(
 	block.Header.GasUsed = param.gasUsed
 	block.Txs[0].Vout[0].Value += gasCost
 	tailBlock := block
-	expectUserBalance := userBalance - param.vmValue - gasCost
+	expectUserBalance := userBalance - param.vmValue - gasCost + param.userRecv
 	//t.Logf("expectUserBalance: %d, userBalance: %d, vmValue: %d, gasCost: %d",
 	//	expectUserBalance, userBalance, param.vmValue, gasCost)
 	expectMinerBalance := minerBalance + testBlockSubsidy + gasCost
@@ -688,32 +679,34 @@ func contractBlockHandle(
 		expectUserBalance, expectMinerBalance = userBalance, minerBalance
 	}
 	height := tailBlock.Header.Height
-	verifyProcessBlockFromNet(t, block, nil, height, tailBlock)
+	verifyProcessBlock(t, block, nil, height, tailBlock)
 	// check balance
 	// for userAddr
 	balance := getBalance(userAddr.String(), blockChain.db)
 	stateBalance, _ := blockChain.GetBalance(userAddr)
-	t.Logf("userBalance: %d in utxos, %d in state", balance, stateBalance)
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, expectUserBalance)
 	userBalance = balance
+	t.Logf("user balance: %d", userBalance)
 	// for miner
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(minerAddr)
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, expectMinerBalance)
 	minerBalance = balance
+	t.Logf("miner balance: %d", minerBalance)
 	// for contract address
-	balance = getBalance(param.contractAddr.String(), blockChain.db)
+	//balance = getBalance(param.contractAddr.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(param.contractAddr)
-	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, param.contractBalance)
-	contractBalance = balance
+	//ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, stateBalance, param.contractBalance)
+	contractBalance = stateBalance
+	t.Logf("contract address %s balance: %d", param.contractAddr, contractBalance)
 
 	return block
 }
 
-func TestBlockProcessingWithContractTX(t *testing.T) {
+func TestFaucetContract(t *testing.T) {
 	ensure.NotNil(t, blockChain)
 	ensure.True(t, blockChain.LongestChainHeight == 0)
 
@@ -724,10 +717,9 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	// extend main chain
 	// b2 -> b3
 	// make creation contract tx
-	gasUsed, vmValue, gasPrice, gasLimit := uint64(56160), uint64(0), uint64(10), uint64(200000)
+	gasUsed, vmValue, gasPrice, gasLimit := uint64(56160), uint64(10000), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit
-		gasUsed, vmValue, gasPrice, gasLimit, vmValue, nil,
+		gasUsed, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
 	}
 
 	byteCode, _ := hex.DecodeString(testVMCreationCode)
@@ -740,12 +732,18 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2))
 	signTx(vmTx, privKey, pubKey)
+	vmTxHash, _ := vmTx.TxHash()
+	t.Logf("vmTx hash: %s", vmTxHash)
 	stateDB := blockChain.stateDBCache[blockChain.LongestChainHeight]
 	nonce := stateDB.GetNonce(*userAddr.Hash160())
-	vmParam.contractAddr, _ = types.MakeContractAddress(userAddr, nonce)
-	t.Logf("contract address: %s", vmParam.contractAddr)
+	t.Logf("user nonce: %d", nonce)
+	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
+	vmParam.contractAddr = contractAddr
+	t.Logf("contract address: %s, %v", contractAddr, contractAddr.Hash())
 	refundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed))
 	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil, refundTx)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
 
 	refundValue := vmParam.gasPrice * (vmParam.gasLimit - vmParam.gasUsed)
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
@@ -754,13 +752,13 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	// extend main chain
 	// b3 -> b4
 	// make call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(2277), uint64(666), uint64(6), uint64(3000)
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(9912), uint64(0), uint64(6), uint64(20000)
+	contractBalance := uint64(10000 - 2000) // with draw 2000, construct contract with 10000
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit
-		gasUsed, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
+		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 2000, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCallCode)
-	contractVout, err = txlogic.MakeContractCallVout(vmParam.contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
 		vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -771,19 +769,25 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue3))
 	refundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed))
-	contractTx := createGasRefundUtxoTx(vmParam.contractAddr.Hash160(), vmValue)
+	op := types.NewOutPoint(types.NormalizeAddressHash(contractAddr.Hash160()), 0)
+	contractTx := types.NewTx(0, 0, 0).
+		AppendVin(txlogic.MakeContractVin(op, 0)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 2000))
 	signTx(vmTx, privKey, pubKey)
+	vmTxHash, _ = vmTx.TxHash()
+	t.Logf("vmTx hash: %s", vmTxHash)
 	b4 := contractBlockHandle(t, vmTx, b3, vmParam, nil, refundTx, contractTx)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
 	t.Logf("b3 -> b4 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b4 -> b5
 	// make creation contract tx with insufficient gas
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(8000), uint64(0), uint64(10), uint64(8000)
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(20000), uint64(0), uint64(10), uint64(20000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit
-		8000, vmValue, gasPrice, gasLimit, 666, vmParam.contractAddr,
+		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 0, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCreationCode)
 	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
@@ -796,42 +800,8 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue4))
 	signTx(vmTx, privKey, pubKey)
 	contractBlockHandle(t, vmTx, b4, vmParam, core.ErrInvalidInternalTxs)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
 
 	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
-}
-
-func TestFaucetContractBlock(t *testing.T) {
-	ensure.NotNil(t, blockChain)
-	ensure.True(t, blockChain.LongestChainHeight == 0)
-
-	// contract blocks test
-	b2 := genTestChain(t)
-
-	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-	// extend main chain
-	// b2 -> b3
-	// make creation contract tx
-	vmValue, gasPrice, gasLimit := uint64(10), uint64(10), uint64(200000)
-	vmParam := &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit
-		56160, vmValue, gasPrice, gasLimit, vmValue, nil,
-	}
-	byteCode, _ := hex.DecodeString(testVMCreationCode)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
-	ensure.Nil(t, err)
-	prevHash, _ := b2.Txs[1].TxHash()
-	changeValue2 := userBalance - vmValue - gasPrice*gasLimit
-	vmTx := types.NewTx(0, 4455, 0).
-		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2))
-	signTx(vmTx, privKey, pubKey)
-	stateDB := blockChain.stateDBCache[blockChain.LongestChainHeight]
-	nonce := stateDB.GetNonce(*userAddr.Hash160())
-	vmParam.contractAddr, _ = types.MakeContractAddress(userAddr, nonce)
-	t.Logf("contract address: %s", vmParam.contractAddr)
-	contractBlockHandle(t, vmTx, b2, vmParam, nil)
-
-	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
-
 }

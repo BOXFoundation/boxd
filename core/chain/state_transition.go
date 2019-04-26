@@ -193,7 +193,8 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	}
 
 	var (
-		evm = st.evm
+		evm  = st.evm
+		addr types.AddressHash
 		// vm errors do not effect consensus and are therefor
 		// not assigned to err, except for insufficient balance
 		// error.
@@ -201,7 +202,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	)
 	if contractCreation {
 		//
-		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value, false)
+		ret, addr, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value, false)
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(*msg.From(), st.state.GetNonce(sender.Address())+1)
@@ -216,6 +217,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, 0, false, nil, vmerr
 		}
+	}
+	if contractCreation {
+		contractAddr, err := types.NewContractAddressFromHash(addr[:])
+		if err != nil {
+			logger.Error(err)
+		}
+		logger.Infof("contract address %s created", contractAddr)
 	}
 	st.refundGas()
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
