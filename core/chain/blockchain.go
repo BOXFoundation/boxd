@@ -782,6 +782,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		if err != nil {
 			return err
 		}
+		//blockBytes, _ := json.MarshalIndent(block, "", "  ")
+		//logger.Warnf("block: %s", string(blockBytes))
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee, totalTxsFee); err != nil {
 			return err
 		}
@@ -865,11 +867,11 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 
-	if len(utxoTxs) != len(block.InternalTxs) {
-		logger.Warnf("utxo txs len: %d, internal txs in block len: %d", len(utxoTxs),
-			len(block.InternalTxs))
-		return core.ErrInvalidInternalTxs
-	}
+	//if len(utxoTxs) != len(block.InternalTxs) {
+	//	logger.Warnf("utxo txs generated len: %d, internal txs in block len: %d", len(utxoTxs),
+	//		len(block.InternalTxs))
+	//	return core.ErrInvalidInternalTxs
+	//}
 	if len(utxoTxs) > 0 {
 		txsRoot := CalcTxsHash(utxoTxs)
 		if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {

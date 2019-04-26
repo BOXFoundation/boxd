@@ -521,28 +521,33 @@ const (
 	testVMScriptCode = "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
 
 	/*
-		pragma solidity ^0.5.1;
-		contract Faucet {
-				// Give out box to anyone who asks
+			pragma solidity ^0.5.1;
+			contract Faucet {
+		    // Give out ether to anyone who asks
 		    function withdraw(uint withdraw_amount) public {
-						// Limit withdrawal amount
+		        // Limit withdrawal amount
 		        require(withdraw_amount <= 10000);
 		        // Send the amount to the address that requested it
 		        msg.sender.transfer(withdraw_amount);
 		    }
 		    // Accept any incoming amount
 		    function () external payable  {}
-		}
+		    // Create a new ballot with $(_numProposals) different proposals.
+		    constructor() public payable {}
+			}
 	*/
-	testVMCreationCode = "608060405234801561001057600080fd5b5060f78061001f6000396000f3fe60806" +
-		"04052600436106039576000357c010000000000000000000000000000000000000000000000000" +
-		"0000000900480632e1a7d4d14603b575b005b348015604657600080fd5b5060706004803603602" +
-		"0811015605b57600080fd5b81019080803590602001909291905050506072565b005b612710811" +
-		"1151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829" +
-		"081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d600" +
-		"0fd5b505056fea165627a7a723058202f9f6d2a7c03458fe70c89e92de0447e8e0d48be3411c23" +
-		"0a56f9057cc10c9ad0029"
-	testVMCallCode = "07546172"
+	//testVMCreationCode = "608060405234801561001057600080fd5b5060f78061001f6000396000f3fe60806" +
+	//	"04052600436106039576000357c010000000000000000000000000000000000000000000000000" +
+	//	"0000000900480632e1a7d4d14603b575b005b348015604657600080fd5b5060706004803603602" +
+	//	"0811015605b57600080fd5b81019080803590602001909291905050506072565b005b612710811" +
+	//	"1151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829" +
+	//	"081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d600" +
+	//	"0fd5b505056fea165627a7a723058202f9f6d2a7c03458fe70c89e92de0447e8e0d48be3411c23" +
+	//	"0a56f9057cc10c9ad0029"
+
+	testVMCreationCode = "608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
+	//testVMCallCode     = "07546172"
+	testVMCallCode = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
 )
 
 func _TestExtractBoxTx(t *testing.T) {
@@ -662,16 +667,13 @@ func genTestChain(t *testing.T) *types.Block {
 
 func contractBlockHandle(
 	t *testing.T, vmTx *types.Transaction, parent *types.Block,
-	param *testContractParam, err error,
+	param *testContractParam, err error, internalTxs ...*types.Transaction,
 ) *types.Block {
 
 	block := nextBlockWithTxs(parent, vmTx)
 	gasCost := param.gasUsed * param.gasPrice
-	refundValue := uint64(0)
-	if err == nil {
-		refundValue = param.gasPrice*param.gasLimit - gasCost
-		block.InternalTxs = append(block.InternalTxs,
-			createGasRefundUtxoTx(userAddr.Hash160(), refundValue))
+	if err == nil && len(internalTxs) > 0 {
+		block.InternalTxs = append(block.InternalTxs, internalTxs...)
 		block.Header.InternalTxsRoot.SetBytes(CalcTxsHash(block.InternalTxs)[:])
 	}
 	block.Header.GasUsed = param.gasUsed
@@ -722,10 +724,10 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	// extend main chain
 	// b2 -> b3
 	// make creation contract tx
-	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(200000)
+	gasUsed, vmValue, gasPrice, gasLimit := uint64(56160), uint64(0), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		56252, vmValue, gasPrice, gasLimit, vmValue, nil,
+		gasUsed, vmValue, gasPrice, gasLimit, vmValue, nil,
 	}
 
 	byteCode, _ := hex.DecodeString(testVMCreationCode)
@@ -742,7 +744,8 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	nonce := stateDB.GetNonce(*userAddr.Hash160())
 	vmParam.contractAddr, _ = types.MakeContractAddress(userAddr, nonce)
 	t.Logf("contract address: %s", vmParam.contractAddr)
-	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil)
+	refundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed))
+	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil, refundTx)
 
 	refundValue := vmParam.gasPrice * (vmParam.gasLimit - vmParam.gasUsed)
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
@@ -751,10 +754,10 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 	// extend main chain
 	// b3 -> b4
 	// make call contract tx
-	vmValue, gasPrice, gasLimit = uint64(666), uint64(6), uint64(3000)
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(2277), uint64(666), uint64(6), uint64(3000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		2203, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
+		gasUsed, vmValue, gasPrice, gasLimit, vmValue, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCallCode)
 	contractVout, err = txlogic.MakeContractCallVout(vmParam.contractAddr.String(),
@@ -767,15 +770,17 @@ func TestBlockProcessingWithContractTX(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue3))
+	refundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed))
+	contractTx := createGasRefundUtxoTx(vmParam.contractAddr.Hash160(), vmValue)
 	signTx(vmTx, privKey, pubKey)
-	b4 := contractBlockHandle(t, vmTx, b3, vmParam, nil)
+	b4 := contractBlockHandle(t, vmTx, b3, vmParam, nil, refundTx, contractTx)
 	t.Logf("b3 -> b4 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b4 -> b5
 	// make creation contract tx with insufficient gas
-	vmValue, gasPrice, gasLimit = uint64(0), uint64(10), uint64(8000)
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(8000), uint64(0), uint64(10), uint64(8000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
 		8000, vmValue, gasPrice, gasLimit, 666, vmParam.contractAddr,
@@ -806,10 +811,10 @@ func TestFaucetContractBlock(t *testing.T) {
 	// extend main chain
 	// b2 -> b3
 	// make creation contract tx
-	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(200000)
+	vmValue, gasPrice, gasLimit := uint64(10), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit
-		56252, vmValue, gasPrice, gasLimit, vmValue, nil,
+		56160, vmValue, gasPrice, gasLimit, vmValue, nil,
 	}
 	byteCode, _ := hex.DecodeString(testVMCreationCode)
 	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)

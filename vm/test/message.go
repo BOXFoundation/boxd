@@ -28,3 +28,5 @@ func (msg Message) Value() *big.Int    { return big.NewInt(0) }
 func (msg Message) Nonce() uint64    { return 0 }
 func (msg Message) CheckNonce() bool { return true }
 func (msg Message) Data() []byte     { return []byte{} }
+
+func (msg Message) Type() types.ContractType { return types.ContractCreationType }

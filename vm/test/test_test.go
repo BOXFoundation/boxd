@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -199,6 +200,9 @@ func TestPack(t *testing.T) {
 	abiFileName := "./faucet.abi"
 	abiObj := loadAbi(abiFileName)
 
-	input, err := abiObj.Pack("withdraw", big.NewInt(1000000))
-	println(input, err)
+	input, err := abiObj.Pack("withdraw", big.NewInt(2000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("input: %v", hex.EncodeToString(input))
 }
