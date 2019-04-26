@@ -28,7 +28,7 @@ import (
 var (
 	// Transfers          map[types.AddressHash][]*TransferInfo
 	// TransferToContract *types.Transaction
-	Transfers map[types.AddressHash][]*TransferInfo
+	Transfers = make(map[types.AddressHash][]*TransferInfo)
 )
 
 // TransferInfo used to record the transfer information occurred during the execution of the contract

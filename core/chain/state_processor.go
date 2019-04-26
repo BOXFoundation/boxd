@@ -86,7 +86,7 @@ func ApplyTransaction(
 
 	var txs []*types.Transaction
 	defer func() {
-		Transfers = nil
+		Transfers = make(map[types.AddressHash][]*TransferInfo)
 	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)

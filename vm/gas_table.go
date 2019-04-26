@@ -397,13 +397,8 @@ func gasCall(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, mem 
 		gas            = gt.Calls
 		transfersValue = stack.Back(2).Sign() != 0
 		address        = coretypes.BigToAddressHash(stack.Back(1))
-		eip158         = evm.ChainConfig().IsEIP158(evm.BlockNumber)
 	)
-	if eip158 {
-		if transfersValue && evm.StateDB.Empty(address) {
-			gas += types.CallNewAccountGas
-		}
-	} else if !evm.StateDB.Exist(address) {
+	if transfersValue && evm.StateDB.Empty(address) {
 		gas += types.CallNewAccountGas
 	}
 	if transfersValue {
@@ -467,15 +462,9 @@ func gasSuicide(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, m
 		gas = gt.Suicide
 		var (
 			address = coretypes.BigToAddressHash(stack.Back(0))
-			eip158  = evm.ChainConfig().IsEIP158(evm.BlockNumber)
 		)
-
-		if eip158 {
-			// if empty and transfers value
-			if evm.StateDB.Empty(address) && evm.StateDB.GetBalance(contract.Address()).Sign() != 0 {
-				gas += gt.CreateBySuicide
-			}
-		} else if !evm.StateDB.Exist(address) {
+		// if empty and transfers value
+		if evm.StateDB.Empty(address) && evm.StateDB.GetBalance(contract.Address()).Sign() != 0 {
 			gas += gt.CreateBySuicide
 		}
 	}
