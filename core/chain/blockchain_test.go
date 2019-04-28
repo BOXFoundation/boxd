@@ -696,9 +696,9 @@ func contractBlockHandle(
 	minerBalance = balance
 	t.Logf("miner balance: %d", minerBalance)
 	// for contract address
-	//balance = getBalance(param.contractAddr.String(), blockChain.db)
+	balance = getBalance(param.contractAddr.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(param.contractAddr)
-	//ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, stateBalance, param.contractBalance)
 	contractBalance = stateBalance
 	t.Logf("contract address %s balance: %d", param.contractAddr, contractBalance)
@@ -719,6 +719,7 @@ func TestFaucetContract(t *testing.T) {
 	// make creation contract tx
 	gasUsed, vmValue, gasPrice, gasLimit := uint64(56160), uint64(10000), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
 		gasUsed, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
 	}
 
@@ -739,7 +740,7 @@ func TestFaucetContract(t *testing.T) {
 	t.Logf("user nonce: %d", nonce)
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
-	t.Logf("contract address: %s, %v", contractAddr, contractAddr.Hash())
+	t.Logf("contract address: %s", contractAddr)
 	refundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed))
 	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil, refundTx)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
@@ -755,6 +756,7 @@ func TestFaucetContract(t *testing.T) {
 	gasUsed, vmValue, gasPrice, gasLimit = uint64(9912), uint64(0), uint64(6), uint64(20000)
 	contractBalance := uint64(10000 - 2000) // with draw 2000, construct contract with 10000
 	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
 		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 2000, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCallCode)
@@ -787,6 +789,7 @@ func TestFaucetContract(t *testing.T) {
 	// make creation contract tx with insufficient gas
 	gasUsed, vmValue, gasPrice, gasLimit = uint64(20000), uint64(0), uint64(10), uint64(20000)
 	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
 		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 0, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testVMCreationCode)

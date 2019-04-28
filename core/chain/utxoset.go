@@ -458,6 +458,8 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 					outpoint.Hash, addr.Hash())
 				return errors.New("Invalid contract address")
 			}
+			addrHash := types.BytesToAddressHash(outpoint.Hash[:])
+			addr, _ := types.NewContractAddressFromHash(addrHash[:])
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		} else {
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
