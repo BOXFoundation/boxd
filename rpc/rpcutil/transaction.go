@@ -404,6 +404,7 @@ func MakeUnsignedTx(
 	return tx, utxos, err
 }
 
+//CreateRawTransaction create a tx without signature,it returns a tx and utxo
 func CreateRawTransaction(
 	from string, txid []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {

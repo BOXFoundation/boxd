@@ -176,22 +176,26 @@ func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransaction
 		Hash:    hash,
 	}
 }
-func newCreateRawTransactionResp(code int32, msg, hextx string) *rpcpb.CreateRawTransactionResp {
+
+func newCreateRawTransactionResp(code int32, msg, data string) *rpcpb.CreateRawTransactionResp {
 	return &rpcpb.CreateRawTransactionResp{
 		Code:    code,
 		Message: msg,
-		Hextx:   hextx,
+		Data:   data,
 	}
 }
+
 func (s *txServer) SendRawTransaction(
 	ctx context.Context, req *rpcpb.SendRawTransactionReq,
 ) (resp *rpcpb.SendTransactionResp, err error) {
-	tx_byte, err := hex.DecodeString(req.Tx)
-	tx := &types.Transaction{}
-	error := tx.Unmarshal(tx_byte)
-	if error != nil {
-		fmt.Println(error)
-		return
+	txByte, err := hex.DecodeString(req.Tx)
+	if err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), nil
+	}
+	tx := new(types.Transaction)
+	err = tx.Unmarshal(txByte)
+	if err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 
 	txpool := s.server.GetTxHandler()
@@ -201,6 +205,7 @@ func (s *txServer) SendRawTransaction(
 	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
 }
+
 func (s *txServer) CreateRawTransaction(
 	ctx context.Context, req *rpcpb.CreateRawTransactionReq,
 ) (resp *rpcpb.CreateRawTransactionResp, err error) {
@@ -212,32 +217,35 @@ func (s *txServer) CreateRawTransaction(
 			logger.Infof("send tx req: %s succeeded, response: %+v", string(bytes), resp)
 		}
 	}()
-	from, txid_str, vout, to, amount := req.GetFrom(), req.GetTxid(), req.GetVout(), req.GetTo(), req.GetAmount()
-	txid := make([]crypto.HashType, 0)
-	tmp := crypto.HashType{}
-	for _, x := range txid_str {
+	from, txHashStr, vout, to, amount := req.GetFrom(), req.GetTxid(), req.GetVout(), req.GetTo(), req.GetAmount()
+	txHash := make([]crypto.HashType, 0)
+
+	for _, x := range txHashStr {
+		tmp := new(crypto.HashType)
 		err := tmp.SetString(x)
 		if err != nil {
-			logger.Debug(err)
+			logger.Warnf("set tx hash req: %s error: %s", x, resp.Message)
 			return newCreateRawTransactionResp(-1, err.Error(), ""), nil
 		}
-		txid = append(txid, tmp)
+		txHash = append(txHash, *tmp)
 	}
 
-	tx, _, err := rpcutil.CreateRawTransaction(from, txid, vout, to, amount, 1)
+	tx, _, err := rpcutil.CreateRawTransaction(from, txHash, vout, to, amount, 1)
+	fmt.Println(tx)
 	if err != nil {
-		logger.Debug(err)
+		logger.Warnf("Create raw transaction error: %s", err)
 		return newCreateRawTransactionResp(-1, err.Error(), ""), nil
 	}
-	mashal_tx, err := tx.Marshal()
+
+	txByte, err := tx.Marshal()
 	if err != nil {
-		logger.Debug(err)
+		logger.Warn(err)
 		return
 	}
-	hex_tx := hex.EncodeToString(mashal_tx)
-
-	return newCreateRawTransactionResp(0, "success", hex_tx), nil
+	data := hex.EncodeToString(txByte)
+	return newCreateRawTransactionResp(0, "success", data), nil
 }
+
 func (s *txServer) SendTransaction(
 	ctx context.Context, req *rpcpb.SendTransactionReq,
 ) (resp *rpcpb.SendTransactionResp, err error) {

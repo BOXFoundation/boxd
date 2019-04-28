@@ -96,6 +96,7 @@ service TransactionCommand {
 message SendRawTransactionReq {
     string tx = 1;
 }
+
 message CreateRawTransactionReq {
     string from = 1;
     repeated string txid = 2;
@@ -103,11 +104,13 @@ message CreateRawTransactionReq {
     repeated string to = 4;
     repeated uint64 amount = 5;
 }
+
 message CreateRawTransactionResp {
     int32 code = 1;
     string message = 2;
-    string hextx = 3;
+    string data = 3;
 }
+
 message GetBalanceReq {
     repeated string addrs = 1;
 }
