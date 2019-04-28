@@ -242,9 +242,9 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, stateDB *st
 	return nil
 }
 
-func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, db storage.Table) error {
+func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, stateDB *state.StateDB, db storage.Table) error {
 	for txOutIdx := range tx.Vout {
-		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight, db); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, stateDB, db); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				continue
 			}
@@ -256,7 +256,7 @@ func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, db 
 
 func (u *UtxoSet) applyInternalTxs(block *types.Block, stateDB *state.StateDB, db storage.Table) error {
 	for _, tx := range block.InternalTxs {
-		if err := u.applyTx(tx, block.Header.Height, stateDB, db); err != nil {
+		if err := u.applyInternalTx(tx, block.Header.Height, stateDB, db); err != nil {
 			return err
 		}
 	}
