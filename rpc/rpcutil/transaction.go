@@ -6,7 +6,6 @@ package rpcutil
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -26,7 +25,7 @@ import (
 const (
 	connTimeout = 30
 	maxTokenFee = 100
-	maxDecimal=8
+	maxDecimal  = 8
 )
 
 // GetBalance returns total amount of an address
@@ -406,7 +405,7 @@ func MakeUnsignedTx(
 
 //CreateRawTransaction create a tx without signature,it returns a tx and utxo
 func CreateRawTransaction(
-	from string, txid []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
+	from string, txhash []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	total := uint64(0)
 	for _, a := range amounts {
@@ -414,9 +413,9 @@ func CreateRawTransaction(
 	}
 
 	utxos := make([]*rpcpb.Utxo, 0)
-	for i := 0; i < len(txid); i++ {
-		hash := txid[i]
-		op := types.NewOutPoint(&hash, vout[i])
+	for i := 0; i < len(txhash); i++ {
+
+		op := types.NewOutPoint(&txhash[i], vout[i])
 		uw := txlogic.NewUtxoWrap(from, height, total)
 		utxo := txlogic.MakePbUtxo(op, uw)
 		utxos = append(utxos, utxo)
@@ -451,7 +450,7 @@ func MakeUnsignedSplitAddrTx(
 func MakeUnsignedTokenIssueTx(
 	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, fee uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
-	if tag.GetDecimal() < 0 || tag.GetDecimal() > maxDecimal {
+	if tag.GetDecimal() > maxDecimal {
 		return nil, 0, nil, txlogic.ErrInvalidArguments
 	}
 	if uint64(tag.GetSupply()) > math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
@@ -512,9 +511,4 @@ func calcChangeAmount(amounts []uint64, fee uint64, utxos ...*rpcpb.Utxo) (uint6
 	}
 	changeAmt := uv - total
 	return changeAmt, changeAmt > uv
-}
-func hashFromUint64(n uint64) crypto.HashType {
-	bs := make([]byte, 8)
-	binary.LittleEndian.PutUint64(bs, n)
-	return crypto.DoubleHashH(bs)
 }

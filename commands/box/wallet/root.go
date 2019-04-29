@@ -55,7 +55,7 @@ func init() {
 		&cobra.Command{
 			Use:   "dumpwallet [filename]",
 			Short: "Dump wallet to a file",
-			Run: dumpwallet,
+			Run:   dumpwallet,
 		},
 		&cobra.Command{
 			Use:   "encryptwallet [passphrase]",
@@ -67,7 +67,7 @@ func init() {
 		&cobra.Command{
 			Use:   "getwalletinfo [address]",
 			Short: "Get the basic informatio for a wallet",
-			Run: getwalletinfo,
+			Run:   getwalletinfo,
 		},
 		&cobra.Command{
 			Use:   "importprivkey [privatekey]",
@@ -165,26 +165,16 @@ func getwalletinfo(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	passphrase, err := wallet.ReadPassphraseStdin()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	privkey, err := wltMgr.DumpPrivKey(addr, passphrase)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
 	walletinfo, exist := wltMgr.GetAccount(addr)
 	fmt.Println(exist)
 	if exist {
 		fmt.Println("path: ", walletinfo.Path)
 		fmt.Println("Address: ", walletinfo.Addr())
 		fmt.Printf("Pubkey Hash: %x \n", walletinfo.PubKeyHash())
-		fmt.Println("PrivKey: ", privkey)
 		fmt.Println("UnLocked: ", walletinfo.Unlocked)
 	}
 }
+
 func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("dumprivkey called")
 	if len(args) < 1 {
@@ -209,6 +199,7 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	fmt.Printf("Address: %s\nPrivate Key: %s\n", addr, privateKey)
 }
+
 func dumpwallet(cmd *cobra.Command, args []string) {
 	fmt.Println("dumpwallet called")
 	if len(args) < 1 {
@@ -219,15 +210,12 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 		fmt.Println("file name error")
 		return
 	}
-	if args[0][len(args[0])-4:] != ".txt" {
-		fmt.Println("Input file type must be in txt file format")
-		return
-	}
-	_, err := os.Stat(args[0])
-	if err == nil {
+	if _, err := os.Stat(args[0]); !os.IsNotExist(err) {
 		fmt.Println("The file already exists and the command will overwrite the contents of the file.")
+
 	}
-	file, err := os.OpenFile(args[0], os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	file, err := os.OpenFile(args[0], os.O_WRONLY|os.O_TRUNC|os.O_APPEND|os.O_CREATE, 0600)
+	defer file.Close()
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -243,8 +231,8 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 	for _, acc := range wltMgr.ListAccounts() {
 		addrs = append(addrs, acc.Addr())
 	}
-	success_num := 0
-	failed_num := 0
+	success := 0
+
 	for _, x := range addrs {
 		addr := x
 		wltMgr, err := wallet.NewWalletManager(walletDir)
@@ -263,18 +251,19 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 			privateKey, err := wltMgr.DumpPrivKey(addr, passphrase)
 			if err != nil {
 				fmt.Print("Wrong password ")
-			} else {
-				fmt.Printf("Address: %s dump successful \n", addr)
-				file.Write([]byte("privateKey: " + privateKey + " " + time.Now().Format("2006-01-02 15:04:05") + " # addr=" + addr + "\n"))
-				success_num++
-				break
+				if i == 1 {
+					fmt.Println("This wallet dump failed ")
+
+				}
+				continue;
 			}
-			if i == 1 && err != nil {
-				fmt.Println("This wallet dump failed ")
-				failed_num++
-			}
+			fmt.Printf("Address: %s dump successful \n", addr)
+			file.Write([]byte("privateKey: " + privateKey + " " + time.Now().Format("2006-01-02 15:04:05") + " # addr=" + addr + "\n"))
+			success++
+			break
+
 		}
 		fmt.Println()
 	}
-	fmt.Printf("All wallets are dumped. %d successful %d failed\n", success_num, failed_num)
+	fmt.Printf("All wallets are dumped. %d successful %d failed\n", success, len(addrs)-success)
 }

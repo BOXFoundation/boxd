@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"reflect"
 
@@ -21,7 +20,9 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
-const maxDecimal=8
+
+const maxDecimal = 8
+
 func registerTransaction(s *Server) {
 	rpcpb.RegisterTransactionCommandServer(s.server, &txServer{server: s})
 }
@@ -177,14 +178,6 @@ func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransaction
 	}
 }
 
-func newCreateRawTransactionResp(code int32, msg, data string) *rpcpb.CreateRawTransactionResp {
-	return &rpcpb.CreateRawTransactionResp{
-		Code:    code,
-		Message: msg,
-		Data:   data,
-	}
-}
-
 func (s *txServer) SendRawTransaction(
 	ctx context.Context, req *rpcpb.SendRawTransactionReq,
 ) (resp *rpcpb.SendTransactionResp, err error) {
@@ -204,46 +197,6 @@ func (s *txServer) SendRawTransaction(
 	}
 	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
-}
-
-func (s *txServer) CreateRawTransaction(
-	ctx context.Context, req *rpcpb.CreateRawTransactionReq,
-) (resp *rpcpb.CreateRawTransactionResp, err error) {
-	defer func() {
-		bytes, _ := json.Marshal(req)
-		if resp.Code != 0 {
-			logger.Warnf("send tx req: %s error: %s", string(bytes), resp.Message)
-		} else {
-			logger.Infof("send tx req: %s succeeded, response: %+v", string(bytes), resp)
-		}
-	}()
-	from, txHashStr, vout, to, amount := req.GetFrom(), req.GetTxid(), req.GetVout(), req.GetTo(), req.GetAmount()
-	txHash := make([]crypto.HashType, 0)
-
-	for _, x := range txHashStr {
-		tmp := new(crypto.HashType)
-		err := tmp.SetString(x)
-		if err != nil {
-			logger.Warnf("set tx hash req: %s error: %s", x, resp.Message)
-			return newCreateRawTransactionResp(-1, err.Error(), ""), nil
-		}
-		txHash = append(txHash, *tmp)
-	}
-
-	tx, _, err := rpcutil.CreateRawTransaction(from, txHash, vout, to, amount, 1)
-	fmt.Println(tx)
-	if err != nil {
-		logger.Warnf("Create raw transaction error: %s", err)
-		return newCreateRawTransactionResp(-1, err.Error(), ""), nil
-	}
-
-	txByte, err := tx.Marshal()
-	if err != nil {
-		logger.Warn(err)
-		return
-	}
-	data := hex.EncodeToString(txByte)
-	return newCreateRawTransactionResp(0, "success", data), nil
 }
 
 func (s *txServer) SendTransaction(

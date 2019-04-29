@@ -73,18 +73,14 @@ service TransactionCommand {
             body: "*"
         };
     }
+
     rpc SendRawTransaction (SendRawTransactionReq) returns (SendTransactionResp) {
         option (google.api.http) = {
             post: "/v1/tx/sendrawtransaction"
             body: "*"
         };
     }
-    rpc CreateRawTransaction (CreateRawTransactionReq) returns (CreateRawTransactionResp) {
-        option (google.api.http) = {
-            post: "/v1/tx/createrawtransaction"
-            body: "*"
-        };
-    }
+
     rpc MakeUnsignedTokenTransferTx (MakeTokenTransferTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/token/transfer"
@@ -95,20 +91,6 @@ service TransactionCommand {
 
 message SendRawTransactionReq {
     string tx = 1;
-}
-
-message CreateRawTransactionReq {
-    string from = 1;
-    repeated string txid = 2;
-    repeated uint32 vout = 3;
-    repeated string to = 4;
-    repeated uint64 amount = 5;
-}
-
-message CreateRawTransactionResp {
-    int32 code = 1;
-    string message = 2;
-    string data = 3;
 }
 
 message GetBalanceReq {
@@ -158,7 +140,7 @@ message SendTransactionResp {
     string hash = 3;
 }
 
-message GetFeePriceRequest{
+message GetFeePriceRequest {
 }
 
 message GetFeePriceResponse {
@@ -199,7 +181,7 @@ message MakeTokenIssueTxReq {
     string owner = 2;
     TokenTag tag = 3;
     uint64 fee = 4;
-} 
+}
 
 message MakeTokenIssueTxResp {
     int32 code = 1;
@@ -219,8 +201,8 @@ message MakeTokenTransferTxReq {
 }
 
 message TokenTag {
-  string name = 1;
-  string symbol = 2;
-  uint64 supply = 3;
-  uint32 decimal = 4;
+    string name = 1;
+    string symbol = 2;
+    uint64 supply = 3;
+    uint32 decimal = 4;
 }
