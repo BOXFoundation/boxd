@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -238,6 +239,7 @@ func (s *stateObject) updateTrie() *trie.Trie {
 		// Encoding []byte cannot fail, ok to ignore the error.
 		v, _ := rlp.EncodeToBytes(bytes.TrimLeft(value[:], "\x00"))
 		s.setError(tr.Update(key[:], v))
+		log.Println(s.dbErr, " key:", string(key[:]), ", value: ", string(v))
 	}
 	return tr
 }

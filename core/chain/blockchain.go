@@ -753,7 +753,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 	var stateDB *state.StateDB
 	if messageFrom != "" {
-
 		parent := chain.GetParentBlock(block)
 		var rootHash *crypto.HashType
 		if parent != nil && parent.Header.RootHash != zeroHash {
@@ -782,8 +781,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		if err != nil {
 			return err
 		}
-		//blockBytes, _ := json.MarshalIndent(block, "", "  ")
-		//logger.Warnf("block: %s", string(blockBytes))
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee, totalTxsFee); err != nil {
 			return err
 		}
@@ -810,7 +807,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	}
 
 	if err := stateDB.Commit(false); err != nil {
-		logger.Errorf("stateDB commit failed")
+		logger.Errorf("stateDB commit failed: %s", err)
 	}
 
 	ttt2 := time.Now().UnixNano()

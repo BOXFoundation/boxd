@@ -5,9 +5,9 @@
 package chain
 
 import (
-	"context"
 	"encoding/hex"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/BOXFoundation/boxd/vm"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/facebookgo/ensure"
 )
 
@@ -477,31 +478,6 @@ func getBalance(address string, db storage.Table) uint64 {
 	return blances
 }
 
-type testDBReader struct{}
-
-func (r *testDBReader) Get(key []byte) ([]byte, error) {
-	addr := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	address, _ := types.NewAddress(addr)
-	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
-	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
-	utxoWrap := types.NewUtxoWrap(1000, addrScript, 0)
-	return SerializeUtxoWrap(utxoWrap)
-}
-
-func (r *testDBReader) MultiGet(key ...[]byte) ([][]byte, error) { return nil, nil }
-
-func (r *testDBReader) Has(key []byte) (bool, error) { return false, nil }
-
-func (r *testDBReader) Keys() [][]byte { return nil }
-
-func (r *testDBReader) IterKeys(ctx context.Context) <-chan []byte { return nil }
-
-func (r *testDBReader) KeysWithPrefix(prefix []byte) [][]byte { return nil }
-
-func (r *testDBReader) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan []byte {
-	return nil
-}
-
 const (
 	testBlockSubsidy = 50 * uint64(core.DuPerBox)
 
@@ -527,18 +503,9 @@ const (
 		    constructor() public payable {}
 			}
 	*/
-	//testVMCreationCode = "608060405234801561001057600080fd5b5060f78061001f6000396000f3fe60806" +
-	//	"04052600436106039576000357c010000000000000000000000000000000000000000000000000" +
-	//	"0000000900480632e1a7d4d14603b575b005b348015604657600080fd5b5060706004803603602" +
-	//	"0811015605b57600080fd5b81019080803590602001909291905050506072565b005b612710811" +
-	//	"1151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829" +
-	//	"081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d600" +
-	//	"0fd5b505056fea165627a7a723058202f9f6d2a7c03458fe70c89e92de0447e8e0d48be3411c23" +
-	//	"0a56f9057cc10c9ad0029"
-
-	testVMCreationCode = "608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
+	testFaucetContract = "608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
 	// withdraw 2000
-	testVMCallCode = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
+	testFaucetCall = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
 )
 
 func _TestExtractBoxTx(t *testing.T) {
@@ -723,7 +690,7 @@ func TestFaucetContract(t *testing.T) {
 		gasUsed, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
 	}
 
-	byteCode, _ := hex.DecodeString(testVMCreationCode)
+	byteCode, _ := hex.DecodeString(testFaucetContract)
 	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
@@ -759,7 +726,7 @@ func TestFaucetContract(t *testing.T) {
 		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
 		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 2000, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(testVMCallCode)
+	byteCode, _ = hex.DecodeString(testFaucetCall)
 	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
 		vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
@@ -792,7 +759,7 @@ func TestFaucetContract(t *testing.T) {
 		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
 		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 0, vmParam.contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(testVMCreationCode)
+	byteCode, _ = hex.DecodeString(testFaucetContract)
 	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ = b3.Txs[1].TxHash()
@@ -807,4 +774,128 @@ func TestFaucetContract(t *testing.T) {
 	t.Logf("user nonce: %d", nonce)
 
 	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
+}
+
+const (
+	/*
+		pragma solidity ^0.5.6;  //The lowest compiler version
+
+		contract Coin {
+		    // The keyword "public" makes those variables
+		    // readable from outside.
+		    address public minter;
+		    mapping (address => uint) public balances;
+
+		    // Events allow light clients to react on
+		    // changes efficiently.
+		    event Sent(address from, address to, uint amount);
+
+		    // This is the constructor whose code is
+		    // run only when the contract is created.
+		    constructor() public {
+		        minter = msg.sender;
+		    }
+
+		    function mint(address receiver, uint amount) public {
+		        if (msg.sender != minter) return;
+		        balances[receiver] += amount;
+		    }
+
+		    function send(address receiver, uint amount) public {
+		        if (balances[msg.sender] < amount) return ;
+		        balances[msg.sender] -= amount;
+		        balances[receiver] += amount;
+		        emit Sent(msg.sender, receiver, amount);
+		    }
+		}
+	*/
+	testCoinContract = "608060405234801561001057600080fd5b50336000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555061042d806100606000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c8063075461721461005157806327e235e31461009b57806340c10f19146100f3578063d0679d3414610141575b600080fd5b61005961018f565b604051808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390f35b6100dd600480360360208110156100b157600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1690602001909291905050506101b4565b6040518082815260200191505060405180910390f35b61013f6004803603604081101561010957600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190803590602001909291905050506101cc565b005b61018d6004803603604081101561015757600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919080359060200190929190505050610277565b005b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b60016020528060005260406000206000915090505481565b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161461022557610273565b80600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055505b5050565b80600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410156102c3576103fd565b80600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555080600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055507f3990db2d31862302a685e8086b5755072a6e2b5b780af1ee81ece35ee3cd3345338383604051808473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001828152602001935050505060405180910390a15b505056fea165627a7a723058200cf7e1d90be79a04377bc832a4cd9b545f25e8253d7c83b1c72529f73c0888c60029"
+	coinAbi          = `[{"constant":true,"inputs":[],"name":"minter","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"balances","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"receiver","type":"address"},{"name":"amount","type":"uint256"}],"name":"mint","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"receiver","type":"address"},{"name":"amount","type":"uint256"}],"name":"send","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"inputs":[],"payable":false,"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"name":"from","type":"address"},{"indexed":false,"name":"to","type":"address"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"Sent","type":"event"}]`
+)
+
+func TestCoinContract(t *testing.T) {
+
+	var mintCall, sendCall, balancesUserCall, balancesReceiverCall string
+	// balances
+	receiver, err := types.NewContractAddress("b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	func() {
+		abiObj, err := abi.JSON(strings.NewReader(coinAbi))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// mint 8000000
+		//toAddress := types.BytesToAddressHash([]byte("andone"))
+		input, err := abiObj.Pack("mint", *userAddr.Hash160(), big.NewInt(8000000))
+		//input, err := abiObj.Pack("mint", toAddress, big.NewInt(8000000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		mintCall = hex.EncodeToString(input)
+		t.Logf("mint 8000000: %s", mintCall)
+		// sent 2000000
+		input, err = abiObj.Pack("send", *receiver.Hash160(), big.NewInt(2000000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sendCall = hex.EncodeToString(input)
+		t.Logf("send 2000000: %s", sendCall)
+		// balances user addr
+		input, err = abiObj.Pack("balances", *userAddr.Hash160())
+		if err != nil {
+			t.Fatal(err)
+		}
+		balancesUserCall = hex.EncodeToString(input)
+		t.Logf("balancesUser: %s", balancesUserCall)
+		// balances test Addr
+		input, err = abiObj.Pack("balances", receiver.Hash160())
+		if err != nil {
+			t.Fatal(err)
+		}
+		balancesReceiverCall = hex.EncodeToString(input)
+		t.Logf("balances %s: %s", receiver, balancesReceiverCall)
+	}()
+
+	// blockchain
+	ensure.NotNil(t, blockChain)
+	ensure.True(t, blockChain.LongestChainHeight == 0)
+	// contract blocks test
+	b2 := genTestChain(t)
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b2 -> b3
+	// make creation contract tx
+	gasUsed, vmValue, gasPrice, gasLimit := uint64(246403), uint64(0), uint64(10), uint64(400000)
+	vmParam := &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
+	}
+	byteCode, _ := hex.DecodeString(testCoinContract)
+	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	prevHash, _ := b2.Txs[1].TxHash()
+	changeValue2 := userBalance - vmValue - gasPrice*gasLimit
+	vmTx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2))
+	signTx(vmTx, privKey, pubKey)
+	vmTxHash, _ := vmTx.TxHash()
+	t.Logf("vmTx hash: %s", vmTxHash)
+	stateDB := blockChain.stateDBCache[blockChain.LongestChainHeight]
+	nonce := stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
+	vmParam.contractAddr = contractAddr
+	t.Logf("contract address: %s", contractAddr)
+	refundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed))
+	//b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil, refundTx)
+	contractBlockHandle(t, vmTx, b2, vmParam, nil, refundTx)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+
+	//refundValue := vmParam.gasPrice * (vmParam.gasLimit - vmParam.gasUsed)
+	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 }
