@@ -5,6 +5,8 @@
 package trie
 
 import (
+	"bytes"
+
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -24,11 +26,14 @@ func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 	if db == nil {
 		panic("trie.New called without a database")
 	}
+	if rootHash != nil && bytes.Equal(rootHash[:], crypto.ZeroHash[:]) {
+		rootHash = nil
+	}
 	trie := &Trie{
 		db:       db,
 		rootHash: rootHash,
 	}
-	if rootHash == nil || *rootHash == (crypto.HashType{}) {
+	if rootHash == nil {
 		return trie, nil
 	}
 
@@ -51,6 +56,9 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 	nodeBin, err := t.db.Get(hash[:])
 	if err != nil {
 		return nil, err
+	}
+	if nodeBin == nil {
+		return nil, nil
 	}
 	node := new(Node)
 	if err := node.Unmarshal(nodeBin); err != nil {
@@ -91,6 +99,9 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 	root, err := t.getNode(hash)
 	if err != nil {
 		return nil, err
+	}
+	if root == nil {
+		return nil, nil
 	}
 	if root.Type() == unknown {
 		return nil, core.ErrNodeNotFound
@@ -443,6 +454,7 @@ func hexToKey(hex []byte) []byte {
 
 func bytesToHash(bytes []byte) *crypto.HashType {
 	if len(bytes) == 0 {
+	// if len(bytes) == 0 || bytes.Equal(bytes, crypto.ZeroHash[:]) {
 		return nil
 	}
 	var hash = new(crypto.HashType)

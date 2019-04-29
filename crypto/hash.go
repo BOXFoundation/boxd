@@ -20,6 +20,11 @@ const (
 	HashSize = 32
 )
 
+var (
+	// ZeroHash is a HashType full of 0
+	ZeroHash = HashType{}
+)
+
 // HashType is renamed hash type
 type HashType [HashSize]byte
 
