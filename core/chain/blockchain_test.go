@@ -39,8 +39,8 @@ var (
 	scriptPubKeySplitA             = script.PayToPubKeyHashScript(splitAddrA.Hash())
 	splitAddrB, _                  = types.NewAddressFromPubKey(pubKeySplitB)
 	scriptPubKeySplitB             = script.PayToPubKeyHashScript(splitAddrB.Hash())
-	blockChain                     = NewTestBlockChain()
-	timestamp                      = time.Now().Unix()
+	//blockChain                     = NewTestBlockChain()
+	timestamp = time.Now().Unix()
 
 	addrs   = []string{splitAddrA.String(), splitAddrB.String()}
 	weights = []uint64{5, 5}
@@ -82,41 +82,45 @@ func nextBlock(parentBlock *types.Block) *types.Block {
 	return newBlock
 }
 
-func getTailBlock() *types.Block {
+func getTailBlock(blockChain *BlockChain) *types.Block {
 	tailBlock, _ := blockChain.loadTailBlock()
 	return tailBlock
 }
 
-func verifyProcessBlock(t *testing.T, newBlock *types.Block, expectedErr error, expectedChainHeight uint32, expectedChainTail *types.Block) {
+func verifyProcessBlock(
+	t *testing.T, blockChain *BlockChain, newBlock *types.Block, expectedErr error,
+	expectedChainHeight uint32, expectedChainTail *types.Block,
+) {
 
 	err := blockChain.ProcessBlock(newBlock, core.DefaultMode /* not broadcast */, "peer1")
 
 	ensure.DeepEqual(t, err, expectedErr)
 	ensure.DeepEqual(t, blockChain.LongestChainHeight, expectedChainHeight)
-	ensure.DeepEqual(t, getTailBlock(), expectedChainTail)
+	ensure.DeepEqual(t, getTailBlock(blockChain), expectedChainTail)
 }
 
 // Test blockchain block processing
 func TestBlockProcessing(t *testing.T) {
+	blockChain := NewTestBlockChain()
 	ensure.NotNil(t, blockChain)
 	ensure.True(t, blockChain.LongestChainHeight == 0)
 
-	b0 := getTailBlock()
+	b0 := getTailBlock(blockChain)
 
 	// try to append an existing block: genesis block
-	verifyProcessBlock(t, b0, core.ErrBlockExists, 0, b0)
+	verifyProcessBlock(t, blockChain, b0, core.ErrBlockExists, 0, b0)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
-	verifyProcessBlock(t, b1, nil, 1, b1)
+	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 	balance := getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 
 	b1DoubleMint := nextBlock(b1)
 	b1DoubleMint.Header.TimeStamp = b1.Header.TimeStamp
-	verifyProcessBlock(t, b1DoubleMint, core.ErrRepeatedMintAtSameTime, 1, b1)
+	verifyProcessBlock(t, blockChain, b1DoubleMint, core.ErrRepeatedMintAtSameTime, 1, b1)
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 
@@ -128,7 +132,7 @@ func TestBlockProcessing(t *testing.T) {
 	splitTx, splitAddr := createSplitTx(b1.Txs[0], 0)
 	b2ds.Txs = append(b2ds.Txs, splitTx)
 	b2ds.Header.TxsRoot = *CalcTxsHash(b2ds.Txs)
-	verifyProcessBlock(t, b2ds, core.ErrDoubleSpendTx, 1, b1)
+	verifyProcessBlock(t, blockChain, b2ds, core.ErrDoubleSpendTx, 1, b1)
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
 
@@ -140,7 +144,7 @@ func TestBlockProcessing(t *testing.T) {
 	// add a tx spending from previous block's coinbase
 	b2.Txs = append(b2.Txs, createGeneralTx(b1.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
-	verifyProcessBlock(t, b2, nil, 2, b2)
+	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
 
 	// miner balance: 100 - 50 = 50
 	// user balance: 50
@@ -154,7 +158,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2 -> b3
 	b3 := nextBlock(b2)
 	b3.Header.TxsRoot = *CalcTxsHash(b3.Txs)
-	verifyProcessBlock(t, b3, nil, 3, b3)
+	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(100*core.DuPerBox))
 
@@ -166,7 +170,7 @@ func TestBlockProcessing(t *testing.T) {
 	splitTx, splitAddr = createSplitTx(b2.Txs[0], 0)
 	b3A.Txs = append(b3A.Txs, splitTx)
 	b3A.Header.TxsRoot = *CalcTxsHash(b3A.Txs)
-	verifyProcessBlock(t, b3A, core.ErrBlockInSideChain, 3, b3)
+	verifyProcessBlock(t, blockChain, b3A, core.ErrBlockInSideChain, 3, b3)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// reorg: side chain grows longer than main chain
@@ -178,7 +182,7 @@ func TestBlockProcessing(t *testing.T) {
 	b4ATx := createGeneralTx(b3A.Txs[0], 0, 50*core.DuPerBox, splitAddr, privKeyMiner, pubKeyMiner)
 	b4A.Txs = append(b4A.Txs, b4ATx)
 	b4A.Header.TxsRoot = *CalcTxsHash(b4A.Txs)
-	verifyProcessBlock(t, b4A, nil, 4, b4A)
+	verifyProcessBlock(t, blockChain, b4A, nil, 4, b4A)
 
 	// check balance
 	// miner balance: 4 * 50 - 50 - 50 = 100
@@ -198,9 +202,9 @@ func TestBlockProcessing(t *testing.T) {
 	// 		           -> b3A -> b4A
 	// Tx: miner -> user: 50
 	b4 := nextBlock(b3)
-	verifyProcessBlock(t, b4, core.ErrBlockInSideChain, 4, b4A)
+	verifyProcessBlock(t, blockChain, b4, core.ErrBlockInSideChain, 4, b4A)
 	b5 := nextBlock(b4)
-	verifyProcessBlock(t, b5, nil, 5, b5)
+	verifyProcessBlock(t, blockChain, b5, nil, 5, b5)
 
 	// check balance
 	// miner balance: 5 * 50 - 50 = 200
@@ -221,18 +225,18 @@ func TestBlockProcessing(t *testing.T) {
 	b5A := nextBlock(b4A)
 	b5A.Txs = append(b5A.Txs, createGeneralTx(b4A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b5A.Header.TxsRoot = *CalcTxsHash(b5A.Txs)
-	verifyProcessBlock(t, b5A, core.ErrBlockInSideChain, 5, b5)
+	verifyProcessBlock(t, blockChain, b5A, core.ErrBlockInSideChain, 5, b5)
 
 	b6A := nextBlock(b5A)
 	b6A.Txs = append(b6A.Txs, createGeneralTx(b3A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
 	// reorg has happened
-	verifyProcessBlock(t, b6A, core.ErrMissingTxOut, 5, b5A)
+	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5A)
 
 	b6A = nextBlock(b5A)
 	b6A.Txs = append(b6A.Txs, createGeneralTx(b5A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
-	verifyProcessBlock(t, b6A, nil, 6, b6A)
+	verifyProcessBlock(t, blockChain, b6A, nil, 6, b6A)
 
 	// check balance
 	// miner balance: 6 * 50 - 50 -50 -50 -50 = 100
@@ -266,7 +270,7 @@ func TestBlockProcessing(t *testing.T) {
 	b7ATx := createGeneralTx(b4ASplitTx, 0, 25*core.DuPerBox, userAddr.String(), privKeySplitA, pubKeySplitA)
 	b7A.Txs = append(b7A.Txs, b7ATx)
 	b7A.Header.TxsRoot = *CalcTxsHash(b7A.Txs)
-	verifyProcessBlock(t, b7A, nil, 7, b7A)
+	verifyProcessBlock(t, blockChain, b7A, nil, 7, b7A)
 
 	// check balance
 	// miner balance: 7 * 50 - 50 -50 -50 -50 = 150
@@ -293,9 +297,9 @@ func TestBlockProcessing(t *testing.T) {
 	// Tx: miner -> user: 50
 	// Tx: miner -> user: 50
 	b7B := nextBlock(b6A)
-	verifyProcessBlock(t, b7B, core.ErrBlockInSideChain, 7, b7A)
+	verifyProcessBlock(t, blockChain, b7B, core.ErrBlockInSideChain, 7, b7A)
 	b8B := nextBlock(b7B)
-	verifyProcessBlock(t, b8B, nil, 8, b8B)
+	verifyProcessBlock(t, blockChain, b8B, nil, 8, b8B)
 
 	// check balance
 	// splitAddrA balance: 25
@@ -317,13 +321,13 @@ func TestBlockProcessing(t *testing.T) {
 	// Tx: miner -> split address: 50
 	// Tx: splitA -> user: 25
 	b6 := nextBlock(b5)
-	verifyProcessBlock(t, b6, core.ErrBlockInSideChain, 8, b8B)
+	verifyProcessBlock(t, blockChain, b6, core.ErrBlockInSideChain, 8, b8B)
 	b7 := nextBlock(b6)
-	verifyProcessBlock(t, b7, core.ErrBlockInSideChain, 8, b8B)
+	verifyProcessBlock(t, blockChain, b7, core.ErrBlockInSideChain, 8, b8B)
 	b8 := nextBlock(b7)
-	verifyProcessBlock(t, b8, core.ErrBlockInSideChain, 8, b8B)
+	verifyProcessBlock(t, blockChain, b8, core.ErrBlockInSideChain, 8, b8B)
 	b9 := nextBlock(b8)
-	verifyProcessBlock(t, b9, nil, 9, b9)
+	verifyProcessBlock(t, blockChain, b9, nil, 9, b9)
 
 	// check balance
 	// miner balance: 9 * 50 - 50 = 400
@@ -341,9 +345,10 @@ func TestBlockProcessing(t *testing.T) {
 }
 
 func TestBlockChain_WriteDelTxIndex(t *testing.T) {
+	blockChain := NewTestBlockChain()
 	ensure.NotNil(t, blockChain)
 
-	b0 := getTailBlock()
+	b0 := getTailBlock(blockChain)
 
 	b1 := nextBlock(b0)
 	blockChain.db.EnableBatch()
@@ -520,6 +525,7 @@ func _TestExtractBoxTx(t *testing.T) {
 		{100, "b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", testVMScriptCode, 100, 20000, 0, nil},
 		{0, "", testVMScriptCode, 100, 20000, 0, nil},
 	}
+	blockChain := NewTestBlockChain()
 	for _, tc := range tests {
 		var addr types.Address
 		if tc.addrStr != "" {
@@ -579,13 +585,13 @@ type testContractParam struct {
 	contractAddr *types.AddressContract
 }
 
-func genTestChain(t *testing.T) *types.Block {
-	b0 := getTailBlock()
+func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
+	b0 := getTailBlock(blockChain)
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
-	verifyProcessBlock(t, b1, nil, 1, b1)
+	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 	balance := getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ := blockChain.GetBalance(minerAddr)
 	ensure.DeepEqual(t, balance, stateBalance)
@@ -606,7 +612,7 @@ func genTestChain(t *testing.T) *types.Block {
 	ensure.DeepEqual(t, err, nil)
 
 	b2 := nextBlockWithTxs(b1, tx)
-	verifyProcessBlock(t, b2, nil, 2, b2)
+	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
 	// check balance
 	// for userAddr
 	balance = getBalance(userAddr.String(), blockChain.db)
@@ -624,7 +630,7 @@ func genTestChain(t *testing.T) *types.Block {
 }
 
 func contractBlockHandle(
-	t *testing.T, vmTx *types.Transaction, parent *types.Block,
+	t *testing.T, blockChain *BlockChain, vmTx *types.Transaction, parent *types.Block,
 	param *testContractParam, err error, internalTxs ...*types.Transaction,
 ) *types.Block {
 
@@ -646,7 +652,7 @@ func contractBlockHandle(
 		expectUserBalance, expectMinerBalance = userBalance, minerBalance
 	}
 	height := tailBlock.Header.Height
-	verifyProcessBlock(t, block, nil, height, tailBlock)
+	verifyProcessBlock(t, blockChain, block, nil, height, tailBlock)
 	// check balance
 	// for userAddr
 	balance := getBalance(userAddr.String(), blockChain.db)
@@ -674,11 +680,12 @@ func contractBlockHandle(
 }
 
 func TestFaucetContract(t *testing.T) {
+	blockChain := NewTestBlockChain()
 	ensure.NotNil(t, blockChain)
 	ensure.True(t, blockChain.LongestChainHeight == 0)
 
 	// contract blocks test
-	b2 := genTestChain(t)
+	b2 := genTestChain(t, blockChain)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
@@ -709,7 +716,7 @@ func TestFaucetContract(t *testing.T) {
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
 	refundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
-	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil, refundTx)
+	b3 := contractBlockHandle(t, blockChain, vmTx, b2, vmParam, nil, refundTx)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 	t.Logf("user nonce: %d", nonce)
 
@@ -745,7 +752,7 @@ func TestFaucetContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
-	b4 := contractBlockHandle(t, vmTx, b3, vmParam, nil, refundTx, contractTx)
+	b4 := contractBlockHandle(t, blockChain, vmTx, b3, vmParam, nil, refundTx, contractTx)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 	t.Logf("user nonce: %d", nonce)
 	t.Logf("b3 -> b4 passed, now tail height: %d", blockChain.LongestChainHeight)
@@ -769,7 +776,7 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue4))
 	signTx(vmTx, privKey, pubKey)
-	contractBlockHandle(t, vmTx, b4, vmParam, core.ErrInvalidInternalTxs)
+	contractBlockHandle(t, blockChain, vmTx, b4, vmParam, core.ErrInvalidInternalTxs)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 	t.Logf("user nonce: %d", nonce)
 
@@ -858,11 +865,12 @@ func TestCoinContract(t *testing.T) {
 		t.Logf("balances %s: %s", receiver, balancesReceiverCall)
 	}()
 
+	blockChain := NewTestBlockChain()
 	// blockchain
 	ensure.NotNil(t, blockChain)
 	ensure.True(t, blockChain.LongestChainHeight == 0)
 	// contract blocks test
-	b2 := genTestChain(t)
+	b2 := genTestChain(t, blockChain)
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b2 -> b3
@@ -888,7 +896,7 @@ func TestCoinContract(t *testing.T) {
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
 	refundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
-	b3 := contractBlockHandle(t, vmTx, b2, vmParam, nil, refundTx)
+	b3 := contractBlockHandle(t, blockChain, vmTx, b2, vmParam, nil, refundTx)
 	//refundValue := vmParam.gasPrice * (vmParam.gasLimit - vmParam.gasUsed)
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
@@ -914,7 +922,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	signTx(vmTx, privKey, pubKey)
 	refundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
-	b4 := contractBlockHandle(t, vmTx, b3, vmParam, nil, refundTx)
+	b4 := contractBlockHandle(t, blockChain, vmTx, b3, vmParam, nil, refundTx)
 	t.Logf("b3 -> b4 passed, now tail height: %d", blockChain.LongestChainHeight)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 
@@ -940,7 +948,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	signTx(vmTx, privKey, pubKey)
 	refundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
-	b5 := contractBlockHandle(t, vmTx, b4, vmParam, nil, refundTx)
+	b5 := contractBlockHandle(t, blockChain, vmTx, b4, vmParam, nil, refundTx)
 	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 
@@ -966,7 +974,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	signTx(vmTx, privKey, pubKey)
 	refundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
-	b6 := contractBlockHandle(t, vmTx, b5, vmParam, nil, refundTx)
+	b6 := contractBlockHandle(t, blockChain, vmTx, b5, vmParam, nil, refundTx)
 	t.Logf("b5 -> b6 passed, now tail height: %d", blockChain.LongestChainHeight)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 	// check balances
@@ -999,7 +1007,7 @@ func TestCoinContract(t *testing.T) {
 	refundTxHash, _ := refundTx.TxHash()
 	t.Logf("refund tx: %s", refundTxHash)
 	logger.Warnf("refund amount: %d", gasPrice*(gasLimit-gasUsed))
-	contractBlockHandle(t, vmTx, b6, vmParam, nil, refundTx)
+	contractBlockHandle(t, blockChain, vmTx, b6, vmParam, nil, refundTx)
 	t.Logf("b6 -> b7 passed, now tail height: %d", blockChain.LongestChainHeight)
 	// check balances
 	// return 0x1e8480 = 2000000, check okay
