@@ -22,7 +22,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/storage/rocksdb"
@@ -347,7 +347,7 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 	if len(utxos) == 0 {
 		return fmt.Errorf("no utxo to apply")
 	}
-	batch := db.NewBatch()
+	db.EnableBatch()
 	for o, u := range utxos {
 		if u == nil {
 			logger.Warnf("invalid utxo, outpoint: %s, utxoWrap: %+v", o, u)
@@ -387,17 +387,17 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 			continue
 		}
 		if u.IsSpent() {
-			batch.Del(utxoKey)
+			db.Del(utxoKey)
 		} else {
 			serialized, err := chain.SerializeUtxoWrap(u)
 			if err != nil {
 				return err
 			}
-			batch.Put(utxoKey, serialized)
+			db.Put(utxoKey, serialized)
 		}
 	}
 	// write storage
-	return batch.Write()
+	return db.Flush()
 }
 
 func isTxUtxo(scriptBytes []byte) bool {

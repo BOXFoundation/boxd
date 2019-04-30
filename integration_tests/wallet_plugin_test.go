@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/script"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
@@ -133,10 +133,10 @@ func _TestNormalTx(t *testing.T) {
 	//amounts := []uint64{100, 200, 300, 400}
 	amounts := []uint64{1000}
 	req := &rpcpb.MakeTxReq{
-		From:    from,
-		To:      to,
-		Amounts: amounts,
-		Fee:     50,
+		From:     from,
+		To:       to,
+		Amounts:  amounts,
+		GasPrice: 10,
 	}
 	//
 	flow(t, func(ctx context.Context,
@@ -162,10 +162,10 @@ func _TestSplitAddrTx(t *testing.T) {
 	}
 	weights := []uint64{1, 2, 3, 4}
 	req := &rpcpb.MakeSplitAddrTxReq{
-		From:    from,
-		Addrs:   addrs,
-		Weights: weights,
-		Fee:     100,
+		From:     from,
+		Addrs:    addrs,
+		Weights:  weights,
+		GasPrice: 10,
 	}
 	//
 	flow(t, func(ctx context.Context,
@@ -187,10 +187,10 @@ func _TestTokenTx(t *testing.T) {
 	issuee := issuer
 	tag := txlogic.NewTokenTag("box test token", "XOX", 4, 20000)
 	req := &rpcpb.MakeTokenIssueTxReq{
-		Issuer: issuer,
-		Issuee: issuee,
-		Tag:    tag,
-		Fee:    10,
+		Issuer:   issuer,
+		Issuee:   issuee,
+		Tag:      tag,
+		GasPrice: 10,
 	}
 	bytes, _ := json.MarshalIndent(req, "", "  ")
 	logger.Errorf("make unsigned token issue tx: %s", string(bytes))
@@ -216,7 +216,7 @@ func _TestTokenTx(t *testing.T) {
 		From:       from,
 		To:         to,
 		Amounts:    amounts,
-		Fee:        50,
+		GasPrice:   10,
 		TokenHash:  hashStr,
 		TokenIndex: 0,
 	}
