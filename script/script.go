@@ -56,8 +56,8 @@ func StandardCoinbaseSignatureScript(height uint32) *Script {
 }
 
 // GasRefundSignatureScript returns a standard signature script for gas refound transaction.
-func GasRefundSignatureScript() *Script {
-	return NewScript().AddOperand(big.NewInt(0).Bytes())
+func GasRefundSignatureScript(nonce uint64) *Script {
+	return NewScript().AddOpCode(OPCONTRACT).AddOperand(big.NewInt(int64(nonce)).Bytes())
 }
 
 // SplitAddrScript returns a script to store a split address output
@@ -815,8 +815,7 @@ func MakeContractScriptPubkey(
 
 // MakeContractScriptSig makes a script sig for contract vin
 func MakeContractScriptSig() *Script {
-	s := Script([]byte{byte(OPCONTRACT)})
-	return &s
+	return NewScript().AddOpCode(OPCONTRACT)
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack

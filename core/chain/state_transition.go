@@ -23,6 +23,7 @@ import (
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 )
@@ -187,6 +188,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
 	}
+	logger.Infof("IntrinsicGas used gas: %d", gas)
 	if err = st.useGas(gas); err != nil {
 		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
@@ -207,6 +209,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(*msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value, false)
+		logger.Infof("call contract return: %s", crypto.BytesToHash(ret))
 	}
 	if vmerr != nil {
 		// log.Debug("VM returned with error", "err", vmerr)
@@ -241,31 +244,30 @@ func (st *StateTransition) refundGas() {
 
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
 	if remaining.Uint64() > 0 {
-		st.gasRefoundTx = createGasRefundUtxoTx(st.msg.From(), remaining.Uint64())
+		nonce := st.state.GetNonce(*st.msg.From())
+		st.gasRefoundTx = createGasRefundUtxoTx(st.msg.From(), remaining.Uint64(), nonce)
 		st.remaining = remaining
 	}
 	st.state.AddBalance(*st.msg.From(), remaining)
 }
 
-func createGasRefundUtxoTx(addrHash *types.AddressHash, value uint64) *types.Transaction {
+func createGasRefundUtxoTx(addrHash *types.AddressHash, value, nonce uint64) *types.Transaction {
 
-	var vouts []*corepb.TxOut
 	addrScript := *script.PayToPubKeyHashScript(addrHash[:])
 	vout := &corepb.TxOut{
 		Value:        value,
 		ScriptPubKey: addrScript,
 	}
-	vouts = append(vouts, vout)
 	vin := &types.TxIn{
 		PrevOutPoint: types.OutPoint{
 			Hash:  zeroHash,
 			Index: math.MaxUint32,
 		},
-		ScriptSig: *script.GasRefundSignatureScript(),
+		ScriptSig: *script.GasRefundSignatureScript(nonce),
 	}
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)
-	tx.Vout = append(tx.Vout, vouts...)
+	tx.Vout = append(tx.Vout, vout)
 	return tx
 }
 
