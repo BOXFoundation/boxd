@@ -289,7 +289,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 		logger.Errorf("Tx %v is not standard", txHash.String())
 		return core.ErrNonStandardTransaction
 	}
-
 	if err := tx_pool.chain.Consensus().VerifyTx(tx); err != nil {
 		logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
 		return err
