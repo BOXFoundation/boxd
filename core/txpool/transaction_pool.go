@@ -6,6 +6,7 @@ package txpool
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -315,6 +316,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	if utxoSet.TxInputAmount(tx) == 0 {
 		// Add orphan transaction
 		tx_pool.addOrphan(tx)
+		fmt.Println("加入孤儿交易池-------------------")
 		return core.ErrOrphanTransaction
 	}
 
@@ -337,7 +339,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
-
+fmt.Println("--------------------将txscriptwrap加入管道成功")
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
@@ -346,6 +348,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	// logger.Infof("Accepted new tx. Hash: %v, transferMode: %v, key: %s", txHash, transferMode, key)
 	logger.Debugf("Accepted new tx. Hash: %v", txHash)
 	tx_pool.txcache.Add(*txHash, true)
+	fmt.Println("---------------------add cache")
 	switch transferMode {
 	case core.BroadcastMode:
 		return tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
@@ -391,9 +394,10 @@ func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) erro
 
 // ProcessOrphans used to handle orphan transactions
 func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
+	fmt.Println("---------------processOrphan",util.PrettyPrint(tx))
 	// Start with processing at least the passed tx.
 	acceptedTxs := []*types.Transaction{tx}
-
+	fmt.Println("---------",util.PrettyPrint( acceptedTxs))
 	// Note: use index here instead of range because acceptedTxs can be extended inside the loop
 	for i := 0; i < len(acceptedTxs); i++ {
 		acceptedTx := acceptedTxs[i]
@@ -403,6 +407,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 		outPoint := types.OutPoint{Hash: *acceptedTxHash}
 		for txOutIdx := range acceptedTx.Vout {
 			outPoint.Index = uint32(txOutIdx)
+			fmt.Println(util.PrettyPrint(outPoint))
 			v, exists := tx_pool.outPointToOrphan.Load(outPoint)
 			if !exists {
 				continue
@@ -410,6 +415,7 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			orphans := v.(*sync.Map)
 			orphans.Range(func(k, v interface{}) bool {
 				orphan := v.(*types.Transaction)
+				fmt.Println("-------handle orphan-----",util.PrettyPrint(orphan))
 				if err := tx_pool.maybeAcceptTx(orphan, core.DefaultMode, false); err != nil {
 					return true
 				}
@@ -424,12 +430,13 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 	for _, acceptedTx := range acceptedTxs {
 		tx_pool.removeDoubleSpendOrphans(acceptedTx)
 	}
-
+	fmt.Println("--------------------------processOrphan ok -----")
 	return nil
 }
 
 // Add transaction into tx pool
 func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feePerKB uint64) {
+	fmt.Println("--------------------------开始添加tx")
 	txHash, _ := tx.TxHash()
 
 	txWrap := &types.TxWrap{
@@ -445,7 +452,7 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 	for _, txIn := range tx.Vin {
 		tx_pool.outPointToTx.Store(txIn.PrevOutPoint, tx)
 	}
-
+fmt.Println("=----------------------------结束添加tx")
 	// TODO: build address - tx index.
 }
 
@@ -566,6 +573,7 @@ func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) 
 
 // check admitted tx's script
 func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
+	fmt.Println("-----------------------开始check")
 	// verify crypto signatures for each input
 	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false /* validate script */); err != nil {
 		// remove
@@ -583,6 +591,7 @@ func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	}
 	tx := v.(*types.TxWrap)
 	tx.IsScriptValid = true
+	fmt.Println("----------------------------结束check")
 }
 
 func (tx_pool *TransactionPool) cleanExpiredTxs() {

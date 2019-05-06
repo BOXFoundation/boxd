@@ -186,11 +186,9 @@ func (s *txServer) SendRawTransaction(
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 	tx := new(types.Transaction)
-	err = tx.Unmarshal(txByte)
-	if err != nil {
+	if err = tx.Unmarshal(txByte); err!=nil{
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
-
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
@@ -212,7 +210,7 @@ func (s *txServer) SendTransaction(
 		}
 	}()
 
-	tx := &types.Transaction{}
+	tx := new(types.Transaction)
 	if err := tx.FromProtoMessage(req.Tx); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}

@@ -49,7 +49,7 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "createrawtx",
+			Use:   "createrawtx [from] [txhash1,txhash2...] [vout1,vout2...] [to1,to2...] [amount1,amount2...]",
 			Short: "Create a raw transaction",
 			Run:   createRawTransaction,
 		},
@@ -342,10 +342,9 @@ func decoderawtx(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	tx := types.Transaction{}
-	error := tx.Unmarshal(txByte)
-	if error != nil {
-		fmt.Println(error)
+	tx := new(types.Transaction)
+	if err:= tx.Unmarshal(txByte);err!=nil{
+		fmt.Println("Unmarshal error: ",err)
 		return
 	}
 	fmt.Println(util.PrettyPrint(tx))
@@ -359,12 +358,15 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 	fmt.Println("createRawTx called")
 	from := args[0]
 	//Cut characters around commas
-	txidStr := strings.Split(args[1], ",")
-	txid := make([]crypto.HashType, 0)
-	for _, x := range txidStr {
+	txHashStr := strings.Split(args[1], ",")
+	txHash := make([]crypto.HashType, 0)
+	for _, x := range txHashStr {
 		tmp := crypto.HashType{}
-		tmp.SetString(x)
-		txid = append(txid, tmp)
+		if err:=tmp.SetString(x);err!=nil{
+			fmt.Println("set string error: ",err)
+			return
+		}
+		txHash = append(txHash, tmp)
 	}
 	voutStr := strings.Split(args[2], ",")
 	vout := make([]uint32, 0)
@@ -391,7 +393,7 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 		}
 		amounts = append(amounts, uint64(tmp))
 	}
-	if len(txid) != len(vout) {
+	if len(txHash) != len(vout) {
 		fmt.Println(" The number of [txid] should be the same as the number of [vout]")
 		return
 	}
@@ -410,7 +412,7 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	tx, _, err := rpcutil.CreateRawTransaction(from, txid, vout, to, amounts, height)
+	tx, err := rpcutil.CreateRawTransaction(from, txHash, vout, to, amounts, height)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -489,9 +491,8 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 		return
 	}
 	tx := new(types.Transaction)
-	error := tx.Unmarshal(txByte)
-	if error != nil {
-		fmt.Println(error)
+	if err := tx.Unmarshal(txByte); err!=nil{
+		fmt.Println("unmarshal error: ",err)
 		return
 	}
 	resp, err := rpcutil.SendTransaction(conn, tx)

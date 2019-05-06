@@ -166,7 +166,6 @@ func getwalletinfo(cmd *cobra.Command, args []string) {
 		return
 	}
 	walletinfo, exist := wltMgr.GetAccount(addr)
-	fmt.Println(exist)
 	if exist {
 		fmt.Println("path: ", walletinfo.Path)
 		fmt.Println("Address: ", walletinfo.Addr())
@@ -206,10 +205,7 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 		fmt.Println("file name needed")
 		return
 	}
-	if len(args[0]) <= 4 {
-		fmt.Println("file name error")
-		return
-	}
+
 	if _, err := os.Stat(args[0]); !os.IsNotExist(err) {
 		fmt.Println("The file already exists and the command will overwrite the contents of the file.")
 

@@ -406,7 +406,7 @@ func MakeUnsignedTx(
 //CreateRawTransaction create a tx without signature,it returns a tx and utxo
 func CreateRawTransaction(
 	from string, txhash []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
-) (*types.Transaction, []*rpcpb.Utxo, error) {
+) (*types.Transaction, error) {
 	total := uint64(0)
 	for _, a := range amounts {
 		total += a
@@ -422,10 +422,10 @@ func CreateRawTransaction(
 	}
 	changeAmt, overflowed := calcChangeAmount(amounts, 0, utxos...)
 	if overflowed {
-		return nil, nil, txlogic.ErrInsufficientBalance
+		return nil, txlogic.ErrInsufficientBalance
 	}
 	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
-	return tx, utxos, err
+	return tx, err
 }
 
 // MakeUnsignedSplitAddrTx news tx to make split addr without signature
@@ -451,14 +451,14 @@ func MakeUnsignedTokenIssueTx(
 	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, fee uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
 	if tag.GetDecimal() > maxDecimal {
-		return nil, 0, nil, txlogic.ErrInvalidArguments
+		return nil, 0, nil, fmt.Errorf("Decimal[%d] is bigger than max Decimal[%d]",tag.GetDecimal(),maxDecimal)
 	}
-	if uint64(tag.GetSupply()) > math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
-		return nil, 0, nil, txlogic.ErrInvalidArguments
+	if tag.GetSupply() > math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
+		return nil, 0, nil, fmt.Errorf("supply is too bigger")
 	}
 	utxos, err := wa.Utxos(issuer, nil, fee)
 	if err != nil {
-		return nil, 0, nil, txlogic.ErrInvalidArguments
+		return nil, 0, nil, err
 	}
 	changeAmt, overflowed := calcChangeAmount(nil, fee, utxos...)
 	if overflowed {
