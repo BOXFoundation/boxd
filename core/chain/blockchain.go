@@ -806,7 +806,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		return err
 	}
 
-	if err := stateDB.Commit(false); err != nil {
+	if root, err := stateDB.Commit(false); err != nil {
 		logger.Errorf("stateDB commit failed: %s", err)
 	}
 

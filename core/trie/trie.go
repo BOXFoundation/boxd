@@ -68,8 +68,8 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 }
 
 // Commit persistent the data of the trie.
-func (t *Trie) Commit() error {
-	return nil
+func (t *Trie) Commit() (*crypto.HashType, error) {
+	return t.rootHash, nil
 }
 
 func (t *Trie) commit(node *Node) error {

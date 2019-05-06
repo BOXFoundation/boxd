@@ -596,7 +596,7 @@ func (s *StateDB) clearJournalAndRefund() {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *StateDB) Commit(deleteEmptyObjects bool) error {
+func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, error) {
 	defer s.clearJournalAndRefund()
 
 	for addr := range s.journal.dirties {
@@ -617,8 +617,8 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) error {
 				stateObject.dirtyCode = false
 			}
 			// Write any storage changes in the state object to its storage trie.
-			if err := stateObject.CommitTrie(); err != nil {
-				return err
+			if _, err := stateObject.CommitTrie(); err != nil {
+				return nil, err
 			}
 			// Update the object in the main account trie.
 			s.updateStateObject(stateObject)

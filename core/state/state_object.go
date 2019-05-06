@@ -250,10 +250,10 @@ func (s *stateObject) updateRoot() {
 
 // CommitTrie the storage trie of the object to dwb.
 // This updates the trie root.
-func (s *stateObject) CommitTrie() error {
+func (s *stateObject) CommitTrie() (*corecrypto.HashType, error) {
 	s.updateTrie()
 	if s.dbErr != nil {
-		return s.dbErr
+		return nil, s.dbErr
 	}
 	return s.trie.Commit()
 }

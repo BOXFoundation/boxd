@@ -115,10 +115,10 @@ func TestIntermediateLeaks(t *testing.T) {
 	}
 
 	// Commit and cross check the databases.
-	if err := transState.Commit(false); err != nil {
+	if _, err := transState.Commit(false); err != nil {
 		t.Fatalf("failed to commit transition state: %v", err)
 	}
-	if err := finalState.Commit(false); err != nil {
+	if _, err := finalState.Commit(false); err != nil {
 		t.Fatalf("failed to commit final state: %v", err)
 	}
 	for _, key := range finalDb.Keys() {
