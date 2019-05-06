@@ -343,8 +343,8 @@ func decoderawtx(cmd *cobra.Command, args []string) {
 		return
 	}
 	tx := new(types.Transaction)
-	if err:= tx.Unmarshal(txByte);err!=nil{
-		fmt.Println("Unmarshal error: ",err)
+	if err := tx.Unmarshal(txByte); err != nil {
+		fmt.Println("Unmarshal error: ", err)
 		return
 	}
 	fmt.Println(util.PrettyPrint(tx))
@@ -362,8 +362,8 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 	txHash := make([]crypto.HashType, 0)
 	for _, x := range txHashStr {
 		tmp := crypto.HashType{}
-		if err:=tmp.SetString(x);err!=nil{
-			fmt.Println("set string error: ",err)
+		if err := tmp.SetString(x); err != nil {
+			fmt.Println("set string error: ", err)
 			return
 		}
 		txHash = append(txHash, tmp)
@@ -491,8 +491,8 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 		return
 	}
 	tx := new(types.Transaction)
-	if err := tx.Unmarshal(txByte); err!=nil{
-		fmt.Println("unmarshal error: ",err)
+	if err := tx.Unmarshal(txByte); err != nil {
+		fmt.Println("unmarshal error: ", err)
 		return
 	}
 	resp, err := rpcutil.SendTransaction(conn, tx)

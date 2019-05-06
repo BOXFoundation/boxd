@@ -186,7 +186,7 @@ func (s *txServer) SendRawTransaction(
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 	tx := new(types.Transaction)
-	if err = tx.Unmarshal(txByte); err!=nil{
+	if err = tx.Unmarshal(txByte); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 	txpool := s.server.GetTxHandler()
@@ -361,7 +361,7 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	if req.GetTag().GetDecimal() > maxDecimal {
 		return newMakeTokenIssueTxResp(-1, "The range of decimal must be between 0 and 8"), nil
 	}
-	if uint64(req.Tag.Supply) > math.MaxUint64/uint64(math.Pow10(int(req.Tag.Decimal))) {
+	if req.Tag.Supply > math.MaxUint64/uint64(math.Pow10(int(req.Tag.Decimal))) {
 		return newMakeTokenIssueTxResp(-1, "the value is too bigger"), nil
 	}
 	wa := s.server.GetWalletAgent()

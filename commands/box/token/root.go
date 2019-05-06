@@ -86,7 +86,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	if strings.ToUpper(tokenSymbol) == "BOX" {
-		fmt.Println("The value of tokenSymbol cannot be:",tokenSymbol)
+		fmt.Println("The value of tokenSymbol cannot be:", tokenSymbol)
 		return
 	}
 	if tokenDecimals < 0 || tokenDecimals > 8 {

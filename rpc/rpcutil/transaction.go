@@ -451,7 +451,7 @@ func MakeUnsignedTokenIssueTx(
 	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, fee uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
 	if tag.GetDecimal() > maxDecimal {
-		return nil, 0, nil, fmt.Errorf("Decimal[%d] is bigger than max Decimal[%d]",tag.GetDecimal(),maxDecimal)
+		return nil, 0, nil, fmt.Errorf("Decimal[%d] is bigger than max Decimal[%d]", tag.GetDecimal(), maxDecimal)
 	}
 	if tag.GetSupply() > math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
 		return nil, 0, nil, fmt.Errorf("supply is too bigger")

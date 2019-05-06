@@ -246,7 +246,7 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 			}
 			privateKey, err := wltMgr.DumpPrivKey(addr, passphrase)
 			if err != nil {
-				fmt.Print("Wrong password ")
+				fmt.Print("error:", err)
 				if i == 1 {
 					fmt.Println("This wallet dump failed ")
 
