@@ -481,17 +481,20 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
+
+	dpos.chain.UpdateNormalTxBalanceState(utxoSet, statedb)
 	root, err := statedb.Commit(false)
 	if err != nil {
 		return err
 	}
 
-	dpos.chain.StateDBCache()[block.Header.Height] = statedb
+	// dpos.chain.StateDBCache()[block.Header.Height] = statedb
 	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
 	blockTxns[0].Vout[0].Value -= gasRemainingFee
 	block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
+	block.Header.RootHash = *root
 	txsRoot := chain.CalcTxsHash(blockTxns)
 	block.Header.TxsRoot = *txsRoot
 	block.Txs = blockTxns
