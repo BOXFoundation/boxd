@@ -307,7 +307,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	if utxoSet.TxInputAmount(tx) == 0 {
 		// Add orphan transaction
 		tx_pool.addOrphan(tx)
-
 		return core.ErrOrphanTransaction
 	}
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
@@ -335,7 +334,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	// logger.Infof("Accepted new tx. Hash: %v, transferMode: %v, key: %s", txHash, transferMode, key)
 	logger.Debugf("Accepted new tx. Hash: %v", txHash)
 	tx_pool.txcache.Add(*txHash, true)
-
 	switch transferMode {
 	case core.BroadcastMode:
 		return tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
@@ -398,7 +396,6 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			orphans := v.(*sync.Map)
 			orphans.Range(func(k, v interface{}) bool {
 				orphan := v.(*types.Transaction)
-
 				if err := tx_pool.maybeAcceptTx(orphan, core.DefaultMode, false); err != nil {
 					return true
 				}
