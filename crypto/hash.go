@@ -119,10 +119,10 @@ func (hash *HashType) IsEqual(target *HashType) bool {
 
 // SetBytes convert type []byte to HashType
 func (hash *HashType) SetBytes(hashBytes []byte) error {
-	if len(hashBytes) != HashSize {
-		return fmt.Errorf("Incorrect hash length : %v", hashBytes)
+	if len(hashBytes) > len(hash) {
+		hashBytes = hashBytes[len(hashBytes)-HashSize:]
 	}
-	copy(hash[:], hashBytes)
+	copy(hash[HashSize-len(hashBytes):], hashBytes)
 	return nil
 }
 

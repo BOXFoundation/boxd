@@ -37,7 +37,7 @@ func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 		return trie, nil
 	}
 
-	if _, err := trie.Get(rootHash[:]); err != nil {
+	if _, err := trie.db.Get(rootHash[:]); err != nil {
 		return nil, err
 	}
 	return trie, nil
@@ -454,7 +454,7 @@ func hexToKey(hex []byte) []byte {
 
 func bytesToHash(bytes []byte) *crypto.HashType {
 	if len(bytes) == 0 {
-	// if len(bytes) == 0 || bytes.Equal(bytes, crypto.ZeroHash[:]) {
+		// if len(bytes) == 0 || bytes.Equal(bytes, crypto.ZeroHash[:]) {
 		return nil
 	}
 	var hash = new(crypto.HashType)

@@ -195,21 +195,21 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 		to       = AccountRef(addr)
 		snapshot = evm.StateDB.Snapshot()
 	)
-	// if !evm.StateDB.Exist(addr) {
-	// 	precompiles := PrecompiledContractsHomestead
-	// 	if evm.ChainConfig().IsByzantium(evm.BlockNumber) {
-	// 		precompiles = PrecompiledContractsByzantium
-	// 	}
-	// 	if precompiles[addr] == nil && evm.ChainConfig().IsEIP158(evm.BlockNumber) && value.Sign() == 0 {
-	// 		// Calling a non existing account, don't do anything, but ping the tracer
-	// 		if evm.vmConfig.Debug && evm.depth == 0 {
-	// 			evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
-	// 			evm.vmConfig.Tracer.CaptureEnd(ret, 0, 0, nil)
-	// 		}
-	// 		return nil, gas, nil
-	// 	}
-	// 	evm.StateDB.CreateAccount(addr)
-	// }
+	if !evm.StateDB.Exist(addr) {
+		// precompiles := PrecompiledContractsHomestead
+		// if evm.ChainConfig().IsByzantium(evm.BlockNumber) {
+		// 	precompiles = PrecompiledContractsByzantium
+		// }
+		// if precompiles[addr] == nil && evm.ChainConfig().IsEIP158(evm.BlockNumber) && value.Sign() == 0 {
+		// 	// Calling a non existing account, don't do anything, but ping the tracer
+		// 	if evm.vmConfig.Debug && evm.depth == 0 {
+		// 		evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
+		// 		evm.vmConfig.Tracer.CaptureEnd(ret, 0, 0, nil)
+		// 	}
+		// 	return nil, gas, nil
+		// }
+		evm.StateDB.CreateAccount(addr)
+	}
 	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value, interpreterInvoke)
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.

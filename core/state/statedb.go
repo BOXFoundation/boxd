@@ -614,7 +614,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, error) 
 		case isDirty:
 			// Write any contract code associated with the state object
 			if stateObject.code != nil && stateObject.dirtyCode {
-				s.db.Put(corecrypto.BytesToHash(stateObject.CodeHash()).Bytes(), stateObject.code[:])
+				s.db.Put(stateObject.CodeHash(), stateObject.code[:])
 				stateObject.dirtyCode = false
 			}
 			// Write any storage changes in the state object to its storage trie.

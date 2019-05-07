@@ -330,8 +330,8 @@ func (s *stateObject) Code() []byte {
 	if bytes.Equal(s.CodeHash(), emptyCodeHash) {
 		return nil
 	}
-	code, err := s.trie.Get(s.CodeHash())
-	if err != nil {
+	code, err := s.db.db.Get(s.CodeHash())
+	if len(code) == 0 || err != nil {
 		s.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
 	}
 	s.code = code
