@@ -66,8 +66,6 @@ func (sp *StateProcessor) Process(
 		}
 		*usedGas += gasUsedPerTx
 		*gasRemainingFee += gasRemainingFeePerTx
-
-		stateDB.Finalise(true)
 	}
 
 	if err != nil {
