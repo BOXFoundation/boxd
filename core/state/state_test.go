@@ -88,7 +88,7 @@ var toAddr = types.BytesToAddressHash
 
 func (s *StateSuite) SetUpTest(t *testing.T) {
 	s.db = initDB()
-	s.state, _ = New(nil, s.db)
+	s.state, _ = New(nil, nil, s.db)
 }
 
 func (s *StateSuite) TestNull(t *testing.T) {
@@ -140,7 +140,7 @@ func (s *StateSuite) TestSnapshotEmpty(t *testing.T) {
 // use testing instead of checker because checker does not support
 // printing/logging in tests (-check.vv does not work)
 func TestSnapshot2(t *testing.T) {
-	state, _ := New(nil, initDB())
+	state, _ := New(nil, nil, initDB())
 
 	stateobjaddr0 := toAddr([]byte("so0"))
 	stateobjaddr1 := toAddr([]byte("so1"))

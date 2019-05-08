@@ -53,7 +53,7 @@ func initDB() *storage.Database {
 func TestUpdateLeaks(t *testing.T) {
 	// Create an empty state database
 	db := initDB()
-	state, _ := New(nil, db)
+	state, _ := New(nil, nil, db)
 
 	last := 0
 	// Update it with some accounts
@@ -86,8 +86,8 @@ func TestIntermediateLeaks(t *testing.T) {
 	// Create two state databases, one transitioning to the final state, the other final from the beginning
 	transDb := initDB()
 	finalDb := initDB()
-	transState, _ := New(nil, transDb)
-	finalState, _ := New(nil, finalDb)
+	transState, _ := New(nil, nil, transDb)
+	finalState, _ := New(nil, nil, finalDb)
 
 	modify := func(state *StateDB, addr types.AddressHash, i, tweak byte) {
 		state.SetBalance(addr, big.NewInt(int64(11*i)+int64(tweak)))
@@ -115,10 +115,10 @@ func TestIntermediateLeaks(t *testing.T) {
 	}
 
 	// Commit and cross check the databases.
-	if _, err := transState.Commit(false); err != nil {
+	if _, _, err := transState.Commit(false); err != nil {
 		t.Fatalf("failed to commit transition state: %v", err)
 	}
-	if _, err := finalState.Commit(false); err != nil {
+	if _, _, err := finalState.Commit(false); err != nil {
 		t.Fatalf("failed to commit final state: %v", err)
 	}
 	for _, key := range finalDb.Keys() {
@@ -351,7 +351,7 @@ func (test *snapshotTest) String() string {
 func (test *snapshotTest) run() bool {
 	// Run all actions and create snapshots.
 	var (
-		state, _     = New(nil, initDB())
+		state, _     = New(nil, nil, initDB())
 		snapshotRevs = make([]int, len(test.snapshots))
 		sindex       = 0
 	)
@@ -365,7 +365,7 @@ func (test *snapshotTest) run() bool {
 	// Revert all snapshots in reverse order. Each revert must yield a state
 	// that is equivalent to fresh state with all actions up the snapshot applied.
 	for sindex--; sindex >= 0; sindex-- {
-		checkstate, _ := New(nil, state.Database())
+		checkstate, _ := New(nil, nil, state.Database())
 		for _, action := range test.actions[:test.snapshots[sindex]] {
 			action.fn(action, checkstate)
 		}
@@ -442,7 +442,7 @@ func (s *StateSuite) TestTouchDelete(t *testing.T) {
 // TestCopyOfCopy tests that modified objects are carried over to the copy, and the copy of the copy.
 // See https://github.com/ethereum/go-ethereum/pull/15225#issuecomment-380191512
 func TestCopyOfCopy(t *testing.T) {
-	sdb, _ := New(nil, initDB())
+	sdb, _ := New(nil, nil, initDB())
 	addr := types.HexToAddressHash("aaaa")
 	sdb.SetBalance(addr, big.NewInt(42))
 

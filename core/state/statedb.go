@@ -25,6 +25,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/vm/common"
 	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
@@ -36,6 +37,8 @@ type revision struct {
 	id           int
 	journalIndex int
 }
+
+var logger = log.NewLogger("statedb")
 
 var (
 	// emptyState is the known hash of an empty state trie entry.
@@ -51,8 +54,9 @@ var (
 // * Contracts
 // * Accounts
 type StateDB struct {
-	db   storage.Table
-	trie *trie.Trie
+	db       storage.Table
+	trie     *trie.Trie
+	utxoTrie *trie.Trie
 
 	// This map holds 'live' objects, which will get modified while processing a state transition.
 	stateObjects      map[types.AddressHash]*stateObject
@@ -83,15 +87,22 @@ type StateDB struct {
 }
 
 // New a new state from a given trie.
-func New(rootHash *corecrypto.HashType, db storage.Table) (*StateDB, error) {
+func New(rootHash, utxoRootHash *corecrypto.HashType, db storage.Table) (*StateDB, error) {
 
 	tr, err := trie.New(rootHash, db)
 	if err != nil {
+		logger.Warn(err)
+		return nil, err
+	}
+	utr, err := trie.New(utxoRootHash, db)
+	if err != nil {
+		logger.Warn(err)
 		return nil, err
 	}
 	return &StateDB{
 		db:                db,
 		trie:              tr,
+		utxoTrie:          utr,
 		stateObjects:      make(map[types.AddressHash]*stateObject),
 		stateObjectsDirty: make(map[types.AddressHash]struct{}),
 		logs:              make(map[corecrypto.HashType][]*vmtypes.Log),
@@ -114,12 +125,21 @@ func (s *StateDB) Error() error {
 // Reset clears out all ephemeral state objects from the state db, but keeps
 // the underlying state trie to avoid reloading data for the next operations.
 func (s *StateDB) Reset() error {
+	// trie
 	roothash := s.trie.Hash()
 	tr, err := trie.New(&roothash, s.db)
 	if err != nil {
 		return err
 	}
 	s.trie = tr
+	// utxo tire
+	utxoRootHash := s.utxoTrie.Hash()
+	utr, err := trie.New(&utxoRootHash, s.db)
+	if err != nil {
+		return err
+	}
+	s.utxoTrie = utr
+	//
 	s.stateObjects = make(map[types.AddressHash]*stateObject)
 	s.stateObjectsDirty = make(map[types.AddressHash]struct{})
 	s.thash = corecrypto.HashType{}
@@ -596,7 +616,7 @@ func (s *StateDB) clearJournalAndRefund() {
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, error) {
+func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecrypto.HashType, error) {
 	defer s.clearJournalAndRefund()
 	s.finalise(deleteEmptyObjects)
 
@@ -619,7 +639,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, error) 
 			}
 			// Write any storage changes in the state object to its storage trie.
 			if _, err := stateObject.CommitTrie(); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			// Update the object in the main account trie.
 			s.updateStateObject(stateObject)
@@ -627,5 +647,21 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, error) 
 		delete(s.stateObjectsDirty, addr)
 	}
 	// Write trie changes.
-	return s.trie.Commit()
+	root, err := s.trie.Commit()
+	if err != nil {
+		logger.Error(err)
+		return nil, nil, err
+	}
+	// for utxo trie root hash
+	utxoRoot, err := s.utxoTrie.Commit()
+	if err != nil {
+		logger.Error(err)
+		return nil, nil, err
+	}
+	return root, utxoRoot, nil
+}
+
+// UpdateUtxo updates statedb utxo at given contract addr
+func (s *StateDB) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error {
+	return s.utxoTrie.Update(addr[:], utxoBytes)
 }

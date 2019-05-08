@@ -38,6 +38,7 @@ func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 	}
 
 	if _, err := trie.db.Get(rootHash[:]); err != nil {
+		logger.Error(err)
 		return nil, err
 	}
 	return trie, nil

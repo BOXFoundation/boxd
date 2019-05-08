@@ -23,6 +23,7 @@ import (
 type UtxoSet struct {
 	utxoMap         types.UtxoMap
 	normalTxUtxoSet map[types.OutPoint]struct{}
+	contractUtxos   []*types.OutPoint
 }
 
 // BalanceChangeMap defines the balance changes of accounts (add or subtract)
@@ -75,7 +76,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	sc := script.NewScriptFromBytes(tx.Vout[txOutIdx].ScriptPubKey)
 	var utxoWrap *types.UtxoWrap
 	if sc.IsContractPubkey() { // smart contract utxo
-		return nil
+		return fmt.Errorf("tx %s incluces a contract vout", txHash)
 	}
 
 	// common tx
@@ -139,7 +140,10 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 		}
 		if v, exists := spendableTxs.Load(txIn.PrevOutPoint.Hash); exists {
 			spendableTxWrap := v.(*types.TxWrap)
-			utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index, spendableTxWrap.Height, db)
+			if err := utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index,
+				spendableTxWrap.Height, db); err != nil {
+				logger.Error(err)
+			}
 		}
 	}
 	return utxoSet, nil
@@ -188,6 +192,7 @@ func (u *UtxoSet) applyUtxo(
 				utxoWrap.SetScript(tx.Vout[txOutIdx].ScriptPubKey)
 				u.utxoMap[*outPoint] = utxoWrap
 				logger.Infof("create contract utxo, outpoint: %+v, value: %d", outPoint, utxoWrap.Value())
+				u.contractUtxos = append(u.contractUtxos, outPoint)
 				return nil
 			}
 		}
@@ -195,6 +200,7 @@ func (u *UtxoSet) applyUtxo(
 		utxoWrap.SetValue(value)
 		u.utxoMap[*outPoint] = utxoWrap
 		logger.Infof("create contract utxo, outpoint: %+v, value: %d", outPoint, utxoWrap.Value())
+		u.contractUtxos = append(u.contractUtxos, outPoint)
 		return nil
 	}
 
@@ -254,7 +260,8 @@ func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, sta
 	return nil
 }
 
-func (u *UtxoSet) applyInternalTxs(block *types.Block, stateDB *state.StateDB, db storage.Table) error {
+// ApplyInternalTxs applies internal txs in block
+func (u *UtxoSet) ApplyInternalTxs(block *types.Block, stateDB *state.StateDB, db storage.Table) error {
 	for _, tx := range block.InternalTxs {
 		if err := u.applyInternalTx(tx, block.Header.Height, stateDB, db); err != nil {
 			return err
@@ -516,7 +523,9 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db)
+				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db); err != nil {
+					logger.Error(err)
+				}
 				continue
 			}
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
@@ -569,7 +578,9 @@ func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error 
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db)
+				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db); err != nil {
+					logger.Error(err)
+				}
 				continue
 			}
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {

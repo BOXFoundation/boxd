@@ -44,6 +44,8 @@ type StateDB interface {
 	SubRefund(uint64)
 	GetRefund() uint64
 
+	UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error
+
 	GetCommittedState(types.AddressHash, crypto.HashType) crypto.HashType
 	GetState(types.AddressHash, crypto.HashType) crypto.HashType
 	SetState(types.AddressHash, crypto.HashType, crypto.HashType)

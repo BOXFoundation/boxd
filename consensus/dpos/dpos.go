@@ -463,7 +463,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	statedb, err := state.New(&parent.Header.RootHash, dpos.chain.DB())
+	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
@@ -481,14 +481,22 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-
+	// apply internal txs.
+	if len(block.InternalTxs) > 0 {
+		if err := utxoSet.ApplyInternalTxs(block, statedb, chain.db); err != nil {
+			return err
+		}
+	}
+	if err := dpos.chain.UpdateUtxoState(statedb, utxoSet); err != nil {
+		return err
+	}
 	dpos.chain.UpdateNormalTxBalanceState(utxoSet, statedb)
-	root, err := statedb.Commit(false)
+	root, utxoRoot, err := statedb.Commit(false)
 	if err != nil {
 		return err
 	}
 
-	// dpos.chain.StateDBCache()[block.Header.Height] = statedb
+	dpos.chain.StateDBCache()[block.Header.Height] = statedb
 	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
 	blockTxns[0].Vout[0].Value -= gasRemainingFee
@@ -502,6 +510,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		internalTxsRoot := chain.CalcTxsHash(utxoTxs)
 		block.Header.InternalTxsRoot = *internalTxsRoot
 		block.InternalTxs = utxoTxs
+		block.Header.UtxoRoot = utxoRoot
 	}
 
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()

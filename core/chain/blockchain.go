@@ -727,6 +727,7 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 	return mainChainBlock, detachBlocks, attachBlocks
 }
 
+// UpdateNormalTxBalanceState updates the balance state of normal tx
 func (chain *BlockChain) UpdateNormalTxBalanceState(utxoSet *UtxoSet, stateDB *state.StateDB) {
 	// update EOA accounts' balance state
 	bAdd, bSub := utxoSet.calcNormalTxBalanceChanges()
@@ -736,6 +737,27 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(utxoSet *UtxoSet, stateDB *s
 	for a, v := range bSub {
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
+}
+
+// UpdateUtxoState updates contract utxo in statedb
+func (chain *BlockChain) UpdateUtxoState(statedb *state.StateDB, utxoSet *UtxoSet) error {
+	for _, o := range utxoSet.contractUtxos {
+		// address
+		contractAddr := new(types.AddressHash)
+		contractAddr.SetBytes(o.Hash[:])
+		// serialize utxo wrap
+		u := utxoSet.utxoMap[*o]
+		utxoBytes, err := SerializeUtxoWrap(u)
+		if err != nil {
+			return err
+		}
+		// update statedb utxo trie
+		if err := statedb.UpdateUtxo(*contractAddr, utxoBytes); err != nil {
+			logger.Error(err)
+			return err
+		}
+	}
+	return nil
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID) error {
@@ -751,26 +773,22 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	// Split tx outputs if any
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 
-	var stateDB *state.StateDB
+	// execute contract tx and update statedb for blocks from remote peers
 	if messageFrom != "" {
 		parent := chain.GetParentBlock(block)
-		var rootHash *crypto.HashType
-		if parent != nil && parent.Header.RootHash != zeroHash {
-			rootHash = &parent.Header.RootHash
-		}
-		// stateDB, err := state.New(rootHash, chain.db)
-		// if err != nil {
-		// 	return err
-		// }
-
-		var err error
-		if block.Header.Height == 1 {
-			stateDB, err = state.New(rootHash, chain.db)
-			if err != nil {
-				return err
+		var rootHash, utxoRootHash *crypto.HashType
+		if parent != nil {
+			if parent.Header.RootHash != zeroHash {
+				rootHash = &parent.Header.RootHash
 			}
-		} else {
-			stateDB = chain.stateDBCache[block.Header.Height-1]
+			if parent.Header.UtxoRoot != zeroHash {
+				utxoRootHash = &parent.Header.UtxoRoot
+			}
+		}
+		stateDB, err := state.New(rootHash, utxoRootHash, chain.db)
+		if err != nil {
+			logger.Error(err)
+			return err
 		}
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
@@ -780,48 +798,43 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
+			logger.Error(err)
 			return err
 		}
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee, totalTxsFee); err != nil {
 			return err
 		}
-
 		chain.UpdateNormalTxBalanceState(utxoSet, stateDB)
-
-		root, err := stateDB.Commit(false)
+		// apply internal txs.
+		if len(block.InternalTxs) > 0 {
+			if err := utxoSet.ApplyInternalTxs(block, stateDB, chain.db); err != nil {
+				return err
+			}
+		}
+		if err := chain.UpdateUtxoState(stateDB, utxoSet); err != nil {
+			logger.Errorf("chain update utxo state error: %s", err)
+			return err
+		}
+		root, utxoRoot, err := stateDB.Commit(false)
 		if err != nil {
 			logger.Errorf("stateDB commit failed: %s", err)
 			return err
 		}
 		if !root.IsEqual(&block.Header.RootHash) {
-			return errors.New("Invalid state root in block header")
+			return fmt.Errorf("Invalid state root in block header, have %s, got: %s",
+				block.Header.RootHash, root)
 		}
-	}
-	// else {
-	// 	// locally generated block
-	// 	if _, ok := chain.stateDBCache[block.Header.Height]; !ok {
-	// 		return errors.New("The stateDB reference is not exist")
-	// 	}
-	// 	stateDB = chain.stateDBCache[block.Header.Height]
-	// 	delete(chain.stateDBCache, block.Header.Height)
-	// }
-	// chain.updateNormalTxBalanceState(utxoSet, stateDB)
-
-	// apply internal txs.
-	if len(block.InternalTxs) > 0 {
-		if err := utxoSet.applyInternalTxs(block, nil, chain.db); err != nil {
-			return err
+		if !utxoRoot.IsEqual(&block.Header.UtxoRoot) &&
+			!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {
+			return fmt.Errorf("Invalid utxo state root in block header, have %s, got: %s",
+				block.Header.UtxoRoot, utxoRoot)
 		}
+		chain.stateDBCache[block.Header.Height] = stateDB
 	}
-	chain.stateDBCache[block.Header.Height] = stateDB
 
 	if err := chain.StoreBlockWithStateInBatch(block, chain.db); err != nil {
 		return err
 	}
-
-	// if root, err := stateDB.Commit(false); err != nil {
-	// 	logger.Errorf("stateDB commit failed: %s", err)
-	// }
 
 	ttt2 := time.Now().UnixNano()
 
