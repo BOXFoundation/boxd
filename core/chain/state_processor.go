@@ -111,7 +111,13 @@ func ApplyTransaction(
 		}
 		txs = append(txs, internalTxs...)
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
-		internalTxs, err := createRefundTx(tx, utxoSet)
+		var contractAddr types.AddressHash
+		if tx.Type() == types.ContractCreationType {
+			contractAddr = types.CreateAddress(*tx.From(), statedb.GetNonce(*tx.From())-1)
+		} else {
+			contractAddr = *tx.To()
+		}
+		internalTxs, err := createRefundTx(tx, utxoSet, &contractAddr)
 		if err != nil {
 			logger.Warn(err)
 			return 0, 0, nil, nil, err
@@ -155,13 +161,11 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 	return txs, nil
 }
 
-func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transaction, error) {
+func createRefundTx(
+	vmtx *types.VMTransaction, utxoSet *UtxoSet, contractAddr *types.AddressHash,
+) (*types.Transaction, error) {
 
-	contractAddr := vmtx.To()
-	if contractAddr == nil {
-
-	}
-	hash := types.NormalizeAddressHash(vmtx.To())
+	hash := types.NormalizeAddressHash(contractAddr)
 	outPoint := *types.NewOutPoint(hash, 0)
 	utxoWrap, ok := utxoSet.utxoMap[outPoint]
 	if !ok {

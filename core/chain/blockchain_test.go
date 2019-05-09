@@ -685,7 +685,7 @@ func contractBlockHandle(
 	block.Header.RootHash.SetString(rootHashStr)
 	block.Header.UtxoRoot.SetString(utxoRootHashStr)
 	gasCost := param.gasUsed * param.gasPrice
-	if err == nil && len(internalTxs) > 0 {
+	if len(internalTxs) > 0 {
 		block.InternalTxs = append(block.InternalTxs, internalTxs...)
 		block.Header.InternalTxsRoot.SetBytes(CalcTxsHash(block.InternalTxs)[:])
 	}
@@ -823,11 +823,10 @@ func TestFaucetContract(t *testing.T) {
 	// extend main chain
 	// b4 -> b5
 	// make creation contract tx with insufficient gas
-	// TODO: vmValue > 0 case
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(20000), uint64(0), uint64(10), uint64(20000)
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(20000), uint64(1000), uint64(10), uint64(20000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 0, vmParam.contractAddr,
+		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, vmValue, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
@@ -841,14 +840,19 @@ func TestFaucetContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	rootHashStr = "b98dadc162f1fccfff29efc6faf79eea3c1f305d53e8f18289216b691a783227"
 	utxoRootHashStr = "3f45d74900973b7b4703f00ec0097859864374536c27162cea1ddcc865555c29"
-	// TODO: err ???
+	// make refund tx
+	contractAddrHash := types.CreateAddress(*userAddr.Hash160(), stateDB.GetNonce(*userAddr.Hash160()))
+	refundTx := types.NewTx(0, 0, 0).
+		AppendVin(txlogic.MakeContractVin(
+			types.NewOutPoint(types.NormalizeAddressHash(&contractAddrHash), 0), 0)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), vmValue))
+	//
 	b5 := contractBlockHandle(t, blockChain, vmTx, b4, rootHashStr, utxoRootHashStr,
-		vmParam, core.ErrInvalidInternalTxs)
+		vmParam, vm.ErrOutOfGas, refundTx)
 	stateDB, err = state.New(&b5.Header.RootHash, &b5.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 	t.Logf("user nonce: %d", nonce)
-
 	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
 }
 
