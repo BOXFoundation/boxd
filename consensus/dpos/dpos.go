@@ -483,7 +483,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, statedb, chain.db); err != nil {
+		if err := utxoSet.ApplyInternalTxs(block, statedb, dpos.chain.DB()); err != nil {
 			return err
 		}
 	}
@@ -510,7 +510,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		internalTxsRoot := chain.CalcTxsHash(utxoTxs)
 		block.Header.InternalTxsRoot = *internalTxsRoot
 		block.InternalTxs = utxoTxs
-		block.Header.UtxoRoot = utxoRoot
+		block.Header.UtxoRoot = *utxoRoot
 	}
 
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()

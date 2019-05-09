@@ -157,6 +157,10 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 
 func createRefundTx(vmtx *types.VMTransaction, utxoSet *UtxoSet) (*types.Transaction, error) {
 
+	contractAddr := vmtx.To()
+	if contractAddr == nil {
+
+	}
 	hash := types.NormalizeAddressHash(vmtx.To())
 	outPoint := *types.NewOutPoint(hash, 0)
 	utxoWrap, ok := utxoSet.utxoMap[outPoint]
