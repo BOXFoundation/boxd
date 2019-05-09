@@ -251,7 +251,7 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 					fmt.Println("This wallet dump failed ")
 
 				}
-				continue;
+				continue
 			}
 			fmt.Printf("Address: %s dump successful \n", addr)
 			file.Write([]byte("privateKey: " + privateKey + " " + time.Now().Format("2006-01-02 15:04:05") + " # addr=" + addr + "\n"))
