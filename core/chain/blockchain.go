@@ -529,8 +529,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 	// Case 2): The block extends or creats a side chain, which is not longer than the main chain.
 	if block.Header.Height <= chain.LongestChainHeight {
 		if block.Header.Height > chain.eternal.Header.Height {
-			logger.Warnf("Block %v extends a side chain to height %d without causing reorg, main chain height %d",
-				blockHash, block.Header.Height, chain.LongestChainHeight)
+			logger.Warnf("Block %v extends a side chain to height %d without causing reorg, "+
+				"main chain height %d", blockHash, block.Header.Height, chain.LongestChainHeight)
 			// we can store the side chain block, But we should not go on the chain.
 			if err := chain.StoreBlock(block); err != nil {
 				return err
@@ -632,7 +632,7 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageFrom peer.ID) error {
 
-	logger.Debugf("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
+	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
 	var utxoSet *UtxoSet
 	if messageFrom == "" { // locally generated block
 		us, ok := chain.utxoSetCache[block.Header.Height]
@@ -821,8 +821,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 		if !root.IsEqual(&block.Header.RootHash) {
-			return fmt.Errorf("Invalid state root in block header, have %s, got: %s",
-				block.Header.RootHash, root)
+			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, block hash: %s",
+				block.Header.RootHash, root, block.BlockHash())
 		}
 		if !utxoRoot.IsEqual(&block.Header.UtxoRoot) &&
 			!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {

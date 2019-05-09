@@ -27,8 +27,10 @@ import (
 
 // test setup
 var (
-	privBytesMiner = []byte{41, 227, 111, 180, 124, 210, 49, 28, 156, 148, 131, 249, 89, 211, 79, 210, 54, 82, 97, 208, 81, 183, 244, 45, 28, 30, 187, 247, 167, 35, 181, 153}
-	privBytesUser  = []byte{109, 162, 71, 154, 180, 47, 74, 157, 44, 36, 228, 16, 110, 27, 14, 208, 190, 118, 25, 106, 13, 154, 241, 107, 156, 9, 98, 118, 152, 129, 69, 185}
+	privBytesMiner  = []byte{41, 227, 111, 180, 124, 210, 49, 28, 156, 148, 131, 249, 89, 211, 79, 210, 54, 82, 97, 208, 81, 183, 244, 45, 28, 30, 187, 247, 167, 35, 181, 153}
+	privBytesUser   = []byte{109, 162, 71, 154, 180, 47, 74, 157, 44, 36, 228, 16, 110, 27, 14, 208, 190, 118, 25, 106, 13, 154, 241, 107, 156, 9, 98, 118, 152, 129, 69, 185}
+	privBytesSplitA = []byte{47, 138, 4, 60, 198, 78, 145, 178, 51, 44, 53, 59, 152, 242, 42, 236, 191, 97, 22, 123, 216, 55, 219, 63, 163, 53, 11, 254, 170, 53, 137, 14}
+	privBytesSplitB = []byte{145, 10, 128, 128, 115, 9, 15, 190, 255, 16, 161, 222, 31, 70, 36, 124, 45, 241, 204, 50, 38, 207, 24, 79, 40, 12, 87, 90, 54, 203, 47, 226}
 
 	privKeyMiner, pubKeyMiner, _ = crypto.KeyPairFromBytes(privBytesMiner)
 	privKey, pubKey, _           = crypto.KeyPairFromBytes(privBytesUser)
@@ -39,8 +41,10 @@ var (
 	userAddr, _       = types.NewAddressFromPubKey(pubKey)
 	scriptPubKeyUser  = script.PayToPubKeyHashScript(userAddr.Hash())
 
-	privKeySplitA, pubKeySplitA, _ = crypto.NewKeyPair()
-	privKeySplitB, pubKeySplitB, _ = crypto.NewKeyPair()
+	//privKeySplitA, pubKeySplitA, _ = crypto.NewKeyPair()
+	//privKeySplitB, pubKeySplitB, _ = crypto.NewKeyPair()
+	privKeySplitA, pubKeySplitA, _ = crypto.KeyPairFromBytes(privBytesSplitA)
+	privKeySplitB, pubKeySplitB, _ = crypto.KeyPairFromBytes(privBytesSplitB)
 	splitAddrA, _                  = types.NewAddressFromPubKey(pubKeySplitA)
 	scriptPubKeySplitA             = script.PayToPubKeyHashScript(splitAddrA.Hash())
 	splitAddrB, _                  = types.NewAddressFromPubKey(pubKeySplitB)
@@ -120,6 +124,7 @@ func TestBlockProcessing(t *testing.T) {
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
+	b1.Header.RootHash.SetString("21f2a68960cdc2eb60910e0c80a8d61aa44ae8ce58e38a7bd13d0d24c7d89341")
 	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 	balance := getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
@@ -150,7 +155,9 @@ func TestBlockProcessing(t *testing.T) {
 	// add a tx spending from previous block's coinbase
 	b2.Txs = append(b2.Txs, createGeneralTx(b1.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
+	b2.Header.RootHash.SetString("bb69b01a6533fc0cad78a352aa554aea6f3a0fe390f523c1910742e50925d2af")
 	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
+	t.Logf("b2 block hash: %s", b2.BlockHash())
 
 	// miner balance: 100 - 50 = 50
 	// user balance: 50
@@ -164,9 +171,11 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2 -> b3
 	b3 := nextBlock(b2)
 	b3.Header.TxsRoot = *CalcTxsHash(b3.Txs)
+	b3.Header.RootHash.SetString("eda5ad0d1f613344be6fbddaed11386d0e6deb1e429ff0bb0daa4fbddc49a9a2")
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(100*core.DuPerBox))
+	t.Logf("b3 block hash: %s", b3.BlockHash())
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend side chain: fork from b1
@@ -176,7 +185,9 @@ func TestBlockProcessing(t *testing.T) {
 	splitTx, splitAddr = createSplitTx(b2.Txs[0], 0)
 	b3A.Txs = append(b3A.Txs, splitTx)
 	b3A.Header.TxsRoot = *CalcTxsHash(b3A.Txs)
+	b3A.Header.RootHash.SetString("eda5ad0d1f613344be6fbddaed11386d0e6deb1e429ff0bb0daa4fbddc49a9a2")
 	verifyProcessBlock(t, blockChain, b3A, core.ErrBlockInSideChain, 3, b3)
+	t.Logf("b3A block hash: %s", b3A.BlockHash())
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// reorg: side chain grows longer than main chain
@@ -188,6 +199,8 @@ func TestBlockProcessing(t *testing.T) {
 	b4ATx := createGeneralTx(b3A.Txs[0], 0, 50*core.DuPerBox, splitAddr, privKeyMiner, pubKeyMiner)
 	b4A.Txs = append(b4A.Txs, b4ATx)
 	b4A.Header.TxsRoot = *CalcTxsHash(b4A.Txs)
+	b4A.Header.RootHash.SetString("543f8bd7dc6de47023b6a25e940c2a55c2c86827de22abc359ded17a30fd9054")
+	t.Logf("b4A block hash: %s", b4A.BlockHash())
 	verifyProcessBlock(t, blockChain, b4A, nil, 4, b4A)
 
 	// check balance
@@ -208,8 +221,12 @@ func TestBlockProcessing(t *testing.T) {
 	// 		           -> b3A -> b4A
 	// Tx: miner -> user: 50
 	b4 := nextBlock(b3)
+	b4.Header.RootHash.SetString("e3064212a29fe1f77b6729e95d83034812c2e1038b37ff553a5ebc829ffc0878")
+	t.Logf("b4 block hash: %s", b4.BlockHash())
 	verifyProcessBlock(t, blockChain, b4, core.ErrBlockInSideChain, 4, b4A)
 	b5 := nextBlock(b4)
+	b5.Header.RootHash.SetString("56210d5e1322e2511c9ac65221bf3a5f61fb071ac5b6e82edc9066fc5effe3f7")
+	t.Logf("b5 block hash: %s", b5.BlockHash())
 	verifyProcessBlock(t, blockChain, b5, nil, 5, b5)
 
 	// check balance
@@ -231,17 +248,23 @@ func TestBlockProcessing(t *testing.T) {
 	b5A := nextBlock(b4A)
 	b5A.Txs = append(b5A.Txs, createGeneralTx(b4A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b5A.Header.TxsRoot = *CalcTxsHash(b5A.Txs)
+	b5A.Header.RootHash.SetString("cacec7a6dc8783b967911741ae825ec272e79f67cdcd8a11aae0b6a512f0478f")
+	t.Logf("b5A block hash: %s", b5A.BlockHash())
 	verifyProcessBlock(t, blockChain, b5A, core.ErrBlockInSideChain, 5, b5)
 
 	b6A := nextBlock(b5A)
 	b6A.Txs = append(b6A.Txs, createGeneralTx(b3A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
 	// reorg has happened
+	b6A.Header.RootHash.SetString("cacec7a6dc8783b967911741ae825ec272e79f67cdcd8a11aae0b6a512f0478f")
+	t.Logf("b6A block hash: %s", b6A.BlockHash())
 	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5A)
 
 	b6A = nextBlock(b5A)
 	b6A.Txs = append(b6A.Txs, createGeneralTx(b5A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
+	b6A.Header.RootHash.SetString("ad6f0fb9f02e2410869ba1f9403627e5155aa175ae612daab899c32c6c437d2c")
+	t.Logf("b6A block hash: %s", b6A.BlockHash())
 	verifyProcessBlock(t, blockChain, b6A, nil, 6, b6A)
 
 	// check balance
@@ -276,6 +299,8 @@ func TestBlockProcessing(t *testing.T) {
 	b7ATx := createGeneralTx(b4ASplitTx, 0, 25*core.DuPerBox, userAddr.String(), privKeySplitA, pubKeySplitA)
 	b7A.Txs = append(b7A.Txs, b7ATx)
 	b7A.Header.TxsRoot = *CalcTxsHash(b7A.Txs)
+	b7A.Header.RootHash.SetString("3886134dfe459cf0dc9851c121bea380e2ef799f308d46d1708625cbd17d417e")
+	t.Logf("b7A block hash: %s", b7A.BlockHash())
 	verifyProcessBlock(t, blockChain, b7A, nil, 7, b7A)
 
 	// check balance
@@ -303,8 +328,12 @@ func TestBlockProcessing(t *testing.T) {
 	// Tx: miner -> user: 50
 	// Tx: miner -> user: 50
 	b7B := nextBlock(b6A)
+	b7B.Header.RootHash.SetString("114123f3fd8a170693a1319533d447c812cf1823f548d7f25416b8064a0168ed")
+	t.Logf("b7B block hash: %s", b7B.BlockHash())
 	verifyProcessBlock(t, blockChain, b7B, core.ErrBlockInSideChain, 7, b7A)
 	b8B := nextBlock(b7B)
+	b8B.Header.RootHash.SetString("e709f664ec4af99fe2fc24da282eae259452a2cf0d9cd443b7b9809f01b572d4")
+	t.Logf("b8B block hash: %s", b8B.BlockHash())
 	verifyProcessBlock(t, blockChain, b8B, nil, 8, b8B)
 
 	// check balance
@@ -327,12 +356,20 @@ func TestBlockProcessing(t *testing.T) {
 	// Tx: miner -> split address: 50
 	// Tx: splitA -> user: 25
 	b6 := nextBlock(b5)
+	b6.Header.RootHash.SetString("4d9f26b6aee6e22a4c1955b8b6bfb945b8f9bd59fb670e94b605533f772e0604")
+	t.Logf("b6 block hash: %s", b6.BlockHash())
 	verifyProcessBlock(t, blockChain, b6, core.ErrBlockInSideChain, 8, b8B)
 	b7 := nextBlock(b6)
+	b7.Header.RootHash.SetString("64209a7f9a2b2950eb06c87575be42983bf87944c95279e328edc24042e3e988")
+	t.Logf("b7 block hash: %s", b7.BlockHash())
 	verifyProcessBlock(t, blockChain, b7, core.ErrBlockInSideChain, 8, b8B)
 	b8 := nextBlock(b7)
+	b8.Header.RootHash.SetString("157f575985a57702b6327ea9042462a635321a2ab5fb490eaa54f5146c22dcd7")
+	t.Logf("b8 block hash: %s", b8.BlockHash())
 	verifyProcessBlock(t, blockChain, b8, core.ErrBlockInSideChain, 8, b8B)
 	b9 := nextBlock(b8)
+	b9.Header.RootHash.SetString("33dfd0f709a7ec504cb135705cae978426f2d5745de8196199ecd6921bfcc1f5")
+	t.Logf("b9 block hash: %s", b9.BlockHash())
 	verifyProcessBlock(t, blockChain, b9, nil, 9, b9)
 
 	// check balance
