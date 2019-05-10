@@ -176,7 +176,7 @@ func (dpos *Dpos) Finalize(tail *types.Block) error {
 		return err
 	}
 	if dpos.IsBookkeeper() && time.Now().Unix()-tail.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
-		go dpos.BroadcastEternalMsgToBookkeepers(tail)
+		go dpos.BroadcastBFTMsgToBookkeepers(tail, p2p.BlockPrepareMsg)
 	}
 	go dpos.TryToUpdateEternalBlock(tail)
 	return nil
@@ -452,6 +452,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// Pay tx fees to bookkeeper in addition to block reward in coinbase
 	blockTxns[0].Vout[0].Value += totalTxFee
+	block.Txs = blockTxns
 
 	candidateHash, err := candidateContext.CandidateContextHash()
 	if err != nil {
@@ -499,13 +500,19 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	dpos.chain.StateDBCache()[block.Header.Height] = statedb
 	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
-	blockTxns[0].Vout[0].Value -= gasRemainingFee
+	block.Txs[0].Vout[0].Value -= gasRemainingFee
+	// handle coinbase utxo
+	for _, v := range utxoSet.GetUtxos() {
+		if v.IsCoinBase() {
+			v.SetValue(block.Txs[0].Vout[0].Value)
+		}
+	}
 	block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
-	txsRoot := chain.CalcTxsHash(blockTxns)
+	txsRoot := chain.CalcTxsHash(block.Txs)
 	block.Header.TxsRoot = *txsRoot
-	block.Txs = blockTxns
+	// block.Txs = blockTxns
 	if len(utxoTxs) > 0 {
 		internalTxsRoot := chain.CalcTxsHash(utxoTxs)
 		block.Header.InternalTxsRoot = *internalTxsRoot
@@ -514,7 +521,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
-	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height, len(blockTxns), len(sortedTxs))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height, len(block.Txs), len(sortedTxs))
 	return nil
 }
 
@@ -544,21 +551,21 @@ func (dpos *Dpos) LoadPeriodContext() (*PeriodContext, error) {
 	return periodContext, nil
 }
 
-// BroadcastEternalMsgToBookkeepers broadcast eternal message to bookkeepers
-func (dpos *Dpos) BroadcastEternalMsgToBookkeepers(block *types.Block) error {
+// BroadcastBFTMsgToBookkeepers broadcast block BFT message to bookkeepers
+func (dpos *Dpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uint32) error {
 
-	eternalBlockMsg := &EternalBlockMsg{}
+	prepareBlockMsg := &EternalBlockMsg{}
 	hash := block.BlockHash()
 	signature, err := crypto.SignCompact(dpos.bookkeeper.PrivateKey(), hash[:])
 	if err != nil {
 		return err
 	}
-	eternalBlockMsg.Hash = *hash
-	eternalBlockMsg.Signature = signature
-	eternalBlockMsg.Timestamp = block.Header.TimeStamp
+	prepareBlockMsg.Hash = *hash
+	prepareBlockMsg.Signature = signature
+	prepareBlockMsg.Timestamp = block.Header.TimeStamp
 	bookkeepers := dpos.context.periodContext.periodPeers
 
-	return dpos.net.BroadcastToBookkeepers(p2p.EternalBlockMsg, eternalBlockMsg, bookkeepers)
+	return dpos.net.BroadcastToBookkeepers(messageID, prepareBlockMsg, bookkeepers)
 }
 
 // StorePeriodContext store period context

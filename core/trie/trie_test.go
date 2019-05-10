@@ -54,6 +54,13 @@ func TestUpdate(t *testing.T) {
 	hash1 := crypto.Sha3256(leafBin)
 	ensure.DeepEqual(t, trie.rootHash[:], hash1)
 
+	trie1, err := New(trie.rootHash, db)
+	nodeBin1, _ := db.Get(trie1.rootHash[:])
+	node11 := new(Node)
+	ensure.Nil(t, node11.Unmarshal(nodeBin1))
+	ensure.DeepEqual(t, node11.Value[0], k1)
+	ensure.DeepEqual(t, node11.Value[1], v1)
+
 	//*****************************************
 	//             abc
 	//              |

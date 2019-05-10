@@ -95,7 +95,7 @@ func TestEVM(t *testing.T) {
 	data := loadBin(binFileName)
 
 	// init db
-	stateDb, err := state.New(nil, initDB())
+	stateDb, err := state.New(nil, nil, initDB())
 
 	msg := NewMessage(&fromAddress, big.NewInt(0))
 	cc := ChainContext{}
@@ -168,7 +168,7 @@ func TestEVM(t *testing.T) {
 	must(vmerr)
 	fmt.Println("after send 19, balance =", balance)
 
-	_, err = stateDb.Commit(false)
+	_, _, err = stateDb.Commit(false)
 	must(err)
 	err = stateDb.Reset()
 	must(err)

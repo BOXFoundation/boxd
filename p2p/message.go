@@ -47,10 +47,13 @@ const (
 	BlockChunkRequest       = 0x14
 	BlockChunkResponse      = 0x15
 
-	EternalBlockMsg = 0x16
+	// EternalBlockMsg = 0x16
 
 	LightSyncRequest = 0x17
 	LightSyncReponse = 0x18
+
+	BlockPrepareMsg = 0x19
+	BlockCommitMsg  = 0x20
 
 	MaxMessageDataLength = 1024 * 1024 * 1024 // 1GB
 )
@@ -83,9 +86,11 @@ var msgToAttribute = map[uint32]*messageAttribute{
 	LocateCheckResponse:     &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
 	BlockChunkRequest:       &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
 	BlockChunkResponse:      &messageAttribute{compress: true, priority: midPriority, frequency: repeatable},
-	EternalBlockMsg:         &messageAttribute{compress: false, priority: highPriority, frequency: repeatable},
-	LightSyncRequest:        &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
-	LightSyncReponse:        &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
+	// EternalBlockMsg:         &messageAttribute{compress: false, priority: highPriority, frequency: repeatable},
+	BlockPrepareMsg:  &messageAttribute{compress: false, priority: highPriority, frequency: repeatable},
+	BlockCommitMsg:   &messageAttribute{compress: false, priority: highPriority, frequency: repeatable},
+	LightSyncRequest: &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
+	LightSyncReponse: &messageAttribute{compress: false, priority: midPriority, frequency: repeatable},
 }
 
 func init() {

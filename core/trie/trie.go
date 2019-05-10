@@ -59,7 +59,7 @@ func (t *Trie) getNode(hash *crypto.HashType) (*Node, error) {
 		return nil, err
 	}
 	if nodeBin == nil {
-		return nil, nil
+		return nil, core.ErrNodeNotFound
 	}
 	node := new(Node)
 	if err := node.Unmarshal(nodeBin); err != nil {
@@ -89,7 +89,12 @@ func (t *Trie) commit(node *Node) error {
 
 // Get value by key in the trie.
 func (t *Trie) Get(key []byte) ([]byte, error) {
-	return t.get(t.rootHash, keyToHex(key))
+	// return t.get(t.rootHash, keyToHex(key))
+	value, err := t.get(t.rootHash, keyToHex(key))
+	if err == core.ErrNodeNotFound {
+		return nil, nil
+	}
+	return value, err
 }
 
 func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
@@ -101,9 +106,9 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if root == nil {
-		return nil, nil
-	}
+	// if root == nil {
+	// 	return nil, nil
+	// }
 	if root.Type() == unknown {
 		return nil, core.ErrNodeNotFound
 	}
