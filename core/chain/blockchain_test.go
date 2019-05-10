@@ -20,7 +20,6 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
-	"github.com/BOXFoundation/boxd/vm"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/facebookgo/ensure"
 )
@@ -696,12 +695,12 @@ func contractBlockHandle(
 	//t.Logf("expectUserBalance: %d, userBalance: %d, vmValue: %d, gasCost: %d",
 	//	expectUserBalance, userBalance, param.vmValue, gasCost)
 	expectMinerBalance := minerBalance + testBlockSubsidy + gasCost
-	if err != nil && err == vm.ErrInsufficientBalance {
+	if err != nil && err == errInsufficientBalanceForGas {
 		tailBlock = parent
 		expectUserBalance, expectMinerBalance = userBalance, minerBalance
 	}
 	height := tailBlock.Header.Height
-	verifyProcessBlock(t, blockChain, block, nil, height, tailBlock)
+	verifyProcessBlock(t, blockChain, block, err, height, tailBlock)
 	// check balance
 	// for userAddr
 	balance := getBalance(userAddr.String(), blockChain.db)
@@ -848,12 +847,37 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), vmValue))
 	//
 	b5 := contractBlockHandle(t, blockChain, vmTx, b4, rootHashStr, utxoRootHashStr,
-		vmParam, vm.ErrOutOfGas, refundTx)
+		vmParam, nil, refundTx)
 	stateDB, err = state.New(&b5.Header.RootHash, &b5.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 	t.Logf("user nonce: %d", nonce)
 	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b5 -> b6
+	// make creation contract tx with insufficient balance
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(20000), uint64(1000), uint64(10), uint64(600000)
+	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, vmValue, vmParam.contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(testFaucetContract)
+	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	prevHash, _ = b5.InternalTxs[0].TxHash()
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout)
+	signTx(vmTx, privKey, pubKey)
+	b6 := contractBlockHandle(t, blockChain, vmTx, b5, rootHashStr, utxoRootHashStr,
+		vmParam, errInsufficientBalanceForGas, refundTx)
+	stateDB, err = state.New(&b6.Header.RootHash, &b6.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+	t.Logf("b5 -> b6 failed, now tail height: %d", blockChain.LongestChainHeight)
 }
 
 const (
