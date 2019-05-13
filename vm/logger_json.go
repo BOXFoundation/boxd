@@ -1,18 +1,6 @@
-// Copyright 2017 The go-ethereum Authors
-// This file is part of go-ethereum.
-//
-// go-ethereum is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// go-ethereum is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 
 package vm
 
@@ -27,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/vm/common/math"
 )
 
+// JSONLogger is an Encoder for logs.
 type JSONLogger struct {
 	encoder *json.Encoder
 	cfg     *LogConfig
@@ -42,6 +31,7 @@ func NewJSONLogger(cfg *LogConfig, writer io.Writer) *JSONLogger {
 	return l
 }
 
+// CaptureStart start capture.
 func (l *JSONLogger) CaptureStart(from coretypes.AddressHash, to coretypes.AddressHash, create bool, input []byte, gas uint64, value *big.Int) error {
 	return nil
 }

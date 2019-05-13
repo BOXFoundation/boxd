@@ -133,10 +133,13 @@ func (hash *HashType) GetBytes() []byte {
 	return hashBytes
 }
 
+// Bytes get bytes.
 func (hash HashType) Bytes() []byte { return hash[:] }
 
+// Big get big.
 func (hash *HashType) Big() *big.Int { return new(big.Int).SetBytes(hash[:]) }
 
+// BigToHash convert big to hash.
 func BigToHash(b *big.Int) HashType {
 	var h HashType
 	bb := b.Bytes()
@@ -150,6 +153,7 @@ func BigToHash(b *big.Int) HashType {
 	return BytesToHash(h.Bytes())
 }
 
+// BytesToHash convert bytes to hash.
 func BytesToHash(b []byte) HashType {
 	var h HashType
 	h.SetBytes(b)

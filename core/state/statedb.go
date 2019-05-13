@@ -1,18 +1,6 @@
-// Copyright 2014 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 
 // Package state provides a caching layer atop the Ethereum state trie.
 package state
@@ -241,6 +229,7 @@ func (s *StateDB) GetNonce(addr types.AddressHash) uint64 {
 	return 0
 }
 
+// GetCode get code.
 func (s *StateDB) GetCode(addr types.AddressHash) []byte {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
@@ -249,8 +238,9 @@ func (s *StateDB) GetCode(addr types.AddressHash) []byte {
 	return nil
 }
 
-func (self *StateDB) GetCodeSize(addr types.AddressHash) int {
-	stateObject := self.getStateObject(addr)
+// GetCodeSize get code size.
+func (s *StateDB) GetCodeSize(addr types.AddressHash) int {
+	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
 		return 0
 	}
@@ -260,6 +250,7 @@ func (self *StateDB) GetCodeSize(addr types.AddressHash) int {
 	return 0
 }
 
+// GetCodeHash get code hash.
 func (s *StateDB) GetCodeHash(addr types.AddressHash) corecrypto.HashType {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
@@ -268,6 +259,7 @@ func (s *StateDB) GetCodeHash(addr types.AddressHash) corecrypto.HashType {
 	return corecrypto.BytesToHash(stateObject.CodeHash())
 }
 
+// GetState get state.
 func (s *StateDB) GetState(a types.AddressHash, b corecrypto.HashType) corecrypto.HashType {
 	stateObject := s.getStateObject(a)
 	if stateObject != nil {
@@ -301,6 +293,7 @@ func (s *StateDB) StorageTrie(a types.AddressHash) *trie.Trie {
 	return cpy.updateTrie()
 }
 
+// HasSuicided judge hasSuicided.
 func (s *StateDB) HasSuicided(addr types.AddressHash) bool {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
@@ -315,7 +308,7 @@ func (s *StateDB) HasSuicided(addr types.AddressHash) bool {
 
 // AddBalance adds amount to the account associated with addr
 func (s *StateDB) AddBalance(addr types.AddressHash, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.AddBalance(amount)
 	}
@@ -323,35 +316,39 @@ func (s *StateDB) AddBalance(addr types.AddressHash, amount *big.Int) {
 
 // SubBalance subtracts amount from the account associated with addr
 func (s *StateDB) SubBalance(addr types.AddressHash, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SubBalance(amount)
 	}
 }
 
+// SetBalance set balance.
 func (s *StateDB) SetBalance(addr types.AddressHash, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetBalance(amount)
 	}
 }
 
+// SetNonce set nonce.
 func (s *StateDB) SetNonce(addr types.AddressHash, nonce uint64) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
 	}
 }
 
+// SetCode set code.
 func (s *StateDB) SetCode(addr types.AddressHash, code []byte) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetCode(crypto.Keccak256Hash(code), code)
 	}
 }
 
+// SetState set state.
 func (s *StateDB) SetState(addr types.AddressHash, key corecrypto.HashType, value corecrypto.HashType) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetState(key, value)
 	}
@@ -429,8 +426,8 @@ func (s *StateDB) setStateObject(object *stateObject) {
 	s.stateObjects[object.Address()] = object
 }
 
-// GetOrNewStateObject Retrieve a state object or create a new state object if nil
-func (s *StateDB) GetOrNewStateObject(addr types.AddressHash) *stateObject {
+// getOrNewStateObject Retrieve a state object or create a new state object if nil
+func (s *StateDB) getOrNewStateObject(addr types.AddressHash) *stateObject {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil || stateObject.deleted {
 		stateObject, _ = s.createObject(addr)
@@ -470,7 +467,8 @@ func (s *StateDB) CreateAccount(addr types.AddressHash) {
 	}
 }
 
-func (db *StateDB) ForEachStorage(addr types.AddressHash, cb func(key, value corecrypto.HashType) bool) {
+// ForEachStorage traverse the storage.
+func (s *StateDB) ForEachStorage(addr types.AddressHash, cb func(key, value corecrypto.HashType) bool) {
 	// so := db.getStateObject(addr)
 	// if so == nil {
 	// 	return
@@ -491,8 +489,7 @@ func (db *StateDB) ForEachStorage(addr types.AddressHash, cb func(key, value cor
 func (s *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	state := &StateDB{
-		db: s.db,
-		// FIXME:
+		db:   s.db,
 		trie: nil,
 		// trie:              s.db.CopyTrie(s.trie),
 		stateObjects:      make(map[types.AddressHash]*stateObject, len(s.journal.dirties)),

@@ -1,18 +1,6 @@
-// Copyright 2014 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 
 package state
 
@@ -38,11 +26,11 @@ var toAddr = types.BytesToAddressHash
 
 // func (s *StateSuite) TestDump(t *testing.T) {
 // 	// generate a few entries
-// 	obj1 := s.state.GetOrNewStateObject(toAddr([]byte{0x01}))
+// 	obj1 := s.state.getOrNewStateObject(toAddr([]byte{0x01}))
 // 	obj1.AddBalance(big.NewInt(22))
-// 	obj2 := s.state.GetOrNewStateObject(toAddr([]byte{0x01, 0x02}))
+// 	obj2 := s.state.getOrNewStateObject(toAddr([]byte{0x01, 0x02}))
 // 	obj2.SetCode(vmcrypto.Keccak256Hash([]byte{3, 3, 3, 3, 3, 3, 3}), []byte{3, 3, 3, 3, 3, 3, 3})
-// 	obj3 := s.state.GetOrNewStateObject(toAddr([]byte{0x02}))
+// 	obj3 := s.state.getOrNewStateObject(toAddr([]byte{0x02}))
 // 	obj3.SetBalance(big.NewInt(44))
 
 // 	// write some of them to the trie
