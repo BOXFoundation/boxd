@@ -9,21 +9,16 @@ import (
 	"fmt"
 	"path"
 	"strconv"
-	"strings"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"path"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -53,11 +48,6 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "createrawtx [from] [txhash1,txhash2...] [vout1,vout2...] [to1,to2...] [amount1,amount2...]",
-			Short: "Create a raw transaction",
-			Run:   createRawTransaction,
-		},
-		&cobra.Command{
 			Use:   "debuglevel [debug|info|warning|error|fatal]",
 			Short: "Set the debug level of boxd",
 			Run:   debugLevelCmdFunc,
@@ -66,17 +56,6 @@ func init() {
 			Use:   "networkid [id]",
 			Short: "Update networkid of boxd",
 			Run:   updateNetworkID,
-		},
-		&cobra.Command{
-			Use:   "decoderawtx",
-			Short: "A brief description of your command",
-			Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-			Run: decoderawtx,
 		},
 		&cobra.Command{
 			Use:   "getbalance [address]",
@@ -118,21 +97,11 @@ to quickly create a Cobra application.`,
 			},
 		},
 		&cobra.Command{
-			Use:   "getrawtx [txhash]",
-			Short: "Get the raw transaction for a txid",
-			Run:   getRawTxCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "searchrawtxs [address]",
 			Short: "Search transactions for a given address",
 			Run: func(cmd *cobra.Command, args []string) {
 				fmt.Println("searchrawtx called")
 			},
-		},
-		&cobra.Command{
-			Use:   "sendrawtx [rawtx]",
-			Short: "Send a raw transaction to the network",
-			Run:   sendrawtx,
 		},
 		&cobra.Command{
 			Use:   "signmessage [message] [optional publickey]",
@@ -313,123 +282,6 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 	}
 }
 
-func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getrawtx called")
-	if len(args) < 1 {
-		fmt.Println("Param txhash required")
-		return
-	}
-	hash := crypto.HashType{}
-	hash.SetString(args[0])
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	tx, err := rpcutil.GetRawTransaction(conn, hash.GetBytes())
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(util.PrettyPrint(tx))
-	}
-}
-
-func decoderawtx(cmd *cobra.Command, args []string) {
-	fmt.Println("decoderawtx called")
-	if len(args) != 1 {
-		fmt.Println("Invalide argument number")
-		return
-	}
-	txByte, err := hex.DecodeString(args[0])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	tx := new(types.Transaction)
-	if err := tx.Unmarshal(txByte); err != nil {
-		fmt.Println("Unmarshal error: ", err)
-		return
-	}
-	fmt.Println(util.PrettyPrint(tx))
-}
-
-func createRawTransaction(cmd *cobra.Command, args []string) {
-	if len(args) < 4 {
-		fmt.Println("Invalide argument number")
-		return
-	}
-	fmt.Println("createRawTx called")
-	from := args[0]
-	//Cut characters around commas
-	txHashStr := strings.Split(args[1], ",")
-	txHash := make([]crypto.HashType, 0)
-	for _, x := range txHashStr {
-		tmp := crypto.HashType{}
-		if err := tmp.SetString(x); err != nil {
-			fmt.Println("set string error: ", err)
-			return
-		}
-		txHash = append(txHash, tmp)
-	}
-	voutStr := strings.Split(args[2], ",")
-	vout := make([]uint32, 0)
-	for _, x := range voutStr {
-		tmp, err := strconv.Atoi(x)
-		if err != nil {
-			fmt.Println("Type conversion failed: ", err)
-			return
-		}
-		vout = append(vout, uint32(tmp))
-	}
-	toStr := strings.Split(args[3], ",")
-	to := make([]string, 0)
-	for _, x := range toStr {
-		to = append(to, x)
-	}
-	amountStr := strings.Split(args[4], ",")
-	amounts := make([]uint64, 0)
-	for _, x := range amountStr {
-		tmp, err := strconv.Atoi(x)
-		if err != nil {
-			fmt.Println("Type conversion failed: ", err)
-			return
-		}
-		amounts = append(amounts, uint64(tmp))
-	}
-	if len(txHash) != len(vout) {
-		fmt.Println(" The number of [txid] should be the same as the number of [vout]")
-		return
-	}
-	if len(to) != len(amounts) {
-		fmt.Println("The number of [to] should be the same as the number of [amount]")
-		return
-	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	height, err := rpcutil.GetBlockCount(conn)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	tx, err := rpcutil.CreateRawTransaction(from, txHash, vout, to, amounts, height)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	mashalTx, err := tx.Marshal()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	strTx := hex.EncodeToString(mashalTx)
-	fmt.Println(strTx)
-}
-
 func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("signmessage called")
 	if len(args) < 2 {
@@ -475,36 +327,6 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println(args[0], " is a valid address")
 	}
-}
-
-func sendrawtx(cmd *cobra.Command, args []string) {
-	fmt.Println("sendrawtx called")
-	if len(args) != 1 {
-		fmt.Println("Can only enter one string for a transaction")
-		return
-	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	txByte, err := hex.DecodeString(args[0])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	tx := new(types.Transaction)
-	if err := tx.Unmarshal(txByte); err != nil {
-		fmt.Println("unmarshal error: ", err)
-		return
-	}
-	resp, err := rpcutil.SendTransaction(conn, tx)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(util.PrettyPrint(resp))
 }
 
 func getRPCAddr() string {
