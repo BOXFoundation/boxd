@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
@@ -284,10 +285,11 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	}
 
 	// ensure it is a standard transaction
-	if err := tx_pool.checkTransactionStandard(tx); err != nil {
-		logger.Errorf("Tx %v is not standard: %v", txHash.String(), err)
+	if !tx_pool.isStandardTx(tx) {
+		logger.Errorf("Tx %v is not standard", txHash.String())
 		return core.ErrNonStandardTransaction
 	}
+
 	if err := tx_pool.chain.Consensus().VerifyTx(tx); err != nil {
 		logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
 		return err
@@ -363,9 +365,14 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 	return exists
 }
 
-func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
-	// TODO:
-	return nil
+func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
+	for _, txOut := range tx.Vout {
+		sc := *script.NewScriptFromBytes(txOut.ScriptPubKey)
+		if !sc.IsStandard() {
+			return false
+		}
+	}
+	return true
 }
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {

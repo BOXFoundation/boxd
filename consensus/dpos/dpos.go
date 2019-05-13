@@ -830,7 +830,7 @@ func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
 func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
 	for _, vout := range tx.Vout {
 		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
-		if scriptPubKey.IsRegisterCandidateScript(calcCandidatePledgeHeight(int64(dpos.chain.TailBlock().Height))) {
+		if scriptPubKey.IsRegisterCandidateScriptOfBlock(calcCandidatePledgeHeight(int64(dpos.chain.TailBlock().Height))) {
 			if tx.Data.Type == types.RegisterCandidateTx {
 				if vout.Value >= CandidatePledge {
 					return true
