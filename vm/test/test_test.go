@@ -171,6 +171,10 @@ func TestEVM(t *testing.T) {
 	must(vmerr)
 	fmt.Println("after send 19, balance =", balance)
 
+	// for _, v := range stateDb.Logs() {
+	// 	fmt.Printf("%v\n", v.Data)
+	// }
+
 	_, _, err = stateDb.Commit(false)
 	must(err)
 	err = stateDb.Reset()

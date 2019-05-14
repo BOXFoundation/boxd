@@ -35,8 +35,9 @@ type dummyStatedb struct {
 	state.Mockdb
 }
 
-func (*dummyStatedb) GetRefund() uint64       { return 1337 }
-func (*dummyStatedb) AddLog(log *vmtypes.Log) {}
+func (*dummyStatedb) GetRefund() uint64                                         { return 1337 }
+func (*dummyStatedb) AddLog(log *vmtypes.Log)                                   {}
+func (*dummyStatedb) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error { return nil }
 
 func TestStoreCapture(t *testing.T) {
 	var (

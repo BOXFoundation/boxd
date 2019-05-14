@@ -144,7 +144,6 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 func (t *Trie) Update(key, value []byte) error {
 
 	k := keyToHex(key)
-	logger.Errorf("Update k: %v", k)
 	var rootHash *crypto.HashType
 	var err error
 	if len(value) != 0 {
