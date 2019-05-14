@@ -99,16 +99,13 @@ func (t *Trie) Get(key []byte) ([]byte, error) {
 
 func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 
-	if hash == nil || len(key) == 0 {
+	if hash == nil {
 		return nil, core.ErrNodeNotFound
 	}
 	root, err := t.getNode(hash)
 	if err != nil {
 		return nil, err
 	}
-	// if root == nil {
-	// 	return nil, nil
-	// }
 	if root.Type() == unknown {
 		return nil, core.ErrNodeNotFound
 	}
