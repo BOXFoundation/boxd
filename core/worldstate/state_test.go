@@ -2,17 +2,19 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package state
+package worldstate
 
 import (
 	"bytes"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
+	vmcrypto "github.com/BOXFoundation/boxd/vm/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/facebookgo/ensure"
 )
@@ -88,10 +90,10 @@ func (s *StateSuite) TestNull(t *testing.T) {
 	s.state.Commit(false)
 
 	if value := s.state.GetState(address, crypto.HashType{}); value != (crypto.HashType{}) {
-		fmt.Errorf("expected empty current value, got %x", value)
+		t.Errorf("expected empty current value, got %x", value)
 	}
 	if value := s.state.GetCommittedState(address, crypto.HashType{}); value != (crypto.HashType{}) {
-		fmt.Errorf("expected empty committed value, got %x", value)
+		t.Errorf("expected empty committed value, got %x", value)
 	}
 }
 

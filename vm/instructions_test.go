@@ -564,7 +564,7 @@ func TestCreate2Addreses(t *testing.T) {
 		// salt := corecrypto.BytesToHash(common.FromHex(tt.salt))
 		// code := common.FromHex(tt.code)
 		codeHash := crypto.Keccak256(code)
-		address := crypto.CreateAddress2(origin, salt, codeHash)
+		address := coretypes.CreateAddress2(origin, salt, codeHash)
 		/*
 			stack          := newstack()
 			// salt, but we don't need that for this test
