@@ -482,6 +482,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
+
+	dpos.chain.UpdateNormalTxBalanceState(utxoSet, statedb)
+
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
 		if err := utxoSet.ApplyInternalTxs(block, statedb, dpos.chain.DB()); err != nil {
@@ -491,14 +494,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err := dpos.chain.UpdateUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}
-	dpos.chain.UpdateNormalTxBalanceState(utxoSet, statedb)
-	root, utxoRoot, err := statedb.Commit(false)
-	if err != nil {
-		return err
-	}
-
-	dpos.chain.StateDBCache()[block.Header.Height] = statedb
-	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
 	block.Txs[0].Vout[0].Value -= gasRemainingFee
 	// handle coinbase utxo
@@ -507,6 +502,17 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			v.SetValue(block.Txs[0].Vout[0].Value)
 		}
 	}
+	// logger.Errorf("utxoSet in dpos: %v", utxoSet.GetUtxos())
+
+	logger.Warnf("statedb in dpos: %v", statedb.String())
+	root, utxoRoot, err := statedb.Commit(false)
+	// logger.Warnf("statedb in apply block root: %v", root.String())
+	if err != nil {
+		return err
+	}
+	dpos.chain.StateDBCache()[block.Header.Height] = statedb
+	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
+
 	block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root

@@ -643,6 +643,7 @@ func (u *UtxoSet) calcNormalTxBalanceChanges() (add, sub BalanceChangeMap) {
 	add = make(BalanceChangeMap)
 	sub = make(BalanceChangeMap)
 	for o, w := range u.utxoMap {
+
 		if _, exists := u.normalTxUtxoSet[o]; !exists {
 			continue
 		}
@@ -655,6 +656,7 @@ func (u *UtxoSet) calcNormalTxBalanceChanges() (add, sub BalanceChangeMap) {
 		address, _ := sc.ExtractAddress()
 		addr := address.Hash160()
 		if w.IsSpent() {
+			logger.Infof("calcNormalTxBalanceChanges: addr: %v, value: %v", addr.String(), w.Value())
 			sub[*addr] += w.Value()
 			continue
 		}

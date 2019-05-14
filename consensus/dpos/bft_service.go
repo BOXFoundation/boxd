@@ -173,7 +173,7 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 	// preCheck
 	eternalBlockMsg, block, err := bft.preCheck(msg)
 	if err != nil || eternalBlockMsg == nil {
-		logger.Warnf("Failed to handle block prepare msg. Err: %v", err)
+		// logger.Warnf("Failed to handle block prepare msg. Err: %v", err)
 		return err
 	}
 
@@ -220,7 +220,7 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 	// preCheck
 	eternalBlockMsg, block, err := bft.preCheck(msg)
 	if err != nil || eternalBlockMsg == nil {
-		logger.Warnf("Failed to handle block commit msg. Err: %v", err)
+		// logger.Warnf("Failed to handle block commit msg. Err: %v", err)
 		return err
 	}
 

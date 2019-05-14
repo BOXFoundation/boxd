@@ -546,7 +546,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
-	logger.Infof("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
+	logger.Warnf("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
 
 	return chain.reorganize(block, messageFrom)
 }
@@ -646,12 +646,16 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
 			return err
 		}
+		// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
+		if err := validateBlockScripts(utxoSet, block); err != nil {
+			return err
+		}
 	}
 
-	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
-	if err := validateBlockScripts(utxoSet, block); err != nil {
-		return err
-	}
+	// // Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
+	// if err := validateBlockScripts(utxoSet, block); err != nil {
+	// 	return err
+	// }
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -732,9 +736,11 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(utxoSet *UtxoSet, stateDB *s
 	// update EOA accounts' balance state
 	bAdd, bSub := utxoSet.calcNormalTxBalanceChanges()
 	for a, v := range bAdd {
+		logger.Infof("bAdd a: %v value: %v balance: %v", a, v, stateDB.GetBalance(a).Uint64())
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
 	}
 	for a, v := range bSub {
+		logger.Infof("bSub a: %v value: %v balance: %v", a, v, stateDB.GetBalance(a).Uint64())
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
 }
@@ -764,8 +770,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	ttt0 := time.Now().UnixNano()
 	// batch := chain.db.NewBatch()
 	// defer batch.Close()
-	chain.db.EnableBatch()
-	defer chain.db.DisableBatch()
 
 	ttt1 := time.Now().UnixNano()
 
@@ -804,7 +808,9 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee, totalTxsFee); err != nil {
 			return err
 		}
+
 		chain.UpdateNormalTxBalanceState(utxoSet, stateDB)
+
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
 			if err := utxoSet.ApplyInternalTxs(block, stateDB, chain.db); err != nil {
@@ -815,7 +821,20 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			logger.Errorf("chain update utxo state error: %s", err)
 			return err
 		}
+
+		// block.Txs[0].Vout[0].Value -= gasRemainingFee
+		// // handle coinbase utxo
+		// for _, v := range utxoSet.GetUtxos() {
+		// 	if v.IsCoinBase() {
+		// 		v.SetValue(block.Txs[0].Vout[0].Value)
+		// 	}
+		// }
+
+		// logger.Infof("utxoSet in apply block: %v", utxoSet.GetUtxos())
+		// chain.UpdateNormalTxBalanceState(utxoSet, stateDB)
+		// logger.Warnf("statedb in apply block: %v", stateDB.String())
 		root, utxoRoot, err := stateDB.Commit(false)
+		// logger.Warnf("statedb in apply block root: %v", root.String())
 		if err != nil {
 			logger.Errorf("stateDB commit failed: %s", err)
 			return err
@@ -831,6 +850,9 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 		chain.stateDBCache[block.Header.Height] = stateDB
 	}
+
+	chain.db.EnableBatch()
+	defer chain.db.DisableBatch()
 
 	if err := chain.StoreBlockWithStateInBatch(block, chain.db); err != nil {
 		return err
@@ -1143,7 +1165,7 @@ func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 	// chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Header.Height
 	chain.tail = tail
-	logger.Infof("Change New Tail. Hash: %s Height: %d txsNum: %d", tail.BlockHash().String(), tail.Header.Height, len(tail.Txs))
+	logger.Warnf("Change New Tail. Hash: %s Height: %d txsNum: %d", tail.BlockHash().String(), tail.Header.Height, len(tail.Txs))
 
 	metrics.MetricsBlockHeightGauge.Update(int64(tail.Header.Height))
 	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))

@@ -6,9 +6,11 @@
 package state
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sort"
+	"strconv"
 
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -72,6 +74,14 @@ type StateDB struct {
 	journal        *journal
 	validRevisions []revision
 	nextRevisionID int
+}
+
+func (s *StateDB) String() string {
+	var str string
+	for k, v := range s.stateObjects {
+		str += k.String() + "|" + strconv.Itoa(int(v.Balance().Int64())) + "|" + strconv.Itoa(int(v.Nonce())) + "|" + v.data.Root.String() + "|" + hex.EncodeToString(v.data.CodeHash) + "\n"
+	}
+	return str
 }
 
 // New a new state from a given trie.
@@ -622,6 +632,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecr
 	}
 	// Commit objects to the trie.
 	for addr, stateObject := range s.stateObjects {
+		logger.Infof("addr in commit: %v", addr)
 		_, isDirty := s.stateObjectsDirty[addr]
 		switch {
 		case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.empty()):
