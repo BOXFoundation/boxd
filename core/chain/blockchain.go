@@ -784,6 +784,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 				utxoRootHash = &parent.Header.UtxoRoot
 			}
 		}
+		logger.Infof("new state with rootHash: %s utxoRootHash: %s, parent block: %s, this block: %s h:%d",
+			rootHash, utxoRootHash, parent.BlockHash(), block.BlockHash(), block.Header.Height)
 		stateDB, err := state.New(rootHash, utxoRootHash, chain.db)
 		if err != nil {
 			logger.Error(err)
@@ -804,7 +806,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 
-		chain.UpdateNormalTxBalanceState(block, utxoSet, stateDB)
+		chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
@@ -818,6 +820,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 
 		root, utxoRoot, err := stateDB.Commit(false)
+		logger.Infof("block %s h:%d commit statedb with rootHash: %s, utxoRootHash: %s",
+			block.BlockHash(), block.Header.Height, root, utxoRoot)
 		if err != nil {
 			logger.Errorf("stateDB commit failed: %s", err)
 			return err
@@ -976,7 +980,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			panic("Failed to disconnect block from main chain")
 		}
 		stt1 := time.Now().UnixNano()
-		logger.Infof("Disconnet time tracking: %d", (stt1-stt0)/1e6)
+		logger.Infof("Disconnect block %s, time tracking: %d", detachBlock.BlockHash(), (stt1-stt0)/1e6)
 	}
 
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
@@ -986,7 +990,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			return err
 		}
 		stt1 := time.Now().UnixNano()
-		logger.Infof("Connet time tracking: %d", (stt1-stt0)/1e6)
+		logger.Infof("Connect block %s, time tracking: %d", attachBlock.BlockHash(), (stt1-stt0)/1e6)
 	}
 
 	metrics.MetricsBlockRevertMeter.Mark(1)

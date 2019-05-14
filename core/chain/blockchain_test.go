@@ -239,7 +239,7 @@ func TestBlockProcessing(t *testing.T) {
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// b0 -> b1 -> b2  -> b3  -> b4  -> b5
-	// 		           -> b3A -> b4A -> b5A -> b6A
+	//							 \ -> b3A -> b4A -> b5A -> b6A
 	// Tx: miner -> user: 50
 	// Tx: miner -> split address: 50
 	// Tx: miner -> user: 50
@@ -255,7 +255,7 @@ func TestBlockProcessing(t *testing.T) {
 	b6A.Txs = append(b6A.Txs, createGeneralTx(b3A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
 	// reorg has happened
-	b6A.Header.RootHash.SetString("cacec7a6dc8783b967911741ae825ec272e79f67cdcd8a11aae0b6a512f0478f")
+	b6A.Header.RootHash.SetString("7b4ba7c2d7eccdb422fcc1640226131f25aa30e2ae6d3194455bd05fec9fdb3d")
 	t.Logf("b6A block hash: %s", b6A.BlockHash())
 	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5A)
 
@@ -1135,4 +1135,65 @@ func TestCoinContract(t *testing.T) {
 	t.Logf("b6 -> b7 passed, now tail height: %d", blockChain.LongestChainHeight)
 	// check balances
 	// return 0x1e8480 = 2000000, check okay
+}
+
+func TestChainTx(t *testing.T) {
+	blockChain := NewTestBlockChain()
+	// blockchain
+	ensure.NotNil(t, blockChain)
+	ensure.True(t, blockChain.LongestChainHeight == 0)
+	// contract blocks test
+	b2 := genTestChain(t, blockChain)
+
+	txs := make([]*types.Transaction, 0)
+	// tx1
+	prevHash, _ := b2.Txs[1].TxHash()
+	tx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(txlogic.MakeVout(splitAddrA.String(), 1000000)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 5000000))
+	err := signTx(tx, privKey, pubKey)
+	ensure.DeepEqual(t, err, nil)
+	txs = append(txs, tx)
+	// tx2
+	prevHash, _ = tx.TxHash()
+	t.Logf("tx1: %s", prevHash)
+	tx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(txlogic.MakeVout(splitAddrA.String(), 2000000)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 3000000))
+	err = signTx(tx, privKey, pubKey)
+	ensure.DeepEqual(t, err, nil)
+	txs = append(txs, tx)
+	// tx3
+	prevHash, _ = tx.TxHash()
+	t.Logf("tx2: %s", prevHash)
+	tx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(txlogic.MakeVout(splitAddrA.String(), 2500000)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 500000))
+	err = signTx(tx, privKey, pubKey)
+	ensure.DeepEqual(t, err, nil)
+	txs = append(txs, tx)
+
+	b3 := nextBlockWithTxs(b2, txs...)
+	b3.Header.RootHash.SetString("52fa01aaefa2dce0b7e56113090c92e910fae51efb8f0290436bad07e9b69777")
+	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
+	// check balance
+	// for userAddr
+	balance := getBalance(userAddr.String(), blockChain.db)
+	stateBalance, _ := blockChain.GetBalance(userAddr)
+	ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, balance, uint64(500000))
+	// for miner
+	balance = getBalance(minerAddr.String(), blockChain.db)
+	stateBalance, _ = blockChain.GetBalance(minerAddr)
+	ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, balance, 3*testBlockSubsidy-6000000)
+	// for splitAddrA
+	balance = getBalance(splitAddrA.String(), blockChain.db)
+	stateBalance, _ = blockChain.GetBalance(splitAddrA)
+	ensure.DeepEqual(t, balance, stateBalance)
+	ensure.DeepEqual(t, balance, uint64(5500000))
+	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 }

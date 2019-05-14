@@ -19,17 +19,10 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 )
 
-type utxoInOut uint8
-
-const (
-	utxoIn utxoInOut = 1 << iota
-	utxoOut
-)
-
 // UtxoSet contains all utxos
 type UtxoSet struct {
 	utxoMap         types.UtxoMap
-	normalTxUtxoSet map[types.OutPoint]utxoInOut
+	normalTxUtxoSet map[types.OutPoint]struct{}
 	contractUtxos   []*types.OutPoint
 }
 
@@ -40,7 +33,7 @@ type BalanceChangeMap map[types.AddressHash]uint64
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
 		utxoMap:         make(types.UtxoMap),
-		normalTxUtxoSet: make(map[types.OutPoint]utxoInOut),
+		normalTxUtxoSet: make(map[types.OutPoint]struct{}),
 	}
 }
 
@@ -97,7 +90,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	}
 	u.utxoMap[outPoint] = utxoWrap
 	if !HasContractVout(tx) {
-		u.normalTxUtxoSet[outPoint] |= utxoIn
+		u.normalTxUtxoSet[outPoint] = struct{}{}
 	}
 	return nil
 }
@@ -222,7 +215,7 @@ func (u *UtxoSet) applyUtxo(
 	}
 	u.utxoMap[*outPoint] = utxoWrap
 	if !HasContractVout(tx) {
-		u.normalTxUtxoSet[*outPoint] |= utxoOut
+		u.normalTxUtxoSet[*outPoint] = struct{}{}
 	}
 	return nil
 }
@@ -249,7 +242,7 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, stateDB *st
 	for _, txIn := range tx.Vin {
 		u.SpendUtxo(txIn.PrevOutPoint)
 		if !HasContractVout(tx) {
-			u.normalTxUtxoSet[txIn.PrevOutPoint] |= utxoIn
+			u.normalTxUtxoSet[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
 	return nil
