@@ -736,11 +736,9 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	// update EOA accounts' balance state
 	bAdd, bSub := utxoset.calcNormalTxBalanceChanges(block)
 	for a, v := range bAdd {
-		logger.Infof("bAdd a: %v value: %v balance: %v", a, v, stateDB.GetBalance(a).Uint64())
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
 	}
 	for a, v := range bSub {
-		logger.Infof("bSub a: %v value: %v balance: %v", a, v, stateDB.GetBalance(a).Uint64())
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
 }
@@ -767,9 +765,6 @@ func (chain *BlockChain) UpdateUtxoState(statedb *state.StateDB, utxoSet *UtxoSe
 }
 
 func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID) error {
-	ttt0 := time.Now().UnixNano()
-	// batch := chain.db.NewBatch()
-	// defer batch.Close()
 
 	ttt1 := time.Now().UnixNano()
 
@@ -822,19 +817,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 
-		// block.Txs[0].Vout[0].Value -= gasRemainingFee
-		// // handle coinbase utxo
-		// for _, v := range utxoSet.GetUtxos() {
-		// 	if v.IsCoinBase() {
-		// 		v.SetValue(block.Txs[0].Vout[0].Value)
-		// 	}
-		// }
-
-		// logger.Infof("utxoSet in apply block: %v", utxoSet.GetUtxos())
-		// chain.UpdateNormalTxBalanceState(utxoSet, stateDB)
-		// logger.Warnf("statedb in apply block: %v", stateDB.String())
 		root, utxoRoot, err := stateDB.Commit(false)
-		// logger.Warnf("statedb in apply block root: %v", root.String())
 		if err != nil {
 			logger.Errorf("stateDB commit failed: %s", err)
 			return err
@@ -904,8 +887,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
 	ttt7 := time.Now().UnixNano()
-	if needToTracking((ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
-		logger.Infof("ttt Time tracking: ttt0` = %d ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ", (ttt1-ttt0)/1e6, (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
+	if needToTracking((ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
+		logger.Infof("ttt Time tracking: ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ", (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
 	}
 	return nil
 }

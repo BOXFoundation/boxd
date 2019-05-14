@@ -483,6 +483,13 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
+	block.Txs[0].Vout[0].Value -= gasRemainingFee
+	// handle coinbase utxo
+	for _, v := range utxoSet.GetUtxos() {
+		if v.IsCoinBase() {
+			v.SetValue(block.Txs[0].Vout[0].Value)
+		}
+	}
 	dpos.chain.UpdateNormalTxBalanceState(block, utxoSet, statedb)
 
 	// apply internal txs.
@@ -495,18 +502,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	block.Txs[0].Vout[0].Value -= gasRemainingFee
-	// handle coinbase utxo
-	for _, v := range utxoSet.GetUtxos() {
-		if v.IsCoinBase() {
-			v.SetValue(block.Txs[0].Vout[0].Value)
-		}
-	}
-	// logger.Errorf("utxoSet in dpos: %v", utxoSet.GetUtxos())
-
-	logger.Warnf("statedb in dpos: %v", statedb.String())
 	root, utxoRoot, err := statedb.Commit(false)
-	// logger.Warnf("statedb in apply block root: %v", root.String())
 	if err != nil {
 		return err
 	}
