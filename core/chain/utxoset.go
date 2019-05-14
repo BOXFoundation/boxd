@@ -19,10 +19,17 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 )
 
+type utxoInOut uint8
+
+const (
+	utxoIn utxoInOut = 1 << iota
+	utxoOut
+)
+
 // UtxoSet contains all utxos
 type UtxoSet struct {
 	utxoMap         types.UtxoMap
-	normalTxUtxoSet map[types.OutPoint]struct{}
+	normalTxUtxoSet map[types.OutPoint]utxoInOut
 	contractUtxos   []*types.OutPoint
 }
 
@@ -33,7 +40,7 @@ type BalanceChangeMap map[types.AddressHash]uint64
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
 		utxoMap:         make(types.UtxoMap),
-		normalTxUtxoSet: make(map[types.OutPoint]struct{}),
+		normalTxUtxoSet: make(map[types.OutPoint]utxoInOut),
 	}
 }
 
@@ -90,7 +97,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	}
 	u.utxoMap[outPoint] = utxoWrap
 	if !HasContractVout(tx) {
-		u.normalTxUtxoSet[outPoint] = struct{}{}
+		u.normalTxUtxoSet[outPoint] |= utxoIn
 	}
 	return nil
 }
@@ -215,7 +222,7 @@ func (u *UtxoSet) applyUtxo(
 	}
 	u.utxoMap[*outPoint] = utxoWrap
 	if !HasContractVout(tx) {
-		u.normalTxUtxoSet[*outPoint] = struct{}{}
+		u.normalTxUtxoSet[*outPoint] |= utxoOut
 	}
 	return nil
 }
@@ -242,7 +249,7 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, stateDB *st
 	for _, txIn := range tx.Vin {
 		u.SpendUtxo(txIn.PrevOutPoint)
 		if !HasContractVout(tx) {
-			u.normalTxUtxoSet[txIn.PrevOutPoint] = struct{}{}
+			u.normalTxUtxoSet[txIn.PrevOutPoint] |= utxoIn
 		}
 	}
 	return nil
@@ -558,7 +565,6 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 		}
 	}
 	return nil
-
 }
 
 // LoadBlockAllUtxos loads all UTXOs txs in the block
@@ -644,7 +650,8 @@ func (u *UtxoSet) calcNormalTxBalanceChanges() (add, sub BalanceChangeMap) {
 	sub = make(BalanceChangeMap)
 	for o, w := range u.utxoMap {
 
-		if _, exists := u.normalTxUtxoSet[o]; !exists {
+		inOut, exists := u.normalTxUtxoSet[o]
+		if !exists {
 			continue
 		}
 		sc := script.NewScriptFromBytes(w.Script())
@@ -655,12 +662,15 @@ func (u *UtxoSet) calcNormalTxBalanceChanges() (add, sub BalanceChangeMap) {
 		}
 		address, _ := sc.ExtractAddress()
 		addr := address.Hash160()
-		if w.IsSpent() {
-			logger.Infof("calcNormalTxBalanceChanges: addr: %v, value: %v", addr.String(), w.Value())
+		if inOut&utxoIn == utxoIn {
+			logger.Warnf("sub utxo %s outpoint %+v: %+v", addr, o, w)
 			sub[*addr] += w.Value()
-			continue
 		}
-		add[*addr] += w.Value()
+		if inOut&utxoOut == utxoOut {
+			logger.Warnf("add utxo %s outpoint %+v: %+v", addr, o, w)
+			add[*addr] += w.Value()
+		}
+		logger.Warnf("utxo outpoint %+v: %+v utxoInOut: %d", o, w, inOut)
 	}
 	return
 }
