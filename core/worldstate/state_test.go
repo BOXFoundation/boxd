@@ -199,7 +199,7 @@ func TestSnapshot3(t *testing.T) {
 
 	trNew, _ := trie.New(root, db)
 	dd, err := trNew.Get(stateobjaddr1[:])
-
+	ensure.Nil(t, err)
 	fmt.Println(string(dd))
 	fmt.Println(err)
 }

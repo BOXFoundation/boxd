@@ -112,6 +112,9 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 	if root.Type() == unknown {
 		return nil, core.ErrNodeNotFound
 	}
+	if root.Type() == branch {
+		return t.get(bytesToHash(root.Value[key[0]]), key[1:])
+	}
 
 	prefixs, err := commonPrefixes(root.Value[0], key)
 	if err != nil {
@@ -126,9 +129,8 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 			return nil, core.ErrNodeNotFound
 		}
 		return root.Value[1], nil
-	case branch:
-		return t.get(bytesToHash(root.Value[key[0]]), key[1:])
 	case extension:
+		logger.Errorf("extension key: %v", key[prefixsLen:])
 		return t.get(bytesToHash(root.Value[1]), key[prefixsLen:])
 	}
 
@@ -175,6 +177,9 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 	}
 	if root.Type() == unknown {
 		return nil, core.ErrNodeNotFound
+	}
+	if root.Type() == branch {
+		return t.updateBranchNode(root, bytesToHash(root.Value[key[0]]), key, value)
 	}
 
 	prefixs, err := commonPrefixes(root.Value[0], key)
