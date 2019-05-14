@@ -23,8 +23,8 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
-	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -927,7 +927,7 @@ func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 			logger.Warnf("utxo txs root: %s, internal txs root: %s", txsRoot, block.Header.InternalTxsRoot)
 			return core.ErrInvalidInternalTxs
 		}
-	} else { //FIXME: @dudu why need me? i don`t know.
+	} else {
 		block.InternalTxs = make([]*types.Transaction, 0)
 	}
 	return nil

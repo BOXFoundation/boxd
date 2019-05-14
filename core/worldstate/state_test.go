@@ -2,11 +2,10 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package state
+package worldstate
 
 import (
 	"bytes"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -88,10 +87,10 @@ func (s *StateSuite) TestNull(t *testing.T) {
 	s.state.Commit(false)
 
 	if value := s.state.GetState(address, crypto.HashType{}); value != (crypto.HashType{}) {
-		fmt.Errorf("expected empty current value, got %x", value)
+		t.Errorf("expected empty current value, got %x", value)
 	}
 	if value := s.state.GetCommittedState(address, crypto.HashType{}); value != (crypto.HashType{}) {
-		fmt.Errorf("expected empty committed value, got %x", value)
+		t.Errorf("expected empty committed value, got %x", value)
 	}
 }
 

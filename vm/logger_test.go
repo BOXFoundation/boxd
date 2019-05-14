@@ -8,8 +8,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 )

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/facebookgo/ensure"
 )

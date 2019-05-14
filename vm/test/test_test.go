@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/state"
 	coretypes "github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"

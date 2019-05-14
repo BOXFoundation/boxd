@@ -2,8 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-// Package state provides a caching layer atop the Ethereum state trie.
-package state
+package worldstate
 
 import (
 	"encoding/hex"

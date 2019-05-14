@@ -9,8 +9,8 @@ import (
 	"fmt"
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
-	"github.com/BOXFoundation/boxd/core/state"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
