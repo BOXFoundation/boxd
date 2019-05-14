@@ -113,17 +113,12 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 		return nil, core.ErrNodeNotFound
 	}
 
-	var prefixs []byte
-	var prefixsLen int
-	if root.Type() != branch {
-		prefixs, err = commonPrefixes(root.Value[0], key)
-		prefixsLen = len(prefixs)
-		if err != nil || prefixsLen == 0 {
-			return nil, core.ErrNodeNotFound
-		}
+	prefixs, err := commonPrefixes(root.Value[0], key)
+	if err != nil {
+		return nil, err
 	}
-
 	var rootKeyLen = len(root.Value[0])
+	var prefixsLen = len(prefixs)
 	var keyLen = len(key)
 	switch root.Type() {
 	case leaf:
@@ -182,17 +177,12 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 		return nil, core.ErrNodeNotFound
 	}
 
-	var prefixs []byte
-	var prefixsLen int
-	if root.Type() != branch {
-		prefixs, err = commonPrefixes(root.Value[0], key)
-		prefixsLen = len(prefixs)
-		if err != nil || prefixsLen == 0 {
-			return nil, core.ErrNodeNotFound
-		}
+	prefixs, err := commonPrefixes(root.Value[0], key)
+	if err != nil {
+		return nil, err
 	}
-
 	var rootKeyLen = len(root.Value[0])
+	var prefixsLen = len(prefixs)
 	switch root.Type() {
 	case leaf:
 		switch prefixsLen {
