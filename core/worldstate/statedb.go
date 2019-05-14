@@ -631,7 +631,6 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecr
 	}
 	// Commit objects to the trie.
 	for addr, stateObject := range s.stateObjects {
-		logger.Infof("addr in commit: %v", addr)
 		_, isDirty := s.stateObjectsDirty[addr]
 		switch {
 		case stateObject.suicided || (isDirty && deleteEmptyObjects && stateObject.empty()):

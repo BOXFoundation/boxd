@@ -130,7 +130,6 @@ func (t *Trie) get(hash *crypto.HashType, key []byte) ([]byte, error) {
 		}
 		return root.Value[1], nil
 	case extension:
-		logger.Errorf("extension key: %v", key[prefixsLen:])
 		return t.get(bytesToHash(root.Value[1]), key[prefixsLen:])
 	}
 
@@ -315,9 +314,6 @@ func (t *Trie) update(hash *crypto.HashType, key, value []byte) (*crypto.HashTyp
 			}
 			return newRoot.Hash, nil
 		}
-
-	case branch:
-		return t.updateBranchNode(root, bytesToHash(root.Value[key[0]]), key, value)
 	}
 	return nil, nil
 }
