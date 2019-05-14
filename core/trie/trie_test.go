@@ -114,8 +114,8 @@ func TestUpdate(t *testing.T) {
 
 	_, err = trie.Get(_kinvalid)
 	ensure.DeepEqual(t, err, core.ErrInvalidKeyPath)
-	_, err = trie.Get(_kmiss)
-	ensure.DeepEqual(t, err, core.ErrNodeNotFound)
+	v, err = trie.Get(_kmiss)
+	ensure.DeepEqual(t, v, ([]uint8)(nil))
 
 	extension.Value[0] = []byte{0xc}
 	extensionBin, _ = extension.Marshal()
@@ -184,8 +184,8 @@ func TestUpdate(t *testing.T) {
 	//               c6fe     cdfe    38ae
 	//*****************************************
 	ensure.Nil(t, trie.Update(_k1, nil))
-	_, err = trie.Get(_k1)
-	ensure.DeepEqual(t, err, core.ErrNodeNotFound)
+	v, err = trie.Get(_k1)
+	ensure.DeepEqual(t, v, ([]uint8)(nil))
 	v, _ = trie.Get(_k2)
 	ensure.DeepEqual(t, v, v2)
 	v, _ = trie.Get(_k3)
@@ -215,8 +215,8 @@ func TestUpdate(t *testing.T) {
 	//               c6fe         38ae
 	//*****************************************
 	ensure.Nil(t, trie.Update(_k2, nil))
-	_, err = trie.Get(_k2)
-	ensure.DeepEqual(t, err, core.ErrNodeNotFound)
+	v, err = trie.Get(_k2)
+	ensure.DeepEqual(t, v, ([]uint8)(nil))
 
 	branch.Value[0xb] = nil
 	branchBin, _ = branch.Marshal()
@@ -229,8 +229,8 @@ func TestUpdate(t *testing.T) {
 
 	// delete v3
 	ensure.Nil(t, trie.Update(_k3, nil))
-	_, err = trie.Get(_k3)
-	ensure.DeepEqual(t, err, core.ErrNodeNotFound)
+	v, err = trie.Get(_k3)
+	ensure.DeepEqual(t, v, ([]uint8)(nil))
 
 	root = &Node{Value: [][]byte{[]byte{0xa, 0xf, 0x3, 0x8, 0xa, 0xe}, v4, termintor}}
 	rootBin, _ = root.Marshal()
@@ -239,8 +239,8 @@ func TestUpdate(t *testing.T) {
 
 	// delete v4
 	ensure.Nil(t, trie.Update(_k4, nil))
-	_, err = trie.Get(_k4)
-	ensure.DeepEqual(t, err, core.ErrNodeNotFound)
+	v, err = trie.Get(_k4)
+	ensure.DeepEqual(t, v, ([]uint8)(nil))
 	ensure.DeepEqual(t, trie.rootHash, (*crypto.HashType)(nil))
 
 	// ***********************************************************************
