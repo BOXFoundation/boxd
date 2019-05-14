@@ -6,7 +6,6 @@ package worldstate
 
 import (
 	"bytes"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -198,10 +197,8 @@ func TestSnapshot3(t *testing.T) {
 	root, _ := tr.Commit()
 
 	trNew, _ := trie.New(root, db)
-	dd, err := trNew.Get(stateobjaddr1[:])
+	_, err := trNew.Get(stateobjaddr1[:])
 	ensure.Nil(t, err)
-	fmt.Println(string(dd))
-	fmt.Println(err)
 }
 
 func compareStateObjects(so0, so1 *stateObject, t *testing.T) {

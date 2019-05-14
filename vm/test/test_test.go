@@ -208,6 +208,8 @@ func TestPack(t *testing.T) {
 	//abiFileName := "./faucet.abi"
 	abiFileName := "./coin_sol_Coin.abi"
 	abiObj := loadAbi(abiFileName)
+	addr := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
+
 	// mint 8000000
 	input, err := abiObj.Pack("mint", fromAddress, big.NewInt(8000000))
 	if err != nil {
@@ -215,14 +217,13 @@ func TestPack(t *testing.T) {
 	}
 	t.Logf("mint 8000000: %v", hex.EncodeToString(input))
 	// sent 2000000
-	input, err = abiObj.Pack("send", big.NewInt(2000000))
+	input, err = abiObj.Pack("send", coretypes.BytesToAddressHash([]byte(addr)), big.NewInt(2000000))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("send 8000000: %v", hex.EncodeToString(input))
 	// balances
-	addr := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
-	input, err = abiObj.Pack("balances", addr)
+	input, err = abiObj.Pack("balances", coretypes.BytesToAddressHash([]byte(addr)))
 	if err != nil {
 		t.Fatal(err)
 	}
