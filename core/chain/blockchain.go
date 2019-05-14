@@ -732,9 +732,9 @@ func (chain *BlockChain) findFork(block *types.Block) (*types.Block, []*types.Bl
 }
 
 // UpdateNormalTxBalanceState updates the balance state of normal tx
-func (chain *BlockChain) UpdateNormalTxBalanceState(utxoSet *UtxoSet, stateDB *state.StateDB) {
+func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset *UtxoSet, stateDB *state.StateDB) {
 	// update EOA accounts' balance state
-	bAdd, bSub := utxoSet.calcNormalTxBalanceChanges()
+	bAdd, bSub := utxoset.calcNormalTxBalanceChanges(block)
 	for a, v := range bAdd {
 		logger.Infof("bAdd a: %v value: %v balance: %v", a, v, stateDB.GetBalance(a).Uint64())
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
@@ -809,7 +809,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 
-		chain.UpdateNormalTxBalanceState(utxoSet, stateDB)
+		chain.UpdateNormalTxBalanceState(block, utxoSet, stateDB)
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {

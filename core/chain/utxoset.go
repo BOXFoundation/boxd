@@ -645,12 +645,28 @@ func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*type
 	return utxoWrap, nil
 }
 
-func (u *UtxoSet) calcNormalTxBalanceChanges() (add, sub BalanceChangeMap) {
+func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub BalanceChangeMap) {
+
 	add = make(BalanceChangeMap)
 	sub = make(BalanceChangeMap)
-	for o, w := range u.utxoMap {
+	for _, v := range block.Txs {
+		if !HasContractVout(v) {
+			for _, vout := range v.Vout {
+				sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+				// calc balance for account state, here only EOA (external owned account)
+				// have balance state
+				if !sc.IsPayToPubKeyHash() {
+					continue
+				}
+				address, _ := sc.ExtractAddress()
+				addr := address.Hash160()
+				add[*addr] += vout.Value
+			}
+		}
+	}
 
-		inOut, exists := u.normalTxUtxoSet[o]
+	for o, w := range u.utxoMap {
+		_, exists := u.normalTxUtxoSet[o]
 		if !exists {
 			continue
 		}
@@ -662,15 +678,9 @@ func (u *UtxoSet) calcNormalTxBalanceChanges() (add, sub BalanceChangeMap) {
 		}
 		address, _ := sc.ExtractAddress()
 		addr := address.Hash160()
-		if inOut&utxoIn == utxoIn {
-			logger.Warnf("sub utxo %s outpoint %+v: %+v", addr, o, w)
+		if w.IsSpent() {
 			sub[*addr] += w.Value()
 		}
-		if inOut&utxoOut == utxoOut {
-			logger.Warnf("add utxo %s outpoint %+v: %+v", addr, o, w)
-			add[*addr] += w.Value()
-		}
-		logger.Warnf("utxo outpoint %+v: %+v utxoInOut: %d", o, w, inOut)
 	}
 	return
 }

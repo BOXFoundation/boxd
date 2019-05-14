@@ -483,7 +483,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	dpos.chain.UpdateNormalTxBalanceState(utxoSet, statedb)
+	dpos.chain.UpdateNormalTxBalanceState(block, utxoSet, statedb)
 
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
