@@ -7,13 +7,13 @@ package state
 import (
 	"bytes"
 	"fmt"
-	"math/big"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/storage"
-	vmcrypto "github.com/BOXFoundation/boxd/vm/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/facebookgo/ensure"
 )
 
@@ -165,22 +165,41 @@ func TestSnapshot2(t *testing.T) {
 	if so1 != nil {
 		t.Fatalf("deleted object not nil when getting")
 	}
+}
+func TestSnapshot3(t *testing.T) {
+	// state, _ := New(nil, nil, initDB())
 
-	snapshot := state.Snapshot()
-	state.RevertToSnapshot(snapshot)
+	stateobjaddr0 := toAddr([]byte("so0"))
+	stateobjaddr1 := toAddr([]byte("so1"))
+	var storageaddr crypto.HashType
 
-	so0Restored := state.getStateObject(stateobjaddr0)
-	// Update lazily-loaded values before comparing.
-	so0Restored.GetState(storageaddr)
-	so0Restored.Code()
-	// non-deleted is equal (restored)
-	compareStateObjects(so0Restored, so0, t)
+	data0 := crypto.BytesToHash([]byte{17})
+	data1 := crypto.BytesToHash([]byte{18})
 
-	// deleted should be nil, both before and after restore of state copy
-	so1Restored := state.getStateObject(stateobjaddr1)
-	if so1Restored != nil {
-		t.Fatalf("deleted object not nil after restoring snapshot: %+v", so1Restored)
-	}
+	db := initDB()
+
+	tr, _ := trie.New(nil, db)
+
+	state, _ := New(nil, nil, db)
+
+	state.SetState(stateobjaddr0, storageaddr, data0)
+	state.SetState(stateobjaddr1, storageaddr, data1)
+
+	// db, trie are already non-empty values
+	so0 := state.getStateObject(stateobjaddr0)
+	so1 := state.getStateObject(stateobjaddr1)
+	d0, _ := rlp.EncodeToBytes(so0)
+	d1, _ := rlp.EncodeToBytes(so1)
+
+	tr.Update(stateobjaddr0[:], d0)
+	tr.Update(stateobjaddr1[:], d1)
+	root, _ := tr.Commit()
+
+	trNew, _ := trie.New(root, db)
+	dd, err := trNew.Get(stateobjaddr1[:])
+
+	fmt.Println(string(dd))
+	fmt.Println(err)
 }
 
 func compareStateObjects(so0, so1 *stateObject, t *testing.T) {
