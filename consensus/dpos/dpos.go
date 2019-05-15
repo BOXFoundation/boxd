@@ -490,7 +490,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			v.SetValue(block.Txs[0].Vout[0].Value)
 		}
 	}
-	dpos.chain.UpdateNormalTxBalanceState(block, utxoSet, statedb)
+	dpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
