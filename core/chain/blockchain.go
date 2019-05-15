@@ -784,8 +784,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 				utxoRootHash = &parent.Header.UtxoRoot
 			}
 		}
-		logger.Infof("new state with rootHash: %s utxoRootHash: %s, parent block: %s, this block: %s h:%d",
-			rootHash, utxoRootHash, parent.BlockHash(), block.BlockHash(), block.Header.Height)
 		stateDB, err := state.New(rootHash, utxoRootHash, chain.db)
 		if err != nil {
 			logger.Error(err)
@@ -820,8 +818,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 
 		root, utxoRoot, err := stateDB.Commit(false)
-		logger.Infof("block %s h:%d commit statedb with rootHash: %s, utxoRootHash: %s",
-			block.BlockHash(), block.Header.Height, root, utxoRoot)
 		if err != nil {
 			logger.Errorf("stateDB commit failed: %s", err)
 			return err
@@ -1152,7 +1148,7 @@ func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 	// chain.heightToBlock.Add(tail.Height, tail)
 	chain.LongestChainHeight = tail.Header.Height
 	chain.tail = tail
-	logger.Warnf("Change New Tail. Hash: %s Height: %d txsNum: %d", tail.BlockHash().String(), tail.Header.Height, len(tail.Txs))
+	logger.Infof("Change New Tail. Hash: %s Height: %d txsNum: %d", tail.BlockHash().String(), tail.Header.Height, len(tail.Txs))
 
 	metrics.MetricsBlockHeightGauge.Update(int64(tail.Header.Height))
 	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))

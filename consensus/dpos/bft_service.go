@@ -76,11 +76,11 @@ func (bft *BftService) loop(p goprocess.Process) {
 		select {
 		case msg := <-bft.blockPrepareMsgCh:
 			if err := bft.handleBlockPrepareMsg(msg); err != nil {
-				logger.Warnf("Failed to handle eternalBlockMsg. Err: %s", err.Error())
+				logger.Warnf("Failed to handle block prepare message. Err: %s", err.Error())
 			}
 		case msg := <-bft.blockCommitMsgCh:
 			if err := bft.handleBlockCommitMsg(msg); err != nil {
-				logger.Warnf("Failed to handle eternalBlockMsg. Err: %s", err.Error())
+				logger.Warnf("Failed to handle block commit message. Err: %s", err.Error())
 			}
 		case <-p.Closing():
 			logger.Info("Quit bftservice loop.")
@@ -156,7 +156,7 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 func (bft *BftService) updateEternal(block *types.Block) {
 
 	if block.Header.Height <= bft.chain.EternalBlock().Header.Height {
-		//logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
+		logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
 		return
 	}
 	if err := bft.chain.SetEternal(block); err != nil {
@@ -173,12 +173,16 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 	// preCheck
 	eternalBlockMsg, block, err := bft.preCheck(msg)
 	if err != nil || eternalBlockMsg == nil {
-		// logger.Warnf("Failed to handle block prepare msg. Err: %v", err)
 		return err
 	}
 
 	key := eternalBlockMsg.Hash
 	signature := eternalBlockMsg.Signature
+
+	if bft.blockPrepareMsgKey.Contains(key) {
+		logger.Debugf("Enough block prepare message has been received.")
+		return nil
+	}
 
 	if pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.Hash[:], signature); ok {
 		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
@@ -204,7 +208,7 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 			value = append(value, signature)
 			bft.blockPrepareMsgCache.Store(key, value)
 			if len(value) > MinConfirmMsgNumberForEternalBlock {
-				bft.blockCommitMsgKey.Add(key, key)
+				bft.blockPrepareMsgKey.Add(key, key)
 				bft.consensus.BroadcastBFTMsgToBookkeepers(block, p2p.BlockCommitMsg)
 				bft.blockPrepareMsgCache.Delete(key)
 			}
@@ -220,12 +224,17 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 	// preCheck
 	eternalBlockMsg, block, err := bft.preCheck(msg)
 	if err != nil || eternalBlockMsg == nil {
-		// logger.Warnf("Failed to handle block commit msg. Err: %v", err)
 		return err
 	}
 
 	key := eternalBlockMsg.Hash
 	signature := eternalBlockMsg.Signature
+
+	if bft.blockCommitMsgKey.Contains(key) {
+		logger.Debugf("Enough block commit message has been received.")
+		return nil
+	}
+
 	if pubkey, ok := crypto.RecoverCompact(key[:], signature); ok {
 		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
@@ -274,13 +283,7 @@ func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block
 		return nil, nil, err
 	}
 
-	key := eternalBlockMsg.Hash
-	if bft.blockCommitMsgKey.Contains(key) {
-		logger.Debugf("Enough eternalBlockMsgs has been received.")
-		return nil, nil, nil
-	}
-
-	block, err := bft.chain.LoadBlockByHash(key)
+	block, err := bft.chain.LoadBlockByHash(eternalBlockMsg.Hash)
 	if err != nil {
 		return nil, nil, err
 	}
