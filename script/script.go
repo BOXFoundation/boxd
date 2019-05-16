@@ -580,21 +580,38 @@ func (s *Script) IsSplitAddrScript() bool {
 // IsRegisterCandidateScript returns if the script is register candidate script
 func (s *Script) IsRegisterCandidateScript() bool {
 	r := s.parse()
-	_, err := r[0].(Operand).int64()
-	if err != nil {
+
+	if len(r) == 0 {
 		return false
 	}
-	return len(r) >= 7
+	v, ok := r[0].(Operand)
+	if !ok {
+		return false
+	}
+	if _, err := v.int64(); err != nil {
+		return false
+	}
+
+	return true
 }
 
 // IsRegisterCandidateScriptOfBlock returns if the script is register candidate script of certain block time/height
 func (s *Script) IsRegisterCandidateScriptOfBlock(blockTimeOrHeight int64) bool {
 	r := s.parse()
-	value, err := r[0].(Operand).int64()
+
+	if len(r) < 7 {
+		return false
+	}
+	v, ok := r[0].(Operand)
+	if !ok {
+		return false
+	}
+	w, err := v.int64()
 	if err != nil {
 		return false
 	}
-	return len(r) >= 7 && value == blockTimeOrHeight
+
+	return w == blockTimeOrHeight
 }
 
 // IsStandard returns if a script is standard
