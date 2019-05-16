@@ -39,6 +39,13 @@ service TransactionCommand {
         };
     }
 
+    rpc SendRawTransaction (SendRawTransactionReq) returns (SendTransactionResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/sendrawtransaction"
+            body: "*"
+        };
+    }
+
     rpc GetRawTransaction (GetRawTransactionRequest) returns (GetRawTransactionResponse) {
         option (google.api.http) = {
             post: "/v1/tx/getrawtransaction"
@@ -74,19 +81,27 @@ service TransactionCommand {
         };
     }
 
-    rpc SendRawTransaction (SendRawTransactionReq) returns (SendTransactionResp) {
-        option (google.api.http) = {
-            post: "/v1/tx/sendrawtransaction"
-            body: "*"
-        };
-    }
-
     rpc MakeUnsignedTokenTransferTx (MakeTokenTransferTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/token/transfer"
             body: "*"
         };
     }
+
+    rpc MakeUnsignedContractTx (MakeContractTxReq) returns (MakeTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedtx/contract"
+            body: "*"
+        };
+    }
+}
+
+message MakeContractTxReq {
+    string addr = 1;
+    uint64 amount = 3;
+    uint64 gas_price = 4;
+    uint64 gas_limit = 5;
+    string bytecode = 6;
 }
 
 message SendRawTransactionReq {
