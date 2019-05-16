@@ -6,8 +6,10 @@ package rpc
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -18,6 +20,8 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
+
+const maxDecimal = 8
 
 func registerTransaction(s *Server) {
 	rpcpb.RegisterTransactionCommandServer(s.server, &txServer{server: s})
@@ -174,6 +178,25 @@ func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransaction
 	}
 }
 
+func (s *txServer) SendRawTransaction(
+	ctx context.Context, req *rpcpb.SendRawTransactionReq,
+) (resp *rpcpb.SendTransactionResp, err error) {
+	txByte, err := hex.DecodeString(req.Tx)
+	if err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), nil
+	}
+	tx := new(types.Transaction)
+	if err = tx.Unmarshal(txByte); err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), nil
+	}
+	txpool := s.server.GetTxHandler()
+	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		return newSendTransactionResp(-1, err.Error(), ""), nil
+	}
+	hash, _ := tx.TxHash()
+	return newSendTransactionResp(0, "success", hash.String()), nil
+}
+
 func (s *txServer) SendTransaction(
 	ctx context.Context, req *rpcpb.SendTransactionReq,
 ) (resp *rpcpb.SendTransactionResp, err error) {
@@ -187,7 +210,7 @@ func (s *txServer) SendTransaction(
 		}
 	}()
 
-	tx := &types.Transaction{}
+	tx := new(types.Transaction)
 	if err := tx.FromProtoMessage(req.Tx); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
@@ -326,7 +349,6 @@ func newMakeTokenIssueTxResp(code int32, msg string) *rpcpb.MakeTokenIssueTxResp
 func (s *txServer) MakeUnsignedTokenIssueTx(
 	ctx context.Context, req *rpcpb.MakeTokenIssueTxReq,
 ) (resp *rpcpb.MakeTokenIssueTxResp, err error) {
-
 	defer func() {
 		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
@@ -336,7 +358,12 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 				string(bytes), resp)
 		}
 	}()
-	//
+	if req.GetTag().GetDecimal() > maxDecimal {
+		return newMakeTokenIssueTxResp(-1, "The range of decimal must be between 0 and 8"), nil
+	}
+	if req.Tag.Supply > math.MaxUint64/uint64(math.Pow10(int(req.Tag.Decimal))) {
+		return newMakeTokenIssueTxResp(-1, "the value is too bigger"), nil
+	}
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil

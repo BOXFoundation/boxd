@@ -13,7 +13,6 @@ import (
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
@@ -49,13 +48,6 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "createrawtx",
-			Short: "Create a raw transaction",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("createrawtx called")
-			},
-		},
-		&cobra.Command{
 			Use:   "debuglevel [debug|info|warning|error|fatal]",
 			Short: "Set the debug level of boxd",
 			Run:   debugLevelCmdFunc,
@@ -64,19 +56,6 @@ func init() {
 			Use:   "networkid [id]",
 			Short: "Update networkid of boxd",
 			Run:   updateNetworkID,
-		},
-		&cobra.Command{
-			Use:   "decoderawtx",
-			Short: "A brief description of your command",
-			Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("decoderawtx called")
-			},
 		},
 		&cobra.Command{
 			Use:   "getbalance [address]",
@@ -118,22 +97,10 @@ to quickly create a Cobra application.`,
 			},
 		},
 		&cobra.Command{
-			Use:   "getrawtx [txhash]",
-			Short: "Get the raw transaction for a txid",
-			Run:   getRawTxCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "searchrawtxs [address]",
 			Short: "Search transactions for a given address",
 			Run: func(cmd *cobra.Command, args []string) {
 				fmt.Println("searchrawtx called")
-			},
-		},
-		&cobra.Command{
-			Use:   "sendrawtx [rawtx]",
-			Short: "Send a raw transaction to the network",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("sendrawtx called")
 			},
 		},
 		&cobra.Command{
@@ -315,28 +282,6 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 	}
 }
 
-func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getrawtx called")
-	if len(args) < 1 {
-		fmt.Println("Param txhash required")
-		return
-	}
-	hash := crypto.HashType{}
-	hash.SetString(args[0])
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	tx, err := rpcutil.GetRawTransaction(conn, hash.GetBytes())
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(util.PrettyPrint(tx))
-	}
-}
-
 func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("signmessage called")
 	if len(args) < 2 {
@@ -365,6 +310,7 @@ func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 	sig, err := wltMgr.Sign(msg, args[1], passphrase)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	fmt.Println("Signature: ", hex.EncodeToString(sig))
 }
@@ -375,7 +321,7 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println("validateing address", args[0])
-	addr := &types.AddressPubKeyHash{}
+	addr := new(types.AddressPubKeyHash)
 	if err := addr.SetString(args[0]); err != nil {
 		fmt.Println(err)
 	} else {

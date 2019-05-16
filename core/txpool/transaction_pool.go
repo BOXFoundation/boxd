@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
@@ -150,7 +151,6 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 					logger.Debugf("tx_pool info: %s", string([]rune(hashstr)[:len(hashstr)-1]))
 				}
 			}
-
 		case txScript := <-tx_pool.newTxScriptCh:
 			go tx_pool.checkTxScript(txScript)
 		case <-p.Closing():
@@ -163,7 +163,6 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 }
 
 func (tx_pool *TransactionPool) cleanExpiredTxsLoop(p goprocess.Process) {
-
 	ticker := time.NewTicker(txTTL)
 	defer ticker.Stop()
 	for {
@@ -207,7 +206,6 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 			}
 		}
 	}
-
 	for _, v := range msg.AttachBlocks {
 		logger.Debugf("Block %v connects to main chain", v.BlockHash())
 		tx_pool.removeBlockTxs(v)
@@ -260,7 +258,6 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode co
 // Potentially accept the transaction to the memory pool.
 func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	transferMode core.TransferMode, detectDupOrphan bool) error {
-
 	txHash, _ := tx.TxHash()
 	logger.Debugf("Maybe accept tx. Hash: %v", txHash)
 	tx_pool.txMutex.Lock()
@@ -288,43 +285,37 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	}
 
 	// ensure it is a standard transaction
-	if err := tx_pool.checkTransactionStandard(tx); err != nil {
-		logger.Errorf("Tx %v is not standard: %v", txHash.String(), err)
+	if !tx_pool.isStandardTx(tx) {
+		logger.Errorf("Tx %v is not standard", txHash.String())
 		return core.ErrNonStandardTransaction
 	}
-
 	if err := tx_pool.chain.Consensus().VerifyTx(tx); err != nil {
 		logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
 		return err
 	}
-
 	// Quickly detects if the tx double spends with any transaction in the pool.
 	// Double spending with the main chain txs will be checked in ValidateTxInputs.
 	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
 		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
 		return err
 	}
-
 	utxoSet, err := chain.GetExtendedTxUtxoSet(tx, tx_pool.chain.DB(), tx_pool.hashToTx)
 	if err != nil {
 		logger.Errorf("Could not get extended utxo set for tx %v", txHash)
 		return err
 	}
-
 	// A tx is an orphan if any of its spending utxo does not exist
 	if utxoSet.TxInputAmount(tx) == 0 {
 		// Add orphan transaction
 		tx_pool.addOrphan(tx)
 		return core.ErrOrphanTransaction
 	}
-
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
 	txFee, err := chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
 	if err != nil {
 		return err
 	}
-
 	// how to calc the minfee, or use a fixed value.
 	txSize, err := tx.SerializeSize()
 	if err != nil {
@@ -334,10 +325,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	if txFee < minFee {
 		return errors.New("txFee is less than minFee")
 	}
-
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
-
 	feePerKB := txFee * 1000 / (uint64)(txSize)
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, feePerKB)
@@ -373,9 +362,14 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 	return exists
 }
 
-func (tx_pool *TransactionPool) checkTransactionStandard(tx *types.Transaction) error {
-	// TODO:
-	return nil
+func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
+	for _, txOut := range tx.Vout {
+		sc := *script.NewScriptFromBytes(txOut.ScriptPubKey)
+		if !sc.IsStandard() {
+			return false
+		}
+	}
+	return true
 }
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
@@ -393,12 +387,10 @@ func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) erro
 func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 	// Start with processing at least the passed tx.
 	acceptedTxs := []*types.Transaction{tx}
-
 	// Note: use index here instead of range because acceptedTxs can be extended inside the loop
 	for i := 0; i < len(acceptedTxs); i++ {
 		acceptedTx := acceptedTxs[i]
 		acceptedTxHash, _ := acceptedTx.TxHash()
-
 		// Look up all txs that spend output from the tx we just accepted.
 		outPoint := types.OutPoint{Hash: *acceptedTxHash}
 		for txOutIdx := range acceptedTx.Vout {
@@ -424,14 +416,12 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 	for _, acceptedTx := range acceptedTxs {
 		tx_pool.removeDoubleSpendOrphans(acceptedTx)
 	}
-
 	return nil
 }
 
 // Add transaction into tx pool
 func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feePerKB uint64) {
 	txHash, _ := tx.TxHash()
-
 	txWrap := &types.TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
@@ -440,7 +430,6 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 		IsScriptValid:  false,
 	}
 	tx_pool.hashToTx.Store(*txHash, txWrap)
-
 	// outputs spent by this new tx
 	for _, txIn := range tx.Vin {
 		tx_pool.outPointToTx.Store(txIn.PrevOutPoint, tx)
@@ -452,7 +441,6 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, feeP
 // Remove transaction from tx pool. Note we do not recursively remove dependent txs here
 func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) {
 	txHash, _ := tx.TxHash()
-
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
 		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
@@ -508,7 +496,6 @@ func (tx_pool *TransactionPool) addOrphan(tx *types.Transaction) {
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
 	}
-
 	txHash, _ := tx.TxHash()
 	tx_pool.hashToOrphanTx.Store(*txHash, txWrap)
 	for _, txIn := range tx.Vin {
@@ -540,7 +527,6 @@ func (tx_pool *TransactionPool) removeOrphan(tx *types.Transaction) {
 			}
 			return true
 		})
-
 		// Delete the outpoint entry entirely if there are no longer any dependent orphans.
 		if counter == 0 {
 			tx_pool.outPointToOrphan.Delete(txIn.PrevOutPoint)

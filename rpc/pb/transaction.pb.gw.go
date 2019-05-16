@@ -9,13 +9,13 @@ It translates gRPC into RESTful JSON APIs.
 package rpcpb
 
 import (
+	"context"
 	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -177,6 +177,23 @@ func request_TransactionCommand_MakeUnsignedTokenIssueTx_0(ctx context.Context, 
 	}
 
 	msg, err := client.MakeUnsignedTokenIssueTx(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func request_TransactionCommand_SendRawTransaction_0(ctx context.Context, marshaler runtime.Marshaler, client TransactionCommandClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq SendRawTransactionReq
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.SendRawTransaction(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
@@ -416,6 +433,26 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 
 	})
 
+	mux.Handle("POST", pattern_TransactionCommand_SendRawTransaction_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_TransactionCommand_SendRawTransaction_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_TransactionCommand_SendRawTransaction_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_TransactionCommand_MakeUnsignedTokenTransferTx_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -458,6 +495,8 @@ var (
 
 	pattern_TransactionCommand_MakeUnsignedTokenIssueTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "tx", "makeunsignedtx", "token", "issue"}, ""))
 
+	pattern_TransactionCommand_SendRawTransaction_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "sendrawtransaction"}, ""))
+
 	pattern_TransactionCommand_MakeUnsignedTokenTransferTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "tx", "makeunsignedtx", "token", "transfer"}, ""))
 )
 
@@ -479,6 +518,8 @@ var (
 	forward_TransactionCommand_MakeUnsignedSplitAddrTx_0 = runtime.ForwardResponseMessage
 
 	forward_TransactionCommand_MakeUnsignedTokenIssueTx_0 = runtime.ForwardResponseMessage
+
+	forward_TransactionCommand_SendRawTransaction_0 = runtime.ForwardResponseMessage
 
 	forward_TransactionCommand_MakeUnsignedTokenTransferTx_0 = runtime.ForwardResponseMessage
 )
