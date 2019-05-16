@@ -179,10 +179,10 @@ func (s *Script) IsTokenIssue() bool {
 	paramsSubScript := NewScriptFromBytes((*s)[p2PKHScriptLen:])
 	r := paramsSubScript.parse()
 	return len(r) == 16 &&
-		reflect.DeepEqual([]byte(r[0].(Operand)), TokenNameKey) && reflect.DeepEqual(r[1], OPDROP) && reflect.DeepEqual(r[3], OPDROP) &&
-		reflect.DeepEqual([]byte(r[4].(Operand)), TokenSymbolKey) && reflect.DeepEqual(r[5], OPDROP) && reflect.DeepEqual(r[7], OPDROP) &&
-		reflect.DeepEqual([]byte(r[8].(Operand)), TokenAmountKey) && reflect.DeepEqual(r[9], OPDROP) && reflect.DeepEqual(r[11], OPDROP) &&
-		reflect.DeepEqual([]byte(r[12].(Operand)), TokenDecimalsKey) && reflect.DeepEqual(r[13], OPDROP) && reflect.DeepEqual(r[15], OPDROP)
+		reflect.DeepEqual([]byte(toOperand(r[0])), TokenNameKey) && reflect.DeepEqual(r[1], OPDROP) && reflect.DeepEqual(r[3], OPDROP) &&
+		reflect.DeepEqual([]byte(toOperand(r[4])), TokenSymbolKey) && reflect.DeepEqual(r[5], OPDROP) && reflect.DeepEqual(r[7], OPDROP) &&
+		reflect.DeepEqual([]byte(toOperand(r[8])), TokenAmountKey) && reflect.DeepEqual(r[9], OPDROP) && reflect.DeepEqual(r[11], OPDROP) &&
+		reflect.DeepEqual([]byte(toOperand(r[12])), TokenDecimalsKey) && reflect.DeepEqual(r[13], OPDROP) && reflect.DeepEqual(r[15], OPDROP)
 }
 
 // IsTokenTransfer returns if the script is token issurance
@@ -200,13 +200,20 @@ func (s *Script) IsTokenTransfer() bool {
 
 	paramsSubScript := NewScriptFromBytes((*s)[p2PKHScriptLen:])
 	r := paramsSubScript.parse()
-	return len(r) == 12 && reflect.DeepEqual([]byte(r[0].(Operand)), TokenTxHashKey) && reflect.DeepEqual(r[1], OPDROP) &&
-		reflect.DeepEqual(r[3], OPDROP) && reflect.DeepEqual([]byte(r[4].(Operand)), TokenTxOutIdxKey) &&
-		reflect.DeepEqual(r[5], OPDROP) && reflect.DeepEqual(r[7], OPDROP) && reflect.DeepEqual([]byte(r[8].(Operand)), TokenAmountKey) &&
+	return len(r) == 12 && reflect.DeepEqual([]byte(toOperand(r[0])), TokenTxHashKey) && reflect.DeepEqual(r[1], OPDROP) &&
+		reflect.DeepEqual(r[3], OPDROP) && reflect.DeepEqual([]byte(toOperand(r[4])), TokenTxOutIdxKey) &&
+		reflect.DeepEqual(r[5], OPDROP) && reflect.DeepEqual(r[7], OPDROP) && reflect.DeepEqual([]byte(toOperand(r[8])), TokenAmountKey) &&
 		reflect.DeepEqual(r[9], OPDROP) && reflect.DeepEqual(r[11], OPDROP)
 }
 
 // P2PKHScriptPrefix returns p2pkh prefix of token script
 func (s *Script) P2PKHScriptPrefix() *Script {
 	return NewScriptFromBytes((*s)[:p2PKHScriptLen])
+}
+
+func toOperand(i interface{}) Operand {
+	if v, ok := i.(Operand); ok {
+		return v
+	}
+	return nil
 }
