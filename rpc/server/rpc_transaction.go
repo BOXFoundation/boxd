@@ -470,3 +470,40 @@ func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte
 	}
 	return msgs, nil
 }
+
+//MakeUnsignedContractTx make contract tx
+func (s *txServer) MakeUnsignedContractTx(
+	ctx context.Context, req *rpcpb.MakeContractTxReq,
+) (resp *rpcpb.MakeTxResp, err error) {
+	defer func() {
+		bytes, _ := json.Marshal(req)
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned tx: %s error: %s", string(bytes), resp.RawMsgs)
+		} else {
+			logger.Infof("make unsigned tx: %s succeeded, response: %+v", string(bytes), resp)
+		}
+	}()
+	wa := s.server.GetWalletAgent()
+	addr := req.GetAddr()
+	amount := req.GetAmount()
+	gasPrice := req.GetGasPrice()
+	gasLimit := req.GetGasLimit()
+	byteCode, err := hex.DecodeString(req.GetBytecode())
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+
+	tx, utxos, err := rpcutil.MakeUnsignedContractTx(wa, addr, amount, gasLimit, gasPrice, byteCode)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	pbTx, err := tx.ConvToPbTx()
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), err
+	}
+	return newMakeTxResp(0, "sucess", pbTx, rawMsgs), nil
+}
