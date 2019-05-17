@@ -24,6 +24,13 @@ service WebApi {
     }
 
     rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
+
+    rpc DoCall (CallReq) returns (CallResp) {
+        option (google.api.http) = {
+            post: "/v1/evm/call"
+            body: "*"
+        };
+    }
 }
 
 message ViewTxDetailReq {
@@ -119,4 +126,22 @@ message SplitContractInfo  {
 
 message TokenTransferInfo {
     string token_id = 1;
+}
+
+message CallReq {
+    uint64 block_num = 1;
+    int64 time_stamp = 2;
+    CallArgs args = 3;
+}
+
+message CallResp {
+    repeated bytes outputs = 1;
+}
+
+message CallArgs {
+    string from = 1;
+    string to = 2;
+    uint64 value = 3;
+    uint64 gas = 4;
+    uint64 gas_price = 5;
 }
