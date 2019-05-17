@@ -27,7 +27,7 @@ service WebApi {
 
     rpc DoCall (CallReq) returns (CallResp) {
         option (google.api.http) = {
-            post: "/v1/evm/call"
+            post: "/v1/contract/call"
             body: "*"
         };
     }
@@ -129,19 +129,15 @@ message TokenTransferInfo {
 }
 
 message CallReq {
-    uint64 block_num = 1;
-    int64 time_stamp = 2;
-    CallArgs args = 3;
+    uint32 height = 1;
+    uint32 timeout = 2;
+    string from = 3;
+    string to = 4;
+    bytes input = 5;
 }
 
 message CallResp {
-    repeated bytes outputs = 1;
-}
-
-message CallArgs {
-    string from = 1;
-    string to = 2;
-    uint64 value = 3;
-    uint64 gas = 4;
-    uint64 gas_price = 5;
+    int32 code = 1;
+    string message = 2;
+    bytes output = 3;
 }
