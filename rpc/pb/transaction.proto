@@ -98,10 +98,10 @@ service TransactionCommand {
 
 message MakeContractTxReq {
     string addr = 1;
-    uint64 amount = 3;
-    uint64 gas_price = 4;
-    uint64 gas_limit = 5;
-    string bytecode = 6;
+    uint64 amount = 2;
+    uint64 gas_price = 3;
+    uint64 gas_limit = 4;
+    string code = 5;
 }
 
 message SendRawTransactionReq {

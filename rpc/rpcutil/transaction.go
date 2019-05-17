@@ -438,7 +438,8 @@ func MakeUnsignedContractTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt, overflowed := calcChangeContractAmount(amount, gasUsed, utxos...)
+	amounts := append(make([]uint64, 0), amount)
+	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
@@ -524,20 +525,6 @@ func calcChangeAmount(amounts []uint64, gasUsed uint64, utxos ...*rpcpb.Utxo) (u
 	for _, a := range amounts {
 		total += a
 	}
-	uv := uint64(0)
-	for _, u := range utxos {
-		amount, tid, err := txlogic.ParseUtxoAmount(u)
-		if err != nil || tid != nil {
-			continue
-		}
-		uv += amount
-	}
-	changeAmt := uv - total
-	return changeAmt, changeAmt > uv
-}
-
-func calcChangeContractAmount(amount uint64, gasUsed uint64, utxos ...*rpcpb.Utxo) (uint64, bool) {
-	total := gasUsed + amount
 	uv := uint64(0)
 	for _, u := range utxos {
 		amount, tid, err := txlogic.ParseUtxoAmount(u)

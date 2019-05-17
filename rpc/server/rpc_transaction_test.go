@@ -148,6 +148,45 @@ func TestMakeUnsignedTx(t *testing.T) {
 	}
 }
 
+/* todo
+func TestMakeUnsignedContractTx(t *testing.T) {
+	addr:="b1YLUNwJD124sv9piRvkqcmfcujTZtHhHSz"
+	amount:=uint64(200)
+	gasPrice:=uint64(10)
+	gasLimit:=uint64(40)
+	code:="608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
+
+	byteCode,err:=hex.DecodeString(code)
+	if err!=nil{
+		t.Fatal(err)
+	}
+
+	wa := new(TestWalletAgent)
+	tx, utxos, err := rpcutil.MakeUnsignedContractTx(wa,addr,amount,gasLimit,gasPrice,byteCode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	txBytes, _ := json.MarshalIndent(tx, "", "  ")
+
+	wantTxStr:=``
+
+
+	if string(txBytes)!=wantTxStr{
+		t.Fatalf("want: %s, len: %d, got: %s, len: %d", wantTxStr, len(wantTxStr),
+			string(txBytes), len(string(txBytes)))
+	}
+	wantRawMsgs:=""
+	if hex.EncodeToString(rawMsgs[0])!=wantRawMsgs{
+		t.Fatalf("for raw msg  want: %s, got: %s",  wantRawMsgs, rawMsgs)
+	}
+
+}
+*/
+
 func hashFromUint64(n uint64) crypto.HashType {
 	bs := make([]byte, 8)
 	binary.LittleEndian.PutUint64(bs, n)

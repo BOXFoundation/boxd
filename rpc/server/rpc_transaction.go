@@ -488,7 +488,7 @@ func (s *txServer) MakeUnsignedContractTx(
 	amount := req.GetAmount()
 	gasPrice := req.GetGasPrice()
 	gasLimit := req.GetGasLimit()
-	byteCode, err := hex.DecodeString(req.GetBytecode())
+	byteCode, err := hex.DecodeString(req.GetCode())
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), err
 	}
