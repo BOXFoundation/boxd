@@ -194,11 +194,13 @@ func MakeUnsignedTx(
 }
 
 //MakeUnsignedContractTx make a contract tx without signature
-func MakeUnsignedContractTx(addr string, amount uint64, changeAmt uint64, gasLimit uint64,
+func MakeUnsignedContractTx(
+	addr string, amount uint64, changeAmt uint64, gasLimit uint64,
 	gasPrice uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
-	if !checkAmount(append(make([]uint64, 1), amount), changeAmt, utxos...) {
+	amounts := append(make([]uint64, 0), amount)
+	if !checkAmount(amounts, changeAmt, utxos...) {
 		return nil, ErrInsufficientBalance
 	}
 
