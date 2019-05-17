@@ -193,8 +193,8 @@ func MakeUnsignedTx(
 	return tx, nil
 }
 
-//MakeUnsignedContractTx make a contract tx without signature
-func MakeUnsignedContractTx(
+//MakeUnsignedContractDeployTx make a contract tx without signature
+func MakeUnsignedContractDeployTx(
 	addr string, amount uint64, changeAmt uint64, gasLimit uint64,
 	gasPrice uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
@@ -217,6 +217,33 @@ func MakeUnsignedContractTx(
 		tx.Vout = append(tx.Vout, MakeVout(addr, changeAmt))
 	}
 	return tx, nil
+}
+
+//MakeUnsignedContractCallTx call a contract tx without signature
+func MakeUnsignedContractCallTx(
+	addr string, amount uint64, changeAmt uint64, gasLimit uint64,
+	gasPrice uint64, contractAddr string, byteCode []byte, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, error) {
+	amounts := append(make([]uint64, 0), amount)
+	if !checkAmount(amounts, changeAmt, utxos...) {
+		return nil, ErrInsufficientBalance
+	}
+
+	vins := make([]*types.TxIn, 0, len(utxos))
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
+	}
+
+	contractVout, err := MakeContractCallVout(contractAddr, amount, gasLimit, gasPrice, byteCode)
+	if err != nil {
+		return nil, err
+	}
+	tx := new(types.Transaction).AppendVin(vins...).AppendVout(contractVout)
+	if changeAmt > 0 {
+		tx.Vout = append(tx.Vout, MakeVout(addr, changeAmt))
+	}
+	return tx, nil
+
 }
 
 // MakeUnsignedSplitAddrTx make unsigned split addr tx

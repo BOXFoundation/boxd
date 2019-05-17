@@ -88,7 +88,7 @@ service TransactionCommand {
         };
     }
 
-    rpc MakeUnsignedContractTx (MakeContractTxReq) returns (MakeTxResp) {
+    rpc MakeUnsignedContractTx (MakeContractTxReq) returns (MakeContractTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/contract"
             body: "*"
@@ -101,7 +101,17 @@ message MakeContractTxReq {
     uint64 amount = 2;
     uint64 gas_price = 3;
     uint64 gas_limit = 4;
-    string code = 5;
+    uint64 nonce = 5;
+    string contract_addr = 6;
+    string code = 7;
+}
+
+message MakeContractTxResp {
+    int32 code = 1;
+    string message = 2;
+    corepb.Transaction tx = 3;
+    repeated bytes rawMsgs = 4;
+    string contract_addr = 5;
 }
 
 message SendRawTransactionReq {

@@ -53,6 +53,10 @@ type webapiServer struct {
 	subscribeCnt    int
 }
 
+func (s *webapiServer) DoCall(context.Context, *rpcpb.CallReq) (*rpcpb.CallResp, error) {
+	panic("implement me")
+}
+
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)

@@ -4177,7 +4177,7 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -4205,7 +4205,7 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Height |= uint32(b&0x7F) << shift
+				m.Height |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4224,7 +4224,7 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Timeout |= uint32(b&0x7F) << shift
+				m.Timeout |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4243,7 +4243,7 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4253,9 +4253,6 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthWeb
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWeb
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -4275,7 +4272,7 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4285,9 +4282,6 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthWeb
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWeb
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -4307,7 +4301,7 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4316,9 +4310,6 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthWeb
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWeb
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -4334,9 +4325,6 @@ func (m *CallReq) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWeb
 			}
 			if (iNdEx + skippy) > l {
@@ -4366,7 +4354,7 @@ func (m *CallResp) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -4394,7 +4382,7 @@ func (m *CallResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Code |= int32(b&0x7F) << shift
+				m.Code |= (int32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4413,7 +4401,7 @@ func (m *CallResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4423,9 +4411,6 @@ func (m *CallResp) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthWeb
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWeb
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -4445,7 +4430,7 @@ func (m *CallResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -4454,9 +4439,6 @@ func (m *CallResp) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthWeb
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWeb
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -4472,9 +4454,6 @@ func (m *CallResp) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthWeb
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWeb
 			}
 			if (iNdEx + skippy) > l {
