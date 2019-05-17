@@ -428,9 +428,10 @@ func CreateRawTransaction(
 	return tx, err
 }
 
-//MakeUnsignedContractTx make a tx without a signature
-func MakeUnsignedContractTx(
-	wa service.WalletAgent, addr string, amount uint64, gasLimit uint64, gasPrice uint64, byteCode []byte,
+//MakeUnsignedContractDeployTx make a tx without a signature
+func MakeUnsignedContractDeployTx(
+	wa service.WalletAgent, addr string, amount uint64, gasLimit uint64,
+	gasPrice uint64, byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	gasUsed := gasLimit * gasPrice
 	total := gasUsed + amount
@@ -443,11 +444,33 @@ func MakeUnsignedContractTx(
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
-
 	if err != nil {
 		return nil, nil, err
 	}
-	tx, err := txlogic.MakeUnsignedContractTx(addr, amount, changeAmt, gasLimit, gasPrice, byteCode, utxos...)
+	tx, err := txlogic.MakeUnsignedContractDeployTx(addr, amount, changeAmt, gasLimit, gasPrice, byteCode, utxos...)
+	return tx, utxos, err
+}
+
+//MakeUnsignedContractCallTx call a contract tx without a signature
+func MakeUnsignedContractCallTx(
+	wa service.WalletAgent, addr string, amount uint64,
+	gasLimit uint64, gasPrice uint64, contractAddr string, byteCode []byte,
+) (*types.Transaction, []*rpcpb.Utxo, error) {
+	gasUsed := gasLimit * gasPrice
+	total := gasUsed + amount
+	utxos, err := wa.Utxos(addr, nil, total)
+	if err != nil {
+		return nil, nil, err
+	}
+	amounts := append(make([]uint64, 0), amount)
+	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
+	if overflowed {
+		return nil, nil, txlogic.ErrInsufficientBalance
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	tx, err := txlogic.MakeUnsignedContractCallTx(addr, amount, changeAmt, gasLimit, gasPrice, contractAddr, byteCode, utxos...)
 	return tx, utxos, err
 }
 
