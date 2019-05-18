@@ -39,14 +39,17 @@ func NewStateProcessor(bc *BlockChain) *StateProcessor {
 // Process processes the state changes using the statedb.
 func (sp *StateProcessor) Process(
 	block *types.Block, stateDB *state.StateDB, utxoSet *UtxoSet,
-) (uint64, uint64, []*types.Transaction, error) {
+) (types.Receipts, uint64, uint64, []*types.Transaction, error) {
 
-	header := block.Header
-	usedGas := new(uint64)
-	gasRemainingFee := new(uint64)
-	var utxoTxs []*types.Transaction
-	var err error
-	for _, tx := range block.Txs {
+	var (
+		header          = block.Header
+		usedGas         = new(uint64)
+		gasRemainingFee = new(uint64)
+		receipts        types.Receipts
+		utxoTxs         []*types.Transaction
+		err             error
+	)
+	for i, tx := range block.Txs {
 		vmTx, err1 := sp.bc.ExtractVMTransactions(tx)
 		if err1 != nil {
 			err = err1
@@ -55,7 +58,7 @@ func (sp *StateProcessor) Process(
 		if vmTx == nil {
 			continue
 		}
-		gasUsedPerTx, gasRemainingFeePerTx, txs, _, err1 :=
+		receipt, gasUsedPerTx, gasRemainingFeePerTx, txs, _, err1 :=
 			ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err1 != nil {
 			err = err1
@@ -66,13 +69,16 @@ func (sp *StateProcessor) Process(
 		}
 		*usedGas += gasUsedPerTx
 		*gasRemainingFee += gasRemainingFeePerTx
+		receipt.WithTxIndex(uint32(i)).WithBlockHash(block.BlockHash()).
+			WithBlockHeight(block.Header.Height)
+		receipts = append(receipts, receipt)
 	}
 
 	if err != nil {
-		return 0, 0, nil, err
+		return nil, 0, 0, nil, err
 	}
 
-	return *usedGas, *gasRemainingFee, utxoTxs, nil
+	return receipts, *usedGas, *gasRemainingFee, utxoTxs, nil
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database
@@ -80,7 +86,7 @@ func (sp *StateProcessor) Process(
 func ApplyTransaction(
 	tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain,
 	statedb *state.StateDB, cfg vm.Config, utxoSet *UtxoSet,
-) (uint64, uint64, []*types.Transaction, []*vmtypes.Log, error) {
+) (*types.Receipt, uint64, uint64, []*types.Transaction, []*vmtypes.Log, error) {
 
 	var txs []*types.Transaction
 	defer func() {
@@ -94,7 +100,7 @@ func ApplyTransaction(
 	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		logger.Warn(err)
-		return 0, 0, nil, nil, err
+		return nil, 0, 0, nil, nil, err
 	}
 	logger.Infof("result for ApplyMessage tx %s, gasUsed: %d, gasRemainingFee: %d, "+
 		"failed: %t", tx.OriginTxHash(), gasUsed, gasRemainingFee, fail)
@@ -103,29 +109,31 @@ func ApplyTransaction(
 		logger.Infof("gasRefund tx: %s", txHash)
 		txs = append(txs, gasRefundTx)
 	}
+
+	var contractAddr *types.AddressHash
+	if tx.Type() == types.ContractCreationType {
+		contractAddr = types.CreateAddress(*tx.From(), statedb.GetNonce(*tx.From())-1)
+	} else {
+		contractAddr = tx.To()
+	}
 	if !fail && len(Transfers) > 0 {
 		internalTxs, err := createUtxoTx(utxoSet)
 		if err != nil {
 			logger.Warn(err)
-			return 0, 0, nil, nil, err
+			return nil, 0, 0, nil, nil, err
 		}
 		txs = append(txs, internalTxs...)
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
-		var contractAddr types.AddressHash
-		if tx.Type() == types.ContractCreationType {
-			contractAddr = types.CreateAddress(*tx.From(), statedb.GetNonce(*tx.From())-1)
-		} else {
-			contractAddr = *tx.To()
-		}
-		internalTxs, err := createRefundTx(tx, utxoSet, &contractAddr)
+		internalTxs, err := createRefundTx(tx, utxoSet, contractAddr)
 		if err != nil {
 			logger.Warn(err)
-			return 0, 0, nil, nil, err
+			return nil, 0, 0, nil, nil, err
 		}
 		txs = append(txs, internalTxs)
 	}
+	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, fail, gasUsed)
 
-	return gasUsed, gasRemainingFee, txs, statedb.Logs(), nil
+	return receipt, gasUsed, gasRemainingFee, txs, statedb.Logs(), nil
 }
 
 func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {

@@ -6,8 +6,6 @@ package chain
 
 import (
 	"fmt"
-	"math"
-	"strconv"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -57,6 +55,14 @@ const (
 	// value: block hash binary
 	BlockHashPrefix = "/bh"
 
+	// ReceiptPrefix is the key prefix of database key to store block receipts
+	// of specified block hash
+	// /br/{hex encoded block hash}
+	// e.g.
+	// key: /bk/005973c44c4879b137c3723c96d2e341eeaf83fe58845b2975556c9f3bd640bb
+	// value: receipts binary
+	ReceiptPrefix = "/rc"
+
 	// TxIndexPrefix is the key prefix of database key to store tx index
 	// /ti/{hex encoded tx hash}
 	// e.g.
@@ -73,12 +79,14 @@ const (
 
 	// CandidatesPrefix is the key prefix of database key to store candidates
 	CandidatesPrefix = "/candidates"
+
 	// FilterPrefix is the key prefix of block bloom filter to store a filter bytes
 	// /bf/{hex encoded block hash}
 	// e.g.
 	// key: /bf/1113b8bdad74cdc045e64e09b3e2f0502d1b7f9bd8123b28239a3360bd3a8757
 	// value: crypto hash
 	FilterPrefix = "/bf"
+
 	// SplitAddressPrefix is the key prefix of split address
 	SplitAddressPrefix = "/sap"
 
@@ -87,11 +95,6 @@ const (
 
 	// AddressTokenUtxoPrefix is the key prefix of database key to store address related token utxo
 	AddressTokenUtxoPrefix = "/atut"
-
-	// AddrBalancePrefix is the key prefix of database key to store address box balance
-	AddrBalancePrefix = "/bal"
-	// AddrTokenBalancePrefix is the key prefix of database key to store address token balance
-	AddrTokenBalancePrefix = "/tbal"
 )
 
 var blkBase = key.NewKey(BlockPrefix)
@@ -100,13 +103,11 @@ var splitTxHashBase = key.NewKey(SplitTxHashPrefix)
 var blkHashBase = key.NewKey(BlockHashPrefix)
 var txixBase = key.NewKey(TxIndexPrefix)
 var utxoBase = key.NewKey(UtxoPrefix)
+var receiptBase = key.NewKey(ReceiptPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
-var filterBase = key.NewKey(FilterPrefix)
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
 var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
 var addrTokenUtxoBase = key.NewKey(AddressTokenUtxoPrefix)
-var addrBalanceBase = key.NewKey(AddrBalancePrefix)
-var addrTokenBalanceBase = key.NewKey(AddrTokenBalancePrefix)
 
 // TailKey is the db key to store tail block content
 var TailKey = []byte(Tail)
@@ -128,6 +129,11 @@ func BlockKey(h *crypto.HashType) []byte {
 	return blkBase.ChildString(h.String()).Bytes()
 }
 
+// ReceiptKey returns the db key to store receipt content of the block hash
+func ReceiptKey(h *crypto.HashType) []byte {
+	return receiptBase.ChildString(h.String()).Bytes()
+}
+
 // TxKey returns the db key to store tx content of the hash
 func TxKey(h *crypto.HashType) []byte {
 	return txBase.ChildString(h.String()).Bytes()
@@ -143,65 +149,14 @@ func BlockHashKey(height uint32) []byte {
 	return blkHashBase.ChildString(fmt.Sprintf("%x", height)).Bytes()
 }
 
-// BlockHeightFromBlockHashKey parse height info from a BlockHashKey
-func BlockHeightFromBlockHashKey(k []byte) uint32 {
-	key := key.NewKeyFromBytes(k)
-	segs := key.List()
-	if len(segs) > 1 {
-		num, err := strconv.ParseUint(segs[1], 16, 32)
-		if err == nil {
-			return uint32(num)
-		}
-		logger.Infof("error parsing key: %s", segs[1])
-	}
-	return math.MaxUint32
-}
-
-// BlockHeightPrefix returns the db key prefix to store hash content of the height
-func BlockHeightPrefix() []byte {
-	return blkHashBase.Bytes()
-}
-
 // TxIndexKey returns the db key to store tx index of the hash
 func TxIndexKey(h *crypto.HashType) []byte {
 	return txixBase.ChildString(h.String()).Bytes()
 }
 
-// UtxoKey returns the db key to store utxo content of the Outpoint
-// func UtxoKey(op *types.OutPoint) []byte {
-// 	return utxoBase.ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
-// }
-
 // CandidatesKey returns the db key to store candidates.
 func CandidatesKey(h *crypto.HashType) []byte {
 	return candidatesBase.ChildString(h.String()).Bytes()
-}
-
-// FilterKey returns the db key to store bloom filter of block
-func FilterKey(height uint32, hash crypto.HashType) []byte {
-	return filterBase.
-		ChildString(fmt.Sprintf("%x", height)).
-		ChildString(hash.String()).
-		Bytes()
-}
-
-// FilterKeyPrefix returns the db key prefix to store bloom filter of block
-func FilterKeyPrefix() []byte {
-	return filterBase.Bytes()
-}
-
-// FilterHeightHashFromKey parse height and hash info from a FilterKey
-func FilterHeightHashFromKey(k []byte) (uint32, string) {
-	key := key.NewKeyFromBytes(k)
-	segs := key.List()
-	if len(segs) > 2 {
-		num, err := strconv.ParseUint(segs[1], 16, 32)
-		if err == nil {
-			return uint32(num), segs[2]
-		}
-		logger.Infof("error parsing key. num: %s, segs: %v", segs[1], segs)
-	}
-	return math.MaxUint32, ""
 }
 
 // SplitAddrKey returns the db key to store split address
@@ -234,18 +189,4 @@ func AddrTokenUtxoKey(addr string, tid types.TokenID, op types.OutPoint) []byte 
 func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
 	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
 		ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
-}
-
-// AddrBalanceKey is the key to store an address's balance
-func AddrBalanceKey(addr string) []byte {
-	return addrBalanceBase.ChildString(addr).Bytes()
-}
-
-// AddrTokenBalanceKey is the key to store an address's token balance
-func AddrTokenBalanceKey(addr string, token types.OutPoint) []byte {
-	return addrTokenBalanceBase.
-		ChildString(addr).
-		ChildString(token.Hash.String()).
-		ChildString(fmt.Sprintf("%x", token.Index)).
-		Bytes()
 }

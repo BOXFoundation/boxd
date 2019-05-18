@@ -1,0 +1,17 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package corepb;
+
+message Receipt {
+  uint32 tx_index = 1;
+  bool failed = 2;
+  uint64 gas_used = 3;
+}
+
+message Receipts {
+  repeated Receipt receipts = 1;
+}

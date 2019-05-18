@@ -248,6 +248,9 @@ type BlockHeader struct {
 	// UtxoRoot reference to hash of all contract utxos.
 	UtxoRoot crypto.HashType
 
+	// ReceiptHash reference to hash of all receipt
+	ReceiptHash crypto.HashType
+
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
 	TimeStamp int64
@@ -279,6 +282,7 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		TxsRoot:         header.TxsRoot[:],
 		InternalTxsRoot: header.InternalTxsRoot[:],
 		UtxoRoot:        header.UtxoRoot[:],
+		ReceiptHash:     header.ReceiptHash[:],
 		TimeStamp:       header.TimeStamp,
 		Magic:           header.Magic,
 		PeriodHash:      header.PeriodHash[:],
@@ -298,6 +302,7 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			copy(header.TxsRoot[:], message.TxsRoot)
 			copy(header.InternalTxsRoot[:], message.InternalTxsRoot)
 			copy(header.UtxoRoot[:], message.UtxoRoot)
+			copy(header.ReceiptHash[:], message.ReceiptHash)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
 			copy(header.PeriodHash[:], message.PeriodHash)

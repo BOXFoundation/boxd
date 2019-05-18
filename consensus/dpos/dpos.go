@@ -478,7 +478,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	gasUsed, gasRemainingFee, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
+	receipts, gasUsed, gasRemainingFee, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
@@ -520,6 +520,10 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		block.Header.InternalTxsRoot = *internalTxsRoot
 		block.InternalTxs = utxoTxs
 		block.Header.UtxoRoot = *utxoRoot
+	}
+	if len(receipts) > 0 {
+		block.Header.ReceiptHash = *receipts.Hash()
+		dpos.chain.ReceiptsCache()[block.Header.Height] = receipts
 	}
 
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()

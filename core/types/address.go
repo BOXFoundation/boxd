@@ -417,13 +417,15 @@ func MakeContractAddress(
 //	data: [214,148,0,0,0,0,0,0,0,0,0,0,120,117,106,105,110,103,115,104,105,128]
 //		  0xd6(0xc0 + 22 data len) 0x94(0x80 + 20 b len) + b + 0x80(means 0)
 //
-func CreateAddress(b AddressHash, nonce uint64) AddressHash {
-	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce})    // rlp encode
-	return BytesToAddressHash(vmcrypto.Keccak256(data)[12:]) // hash by Keccak256
+func CreateAddress(b AddressHash, nonce uint64) *AddressHash {
+	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce})         // rlp encode
+	addrHash := BytesToAddressHash(vmcrypto.Keccak256(data)[12:]) // hash by Keccak256
+	return &addrHash
 }
 
 // CreateAddress2 creates an ethereum address given the address bytes, initial
 // contract code hash and a salt.
-func CreateAddress2(b AddressHash, salt [32]byte, inithash []byte) AddressHash {
-	return BytesToAddressHash(vmcrypto.Keccak256([]byte{0xff}, b[:], salt[:], inithash)[12:])
+func CreateAddress2(b AddressHash, salt [32]byte, inithash []byte) *AddressHash {
+	addrHash := BytesToAddressHash(vmcrypto.Keccak256([]byte{0xff}, b[:], salt[:], inithash)[12:])
+	return &addrHash
 }

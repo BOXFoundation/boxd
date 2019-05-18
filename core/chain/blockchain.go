@@ -92,6 +92,7 @@ type BlockChain struct {
 	vmConfig                  vm.Config
 	stateDBCache              map[uint32]*state.StateDB
 	utxoSetCache              map[uint32]*UtxoSet
+	receiptsCache             map[uint32]types.Receipts
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -112,6 +113,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
 		stateDBCache:              make(map[uint32]*state.StateDB),
 		utxoSetCache:              make(map[uint32]*UtxoSet),
+		receiptsCache:             make(map[uint32]types.Receipts),
 		bus:                       eventbus.Default(),
 		status:                    free,
 	}
@@ -193,6 +195,11 @@ func (chain *BlockChain) StateDBCache() map[uint32]*state.StateDB {
 // UtxoSetCache returns chain utxoSet cache.
 func (chain *BlockChain) UtxoSetCache() map[uint32]*UtxoSet {
 	return chain.utxoSetCache
+}
+
+// ReceiptsCache returns chain receipts cache.
+func (chain *BlockChain) ReceiptsCache() map[uint32]types.Receipts {
+	return chain.receiptsCache
 }
 
 // Proc returns the goprocess of the BlockChain
@@ -795,12 +802,13 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 
-		gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
+		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			logger.Error(err)
 			return err
 		}
-		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee, totalTxsFee); err != nil {
+		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee,
+			totalTxsFee, receipts); err != nil {
 			return err
 		}
 
@@ -832,6 +840,9 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 				block.Header.UtxoRoot, utxoRoot)
 		}
 		chain.stateDBCache[block.Header.Height] = stateDB
+		if len(receipts) > 0 {
+			chain.receiptsCache[block.Header.Height] = receipts
+		}
 	}
 
 	chain.db.EnableBatch()
@@ -839,6 +850,13 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 	if err := chain.StoreBlockWithStateInBatch(block, chain.db); err != nil {
 		return err
+	}
+
+	receipts := chain.receiptsCache[block.Header.Height]
+	if len(receipts) > 0 {
+		if err := chain.StoreReceiptsInBatch(block.BlockHash(), receipts, chain.db); err != nil {
+			return err
+		}
 	}
 
 	ttt2 := time.Now().UnixNano()
@@ -917,13 +935,16 @@ func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 }
 
 // ValidateExecuteResult validates evm execute result
-func (chain *BlockChain) ValidateExecuteResult(block *types.Block, utxoTxs []*types.Transaction, usedGas, gasRemainingFee, totalTxsFee uint64) error {
+func (chain *BlockChain) ValidateExecuteResult(
+	block *types.Block, utxoTxs []*types.Transaction, usedGas, gasRemainingFee, totalTxsFee uint64,
+	receipts types.Receipts,
+) error {
 
 	if err := checkInternalTxs(block, utxoTxs); err != nil {
 		return err
 	}
 	if block.Header.GasUsed != usedGas {
-		logger.Warnf("gas used in block header: %d, usedGas: %d", block.Header.GasUsed, usedGas)
+		logger.Warnf("gas used in block header: %d, now: %d", block.Header.GasUsed, usedGas)
 		return errors.New("Invalid gasUsed in block header")
 	}
 
@@ -939,6 +960,17 @@ func (chain *BlockChain) ValidateExecuteResult(block *types.Block, utxoTxs []*ty
 			totalTxsFee, gasRemainingFee)
 		return core.ErrBadCoinbaseValue
 	}
+	// check receipt
+	var receiptHash crypto.HashType
+	if len(receipts) > 0 {
+		receiptHash = *receipts.Hash()
+	}
+	if receiptHash != block.Header.ReceiptHash {
+		logger.Warnf("receipt hash in block header: %s, now: %s, block hash: %s",
+			block.Header.ReceiptHash, receiptHash, block.BlockHash())
+		return errors.New("Invalid receipt hash in block header")
+	}
+
 	return nil
 }
 
@@ -1326,6 +1358,17 @@ func (chain *BlockChain) StoreBlockWithStateInBatch(block *types.Block, db stora
 		return err
 	}
 	db.Put(BlockKey(hash), data)
+	return nil
+}
+
+// StoreReceiptsInBatch store receipts to db in batch mod.
+func (chain *BlockChain) StoreReceiptsInBatch(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
+
+	data, err := receipts.Marshal()
+	if err != nil {
+		return err
+	}
+	db.Put(ReceiptKey(hash), data)
 	return nil
 }
 

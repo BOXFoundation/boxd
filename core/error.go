@@ -62,6 +62,9 @@ var (
 	ErrInvalidNodeType         = errors.New("Invalid node type")
 	ErrInvalidKeyPath          = errors.New("Invalid key path")
 
+	//Receipt
+	ErrInvalidReceiptProtoMessage = errors.New("Invalid receipt proto message")
+
 	//transaction.go
 	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
 	ErrInvalidOutPointProtoMessage         = errors.New("Invalid OutPoint proto message")

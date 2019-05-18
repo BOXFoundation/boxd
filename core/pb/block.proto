@@ -12,13 +12,14 @@ message BlockHeader {
     bytes txs_root = 3;
     bytes internal_txs_root = 4;
     bytes utxo_root = 5;
-    int64 time_stamp = 6;
-    uint32 magic = 7;
-    bytes period_hash = 8;
-    bytes candidates_hash = 9;
-    bytes root_hash = 10;
-    uint32 height = 11;
-    uint64 gas_used = 12;
+    bytes receipt_hash = 6;
+    int64 time_stamp = 7;
+    uint32 magic = 8;
+    bytes period_hash = 9;
+    bytes candidates_hash = 10;
+    bytes root_hash = 11;
+    uint32 height = 12;
+    uint64 gas_used = 13;
 }
 
 message IrreversibleInfo {
@@ -65,7 +66,7 @@ message Data {
 }
 
 message UtxoWrap {
-    TxOut output = 1;
+  TxOut output = 1;
 	uint32 block_height = 2;
 	bool is_spent = 3;
 	bool is_coinbase = 4;
