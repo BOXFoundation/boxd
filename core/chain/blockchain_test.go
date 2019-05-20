@@ -394,7 +394,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	b1 := nextBlock(b0)
 	blockChain.db.EnableBatch()
-	ensure.Nil(t, blockChain.StoreBlockWithStateInBatch(b1, blockChain.db))
+	ensure.Nil(t, blockChain.StoreBlockWithIndex(b1, blockChain.db))
 
 	txhash, _ := b1.Txs[0].TxHash()
 

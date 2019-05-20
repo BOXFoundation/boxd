@@ -848,13 +848,13 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	chain.db.EnableBatch()
 	defer chain.db.DisableBatch()
 
-	if err := chain.StoreBlockWithStateInBatch(block, chain.db); err != nil {
+	if err := chain.StoreBlockWithIndex(block, chain.db); err != nil {
 		return err
 	}
 
 	receipts := chain.receiptsCache[block.Header.Height]
 	if len(receipts) > 0 {
-		if err := chain.StoreReceiptsInBatch(block.BlockHash(), receipts, chain.db); err != nil {
+		if err := chain.StoreReceipts(block.BlockHash(), receipts, chain.db); err != nil {
 			return err
 		}
 	}
@@ -1347,22 +1347,16 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
-// StoreBlockWithStateInBatch store block to db in batch mod.
-func (chain *BlockChain) StoreBlockWithStateInBatch(block *types.Block, db storage.Table) error {
+// StoreBlockWithIndex store block to db in batch mod.
+func (chain *BlockChain) StoreBlockWithIndex(block *types.Block, db storage.Table) error {
 
 	hash := block.BlockHash()
 	db.Put(BlockHashKey(block.Header.Height), hash[:])
-
-	data, err := block.Marshal()
-	if err != nil {
-		return err
-	}
-	db.Put(BlockKey(hash), data)
-	return nil
+	return chain.StoreBlock(block)
 }
 
-// StoreReceiptsInBatch store receipts to db in batch mod.
-func (chain *BlockChain) StoreReceiptsInBatch(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
+// StoreReceipts store receipts to db in batch mod.
+func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
 
 	data, err := receipts.Marshal()
 	if err != nil {
