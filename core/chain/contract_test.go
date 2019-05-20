@@ -284,19 +284,21 @@ const (
 
 func TestERC20Contract(t *testing.T) {
 
-	var transferCall, balanceOfUserCall, balanceOfReceiverCall string
+	var (
+		transferCall, balanceOfUserCall, balanceOfReceiverCall string
+		transferFromCall, approveCall, increaseAllowanceCall   string
+		allowanceCall                                          string
+	)
 	// balances
-	receiver, err := types.NewContractAddress("b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT")
-	if err != nil {
-		t.Fatal(err)
-	}
+	userA, _ := types.NewAddress("b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98")
+	//userB, _ := types.NewAddress("b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD")
 	func() {
 		abiObj, err := abi.JSON(strings.NewReader(testERC20Abi))
 		if err != nil {
 			t.Fatal(err)
 		}
 		// transfer 2000000
-		input, err := abiObj.Pack("transfer", *receiver.Hash160(), big.NewInt(2000000))
+		input, err := abiObj.Pack("transfer", *userA.Hash160(), big.NewInt(2000000))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -310,12 +312,40 @@ func TestERC20Contract(t *testing.T) {
 		balanceOfUserCall = hex.EncodeToString(input)
 		t.Logf("balanceUser: %s", balanceOfUserCall)
 		// balances test Addr
-		input, err = abiObj.Pack("balanceOf", receiver.Hash160())
+		input, err = abiObj.Pack("balanceOf", userA.Hash160())
 		if err != nil {
 			t.Fatal(err)
 		}
 		balanceOfReceiverCall = hex.EncodeToString(input)
-		t.Logf("balance of %s: %s", receiver, balanceOfReceiverCall)
+		t.Logf("balance of %s: %s", userA, balanceOfReceiverCall)
+		// transferFrom, sender miner, from userAddr, to userA
+		input, err = abiObj.Pack("transferFrom", *userAddr.Hash160(), *userA.Hash160(), big.NewInt(50000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		transferFromCall = hex.EncodeToString(input)
+		t.Logf("transferFrom %s to %s 50000: %s", userAddr, userA, transferFromCall)
+		// aprove 40000 for miner, sender userAddr, spender miner
+		input, err = abiObj.Pack("approve", *minerAddr.Hash160(), big.NewInt(40000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		approveCall = hex.EncodeToString(input)
+		t.Logf("approve miner %s can spend %s 40000: %s", minerAddr, userAddr, approveCall)
+		// increaseAllowance 20000 for miner, sender userAddr, spender miner
+		input, err = abiObj.Pack("increaseAllowance", *minerAddr.Hash160(), big.NewInt(20000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		increaseAllowanceCall = hex.EncodeToString(input)
+		t.Logf("increase %s's allowance 20000: %s", minerAddr, increaseAllowanceCall)
+		// allowance owner user for spender miner
+		input, err = abiObj.Pack("allowance", *userAddr.Hash160(), *minerAddr.Hash160())
+		if err != nil {
+			t.Fatal(err)
+		}
+		allowanceCall = hex.EncodeToString(input)
+		t.Logf("allowance user %s miner %s: %s", userAddr, minerAddr, allowanceCall)
 	}()
 
 	blockChain := NewTestBlockChain()
@@ -433,7 +463,7 @@ func TestERC20Contract(t *testing.T) {
 	t.Logf("user nonce: %d", nonce)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
 	b4 := nextBlockWithTxs(b3A, vmTx)
-	b4.Header.RootHash.SetString("f00e2bf3af0750c7de3f8f46e884b28ad4f83e859cfb08cf3907ad35b1b69c5a")
+	b4.Header.RootHash.SetString("c21d4858360107ece2491116297d133cfd6fe7556520bb3732d01566614bc69c")
 	b4.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -470,7 +500,7 @@ func TestERC20Contract(t *testing.T) {
 	t.Logf("user nonce: %d", nonce)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
 	b5 := nextBlockWithTxs(b4, vmTx)
-	b5.Header.RootHash.SetString("a2fdc2e9e392eba8fbd3d4b56d7a890885a88b5a764ba149742887f1b686eece")
+	b5.Header.RootHash.SetString("cb6bd59834d6c1c88bb273ef0aecb3f7db5564829c142641c7f2c27ec9d1a6c9")
 	b5.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -489,7 +519,7 @@ func TestERC20Contract(t *testing.T) {
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b5 -> b6
-	// make balances receiver call contract tx
+	// make balances userA call contract tx
 	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
@@ -512,10 +542,8 @@ func TestERC20Contract(t *testing.T) {
 	nonce = stateDB.GetNonce(*userAddr.Hash160())
 	t.Logf("user nonce: %d", nonce)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
-	gasRefundTxHash, _ := gasRefundTx.TxHash()
-	t.Logf("refund tx: %s", gasRefundTxHash)
 	b6 := nextBlockWithTxs(b5, vmTx)
-	b6.Header.RootHash.SetString("3131b12c77c45fccf234643f780204f5b2bfb10bc6e6630032fa9f1cb79f5c2d")
+	b6.Header.RootHash.SetString("90e0412d0f9977d995a5ca327c924007cc644cb1a86bb7d9393f63b962081e55")
 	b6.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -525,4 +553,269 @@ func TestERC20Contract(t *testing.T) {
 	// check balances
 	// return 80841e0000000000000000000000000000000000000000000000000000000000
 	// 0x1e8480 = 2000000, check okay
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b6 -> b7
+	// transferFrom user to userA 40000, failed contract execution
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(17616), uint64(0), uint64(2), uint64(40000)
+	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(transferFromCall)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	// use internal tx vout
+	prevHash, _ = b2.Txs[0].TxHash()
+	minerChangeValue := b2.Txs[0].Vout[0].Value - vmValue - gasPrice*gasLimit
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
+	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	stateDB, err = state.New(&b6.Header.RootHash, &b6.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*minerAddr.Hash160())
+	t.Logf("miner nonce: %d", nonce)
+	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
+	b7 := nextBlockWithTxs(b6, vmTx)
+	b7.Header.RootHash.SetString("d7bcab4a4fa1c37496af78b850d6124df6802d83c98800d911a0e5b12f9bb3f8")
+	b7.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
+	vmTxHash, _ = vmTx.TxHash()
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
+	b7.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	userBalance += gasUsed * gasPrice
+	minerBalance -= gasUsed * gasPrice
+	contractBlockHandle(t, blockChain, b6, b7, vmParam, nil, gasRefundTx)
+	t.Logf("b6 -> b7 passed, now tail height: %d", blockChain.LongestChainHeight)
+	// transferFrom returns
+	// return 0000776f6c667265766f206e6f697463617274627573203a6874614d65666153
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b7 -> b8
+	// approve miner spend user 40000
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(24805), uint64(0), uint64(2), uint64(40000)
+	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(approveCall)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	// use internal tx vout
+	prevHash, _ = b6.Txs[1].TxHash()
+	changeValue = changeValue - vmValue - gasPrice*gasLimit
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+	signTx(vmTx, privKey, pubKey)
+	stateDB, err = state.New(&b7.Header.RootHash, &b7.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
+	b8 := nextBlockWithTxs(b7, vmTx)
+	b8.Header.RootHash.SetString("d6628f43f02fd9171abaaa6187df57aa54c26a610cbc7883515ff8f1932b4418")
+	b8.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
+	vmTxHash, _ = vmTx.TxHash()
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
+	b8.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	contractBlockHandle(t, blockChain, b7, b8, vmParam, nil, gasRefundTx)
+	t.Logf("b7 -> b8 passed, now tail height: %d", blockChain.LongestChainHeight)
+	// transferFrom returns
+	// return 0000776f6c667265766f206e6f697463617274627573203a6874614d65666153
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b8 -> b9
+	// increaseAllowance miner to spend user 20000
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(10430), uint64(0), uint64(2), uint64(40000)
+	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(increaseAllowanceCall)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	// use internal tx vout
+	prevHash, _ = b8.Txs[1].TxHash()
+	changeValue = changeValue - vmValue - gasPrice*gasLimit
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+	signTx(vmTx, privKey, pubKey)
+	stateDB, err = state.New(&b8.Header.RootHash, &b8.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
+	b9 := nextBlockWithTxs(b8, vmTx)
+	b9.Header.RootHash.SetString("91c185dec08dd8dcb157d5f4e9d3cd3a306f447b099b60de692976647f5b6823")
+	b9.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
+	vmTxHash, _ = vmTx.TxHash()
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
+	b9.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	contractBlockHandle(t, blockChain, b8, b9, vmParam, nil, gasRefundTx)
+	t.Logf("b8 -> b9 passed, now tail height: %d", blockChain.LongestChainHeight)
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b9 -> b10
+	// allowance user miner
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(3362), uint64(0), uint64(2), uint64(40000)
+	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(allowanceCall)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	// use internal tx vout
+	prevHash, _ = b9.Txs[1].TxHash()
+	changeValue = changeValue - vmValue - gasPrice*gasLimit
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+	signTx(vmTx, privKey, pubKey)
+	stateDB, err = state.New(&b9.Header.RootHash, &b9.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
+	b10 := nextBlockWithTxs(b9, vmTx)
+	b10.Header.RootHash.SetString("eb5f70f6e6eed994e2a4d72375f68466589df251fec0a21d3cd00d137998d5fc")
+	b10.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
+	vmTxHash, _ = vmTx.TxHash()
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
+	b10.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	contractBlockHandle(t, blockChain, b9, b10, vmParam, nil, gasRefundTx)
+	t.Logf("b9 -> b10 passed, now tail height: %d", blockChain.LongestChainHeight)
+	// allowance user miner, return "60ea000000000000000000000000000000000000000000000000000000000000"
+	// 60000
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b10 -> b11
+	// transferFrom user to userA 40000 by miner, successful contract execution
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(24777), uint64(0), uint64(2), uint64(40000)
+	vmParam = &testContractParam{
+		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(transferFromCall)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	// use internal tx vout
+	prevHash, _ = b9.Txs[0].TxHash()
+	minerChangeValue = b9.Txs[0].Vout[0].Value - vmValue - gasPrice*gasLimit
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
+	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	stateDB, err = state.New(&b10.Header.RootHash, &b10.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*minerAddr.Hash160())
+	t.Logf("miner nonce: %d", nonce)
+	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
+	b11 := nextBlockWithTxs(b10, vmTx)
+	b11.Header.RootHash.SetString("e571ced7caed76ffdc5fb2d4b0651a39ccc8a6e3f4f4047649dff068d6bdbc03")
+	b11.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
+	vmTxHash, _ = vmTx.TxHash()
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
+	b11.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	userBalance += gasUsed * gasPrice
+	minerBalance -= gasUsed * gasPrice
+	contractBlockHandle(t, blockChain, b10, b11, vmParam, nil, gasRefundTx)
+	t.Logf("b10 -> b11 passed, now tail height: %d", blockChain.LongestChainHeight)
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b11 -> b12
+	// make balances user call contract tx
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
+	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(balanceOfUserCall)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	// use internal tx vout
+	prevHash, _ = b10.Txs[1].TxHash()
+	changeValue = changeValue - vmValue - gasPrice*gasLimit
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+	signTx(vmTx, privKey, pubKey)
+	stateDB, err = state.New(&b11.Header.RootHash, &b11.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
+	b12 := nextBlockWithTxs(b11, vmTx)
+	b12.Header.RootHash.SetString("2c92f883de66ce970677534415df0abe5d8dabf3fc26d16804a9106c2466e664")
+	b12.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
+	vmTxHash, _ = vmTx.TxHash()
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
+	b12.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	contractBlockHandle(t, blockChain, b11, b12, vmParam, nil, gasRefundTx)
+	t.Logf("b11 -> b12 passed, now tail height: %d", blockChain.LongestChainHeight)
+	// check balances
+	// return 30c885d4e8000000000000000000000000000000000000000000000000000000
+	// 0xe8d485c830 = 999997950000,  check okay
+	userBal, ok = new(big.Int).SetString("e8d485c830", 16)
+	if !ok {
+		t.Fatal("parse user balance failed")
+	}
+	t.Logf("call balance of user return value: %d", userBal)
+
+	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	// extend main chain
+	// b12 -> b13
+	// make balances userA call contract tx
+	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
+	vmParam = &testContractParam{
+		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+	}
+	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
+	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+		vmValue, gasLimit, gasPrice, byteCode)
+	ensure.Nil(t, err)
+	// use internal tx vout
+	prevHash, _ = b12.Txs[1].TxHash()
+	changeValue = changeValue - vmValue - gasPrice*gasLimit
+	vmTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+	signTx(vmTx, privKey, pubKey)
+	stateDB, err = state.New(&b12.Header.RootHash, &b12.Header.UtxoRoot, blockChain.db)
+	ensure.Nil(t, err)
+	nonce = stateDB.GetNonce(*userAddr.Hash160())
+	t.Logf("user nonce: %d", nonce)
+	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce+1)
+	b13 := nextBlockWithTxs(b12, vmTx)
+	b13.Header.RootHash.SetString("3e99915def002b28dafa448e3ead3684ae31b9c2755a436794ccb8ab7b77e23f")
+	b13.Header.UtxoRoot.SetString("22ca678a7e918bd528b892f98fc890463bc897712d3cd426a430d9e36a78f865")
+	vmTxHash, _ = vmTx.TxHash()
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
+	b13.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	contractBlockHandle(t, blockChain, b12, b13, vmParam, nil, gasRefundTx)
+	t.Logf("b12 -> b13 passed, now tail height: %d", blockChain.LongestChainHeight)
+	// check balances
+	// return d0471f0000000000000000000000000000000000000000000000000000000000
+	// 0x1f47d0 = 2050000, check okay
 }

@@ -526,8 +526,6 @@ func getBalance(address string, db storage.Table) uint64 {
 }
 
 const (
-	testBlockSubsidy = 50 * uint64(core.DuPerBox)
-
 	testExtractPrevHash = "c0e96e998eb01eea5d5acdaeb80acd943477e6119dcd82a419089331229c7453"
 	// contract Temp {
 	//     function () payable {}
@@ -638,7 +636,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	balance := getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ := blockChain.GetBalance(minerAddr)
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, testBlockSubsidy)
+	ensure.DeepEqual(t, balance, BaseSubsidy)
 	t.Logf("b0 -> b1 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -650,7 +648,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), userBalance)).
-		AppendVout(txlogic.MakeVout(minerAddr.String(), testBlockSubsidy-userBalance))
+		AppendVout(txlogic.MakeVout(minerAddr.String(), BaseSubsidy-userBalance))
 	err := signTx(tx, privKeyMiner, pubKeyMiner)
 	ensure.DeepEqual(t, err, nil)
 
@@ -668,7 +666,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(minerAddr)
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, 2*testBlockSubsidy-userBalance)
+	ensure.DeepEqual(t, balance, 2*BaseSubsidy-userBalance)
 	minerBalance = balance
 	t.Logf("b1 -> b2 passed, now tail height: %d", blockChain.LongestChainHeight)
 	return b2
@@ -690,7 +688,7 @@ func contractBlockHandle(
 	expectUserBalance := userBalance - param.vmValue - gasCost + param.userRecv
 	//t.Logf("expectUserBalance: %d, userBalance: %d, vmValue: %d, gasCost: %d",
 	//	expectUserBalance, userBalance, param.vmValue, gasCost)
-	expectMinerBalance := minerBalance + testBlockSubsidy + gasCost
+	expectMinerBalance := minerBalance + BaseSubsidy + gasCost
 	if err != nil && err == errInsufficientBalanceForGas {
 		tailBlock = parent
 		expectUserBalance, expectMinerBalance = userBalance, minerBalance
@@ -710,6 +708,8 @@ func contractBlockHandle(
 	// for miner
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(minerAddr)
+	t.Logf("miner %s balance: %d, stateBalance: %d, expect balance: %d",
+		minerAddr, balance, stateBalance, expectMinerBalance)
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, expectMinerBalance)
 	minerBalance = balance
@@ -1207,7 +1207,7 @@ func TestChainTx(t *testing.T) {
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(minerAddr)
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, 3*testBlockSubsidy-6000000)
+	ensure.DeepEqual(t, balance, 3*BaseSubsidy-6000000)
 	// for splitAddrA
 	balance = getBalance(splitAddrA.String(), blockChain.db)
 	stateBalance, _ = blockChain.GetBalance(splitAddrA)
