@@ -1356,6 +1356,9 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 
 // GetEvmByHeight get evm by block height.
 func (chain *BlockChain) GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
+	if height == 0 {
+		height = chain.tail.Header.Height
+	}
 	block, err := chain.LoadBlockByHeight(height)
 	if block == nil || err != nil {
 		return nil, nil, err
@@ -1371,6 +1374,9 @@ func (chain *BlockChain) GetEvmByHeight(msg types.Message, height uint32) (*vm.E
 
 // NonceByHeight get nonce by block height.
 func (chain *BlockChain) NonceByHeight(address *types.AddressHash, height uint32) (uint64, error) {
+	if height == 0 {
+		height = chain.tail.Header.Height
+	}
 	block, err := chain.LoadBlockByHeight(height)
 	if block == nil || err != nil {
 		return 0, err
