@@ -8,11 +8,14 @@ import (
 	"container/list"
 	"encoding/hex"
 	"fmt"
+	"math"
+	"math/big"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -20,6 +23,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
 )
@@ -69,6 +73,8 @@ type ChainBlockReader interface {
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
+	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
+	NonceByHeight(address *types.AddressHash, height uint32) (uint64, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -318,6 +324,78 @@ func (s *webapiServer) unsubscribe() error {
 	s.subscribeMutex.Unlock()
 	logger.Infof("unsubscribe new blocks#%d", s.subscribeCnt)
 	return nil
+}
+
+func newCallResp(code int32, msg string, output []byte) *rpcpb.CallResp {
+	return &rpcpb.CallResp{
+		Code:    code,
+		Message: msg,
+		Output:  output,
+	}
+}
+
+func (s *webapiServer) DoCall(
+	ctx context.Context, req *rpcpb.CallReq,
+) (*rpcpb.CallResp, error) {
+
+	from := types.BytesToAddressHash([]byte(req.From))
+	to := types.BytesToAddressHash([]byte(req.To))
+	// Create new call message
+	msg := types.NewVMTransaction(new(big.Int), new(big.Int).SetUint64(core.DuPerBox),
+		math.MaxUint64/2, nil, types.ContractCallType, req.Input).
+		WithSender(&from).WithReceiver(&to)
+
+	// Setup context so it may be cancelled the call has completed
+	// or, in case of unmetered gas, setup a context with a timeout.
+	var cancel context.CancelFunc
+	if req.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(req.Timeout))
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	// Make sure the context is cancelled when the call has completed
+	// this makes sure resources are cleaned up.
+	defer cancel()
+
+	// Get a new instance of the EVM.
+	evm, vmErr, err := s.GetEvmByHeight(msg, req.Height)
+	if err != nil {
+		return newCallResp(-1, err.Error(), nil), nil
+	}
+	// Wait for the context to be done and cancel the evm. Even if the
+	// EVM has finished, cancelling may be done (repeatedly)
+	go func() {
+		<-ctx.Done()
+		evm.Cancel()
+	}()
+
+	// Setup the gas pool (also for unmetered requests)
+	// and apply the message.
+	ret, _, _, _, _, err := chain.ApplyMessage(evm, msg)
+	if err := vmErr(); err != nil {
+		return newCallResp(-1, err.Error(), nil), nil
+	}
+	return newCallResp(0, "", ret), nil
+}
+
+func newNonceResp(code int32, msg string, nonce uint64) *rpcpb.NonceResp {
+	return &rpcpb.NonceResp{
+		Code:    code,
+		Message: msg,
+		Nonce:   nonce,
+	}
+}
+
+func (s *webapiServer) Nonce(
+	ctx context.Context, req *rpcpb.NonceReq,
+) (*rpcpb.NonceResp, error) {
+
+	addr := types.BytesToAddressHash([]byte(req.Addr))
+	nonce, err := s.NonceByHeight(&addr, req.Height)
+	if err != nil {
+		return newNonceResp(-1, err.Error(), nonce), nil
+	}
+	return newNonceResp(0, "", nonce), nil
 }
 
 func detailTx(
