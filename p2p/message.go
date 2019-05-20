@@ -12,7 +12,7 @@ import (
 	"unsafe"
 
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
-	"github.com/BOXFoundation/boxd/p2p/pb"
+	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
 	lru "github.com/hashicorp/golang-lru"
@@ -104,8 +104,8 @@ func init() {
 	}
 }
 
-// NetworkNamtToMagic is a map from network name to magic number.
-var NetworkNamtToMagic = map[string]uint32{
+// NetworkNameToMagic is a map from network name to magic number.
+var NetworkNameToMagic = map[string]uint32{
 	"mainnet": Mainnet,
 	"testnet": Testnet,
 }

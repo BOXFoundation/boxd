@@ -73,7 +73,7 @@ func (c *Config) Prepare() {
 	mkDirAll(c.Workspace)
 
 	// check if the network is correct.
-	if magic, ok := p2p.NetworkNamtToMagic[c.Network]; ok {
+	if magic, ok := p2p.NetworkNameToMagic[c.Network]; ok {
 		c.P2p.Magic = magic
 	} else {
 		fmt.Println("Incorrect network name ", c.Network)
