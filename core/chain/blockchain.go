@@ -33,6 +33,7 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/util/bloom"
 	"github.com/BOXFoundation/boxd/vm"
+	"github.com/BOXFoundation/boxd/vm/common/math"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -1353,23 +1354,40 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
+// GetEvmByHeight get evm by block height.
+func (chain *BlockChain) GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
+	block, err := chain.LoadBlockByHeight(height)
+	if block == nil || err != nil {
+		return nil, nil, err
+	}
+	state, err := state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
+	if state == nil || err != nil {
+		return nil, nil, err
+	}
+	state.SetBalance(*msg.From(), math.MaxBig256)
+	context := NewEVMContext(msg, block.Header, chain)
+	return vm.NewEVM(context, state, vm.Config{}), state.Error, nil
+}
+
+// NonceByHeight get nonce by block height.
+func (chain *BlockChain) NonceByHeight(address *types.AddressHash, height uint32) (uint64, error) {
+	block, err := chain.LoadBlockByHeight(height)
+	if block == nil || err != nil {
+		return 0, err
+	}
+	state, err := state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
+	if state == nil || err != nil {
+		return 0, err
+	}
+	return state.GetNonce(*address), nil
+}
+
 // StoreBlockWithIndex store block to db in batch mod.
 func (chain *BlockChain) StoreBlockWithIndex(block *types.Block, db storage.Table) error {
 
 	hash := block.BlockHash()
 	db.Put(BlockHashKey(block.Header.Height), hash[:])
 	return chain.StoreBlock(block)
-}
-
-// StoreReceipts store receipts to db in batch mod.
-func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
-
-	data, err := receipts.Marshal()
-	if err != nil {
-		return err
-	}
-	db.Put(ReceiptKey(hash), data)
-	return nil
 }
 
 // StoreBlock store block to db.
@@ -1393,33 +1411,16 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 	}
 }
 
-// LoadTxByHash load transaction with hash.
-// func (chain *BlockChain) LoadTxByHash(hash crypto.HashType) (*types.Transaction, error) {
-// 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	height, idx, err := UnmarshalTxIndex(txIndex)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+// StoreReceipts store receipts to db in batch mod.
+func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
 
-// 	block, err := chain.LoadBlockByHeight(height)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	tx := block.Txs[idx]
-// 	target, err := tx.TxHash()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if *target == hash {
-// 		return tx, nil
-// 	}
-// 	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
-// 	return nil, errors.New("Failed to load tx with hash")
-// }
+	data, err := receipts.Marshal()
+	if err != nil {
+		return err
+	}
+	db.Put(ReceiptKey(hash), data)
+	return nil
+}
 
 // LoadBlockInfoByTxHash returns block and txIndex of transaction with the input param hash
 func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, *types.Transaction, error) {

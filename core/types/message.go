@@ -4,38 +4,23 @@
 
 package types
 
-// Message is a fully derived transaction
-//
-// NOTE: In a future PR this will be removed.
-// type VmMessage struct {
-// 	from       AddressHash
-// 	to         *AddressHash
-// 	nonce      uint64
-// 	amount     *big.Int
-// 	gasLimit   uint64
-// 	gasPrice   *big.Int
-// 	data       []byte
-// 	checkNonce bool
-// }
+import (
+	"math/big"
+)
 
-// func NewTxMessage(from AddressHash, to *AddressHash, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool) *VmMessage {
-// 	return &VmMessage{
-// 		from:       from,
-// 		to:         to,
-// 		nonce:      nonce,
-// 		amount:     amount,
-// 		gasLimit:   gasLimit,
-// 		gasPrice:   gasPrice,
-// 		data:       data,
-// 		checkNonce: checkNonce,
-// 	}
-// }
+// Message represents a message sent to a contract.
+type Message interface {
+	From() *AddressHash
+	//FromFrontier() (common.Address, error)
+	To() *AddressHash
 
-// func (m VmMessage) From() AddressHash  { return m.from }
-// func (m VmMessage) To() *AddressHash   { return m.to }
-// func (m VmMessage) GasPrice() *big.Int { return m.gasPrice }
-// func (m VmMessage) Value() *big.Int    { return m.amount }
-// func (m VmMessage) Gas() uint64        { return m.gasLimit }
-// func (m VmMessage) Nonce() uint64      { return m.nonce }
-// func (m VmMessage) Data() []byte       { return m.data }
-// func (m VmMessage) CheckNonce() bool   { return m.checkNonce }
+	GasPrice() *big.Int
+	Gas() uint64
+	Value() *big.Int
+
+	Type() ContractType
+
+	Nonce() uint64
+	//CheckNonce() bool
+	Data() []byte
+}

@@ -30,7 +30,7 @@ var (
 
 // StateTransition the State Transitioning Model
 type StateTransition struct {
-	msg          Message
+	msg          types.Message
 	gas          uint64
 	gasPrice     *big.Int
 	initialGas   uint64
@@ -40,23 +40,6 @@ type StateTransition struct {
 	evm          *vm.EVM
 	gasRefoundTx *types.Transaction
 	remaining    *big.Int
-}
-
-// Message represents a message sent to a contract.
-type Message interface {
-	From() *types.AddressHash
-	//FromFrontier() (common.Address, error)
-	To() *types.AddressHash
-
-	GasPrice() *big.Int
-	Gas() uint64
-	Value() *big.Int
-
-	Type() types.ContractType
-
-	Nonce() uint64
-	//CheckNonce() bool
-	Data() []byte
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
@@ -93,7 +76,7 @@ func IntrinsicGas(data []byte, contractCreation bool) (uint64, error) {
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg types.Message) *StateTransition {
 	return &StateTransition{
 		evm:       evm,
 		msg:       msg,
@@ -107,7 +90,7 @@ func NewStateTransition(evm *vm.EVM, msg Message) *StateTransition {
 
 // ApplyMessage computes the new state by applying the given message
 // against the old state within the environment.
-func ApplyMessage(evm *vm.EVM, msg Message) ([]byte, uint64, uint64, bool, *types.Transaction, error) {
+func ApplyMessage(evm *vm.EVM, msg types.Message) ([]byte, uint64, uint64, bool, *types.Transaction, error) {
 	return NewStateTransition(evm, msg).TransitionDb()
 }
 

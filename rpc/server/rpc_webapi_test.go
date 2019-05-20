@@ -22,6 +22,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	"google.golang.org/grpc"
 )
@@ -302,6 +303,14 @@ func (r *TestDetailBlockChainReader) LoadTxByHash(crypto.HashType) (*types.Trans
 
 func (r *TestDetailBlockChainReader) GetDataFromDB([]byte) ([]byte, error) {
 	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
+	return nil, nil, nil
+}
+
+func (r *TestDetailBlockChainReader) NonceByHeight(address *types.AddressHash, height uint32) (uint64, error) {
+	return 0, nil
 }
 
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {

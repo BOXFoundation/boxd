@@ -31,6 +31,13 @@ service WebApi {
             body: "*"
         };
     }
+
+    rpc Nonce (NonceReq) returns (NonceResp) {
+        option (google.api.http) = {
+            post: "/v1/account/nonce"
+            body: "*"
+        };
+    }
 }
 
 message ViewTxDetailReq {
@@ -140,4 +147,15 @@ message CallResp {
     int32 code = 1;
     string message = 2;
     bytes output = 3;
+}
+
+message NonceReq {
+    uint32 height = 1;
+    string addr = 2;
+}
+
+message NonceResp {
+    int32 code = 1;
+    string message = 2;
+    uint64 nonce = 3;
 }
