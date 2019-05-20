@@ -127,32 +127,6 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 	return nil
 }
 
-// // update eternal block.
-// func (bft *BftService) update(p goprocess.Process) {
-// 	timerChan := time.NewTicker(time.Second)
-// 	defer timerChan.Stop()
-// 	for {
-// 		select {
-// 		case <-timerChan.C:
-// 			bft.maybeUpdateEternalBlock()
-// 		case <-p.Closing():
-// 			logger.Info("Quit update eternalBlock loop.")
-// 			return
-// 		}
-// 	}
-// }
-
-// func (bft *BftService) maybeUpdateEternalBlock() {
-// 	if bft.chain.TailBlock().Header.Height-bft.chain.EternalBlock().Header.Height > MinConfirmMsgNumberForEternalBlock*BlockNumPerPeiod {
-// 		block, err := bft.chain.LoadBlockByHeight(bft.chain.EternalBlock().Header.Height + 1)
-// 		if err != nil {
-// 			logger.Errorf("Failed to update eternal block. LoadBlockByHeight occurs error: %s", err.Error())
-// 		} else {
-// 			bft.updateEternal(block)
-// 		}
-// 	}
-// }
-
 func (bft *BftService) updateEternal(block *types.Block) {
 
 	if block.Header.Height <= bft.chain.EternalBlock().Header.Height {

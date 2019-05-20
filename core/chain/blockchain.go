@@ -440,7 +440,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		chain.addOrphanBlock(block, *blockHash, prevHash)
 		chain.repeatedMintCache.Add(block.Header.TimeStamp, block)
 		height := chain.tail.Header.Height
-		if height < block.Header.Height && messageFrom != "" {
+		if height < block.Header.Height && messageFrom != core.SyncFlag {
 			if block.Header.Height-height < Threshold {
 				return chain.syncManager.ActiveLightSync(messageFrom)
 			}

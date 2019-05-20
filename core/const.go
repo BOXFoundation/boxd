@@ -23,7 +23,10 @@ const (
 	MaxBlockTimeOut = 1
 
 	TransferGasLimit = 21000
-	MinGasPrice      = 0
+
+	MinGasPrice = 0
+
+	SyncFlag = "sync"
 )
 
 // TransferMode
