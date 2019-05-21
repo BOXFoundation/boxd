@@ -781,9 +781,9 @@ func (s *Script) IsContractPubkey() bool {
 
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
-	addr types.Address, code []byte, gasPrice, gasLimit uint64, version int32,
+	addr types.Address, code []byte, gasPrice, gasLimit, nonce uint64, version int32,
 ) (*Script, error) {
-	// OP_CONTRACT addr gasPrice gasLimit version code checksum
+	// OP_CONTRACT addr gasPrice gasLimit nonce version code checksum
 	// check params
 	if len(code) == 0 {
 		return nil, ErrInvalidContractParams
@@ -804,6 +804,7 @@ func MakeContractScriptPubkey(
 	s.AddOperand(receiverHash[:]).
 		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
 		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
+		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(int64(version)).Bytes()).
 		AddOperand(code)
 	// add checksum
@@ -854,6 +855,11 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	}
 	// gasLimit
 	params.GasLimit, pc, err = s.readUint64(pc)
+	if err != nil {
+		return
+	}
+	// nonce
+	params.Nonce, pc, err = s.readUint64(pc)
 	if err != nil {
 		return
 	}

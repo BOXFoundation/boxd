@@ -364,12 +364,13 @@ func TestContractScript(t *testing.T) {
 		addrStr      string
 		code         string
 		price, limit uint64
+		nonce        uint64
 		version      int32
 		err          error
 	}{
-		{"b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", code, 100, 20000, 1, nil},
-		{"", code, 100, 20000, 1, nil},
-		{"", code, math.MaxUint64, 20000, 1, ErrInvalidContractParams},
+		{"b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", code, 100, 20000, 1, 1, nil},
+		{"", code, 100, 20000, 2, 1, nil},
+		{"", code, math.MaxUint64, 20000, 3, 1, ErrInvalidContractParams},
 	}
 	for _, tc := range tests {
 		var addr types.Address
@@ -377,7 +378,7 @@ func TestContractScript(t *testing.T) {
 			addr, _ = types.NewContractAddress(tc.addrStr)
 		}
 		code, _ := hex.DecodeString(tc.code)
-		cs, err := MakeContractScriptPubkey(addr, code, tc.price, tc.limit, tc.version)
+		cs, err := MakeContractScriptPubkey(addr, code, tc.price, tc.limit, tc.nonce, tc.version)
 		if tc.err != err {
 			t.Fatal(err)
 		}
@@ -390,7 +391,7 @@ func TestContractScript(t *testing.T) {
 		}
 		if (addr != nil && !bytes.Equal(p.Receiver[:], addr.Hash160()[:])) ||
 			p.GasPrice != tc.price || p.GasLimit != tc.limit ||
-			p.Version != tc.version ||
+			p.Nonce != tc.nonce || p.Version != tc.version ||
 			(tc.addrStr != "" && typ != types.ContractCallType ||
 				tc.addrStr == "" && typ != types.ContractCreationType) ||
 			!bytes.Equal(p.Code, code) {

@@ -68,6 +68,7 @@ type Context struct {
 	// Message information
 	Origin   coretypes.AddressHash // Provides information for ORIGIN
 	GasPrice *big.Int              // Provides information for GASPRICE
+	Nonce    uint64                // Provides information for NONCE
 
 	// Block information
 	Coinbase    coretypes.AddressHash // Provides information for COINBASE
@@ -438,7 +439,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 
 // Create creates a new contract using code as deployment code.
 func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.Int, interpreterInvoke bool) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
-	contractAddr = *coretypes.CreateAddress(caller.Address(), evm.StateDB.GetNonce(caller.Address()))
+	contractAddr = *coretypes.CreateAddress(caller.Address(), evm.Context.Nonce)
 	return evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr, interpreterInvoke)
 }
 

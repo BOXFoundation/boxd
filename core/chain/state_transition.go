@@ -54,7 +54,7 @@ type Message interface {
 
 	Type() types.ContractType
 
-	//Nonce() uint64
+	Nonce() uint64
 	//CheckNonce() bool
 	Data() []byte
 }

@@ -48,6 +48,7 @@ func NewEVMContext(msg Message, header *types.BlockHeader, bc *BlockChain) vm.Co
 		Time:        new(big.Int).Set(big.NewInt(header.TimeStamp)),
 		// GasLimit:    header.GasLimit,
 		GasPrice: msg.GasPrice(),
+		Nonce:    msg.Nonce(),
 	}
 }
 

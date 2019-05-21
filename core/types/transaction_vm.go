@@ -35,6 +35,7 @@ type VMTransaction struct {
 	value    *big.Int
 	gasPrice *big.Int
 	gas      uint64
+	nonce    uint64
 	code     []byte
 	typ      ContractType
 }
@@ -43,6 +44,7 @@ type VMTransaction struct {
 type VMTxParams struct {
 	GasPrice uint64
 	GasLimit uint64
+	Nonce    uint64
 	Version  int32
 	Code     []byte
 	Receiver *AddressHash
@@ -50,7 +52,7 @@ type VMTxParams struct {
 
 // NewVMTransaction new a VMTransaction instance with given parameters
 func NewVMTransaction(
-	value, gasPrice *big.Int, gas uint64, hash *crypto.HashType, typ ContractType,
+	value, gasPrice *big.Int, gas, nonce uint64, hash *crypto.HashType, typ ContractType,
 	code []byte,
 ) *VMTransaction {
 	return &VMTransaction{
@@ -60,6 +62,7 @@ func NewVMTransaction(
 		originTx: hash,
 		gasPrice: gasPrice,
 		gas:      gas,
+		nonce:    nonce,
 		code:     code,
 	}
 }
@@ -99,6 +102,11 @@ func (tx *VMTransaction) GasPrice() *big.Int {
 // Gas returns the gaslimit of the tx.
 func (tx *VMTransaction) Gas() uint64 {
 	return tx.gas
+}
+
+// Nonce returns the nonce of the tx from origin tx assigned by client user.
+func (tx *VMTransaction) Nonce() uint64 {
+	return tx.nonce
 }
 
 // Value returns the transfer value of the tx.

@@ -1869,7 +1869,7 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 				return nil, e
 			}
 			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
-				big.NewInt(int64(p.GasPrice)), p.GasLimit, txHash, t, p.Code).
+				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash, t, p.Code).
 				WithSender(sender.Hash160())
 			if t == types.ContractCallType {
 				vmTx.WithReceiver(p.Receiver)

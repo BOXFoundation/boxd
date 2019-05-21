@@ -112,7 +112,7 @@ func ApplyTransaction(
 
 	var contractAddr *types.AddressHash
 	if tx.Type() == types.ContractCreationType {
-		contractAddr = types.CreateAddress(*tx.From(), statedb.GetNonce(*tx.From())-1)
+		contractAddr = types.CreateAddress(*tx.From(), tx.Nonce())
 	} else {
 		contractAddr = tx.To()
 	}
