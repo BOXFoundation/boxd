@@ -160,15 +160,13 @@ func TestMakeContractTx(t *testing.T) {
 	hash, idx, value := hashFromUint64(1), uint32(2), uint64(100)
 
 	// normal vin, contract creation vout
-	gas, gasPrice := uint64(200), uint64(5)
-	codeStr := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+	gas, gasPrice, nonce := uint64(200), uint64(5), uint64(1)
+	codeStr := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565" + "b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
 	code, _ := hex.DecodeString(codeStr)
-	cvout, _ := MakeContractCreationVout(value, gas, gasPrice, code)
+	cvout, _ := MakeContractCreationVout(value, gas, gasPrice, nonce, code)
 	tx := types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout)
-	//bytes, _ := json.MarshalIndent(tx, "", "  ")
-	//t.Logf("contract vout tx: %s", string(bytes))
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||
@@ -181,12 +179,10 @@ func TestMakeContractTx(t *testing.T) {
 	receiver := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
 	codeStr = "60fe47b10000000000000000000000000000000000000000000000000000000000000006"
 	code, _ = hex.DecodeString(codeStr)
-	cvout, _ = MakeContractCallVout(receiver, value, gas, gasPrice, code)
+	cvout, _ = MakeContractCallVout(receiver, value, gas, gasPrice, nonce, code)
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout)
-	//bytes, _ := json.MarshalIndent(tx, "", "  ")
-	//t.Logf("contract vout tx: %s", string(bytes))
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||
@@ -199,8 +195,6 @@ func TestMakeContractTx(t *testing.T) {
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(MakeVout(outAddr, value))
-	//bytes, _ = json.MarshalIndent(tx, "", "  ")
-	//t.Logf("contract vin tx: %s", string(bytes))
 	if len(tx.Vin[0].ScriptSig) != 1 || tx.Vin[0].ScriptSig[0] != byte(script.OPCONTRACT) ||
 		tx.Vin[0].PrevOutPoint.Hash != hash || tx.Vin[0].PrevOutPoint.Index != idx ||
 		tx.Vout[0].Value != value {

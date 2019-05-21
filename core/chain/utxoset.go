@@ -175,7 +175,8 @@ func (u *UtxoSet) applyUtxo(
 			if !ok {
 				return fmt.Errorf("non pubkey hash is not supported to create contract ")
 			}
-			contractAddr, _ := types.MakeContractAddress(senderAddr, stateDB.GetNonce(*sender.Hash160()))
+			nonce, _ := sc.ParseContractNonce()
+			contractAddr, _ := types.MakeContractAddress(senderAddr, nonce)
 			addressHash = types.NormalizeAddressHash(contractAddr.Hash160())
 		}
 		outPoint := types.NewOutPoint(addressHash, 0)

@@ -369,7 +369,7 @@ func TestContractScript(t *testing.T) {
 		err          error
 	}{
 		{"b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", code, 100, 20000, 1, 1, nil},
-		{"", code, 100, 20000, 2, 1, nil},
+		{"", code, 1, 200, 2, 1, nil},
 		{"", code, math.MaxUint64, 20000, 3, 1, ErrInvalidContractParams},
 	}
 	for _, tc := range tests {
@@ -402,7 +402,11 @@ func TestContractScript(t *testing.T) {
 		}
 		if eAddr, err := cs.ExtractAddress(); err != nil ||
 			(addr != nil && *eAddr.Hash160() != *addr.Hash160()) {
-			t.Fatalf("extract addr mismatch, error: %v, want: %s, got: %s", err, addr, eAddr)
+			t.Fatalf("extract addr mismatch, error: %v, want: %s, got: %v", err, addr, eAddr)
+		}
+		if n, err := cs.ParseContractNonce(); err != nil ||
+			n != tc.nonce {
+			t.Fatalf("parse contract nonce error: %v, want: %d, got: %d", err, tc.nonce, n)
 		}
 	}
 }

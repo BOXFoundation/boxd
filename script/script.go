@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"math"
 	"math/big"
 	"reflect"
@@ -647,20 +648,18 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 	}
 
 	if s.IsSplitAddrScript() || s.IsContractPubkey() {
-		str := s.Disasm()
-		segs := strings.Split(str, " ")
-		pubKeyHash, err := hex.DecodeString(segs[1])
+		_, pubKeyHash, _, err := s.getNthOp(1, 0)
 		if err != nil {
 			return nil, err
 		}
 		var addr types.Address
 		if s.IsSplitAddrScript() {
 			addr, err = types.NewSplitAddressFromHash(pubKeyHash)
-		} else if !reflect.DeepEqual(pubKeyHash, types.ZeroAddressHash[:]) {
+		} else {
+			if reflect.DeepEqual([]byte(pubKeyHash), []byte(ZeroContractAddress[:])) {
+				return (*types.AddressContract)(nil), nil
+			}
 			addr, err = types.NewContractAddressFromHash(pubKeyHash)
-		} else { // contract creation script, there is not contract address
-			logger.Debug("cannot extract address from contract creation script pubkey")
-			return (*types.AddressContract)(nil), nil
 		}
 		if err != nil {
 			return nil, err
@@ -783,7 +782,7 @@ func (s *Script) IsContractPubkey() bool {
 func MakeContractScriptPubkey(
 	addr types.Address, code []byte, gasPrice, gasLimit, nonce uint64, version int32,
 ) (*Script, error) {
-	// OP_CONTRACT addr gasPrice gasLimit nonce version code checksum
+	// OP_CONTRACT addr nonce gasPrice gasLimit version code checksum
 	// check params
 	if len(code) == 0 {
 		return nil, ErrInvalidContractParams
@@ -802,9 +801,9 @@ func MakeContractScriptPubkey(
 		receiverHash = *addr.Hash160()
 	}
 	s.AddOperand(receiverHash[:]).
+		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
 		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
-		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(int64(version)).Bytes()).
 		AddOperand(code)
 	// add checksum
@@ -848,6 +847,11 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	}
 	params.Receiver = addrHash
 
+	// nonce
+	params.Nonce, pc, err = s.readUint64(pc)
+	if err != nil {
+		return
+	}
 	// gasPrice
 	params.GasPrice, pc, err = s.readUint64(pc)
 	if err != nil {
@@ -855,11 +859,6 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	}
 	// gasLimit
 	params.GasLimit, pc, err = s.readUint64(pc)
-	if err != nil {
-		return
-	}
-	// nonce
-	params.Nonce, pc, err = s.readUint64(pc)
 	if err != nil {
 		return
 	}
@@ -896,6 +895,22 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 		return
 	}
 	return
+}
+
+// ParseContractNonce returns address within the script
+func (s *Script) ParseContractNonce() (uint64, error) {
+	if !s.IsContractPubkey() {
+		return 0, errors.New("not a contract nonce")
+	}
+	_, operand, _, err := s.getNthOp(22, 0) // 1, 22
+	if err != nil {
+		return 0, err
+	}
+	n, err := operand.int64()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(n), nil
 }
 
 func (s *Script) readInt64(pc int) (int64, int /* pc */, error) {
