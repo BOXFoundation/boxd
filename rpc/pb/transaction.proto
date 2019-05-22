@@ -96,24 +96,6 @@ service TransactionCommand {
     }
 }
 
-message MakeContractTxReq {
-    string addr = 1;
-    uint64 amount = 2;
-    uint64 gas_price = 3;
-    uint64 gas_limit = 4;
-    uint64 nonce = 5;
-    string contract_addr = 6;
-    string code = 7;
-}
-
-message MakeContractTxResp {
-    int32 code = 1;
-    string message = 2;
-    corepb.Transaction tx = 3;
-    repeated bytes rawMsgs = 4;
-    string contract_addr = 5;
-}
-
 message SendRawTransactionReq {
     string tx = 1;
 }
@@ -230,4 +212,23 @@ message TokenTag {
     string symbol = 2;
     uint64 supply = 3;
     uint32 decimal = 4;
+}
+
+message MakeContractTxReq {
+    string sender = 1;
+    uint64 amount = 2;
+    uint64 gas_price = 3;
+    uint64 gas_limit = 4;
+    uint64 nonce = 5;
+    bool is_deployed = 6;
+    string contract_addr = 7;
+    string data = 8;
+}
+
+message MakeContractTxResp {
+    int32 code = 1;
+    string message = 2;
+    corepb.Transaction tx = 3;
+    repeated bytes rawMsgs = 4;
+    string contract_addr = 5;
 }

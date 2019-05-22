@@ -148,6 +148,31 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 	return resp.Hash, nil
 }
 
+//CreateRawTransaction create a tx without signature,it returns a tx and utxo
+func CreateRawTransaction(
+	from string, txhash []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
+) (*types.Transaction, error) {
+	total := uint64(0)
+	for _, a := range amounts {
+		total += a
+	}
+
+	utxos := make([]*rpcpb.Utxo, 0)
+	for i := 0; i < len(txhash); i++ {
+
+		op := types.NewOutPoint(&txhash[i], vout[i])
+		uw := txlogic.NewUtxoWrap(from, height, total)
+		utxo := txlogic.MakePbUtxo(op, uw)
+		utxos = append(utxos, utxo)
+	}
+	changeAmt, overflowed := calcChangeAmount(amounts, 0, utxos...)
+	if overflowed {
+		return nil, txlogic.ErrInsufficientBalance
+	}
+	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
+	return tx, err
+}
+
 // GetRawTransaction get the transaction info of given hash
 func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
@@ -403,43 +428,18 @@ func MakeUnsignedTx(
 	return tx, utxos, err
 }
 
-//CreateRawTransaction create a tx without signature,it returns a tx and utxo
-func CreateRawTransaction(
-	from string, txhash []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
-) (*types.Transaction, error) {
-	total := uint64(0)
-	for _, a := range amounts {
-		total += a
-	}
-
-	utxos := make([]*rpcpb.Utxo, 0)
-	for i := 0; i < len(txhash); i++ {
-
-		op := types.NewOutPoint(&txhash[i], vout[i])
-		uw := txlogic.NewUtxoWrap(from, height, total)
-		utxo := txlogic.MakePbUtxo(op, uw)
-		utxos = append(utxos, utxo)
-	}
-	changeAmt, overflowed := calcChangeAmount(amounts, 0, utxos...)
-	if overflowed {
-		return nil, txlogic.ErrInsufficientBalance
-	}
-	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
-	return tx, err
-}
-
 //MakeUnsignedContractDeployTx make a tx without a signature
 func MakeUnsignedContractDeployTx(
-	wa service.WalletAgent, addr string, amount uint64, gasLimit uint64,
-	gasPrice uint64, byteCode []byte,
+	wa service.WalletAgent, sender string, amount, gasLimit, gasPrice, nonce uint64,
+	byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	gasUsed := gasLimit * gasPrice
 	total := gasUsed + amount
-	utxos, err := wa.Utxos(addr, nil, total)
+	utxos, err := wa.Utxos(sender, nil, total)
 	if err != nil {
 		return nil, nil, err
 	}
-	amounts := append(make([]uint64, 0), amount)
+	amounts := []uint64{amount}
 	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -447,22 +447,23 @@ func MakeUnsignedContractDeployTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	tx, err := txlogic.MakeUnsignedContractDeployTx(addr, amount, changeAmt, gasLimit, gasPrice, byteCode, utxos...)
+	tx, err := txlogic.MakeUnsignedContractDeployTx(sender, amount, changeAmt,
+		gasLimit, gasPrice, nonce, byteCode, utxos...)
 	return tx, utxos, err
 }
 
 //MakeUnsignedContractCallTx call a contract tx without a signature
 func MakeUnsignedContractCallTx(
-	wa service.WalletAgent, addr string, amount uint64,
-	gasLimit uint64, gasPrice uint64, contractAddr string, byteCode []byte,
+	wa service.WalletAgent, sender string, amount, gasLimit, gasPrice, nonce uint64,
+	contractAddr string, byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	gasUsed := gasLimit * gasPrice
 	total := gasUsed + amount
-	utxos, err := wa.Utxos(addr, nil, total)
+	utxos, err := wa.Utxos(sender, nil, total)
 	if err != nil {
 		return nil, nil, err
 	}
-	amounts := append(make([]uint64, 0), amount)
+	amounts := []uint64{amount}
 	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -470,7 +471,8 @@ func MakeUnsignedContractCallTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	tx, err := txlogic.MakeUnsignedContractCallTx(addr, amount, changeAmt, gasLimit, gasPrice, contractAddr, byteCode, utxos...)
+	tx, err := txlogic.MakeUnsignedContractCallTx(sender, amount, changeAmt,
+		gasLimit, gasPrice, nonce, contractAddr, byteCode, utxos...)
 	return tx, utxos, err
 }
 

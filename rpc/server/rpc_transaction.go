@@ -9,8 +9,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"reflect"
+	"strings"
 
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -446,6 +448,90 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
 }
 
+//MakeUnsignedContractTx make contract tx
+func (s *txServer) MakeUnsignedContractTx(
+	ctx context.Context, req *rpcpb.MakeContractTxReq,
+) (resp *rpcpb.MakeContractTxResp, err error) {
+	defer func() {
+		bytes, _ := json.Marshal(req)
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned contract tx: %s error: %s", string(bytes), resp.Message)
+		} else {
+			logger.Infof("make unsigned contract tx: %s succeeded, response: %+v", string(bytes), resp)
+		}
+	}()
+	wa := s.server.GetWalletAgent()
+	sender := req.GetSender()
+	amount, gasPrice, gasLimit := req.GetAmount(), req.GetGasPrice(), req.GetGasLimit()
+	byteCode, err := hex.DecodeString(req.GetData())
+	if err != nil {
+		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
+	}
+	tx := new(types.Transaction)
+	utxos := make([]*rpcpb.Utxo, 0)
+
+	if err := types.ValidateAddr(sender); err != nil ||
+		strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
+		return newMakeContractTxResp(-1, "invalid sender address", nil, nil, ""), nil
+	}
+	contractAddr := req.GetContractAddr()
+	if req.IsDeployed {
+		if contractAddr != "" {
+			eStr := "contract addr must be empty when deploy contract"
+			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
+		}
+		senderHash, err := types.NewAddress(sender)
+		if err != nil {
+			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
+		}
+		nonce, _ := s.server.GetChainReader().GetLatestNonce(senderHash.Hash160())
+		if req.GetNonce() <= nonce {
+			eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
+			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
+		}
+		contractAddrHash, _ := types.MakeContractAddress(senderHash, nonce)
+		contractAddress, _ := types.NewContractAddressFromHash(contractAddrHash.Hash())
+		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, sender, amount,
+			gasLimit, gasPrice, req.GetNonce(), byteCode)
+		if err != nil {
+			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+		}
+		contractAddr = contractAddress.String()
+	} else {
+		if err := types.ValidateAddr(); err != nil ||
+			strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
+			return newMakeContractTxResp(-1, "invalid contract address", nil, nil, ""), nil
+		}
+		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, sender, amount,
+			gasLimit, gasPrice, req.GetNonce(), contractAddr, byteCode)
+		if err != nil {
+			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+		}
+		contractAddr = ""
+	}
+	pbTx, err := tx.ConvToPbTx()
+	if err != nil {
+		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+	}
+	return newMakeContractTxResp(0, "success", pbTx, rawMsgs, contractAddr), nil
+}
+
+func newMakeContractTxResp(
+	code int32, msg string, tx *corepb.Transaction, rawMsgs [][]byte, contractAddr string,
+) *rpcpb.MakeContractTxResp {
+	return &rpcpb.MakeContractTxResp{
+		Code:         code,
+		Message:      msg,
+		Tx:           tx,
+		RawMsgs:      rawMsgs,
+		ContractAddr: contractAddr,
+	}
+}
+
 // MakeTxRawMsgsForSign make tx raw msg for sign
 func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte, error) {
 	if len(tx.Vin) != len(utxos) {
@@ -469,83 +555,4 @@ func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte
 		msgs = append(msgs, data)
 	}
 	return msgs, nil
-}
-
-//MakeUnsignedContractTx make contract tx
-func (s *txServer) MakeUnsignedContractTx(
-	ctx context.Context, req *rpcpb.MakeContractTxReq,
-) (resp *rpcpb.MakeContractTxResp, err error) {
-	defer func() {
-		bytes, _ := json.Marshal(req)
-		if resp.Code != 0 {
-			logger.Warnf("make unsigned tx: %s error: %s", string(bytes), resp.RawMsgs)
-		} else {
-			logger.Infof("make unsigned tx: %s succeeded, response: %+v", string(bytes), resp)
-		}
-	}()
-	wa := s.server.GetWalletAgent()
-	addr := req.GetAddr()
-	amount := req.GetAmount()
-	gasPrice := req.GetGasPrice()
-	gasLimit := req.GetGasLimit()
-	byteCode, err := hex.DecodeString(req.GetCode())
-	if err != nil {
-		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-	}
-	tx := new(types.Transaction)
-	utxos := make([]*rpcpb.Utxo, 0)
-
-	if req.GetContractAddr() == "" {
-		//deploy contract
-		addrPubKeyHash, err := types.NewAddress(addr)
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		contractAddr, err := types.MakeContractAddress(addrPubKeyHash, req.GetNonce())
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, addr, amount, gasLimit, gasPrice, byteCode)
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		pbTx, err := tx.ConvToPbTx()
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		return newMakeContractTxResp(0, "success", pbTx, rawMsgs, contractAddr.String()), nil
-	} else if req.GetContractAddr() != "" {
-		//call contract
-		contractAddr := req.GetContractAddr()
-		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, addr, amount, gasLimit, gasPrice, contractAddr, byteCode)
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		pbTx, err := tx.ConvToPbTx()
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
-		}
-		return newMakeContractTxResp(0, "success", pbTx, rawMsgs, contractAddr), nil
-	}
-	return newMakeContractTxResp(-1, "failed", nil, nil, ""), err
-}
-
-func newMakeContractTxResp(
-	code int32, msg string, tx *corepb.Transaction, rawMsgs [][]byte, contractAddr string,
-) *rpcpb.MakeContractTxResp {
-	return &rpcpb.MakeContractTxResp{
-		Code:         code,
-		Message:      msg,
-		Tx:           tx,
-		RawMsgs:      rawMsgs,
-		ContractAddr: contractAddr,
-	}
 }

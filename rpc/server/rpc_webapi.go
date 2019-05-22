@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
-	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -57,10 +56,6 @@ type webapiServer struct {
 	subscribeCnt    int
 }
 
-func (s *webapiServer) DoCall(context.Context, *rpcpb.CallReq) (*rpcpb.CallResp, error) {
-	panic("implement me")
-}
-
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
@@ -74,7 +69,7 @@ type ChainBlockReader interface {
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
 	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
-	NonceByHeight(address *types.AddressHash, height uint32) (uint64, error)
+	GetLatestNonce(address *types.AddressHash) (uint64, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -338,12 +333,19 @@ func (s *webapiServer) DoCall(
 	ctx context.Context, req *rpcpb.CallReq,
 ) (*rpcpb.CallResp, error) {
 
-	from := types.BytesToAddressHash([]byte(req.From))
-	to := types.BytesToAddressHash([]byte(req.To))
-	// Create new call message
-	msg := types.NewVMTransaction(new(big.Int), new(big.Int).SetUint64(core.DuPerBox),
-		math.MaxUint64/2, nil, types.ContractCallType, req.Input).
-		WithSender(&from).WithReceiver(&to)
+	sender, contractAddr := req.GetSender(), req.GetContractAddr()
+	senderHash, err := types.ParseAddress(sender)
+	if err != nil || strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
+		return newCallResp(-1, "invalid sender address", nil), nil
+	}
+	contractAddrHash, err := types.ParseAddress(contractAddr)
+	if err != nil || strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
+		return newCallResp(-1, "invalid contract address", nil), nil
+	}
+
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2, 0, nil,
+		types.ContractCallType, req.GetData()).
+		WithSender(senderHash.Hash160()).WithReceiver(contractAddrHash.Hash160())
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -390,10 +392,18 @@ func (s *webapiServer) Nonce(
 	ctx context.Context, req *rpcpb.NonceReq,
 ) (*rpcpb.NonceResp, error) {
 
-	addr := types.BytesToAddressHash([]byte(req.Addr))
-	nonce, err := s.NonceByHeight(&addr, req.Height)
+	address, err := types.ParseAddress(req.GetAddr())
 	if err != nil {
-		return newNonceResp(-1, err.Error(), nonce), nil
+		return newNonceResp(-1, err.Error(), 0), nil
+	}
+	switch address.(type) {
+	default:
+		return newNonceResp(-1, "only allow eoa and contract address", 0), nil
+	case *types.AddressContract, *types.AddressPubKeyHash:
+	}
+	nonce, err := s.GetLatestNonce(address.Hash160())
+	if err != nil {
+		return newNonceResp(-1, err.Error(), 0), nil
 	}
 	return newNonceResp(0, "", nonce), nil
 }

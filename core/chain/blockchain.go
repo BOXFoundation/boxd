@@ -1372,16 +1372,10 @@ func (chain *BlockChain) GetEvmByHeight(msg types.Message, height uint32) (*vm.E
 	return vm.NewEVM(context, state, vm.Config{}), state.Error, nil
 }
 
-// NonceByHeight get nonce by block height.
-func (chain *BlockChain) NonceByHeight(address *types.AddressHash, height uint32) (uint64, error) {
-	if height == 0 {
-		height = chain.tail.Header.Height
-	}
-	block, err := chain.LoadBlockByHeight(height)
-	if block == nil || err != nil {
-		return 0, err
-	}
-	state, err := state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
+// GetLatestNonce get nonce in chain now
+func (chain *BlockChain) GetLatestNonce(address *types.AddressHash) (uint64, error) {
+	header := chain.TailBlock().Header
+	state, err := state.New(&header.RootHash, &header.UtxoRoot, chain.db)
 	if state == nil || err != nil {
 		return 0, err
 	}
