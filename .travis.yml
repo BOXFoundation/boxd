@@ -34,5 +34,6 @@ script:
   - vend
   - make
   - cd integration_tests
+  - go get
   - go build
   - ./integration_tests -nodes=true
