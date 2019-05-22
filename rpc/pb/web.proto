@@ -136,11 +136,11 @@ message TokenTransferInfo {
 }
 
 message CallReq {
-    uint32 height = 1;
-    uint32 timeout = 2;
-    string from = 3;
-    string to = 4;
-    bytes input = 5;
+    string sender = 1;
+    string contract_addr = 2;
+    bytes data = 3;
+    uint32 height = 4;
+    uint32 timeout = 5;
 }
 
 message CallResp {
@@ -150,8 +150,7 @@ message CallResp {
 }
 
 message NonceReq {
-    uint32 height = 1;
-    string addr = 2;
+    string addr = 1;
 }
 
 message NonceResp {

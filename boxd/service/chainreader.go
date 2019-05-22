@@ -16,7 +16,7 @@ type ChainReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
-	NonceByHeight(address *types.AddressHash, height uint32) (uint64, error)
+	GetLatestNonce(address *types.AddressHash) (uint64, error)
 
 	//
 	GetDataFromDB([]byte) ([]byte, error)

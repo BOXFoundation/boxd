@@ -136,7 +136,7 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 
 // MakeContractCreationVout makes txOut
 func MakeContractCreationVout(
-	amount uint64, gas, gasPrice, nonce uint64, code []byte,
+	amount, gas, gasPrice, nonce uint64, code []byte,
 ) (*corepb.TxOut, error) {
 
 	vs, err := script.MakeContractScriptPubkey(nil, code, gasPrice, gas, nonce, types.VMVersion)
