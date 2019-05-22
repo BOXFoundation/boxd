@@ -700,11 +700,11 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
 		// check hash is exist
-		block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
-		if block == nil {
-			logger.Errorf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
-			return errors.New("the block hash is not exist on the chain")
-		}
+		// block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		// if block == nil {
+		// 	logger.Warnf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
+		// 	return ErrInvalidHashInIrreversibleInfo
+		// }
 		//TODO: period switching requires extra processing
 		addrs := dpos.context.periodContext.periodAddrs
 		remains := []types.AddressHash{}
@@ -896,7 +896,9 @@ func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
 func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
 	for _, vout := range tx.Vout {
 		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
-		if scriptPubKey.IsRegisterCandidateScript(calcCandidatePledgeHeight(int64(dpos.chain.TailBlock().Header.Height))) {
+		if scriptPubKey.IsRegisterCandidateScriptOfBlock(calcCandidatePledgeHeight(
+			int64(dpos.chain.TailBlock().Header.Height))) {
+
 			if tx.Data.Type == types.RegisterCandidateTx {
 				if vout.Value >= CandidatePledge {
 					return true

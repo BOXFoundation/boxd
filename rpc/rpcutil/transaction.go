@@ -8,15 +8,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	"google.golang.org/grpc"
 )
@@ -24,6 +25,7 @@ import (
 const (
 	connTimeout = 30
 	maxTokenFee = 100
+	maxDecimal  = 8
 )
 
 // GetBalance returns total amount of an address
@@ -401,6 +403,31 @@ func MakeUnsignedTx(
 	return tx, utxos, err
 }
 
+//CreateRawTransaction create a tx without signature,it returns a tx and utxo
+func CreateRawTransaction(
+	from string, txhash []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
+) (*types.Transaction, error) {
+	total := uint64(0)
+	for _, a := range amounts {
+		total += a
+	}
+
+	utxos := make([]*rpcpb.Utxo, 0)
+	for i := 0; i < len(txhash); i++ {
+
+		op := types.NewOutPoint(&txhash[i], vout[i])
+		uw := txlogic.NewUtxoWrap(from, height, total)
+		utxo := txlogic.MakePbUtxo(op, uw)
+		utxos = append(utxos, utxo)
+	}
+	changeAmt, overflowed := calcChangeAmount(amounts, 0, utxos...)
+	if overflowed {
+		return nil, txlogic.ErrInsufficientBalance
+	}
+	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
+	return tx, err
+}
+
 // MakeUnsignedSplitAddrTx news tx to make split addr without signature
 // it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
@@ -421,8 +448,14 @@ func MakeUnsignedSplitAddrTx(
 
 // MakeUnsignedTokenIssueTx news tx to issue token without signature
 func MakeUnsignedTokenIssueTx(
-	wa service.WalletAgent, issuer, issuee string, tag *rpcpb.TokenTag, gasUsed uint64,
+	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, gasUsed uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
+	if tag.GetDecimal() > maxDecimal {
+		return nil, 0, nil, fmt.Errorf("Decimal[%d] is bigger than max Decimal[%d]", tag.GetDecimal(), maxDecimal)
+	}
+	if tag.GetSupply() > math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
+		return nil, 0, nil, fmt.Errorf("supply is too bigger")
+	}
 	utxos, err := wa.Utxos(issuer, nil, gasUsed)
 	if err != nil {
 		return nil, 0, nil, err
@@ -431,7 +464,7 @@ func MakeUnsignedTokenIssueTx(
 	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
 	}
-	tx, issueOutIndex, err := txlogic.MakeUnsignedTokenIssueTx(issuer, issuee, tag,
+	tx, issueOutIndex, err := txlogic.MakeUnsignedTokenIssueTx(issuer, owner, tag,
 		changeAmt, utxos...)
 	return tx, issueOutIndex, utxos, err
 }

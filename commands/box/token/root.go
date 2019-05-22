@@ -6,11 +6,12 @@ package tokencmd
 
 import (
 	"fmt"
+	"math"
 	"path"
 	"strconv"
 	"strings"
 
-	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -50,7 +51,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "issue issuer issuee name symbol supply decimal",
+			Use:   "issue issuer owner name symbol supply decimal",
 			Short: "issue a new token",
 			Run:   createTokenCmdFunc,
 		},
@@ -79,8 +80,21 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 	tokenSymbol := args[3]
 	tokenTotalSupply, err2 := strconv.Atoi(args[4])
 	tokenDecimals, err3 := strconv.Atoi(args[5])
+
 	if err1 != nil && err2 != nil && err3 != nil {
 		fmt.Println("Invalid argument format")
+		return
+	}
+	if strings.ToUpper(tokenSymbol) == "BOX" {
+		fmt.Println("The value of tokenSymbol cannot be:", tokenSymbol)
+		return
+	}
+	if tokenDecimals < 0 || tokenDecimals > 8 {
+		fmt.Println("tokenDecimals must be greater than zero and less than eight")
+		return
+	}
+	if uint64(tokenTotalSupply) > math.MaxUint64/uint64(math.Pow10(tokenDecimals)) {
+		fmt.Println("Tokentotalsupply exceeds precision limit")
 		return
 	}
 	wltMgr, err := wallet.NewWalletManager(walletDir)

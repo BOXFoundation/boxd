@@ -390,6 +390,10 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 		return err
 	}
 
+	if msg.From() == "" {
+		return core.ErrInvalidMessageSender
+	}
+
 	// process block
 	if err := chain.ProcessBlock(block, core.RelayMode, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
 		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
@@ -423,9 +427,11 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return core.ErrRepeatedMintAtSameTime
 	}
 
-	if err := chain.consensus.Verify(block); err != nil {
-		logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Header.Height, err)
-		return err
+	if messageFrom != "" { // local block does not require validation
+		if err := chain.consensus.Verify(block); err != nil {
+			logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Header.Height, err)
+			return err
+		}
 	}
 
 	if err := validateBlock(block); err != nil {

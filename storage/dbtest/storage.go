@@ -216,15 +216,6 @@ func StorageDBCloseForTransOpen(t *testing.T, s storage.Table, db storage.Storag
 
 	select {
 	case <-t1.C:
-	case <-c:
-		t.Error("not timeout...")
-	}
-
-	t2 := time.NewTimer(5 * time.Second)
-	defer t2.Stop()
-
-	select {
-	case <-t2.C:
 		t.Error("timeout...")
 	case <-c:
 	}

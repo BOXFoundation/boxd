@@ -4,11 +4,11 @@
 
 package storage
 
-// Storage defines the data persistanse methods
+// Storage defines the data persistence methods
 type Storage interface {
 	Table
 
-	// Create or Get the table associate with the name
+	// Create or Get the table associated with the name
 	Table(string) (Table, error)
 	DropTable(string) error
 

@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 )
@@ -24,7 +23,7 @@ type memorydb struct {
 
 var _ storage.Storage = (*memorydb)(nil)
 
-// Create or Get the table associate with the name
+// Create or Get the table associated with the name
 func (db *memorydb) Table(name string) (storage.Table, error) {
 	return &mtable{
 		memorydb: db,
@@ -32,7 +31,7 @@ func (db *memorydb) Table(name string) (storage.Table, error) {
 	}, nil
 }
 
-// Create or Get the table associate with the name
+// Drop the table associated with the name
 func (db *memorydb) DropTable(name string) error {
 	db.writeLock <- struct{}{}
 	defer func() {
@@ -78,13 +77,6 @@ func (db *memorydb) NewBatch() storage.Batch {
 }
 
 func (db *memorydb) NewTransaction() (storage.Transaction, error) {
-	timer := time.NewTimer(time.Millisecond * 100)
-	select {
-	case <-timer.C:
-		return nil, storage.ErrTransactionExists
-	case db.writeLock <- struct{}{}:
-	}
-
 	return &mtx{
 		db:        db,
 		closed:    false,

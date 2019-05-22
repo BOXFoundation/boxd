@@ -23,6 +23,7 @@ var (
 	ErrFailedToStoreCandidateContext    = errors.New("Failed to store candidate context")
 	ErrCandidateIsAlreadyExist          = errors.New("The candidate is already exist")
 	ErrInvalidRegisterCandidateOrVoteTx = errors.New("Invalid register candidate or vote tx")
+	ErrInvalidHashInIrreversibleInfo    = errors.New("Invalid block hash in IrreversibleInfo")
 
 	// context
 	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")

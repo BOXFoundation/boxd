@@ -346,7 +346,7 @@ func TestParseSplitAddrScript(t *testing.T) {
 
 func TestCheckLockTimeVerify(t *testing.T) {
 	scriptSig, scriptPubKey, _ := genP2PKHScript(true /* prepend CLTV */, false, tx.LockTime)
-	ensure.True(t, scriptPubKey.IsRegisterCandidateScript(tx.LockTime))
+	ensure.True(t, scriptPubKey.IsRegisterCandidateScriptOfBlock(tx.LockTime))
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
 

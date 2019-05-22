@@ -591,13 +591,62 @@ func (s *Script) IsSplitAddrScript() bool {
 }
 
 // IsRegisterCandidateScript returns if the script is register candidate script
-func (s *Script) IsRegisterCandidateScript(blockTimeOrHeight int64) bool {
+func (s *Script) IsRegisterCandidateScript() bool {
 	r := s.parse()
-	value, err := r[0].(Operand).int64()
+
+	if len(r) == 0 {
+		return false
+	}
+	v, ok := r[0].(Operand)
+	if !ok {
+		return false
+	}
+	if _, err := v.int64(); err != nil {
+		return false
+	}
+
+	return true
+}
+
+// IsRegisterCandidateScriptOfBlock returns if the script is register candidate script of certain block time/height
+func (s *Script) IsRegisterCandidateScriptOfBlock(blockTimeOrHeight int64) bool {
+	r := s.parse()
+
+	if len(r) < 7 {
+		return false
+	}
+	v, ok := r[0].(Operand)
+	if !ok {
+		return false
+	}
+	w, err := v.int64()
 	if err != nil {
 		return false
 	}
-	return len(r) >= 7 && value == blockTimeOrHeight
+
+	return w == blockTimeOrHeight
+}
+
+// IsStandard returns if a script is standard
+// Only certain types of transactions are allowed, i.e., regarded as standard
+func (s *Script) IsStandard() bool {
+	if !s.IsPayToPubKeyHash() &&
+		!s.IsPayToScriptHash() &&
+		!s.IsPayToPubKeyHashCLTVScript() &&
+		!s.IsTokenIssue() &&
+		!s.IsTokenTransfer() &&
+		!s.IsSplitAddrScript() &&
+		!s.IsRegisterCandidateScript() {
+		return false
+	}
+
+	_, err := s.ExtractAddress()
+	if err != nil && err != ErrAddressNotApplicable {
+		logger.Errorf("Failed to extract address. script: %s, Err: %v", s.Disasm(), err)
+		return false
+	}
+
+	return true
 }
 
 // GetSplitAddrScriptPrefix returns prefix of split addr script without and list of addresses and weights
