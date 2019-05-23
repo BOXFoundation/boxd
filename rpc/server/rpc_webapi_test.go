@@ -313,6 +313,10 @@ func (r *TestDetailBlockChainReader) GetLatestNonce(address *types.AddressHash) 
 	return 0, nil
 }
 
+func (r *TestDetailBlockChainReader) GetReceipt(*crypto.HashType) (*types.Receipt, error) {
+	return nil, nil
+}
+
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {
 	addr, amount := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).

@@ -1719,6 +1719,11 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	return txOuts
 }
 
+// GetReceipt get receipt.
+func (chain *BlockChain) GetReceipt(*crypto.HashType) (*types.Receipt, error) {
+	return nil, nil
+}
+
 type splitAddrInfo struct {
 	addrs   []types.Address
 	weights []uint64
