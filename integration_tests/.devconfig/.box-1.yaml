@@ -29,7 +29,7 @@ rpc:
     port: 19111
     http:
         port: 19110
-    faucet_keyfile: ../keyfile/key1.keystore
+    faucet_keyfile: ./keyfile/pre.keystore
     subscribe_blocks: true
 
 dpos:
