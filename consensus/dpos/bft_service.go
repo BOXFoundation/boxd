@@ -130,7 +130,8 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 func (bft *BftService) updateEternal(block *types.Block) {
 
 	if block.Header.Height <= bft.chain.EternalBlock().Header.Height {
-		logger.Warnf("No need to update eternal block because the height is lower than current eternal block height")
+		logger.Info("No need to update eternal block because the height is lower " +
+			"than current eternal block height")
 		return
 	}
 	if err := bft.chain.SetEternal(block); err != nil {
@@ -138,8 +139,8 @@ func (bft *BftService) updateEternal(block *types.Block) {
 			block.BlockHash().String(), block.Header.Height, err.Error())
 		return
 	}
-	logger.Infof("Eternal block has changed! Hash: %s Height: %d", block.BlockHash(), block.Header.Height)
-
+	logger.Infof("Eternal block has changed! Hash: %s Height: %d",
+		block.BlockHash(), block.Header.Height)
 }
 
 func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {

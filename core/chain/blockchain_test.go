@@ -123,7 +123,7 @@ func TestBlockProcessing(t *testing.T) {
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
-	b1.Header.RootHash.SetString("21f2a68960cdc2eb60910e0c80a8d61aa44ae8ce58e38a7bd13d0d24c7d89341")
+	b1.Header.RootHash.SetString("c1fe380cc58ea1bfdb6bf400f925b8d28df9699018d99e03edb15f855cf334e6")
 	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 	balance := getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
@@ -154,7 +154,7 @@ func TestBlockProcessing(t *testing.T) {
 	// add a tx spending from previous block's coinbase
 	b2.Txs = append(b2.Txs, createGeneralTx(b1.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b2.Header.TxsRoot = *CalcTxsHash(b2.Txs)
-	b2.Header.RootHash.SetString("bb69b01a6533fc0cad78a352aa554aea6f3a0fe390f523c1910742e50925d2af")
+	b2.Header.RootHash.SetString("03ccf8dd9752fdd049b2228352af7a2761f5227276d8be33c6c0444385e6ea70")
 	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
 	t.Logf("b2 block hash: %s", b2.BlockHash())
 
@@ -170,7 +170,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2 -> b3
 	b3 := nextBlock(b2)
 	b3.Header.TxsRoot = *CalcTxsHash(b3.Txs)
-	b3.Header.RootHash.SetString("eda5ad0d1f613344be6fbddaed11386d0e6deb1e429ff0bb0daa4fbddc49a9a2")
+	b3.Header.RootHash.SetString("90feb7c1db004ec0ee129f7afbb82202569662627caa738e42666fc6e96ce255")
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(100*core.DuPerBox))
@@ -184,7 +184,7 @@ func TestBlockProcessing(t *testing.T) {
 	splitTx, splitAddr = createSplitTx(b2.Txs[0], 0)
 	b3A.Txs = append(b3A.Txs, splitTx)
 	b3A.Header.TxsRoot = *CalcTxsHash(b3A.Txs)
-	b3A.Header.RootHash.SetString("eda5ad0d1f613344be6fbddaed11386d0e6deb1e429ff0bb0daa4fbddc49a9a2")
+	b3A.Header.RootHash.SetString("90feb7c1db004ec0ee129f7afbb82202569662627caa738e42666fc6e96ce255")
 	verifyProcessBlock(t, blockChain, b3A, core.ErrBlockInSideChain, 3, b3)
 	t.Logf("b3A block hash: %s", b3A.BlockHash())
 
@@ -198,7 +198,7 @@ func TestBlockProcessing(t *testing.T) {
 	b4ATx := createGeneralTx(b3A.Txs[0], 0, 50*core.DuPerBox, splitAddr, privKeyMiner, pubKeyMiner)
 	b4A.Txs = append(b4A.Txs, b4ATx)
 	b4A.Header.TxsRoot = *CalcTxsHash(b4A.Txs)
-	b4A.Header.RootHash.SetString("543f8bd7dc6de47023b6a25e940c2a55c2c86827de22abc359ded17a30fd9054")
+	b4A.Header.RootHash.SetString("0d2282d5a7f4e49e62eaaa267f04d3630241b8922e93456531078ec93834f6c8")
 	t.Logf("b4A block hash: %s", b4A.BlockHash())
 	verifyProcessBlock(t, blockChain, b4A, nil, 4, b4A)
 
@@ -220,11 +220,11 @@ func TestBlockProcessing(t *testing.T) {
 	// 		           -> b3A -> b4A
 	// Tx: miner -> user: 50
 	b4 := nextBlock(b3)
-	b4.Header.RootHash.SetString("e3064212a29fe1f77b6729e95d83034812c2e1038b37ff553a5ebc829ffc0878")
+	b4.Header.RootHash.SetString("51c3fbc31fb249e03f61c639ffc7520f5c01dbde33536423593bea2aaa0da095")
 	t.Logf("b4 block hash: %s", b4.BlockHash())
 	verifyProcessBlock(t, blockChain, b4, core.ErrBlockInSideChain, 4, b4A)
 	b5 := nextBlock(b4)
-	b5.Header.RootHash.SetString("56210d5e1322e2511c9ac65221bf3a5f61fb071ac5b6e82edc9066fc5effe3f7")
+	b5.Header.RootHash.SetString("33c885f0749832caf4fb92120d22045f54a7330849be906fd9c377624d84f14e")
 	t.Logf("b5 block hash: %s", b5.BlockHash())
 	verifyProcessBlock(t, blockChain, b5, nil, 5, b5)
 
@@ -247,7 +247,7 @@ func TestBlockProcessing(t *testing.T) {
 	b5A := nextBlock(b4A)
 	b5A.Txs = append(b5A.Txs, createGeneralTx(b4A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b5A.Header.TxsRoot = *CalcTxsHash(b5A.Txs)
-	b5A.Header.RootHash.SetString("cacec7a6dc8783b967911741ae825ec272e79f67cdcd8a11aae0b6a512f0478f")
+	b5A.Header.RootHash.SetString("3e8994993e73bc5c0e0d0509d2b25f695fd8802aa2c7dd692f1efd0b7fe82677")
 	t.Logf("b5A block hash: %s", b5A.BlockHash())
 	verifyProcessBlock(t, blockChain, b5A, core.ErrBlockInSideChain, 5, b5)
 
@@ -255,14 +255,14 @@ func TestBlockProcessing(t *testing.T) {
 	b6A.Txs = append(b6A.Txs, createGeneralTx(b3A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
 	// reorg has happened
-	b6A.Header.RootHash.SetString("7b4ba7c2d7eccdb422fcc1640226131f25aa30e2ae6d3194455bd05fec9fdb3d")
+	b6A.Header.RootHash.SetString("a22718f2316c661afbb3e935c4a54d01f3840cbb17e4e1ae3567fbee31488a61")
 	t.Logf("b6A block hash: %s", b6A.BlockHash())
 	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5A)
 
 	b6A = nextBlock(b5A)
 	b6A.Txs = append(b6A.Txs, createGeneralTx(b5A.Txs[0], 0, 50*core.DuPerBox, userAddr.String(), privKeyMiner, pubKeyMiner))
 	b6A.Header.TxsRoot = *CalcTxsHash(b6A.Txs)
-	b6A.Header.RootHash.SetString("ad6f0fb9f02e2410869ba1f9403627e5155aa175ae612daab899c32c6c437d2c")
+	b6A.Header.RootHash.SetString("a22718f2316c661afbb3e935c4a54d01f3840cbb17e4e1ae3567fbee31488a61")
 	t.Logf("b6A block hash: %s", b6A.BlockHash())
 	verifyProcessBlock(t, blockChain, b6A, nil, 6, b6A)
 
@@ -298,7 +298,7 @@ func TestBlockProcessing(t *testing.T) {
 	b7ATx := createGeneralTx(b4ASplitTx, 0, 25*core.DuPerBox, userAddr.String(), privKeySplitA, pubKeySplitA)
 	b7A.Txs = append(b7A.Txs, b7ATx)
 	b7A.Header.TxsRoot = *CalcTxsHash(b7A.Txs)
-	b7A.Header.RootHash.SetString("3886134dfe459cf0dc9851c121bea380e2ef799f308d46d1708625cbd17d417e")
+	b7A.Header.RootHash.SetString("b4d2ea8f010720a088bbfef7c7d2ed6b96cf6502b6ec8f47a787095837b77417")
 	t.Logf("b7A block hash: %s", b7A.BlockHash())
 	verifyProcessBlock(t, blockChain, b7A, nil, 7, b7A)
 
@@ -327,11 +327,11 @@ func TestBlockProcessing(t *testing.T) {
 	// Tx: miner -> user: 50
 	// Tx: miner -> user: 50
 	b7B := nextBlock(b6A)
-	b7B.Header.RootHash.SetString("114123f3fd8a170693a1319533d447c812cf1823f548d7f25416b8064a0168ed")
+	b7B.Header.RootHash.SetString("d2d031cf2c2fa1ff6d91d1d74fa58a1cf9a2e732f5a1928c9c3a1fec88d3c6d6")
 	t.Logf("b7B block hash: %s", b7B.BlockHash())
 	verifyProcessBlock(t, blockChain, b7B, core.ErrBlockInSideChain, 7, b7A)
 	b8B := nextBlock(b7B)
-	b8B.Header.RootHash.SetString("e709f664ec4af99fe2fc24da282eae259452a2cf0d9cd443b7b9809f01b572d4")
+	b8B.Header.RootHash.SetString("01986252cf2e0e78760bab02f837e773510d8c1dd930a62f352656934a81534c")
 	t.Logf("b8B block hash: %s", b8B.BlockHash())
 	verifyProcessBlock(t, blockChain, b8B, nil, 8, b8B)
 
@@ -355,19 +355,19 @@ func TestBlockProcessing(t *testing.T) {
 	// Tx: miner -> split address: 50
 	// Tx: splitA -> user: 25
 	b6 := nextBlock(b5)
-	b6.Header.RootHash.SetString("4d9f26b6aee6e22a4c1955b8b6bfb945b8f9bd59fb670e94b605533f772e0604")
+	b6.Header.RootHash.SetString("59be773628a50bc3f0c63abc8378390eabf5571d5bd301391254c647393653fd")
 	t.Logf("b6 block hash: %s", b6.BlockHash())
 	verifyProcessBlock(t, blockChain, b6, core.ErrBlockInSideChain, 8, b8B)
 	b7 := nextBlock(b6)
-	b7.Header.RootHash.SetString("64209a7f9a2b2950eb06c87575be42983bf87944c95279e328edc24042e3e988")
+	b7.Header.RootHash.SetString("b5bff099dfb0ef9416fa1dfb6c7c0c89d0eafe3186e1d3911b1f4dbbb768e6e7")
 	t.Logf("b7 block hash: %s", b7.BlockHash())
 	verifyProcessBlock(t, blockChain, b7, core.ErrBlockInSideChain, 8, b8B)
 	b8 := nextBlock(b7)
-	b8.Header.RootHash.SetString("157f575985a57702b6327ea9042462a635321a2ab5fb490eaa54f5146c22dcd7")
+	b8.Header.RootHash.SetString("00494e2ee75a07b21c58ba9c58084e06f48b08bc9d292925828daee1824d10e9")
 	t.Logf("b8 block hash: %s", b8.BlockHash())
 	verifyProcessBlock(t, blockChain, b8, core.ErrBlockInSideChain, 8, b8B)
 	b9 := nextBlock(b8)
-	b9.Header.RootHash.SetString("33dfd0f709a7ec504cb135705cae978426f2d5745de8196199ecd6921bfcc1f5")
+	b9.Header.RootHash.SetString("03c7d4a41dc98f0a053ebb156c8f1b3339e86ed1f56a31984fa96ecae48ada61")
 	t.Logf("b9 block hash: %s", b9.BlockHash())
 	verifyProcessBlock(t, blockChain, b9, nil, 9, b9)
 
@@ -635,7 +635,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
-	b1.Header.RootHash.SetString("21f2a68960cdc2eb60910e0c80a8d61aa44ae8ce58e38a7bd13d0d24c7d89341")
+	b1.Header.RootHash.SetString("c1fe380cc58ea1bfdb6bf400f925b8d28df9699018d99e03edb15f855cf334e6")
 	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 	balance := getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ := blockChain.GetBalance(minerAddr)
@@ -657,7 +657,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	ensure.DeepEqual(t, err, nil)
 
 	b2 := nextBlockWithTxs(b1, tx)
-	b2.Header.RootHash.SetString("09d69c41cf7131cc6a8c48ce2c47e8e569a85ae38935031a440a0a16ba35f119")
+	b2.Header.RootHash.SetString("97057e28c8faf3dc1343890faa4aaf65765c6ea726eb0125d9188c202bb8a3d7")
 	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
 	// check balance
 	// for userAddr
@@ -765,7 +765,7 @@ func TestFaucetContract(t *testing.T) {
 	t.Logf("contract address: %s", contractAddr)
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
-	b3.Header.RootHash.SetString("dd02c00cc69b774ec89c2e91c0ef71639392771d096f1a846daaddf7ffe5777f")
+	b3.Header.RootHash.SetString("7a999efa9fcc0d58b3a0e0959ef40cfef8df019a7945d7157033d24435690e83")
 	b3.Header.UtxoRoot.SetString("1f7c29b65e9d91e32c277b89625d029a186980678934fc306c9b3863e94047ae")
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b3.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -808,7 +808,7 @@ func TestFaucetContract(t *testing.T) {
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b4 := nextBlockWithTxs(b3, vmTx)
-	b4.Header.RootHash.SetString("c833b1ecae30348d99756b108508636d25bd9174750f8dfe85a00c2b06b185fa")
+	b4.Header.RootHash.SetString("af3defef7e1a7fe8866ba1e14be3a567920a04bae7a77bdbf4095f9a0ecd6f3f")
 	b4.Header.UtxoRoot.SetString("d864e05ae4fc42f2a0c835c3a2b1c3cb465f37e9b027b11444ba86f2b4bc1ec5")
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b4.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -846,7 +846,7 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), vmValue))
 	//
 	b5 := nextBlockWithTxs(b4, vmTx)
-	b5.Header.RootHash.SetString("8c1d5afee9e31f4763c172400c576d736eacbb89f56b65948c0d79e1c39c558d")
+	b5.Header.RootHash.SetString("0bf64507600e191311f40c2ad178be827e6e43eafbd053d9c7210da1b7a35dd8")
 	b5.Header.UtxoRoot.SetString("14e7c26979eaad23cecdccc6cda0cea53b4d4bdcc9762e9967204dac15b2d370")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
@@ -911,7 +911,7 @@ func TestFaucetContract(t *testing.T) {
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b6 = nextBlockWithTxs(b5, vmTx)
-	b6.Header.RootHash.SetString("eb6c9fe38d82a6621362e0e2a5c1a9f5aa2aab4c0df91cb59a87c03db270cc33")
+	b6.Header.RootHash.SetString("b955aba83fd8773d33dab64bb961c2c72cc095fc0529a41984f4b4c39c05b54b")
 	b6.Header.UtxoRoot.SetString("14e7c26979eaad23cecdccc6cda0cea53b4d4bdcc9762e9967204dac15b2d370")
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
 	b6.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1036,7 +1036,7 @@ func TestCoinContract(t *testing.T) {
 	// TODO
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
-	b3.Header.RootHash.SetString("ee212e58a007aae201af0ead78153a59e10d539afb48d606849c06979c99f87c")
+	b3.Header.RootHash.SetString("e64182ce966ec345c08a8f139331e7b96c3cf6069c5e2f55a080a0061fa09ae1")
 	b3.Header.UtxoRoot.SetString("e1a0454959180c1153acf33fd33e85cc8df003f383454f2ba7b376b911a9bbd1")
 	vmTxHash, _ := vmTx.TxHash()
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -1071,7 +1071,7 @@ func TestCoinContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b4 := nextBlockWithTxs(b3, vmTx)
-	b4.Header.RootHash.SetString("4fa01bbb37c0e3eb09fc8970d0839fda1045ba69e6fb8a1e4c37e36ae7a0fec5")
+	b4.Header.RootHash.SetString("74094671ea59c16d215cb0797f51d8ded5a1e0c8932bddb82b2a86f7b9366fe6")
 	b4.Header.UtxoRoot.SetString("e1a0454959180c1153acf33fd33e85cc8df003f383454f2ba7b376b911a9bbd1")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -1106,7 +1106,7 @@ func TestCoinContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b5 := nextBlockWithTxs(b4, vmTx)
-	b5.Header.RootHash.SetString("03b95543ab6df57e85805daef94445f704a40c1cc626bacf4a0b62261f3bb619")
+	b5.Header.RootHash.SetString("aa0c32471602b461406f808a27d0f911f4e440ff62280c5c059b52a556bd5130")
 	b5.Header.UtxoRoot.SetString("e1a0454959180c1153acf33fd33e85cc8df003f383454f2ba7b376b911a9bbd1")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -1141,7 +1141,7 @@ func TestCoinContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, vmTx)
-	b6.Header.RootHash.SetString("d313f0e01fc69315273a8c65599f358e8874a6328814bb9825539a973179d738")
+	b6.Header.RootHash.SetString("404aa027eb404b7d3608ccc4f87f7e866916cf4ef646176088e68ad63b0e8779")
 	b6.Header.UtxoRoot.SetString("e1a0454959180c1153acf33fd33e85cc8df003f383454f2ba7b376b911a9bbd1")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -1180,7 +1180,7 @@ func TestCoinContract(t *testing.T) {
 	gasRefundTxHash, _ := gasRefundTx.TxHash()
 	t.Logf("refund tx: %s", gasRefundTxHash)
 	b7 := nextBlockWithTxs(b6, vmTx)
-	b7.Header.RootHash.SetString("9673b80edbead1af682a1c3ccf49965eb670aa5c029d3ceae39a55e1d296d062")
+	b7.Header.RootHash.SetString("a0589aeda39379bc4a5e3c368ea43c3acbd5e5395af9c60bc890826d5a28ae5d")
 	b7.Header.UtxoRoot.SetString("e1a0454959180c1153acf33fd33e85cc8df003f383454f2ba7b376b911a9bbd1")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -1234,7 +1234,7 @@ func TestChainTx(t *testing.T) {
 	txs = append(txs, tx)
 
 	b3 := nextBlockWithTxs(b2, txs...)
-	b3.Header.RootHash.SetString("52fa01aaefa2dce0b7e56113090c92e910fae51efb8f0290436bad07e9b69777")
+	b3.Header.RootHash.SetString("f8f8a8687f0c1cbb4013c5cc7b3971ff93feb262ab5201906aed82976ff3f714")
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
 	// check balance
 	// for userAddr

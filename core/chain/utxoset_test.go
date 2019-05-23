@@ -86,19 +86,19 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 
 	utxoSet := NewUtxoSet()
 
-	err := utxoSet.AddUtxo(tx, txOutIdx, blockHeight, nil)
+	err := utxoSet.AddUtxo(tx, txOutIdx, blockHeight)
 	ensure.Nil(t, err)
 
-	err2 := utxoSet.AddUtxo(tx1, txOutIdx, blockHeight1, nil)
+	err2 := utxoSet.AddUtxo(tx1, txOutIdx, blockHeight1)
 	ensure.Nil(t, err2)
 
 	// test for ErrTxOutIndexOob
-	err3 := utxoSet.AddUtxo(tx1, txOutIdxErr, blockHeight, nil)
+	err3 := utxoSet.AddUtxo(tx1, txOutIdxErr, blockHeight)
 	ensure.NotNil(t, err3)
 	ensure.DeepEqual(t, err3, core.ErrTxOutIndexOob)
 
 	// test for ErrAddExistingUtxo
-	err4 := utxoSet.AddUtxo(tx, txOutIdx, blockHeight, nil)
+	err4 := utxoSet.AddUtxo(tx, txOutIdx, blockHeight)
 	ensure.NotNil(t, err4)
 	ensure.DeepEqual(t, err4, core.ErrAddExistingUtxo)
 
