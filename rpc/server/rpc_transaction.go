@@ -471,7 +471,7 @@ func (s *txServer) MakeUnsignedContractTx(
 	utxos := make([]*rpcpb.Utxo, 0)
 
 	if err := types.ValidateAddr(sender); err != nil ||
-		strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
+		!strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
 		return newMakeContractTxResp(-1, "invalid sender address", nil, nil, ""), nil
 	}
 	contractAddr := req.GetContractAddr()
@@ -499,7 +499,7 @@ func (s *txServer) MakeUnsignedContractTx(
 		contractAddr = contractAddress.String()
 	} else {
 		if err := types.ValidateAddr(); err != nil ||
-			strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
+			!strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
 			return newMakeContractTxResp(-1, "invalid contract address", nil, nil, ""), nil
 		}
 		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, sender, amount,
