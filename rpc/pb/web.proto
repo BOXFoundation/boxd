@@ -23,6 +23,13 @@ service WebApi {
         };
     }
 
+    rpc ViewContractTxDetail (ViewContractTxDetailReq) returns (ViewContractTxDetailResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/detail"
+            body: "*"
+        };
+    }
+
     rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
 
     rpc DoCall (CallReq) returns (CallResp) {
@@ -45,18 +52,19 @@ message ViewTxDetailReq {
     bool spread_split = 2;
 }
 
+enum TxStatus {
+    unknown = 0;
+    pending = 1;
+    onchain = 2;
+    confirmed = 3;
+}
+
 message ViewTxDetailResp {
     int32 code = 1;
     string message = 2;
     int32 version = 3;
     int64 block_time = 4;
     uint32 block_height = 5;
-    enum TxStatus {
-        unknown = 0;
-        pending = 1;
-        onchain = 2;
-        confirmed = 3;
-    }
     TxStatus status = 6;
     TxDetail detail = 7;
 }
@@ -69,6 +77,37 @@ message ViewBlockDetailResp {
     int32 code = 1;
     string message = 2;
     BlockDetail detail = 3;
+}
+
+message ViewContractTxDetailReq {
+    string hash = 1;
+}
+
+message ViewContractTxDetailResp {
+    int32 code = 1;
+    string message = 2;
+    int32 version = 3;
+    int64 block_time = 4;
+    uint32 block_height = 5;
+    TxStatus status = 6;
+    ContractTxDetail detail = 7;
+}
+
+message ContractTxDetail {
+    string hash = 1;
+    repeated TxInDetail vin = 2;
+    repeated TxOutDetail vout = 3;
+    Receipt receipt = 4;
+}
+
+message Receipt {
+  uint32 fee = 1;
+  bool failed = 2;
+  uint64 gas_limit = 3;
+  uint64 gas_used = 4;
+  uint64 gas_price = 5;
+  uint64 nonce = 6;
+  bytes data = 7;
 }
 
 message ListenBlocksReq {

@@ -60,6 +60,7 @@ type webapiServer struct {
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	GetDataFromDB([]byte) ([]byte, error)
+	GetReceipt(*crypto.HashType) (*types.Receipt, error)
 }
 
 // ChainBlockReader defines chain block reader interface
@@ -151,9 +152,9 @@ func (s *webapiServer) ViewTxDetail(
 	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
 		// calc tx status
 		if blockConfirmed(block, br) {
-			resp.Status = rpcpb.ViewTxDetailResp_confirmed
+			resp.Status = rpcpb.TxStatus_confirmed
 		} else {
-			resp.Status = rpcpb.ViewTxDetailResp_onchain
+			resp.Status = rpcpb.TxStatus_onchain
 		}
 		resp.BlockTime = block.Header.TimeStamp
 		resp.BlockHeight = block.Header.Height
@@ -165,7 +166,7 @@ func (s *webapiServer) ViewTxDetail(
 			return newViewTxDetailResp(-1, "tx not found"), nil
 		}
 		tx = txWrap.Tx
-		resp.Status = rpcpb.ViewTxDetailResp_pending
+		resp.Status = rpcpb.TxStatus_pending
 		resp.BlockTime = txWrap.AddedTimestamp
 		resp.BlockHeight = txWrap.Height
 	}
@@ -177,6 +178,72 @@ func (s *webapiServer) ViewTxDetail(
 		return newViewTxDetailResp(-1, err.Error()), nil
 	}
 	//
+	resp.Detail = detail
+	return resp, nil
+}
+
+func newViewContractTxDetailResp(code int32, msg string) *rpcpb.ViewContractTxDetailResp {
+	return &rpcpb.ViewContractTxDetailResp{
+		Code:    code,
+		Message: msg,
+	}
+}
+
+func (s *webapiServer) ViewContractTxDetail(
+	ctx context.Context, req *rpcpb.ViewContractTxDetailReq,
+) (*rpcpb.ViewContractTxDetailResp, error) {
+
+	logger.Infof("view tx detail req: %+v", req)
+	// fetch hash from request
+	hash := new(crypto.HashType)
+	if err := hash.SetString(req.Hash); err != nil {
+		logger.Warn("view contract tx detail error: ", err)
+		return newViewContractTxDetailResp(-1, err.Error()), nil
+	}
+	// new resp
+	resp := new(rpcpb.ViewContractTxDetailResp)
+	// fetch tx from chain and set status
+	var tx *types.Transaction
+	var block *types.Block
+	var err error
+	br, tr := s.ChainBlockReader, s.TxPoolReader
+	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
+		// calc tx status
+		if blockConfirmed(block, br) {
+			resp.Status = rpcpb.TxStatus_confirmed
+		} else {
+			resp.Status = rpcpb.TxStatus_onchain
+		}
+		resp.BlockTime = block.Header.TimeStamp
+		resp.BlockHeight = block.Header.Height
+	} else {
+		logger.Warnf("view tx detail load block by tx hash %s error: %s,"+
+			" try get it from tx pool", hash, err)
+		txWrap, _ := tr.GetTxByHash(hash)
+		if txWrap == nil {
+			return newViewContractTxDetailResp(-1, "tx not found"), nil
+		}
+		tx = txWrap.Tx
+		resp.Status = rpcpb.TxStatus_pending
+		resp.BlockTime = txWrap.AddedTimestamp
+		resp.BlockHeight = txWrap.Height
+	}
+	resp.Version = tx.Version
+
+	detail := new(rpcpb.ContractTxDetail)
+
+	// get tx details.
+	txDetail, err := detailTx(tx, br, tr, false, true)
+	if err != nil {
+		logger.Warn("view tx detail error: ", err)
+		return newViewContractTxDetailResp(-1, err.Error()), nil
+	}
+	detail.Hash = txDetail.Hash
+	detail.Vin = txDetail.Vin
+	detail.Vout = txDetail.Vout
+
+	// get tx reveipt.
+
 	resp.Detail = detail
 	return resp, nil
 }
