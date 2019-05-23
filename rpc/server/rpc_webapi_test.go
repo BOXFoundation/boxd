@@ -309,7 +309,7 @@ func (r *TestDetailBlockChainReader) GetEvmByHeight(msg types.Message, height ui
 	return nil, nil, nil
 }
 
-func (r *TestDetailBlockChainReader) NonceByHeight(address *types.AddressHash, height uint32) (uint64, error) {
+func (r *TestDetailBlockChainReader) GetLatestNonce(address *types.AddressHash) (uint64, error) {
 	return 0, nil
 }
 
