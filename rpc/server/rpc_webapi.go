@@ -217,7 +217,7 @@ func (s *webapiServer) ViewContractTxDetail(
 		resp.BlockTime = block.Header.TimeStamp
 		resp.BlockHeight = block.Header.Height
 	} else {
-		logger.Warnf("view tx detail load block by tx hash %s error: %s,"+
+		logger.Warnf("view contract tx detail load block by tx hash %s error: %s,"+
 			" try get it from tx pool", hash, err)
 		txWrap, _ := tr.GetTxByHash(hash)
 		if txWrap == nil {
@@ -235,7 +235,7 @@ func (s *webapiServer) ViewContractTxDetail(
 	// get tx details.
 	txDetail, err := detailTx(tx, br, tr, false, true)
 	if err != nil {
-		logger.Warn("view tx detail error: ", err)
+		logger.Warn("view contract tx detail error: ", err)
 		return newViewContractTxDetailResp(-1, err.Error()), nil
 	}
 	detail.Hash = txDetail.Hash
@@ -243,7 +243,42 @@ func (s *webapiServer) ViewContractTxDetail(
 	detail.Vout = txDetail.Vout
 
 	// get tx reveipt.
+	receipt, err := br.GetReceipt(hash)
+	if err != nil {
+		logger.Warn("view contract tx detail error: ", err)
+		return newViewContractTxDetailResp(-1, err.Error()), nil
+	}
 
+	// get script params.
+	var params *types.VMTxParams
+	var typ types.ContractType
+	for _, vout := range tx.Vout {
+		sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			params, typ, err = sc.ParseContractParams()
+			if err != nil {
+				logger.Warn("view contract tx detail error: ", err)
+				return newViewContractTxDetailResp(-1, err.Error()), nil
+			}
+			if typ != types.ContractUnkownType {
+				break
+			}
+		}
+	}
+	if params == nil {
+		logger.Warn("view contract tx detail error: cannot find params")
+		return newViewContractTxDetailResp(-1, "cannot find params"), nil
+	}
+
+	detailReceipt := new(rpcpb.Receipt)
+	detailReceipt.Fee = uint32(receipt.GasUsed * params.GasPrice)
+	detailReceipt.Failed = receipt.Failed
+	detailReceipt.GasLimit = params.GasLimit
+	detailReceipt.GasUsed = receipt.GasUsed
+	detailReceipt.Nonce = params.Nonce
+	detailReceipt.Data = params.Code
+
+	detail.Receipt = detailReceipt
 	resp.Detail = detail
 	return resp, nil
 }
