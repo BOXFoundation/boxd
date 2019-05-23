@@ -136,16 +136,21 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		logger.Error("Failed to load genesis block ", err)
 		return nil, err
 	}
+	logger.Warnf("load genesis block: %s", b.genesis.BlockHash())
 
 	if b.eternal, err = b.LoadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
+	logger.Warnf("load eternal block: %s, height: %d", b.eternal.BlockHash(),
+		b.eternal.Header.Height)
 
 	if b.tail, err = b.loadTailBlock(); err != nil {
 		logger.Error("Failed to load tail block ", err)
 		return nil, err
 	}
+	logger.Warnf("load tail block: %s, height: %d", b.tail.BlockHash(),
+		b.tail.Header.Height)
 	b.LongestChainHeight = b.tail.Header.Height
 
 	return b, nil
@@ -805,11 +810,12 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		}
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-		if err := utxoSet.ApplyBlock(blockCopy, stateDB, chain.db); err != nil {
+		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
 			return err
 		}
 
-		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
+		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
+			block, stateDB, utxoSet)
 		if err != nil {
 			logger.Error(err)
 			return err
@@ -823,7 +829,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
-			if err := utxoSet.ApplyInternalTxs(block, stateDB, chain.db); err != nil {
+			if err := utxoSet.ApplyInternalTxs(block, chain.db); err != nil {
 				return err
 			}
 		}
@@ -838,13 +844,14 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 		if !root.IsEqual(&block.Header.RootHash) {
-			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, block hash: %s",
-				block.Header.RootHash, root, block.BlockHash())
+			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
+				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
+				block.Header.Height)
 		}
 		if !utxoRoot.IsEqual(&block.Header.UtxoRoot) &&
 			!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {
-			return fmt.Errorf("Invalid utxo state root in block header, have %s, got: %s",
-				block.Header.UtxoRoot, utxoRoot)
+			return fmt.Errorf("Invalid utxo state root in block header, have %s, got: %s, "+
+				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.Header.Height)
 		}
 		chain.stateDBCache[block.Header.Height] = stateDB
 		if len(receipts) > 0 {
@@ -1216,10 +1223,6 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	genesis.Txs = genesisTxs
 	genesis.Header.TxsRoot = *CalcTxsHash(genesisTxs)
 
-	genesisBin, err := genesis.Marshal()
-	if err != nil {
-		return nil, err
-	}
 	// batch := chain.db.NewBatch()
 	chain.db.EnableBatch()
 	defer chain.db.DisableBatch()
@@ -1230,8 +1233,25 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 			utxoSet.AddUtxo(v, uint32(idx), genesis.Header.Height, chain.db)
 		}
 	}
+	// statedb
+	stateDB, err := state.New(nil, nil, chain.db)
+	if err != nil {
+		return nil, err
+	}
+	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
+	root, _, err := stateDB.Commit(false)
+	if err != nil {
+		return nil, err
+	}
+	logger.Warnf("genesis root hash: %s", *root)
+	genesis.Header.RootHash = *root
+
 	utxoSet.WriteUtxoSetToDB(chain.db)
-	if err := chain.WriteTxIndex(&genesis, map[crypto.HashType]*types.Transaction{}, chain.db); err != nil {
+	if err := chain.WriteTxIndex(&genesis, nil, chain.db); err != nil {
+		return nil, err
+	}
+	genesisBin, err := genesis.Marshal()
+	if err != nil {
 		return nil, err
 	}
 	chain.db.Put(BlockKey(genesis.BlockHash()), genesisBin)
@@ -1240,7 +1260,6 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, err
 	}
 	return &genesis, nil
-
 }
 
 // LoadEternalBlock returns the current highest eternal block

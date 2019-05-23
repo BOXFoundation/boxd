@@ -13,7 +13,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
-	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
@@ -150,8 +149,7 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 }
 
 func (u *UtxoSet) applyUtxo(
-	tx *types.Transaction, txOutIdx uint32, blockHeight uint32,
-	stateDB *state.StateDB, reader storage.Reader,
+	tx *types.Transaction, txOutIdx uint32, blockHeight uint32, reader storage.Reader,
 ) error {
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
@@ -222,10 +220,10 @@ func (u *UtxoSet) applyUtxo(
 }
 
 // applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, stateDB *state.StateDB, db storage.Table) error {
+func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, db storage.Table) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
-		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, stateDB, db); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, db); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				// This can occur when a tx spends from another tx in front of it in the same block
 				continue
@@ -249,9 +247,9 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, stateDB *st
 	return nil
 }
 
-func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, stateDB *state.StateDB, db storage.Table) error {
+func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, db storage.Table) error {
 	for txOutIdx := range tx.Vout {
-		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, stateDB, db); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, db); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				continue
 			}
@@ -262,9 +260,9 @@ func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, sta
 }
 
 // ApplyInternalTxs applies internal txs in block
-func (u *UtxoSet) ApplyInternalTxs(block *types.Block, stateDB *state.StateDB, db storage.Table) error {
+func (u *UtxoSet) ApplyInternalTxs(block *types.Block, db storage.Table) error {
 	for _, tx := range block.InternalTxs {
-		if err := u.applyInternalTx(tx, block.Header.Height, stateDB, db); err != nil {
+		if err := u.applyInternalTx(tx, block.Header.Height, db); err != nil {
 			return err
 		}
 	}
@@ -272,10 +270,10 @@ func (u *UtxoSet) ApplyInternalTxs(block *types.Block, stateDB *state.StateDB, d
 }
 
 // ApplyBlock updates utxos with all transactions in the passed block
-func (u *UtxoSet) ApplyBlock(block *types.Block, stateDB *state.StateDB, db storage.Table) error {
+func (u *UtxoSet) ApplyBlock(block *types.Block, db storage.Table) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.applyTx(tx, block.Header.Height, stateDB, db); err != nil {
+		if err := u.applyTx(tx, block.Header.Height, db); err != nil {
 			return err
 		}
 	}

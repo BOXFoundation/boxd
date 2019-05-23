@@ -76,7 +76,7 @@ func (bft *BftService) loop(p goprocess.Process) {
 		select {
 		case msg := <-bft.blockPrepareMsgCh:
 			if err := bft.handleBlockPrepareMsg(msg); err != nil {
-				logger.Warnf("Failed to handle block prepare message. Err: %s", err.Error())
+				logger.Debugf("Failed to handle block prepare message. Err: %s", err.Error())
 			}
 		case msg := <-bft.blockCommitMsgCh:
 			if err := bft.handleBlockCommitMsg(msg); err != nil {
