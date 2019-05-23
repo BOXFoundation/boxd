@@ -636,6 +636,7 @@ func (s *Script) IsStandard() bool {
 		!s.IsTokenIssue() &&
 		!s.IsTokenTransfer() &&
 		!s.IsSplitAddrScript() &&
+		!s.IsContractPubkey() &&
 		!s.IsRegisterCandidateScript() {
 		return false
 	}
