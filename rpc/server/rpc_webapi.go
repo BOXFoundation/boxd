@@ -402,11 +402,11 @@ func (s *webapiServer) DoCall(
 
 	sender, contractAddr := req.GetSender(), req.GetContractAddr()
 	senderHash, err := types.ParseAddress(sender)
-	if err != nil || strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
+	if err != nil || !strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
 		return newCallResp(-1, "invalid sender address", nil), nil
 	}
 	contractAddrHash, err := types.ParseAddress(contractAddr)
-	if err != nil || strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
+	if err != nil || !strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
 		return newCallResp(-1, "invalid contract address", nil), nil
 	}
 

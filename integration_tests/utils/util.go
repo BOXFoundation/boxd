@@ -210,6 +210,7 @@ func RemoveKeystoreFiles(addrs ...string) {
 		path := walletDir + v + ".keystore"
 		os.Remove(path)
 	}
+	os.Remove(walletDir)
 	logger.Infof("remove %d keystore files", len(addrs))
 }
 
