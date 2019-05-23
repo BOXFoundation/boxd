@@ -136,20 +136,20 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		logger.Error("Failed to load genesis block ", err)
 		return nil, err
 	}
-	logger.Warnf("load genesis block: %s", b.genesis.BlockHash())
+	logger.Infof("load genesis block: %s", b.genesis.BlockHash())
 
 	if b.eternal, err = b.LoadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
 		return nil, err
 	}
-	logger.Warnf("load eternal block: %s, height: %d", b.eternal.BlockHash(),
+	logger.Infof("load eternal block: %s, height: %d", b.eternal.BlockHash(),
 		b.eternal.Header.Height)
 
 	if b.tail, err = b.loadTailBlock(); err != nil {
 		logger.Error("Failed to load tail block ", err)
 		return nil, err
 	}
-	logger.Warnf("load tail block: %s, height: %d", b.tail.BlockHash(),
+	logger.Infof("load tail block: %s, height: %d", b.tail.BlockHash(),
 		b.tail.Header.Height)
 	b.LongestChainHeight = b.tail.Header.Height
 
@@ -851,7 +851,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		if !utxoRoot.IsEqual(&block.Header.UtxoRoot) &&
 			!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {
 			return fmt.Errorf("Invalid utxo state root in block header, have %s, got: %s, "+
-				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.Hash, block.Header.Height)
+				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.BlockHash(),
+				block.Header.Height)
 		}
 		chain.stateDBCache[block.Header.Height] = stateDB
 		if len(receipts) > 0 {
@@ -1223,14 +1224,10 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	genesis.Txs = genesisTxs
 	genesis.Header.TxsRoot = *CalcTxsHash(genesisTxs)
 
-	// batch := chain.db.NewBatch()
-	chain.db.EnableBatch()
-	defer chain.db.DisableBatch()
-
 	utxoSet := NewUtxoSet()
 	for _, v := range genesis.Txs {
 		for idx := range v.Vout {
-			utxoSet.AddUtxo(v, uint32(idx), genesis.Header.Height, chain.db)
+			utxoSet.AddUtxo(v, uint32(idx), genesis.Header.Height)
 		}
 	}
 	// statedb
@@ -1243,8 +1240,11 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Warnf("genesis root hash: %s", *root)
+	logger.Infof("genesis root hash: %s", root)
 	genesis.Header.RootHash = *root
+
+	chain.db.EnableBatch()
+	defer chain.db.DisableBatch()
 
 	utxoSet.WriteUtxoSetToDB(chain.db)
 	if err := chain.WriteTxIndex(&genesis, nil, chain.db); err != nil {

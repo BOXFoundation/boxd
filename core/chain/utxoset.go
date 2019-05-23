@@ -65,7 +65,7 @@ func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 }
 
 // AddUtxo adds a tx's outputs as utxos
-func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32, reader storage.Reader) error {
+func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
 	// Index out of bound
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
@@ -140,7 +140,7 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 		if v, exists := spendableTxs.Load(txIn.PrevOutPoint.Hash); exists {
 			spendableTxWrap := v.(*types.TxWrap)
 			if err := utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index,
-				spendableTxWrap.Height, db); err != nil {
+				spendableTxWrap.Height); err != nil {
 				logger.Error(err)
 			}
 		}
@@ -522,7 +522,7 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db); err != nil {
+				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height); err != nil {
 					logger.Error(err)
 				}
 				continue
@@ -576,7 +576,7 @@ func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error 
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height, db); err != nil {
+				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height); err != nil {
 					logger.Error(err)
 				}
 				continue
