@@ -851,7 +851,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		if !utxoRoot.IsEqual(&block.Header.UtxoRoot) &&
 			!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {
 			return fmt.Errorf("Invalid utxo state root in block header, have %s, got: %s, "+
-				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.Header.Height)
+				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.Hash, block.Header.Height)
 		}
 		chain.stateDBCache[block.Header.Height] = stateDB
 		if len(receipts) > 0 {
@@ -1739,8 +1739,19 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 }
 
 // GetReceipt get receipt.
-func (chain *BlockChain) GetReceipt(*crypto.HashType) (*types.Receipt, error) {
-	return nil, nil
+func (chain *BlockChain) GetReceipt(hash *crypto.HashType) (*types.Receipt, error) {
+
+	key := ReceiptKey(hash)
+	value, err := chain.db.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	receipt := new(types.Receipt)
+	if err := receipt.Unmarshal(value); err != nil {
+		return nil, err
+	}
+	return receipt, nil
 }
 
 type splitAddrInfo struct {
