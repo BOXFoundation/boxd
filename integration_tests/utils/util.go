@@ -145,6 +145,9 @@ func PrepareEnv(count int) error {
 		if err := os.RemoveAll(prefix + "/logs"); err != nil {
 			return err
 		}
+		if err := os.RemoveAll(walletDir); err != nil {
+			return err
+		}
 		// check .box-*.yaml exists
 		var cfgFile string
 		if *EnableDocker {
@@ -210,7 +213,6 @@ func RemoveKeystoreFiles(addrs ...string) {
 		path := walletDir + v + ".keystore"
 		os.Remove(path)
 	}
-	os.Remove(walletDir)
 	logger.Infof("remove %d keystore files", len(addrs))
 }
 
