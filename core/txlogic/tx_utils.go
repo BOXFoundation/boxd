@@ -69,6 +69,7 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 	s := script.NewScriptFromBytes(scp)
 	if s.IsPayToPubKeyHash() ||
 		s.IsPayToPubKeyHashCLTVScript() ||
+		s.IsContractPubkey() ||
 		s.IsPayToScriptHash() {
 		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
