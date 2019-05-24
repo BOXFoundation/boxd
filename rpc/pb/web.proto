@@ -23,13 +23,6 @@ service WebApi {
         };
     }
 
-    rpc ViewContractTxDetail (ViewContractTxDetailReq) returns (ViewContractTxDetailResp) {
-        option (google.api.http) = {
-            post: "/v1/tx/detail"
-            body: "*"
-        };
-    }
-
     rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
 
     rpc DoCall (CallReq) returns (CallResp) {
@@ -79,35 +72,14 @@ message ViewBlockDetailResp {
     BlockDetail detail = 3;
 }
 
-message ViewContractTxDetailReq {
-    string hash = 1;
-}
-
-message ViewContractTxDetailResp {
-    int32 code = 1;
-    string message = 2;
-    int32 version = 3;
-    int64 block_time = 4;
-    uint32 block_height = 5;
-    TxStatus status = 6;
-    ContractTxDetail detail = 7;
-}
-
-message ContractTxDetail {
-    string hash = 1;
-    repeated TxInDetail vin = 2;
-    repeated TxOutDetail vout = 3;
-    Receipt receipt = 4;
-}
-
-message Receipt {
+message ContractInfo {
   uint32 fee = 1;
   bool failed = 2;
   uint64 gas_limit = 3;
   uint64 gas_used = 4;
   uint64 gas_price = 5;
   uint64 nonce = 6;
-  bytes data = 7;
+  string data = 7;
 }
 
 message ListenBlocksReq {
@@ -139,12 +111,15 @@ message TxOutDetail {
         token_transfer = 4;
         new_split_addr = 5;
         pay_to_script_hash = 6;
+        contract_create = 7;
+        contract_call = 8;
     }
     TxOutType type = 5; 
     oneof appendix {
         TokenIssueInfo token_issue_info = 6; 
-        TokenTransferInfo token_transfer_info= 7;
-        SplitContractInfo split_contract_info= 8;
+        TokenTransferInfo token_transfer_info = 7;
+        SplitContractInfo split_contract_info = 8;
+        ContractInfo contract_info = 9;
     }
 }
 

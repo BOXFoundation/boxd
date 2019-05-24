@@ -182,107 +182,6 @@ func (s *webapiServer) ViewTxDetail(
 	return resp, nil
 }
 
-func newViewContractTxDetailResp(code int32, msg string) *rpcpb.ViewContractTxDetailResp {
-	return &rpcpb.ViewContractTxDetailResp{
-		Code:    code,
-		Message: msg,
-	}
-}
-
-func (s *webapiServer) ViewContractTxDetail(
-	ctx context.Context, req *rpcpb.ViewContractTxDetailReq,
-) (*rpcpb.ViewContractTxDetailResp, error) {
-
-	logger.Infof("view tx detail req: %+v", req)
-	// fetch hash from request
-	hash := new(crypto.HashType)
-	if err := hash.SetString(req.Hash); err != nil {
-		logger.Warn("view contract tx detail error: ", err)
-		return newViewContractTxDetailResp(-1, err.Error()), nil
-	}
-	// new resp
-	resp := new(rpcpb.ViewContractTxDetailResp)
-	// fetch tx from chain and set status
-	var tx *types.Transaction
-	var block *types.Block
-	var err error
-	br, tr := s.ChainBlockReader, s.TxPoolReader
-	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
-		// calc tx status
-		if blockConfirmed(block, br) {
-			resp.Status = rpcpb.TxStatus_confirmed
-		} else {
-			resp.Status = rpcpb.TxStatus_onchain
-		}
-		resp.BlockTime = block.Header.TimeStamp
-		resp.BlockHeight = block.Header.Height
-	} else {
-		logger.Warnf("view contract tx detail load block by tx hash %s error: %s,"+
-			" try get it from tx pool", hash, err)
-		txWrap, _ := tr.GetTxByHash(hash)
-		if txWrap == nil {
-			return newViewContractTxDetailResp(-1, "tx not found"), nil
-		}
-		tx = txWrap.Tx
-		resp.Status = rpcpb.TxStatus_pending
-		resp.BlockTime = txWrap.AddedTimestamp
-		resp.BlockHeight = txWrap.Height
-	}
-	resp.Version = tx.Version
-
-	detail := new(rpcpb.ContractTxDetail)
-
-	// get tx details.
-	txDetail, err := detailTx(tx, br, tr, false, true)
-	if err != nil {
-		logger.Warn("view contract tx detail error: ", err)
-		return newViewContractTxDetailResp(-1, err.Error()), nil
-	}
-	detail.Hash = txDetail.Hash
-	detail.Vin = txDetail.Vin
-	detail.Vout = txDetail.Vout
-
-	// get tx reveipt.
-	receipt, err := br.GetReceipt(hash)
-	if err != nil {
-		logger.Warn("view contract tx detail error: ", err)
-		return newViewContractTxDetailResp(-1, err.Error()), nil
-	}
-
-	// get script params.
-	var params *types.VMTxParams
-	var typ types.ContractType
-	for _, vout := range tx.Vout {
-		sc := script.NewScriptFromBytes(vout.ScriptPubKey)
-		if sc.IsContractPubkey() {
-			params, typ, err = sc.ParseContractParams()
-			if err != nil {
-				logger.Warn("view contract tx detail error: ", err)
-				return newViewContractTxDetailResp(-1, err.Error()), nil
-			}
-			if typ != types.ContractUnkownType {
-				break
-			}
-		}
-	}
-	if params == nil {
-		logger.Warn("view contract tx detail error: cannot find params")
-		return newViewContractTxDetailResp(-1, "cannot find params"), nil
-	}
-
-	detailReceipt := new(rpcpb.Receipt)
-	detailReceipt.Fee = uint32(receipt.GasUsed * params.GasPrice)
-	detailReceipt.Failed = receipt.Failed
-	detailReceipt.GasLimit = params.GasLimit
-	detailReceipt.GasUsed = receipt.GasUsed
-	detailReceipt.Nonce = params.Nonce
-	detailReceipt.Data = params.Code
-
-	detail.Receipt = detailReceipt
-	resp.Detail = detail
-	return resp, nil
-}
-
 func newViewBlockDetailResp(code int32, msg string) *rpcpb.ViewBlockDetailResp {
 	return &rpcpb.ViewBlockDetailResp{
 		Code:    code,
@@ -707,6 +606,35 @@ func detailTxOut(
 			},
 		}
 		detail.Appendix = splitContractInfo
+	case rpcpb.TxOutDetail_contract_call:
+		var params *types.VMTxParams
+		var typ types.ContractType
+		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+		params, typ, err = sc.ParseContractParams()
+		if err != nil {
+			return nil, err
+		}
+
+		// get tx reveipt.
+		receipt, err := br.GetReceipt(txHash)
+		if err != nil {
+			return nil, err
+		}
+
+		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
+			ContractInfo: &rpcpb.ContractInfo{
+				Fee:      uint32(receipt.GasUsed * params.GasPrice),
+				Failed:   receipt.Failed,
+				GasLimit: params.GasLimit,
+				GasUsed:  receipt.GasUsed,
+				Nonce:    params.Nonce,
+				Data:     string(params.Code),
+			},
+		}
+		if typ == types.ContractCreationType {
+			detail.Type = rpcpb.TxOutDetail_contract_create
+		}
+		detail.Appendix = contractInfo
 	}
 	//
 	return detail, nil
@@ -726,6 +654,9 @@ func parseVoutType(txOut *corepb.TxOut) rpcpb.TxOutDetail_TxOutType {
 		return rpcpb.TxOutDetail_new_split_addr
 	} else if sc.IsPayToScriptHash() {
 		return rpcpb.TxOutDetail_pay_to_script_hash
+	} else if sc.IsContractPubkey() {
+		// distinguish create and call after this.
+		return rpcpb.TxOutDetail_contract_call
 	} else {
 		return rpcpb.TxOutDetail_unknown
 	}
