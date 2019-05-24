@@ -322,11 +322,10 @@ func (s *webapiServer) unsubscribe() error {
 	return nil
 }
 
-func newCallResp(code int32, msg string, output []byte) *rpcpb.CallResp {
+func newCallResp(code int32, msg string) *rpcpb.CallResp {
 	return &rpcpb.CallResp{
 		Code:    code,
 		Message: msg,
-		Output:  output,
 	}
 }
 
@@ -337,15 +336,15 @@ func (s *webapiServer) DoCall(
 	sender, contractAddr := req.GetSender(), req.GetContractAddr()
 	senderHash, err := types.ParseAddress(sender)
 	if err != nil || !strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
-		return newCallResp(-1, "invalid sender address", nil), nil
+		return newCallResp(-1, "invalid sender address"), nil
 	}
 	contractAddrHash, err := types.ParseAddress(contractAddr)
 	if err != nil || !strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
-		return newCallResp(-1, "invalid contract address", nil), nil
+		return newCallResp(-1, "invalid contract address"), nil
 	}
 
 	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2, 0, nil,
-		types.ContractCallType, req.GetData()).
+		types.ContractCallType, []byte(req.GetData())).
 		WithSender(senderHash.Hash160()).WithReceiver(contractAddrHash.Hash160())
 
 	// Setup context so it may be cancelled the call has completed
@@ -363,7 +362,7 @@ func (s *webapiServer) DoCall(
 	// Get a new instance of the EVM.
 	evm, vmErr, err := s.GetEvmByHeight(msg, req.Height)
 	if err != nil {
-		return newCallResp(-1, err.Error(), nil), nil
+		return newCallResp(-1, err.Error()), nil
 	}
 	// Wait for the context to be done and cancel the evm. Even if the
 	// EVM has finished, cancelling may be done (repeatedly)
@@ -376,9 +375,11 @@ func (s *webapiServer) DoCall(
 	// and apply the message.
 	ret, _, _, _, _, err := chain.ApplyMessage(evm, msg)
 	if err := vmErr(); err != nil {
-		return newCallResp(-1, err.Error(), nil), nil
+		return newCallResp(-1, err.Error()), nil
 	}
-	return newCallResp(0, "", ret), nil
+	resp := newCallResp(0, "")
+	resp.Output = string(ret)
+	return resp, nil
 }
 
 func newNonceResp(code int32, msg string, nonce uint64) *rpcpb.NonceResp {

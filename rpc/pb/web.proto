@@ -152,7 +152,7 @@ message TokenTransferInfo {
 message CallReq {
     string sender = 1;
     string contract_addr = 2;
-    bytes data = 3;
+    string data = 3;
     uint32 height = 4;
     uint32 timeout = 5;
 }
@@ -160,7 +160,7 @@ message CallReq {
 message CallResp {
     int32 code = 1;
     string message = 2;
-    bytes output = 3;
+    string output = 3;
 }
 
 message NonceReq {
