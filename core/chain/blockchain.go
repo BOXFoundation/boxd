@@ -808,6 +808,8 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			logger.Error(err)
 			return err
 		}
+		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
+			rootHash, utxoRootHash, block.BlockHash(), block.Header.Height)
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {

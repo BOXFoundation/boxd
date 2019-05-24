@@ -12,7 +12,6 @@ import (
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
-	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
@@ -97,26 +96,27 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 
 	time.Sleep(2 * time.Second)
 
+	return ""
 	// view tx detail
-	vconn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	vctx, vcancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer vcancel()
-	viewClient := rpcpb.NewWebApiClient(vconn)
-	viewReq := &rpcpb.ViewTxDetailReq{
-		Hash: sendTxResp.Hash,
-	}
-	txDetailResp, err := viewClient.ViewTxDetail(vctx, viewReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bytes, _ := json.MarshalIndent(txDetailResp, "", "  ")
-	t.Logf("tx detail: %s", string(bytes))
+	//vconn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//defer conn.Close()
+	//vctx, vcancel := context.WithTimeout(context.Background(), 3*time.Second)
+	//defer vcancel()
+	//viewClient := rpcpb.NewWebApiClient(vconn)
+	//viewReq := &rpcpb.ViewTxDetailReq{
+	//	Hash: sendTxResp.Hash,
+	//}
+	//txDetailResp, err := viewClient.ViewTxDetail(vctx, viewReq)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//bytes, _ := json.MarshalIndent(txDetailResp, "", "  ")
+	//t.Logf("tx detail: %s", string(bytes))
 
-	return txDetailResp.Detail.Hash
+	//return txDetailResp.Detail.Hash
 }
 
 // NOTE: to run this test case needs to start a node
@@ -239,7 +239,7 @@ func _TestContractTx(t *testing.T) {
 	var (
 		testFaucetContract = "608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
 		// withdraw 2000
-		testFaucetCall = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
+		//testFaucetCall = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
 	)
 
 	// contract deploy
@@ -267,24 +267,24 @@ func _TestContractTx(t *testing.T) {
 	logger.Infof("contract deploy tx hash: %s", hashStr)
 
 	// contract call
-	senderHash, _ := types.NewAddress(sender)
-	contractAddr, _ := types.MakeContractAddress(senderHash, 1)
-	req = &rpcpb.MakeContractTxReq{
-		Sender:       sender,
-		ContractAddr: contractAddr.String(),
-		Amount:       0,
-		GasPrice:     2,
-		GasLimit:     20000,
-		Nonce:        2,
-		Data:         testFaucetCall,
-	}
-	//
-	flow(t, func(ctx context.Context,
-		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedContractTx(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return sender, resp
-	})
+	//senderHash, _ := types.NewAddress(sender)
+	//contractAddr, _ := types.MakeContractAddress(senderHash, 1)
+	//req = &rpcpb.MakeContractTxReq{
+	//	Sender:       sender,
+	//	ContractAddr: contractAddr.String(),
+	//	Amount:       0,
+	//	GasPrice:     2,
+	//	GasLimit:     20000,
+	//	Nonce:        2,
+	//	Data:         testFaucetCall,
+	//}
+	////
+	//flow(t, func(ctx context.Context,
+	//	client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+	//	resp, err := client.MakeUnsignedContractTx(ctx, req)
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//	return sender, resp
+	//})
 }
