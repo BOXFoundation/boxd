@@ -343,8 +343,12 @@ func (s *webapiServer) DoCall(
 		return newCallResp(-1, "invalid contract address"), nil
 	}
 
-	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2, 0, nil,
-		types.ContractCallType, []byte(req.GetData())).
+	data, err := hex.DecodeString(req.GetData())
+	if err != nil {
+		return newCallResp(-1, "invalid contract data"), nil
+	}
+
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2, 0, nil, types.ContractCallType, data).
 		WithSender(senderHash.Hash160()).WithReceiver(contractAddrHash.Hash160())
 
 	// Setup context so it may be cancelled the call has completed
@@ -378,7 +382,7 @@ func (s *webapiServer) DoCall(
 		return newCallResp(-1, err.Error()), nil
 	}
 	resp := newCallResp(0, "")
-	resp.Output = string(ret)
+	resp.Output = hex.EncodeToString(ret)
 	return resp, nil
 }
 
@@ -629,7 +633,7 @@ func detailTxOut(
 				GasLimit: params.GasLimit,
 				GasUsed:  receipt.GasUsed,
 				Nonce:    params.Nonce,
-				Data:     string(params.Code),
+				Data:     hex.EncodeToString(params.Code),
 			},
 		}
 		if typ == types.ContractCreationType {
