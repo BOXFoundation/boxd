@@ -340,6 +340,7 @@ func (s *stateObject) setCode(codeHash corecrypto.HashType, code []byte) {
 	s.code = code
 	s.data.CodeHash = codeHash[:]
 	s.dirtyCode = true
+	logger.Errorf("EVM LOG set code: %s, %v", codeHash, code)
 }
 
 func (s *stateObject) SetNonce(nonce uint64) {

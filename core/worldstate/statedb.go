@@ -638,6 +638,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecr
 			// and just mark it for deletion in the trie.
 			s.deleteStateObject(stateObject)
 		case isDirty:
+			logger.Errorf("EVM LOG code hash: %s, stateObject: %v", stateObject.CodeHash(), stateObject)
 			// Write any contract code associated with the state object
 			if stateObject.code != nil && stateObject.dirtyCode {
 				logger.Errorf("put enable: %v, hash: %s, code: %v", s.db.IsInBatch(), stateObject.CodeHash(), stateObject.code[:])
