@@ -464,10 +464,21 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, dpos.chain.DB())
+	var rootHash, utxoRootHash *crypto.HashType
+	if parent != nil {
+		if parent.Header.RootHash != crypto.ZeroHash {
+			rootHash = &parent.Header.RootHash
+		}
+		if parent.Header.UtxoRoot != crypto.ZeroHash {
+			utxoRootHash = &parent.Header.UtxoRoot
+		}
+	}
+	statedb, err := state.New(rootHash, utxoRootHash, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
+	logger.Infof("new statedb with root: %s and utxo root: %s block %s:%d",
+		rootHash, utxoRootHash, block.BlockHash(), block.Header.Height)
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, dpos.chain.DB()); err != nil {
 		return err
@@ -478,12 +489,15 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	receipts, gasUsed, gasRemainingFee, utxoTxs, err := dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
+	receipts, gasUsed, gasRemainingFee, utxoTxs, err :=
+		dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
 
 	block.Txs[0].Vout[0].Value -= gasRemainingFee
+	blockCopy.Txs[0].Vout[0].Value -= gasRemainingFee
+	block.Txs[0].ResetTxHash()
 	// handle coinbase utxo
 	for _, v := range utxoSet.GetUtxos() {
 		if v.IsCoinBase() {
@@ -493,7 +507,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	dpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 
 	// apply internal txs.
-	if len(block.InternalTxs) > 0 {
+	block.InternalTxs = utxoTxs
+	if len(utxoTxs) > 0 {
 		if err := utxoSet.ApplyInternalTxs(block, dpos.chain.DB()); err != nil {
 			return err
 		}
@@ -518,16 +533,20 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if len(utxoTxs) > 0 {
 		internalTxsRoot := chain.CalcTxsHash(utxoTxs)
 		block.Header.InternalTxsRoot = *internalTxsRoot
-		block.InternalTxs = utxoTxs
+	}
+	if utxoRoot != nil {
 		block.Header.UtxoRoot = *utxoRoot
 	}
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
 		dpos.chain.ReceiptsCache()[block.Header.Height] = receipts
 	}
+	block.Hash = nil
 
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
-	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height, len(block.Txs), len(sortedTxs))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
+		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),
+		block.Header.Height, len(block.Txs), len(block.InternalTxs), len(sortedTxs))
 	return nil
 }
 

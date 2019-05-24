@@ -457,7 +457,7 @@ func (s *txServer) MakeUnsignedContractTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned contract tx: %s error: %s", string(bytes), resp.Message)
 		} else {
-			logger.Infof("make unsigned contract tx: %s succeeded, response: %+v", string(bytes), resp)
+			logger.Debugf("make unsigned contract tx: %s succeeded, response: %+v", string(bytes), resp)
 		}
 	}()
 	wa := s.server.GetWalletAgent()

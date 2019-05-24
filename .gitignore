@@ -34,3 +34,4 @@ integration_tests/integration_tests
 
 # Runtime
 pids.txt
+go.sum
