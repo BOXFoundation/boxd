@@ -11,9 +11,12 @@ import (
 
 	coretypes "github.com/BOXFoundation/boxd/core/types"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/vm/common/types"
 	"github.com/BOXFoundation/boxd/vm/crypto"
 )
+
+var logger = log.NewLogger("vm")
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
 // deployed contract addresses (relevant after the account abstraction).
@@ -216,7 +219,9 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 	// 		evm.vmConfig.Tracer.CaptureEnd(ret, gas-contract.Gas, time.Since(start), err)
 	// 	}()
 	// }
+	logger.Errorf("EVM LOG CODE: %v\nEVM LOG  INPUT: %v", contract.Code, input)
 	ret, err = run(evm, contract, input, false)
+	logger.Errorf("EVM LOG RET: %v, ERR: %v", ret, err)
 
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally
