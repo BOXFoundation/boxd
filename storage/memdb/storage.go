@@ -69,6 +69,13 @@ func (db *memorydb) DisableBatch() {
 	db.batch = nil
 }
 
+// IsInBatch indicates whether db is in batch
+func (db *memorydb) IsInBatch() bool {
+	db.sm.Lock()
+	defer db.sm.Unlock()
+	return db.enableBatch
+}
+
 // create a new write batch
 func (db *memorydb) NewBatch() storage.Batch {
 	return &mbatch{

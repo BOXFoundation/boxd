@@ -13,6 +13,7 @@ type Table interface {
 
 	EnableBatch()
 	DisableBatch()
+	IsInBatch() bool
 	Flush() error
 
 	// NewTransaction creates a new transaction on the Storage.

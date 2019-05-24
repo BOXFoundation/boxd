@@ -46,6 +46,13 @@ func (db *rocksdb) DisableBatch() {
 	db.batch = nil
 }
 
+// IsInBatch indicates whether db is in batch
+func (db *rocksdb) IsInBatch() bool {
+	db.sm.Lock()
+	defer db.sm.Unlock()
+	return db.enableBatch
+}
+
 // Create or Get the table associate with the name
 func (db *rocksdb) Table(name string) (storage.Table, error) {
 	db.smcfhandlers.Lock()

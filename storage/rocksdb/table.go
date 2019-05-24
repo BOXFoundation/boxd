@@ -68,6 +68,13 @@ func (t *rtable) DisableBatch() {
 	t.batch.Close()
 }
 
+// IsInBatch indicates whether db is in batch
+func (t *rtable) IsInBatch() bool {
+	t.sm.Lock()
+	defer t.sm.Unlock()
+	return t.enableBatch
+}
+
 // put the value to entry associate with the key
 func (t *rtable) Put(key, value []byte) (err error) {
 	defer func() {
