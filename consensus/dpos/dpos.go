@@ -480,7 +480,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	logger.Infof("new statedb with root: %s and utxo root: %s block %s:%d",
 		rootHash, utxoRootHash, block.BlockHash(), block.Header.Height)
 	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, dpos.chain.DB()); err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, true, dpos.chain.DB()); err != nil {
 		return err
 	}
 	blockCopy := block.Copy()

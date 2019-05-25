@@ -662,7 +662,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		utxoSet = us
 	} else {
 		utxoSet = NewUtxoSet()
-		if err := utxoSet.LoadBlockUtxos(block, chain.db); err != nil {
+		if err := utxoSet.LoadBlockUtxos(block, true, chain.db); err != nil {
 			return err
 		}
 		// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
@@ -760,6 +760,47 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	for a, v := range bSub {
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
+}
+
+// MakeRollbackContractUtxos makes finally contract utxos from block
+func (chain *BlockChain) MakeRollbackContractUtxos(
+	block *types.Block, stateDB, prevStateDB *state.StateDB,
+) types.UtxoMap {
+	bAdd, bSub := calcContractAddrBalanceChanges(block, chain.db)
+	balances := make(map[types.AddressHash]uint64, len(bAdd)+len(bSub))
+	um := make(types.UtxoMap)
+	height := block.Header.Height
+	for a, v := range bAdd {
+		ah := types.NormalizeAddressHash(&a)
+		op := types.NewOutPoint(ah, 0)
+		if _, ok := balances[a]; !ok {
+			balances[a] = stateDB.GetBalance(a).Uint64()
+			um[*op] = types.NewUtxoWrap(balances[a], nil, height)
+		}
+		utxo := um[*op]
+		utxo.SetValue(utxo.Value() - v)
+	}
+	for a, v := range bSub {
+		ah := types.NormalizeAddressHash(&a)
+		op := types.NewOutPoint(ah, 0)
+		if _, ok := balances[a]; !ok {
+			balances[a] = stateDB.GetBalance(a).Uint64()
+			um[*op] = types.NewUtxoWrap(balances[a], nil, height)
+		}
+		utxo := um[*op]
+		utxo.SetValue(utxo.Value() + v)
+	}
+	for op, u := range um {
+		ah := new(types.AddressHash)
+		ah.SetBytes(op.Hash[:])
+		b := prevStateDB.GetBalance(*ah)
+		if b.Uint64() != u.Value() {
+			addr, _ := types.NewContractAddressFromHash(ah[:])
+			logger.Fatalf("contract addr %s rollback to incorrect balance: %d, need: %d",
+				addr, u.Value(), b)
+		}
+	}
+	return um
 }
 
 // UpdateUtxoState updates contract utxo in statedb
@@ -1014,7 +1055,9 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			chain.RemoveBlock(attachBlock)
 		}
 
-		logger.Warnf("No need to reorganize, because the forkpoint height[%d] is lower than the latest eternal block height[%d].", forkpoint.Header.Height, chain.eternal.Header.Height)
+		logger.Warnf("No need to reorganize, because the forkpoint height[%d] is "+
+			"lower than the latest eternal block height[%d].",
+			forkpoint.Header.Height, chain.eternal.Header.Height)
 		return nil
 	}
 
@@ -1044,11 +1087,8 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 
 func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
 	dtt0 := time.Now().UnixNano()
-	logger.Debugf("Try to disconnect block from main chain. Hash: %s Height: %d", block.BlockHash().String(), block.Header.Height)
-	// batch := chain.db.NewBatch()
-	// defer batch.Close()
-	chain.db.EnableBatch()
-	defer chain.db.DisableBatch()
+	logger.Debugf("Try to disconnect block from main chain. Hash: %s Height: %d",
+		block.BlockHash(), block.Header.Height)
 
 	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 	blockCopy := block.Copy()
@@ -1057,21 +1097,23 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 	dtt1 := time.Now().UnixNano()
 	utxoSet := NewUtxoSet()
-	if err := utxoSet.LoadBlockAllUtxos(blockCopy, chain.db); err != nil {
+	if err := utxoSet.LoadBlockAllUtxos(blockCopy, false, chain.db); err != nil {
 		return err
 	}
 	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
 		return err
 	}
+	// calc contract utxos, then check contract addr balance
+	header := block.Header
+	stateDB, _ := state.New(&header.RootHash, &header.UtxoRoot, chain.db)
+	prevBlock, _ := chain.LoadBlockByHash(block.Header.PrevBlockHash)
+	prevHeader := prevBlock.Header
+	prevStateDB, _ := state.New(&prevHeader.RootHash, &prevHeader.UtxoRoot, chain.db)
+	contractUtxos := chain.MakeRollbackContractUtxos(block, stateDB, prevStateDB)
+	utxoSet.ImportUtxoMap(contractUtxos, false)
 
-	// update EOA accounts' balance state
-	//bAdd, bSub := utxoSet.calcBalanceChanges()
-	//for a, v := range bAdd {
-	//	stateDB.AddBalance(a, new(big.Int).SetUint64(v))
-	//}
-	//for a, v := range bSub {
-	//	stateDB.SubBalance(a, new(big.Int).SetUint64(v))
-	//}
+	chain.db.EnableBatch()
+	defer chain.db.DisableBatch()
 
 	dtt2 := time.Now().UnixNano()
 	// batch.Del(BlockKey(block.BlockHash()))
@@ -1097,6 +1139,9 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		return err
 	}
 	dtt5 := time.Now().UnixNano()
+
+	// del receipt
+	chain.db.Del(ReceiptKey(block.BlockHash()))
 
 	if err := chain.db.Flush(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
@@ -1944,4 +1989,50 @@ func HasContractSpend(tx *types.Transaction) bool {
 		}
 	}
 	return false
+}
+
+func calcContractAddrBalanceChanges(
+	block *types.Block, dbReader storage.Reader,
+) (add, sub BalanceChangeMap) {
+
+	add = make(BalanceChangeMap)
+	sub = make(BalanceChangeMap)
+	for txIdx, v := range block.Txs {
+		if !HasContractVout(v) {
+			continue
+		}
+		for _, vout := range v.Vout {
+			sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+			if !sc.IsContractPubkey() {
+				continue
+			}
+			param, t, err := sc.ParseContractParams()
+			if err != nil {
+				logger.Error(err)
+			}
+			var addr *types.AddressHash
+			if t == types.ContractCreationType {
+				sender, _ := fetchOwnerOfOutPoint(&block.Txs[txIdx].Vin[0].PrevOutPoint,
+					dbReader)
+				contractAddr, _ := types.MakeContractAddress(sender.(*types.AddressPubKeyHash),
+					param.Nonce)
+				addr = contractAddr.Hash160()
+			} else {
+				addr = param.Receiver
+			}
+			add[*addr] += vout.Value
+		}
+	}
+
+	for _, tx := range block.InternalTxs {
+		inAddr := new(types.AddressHash)
+		inAddr.SetBytes(tx.Vin[0].PrevOutPoint.Hash[:])
+		spend := uint64(0)
+		for _, out := range tx.Vout {
+			spend += out.Value
+			// TODO: if vout points to a contract address
+		}
+		sub[*inAddr] += spend
+	}
+	return
 }

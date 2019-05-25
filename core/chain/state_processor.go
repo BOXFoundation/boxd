@@ -233,6 +233,7 @@ func makeTx(
 		}
 		utxoWrap.SetValue(value)
 	}
+	utxoSet.utxoMap[*outPoint] = utxoWrap
 	vin := &types.TxIn{
 		PrevOutPoint: *outPoint,
 		ScriptSig:    *script.MakeContractScriptSig(),
@@ -240,6 +241,5 @@ func makeTx(
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)
 	tx.Vout = append(tx.Vout, vouts...)
-	utxoSet.utxoMap[*outPoint] = utxoWrap
 	return tx, nil
 }

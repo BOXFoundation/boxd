@@ -7,6 +7,7 @@ package types
 import (
 	"fmt"
 	"math"
+	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -131,6 +132,17 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *OutPoint {
 
 func (op OutPoint) String() string {
 	return fmt.Sprintf("{Hash: %s, Index: %d}", op.Hash, op.Index)
+}
+
+// IsContractType tells if the OutPoint is an OutPoint pointing to contract
+func (op OutPoint) IsContractType() bool {
+	if op.Index != 0 {
+		return false
+	}
+	if !reflect.DeepEqual(op.Hash[:12], ZeroAddressHash[:12]) {
+		return false
+	}
+	return true
 }
 
 var _ conv.Convertible = (*OutPoint)(nil)

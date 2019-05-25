@@ -152,41 +152,49 @@ func (block *Block) Copy() *Block {
 		Header: &BlockHeader{Height: block.Header.Height},
 	}
 
-	txs := make([]*Transaction, len(block.Txs))
-	for k, tx := range block.Txs {
-		vin := make([]*TxIn, len(tx.Vin))
-		for idx, txIn := range tx.Vin {
-			txInCopy := &TxIn{
-				PrevOutPoint: txIn.PrevOutPoint,
-				ScriptSig:    txIn.ScriptSig,
-				Sequence:     txIn.Sequence,
+	var txss [2][]*Transaction
+	for i, btxs := range [][]*Transaction{block.Txs, block.InternalTxs} {
+		if len(btxs) == 0 {
+			continue
+		}
+		txs := make([]*Transaction, len(btxs))
+		for k, tx := range btxs {
+			vin := make([]*TxIn, len(tx.Vin))
+			for idx, txIn := range tx.Vin {
+				txInCopy := &TxIn{
+					PrevOutPoint: txIn.PrevOutPoint,
+					ScriptSig:    txIn.ScriptSig,
+					Sequence:     txIn.Sequence,
+				}
+				vin[idx] = txInCopy
 			}
-			vin[idx] = txInCopy
-		}
 
-		vout := make([]*corepb.TxOut, len(tx.Vout))
-		for idx, txOut := range tx.Vout {
-			txOutCopy := &corepb.TxOut{
-				Value:        txOut.Value,
-				ScriptPubKey: txOut.ScriptPubKey,
+			vout := make([]*corepb.TxOut, len(tx.Vout))
+			for idx, txOut := range tx.Vout {
+				txOutCopy := &corepb.TxOut{
+					Value:        txOut.Value,
+					ScriptPubKey: txOut.ScriptPubKey,
+				}
+				vout[idx] = txOutCopy
 			}
-			vout[idx] = txOutCopy
-		}
 
-		txHash, _ := tx.TxHash()
-		txCopy := &Transaction{
-			hash:     txHash,
-			Vin:      vin,
-			Vout:     vout,
-			Data:     tx.Data,
-			Magic:    tx.Magic,
-			LockTime: tx.LockTime,
-			Version:  tx.Version,
+			txHash, _ := tx.TxHash()
+			txCopy := &Transaction{
+				hash:     txHash,
+				Vin:      vin,
+				Vout:     vout,
+				Data:     tx.Data,
+				Magic:    tx.Magic,
+				LockTime: tx.LockTime,
+				Version:  tx.Version,
+			}
+			txs[k] = txCopy
 		}
-		txs[k] = txCopy
+		txss[i] = txs
 	}
 
-	newBlock.Txs = txs
+	newBlock.Txs = txss[0]
+	newBlock.InternalTxs = txss[1]
 	return newBlock
 }
 
