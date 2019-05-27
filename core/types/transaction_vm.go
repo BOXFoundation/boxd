@@ -29,9 +29,9 @@ const (
 // VMTransaction defines the transaction used to interact with vm
 type VMTransaction struct {
 	version  int32
-	sender   *AddressHash
+	from     *AddressHash
+	to       *AddressHash
 	originTx *crypto.HashType
-	receiver *AddressHash
 	value    *big.Int
 	gasPrice *big.Int
 	gas      uint64
@@ -47,7 +47,7 @@ type VMTxParams struct {
 	Nonce    uint64
 	Version  int32
 	Code     []byte
-	Receiver *AddressHash
+	To       *AddressHash
 }
 
 // NewVMTransaction new a VMTransaction instance with given parameters
@@ -67,15 +67,15 @@ func NewVMTransaction(
 	}
 }
 
-// WithSender sets sender
-func (tx *VMTransaction) WithSender(sender *AddressHash) *VMTransaction {
-	tx.sender = sender
+// WithFrom sets from
+func (tx *VMTransaction) WithFrom(from *AddressHash) *VMTransaction {
+	tx.from = from
 	return tx
 }
 
-// WithReceiver sets receiver
-func (tx *VMTransaction) WithReceiver(receiver *AddressHash) *VMTransaction {
-	tx.receiver = receiver
+// WithTo sets to
+func (tx *VMTransaction) WithTo(to *AddressHash) *VMTransaction {
+	tx.to = to
 	return tx
 }
 
@@ -86,12 +86,12 @@ func (tx *VMTransaction) Version() int32 {
 
 // From returns the tx from addressHash.
 func (tx *VMTransaction) From() *AddressHash {
-	return tx.sender
+	return tx.from
 }
 
 // To returns the tx to addressHash.
 func (tx *VMTransaction) To() *AddressHash {
-	return tx.receiver
+	return tx.to
 }
 
 // GasPrice returns the gasprice of the tx.

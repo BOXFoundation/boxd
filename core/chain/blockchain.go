@@ -1926,7 +1926,7 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Tab
 
 // FetchOwnerOfOutPoint fetches the owner of an outpoint
 func fetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Address, error) {
-	// use sender in vin[0] as VMTransaction sender
+	// use from in vin[0] as VMTransaction from
 	utxo, err := fetchUtxoWrapFromDB(reader, op)
 	if err != nil {
 		return nil, err
@@ -1940,11 +1940,11 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 	if !HasContractVout(tx) {
 		return nil, nil
 	}
-	sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
+	from, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
 	if err != nil {
 		return nil, err
 	}
-	if !strings.HasPrefix(sender.String(), types.AddrTypeP2PKHPrefix) {
+	if !strings.HasPrefix(from.String(), types.AddrTypeP2PKHPrefix) {
 		return nil, fmt.Errorf("cannot extract vm tx from tx that does not contain box utxo")
 	}
 	// HashWith
@@ -1959,9 +1959,9 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 			}
 			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
 				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash, t, p.Code).
-				WithSender(sender.Hash160())
+				WithFrom(from.Hash160())
 			if t == types.ContractCallType {
-				vmTx.WithReceiver(p.Receiver)
+				vmTx.WithTo(p.To)
 			}
 			return vmTx, nil
 		}
@@ -2012,13 +2012,13 @@ func calcContractAddrBalanceChanges(
 			}
 			var addr *types.AddressHash
 			if t == types.ContractCreationType {
-				sender, _ := fetchOwnerOfOutPoint(&block.Txs[txIdx].Vin[0].PrevOutPoint,
+				from, _ := fetchOwnerOfOutPoint(&block.Txs[txIdx].Vin[0].PrevOutPoint,
 					dbReader)
-				contractAddr, _ := types.MakeContractAddress(sender.(*types.AddressPubKeyHash),
+				contractAddr, _ := types.MakeContractAddress(from.(*types.AddressPubKeyHash),
 					param.Nonce)
 				addr = contractAddr.Hash160()
 			} else {
-				addr = param.Receiver
+				addr = param.To
 			}
 			add[*addr] += vout.Value
 		}

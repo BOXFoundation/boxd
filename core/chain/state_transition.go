@@ -150,7 +150,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		return
 	}
 	msg := st.msg
-	sender := vm.AccountRef(*msg.From())
+	from := vm.AccountRef(*msg.From())
 	contractCreation := msg.Type() == types.ContractCreationType
 
 	// Pay intrinsic gas
@@ -175,11 +175,11 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	)
 	if contractCreation {
 		//
-		ret, addr, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value, false)
+		ret, addr, st.gas, vmerr = evm.Create(from, st.data, st.gas, st.value, false)
 	} else {
 		// Increment the nonce for the next transaction
-		st.state.SetNonce(*msg.From(), st.state.GetNonce(sender.Address())+1)
-		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value, false)
+		st.state.SetNonce(*msg.From(), st.state.GetNonce(from.Address())+1)
+		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value, false)
 		logger.Infof("call contract return: %s", crypto.BytesToHash(ret))
 	}
 	if vmerr != nil {

@@ -244,15 +244,15 @@ func _TestContractTx(t *testing.T) {
 	)
 
 	// contract deploy
-	sender := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	req := &rpcpb.MakeContractTxReq{
-		Sender:     sender,
-		Amount:     10000,
-		GasPrice:   2,
-		GasLimit:   100000,
-		Nonce:      1,
-		IsDeployed: true,
-		Data:       testFaucetContract,
+		From:     from,
+		Amount:   10000,
+		GasPrice: 2,
+		GasLimit: 100000,
+		Nonce:    1,
+		IsDeploy: true,
+		Data:     testFaucetContract,
 	}
 	bytes, _ := json.MarshalIndent(req, "", "  ")
 	logger.Infof("make contract tx request: %s", string(bytes))
@@ -263,21 +263,21 @@ func _TestContractTx(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return sender, resp
+		return from, resp
 	})
 	logger.Infof("contract deploy tx hash: %s", hashStr)
 
 	// contract call
-	senderHash, _ := types.NewAddress(sender)
+	senderHash, _ := types.NewAddress(from)
 	contractAddr, _ := types.MakeContractAddress(senderHash, 1)
 	req = &rpcpb.MakeContractTxReq{
-		Sender:       sender,
-		ContractAddr: contractAddr.String(),
-		Amount:       0,
-		GasPrice:     2,
-		GasLimit:     20000,
-		Nonce:        2,
-		Data:         testFaucetCall,
+		From:     from,
+		To:       contractAddr.String(),
+		Amount:   0,
+		GasPrice: 2,
+		GasLimit: 20000,
+		Nonce:    2,
+		Data:     testFaucetCall,
 	}
 	//
 	flow(t, func(ctx context.Context,
@@ -286,6 +286,6 @@ func _TestContractTx(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return sender, resp
+		return from, resp
 	})
 }

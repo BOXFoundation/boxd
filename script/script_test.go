@@ -389,14 +389,14 @@ func TestContractScript(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if (addr != nil && !bytes.Equal(p.Receiver[:], addr.Hash160()[:])) ||
+		if (addr != nil && !bytes.Equal(p.To[:], addr.Hash160()[:])) ||
 			p.GasPrice != tc.price || p.GasLimit != tc.limit ||
 			p.Nonce != tc.nonce || p.Version != tc.version ||
 			(tc.addrStr != "" && typ != types.ContractCallType ||
 				tc.addrStr == "" && typ != types.ContractCreationType) ||
 			!bytes.Equal(p.Code, code) {
 			t.Fatalf("parse contract params got: %s, %d, %d, %d, %s, want: %s, %d, %d, %d, %s",
-				hex.EncodeToString(p.Receiver[:]), p.GasPrice, p.GasLimit, p.Version,
+				hex.EncodeToString(p.To[:]), p.GasPrice, p.GasLimit, p.Version,
 				hex.EncodeToString(p.Code),
 				hex.EncodeToString(addr.Hash()), tc.price, tc.limit, tc.version, code)
 		}

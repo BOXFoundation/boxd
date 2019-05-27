@@ -178,15 +178,15 @@ func (u *UtxoSet) applyUtxo(
 		}
 		addressHash := types.NormalizeAddressHash(address.Hash160())
 		var (
-			sender types.Address
-			nonce  uint64
+			from  types.Address
+			nonce uint64
 		)
 		if addressHash.IsEqual(&zeroHash) { // deploy smart contract
-			sender, err = fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
+			from, err = fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
 			if err != nil {
 				return err
 			}
-			senderAddr, ok := sender.(*types.AddressPubKeyHash)
+			senderAddr, ok := from.(*types.AddressPubKeyHash)
 			if !ok {
 				return fmt.Errorf("non pubkey hash is not supported to create contract ")
 			}
@@ -202,7 +202,7 @@ func (u *UtxoSet) applyUtxo(
 			}
 			if utxoWrap == nil {
 				// save contract creator and nonce in contract utxo script
-				sc, _ := script.MakeContractScriptPubkey(sender, []byte{0}, 0, 1, nonce, types.VMVersion)
+				sc, _ := script.MakeContractScriptPubkey(from, []byte{0}, 0, 1, nonce, types.VMVersion)
 				utxoWrap = types.NewUtxoWrap(0, []byte(*sc), 0)
 			}
 		}

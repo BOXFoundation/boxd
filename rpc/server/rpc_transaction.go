@@ -461,7 +461,7 @@ func (s *txServer) MakeUnsignedContractTx(
 		}
 	}()
 	wa := s.server.GetWalletAgent()
-	sender := req.GetSender()
+	from := req.GetFrom()
 	amount, gasPrice, gasLimit := req.GetAmount(), req.GetGasPrice(), req.GetGasLimit()
 	byteCode, err := hex.DecodeString(req.GetData())
 	if err != nil {
@@ -470,28 +470,28 @@ func (s *txServer) MakeUnsignedContractTx(
 	tx := new(types.Transaction)
 	utxos := make([]*rpcpb.Utxo, 0)
 
-	if err := types.ValidateAddr(sender); err != nil ||
-		!strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
-		return newMakeContractTxResp(-1, "invalid sender address", nil, nil, ""), nil
+	if err := types.ValidateAddr(from); err != nil ||
+		!strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
+		return newMakeContractTxResp(-1, "invalid from address", nil, nil, ""), nil
 	}
-	contractAddr := req.GetContractAddr()
-	if req.IsDeployed {
+	contractAddr := req.GetTo()
+	if req.IsDeploy {
 		if contractAddr != "" {
 			eStr := "contract addr must be empty when deploy contract"
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
 		}
-		senderHash, err := types.NewAddress(sender)
+		fromHash, err := types.NewAddress(from)
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 		}
-		nonce, _ := s.server.GetChainReader().GetLatestNonce(senderHash.Hash160())
+		nonce, _ := s.server.GetChainReader().GetLatestNonce(fromHash.Hash160())
 		if req.GetNonce() <= nonce {
 			eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
 		}
-		contractAddrHash, _ := types.MakeContractAddress(senderHash, nonce)
+		contractAddrHash, _ := types.MakeContractAddress(fromHash, nonce)
 		contractAddress, _ := types.NewContractAddressFromHash(contractAddrHash.Hash())
-		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, sender, amount,
+		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, from, amount,
 			gasLimit, gasPrice, req.GetNonce(), byteCode)
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
@@ -502,7 +502,7 @@ func (s *txServer) MakeUnsignedContractTx(
 			!strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
 			return newMakeContractTxResp(-1, "invalid contract address", nil, nil, ""), nil
 		}
-		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, sender, amount,
+		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, from, amount,
 			gasLimit, gasPrice, req.GetNonce(), contractAddr, byteCode)
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err

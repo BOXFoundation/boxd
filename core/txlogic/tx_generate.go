@@ -215,7 +215,7 @@ func makeUnsignedContractTx(
 
 //MakeUnsignedContractDeployTx make a contract tx without signature
 func MakeUnsignedContractDeployTx(
-	sender string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
@@ -223,12 +223,12 @@ func MakeUnsignedContractDeployTx(
 	if err != nil {
 		return nil, err
 	}
-	return makeUnsignedContractTx(sender, amount, changeAmt, contractVout, utxos...)
+	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, utxos...)
 }
 
 //MakeUnsignedContractCallTx call a contract tx without signature
 func MakeUnsignedContractCallTx(
-	sender string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
 	contractAddr string, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 	contractVout, err := MakeContractCallVout(contractAddr, amount, gasLimit,
@@ -236,7 +236,7 @@ func MakeUnsignedContractCallTx(
 	if err != nil {
 		return nil, err
 	}
-	return makeUnsignedContractTx(sender, amount, changeAmt, contractVout, utxos...)
+	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, utxos...)
 }
 
 // MakeUnsignedSplitAddrTx make unsigned split addr tx

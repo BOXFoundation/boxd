@@ -430,12 +430,12 @@ func MakeUnsignedTx(
 
 //MakeUnsignedContractDeployTx make a tx without a signature
 func MakeUnsignedContractDeployTx(
-	wa service.WalletAgent, sender string, amount, gasLimit, gasPrice, nonce uint64,
+	wa service.WalletAgent, from string, amount, gasLimit, gasPrice, nonce uint64,
 	byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	gasUsed := gasLimit * gasPrice
 	total := gasUsed + amount
-	utxos, err := wa.Utxos(sender, nil, total)
+	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -447,19 +447,19 @@ func MakeUnsignedContractDeployTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	tx, err := txlogic.MakeUnsignedContractDeployTx(sender, amount, changeAmt,
+	tx, err := txlogic.MakeUnsignedContractDeployTx(from, amount, changeAmt,
 		gasLimit, gasPrice, nonce, byteCode, utxos...)
 	return tx, utxos, err
 }
 
 //MakeUnsignedContractCallTx call a contract tx without a signature
 func MakeUnsignedContractCallTx(
-	wa service.WalletAgent, sender string, amount, gasLimit, gasPrice, nonce uint64,
+	wa service.WalletAgent, from string, amount, gasLimit, gasPrice, nonce uint64,
 	contractAddr string, byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	gasUsed := gasLimit * gasPrice
 	total := gasUsed + amount
-	utxos, err := wa.Utxos(sender, nil, total)
+	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -471,7 +471,7 @@ func MakeUnsignedContractCallTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	tx, err := txlogic.MakeUnsignedContractCallTx(sender, amount, changeAmt,
+	tx, err := txlogic.MakeUnsignedContractCallTx(from, amount, changeAmt,
 		gasLimit, gasPrice, nonce, contractAddr, byteCode, utxos...)
 	return tx, utxos, err
 }

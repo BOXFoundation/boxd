@@ -846,11 +846,11 @@ func MakeContractScriptPubkey(
 	}
 	// set params
 	s := NewScript()
-	receiverHash := ZeroContractAddress
+	toHash := ZeroContractAddress
 	if addr != nil && !reflect.ValueOf(addr).IsNil() {
-		receiverHash = *addr.Hash160()
+		toHash = *addr.Hash160()
 	}
-	s.AddOperand(receiverHash[:]).
+	s.AddOperand(toHash[:]).
 		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
 		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
@@ -895,7 +895,7 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	} else {
 		typ = types.ContractCallType
 	}
-	params.Receiver = addrHash
+	params.To = addrHash
 
 	// nonce
 	params.Nonce, pc, err = s.readUint64(pc)

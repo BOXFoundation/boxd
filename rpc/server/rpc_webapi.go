@@ -333,13 +333,13 @@ func (s *webapiServer) DoCall(
 	ctx context.Context, req *rpcpb.CallReq,
 ) (*rpcpb.CallResp, error) {
 
-	sender, contractAddr := req.GetSender(), req.GetContractAddr()
-	senderHash, err := types.ParseAddress(sender)
-	if err != nil || !strings.HasPrefix(sender, types.AddrTypeP2PKHPrefix) {
-		return newCallResp(-1, "invalid sender address"), nil
+	from, to := req.GetFrom(), req.GetTo()
+	fromHash, err := types.ParseAddress(from)
+	if err != nil || !strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
+		return newCallResp(-1, "invalid from address"), nil
 	}
-	contractAddrHash, err := types.ParseAddress(contractAddr)
-	if err != nil || !strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
+	contractAddrHash, err := types.ParseAddress(to)
+	if err != nil || !strings.HasPrefix(to, types.AddrTypeContractPrefix) {
 		return newCallResp(-1, "invalid contract address"), nil
 	}
 
@@ -348,8 +348,9 @@ func (s *webapiServer) DoCall(
 		return newCallResp(-1, "invalid contract data"), nil
 	}
 
-	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2, 0, nil, types.ContractCallType, data).
-		WithSender(senderHash.Hash160()).WithReceiver(contractAddrHash.Hash160())
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
+		0, nil, types.ContractCallType, data).
+		WithFrom(fromHash.Hash160()).WithTo(contractAddrHash.Hash160())
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.

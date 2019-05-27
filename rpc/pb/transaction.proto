@@ -215,13 +215,13 @@ message TokenTag {
 }
 
 message MakeContractTxReq {
-    string sender = 1;
-    uint64 amount = 2;
-    uint64 gas_price = 3;
-    uint64 gas_limit = 4;
-    uint64 nonce = 5;
-    bool is_deployed = 6;
-    string contract_addr = 7;
+    string from = 1;
+    string to = 2;
+    uint64 amount = 3;
+    uint64 gas_price = 4;
+    uint64 gas_limit = 5;
+    uint64 nonce = 6;
+    bool is_deploy = 7;
     string data = 8;
 }
 

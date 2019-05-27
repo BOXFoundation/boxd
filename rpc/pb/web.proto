@@ -150,8 +150,8 @@ message TokenTransferInfo {
 }
 
 message CallReq {
-    string sender = 1;
-    string contract_addr = 2;
+    string from = 1;
+    string to = 2;
     string data = 3;
     uint32 height = 4;
     uint32 timeout = 5;
