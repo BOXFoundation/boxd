@@ -1494,7 +1494,7 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 	if err != nil {
 		return nil, nil, err
 	}
-	height, idx, err := UnmarshalTxIndex(txIndex)
+	height, index, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1503,9 +1503,12 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 		return nil, nil, err
 	}
 
+	idx := int(index)
 	var tx *types.Transaction
-	if idx < uint32(len(block.Txs)) {
+	if idx < len(block.Txs) {
 		tx = block.Txs[idx]
+	} else if idx < len(block.Txs)+len(block.InternalTxs) {
+		tx = block.InternalTxs[idx-len(block.Txs)]
 	} else {
 		txBin, err := chain.db.Get(TxKey(&hash))
 		if err != nil {
@@ -1519,7 +1522,6 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 			return nil, nil, err
 		}
 	}
-	// tx := block.Txs[idx]
 	target, err := tx.TxHash()
 	if err != nil {
 		return nil, nil, err
@@ -1537,8 +1539,11 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Table) error {
 
 	allTxs := block.Txs
-	for _, v := range splitTxs {
-		allTxs = append(block.Txs, v)
+	if len(block.InternalTxs) > 0 {
+		allTxs = append(allTxs, block.InternalTxs...)
+	}
+	for _, tx := range splitTxs {
+		allTxs = append(allTxs, tx)
 	}
 	for idx, tx := range allTxs {
 		tiBuf, err := MarshalTxIndex(block.Header.Height, uint32(idx))
@@ -1556,7 +1561,9 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs map[crypto.Ha
 }
 
 // StoreSplitTxs store split txs.
-func (chain *BlockChain) StoreSplitTxs(splitTxs map[crypto.HashType]*types.Transaction, db storage.Table) error {
+func (chain *BlockChain) StoreSplitTxs(
+	splitTxs map[crypto.HashType]*types.Transaction, db storage.Table,
+) error {
 	for hash, tx := range splitTxs {
 		txHash, err := tx.TxHash()
 		if err != nil {
@@ -1574,11 +1581,16 @@ func (chain *BlockChain) StoreSplitTxs(splitTxs map[crypto.HashType]*types.Trans
 
 // DelTxIndex deletes tx index in block
 // Delete split transaction copies saved earlier, both before and after split
-func (chain *BlockChain) DelTxIndex(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Table) error {
+func (chain *BlockChain) DelTxIndex(
+	block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Table,
+) error {
 
 	allTxs := block.Txs
-	for _, v := range splitTxs {
-		allTxs = append(block.Txs, v)
+	if len(block.InternalTxs) > 0 {
+		allTxs = append(allTxs, block.InternalTxs...)
+	}
+	for _, tx := range splitTxs {
+		allTxs = append(allTxs, tx)
 	}
 
 	for _, tx := range allTxs {

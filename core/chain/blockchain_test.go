@@ -393,21 +393,71 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	b1 := nextBlock(b0)
 	blockChain.db.EnableBatch()
-	ensure.Nil(t, blockChain.StoreBlockWithIndex(b1, blockChain.db))
+	defer blockChain.db.DisableBatch()
 
-	txhash, _ := b1.Txs[0].TxHash()
+	prevHash, _ := b0.Txs[0].TxHash()
+	tx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 1000))
+	signTx(tx, privKeyMiner, pubKeyMiner)
+	txHash, _ := tx.TxHash()
 
-	ensure.Nil(t, blockChain.WriteTxIndex(b1, map[crypto.HashType]*types.Transaction{}, blockChain.db))
+	prevHash, _ = b1.Txs[0].TxHash()
+	gasUsed, vmValue, gasPrice, gasLimit, nonce := uint64(9912), uint64(0), uint64(6), uint64(20000), uint64(2)
+	contractVout, _ := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, []byte{1})
+	vmTx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout)
+	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	vmTxHash, _ := vmTx.TxHash()
+
+	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
+	gasRefundTxHash, _ := gasRefundTx.TxHash()
+
+	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
+	op := types.NewOutPoint(types.NormalizeAddressHash(contractAddr.Hash160()), 0)
+	contractTx := types.NewTx(0, 0, 0).
+		AppendVin(txlogic.MakeContractVin(op, 0)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 2000))
+	contractTxHash, _ := contractTx.TxHash()
+
+	b2 := nextBlockWithTxs(b1, tx, vmTx)
+	b2.InternalTxs = append(b2.InternalTxs, gasRefundTx, contractTx)
+
+	splitTx1, _ := createSplitTx(b0.Txs[1], 0)
+	splitTx2, _ := createSplitTx(b0.Txs[2], 0)
+	splitTxs := make(map[crypto.HashType]*types.Transaction)
+	splitTxHash1, _ := splitTx1.TxHash()
+	splitTxHash2, _ := splitTx2.TxHash()
+	splitTxs[*splitTxHash1] = splitTx1
+	splitTxs[*splitTxHash2] = splitTx2
+
+	ensure.Nil(t, blockChain.StoreBlockWithIndex(b2, blockChain.db))
+	ensure.Nil(t, blockChain.WriteTxIndex(b2, splitTxs, blockChain.db))
+	ensure.Nil(t, blockChain.StoreSplitTxs(splitTxs, blockChain.db))
 	blockChain.db.Flush()
 
-	_, tx, err := blockChain.LoadBlockInfoByTxHash(*txhash)
-	ensure.Nil(t, err)
-	ensure.DeepEqual(t, b1.Txs[0], tx)
+	// check
+	coinBaseTxHash, _ := b2.Txs[0].TxHash()
+	hashes := []*crypto.HashType{coinBaseTxHash, txHash, vmTxHash, gasRefundTxHash,
+		contractTxHash, splitTxHash1, splitTxHash2}
+	txs := []*types.Transaction{b2.Txs[0], tx, vmTx, gasRefundTx, contractTx, splitTx1, splitTx2}
 
-	ensure.Nil(t, blockChain.DelTxIndex(b1, map[crypto.HashType]*types.Transaction{}, blockChain.db))
+	for i, hash := range hashes {
+		_, tx, err := blockChain.LoadBlockInfoByTxHash(*hash)
+		ensure.Nil(t, err)
+		//txHash, _ := tx.TxHash()
+		//iHash, _ := txs[i].TxHash()
+		//t.Logf("txhash: %s, txs[%d] hash: %s", txHash, i, iHash)
+		ensure.DeepEqual(t, txs[i], tx)
+	}
+	ensure.Nil(t, blockChain.DelTxIndex(b2, splitTxs, blockChain.db))
+	ensure.Nil(t, blockChain.DelSplitTxs(splitTxs, blockChain.db))
 	blockChain.db.Flush()
-	_, _, err = blockChain.LoadBlockInfoByTxHash(*txhash)
-	ensure.NotNil(t, err)
+	for _, hash := range hashes {
+		_, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
+		ensure.NotNil(t, err)
+	}
 }
 
 func createSplitTx(parentTx *types.Transaction, index uint32) (*types.Transaction, string) {
@@ -612,7 +662,8 @@ func nextBlockWithTxs(parent *types.Block, txs ...*types.Transaction) *types.Blo
 	coinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), parent.Header.Height+1)
 	// use time to ensure we create a different/unique block each time
 	coinbaseTx.Vin[0].Sequence = uint32(time.Now().UnixNano())
-	newBlock.Txs = append(append(newBlock.Txs, coinbaseTx), txs...)
+	newBlock.Txs = append(newBlock.Txs, coinbaseTx)
+	newBlock.Txs = append(newBlock.Txs, txs...)
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	newBlock.Header.TimeStamp = timestamp
 	return newBlock
