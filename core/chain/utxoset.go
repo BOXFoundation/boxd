@@ -84,12 +84,12 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	txHash, _ := tx.TxHash()
 	vout := tx.Vout[txOutIdx]
 	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
-	var utxoWrap *types.UtxoWrap
 	if sc.IsContractPubkey() { // smart contract utxo
 		return fmt.Errorf("UtxoSet AddUtxo: tx %s incluces a contract vout", txHash)
 	}
 
 	// common tx
+	var utxoWrap *types.UtxoWrap
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
 	if utxoWrap = u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
@@ -177,8 +177,12 @@ func (u *UtxoSet) applyUtxo(
 			return err
 		}
 		addressHash := types.NormalizeAddressHash(address.Hash160())
+		var (
+			sender types.Address
+			nonce  uint64
+		)
 		if addressHash.IsEqual(&zeroHash) { // deploy smart contract
-			sender, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
+			sender, err = fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
 			if err != nil {
 				return err
 			}
@@ -186,7 +190,7 @@ func (u *UtxoSet) applyUtxo(
 			if !ok {
 				return fmt.Errorf("non pubkey hash is not supported to create contract ")
 			}
-			nonce, _ := sc.ParseContractNonce()
+			nonce, _ = sc.ParseContractNonce()
 			contractAddr, _ := types.MakeContractAddress(senderAddr, nonce)
 			addressHash = types.NormalizeAddressHash(contractAddr.Hash160())
 		}
@@ -197,7 +201,9 @@ func (u *UtxoSet) applyUtxo(
 				return err
 			}
 			if utxoWrap == nil {
-				utxoWrap = types.NewUtxoWrap(0, nil, 0)
+				// save contract creator and nonce in contract utxo script
+				sc, _ := script.MakeContractScriptPubkey(sender, []byte{0}, 0, 1, nonce, types.VMVersion)
+				utxoWrap = types.NewUtxoWrap(0, []byte(*sc), 0)
 			}
 		}
 		value := utxoWrap.Value() + vout.Value
@@ -472,7 +478,16 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			}
 			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
 		} else if sc.IsContractPubkey() {
-			if len(addr.Hash()) > 0 && outpoint.Hash != *types.NormalizeAddressHash(addr.Hash160()) {
+			// verify contract address from utxo script
+			// utxo script contains contract creator and his or her nonce at that time
+			nonce, _ := sc.ParseContractNonce()
+			from, _ := types.NewAddressPubKeyHash(addr.Hash())
+			contractAddr, err := types.MakeContractAddress(from, nonce)
+			if err != nil {
+				logger.Warn(err)
+				return err
+			}
+			if len(addr.Hash()) > 0 && outpoint.Hash != *types.NormalizeAddressHash(contractAddr.Hash160()) {
 				logger.Errorf("WriteUtxoSetToDB for contract error, contractAddress: %s, addr: %v",
 					outpoint.Hash, addr.Hash())
 				return errors.New("Invalid contract address")

@@ -220,7 +220,6 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 	// 	}()
 	// }
 	ret, err = run(evm, contract, input, false)
-	logger.Errorf("EVM LOG RET: %v, ERR: %v", ret, err)
 
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally
