@@ -219,7 +219,6 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 	// 		evm.vmConfig.Tracer.CaptureEnd(ret, gas-contract.Gas, time.Since(start), err)
 	// 	}()
 	// }
-	logger.Errorf("EVM LOG HASH: %s, CODE: %v, INPUT: %v", addr, contract.Code, input)
 	ret, err = run(evm, contract, input, false)
 	logger.Errorf("EVM LOG RET: %v, ERR: %v", ret, err)
 
