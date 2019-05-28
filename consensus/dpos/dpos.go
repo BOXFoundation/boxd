@@ -300,60 +300,126 @@ func (dpos *Dpos) produceBlock() error {
 }
 
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
-
 	txi := queue.Items(i).(*types.TxWrap)
 	txj := queue.Items(j).(*types.TxWrap)
 	if txi.GasPrice == txj.GasPrice {
 		return txi.AddedTimestamp < txj.AddedTimestamp
 	}
-	return txi.GasPrice < txj.GasPrice
+	return txi.GasPrice > txj.GasPrice
+}
+
+func (dpos *Dpos) nonceFunc(queue *util.PriorityQueue, i, j int) bool {
+	txi := queue.Items(i).(*types.VMTransaction)
+	txj := queue.Items(j).(*types.VMTransaction)
+	return txi.Nonce() < txj.Nonce()
 }
 
 // getChainedTxs returns all chained ancestor txs in mempool of the passed tx, including itself
 // From child to ancestors
-func getChainedTxs(tx *types.TxWrap, hashToTx map[crypto.HashType]*types.TxWrap) []*types.TxWrap {
-	hashSet := make(map[crypto.HashType]struct{})
-	chainedTxs := []*types.TxWrap{tx}
+// func getChainedTxs(tx *types.TxWrap, hashToTx map[crypto.HashType]*types.TxWrap) []*types.TxWrap {
+// 	hashSet := make(map[crypto.HashType]struct{})
+// 	chainedTxs := []*types.TxWrap{tx}
 
-	// Note: use index here instead of range because chainedTxs can be extended inside the loop
-	for i := 0; i < len(chainedTxs); i++ {
-		tx := chainedTxs[i].Tx
+// 	// Note: use index here instead of range because chainedTxs can be extended inside the loop
+// 	for i := 0; i < len(chainedTxs); i++ {
+// 		tx := chainedTxs[i].Tx
 
-		for _, txIn := range tx.Vin {
-			prevTxHash := txIn.PrevOutPoint.Hash
-			if prevTx, exists := hashToTx[prevTxHash]; exists {
-				if _, exists := hashSet[prevTxHash]; !exists {
-					chainedTxs = append(chainedTxs, prevTx)
-					hashSet[prevTxHash] = struct{}{}
-				}
-			}
-		}
-	}
+// 		for _, txIn := range tx.Vin {
+// 			prevTxHash := txIn.PrevOutPoint.Hash
+// 			if prevTx, exists := hashToTx[prevTxHash]; exists {
+// 				if _, exists := hashSet[prevTxHash]; !exists {
+// 					chainedTxs = append(chainedTxs, prevTx)
+// 					hashSet[prevTxHash] = struct{}{}
+// 				}
+// 			}
+// 		}
+// 	}
 
-	return chainedTxs
-}
+// 	return chainedTxs
+// }
 
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, map[crypto.HashType]*types.TxWrap) {
+func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, error) {
 	pool := util.NewPriorityQueue(lessFunc)
 	pendingTxs := dpos.txpool.GetAllTxs()
+
+	hashToTx := make(map[crypto.HashType]*types.TxWrap)
+	addressToTxs := make(map[types.AddressHash]*util.PriorityQueue)
+	hashToAddress := make(map[crypto.HashType]types.AddressHash)
+
 	for _, pendingTx := range pendingTxs {
+		txHash, _ := pendingTx.Tx.TxHash()
 		// place onto heap sorted by gasPrice
 		// only pack txs whose scripts have been verified
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
+			hashToTx[*txHash] = pendingTx
+			if chain.HasContractVout(pendingTx.Tx) { // smart contract tx
+				vmTx, err := dpos.chain.ExtractVMTransactions(pendingTx.Tx)
+				if err != nil {
+					return nil, err
+				}
+				if v, exists := addressToTxs[*vmTx.From()]; exists {
+					heap.Push(v, vmTx)
+				} else {
+					nonceQueue := util.NewPriorityQueue(dpos.nonceFunc)
+					heap.Push(nonceQueue, vmTx)
+					addressToTxs[*vmTx.From()] = nonceQueue
+				}
+				hashToAddress[*txHash] = *vmTx.From()
+			}
 		}
 	}
 
-	var sortedTxs []*types.TxWrap
-	hashToTx := make(map[crypto.HashType]*types.TxWrap)
+	tail := dpos.chain.TailBlock()
+	statedb, err := state.New(&tail.Header.RootHash, &tail.Header.UtxoRoot, dpos.chain.DB())
+	if err != nil {
+		return nil, err
+	}
+	dag := util.NewDag()
 	for pool.Len() > 0 {
 		txWrap := heap.Pop(pool).(*types.TxWrap)
-		sortedTxs = append(sortedTxs, txWrap)
 		txHash, _ := txWrap.Tx.TxHash()
-		hashToTx[*txHash] = txWrap
+		dag.AddNode(txHash)
+		for _, txIn := range txWrap.Tx.Vin {
+			prevTxHash := txIn.PrevOutPoint.Hash
+			if wrap, exists := hashToTx[prevTxHash]; exists {
+				dag.AddNode(prevTxHash)
+				dag.AddEdge(prevTxHash, *txHash)
+				if chain.HasContractVout(wrap.Tx) { // smart contract tx
+					from := hashToAddress[*txHash]
+					queue := addressToTxs[from]
+					ownerNonce := statedb.GetNonce(from)
+					var parentHash *crypto.HashType
+					for queue.Len() > 0 {
+						vmTx := heap.Pop(queue).(*types.VMTransaction)
+						if vmTx.Nonce() < ownerNonce+1 {
+							// notify pool to remove the tx
+							continue
+						} else if vmTx.Nonce() > ownerNonce+1 {
+							break
+						}
+						hash := vmTx.OriginTxHash()
+						dag.AddNode(hash)
+						if parentHash != nil {
+							dag.AddEdge(*parentHash, *hash)
+						}
+						parentHash = hash
+					}
+				}
+			}
+		}
 	}
-	return sortedTxs, hashToTx
+	if dag.IsCirclular() {
+		return nil, ErrCircleTxExistInDag
+	}
+	var sortedTxs []*types.TxWrap
+	nodes := dag.TopoSort()
+	for _, v := range nodes {
+		hash := v.Key().(crypto.HashType)
+		sortedTxs = append(sortedTxs, hashToTx[hash])
+	}
+	return sortedTxs, nil
 }
 
 // PackTxs packed txs and add them to block.
@@ -361,7 +427,10 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
 	// otherwise the former's utxo is missing
-	sortedTxs, hashToTx := dpos.sortPendingTxs()
+	sortedTxs, err := dpos.sortPendingTxs()
+	if err != nil {
+		return err
+	}
 	candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
 	if err != nil {
 		logger.Error("Failed to load candidate context")
@@ -384,56 +453,46 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	continueCh := make(chan bool, 1)
 
 	go func() {
-		for txIdx, tx := range sortedTxs {
+		for txIdx, txWrap := range sortedTxs {
 			if stopPack {
 				continueCh <- true
 				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(blockTxns)-1, len(sortedTxs))
 				return
 			}
 
-			// logger.Debugf("Iterating over %d-th tx: packed %d txs out of %d so far", txIdx, len(blockTxns)-1, len(sortedTxs))
-			chainedTxs := getChainedTxs(tx, hashToTx)
-			// Add ancestors first
-			for i := len(chainedTxs) - 1; i >= 0; i-- {
-				txWrap := chainedTxs[i]
-				txHash, _ := txWrap.Tx.TxHash()
-				// Already packed
-				if _, exists := spendableTxs.Load(*txHash); exists {
-					continue
-				}
+			txHash, _ := txWrap.Tx.TxHash()
 
-				if err := dpos.prepareCandidateContext(candidateContext, txWrap.Tx); err != nil {
-					// TODO: abandon the error tx
-					continue
-				}
-
-				utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
-				if err != nil {
-					logger.Warnf("Could not get extended utxo set for tx %v", txHash)
-					continue
-				}
-
-				totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
-				if totalInputAmount == 0 {
-					// This can only occur when a tx's parent is removed from mempool but not written to utxo db yet
-					logger.Errorf("This can not occur totalInputAmount == 0, tx hash: %v", txHash)
-					continue
-				}
-				totalOutputAmount := txWrap.Tx.OutputAmount()
-				if totalInputAmount < totalOutputAmount {
-					// This must not happen since the tx already passed the check when admitted into mempool
-					logger.Warnf("total value of all transaction outputs for "+
-						"transaction %v is %v, which exceeds the input amount "+
-						"of %v", txHash, totalOutputAmount, totalInputAmount)
-					// TODO: abandon the error tx from pool.
-					continue
-				}
-				txFee := totalInputAmount - totalOutputAmount
-				totalTxFee += txFee
-
-				spendableTxs.Store(*txHash, txWrap)
-				blockTxns = append(blockTxns, txWrap.Tx)
+			if err := dpos.prepareCandidateContext(candidateContext, txWrap.Tx); err != nil {
+				// TODO: abandon the error tx
+				continue
 			}
+
+			utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
+			if err != nil {
+				logger.Warnf("Could not get extended utxo set for tx %v", txHash)
+				continue
+			}
+
+			totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
+			if totalInputAmount == 0 {
+				// This can only occur when a tx's parent is removed from mempool but not written to utxo db yet
+				logger.Errorf("This can not occur totalInputAmount == 0, tx hash: %v", txHash)
+				continue
+			}
+			totalOutputAmount := txWrap.Tx.OutputAmount()
+			if totalInputAmount < totalOutputAmount {
+				// This must not happen since the tx already passed the check when admitted into mempool
+				logger.Warnf("total value of all transaction outputs for "+
+					"transaction %v is %v, which exceeds the input amount "+
+					"of %v", txHash, totalOutputAmount, totalInputAmount)
+				// TODO: abandon the error tx from pool.
+				continue
+			}
+			txFee := totalInputAmount - totalOutputAmount
+			totalTxFee += txFee
+
+			spendableTxs.Store(*txHash, txWrap)
+			blockTxns = append(blockTxns, txWrap.Tx)
 		}
 		continueCh <- true
 		stopPackCh <- true

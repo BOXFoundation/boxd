@@ -69,6 +69,7 @@ type TransactionPool struct {
 	// types.OutPoint -> (crypto.HashType -> *types.Transaction)
 	outPointToOrphan *sync.Map
 	txcache          *lru.Cache
+	legalTxs         *sync.Map
 }
 
 // NewTransactionPool new a transaction pool.
@@ -87,6 +88,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		outPointToOrphan:    new(sync.Map),
 		outPointToTx:        new(sync.Map),
 		txcache:             txcache,
+		legalTxs:            new(sync.Map),
 	}
 }
 
@@ -576,6 +578,11 @@ func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	}
 	tx := v.(*types.TxWrap)
 	tx.IsScriptValid = true
+	// tx_pool.legalTxs.Store(txHash, tx)
+	// if chain.HasContractVout(tx) {
+	// 	owner := chain.FetchOwnerOfOutPoint(tx.Vin[0].PrevOutPoint, chain.DB())
+
+	// }
 }
 
 func (tx_pool *TransactionPool) cleanExpiredTxs() {

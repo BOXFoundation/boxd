@@ -1937,8 +1937,8 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Tab
 }
 
 // FetchOwnerOfOutPoint fetches the owner of an outpoint
-func fetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Address, error) {
-	// use from in vin[0] as VMTransaction from
+func FetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Address, error) {
+	// use sender in vin[0] as VMTransaction sender
 	utxo, err := fetchUtxoWrapFromDB(reader, op)
 	if err != nil {
 		return nil, err
@@ -1952,7 +1952,7 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 	if !HasContractVout(tx) {
 		return nil, nil
 	}
-	from, err := fetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
+	from, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
 	if err != nil {
 		return nil, err
 	}
@@ -2024,7 +2024,7 @@ func calcContractAddrBalanceChanges(
 			}
 			var addr *types.AddressHash
 			if t == types.ContractCreationType {
-				from, _ := fetchOwnerOfOutPoint(&block.Txs[txIdx].Vin[0].PrevOutPoint,
+				from, _ := FetchOwnerOfOutPoint(&block.Txs[txIdx].Vin[0].PrevOutPoint,
 					dbReader)
 				contractAddr, _ := types.MakeContractAddress(from.(*types.AddressPubKeyHash),
 					param.Nonce)
