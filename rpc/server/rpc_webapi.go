@@ -384,6 +384,7 @@ func (s *webapiServer) DoCall(
 	}
 	resp := newCallResp(0, "")
 	resp.Output = hex.EncodeToString(ret)
+	logger.Errorf("OUTPUT: old: %v, new: %v", ret, resp.Output)
 	return resp, nil
 }
 

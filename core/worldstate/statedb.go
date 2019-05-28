@@ -640,6 +640,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecr
 		case isDirty:
 			// Write any contract code associated with the state object
 			if stateObject.code != nil && stateObject.dirtyCode {
+				logger.Errorf("NIUPI!!!!!  put enable: %v, hash: %s, code: %v", s.db.IsInBatch(), hex.EncodeToString(stateObject.CodeHash()), stateObject.code)
 				s.db.Put(stateObject.CodeHash(), stateObject.code[:])
 				stateObject.dirtyCode = false
 			}

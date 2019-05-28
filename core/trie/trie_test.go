@@ -4,6 +4,7 @@
 package trie
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -26,6 +27,15 @@ func initDB() *storage.Database {
 	proc := goprocess.WithSignals(os.Interrupt)
 	database, _ := storage.NewDatabase(proc, dbCfg)
 	return database
+}
+func TestUpdate2(t *testing.T) {
+
+	c := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 72, 101, 108, 108, 111, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	// b := hex.EncodeToString(c)
+	a := string(c)
+	fmt.Println(a)
+	// fmt.Println(b)
+
 }
 func TestUpdate(t *testing.T) {
 

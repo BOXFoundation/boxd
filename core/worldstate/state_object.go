@@ -6,6 +6,7 @@ package worldstate
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
@@ -312,13 +313,16 @@ func (s *stateObject) Address() types.AddressHash {
 
 // Code returns the contract code associated with this object, if any.
 func (s *stateObject) Code() []byte {
+	logger.Errorf("GET CODE!!! hash: %v\n", s.CodeHash())
 	if s.code != nil {
 		return s.code
 	}
 	if bytes.Equal(s.CodeHash(), emptyCodeHash) {
 		return nil
 	}
+	logger.Errorf("NIUPI!!!!! GET CODE: %v", hex.EncodeToString(s.CodeHash()))
 	code, err := s.db.db.Get(s.CodeHash())
+	logger.Errorf("GET CODE222: %v", code)
 	if len(code) == 0 || err != nil {
 		s.setError(fmt.Errorf("can't load code hash %x: %v", s.CodeHash(), err))
 	}

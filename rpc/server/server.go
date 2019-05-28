@@ -180,7 +180,7 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 		start := time.Now()
 		uid := uuid.NewV4()
 		resp, err := handler(ctx, req)
-		logger.Debugf("grpc access log: %v %v %v\n, resp: %v, err: %v", uid, info.FullMethod, time.Since(start), resp, err)
+		logger.Infof("grpc access log: %v %v %v\n, resp: %v, err: %v", uid, info.FullMethod, time.Since(start), resp, err)
 		return resp, err
 	}
 	opts = append(opts, grpc.UnaryInterceptor(interceptor))
