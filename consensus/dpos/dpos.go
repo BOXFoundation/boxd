@@ -314,35 +314,10 @@ func (dpos *Dpos) nonceFunc(queue *util.PriorityQueue, i, j int) bool {
 	return txi.Nonce() < txj.Nonce()
 }
 
-// getChainedTxs returns all chained ancestor txs in mempool of the passed tx, including itself
-// From child to ancestors
-// func getChainedTxs(tx *types.TxWrap, hashToTx map[crypto.HashType]*types.TxWrap) []*types.TxWrap {
-// 	hashSet := make(map[crypto.HashType]struct{})
-// 	chainedTxs := []*types.TxWrap{tx}
-
-// 	// Note: use index here instead of range because chainedTxs can be extended inside the loop
-// 	for i := 0; i < len(chainedTxs); i++ {
-// 		tx := chainedTxs[i].Tx
-
-// 		for _, txIn := range tx.Vin {
-// 			prevTxHash := txIn.PrevOutPoint.Hash
-// 			if prevTx, exists := hashToTx[prevTxHash]; exists {
-// 				if _, exists := hashSet[prevTxHash]; !exists {
-// 					chainedTxs = append(chainedTxs, prevTx)
-// 					hashSet[prevTxHash] = struct{}{}
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	return chainedTxs
-// }
-
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, error) {
-	pool := util.NewPriorityQueue(lessFunc)
-	pendingTxs := dpos.txpool.GetAllTxs()
+func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, error) {
 
+	pool := util.NewPriorityQueue(lessFunc)
 	hashToTx := make(map[crypto.HashType]*types.TxWrap)
 	addressToTxs := make(map[types.AddressHash]*util.PriorityQueue)
 	hashToAddress := make(map[crypto.HashType]types.AddressHash)
@@ -380,11 +355,11 @@ func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, error) {
 	for pool.Len() > 0 {
 		txWrap := heap.Pop(pool).(*types.TxWrap)
 		txHash, _ := txWrap.Tx.TxHash()
-		dag.AddNode(txHash)
+		dag.AddNode(*txHash, int(txWrap.GasPrice))
 		for _, txIn := range txWrap.Tx.Vin {
 			prevTxHash := txIn.PrevOutPoint.Hash
 			if wrap, exists := hashToTx[prevTxHash]; exists {
-				dag.AddNode(prevTxHash)
+				dag.AddNode(prevTxHash, int(wrap.GasPrice))
 				dag.AddEdge(prevTxHash, *txHash)
 				if chain.HasContractVout(wrap.Tx) { // smart contract tx
 					from := hashToAddress[*txHash]
@@ -400,7 +375,8 @@ func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, error) {
 							break
 						}
 						hash := vmTx.OriginTxHash()
-						dag.AddNode(hash)
+						originTx := hashToTx[*hash]
+						dag.AddNode(hash, int(originTx.GasPrice))
 						if parentHash != nil {
 							dag.AddEdge(*parentHash, *hash)
 						}
@@ -427,7 +403,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
 	// otherwise the former's utxo is missing
-	sortedTxs, err := dpos.sortPendingTxs()
+	pendingTxs := dpos.txpool.GetAllTxs()
+	sortedTxs, err := dpos.sortPendingTxs(pendingTxs)
 	if err != nil {
 		return err
 	}

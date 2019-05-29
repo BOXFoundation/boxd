@@ -14,13 +14,15 @@ type Node struct {
 	index    int
 	children []*Node
 	pNum     int
+	weight   int
 }
 
 // NewNode new node
-func NewNode(key interface{}, index int) *Node {
+func NewNode(key interface{}, index int, weight int) *Node {
 	return &Node{
 		key:      key,
 		index:    index,
+		weight:   weight,
 		pNum:     0,
 		children: make([]*Node, 0),
 	}
@@ -52,12 +54,12 @@ func (dag *Dag) Index() int {
 }
 
 // AddNode add node for dag
-func (dag *Dag) AddNode(key interface{}) error {
+func (dag *Dag) AddNode(key interface{}, weight int) error {
 	if _, ok := dag.nodes[key]; ok {
 		return ErrKeyIsExisted
 	}
 	index := len(dag.nodes)
-	dag.nodes[key] = NewNode(key, index)
+	dag.nodes[key] = NewNode(key, index, weight)
 	dag.indexs[index] = key
 	return nil
 }
@@ -69,7 +71,7 @@ func (dag *Dag) TopoSort() []*Node {
 	queue := NewPriorityQueue(func(queue *PriorityQueue, i, j int) bool {
 		nodei := queue.Items(i).(*Node)
 		nodej := queue.Items(j).(*Node)
-		return nodei.index < nodej.index
+		return nodei.weight > nodej.weight
 	})
 	rootNodes := dag.GetRootNodes()
 	return sortNodes(rootNodes, queue, sortedNode)

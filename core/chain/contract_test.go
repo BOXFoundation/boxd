@@ -373,7 +373,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
@@ -415,7 +415,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3A := nextBlockWithTxs(b3, vmTx)
 	b3A.Header.RootHash.SetString("92185cea3cc5e92e61a93aad8d447b9bd6619a98a16c37e4e234f12251da925b")
@@ -458,7 +458,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b4 := nextBlockWithTxs(b3A, vmTx)
 	b4.Header.RootHash.SetString("d5a85c1cbc4fe6db563b2f5e375cabbcaec9fb649ac13b2a4ccf8839a82c7a0b")
@@ -495,7 +495,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b5 := nextBlockWithTxs(b4, vmTx)
 	b5.Header.RootHash.SetString("ad50bfd5f3801eb79ed0778acb3870f18bffba04140c9edb486cab657eac7c50")
@@ -538,7 +538,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, vmTx)
 	b6.Header.RootHash.SetString("431863d3250351ec4d9945f2f3affce6f34880b370b780a7b85fb6aa76fda4f1")
@@ -576,7 +576,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
-	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), minerNonce)
 	b7 := nextBlockWithTxs(b6, vmTx)
 	b7.Header.RootHash.SetString("e8afb2306dcbaa6c61669220c3bad300a421082b4bcc6aaea7d481e831fce9b8")
@@ -615,7 +615,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b8 := nextBlockWithTxs(b7, vmTx)
 	b8.Header.RootHash.SetString("4c92d920e640fe8eaacb84516001bfebd0f037d19f352597676d2910a85b6123")
@@ -652,7 +652,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b9 := nextBlockWithTxs(b8, vmTx)
 	b9.Header.RootHash.SetString("7816518ce1ebd785bee0a4618597fbf300461cb627942a6ba683401788e0f913")
@@ -687,7 +687,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b10 := nextBlockWithTxs(b9, vmTx)
 	b10.Header.RootHash.SetString("dfce597d21b1db7c34bda440906a240ec2e471ad34f41e8c9a9761c11fb0e621")
@@ -723,7 +723,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
-	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), minerNonce)
 	b11 := nextBlockWithTxs(b10, vmTx)
 	b11.Header.RootHash.SetString("9a6d121fcacacc199c687343ddda4bb40375e4f796e7bf5ef110140dbb89ea13")
@@ -760,7 +760,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b12 := nextBlockWithTxs(b11, vmTx)
 	b12.Header.RootHash.SetString("005f1476e3bb297d71f9b3239b914b26dc331b1d5ea313959f6afca7976ac277")
@@ -803,7 +803,7 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b13 := nextBlockWithTxs(b12, vmTx)
 	b13.Header.RootHash.SetString("61ad6fa5ef8dacf0f512b0d20c59dc50dd9d071b2b539d02611dd719238bd84f")

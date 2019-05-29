@@ -399,7 +399,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), 1000))
-	signTx(tx, privKeyMiner, pubKeyMiner)
+	txlogic.SignTx(tx, privKeyMiner, pubKeyMiner)
 	txHash, _ := tx.TxHash()
 
 	prevHash, _ = b1.Txs[0].TxHash()
@@ -408,7 +408,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout)
-	signTx(vmTx, privKeyMiner, pubKeyMiner)
+	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	vmTxHash, _ := vmTx.TxHash()
 
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
@@ -462,7 +462,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 func createSplitTx(parentTx *types.Transaction, index uint32) (*types.Transaction, string) {
 
-	vIn := makeVin(parentTx, index)
+	vIn := txlogic.MakeVinForTest(parentTx, index)
 	txOut := &corepb.TxOut{
 		Value:        50 * core.DuPerBox,
 		ScriptPubKey: *scriptPubKeyMiner,
@@ -478,7 +478,7 @@ func createSplitTx(parentTx *types.Transaction, index uint32) (*types.Transactio
 		logger.Errorf("failed to make split addr. Err: %+v", err)
 	}
 
-	if err := signTx(tx, privKeyMiner, pubKeyMiner); err != nil {
+	if err := txlogic.SignTx(tx, privKeyMiner, pubKeyMiner); err != nil {
 		logger.Errorf("Failed to sign tx. Err: %v", err)
 		return nil, ""
 	}
@@ -488,61 +488,18 @@ func createSplitTx(parentTx *types.Transaction, index uint32) (*types.Transactio
 
 func createGeneralTx(parentTx *types.Transaction, index uint32, value uint64,
 	address string, privKey *crypto.PrivateKey, pubKey *crypto.PublicKey) *types.Transaction {
-	vIn := makeVin(parentTx, index)
+	vIn := txlogic.MakeVinForTest(parentTx, index)
 	txOut := txlogic.MakeVout(address, value)
 	vOut := []*corepb.TxOut{txOut}
 	tx := &types.Transaction{
 		Vin:  vIn,
 		Vout: vOut,
 	}
-	if err := signTx(tx, privKey, pubKey); err != nil {
+	if err := txlogic.SignTx(tx, privKey, pubKey); err != nil {
 		logger.Errorf("Failed to sign tx. Err: %v", err)
 		return nil
 	}
 	return tx
-}
-
-func signTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.PublicKey) error {
-
-	addr, _ := types.NewAddressFromPubKey(pubKey)
-	scriptPubKey := script.PayToPubKeyHashScript(addr.Hash())
-	// sign it
-	for txInIdx, txIn := range tx.Vin {
-		sigHash, err := script.CalcTxHashForSig(*scriptPubKey, tx, txInIdx)
-		if err != nil {
-			return err
-		}
-		sig, err := crypto.Sign(privKey, sigHash)
-		if err != nil {
-			return err
-		}
-		scriptSig := script.SignatureScript(sig, pubKey.Serialize())
-		txIn.ScriptSig = *scriptSig
-
-		// test to ensure
-		if err = script.Validate(scriptSig, scriptPubKey, tx, txInIdx); err != nil {
-			logger.Errorf("failed to validate tx. Err: %v", err)
-			return err
-		}
-	}
-	return nil
-}
-
-func makeVin(tx *types.Transaction, index uint32) []*types.TxIn {
-	hash, _ := tx.TxHash()
-	outPoint := types.OutPoint{
-		Hash:  *hash,
-		Index: index,
-	}
-	txIn := &types.TxIn{
-		PrevOutPoint: outPoint,
-		ScriptSig:    []byte{},
-		Sequence:     0,
-	}
-	vIn := []*types.TxIn{
-		txIn,
-	}
-	return vIn
 }
 
 func getTxHash(tx *types.Transaction) *crypto.HashType {
@@ -703,7 +660,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), userBalance)).
 		AppendVout(txlogic.MakeVout(minerAddr.String(), BaseSubsidy-userBalance))
-	err := signTx(tx, privKeyMiner, pubKeyMiner)
+	err := txlogic.SignTx(tx, privKeyMiner, pubKeyMiner)
 	ensure.DeepEqual(t, err, nil)
 
 	b2 := nextBlockWithTxs(b1, tx)
@@ -805,7 +762,7 @@ func TestFaucetContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	vmTxHash, _ := vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	stateDB, err := state.New(&b2.Header.RootHash, nil, blockChain.db)
@@ -854,7 +811,7 @@ func TestFaucetContract(t *testing.T) {
 	contractTx := types.NewTx(0, 0, 0).
 		AppendVin(txlogic.MakeContractVin(op, 0)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), 2000))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b4 := nextBlockWithTxs(b3, vmTx)
@@ -887,7 +844,7 @@ func TestFaucetContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue4))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	// make refund tx
 	contractAddrHash := types.CreateAddress(*userAddr.Hash160(), nonce)
 	refundTx := types.NewTx(0, 0, 0).
@@ -924,7 +881,7 @@ func TestFaucetContract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout)
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	b6 := nextBlockWithTxs(b5, vmTx)
 	b6.Header.RootHash.SetString("")
 	b6.Header.UtxoRoot.SetString("")
@@ -957,7 +914,7 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue6))
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	op = types.NewOutPoint(types.NormalizeAddressHash(contractAddr.Hash160()), 0)
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b6 = nextBlockWithTxs(b5, vmTx)
@@ -1079,7 +1036,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
@@ -1119,7 +1076,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b4 := nextBlockWithTxs(b3, vmTx)
 	b4.Header.RootHash.SetString("74094671ea59c16d215cb0797f51d8ded5a1e0c8932bddb82b2a86f7b9366fe6")
@@ -1154,7 +1111,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b5 := nextBlockWithTxs(b4, vmTx)
 	b5.Header.RootHash.SetString("aa0c32471602b461406f808a27d0f911f4e440ff62280c5c059b52a556bd5130")
@@ -1189,7 +1146,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, vmTx)
 	b6.Header.RootHash.SetString("404aa027eb404b7d3608ccc4f87f7e866916cf4ef646176088e68ad63b0e8779")
@@ -1226,7 +1183,7 @@ func TestCoinContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
-	signTx(vmTx, privKey, pubKey)
+	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	gasRefundTxHash, _ := gasRefundTx.TxHash()
 	t.Logf("refund tx: %s", gasRefundTxHash)
@@ -1260,7 +1217,7 @@ func TestChainTx(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(txlogic.MakeVout(splitAddrA.String(), 1000000)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), 5000000))
-	err := signTx(tx, privKey, pubKey)
+	err := txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
 	// tx2
@@ -1270,7 +1227,7 @@ func TestChainTx(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeVout(splitAddrA.String(), 2000000)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), 3000000))
-	err = signTx(tx, privKey, pubKey)
+	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
 	// tx3
@@ -1280,7 +1237,7 @@ func TestChainTx(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeVout(splitAddrA.String(), 2500000)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), 500000))
-	err = signTx(tx, privKey, pubKey)
+	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
 

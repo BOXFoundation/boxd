@@ -414,3 +414,50 @@ func DecodeOutPoint(id string) (*corepb.OutPoint, error) {
 	hash.SetBytes(buf[:crypto.HashSize])
 	return NewPbOutPoint(hash, index), nil
 }
+
+// ************************* use for testcase *****************************
+
+// MakeVinForTest use for testcase
+func MakeVinForTest(tx *types.Transaction, index uint32) []*types.TxIn {
+	hash, _ := tx.TxHash()
+	outPoint := types.OutPoint{
+		Hash:  *hash,
+		Index: index,
+	}
+	txIn := &types.TxIn{
+		PrevOutPoint: outPoint,
+		ScriptSig:    []byte{},
+		Sequence:     0,
+	}
+	vIn := []*types.TxIn{
+		txIn,
+	}
+	return vIn
+}
+
+// SignTx use for testcase
+func SignTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.PublicKey) error {
+
+	addr, _ := types.NewAddressFromPubKey(pubKey)
+	scriptPubKey := script.PayToPubKeyHashScript(addr.Hash())
+	// sign it
+	for txInIdx, txIn := range tx.Vin {
+		sigHash, err := script.CalcTxHashForSig(*scriptPubKey, tx, txInIdx)
+		if err != nil {
+			return err
+		}
+		sig, err := crypto.Sign(privKey, sigHash)
+		if err != nil {
+			return err
+		}
+		scriptSig := script.SignatureScript(sig, pubKey.Serialize())
+		txIn.ScriptSig = *scriptSig
+
+		// test to ensure
+		if err = script.Validate(scriptSig, scriptPubKey, tx, txInIdx); err != nil {
+			logger.Errorf("failed to validate tx. Err: %v", err)
+			return err
+		}
+	}
+	return nil
+}
