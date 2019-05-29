@@ -182,7 +182,7 @@ func (u *UtxoSet) applyUtxo(
 			nonce uint64
 		)
 		if addressHash.IsEqual(&zeroHash) { // deploy smart contract
-			sender, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
+			from, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
 			if err != nil {
 				return err
 			}

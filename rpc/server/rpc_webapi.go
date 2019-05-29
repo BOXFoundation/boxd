@@ -663,9 +663,9 @@ func parseVoutType(txOut *corepb.TxOut) rpcpb.TxOutDetail_TxOutType {
 	} else if sc.IsContractPubkey() {
 		// distinguish create and call after this.
 		return rpcpb.TxOutDetail_contract_call
-	} else {
-		return rpcpb.TxOutDetail_unknown
 	}
+
+	return rpcpb.TxOutDetail_unknown
 }
 
 func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
