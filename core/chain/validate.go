@@ -87,9 +87,9 @@ func validateBlock(block *types.Block) error {
 	// TODO: caching all of the transaction hashes in the block to speed up future hashing
 	calculatedMerkleRoot := CalcTxsHash(transactions)
 	if !header.TxsRoot.IsEqual(calculatedMerkleRoot) {
-		logger.Errorf("block merkle root is invalid - block "+
-			"header indicates %v, but calculated value is %v",
-			header.TxsRoot, *calculatedMerkleRoot)
+		logger.Errorf("block %s:%d merkle root is invalid - block header indicates %v, "+
+			"but calculated value is %v", block.BlockHash(), header.Height, header.TxsRoot,
+			*calculatedMerkleRoot)
 		return core.ErrBadMerkleRoot
 	}
 
@@ -246,11 +246,13 @@ func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
-			logger.Errorf("output %v referenced from transaction %s:%d does not exist", txIn.PrevOutPoint, txHash, txInIdx)
+			logger.Errorf("output %v referenced from tx %s vin[%d] does not exist",
+				txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}
 		if utxo.IsSpent() {
-			logger.Errorf("output %v referenced from transaction %s:%d has already been spent", txIn.PrevOutPoint, txHash, txInIdx)
+			logger.Errorf("output %v referenced from tx %s vin[%d] has already been spent",
+				txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}
 

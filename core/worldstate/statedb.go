@@ -667,6 +667,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecr
 	return root, utxoRoot, nil
 }
 
+// GetUtxo return contract address utxo at given contract addr
+func (s *StateDB) GetUtxo(addr types.AddressHash) ([]byte, error) {
+	return s.utxoTrie.Get(addr[:])
+}
+
 // UpdateUtxo updates statedb utxo at given contract addr
 func (s *StateDB) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error {
 	return s.utxoTrie.Update(addr[:], utxoBytes)

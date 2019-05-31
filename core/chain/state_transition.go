@@ -5,13 +5,13 @@
 package chain
 
 import (
+	"encoding/hex"
 	"errors"
 	"math"
 	"math/big"
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 )
@@ -180,7 +180,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(*msg.From(), st.state.GetNonce(from.Address())+1)
 		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value, false)
-		logger.Infof("call contract return: %s", crypto.BytesToHash(ret))
+		logger.Infof("call contract return: %s", hex.EncodeToString(ret))
 	}
 	if vmerr != nil {
 		// log.Debug("VM returned with error", "err", vmerr)
@@ -202,7 +202,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	st.refundGas()
 	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 
-	logger.Infof("gasUsed: %d, remaining: %v", st.gasUsed(), st.remaining)
+	logger.Infof("gasUsed: %d, remaining: %d, gas price: %d", st.gasUsed(), st.remaining, st.gasPrice)
 	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, nil
 }
 

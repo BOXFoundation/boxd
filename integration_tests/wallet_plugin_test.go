@@ -97,27 +97,26 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 
 	time.Sleep(2 * time.Second)
 
-	return ""
 	// view tx detail
-	//vconn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//defer conn.Close()
-	//vctx, vcancel := context.WithTimeout(context.Background(), 3*time.Second)
-	//defer vcancel()
-	//viewClient := rpcpb.NewWebApiClient(vconn)
-	//viewReq := &rpcpb.ViewTxDetailReq{
-	//	Hash: sendTxResp.Hash,
-	//}
-	//txDetailResp, err := viewClient.ViewTxDetail(vctx, viewReq)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//bytes, _ := json.MarshalIndent(txDetailResp, "", "  ")
-	//t.Logf("tx detail: %s", string(bytes))
+	vconn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	vctx, vcancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer vcancel()
+	viewClient := rpcpb.NewWebApiClient(vconn)
+	viewReq := &rpcpb.ViewTxDetailReq{
+		Hash: sendTxResp.Hash,
+	}
+	txDetailResp, err := viewClient.ViewTxDetail(vctx, viewReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytes, _ := json.MarshalIndent(txDetailResp, "", "  ")
+	t.Logf("tx detail: %s", string(bytes))
 
-	//return txDetailResp.Detail.Hash
+	return txDetailResp.Detail.Hash
 }
 
 // NOTE: to run this test case needs to start a node

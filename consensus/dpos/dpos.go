@@ -519,21 +519,12 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	var rootHash, utxoRootHash *crypto.HashType
-	if parent != nil {
-		if parent.Header.RootHash != crypto.ZeroHash {
-			rootHash = &parent.Header.RootHash
-		}
-		if parent.Header.UtxoRoot != crypto.ZeroHash {
-			utxoRootHash = &parent.Header.UtxoRoot
-		}
-	}
-	statedb, err := state.New(rootHash, utxoRootHash, dpos.chain.DB())
+	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
 	logger.Infof("new statedb with root: %s and utxo root: %s block %s:%d",
-		rootHash, utxoRootHash, block.BlockHash(), block.Header.Height)
+		parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, true, dpos.chain.DB()); err != nil {
 		return err
