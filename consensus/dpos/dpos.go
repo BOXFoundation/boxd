@@ -364,6 +364,7 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 				delete(hashToTx, *hash)
 				continue
 			}
+			currentNonce++
 			vmtxs = append(vmtxs, vmTx)
 		}
 		addressToNonceSortedTxs[from] = vmtxs
