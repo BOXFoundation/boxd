@@ -320,7 +320,14 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 	pool := util.NewPriorityQueue(lessFunc)
 	hashToTx := make(map[crypto.HashType]*types.TxWrap)
 	addressToTxs := make(map[types.AddressHash]*util.PriorityQueue)
+	addressToNonceSortedTxs := make(map[types.AddressHash][]*types.VMTransaction)
 	hashToAddress := make(map[crypto.HashType]types.AddressHash)
+
+	tail := dpos.chain.TailBlock()
+	statedb, err := state.New(&tail.Header.RootHash, &tail.Header.UtxoRoot, dpos.chain.DB())
+	if err != nil {
+		return nil, err
+	}
 
 	for _, pendingTx := range pendingTxs {
 		txHash, _ := pendingTx.Tx.TxHash()
@@ -334,55 +341,53 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 				if err != nil {
 					return nil, err
 				}
-				if v, exists := addressToTxs[*vmTx.From()]; exists {
+				from := *vmTx.From()
+				if v, exists := addressToTxs[from]; exists {
 					heap.Push(v, vmTx)
 				} else {
 					nonceQueue := util.NewPriorityQueue(dpos.nonceFunc)
 					heap.Push(nonceQueue, vmTx)
-					addressToTxs[*vmTx.From()] = nonceQueue
+					addressToTxs[from] = nonceQueue
+					hashToAddress[*txHash] = from
 				}
-				hashToAddress[*txHash] = *vmTx.From()
 			}
 		}
 	}
 
-	tail := dpos.chain.TailBlock()
-	statedb, err := state.New(&tail.Header.RootHash, &tail.Header.UtxoRoot, dpos.chain.DB())
-	if err != nil {
-		return nil, err
+	for from, v := range addressToTxs {
+		var vmtxs []*types.VMTransaction
+		currentNonce := statedb.GetNonce(from)
+		for v.Len() > 0 {
+			vmTx := heap.Pop(v).(*types.VMTransaction)
+			hash := vmTx.OriginTxHash()
+			if vmTx.Nonce() != currentNonce+1 {
+				delete(hashToTx, *hash)
+				continue
+			}
+			vmtxs = append(vmtxs, vmTx)
+		}
+		addressToNonceSortedTxs[from] = vmtxs
 	}
+
 	dag := util.NewDag()
 	for pool.Len() > 0 {
 		txWrap := heap.Pop(pool).(*types.TxWrap)
 		txHash, _ := txWrap.Tx.TxHash()
+		if _, exists := hashToTx[*txHash]; !exists {
+			continue
+		}
 		dag.AddNode(*txHash, int(txWrap.GasPrice))
+		if chain.HasContractVout(txWrap.Tx) { // smart contract tx
+			from := hashToAddress[*txHash]
+			sortedNonceTxs := addressToNonceSortedTxs[from]
+			handleVMTx(dag, sortedNonceTxs, hashToTx)
+			delete(addressToNonceSortedTxs, from)
+		}
 		for _, txIn := range txWrap.Tx.Vin {
 			prevTxHash := txIn.PrevOutPoint.Hash
 			if wrap, exists := hashToTx[prevTxHash]; exists {
 				dag.AddNode(prevTxHash, int(wrap.GasPrice))
 				dag.AddEdge(prevTxHash, *txHash)
-				if chain.HasContractVout(wrap.Tx) { // smart contract tx
-					from := hashToAddress[*txHash]
-					queue := addressToTxs[from]
-					ownerNonce := statedb.GetNonce(from)
-					var parentHash *crypto.HashType
-					for queue.Len() > 0 {
-						vmTx := heap.Pop(queue).(*types.VMTransaction)
-						if vmTx.Nonce() < ownerNonce+1 {
-							// notify pool to remove the tx
-							continue
-						} else if vmTx.Nonce() > ownerNonce+1 {
-							break
-						}
-						hash := vmTx.OriginTxHash()
-						originTx := hashToTx[*hash]
-						dag.AddNode(hash, int(originTx.GasPrice))
-						if parentHash != nil {
-							dag.AddEdge(*parentHash, *hash)
-						}
-						parentHash = hash
-					}
-				}
 			}
 		}
 	}
@@ -396,6 +401,19 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		sortedTxs = append(sortedTxs, hashToTx[hash])
 	}
 	return sortedTxs, nil
+}
+
+func handleVMTx(dag *util.Dag, sortedNonceTxs []*types.VMTransaction, hashToTx map[crypto.HashType]*types.TxWrap) {
+	var parentHash *crypto.HashType
+	for _, vmTx := range sortedNonceTxs {
+		hash := vmTx.OriginTxHash()
+		originTx := hashToTx[*hash]
+		dag.AddNode(hash, int(originTx.GasPrice))
+		if parentHash != nil {
+			dag.AddEdge(*parentHash, *hash)
+		}
+		parentHash = hash
+	}
 }
 
 // PackTxs packed txs and add them to block.
