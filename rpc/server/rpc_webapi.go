@@ -338,7 +338,7 @@ func (s *webapiServer) DoCall(
 	if err != nil || !strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
 		return newCallResp(-1, "invalid from address"), nil
 	}
-	contractAddrHash, err := types.ParseAddress(to)
+	contractAddr, err := types.ParseAddress(to)
 	if err != nil || !strings.HasPrefix(to, types.AddrTypeContractPrefix) {
 		return newCallResp(-1, "invalid contract address"), nil
 	}
@@ -350,7 +350,7 @@ func (s *webapiServer) DoCall(
 
 	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
 		0, nil, types.ContractCallType, data).
-		WithFrom(fromHash.Hash160()).WithTo(contractAddrHash.Hash160())
+		WithFrom(fromHash.Hash160()).WithTo(contractAddr.Hash160())
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -378,12 +378,22 @@ func (s *webapiServer) DoCall(
 
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
-	ret, _, _, _, _, err := chain.ApplyMessage(evm, msg)
+	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
 	if err := vmErr(); err != nil {
 		return newCallResp(-1, err.Error()), nil
 	}
+
+	// Make sure we have a contract to operate on, and bail out otherwise.
+	if err == nil && len(output) == 0 {
+		conHash := msg.To()
+		// Make sure we have a contract to operate on, and bail out otherwise.
+		if code := evm.StateDB.GetCode(*conHash); len(code) == 0 {
+			return newCallResp(-1, "no contract code at given address"), nil
+		}
+	}
+
 	resp := newCallResp(0, "")
-	resp.Output = hex.EncodeToString(ret)
+	resp.Output = hex.EncodeToString(output)
 	return resp, nil
 }
 
