@@ -5,13 +5,19 @@
 package transactioncmd
 
 import (
+	"bufio"
+	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/script"
+	"os"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
-	root "github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -60,11 +66,14 @@ func init() {
 			},
 		},
 		&cobra.Command{
+			Use:   "maketx [from] [to1,to2...] [amounts1,amounts2...] [fee]",
+			Short: "make unsigned transaction",
+			Run:   maketx,
+		},
+		&cobra.Command{
 			Use:   "signrawtx [rawtx]",
 			Short: "Sign a transaction with privatekey and send it to the network",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("signrawtx called")
-			},
+			Run:   signrawtx,
 		},
 		&cobra.Command{
 			Use:   "createrawtx [from] [txhash1,txhash2...] [vout1,vout2...] [to1,to2...] [amount1,amount2...]",
@@ -93,6 +102,79 @@ to quickly create a Cobra  application.`,
 			Run:   sendrawtx,
 		},
 	)
+}
+
+func maketx(cmd *cobra.Command, args []string) {
+	if len(args) < 4 {
+		fmt.Println("Invalide argument number")
+		return
+	}
+	fmt.Println("makeTx called")
+
+	from := args[0]
+
+	toAddr := strings.Split(args[1], ",")
+
+	// check address
+	if err := types.ValidateAddr(append(toAddr, from)...); err != nil {
+		fmt.Println("validate address error", err)
+		return
+	}
+	amountStr := strings.Split(args[2], ",")
+	amounts := make([]uint64, 0)
+	for _, x := range amountStr {
+		tmp, err := strconv.Atoi(x)
+		if err != nil {
+			fmt.Println("Type conversion failed: ", err)
+			return
+		}
+		amounts = append(amounts, uint64(tmp))
+	}
+
+	fee, err := strconv.Atoi(args[3])
+	if err != nil {
+		fmt.Println("Type conversion failed: ", err)
+		return
+	}
+
+	req := &rpcpb.MakeTxReq{
+		From:    from,
+		To:      toAddr,
+		Amounts: amounts,
+		Fee:     uint64(fee),
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewTransactionCommandClient(conn)
+	resp, err := client.MakeUnsignedTx(ctx, req)
+	tx := resp.Tx
+
+	if err != nil {
+		fmt.Println("make transaction failed: ", err)
+		return
+	}
+	rawMsgs := resp.RawMsgs
+	if err != nil {
+		fmt.Println("get raw message failed:", err)
+		return
+	}
+	fmt.Println("transaction: ", util.PrettyPrint(tx))
+	rawTxByte, err := tx.Marshal()
+	if err != nil {
+		fmt.Println("transaction marshal failed:", err)
+	}
+	rawTx := hex.EncodeToString(rawTxByte)
+	fmt.Println("raw transaction :", rawTx)
+	rawMsgStr := make([]string, 0)
+	for _, x := range rawMsgs {
+		rawMsgStr = append(rawMsgStr, hex.EncodeToString(x))
+	}
+	fmt.Println("rawMsgs :", util.PrettyPrint(rawMsgStr))
 }
 
 func createRawTransaction(cmd *cobra.Command, args []string) {
@@ -240,6 +322,80 @@ func decoderawtx(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println(util.PrettyPrint(tx))
+}
+
+func signrawtx(cmd *cobra.Command, args []string) {
+	fmt.Println("signrawtx called")
+	if len(args) != 2 {
+		fmt.Println("Invalide argument number")
+		return
+	}
+	txByte, err := hex.DecodeString(args[0])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	tx := new(types.Transaction)
+	if err := tx.Unmarshal(txByte); err != nil {
+		fmt.Println("Unmarshal error: ", err)
+		return
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println("get wallet manager error", err)
+	}
+	accI, ok := wltMgr.GetAccount(args[1])
+	if !ok {
+		fmt.Printf("account for %s not initialled\n", args[1])
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err := accI.UnlockWithPassphrase(passphrase); err != nil {
+		fmt.Println("Fail to unlock account", err)
+		return
+	}
+	cmdReader := bufio.NewReader(os.Stdin)
+	vinAmount := len(tx.Vin)
+	rawMsgs := make([][]byte, 0)
+	for i := 0; i < vinAmount; i++ {
+		fmt.Println("Please enter rawmsg for this transaction: ")
+		cmdStr, err := cmdReader.ReadString('\n')
+		if err != nil {
+			fmt.Println("read error:", err)
+		}
+		cmdStr = strings.Trim(cmdStr, "\r\n")
+		rawMsgByte, err := hex.DecodeString(cmdStr)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		rawMsgs = append(rawMsgs, rawMsgByte)
+	}
+	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
+	for _, msg := range rawMsgs {
+		hash := crypto.DoubleHashH(msg)
+		sigHashes = append(sigHashes, &hash)
+	}
+
+	scriptSigs := make([][]byte, 0)
+	for _, sigHash := range sigHashes {
+		sig, err := accI.Sign(sigHash)
+		if err != nil {
+			fmt.Println("sign error:", err)
+		}
+		scriptSig := script.SignatureScript(sig, accI.PublicKey())
+		scriptSigs = append(scriptSigs, *scriptSig)
+	}
+	for i, sig := range scriptSigs {
+		tx.Vin[i].ScriptSig = sig
+	}
+	fmt.Println(util.PrettyPrint(tx))
+	mashalTx, err := tx.Marshal()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	strTx := hex.EncodeToString(mashalTx)
+	fmt.Println("rawtx : ", strTx)
 }
 
 func sendFromCmdFunc(cmd *cobra.Command, args []string) {
