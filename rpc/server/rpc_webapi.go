@@ -7,6 +7,7 @@ package rpc
 import (
 	"container/list"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
@@ -331,7 +332,16 @@ func newCallResp(code int32, msg string) *rpcpb.CallResp {
 
 func (s *webapiServer) DoCall(
 	ctx context.Context, req *rpcpb.CallReq,
-) (*rpcpb.CallResp, error) {
+) (resp *rpcpb.CallResp, err error) {
+
+	defer func() {
+		bytes, _ := json.Marshal(req)
+		if resp.Code != 0 {
+			logger.Warnf("contract do call req: %s error: %s", string(bytes), resp.Message)
+		} else {
+			logger.Infof("contract do call req: %s succeeded, response: %+v", string(bytes), resp)
+		}
+	}()
 
 	from, to := req.GetFrom(), req.GetTo()
 	fromHash, err := types.ParseAddress(from)
@@ -382,7 +392,7 @@ func (s *webapiServer) DoCall(
 	if err := vmErr(); err != nil {
 		return newCallResp(-1, err.Error()), nil
 	}
-	resp := newCallResp(0, "")
+	resp = newCallResp(0, "")
 	resp.Output = hex.EncodeToString(ret)
 	return resp, nil
 }

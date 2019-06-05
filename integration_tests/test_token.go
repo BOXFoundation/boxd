@@ -14,7 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
@@ -101,12 +101,12 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	if utils.TokenRepeatRandom() {
 		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
 	}
-	tokenRepeatTest(issuer, sender, receivers, tag, curTimes, &t.txCnt, peerAddr)
+	tokenRepeatTest(issuer, sender, receivers[0], tag, curTimes, &t.txCnt, peerAddr)
 	//
 	return
 }
 
-func tokenRepeatTest(issuer, sender string, receivers []string,
+func tokenRepeatTest(issuer, sender, receiver string,
 	tag *rpcpb.TokenTag, times int, txCnt *uint64, peerAddr string) {
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
@@ -126,8 +126,7 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	logger.Infof("%s issue %d token to %s", issuer, tag.Supply, sender)
 
 	issuerAcc, _ := AddrToAcc.Load(issuer)
-	tx, tid, _, err := rpcutil.NewIssueTokenTx(issuerAcc.(*acc.Account), sender, tag,
-		tag.Supply, conn)
+	tx, tid, _, err := rpcutil.NewIssueTokenTx(issuerAcc.(*acc.Account), sender, tag, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -148,7 +147,6 @@ func tokenRepeatTest(issuer, sender string, receivers []string,
 	}
 
 	// check status before transfer
-	receiver := receivers[0]
 	blcRcvPre := utils.TokenBalanceFor(receiver, tid.Hash.String(), tid.Index, peerAddr)
 	logger.Infof("before token transfer, sender %s has %d token, receiver %s"+
 		" has %d token", sender, blcSenderPre, receiver, blcRcvPre)

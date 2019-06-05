@@ -95,8 +95,7 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 
 // NewIssueTokenTx new a issue token transaction
 func NewIssueTokenTx(
-	acc *acc.Account, to string, tag *rpcpb.TokenTag, supply uint64,
-	conn *grpc.ClientConn,
+	acc *acc.Account, to string, tag *rpcpb.TokenTag, conn *grpc.ClientConn,
 ) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
@@ -116,10 +115,69 @@ func NewIssueTokenTx(
 	if err != nil {
 		logger.Warnf("new issue token tx with utxos from %s to %s tag %+v "+
 			"supply %d change %d with utxos: %+v error: %s", acc.Addr(), to, tag,
-			supply, inputAmt-fee, utxos, err)
+			tag.Supply, inputAmt-fee, utxos, err)
 		return nil, nil, nil, err
 	}
 	return tx, tid, change, nil
+}
+
+// NewContractDeployTx new a deploy contract transaction
+func NewContractDeployTx(
+	acc *acc.Account, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+) (*types.Transaction, string, error) {
+	// fetch utxos for gas
+	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
+	if err != nil {
+		return nil, "", err
+	}
+	inputAmt := uint64(0)
+	for _, u := range utxos {
+		inputAmt += u.GetTxOut().GetValue()
+	}
+	//
+	tx, err := txlogic.MakeUnsignedContractDeployTx(acc.Addr(), 0,
+		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, code, utxos...)
+	if err != nil {
+		return nil, "", err
+	}
+	// sign vin
+	if err = txlogic.SignTxWithUtxos(tx, utxos, acc); err != nil {
+		return nil, "", err
+	}
+	// nonce
+
+	senderAddr, err := types.NewAddress(acc.Addr())
+	if err != nil {
+		return nil, "", err
+	}
+	contractAddr, _ := types.MakeContractAddress(senderAddr, nonce)
+	return tx, contractAddr.String(), nil
+}
+
+// NewContractCallTx new a call contract transaction
+func NewContractCallTx(
+	acc *acc.Account, to string, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+) (*types.Transaction, error) {
+	// fetch utxos for gas
+	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	inputAmt := uint64(0)
+	for _, u := range utxos {
+		inputAmt += u.GetTxOut().GetValue()
+	}
+	//
+	tx, err := txlogic.MakeUnsignedContractCallTx(acc.Addr(), 0,
+		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, to, code, utxos...)
+	if err != nil {
+		return nil, err
+	}
+	// sign vin
+	if err = txlogic.SignTxWithUtxos(tx, utxos, acc); err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 // SendTransaction sends an signed transaction to node server through grpc connection

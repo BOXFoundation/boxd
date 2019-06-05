@@ -361,6 +361,7 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			vmTx := heap.Pop(v).(*types.VMTransaction)
 			hash := vmTx.OriginTxHash()
 			if vmTx.Nonce() != currentNonce+1 {
+				logger.Warnf("vm tx %+v has a wrong nonce(now %d), remove it", vmTx, currentNonce)
 				delete(hashToTx, *hash)
 				continue
 			}

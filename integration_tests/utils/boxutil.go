@@ -6,12 +6,14 @@ package utils
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/wallet"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
@@ -333,4 +335,70 @@ func TokenBalanceFor(
 		logger.Panic(err)
 	}
 	return b[0]
+}
+
+// CallContract calls contract with code
+func CallContract(addr, contractAddr string, code []byte, peerAddr string) []byte {
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	if err != nil {
+		logger.Panic(err)
+	}
+	defer conn.Close()
+
+	client := rpcpb.NewWebApiClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resp, err := client.DoCall(ctx, newDoCallReq(addr, contractAddr, hex.EncodeToString(code)))
+	if err != nil {
+		logger.Panic(err)
+	}
+	//logger.Infof("CallContract for %s contract addr %s output %s", addr, contractAddr, resp.Output)
+	output, _ := hex.DecodeString(resp.Output)
+	return output
+}
+
+func parseContractNumberResult(ret []byte) (uint64, error) {
+	r, err := strconv.ParseUint(hex.EncodeToString(ret), 16, 64)
+	if err != nil {
+		return 0, err
+	}
+	return r, nil
+}
+
+// WaitERC20BalanceEqualTo waits ERC20 balance of addr equal to amount
+func WaitERC20BalanceEqualTo(
+	addr, contractAddr string, amount uint64, code []byte, peer string, timeout time.Duration,
+) error {
+	ret := CallContract(addr, contractAddr, code, peer)
+	b, _ := parseContractNumberResult(ret)
+	if b == amount {
+		return nil
+	}
+	// check repeatedly
+	d := RPCInterval
+	t := time.NewTicker(d)
+	defer t.Stop()
+	for i := 0; i < int(timeout/d); i++ {
+		select {
+		case <-t.C:
+			ret = CallContract(addr, contractAddr, code, peer)
+			b, _ = parseContractNumberResult(ret)
+			if b == amount {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("Timeout for waiting for %s contract token balance equal to %d, now %d",
+		addr, amount, b)
+}
+
+// WaitERC20AllowanceEqualTo waits ERC20 allowance of addr equal to amount
+func WaitERC20AllowanceEqualTo(
+	addr, contractAddr string, amount uint64, code []byte, peer string, timeout time.Duration,
+) error {
+	return WaitERC20BalanceEqualTo(addr, contractAddr, amount, code, peer, timeout)
+}
+
+func newDoCallReq(from, to string, data string) *rpcpb.CallReq {
+	return &rpcpb.CallReq{From: from, To: to, Data: data}
 }

@@ -32,6 +32,12 @@ var (
 	splitAddrRepeatTxTimes = 50
 	splitAddrRepeatRandom  = true
 
+	contractTestEnable    = true
+	contractAccounts      = 6
+	contractUnitAccounts  = 3
+	contractRepeatTxTimes = 50
+	contractRepeatRandom  = true
+
 	timesToUpdateAddrs = 100
 
 	// NewNodes flag indicates to need to start nodes
@@ -171,6 +177,37 @@ func LoadConf() error {
 	}
 	logger.Infof("splitAddr test enable_repeat_random = %t", splitAddrRepeatRandom)
 
+	// contract
+	contractTestEnable, err = GetBoolCfgVal(true, "contract_test", "enable")
+	if err != nil {
+		return err
+	}
+	logger.Infof("contract test enable = %t", contractTestEnable)
+
+	contractAccounts, err = GetIntCfgVal(10, "contract_test", "accounts")
+	if err != nil {
+		return err
+	}
+	logger.Infof("contract accounts = %d", contractAccounts)
+
+	contractUnitAccounts, err = GetIntCfgVal(10, "contract_test", "unit_accounts")
+	if err != nil {
+		return err
+	}
+	logger.Infof("contract unit accounts = %d", contractUnitAccounts)
+
+	contractRepeatTxTimes, err = GetIntCfgVal(10, "contract_test", "repeat_times")
+	if err != nil {
+		return err
+	}
+	logger.Infof("contract repeat tx times = %d", contractRepeatTxTimes)
+
+	contractRepeatRandom, err = GetBoolCfgVal(true, "contract_test", "enable_repeat_random")
+	if err != nil {
+		return err
+	}
+	logger.Infof("contract test enable_repeat_random = %t", contractRepeatRandom)
+
 	timesToUpdateAddrs, err = GetIntCfgVal(100, "times_to_update_addrs")
 	if err != nil {
 		return err
@@ -238,6 +275,26 @@ func CircuUnitAccounts() int {
 	return circuUnitAccounts
 }
 
+// CircuRepeatTxTimes return circuRepeatTxTimes
+func CircuRepeatTxTimes() int {
+	return circuRepeatTxTimes
+}
+
+// CircuRepeatRandom return circuRepeatRandom
+func CircuRepeatRandom() bool {
+	return circuRepeatRandom
+}
+
+// TxTestEnable return txTestEnable
+func TxTestEnable() bool {
+	return txTestEnable
+}
+
+// TimesToUpdateAddrs return timesToUpdateAddrs
+func TimesToUpdateAddrs() int {
+	return timesToUpdateAddrs
+}
+
 // TokenAccounts return tokenAccounts
 func TokenAccounts() int {
 	return tokenAccounts
@@ -248,19 +305,9 @@ func TokenUnitAccounts() int {
 	return tokenUnitAccounts
 }
 
-// CircuRepeatTxTimes return circuRepeatTxTimes
-func CircuRepeatTxTimes() int {
-	return circuRepeatTxTimes
-}
-
 // TokenRepeatTxTimes return tokenRepeatTxTimes
 func TokenRepeatTxTimes() int {
 	return tokenRepeatTxTimes
-}
-
-// CircuRepeatRandom return circuRepeatRandom
-func CircuRepeatRandom() bool {
-	return circuRepeatRandom
 }
 
 // TokenRepeatRandom return circuRepeatRandom
@@ -271,11 +318,6 @@ func TokenRepeatRandom() bool {
 // TokenTestEnable return tokenTestEnable
 func TokenTestEnable() bool {
 	return tokenTestEnable
-}
-
-// TxTestEnable return txTestEnable
-func TxTestEnable() bool {
-	return txTestEnable
 }
 
 // SplitAddrTestEnable return splitAddrTestEnable
@@ -303,7 +345,27 @@ func SplitAddrRepeatRandom() bool {
 	return splitAddrRepeatRandom
 }
 
-// TimesToUpdateAddrs return timesToUpdateAddrs
-func TimesToUpdateAddrs() int {
-	return timesToUpdateAddrs
+// ContractAccounts return contractAccounts
+func ContractAccounts() int {
+	return contractAccounts
+}
+
+// ContractUnitAccounts return contractUnitAccounts
+func ContractUnitAccounts() int {
+	return contractUnitAccounts
+}
+
+// ContractRepeatTxTimes return contractRepeatTxTimes
+func ContractRepeatTxTimes() int {
+	return contractRepeatTxTimes
+}
+
+// ContractRepeatRandom return circuRepeatRandom
+func ContractRepeatRandom() bool {
+	return contractRepeatRandom
+}
+
+// ContractTestEnable return contractTestEnable
+func ContractTestEnable() bool {
+	return contractTestEnable
 }

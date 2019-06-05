@@ -131,8 +131,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 	tag := txlogic.NewTokenTag(tokenName, tokenSymbol, uint32(tokenDecimals),
 		uint64(tokenTotalSupply))
-	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.String(), tag,
-		uint64(tokenTotalSupply), conn)
+	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.String(), tag, conn)
 	if err != nil {
 		fmt.Println(err)
 		return

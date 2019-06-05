@@ -136,8 +136,8 @@ func (s *txServer) FetchUtxos(
 				}
 				total += amount
 			}
-			logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
-				string(bytes), len(resp.GetUtxos()), total)
+			//logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
+			//	string(bytes), len(resp.GetUtxos()), total)
 		}
 	}()
 
@@ -457,7 +457,8 @@ func (s *txServer) MakeUnsignedContractTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned contract tx: %s error: %s", string(bytes), resp.Message)
 		} else {
-			logger.Debugf("make unsigned contract tx: %s succeeded, response: %+v", string(bytes), resp)
+			logger.Debugf("make unsigned contract tx: %s succeeded, contract addr: %s",
+				string(bytes), resp.ContractAddr)
 		}
 	}()
 	wa := s.server.GetWalletAgent()

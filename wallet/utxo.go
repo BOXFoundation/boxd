@@ -15,7 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	sk "github.com/BOXFoundation/boxd/storage/key"
@@ -97,7 +97,7 @@ func FetchUtxosOf(
 	//
 	start := time.Now()
 	keys := db.KeysWithPrefix(utxoKey)
-	logger.Infof("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
+	logger.Debugf("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
 		total, time.Since(start))
 	// fetch all utxos if total equals to 0
 	if total == 0 {
