@@ -409,7 +409,7 @@ func handleVMTx(dag *util.Dag, sortedNonceTxs []*types.VMTransaction, hashToTx m
 	for _, vmTx := range sortedNonceTxs {
 		hash := vmTx.OriginTxHash()
 		originTx := hashToTx[*hash]
-		dag.AddNode(hash, int(originTx.GasPrice))
+		dag.AddNode(*hash, int(originTx.GasPrice))
 		if parentHash != nil {
 			dag.AddEdge(*parentHash, *hash)
 		}
@@ -589,6 +589,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 	block.Hash = nil
 
+	logger.Infof("block %s height: %d have state root %s utxo root %s",
+		block.BlockHash(), block.Header.Height, root, utxoRoot)
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
 		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),
