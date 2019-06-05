@@ -573,6 +573,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
+	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
 	txsRoot := chain.CalcTxsHash(block.Txs)
 	block.Header.TxsRoot = *txsRoot
 	// block.Txs = blockTxns
