@@ -380,7 +380,7 @@ func (chain *BlockChain) calMissRate() (total uint32, miss uint32) {
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
 	if exist, ok := chain.repeatedMintCache.Get(block.Header.TimeStamp); ok {
-		if !block.BlockHash().IsEqual(exist.(*types.Block).BlockHash()) {
+		if block.Header.BookKeeper != (exist.(*types.Block)).Header.BookKeeper {
 			return false
 		}
 	}
