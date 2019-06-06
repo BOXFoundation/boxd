@@ -507,6 +507,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	<-continueCh
 
 	// Pay tx fees to bookkeeper in addition to block reward in coinbase
+	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
 	blockTxns[0].Vout[0].Value += totalTxFee
 	block.Txs = blockTxns
 
@@ -574,7 +575,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
-	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
+
 	txsRoot := chain.CalcTxsHash(block.Txs)
 	block.Header.TxsRoot = *txsRoot
 	// block.Txs = blockTxns
