@@ -357,8 +357,7 @@ func NewTxs(
 
 func fetchUtxos(
 	conn *grpc.ClientConn, addr string, amount uint64, tHashStr string, tIdx uint32,
-) (
-	utxos []*rpcpb.Utxo, err error) {
+) (utxos []*rpcpb.Utxo, err error) {
 	for t := 0; t < 30; t++ {
 		utxos, err = FetchUtxos(conn, addr, amount, tHashStr, tIdx)
 		if len(utxos) == 0 {
@@ -447,6 +446,41 @@ func NewTokenTxs(
 		}
 		txs = append(txs, tx)
 		utxos = []*rpcpb.Utxo{change, changeT}
+		if change == nil {
+			break
+		}
+	}
+	return txs, nil
+}
+
+// NewERC20TransferFromContractTxs new a contract transferFrom tx
+func NewERC20TransferFromContractTxs(
+	acc *acc.Account, contractAddr string, count int, gasPrice, gasLimit, startNonce uint64,
+	code []byte, conn *grpc.ClientConn,
+) ([]*types.Transaction, error) {
+	// get utxos
+	amount := gasPrice * gasLimit * uint64(count)
+	utxos, err := fetchUtxos(conn, acc.Addr(), amount, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	var boxAmt uint64
+	for _, u := range utxos {
+		boxAmt += u.TxOut.Value
+	}
+	//
+	var txs []*types.Transaction
+	changeAmt, nonce := boxAmt, startNonce
+	for i := 0; i < count; i++ {
+		changeAmt -= gasPrice * gasLimit
+		tx, change, err := txlogic.NewContractTxWithUtxos(acc, contractAddr, 0,
+			changeAmt, gasPrice, gasLimit, nonce, code, utxos...)
+		if err != nil {
+			return nil, err
+		}
+		nonce++
+		txs = append(txs, tx)
+		utxos = []*rpcpb.Utxo{change}
 		if change == nil {
 			break
 		}

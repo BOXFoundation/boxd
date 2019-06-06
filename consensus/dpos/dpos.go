@@ -337,7 +337,14 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			heap.Push(pool, pendingTx)
 			hashToTx[*txHash] = pendingTx
 			if chain.HasContractVout(pendingTx.Tx) { // smart contract tx
-				vmTx, err := dpos.chain.ExtractVMTransactions(pendingTx.Tx)
+				// from is in txpool if the contract tx used a vout in txpool
+				op := pendingTx.Tx.Vin[0].PrevOutPoint
+				ownerTx, ok := dpos.txpool.GetTxByHash(&op.Hash)
+				if !ok { // no need to find owner in orphan tx pool
+					ownerTx = nil
+				}
+				// extract contract tx
+				vmTx, err := dpos.chain.ExtractVMTransactions(pendingTx.Tx, ownerTx.GetTx())
 				if err != nil {
 					return nil, err
 				}
@@ -537,6 +544,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
+	dpos.chain.SetBlockTxs(block)
 	receipts, gasUsed, gasRemainingFee, utxoTxs, err :=
 		dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {

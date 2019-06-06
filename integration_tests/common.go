@@ -47,7 +47,7 @@ func PickOneMiner() (string, bool) {
 			logger.Infof("PickOneMiner wait for miner %s box reach %d on peer %s",
 				minerAddrs[i], 100000000, peersAddr[0])
 			if _, err := utils.WaitBalanceEnough(minerAddrs[i], 100000000, peersAddr[0],
-				timeoutToChain); err != nil {
+				time.Second); err != nil {
 				logger.Warn(err)
 				continue
 			}

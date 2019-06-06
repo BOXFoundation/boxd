@@ -649,15 +649,25 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 	return target
 }
 
+// SetBlockTxs sets block txs
+func (chain *BlockChain) SetBlockTxs(block *types.Block) {
+	chain.ongoingBlockTxs = gatherBlockTxs(block)
+}
+
+// ResetBlockTxs resets block txs
+func (chain *BlockChain) ResetBlockTxs() {
+	chain.ongoingBlockTxs = nil
+}
+
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageFrom peer.ID) error {
 
 	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
 
-	chain.ongoingBlockTxs = gatherBlockTxs(block)
+	chain.SetBlockTxs(block)
 	defer func() {
-		chain.ongoingBlockTxs = nil
+		chain.ResetBlockTxs()
 	}()
 
 	var utxoSet *UtxoSet
@@ -1118,9 +1128,9 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	logger.Infof("Try to disconnect block from main chain. Hash: %s Height: %d",
 		block.BlockHash(), block.Header.Height)
 
-	chain.ongoingBlockTxs = gatherBlockTxs(block)
+	chain.SetBlockTxs(block)
 	defer func() {
-		chain.ongoingBlockTxs = nil
+		chain.ResetBlockTxs()
 	}()
 
 	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
@@ -1966,37 +1976,60 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Tab
 }
 
 // FetchOwnerOfOutPoint fetches the owner of an outpoint
-func (chain *BlockChain) FetchOwnerOfOutPoint(op *types.OutPoint) (types.Address, error) {
-	tx, ok := chain.ongoingBlockTxs[op.Hash]
-	if !ok {
+func (chain *BlockChain) FetchOwnerOfOutPoint(
+	op *types.OutPoint, ownerTxs ...*types.Transaction,
+) (types.Address, error) {
+	var ownerTx *types.Transaction
+	for _, tx := range ownerTxs {
+		if tx == nil {
+			continue
+		}
+		txHash, _ := tx.TxHash()
+		if op.Hash == *txHash {
+			ownerTx = tx
+			break
+		}
+	}
+	if ownerTx == nil {
+		ownerTx = chain.ongoingBlockTxs[op.Hash]
+	}
+	if ownerTx == nil {
 		var err error
-		_, tx, err = chain.LoadBlockInfoByTxHash(op.Hash)
+		_, ownerTx, err = chain.LoadBlockInfoByTxHash(op.Hash)
 		if err != nil {
+			logger.Warnf("load block info by tx %s error %s", op.Hash, err)
 			return nil, err
 		}
 	}
-	if int(op.Index) >= len(tx.Vout) {
+	if ownerTx == nil {
+		return nil, fmt.Errorf("fetch owner of OutPoint %+v failed", op)
+	}
+	if int(op.Index) >= len(ownerTx.Vout) {
 		return nil, errors.New("index out of range")
 	}
-	scriptPubkey := tx.Vout[op.Index].ScriptPubKey
+	scriptPubkey := ownerTx.Vout[op.Index].ScriptPubKey
 	return script.NewScriptFromBytes(scriptPubkey).ExtractAddress()
 }
 
 // ExtractVMTransactions extract Transaction to VMTransaction
-func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VMTransaction, error) {
+func (chain *BlockChain) ExtractVMTransactions(
+	tx *types.Transaction, ownerTxs ...*types.Transaction,
+) (*types.VMTransaction, error) {
 	// check
 	if !HasContractVout(tx) {
 		return nil, nil
 	}
-	from, err := chain.FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint)
+	// HashWith
+	txHash, _ := tx.TxHash()
+	from, err := chain.FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, ownerTxs...)
 	if err != nil {
+		logger.Errorf("fetch owner of %+v in %s error: %s", tx.Vin[0].PrevOutPoint,
+			txHash, err)
 		return nil, err
 	}
 	if !strings.HasPrefix(from.String(), types.AddrTypeP2PKHPrefix) {
-		return nil, fmt.Errorf("cannot extract vm tx from tx that does not contain box utxo")
+		return nil, fmt.Errorf("contract tx sender must be P2PK account")
 	}
-	// HashWith
-	txHash, _ := tx.TxHash()
 
 	for _, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
@@ -2026,6 +2059,17 @@ func HasContractVout(tx *types.Transaction) bool {
 		}
 	}
 	return false
+}
+
+// GetContractVout return contract out if tx has a vout with contract creation or call
+func GetContractVout(tx *types.Transaction) *corepb.TxOut {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return o
+		}
+	}
+	return nil
 }
 
 // HasContractSpend return true if tx has a vin with Op Spend script sig

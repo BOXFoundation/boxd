@@ -46,6 +46,22 @@ type TxWrap struct {
 	IsScriptValid  bool
 }
 
+// GetTx return tx in TxWrap
+func (w *TxWrap) GetTx() *Transaction {
+	if w == nil {
+		return nil
+	}
+	return w.Tx
+}
+
+// String prints TxWrap
+func (w *TxWrap) String() string {
+	txHash, _ := w.Tx.TxHash()
+	return fmt.Sprintf("{Tx: %s, AddedTimestamp: %d, Height: %d, "+
+		"GasPrice: %d, IsScriptValid: %t}", txHash, w.AddedTimestamp,
+		w.Height, w.GasPrice, w.IsScriptValid)
+}
+
 var _ conv.Convertible = (*Transaction)(nil)
 var _ conv.Serializable = (*Transaction)(nil)
 

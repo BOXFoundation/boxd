@@ -99,15 +99,14 @@ func ApplyTransaction(
 	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	logger.Infof("ApplyMessage tx: %+v, header: %+v", tx, header)
+	//logger.Infof("ApplyMessage tx: %+v, header: %+v", tx, header)
 	ret, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		logger.Warn(err)
 		return nil, 0, 0, nil, nil, err
 	}
-	logger.Infof("result for ApplyMessage origin tx %s, gasUsed: %d, gasRemainingFee:"+
-		" %d, failed: %t, return: %s", tx.OriginTxHash(), gasUsed, gasRemainingFee,
-		fail, hex.EncodeToString(ret))
+	logger.Infof("result for ApplyMessage msg %s, gasUsed: %d, gasRemainingFee:"+
+		" %d, failed: %t, return: %s", tx, gasUsed, gasRemainingFee, fail, hex.EncodeToString(ret))
 	if gasRefundTx != nil {
 		txHash, _ := gasRefundTx.TxHash()
 		logger.Infof("gasRefund tx: %s", txHash)

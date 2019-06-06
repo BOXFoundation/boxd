@@ -239,6 +239,32 @@ func MakeUnsignedContractCallTx(
 	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, utxos...)
 }
 
+// NewContractTxWithUtxos new a contract transaction
+func NewContractTxWithUtxos(
+	fromAcc *acc.Account, contractAddr string, amount, changeAmt, gasPrice,
+	gasLimit, nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, *rpcpb.Utxo, error) {
+	tx, err := MakeUnsignedContractCallTx(fromAcc.Addr(), amount, changeAmt,
+		gasLimit, gasPrice, nonce, contractAddr, byteCode, utxos...)
+	if err != nil {
+		return nil, nil, err
+	}
+	// sign vin
+	if err := SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
+		return nil, nil, err
+	}
+	// change
+	var change *rpcpb.Utxo
+	if changeAmt > 0 {
+		txHash, _ := tx.TxHash()
+		idx := uint32(len(tx.Vout)) - 1
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		change = MakePbUtxo(op, uw)
+	}
+	//
+	return tx, change, nil
+}
+
 // MakeUnsignedSplitAddrTx make unsigned split addr tx
 func MakeUnsignedSplitAddrTx(
 	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,

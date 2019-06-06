@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -182,39 +183,32 @@ func contractRepeatTest(
 		logger.Panic(err)
 	}
 
-	// transferFrom contract token times
-	logger.Infof("%s transfer %d times contract token to %s", spender, times, receiver)
+	// spender transferFrom owner to receiver erc20 token
 	spenderAcc, _ := AddrToAcc.Load(spender)
-	amount, spenderNonce := uint64(80000), uint64(1)
-	code = erc20TransferFromCall(owner, receiver, amount)
-	tx, err = rpcutil.NewContractCallTx(spenderAcc.(*acc.Account), contractAddr,
-		gasPrice, gasLimit, spenderNonce, code, conn)
-	if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
-		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
-		logger.Panic(err)
+	amount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount/2)))
+	if gasUsed := uint64(39792 + 24792*(times-1)); gasUsed > sendGas {
+		logger.Panicf("sendGas %d is less than gasUsed when send %d times trasferFrom",
+			sendGas, times)
 	}
-	atomic.AddUint64(txCnt, 1)
-
-	//logger.Infof("%s transfer %d times contract token to %s", spender, times, receiver)
-	//spenderAcc, _ := AddrToAcc.Load(spender)
-	//ave := totalAmount / uint64(times)
-	//amount := ave/2 + uint64(rand.Int63n(int64(ave/2)))
-	//txs, err := utils.NewContractTransferFromTxs(spenderAcc, contractAddr, gasPrice,
-	//	gasLimit, nonce, transferFromCall, conn)
-	//// cend contract transferFrom txs
-	//for _, tx := range txs {
-	//	if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
-	//		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
-	//		logger.Panic(err)
-	//	}
-	//	atomic.AddUint64(txCnt, 1)
-	//	time.Sleep(2 * time.Millisecond)
-	//}
-	//logger.Infof("%s sent %d times total %d token tx to %s", spender, times,
-	//	txTotalAmount, receiver)
+	spendNonce := uint64(1)
+	code = erc20TransferFromCall(owner, receiver, amount/uint64(times))
+	txs, err := rpcutil.NewERC20TransferFromContractTxs(spenderAcc.(*acc.Account),
+		contractAddr, times, gasPrice, gasLimit, spendNonce, code, conn)
+	// cend contract transferFrom txs
+	for _, tx := range txs {
+		if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
+			!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
+			logger.Panic(err)
+		}
+		atomic.AddUint64(txCnt, 1)
+		time.Sleep(2 * time.Millisecond)
+	}
+	logger.Infof("%s has transfered %d times total %d contract transferFrom tx to %s",
+		spender, times, totalAmount, receiver)
 
 	// check transferFrom result
 	// for owner
+	amount = amount / uint64(times) * uint64(times)
 	logger.Infof("wait for ERC20 balance of owner %s equal to %d, timeout %v",
 		owner, totalAmount-amount, timeoutToChain)
 	code = erc20BalanceOfCall(owner)
@@ -241,7 +235,7 @@ func contractRepeatTest(
 		logger.Panic(err)
 	}
 	// for spender box
-	gasUsed = uint64(39782)
+	gasUsed = uint64(39792 + 24792*(times-1))
 	logger.Infof("wait for box balance of spender %s equal to %d, timeout %v",
 		receiver, sendGas-gasUsed*gasPrice, timeoutToChain)
 	_, err = utils.WaitBalanceEqual(spender, sendGas-gasUsed*gasPrice, peerAddr, timeoutToChain)

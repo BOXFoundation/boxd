@@ -109,7 +109,7 @@ func TestListenAndReadNewBlock(t *testing.T) {
 	starter.Do(setupWebAPIMockSvr)
 	// start send blocks goroutine
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		sendWebAPITestBlocks()
 	}()
 
