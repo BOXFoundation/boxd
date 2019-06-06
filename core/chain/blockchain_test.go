@@ -368,6 +368,7 @@ func TestBlockProcessing(t *testing.T) {
 
 	b1DoubleMint := nextBlock(b1)
 	b1DoubleMint.Header.TimeStamp = b1.Header.TimeStamp
+	b1DoubleMint.Header.BookKeeper = *minerAddr.Hash160()
 	verifyProcessBlock(t, blockChain, b1DoubleMint, core.ErrRepeatedMintAtSameTime, 1, b1)
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	ensure.DeepEqual(t, balance, uint64(50*core.DuPerBox))
