@@ -6,6 +6,9 @@ package trie
 
 import (
 	"bytes"
+	"container/list"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -472,4 +475,84 @@ func hashToBytes(hash *crypto.HashType) []byte {
 		return nil
 	}
 	return hash[:]
+}
+
+// String print the Trie.
+func (t *Trie) String() {
+	queue := list.New()
+	queue.PushBack(t.rootHash)
+	layer := queue.Back()
+	for queue.Len() != 0 {
+		item := queue.Front()
+		queue.Remove(item)
+		hash := item.Value.(*crypto.HashType)
+		node, err := t.getNode(hash)
+		if err != nil {
+			logger.Errorf("Node not found: %s", hash)
+		}
+
+		switch node.Type() {
+		case leaf:
+			t.printLeaf(hash)
+		case extension:
+			next := t.printExtension(hash)
+			queue.PushBack(next)
+		case branch:
+			hashs := t.printBranch(hash)
+			queue.PushBackList(hashs)
+		default:
+			fmt.Println("BUG!!!!")
+		}
+		if layer == item {
+			fmt.Println("----------------------------")
+			layer = queue.Back()
+		}
+	}
+}
+
+func (t *Trie) printExtension(hash *crypto.HashType) *crypto.HashType {
+	node, err := t.getNode(hash)
+	if err != nil {
+		logger.Errorf("Node not found: %s", hash)
+	}
+
+	key := hex.EncodeToString(hexToKey(node.Value[0]))
+
+	next := new(crypto.HashType)
+	next.SetBytes(node.Value[1])
+	fmt.Printf("(EXTENSION) [%s] %s: %s\n", hash, key, next)
+	return next
+}
+
+func (t *Trie) printLeaf(hash *crypto.HashType) {
+	node, err := t.getNode(hash)
+	if err != nil {
+		logger.Errorf("Node not found: %s", hash)
+	}
+
+	key := hex.EncodeToString(hexToKey(node.Value[0]))
+	val := string(node.Value[1])
+
+	fmt.Printf("(LEAF) [%s] %s: %s\n", hash, key, val)
+}
+
+func (t *Trie) printBranch(hash *crypto.HashType) *list.List {
+	node, err := t.getNode(hash)
+	if err != nil {
+		logger.Errorf("Node not found: %s", hash)
+	}
+	fmt.Printf("(BRANCH) %s: [", hash)
+	hashs := list.New()
+	for i, val := range node.Value {
+		next := new(crypto.HashType)
+		next.SetBytes(val)
+		if len(val) != 0 {
+			fmt.Printf("%x: %s\t", i, next)
+			hashs.PushBack(next)
+		} else {
+			fmt.Printf("%x: %s\t", i, val)
+		}
+	}
+	fmt.Println("]")
+	return hashs
 }
