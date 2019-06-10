@@ -132,7 +132,7 @@ func contractRepeatTest(
 	logger.Infof("%s issue 10000*10^8 token to %s", owner, spender)
 	ownerAcc, _ := AddrToAcc.Load(owner)
 	erc20Bytes, _ := hex.DecodeString(testERC20Contract)
-	gasLimit, nonce := uint64(1000000), uint64(1)
+	gasLimit, nonce := uint64(1000000), utils.NonceFor(owner, conn)+1
 	tx, contractAddr, err := rpcutil.NewContractDeployTx(ownerAcc.(*acc.Account), gasPrice,
 		gasLimit, nonce, erc20Bytes, conn)
 	if err != nil {
@@ -190,7 +190,7 @@ func contractRepeatTest(
 		logger.Panicf("sendGas %d is less than gasUsed when send %d times trasferFrom",
 			sendGas, times)
 	}
-	spendNonce := uint64(1)
+	spendNonce := utils.NonceFor(spender, conn) + 1
 	code = erc20TransferFromCall(owner, receiver, amount/uint64(times))
 	txs, err := rpcutil.NewERC20TransferFromContractTxs(spenderAcc.(*acc.Account),
 		contractAddr, times, gasPrice, gasLimit, spendNonce, code, conn)

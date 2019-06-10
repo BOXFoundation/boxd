@@ -50,8 +50,8 @@ func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	}
 	if err != nil {
 		return 0, err
-	} else if resp.Code != 0 {
-		return 0, errors.New(resp.Message)
+	} else if r.Code != 0 {
+		return 0, errors.New(r.Message)
 	}
 	return r.Balances[0], nil
 }
@@ -112,8 +112,8 @@ func ChainHeightFor(peerAddr string) (int, error) {
 	}
 	if err != nil {
 		return 0, err
-	} else if resp.Code != 0 {
-		return 0, errors.New(resp.Message)
+	} else if r.Code != 0 {
+		return 0, errors.New(r.Message)
 	}
 	return int(r.Height), nil
 }
@@ -353,7 +353,7 @@ func CallContract(addr, contractAddr string, code []byte, peerAddr string) []byt
 	client := rpcpb.NewWebApiClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	req := &rpcpb.CallReq{From: addr, To: contractaddr, Data: hex.EncodeToString(code)}
+	req := &rpcpb.CallReq{From: addr, To: contractAddr, Data: hex.EncodeToString(code)}
 	resp, err := client.DoCall(ctx, req)
 	if err != nil {
 		logger.Panic(err)
@@ -412,7 +412,6 @@ func NonceFor(addr string, conn *grpc.ClientConn) uint64 {
 	client := rpcpb.NewWebApiClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	req := &rpcpb.CallReq{From: addr, To: contractaddr, Data: hex.EncodeToString(code)}
 	resp, err := client.Nonce(ctx, &rpcpb.NonceReq{Addr: addr})
 	if err != nil {
 		logger.Panic(err)
