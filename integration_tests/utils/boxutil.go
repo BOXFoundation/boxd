@@ -7,6 +7,7 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -49,6 +50,8 @@ func balanceNoPanicFor(accAddr string, peerAddr string) (uint64, error) {
 	}
 	if err != nil {
 		return 0, err
+	} else if resp.Code != 0 {
+		return 0, errors.New(resp.Message)
 	}
 	return r.Balances[0], nil
 }
@@ -109,6 +112,8 @@ func ChainHeightFor(peerAddr string) (int, error) {
 	}
 	if err != nil {
 		return 0, err
+	} else if resp.Code != 0 {
+		return 0, errors.New(resp.Message)
 	}
 	return int(r.Height), nil
 }
@@ -348,9 +353,12 @@ func CallContract(addr, contractAddr string, code []byte, peerAddr string) []byt
 	client := rpcpb.NewWebApiClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp, err := client.DoCall(ctx, newDoCallReq(addr, contractAddr, hex.EncodeToString(code)))
+	req := &rpcpb.CallReq{From: addr, To: contractaddr, Data: hex.EncodeToString(code)}
+	resp, err := client.DoCall(ctx, req)
 	if err != nil {
 		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Panic(errors.New(resp.Message))
 	}
 	//logger.Infof("CallContract for %s contract addr %s output %s", addr, contractAddr, resp.Output)
 	output, _ := hex.DecodeString(resp.Output)
@@ -399,6 +407,17 @@ func WaitERC20AllowanceEqualTo(
 	return WaitERC20BalanceEqualTo(addr, contractAddr, amount, code, peer, timeout)
 }
 
-func newDoCallReq(from, to string, data string) *rpcpb.CallReq {
-	return &rpcpb.CallReq{From: from, To: to, Data: data}
+// NonceFor returns address' nonce in blockchain state
+func NonceFor(addr string, conn *grpc.ClientConn) uint64 {
+	client := rpcpb.NewWebApiClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req := &rpcpb.CallReq{From: addr, To: contractaddr, Data: hex.EncodeToString(code)}
+	resp, err := client.Nonce(ctx, &rpcpb.NonceReq{Addr: addr})
+	if err != nil {
+		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Panic(errors.New(resp.Message))
+	}
+	return resp.Nonce
 }
