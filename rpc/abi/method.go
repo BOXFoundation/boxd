@@ -4,6 +4,13 @@
 
 package abi
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/BOXFoundation/boxd/vm/crypto"
+)
+
 // Method represents a callable given a `Name` and whether the method is a constant.
 // If the method is `Const` no transaction needs to be created for this
 // particular Method call. It can easily be simulated using a local VM.
@@ -26,13 +33,13 @@ type Method struct {
 //     function foo(uint32 a, int b)    =    "foo(uint32,int256)"
 //
 // Please note that "int" is substitute for its canonical representation "int256"
-// func (method Method) Sig() string {
-// 	types := make([]string, len(method.Inputs))
-// 	for i, input := range method.Inputs {
-// 		types[i] = input.Type.String()
-// 	}
-// 	return fmt.Sprintf("%v(%v)", method.Name, strings.Join(types, ","))
-// }
+func (method Method) Sig() string {
+	types := make([]string, len(method.Inputs))
+	for i, input := range method.Inputs {
+		types[i] = input.Type.String()
+	}
+	return fmt.Sprintf("%v(%v)", method.Name, strings.Join(types, ","))
+}
 
 // func (method Method) String() string {
 // 	inputs := make([]string, len(method.Inputs))
@@ -53,6 +60,7 @@ type Method struct {
 // 	return fmt.Sprintf("function %v(%v) %sreturns(%v)", method.Name, strings.Join(inputs, ", "), constant, strings.Join(outputs, ", "))
 // }
 
-// func (method Method) Id() []byte {
-// 	return crypto.Keccak256([]byte(method.Sig()))[:4]
-// }
+// ID get method id.
+func (method Method) ID() []byte {
+	return crypto.Keccak256([]byte(method.Sig()))[:4]
+}

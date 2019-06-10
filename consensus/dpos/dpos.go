@@ -314,38 +314,20 @@ func (dpos *Dpos) nonceFunc(queue *util.PriorityQueue, i, j int) bool {
 	return txi.Nonce() < txj.Nonce()
 }
 
-// getChainedTxs returns all chained ancestor txs in mempool of the passed tx, including itself
-// From child to ancestors
-// func getChainedTxs(tx *types.TxWrap, hashToTx map[crypto.HashType]*types.TxWrap) []*types.TxWrap {
-// 	hashSet := make(map[crypto.HashType]struct{})
-// 	chainedTxs := []*types.TxWrap{tx}
-
-// 	// Note: use index here instead of range because chainedTxs can be extended inside the loop
-// 	for i := 0; i < len(chainedTxs); i++ {
-// 		tx := chainedTxs[i].Tx
-
-// 		for _, txIn := range tx.Vin {
-// 			prevTxHash := txIn.PrevOutPoint.Hash
-// 			if prevTx, exists := hashToTx[prevTxHash]; exists {
-// 				if _, exists := hashSet[prevTxHash]; !exists {
-// 					chainedTxs = append(chainedTxs, prevTx)
-// 					hashSet[prevTxHash] = struct{}{}
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	return chainedTxs
-// }
-
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, error) {
-	pool := util.NewPriorityQueue(lessFunc)
-	pendingTxs := dpos.txpool.GetAllTxs()
+func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, error) {
 
+	pool := util.NewPriorityQueue(lessFunc)
 	hashToTx := make(map[crypto.HashType]*types.TxWrap)
 	addressToTxs := make(map[types.AddressHash]*util.PriorityQueue)
+	addressToNonceSortedTxs := make(map[types.AddressHash][]*types.VMTransaction)
 	hashToAddress := make(map[crypto.HashType]types.AddressHash)
+
+	tail := dpos.chain.TailBlock()
+	statedb, err := state.New(&tail.Header.RootHash, &tail.Header.UtxoRoot, dpos.chain.DB())
+	if err != nil {
+		return nil, err
+	}
 
 	for _, pendingTx := range pendingTxs {
 		txHash, _ := pendingTx.Tx.TxHash()
@@ -359,54 +341,55 @@ func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, error) {
 				if err != nil {
 					return nil, err
 				}
-				if v, exists := addressToTxs[*vmTx.From()]; exists {
+				from := *vmTx.From()
+				if v, exists := addressToTxs[from]; exists {
 					heap.Push(v, vmTx)
 				} else {
 					nonceQueue := util.NewPriorityQueue(dpos.nonceFunc)
 					heap.Push(nonceQueue, vmTx)
-					addressToTxs[*vmTx.From()] = nonceQueue
+					addressToTxs[from] = nonceQueue
+					hashToAddress[*txHash] = from
 				}
-				hashToAddress[*txHash] = *vmTx.From()
 			}
 		}
 	}
 
-	tail := dpos.chain.TailBlock()
-	statedb, err := state.New(&tail.Header.RootHash, &tail.Header.UtxoRoot, dpos.chain.DB())
-	if err != nil {
-		return nil, err
+	for from, v := range addressToTxs {
+		var vmtxs []*types.VMTransaction
+		currentNonce := statedb.GetNonce(from)
+		for v.Len() > 0 {
+			vmTx := heap.Pop(v).(*types.VMTransaction)
+			hash := vmTx.OriginTxHash()
+			if vmTx.Nonce() != currentNonce+1 {
+				logger.Warnf("vm tx %+v has a wrong nonce(now %d), remove it", vmTx, currentNonce)
+				delete(hashToTx, *hash)
+				continue
+			}
+			currentNonce++
+			vmtxs = append(vmtxs, vmTx)
+		}
+		addressToNonceSortedTxs[from] = vmtxs
 	}
+
 	dag := util.NewDag()
 	for pool.Len() > 0 {
 		txWrap := heap.Pop(pool).(*types.TxWrap)
 		txHash, _ := txWrap.Tx.TxHash()
-		dag.AddNode(txHash)
+		if _, exists := hashToTx[*txHash]; !exists {
+			continue
+		}
+		dag.AddNode(*txHash, int(txWrap.GasPrice))
+		if chain.HasContractVout(txWrap.Tx) { // smart contract tx
+			from := hashToAddress[*txHash]
+			sortedNonceTxs := addressToNonceSortedTxs[from]
+			handleVMTx(dag, sortedNonceTxs, hashToTx)
+			delete(addressToNonceSortedTxs, from)
+		}
 		for _, txIn := range txWrap.Tx.Vin {
 			prevTxHash := txIn.PrevOutPoint.Hash
 			if wrap, exists := hashToTx[prevTxHash]; exists {
-				dag.AddNode(prevTxHash)
+				dag.AddNode(prevTxHash, int(wrap.GasPrice))
 				dag.AddEdge(prevTxHash, *txHash)
-				if chain.HasContractVout(wrap.Tx) { // smart contract tx
-					from := hashToAddress[*txHash]
-					queue := addressToTxs[from]
-					ownerNonce := statedb.GetNonce(from)
-					var parentHash *crypto.HashType
-					for queue.Len() > 0 {
-						vmTx := heap.Pop(queue).(*types.VMTransaction)
-						if vmTx.Nonce() < ownerNonce+1 {
-							// notify pool to remove the tx
-							continue
-						} else if vmTx.Nonce() > ownerNonce+1 {
-							break
-						}
-						hash := vmTx.OriginTxHash()
-						dag.AddNode(hash)
-						if parentHash != nil {
-							dag.AddEdge(*parentHash, *hash)
-						}
-						parentHash = hash
-					}
-				}
 			}
 		}
 	}
@@ -422,12 +405,26 @@ func (dpos *Dpos) sortPendingTxs() ([]*types.TxWrap, error) {
 	return sortedTxs, nil
 }
 
+func handleVMTx(dag *util.Dag, sortedNonceTxs []*types.VMTransaction, hashToTx map[crypto.HashType]*types.TxWrap) {
+	var parentHash *crypto.HashType
+	for _, vmTx := range sortedNonceTxs {
+		hash := vmTx.OriginTxHash()
+		originTx := hashToTx[*hash]
+		dag.AddNode(*hash, int(originTx.GasPrice))
+		if parentHash != nil {
+			dag.AddEdge(*parentHash, *hash)
+		}
+		parentHash = hash
+	}
+}
+
 // PackTxs packed txs and add them to block.
 func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
 	// otherwise the former's utxo is missing
-	sortedTxs, err := dpos.sortPendingTxs()
+	pendingTxs := dpos.txpool.GetAllTxs()
+	sortedTxs, err := dpos.sortPendingTxs(pendingTxs)
 	if err != nil {
 		return err
 	}
@@ -523,21 +520,12 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	var rootHash, utxoRootHash *crypto.HashType
-	if parent != nil {
-		if parent.Header.RootHash != crypto.ZeroHash {
-			rootHash = &parent.Header.RootHash
-		}
-		if parent.Header.UtxoRoot != crypto.ZeroHash {
-			utxoRootHash = &parent.Header.UtxoRoot
-		}
-	}
-	statedb, err := state.New(rootHash, utxoRootHash, dpos.chain.DB())
+	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
 	logger.Infof("new statedb with root: %s and utxo root: %s block %s:%d",
-		rootHash, utxoRootHash, block.BlockHash(), block.Header.Height)
+		parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, true, dpos.chain.DB()); err != nil {
 		return err
@@ -586,6 +574,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
+	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
 	txsRoot := chain.CalcTxsHash(block.Txs)
 	block.Header.TxsRoot = *txsRoot
 	// block.Txs = blockTxns
@@ -602,6 +591,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 	block.Hash = nil
 
+	logger.Infof("block %s height: %d have state root %s utxo root %s",
+		block.BlockHash(), block.Header.Height, root, utxoRoot)
 	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
 		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),

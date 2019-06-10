@@ -69,14 +69,16 @@ var _ service.ChainReader = (*BlockChain)(nil)
 
 // BlockChain define chain struct
 type BlockChain struct {
-	notifiee                  p2p.Net
-	newblockMsgCh             chan p2p.Message
-	consensus                 Consensus
-	db                        storage.Table
-	batch                     storage.Batch
-	genesis                   *types.Block
-	tail                      *types.Block
-	eternal                   *types.Block
+	notifiee      p2p.Net
+	newblockMsgCh chan p2p.Message
+	consensus     Consensus
+	db            storage.Table
+	batch         storage.Batch
+	genesis       *types.Block
+	tail          *types.Block
+	eternal       *types.Block
+	// some txs may be parents of other txs in the block
+	ongoingBlockTxs           map[crypto.HashType]*types.Transaction
 	proc                      goprocess.Process
 	LongestChainHeight        uint32
 	blockcache                *lru.Cache
@@ -652,6 +654,12 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageFrom peer.ID) error {
 
 	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
+
+	chain.ongoingBlockTxs = gatherBlockTxs(block)
+	defer func() {
+		chain.ongoingBlockTxs = nil
+	}()
+
 	var utxoSet *UtxoSet
 	if messageFrom == "" { // locally generated block
 		us, ok := chain.utxoSetCache[block.Header.Height]
@@ -671,10 +679,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 	}
 
-	// // Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
-	// if err := validateBlockScripts(utxoSet, block); err != nil {
-	// 	return err
-	// }
 	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
@@ -764,9 +768,24 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 
 // MakeRollbackContractUtxos makes finally contract utxos from block
 func (chain *BlockChain) MakeRollbackContractUtxos(
-	block *types.Block, stateDB, prevStateDB *state.StateDB,
-) types.UtxoMap {
-	bAdd, bSub := calcContractAddrBalanceChanges(block, chain.db)
+	block *types.Block, stateDB *state.StateDB,
+) (types.UtxoMap, error) {
+	// prevStateDB
+	prevBlock, err := chain.LoadBlockByHash(block.Header.PrevBlockHash)
+	if err != nil {
+		return nil, err
+	}
+	prevHeader := prevBlock.Header
+	prevStateDB, err := state.New(&prevHeader.RootHash, &prevHeader.UtxoRoot, chain.db)
+	if err != nil {
+		return nil, err
+	}
+	// balances added and subtracted
+	bAdd, bSub, err := chain.calcContractAddrBalanceChanges(block)
+	if err != nil {
+		logger.Errorf("calc contract addr balance changes error: %s", err)
+		return nil, err
+	}
 	balances := make(map[types.AddressHash]uint64, len(bAdd)+len(bSub))
 	um := make(types.UtxoMap)
 	height := block.Header.Height
@@ -775,7 +794,8 @@ func (chain *BlockChain) MakeRollbackContractUtxos(
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			um[*op] = types.NewUtxoWrap(balances[a], nil, height)
+			sc := script.MakeContractUtxoScriptPubkey(&a, prevStateDB.GetNonce(a), types.VMVersion)
+			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]
 		utxo.SetValue(utxo.Value() - v)
@@ -785,22 +805,37 @@ func (chain *BlockChain) MakeRollbackContractUtxos(
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			um[*op] = types.NewUtxoWrap(balances[a], nil, height)
+			sc := script.MakeContractUtxoScriptPubkey(&a, prevStateDB.GetNonce(a), types.VMVersion)
+			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]
 		utxo.SetValue(utxo.Value() + v)
 	}
+	//
 	for op, u := range um {
 		ah := new(types.AddressHash)
 		ah.SetBytes(op.Hash[:])
 		b := prevStateDB.GetBalance(*ah)
 		if b.Uint64() != u.Value() {
 			addr, _ := types.NewContractAddressFromHash(ah[:])
-			logger.Fatalf("contract addr %s rollback to incorrect balance: %d, need: %d",
-				addr, u.Value(), b)
+			return nil, fmt.Errorf("block %s: contract addr %s rollback to incorrect "+
+				"balance: %d, need: %d", block.BlockHash(), addr, u.Value(), b)
 		}
+		utxoBytes, err := prevStateDB.GetUtxo(*ah)
+		if err != nil {
+			return nil, err
+		}
+		if utxoBytes == nil {
+			u.Spend()
+			continue
+		}
+		utxoWrap, err := DeserializeUtxoWrap(utxoBytes)
+		if err != nil {
+			return nil, err
+		}
+		um[op] = utxoWrap
 	}
-	return um
+	return um, nil
 }
 
 // UpdateUtxoState updates contract utxo in statedb
@@ -816,6 +851,7 @@ func (chain *BlockChain) UpdateUtxoState(statedb *state.StateDB, utxoSet *UtxoSe
 			return err
 		}
 		// update statedb utxo trie
+		logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddr, u)
 		if err := statedb.UpdateUtxo(*contractAddr, utxoBytes); err != nil {
 			logger.Error(err)
 			return err
@@ -835,22 +871,13 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	// execute contract tx and update statedb for blocks from remote peers
 	if messageFrom != "" {
 		parent := chain.GetParentBlock(block)
-		var rootHash, utxoRootHash *crypto.HashType
-		if parent != nil {
-			if parent.Header.RootHash != zeroHash {
-				rootHash = &parent.Header.RootHash
-			}
-			if parent.Header.UtxoRoot != zeroHash {
-				utxoRootHash = &parent.Header.UtxoRoot
-			}
-		}
-		stateDB, err := state.New(rootHash, utxoRootHash, chain.db)
+		stateDB, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.db)
 		if err != nil {
 			logger.Error(err)
 			return err
 		}
 		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
-			rootHash, utxoRootHash, block.BlockHash(), block.Header.Height)
+			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
@@ -1012,7 +1039,7 @@ func (chain *BlockChain) ValidateExecuteResult(
 		totalCoinbaseOutput += txOut.Value
 	}
 	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
-	if totalCoinbaseOutput > expectedCoinbaseOutput {
+	if totalCoinbaseOutput != expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value %v("+
 			"totalTxsFee: %d, gas remaining: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,
 			totalTxsFee, gasRemainingFee)
@@ -1068,7 +1095,8 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			panic("Failed to disconnect block from main chain")
 		}
 		stt1 := time.Now().UnixNano()
-		logger.Infof("Disconnect block %s, time tracking: %d", detachBlock.BlockHash(), (stt1-stt0)/1e6)
+		logger.Infof("Disconnect block %s Height: %d, time tracking: %d",
+			detachBlock.BlockHash(), detachBlock.Header.Height, (stt1-stt0)/1e6)
 	}
 
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
@@ -1078,7 +1106,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			return err
 		}
 		stt1 := time.Now().UnixNano()
-		logger.Infof("Connect block %s, time tracking: %d", attachBlock.BlockHash(), (stt1-stt0)/1e6)
+		logger.Infof("block %s connected to chain, time tracking: %d", attachBlock.BlockHash(), (stt1-stt0)/1e6)
 	}
 
 	metrics.MetricsBlockRevertMeter.Mark(1)
@@ -1087,8 +1115,13 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 
 func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) error {
 	dtt0 := time.Now().UnixNano()
-	logger.Debugf("Try to disconnect block from main chain. Hash: %s Height: %d",
+	logger.Infof("Try to disconnect block from main chain. Hash: %s Height: %d",
 		block.BlockHash(), block.Header.Height)
+
+	chain.ongoingBlockTxs = gatherBlockTxs(block)
+	defer func() {
+		chain.ongoingBlockTxs = nil
+	}()
 
 	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 	blockCopy := block.Copy()
@@ -1106,17 +1139,17 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	// calc contract utxos, then check contract addr balance
 	header := block.Header
 	stateDB, _ := state.New(&header.RootHash, &header.UtxoRoot, chain.db)
-	prevBlock, _ := chain.LoadBlockByHash(block.Header.PrevBlockHash)
-	prevHeader := prevBlock.Header
-	prevStateDB, _ := state.New(&prevHeader.RootHash, &prevHeader.UtxoRoot, chain.db)
-	contractUtxos := chain.MakeRollbackContractUtxos(block, stateDB, prevStateDB)
+	contractUtxos, err := chain.MakeRollbackContractUtxos(block, stateDB)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
 	utxoSet.ImportUtxoMap(contractUtxos, false)
 
 	chain.db.EnableBatch()
 	defer chain.db.DisableBatch()
 
 	dtt2 := time.Now().UnixNano()
-	// batch.Del(BlockKey(block.BlockHash()))
 	chain.db.Del(BlockHashKey(block.Header.Height))
 
 	// chain.filterHolder.ResetFilters(block.Height)
@@ -1399,10 +1432,6 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	if height == 0 {
 		return chain.genesis, nil
 	}
-	// if block, ok := chain.heightToBlock.Get(height); ok {
-	// 	return block.(*types.Block), nil
-	// }
-
 	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {
 		return nil, err
@@ -1937,13 +1966,20 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Tab
 }
 
 // FetchOwnerOfOutPoint fetches the owner of an outpoint
-func FetchOwnerOfOutPoint(op *types.OutPoint, reader storage.Reader) (types.Address, error) {
-	// use sender in vin[0] as VMTransaction sender
-	utxo, err := fetchUtxoWrapFromDB(reader, op)
-	if err != nil {
-		return nil, err
+func (chain *BlockChain) FetchOwnerOfOutPoint(op *types.OutPoint) (types.Address, error) {
+	tx, ok := chain.ongoingBlockTxs[op.Hash]
+	if !ok {
+		var err error
+		_, tx, err = chain.LoadBlockInfoByTxHash(op.Hash)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return script.NewScriptFromBytes(utxo.Script()).ExtractAddress()
+	if int(op.Index) >= len(tx.Vout) {
+		return nil, errors.New("index out of range")
+	}
+	scriptPubkey := tx.Vout[op.Index].ScriptPubKey
+	return script.NewScriptFromBytes(scriptPubkey).ExtractAddress()
 }
 
 // ExtractVMTransactions extract Transaction to VMTransaction
@@ -1952,7 +1988,7 @@ func (chain *BlockChain) ExtractVMTransactions(tx *types.Transaction) (*types.VM
 	if !HasContractVout(tx) {
 		return nil, nil
 	}
-	from, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, chain.DB())
+	from, err := chain.FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint)
 	if err != nil {
 		return nil, err
 	}
@@ -2003,9 +2039,9 @@ func HasContractSpend(tx *types.Transaction) bool {
 	return false
 }
 
-func calcContractAddrBalanceChanges(
-	block *types.Block, dbReader storage.Reader,
-) (add, sub BalanceChangeMap) {
+func (chain *BlockChain) calcContractAddrBalanceChanges(
+	block *types.Block,
+) (add, sub BalanceChangeMap, err error) {
 
 	add = make(BalanceChangeMap)
 	sub = make(BalanceChangeMap)
@@ -2021,11 +2057,15 @@ func calcContractAddrBalanceChanges(
 			param, t, err := sc.ParseContractParams()
 			if err != nil {
 				logger.Error(err)
+				return nil, nil, err
 			}
 			var addr *types.AddressHash
 			if t == types.ContractCreationType {
-				from, _ := FetchOwnerOfOutPoint(&block.Txs[txIdx].Vin[0].PrevOutPoint,
-					dbReader)
+				from, err := chain.FetchOwnerOfOutPoint(&block.Txs[txIdx].Vin[0].PrevOutPoint)
+				if err != nil {
+					logger.Infof("txIdx: %d, height: %d", txIdx, block.Header.Height)
+					return nil, nil, err
+				}
 				contractAddr, _ := types.MakeContractAddress(from.(*types.AddressPubKeyHash),
 					param.Nonce)
 				addr = contractAddr.Hash160()
@@ -2037,6 +2077,9 @@ func calcContractAddrBalanceChanges(
 	}
 
 	for _, tx := range block.InternalTxs {
+		if !tx.Vin[0].PrevOutPoint.IsContractType() {
+			continue
+		}
 		inAddr := new(types.AddressHash)
 		inAddr.SetBytes(tx.Vin[0].PrevOutPoint.Hash[:])
 		spend := uint64(0)
@@ -2047,4 +2090,13 @@ func calcContractAddrBalanceChanges(
 		sub[*inAddr] += spend
 	}
 	return
+}
+
+func gatherBlockTxs(block *types.Block) map[crypto.HashType]*types.Transaction {
+	txs := make(map[crypto.HashType]*types.Transaction, len(block.Txs))
+	for _, tx := range block.Txs {
+		hash, _ := tx.TxHash()
+		txs[*hash] = tx
+	}
+	return txs
 }

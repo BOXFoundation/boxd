@@ -11,7 +11,6 @@ import (
 
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 )
@@ -159,7 +158,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
 	}
-	logger.Infof("IntrinsicGas used gas: %d", gas)
 	if err = st.useGas(gas); err != nil {
 		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
@@ -176,11 +174,12 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	if contractCreation {
 		//
 		ret, addr, st.gas, vmerr = evm.Create(from, st.data, st.gas, st.value, false)
+		// ret is contract code, so replace it with contract address hash
+		ret = addr[:]
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(*msg.From(), st.state.GetNonce(from.Address())+1)
 		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value, false)
-		logger.Infof("call contract return: %s", crypto.BytesToHash(ret))
 	}
 	if vmerr != nil {
 		// log.Debug("VM returned with error", "err", vmerr)
@@ -200,9 +199,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		logger.Infof("contract address %s created", contractAddr)
 	}
 	st.refundGas()
-	st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+	gasUsed := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
+	st.state.AddBalance(st.evm.Coinbase, gasUsed)
 
-	logger.Infof("gasUsed: %d, remaining: %v", st.gasUsed(), st.remaining)
+	logger.Infof("gasUsed: %d, remaining: %d, gas price: %d", st.gasUsed(), st.remaining, st.gasPrice)
 	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, nil
 }
 

@@ -5,6 +5,8 @@
 package types
 
 import (
+	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -127,6 +129,22 @@ func (tx *VMTransaction) Type() ContractType {
 // OriginTxHash returns the origin tx hash of the contract tx.
 func (tx *VMTransaction) OriginTxHash() *crypto.HashType {
 	return tx.originTx
+}
+
+// String returns the content of vm transaction to print
+func (tx *VMTransaction) String() string {
+	var to *AddressContract
+	if tx.to != nil && *tx.to != ZeroAddressHash {
+		to, _ = NewContractAddressFromHash(tx.to[:])
+	}
+	code := tx.code
+	if len(code) > 256 {
+		code = code[:256]
+	}
+	return fmt.Sprintf("{version: %d, from: %s, to: %s, originTx: %s, value: %d, "+
+		"gasPrice: %d, gas: %d, nonce: %d, code: %s, typ: %s}", tx.version, tx.from,
+		to, tx.originTx, tx.value, tx.gasPrice, tx.gas, tx.nonce,
+		hex.EncodeToString(code), tx.typ)
 }
 
 // Receipt represents the result of a transaction.

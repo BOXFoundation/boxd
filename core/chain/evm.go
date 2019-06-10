@@ -38,11 +38,11 @@ func NewTransferInfo(from, to types.AddressHash, value *big.Int) *TransferInfo {
 // NewEVMContext creates a new context for use in the EVM.
 func NewEVMContext(msg types.Message, header *types.BlockHeader, bc *BlockChain) vm.Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
-
 	return vm.Context{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
 		GetHash:     GetHashFn(bc),
+		Coinbase:    header.BookKeeper,
 		Origin:      *msg.From(),
 		BlockNumber: new(big.Int).Set(big.NewInt(int64(header.Height))),
 		Time:        new(big.Int).Set(big.NewInt(header.TimeStamp)),

@@ -182,13 +182,20 @@ func (u *UtxoSet) applyUtxo(
 			nonce uint64
 		)
 		if addressHash.IsEqual(&zeroHash) { // deploy smart contract
-			sender, err := FetchOwnerOfOutPoint(&tx.Vin[0].PrevOutPoint, reader)
+			utxo, ok := u.utxoMap[tx.Vin[0].PrevOutPoint]
+			if !ok {
+				utxo, err = fetchUtxoWrapFromDB(reader, &tx.Vin[0].PrevOutPoint)
+				if err != nil {
+					return err
+				}
+			}
+			from, err = script.NewScriptFromBytes(utxo.Script()).ExtractAddress()
 			if err != nil {
 				return err
 			}
 			senderAddr, ok := from.(*types.AddressPubKeyHash)
 			if !ok {
-				return fmt.Errorf("non pubkey hash is not supported to create contract ")
+				return fmt.Errorf("non-pubkeyhash is not supported to create contract")
 			}
 			nonce, _ = sc.ParseContractNonce()
 			contractAddr, _ := types.MakeContractAddress(senderAddr, nonce)
@@ -202,14 +209,15 @@ func (u *UtxoSet) applyUtxo(
 			}
 			if utxoWrap == nil {
 				// save contract creator and nonce in contract utxo script
-				sc, _ := script.MakeContractScriptPubkey(from, []byte{0}, 0, 1, nonce, types.VMVersion)
-				utxoWrap = types.NewUtxoWrap(0, []byte(*sc), 0)
+				sc := script.MakeContractUtxoScriptPubkey(from.Hash160(), nonce, types.VMVersion)
+				utxoWrap = types.NewUtxoWrap(0, []byte(*sc), blockHeight)
 			}
 		}
 		value := utxoWrap.Value() + vout.Value
+		logger.Infof("modify contract utxo, outpoint: %+v, value: %d, previous value: %d",
+			outPoint, value, utxoWrap.Value())
 		utxoWrap.SetValue(value)
 		u.utxoMap[*outPoint] = utxoWrap
-		logger.Infof("modify contract utxo, outpoint: %+v, value: %d", outPoint, utxoWrap.Value())
 		u.contractUtxos = append(u.contractUtxos, outPoint)
 		return nil
 	}
@@ -478,20 +486,6 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			}
 			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
 		} else if sc.IsContractPubkey() {
-			// verify contract address from utxo script
-			// utxo script contains contract creator and his or her nonce at that time
-			nonce, _ := sc.ParseContractNonce()
-			from, _ := types.NewAddressPubKeyHash(addr.Hash())
-			contractAddr, err := types.MakeContractAddress(from, nonce)
-			if err != nil {
-				logger.Warn(err)
-				return err
-			}
-			if len(addr.Hash()) > 0 && outpoint.Hash != *types.NormalizeAddressHash(contractAddr.Hash160()) {
-				logger.Errorf("WriteUtxoSetToDB for contract error, contractAddress: %s, addr: %v",
-					outpoint.Hash, addr.Hash())
-				return errors.New("Invalid contract address")
-			}
 			addrHash := types.BytesToAddressHash(outpoint.Hash[:])
 			addr, _ := types.NewContractAddressFromHash(addrHash[:])
 			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
@@ -668,6 +662,7 @@ func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub Balan
 				address, _ := sc.ExtractAddress()
 				addr := address.Hash160()
 				add[*addr] += vout.Value
+				//logger.Warnf("add addr: %s, value: %d", addr, vout.Value)
 			}
 		}
 	}

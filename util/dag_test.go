@@ -12,16 +12,16 @@ import (
 
 func TestTopoSort(t *testing.T) {
 	dag := NewDag()
-	dag.AddNode(1)
-	dag.AddNode(2)
-	dag.AddNode(3)
-	dag.AddNode(4)
-	dag.AddNode(5)
-	dag.AddNode(6)
-	dag.AddNode(7)
-	dag.AddNode(8)
-	dag.AddNode(9)
-	dag.AddNode(10)
+	dag.AddNode(1, 1)
+	dag.AddNode(2, 2)
+	dag.AddNode(3, 3)
+	dag.AddNode(4, 4)
+	dag.AddNode(5, 5)
+	dag.AddNode(6, 6)
+	dag.AddNode(7, 7)
+	dag.AddNode(8, 8)
+	dag.AddNode(9, 9)
+	dag.AddNode(10, 10)
 
 	dag.AddEdge(1, 2)
 	dag.AddEdge(1, 4)
@@ -40,17 +40,17 @@ func TestTopoSort(t *testing.T) {
 		keys = append(keys, v.key.(int))
 	}
 	ensure.DeepEqual(t, dag.IsCirclular(), false)
-	ensure.DeepEqual(t, keys, []int{1, 2, 4, 3, 5, 6, 7, 8, 9, 10})
+	ensure.DeepEqual(t, keys, []int{1, 4, 2, 6, 5, 3, 8, 7, 9, 10})
 }
 
 func TestIsCirclular(t *testing.T) {
 
 	dag := NewDag()
-	dag.AddNode(1)
-	dag.AddNode(2)
-	dag.AddNode(3)
-	dag.AddNode(4)
-	dag.AddNode(5)
+	dag.AddNode(1, 1)
+	dag.AddNode(2, 2)
+	dag.AddNode(3, 3)
+	dag.AddNode(4, 4)
+	dag.AddNode(5, 6)
 
 	dag.AddEdge(1, 2)
 	dag.AddEdge(2, 3)

@@ -6,7 +6,9 @@ package rpcutil
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -41,11 +43,11 @@ func ImportAbi(addr, abistr string) error {
 // blockNumber selects the block height at which the call runs. It can be nil, in which
 // case the code is taken from the latest known block. Note that state from very old
 // blocks might not be available.
-func DoCall(conn *grpc.ClientConn, from, to, data string, height, timeout uint32) (string, error) {
+func DoCall(conn *grpc.ClientConn, from, to, data string, height, timeout uint32) (interface{}, error) {
 
-	_, ok := abiCache.Get(to)
+	cabi, ok := abiCache.Get(to)
 	if !ok {
-		return "", fmt.Errorf("Abi for %s not found", to)
+		return nil, fmt.Errorf("Abi for %s not found", to)
 	}
 
 	c := pb.NewWebApiClient(conn)
@@ -59,12 +61,34 @@ func DoCall(conn *grpc.ClientConn, from, to, data string, height, timeout uint32
 	}
 	defer cancel()
 
-	r, err := c.DoCall(ctx, &pb.CallReq{From: from, To: to, Data: data, Height: height, Timeout: timeout})
+	// Get method from abi.
+	dd, err := hex.DecodeString(data)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	method, err := cabi.(abi.ABI).MethodByID(dd)
+	if err != nil {
+		return nil, err
 	}
 
-	// cabi.(abi.ABI).Unpack()
+	// Excute evm.
+	r, err := c.DoCall(ctx, &pb.CallReq{From: from, To: to, Data: data, Height: height, Timeout: timeout})
+	if err != nil {
+		return nil, err
+	}
 
-	return r.GetOutput(), nil
+	// Decode outputs.
+	outputs := method.Outputs
+
+	v := reflect.New(outputs[0].Type.Type).Elem().Interface()
+	rr, err := hex.DecodeString(r.Output)
+	if err != nil {
+		return nil, err
+	}
+	err = cabi.(abi.ABI).Unpack(&v, method.Name, rr)
+	if err != nil {
+		return r, err
+	}
+
+	return v, nil
 }

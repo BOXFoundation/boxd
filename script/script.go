@@ -828,6 +828,23 @@ func (s *Script) IsContractPubkey() bool {
 	return len(*s) > 1 && (*s)[0] == byte(OPCONTRACT)
 }
 
+// MakeContractUtxoScriptPubkey makes a script pubkey for contract addr utxo
+func MakeContractUtxoScriptPubkey(addr *types.AddressHash, nonce uint64, version int32) *Script {
+	// OP_CONTRACT contract_addr nonce gasPrice gasLimit version code checksum
+	s := NewScript()
+	s.AddOperand(addr[:]).
+		AddOperand(big.NewInt(int64(nonce)).Bytes()).
+		AddOperand(big.NewInt(0).Bytes()).
+		AddOperand(big.NewInt(0).Bytes()).
+		AddOperand(big.NewInt(int64(version)).Bytes()).
+		AddOperand(nil)
+	// add checksum
+	scriptHash := crypto.Hash160(*s)
+	checksum := scriptHash[:4]
+
+	return NewScript().AddOpCode(OPCONTRACT).AddScript(s).AddOperand(checksum)
+}
+
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
 	addr types.Address, code []byte, gasPrice, gasLimit, nonce uint64, version int32,
