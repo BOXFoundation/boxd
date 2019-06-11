@@ -19,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -62,6 +63,12 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}()
 	peerAddr := peersAddr[(*index)%len(peersAddr)]
 	(*index)++
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	if err != nil {
+		logger.Error(err)
+		return false
+	}
+	defer conn.Close()
 	//
 	miner, ok := PickOneMiner()
 	if !ok {
@@ -70,9 +77,9 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	defer UnpickMiner(miner)
 	//
-	logger.Infof("waiting for minersAddr %s has %d at least on %s for contract test",
-		miner, createGas+2*sendGas, peerAddr)
-	_, err := utils.WaitBalanceEnough(miner, createGas+sendGas, peerAddr, timeoutToChain)
+	logger.Infof("waiting for minersAddr %s has %d at least for contract test",
+		miner, createGas+sendGas)
+	_, err = utils.WaitBalanceEnough(miner, createGas+sendGas, conn, timeoutToChain)
 	if err != nil {
 		logger.Error(err)
 		return true
@@ -82,12 +89,8 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return true
 	}
 	owner, spender, receivers := addrs[0], addrs[1], addrs[2:]
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
-	if err != nil {
-		logger.Warn(err)
-		return false
-	}
-	defer conn.Close()
+	prevOwnerBalance := utils.BalanceFor(owner, conn)
+	prevSpenderBalance := utils.BalanceFor(spender, conn)
 	minerAcc, _ := AddrToAcc.Load(miner)
 	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{owner, spender},
 		[]uint64{createGas, sendGas}, conn)
@@ -100,39 +103,41 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		logger.Error(err)
 		return
 	}
+	// wait for owner and spender receiving box
+	_, err = utils.WaitBalanceEqual(owner, prevOwnerBalance+createGas, conn, timeoutToChain)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
+	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance+sendGas, conn, timeoutToChain)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
 	curTimes := utils.ContractRepeatTxTimes()
 	if utils.ContractRepeatRandom() {
-		curTimes = rand.Intn(utils.ContractRepeatTxTimes())
+		curTimes = 2 + rand.Intn(utils.ContractRepeatTxTimes())
 	}
-	contractRepeatTest(owner, spender, receivers[0], curTimes, &t.txCnt, peerAddr)
+	contractRepeatTest(owner, spender, receivers[0], curTimes, &t.txCnt, conn)
 	//
 	return
 }
 
 func contractRepeatTest(
-	owner, spender, receiver string, times int, txCnt *uint64, peerAddr string,
+	owner, spender, receiver string, times int, txCnt *uint64, conn *grpc.ClientConn,
 ) {
 	logger.Info("=== RUN   contractRepeatTest")
 	defer logger.Info("=== DONE   contractRepeatTest")
 
-	if times <= 0 {
-		logger.Warn("times is 0, exit")
-		return
-	}
-
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
-	if err != nil {
-		logger.Panic(err)
-	}
-	defer conn.Close()
-
+	prevOwnerBalance := utils.BalanceFor(owner, conn)
+	prevSpenderBalance := utils.BalanceFor(spender, conn)
 	// issue some token
 	logger.Infof("%s issue 10000*10^8 token to %s", owner, spender)
 	ownerAcc, _ := AddrToAcc.Load(owner)
 	erc20Bytes, _ := hex.DecodeString(testERC20Contract)
-	gasLimit, nonce := uint64(1000000), uint64(1)
+	gasLimit, nonce := uint64(1000000), utils.NonceFor(owner, conn)+1
 	tx, contractAddr, err := rpcutil.NewContractDeployTx(ownerAcc.(*acc.Account), gasPrice,
 		gasLimit, nonce, erc20Bytes, conn)
 	if err != nil {
@@ -152,7 +157,7 @@ func contractRepeatTest(
 		spender, totalAmount, timeoutToChain)
 	code := erc20BalanceOfCall(owner)
 	err = utils.WaitERC20BalanceEqualTo(owner, contractAddr, totalAmount, code,
-		peerAddr, timeoutToChain)
+		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -178,7 +183,7 @@ func contractRepeatTest(
 		spender, totalAmount, timeoutToChain)
 	code = erc20AllowanceCall(owner, spender)
 	err = utils.WaitERC20AllowanceEqualTo(spender, contractAddr, totalAmount, code,
-		peerAddr, timeoutToChain)
+		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -190,11 +195,11 @@ func contractRepeatTest(
 		logger.Panicf("sendGas %d is less than gasUsed when send %d times trasferFrom",
 			sendGas, times)
 	}
-	spendNonce := uint64(1)
+	spendNonce := utils.NonceFor(spender, conn) + 1
 	code = erc20TransferFromCall(owner, receiver, amount/uint64(times))
 	txs, err := rpcutil.NewERC20TransferFromContractTxs(spenderAcc.(*acc.Account),
 		contractAddr, times, gasPrice, gasLimit, spendNonce, code, conn)
-	// cend contract transferFrom txs
+	// send contract transferFrom txs
 	for _, tx := range txs {
 		if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 			!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
@@ -213,7 +218,7 @@ func contractRepeatTest(
 		owner, totalAmount-amount, timeoutToChain)
 	code = erc20BalanceOfCall(owner)
 	err = utils.WaitERC20BalanceEqualTo(owner, contractAddr, totalAmount-amount,
-		code, peerAddr, timeoutToChain)
+		code, conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -222,7 +227,7 @@ func contractRepeatTest(
 		receiver, amount, timeoutToChain)
 	code = erc20BalanceOfCall(receiver)
 	err = utils.WaitERC20BalanceEqualTo(receiver, contractAddr, amount, code,
-		peerAddr, timeoutToChain)
+		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -230,15 +235,15 @@ func contractRepeatTest(
 	gasUsed := uint64(995919 + 24815)
 	logger.Infof("wait for box balance of owner %s equal to %d, timeout %v",
 		owner, createGas-gasUsed*gasPrice, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(owner, createGas-gasUsed*gasPrice, peerAddr, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(owner, prevOwnerBalance-gasUsed*gasPrice, conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
 	// for spender box
 	gasUsed = uint64(39792 + 24792*(times-1))
 	logger.Infof("wait for box balance of spender %s equal to %d, timeout %v",
-		receiver, sendGas-gasUsed*gasPrice, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(spender, sendGas-gasUsed*gasPrice, peerAddr, timeoutToChain)
+		spender, sendGas-gasUsed*gasPrice, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance-gasUsed*gasPrice, conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}

@@ -246,12 +246,12 @@ func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
-			logger.Errorf("output %v referenced from tx %s vin[%d] does not exist",
+			logger.Errorf("prev outpoint %v in tx %s vin[%d] does not exist",
 				txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}
 		if utxo.IsSpent() {
-			logger.Errorf("output %v referenced from tx %s vin[%d] has already been spent",
+			logger.Errorf("prev outpoint %v in tx %s vin[%d] has already been spent",
 				txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}

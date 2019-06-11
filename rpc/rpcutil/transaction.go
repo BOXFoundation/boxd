@@ -33,11 +33,13 @@ func GetBalance(conn *grpc.ClientConn, addresses []string) ([]uint64, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
-	req, err := c.GetBalance(ctx, &rpcpb.GetBalanceReq{Addrs: addresses})
+	resp, err := c.GetBalance(ctx, &rpcpb.GetBalanceReq{Addrs: addresses})
 	if err != nil {
 		return nil, err
+	} else if resp.Code != 0 {
+		return nil, errors.New(resp.Message)
 	}
-	return req.GetBalances(), nil
+	return resp.GetBalances(), nil
 }
 
 // GetTokenBalance returns total amount of an address with specified token id
@@ -48,12 +50,14 @@ func GetTokenBalance(
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
-	req, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceReq{
+	resp, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceReq{
 		Addrs: addresses, TokenHash: tokenHash, TokenIndex: tokenIndex})
 	if err != nil {
 		return nil, err
+	} else if resp.Code != 0 {
+		return nil, errors.New(resp.Message)
 	}
-	return req.GetBalances(), nil
+	return resp.GetBalances(), nil
 }
 
 func newFetchUtxosReq(addr string, amount uint64) *rpcpb.FetchUtxosReq {
@@ -80,6 +84,8 @@ func FetchUtxos(
 	resp, err := c.FetchUtxos(ctx, req)
 	if err != nil {
 		return nil, err
+	} else if resp.Code != 0 {
+		return nil, errors.New(resp.Message)
 	}
 	return resp.GetUtxos(), nil
 }
@@ -199,8 +205,7 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 	resp, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
 		return "", err
-	}
-	if resp.GetCode() != 0 {
+	} else if resp.GetCode() != 0 {
 		return "", errors.New(resp.GetMessage())
 	}
 	return resp.Hash, nil
