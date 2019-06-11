@@ -8,8 +8,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/script"
 	"path"
 	"strconv"
 	"strings"
@@ -20,7 +18,9 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -97,76 +97,93 @@ to quickly create a Cobra  application.`,
 			Run:   sendrawtx,
 		},
 		&cobra.Command{
-			Use:   "deploycontracttx [from] [amount] [gasprice] [gaslimit] [nonce] [data]",
-			Short: "Deploy a contract by transaction",
-			Run:   deploycontracttx,
+			Use:   "deploycontract [from] [amount] [gasprice] [gaslimit] [nonce] [data]",
+			Short: "Deploy a contract",
+			Long: `On each invocation, "nonce" must be incremented by one. 
+The return value is a hex-encoded transaction sequence and a contract address.`,
+			Run: deploycontract,
 		},
 		&cobra.Command{
-			Use:   "callcontracttx [from] [contractaddress] [amount] [gasprice] [gaslimit] [nonce] [data]",
-			Short: "Calling a contract through a transaction",
-			Run:   callcontracttx,
+			Use:   "callcontract [from] [contractaddress] [amount] [gasprice] [gaslimit] [nonce] [data]",
+			Short: "Calling a contract",
+			Long: `On each invocation, "nonce" must be incremented by one.
+Successful call will return a transaction hash value`,
+			Run: callcontract,
 		},
 	)
 }
 
-func deploycontracttx(cmd *cobra.Command, args []string) {
+func deploycontract(cmd *cobra.Command, args []string) {
 	if len(args) != 6 {
 		fmt.Println("Invalide argument number")
 		return
 	}
-	fmt.Println("deploycontracttx called")
 	from := args[0]
-	amount, err := strconv.Atoi(args[1])
-	if err != nil {
-		fmt.Println(err)
+	//validate address
+	if err := types.ValidateAddr(from); err != nil {
+		fmt.Println("from address is Invalide: ", err)
 		return
 	}
-	gasprice, err := strconv.Atoi(args[2])
-	if err != nil {
-		fmt.Println(err)
+	if len(args[5]) == 0 {
+		fmt.Println("data error")
 		return
 	}
-	gaslimit, err := strconv.Atoi(args[3])
+	amount, err := strconv.ParseUint(args[1], 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("amount type conversion error: ", err)
 		return
 	}
-	nonce, err := strconv.Atoi(args[4])
+	gasprice, err := strconv.ParseUint(args[2], 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("gasprice type conversion error: ", err)
+		return
+	}
+	gaslimit, err := strconv.ParseUint(args[3], 10, 64)
+	if err != nil {
+		fmt.Println("gaslimit type conversion error: ", err)
+		return
+	}
+
+	nonce, err := strconv.ParseUint(args[4], 10, 64)
+	if err != nil {
+		fmt.Println("nonce type conversion error: ", err)
 		return
 	}
 	data := args[5]
 	req := &rpcpb.MakeContractTxReq{
 		From:     from,
-		Amount:   uint64(amount),
-		GasPrice: uint64(gasprice),
-		GasLimit: uint64(gaslimit),
-		Nonce:    uint64(nonce),
+		Amount:   amount,
+		GasPrice: gasprice,
+		GasLimit: gaslimit,
+		Nonce:    nonce,
 		IsDeploy: true,
 		Data:     data,
 	}
-	senderHash, _ := types.NewAddress(from)
-	contractAddr, _ := types.MakeContractAddress(senderHash, 1)
-	txHash, err := createAndSignTx(req)
+	contractAddr, resp, err := signAndSendTx(req)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("sign and send transaction error: ", err)
 		return
 	}
-	if txHash == "" {
-		fmt.Println("Failed deployment")
+	if resp.Code != 0 {
+		fmt.Println("send transaction failed: ", resp.Message)
+		return
+	}
+	if resp.Hash == "" {
+		fmt.Println("deploy contract failed . ")
 		return
 	}
 
-	fmt.Println("Successful deployment,transaction hash: ", txHash)
-	fmt.Println("Contract address: ", contractAddr)
+	fmt.Println("successful deployment,transaction hash: ", resp.Hash)
+	fmt.Println("contract address: ", contractAddr)
+	//fmt.Println(util.PrettyPrint(resp))
 
 }
-func createAndSignTx(req *rpcpb.MakeContractTxReq) (string, error) {
+
+func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransactionResp, error) {
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
-		fmt.Println(err)
-		return "", err
+		fmt.Println("get gRPC connection error: ", err)
+		return "", nil, err
 	}
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -174,11 +191,13 @@ func createAndSignTx(req *rpcpb.MakeContractTxReq) (string, error) {
 	client := rpcpb.NewTransactionCommandClient(conn)
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
-		return "", err
+		fmt.Println("new wallet manager error: ", err)
+		return "", nil, err
 	}
 	resp, err := client.MakeUnsignedContractTx(ctx, req)
 	if err != nil {
-		return "", err
+		fmt.Println("make contract transaction error: ", err)
+		return "", nil, err
 	}
 	rawMsgs := resp.GetRawMsgs()
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
@@ -190,19 +209,19 @@ func createAndSignTx(req *rpcpb.MakeContractTxReq) (string, error) {
 	accI, ok := wltMgr.GetAccount(req.From)
 	if !ok {
 		fmt.Printf("account for %s not initialled\n", req.From)
-		return "", err
+		return "", nil, err
 	}
 	passphrase, err := wallet.ReadPassphraseStdin()
 	if err := accI.UnlockWithPassphrase(passphrase); err != nil {
-		fmt.Println("Fail to unlock account", err)
-		return "", err
+		fmt.Println("Fail to unlock account: ")
+		return "", nil, err
 	}
 	var scriptSigs [][]byte
 	for _, sigHash := range sigHashes {
 		sig, err := accI.Sign(sigHash)
 		if err != nil {
-			fmt.Println("sign error:", err)
-			return "", err
+			fmt.Println("sign error: ")
+			return "", nil, err
 		}
 		scriptSig := script.SignatureScript(sig, accI.PublicKey())
 		scriptSigs = append(scriptSigs, *scriptSig)
@@ -217,64 +236,68 @@ func createAndSignTx(req *rpcpb.MakeContractTxReq) (string, error) {
 	sendTransaction := &rpcpb.SendTransactionReq{Tx: tx}
 	sendTxResp, err := client.SendTransaction(ctx, sendTransaction)
 	if err != nil {
-		return "", err
+		fmt.Println("send transaction failed: ", sendTxResp.Message)
+		return "", nil, err
 	}
-	if sendTxResp.Code != 0 {
-		return "", err
-	}
-	return sendTxResp.GetHash(), nil
+
+	return resp.ContractAddr, sendTxResp, nil
 }
 
-func callcontracttx(cmd *cobra.Command, args []string) {
+func callcontract(cmd *cobra.Command, args []string) {
 	if len(args) != 7 {
 		fmt.Println("Invalide argument number")
 		return
 	}
-	fmt.Println("calllcontracttx called")
 	from := args[0]
+	if err := types.ValidateAddr(from); err != nil {
+		fmt.Println("from address is Invalide: ", err)
+		return
+	}
+	if len(args[6]) == 0 {
+		fmt.Println("data error")
+		return
+	}
 	contractAddr := args[1]
-	amount, err := strconv.Atoi(args[2])
+	amount, err := strconv.ParseUint(args[2], 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("get amount error: ", err)
 		return
 	}
-	gasprice, err := strconv.Atoi(args[3])
+	gasprice, err := strconv.ParseUint(args[3], 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("get gasprice error: ", err)
 		return
 	}
-	gaslimit, err := strconv.Atoi(args[4])
+	gaslimit, err := strconv.ParseUint(args[4], 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("get getlimit error: ", err)
 		return
 	}
-	nonce, err := strconv.Atoi(args[5])
+	nonce, err := strconv.ParseUint(args[5], 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("get nonce error: ", err)
 		return
 	}
 	data := args[6]
 	req := &rpcpb.MakeContractTxReq{
 		From:     from,
 		To:       contractAddr,
-		Amount:   uint64(amount),
-		GasPrice: uint64(gasprice),
-		GasLimit: uint64(gaslimit),
-		Nonce:    uint64(nonce),
+		Amount:   amount,
+		GasPrice: gasprice,
+		GasLimit: gaslimit,
+		Nonce:    nonce,
 		Data:     data,
 	}
-	txHash, err := createAndSignTx(req)
+	_, resp, err := signAndSendTx(req)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	if txHash == "" {
-		fmt.Println("Failed call")
+	if resp.Hash == "" {
+		fmt.Println("Failed call，transaction hash value is empty", resp.Message)
 		return
-
 	}
-	fmt.Println("Successful call,transaction hash: ", txHash)
-
+	fmt.Println("Successful call,transaction hash: ", resp.Hash)
 }
 
 func createRawTransaction(cmd *cobra.Command, args []string) {
