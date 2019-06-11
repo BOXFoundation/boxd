@@ -190,7 +190,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	for i, addr := range addrs {
 		logger.Debugf("wait for balance of %s more than %d, timeout %v", addrs[i],
 			balances[i]+amounts[i], timeoutToChain)
-		balances[i], err = utils.WaitBalanceEnough(addr, balances[i]+amounts[i], peerAddr,
+		balances[i], err = utils.WaitBalanceEqual(addr, balances[i]+amounts[i], peerAddr,
 			timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
@@ -251,7 +251,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		expect := balances[i] + amountsRecv[i] - amountsSend[i] - amountsFees[i]
 		logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
 			timeoutToChain)
-		balances[i], err = utils.WaitBalanceEnough(addrs[i], expect, peerAddr, timeoutToChain)
+		balances[i], err = utils.WaitBalanceEqual(addrs[i], expect, peerAddr, timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
 		}
@@ -297,7 +297,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	// check balance
 	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, timeoutToChain)
-	b, err := utils.WaitBalanceEnough(addr, lastBalance+total, peerAddr, timeoutToChain)
+	b, err := utils.WaitBalanceEqual(addr, lastBalance+total, peerAddr, timeoutToChain)
 	if err != nil {
 		utils.TryRecordError(err)
 		logger.Warn(err)

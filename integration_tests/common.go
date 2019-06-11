@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 )
 
@@ -45,12 +46,12 @@ func PickOneMiner() (string, bool) {
 	for i, picked := range minerPicker.status {
 		if !picked {
 			logger.Infof("PickOneMiner wait for miner %s box reach %d on peer %s",
-				minerAddrs[i], 100000000, peersAddr[0])
-			if _, err := utils.WaitBalanceEnough(minerAddrs[i], 100000000, peersAddr[0],
+				minerAddrs[i], chain.BaseSubsidy, peersAddr[0])
+			if _, err := utils.WaitBalanceEnough(minerAddrs[i], chain.BaseSubsidy, peersAddr[0],
 				time.Second); err != nil {
-				logger.Warnf("PickOneMiner error: ", err)
 				continue
 			}
+			time.Sleep(time.Second) // to avoid utxo cache in wallet agent
 			minerPicker.status[i] = true
 			return minerAddrs[i], true
 		}

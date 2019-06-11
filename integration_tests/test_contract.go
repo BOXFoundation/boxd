@@ -85,9 +85,11 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	conn, err := rpcutil.GetGRPCConn(peerAddr)
 	if err != nil {
 		logger.Warn(err)
-		return false
+		return
 	}
 	defer conn.Close()
+	prevOwnerBalance := utils.BalanceFor(owner, peerAddr)
+	prevSpenderBalance := utils.BalanceFor(spender, peerAddr)
 	minerAcc, _ := AddrToAcc.Load(miner)
 	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{owner, spender},
 		[]uint64{createGas, sendGas}, conn)
@@ -100,11 +102,22 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		logger.Error(err)
 		return
 	}
+	// wait for owner and spender receiving box
+	_, err = utils.WaitBalanceEqual(owner, prevOwnerBalance+createGas, peerAddr, timeoutToChain)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
+	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance+sendGas, peerAddr, timeoutToChain)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
 	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
 	curTimes := utils.ContractRepeatTxTimes()
 	if utils.ContractRepeatRandom() {
-		curTimes = rand.Intn(utils.ContractRepeatTxTimes())
+		curTimes = 2 + rand.Intn(utils.ContractRepeatTxTimes())
 	}
 	contractRepeatTest(owner, spender, receivers[0], curTimes, &t.txCnt, peerAddr)
 	//
@@ -117,7 +130,7 @@ func contractRepeatTest(
 	logger.Info("=== RUN   contractRepeatTest")
 	defer logger.Info("=== DONE   contractRepeatTest")
 
-	if times <= 0 {
+	if times < 1 {
 		logger.Warn("times is 0, exit")
 		return
 	}
@@ -128,6 +141,8 @@ func contractRepeatTest(
 	}
 	defer conn.Close()
 
+	prevOwnerBalance := utils.BalanceFor(owner, peerAddr)
+	prevSpenderBalance := utils.BalanceFor(spender, peerAddr)
 	// issue some token
 	logger.Infof("%s issue 10000*10^8 token to %s", owner, spender)
 	ownerAcc, _ := AddrToAcc.Load(owner)
@@ -230,15 +245,15 @@ func contractRepeatTest(
 	gasUsed := uint64(995919 + 24815)
 	logger.Infof("wait for box balance of owner %s equal to %d, timeout %v",
 		owner, createGas-gasUsed*gasPrice, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(owner, createGas-gasUsed*gasPrice, peerAddr, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(owner, prevOwnerBalance-gasUsed*gasPrice, peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
 	// for spender box
 	gasUsed = uint64(39792 + 24792*(times-1))
 	logger.Infof("wait for box balance of spender %s equal to %d, timeout %v",
-		receiver, sendGas-gasUsed*gasPrice, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(spender, sendGas-gasUsed*gasPrice, peerAddr, timeoutToChain)
+		spender, sendGas-gasUsed*gasPrice, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance-gasUsed*gasPrice, peerAddr, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sync/atomic"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
@@ -78,6 +77,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return
 	}
 	defer conn.Close()
+	prevSenderBalance := utils.BalanceFor(sender, peerAddr)
 	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
 	minerAcc, _ := AddrToAcc.Load(miner)
 	senderTx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{sender},
@@ -91,11 +91,13 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return
 	}
 
-	//bytes, _ := json.MarshalIndent(senderTx, "", "  ")
-	//hash, _ := senderTx.CalcTxHash()
-	//logger.Infof("senderTx hash: %v\nbody: %s", hash[:], string(bytes))
-
-	time.Sleep(time.Second)
+	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance+testAmount+splitFee,
+		peerAddr, timeoutToChain)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
+	UnpickMiner(miner)
 	// create split addr
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
@@ -111,19 +113,13 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return
 	}
 
-	//bytes, _ = json.MarshalIndent(splitTx, "", "  ")
-	//hash, _ = splitTx.CalcTxHash()
-	//logger.Infof("splitTx hash: %v\nbody: %s", hash[:], string(bytes))
-
 	logger.Infof("wait for balance of sender %s equals to %d, timeout %v", sender,
-		testAmount, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(sender, testAmount, peerAddr, timeoutToChain)
+		prevSenderBalance+testAmount, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance+testAmount, peerAddr, timeoutToChain)
 	if err != nil {
-		utils.TryRecordError(err)
 		logger.Error(err)
 		return
 	}
-	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
 	curTimes := utils.SplitAddrRepeatTxTimes()
 	if utils.SplitAddrRepeatRandom() {
