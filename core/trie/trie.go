@@ -478,10 +478,11 @@ func hashToBytes(hash *crypto.HashType) []byte {
 }
 
 // String print the Trie.
-func (t *Trie) String() {
+func (t *Trie) String() string {
 	queue := list.New()
 	queue.PushBack(t.rootHash)
 	layer := queue.Back()
+	result := ""
 	for queue.Len() != 0 {
 		item := queue.Front()
 		queue.Remove(item)
@@ -493,24 +494,28 @@ func (t *Trie) String() {
 
 		switch node.Type() {
 		case leaf:
-			t.printLeaf(hash)
+			str := t.printLeaf(hash)
+			result += str
 		case extension:
-			next := t.printExtension(hash)
+			next, str := t.printExtension(hash)
+			result += str
 			queue.PushBack(next)
 		case branch:
-			hashs := t.printBranch(hash)
+			hashs, str := t.printBranch(hash)
+			result += str
 			queue.PushBackList(hashs)
 		default:
 			fmt.Println("BUG!!!!")
 		}
 		if layer == item {
-			fmt.Println("----------------------------")
+			result += fmt.Sprintln("----------------------------")
 			layer = queue.Back()
 		}
 	}
+	return result
 }
 
-func (t *Trie) printExtension(hash *crypto.HashType) *crypto.HashType {
+func (t *Trie) printExtension(hash *crypto.HashType) (*crypto.HashType, string) {
 	node, err := t.getNode(hash)
 	if err != nil {
 		logger.Errorf("Node not found: %s", hash)
@@ -520,11 +525,11 @@ func (t *Trie) printExtension(hash *crypto.HashType) *crypto.HashType {
 
 	next := new(crypto.HashType)
 	next.SetBytes(node.Value[1])
-	fmt.Printf("(EXTENSION) [%s] %s: %s\n", hash, key, next)
-	return next
+
+	return next, fmt.Sprintf("(EXTENSION) [%s] %s: %s\n", hash, key, next)
 }
 
-func (t *Trie) printLeaf(hash *crypto.HashType) {
+func (t *Trie) printLeaf(hash *crypto.HashType) string {
 	node, err := t.getNode(hash)
 	if err != nil {
 		logger.Errorf("Node not found: %s", hash)
@@ -533,26 +538,28 @@ func (t *Trie) printLeaf(hash *crypto.HashType) {
 	key := hex.EncodeToString(hexToKey(node.Value[0]))
 	val := string(node.Value[1])
 
-	fmt.Printf("(LEAF) [%s] %s: %s\n", hash, key, val)
+	return fmt.Sprintf("(LEAF) [%s] %s: %s\n", hash, key, val)
 }
 
-func (t *Trie) printBranch(hash *crypto.HashType) *list.List {
+func (t *Trie) printBranch(hash *crypto.HashType) (*list.List, string) {
 	node, err := t.getNode(hash)
 	if err != nil {
 		logger.Errorf("Node not found: %s", hash)
 	}
-	fmt.Printf("(BRANCH) %s: [", hash)
+
+	result := ""
+	result += fmt.Sprintf("(BRANCH) %s: [", hash)
 	hashs := list.New()
 	for i, val := range node.Value {
 		next := new(crypto.HashType)
 		next.SetBytes(val)
 		if len(val) != 0 {
-			fmt.Printf("%x: %s\t", i, next)
+			result += fmt.Sprintf("%x: %s\t", i, next)
 			hashs.PushBack(next)
 		} else {
-			fmt.Printf("%x: %s\t", i, val)
+			result += fmt.Sprintf("%x: %s\t", i, val)
 		}
 	}
-	fmt.Println("]")
-	return hashs
+	result += fmt.Sprintf("]")
+	return hashs, result
 }
