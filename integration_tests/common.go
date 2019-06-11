@@ -14,6 +14,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
+	"google.golang.org/grpc"
 )
 
 type picker struct {
@@ -43,11 +44,18 @@ func initMinerPicker(minerCnt int) {
 func PickOneMiner() (string, bool) {
 	minerPicker.Lock()
 	defer minerPicker.Unlock()
+	conn, err := grpc.Dial(peersAddr[0], grpc.WithInsecure())
+	if err != nil {
+		logger.Error(err)
+		return "", false
+	}
+	defer conn.Close()
+
 	for i, picked := range minerPicker.status {
 		if !picked {
-			logger.Infof("PickOneMiner wait for miner %s box reach %d on peer %s",
-				minerAddrs[i], chain.BaseSubsidy, peersAddr[0])
-			if _, err := utils.WaitBalanceEnough(minerAddrs[i], chain.BaseSubsidy, peersAddr[0],
+			logger.Infof("PickOneMiner wait for miner %s box reach %d",
+				minerAddrs[i], chain.BaseSubsidy)
+			if _, err := utils.WaitBalanceEnough(minerAddrs[i], chain.BaseSubsidy, conn,
 				time.Second); err != nil {
 				continue
 			}

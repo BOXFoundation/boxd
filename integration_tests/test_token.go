@@ -17,6 +17,7 @@ import (
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	"google.golang.org/grpc"
 )
 
 // TokenTest manage circulation of token
@@ -54,6 +55,12 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}()
 	peerAddr := peersAddr[(*index)%len(peersAddr)]
 	(*index)++
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		logger.Panic(err)
+		return true
+	}
+	defer conn.Close()
 	//
 	miner, ok := PickOneMiner()
 	if !ok {
@@ -63,9 +70,9 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	defer UnpickMiner(miner)
 	//
 	testFee, subsidy := uint64(100000), uint64(1000)
-	logger.Infof("waiting for minersAddr %s has %d at least on %s for token test",
-		miner, testFee+2*subsidy, peerAddr)
-	_, err := utils.WaitBalanceEnough(miner, testFee+2*subsidy, peerAddr, timeoutToChain)
+	logger.Infof("waiting for minersAddr %s has %d at least for token test",
+		miner, testFee+2*subsidy)
+	_, err = utils.WaitBalanceEnough(miner, testFee+2*subsidy, conn, timeoutToChain)
 	if err != nil {
 		logger.Error(err)
 		return true
@@ -75,12 +82,6 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return true
 	}
 	issuer, sender, receivers := addrs[0], addrs[1], addrs[2:]
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
-	if err != nil {
-		logger.Warn(err)
-		return false
-	}
-	defer conn.Close()
 	minerAcc, _ := AddrToAcc.Load(miner)
 	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{issuer, sender},
 		[]uint64{subsidy, testFee}, conn)
@@ -101,13 +102,13 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	if utils.TokenRepeatRandom() {
 		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
 	}
-	tokenRepeatTest(issuer, sender, receivers[0], tag, curTimes, &t.txCnt, peerAddr)
+	tokenRepeatTest(issuer, sender, receivers[0], tag, curTimes, &t.txCnt, conn)
 	//
 	return
 }
 
 func tokenRepeatTest(issuer, sender, receiver string,
-	tag *rpcpb.TokenTag, times int, txCnt *uint64, peerAddr string) {
+	tag *rpcpb.TokenTag, times int, txCnt *uint64, conn *grpc.ClientConn) {
 	logger.Info("=== RUN   tokenRepeatTest")
 	defer logger.Info("=== DONE   tokenRepeatTest")
 
@@ -115,12 +116,6 @@ func tokenRepeatTest(issuer, sender, receiver string,
 		logger.Warn("times is 0, exit")
 		return
 	}
-
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
-	if err != nil {
-		logger.Panic(err)
-	}
-	defer conn.Close()
 
 	// issue some token
 	logger.Infof("%s issue %d token to %s", issuer, tag.Supply, sender)
@@ -141,19 +136,18 @@ func tokenRepeatTest(issuer, sender, receiver string,
 	logger.Infof("wait for token balance of sender %s equal to %d, timeout %v",
 		sender, totalAmount, timeoutToChain)
 	blcSenderPre, err := utils.WaitTokenBalanceEnough(sender, totalAmount,
-		tid.Hash.String(), tid.Index, peerAddr, timeoutToChain)
+		tid.Hash.String(), tid.Index, conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
 
 	// check status before transfer
-	blcRcvPre := utils.TokenBalanceFor(receiver, tid.Hash.String(), tid.Index, peerAddr)
+	blcRcvPre := utils.TokenBalanceFor(receiver, tid.Hash.String(), tid.Index, conn)
 	logger.Infof("before token transfer, sender %s has %d token, receiver %s"+
 		" has %d token", sender, blcSenderPre, receiver, blcRcvPre)
 
 	// construct some token txs
-	logger.Infof("start to create %d token txs from %s to %s on %s",
-		times, sender, receiver, peerAddr)
+	logger.Infof("start to create %d token txs from %s to %s", times, sender, receiver)
 	txTotalAmount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount)/2))
 	senderAcc, _ := AddrToAcc.Load(sender)
 	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver,
@@ -163,8 +157,7 @@ func tokenRepeatTest(issuer, sender, receiver string,
 	}
 
 	// send token txs
-	logger.Infof("start to send %d token txs from %s to %s on %s",
-		times, sender, receiver, peerAddr)
+	logger.Infof("start to send %d token txs from %s to %ss", times, sender, receiver)
 	for _, tx := range txs {
 		if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 			!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
@@ -180,14 +173,14 @@ func tokenRepeatTest(issuer, sender, receiver string,
 	logger.Infof("wait for token balance of %s equal to %d, timeout %v",
 		sender, blcSenderPre-txTotalAmount, timeoutToChain)
 	err = utils.WaitTokenBalanceEqualTo(sender, blcSenderPre-txTotalAmount,
-		tid.Hash.String(), tid.Index, peerAddr, timeoutToChain)
+		tid.Hash.String(), tid.Index, conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
 	logger.Infof("wait for token balance of receiver %s equal to %d, timeout %v",
 		receiver, blcRcvPre+txTotalAmount, timeoutToChain)
 	err = utils.WaitTokenBalanceEqualTo(receiver, blcRcvPre+txTotalAmount,
-		tid.Hash.String(), tid.Index, peerAddr, timeoutToChain)
+		tid.Hash.String(), tid.Index, conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}

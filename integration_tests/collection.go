@@ -19,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	"google.golang.org/grpc"
 )
 
 // Collection manage transaction creation and collection
@@ -103,6 +104,12 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	// wait for nodes to be ready
 	peerAddr := peersAddr[*idx%len(peersAddr)]
 	*idx++
+	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+	if err != nil {
+		logger.Panic(err)
+		return true
+	}
+	defer conn.Close()
 	//
 	maddr, ok := PickOneMiner()
 	if !ok {
@@ -114,7 +121,7 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	//
 	logger.Infof("waiting for minersAddr %s has %d at least on %s for collection test",
 		maddr, totalAmount, peerAddr)
-	_, err := utils.WaitBalanceEnough(c.minerAddr, totalAmount, peerAddr, timeoutToChain)
+	_, err = utils.WaitBalanceEnough(c.minerAddr, totalAmount, conn, timeoutToChain)
 	if err != nil {
 		logger.Warn(err)
 		return true
@@ -123,8 +130,8 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	signal.Notify(quitCh, os.Interrupt, os.Kill)
 	select {
 	case collAddr := <-c.collAddrCh:
-		logger.Infof("start to launder some fund %d on %s", totalAmount, peerAddr)
-		for !c.launderFunds(collAddr, addrs, peerAddr, &c.txCnt) {
+		logger.Infof("start to launder some fund %d", totalAmount)
+		for !c.launderFunds(collAddr, addrs, conn, &c.txCnt) {
 			select {
 			case s := <-quitCh:
 				logger.Infof("receive quit signal %v, quiting HandleFunc[%d]!", s, idx)
@@ -147,7 +154,7 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 }
 
 // launderFunds generates some money, addr must not be in c.addrs
-func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, txCnt *uint64) (ok bool) {
+func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.ClientConn, txCnt *uint64) (ok bool) {
 	logger.Info("=== RUN   launderFunds")
 	defer func() {
 		if x := recover(); x != nil {
@@ -166,15 +173,9 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	balances := make([]uint64, count)
 	for i := 0; i < count; i++ {
-		balances[i] = utils.BalanceFor(addrs[i], peerAddr)
+		balances[i] = utils.BalanceFor(addrs[i], conn)
 	}
-	logger.Debugf("sent %v from %s to others test addrs on peer %s", amounts,
-		c.minerAddr, peerAddr)
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
-	if err != nil {
-		logger.Panic(err)
-	}
-	defer conn.Close()
+	logger.Debugf("sent %v from %s to others test addrs", amounts, c.minerAddr)
 	minerAcc, _ := AddrToAcc.Load(c.minerAddr)
 	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), addrs, amounts, conn)
 	if err != nil {
@@ -190,7 +191,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	for i, addr := range addrs {
 		logger.Debugf("wait for balance of %s more than %d, timeout %v", addrs[i],
 			balances[i]+amounts[i], timeoutToChain)
-		balances[i], err = utils.WaitBalanceEqual(addr, balances[i]+amounts[i], peerAddr,
+		balances[i], err = utils.WaitBalanceEqual(addr, balances[i]+amounts[i], conn,
 			timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
@@ -240,9 +241,6 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
-		//bytes, _ := json.MarshalIndent(tx, "", "  ")
-		//hash, _ := tx.CalcTxHash()
-		//logger.Infof("tx: %s, hash: %s", string(bytes), hash)
 	}
 	logger.Infof("complete to send tx from each to each")
 	// check balance
@@ -251,14 +249,14 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 		expect := balances[i] + amountsRecv[i] - amountsSend[i] - amountsFees[i]
 		logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
 			timeoutToChain)
-		balances[i], err = utils.WaitBalanceEqual(addrs[i], expect, peerAddr, timeoutToChain)
+		balances[i], err = utils.WaitBalanceEqual(addrs[i], expect, conn, timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
 		}
 	}
 
 	// gather count*count utxo via transfering from others to the first one
-	lastBalance := utils.BalanceFor(addr, peerAddr)
+	lastBalance := utils.BalanceFor(addr, conn)
 	total := uint64(0)
 	for i := 0; i < count; i++ {
 		wg.Add(1)
@@ -269,8 +267,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 					errChans <- fmt.Errorf("%v", x)
 				}
 			}()
-			logger.Debugf("start to gather utxo from addr %d to addr %s on peer %s",
-				i, addr, peerAddr)
+			logger.Debugf("start to gather utxo from addr %d to addr %s", i, addr)
 			fromAddr := addrs[i]
 			fromAcc, _ := AddrToAcc.Load(fromAddr)
 			txss, transfer, _, _, err := rpcutil.NewTxs(fromAcc.(*acc.Account), addr, count, conn)
@@ -297,7 +294,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, peerAddr string, 
 	}
 	// check balance
 	logger.Infof("wait for %s balance reach %d timeout %v", addr, total, timeoutToChain)
-	b, err := utils.WaitBalanceEqual(addr, lastBalance+total, peerAddr, timeoutToChain)
+	b, err := utils.WaitBalanceEqual(addr, lastBalance+total, conn, timeoutToChain)
 	if err != nil {
 		utils.TryRecordError(err)
 		logger.Warn(err)
