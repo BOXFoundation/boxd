@@ -10,7 +10,9 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/vm/common"
 )
 
 var (
@@ -221,9 +223,9 @@ func toGoType(index int, t Type, output []byte) (interface{}, error) {
 	case BoolTy:
 		return readBool(returnOutput)
 	case AddressTy:
-		return common.BytesToAddress(returnOutput), nil
+		return types.BytesToAddressHash(returnOutput), nil
 	case HashTy:
-		return common.BytesToHash(returnOutput), nil
+		return crypto.BytesToHash(returnOutput), nil
 	case BytesTy:
 		return output[begin : begin+length], nil
 	case FixedBytesTy:

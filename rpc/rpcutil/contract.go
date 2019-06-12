@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -77,18 +76,39 @@ func DoCall(conn *grpc.ClientConn, from, to, data string, height, timeout uint32
 		return nil, err
 	}
 
-	// Decode outputs.
-	outputs := method.Outputs
+	if len(method.Outputs) == 0 {
+		return nil, nil
+	}
 
-	v := reflect.New(outputs[0].Type.Type).Elem().Interface()
+	// Decode outputs.
 	rr, err := hex.DecodeString(r.Output)
 	if err != nil {
 		return nil, err
 	}
-	err = cabi.(abi.ABI).Unpack(&v, method.Name, rr)
+	res, err := method.Outputs.UnpackValues(rr)
 	if err != nil {
-		return r, err
+		return nil, err
 	}
 
-	return v, nil
+	// outputs := method.Outputs
+	// if len(outputs) == 1 {
+	// 	v := reflect.New(outputs[0].Type.Type).Elem().Interface()
+	// 	err = cabi.(abi.ABI).Unpack(&v, method.Name, rr)
+	// 	if err != nil {
+	// 		return r, err
+	// 	}
+	// 	return v, nil
+	// } else if len(outputs) > 1 {
+	// 	v := make([]interface{}, len(outputs))
+	// 	err = cabi.(abi.ABI).Unpack(&v, method.Name, rr)
+	// 	if err != nil {
+	// 		return r, err
+	// 	}
+	// 	return v, nil
+	// }
+
+	if len(method.Outputs) == 1 {
+		return res[0], nil
+	}
+	return res, nil
 }

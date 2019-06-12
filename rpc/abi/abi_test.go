@@ -7,7 +7,6 @@ package abi
 import (
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"reflect"
 	"strings"
 	"testing"
@@ -42,36 +41,43 @@ func TestPack(t *testing.T) {
 }
 
 // TestUnpackEvent is based on this contract:
-//    contract T {
-//      event received(address sender, uint amount, bytes memo);
-//      event receivedAddr(address sender);
-//      function receive(bytes memo) external payable {
-//        received(msg.sender, msg.value, memo);
-//        receivedAddr(msg.sender);
-//      }
-//    }
-// When receive("X") is called with sender 0x00... and value 1, it produces this tx receipt:
-//   receipt{status=1 cgas=23949 bloom=00000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000040200000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 logs=[log: b6818c8064f645cd82d99b59a1a267d6d61117ef [75fd880d39c1daf53b6547ab6cb59451fc6452d27caa90e5b6649dd8293b9eed] 000000000000000000000000376c47978271565f56deb45495afa69e59c16ab200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000158 9ae378b6d4409eada347a5dc0c180f186cb62dc68fcc0f043425eb917335aa28 0 95d429d309bb9d753954195fe2d69bd140b4ae731b9b5b605c34323de162cf00 0]}
+// pragma solidity ^0.5.6;
+// contract Coin {
+//
+//     event Sent(string amount);
+//     event Sent2(string amount, uint num);
+//
+//     function send(string memory amount) public {
+//         emit Sent(amount);
+//         emit Sent2(amount, 12345);
+//     }
+// }
 func TestUnpackEvent(t *testing.T) {
-	const abiJSON = `[{"constant":false,"inputs":[{"name":"_greeting","type":"*string"}],"name":"setGreeting","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"greet","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"greeting","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"inputs":[],"payable":false,"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_greeting","type":"string"}],"name":"setted","type":"event"}]`
+	const abiJSON = `[{"constant":false,"inputs":[{"name":"amount","type":"string"}],"name":"send","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"anonymous":false,"inputs":[{"indexed":false,"name":"amount","type":"string"}],"name":"Sent","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"amount","type":"string"},{"indexed":false,"name":"num","type":"uint256"}],"name":"Sent2","type":"event"}]`
 	abi, err := JSON(strings.NewReader(abiJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	hexdata := `0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d6f6e65206d6f72652074696d6500000000000000000000000000000000000000`
+	hexdata := `0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000a6162636428292829282900000000000000000000000000000000000000000000`
 	data, err := hex.DecodeString(hexdata)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	typ, err := NewType("string", nil)
-	a := reflect.New(typ.Type)
-	b := a.Elem().Interface()
-	err = abi.Unpack(&b, "greet", data)
-
+	var a string
+	err = abi.Unpack(&a, "Sent", data)
 	fmt.Println(err)
-	fmt.Println(b)
+	fmt.Println(a)
+
+	fmt.Println("--------------------")
+
+	hexdata = `00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000003039000000000000000000000000000000000000000000000000000000000000000a6162636428292829282900000000000000000000000000000000000000000000`
+	data, err = hex.DecodeString(hexdata)
+
+	res, err := abi.Events["Sent2"].Inputs.UnpackValues(data)
+	fmt.Println(err)
+	fmt.Println(res)
 
 }
 
@@ -132,11 +138,8 @@ func TestTuple(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var aaa = make([]interface{}, 3)
-	err = abi.Unpack(&aaa, "f", data)
-
-	fmt.Println(err)
-	fmt.Println(aaa)
+	res, _ := abi.Methods["f"].Outputs.UnpackValues(data)
+	fmt.Println(res)
 }
 
 // TestStruct is based on this contract:
@@ -172,28 +175,6 @@ func TestStruct(t *testing.T) {
 	}
 
 	res, _ := abi.Methods["aaa"].Outputs.UnpackValues(data)
-	fmt.Println(res)
-}
-
-func TestUnpack(t *testing.T) {
-
-	type s struct {
-		B *big.Int
-	}
-
-	var aaa interface{}
-
-	aaa = s{}
-	fmt.Println(reflect.TypeOf(aaa))
-
-	var marshalledValue interface{}
-	marshalledValue = big.NewInt(10)
-
-	retval := reflect.New(reflect.TypeOf(s{})).Elem()
-	retval.Field(0).Set(reflect.ValueOf(marshalledValue))
-	aaa = retval.Interface()
-	// aaa = reflect.ValueOf(retval).Interface()
-
-	fmt.Println()
-	fmt.Println(aaa)
+	a := fmt.Sprint(res)
+	fmt.Println(a)
 }
