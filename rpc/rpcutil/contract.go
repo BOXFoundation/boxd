@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BOXFoundation/boxd/rpc/abi"
+	"github.com/BOXFoundation/boxd/core/abi"
 	pb "github.com/BOXFoundation/boxd/rpc/pb"
 	lru "github.com/hashicorp/golang-lru"
 	"google.golang.org/grpc"
