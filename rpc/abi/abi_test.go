@@ -7,6 +7,7 @@ package abi
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"reflect"
 	"strings"
 	"testing"
@@ -84,7 +85,8 @@ func TestUnpack1(t *testing.T) {
 	fmt.Println(reflect.ValueOf(&aaa))
 	fmt.Println(reflect.ValueOf(&aaa).Elem())
 	fmt.Println(reflect.ValueOf(&aaa).Elem().Addr())
-	fmt.Println(reflect.ValueOf(&aaa).Elem().Addr().Interface())
+	c := reflect.ValueOf(&aaa).Elem().Addr().Interface()
+	fmt.Println(c)
 	fmt.Println(reflect.ValueOf(reflect.ValueOf(&aaa).Elem().Addr().Interface()))
 	fmt.Println(reflect.ValueOf(reflect.ValueOf(&aaa).Elem().Addr().Interface()).Elem())
 	fmt.Println(reflect.ValueOf(reflect.ValueOf(&aaa).Elem().Addr().Interface()).Elem().CanSet())
@@ -108,7 +110,7 @@ func TestUnpack1(t *testing.T) {
 
 }
 
-// TestUnpackEvent is based on this contract:
+// TestTuple is based on this contract:
 // pragma solidity >0.4.23 <0.7.0;
 // contract C {
 //    uint[] data;
@@ -118,47 +120,80 @@ func TestUnpack1(t *testing.T) {
 //    }
 //}
 func TestTuple(t *testing.T) {
-	const abiJSON = `[
-		{
-			"constant": true,
-			"inputs": [],
-			"name": "f",
-			"outputs": [
-				{
-					"name": "",
-					"type": "uint256"
-				},
-				{
-					"name": "",
-					"type": "bool"
-				},
-				{
-					"name": "",
-					"type": "uint256"
-				}
-			],
-			"payable": false,
-			"stateMutability": "pure",
-			"type": "function"
-		}
-	]`
+	const abiJSON = `[{"constant":true,"inputs":[],"name":"f","outputs":[{"name":"","type":"uint256"},{"name":"","type":"bool"},{"name":"","type":"uint256"}],"payable":false,"stateMutability":"pure","type":"function"}]`
 	abi, err := JSON(strings.NewReader(abiJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	hexdata := `6080604052348015600f57600080fd5b5060a38061001e6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c806326121ff014602d575b600080fd5b6033605b565b6040518084815260200183151515158152602001828152602001935050505060405180910390f35b600080600060076001600282925080905092509250925090919256fea165627a7a7230582086f654e5018d11f7f693c3672b483dcd494a1000d763a85ab594cc3f41476be00029`
+	hexdata := `000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002`
 	data, err := hex.DecodeString(hexdata)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	typ, err := NewType("string", nil)
-	a := reflect.New(typ.Type)
-	b := a.Elem().Interface()
-	err = abi.Unpack(&b, "greet", data)
+	var aaa = make([]interface{}, 3)
+	err = abi.Unpack(&aaa, "f", data)
 
 	fmt.Println(err)
-	fmt.Println(b)
+	fmt.Println(aaa)
+}
 
+// TestStruct is based on this contract:
+// pragma solidity ^0.5.9;
+// pragma experimental ABIEncoderV2;
+//
+// contract A{
+//     struct S{
+//         string para1;
+//         M para2;
+//     }
+//     struct M{
+//         string para1;
+//         int para2;
+//     }
+//
+//     mapping (uint32=>S) public aaa;
+//     constructor() public {
+//         aaa[0] = S("Test", M("M", 10));
+//     }
+// }
+func TestStruct(t *testing.T) {
+	const abiJSON = `[{"inputs":[],"payable":false,"stateMutability":"nonpayable","type":"constructor"},{"constant":true,"inputs":[{"name":"","type":"uint32"}],"name":"aaa","outputs":[{"name":"para1","type":"string"},{"components":[{"name":"para1","type":"string"},{"name":"para2","type":"int256"}],"name":"para2","type":"tuple"}],"payable":false,"stateMutability":"view","type":"function"}]`
+	abi, err := JSON(strings.NewReader(abiJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hexdata := `00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000454657374000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000014d00000000000000000000000000000000000000000000000000000000000000`
+	data, err := hex.DecodeString(hexdata)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, _ := abi.Methods["aaa"].Outputs.UnpackValues(data)
+	fmt.Println(res)
+}
+
+func TestUnpack(t *testing.T) {
+
+	type s struct {
+		B *big.Int
+	}
+
+	var aaa interface{}
+
+	aaa = s{}
+	fmt.Println(reflect.TypeOf(aaa))
+
+	var marshalledValue interface{}
+	marshalledValue = big.NewInt(10)
+
+	retval := reflect.New(reflect.TypeOf(s{})).Elem()
+	retval.Field(0).Set(reflect.ValueOf(marshalledValue))
+	aaa = retval.Interface()
+	// aaa = reflect.ValueOf(retval).Interface()
+
+	fmt.Println()
+	fmt.Println(aaa)
 }
