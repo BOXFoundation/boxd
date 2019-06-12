@@ -967,9 +967,41 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 // ParseContractNonce returns address within the script
 func (s *Script) ParseContractNonce() (uint64, error) {
 	if !s.IsContractPubkey() {
-		return 0, errors.New("not a contract nonce")
+		return 0, errors.New("not a contract script")
 	}
 	_, operand, _, err := s.getNthOp(22, 0) // 1, 22
+	if err != nil {
+		return 0, err
+	}
+	n, err := operand.int64()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(n), nil
+}
+
+// ParseContractGasPrice returns address within the script
+func (s *Script) ParseContractGasPrice() (uint64, error) {
+	if !s.IsContractPubkey() {
+		return 0, errors.New("not a contract script")
+	}
+	_, operand, _, err := s.getNthOp(22, 1) // 1, 22
+	if err != nil {
+		return 0, err
+	}
+	n, err := operand.int64()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(n), nil
+}
+
+// ParseContractGas returns address within the script
+func (s *Script) ParseContractGas() (uint64, error) {
+	if !s.IsContractPubkey() {
+		return 0, errors.New("not a contract script")
+	}
+	_, operand, _, err := s.getNthOp(22, 2) // 1, 22
 	if err != nil {
 		return 0, err
 	}

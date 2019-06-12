@@ -191,11 +191,14 @@ func (s *txServer) SendRawTransaction(
 	if err = tx.Unmarshal(txByte); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
+	hash, _ := tx.TxHash()
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		if err == core.ErrOrphanTransaction {
+			return newSendTransactionResp(0, err.Error(), hash.String()), nil
+		}
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
-	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 
@@ -217,11 +220,14 @@ func (s *txServer) SendTransaction(
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 
+	hash, _ := tx.TxHash()
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		if err == core.ErrOrphanTransaction {
+			return newSendTransactionResp(0, err.Error(), hash.String()), nil
+		}
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
-	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 

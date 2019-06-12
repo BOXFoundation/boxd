@@ -9,7 +9,7 @@
   "local_ws": "./.devconfig/",
   "docker_ws": "../docker/.devconfig/",
   "transaction_test": {
-    "enable": false,
+    "enable": true,
     "collection_accounts": 8,
     "collection_unit_accounts": 4,
     "circulation_accounts": 6,
@@ -18,7 +18,7 @@
     "enable_repeat_random": true
   },
   "token_test": {
-    "enable": false,
+    "enable": true,
     "accounts": 6,
     "unit_accounts": 3,
     "repeat_times": 20,
@@ -29,10 +29,10 @@
     "accounts": 3,
     "unit_accounts": 3,
     "repeat_times": 20,
-    "enable_repeat_random": false
+    "enable_repeat_random": true
   },
   "split_addr_test": {
-    "enable": false,
+    "enable": true,
     "accounts": 10,
     "unit_accounts": 5,
     "repeat_times": 20,
@@ -56,12 +56,9 @@
 	    "127.0.0.1:19161"
     ],
     "testnet": [
-	    "192.168.0.227:19111",
-	    "192.168.0.227:19121",
-	    "192.168.0.227:19131",
-	    "192.168.0.226:19141",
-	    "192.168.0.226:19151",
-	    "192.168.0.226:19161"
+	    "127.0.0.1:19191",
+	    "127.0.0.1:19181",
+	    "127.0.0.1:19171"
     ],
     "tx_peers": [
 	    "127.0.0.1:19111"

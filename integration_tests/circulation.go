@@ -19,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	"google.golang.org/grpc"
 )
 
 // Circulation manage circulation of transaction
@@ -56,9 +57,15 @@ func (c *Circulation) HandleFunc(addrs []string, idx *int) (exit bool) {
 				logger.Infof("start box circulation between accounts on %s", cirInfo.PeerAddr)
 				curTimes := utils.CircuRepeatTxTimes()
 				if utils.CircuRepeatRandom() {
-					curTimes = rand.Intn(utils.CircuRepeatTxTimes())
+					curTimes = 1 + rand.Intn(utils.CircuRepeatTxTimes())
 				}
-				txRepeatTest(cirInfo.Addr, toAddr, cirInfo.PeerAddr, curTimes, &c.txCnt)
+				conn, err := grpc.Dial(cirInfo.PeerAddr, grpc.WithInsecure())
+				if err != nil {
+					utils.TryRecordError(err)
+					return true
+				}
+				defer conn.Close()
+				txRepeatTest(cirInfo.Addr, toAddr, conn, curTimes, &c.txCnt)
 				return false
 			}
 		case s := <-quitCh:
@@ -72,7 +79,7 @@ func (c *Circulation) HandleFunc(addrs []string, idx *int) (exit bool) {
 	return
 }
 
-func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *uint64) {
+func txRepeatTest(fromAddr, toAddr string, conn *grpc.ClientConn, times int, txCnt *uint64) {
 	logger.Info("=== RUN   txRepeatTest")
 	defer logger.Infof("--- DONE: txRepeatTest")
 	defer func() {
@@ -81,27 +88,17 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 			logger.Error(x)
 		}
 	}()
-	if times <= 0 {
-		logger.Warn("times is 0, exit")
-		return
-	}
 	//
-	fromBalancePre := utils.BalanceFor(fromAddr, execPeer)
+	fromBalancePre := utils.BalanceFor(fromAddr, conn)
 	if fromBalancePre == 0 {
 		logger.Warnf("balance of %s is 0, exit", fromAddr)
 		return
 	}
-	toBalancePre := utils.BalanceFor(toAddr, execPeer)
+	toBalancePre := utils.BalanceFor(toAddr, conn)
 	logger.Infof("fromAddr[%s] balance: %d, toAddr[%s] balance: %d",
 		fromAddr, fromBalancePre, toAddr, toBalancePre)
 	logger.Infof("start to construct txs from %s to %s %d times", fromAddr, toAddr, times)
 	start := time.Now()
-	conn, err := rpcutil.GetGRPCConn(execPeer)
-	if err != nil {
-		logger.Warn(err)
-		return
-	}
-	defer conn.Close()
 	fromAcc, _ := AddrToAcc.Load(fromAddr)
 	txss, transfer, fee, count, err := rpcutil.NewTxs(fromAcc.(*acc.Account),
 		toAddr, times, conn)
@@ -147,18 +144,17 @@ func txRepeatTest(fromAddr, toAddr string, execPeer string, times int, txCnt *ui
 	eclipse = float64(time.Since(start).Nanoseconds()) / 1e6
 	logger.Infof("send %d txs cost: %6.3f ms", count, eclipse)
 
-	logger.Infof("%s sent %d transactions total %d to %s on peer %s",
-		fromAddr, count, transfer, toAddr, execPeer)
+	logger.Infof("%s sent %d transactions total %d to %s", fromAddr, count, transfer, toAddr)
 	logger.Infof("wait for balance of %s reach %d, timeout %v", toAddr,
 		toBalancePre+transfer, timeoutToChain)
 	toBalancePost, err := utils.WaitBalanceEnough(toAddr, toBalancePre+transfer,
-		execPeer, timeoutToChain)
+		conn, timeoutToChain)
 	if err != nil {
 		utils.TryRecordError(err)
 		logger.Warn(err)
 	}
 	// check the balance of sender
-	fromBalancePost := utils.BalanceFor(fromAddr, execPeer)
+	fromBalancePost := utils.BalanceFor(fromAddr, conn)
 	logger.Infof("fromAddr[%s] balance: %d toAddr[%s] balance: %d",
 		fromAddr, fromBalancePost, toAddr, toBalancePost)
 	// prerequisite: neither of fromAddr and toAddr are not miner address

@@ -155,11 +155,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation)
 	if err != nil {
-		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
 	}
 	if err = st.useGas(gas); err != nil {
-		logger.Warn(err)
 		return nil, 0, 0, false, nil, err
 	}
 
@@ -186,7 +184,8 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		// The only possible consensus-error would be if there wasn't
 		// sufficient balance to make the transfer happen. The first
 		// balance transfer may never fail.
-		logger.Warn(vmerr)
+		logger.Warnf("vm execute failed, msg: %s, gasUsed: %d, remaining: %d, error: %s",
+			st.msg, st.gasUsed(), st.gas, vmerr)
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, 0, false, nil, vmerr
 		}
@@ -202,7 +201,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	gasUsed := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
 	st.state.AddBalance(st.evm.Coinbase, gasUsed)
 
-	logger.Infof("gasUsed: %d, remaining: %d, gas price: %d", st.gasUsed(), st.remaining, st.gasPrice)
 	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, nil
 }
 
