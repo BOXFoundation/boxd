@@ -65,7 +65,7 @@ func init() {
 		},
 		&cobra.Command{
 			Use:   "createtx [from] [to1,to2...] [amounts1,amounts2...] [fee]",
-			Short: "create unsigned transaction,",
+			Short: "create an unsigned transaction,",
 			Long:  "Returns a set of raw message for signing and a hex encoded transaction string",
 			Run:   maketx,
 		},
@@ -154,7 +154,7 @@ func maketx(cmd *cobra.Command, args []string) {
 	//get raw messages
 	rawMsgs := resp.RawMsgs
 	if len(rawMsgs) != len(tx.Vin) {
-		fmt.Println("Inconsistent parameter numbers: ", err)
+		fmt.Println("Inconsistent parameter numbers")
 		return
 	}
 	fmt.Println("transaction: ", util.PrettyPrint(tx))
