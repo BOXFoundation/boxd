@@ -322,15 +322,16 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 	var gasPrice uint64
-	if chain.HasContractVout(tx) { // smart contract tx.
-		vmTx, err := tx_pool.chain.ExtractVMTransactions(tx)
+	if o := chain.GetContractVout(tx); o != nil { // smart contract tx.
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		param, _, err := sc.ParseContractParams()
 		if err != nil {
 			return err
 		}
-		if txFee != vmTx.GasPrice().Uint64()*vmTx.Gas() {
-			return errors.New("Invalid contract transaction params")
+		if txFee != param.GasLimit*param.GasPrice {
+			return errors.New("Invalid contract transaction fee")
 		}
-		gasPrice = vmTx.GasPrice().Uint64()
+		gasPrice = param.GasPrice
 	} else {
 		gasPrice = txFee / core.TransferGasLimit
 	}
@@ -643,9 +644,7 @@ func (tx_pool *TransactionPool) GetOrphaTxs() []*types.TxWrap {
 
 // GetTxByHash get a transaction by hash from pool or orphan pool
 // return a tx and tell whether it is in pool or in orphan pool
-func (tx_pool *TransactionPool) GetTxByHash(
-	hash *crypto.HashType,
-) (*types.TxWrap, bool) {
+func (tx_pool *TransactionPool) GetTxByHash(hash *crypto.HashType) (*types.TxWrap, bool) {
 
 	v, ok := tx_pool.hashToTx.Load(*hash)
 	if ok {

@@ -20,7 +20,6 @@ import (
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	"github.com/rs/cors"
-	"github.com/satori/go.uuid"
 	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
 )
@@ -177,10 +176,10 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 	var opts []grpc.ServerOption
 	var interceptor grpc.UnaryServerInterceptor
 	interceptor = func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		start := time.Now()
-		uid := uuid.NewV4()
+		//start := time.Now()
+		//uid := uuid.NewV4()
 		resp, err := handler(ctx, req)
-		logger.Debugf("grpc access log: %v %v %v\n, resp: %v, err: %v", uid, info.FullMethod, time.Since(start), resp, err)
+		//logger.Debugf("grpc access log: %v %v %v\n, resp: %v, err: %v", uid, info.FullMethod, time.Since(start), resp, err)
 		return resp, err
 	}
 	opts = append(opts, grpc.UnaryInterceptor(interceptor))

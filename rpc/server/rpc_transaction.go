@@ -136,8 +136,8 @@ func (s *txServer) FetchUtxos(
 				}
 				total += amount
 			}
-			logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
-				string(bytes), len(resp.GetUtxos()), total)
+			//logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
+			//	string(bytes), len(resp.GetUtxos()), total)
 		}
 	}()
 
@@ -191,11 +191,14 @@ func (s *txServer) SendRawTransaction(
 	if err = tx.Unmarshal(txByte); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
+	hash, _ := tx.TxHash()
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		if err == core.ErrOrphanTransaction {
+			return newSendTransactionResp(0, err.Error(), hash.String()), nil
+		}
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
-	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 
@@ -217,11 +220,14 @@ func (s *txServer) SendTransaction(
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 
+	hash, _ := tx.TxHash()
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		if err == core.ErrOrphanTransaction {
+			return newSendTransactionResp(0, err.Error(), hash.String()), nil
+		}
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
-	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 
@@ -457,7 +463,8 @@ func (s *txServer) MakeUnsignedContractTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned contract tx: %s error: %s", string(bytes), resp.Message)
 		} else {
-			logger.Debugf("make unsigned contract tx: %s succeeded, response: %+v", string(bytes), resp)
+			logger.Debugf("make unsigned contract tx: %s succeeded, contract addr: %s",
+				string(bytes), resp.ContractAddr)
 		}
 	}()
 	wa := s.server.GetWalletAgent()

@@ -408,5 +408,13 @@ func TestContractScript(t *testing.T) {
 			n != tc.nonce {
 			t.Fatalf("parse contract nonce error: %v, want: %d, got: %d", err, tc.nonce, n)
 		}
+		if n, err := cs.ParseContractGas(); err != nil ||
+			n != tc.limit {
+			t.Fatalf("parse contract gas error: %v, want: %d, got: %d", err, tc.limit, n)
+		}
+		if n, err := cs.ParseContractGasPrice(); err != nil ||
+			n != tc.price {
+			t.Fatalf("parse contract gas price error: %v, want: %d, got: %d", err, tc.price, n)
+		}
 	}
 }

@@ -147,5 +147,11 @@ func testItems() []func() {
 	if utils.SplitAddrTestEnable() {
 		items = append(items, splitAddrTest)
 	}
+
+	// test contract
+	if utils.ContractTestEnable() {
+		items = append(items, contractTest)
+	}
+
 	return items
 }

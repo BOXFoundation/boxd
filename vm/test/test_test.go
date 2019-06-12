@@ -5,7 +5,6 @@ package test
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -163,6 +162,18 @@ func TestEVM(t *testing.T) {
 	must(vmerr)
 	fmt.Println("after send 11, balance =", balance)
 
+	type RecEvent struct {
+		From   coretypes.AddressHash
+		To     coretypes.AddressHash
+		Amount *big.Int
+	}
+
+	var eve RecEvent
+	err = abiObj.Unpack(&eve, "Sent", stateDb.Logs()[0].Data)
+
+	fmt.Println(eve)
+	must(err)
+
 	//send
 	input, err = abiObj.Pack("send", toAddress, big.NewInt(19))
 	must(err)
@@ -202,30 +213,4 @@ func TestEVM(t *testing.T) {
 	// for _, log := range structLogger.StructLogs() {
 	// 	fmt.Println(log)
 	// }
-}
-
-func TestPack(t *testing.T) {
-	//abiFileName := "./faucet.abi"
-	abiFileName := "./coin_sol_Coin.abi"
-	abiObj := loadAbi(abiFileName)
-	addr := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
-
-	// mint 8000000
-	input, err := abiObj.Pack("mint", fromAddress, big.NewInt(8000000))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("mint 8000000: %v", hex.EncodeToString(input))
-	// sent 2000000
-	input, err = abiObj.Pack("send", coretypes.BytesToAddressHash([]byte(addr)), big.NewInt(2000000))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("send 8000000: %v", hex.EncodeToString(input))
-	// balances
-	input, err = abiObj.Pack("balances", coretypes.BytesToAddressHash([]byte(addr)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("balances %s: %v", addr, hex.EncodeToString(input))
 }

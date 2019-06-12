@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"math/rand"
 	"sync/atomic"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	"google.golang.org/grpc"
 )
 
 // SplitAddrTest manage circulation of token
@@ -50,6 +50,12 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	peerAddr := peersAddr[(*index)%len(peersAddr)]
 	(*index)++
+	conn, err := rpcutil.GetGRPCConn(peerAddr)
+	if err != nil {
+		logger.Panic(err)
+		return true
+	}
+	defer conn.Close()
 	//
 	miner, ok := PickOneMiner()
 	if !ok {
@@ -59,9 +65,9 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	defer UnpickMiner(miner)
 	//
 	testAmount, splitFee, testFee := uint64(100000), uint64(1000), uint64(1000)
-	logger.Infof("waiting for minersAddr %s has %d at least on %s for split address test",
-		miner, testAmount+testFee, peerAddr)
-	_, err := utils.WaitBalanceEnough(miner, testAmount+splitFee+testFee, peerAddr,
+	logger.Infof("waiting for minersAddr %s has %d at least for split address test",
+		miner, testAmount+testFee)
+	_, err = utils.WaitBalanceEnough(miner, testAmount+splitFee+testFee, conn,
 		timeoutToChain)
 	if err != nil {
 		logger.Error(err)
@@ -72,12 +78,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	weights := []uint64{1, 2, 3, 4}
 
 	// send box to sender
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-	defer conn.Close()
+	prevSenderBalance := utils.BalanceFor(sender, conn)
 	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
 	minerAcc, _ := AddrToAcc.Load(miner)
 	senderTx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{sender},
@@ -91,11 +92,13 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return
 	}
 
-	//bytes, _ := json.MarshalIndent(senderTx, "", "  ")
-	//hash, _ := senderTx.CalcTxHash()
-	//logger.Infof("senderTx hash: %v\nbody: %s", hash[:], string(bytes))
-
-	time.Sleep(time.Second)
+	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance+testAmount+splitFee,
+		conn, timeoutToChain)
+	if err != nil {
+		logger.Warn(err)
+		return
+	}
+	UnpickMiner(miner)
 	// create split addr
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
@@ -111,31 +114,25 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return
 	}
 
-	//bytes, _ = json.MarshalIndent(splitTx, "", "  ")
-	//hash, _ = splitTx.CalcTxHash()
-	//logger.Infof("splitTx hash: %v\nbody: %s", hash[:], string(bytes))
-
 	logger.Infof("wait for balance of sender %s equals to %d, timeout %v", sender,
-		testAmount, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(sender, testAmount, peerAddr, timeoutToChain)
+		prevSenderBalance+testAmount, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance+testAmount, conn, timeoutToChain)
 	if err != nil {
-		utils.TryRecordError(err)
 		logger.Error(err)
 		return
 	}
-	UnpickMiner(miner)
 	atomic.AddUint64(&t.txCnt, 1)
 	curTimes := utils.SplitAddrRepeatTxTimes()
 	if utils.SplitAddrRepeatRandom() {
 		curTimes = rand.Intn(utils.SplitAddrRepeatTxTimes())
 	}
-	splitAddrRepeatTest(sender, receivers, weights, curTimes, &t.txCnt, peerAddr)
+	splitAddrRepeatTest(sender, receivers, weights, curTimes, &t.txCnt, conn)
 	//
 	return
 }
 
 func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
-	times int, txCnt *uint64, peerAddr string) {
+	times int, txCnt *uint64, conn *grpc.ClientConn) {
 	logger.Info("=== RUN   splitAddrRepeatTest")
 	defer logger.Infof("--- DONE: splitAddrRepeatTest")
 
@@ -150,10 +147,10 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	}
 
 	// fetch pre-balance sender and receivers
-	senderBalancePre := utils.BalanceFor(sender, peerAddr)
+	senderBalancePre := utils.BalanceFor(sender, conn)
 	receiversBalancePre := make([]uint64, len(receivers))
 	for i, addr := range receivers {
-		receiversBalancePre[i] = utils.BalanceFor(addr, peerAddr)
+		receiversBalancePre[i] = utils.BalanceFor(addr, conn)
 	}
 	logger.Infof("before split addrs txs, sender[%s] balance: %d, receivers balance: %v",
 		sender, senderBalancePre, receiversBalancePre)
@@ -170,11 +167,6 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 	//}
 
 	// transfer
-	conn, err := rpcutil.GetGRPCConn(peerAddr)
-	if err != nil {
-		logger.Panic(err)
-	}
-	defer conn.Close()
 	senderAcc, _ := AddrToAcc.Load(sender)
 	txss, transfer, fee, count, err := rpcutil.NewTxs(senderAcc.(*acc.Account), addr, 1, conn)
 	if err != nil {
@@ -192,13 +184,13 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 			atomic.AddUint64(txCnt, 1)
 		}
 	}
-	logger.Infof("%s sent %d transactions total %d to split address %s on peer %s",
-		sender, count, transfer, addr, peerAddr)
+	logger.Infof("%s sent %d transactions total %d to split address %s",
+		sender, count, transfer, addr)
 
 	logger.Infof("wait for balance of sender %s equal to %d, timeout %v",
 		sender, senderBalancePre-transfer-fee, timeoutToChain)
 	_, err = utils.WaitBalanceEqual(sender, senderBalancePre-transfer-fee,
-		peerAddr, timeoutToChain)
+		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -211,7 +203,7 @@ func splitAddrRepeatTest(sender string, receivers []string, weights []uint64,
 		amount := receiversBalancePre[i] + transfer/totalWeight*weights[i]
 		logger.Infof("wait for balance of receivers[%d] receive %d(%d/%d), timeout: %v",
 			i, amount, weights[i], totalWeight, timeoutToChain)
-		_, err := utils.WaitBalanceEnough(addr, amount, peerAddr, timeoutToChain)
+		_, err := utils.WaitBalanceEnough(addr, amount, conn, timeoutToChain)
 		if err != nil {
 			logger.Panic(err)
 		}

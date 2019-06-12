@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -98,16 +99,14 @@ func ApplyTransaction(
 	}()
 	context := NewEVMContext(tx, header, bc)
 	vmenv := vm.NewEVM(context, statedb, cfg)
-	logger.Infof("params for ApplyMessage sender: %s, receiver: %v, gas: %d, "+
-		"gasPrice: %d, value: %d, type: %s, header: %+v", tx.From(), tx.To(),
-		tx.Gas(), tx.GasPrice(), tx.Value(), tx.Type(), header)
-	_, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
+	//logger.Infof("ApplyMessage tx: %+v, header: %+v", tx, header)
+	ret, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		logger.Warn(err)
 		return nil, 0, 0, nil, nil, err
 	}
-	logger.Infof("result for ApplyMessage tx %s, gasUsed: %d, gasRemainingFee: %d, "+
-		"failed: %t", tx.OriginTxHash(), gasUsed, gasRemainingFee, fail)
+	logger.Infof("result for ApplyMessage msg %s, gasUsed: %d, gasRemainingFee:"+
+		" %d, failed: %t, return: %s", tx, gasUsed, gasRemainingFee, fail, hex.EncodeToString(ret))
 	if gasRefundTx != nil {
 		txHash, _ := gasRefundTx.TxHash()
 		logger.Infof("gasRefund tx: %s", txHash)

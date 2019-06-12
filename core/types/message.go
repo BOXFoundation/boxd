@@ -11,7 +11,6 @@ import (
 // Message represents a message sent to a contract.
 type Message interface {
 	From() *AddressHash
-	//FromFrontier() (common.Address, error)
 	To() *AddressHash
 
 	GasPrice() *big.Int
@@ -21,6 +20,6 @@ type Message interface {
 	Type() ContractType
 
 	Nonce() uint64
-	//CheckNonce() bool
 	Data() []byte
+	String() string
 }

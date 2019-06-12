@@ -33,11 +33,13 @@ func GetBalance(conn *grpc.ClientConn, addresses []string) ([]uint64, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
-	req, err := c.GetBalance(ctx, &rpcpb.GetBalanceReq{Addrs: addresses})
+	resp, err := c.GetBalance(ctx, &rpcpb.GetBalanceReq{Addrs: addresses})
 	if err != nil {
 		return nil, err
+	} else if resp.Code != 0 {
+		return nil, errors.New(resp.Message)
 	}
-	return req.GetBalances(), nil
+	return resp.GetBalances(), nil
 }
 
 // GetTokenBalance returns total amount of an address with specified token id
@@ -48,12 +50,14 @@ func GetTokenBalance(
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()
-	req, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceReq{
+	resp, err := c.GetTokenBalance(ctx, &rpcpb.GetTokenBalanceReq{
 		Addrs: addresses, TokenHash: tokenHash, TokenIndex: tokenIndex})
 	if err != nil {
 		return nil, err
+	} else if resp.Code != 0 {
+		return nil, errors.New(resp.Message)
 	}
-	return req.GetBalances(), nil
+	return resp.GetBalances(), nil
 }
 
 func newFetchUtxosReq(addr string, amount uint64) *rpcpb.FetchUtxosReq {
@@ -80,6 +84,8 @@ func FetchUtxos(
 	resp, err := c.FetchUtxos(ctx, req)
 	if err != nil {
 		return nil, err
+	} else if resp.Code != 0 {
+		return nil, errors.New(resp.Message)
 	}
 	return resp.GetUtxos(), nil
 }
@@ -95,8 +101,7 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 
 // NewIssueTokenTx new a issue token transaction
 func NewIssueTokenTx(
-	acc *acc.Account, to string, tag *rpcpb.TokenTag, supply uint64,
-	conn *grpc.ClientConn,
+	acc *acc.Account, to string, tag *rpcpb.TokenTag, conn *grpc.ClientConn,
 ) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
@@ -116,10 +121,69 @@ func NewIssueTokenTx(
 	if err != nil {
 		logger.Warnf("new issue token tx with utxos from %s to %s tag %+v "+
 			"supply %d change %d with utxos: %+v error: %s", acc.Addr(), to, tag,
-			supply, inputAmt-fee, utxos, err)
+			tag.Supply, inputAmt-fee, utxos, err)
 		return nil, nil, nil, err
 	}
 	return tx, tid, change, nil
+}
+
+// NewContractDeployTx new a deploy contract transaction
+func NewContractDeployTx(
+	acc *acc.Account, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+) (*types.Transaction, string, error) {
+	// fetch utxos for gas
+	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
+	if err != nil {
+		return nil, "", err
+	}
+	inputAmt := uint64(0)
+	for _, u := range utxos {
+		inputAmt += u.GetTxOut().GetValue()
+	}
+	//
+	tx, err := txlogic.MakeUnsignedContractDeployTx(acc.Addr(), 0,
+		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, code, utxos...)
+	if err != nil {
+		return nil, "", err
+	}
+	// sign vin
+	if err = txlogic.SignTxWithUtxos(tx, utxos, acc); err != nil {
+		return nil, "", err
+	}
+	// nonce
+
+	senderAddr, err := types.NewAddress(acc.Addr())
+	if err != nil {
+		return nil, "", err
+	}
+	contractAddr, _ := types.MakeContractAddress(senderAddr, nonce)
+	return tx, contractAddr.String(), nil
+}
+
+// NewContractCallTx new a call contract transaction
+func NewContractCallTx(
+	acc *acc.Account, to string, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+) (*types.Transaction, error) {
+	// fetch utxos for gas
+	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	inputAmt := uint64(0)
+	for _, u := range utxos {
+		inputAmt += u.GetTxOut().GetValue()
+	}
+	//
+	tx, err := txlogic.MakeUnsignedContractCallTx(acc.Addr(), 0,
+		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, to, code, utxos...)
+	if err != nil {
+		return nil, err
+	}
+	// sign vin
+	if err = txlogic.SignTxWithUtxos(tx, utxos, acc); err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 // SendTransaction sends an signed transaction to node server through grpc connection
@@ -141,8 +205,7 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 	resp, err := c.SendTransaction(ctx, txReq)
 	if err != nil {
 		return "", err
-	}
-	if resp.GetCode() != 0 {
+	} else if resp.GetCode() != 0 {
 		return "", errors.New(resp.GetMessage())
 	}
 	return resp.Hash, nil
@@ -299,8 +362,7 @@ func NewTxs(
 
 func fetchUtxos(
 	conn *grpc.ClientConn, addr string, amount uint64, tHashStr string, tIdx uint32,
-) (
-	utxos []*rpcpb.Utxo, err error) {
+) (utxos []*rpcpb.Utxo, err error) {
 	for t := 0; t < 30; t++ {
 		utxos, err = FetchUtxos(conn, addr, amount, tHashStr, tIdx)
 		if len(utxos) == 0 {
@@ -389,6 +451,41 @@ func NewTokenTxs(
 		}
 		txs = append(txs, tx)
 		utxos = []*rpcpb.Utxo{change, changeT}
+		if change == nil {
+			break
+		}
+	}
+	return txs, nil
+}
+
+// NewERC20TransferFromContractTxs new a contract transferFrom tx
+func NewERC20TransferFromContractTxs(
+	acc *acc.Account, contractAddr string, count int, gasPrice, gasLimit, startNonce uint64,
+	code []byte, conn *grpc.ClientConn,
+) ([]*types.Transaction, error) {
+	// get utxos
+	amount := gasPrice * gasLimit * uint64(count)
+	utxos, err := fetchUtxos(conn, acc.Addr(), amount, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	var boxAmt uint64
+	for _, u := range utxos {
+		boxAmt += u.TxOut.Value
+	}
+	//
+	var txs []*types.Transaction
+	changeAmt, nonce := boxAmt, startNonce
+	for i := 0; i < count; i++ {
+		changeAmt -= gasPrice * gasLimit
+		tx, change, err := txlogic.NewContractTxWithUtxos(acc, contractAddr, 0,
+			changeAmt, gasPrice, gasLimit, nonce, code, utxos...)
+		if err != nil {
+			return nil, err
+		}
+		nonce++
+		txs = append(txs, tx)
+		utxos = []*rpcpb.Utxo{change}
 		if change == nil {
 			break
 		}

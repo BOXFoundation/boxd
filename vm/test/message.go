@@ -50,3 +50,6 @@ func (msg Message) Data() []byte { return []byte{} }
 
 // Type get type.
 func (msg Message) Type() types.ContractType { return types.ContractCreationType }
+
+// String prints msg
+func (msg Message) String() string { return "" }
