@@ -466,31 +466,40 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		}
 		utxoKey := utxoKey(outpoint)
 		var addrUtxoKey []byte
-		sc := script.NewScriptFromBytes(utxoWrap.Script())
-		addr, err := sc.ExtractAddress()
-		if err != nil {
-			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s %s, Err: %v",
-				utxoWrap, sc.Disasm(), hex.EncodeToString(utxoWrap.Script()), err)
-			return err
-		}
-		if sc.IsTokenTransfer() || sc.IsTokenIssue() {
-			var tokenID types.OutPoint
-			if sc.IsTokenTransfer() {
-				v, err := sc.GetTransferParams()
-				if err != nil {
-					logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
-				}
-				tokenID = v.OutPoint
-			} else {
-				tokenID = outpoint
+
+		if len(utxoWrap.Script()) == 0 { // for the utxo deleted from db later
+			if outpoint.IsContractType() {
+				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
+				addr, _ := types.NewContractAddressFromHash(addrHash[:])
+				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 			}
-			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
-		} else if sc.IsContractPubkey() {
-			addrHash := types.BytesToAddressHash(outpoint.Hash[:])
-			addr, _ := types.NewContractAddressFromHash(addrHash[:])
-			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 		} else {
-			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+			sc := script.NewScriptFromBytes(utxoWrap.Script())
+			addr, err := sc.ExtractAddress()
+			if err != nil {
+				logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s %s, Err: %v",
+					utxoWrap, sc.Disasm(), hex.EncodeToString(utxoWrap.Script()), err)
+				return err
+			}
+			if sc.IsTokenTransfer() || sc.IsTokenIssue() {
+				var tokenID types.OutPoint
+				if sc.IsTokenTransfer() {
+					v, err := sc.GetTransferParams()
+					if err != nil {
+						logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
+					}
+					tokenID = v.OutPoint
+				} else {
+					tokenID = outpoint
+				}
+				addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
+			} else if sc.IsContractPubkey() {
+				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
+				addr, _ := types.NewContractAddressFromHash(addrHash[:])
+				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+			} else {
+				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+			}
 		}
 
 		// Remove the utxo entry if it is spent.
