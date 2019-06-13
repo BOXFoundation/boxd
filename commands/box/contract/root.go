@@ -6,6 +6,8 @@ package ctl
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path"
 	"strconv"
 
@@ -54,13 +56,19 @@ func importAbi(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalide argument number")
 		return
 	}
-	addr := args[0]
+	abifile := args[0] + ".abi"
 	abi := args[1]
 
-	err := rpcutil.ImportAbi(addr, abi)
+	if _, err := os.Stat(abifile); !os.IsNotExist(err) {
+		fmt.Println("The abi already exists and the command will overwrite it.")
+	}
+	file, err := os.OpenFile(abifile, os.O_WRONLY|os.O_TRUNC|os.O_APPEND|os.O_CREATE, 0600)
+	defer file.Close()
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
+	file.Write([]byte(abi))
 }
 
 func docall(cmd *cobra.Command, args []string) {
@@ -91,13 +99,19 @@ func docall(cmd *cobra.Command, args []string) {
 
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 
-	output, err := rpcutil.DoCall(conn, from, to, data, uint32(height), uint32(timeout))
+	abifile := to + ".abi"
+	if _, err := os.Stat(abifile); os.IsNotExist(err) {
+		fmt.Println("Please import abi at first")
+	}
+	fileContent, err := ioutil.ReadFile(abifile)
+
+	output, err := rpcutil.DoCall(conn, from, to, data, uint32(height), uint32(timeout), fileContent)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
-	fmt.Printf("%s", output)
+	fmt.Println(output)
 }
 
 func getRPCAddr() string {
