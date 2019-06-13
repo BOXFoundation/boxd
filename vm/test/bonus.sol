@@ -75,6 +75,8 @@ contract DelegateBonus is Permission{
     mapping(address => uint) voteBonus;
     mapping(address => uint) dynastyToBonus;
 
+    mapping(address => Delegate) frozenDelegate;
+
 
     uint pledgePool;
     uint dynastyBonusPool;
@@ -112,13 +114,25 @@ contract DelegateBonus is Permission{
         pledgeAddrList.push(msg.sender);
     }
 
-    function redeemVote(address delegateAddr) public {
-        for (uint i = 0; i < frozenVotes[delegateAddr][msg.sender].length; i++) {
-            if (frozenVotes[delegateAddr][msg.sender][i].votes > 0 &&
-            frozenVotes[delegateAddr][msg.sender][i].height > (block.number + _vote_frozen_block_number)) {
-                msg.sender.transfer(frozenVotes[delegateAddr][msg.sender][i].votes);
-                deleteArray(frozenVotes[delegateAddr][msg.sender], i);
-            }
+    function redeemPledgeApply() public {
+        require(addrToDelegates[msg.sender].isExist == true, "not delegate node.");
+        frozenDelegate[msg.sender] = addrToDelegates[msg.sender];
+        delete addrToDelegates[msg.sender];
+        uint idx = getIdxInPledgeAddrList(msg.sender);
+        deletePledgeAddrList(idx);
+    }
+
+    function redeemPledge() public {
+        require(frozenDelegate[msg.sender].isExist == true, "not frozen delegate node.");
+        if (block.number > ((block.number / _dynasty_threshold) + 1) * _dynasty_threshold) {
+                msg.sender.transfer(addrToDelegates[msg.sender].pledgeAmount);
+                delete frozenDelegate[msg.sender];
+                for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
+                    if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
+                        delegateToVoters[msg.sender][i].transfer(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
+                        delete delegateToVoters[msg.sender];
+                    }
+                }
         }
     }
 
@@ -133,6 +147,16 @@ contract DelegateBonus is Permission{
         Delegate storage delegate = addrToDelegates[delegateAddr];
         delegate.votes = delegate.votes.sub(count);
         delegate.score = calcScore(delegate);
+    }
+
+    function redeemVote(address delegateAddr) public {
+        for (uint i = 0; i < frozenVotes[delegateAddr][msg.sender].length; i++) {
+            if (frozenVotes[delegateAddr][msg.sender][i].votes > 0 &&
+            block.number > (frozenVotes[delegateAddr][msg.sender][i].height + _vote_frozen_block_number)) {
+                msg.sender.transfer(frozenVotes[delegateAddr][msg.sender][i].votes);
+                deleteFrozenVote(frozenVotes[delegateAddr][msg.sender], i);
+            }
+        }
     }
 
     function calcBonus() public payable {
@@ -173,7 +197,7 @@ contract DelegateBonus is Permission{
     }
 
     function calcScore(Delegate memory delegate)  internal pure returns (uint) {
-        // FIXME: wait correct calculation formula.
+        // TODO: wait correct calculation formula.
         return delegate.votes;
     }
 
@@ -183,7 +207,9 @@ contract DelegateBonus is Permission{
         delete dynasty;
 
         for(uint i = 0; i < pledgeAddrList.length; i++) {
-            delegates.push(addrToDelegates[pledgeAddrList[i]]);
+            if (addrToDelegates[pledgeAddrList[i]].isExist) {
+                delegates.push(addrToDelegates[pledgeAddrList[i]]);
+            }
         }
         quickSort(delegates, 0, delegates.length);
         for (uint j = 0; j < dynasty.length; j++) {
@@ -191,7 +217,7 @@ contract DelegateBonus is Permission{
         }
     }
 
-    function deleteArray(FrozenVote[] storage array, uint index) internal{
+    function deleteFrozenVote(FrozenVote[] storage array, uint index) internal{
         uint len = array.length;
         if (index >= len) return;
         for (uint i = index; i<len-1; i++) {
@@ -200,6 +226,34 @@ contract DelegateBonus is Permission{
         delete array[len-1];
         array.length--;
     }
+
+    function getIdxInPledgeAddrList(address addr) internal view returns (uint) {
+        for (uint i = 0; i < pledgeAddrList.length; i++) {
+            if (addr == pledgeAddrList[i]) {
+                return i;
+            }
+        }
+    }
+
+    function deletePledgeAddrList(uint index) internal{
+        uint len = pledgeAddrList.length;
+        if (index >= len) return;
+        for (uint i = index; i<len-1; i++) {
+            pledgeAddrList[i] = pledgeAddrList[i+1];
+        }
+        delete pledgeAddrList[len-1];
+        pledgeAddrList.length--;
+    }
+
+    // function deleteDelegate(Delegate[] storage array, uint index) internal{
+    //     uint len = array.length;
+    //     if (index >= len) return;
+    //     for (uint i = index; i<len-1; i++) {
+    //         array[i] = array[i+1];
+    //     }
+    //     delete array[len-1];
+    //     array.length--;
+    // }
 
     function quickSort(Delegate[] storage arr, uint left, uint right) internal {
         uint i = left;

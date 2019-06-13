@@ -565,7 +565,7 @@ func StorageBatch(t *testing.T, s storage.Table) {
 // StorageDel is a dbtest helper method
 func StorageDel(t *testing.T, s storage.Table) {
 	var keys = [][]byte{}
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10000; i++ {
 		k := []byte(fmt.Sprintf("key-%d", i))
 		v := []byte(fmt.Sprintf("value-%d", i))
 

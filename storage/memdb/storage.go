@@ -116,6 +116,10 @@ func (db *memorydb) Put(key, value []byte) error {
 		defer func() {
 			<-db.writeLock
 		}()
+
+		db.sm.Lock()
+		defer db.sm.Unlock()
+
 		db.db[string(key)] = value
 	}
 
@@ -132,6 +136,10 @@ func (db *memorydb) Del(key []byte) error {
 		defer func() {
 			<-db.writeLock
 		}()
+
+		db.sm.Lock()
+		defer db.sm.Unlock()
+
 		delete(db.db, string(key))
 	}
 
