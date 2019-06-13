@@ -5,8 +5,10 @@
 package chain
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -125,7 +127,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.blockcache, _ = lru.New(512)
 	b.repeatedMintCache, _ = lru.New(512)
 	b.heightToBlock, _ = lru.New(512)
-	b.splitAddrFilter = bloom.NewFilter(bloom.MaxFilterSize, 0.0001)
 
 	stateProcessor := NewStateProcessor(b)
 	b.stateProcessor = stateProcessor
@@ -154,6 +155,8 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	logger.Infof("load tail block: %s, height: %d", b.tail.BlockHash(),
 		b.tail.Header.Height)
 	b.LongestChainHeight = b.tail.Header.Height
+	b.splitAddrFilter = loadSplitAddrFilter(b.db)
+	logger.Infof("load split address bloom filter finished")
 
 	return b, nil
 }
@@ -437,20 +440,23 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	if messageFrom != "" { // local block does not require validation
 		if err := chain.consensus.Verify(block); err != nil {
-			logger.Errorf("Failed to verify block. Hash: %v, Height: %d, Err: %v", block.BlockHash().String(), block.Header.Height, err)
+			logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+				block.BlockHash(), block.Header.Height, err)
 			return err
 		}
 	}
 
 	if err := validateBlock(block); err != nil {
-		logger.Errorf("Failed to validate block. Hash: %v, Height: %d, Err: %s", block.BlockHash(), block.Header.Height, err.Error())
+		logger.Errorf("Failed to validate block. Hash: %s, Height: %d, Err: %s",
+			block.BlockHash(), block.Header.Height, err)
 		return err
 	}
 	prevHash := block.Header.PrevBlockHash
 	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
 
 		// Orphan block.
-		logger.Infof("Adding orphan block %v with parent %v", blockHash.String(), prevHash.String())
+		logger.Infof("Adding orphan block %s %d with parent %s", blockHash,
+			block.Header.Height, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
 		chain.repeatedMintCache.Add(block.Header.TimeStamp, block)
 		height := chain.tail.Header.Height
@@ -567,7 +573,7 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 	}
 
 	// Case 3): Extended side chain is longer than the main chain and becomes the new main chain.
-	logger.Warnf("REORGANIZE: Block %v is causing a reorganization.", blockHash.String())
+	logger.Warnf("REORGANIZE: Block %s %d is causing a reorganization.", blockHash, block.Header.Height)
 
 	return chain.reorganize(block, messageFrom)
 }
@@ -663,7 +669,8 @@ func (chain *BlockChain) ResetBlockTxs() {
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageFrom peer.ID) error {
 
-	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash().String(), block.Header.Height)
+	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d",
+		block.BlockHash(), block.Header.Height)
 
 	chain.SetBlockTxs(block)
 	defer func() {
@@ -924,6 +931,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 		if !root.IsEqual(&block.Header.RootHash) {
+			logger.Warnf("state content: %s", stateDB)
 			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
 				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
 				block.Header.Height)
@@ -1949,7 +1957,7 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Tabl
 				k := SplitAddrKey(addr.Hash())
 				db.Put(k, dataBytes)
 				chain.splitAddrFilter.Add(addr.Hash())
-				logger.Debugf("New Split Address created")
+				logger.Infof("New Split Address %x created", addr.Hash())
 			}
 		}
 	}
@@ -2143,4 +2151,24 @@ func gatherBlockTxs(block *types.Block) map[crypto.HashType]*types.Transaction {
 		txs[*hash] = tx
 	}
 	return txs
+}
+
+func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
+	filter := bloom.NewFilter(bloom.MaxFilterSize, 0.0001)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for key := range reader.IterKeysWithPrefix(ctx, splitAddrBase.Bytes()) {
+		splits := bytes.Split(key, []byte{'/'})
+		if len(splits) != 3 {
+			logger.Errorf("split addr key %v in db is incorrect", key)
+			continue
+		}
+		addrHash, err := hex.DecodeString(string(splits[2]))
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
+		filter.Add(addrHash)
+	}
+	return filter
 }

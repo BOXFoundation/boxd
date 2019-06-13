@@ -14,7 +14,7 @@
     "collection_unit_accounts": 4,
     "circulation_accounts": 6,
     "circulation_unit_accounts": 3,
-    "circulation_repeat_times": 200,
+    "circulation_repeat_times": 20,
     "enable_repeat_random": true
   },
   "token_test": {
@@ -56,9 +56,12 @@
 	    "127.0.0.1:19161"
     ],
     "testnet": [
-	    "127.0.0.1:19191",
-	    "127.0.0.1:19181",
-	    "127.0.0.1:19171"
+	    "127.0.0.1:19111",
+	    "127.0.0.1:19121",
+	    "127.0.0.1:19131",
+	    "127.0.0.1:19141",
+	    "127.0.0.1:19151",
+	    "127.0.0.1:19161"
     ],
     "tx_peers": [
 	    "127.0.0.1:19111"

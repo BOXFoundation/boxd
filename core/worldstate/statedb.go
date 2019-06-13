@@ -78,8 +78,12 @@ type StateDB struct {
 func (s *StateDB) String() string {
 	var str string
 	for k, v := range s.stateObjects {
-		str += k.String() + "|" + strconv.Itoa(int(v.Balance().Int64())) + "|" + strconv.Itoa(int(v.Nonce())) + "|" + v.data.Root.String() + "|" + hex.EncodeToString(v.data.CodeHash) + "\n"
+		str += k.String() + "|" + strconv.Itoa(int(v.Balance().Int64())) + "|" +
+			strconv.Itoa(int(v.Nonce())) + "|" + v.data.Root.String() + "|" +
+			hex.EncodeToString(v.data.CodeHash) + "\n"
 	}
+	// print trie
+	str += s.trie.String()
 	return str
 }
 

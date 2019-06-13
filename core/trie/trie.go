@@ -536,9 +536,8 @@ func (t *Trie) printLeaf(hash *crypto.HashType) string {
 	}
 
 	key := hex.EncodeToString(hexToKey(node.Value[0]))
-	val := string(node.Value[1])
 
-	return fmt.Sprintf("(LEAF) [%s] %s: %s\n", hash, key, val)
+	return fmt.Sprintf("(LEAF) [%s] %s: %s\n", hash, key, hex.EncodeToString(node.Value[1]))
 }
 
 func (t *Trie) printBranch(hash *crypto.HashType) (*list.List, string) {
