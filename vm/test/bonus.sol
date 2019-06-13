@@ -45,7 +45,7 @@ contract Permission {
     }
 }
 
-contract DelegateBonus is Permission{
+contract Bonus is Permission{
     using SafeMath for uint;
 
     struct Delegate {
@@ -104,7 +104,7 @@ contract DelegateBonus is Permission{
     }
 
     function  pledge() public payable {
-        require(msg.value < _pledge_threshold, "pledge amount is not correct.");
+        require(msg.value > _pledge_threshold, "pledge amount is not correct.");
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
 
         Delegate memory delegate = Delegate(msg.sender, 0, msg.value, 0, true);
@@ -244,16 +244,6 @@ contract DelegateBonus is Permission{
         delete pledgeAddrList[len-1];
         pledgeAddrList.length--;
     }
-
-    // function deleteDelegate(Delegate[] storage array, uint index) internal{
-    //     uint len = array.length;
-    //     if (index >= len) return;
-    //     for (uint i = index; i<len-1; i++) {
-    //         array[i] = array[i+1];
-    //     }
-    //     delete array[len-1];
-    //     array.length--;
-    // }
 
     function quickSort(Delegate[] storage arr, uint left, uint right) internal {
         uint i = left;
