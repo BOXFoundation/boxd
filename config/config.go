@@ -31,6 +31,9 @@ var GitCommit string
 // GitBranch name of source code
 var GitBranch string
 
+//GoVersion number of the build
+var GoVersion string
+
 ////////////////////////////////////////////////////////////////
 
 // Config is a configuration data structure for box blockchain server,

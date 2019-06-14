@@ -36,7 +36,15 @@ var rootCmd = &cobra.Command{
 	//	Run: func(cmd *cobra.Command, args []string) { },
 }
 
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "get version of boxd",
+	Run:   versionCmdFunc,
+}
+
 func init() {
+	root.RootCmd.AddCommand(versionCmd)
+	//
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
@@ -327,6 +335,14 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println(args[0], " is a valid address")
 	}
+}
+
+func versionCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) != 0 {
+		fmt.Println("parameters are not needed")
+		return
+	}
+	fmt.Printf("boxd ver %s %s(%s) %s\n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion)
 }
 
 func getRPCAddr() string {
