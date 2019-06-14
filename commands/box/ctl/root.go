@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
-	"runtime"
 	"strconv"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
@@ -337,18 +336,14 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 
 func versionCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
-		fmt.Println("This command has no parameters")
+		fmt.Println("There should be no parameters")
 		return
 	}
-	if config.Version == "" || config.GitBranch == "" || config.GitCommit == "" {
-		fmt.Println("The code is not compiled")
+	if config.Version == "" || config.GitBranch == "" || config.GitCommit == "" || config.GoVersion == "" {
+		fmt.Println("Failed to get version information")
 		return
 	}
-	fmt.Println("boxd version: ", config.Version)
-	fmt.Println("Git commit: ", config.GitCommit)
-	fmt.Println("Git branch: ", config.GitBranch)
-	fmt.Println("Golang version: ", runtime.Version())
-
+	fmt.Printf("boxd Ver %s Commit %s(%s) Golang %s \n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion)
 }
 
 func getRPCAddr() string {
