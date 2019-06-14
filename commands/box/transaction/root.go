@@ -86,11 +86,6 @@ func init() {
 			Run:   decoderawtx,
 		},
 		&cobra.Command{
-			Use:   "viewtxdetail [txhash]",
-			Short: "Get the raw transaction for a transaction hash",
-			Run:   getRawTxCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
 			Run:   sendrawtx,
