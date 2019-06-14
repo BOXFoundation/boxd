@@ -496,8 +496,7 @@ func (s *txServer) MakeUnsignedContractTx(
 			eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
 		}
-		contractAddrHash, _ := types.MakeContractAddress(fromHash, nonce)
-		contractAddress, _ := types.NewContractAddressFromHash(contractAddrHash.Hash())
+		contractAddress, _ := types.MakeContractAddress(fromHash, req.GetNonce())
 		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, from, amount,
 			gasLimit, gasPrice, req.GetNonce(), byteCode)
 		if err != nil {

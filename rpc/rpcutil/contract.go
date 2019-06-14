@@ -55,8 +55,6 @@ func DoCall(conn *grpc.ClientConn, from, to, data string, height, timeout uint32
 		return nil, err
 	}
 
-	// TODO: 打印log
-
 	if len(method.Outputs) == 0 {
 		return nil, nil
 	}

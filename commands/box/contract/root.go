@@ -6,6 +6,7 @@ package ctl
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/pb"
@@ -34,8 +36,8 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "vm [command]",
-	Short: "The vm command line interface",
+	Use:   "contract [command]",
+	Short: "The contract command line interface",
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
@@ -51,12 +53,12 @@ func init() {
 			Run:   importAbi,
 		},
 		&cobra.Command{
-			Use:   "docall [from] [to] [data] [height] [timeout]",
+			Use:   "call [from] [to] [data] [height] [timeout]",
 			Short: "Call contract.",
 			Run:   docall,
 		},
 		&cobra.Command{
-			Use:   "deploycontract [from] [amount] [gasprice] [gaslimit] [nonce] [data]",
+			Use:   "deploy [from] [amount] [gasprice] [gaslimit] [nonce] [data]",
 			Short: "Deploy a contract",
 			Long: `On each invocation, "nonce" must be incremented by one. 
 The return value is a hex-encoded transaction sequence and a contract address.`,
@@ -69,7 +71,49 @@ The return value is a hex-encoded transaction sequence and a contract address.`,
 Successful call will return a transaction hash value`,
 			Run: callcontract,
 		},
+		&cobra.Command{
+			Use:   "encode [contractaddress] [methodname] [args...]",
+			Short: "Get an input string to send or call",
+			Run:   encode,
+		},
 	)
+}
+
+func encode(cmd *cobra.Command, args []string) {
+	if len(args) < 2 {
+		fmt.Println("Invalide argument number")
+		return
+	}
+	abifile := args[0] + ".abi"
+	methodname := args[1]
+
+	if _, err := os.Stat(abifile); os.IsNotExist(err) {
+		fmt.Println("Please import abi at first")
+	}
+	fileContent, err := ioutil.ReadFile(abifile)
+
+	aabi := abi.ABI{}
+	err = aabi.UnmarshalJSON(fileContent)
+	if err != nil {
+		fmt.Println("Invalid abi format")
+	}
+
+	var data []byte
+	if len(args) == 2 {
+		data, err = aabi.Pack(methodname)
+	} else {
+		params := []interface{}{}
+		for _, arg := range args[2:] {
+			params = append(params, arg)
+		}
+		data, err = aabi.Pack(methodname, params...)
+	}
+
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(hex.EncodeToString(data))
+	}
 }
 
 func importAbi(cmd *cobra.Command, args []string) {
