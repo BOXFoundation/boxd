@@ -35,9 +35,15 @@ var rootCmd = &cobra.Command{
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
 }
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "get version of boxd",
+	Run:   versionCmdFunc,
+}
 
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
+	root.RootCmd.AddCommand(versionCmd)
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
@@ -126,11 +132,6 @@ func init() {
 			Run: func(cmd *cobra.Command, args []string) {
 				fmt.Println("verifymessage called")
 			},
-		},
-		&cobra.Command{
-			Use:   "version",
-			Short: "get version of boxd",
-			Run:   versionCmdFunc,
 		},
 	)
 }
@@ -336,7 +337,7 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 
 func versionCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
-		fmt.Println("There should be no parameters")
+		fmt.Println("parameters are not needed")
 		return
 	}
 	if config.Version == "" || config.GitBranch == "" || config.GitCommit == "" || config.GoVersion == "" {
