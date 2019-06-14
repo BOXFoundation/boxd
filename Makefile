@@ -13,7 +13,6 @@ DIR_WORKSPACE=$(shell pwd)
 DIR_OUTPUTS=${DIR_WORKSPACE}
 BIN="${DIR_OUTPUTS}/${NAME}"
 
-LDFLAGS = -ldflags "-X github.com/BOXFoundation/boxd/config.Version=${VERSION} -X github.com/BOXFoundation/boxd/config.GitCommit=${COMMIT} -X github.com/BOXFoundation/boxd/config.GitBranch=${BRANCH}"
 
 export GO15VENDOREXPERIMENT=1
 export GO111MODULE=on
@@ -27,6 +26,8 @@ PKG_FILES ?= $(shell ls -d  */ | grep -v "vendor") *.go
 # stable release.
 GO_VERSION := $(shell go version | cut -d " " -f 3)
 GO_MINOR_VERSION := $(word 2,$(subst ., ,$(GO_VERSION)))
+
+LDFLAGS = -ldflags "-X github.com/BOXFoundation/boxd/config.Version=${VERSION} -X github.com/BOXFoundation/boxd/config.GitCommit=${COMMIT} -X github.com/BOXFoundation/boxd/config.GitBranch=${BRANCH} -X github.com/BOXFoundation/boxd/config.GoVersion=${GO_VERSION}"
 
 .PHONY: all
 all: clean lint test build
