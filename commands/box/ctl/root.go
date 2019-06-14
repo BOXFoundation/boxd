@@ -343,7 +343,7 @@ func versionCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Failed to get version information")
 		return
 	}
-	fmt.Printf("boxd Ver %s Commit %s(%s) Golang %s \n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion)
+	fmt.Printf("boxd ver %s commit %s(%s) %s \n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion)
 }
 
 func getRPCAddr() string {
