@@ -115,7 +115,7 @@ func maketx(cmd *cobra.Command, args []string) {
 	amountStr := strings.Split(args[2], ",")
 	amounts := make([]uint64, 0, len(amountStr))
 	for _, x := range amountStr {
-		tmp, err := strconv.Atoi(x)
+		tmp, err := strconv.ParseUint(x,10,64)
 		if err != nil {
 			fmt.Println("Conversion failed: ", err)
 			return
@@ -123,7 +123,7 @@ func maketx(cmd *cobra.Command, args []string) {
 		amounts = append(amounts, uint64(tmp))
 	}
 
-	fee, err := strconv.Atoi(args[3])
+	fee, err := strconv.ParseUint(args[3],10,64)
 	if err != nil {
 		fmt.Println("Conversion failed: ", err)
 		return
@@ -133,7 +133,7 @@ func maketx(cmd *cobra.Command, args []string) {
 		From:    from,
 		To:      toAddr,
 		Amounts: amounts,
-		Fee:     uint64(fee),
+		Fee:     fee,
 	}
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
