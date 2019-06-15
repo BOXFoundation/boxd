@@ -146,6 +146,7 @@ func (st *StateTransition) preCheck() error {
 // case 3: the tx execution successful. The tx is on chain and it`s successful.
 func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uint64, failed bool, gasRefundTx *types.Transaction, err error) {
 	if err = st.preCheck(); err != nil {
+		logger.Error(err)
 		return
 	}
 	msg := st.msg

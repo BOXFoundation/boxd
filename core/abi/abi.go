@@ -32,6 +32,33 @@ func JSON(reader io.Reader) (ABI, error) {
 	return abi, nil
 }
 
+// Pack the given method name to conform the ABI. Method call's data
+// will consist of method_id, args0, arg1, ... argN. Method id consists
+// of 4 bytes and arguments are all 32 bytes.
+// Method ids are created from the first 4 bytes of the hash of the
+// methods string signature. (signature = baz(uint32,string32))
+func (abi ABI) Pack(name string, args ...interface{}) ([]byte, error) {
+	// Fetch the ABI of the requested method
+	if name == "" {
+		// constructor
+		arguments, err := abi.Constructor.Inputs.Pack(args...)
+		if err != nil {
+			return nil, err
+		}
+		return arguments, nil
+	}
+	method, exist := abi.Methods[name]
+	if !exist {
+		return nil, fmt.Errorf("method '%s' not found", name)
+	}
+	arguments, err := method.Inputs.Pack(args...)
+	if err != nil {
+		return nil, err
+	}
+	// Pack up the method ID too if not a constructor and return
+	return append(method.ID(), arguments...), nil
+}
+
 // Unpack output in v according to the abi specification
 func (abi ABI) Unpack(v interface{}, name string, output []byte) (err error) {
 	if len(output) == 0 {
