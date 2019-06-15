@@ -1413,7 +1413,7 @@ func (chain *BlockChain) LoadBlockByHash(hash crypto.HashType) (*types.Block, er
 
 	blockBin, err := chain.db.Get(BlockKey(&hash))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db get with block hash %s error %s", hash, err)
 	}
 	if blockBin == nil {
 		return nil, core.ErrBlockIsNil
@@ -1452,7 +1452,7 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	}
 	bytes, err := chain.db.Get(BlockHashKey(height))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db get with block height %d error %s", height, err)
 	}
 	if bytes == nil {
 		return nil, core.ErrBlockIsNil
@@ -1461,6 +1461,7 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	copy(hash[:], bytes)
 	block, err := chain.LoadBlockByHash(*hash)
 	if err != nil {
+		logger.Error(err)
 		return nil, err
 	}
 
@@ -1539,14 +1540,16 @@ func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Rec
 func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, *types.Transaction, error) {
 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("db get txIndex with tx hash %s error %s", hash, err)
 	}
 	height, index, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
+		logger.Error(err)
 		return nil, nil, err
 	}
 	block, err := chain.LoadBlockByHeight(height)
 	if err != nil {
+		logger.Error(err)
 		return nil, nil, err
 	}
 
@@ -1559,7 +1562,7 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 	} else {
 		txBin, err := chain.db.Get(TxKey(&hash))
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("db get tx with hash %s error %s", hash, err)
 		}
 		if txBin == nil {
 			return nil, nil, errors.New("failed to load split tx with hash")

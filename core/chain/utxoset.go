@@ -333,7 +333,7 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		// The UTXO txIn spends have been deleted from UTXO set, so we load it from tx index
 		block, prevTx, err := chain.LoadBlockInfoByTxHash(txIn.PrevOutPoint.Hash)
 		if err != nil {
-			logger.Error("Failed to load block info by txhash. Err: %v", err)
+			logger.Errorf("Failed to load block info by txhash. Err: %s", err)
 			logger.Panicf("Trying to unspend non-existing spent output %v", txIn.PrevOutPoint)
 		}
 		// prevTx := block.Txs[txIdx]
