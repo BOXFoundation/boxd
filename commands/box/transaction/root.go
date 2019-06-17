@@ -218,9 +218,9 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	tx, err := rpcutil.GetRawTransaction(conn, hash.GetBytes())
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		fmt.Println(util.PrettyPrint(tx))
+		return
 	}
+	fmt.Println(util.PrettyPrint(tx))
 }
 
 func decoderawtx(cmd *cobra.Command, args []string) {
@@ -286,6 +286,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	defer conn.Close()
 	tx, _, _, err := rpcutil.NewTx(account, addrs, amounts, conn)
@@ -296,6 +297,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	hash, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		fmt.Println(err)
+		return
 	}
 	fmt.Println("Tx Hash:", hash)
 	fmt.Println(util.PrettyPrint(tx))
