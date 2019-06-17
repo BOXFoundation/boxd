@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -95,10 +94,10 @@ func FetchUtxosOf(
 		utxoKey = chain.AddrAllTokenUtxoKey(addr, *tid)
 	}
 	//
-	start := time.Now()
+	//start := time.Now()
 	keys := db.KeysWithPrefix(utxoKey)
-	logger.Debugf("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
-		total, time.Since(start))
+	//logger.Debugf("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
+	//	total, time.Since(start))
 	// fetch all utxos if total equals to 0
 	if total == 0 {
 		utxos, err := makeUtxosFromDB(keys, tid, db)
@@ -112,7 +111,7 @@ func FetchUtxosOf(
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("fetch utxos for %s amount %d get %d utxos", addr, total, len(utxos))
+	//logger.Debugf("fetch utxos for %s amount %d get %d utxos", addr, total, len(utxos))
 
 	return utxos, nil
 }
@@ -163,9 +162,9 @@ func makeUtxosFromDB(
 	keys [][]byte, tid *types.TokenID, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
-	ts := time.Now()
+	//ts := time.Now()
 	values, err := db.MultiGet(keys...)
-	logger.Infof("get utxos values[%d] from db cost %v", len(keys), time.Since(ts))
+	//logger.Infof("get utxos values[%d] from db cost %v", len(keys), time.Since(ts))
 	if err != nil {
 		return nil, err
 	}
