@@ -5,15 +5,20 @@
 package ctl
 
 import (
+	"bytes"
+	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -36,15 +41,7 @@ var rootCmd = &cobra.Command{
 	//	Run: func(cmd *cobra.Command, args []string) { },
 }
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "get version of boxd",
-	Run:   versionCmdFunc,
-}
-
 func init() {
-	root.RootCmd.AddCommand(versionCmd)
-	//
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
@@ -134,6 +131,16 @@ func init() {
 			Run: func(cmd *cobra.Command, args []string) {
 				fmt.Println("verifymessage called")
 			},
+		},
+		&cobra.Command{
+			Use:   "txdetail",
+			Short: "view transaction detail",
+			Run:   viewtxdetail,
+		},
+		&cobra.Command{
+			Use:   "blockdetail",
+			Short: "view block detail",
+			Run:   viewblockdetail,
 		},
 	)
 }
@@ -336,13 +343,87 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(args[0], " is a valid address")
 	}
 }
-
-func versionCmdFunc(cmd *cobra.Command, args []string) {
-	if len(args) != 0 {
-		fmt.Println("parameters are not needed")
+func viewblockdetail(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println("Please input a block hash")
 		return
 	}
-	fmt.Printf("boxd ver %s %s(%s) %s\n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := rpcpb.NewWebApiClient(conn)
+	defer conn.Close()
+	req := &rpcpb.ViewBlockDetailReq{Hash: args[0]}
+	fmt.Println("req")
+	resp, err := c.ViewBlockDetail(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println("get block detail failed", resp.Message)
+		return
+	}
+	blockDetailBytes, err := json.Marshal(resp.Detail)
+	if err != nil {
+		fmt.Println("marshal error: ", err)
+		return
+	}
+	var printJSON bytes.Buffer
+	error := json.Indent(&printJSON, blockDetailBytes, "", " ")
+	if error != nil {
+		fmt.Println("JSON parse error: ", error)
+		return
+	}
+	fmt.Println(string(printJSON.Bytes()))
+}
+
+func viewtxdetail(cmd *cobra.Command, args []string) {
+
+	if len(args) != 1 {
+		fmt.Println("Please input a block hash")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := rpcpb.NewWebApiClient(conn)
+	defer conn.Close()
+	req := &rpcpb.ViewTxDetailReq{Hash: args[0], SpreadSplit: false}
+	resp, err := c.ViewTxDetail(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println("get transaction detail failed", resp.Message)
+		return
+	}
+	txDetailBytes, err := json.Marshal(resp.Detail)
+	if err != nil {
+		fmt.Println("marshall error: ", err)
+		return
+	}
+	var printJSON bytes.Buffer
+	error := json.Indent(&printJSON, txDetailBytes, "", " ")
+	if error != nil {
+		fmt.Println("JSON parse error: ", error)
+		return
+	}
+	fmt.Println(string(printJSON.Bytes()))
 }
 
 func getRPCAddr() string {
