@@ -75,7 +75,6 @@ type BlockChain struct {
 	newblockMsgCh chan p2p.Message
 	consensus     Consensus
 	db            storage.Table
-	batch         storage.Batch
 	genesis       *types.Block
 	tail          *types.Block
 	eternal       *types.Block
@@ -299,10 +298,10 @@ func (chain *BlockChain) metricsUtxos(parent goprocess.Process) {
 					}
 					metrics.MetricsUtxoSizeGauge.Update(int64(i))
 				case <-missRateTicker.C:
-					total, miss := chain.calMissRate()
-					if total != 0 {
-						metrics.MetricsBlockMissRateGauge.Update(int64(miss * 1000000 / total))
-					}
+					// total, miss := chain.calMissRate()
+					// if total != 0 {
+					// 	metrics.MetricsBlockMissRateGauge.Update(int64(miss * 1000000 / total))
+					// }
 				case <-gcTicker.C:
 					logger.Infof("FreeOSMemory invoked.")
 					debug.FreeOSMemory()
@@ -998,6 +997,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	if err := chain.db.Flush(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Header.Height, err.Error())
+		return err
 	}
 	ttt6 := time.Now().UnixNano()
 	chain.tryToClearCache([]*types.Block{block}, nil)
