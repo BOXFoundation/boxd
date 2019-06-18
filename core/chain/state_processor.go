@@ -14,7 +14,6 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
-	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // define const.
@@ -91,7 +90,7 @@ func (sp *StateProcessor) Process(
 func ApplyTransaction(
 	tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain,
 	statedb *state.StateDB, cfg vm.Config, utxoSet *UtxoSet,
-) (*types.Receipt, uint64, uint64, []*types.Transaction, []*vmtypes.Log, error) {
+) (*types.Receipt, uint64, uint64, []*types.Transaction, []*types.Log, error) {
 
 	var txs []*types.Transaction
 	defer func() {

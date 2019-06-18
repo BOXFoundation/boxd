@@ -9,7 +9,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // StateDB is an EVM database for full state querying.
@@ -51,7 +50,7 @@ type StateDB interface {
 	RevertToSnapshot(int)
 	Snapshot() int
 
-	AddLog(*vmtypes.Log)
+	AddLog(*types.Log)
 	AddPreimage(crypto.HashType, []byte)
 
 	ForEachStorage(types.AddressHash, func(crypto.HashType, crypto.HashType) bool)

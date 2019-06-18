@@ -17,7 +17,6 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/vm/common"
-	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 	"github.com/BOXFoundation/boxd/vm/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -63,7 +62,7 @@ type StateDB struct {
 
 	thash, bhash corecrypto.HashType
 	txIndex      int
-	logs         map[corecrypto.HashType][]*vmtypes.Log
+	logs         map[corecrypto.HashType][]*types.Log
 	logSize      uint
 
 	preimages map[corecrypto.HashType][]byte
@@ -106,7 +105,7 @@ func New(rootHash, utxoRootHash *corecrypto.HashType, db storage.Table) (*StateD
 		utxoTrie:          utr,
 		stateObjects:      make(map[types.AddressHash]*stateObject),
 		stateObjectsDirty: make(map[types.AddressHash]struct{}),
-		logs:              make(map[corecrypto.HashType][]*vmtypes.Log),
+		logs:              make(map[corecrypto.HashType][]*types.Log),
 		preimages:         make(map[corecrypto.HashType][]byte),
 		journal:           newJournal(),
 	}, nil
@@ -146,7 +145,7 @@ func (s *StateDB) Reset() error {
 	s.thash = corecrypto.HashType{}
 	s.bhash = corecrypto.HashType{}
 	s.txIndex = 0
-	s.logs = make(map[corecrypto.HashType][]*vmtypes.Log)
+	s.logs = make(map[corecrypto.HashType][]*types.Log)
 	s.logSize = 0
 	s.preimages = make(map[corecrypto.HashType][]byte)
 	s.clearJournalAndRefund()
@@ -154,7 +153,7 @@ func (s *StateDB) Reset() error {
 }
 
 // AddLog add log
-func (s *StateDB) AddLog(log *vmtypes.Log) {
+func (s *StateDB) AddLog(log *types.Log) {
 	s.journal.append(addLogChange{txhash: s.thash})
 
 	log.TxHash = s.thash
@@ -166,13 +165,13 @@ func (s *StateDB) AddLog(log *vmtypes.Log) {
 }
 
 // GetLogs get logs
-func (s *StateDB) GetLogs(hash corecrypto.HashType) []*vmtypes.Log {
+func (s *StateDB) GetLogs(hash corecrypto.HashType) []*types.Log {
 	return s.logs[hash]
 }
 
 // Logs logs
-func (s *StateDB) Logs() []*vmtypes.Log {
-	var logs []*vmtypes.Log
+func (s *StateDB) Logs() []*types.Log {
+	var logs []*types.Log
 	for _, lgs := range s.logs {
 		logs = append(logs, lgs...)
 	}
@@ -508,7 +507,7 @@ func (s *StateDB) Copy() *StateDB {
 		stateObjects:      make(map[types.AddressHash]*stateObject, len(s.journal.dirties)),
 		stateObjectsDirty: make(map[types.AddressHash]struct{}, len(s.journal.dirties)),
 		refund:            s.refund,
-		logs:              make(map[corecrypto.HashType][]*vmtypes.Log, len(s.logs)),
+		logs:              make(map[corecrypto.HashType][]*types.Log, len(s.logs)),
 		logSize:           s.logSize,
 		preimages:         make(map[corecrypto.HashType][]byte),
 		journal:           newJournal(),
@@ -534,9 +533,9 @@ func (s *StateDB) Copy() *StateDB {
 		}
 	}
 	for hash, logs := range s.logs {
-		cpy := make([]*vmtypes.Log, len(logs))
+		cpy := make([]*types.Log, len(logs))
 		for i, l := range logs {
-			cpy[i] = new(vmtypes.Log)
+			cpy[i] = new(types.Log)
 			*cpy[i] = *l
 		}
 		state.logs[hash] = cpy

@@ -11,7 +11,6 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
-	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 type dummyContractRef struct {
@@ -36,7 +35,7 @@ type dummyStatedb struct {
 }
 
 func (*dummyStatedb) GetRefund() uint64                                         { return 1337 }
-func (*dummyStatedb) AddLog(log *vmtypes.Log)                                   {}
+func (*dummyStatedb) AddLog(log *types.Log)                                     {}
 func (*dummyStatedb) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error { return nil }
 
 func TestStoreCapture(t *testing.T) {

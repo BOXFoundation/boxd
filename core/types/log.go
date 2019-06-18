@@ -5,7 +5,6 @@
 package types
 
 import (
-	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
@@ -16,7 +15,7 @@ import (
 type Log struct {
 	// Consensus fields:
 	// address of the contract that generated the event
-	Address types.AddressHash `json:"address" gencodec:"required"`
+	Address AddressHash `json:"address" gencodec:"required"`
 	// list of topics provided by the contract.
 	Topics []crypto.HashType `json:"topics" gencodec:"required"`
 	// supplied by the contract, usually ABI-encoded
