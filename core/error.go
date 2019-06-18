@@ -40,6 +40,7 @@ var (
 	ErrBlockInSideChain             = errors.New("The block is in side chain")
 	ErrInvalidInternalTxs           = errors.New("Invalid internal txs")
 	ErrInvalidMessageSender         = errors.New("Invalid message sender")
+	ErrContractNotFound             = errors.New("Contract not found")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
