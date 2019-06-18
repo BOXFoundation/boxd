@@ -27,16 +27,16 @@ func TestPack(t *testing.T) {
 
 	fmt.Println("ret.Type.Type: ", ret.Type.Type)
 
-	a := 100
-	fmt.Println(reflect.TypeOf(a))
-	fmt.Println(reflect.ValueOf(&a))
-	fmt.Println(reflect.ValueOf(&a).Elem())
+	// a := 100
+	// fmt.Println(reflect.TypeOf(a))
+	// fmt.Println(reflect.ValueOf(&a))
+	// fmt.Println(reflect.ValueOf(&a).Elem())
 
-	fmt.Println("reflect b: ")
-	b := reflect.Zero(reflect.TypeOf(a))
-	b.Elem().Interface()
-	fmt.Println(b)
-	fmt.Println(b.Kind())
+	// fmt.Println("reflect b: ")
+	// b := reflect.Zero(reflect.TypeOf(a))
+	// b.Elem().Interface()
+	// fmt.Println(b)
+	// fmt.Println(b.Kind())
 
 }
 

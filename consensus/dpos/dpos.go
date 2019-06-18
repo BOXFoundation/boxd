@@ -555,9 +555,12 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	blockCopy.Txs[0].Vout[0].Value -= gasRemainingFee
 	block.Txs[0].ResetTxHash()
 	// handle coinbase utxo
-	for _, v := range utxoSet.GetUtxos() {
+	for k, v := range utxoSet.GetUtxos() {
 		if v.IsCoinBase() {
 			v.SetValue(block.Txs[0].Vout[0].Value)
+			delete(utxoSet.All(), k)
+			utxoSet.AddUtxo(block.Txs[0], 0, block.Header.Height)
+			break
 		}
 	}
 	dpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)

@@ -142,13 +142,10 @@ func (tx *mtx) Commit() error {
 
 	defer func() {
 		tx.closed = true
+		<-tx.writeLock
 	}()
 
-	tx.writeLock <- struct{}{}
-	err := tx.batch.write(false)
-	<-tx.writeLock
-
-	return err
+	return tx.batch.write(false)
 }
 
 func (tx *mtx) Discard() {
@@ -160,4 +157,5 @@ func (tx *mtx) Discard() {
 	}
 
 	tx.closed = true
+	<-tx.writeLock
 }

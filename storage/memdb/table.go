@@ -7,6 +7,7 @@ package memdb
 import (
 	"context"
 	"strings"
+	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 )
@@ -36,6 +37,13 @@ func (t *mtable) realkey(key []byte) []byte {
 }
 
 func (t *mtable) NewTransaction() (storage.Transaction, error) {
+	timer := time.NewTimer(time.Millisecond * 100)
+	select {
+	case <-timer.C:
+		return nil, storage.ErrTransactionExists
+	case t.writeLock <- struct{}{}:
+	}
+
 	return &mtx{
 		db:        t,
 		closed:    false,

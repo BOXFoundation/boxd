@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"sync"
+	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 	"github.com/tecbot/gorocksdb"
@@ -113,6 +114,16 @@ func (db *rocksdb) NewTransaction() (storage.Transaction, error) {
 	db.sm.Lock()
 	defer db.sm.Unlock()
 
+	// if db.tr != nil {
+	// 	db.tr.sm.Lock()
+	// 	defer db.tr.sm.Unlock()
+	// 	if !db.tr.closed {
+	// 		return nil, storage.ErrTransactionExists
+	// 	}
+	// }
+
+	// lock all write operations
+	db.writeLock <- struct{}{}
 	db.tr = &dbtx{
 		db:        db,
 		batch:     db.NewBatch(),
@@ -123,6 +134,16 @@ func (db *rocksdb) NewTransaction() (storage.Transaction, error) {
 	return db.tr, nil
 }
 
+func waitLock(c chan<- struct{}) {
+	timer := time.NewTimer(time.Second * 3)
+	defer timer.Stop()
+	select {
+	case c <- struct{}{}:
+	case <-timer.C:
+		logger.Warn("Locking db write timeout...")
+	}
+}
+
 // Close closes the database
 func (db *rocksdb) Close() error {
 	db.sm.Lock()
@@ -130,6 +151,11 @@ func (db *rocksdb) Close() error {
 
 	if err := db.rocksdb.Flush(db.flushOptions); err != nil {
 		return err
+	}
+
+	waitLock(db.writeLock)
+	for _, t := range db.tables {
+		waitLock(t.writeLock)
 	}
 
 	for _, t := range db.tables {
