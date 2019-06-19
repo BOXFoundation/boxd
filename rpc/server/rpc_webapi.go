@@ -337,7 +337,6 @@ func (s *webapiServer) DoCall(
 	defer func() {
 		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("contract do call req: %s error: %s", string(bytes), resp.Message)
 		} else {
 			logger.Infof("contract do call req: %s succeeded, response: %+v", string(bytes), resp)
 		}
