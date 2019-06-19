@@ -55,14 +55,14 @@ func init() {
 			Run:   docall,
 		},
 		&cobra.Command{
-			Use:   "deploy [from] [gasprice] [gaslimit] [nonce] [data]",
+			Use:   "deploy [from] [amount] [gasprice] [gaslimit] [nonce] [data]",
 			Short: "Deploy a contract",
 			Long: `On each invocation, "nonce" must be incremented by one. 
 The return value is a hex-encoded transaction sequence and a contract address.`,
 			Run: deploy,
 		},
 		&cobra.Command{
-			Use:   "send [from] [contractaddress] [gasprice] [gaslimit] [nonce] [data]",
+			Use:   "send [from] [contractaddress] [amount] [gasprice] [gaslimit] [nonce] [data]",
 			Short: "Calling a contract",
 			Long: `On each invocation, "nonce" must be incremented by one.
 Successful call will return a transaction hash value`,
@@ -115,7 +115,7 @@ func encode(cmd *cobra.Command, args []string) {
 
 func importAbi(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	abifile := args[0] + ".abi"
@@ -135,7 +135,7 @@ func importAbi(cmd *cobra.Command, args []string) {
 
 func docall(cmd *cobra.Command, args []string) {
 	if len(args) < 3 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	from := args[0]
@@ -177,8 +177,8 @@ func docall(cmd *cobra.Command, args []string) {
 }
 
 func deploy(command *cobra.Command, args []string) {
-	if len(args) != 5 {
-		fmt.Println("Invalide argument number")
+	if len(args) != 6 {
+		fmt.Println("Invalid argument number")
 		return
 	}
 	from := args[0]
@@ -204,25 +204,29 @@ func deploy(command *cobra.Command, args []string) {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
-
-	gasprice, err := strconv.ParseUint(args[1], 10, 64)
+	amount, err := strconv.ParseUint(args[1], 10, 64)
+	if err != nil {
+		fmt.Println("amount type conversion error: ", err)
+		return
+	}
+	gasprice, err := strconv.ParseUint(args[2], 10, 64)
 	if err != nil {
 		fmt.Println("gasprice type conversion error: ", err)
 		return
 	}
-	gaslimit, err := strconv.ParseUint(args[2], 10, 64)
+	gaslimit, err := strconv.ParseUint(args[3], 10, 64)
 	if err != nil {
 		fmt.Println("gaslimit type conversion error: ", err)
 		return
 	}
-	nonce, err := strconv.ParseUint(args[3], 10, 64)
+	nonce, err := strconv.ParseUint(args[4], 10, 64)
 	if err != nil {
 		fmt.Println("nonce type conversion error: ", err)
 		return
 	}
-	codeBytes, err := hex.DecodeString(args[4])
+	codeBytes, err := hex.DecodeString(args[5])
 	if err != nil {
-		fmt.Println("conversion byte error: ", err)
+		fmt.Println("decode contract code error: ", err)
 		return
 	}
 	//get gRPC connection
@@ -233,7 +237,7 @@ func deploy(command *cobra.Command, args []string) {
 	}
 	defer conn.Close()
 	//deploy
-	tx, contractAddr, err := rpcutil.NewContractDeployTx(account, gasprice, gaslimit, nonce, codeBytes, conn)
+	tx, contractAddr, err := rpcutil.NewContractDeployTx(account, amount, gasprice, gaslimit, nonce, codeBytes, conn)
 	if err != nil {
 		fmt.Println("deploy contract error: ", err)
 		return
@@ -248,7 +252,7 @@ func deploy(command *cobra.Command, args []string) {
 }
 
 func send(cmd *cobra.Command, args []string) {
-	if len(args) != 6 {
+	if len(args) != 7 {
 		fmt.Println("Invalide argument number")
 		return
 	}
@@ -276,22 +280,27 @@ func send(cmd *cobra.Command, args []string) {
 		return
 	}
 	contractAddr := args[1]
-	gasprice, err := strconv.ParseUint(args[2], 10, 64)
+	amount, err := strconv.ParseUint(args[2], 10, 64)
+	if err != nil {
+		fmt.Println("get amount error: ", err)
+		return
+	}
+	gasprice, err := strconv.ParseUint(args[3], 10, 64)
 	if err != nil {
 		fmt.Println("get gasprice error: ", err)
 		return
 	}
-	gaslimit, err := strconv.ParseUint(args[3], 10, 64)
+	gaslimit, err := strconv.ParseUint(args[4], 10, 64)
 	if err != nil {
 		fmt.Println("get getlimit error: ", err)
 		return
 	}
-	nonce, err := strconv.ParseUint(args[4], 10, 64)
+	nonce, err := strconv.ParseUint(args[5], 10, 64)
 	if err != nil {
 		fmt.Println("get nonce error: ", err)
 		return
 	}
-	codeBytes, err := hex.DecodeString(args[5])
+	codeBytes, err := hex.DecodeString(args[6])
 	if err != nil {
 		fmt.Println("conversion byte error: ", err)
 		return
@@ -304,7 +313,7 @@ func send(cmd *cobra.Command, args []string) {
 	}
 	defer conn.Close()
 
-	tx, err := rpcutil.NewContractCallTx(account, contractAddr, gasprice, gaslimit, nonce, codeBytes, conn)
+	tx, err := rpcutil.NewContractCallTx(account, contractAddr, amount, gasprice, gaslimit, nonce, codeBytes, conn)
 	if err != nil {
 		fmt.Println("call contract error: ", err)
 		return

@@ -212,13 +212,6 @@ func (s *webapiServer) ViewBlockDetail(
 		logger.Warn("view block detail error: ", err)
 		return newViewBlockDetailResp(-1, err.Error()), nil
 	}
-	for _, tx := range block.InternalTxs {
-		txDetail, err := detailTx(tx, br, tr, false, true)
-		if err != nil {
-			return nil, err
-		}
-		detail.Internaltxs = append(detail.Internaltxs, txDetail)
-	}
 	resp := newViewBlockDetailResp(0, "")
 	resp.Detail = detail
 	resp.Detail.Size_ = uint32(n)

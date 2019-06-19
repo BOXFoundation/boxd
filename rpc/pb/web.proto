@@ -134,7 +134,6 @@ message BlockDetail {
     bool confirmed = 8;
     string signature = 9;
     repeated TxDetail txs = 10;
-    repeated TxDetail internaltxs = 11;
 }
 
 message TokenIssueInfo {

@@ -129,7 +129,7 @@ func NewIssueTokenTx(
 
 // NewContractDeployTx new a deploy contract transaction
 func NewContractDeployTx(
-	acc *acc.Account, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+	acc *acc.Account, amount, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
 ) (*types.Transaction, string, error) {
 	// fetch utxos for gas
 	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
@@ -141,7 +141,7 @@ func NewContractDeployTx(
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	//
-	tx, err := txlogic.MakeUnsignedContractDeployTx(acc.Addr(), 0,
+	tx, err := txlogic.MakeUnsignedContractDeployTx(acc.Addr(), amount,
 		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, code, utxos...)
 	if err != nil {
 		return nil, "", err
@@ -162,7 +162,7 @@ func NewContractDeployTx(
 
 // NewContractCallTx new a call contract transaction
 func NewContractCallTx(
-	acc *acc.Account, to string, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+	acc *acc.Account, to string, amount, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
 ) (*types.Transaction, error) {
 	// fetch utxos for gas
 	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
@@ -174,7 +174,7 @@ func NewContractCallTx(
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	//
-	tx, err := txlogic.MakeUnsignedContractCallTx(acc.Addr(), 0,
+	tx, err := txlogic.MakeUnsignedContractCallTx(acc.Addr(), amount,
 		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, to, code, utxos...)
 	if err != nil {
 		return nil, err
