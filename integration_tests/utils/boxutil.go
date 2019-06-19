@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
@@ -256,6 +258,9 @@ func CallContract(addr, contractAddr string, code []byte, conn *grpc.ClientConn)
 	if err != nil {
 		logger.Panic(err)
 	} else if resp.Code != 0 {
+		if strings.Contains(resp.Message, core.ErrContractNotFound.Error()) {
+			return nil
+		}
 		logger.Panic(errors.New(resp.Message))
 	}
 	//logger.Infof("CallContract for %s contract addr %s output %s", addr, contractAddr, resp.Output)

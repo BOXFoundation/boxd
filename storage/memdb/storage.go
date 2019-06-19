@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	storage "github.com/BOXFoundation/boxd/storage"
 )
@@ -84,6 +85,13 @@ func (db *memorydb) NewBatch() storage.Batch {
 }
 
 func (db *memorydb) NewTransaction() (storage.Transaction, error) {
+	timer := time.NewTimer(time.Millisecond * 100)
+	select {
+	case <-timer.C:
+		return nil, storage.ErrTransactionExists
+	case db.writeLock <- struct{}{}:
+	}
+
 	return &mtx{
 		db:        db,
 		closed:    false,
