@@ -61,7 +61,7 @@ type webapiServer struct {
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	GetDataFromDB([]byte) ([]byte, error)
-	GetReceipt(*crypto.HashType) (*types.Receipt, error)
+	GetTxReceipt(*crypto.HashType) (*types.Receipt, error)
 }
 
 // ChainBlockReader defines chain block reader interface
@@ -633,9 +633,12 @@ func detailTxOut(
 		}
 
 		// get tx reveipt.
-		receipt, err := br.GetReceipt(txHash)
+		receipt, err := br.GetTxReceipt(txHash)
 		if err != nil {
 			return nil, err
+		}
+		if receipt == nil {
+			return nil, fmt.Errorf("receipt for tx %s not found", txHash)
 		}
 
 		contractInfo := &rpcpb.TxOutDetail_ContractInfo{

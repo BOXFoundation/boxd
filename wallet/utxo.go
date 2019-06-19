@@ -55,7 +55,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 	}
 	//
 	utxos, err := FetchUtxosOf(addr, tid, 0, db)
-	logger.Infof("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
+	//logger.Debugf("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
 		return 0, err
 	}

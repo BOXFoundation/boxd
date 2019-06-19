@@ -930,7 +930,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 		if !root.IsEqual(&block.Header.RootHash) {
-			logger.Warnf("state content: %s", stateDB)
 			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
 				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
 				block.Header.Height)
@@ -1847,20 +1846,21 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	return txOuts
 }
 
-// GetReceipt get receipt.
-func (chain *BlockChain) GetReceipt(hash *crypto.HashType) (*types.Receipt, error) {
-
-	key := ReceiptKey(hash)
-	value, err := chain.db.Get(key)
+// GetTxReceipt returns a tx receipt by using given tx hash.
+func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, error) {
+	b, _, err := chain.LoadBlockInfoByTxHash(*txHash)
 	if err != nil {
 		return nil, err
 	}
-
-	receipt := new(types.Receipt)
-	if err := receipt.Unmarshal(value); err != nil {
+	value, err := chain.db.Get(ReceiptKey(b.BlockHash()))
+	if err != nil {
 		return nil, err
 	}
-	return receipt, nil
+	receipts := new(types.Receipts)
+	if err := receipts.Unmarshal(value); err != nil {
+		return nil, err
+	}
+	return receipts.GetTxReceipt(txHash), nil
 }
 
 type splitAddrInfo struct {

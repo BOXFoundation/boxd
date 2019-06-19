@@ -7,9 +7,10 @@ syntax = "proto3";
 package corepb;
 
 message Receipt {
-  uint32 tx_index = 1;
-  bool failed = 2;
-  uint64 gas_used = 3;
+  bytes tx_hash = 1;
+  uint32 tx_index = 2;
+  bool failed = 3;
+  uint64 gas_used = 4;
 }
 
 message Receipts {
