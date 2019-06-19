@@ -91,7 +91,7 @@ func (cc ChainContext) GetHeader(number uint32) *coretypes.BlockHeader {
 	}
 }
 
-func TestEVM(t *testing.T) {
+func _TestEVM(t *testing.T) {
 	abiFileName := "./coin_sol_Coin.abi"
 	binFileName := "./coin_sol_Coin.bin"
 	data := loadBin(binFileName)

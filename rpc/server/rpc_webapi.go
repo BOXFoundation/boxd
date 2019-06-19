@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -398,7 +399,7 @@ func (s *webapiServer) DoCall(
 		conHash := msg.To()
 		// Make sure we have a contract to operate on, and bail out otherwise.
 		if code := evm.StateDB.GetCode(*conHash); len(code) == 0 {
-			return newCallResp(-1, "no contract code at given address"), nil
+			return newCallResp(-1, core.ErrContractNotFound.Error()), nil
 		}
 	}
 

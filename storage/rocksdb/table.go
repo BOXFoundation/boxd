@@ -47,7 +47,6 @@ func (t *rtable) NewTransaction() (tr storage.Transaction, err error) {
 
 	// lock all write operations
 	t.writeLock <- struct{}{}
-
 	tr = &dbtx{
 		db:        t,
 		batch:     t.NewBatch(),
