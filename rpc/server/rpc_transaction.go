@@ -134,8 +134,8 @@ func (s *txServer) FetchUtxos(
 				}
 				total += amount
 			}
-			//logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
-			//	string(bytes), len(resp.GetUtxos()), total)
+			logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
+				string(bytes), len(resp.GetUtxos()), total)
 		}
 	}()
 

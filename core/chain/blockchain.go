@@ -1126,6 +1126,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 		logger.Infof("block %s connected to chain, time tracking: %d", attachBlock.BlockHash(), (stt1-stt0)/1e6)
 	}
 
+	logger.Infof("reorganize finished for block %s %d", block.BlockHash(), block.Header.Height)
 	metrics.MetricsBlockRevertMeter.Mark(1)
 	return nil
 }
@@ -1204,7 +1205,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 	dtt7 := time.Now().UnixNano()
 	// This block is now the end of the best chain.
-	// chain.ChangeNewTail(block)
+	chain.ChangeNewTail(block)
 	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
 		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
 	}
