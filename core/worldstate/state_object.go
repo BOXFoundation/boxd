@@ -121,6 +121,9 @@ func (s *stateObject) EncodeRLP(w io.Writer) error {
 
 // setError remembers the first non-nil error it is called with.
 func (s *stateObject) setError(err error) {
+	if err != nil {
+		logger.Errorf("stateObject SET ERROR: %v", err)
+	}
 	if s.dbErr == nil {
 		s.dbErr = err
 	}

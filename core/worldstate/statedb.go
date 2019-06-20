@@ -114,6 +114,9 @@ func New(rootHash, utxoRootHash *corecrypto.HashType, db storage.Table) (*StateD
 
 // setError remembers the first non-nil error it is called with.
 func (s *StateDB) setError(err error) {
+	if err != nil {
+		logger.Errorf("StateDB SET ERROR: %v", err)
+	}
 	if s.dbErr == nil {
 		s.dbErr = err
 	}
