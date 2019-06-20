@@ -67,6 +67,9 @@ var (
 	//Receipt
 	ErrInvalidReceiptProtoMessage = errors.New("Invalid receipt proto message")
 
+	//Log
+	ErrInvalidLogProtoMessage = errors.New("Invalid log proto message")
+
 	//transaction.go
 	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
 	ErrInvalidOutPointProtoMessage         = errors.New("Invalid OutPoint proto message")

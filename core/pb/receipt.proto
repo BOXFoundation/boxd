@@ -6,10 +6,13 @@ syntax = "proto3";
 
 package corepb;
 
+import "log.proto";
+
 message Receipt {
   uint32 tx_index = 1;
   bool failed = 2;
   uint64 gas_used = 3;
+  repeated Log logs = 4;
 }
 
 message Receipts {

@@ -38,6 +38,8 @@ service WebApi {
             body: "*"
         };
     }
+
+    rpc ListenAndReadNewLog(ListenLogsReq) returns (stream LogDetail);
 }
 
 message ViewTxDetailReq {
@@ -83,6 +85,13 @@ message ContractInfo {
 }
 
 message ListenBlocksReq {
+}
+
+message ListenLogsReq {
+}
+
+message LogDetail {
+    repeated string data = 1;
 }
 
 message TxDetail {

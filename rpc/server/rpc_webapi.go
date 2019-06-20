@@ -31,6 +31,7 @@ import (
 
 const (
 	newBlockMsgSize = 60
+	newLogMsgSize   = 100
 )
 
 func init() {
@@ -49,13 +50,18 @@ func registerWebapi(s *Server) {
 type webapiServer struct {
 	ChainBlockReader
 	TxPoolReader
-	proc            goprocess.Process
+	proc goprocess.Process
+	bus  eventbus.Bus
+
 	newBlockMutex   sync.RWMutex
 	newBlocksQueue  *list.List
-	bus             eventbus.Bus
 	subscribeBlocks bool
 	subscribeMutex  sync.Mutex
 	subscribeCnt    int
+
+	newLogsQueue    *list.List
+	subscribeLogs   bool
+	subscribeLogCnt int
 }
 
 // ChainTxReader defines chain tx reader interface
@@ -86,8 +92,10 @@ func newWebAPIServer(s *Server) *webapiServer {
 		TxPoolReader:     s.GetTxHandler(),
 		proc:             s.Proc(),
 		newBlocksQueue:   list.New(),
+		newLogsQueue:     list.New(),
 		bus:              s.eventBus,
 		subscribeBlocks:  s.cfg.SubScribeBlocks,
+		subscribeLogs:    s.cfg.SubScribeLogs,
 	}
 }
 
@@ -123,6 +131,15 @@ func (s *webapiServer) receiveNewBlockMsg(block *types.Block) {
 	blockDetail.Size_ = uint32(n)
 	// push
 	s.newBlocksQueue.PushBack(blockDetail)
+	s.newBlockMutex.Unlock()
+}
+
+func (s *webapiServer) receiveNewLogMsg(log *types.Log) {
+	s.newBlockMutex.Lock()
+	if s.newLogsQueue.Len() == newBlockMsgSize {
+		s.newLogsQueue.Remove(s.newLogsQueue.Front())
+	}
+	s.newLogsQueue.PushBack(log)
 	s.newBlockMutex.Unlock()
 }
 
@@ -281,7 +298,7 @@ func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, ex
 		if next := elm.Next(); next != nil {
 			elmA = next
 		} else if elm.Prev() == nil {
-			// if this element is removed, move to the fromt of list
+			// if this element is removed, move to the front of list
 			elmA = s.newBlocksQueue.Front()
 		}
 		// occur when elm is the front
@@ -306,6 +323,18 @@ func (s *webapiServer) subscribe() error {
 	s.subscribeCnt++
 	s.subscribeMutex.Unlock()
 	logger.Infof("subscribe new blocks#%d", s.subscribeCnt)
+
+	s.subscribeMutex.Lock()
+	if s.subscribeCnt == 0 {
+		err := s.bus.SubscribeUniq(eventbus.TopicRPCSendNewLog, s.receiveNewLogMsg)
+		if err != nil {
+			s.subscribeMutex.Unlock()
+			return err
+		}
+	}
+	s.subscribeCnt++
+	s.subscribeMutex.Unlock()
+	logger.Infof("subscribe new logs#%d", s.subscribeCnt)
 	return nil
 }
 
@@ -322,6 +351,56 @@ func (s *webapiServer) unsubscribe() error {
 	s.subscribeMutex.Unlock()
 	logger.Infof("unsubscribe new blocks#%d", s.subscribeCnt)
 	return nil
+}
+
+func (s *webapiServer) ListenAndReadNewLog(
+	req *rpcpb.ListenLogsReq,
+	stream rpcpb.WebApi_ListenAndReadNewLogServer,
+) error {
+	if !s.subscribeLogs {
+		return ErrAPINotSupported
+	}
+	logger.Info("start listen new logs")
+	if err := s.subscribe(); err != nil {
+		logger.Error(err)
+		return err
+	}
+	defer func() {
+		if err := s.unsubscribe(); err != nil {
+			logger.Error(err)
+		}
+	}()
+	var (
+		elm  *list.Element
+		exit bool
+	)
+	for {
+		if s.Closing() {
+			logger.Info("receive closing signal, exit ListenAndReadNewLog ...")
+			return nil
+		}
+		s.newBlockMutex.RLock()
+		if s.newLogsQueue.Len() != 0 {
+			elm = s.newLogsQueue.Front()
+			s.newBlockMutex.RUnlock()
+			break
+		}
+		s.newBlockMutex.RUnlock()
+		time.Sleep(100 * time.Millisecond)
+	}
+	for {
+		// get log
+		logDetail := elm.Value.(*rpcpb.LogDetail)
+		// send log info
+		if err := stream.Send(logDetail); err != nil {
+			logger.Warnf("webapi send log error %s, exit listen connection!", err)
+			return err
+		}
+		logger.Debugf("webapi server sent a log, data: %v", logDetail.Data)
+		if elm, exit = s.moveToNextElem(elm); exit {
+			return nil
+		}
+	}
 }
 
 func newCallResp(code int32, msg string) *rpcpb.CallResp {

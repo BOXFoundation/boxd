@@ -156,6 +156,7 @@ type Receipt struct {
 	GasUsed         uint64
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
+	Logs            []*Log
 }
 
 var _ conv.Convertible = (*Receipt)(nil)
@@ -163,7 +164,7 @@ var _ conv.Serializable = (*Receipt)(nil)
 
 // NewReceipt news a Receipt
 func NewReceipt(
-	txHash *crypto.HashType, contractAddr *AddressHash, failed bool, gasUsed uint64,
+	txHash *crypto.HashType, contractAddr *AddressHash, failed bool, gasUsed uint64, logs []*Log,
 ) *Receipt {
 	if txHash == nil {
 		txHash = new(crypto.HashType)
@@ -176,6 +177,7 @@ func NewReceipt(
 		ContractAddress: *contractAddr,
 		Failed:          failed,
 		GasUsed:         gasUsed,
+		Logs:            logs,
 	}
 }
 
@@ -202,10 +204,23 @@ func (rc *Receipt) WithBlockHeight(h uint32) *Receipt {
 
 // ToProtoMessage converts Receipt to proto message.
 func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
+
+	var logs []*corepb.Log
+	for _, l := range rc.Logs {
+		log, err := l.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if log, ok := log.(*corepb.Log); ok {
+			logs = append(logs, log)
+		}
+	}
+
 	return &corepb.Receipt{
 		TxIndex: rc.TxIndex,
 		Failed:  rc.Failed,
 		GasUsed: rc.GasUsed,
+		Logs:    logs,
 	}, nil
 }
 
@@ -218,9 +233,19 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 	if message == nil {
 		return core.ErrEmptyProtoMessage
 	}
+
+	var logs []*Log
+	for _, l := range pbrc.Logs {
+		log := new(Log)
+		if err := log.FromProtoMessage(l); err != nil {
+			return err
+		}
+		logs = append(logs, log)
+	}
 	rc.TxIndex = pbrc.TxIndex
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
+	rc.Logs = logs
 	return nil
 }
 

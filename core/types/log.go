@@ -5,7 +5,11 @@
 package types
 
 import (
+	"github.com/BOXFoundation/boxd/core"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
+	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	proto "github.com/gogo/protobuf/proto"
 )
 
 //go:generate gencodec -type Log -field-override logMarshaling -out gen_log_json.go
@@ -28,13 +32,76 @@ type Log struct {
 	// hash of the transaction
 	TxHash crypto.HashType `json:"transactionHash" gencodec:"required"`
 	// index of the transaction in the block
-	TxIndex uint `json:"transactionIndex" gencodec:"required"`
+	TxIndex uint32 `json:"transactionIndex" gencodec:"required"`
 	// hash of the block in which the transaction was included
 	BlockHash crypto.HashType `json:"blockHash"`
 	// index of the log in the block
-	Index uint `json:"logIndex" gencodec:"required"`
+	Index uint32 `json:"logIndex" gencodec:"required"`
 
 	// The Removed field is true if this log was reverted due to a chain reorganisation.
 	// You must pay attention to this field if you receive logs through a filter query.
 	Removed bool `json:"removed"`
+}
+
+var _ conv.Convertible = (*Receipt)(nil)
+var _ conv.Serializable = (*Receipt)(nil)
+
+// ToProtoMessage converts Receipt to proto message.
+func (log *Log) ToProtoMessage() (proto.Message, error) {
+	topics := [][]byte{}
+	for _, topic := range log.Topics {
+		topics = append(topics, topic.Bytes())
+	}
+	return &corepb.Log{
+		Address:     log.Address[:],
+		Topics:      topics,
+		Data:        log.Data,
+		BlockNumber: log.BlockNumber,
+		TxHash:      log.TxHash[:],
+		TxIndex:     log.TxIndex,
+		BlockHash:   log.BlockHash[:],
+		Index:       log.Index,
+		Removed:     log.Removed,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to Receipt.
+func (log *Log) FromProtoMessage(message proto.Message) error {
+	pblog, ok := message.(*corepb.Log)
+	if !ok {
+		return core.ErrInvalidLogProtoMessage
+	}
+	if message == nil {
+		return core.ErrEmptyProtoMessage
+	}
+
+	copy(log.Address[:], pblog.Address[:])
+	log.Topics = make([]crypto.HashType, len(pblog.Topics))
+	for i, topic := range pblog.Topics {
+		hash := new(crypto.HashType)
+		log.Topics[i] = *hash
+		copy(log.Topics[i][:], topic[:])
+	}
+	copy(log.Data[:], pblog.Data[:])
+	log.BlockNumber = pblog.BlockNumber
+	copy(log.TxHash[:], pblog.TxHash[:])
+	log.TxIndex = pblog.TxIndex
+	copy(log.BlockHash[:], pblog.BlockHash[:])
+	log.Index = pblog.Index
+	log.Removed = pblog.Removed
+	return nil
+}
+
+// Marshal method marshal Receipt object to binary
+func (log *Log) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(log)
+}
+
+// Unmarshal method unmarshal binary data to Receipt object
+func (log *Log) Unmarshal(data []byte) error {
+	pblog := new(corepb.Log)
+	if err := proto.Unmarshal(data, pblog); err != nil {
+		return err
+	}
+	return log.FromProtoMessage(pblog)
 }

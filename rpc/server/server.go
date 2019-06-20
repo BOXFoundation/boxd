@@ -48,6 +48,7 @@ type Config struct {
 	HTTPCors        []string   `mapstructure:"http_cors"`
 	FaucetKeyFile   string     `mapstructure:"faucet_keyfile"`
 	SubScribeBlocks bool       `mapstructure:"subscribe_blocks"`
+	SubScribeLogs   bool       `mapstructure:"subscribe_logs"`
 }
 
 // HTTPConfig defines the address/port of rest api over http

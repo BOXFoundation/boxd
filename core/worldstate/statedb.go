@@ -158,8 +158,8 @@ func (s *StateDB) AddLog(log *types.Log) {
 
 	log.TxHash = s.thash
 	log.BlockHash = s.bhash
-	log.TxIndex = uint(s.txIndex)
-	log.Index = s.logSize
+	log.TxIndex = uint32(s.txIndex)
+	log.Index = uint32(s.logSize)
 	s.logs[s.thash] = append(s.logs[s.thash], log)
 	s.logSize++
 }

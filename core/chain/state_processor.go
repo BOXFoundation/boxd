@@ -62,7 +62,7 @@ func (sp *StateProcessor) Process(
 			return nil, 0, 0, nil, fmt.Errorf("incorrect nonce(%d, %d in statedb) in tx: %s",
 				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.OriginTxHash())
 		}
-		receipt, gasUsedPerTx, gasRemainingFeePerTx, txs, _, err1 :=
+		receipt, gasUsedPerTx, gasRemainingFeePerTx, txs, err1 :=
 			ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err1 != nil {
 			err = err1
@@ -90,7 +90,7 @@ func (sp *StateProcessor) Process(
 func ApplyTransaction(
 	tx *types.VMTransaction, header *types.BlockHeader, bc *BlockChain,
 	statedb *state.StateDB, cfg vm.Config, utxoSet *UtxoSet,
-) (*types.Receipt, uint64, uint64, []*types.Transaction, []*types.Log, error) {
+) (*types.Receipt, uint64, uint64, []*types.Transaction, error) {
 
 	var txs []*types.Transaction
 	defer func() {
@@ -102,7 +102,7 @@ func ApplyTransaction(
 	ret, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if err != nil {
 		logger.Warn(err)
-		return nil, 0, 0, nil, nil, err
+		return nil, 0, 0, nil, err
 	}
 	logger.Infof("result for ApplyMessage msg %s, gasUsed: %d, gasRemainingFee:"+
 		" %d, failed: %t, return: %s", tx, gasUsed, gasRemainingFee, fail, hex.EncodeToString(ret))
@@ -122,20 +122,20 @@ func ApplyTransaction(
 		internalTxs, err := createUtxoTx(utxoSet)
 		if err != nil {
 			logger.Warn(err)
-			return nil, 0, 0, nil, nil, err
+			return nil, 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs...)
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
 		internalTxs, err := createRefundTx(tx, utxoSet, contractAddr)
 		if err != nil {
 			logger.Warn(err)
-			return nil, 0, 0, nil, nil, err
+			return nil, 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs)
 	}
-	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, fail, gasUsed)
+	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, fail, gasUsed, statedb.Logs())
 
-	return receipt, gasUsed, gasRemainingFee, txs, statedb.Logs(), nil
+	return receipt, gasUsed, gasRemainingFee, txs, nil
 }
 
 func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {

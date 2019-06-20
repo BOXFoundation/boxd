@@ -78,8 +78,8 @@ func sendWebAPITestBlocks() {
 	proc.Signal(os.Interrupt)
 }
 
-func _TestClientListenNewBlocks(t *testing.T) {
-	rpcAddr := "127.0.0.1:19111"
+func TestClientListenNewBlocks(t *testing.T) {
+	rpcAddr := "127.0.0.1:19191"
 	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
 	if err != nil {
 		t.Fatal(err)

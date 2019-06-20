@@ -902,6 +902,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
 			block, stateDB, utxoSet)
+		go chain.Bus().Publish(eventbus.TopicRPCSendNewLog, block)
 		if err != nil {
 			logger.Error(err)
 			return err
