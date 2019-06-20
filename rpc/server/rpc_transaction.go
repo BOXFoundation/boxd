@@ -52,7 +52,6 @@ func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBal
 func (s *txServer) GetBalance(
 	ctx context.Context, req *rpcpb.GetBalanceReq,
 ) (*rpcpb.GetBalanceResp, error) {
-	logger.Infof("get balance req: %+v", req)
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
 		logger.Warn("get balance error ", ErrAPINotSupported)
@@ -71,7 +70,6 @@ func (s *txServer) GetBalance(
 		}
 		balances[i] = amount
 	}
-	logger.Infof("get balance for %v result: %v", req.Addrs, balances)
 	return newGetBalanceResp(0, "ok", balances...), nil
 }
 
@@ -208,6 +206,9 @@ func (s *txServer) SendTransaction(
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("send tx req: %s error: %s", string(bytes), resp.Message)
 		} else {

@@ -58,7 +58,7 @@ contract Bonus is Permission{
 
     struct FrozenVote {
         uint votes;
-        uint height;
+        uint timestamp;
     }
 
     Delegate[15] dynasty;
@@ -70,7 +70,7 @@ contract Bonus is Permission{
     mapping(address => mapping(address => uint)) delegateVotesDetail;
     mapping(address => address[]) delegateToVoters;
 
-    mapping(address => mapping(address => FrozenVote[])) frozenVotes;
+    mapping(address => mapping(address => FrozenVote)) frozenVotes;
 
     mapping(address => uint) voteBonus;
     mapping(address => uint) dynastyToBonus;
@@ -91,7 +91,7 @@ contract Bonus is Permission{
     event ExecBonus();
     event CalcBonus(address _coinbase, uint value);
 
-    constructor() public{
+    constructor() public {
         _pledge_threshold = 1800000 * 10**8;
         _dynasty_threshold = 10000;
         _min_vote_bonus_limit_to_pick = 1 * 10**8;
@@ -122,25 +122,25 @@ contract Bonus is Permission{
         deletePledgeAddrList(idx);
     }
 
-    function redeemPledge() public {
+    function pickRedeemPledge() public {
         require(frozenDelegate[msg.sender].isExist == true, "not frozen delegate node.");
         if (block.number > ((block.number / _dynasty_threshold) + 1) * _dynasty_threshold) {
-                msg.sender.transfer(addrToDelegates[msg.sender].pledgeAmount);
-                delete frozenDelegate[msg.sender];
-                for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
-                    if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
-                        delegateToVoters[msg.sender][i].transfer(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
-                        delete delegateToVoters[msg.sender];
-                    }
+            msg.sender.transfer(addrToDelegates[msg.sender].pledgeAmount);
+            delete frozenDelegate[msg.sender];
+            for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
+                if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
+                    delegateToVoters[msg.sender][i].transfer(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
+                    delete delegateToVoters[msg.sender];
                 }
+            }
         }
     }
 
     function redeemVoteApply(address delegateAddr, uint count) public {
         require(count <= delegateVotesDetail[delegateAddr][msg.sender], "the vote count is not enough.");
         require(count <= votes[msg.sender][delegateAddr], "the vote count is not enough.");
-        FrozenVote memory frozenVote = FrozenVote(count, block.number);
-        frozenVotes[delegateAddr][msg.sender].push(frozenVote);
+        frozenVotes[delegateAddr][msg.sender].votes = frozenVotes[delegateAddr][msg.sender].votes.add(count);
+        frozenVotes[delegateAddr][msg.sender].timestamp = block.timestamp;
 
         delegateVotesDetail[delegateAddr][msg.sender] = delegateVotesDetail[delegateAddr][msg.sender].sub(count);
         votes[msg.sender][delegateAddr] = votes[msg.sender][delegateAddr].sub(count);
@@ -149,13 +149,10 @@ contract Bonus is Permission{
         delegate.score = calcScore(delegate);
     }
 
-    function redeemVote(address delegateAddr) public {
-        for (uint i = 0; i < frozenVotes[delegateAddr][msg.sender].length; i++) {
-            if (frozenVotes[delegateAddr][msg.sender][i].votes > 0 &&
-            block.number > (frozenVotes[delegateAddr][msg.sender][i].height + _vote_frozen_block_number)) {
-                msg.sender.transfer(frozenVotes[delegateAddr][msg.sender][i].votes);
-                deleteFrozenVote(frozenVotes[delegateAddr][msg.sender], i);
-            }
+    function pickRedeemVote(address delegateAddr) public {
+        if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
+            block.timestamp > (frozenVotes[delegateAddr][msg.sender].timestamp + _vote_frozen_block_number)) {
+            msg.sender.transfer(frozenVotes[delegateAddr][msg.sender].votes);
         }
     }
 

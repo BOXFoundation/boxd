@@ -238,6 +238,17 @@ func (block *Block) calcBlockHash() (*crypto.HashType, error) {
 	return &hash, nil
 }
 
+// GetTx returns tx and index via tx hash
+func (block *Block) GetTx(hash *crypto.HashType) (*Transaction, int) {
+	for i, tx := range block.Txs {
+		h, _ := tx.TxHash()
+		if *h == *hash {
+			return tx, i
+		}
+	}
+	return nil, 0
+}
+
 // BlockHeader defines information about a block and is used in the
 // block (Block) and headers (MsgHeaders) messages.
 type BlockHeader struct {

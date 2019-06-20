@@ -313,7 +313,7 @@ func (r *TestDetailBlockChainReader) GetLatestNonce(address *types.AddressHash) 
 	return 0, nil
 }
 
-func (r *TestDetailBlockChainReader) GetReceipt(*crypto.HashType) (*types.Receipt, error) {
+func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, error) {
 	return nil, nil
 }
 
