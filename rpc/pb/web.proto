@@ -91,7 +91,7 @@ message ListenLogsReq {
 }
 
 message LogDetail {
-    repeated string data = 1;
+    string data = 1;
 }
 
 message TxDetail {

@@ -902,7 +902,15 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
 			block, stateDB, utxoSet)
-		go chain.Bus().Publish(eventbus.TopicRPCSendNewLog, block)
+		go func() {
+			logs := []*types.Log{}
+			for _, receipt := range receipts {
+				logs = append(logs, receipt.Logs...)
+			}
+			if len(logs) != 0 {
+				chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
+			}
+		}()
 		if err != nil {
 			logger.Error(err)
 			return err
@@ -931,7 +939,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 		if !root.IsEqual(&block.Header.RootHash) {
-			logger.Warnf("state content: %s", stateDB)
 			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
 				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
 				block.Header.Height)
@@ -1128,6 +1135,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 		logger.Infof("block %s connected to chain, time tracking: %d", attachBlock.BlockHash(), (stt1-stt0)/1e6)
 	}
 
+	logger.Infof("reorganize finished for block %s %d", block.BlockHash(), block.Header.Height)
 	metrics.MetricsBlockRevertMeter.Mark(1)
 	return nil
 }
@@ -1206,7 +1214,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 	dtt7 := time.Now().UnixNano()
 	// This block is now the end of the best chain.
-	// chain.ChangeNewTail(block)
+	chain.ChangeNewTail(block)
 	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
 		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
 	}
@@ -1848,20 +1856,21 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	return txOuts
 }
 
-// GetReceipt get receipt.
-func (chain *BlockChain) GetReceipt(hash *crypto.HashType) (*types.Receipt, error) {
-
-	key := ReceiptKey(hash)
-	value, err := chain.db.Get(key)
+// GetTxReceipt returns a tx receipt by using given tx hash.
+func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, error) {
+	b, _, err := chain.LoadBlockInfoByTxHash(*txHash)
 	if err != nil {
 		return nil, err
 	}
-
-	receipt := new(types.Receipt)
-	if err := receipt.Unmarshal(value); err != nil {
+	value, err := chain.db.Get(ReceiptKey(b.BlockHash()))
+	if err != nil {
 		return nil, err
 	}
-	return receipt, nil
+	receipts := new(types.Receipts)
+	if err := receipts.Unmarshal(value); err != nil {
+		return nil, err
+	}
+	return receipts.GetTxReceipt(txHash), nil
 }
 
 type splitAddrInfo struct {

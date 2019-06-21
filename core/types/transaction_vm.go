@@ -295,6 +295,7 @@ func (rcs *Receipts) ToProtoMessage() (proto.Message, error) {
 	pbrcs := new(corepb.Receipts)
 	for _, rc := range *rcs {
 		pbrc := &corepb.Receipt{
+			TxHash:  rc.TxHash[:],
 			TxIndex: rc.TxIndex,
 			Failed:  rc.Failed,
 			GasUsed: rc.GasUsed,
@@ -314,7 +315,13 @@ func (rcs *Receipts) FromProtoMessage(message proto.Message) error {
 		return core.ErrEmptyProtoMessage
 	}
 	for _, pbrc := range pbrcs.Receipts {
+		txHash := new(crypto.HashType)
+		err := txHash.SetBytes(pbrc.TxHash)
+		if err != nil {
+			return err
+		}
 		rc := new(Receipt)
+		rc.TxHash = *txHash
 		rc.TxIndex = pbrc.TxIndex
 		rc.Failed = pbrc.Failed
 		rc.GasUsed = pbrc.GasUsed
@@ -335,4 +342,14 @@ func (rcs *Receipts) Unmarshal(data []byte) error {
 		return err
 	}
 	return rcs.FromProtoMessage(pbrcs)
+}
+
+// GetTxReceipt returns a tx receipt in receipts
+func (rcs *Receipts) GetTxReceipt(hash *crypto.HashType) *Receipt {
+	for _, r := range *rcs {
+		if r.TxHash == *hash {
+			return r
+		}
+	}
+	return nil
 }

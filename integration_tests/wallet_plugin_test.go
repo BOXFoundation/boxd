@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 	"time"
@@ -19,6 +20,10 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/script"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+)
+
+const (
+	connAddr = "127.0.0.1:19111"
 )
 
 func init() {
@@ -43,7 +48,7 @@ type makeTxRespFunc func(
 
 func flow(t *testing.T, respFunc makeTxRespFunc) string {
 	// get grpc conn
-	conn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")
+	conn, err := rpcutil.GetGRPCConn(connAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +121,9 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 	bytes, _ := json.MarshalIndent(txDetailResp, "", "  ")
 	t.Logf("tx detail: %s", string(bytes))
 
+	if txDetailResp.Detail == nil {
+		return ""
+	}
 	return txDetailResp.Detail.Hash
 }
 
@@ -237,19 +245,29 @@ func _TestTokenTx(t *testing.T) {
 func _TestContractTx(t *testing.T) {
 
 	var (
-		testFaucetContract = "608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
+		//testFaucetContract = "608060405260f7806100126000396000f3fe6080604052600436106039576000357c0100000000000000000000000000000000000000000000000000000000900480632e1a7d4d14603b575b005b348015604657600080fd5b50607060048036036020811015605b57600080fd5b81019080803590602001909291905050506072565b005b6127108111151515608257600080fd5b3373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f1935050505015801560c7573d6000803e3d6000fd5b505056fea165627a7a7230582041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
+
+		testFaucetContract = "608060405234801561001057600080fd5b506127106000803273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055506102e3806100656000396000f3fe608060405234801561001057600080fd5b5060043610610053576000357c01000000000000000000000000000000000000000000000000000000009004806390b98a1114610058578063f8b2cb4f146100be575b600080fd5b6100a46004803603604081101561006e57600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919080359060200190929190505050610116565b604051808215151515815260200191505060405180910390f35b610100600480360360208110156100d457600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061026f565b6040518082815260200191505060405180910390f35b6000816000803373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410156101675760009050610269565b816000803373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008282540392505081905550816000808573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040518082815260200191505060405180910390a3600190505b92915050565b60008060008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054905091905056fea165627a7a7230582061e7bbea31d160d05e39cf0a63fec1d576afe9a47b8487b15389aa9a720be5a20029"
 		// withdraw 2000
-		testFaucetCall = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
+		//testFaucetCall = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
+		testFaucetCall = "f633e9000000000000000000000000fd37553e3a6af45b4106c29ccd2bbd045e5c428c0000000000000000000000000000000000000000000000000000000000000064"
+		testDoCall     = "f8b2cb4f000000000000000000000000fd37553e3a6af45b4106c29ccd2bbd045e5c428c"
 	)
+
+	conn, err := rpcutil.GetGRPCConn(connAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
 
 	// contract deploy
 	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
 	req := &rpcpb.MakeContractTxReq{
 		From:     from,
-		Amount:   10000,
+		Amount:   0,
 		GasPrice: 2,
-		GasLimit: 100000,
-		Nonce:    1,
+		GasLimit: 2000000,
+		Nonce:    utils.NonceFor(from, conn) + 1,
 		IsDeploy: true,
 		Data:     testFaucetContract,
 	}
@@ -275,7 +293,7 @@ func _TestContractTx(t *testing.T) {
 		Amount:   0,
 		GasPrice: 2,
 		GasLimit: 20000,
-		Nonce:    2,
+		Nonce:    utils.NonceFor(from, conn) + 1,
 		Data:     testFaucetCall,
 	}
 	//
@@ -287,4 +305,8 @@ func _TestContractTx(t *testing.T) {
 		}
 		return from, resp
 	})
+
+	callData, _ := hex.DecodeString(testDoCall)
+	ret := utils.CallContract(from, contractAddr.String(), callData, conn)
+	t.Logf("do call return: %x", ret)
 }

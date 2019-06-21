@@ -6,6 +6,7 @@ package wallet
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"sync"
@@ -21,7 +22,8 @@ import (
 )
 
 const (
-	utxoSelUnitCnt = 256
+	utxoSelUnitCnt = 16
+	utxoMergeCnt   = 256
 )
 
 var (
@@ -55,7 +57,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 	}
 	//
 	utxos, err := FetchUtxosOf(addr, tid, 0, db)
-	logger.Infof("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
+	//logger.Debugf("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
 		return 0, err
 	}
@@ -70,11 +72,6 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 			logger.Warnf("parse utxo %+v token %+v error: %s", u, tid, err)
 			continue
 		}
-		//if (tid != nil && (tidR == nil || *tid != *tidR)) ||
-		//	(tid == nil && tidR != nil) {
-		//	logger.Errorf("BalanceFor %s token id %+v got error utxos %+v", u)
-		//	continue
-		//}
 		balance += n
 	}
 	return balance, nil
@@ -94,10 +91,7 @@ func FetchUtxosOf(
 		utxoKey = chain.AddrAllTokenUtxoKey(addr, *tid)
 	}
 	//
-	//start := time.Now()
 	keys := db.KeysWithPrefix(utxoKey)
-	//logger.Debugf("get utxos keys[%d] for %s amount %d cost %v", len(keys), addr,
-	//	total, time.Since(start))
 	// fetch all utxos if total equals to 0
 	if total == 0 {
 		utxos, err := makeUtxosFromDB(keys, tid, db)
@@ -106,13 +100,14 @@ func FetchUtxosOf(
 		}
 		return utxos, nil
 	}
+	if len(keys) > utxoMergeCnt {
+		total = math.MaxUint64
+	}
 	// fetch moderate utxos by adjustint to total
 	utxos, err := fetchModerateUtxos(keys, tid, total, db)
 	if err != nil {
 		return nil, err
 	}
-	//logger.Debugf("fetch utxos for %s amount %d get %d utxos", addr, total, len(utxos))
-
 	return utxos, nil
 }
 
@@ -123,6 +118,7 @@ func fetchModerateUtxos(
 	utxoLiveCache.Shrink()
 	result := make([]*rpcpb.Utxo, 0)
 	remain := total
+	// here "remain <= total", because remain and total is uint64
 	for start := 0; start < len(keys) && remain <= total; start += utxoSelUnitCnt {
 		// calc start and end keys
 		end := start + utxoSelUnitCnt
@@ -153,6 +149,10 @@ func fetchModerateUtxos(
 
 		remain -= amount
 		result = append(result, selUtxos...)
+	}
+	if total != math.MaxUint64 && remain > 0 && remain <= total {
+		return nil, fmt.Errorf("amount for %d utxo is less than total %d wanted",
+			len(result), total)
 	}
 
 	return result, nil

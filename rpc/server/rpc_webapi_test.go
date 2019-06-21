@@ -5,7 +5,6 @@
 package rpc
 
 import (
-	"container/list"
 	"context"
 	"encoding/json"
 	"io"
@@ -22,6 +21,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	"google.golang.org/grpc"
@@ -54,10 +54,11 @@ func setupWebAPIMockSvr() {
 	was := &webapiServer{
 		ChainBlockReader: br,
 		proc:             goprocess.WithSignals(os.Interrupt),
-		subscribeBlocks:  true,
-		bus:              testWebAPIBus,
-		newBlocksQueue:   list.New(),
+		endpoints:        make(map[string]rpcutil.Endpoint),
 	}
+	was.endpoints[rpcutil.BlockEp] = &rpcutil.BlockEndpoint{Bus: testWebAPIBus}
+	was.endpoints[rpcutil.LogEp] = &rpcutil.LogEndpoint{Bus: testWebAPIBus}
+
 	grpcSvr := grpc.NewServer()
 	rpcpb.RegisterWebApiServer(grpcSvr, was)
 
@@ -78,7 +79,7 @@ func sendWebAPITestBlocks() {
 	proc.Signal(os.Interrupt)
 }
 
-func TestClientListenNewBlocks(t *testing.T) {
+func _TestClientListenNewBlocks(t *testing.T) {
 	rpcAddr := "127.0.0.1:19191"
 	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
 	if err != nil {
@@ -104,7 +105,33 @@ func TestClientListenNewBlocks(t *testing.T) {
 	}
 }
 
-func TestListenAndReadNewBlock(t *testing.T) {
+func _TestClientListenNewLogs(t *testing.T) {
+	rpcAddr := "127.0.0.1:19111"
+	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	client := rpcpb.NewWebApiClient(conn)
+	logsReq := &rpcpb.ListenLogsReq{}
+	stream, err := client.ListenAndReadNewLog(context.Background(), logsReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		log, err := stream.Recv()
+		if err == io.EOF {
+			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+			break
+		}
+		if err != nil {
+			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+		}
+		logger.Infof("log data: %", log.Data)
+	}
+}
+
+func _TestListenAndReadNewBlock(t *testing.T) {
 	// start grpc server
 	starter.Do(setupWebAPIMockSvr)
 	// start send blocks goroutine
@@ -313,7 +340,7 @@ func (r *TestDetailBlockChainReader) GetLatestNonce(address *types.AddressHash) 
 	return 0, nil
 }
 
-func (r *TestDetailBlockChainReader) GetReceipt(*crypto.HashType) (*types.Receipt, error) {
+func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, error) {
 	return nil, nil
 }
 
