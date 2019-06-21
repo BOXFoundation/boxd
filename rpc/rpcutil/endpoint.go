@@ -6,10 +6,13 @@ package rpcutil
 
 import (
 	"container/list"
+	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/types"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 )
 
 // Key to endpoints.
@@ -26,8 +29,8 @@ type Endpoint interface {
 	GetQueue() *list.List
 	GetEventMutex() *sync.RWMutex
 
-	Subscribe() error
-	Unsubscribe() error
+	Subscribe(...string) error
+	Unsubscribe(...string) error
 }
 
 // BlockEndpoint is an endpoint to push new blocks.
@@ -57,7 +60,7 @@ func (bep *BlockEndpoint) GetEventMutex() *sync.RWMutex {
 }
 
 // Subscribe subscribe the topic of new blocks.
-func (bep *BlockEndpoint) Subscribe() error {
+func (bep *BlockEndpoint) Subscribe(...string) error {
 	bep.mtx.Lock()
 	defer bep.mtx.Unlock()
 	if bep.subscribeCnt == 0 {
@@ -72,7 +75,7 @@ func (bep *BlockEndpoint) Subscribe() error {
 }
 
 // Unsubscribe unsubscribe the topic of new blocks.
-func (bep *BlockEndpoint) Unsubscribe() error {
+func (bep *BlockEndpoint) Unsubscribe(...string) error {
 	bep.mtx.Lock()
 	defer bep.mtx.Unlock()
 	if bep.subscribeCnt == 1 {
@@ -128,11 +131,14 @@ func (lep *LogEndpoint) GetEventMutex() *sync.RWMutex {
 }
 
 // Subscribe subscribe the topic of new logs.
-func (lep *LogEndpoint) Subscribe() error {
+func (lep *LogEndpoint) Subscribe(addr ...string) error {
+	if len(addr) == 0 {
+		return fmt.Errorf("Need a contract address to subscribe")
+	}
 	lep.mtx.Lock()
 	defer lep.mtx.Unlock()
 	if lep.subscribeCnt == 0 {
-		err := lep.Bus.SubscribeUniq(eventbus.TopicRPCSendNewLog, lep.receiveNewLog)
+		err := lep.Bus.SubscribeUniq(eventbus.TopicRPCSendNewLog+addr[0], lep.receiveNewLog)
 		if err != nil {
 			return err
 		}
@@ -143,11 +149,14 @@ func (lep *LogEndpoint) Subscribe() error {
 }
 
 // Unsubscribe unsubscribe the topic of new logs.
-func (lep *LogEndpoint) Unsubscribe() error {
+func (lep *LogEndpoint) Unsubscribe(addr ...string) error {
+	if len(addr) == 0 {
+		return fmt.Errorf("Need a contract address to subscribe")
+	}
 	lep.mtx.Lock()
 	defer lep.mtx.Unlock()
 	if lep.subscribeCnt == 1 {
-		err := lep.Bus.Unsubscribe(eventbus.TopicRPCSendNewLog, lep.receiveNewLog)
+		err := lep.Bus.Unsubscribe(eventbus.TopicRPCSendNewLog+addr[0], lep.receiveNewLog)
 		if err != nil {
 			return err
 		}
@@ -161,10 +170,22 @@ func (lep *LogEndpoint) receiveNewLog(logs []*types.Log) {
 	lep.eventMtx.Lock()
 	defer lep.eventMtx.Unlock()
 
+	logDetail := &rpcpb.LogDetail{}
 	for _, log := range logs {
-		if lep.GetQueue().Len() == newLogMsgSize {
-			lep.queue.Remove(lep.queue.Front())
+		topic := hex.EncodeToString(log.Topics[0].Bytes())
+
+		logs, ok := logDetail.Logs[topic]
+		if !ok {
+			logs = &rpcpb.LogDetail_Logs{
+				Data: []string{},
+			}
+			logDetail.Logs[topic] = logs
 		}
-		lep.queue.PushBack(log)
+		logs.Data = append(logs.Data, hex.EncodeToString(log.Data))
 	}
+
+	if lep.GetQueue().Len() == newLogMsgSize {
+		lep.queue.Remove(lep.queue.Front())
+	}
+	lep.queue.PushBack(logDetail)
 }

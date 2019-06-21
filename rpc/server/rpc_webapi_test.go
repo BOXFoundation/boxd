@@ -127,7 +127,7 @@ func _TestClientListenNewLogs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
 		}
-		logger.Infof("log data: %", log.Data)
+		logger.Infof("log data: %v", log)
 	}
 }
 

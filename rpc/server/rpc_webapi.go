@@ -287,16 +287,16 @@ func (s *webapiServer) subscribeBlockEndpoint() error {
 	return s.endpoints[rpcutil.BlockEp].Subscribe()
 }
 
-func (s *webapiServer) subscribeLogEndpoint() error {
-	return s.endpoints[rpcutil.LogEp].Subscribe()
+func (s *webapiServer) subscribeLogEndpoint(addr string) error {
+	return s.endpoints[rpcutil.LogEp].Subscribe(addr)
 }
 
 func (s *webapiServer) unsubscribeBlockEndpoint() error {
 	return s.endpoints[rpcutil.BlockEp].Unsubscribe()
 }
 
-func (s *webapiServer) unsubscribeLogEndpoint() error {
-	return s.endpoints[rpcutil.LogEp].Unsubscribe()
+func (s *webapiServer) unsubscribeLogEndpoint(addr string) error {
+	return s.endpoints[rpcutil.LogEp].Unsubscribe(addr)
 }
 
 func (s *webapiServer) ListenAndReadNewLog(
@@ -308,12 +308,12 @@ func (s *webapiServer) ListenAndReadNewLog(
 		return ErrAPINotSupported
 	}
 	logger.Info("start listen new logs")
-	if err := s.subscribeLogEndpoint(); err != nil {
+	if err := s.subscribeLogEndpoint(req.Address); err != nil {
 		logger.Error(err)
 		return err
 	}
 	defer func() {
-		if err := endpoint.Unsubscribe(); err != nil {
+		if err := endpoint.Unsubscribe(req.Address); err != nil {
 			logger.Error(err)
 		}
 	}()
@@ -339,15 +339,26 @@ func (s *webapiServer) ListenAndReadNewLog(
 
 	for {
 		// get log
-		log := elm.Value.(*types.Log)
-		logDetail := &rpcpb.LogDetail{Data: hex.EncodeToString(log.Data)}
+		logDetail := elm.Value.(*rpcpb.LogDetail)
+		for topic := range logDetail.Logs {
+			find := false
+			for _, reqTopic := range req.Topics {
+				if topic == reqTopic {
+					find = true
+					break
+				}
+			}
+			if !find {
+				delete(logDetail.Logs, topic)
+			}
+		}
 
 		// send log info
 		if err := stream.Send(logDetail); err != nil {
 			logger.Warnf("webapi send log error %s, exit listen connection!", err)
 			return err
 		}
-		logger.Debugf("webapi server sent a log, data: %v", logDetail.Data)
+		logger.Debugf("webapi server sent a log, data: %v", logDetail.Logs)
 		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
 			return nil
 		}

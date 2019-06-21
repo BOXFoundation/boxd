@@ -88,10 +88,16 @@ message ListenBlocksReq {
 }
 
 message ListenLogsReq {
+    string address = 1;
+    repeated string topics = 2;
 }
 
 message LogDetail {
-    string data = 1;
+    map<string, Logs> logs = 1;
+
+    message Logs {
+        repeated string data = 1;
+    }
 }
 
 message TxDetail {
