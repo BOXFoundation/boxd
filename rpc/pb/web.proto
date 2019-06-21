@@ -87,8 +87,14 @@ message ListenBlocksReq {
 
 message TxDetail {
     string hash = 1;
-    repeated TxInDetail vin = 2;
-    repeated TxOutDetail vout = 3;
+    enum res {
+        coinbase = 0;
+        external_account = 1;
+        contract_account = 2;
+    }
+    res resource = 2;
+    repeated TxInDetail vin = 3;
+    repeated TxOutDetail vout = 4;
 }
 
 message TxInDetail {
