@@ -129,7 +129,7 @@ func (s *txServer) FetchUtxos(
 			for _, u := range resp.GetUtxos() {
 				amount, _, err := txlogic.ParseUtxoAmount(u)
 				if err != nil {
-					logger.Warnf("fetch utxos for %+v error %s", req, err)
+					logger.Warnf("parse utxo %+v amout error %s", u, err)
 					continue
 				}
 				total += amount
@@ -141,7 +141,6 @@ func (s *txServer) FetchUtxos(
 
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
-		logger.Warn("fetch utxos error ", ErrAPINotSupported)
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	var tid *types.TokenID
@@ -155,12 +154,10 @@ func (s *txServer) FetchUtxos(
 	}
 	addr := req.GetAddr()
 	if err := types.ValidateAddr(addr); err != nil {
-		logger.Warn(err)
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
 	utxos, err := walletAgent.Utxos(addr, tid, req.GetAmount())
 	if err != nil {
-		logger.Warnf("fetch utxos for %+v error %s", req, err)
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
 	return newFetchUtxosResp(0, "ok", utxos...), nil
