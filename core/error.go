@@ -92,6 +92,7 @@ var (
 
 	//utxoset.go
 	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
+	ErrUtxoNotFound                = errors.New("utxo not found")
 	ErrAddExistingUtxo             = errors.New("Trying to add utxo already existed")
 	ErrInvalidUtxoWrapProtoMessage = errors.New("Invalid utxo wrap proto message")
 

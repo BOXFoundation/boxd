@@ -896,7 +896,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-		if err := utxoSet.ApplyBlock(blockCopy, chain.db); err != nil {
+		if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 			return err
 		}
 
@@ -915,7 +915,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
-			if err := utxoSet.ApplyInternalTxs(block, chain.db); err != nil {
+			if err := utxoSet.ApplyInternalTxs(block); err != nil {
 				return err
 			}
 		}

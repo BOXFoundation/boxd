@@ -5,9 +5,9 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"math"
-	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -155,7 +155,8 @@ func (op OutPoint) IsContractType() bool {
 	if op.Index != 0 {
 		return false
 	}
-	if !reflect.DeepEqual(op.Hash[:12], ZeroAddressHash[:12]) {
+	if !bytes.Equal(op.Hash[:12], ZeroAddressHash[:12]) ||
+		bytes.Equal(op.Hash[12:], ZeroAddressHash[12:]) {
 		return false
 	}
 	return true

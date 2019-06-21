@@ -540,7 +540,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 	blockCopy := block.Copy()
 	dpos.chain.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy, dpos.chain.DB()); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
 
@@ -570,7 +570,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
 	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, dpos.chain.DB()); err != nil {
+		if err := utxoSet.ApplyInternalTxs(block); err != nil {
 			return err
 		}
 	}
