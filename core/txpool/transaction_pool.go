@@ -133,7 +133,7 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
 			if err := tx_pool.processTxMsg(msg); err != nil {
-				logger.Errorf("Failed to processTxMsg. Err: %v", err)
+				logger.Warnf("Failed to processTxMsg from %s. Err: %s", msg.From().Pretty(), err)
 			}
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
@@ -251,7 +251,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
 	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
 		txHash, _ := tx.TxHash()
-		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash, err)
+		logger.Warnf("Failed to accept tx. TxHash: %s, Err: %s", txHash, err)
 		return err
 	}
 	return tx_pool.processOrphans(tx)

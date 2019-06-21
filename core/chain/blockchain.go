@@ -425,7 +425,8 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	t0 := time.Now().UnixNano()
 	blockHash := block.BlockHash()
-	logger.Infof("Prepare to process block. Hash: %s, Height: %d", blockHash.String(), block.Header.Height)
+	logger.Infof("Prepare to process block. Hash: %s, Height: %d from %s",
+		blockHash.String(), block.Header.Height, messageFrom.Pretty())
 
 	// The block must not already exist in the main chain or side chains.
 	if exists := chain.verifyExists(*blockHash); exists {
@@ -472,7 +473,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	t1 := time.Now().UnixNano()
 	// All context-free checks pass, try to accept the block into the chain.
 	if err := chain.tryAcceptBlock(block, messageFrom); err != nil {
-		logger.Errorf("Failed to accept the block into the main chain. Err: %s", err)
+		logger.Warnf("Failed to accept the block into the main chain. Err: %s", err)
 		return err
 	}
 
@@ -1205,13 +1206,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 	dtt7 := time.Now().UnixNano()
 	// This block is now the end of the best chain.
-	newTail, err := chain.LoadBlockByHash(block.Header.PrevBlockHash)
-	if err != nil {
-		logger.Errorf("load block by hash %s failed when disconnect block, error: %s",
-			block.Header.PrevBlockHash, err)
-		return err
-	}
-	chain.ChangeNewTail(newTail)
+	chain.ChangeNewTail(chain.GetParentBlock(block))
 	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
 		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
 	}

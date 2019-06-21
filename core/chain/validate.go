@@ -27,10 +27,12 @@ type LockTime struct {
 func VerifyBlockTimeOut(block *types.Block) error {
 	now := time.Now().Unix()
 	if now-block.Header.TimeStamp > core.MaxBlockTimeOut {
-		logger.Warnf("The block is timeout. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
+		logger.Warnf("The block is timeout. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %s %d",
+			now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash, block.Header.Height)
 		return core.ErrBlockTimeOut
 	} else if now < block.Header.TimeStamp {
-		logger.Warnf("The block is a future block. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
+		logger.Warnf("The block is a future block. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %s %d",
+			now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash, block.Header.Height)
 		return core.ErrFutureBlock
 	}
 	return nil

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
-	"github.com/BOXFoundation/boxd/p2p/pb"
+	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	pq "github.com/BOXFoundation/boxd/p2p/priorityqueue"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
@@ -87,12 +87,13 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		ctx := goprocessctx.OnClosingContext(proc)
 		s, err := conn.peer.host.NewStream(ctx, conn.remotePeer, ProtocolID)
 		if err != nil {
-			logger.Errorf("Failed to new stream to %s, addrs=%v, err = %s", conn.remotePeer.Pretty(), conn.peer.table.peerStore.PeerInfo(conn.remotePeer), err.Error())
+			logger.Warnf("Failed to new stream to %s, addrs=%v, err = %s", conn.remotePeer.Pretty(),
+				conn.peer.table.peerStore.PeerInfo(conn.remotePeer), err)
 			return
 		}
 		conn.stream = s
 		if err := conn.Ping(); err != nil {
-			logger.Errorf("Failed to ping peer %s, err = %s", conn.remotePeer.Pretty(), err.Error())
+			logger.Errorf("Failed to ping peer %s, err = %s", conn.remotePeer.Pretty(), err)
 			return
 		}
 	}
@@ -109,11 +110,11 @@ func (conn *Conn) loop(proc goprocess.Process) {
 		msg, err := conn.readMessage(conn.stream)
 		if err != nil {
 			if err == yamux.ErrConnectionReset {
-				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
+				logger.Errorf("ReadMessage occurs error. Err: %s", err)
 			} else if err == ErrDuplicateMessage {
 				continue
 			} else {
-				logger.Errorf("ReadMessage occurs error. Err: %s", err.Error())
+				logger.Errorf("ReadMessage occurs error. Err: %s", err)
 			}
 			return
 		}
