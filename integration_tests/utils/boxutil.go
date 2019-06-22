@@ -36,7 +36,8 @@ const (
 
 var logger = log.NewLogger("integration_utils") // logger
 
-func balanceNoPanicFor(accAddr string, conn *grpc.ClientConn) (uint64, error) {
+// BalanceNoPanicFor returns accAddr's balance without panic
+func BalanceNoPanicFor(accAddr string, conn *grpc.ClientConn) (uint64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), RPCTimeout)
 	defer cancel()
 	rpcClient := rpcpb.NewTransactionCommandClient(conn)
@@ -55,7 +56,7 @@ func balanceNoPanicFor(accAddr string, conn *grpc.ClientConn) (uint64, error) {
 
 // BalanceFor get balance of accAddr
 func BalanceFor(accAddr string, conn *grpc.ClientConn) uint64 {
-	b, err := balanceNoPanicFor(accAddr, conn)
+	b, err := BalanceNoPanicFor(accAddr, conn)
 	if err != nil {
 		logger.Panicf("balance for %s error: %s", accAddr, err)
 	}
@@ -136,7 +137,10 @@ func newAccountFromWallet() (string, error) {
 func WaitBalanceEnough(addr string, amount uint64, conn *grpc.ClientConn,
 	timeout time.Duration) (uint64, error) {
 	// return eagerly
-	b := BalanceFor(addr, conn)
+	b, err := BalanceNoPanicFor(addr, conn)
+	if err != nil {
+		return 0, err
+	}
 	if b >= amount {
 		return b, nil
 	}
@@ -147,7 +151,10 @@ func WaitBalanceEnough(addr string, amount uint64, conn *grpc.ClientConn,
 	for i := 0; i < int(timeout/d); i++ {
 		select {
 		case <-t.C:
-			b = BalanceFor(addr, conn)
+			b, err = BalanceNoPanicFor(addr, conn)
+			if err != nil {
+				return 0, err
+			}
 			if b >= amount {
 				return b, nil
 			}
