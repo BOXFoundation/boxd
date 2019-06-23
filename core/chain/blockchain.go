@@ -1124,7 +1124,8 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			return err
 		}
 		stt1 := time.Now().UnixNano()
-		logger.Infof("block %s connected to chain, time tracking: %d", attachBlock.BlockHash(), (stt1-stt0)/1e6)
+		logger.Infof("block %s %d connected to chain, time tracking: %d",
+			attachBlock.BlockHash(), attachBlock.Header.Height, (stt1-stt0)/1e6)
 	}
 
 	logger.Infof("reorganize finished for block %s %d", block.BlockHash(), block.Header.Height)
@@ -1194,6 +1195,12 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// del receipt
 	chain.db.Del(ReceiptKey(block.BlockHash()))
+	// store previous block as tail
+	newTail := chain.GetParentBlock(block)
+	if err := chain.StoreTailBlock(newTail, chain.db); err != nil {
+		logger.Error(err)
+		return err
+	}
 
 	if err := chain.db.Flush(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
@@ -1206,7 +1213,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	chain.notifyBlockConnectionUpdate(nil, []*types.Block{block})
 	dtt7 := time.Now().UnixNano()
 	// This block is now the end of the best chain.
-	chain.ChangeNewTail(chain.GetParentBlock(block))
+	chain.ChangeNewTail(newTail)
 	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
 		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
 	}
@@ -1219,8 +1226,7 @@ func (chain *BlockChain) StoreTailBlock(block *types.Block, db storage.Table) er
 	if err != nil {
 		return err
 	}
-	db.Put(TailKey, data)
-	return nil
+	return db.Put(TailKey, data)
 }
 
 // TailBlock return chain tail block.

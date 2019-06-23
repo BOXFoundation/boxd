@@ -182,7 +182,7 @@ func (tx_pool *TransactionPool) cleanExpiredTxsLoop(p goprocess.Process) {
 func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 
 	for _, v := range msg.DetachBlocks {
-		logger.Debugf("Block %v disconnects from main chain", v.BlockHash())
+		logger.Debugf("Block %s %d disconnects from main chain", v.BlockHash(), v.Header.Height)
 		for _, tx := range v.Txs[1:] {
 			txHash, _ := tx.TxHash()
 			if tx_pool.txcache.Contains(*txHash) {
@@ -209,7 +209,7 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 		}
 	}
 	for _, v := range msg.AttachBlocks {
-		logger.Debugf("Block %v connects to main chain", v.BlockHash())
+		logger.Debugf("Block %s %d connects to main chain", v.BlockHash(), v.Header.Height)
 		tx_pool.removeBlockTxs(v)
 	}
 
