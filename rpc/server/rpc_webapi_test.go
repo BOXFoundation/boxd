@@ -113,7 +113,7 @@ func _TestClientListenNewLogs(t *testing.T) {
 	}
 	defer conn.Close()
 	client := rpcpb.NewWebApiClient(conn)
-	logsReq := &rpcpb.ListenLogsReq{}
+	logsReq := &rpcpb.ListenLogsReq{Address: "b5iKa3sE3wMGzbNCYDBs2LWJMGjy4xU1A6v", Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}
 	stream, err := client.ListenAndReadNewLog(context.Background(), logsReq)
 	if err != nil {
 		t.Fatal(err)

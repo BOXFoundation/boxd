@@ -338,23 +338,18 @@ func (s *webapiServer) ListenAndReadNewLog(
 	}
 
 	for {
-		// get log
+		// get logs
 		logDetail := elm.Value.(*rpcpb.LogDetail)
-		for topic := range logDetail.Logs {
-			find := false
-			for _, reqTopic := range req.Topics {
-				if topic == reqTopic {
-					find = true
-					break
-				}
-			}
-			if !find {
-				delete(logDetail.Logs, topic)
+		retLogDetail := &rpcpb.LogDetail{Logs: make(map[string]*rpcpb.LogDetail_Logs)}
+
+		for _, topic := range req.Topics {
+			if logs, ok := logDetail.Logs[topic]; ok {
+				retLogDetail.Logs[topic] = logs
 			}
 		}
 
-		// send log info
-		if err := stream.Send(logDetail); err != nil {
+		// send log detail
+		if err := stream.Send(retLogDetail); err != nil {
 			logger.Warnf("webapi send log error %s, exit listen connection!", err)
 			return err
 		}

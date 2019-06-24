@@ -286,6 +286,12 @@ const (
 ]`
 )
 
+// func TestAbi(t *testing.T) {
+// 	aaa := abi.ABI{}
+// 	aaa.UnmarshalJSON([]byte(testERC20Abi))
+// 	fmt.Printf("%x", aaa.Events["Transfer"].Id())
+// }
+
 func _TestExtractBoxTx(t *testing.T) {
 	// contract Temp {
 	//     function () payable {}

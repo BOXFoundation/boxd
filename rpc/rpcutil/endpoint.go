@@ -170,7 +170,7 @@ func (lep *LogEndpoint) receiveNewLog(logs []*types.Log) {
 	lep.eventMtx.Lock()
 	defer lep.eventMtx.Unlock()
 
-	logDetail := &rpcpb.LogDetail{}
+	logDetail := &rpcpb.LogDetail{Logs: make(map[string]*rpcpb.LogDetail_Logs)}
 	for _, log := range logs {
 		topic := hex.EncodeToString(log.Topics[0].Bytes())
 
