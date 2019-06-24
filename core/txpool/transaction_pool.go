@@ -20,7 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
@@ -272,6 +272,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 		tx_pool.txcache.Contains(*txHash) {
 		logger.Debugf("Tx %v already exists", txHash.String())
 		return core.ErrDuplicateTxInPool
+	}
+	// If the transaction contains a contract vin, it will not enter the trading pool.
+	for _,txin:=range tx.Vin{
+		if txin.PrevOutPoint.IsContractType(){
+			logger.Debugf("Tx %v Vin is the type of contract")
+			return core.ErrBadTxInput
+		}
 	}
 
 	// Perform preliminary sanity checks on the transaction.
