@@ -103,6 +103,8 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 	for offset >= 0 && height > 0 {
 		block, err := bft.chain.LoadBlockByHeight(height)
 		if err != nil {
+			height--
+			offset--
 			continue
 		}
 		blockHash := *block.BlockHash()
