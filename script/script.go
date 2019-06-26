@@ -496,14 +496,14 @@ func CalcTxHashForSig(scriptPubKey []byte, originalTx *types.Transaction, txInId
 	}
 
 	// Make a hard copy here to avoid racing conditions when verifying signature in parallel
-	tx := originalTx.Copy()
+	tx := originalTx
+	txIn := tx.Vin[txInIdx]
+	txIn.ScriptSig = make([]byte, len(scriptPubKey))
+	copy(txIn.ScriptSig, scriptPubKey)
 	for i, txIn := range tx.Vin {
 		if i != txInIdx {
 			// Blank out other inputs' signatures
 			txIn.ScriptSig = nil
-		} else {
-			// Replace scriptSig with referenced scriptPubKey
-			txIn.ScriptSig = scriptPubKey
 		}
 	}
 
