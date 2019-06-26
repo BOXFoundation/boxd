@@ -274,9 +274,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 		return core.ErrDuplicateTxInPool
 	}
 	// If the transaction contains a contract vin, it will not enter the trading pool.
-	for _,txin:=range tx.Vin{
-		if txin.PrevOutPoint.IsContractType(){
-			logger.Debugf("Tx %v Vin is the type of contract")
+	for _, txin := range tx.Vin {
+		if txin.PrevOutPoint.IsContractType() {
+			logger.Errorf("Tx %v Vin is the type of contract")
 			return core.ErrBadTxInput
 		}
 	}

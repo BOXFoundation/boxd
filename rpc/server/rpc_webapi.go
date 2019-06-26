@@ -30,6 +30,9 @@ import (
 
 const (
 	newBlockMsgSize = 60
+	coinBase        = 0
+	externalAccount = 1
+	contractAccount = 2
 )
 
 func init() {
@@ -471,18 +474,19 @@ func detailTx(
 	}
 	// hash
 	detail.Hash = txHash.String()
-	if len(tx.Vin) == 1 && tx.Vin[0].PrevOutPoint.Hash == crypto.ZeroHash && tx.Vin[0].PrevOutPoint.Index == math.MaxUint32 {
-		detail.Resource = 0
+	//get transaction source
+	if chain.IsCoinBase(tx) {
+		detail.Source = coinBase
 	} else {
-		detail.Resource = 1
-		for _, x := range tx.Vout {
-			sc := script.NewScriptFromBytes(x.GetScriptPubKey())
-			if sc.IsContractPubkey() {
-				detail.Resource = 2
+		detail.Source = externalAccount
+		for _, x := range tx.Vin {
+			if x.PrevOutPoint.IsContractType() {
+				detail.Source = contractAccount
 				break
 			}
 		}
 	}
+
 	// parse vin
 	for _, in := range tx.Vin {
 		inDetail, err := detailTxIn(in, br, tr, detailVin)
