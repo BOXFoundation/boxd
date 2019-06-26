@@ -48,7 +48,7 @@ func NewTxWithUtxos(
 // NewSplitAddrTxWithUtxos new split address tx
 func NewSplitAddrTxWithUtxos(
 	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
-) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
+) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 
 	if len(addrs) != len(weights) {
 		err = ErrInvalidArguments
@@ -61,7 +61,7 @@ func NewSplitAddrTxWithUtxos(
 	}
 	changeAmt := utxoValue - fee
 	// make unsigned split addr tx
-	tx, splitAddr, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
+	tx, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
 		changeAmt, utxos...)
 	if err != nil {
 		return
@@ -268,14 +268,14 @@ func NewContractTxWithUtxos(
 // MakeUnsignedSplitAddrTx make unsigned split addr tx
 func MakeUnsignedSplitAddrTx(
 	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*types.Transaction, string, error) {
+) (*types.Transaction, error) {
 
 	if len(addrs) != len(weights) {
-		return nil, "", ErrInvalidArguments
+		return nil, ErrInvalidArguments
 	}
 
 	if !checkAmount(nil, changeAmt, utxos...) {
-		return nil, "", ErrInsufficientBalance
+		return nil, ErrInsufficientBalance
 	}
 	// vin
 	vins := make([]*types.TxIn, 0)
@@ -292,10 +292,8 @@ func MakeUnsignedSplitAddrTx(
 	if changeAmt > 0 {
 		tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
 	}
-	// calc split addr
-	addr, err := MakeSplitAddr(addrs, weights)
 	//
-	return tx, addr, err
+	return tx, nil
 }
 
 // MakeUnsignedTokenIssueTx make unsigned token issue tx

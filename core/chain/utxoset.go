@@ -224,12 +224,14 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 		}
 	}
 
-	value := utxoWrap.Value() + vout.Value
-	logger.Infof("modify contract utxo, outpoint: %+v, value: %d, previous value: %d",
-		outPoint, value, utxoWrap.Value())
-	utxoWrap.SetValue(value)
-	u.utxoMap[*outPoint] = utxoWrap
-	u.contractUtxos = append(u.contractUtxos, outPoint)
+	if vout.Value > 0 {
+		value := utxoWrap.Value() + vout.Value
+		logger.Infof("modify contract utxo, outpoint: %+v, value: %d, previous value: %d",
+			outPoint, value, utxoWrap.Value())
+		utxoWrap.SetValue(value)
+		u.utxoMap[*outPoint] = utxoWrap
+		u.contractUtxos = append(u.contractUtxos, outPoint)
+	}
 
 	return nil
 }

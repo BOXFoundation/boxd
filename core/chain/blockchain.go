@@ -25,6 +25,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -1946,13 +1947,9 @@ func (chain *BlockChain) GetDataFromDB(key []byte) ([]byte, error) {
 // WriteSplitAddrIndex writes split addr info index
 func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Table) error {
 	for _, tx := range block.Txs {
-		for _, vout := range tx.Vout {
+		for i, vout := range tx.Vout {
 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
 			if sc.IsSplitAddrScript() {
-				addr, err := sc.ExtractAddress()
-				if err != nil {
-					return err
-				}
 				addrs, weights, err := sc.ParseSplitAddrScript()
 				if err != nil {
 					return err
@@ -1965,6 +1962,8 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Tabl
 				if err != nil {
 					return err
 				}
+				txHash, _ := tx.TxHash()
+				addr := txlogic.MakeSplitAddress(txHash, uint32(i), addrs, weights)
 				k := SplitAddrKey(addr.Hash())
 				db.Put(k, dataBytes)
 				chain.splitAddrFilter.Add(addr.Hash())
@@ -1978,13 +1977,15 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Tabl
 // DeleteSplitAddrIndex remove split address index from both db and cache
 func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Table) error {
 	for _, tx := range block.Txs {
-		for _, vout := range tx.Vout {
+		for i, vout := range tx.Vout {
 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
 			if sc.IsSplitAddrScript() {
-				addr, err := sc.ExtractAddress()
+				addrs, weights, err := sc.ParseSplitAddrScript()
 				if err != nil {
 					return err
 				}
+				txHash, _ := tx.TxHash()
+				addr := txlogic.MakeSplitAddress(txHash, uint32(i), addrs, weights)
 				k := SplitAddrKey(addr.Hash())
 				db.Del(k)
 				logger.Debugf("Remove Split Address: %s", addr.String())

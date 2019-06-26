@@ -101,6 +101,7 @@ func FetchUtxosOf(
 		return utxos, nil
 	}
 	if len(keys) > utxoMergeCnt {
+		logger.Infof("%s has %d utxos, start utxos merger", addr, len(keys))
 		total = math.MaxUint64
 	}
 	// fetch moderate utxos by adjustint to total

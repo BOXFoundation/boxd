@@ -295,16 +295,9 @@ func (s *txServer) MakeUnsignedTx(
 	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
 }
 
-func newMakeSplitAddrTxResp(code int32, msg string) *rpcpb.MakeSplitAddrTxResp {
-	return &rpcpb.MakeSplitAddrTxResp{
-		Code:    code,
-		Message: msg,
-	}
-}
-
 func (s *txServer) MakeUnsignedSplitAddrTx(
 	ctx context.Context, req *rpcpb.MakeSplitAddrTxReq,
-) (resp *rpcpb.MakeSplitAddrTxResp, err error) {
+) (resp *rpcpb.MakeTxResp, err error) {
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
@@ -318,33 +311,30 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 	//
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
-		return newMakeSplitAddrTxResp(-1, ErrAPINotSupported.Error()), nil
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, addrs := req.GetFrom(), req.GetAddrs()
 	if err := types.ValidateAddr(append(addrs, from)...); err != nil {
 		logger.Warn(err)
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	weights, gasPrice := req.GetWeights(), req.GasPrice
 	gasUsed := gasPrice * core.TransferGasLimit
 	// make tx without sign
-	tx, splitAddr, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs,
-		weights, gasUsed)
+	tx, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs, weights, gasUsed)
 	if err != nil {
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	pbTx, err := tx.ConvToPbTx()
 	if err != nil {
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	// calc raw msgs
 	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
 	if err != nil {
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	resp = newMakeSplitAddrTxResp(0, "success")
-	resp.SplitAddr, resp.Tx, resp.RawMsgs = splitAddr, pbTx, rawMsgs
-	return resp, nil
+	return newMakeTxResp(0, "success", pbTx, rawMsgs), nil
 }
 
 func newMakeTokenIssueTxResp(code int32, msg string) *rpcpb.MakeTokenIssueTxResp {

@@ -6,7 +6,6 @@ package txlogic
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -346,35 +345,30 @@ func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.
 
 // MakeSplitAddrVout make split addr vout
 func MakeSplitAddrVout(addrs []string, weights []uint64) *corepb.TxOut {
-	return &corepb.TxOut{
-		Value:        0,
-		ScriptPubKey: MakeSplitAddrPubkey(addrs, weights),
-	}
-}
-
-// MakeSplitAddrPubkey make split addr
-func MakeSplitAddrPubkey(addrs []string, weights []uint64) []byte {
 	addresses := make([]types.Address, len(addrs))
 	for i, addr := range addrs {
 		addresses[i], _ = types.NewAddress(addr)
 	}
-	return *script.SplitAddrScript(addresses, weights)
+	return &corepb.TxOut{
+		Value:        0,
+		ScriptPubKey: *script.SplitAddrScript(addresses, weights),
+	}
 }
 
-// MakeSplitAddr make split addr
-func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
-	pk := MakeSplitAddrPubkey(addrs, weights)
-	splitAddrScriptStr := script.NewScriptFromBytes(pk).Disasm()
-	s := strings.Split(splitAddrScriptStr, " ")
-	pubKeyHash, err := hex.DecodeString(s[1])
-	if err != nil {
-		return "", err
-	}
-	addr, err := types.NewSplitAddressFromHash(pubKeyHash)
-	if err != nil {
-		return "", err
-	}
-	return addr.String(), nil
+// MakeSplitAddress make split addr
+func MakeSplitAddress(
+	txHash *crypto.HashType, idx uint32, addrs []types.Address, weights []uint64,
+) types.Address {
+	pk := *script.SplitAddrScript(addrs, weights)
+	sc := script.NewScriptFromBytes(pk)
+	addr, _ := sc.ExtractAddress()
+	idxBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(idxBytes, idx)
+	raw := append(txHash[:], idxBytes...)
+	raw = append(raw, addr.Hash()...)
+	splitAddrHash := crypto.Hash160(raw)
+	addr, _ = types.NewSplitAddressFromHash(splitAddrHash)
+	return addr
 }
 
 // EncodeOutPoint encode token to string
