@@ -5,17 +5,22 @@
 package transactioncmd
 
 import (
+	"bytes"
+	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -91,6 +96,17 @@ to quickly create a Cobra  application.`,
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
 			Run:   sendrawtx,
+		},
+
+		&cobra.Command{
+			Use:   "txdetail",
+			Short: "view transaction detail",
+			Run:   viewtxdetail,
+		},
+		&cobra.Command{
+			Use:   "blockdetail",
+			Short: "view block detail",
+			Run:   viewblockdetail,
 		},
 	)
 }
@@ -317,6 +333,89 @@ func parseSendParams(args []string) (addrs []string, amounts []uint64, err error
 		amounts = append(amounts, uint64(amount))
 	}
 	return addrs, amounts, nil
+}
+
+func viewblockdetail(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println("Please input a block hash")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := rpcpb.NewWebApiClient(conn)
+	defer conn.Close()
+	req := &rpcpb.ViewBlockDetailReq{Hash: args[0]}
+	fmt.Println("req")
+	resp, err := c.ViewBlockDetail(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println("get block detail failed", resp.Message)
+		return
+	}
+	blockDetailBytes, err := json.Marshal(resp.Detail)
+	if err != nil {
+		fmt.Println("marshal error: ", err)
+		return
+	}
+	var printJSON bytes.Buffer
+	error := json.Indent(&printJSON, blockDetailBytes, "", " ")
+	if error != nil {
+		fmt.Println("JSON parse error: ", error)
+		return
+	}
+	fmt.Println(string(printJSON.Bytes()))
+}
+
+func viewtxdetail(cmd *cobra.Command, args []string) {
+
+	if len(args) != 1 {
+		fmt.Println("Please input a block hash")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := rpcpb.NewWebApiClient(conn)
+	defer conn.Close()
+	req := &rpcpb.ViewTxDetailReq{Hash: args[0], SpreadSplit: false}
+	resp, err := c.ViewTxDetail(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println("get transaction detail failed", resp.Message)
+		return
+	}
+	txDetailBytes, err := json.Marshal(resp.Detail)
+	if err != nil {
+		fmt.Println("marshall error: ", err)
+		return
+	}
+	var printJSON bytes.Buffer
+	error := json.Indent(&printJSON, txDetailBytes, "", " ")
+	if error != nil {
+		fmt.Println("JSON parse error: ", error)
+		return
+	}
+	fmt.Println(string(printJSON.Bytes()))
 }
 
 func getRPCAddr() string {
