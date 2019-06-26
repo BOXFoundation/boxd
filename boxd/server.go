@@ -138,7 +138,7 @@ func (server *Server) Prepare() {
 	server.peer = peer
 
 	// prepare block chain.
-	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus)
+	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus, &cfg.Chain)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain... Err: %s", err.Error()) // exit in case of error during creating p2p server instance
 	}

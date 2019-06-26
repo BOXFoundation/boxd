@@ -374,7 +374,12 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0)
-	b1.Header.RootHash.SetString("c1fe380cc58ea1bfdb6bf400f925b8d28df9699018d99e03edb15f855cf334e6")
+	root, utxoRoot, err := calcRootHash(b0, b1, blockChain, 0)
+	b1.Header.RootHash = *root
+	if utxoRoot != nil {
+		b1.Header.UtxoRoot = *utxoRoot
+	}
+	// b1.Header.RootHash.SetString("177b8f2a78448d55b0d0fd1855704eb698133e52a7d32323293494391db14826")
 	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 	balance := getBalance(minerAddr.String(), blockChain.db)
 	stateBalance, _ := blockChain.GetBalance(minerAddr)
@@ -392,11 +397,16 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(txlogic.MakeVout(userAddr.String(), userBalance)).
 		AppendVout(txlogic.MakeVout(minerAddr.String(), BaseSubsidy-userBalance))
-	err := signTx(tx, privKeyMiner, pubKeyMiner)
+	err = signTx(tx, privKeyMiner, pubKeyMiner)
 	ensure.DeepEqual(t, err, nil)
 
 	b2 := nextBlockWithTxs(b1, tx)
-	b2.Header.RootHash.SetString("97057e28c8faf3dc1343890faa4aaf65765c6ea726eb0125d9188c202bb8a3d7")
+	root, utxoRoot, _ = calcRootHash(b1, b2, blockChain, 0)
+	b2.Header.RootHash = *root
+	if utxoRoot != nil {
+		b2.Header.UtxoRoot = *utxoRoot
+	}
+	// b2.Header.RootHash.SetString("97057e28c8faf3dc1343890faa4aaf65765c6ea726eb0125d9188c202bb8a3d7")
 	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
 	// check balance
 	// for userAddr
@@ -534,8 +544,15 @@ func TestFaucetContract(t *testing.T) {
 	t.Logf("contract address: %s", contractAddr)
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
-	b3.Header.RootHash.SetString("7a999efa9fcc0d58b3a0e0959ef40cfef8df019a7945d7157033d24435690e83")
-	b3.Header.UtxoRoot.SetString("23e986e2282ddfb84d003b81a32f801eac7579a7a76e66519896b27d0ae362f7")
+
+	root, utxoRoot, _ := calcRootHash(b2, b3, blockChain, gasPrice*gasUsed)
+	b3.Header.RootHash = *root
+	if utxoRoot != nil {
+		b3.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b3.Header.RootHash.SetString("7a999efa9fcc0d58b3a0e0959ef40cfef8df019a7945d7157033d24435690e83")
+	// b3.Header.UtxoRoot.SetString("23e986e2282ddfb84d003b81a32f801eac7579a7a76e66519896b27d0ae362f7")
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b3.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil, gasRefundTx)
@@ -577,8 +594,15 @@ func TestFaucetContract(t *testing.T) {
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b4 := nextBlockWithTxs(b3, vmTx)
-	b4.Header.RootHash.SetString("af3defef7e1a7fe8866ba1e14be3a567920a04bae7a77bdbf4095f9a0ecd6f3f")
-	b4.Header.UtxoRoot.SetString("e39a03ffead32d90383f7ca635b0d7850a2b8f22ea6bafa1de96d8e5f98af2a3")
+
+	root, utxoRoot, _ = calcRootHash(b3, b4, blockChain, gasPrice*gasUsed)
+	b4.Header.RootHash = *root
+	if utxoRoot != nil {
+		b4.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b4.Header.RootHash.SetString("af3defef7e1a7fe8866ba1e14be3a567920a04bae7a77bdbf4095f9a0ecd6f3f")
+	// b4.Header.UtxoRoot.SetString("e39a03ffead32d90383f7ca635b0d7850a2b8f22ea6bafa1de96d8e5f98af2a3")
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b4.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	contractBlockHandle(t, blockChain, b3, b4, b4, vmParam, nil, gasRefundTx, contractTx)
@@ -615,8 +639,14 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), vmValue))
 	//
 	b5 := nextBlockWithTxs(b4, vmTx)
-	b5.Header.RootHash.SetString("0bf64507600e191311f40c2ad178be827e6e43eafbd053d9c7210da1b7a35dd8")
-	b5.Header.UtxoRoot.SetString("8909c72909a9959740e0b9710c59c1f218d2a6a3e1b4bb9096ac4803feb5fd5b")
+
+	root, utxoRoot, _ = calcRootHash(b4, b5, blockChain, gasPrice*gasUsed)
+	b5.Header.RootHash = *root
+	if utxoRoot != nil {
+		b5.Header.UtxoRoot = *utxoRoot
+	}
+	// b5.Header.RootHash.SetString("0bf64507600e191311f40c2ad178be827e6e43eafbd053d9c7210da1b7a35dd8")
+	// b5.Header.UtxoRoot.SetString("8909c72909a9959740e0b9710c59c1f218d2a6a3e1b4bb9096ac4803feb5fd5b")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
 	b5.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -679,8 +709,15 @@ func TestFaucetContract(t *testing.T) {
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b6 = nextBlockWithTxs(b5, vmTx)
-	b6.Header.RootHash.SetString("b955aba83fd8773d33dab64bb961c2c72cc095fc0529a41984f4b4c39c05b54b")
-	b6.Header.UtxoRoot.SetBytes(b5.Header.UtxoRoot[:])
+
+	root, utxoRoot, _ = calcRootHash(b5, b6, blockChain, gasPrice*gasUsed)
+	b6.Header.RootHash = *root
+	if utxoRoot != nil {
+		b6.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b6.Header.RootHash.SetString("b955aba83fd8773d33dab64bb961c2c72cc095fc0529a41984f4b4c39c05b54b")
+	// b6.Header.UtxoRoot.SetBytes(b5.Header.UtxoRoot[:])
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
 	b6.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil, gasRefundTx)
@@ -847,9 +884,15 @@ func TestCoinContract(t *testing.T) {
 	// TODO
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
-	b3.Header.RootHash.SetString("e64182ce966ec345c08a8f139331e7b96c3cf6069c5e2f55a080a0061fa09ae1")
-	utxoRootHash := "38c155f64dcf43043ea9b0002b71d11d4fd58c0fa6921e59bd7d812e574ccf28"
-	b3.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ := calcRootHash(b2, b3, blockChain, gasPrice*gasUsed)
+	b3.Header.RootHash = *root
+	if utxoRoot != nil {
+		b3.Header.UtxoRoot = *utxoRoot
+	}
+	// b3.Header.RootHash.SetString("e64182ce966ec345c08a8f139331e7b96c3cf6069c5e2f55a080a0061fa09ae1")
+	// utxoRootHash := "38c155f64dcf43043ea9b0002b71d11d4fd58c0fa6921e59bd7d812e574ccf28"
+	// b3.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ := vmTx.TxHash()
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b3.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -883,8 +926,15 @@ func TestCoinContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b4 := nextBlockWithTxs(b3, vmTx)
-	b4.Header.RootHash.SetString("74094671ea59c16d215cb0797f51d8ded5a1e0c8932bddb82b2a86f7b9366fe6")
-	b4.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b3, b4, blockChain, gasPrice*gasUsed)
+	b4.Header.RootHash = *root
+	if utxoRoot != nil {
+		b4.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b4.Header.RootHash.SetString("74094671ea59c16d215cb0797f51d8ded5a1e0c8932bddb82b2a86f7b9366fe6")
+	// b4.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b4.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -918,8 +968,15 @@ func TestCoinContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b5 := nextBlockWithTxs(b4, vmTx)
-	b5.Header.RootHash.SetString("aa0c32471602b461406f808a27d0f911f4e440ff62280c5c059b52a556bd5130")
-	b5.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b4, b5, blockChain, gasPrice*gasUsed)
+	b5.Header.RootHash = *root
+	if utxoRoot != nil {
+		b5.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b5.Header.RootHash.SetString("aa0c32471602b461406f808a27d0f911f4e440ff62280c5c059b52a556bd5130")
+	// b5.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b5.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -953,8 +1010,15 @@ func TestCoinContract(t *testing.T) {
 	signTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, vmTx)
-	b6.Header.RootHash.SetString("404aa027eb404b7d3608ccc4f87f7e866916cf4ef646176088e68ad63b0e8779")
-	b6.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b5, b6, blockChain, gasPrice*gasUsed)
+	b6.Header.RootHash = *root
+	if utxoRoot != nil {
+		b6.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b6.Header.RootHash.SetString("404aa027eb404b7d3608ccc4f87f7e866916cf4ef646176088e68ad63b0e8779")
+	// b6.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b6.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -992,8 +1056,15 @@ func TestCoinContract(t *testing.T) {
 	gasRefundTxHash, _ := gasRefundTx.TxHash()
 	t.Logf("refund tx: %s", gasRefundTxHash)
 	b7 := nextBlockWithTxs(b6, vmTx)
-	b7.Header.RootHash.SetString("a0589aeda39379bc4a5e3c368ea43c3acbd5e5395af9c60bc890826d5a28ae5d")
-	b7.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b6, b7, blockChain, gasPrice*gasUsed)
+	b7.Header.RootHash = *root
+	if utxoRoot != nil {
+		b7.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b7.Header.RootHash.SetString("a0589aeda39379bc4a5e3c368ea43c3acbd5e5395af9c60bc890826d5a28ae5d")
+	// b7.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b7.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1105,9 +1176,16 @@ func TestERC20Contract(t *testing.T) {
 	//
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
-	b3.Header.RootHash.SetString("f7c3382e36452cf8df488d4d07b2915f43e871536f0e9ee3b2c0e090ef5407a0")
-	utxoRootHash := "38c155f64dcf43043ea9b0002b71d11d4fd58c0fa6921e59bd7d812e574ccf28"
-	b3.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ := calcRootHash(b2, b3, blockChain, gasPrice*gasUsed)
+	b3.Header.RootHash = *root
+	if utxoRoot != nil {
+		b3.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b3.Header.RootHash.SetString("f7c3382e36452cf8df488d4d07b2915f43e871536f0e9ee3b2c0e090ef5407a0")
+	// utxoRootHash := "38c155f64dcf43043ea9b0002b71d11d4fd58c0fa6921e59bd7d812e574ccf28"
+	// b3.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ := vmTx.TxHash()
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b3.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1142,8 +1220,15 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3A := nextBlockWithTxs(b3, vmTx)
-	b3A.Header.RootHash.SetString("92185cea3cc5e92e61a93aad8d447b9bd6619a98a16c37e4e234f12251da925b")
-	b3A.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b3, b3A, blockChain, gasPrice*gasUsed)
+	b3A.Header.RootHash = *root
+	if utxoRoot != nil {
+		b3A.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b3A.Header.RootHash.SetString("92185cea3cc5e92e61a93aad8d447b9bd6619a98a16c37e4e234f12251da925b")
+	// b3A.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b3A.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1185,8 +1270,15 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b4 := nextBlockWithTxs(b3A, vmTx)
-	b4.Header.RootHash.SetString("d5a85c1cbc4fe6db563b2f5e375cabbcaec9fb649ac13b2a4ccf8839a82c7a0b")
-	b4.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b3A, b4, blockChain, gasPrice*gasUsed)
+	b4.Header.RootHash = *root
+	if utxoRoot != nil {
+		b4.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b4.Header.RootHash.SetString("d5a85c1cbc4fe6db563b2f5e375cabbcaec9fb649ac13b2a4ccf8839a82c7a0b")
+	// b4.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b4.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1222,8 +1314,15 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b5 := nextBlockWithTxs(b4, vmTx)
-	b5.Header.RootHash.SetString("ad50bfd5f3801eb79ed0778acb3870f18bffba04140c9edb486cab657eac7c50")
-	b5.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b4, b5, blockChain, gasPrice*gasUsed)
+	b5.Header.RootHash = *root
+	if utxoRoot != nil {
+		b5.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b5.Header.RootHash.SetString("ad50bfd5f3801eb79ed0778acb3870f18bffba04140c9edb486cab657eac7c50")
+	// b5.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b5.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1265,8 +1364,14 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, vmTx)
-	b6.Header.RootHash.SetString("431863d3250351ec4d9945f2f3affce6f34880b370b780a7b85fb6aa76fda4f1")
-	b6.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b5, b6, blockChain, gasPrice*gasUsed)
+	b6.Header.RootHash = *root
+	if utxoRoot != nil {
+		b6.Header.UtxoRoot = *utxoRoot
+	}
+	// b6.Header.RootHash.SetString("431863d3250351ec4d9945f2f3affce6f34880b370b780a7b85fb6aa76fda4f1")
+	// b6.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b6.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1303,8 +1408,14 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), minerNonce)
 	b7 := nextBlockWithTxs(b6, vmTx)
-	b7.Header.RootHash.SetString("e8afb2306dcbaa6c61669220c3bad300a421082b4bcc6aaea7d481e831fce9b8")
-	b7.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b6, b7, blockChain, gasPrice*gasUsed)
+	b7.Header.RootHash = *root
+	if utxoRoot != nil {
+		b7.Header.UtxoRoot = *utxoRoot
+	}
+	// b7.Header.RootHash.SetString("e8afb2306dcbaa6c61669220c3bad300a421082b4bcc6aaea7d481e831fce9b8")
+	// b7.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
 	b7.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1342,8 +1453,15 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b8 := nextBlockWithTxs(b7, vmTx)
-	b8.Header.RootHash.SetString("4c92d920e640fe8eaacb84516001bfebd0f037d19f352597676d2910a85b6123")
-	b8.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b7, b8, blockChain, gasPrice*gasUsed)
+	b8.Header.RootHash = *root
+	if utxoRoot != nil {
+		b8.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b8.Header.RootHash.SetString("4c92d920e640fe8eaacb84516001bfebd0f037d19f352597676d2910a85b6123")
+	// b8.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b8.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1379,8 +1497,15 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b9 := nextBlockWithTxs(b8, vmTx)
-	b9.Header.RootHash.SetString("7816518ce1ebd785bee0a4618597fbf300461cb627942a6ba683401788e0f913")
-	b9.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b8, b9, blockChain, gasPrice*gasUsed)
+	b9.Header.RootHash = *root
+	if utxoRoot != nil {
+		b9.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b9.Header.RootHash.SetString("7816518ce1ebd785bee0a4618597fbf300461cb627942a6ba683401788e0f913")
+	// b9.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b9.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1414,8 +1539,15 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b10 := nextBlockWithTxs(b9, vmTx)
-	b10.Header.RootHash.SetString("dfce597d21b1db7c34bda440906a240ec2e471ad34f41e8c9a9761c11fb0e621")
-	b10.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b9, b10, blockChain, gasPrice*gasUsed)
+	b10.Header.RootHash = *root
+	if utxoRoot != nil {
+		b10.Header.UtxoRoot = *utxoRoot
+	}
+
+	// b10.Header.RootHash.SetString("dfce597d21b1db7c34bda440906a240ec2e471ad34f41e8c9a9761c11fb0e621")
+	// b10.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b10.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1450,8 +1582,14 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), minerNonce)
 	b11 := nextBlockWithTxs(b10, vmTx)
-	b11.Header.RootHash.SetString("9a6d121fcacacc199c687343ddda4bb40375e4f796e7bf5ef110140dbb89ea13")
-	b11.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b10, b11, blockChain, gasPrice*gasUsed)
+	b11.Header.RootHash = *root
+	if utxoRoot != nil {
+		b11.Header.UtxoRoot = *utxoRoot
+	}
+	// b11.Header.RootHash.SetString("9a6d121fcacacc199c687343ddda4bb40375e4f796e7bf5ef110140dbb89ea13")
+	// b11.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b11.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1487,8 +1625,14 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b12 := nextBlockWithTxs(b11, vmTx)
-	b12.Header.RootHash.SetString("005f1476e3bb297d71f9b3239b914b26dc331b1d5ea313959f6afca7976ac277")
-	b12.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b11, b12, blockChain, gasPrice*gasUsed)
+	b12.Header.RootHash = *root
+	if utxoRoot != nil {
+		b12.Header.UtxoRoot = *utxoRoot
+	}
+	// b12.Header.RootHash.SetString("005f1476e3bb297d71f9b3239b914b26dc331b1d5ea313959f6afca7976ac277")
+	// b12.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b12.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -1530,8 +1674,14 @@ func TestERC20Contract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b13 := nextBlockWithTxs(b12, vmTx)
-	b13.Header.RootHash.SetString("61ad6fa5ef8dacf0f512b0d20c59dc50dd9d071b2b539d02611dd719238bd84f")
-	b13.Header.UtxoRoot.SetString(utxoRootHash)
+
+	root, utxoRoot, _ = calcRootHash(b12, b13, blockChain, gasPrice*gasUsed)
+	b13.Header.RootHash = *root
+	if utxoRoot != nil {
+		b13.Header.UtxoRoot = *utxoRoot
+	}
+	// b13.Header.RootHash.SetString("61ad6fa5ef8dacf0f512b0d20c59dc50dd9d071b2b539d02611dd719238bd84f")
+	// b13.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b13.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())

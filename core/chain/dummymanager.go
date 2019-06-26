@@ -39,9 +39,13 @@ func NewTestBlockChain() *BlockChain {
 		Path: "~/tmp",
 	}
 
+	cfg := &Config{
+		ContractPath: "../../contract/bonus.bin",
+	}
+
 	proc := goprocess.WithSignals(os.Interrupt)
 	db, _ := storage.NewDatabase(proc, dbCfg)
-	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db, eventbus.Default())
+	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db, eventbus.Default(), cfg)
 	// set sync manager
 	blockChain.Setup(new(DummyDpos), NewDummySyncManager())
 	return blockChain

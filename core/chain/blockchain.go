@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"runtime"
 	"runtime/debug"
@@ -35,6 +36,7 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/util/bloom"
 	"github.com/BOXFoundation/boxd/vm"
+	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/BOXFoundation/boxd/vm/common/math"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
@@ -69,8 +71,14 @@ var logger = log.NewLogger("chain") // logger
 
 var _ service.ChainReader = (*BlockChain)(nil)
 
+// Config defines the configurations of chain
+type Config struct {
+	ContractPath string `mapstructure:"contract_path"`
+}
+
 // BlockChain define chain struct
 type BlockChain struct {
+	cfg           *Config
 	notifiee      p2p.Net
 	newblockMsgCh chan p2p.Message
 	consensus     Consensus
@@ -107,9 +115,10 @@ type UpdateMsg struct {
 }
 
 // NewBlockChain return a blockchain.
-func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus) (*BlockChain, error) {
+func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus, cfg *Config) (*BlockChain, error) {
 
 	b := &BlockChain{
+		cfg:                       cfg,
 		notifiee:                  notifiee,
 		newblockMsgCh:             make(chan p2p.Message, BlockMsgChBufferSize),
 		proc:                      goprocess.WithParent(parent),
@@ -776,9 +785,11 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	// update EOA accounts' balance state
 	bAdd, bSub := utxoset.calcNormalTxBalanceChanges(block)
 	for a, v := range bAdd {
+		logger.Warnf("DEBUG: update normal balance add %x %d", a[:], v)
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
 	}
 	for a, v := range bSub {
+		logger.Warnf("DEBUG: update normal balance sub %x %d", a[:], v)
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
 }
@@ -931,6 +942,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 		if !root.IsEqual(&block.Header.RootHash) {
+			logger.Warnf("DEBUG: utxoRoot after commit: %s, %s in header", utxoRoot, block.Header.UtxoRoot)
 			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
 				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
 				block.Header.Height)
@@ -1340,6 +1352,24 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+	code, err := readBin(chain.cfg.ContractPath)
+	vmTx := types.NewVMTransaction(big.NewInt(0), big.NewInt(0), 1e8, 1, nil, types.ContractCreationType, code)
+	adminAddr, err := types.NewAddress(Admin)
+	if err != nil {
+		return nil, err
+	}
+	vmTx.WithFrom(adminAddr.Hash160())
+	ctx := NewEVMContext(vmTx, genesis.Header, chain)
+	logConfig := vm.LogConfig{}
+	structLogger := vm.NewStructLogger(&logConfig)
+	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
+
+	evm := vm.NewEVM(ctx, stateDB, vmConfig)
+	_, _, _, vmerr := evm.Create(vm.AccountRef(*vmTx.From()), vmTx.Data(), vmTx.Gas(), big.NewInt(0), false)
+	if vmerr != nil {
+		return nil, vmerr
+	}
+
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
 	root, _, err := stateDB.Commit(false)
 	if err != nil {
@@ -1365,6 +1395,14 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, err
 	}
 	return &genesis, nil
+}
+
+func readBin(filename string) ([]byte, error) {
+	code, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return hexutil.MustDecode("0x" + strings.TrimSpace(string(code))), nil
 }
 
 // LoadEternalBlock returns the current highest eternal block

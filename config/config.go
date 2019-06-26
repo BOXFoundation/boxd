@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/core/chain"
 	logtypes "github.com/BOXFoundation/boxd/log/types"
 	"github.com/BOXFoundation/boxd/metrics"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -46,6 +47,7 @@ type Config struct {
 	RPC       rpc.Config      `mapstructure:"rpc"`
 	Database  storage.Config  `mapstructure:"database"`
 	Dpos      dpos.Config     `mapstructure:"dpos"`
+	Chain     chain.Config    `mapstructure:"chain"`
 	Metrics   metrics.Config  `mapstructure:"metrics"`
 	Pprof     string          `mapstructure:"pprof"`
 	Wallet    wallet.Config   `mapstructure:"wallet"`
@@ -132,6 +134,10 @@ func (c *Config) Prepare() {
 	// dpos
 	var keystorePath = c.Dpos.Keypath
 	c.Dpos.Keypath = filepath.Join(c.Workspace, keystorePath)
+
+	// chain
+	c.Chain.ContractPath = filepath.Join(c.Workspace, "contracts/bonus.bin")
+	fmt.Println(c.Chain.ContractPath)
 }
 
 func mkDirAll(p string) {
