@@ -92,7 +92,7 @@ message TxDetail {
         external_account = 1;
         contract_account = 2;
     }
-    res resource = 2;
+    res source = 2;
     repeated TxInDetail vin = 3;
     repeated TxOutDetail vout = 4;
 }
