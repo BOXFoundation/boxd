@@ -402,6 +402,7 @@ func (s *StateDB) updateStateObject(stateObject *stateObject) {
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
+	logger.Debugf("DEBUG: statedb update state object addr: %x, date: %x", addr[:], data[:])
 	s.setError(s.trie.Update(addr[:], data))
 }
 
