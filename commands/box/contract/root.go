@@ -183,7 +183,7 @@ func deploy(command *cobra.Command, args []string) {
 	}
 	from := args[0]
 	if err := types.ValidateAddr(from); err != nil {
-		fmt.Println("from address is Invalid: ", err)
+		fmt.Println("from address is invalid: ", err)
 		return
 	}
 	wltMgr, err := wallet.NewWalletManager(walletDir)
