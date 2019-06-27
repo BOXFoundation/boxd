@@ -299,8 +299,15 @@ var _ conv.Serializable = (*BlockHeader)(nil)
 // ToProtoMessage converts block header to proto message.
 func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 
+	if header.Bloom == nil {
+		header.Bloom = CreateReceiptsBloom(nil)
+	}
+	bloom, err := header.Bloom.Marshal()
+	if err != nil {
+		return nil, err
+	}
 	// todo check error if necessary
-	return &corepb.BlockHeader{
+	h := &corepb.BlockHeader{
 		Version:         header.Version,
 		PrevBlockHash:   header.PrevBlockHash[:],
 		TxsRoot:         header.TxsRoot[:],
@@ -315,13 +322,22 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		Height:          header.Height,
 		GasUsed:         header.GasUsed,
 		BookKeeper:      header.BookKeeper[:],
-	}, nil
+	}
+	h.Bloom = bloom
+	return h, nil
 }
 
 // FromProtoMessage converts proto message to block header.
 func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.BlockHeader); ok {
 		if message != nil {
+			if header.Bloom == nil {
+				header.Bloom = CreateReceiptsBloom(nil)
+			}
+			err := header.Bloom.Unmarshal(message.Bloom)
+			if err != nil {
+				return err
+			}
 			header.Version = message.Version
 			copy(header.PrevBlockHash[:], message.PrevBlockHash)
 			copy(header.TxsRoot[:], message.TxsRoot)

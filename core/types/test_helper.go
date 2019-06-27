@@ -18,6 +18,7 @@ func NewBlockHeader(prevBlockHash crypto.HashType, txsRoot crypto.HashType, time
 		TimeStamp:     timestamp,
 		Magic:         0,
 		Height:        height,
+		Bloom:         CreateReceiptsBloom(nil),
 	}
 }
 

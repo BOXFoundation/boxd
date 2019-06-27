@@ -228,10 +228,7 @@ func (bf *filter) Merge(f Filter) error {
 
 // GetByte get the specified byte.
 func (bf *filter) GetByte(i uint32) byte {
-	bf.sm.Lock()
-	b := bf.filter[i]
-	bf.sm.Unlock()
-	return b
+	return bf.filter[i]
 }
 
 // Size returns the length of filter in bits.

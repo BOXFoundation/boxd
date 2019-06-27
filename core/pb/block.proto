@@ -21,6 +21,7 @@ message BlockHeader {
     uint32 height = 12;
     uint64 gas_used = 13;
     bytes book_keeper = 14;
+    bytes bloom = 15;
 }
 
 message IrreversibleInfo {

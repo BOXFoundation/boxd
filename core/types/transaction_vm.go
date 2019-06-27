@@ -216,7 +216,7 @@ func (rc *Receipt) WithBlockHeight(h uint32) *Receipt {
 
 // CreateReceiptsBloom create a bloom filter matches Receipts.
 func CreateReceiptsBloom(rcs Receipts) bloom.Filter {
-	bloom := bloom.NewFilterWithMK(BloomByteLength, BloomHashNum)
+	bloom := bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
 	for _, rc := range rcs {
 		bloom.Merge(createLogBloom(rc.Logs))
 	}
@@ -224,7 +224,7 @@ func CreateReceiptsBloom(rcs Receipts) bloom.Filter {
 }
 
 func createLogBloom(logs []*Log) bloom.Filter {
-	bloom := bloom.NewFilterWithMK(BloomByteLength, BloomHashNum)
+	bloom := bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
 	for _, log := range logs {
 		bloom.Add(log.Address.Bytes())
 		for _, topic := range log.Topics {
@@ -247,12 +247,20 @@ func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
 			logs = append(logs, log)
 		}
 	}
+	if rc.Bloom == nil {
+		rc.Bloom = CreateReceiptsBloom(nil)
+	}
+	bloom, err := rc.Bloom.Marshal()
+	if err != nil {
+		return nil, err
+	}
 
 	return &corepb.Receipt{
 		TxIndex: rc.TxIndex,
 		Failed:  rc.Failed,
 		GasUsed: rc.GasUsed,
 		Logs:    logs,
+		Bloom:   bloom,
 	}, nil
 }
 
@@ -273,6 +281,13 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 			return err
 		}
 		logs = append(logs, log)
+	}
+	if rc.Bloom == nil {
+		rc.Bloom = CreateReceiptsBloom(nil)
+	}
+	err := rc.Bloom.Unmarshal(pbrc.Bloom)
+	if err != nil {
+		return err
 	}
 	rc.TxIndex = pbrc.TxIndex
 	rc.Failed = pbrc.Failed
