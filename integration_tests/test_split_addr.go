@@ -125,35 +125,30 @@ func splitAddrRepeatTest(
 		logger.Warn("times is 0, exit")
 		return
 	}
-
 	if len(receivers) != 4 {
-		logger.Errorf("split addr test require 4 accounts at leat, now %d", len(receivers))
-		return
+		logger.Panic("split addr test require 4 accounts at leat, now %d", len(receivers))
 	}
-
 	// create split addr
 	prevSenderBalance := utils.BalanceFor(sender, conn)
+	logger.Infof("sender %s prev balance %d", prevSenderBalance)
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
 	senderAcc, _ := AddrToAcc.Load(sender)
 	splitTx, _, err := rpcutil.NewSplitAddrTxWithFee(senderAcc.(*acc.Account),
 		receivers, weights, splitFee, conn)
 	if err != nil {
-		logger.Error(err)
-		return
+		logger.Panic(err)
 	}
 	hashStr, err := rpcutil.SendTransaction(conn, splitTx)
 	if err != nil {
-		logger.Error(err)
-		return
+		logger.Panic(err)
 	}
 
 	logger.Infof("wait for balance of sender %s equals to %d, timeout %v", sender,
-		prevSenderBalance+testAmount, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance+testAmount, conn, timeoutToChain)
+		prevSenderBalance-splitFee, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance-splitFee, conn, timeoutToChain)
 	if err != nil {
-		logger.Error(err)
-		return
+		logger.Panic(err)
 	}
 	atomic.AddUint64(txCnt, 1)
 
@@ -178,8 +173,7 @@ func splitAddrRepeatTest(
 	// transfer
 	txss, transfer, fee, count, err := rpcutil.NewTxs(senderAcc.(*acc.Account), addr.String(), 1, conn)
 	if err != nil {
-		logger.Error(err)
-		return
+		logger.Panic(err)
 	}
 	for _, txs := range txss {
 		for _, tx := range txs {

@@ -9,7 +9,7 @@
   "local_ws": "./.devconfig/",
   "docker_ws": "../docker/.devconfig/",
   "transaction_test": {
-    "enable": false,
+    "enable": true,
     "collection_accounts": 8,
     "collection_unit_accounts": 4,
     "circulation_accounts": 6,
@@ -18,14 +18,14 @@
     "enable_repeat_random": true
   },
   "token_test": {
-    "enable": false,
+    "enable": true,
     "accounts": 6,
     "unit_accounts": 3,
     "repeat_times": 20,
     "enable_repeat_random": true
   },
   "contract_test": {
-    "enable": false,
+    "enable": true,
     "accounts": 3,
     "unit_accounts": 3,
     "repeat_times": 20,
