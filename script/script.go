@@ -490,20 +490,20 @@ func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *type
 }
 
 // CalcTxHashForSig calculates the hash of a tx input, used for signature
-func CalcTxHashForSig(scriptPubKey []byte, originalTx *types.Transaction, txInIdx int) (*crypto.HashType, error) {
+func CalcTxHashForSig(
+	scriptPubKey []byte, originalTx *types.Transaction, txInIdx int,
+) (*crypto.HashType, error) {
+
 	if txInIdx >= len(originalTx.Vin) {
 		return nil, ErrInputIndexOutOfBound
 	}
-
-	// Make a hard copy here to avoid racing conditions when verifying signature in parallel
-	tx := originalTx
-	txIn := tx.Vin[txInIdx]
-	txIn.ScriptSig = make([]byte, len(scriptPubKey))
-	copy(txIn.ScriptSig, scriptPubKey)
-	for i, txIn := range tx.Vin {
+	tx := types.NewTx(originalTx.Version, originalTx.Magic, originalTx.LockTime).
+		AppendVout(originalTx.Vout...)
+	for i, txIn := range originalTx.Vin {
 		if i != txInIdx {
-			// Blank out other inputs' signatures
-			txIn.ScriptSig = nil
+			tx.AppendVin(types.NewTxIn(&txIn.PrevOutPoint, nil, txIn.Sequence))
+		} else {
+			tx.AppendVin(types.NewTxIn(&txIn.PrevOutPoint, scriptPubKey, txIn.Sequence))
 		}
 	}
 
