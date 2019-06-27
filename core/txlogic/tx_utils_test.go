@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 )
@@ -38,7 +39,11 @@ func TestMakeSplitAddrVout(t *testing.T) {
 		"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
 	}
 	weights := []uint64{1, 2, 3, 4}
-	out := MakeSplitAddrVout(addrs, weights)
+	addresses := make([]types.Address, len(addrs))
+	for i, addr := range addrs {
+		addresses[i], _ = types.ParseAddress(addr)
+	}
+	out := MakeSplitAddrVout(addresses, weights)
 
 	sc := script.NewScriptFromBytes(out.ScriptPubKey)
 	if !sc.IsSplitAddrScript() {
@@ -92,49 +97,52 @@ func TestMakeSplitAddress(t *testing.T) {
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
 			[]uint64{5, 5},
-			"b2f5cgAGvk5BTL35AUawcfCVDmVpzECpqt1",
+			"b2aA6qXXJHfkzDhecBt9s5qiVVSe5jtPp1r",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
 			[]uint64{3, 7},
-			"b2MTibyHLXk8CmmKrw8dJzYSemZwjxHtF67",
+			"b2QqfWj6oBwHUYZjj4KvtpfJmHjj2t51j6k",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD"},
 			[]uint64{1, 2},
-			"b2e94cGe8fk5VsaDxpLv7pxrK56XC5gGnhu",
+			"b2KGTXZnFmBNz8HSr22Nt3kzfxU9LJR87AS",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1WkepSk6YEeBwd3UxBLoQPHJ5k74c1ZGcg",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
 			[]uint64{1, 2, 3},
-			"b2Nq13XAxsWPaTWko82ErntqHkHUbh4nvVg",
+			"b2H6EPRPYFbsS2pYeG4rivGCDByw7F5icdq",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
 			[]uint64{2, 3, 4},
-			"b2RFDWeqUbgYE4Fqp2NumLqF7EC3ms9LReV",
+			"b2XiDbmiG8R5kctBJgmF3R7HS7dh72Zt2Go",
 		},
 		{
 			[]string{"b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
 				"b1YVsw5ZUfPNmANEhpBezDMfg2Xvj2U2Wrk"},
 			[]uint64{2, 2, 4},
-			"b2bE1z7CB2jEAkDRSEfAw8PNnAmQQfDMcft",
+			"b2XeRQSeED8EyaQ4xnUsNd1oV1EdLebCoFC",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt", "b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
 			[]uint64{1, 2, 3},
-			"b2b38PF4WDYgGMDWBh7mGUFmft49qYVq9ks",
+			"b2aJ14fh6KW1zb8kJiVCXEsnEqjiz47EPVP",
 		},
 	}
+	txHash := new(crypto.HashType)
+	txHash.SetString("fc7de81e29e3bcb127d63f9576ec2fffd7bd560aac2dcbe31c119799e3f51b92")
 	for _, tc := range tests {
-		splitAddr, err := MakeSplitAddr(tc.addrs, tc.weights)
-		if err != nil {
-			t.Fatal(err)
+		addresses := make([]types.Address, len(tc.addrs))
+		for i, addr := range tc.addrs {
+			addresses[i], _ = types.ParseAddress(addr)
 		}
-		if splitAddr != tc.splitAddr {
+		splitAddr := MakeSplitAddress(txHash, 0, addresses, tc.weights)
+		if splitAddr.String() != tc.splitAddr {
 			t.Errorf("split addr for %v want: %s, got: %s", tc.addrs, tc.splitAddr, splitAddr)
 		}
 	}

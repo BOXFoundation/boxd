@@ -48,7 +48,7 @@ var (
 	//blockChain                     = NewTestBlockChain()
 	timestamp = time.Now().Unix()
 
-	addrs   = []string{splitAddrA.String(), splitAddrB.String()}
+	addrs   = []types.Address{splitAddrA, splitAddrB}
 	weights = []uint64{5, 5}
 )
 
@@ -83,18 +83,14 @@ func createSplitTx(parentTx *types.Transaction, index uint32) (*types.Transactio
 		Vin:  vIn,
 		Vout: []*corepb.TxOut{txOut, splitAddrOut},
 	}
-
-	addr, err := txlogic.MakeSplitAddr(addrs, weights)
-	if err != nil {
-		logger.Errorf("failed to make split addr. Err: %+v", err)
-	}
-
 	if err := signTx(tx, privKeyMiner, pubKeyMiner); err != nil {
 		logger.Errorf("Failed to sign tx. Err: %v", err)
 		return nil, ""
 	}
+	txHash, _ := tx.TxHash()
+	addr := txlogic.MakeSplitAddress(txHash, 1, addrs, weights)
 	logger.Infof("create a split tx. addr: %s", addr)
-	return tx, addr
+	return tx, addr.String()
 }
 
 func createGeneralTx(parentTx *types.Transaction, index uint32, value uint64,
@@ -482,9 +478,7 @@ func TestBlockProcessing(t *testing.T) {
 	receipt = types.NewReceipt(vmTxHash, vmParam.contractAddr.Hash160(), false, gasUsed).WithTxIndex(2)
 	b3A.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	contractBlockHandle(t, blockChain, b2, b3A, b3, vmParam, core.ErrBlockInSideChain, gasRefundTx)
-	stateDB, err = state.New(&b3A.Header.RootHash, &b3A.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
-	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
 	//refundValue := vmParam.gasPrice * (vmParam.gasLimit - vmParam.gasUsed)
 	t.Logf("b3A block hash: %s", b3A.BlockHash())
 	t.Logf("b2 -> b3A failed: %s", core.ErrBlockInSideChain)
@@ -568,7 +562,7 @@ func TestBlockProcessing(t *testing.T) {
 	vmTxHash, _ = vmTx.TxHash()
 	b5 := nextBlockWithTxs(b4, vmTx)
 	b5.Header.RootHash.SetString("ea9815b0c03c951a3940107b89baa9d1c5e3bef714f5efb6ca7d76f5f60635f9")
-	b5.Header.UtxoRoot.SetString("e39a03ffead32d90383f7ca635b0d7850a2b8f22ea6bafa1de96d8e5f98af2a3")
+	b5.Header.UtxoRoot.SetString("23e986e2282ddfb84d003b81a32f801eac7579a7a76e66519896b27d0ae362f7")
 	receipt = types.NewReceipt(vmTxHash, contractAddrFaucet.Hash160(), false, gasUsed).WithTxIndex(1)
 	b5.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	userBalance, minerBalance = bUserBalance, bMinerBalance+50*core.DuPerBox

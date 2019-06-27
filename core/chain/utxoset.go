@@ -165,14 +165,11 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	vout := tx.Vout[txOutIdx]
 	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
 
-	var (
-		utxoWrap *types.UtxoWrap
-		exists   bool
-	)
 	// common tx
 	if !sc.IsContractPubkey() {
 		outPoint := types.NewOutPoint(txHash, txOutIdx)
-		if utxoWrap, exists = u.utxoMap[*outPoint]; exists {
+		utxoWrap, exists := u.utxoMap[*outPoint]
+		if exists {
 			return core.ErrAddExistingUtxo
 		}
 		utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
@@ -196,8 +193,8 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	}
 	addressHash := types.NormalizeAddressHash(address.Hash160())
 	outPoint := types.NewOutPoint(addressHash, 0)
-	utxoWrap, exists = u.utxoMap[*outPoint]
 	isZeroAddr := addressHash.IsEqual(&zeroHash)
+	utxoWrap, exists := u.utxoMap[*outPoint]
 	if !exists || isZeroAddr {
 		fromUtxoWrap, ok := u.utxoMap[tx.Vin[0].PrevOutPoint]
 		if !ok {
@@ -224,7 +221,7 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 		}
 	}
 
-	if vout.Value > 0 {
+	if !exists || vout.Value > 0 {
 		value := utxoWrap.Value() + vout.Value
 		logger.Infof("modify contract utxo, outpoint: %+v, value: %d, previous value: %d",
 			outPoint, value, utxoWrap.Value())

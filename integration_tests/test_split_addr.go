@@ -130,7 +130,6 @@ func splitAddrRepeatTest(
 	}
 	// create split addr
 	prevSenderBalance := utils.BalanceFor(sender, conn)
-	logger.Infof("sender %s prev balance %d", prevSenderBalance)
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
 	senderAcc, _ := AddrToAcc.Load(sender)

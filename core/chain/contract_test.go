@@ -578,7 +578,7 @@ func TestFaucetContract(t *testing.T) {
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b4 := nextBlockWithTxs(b3, vmTx)
 	b4.Header.RootHash.SetString("af3defef7e1a7fe8866ba1e14be3a567920a04bae7a77bdbf4095f9a0ecd6f3f")
-	b4.Header.UtxoRoot.SetString("e39a03ffead32d90383f7ca635b0d7850a2b8f22ea6bafa1de96d8e5f98af2a3")
+	b4.Header.UtxoRoot.SetString("23e986e2282ddfb84d003b81a32f801eac7579a7a76e66519896b27d0ae362f7")
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b4.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	contractBlockHandle(t, blockChain, b3, b4, b4, vmParam, nil, gasRefundTx, contractTx)
@@ -616,7 +616,7 @@ func TestFaucetContract(t *testing.T) {
 	//
 	b5 := nextBlockWithTxs(b4, vmTx)
 	b5.Header.RootHash.SetString("0bf64507600e191311f40c2ad178be827e6e43eafbd053d9c7210da1b7a35dd8")
-	b5.Header.UtxoRoot.SetString("8909c72909a9959740e0b9710c59c1f218d2a6a3e1b4bb9096ac4803feb5fd5b")
+	b5.Header.UtxoRoot.SetString("9a1b9cb1b8e482a1fd6d4cc7f25442c82d8764a52e8b17ab1c89d9bc5e49387d")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
 	b5.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())

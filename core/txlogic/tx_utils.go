@@ -344,14 +344,10 @@ func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.
 }
 
 // MakeSplitAddrVout make split addr vout
-func MakeSplitAddrVout(addrs []string, weights []uint64) *corepb.TxOut {
-	addresses := make([]types.Address, len(addrs))
-	for i, addr := range addrs {
-		addresses[i], _ = types.NewAddress(addr)
-	}
+func MakeSplitAddrVout(addrs []types.Address, weights []uint64) *corepb.TxOut {
 	return &corepb.TxOut{
 		Value:        0,
-		ScriptPubKey: *script.SplitAddrScript(addresses, weights),
+		ScriptPubKey: *script.SplitAddrScript(addrs, weights),
 	}
 }
 

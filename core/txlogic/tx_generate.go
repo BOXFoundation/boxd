@@ -283,7 +283,12 @@ func MakeUnsignedSplitAddrTx(
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
-	splitAddrOut := MakeSplitAddrVout(addrs, weights)
+	addresses := make([]types.Address, 0, len(addrs))
+	for _, addr := range addrs {
+		address, _ := types.ParseAddress(addr)
+		addresses = append(addresses, address)
+	}
+	splitAddrOut := MakeSplitAddrVout(addresses, weights)
 	// construct transaction
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)

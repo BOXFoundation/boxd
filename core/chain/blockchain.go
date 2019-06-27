@@ -1552,7 +1552,7 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 	}
 	height, index, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
-		logger.Error(err)
+		logger.Errorf("load block info by tx %s unmarshal tx index %x error %s", hash, txIndex, err)
 		return nil, nil, err
 	}
 	block, err := chain.LoadBlockByHeight(height)
