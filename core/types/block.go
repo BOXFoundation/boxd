@@ -10,6 +10,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -288,6 +289,8 @@ type BlockHeader struct {
 	GasUsed uint64
 
 	BookKeeper AddressHash
+
+	Bloom bloom.Filter
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)

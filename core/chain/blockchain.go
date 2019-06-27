@@ -97,6 +97,7 @@ type BlockChain struct {
 	stateDBCache              map[uint32]*state.StateDB
 	utxoSetCache              map[uint32]*UtxoSet
 	receiptsCache             map[uint32]types.Receipts
+	sectionMgr                *SectionManager
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -131,6 +132,10 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.stateProcessor = stateProcessor
 
 	if b.db, err = db.Table(BlockTableName); err != nil {
+		return nil, err
+	}
+
+	if b.sectionMgr, err = NewSectionManager(db); err != nil {
 		return nil, err
 	}
 
@@ -484,6 +489,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	chain.BroadcastOrRelayBlock(block, transferMode)
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
+	go chain.sectionMgr.AddBloom(uint(block.Header.Height), block.Header.Bloom)
 
 	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Header.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
@@ -1204,6 +1210,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// del receipt
 	chain.db.Del(ReceiptKey(block.BlockHash()))
+	chain.sectionMgr.RemoveBloom(uint(block.Header.Height))
 
 	if err := chain.db.Flush(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
@@ -2169,7 +2176,7 @@ func gatherBlockTxs(block *types.Block) map[crypto.HashType]*types.Transaction {
 }
 
 func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
-	filter := bloom.NewFilter(bloom.MaxFilterSize, 0.0001)
+	filter := bloom.NewFilter(bloom.MaxFilterSize, bloom.DefaultConflictRate)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for key := range reader.IterKeysWithPrefix(ctx, splitAddrBase.Bytes()) {

@@ -13,6 +13,7 @@ import (
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -26,6 +27,13 @@ const (
 	ContractUnkownType   ContractType = "contract_unkown"
 	ContractCreationType ContractType = "contract_creation"
 	ContractCallType     ContractType = "contract_call"
+
+	// BloomByteLength represents the number of bytes used in a header log bloom.
+	BloomByteLength = 256
+	// BloomBitLength represents the number of bits used in a header log bloom.
+	BloomBitLength = 8 * BloomByteLength
+	// BloomHashNum represents the number of hash functions.
+	BloomHashNum = 3
 )
 
 // VMTransaction defines the transaction used to interact with vm
@@ -156,7 +164,9 @@ type Receipt struct {
 	GasUsed         uint64
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
-	Logs            []*Log
+
+	Logs  []*Log
+	Bloom bloom.Filter
 }
 
 var _ conv.Convertible = (*Receipt)(nil)
@@ -172,13 +182,15 @@ func NewReceipt(
 	if contractAddr == nil {
 		contractAddr = new(AddressHash)
 	}
-	return &Receipt{
+	rc := &Receipt{
 		TxHash:          *txHash,
 		ContractAddress: *contractAddr,
 		Failed:          failed,
 		GasUsed:         gasUsed,
 		Logs:            logs,
 	}
+	rc.Bloom = createLogBloom(rc.Logs)
+	return rc
 }
 
 // WithTxIndex sets TxIndex field
@@ -200,6 +212,26 @@ func (rc *Receipt) WithBlockHash(hash *crypto.HashType) *Receipt {
 func (rc *Receipt) WithBlockHeight(h uint32) *Receipt {
 	rc.BlockHeight = h
 	return rc
+}
+
+// CreateReceiptsBloom create a bloom filter matches Receipts.
+func CreateReceiptsBloom(rcs Receipts) bloom.Filter {
+	bloom := bloom.NewFilterWithMK(BloomByteLength, BloomHashNum)
+	for _, rc := range rcs {
+		bloom.Merge(createLogBloom(rc.Logs))
+	}
+	return bloom
+}
+
+func createLogBloom(logs []*Log) bloom.Filter {
+	bloom := bloom.NewFilterWithMK(BloomByteLength, BloomHashNum)
+	for _, log := range logs {
+		bloom.Add(log.Address.Bytes())
+		for _, topic := range log.Topics {
+			bloom.Add(topic.Bytes())
+		}
+	}
+	return bloom
 }
 
 // ToProtoMessage converts Receipt to proto message.

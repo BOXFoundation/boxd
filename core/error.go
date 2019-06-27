@@ -102,5 +102,8 @@ var (
 	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
 	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
 
+	//sectionmanager.go
+	ErrBloomBitOutOfBounds = errors.New("Bloom bit out of bounds")
+
 	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
 )

@@ -599,6 +599,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if utxoRoot != nil {
 		block.Header.UtxoRoot = *utxoRoot
 	}
+
+	block.Header.Bloom = types.CreateReceiptsBloom(receipts)
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
 		dpos.chain.ReceiptsCache()[block.Header.Height] = receipts

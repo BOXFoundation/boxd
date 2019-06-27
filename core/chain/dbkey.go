@@ -19,6 +19,9 @@ const (
 	// WalletTableName is the table name of db to store wallet data
 	WalletTableName = "wl"
 
+	// SectionTableName is the table name of db to store section data
+	SectionTableName = "sec"
+
 	// Tail is the db key name of tail block
 	Tail = "/tail"
 
@@ -44,6 +47,9 @@ const (
 
 	// TxPrefix is the key prefix of database key to store tx content
 	TxPrefix = "/tx"
+
+	// SecBloomBitSetPrefix is the key prefix of database key to store bloom bit set of section
+	SecBloomBitSetPrefix = "/sec/bf"
 
 	// SplitTxHashPrefix is the key prefix of database key to store split tx mapping
 	SplitTxHashPrefix = "/split"
@@ -108,6 +114,7 @@ var candidatesBase = key.NewKey(CandidatesPrefix)
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
 var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
 var addrTokenUtxoBase = key.NewKey(AddressTokenUtxoPrefix)
+var secBloomBitSetBase = key.NewKey(SecBloomBitSetPrefix)
 
 // TailKey is the db key to store tail block content
 var TailKey = []byte(Tail)
@@ -189,4 +196,9 @@ func AddrTokenUtxoKey(addr string, tid types.TokenID, op types.OutPoint) []byte 
 func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
 	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
 		ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
+}
+
+// SecBloomBitSetKey is the key to store bloom bit set
+func SecBloomBitSetKey(section uint64, bit uint) []byte {
+	return secBloomBitSetBase.ChildString(fmt.Sprintf("%x", section)).ChildString(fmt.Sprintf("%x", bit)).Bytes()
 }

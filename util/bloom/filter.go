@@ -23,6 +23,9 @@ const (
 
 	// MaxFilterSize is the maximum byte size in bytes a filter may be.
 	MaxFilterSize = 1024 * 1024
+
+	// DefaultConflictRate is the default conflict rate for any key.
+	DefaultConflictRate = 0.0001
 )
 
 // Filter defines bloom filter interface
@@ -31,6 +34,7 @@ type Filter interface {
 	Add(data []byte)
 	MatchesAndAdd(data []byte) bool
 	Merge(f Filter) error
+	GetByte(i uint32) byte
 
 	Size() uint32
 	K() uint32
@@ -220,6 +224,14 @@ func (bf *filter) Merge(f Filter) error {
 	err := bf.merge(f)
 	bf.sm.Unlock()
 	return err
+}
+
+// GetByte get the specified byte.
+func (bf *filter) GetByte(i uint32) byte {
+	bf.sm.Lock()
+	b := bf.filter[i]
+	bf.sm.Unlock()
+	return b
 }
 
 // Size returns the length of filter in bits.
