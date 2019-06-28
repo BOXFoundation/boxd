@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	sysmath "math"
 	"math/big"
 	"runtime"
 	"runtime/debug"
@@ -26,6 +27,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/metrics"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -73,7 +75,8 @@ var _ service.ChainReader = (*BlockChain)(nil)
 
 // Config defines the configurations of chain
 type Config struct {
-	ContractPath string `mapstructure:"contract_path"`
+	ContractBinPath string `mapstructure:"contract_bin_path"`
+	ContractABIPath string `mapstructure:"contract_abi_path"`
 }
 
 // BlockChain define chain struct
@@ -1352,7 +1355,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	code, err := readBin(chain.cfg.ContractPath)
+	code, err := readBin(chain.cfg.ContractBinPath)
 	vmTx := types.NewVMTransaction(big.NewInt(0), big.NewInt(0), 1e8, 1, nil, types.ContractCreationType, code)
 	adminAddr, err := types.NewAddress(Admin)
 	if err != nil {
@@ -1365,10 +1368,11 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
 
 	evm := vm.NewEVM(ctx, stateDB, vmConfig)
-	_, _, _, vmerr := evm.Create(vm.AccountRef(*vmTx.From()), vmTx.Data(), vmTx.Gas(), big.NewInt(0), false)
+	_, contractAddr, _, vmerr := evm.Create(vm.AccountRef(*vmTx.From()), vmTx.Data(), vmTx.Gas(), big.NewInt(0), false)
 	if vmerr != nil {
 		return nil, vmerr
 	}
+	ContractAddr = contractAddr
 
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
 	root, _, err := stateDB.Commit(false)
@@ -1589,7 +1593,7 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 	}
 	height, index, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
-		logger.Error(err)
+		logger.Errorf("load block info by tx %s unmarshal tx index %x error %s", hash, txIndex, err)
 		return nil, nil, err
 	}
 	block, err := chain.LoadBlockByHeight(height)
@@ -1984,13 +1988,9 @@ func (chain *BlockChain) GetDataFromDB(key []byte) ([]byte, error) {
 // WriteSplitAddrIndex writes split addr info index
 func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Table) error {
 	for _, tx := range block.Txs {
-		for _, vout := range tx.Vout {
+		for i, vout := range tx.Vout {
 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
 			if sc.IsSplitAddrScript() {
-				addr, err := sc.ExtractAddress()
-				if err != nil {
-					return err
-				}
 				addrs, weights, err := sc.ParseSplitAddrScript()
 				if err != nil {
 					return err
@@ -2003,6 +2003,8 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Tabl
 				if err != nil {
 					return err
 				}
+				txHash, _ := tx.TxHash()
+				addr := txlogic.MakeSplitAddress(txHash, uint32(i), addrs, weights)
 				k := SplitAddrKey(addr.Hash())
 				db.Put(k, dataBytes)
 				chain.splitAddrFilter.Add(addr.Hash())
@@ -2016,13 +2018,15 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Tabl
 // DeleteSplitAddrIndex remove split address index from both db and cache
 func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Table) error {
 	for _, tx := range block.Txs {
-		for _, vout := range tx.Vout {
+		for i, vout := range tx.Vout {
 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
 			if sc.IsSplitAddrScript() {
-				addr, err := sc.ExtractAddress()
+				addrs, weights, err := sc.ParseSplitAddrScript()
 				if err != nil {
 					return err
 				}
+				txHash, _ := tx.TxHash()
+				addr := txlogic.MakeSplitAddress(txHash, uint32(i), addrs, weights)
 				k := SplitAddrKey(addr.Hash())
 				db.Del(k)
 				logger.Debugf("Remove Split Address: %s", addr.String())
@@ -2220,4 +2224,41 @@ func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
 		filter.Add(addrHash)
 	}
 	return filter
+}
+
+// MakeCoinbaseTx creates a coinbase give bookkeeper address and block height
+func (chain *BlockChain) MakeCoinbaseTx(amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+	abiObj, err := readAbi(chain.cfg.ContractABIPath)
+	if err != nil {
+		return nil, err
+	}
+	code, err := abiObj.Pack("calcBonus")
+	if err != nil {
+		return nil, err
+	}
+	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
+	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
+	if err != nil {
+		return nil, err
+	}
+	logger.Errorf("contractAddr: %s", contractAddr.String())
+	vout, err := txlogic.MakeContractCallVout(contractAddr.String(), amount, 1e9, 0, nonce, code)
+	if err != nil {
+		return nil, err
+	}
+	tx := &types.Transaction{
+		Version: 1,
+		Vin: []*types.TxIn{
+			{
+				PrevOutPoint: types.OutPoint{
+					Hash:  zeroHash,
+					Index: sysmath.MaxUint32,
+				},
+				ScriptSig: *coinbaseScriptSig,
+				Sequence:  sysmath.MaxUint32,
+			},
+		},
+		Vout: []*corepb.TxOut{vout},
+	}
+	return tx, nil
 }

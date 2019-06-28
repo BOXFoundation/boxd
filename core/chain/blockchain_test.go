@@ -48,7 +48,7 @@ var (
 	//blockChain                     = NewTestBlockChain()
 	timestamp = time.Now().Unix()
 
-	addrs   = []string{splitAddrA.String(), splitAddrB.String()}
+	addrs   = []types.Address{splitAddrA, splitAddrB}
 	weights = []uint64{5, 5}
 )
 
@@ -83,18 +83,14 @@ func createSplitTx(parentTx *types.Transaction, index uint32) (*types.Transactio
 		Vin:  vIn,
 		Vout: []*corepb.TxOut{txOut, splitAddrOut},
 	}
-
-	addr, err := txlogic.MakeSplitAddr(addrs, weights)
-	if err != nil {
-		logger.Errorf("failed to make split addr. Err: %+v", err)
-	}
-
 	if err := signTx(tx, privKeyMiner, pubKeyMiner); err != nil {
 		logger.Errorf("Failed to sign tx. Err: %v", err)
 		return nil, ""
 	}
+	txHash, _ := tx.TxHash()
+	addr := txlogic.MakeSplitAddress(txHash, 1, addrs, weights)
 	logger.Infof("create a split tx. addr: %s", addr)
-	return tx, addr
+	return tx, addr.String()
 }
 
 func createGeneralTx(parentTx *types.Transaction, index uint32, value uint64,

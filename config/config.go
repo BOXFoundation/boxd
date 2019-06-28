@@ -136,8 +136,8 @@ func (c *Config) Prepare() {
 	c.Dpos.Keypath = filepath.Join(c.Workspace, keystorePath)
 
 	// chain
-	c.Chain.ContractPath = filepath.Join(c.Workspace, "contracts/bonus.bin")
-	fmt.Println(c.Chain.ContractPath)
+	c.Chain.ContractBinPath = filepath.Join(c.Workspace, "contracts/bonus.bin")
+	c.Chain.ContractABIPath = filepath.Join(c.Workspace, "contracts/bonus.abi")
 }
 
 func mkDirAll(p string) {

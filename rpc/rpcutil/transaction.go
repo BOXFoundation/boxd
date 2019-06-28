@@ -496,7 +496,7 @@ func NewERC20TransferFromContractTxs(
 // NewSplitAddrTxWithFee new split address tx
 func NewSplitAddrTxWithFee(
 	acc *acc.Account, addrs []string, weights []uint64, gasUsed uint64, conn *grpc.ClientConn,
-) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
+) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// get utxos
 	utxos, err := fetchUtxos(conn, acc.Addr(), gasUsed, "", 0)
 	if err != nil {
@@ -577,18 +577,18 @@ func MakeUnsignedContractCallTx(
 // it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
 	wa service.WalletAgent, from string, addrs []string, weights []uint64, gasUsed uint64,
-) (*types.Transaction, string, []*rpcpb.Utxo, error) {
+) (*types.Transaction, []*rpcpb.Utxo, error) {
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 	changeAmt, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
-		return nil, "", nil, txlogic.ErrInsufficientBalance
+		return nil, nil, txlogic.ErrInsufficientBalance
 	}
-	tx, splitAddr, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights,
+	tx, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights,
 		changeAmt, utxos...)
-	return tx, splitAddr, utxos, err
+	return tx, utxos, err
 }
 
 // MakeUnsignedTokenIssueTx news tx to issue token without signature

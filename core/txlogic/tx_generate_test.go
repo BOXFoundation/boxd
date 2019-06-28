@@ -105,13 +105,18 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 	op, uw = types.NewOutPoint(&prevHash2, 0), NewUtxoWrap(from, 3, utxoValue2)
 	utxo2 := MakePbUtxo(op, uw)
 
-	tx, splitAddr, err := MakeUnsignedSplitAddrTx(from, addrs, weights, changeAmt,
-		utxo1, utxo2)
+	tx, err := MakeUnsignedSplitAddrTx(from, addrs, weights, changeAmt, utxo1, utxo2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantSplitAddr := "b2NRN8v4ArV7B5R77xpBBq2HKrV6xUdyUbV"
-	if splitAddr != wantSplitAddr {
+	txHash, _ := tx.TxHash()
+	addresses := make([]types.Address, len(addrs))
+	for i, addr := range addrs {
+		addresses[i], _ = types.ParseAddress(addr)
+	}
+	splitAddr := MakeSplitAddress(txHash, 0, addresses, weights)
+	wantSplitAddr := "b2c4cs8JQGDHfDfzTzrzwg5WUL9meN5hJgB"
+	if splitAddr.String() != wantSplitAddr {
 		t.Fatalf("aplit addr want: %s, got: %s", wantSplitAddr, splitAddr)
 	}
 

@@ -40,7 +40,8 @@ func NewTestBlockChain() *BlockChain {
 	}
 
 	cfg := &Config{
-		ContractPath: "../../contract/bonus.bin",
+		ContractBinPath: "../../contracts/bonus.bin",
+		ContractABIPath: "../../contracts/bonus.abi",
 	}
 
 	proc := goprocess.WithSignals(os.Interrupt)

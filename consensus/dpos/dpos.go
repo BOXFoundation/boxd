@@ -441,12 +441,13 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	var blockTxns []*types.Transaction
-	coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
-	if err != nil || coinbaseTx == nil {
-		return errors.New("Failed to create coinbaseTx")
-	}
-	blockTxns = append(blockTxns, coinbaseTx)
+	var packedTxs []*types.Transaction
+	// coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
+	// if err != nil || coinbaseTx == nil {
+	// 	return errors.New("Failed to create coinbaseTx")
+	// }
+
+	// blockTxns = append(blockTxns, coinbaseTx)
 	remainTimeInMs := dpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	spendableTxs := new(sync.Map)
 
@@ -460,7 +461,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		for txIdx, txWrap := range sortedTxs {
 			if stopPack {
 				continueCh <- true
-				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(blockTxns)-1, len(sortedTxs))
+				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(packedTxs), len(sortedTxs))
 				return
 			}
 
@@ -496,7 +497,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			totalTxFee += txFee
 
 			spendableTxs.Store(*txHash, txWrap)
-			blockTxns = append(blockTxns, txWrap.Tx)
+			packedTxs = append(packedTxs, txWrap.Tx)
 		}
 		continueCh <- true
 		stopPackCh <- true
@@ -515,7 +516,15 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// Pay tx fees to bookkeeper in addition to block reward in coinbase
 	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
-	blockTxns[0].Vout[0].Value += totalTxFee
+	// blockTxns[0].Vout[0].Value += totalTxFee
+	var blockTxns []*types.Transaction
+	amount := chain.CalcBlockSubsidy(block.Header.Height) + totalTxFee
+	coinbaseTx, err := dpos.chain.MakeCoinbaseTx(amount, 0, block.Header.Height)
+	if err != nil {
+		return err
+	}
+	blockTxns = append(blockTxns, coinbaseTx)
+	blockTxns = append(blockTxns, packedTxs...)
 	block.Txs = blockTxns
 
 	candidateHash, err := candidateContext.CandidateContextHash()

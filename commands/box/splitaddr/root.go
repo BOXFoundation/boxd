@@ -106,7 +106,7 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	defer conn.Close()
 	// send tx
-	tx, splitAddr, _, err := rpcutil.NewSplitAddrTxWithFee(account, addrs,
+	tx, _, err := rpcutil.NewSplitAddrTxWithFee(account, addrs,
 		weights, fee, conn)
 	if err != nil {
 		fmt.Println(err)
@@ -117,7 +117,6 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("SplitAddr generated: %s\n", splitAddr)
 	fmt.Println("Tx Hash: ", hashStr)
 	fmt.Println(util.PrettyPrint(tx))
 }

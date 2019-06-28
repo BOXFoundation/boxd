@@ -53,12 +53,12 @@ func PickOneMiner() (string, bool) {
 
 	for i, picked := range minerPicker.status {
 		if !picked {
-			logger.Infof("PickOneMiner wait for miner %s box reach %d",
-				minerAddrs[i], chain.BaseSubsidy)
 			if _, err := utils.WaitBalanceEnough(minerAddrs[i], chain.BaseSubsidy, conn,
 				time.Second); err != nil {
+				time.Sleep(time.Second)
 				continue
 			}
+			logger.Infof("Picked miner %s box with %d", minerAddrs[i], chain.BaseSubsidy)
 			time.Sleep(time.Second) // to avoid utxo cache in wallet agent
 			minerPicker.status[i] = true
 			return minerAddrs[i], true
