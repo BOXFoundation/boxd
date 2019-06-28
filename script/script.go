@@ -964,6 +964,16 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	return
 }
 
+// ParseContractAddr returns contract address within the script
+func (s *Script) ParseContractAddr() (*types.AddressContract, error) {
+	return nil, nil
+}
+
+// ParseContractSender returns contract sender within the script
+func (s *Script) ParseContractSender() (*types.AddressPubKeyHash, error) {
+	return nil, nil
+}
+
 // ParseContractNonce returns address within the script
 func (s *Script) ParseContractNonce() (uint64, error) {
 	if !s.IsContractPubkey() {

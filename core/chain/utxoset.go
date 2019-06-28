@@ -184,26 +184,35 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	}
 
 	// smart contract utxo
+	var (
+		outPoint *types.OutPoint
+		utxoWrap *types.UtxoWrap
+	)
 	if IsCoinBase(tx) {
 		return errors.New("Invalid smart contract tx")
 	}
-	contactAddr, err := sc.ParseContractAddr()
+	contractAddr, err := sc.ParseContractAddr()
 	if err != nil {
 		return err
 	}
 	deploy := contractAddr == nil
 	if deploy {
 		// deploy smart contract
-		from := sc.ParseContractSender()
+		sender, _ := sc.ParseContractSender()
 		nonce, _ := sc.ParseContractNonce()
-		contractAddr, _ := types.MakeContractAddress(senderAddr, nonce)
-		addressHash = types.NormalizeAddressHash(contractAddr.Hash160())
+		contractAddr, _ := types.MakeContractAddress(sender, nonce)
+		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint.Hash = *addressHash
 		utxoWrap = types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)
 	} else {
 		// call smart contract
-		addressHash := types.NormalizeAddressHash(contactAddr.Hash160())
+		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint := types.NewOutPoint(addressHash, 0)
+		var exists bool
+		utxoWrap, exists = u.utxoMap[*outPoint]
+		if !exists {
+			return fmt.Errorf("contract utxo[%v] not found in utxoset", outPoint)
+		}
 	}
 	if deploy || vout.Value > 0 {
 		value := utxoWrap.Value() + vout.Value
