@@ -184,44 +184,37 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	}
 
 	// smart contract utxo
+	var (
+		outPoint *types.OutPoint
+		utxoWrap *types.UtxoWrap
+	)
 	if IsCoinBase(tx) {
 		return errors.New("Invalid smart contract tx")
 	}
-	address, err := sc.ExtractAddress()
+	contractAddr, err := sc.ParseContractAddr()
 	if err != nil {
 		return err
 	}
-	addressHash := types.NormalizeAddressHash(address.Hash160())
-	outPoint := types.NewOutPoint(addressHash, 0)
-	isZeroAddr := addressHash.IsEqual(&zeroHash)
-	utxoWrap, exists := u.utxoMap[*outPoint]
-	if !exists || isZeroAddr {
-		fromUtxoWrap, ok := u.utxoMap[tx.Vin[0].PrevOutPoint]
-		if !ok {
-			return fmt.Errorf("utxo not found for %v", tx.Vin[0].PrevOutPoint)
-		}
-		from, err := script.NewScriptFromBytes(fromUtxoWrap.Script()).ExtractAddress()
-		if err != nil {
-			return err
-		}
+	deploy := contractAddr == nil
+	if deploy {
+		// deploy smart contract
+		sender, _ := sc.ParseContractSender()
 		nonce, _ := sc.ParseContractNonce()
-		if isZeroAddr { // deploy smart contract
-			senderAddr, ok := from.(*types.AddressPubKeyHash)
-			if !ok {
-				return fmt.Errorf("non-pubkeyhash is not supported to create contract")
-			}
-			contractAddr, _ := types.MakeContractAddress(senderAddr, nonce)
-			addressHash = types.NormalizeAddressHash(contractAddr.Hash160())
-			outPoint.Hash = *addressHash
-		}
-		if utxoWrap, exists = u.utxoMap[*outPoint]; !exists {
-			// save contract creator and nonce in contract utxo script
-			sc := script.MakeContractUtxoScriptPubkey(from.Hash160(), nonce, types.VMVersion)
-			utxoWrap = types.NewUtxoWrap(0, []byte(*sc), blockHeight)
+		contractAddr, _ := types.MakeContractAddress(sender, nonce)
+		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
+		outPoint.Hash = *addressHash
+		utxoWrap = types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)
+	} else {
+		// call smart contract
+		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
+		outPoint := types.NewOutPoint(addressHash, 0)
+		var exists bool
+		utxoWrap, exists = u.utxoMap[*outPoint]
+		if !exists {
+			return fmt.Errorf("contract utxo[%v] not found in utxoset", outPoint)
 		}
 	}
-
-	if !exists || vout.Value > 0 {
+	if deploy || vout.Value > 0 {
 		value := utxoWrap.Value() + vout.Value
 		logger.Infof("modify contract utxo, outpoint: %+v, value: %d, previous value: %d",
 			outPoint, value, utxoWrap.Value())

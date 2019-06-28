@@ -706,7 +706,7 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 		if s.IsSplitAddrScript() {
 			addr, err = types.NewSplitAddressFromHash(pubKeyHash)
 		} else {
-			if reflect.DeepEqual([]byte(pubKeyHash), []byte(ZeroContractAddress[:])) {
+			if bytes.Equal([]byte(pubKeyHash), ZeroContractAddress[:]) {
 				return (*types.AddressContract)(nil), nil
 			}
 			addr, err = types.NewContractAddressFromHash(pubKeyHash)
@@ -962,6 +962,16 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 		return
 	}
 	return
+}
+
+// ParseContractAddr returns contract address within the script
+func (s *Script) ParseContractAddr() (*types.AddressContract, error) {
+	return nil, nil
+}
+
+// ParseContractSender returns contract sender within the script
+func (s *Script) ParseContractSender() (*types.AddressPubKeyHash, error) {
+	return nil, nil
 }
 
 // ParseContractNonce returns address within the script

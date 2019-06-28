@@ -258,8 +258,9 @@ func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode co
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
-	transferMode core.TransferMode, detectDupOrphan bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(
+	tx *types.Transaction, transferMode core.TransferMode, detectDupOrphan bool,
+) error {
 	txHash, _ := tx.TxHash()
 	logger.Debugf("Maybe accept tx. Hash: %v", txHash)
 	tx_pool.txMutex.Lock()
