@@ -5,6 +5,7 @@
 package rpc
 
 import (
+	"bytes"
 	"container/list"
 	"encoding/hex"
 	"fmt"
@@ -79,10 +80,10 @@ func newWebAPIServer(s *Server) *webapiServer {
 	}
 
 	if s.cfg.SubScribeBlocks {
-		server.endpoints[rpcutil.BlockEp] = &rpcutil.BlockEndpoint{Bus: s.eventBus}
+		server.endpoints[rpcutil.BlockEp] = rpcutil.NewLogEndpoint(s.eventBus)
 	}
 	if s.cfg.SubScribeLogs {
-		server.endpoints[rpcutil.LogEp] = &rpcutil.LogEndpoint{Bus: s.eventBus}
+		server.endpoints[rpcutil.LogEp] = rpcutil.NewLogEndpoint(s.eventBus)
 	}
 
 	return server
@@ -287,20 +288,20 @@ func (s *webapiServer) subscribeBlockEndpoint() error {
 	return s.endpoints[rpcutil.BlockEp].Subscribe()
 }
 
-func (s *webapiServer) subscribeLogEndpoint(addr string) error {
-	return s.endpoints[rpcutil.LogEp].Subscribe(addr)
+func (s *webapiServer) subscribeLogEndpoint(addr []string) error {
+	return s.endpoints[rpcutil.LogEp].Subscribe(addr...)
 }
 
 func (s *webapiServer) unsubscribeBlockEndpoint() error {
 	return s.endpoints[rpcutil.BlockEp].Unsubscribe()
 }
 
-func (s *webapiServer) unsubscribeLogEndpoint(addr string) error {
-	return s.endpoints[rpcutil.LogEp].Unsubscribe(addr)
+func (s *webapiServer) unsubscribeLogEndpoint(addr []string) error {
+	return s.endpoints[rpcutil.LogEp].Unsubscribe(addr...)
 }
 
 func (s *webapiServer) ListenAndReadNewLog(
-	req *rpcpb.ListenLogsReq,
+	req *rpcpb.LogsReq,
 	stream rpcpb.WebApi_ListenAndReadNewLogServer,
 ) error {
 	endpoint, ok := s.endpoints[rpcutil.LogEp]
@@ -308,12 +309,12 @@ func (s *webapiServer) ListenAndReadNewLog(
 		return ErrAPINotSupported
 	}
 	logger.Info("start listen new logs")
-	if err := s.subscribeLogEndpoint(req.Address); err != nil {
+	if err := s.subscribeLogEndpoint(req.Addresses); err != nil {
 		logger.Error(err)
 		return err
 	}
 	defer func() {
-		if err := endpoint.Unsubscribe(req.Address); err != nil {
+		if err := s.unsubscribeLogEndpoint(req.Addresses); err != nil {
 			logger.Error(err)
 		}
 	}()
@@ -339,21 +340,28 @@ func (s *webapiServer) ListenAndReadNewLog(
 
 	for {
 		// get logs
-		logDetail := elm.Value.(*rpcpb.LogDetail)
-		retLogDetail := &rpcpb.LogDetail{Logs: make(map[string]*rpcpb.LogDetail_Logs)}
+		logs := elm.Value.(*rpcpb.Logs)
+		retLogs := &rpcpb.Logs{Logs: []*rpcpb.Logs_LogDetail{}}
 
-		for _, topic := range req.Topics {
-			if logs, ok := logDetail.Logs[topic]; ok {
-				retLogDetail.Logs[topic] = logs
+	LOG:
+		for _, log := range logs.Logs {
+			for _, logtopic := range log.Topics {
+				for _, topics := range req.Topics {
+					for _, topic := range topics.Topics {
+						if bytes.Equal(logtopic, []byte(topic)) {
+							retLogs.Logs = append(retLogs.Logs, log)
+							continue LOG
+						}
+					}
+				}
 			}
 		}
-
 		// send log detail
-		if err := stream.Send(retLogDetail); err != nil {
+		if err := stream.Send(retLogs); err != nil {
 			logger.Warnf("webapi send log error %s, exit listen connection!", err)
 			return err
 		}
-		logger.Debugf("webapi server sent a log, data: %v", logDetail.Logs)
+		logger.Debugf("webapi server sent a log, data: %v", retLogs.Logs)
 		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
 			return nil
 		}
@@ -461,6 +469,10 @@ func (s *webapiServer) Nonce(
 		return newNonceResp(-1, err.Error(), 0), nil
 	}
 	return newNonceResp(0, "", nonce), nil
+}
+
+func (s *webapiServer) GetLogs(context.Context, *rpcpb.LogsReq) (*rpcpb.Logs, error) {
+	return nil, nil
 }
 
 func detailTx(

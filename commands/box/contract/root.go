@@ -76,6 +76,11 @@ Successful call will return a transaction hash value`,
 			Short: "Get an input string to send or call",
 			Run:   encode,
 		},
+		&cobra.Command{
+			Use:   "getLogs [criteria]",
+			Short: "Get returns logs matching the given argument that are stored within the state",
+			Run:   getLogs,
+		},
 	)
 }
 
@@ -369,4 +374,18 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	}
 
 	return resp.ContractAddr, sendTxResp, nil
+}
+
+func getLogs(cmd *cobra.Command, args []string) {
+	// if len(args) < 1 {
+	// 	fmt.Println("Invalide argument number")
+	// 	return
+	// }
+	// argsjson := args[0]
+
+	// err := json.Unmarshal([]byte(argsjson))
+
+	// if err := dec.Decode(&abi); err != nil {
+	// 	return ABI{}, err
+	// }
 }

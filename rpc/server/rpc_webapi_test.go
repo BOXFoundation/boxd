@@ -56,8 +56,8 @@ func setupWebAPIMockSvr() {
 		proc:             goprocess.WithSignals(os.Interrupt),
 		endpoints:        make(map[string]rpcutil.Endpoint),
 	}
-	was.endpoints[rpcutil.BlockEp] = &rpcutil.BlockEndpoint{Bus: testWebAPIBus}
-	was.endpoints[rpcutil.LogEp] = &rpcutil.LogEndpoint{Bus: testWebAPIBus}
+	was.endpoints[rpcutil.BlockEp] = rpcutil.NewBlockEndpoint(testWebAPIBus)
+	was.endpoints[rpcutil.LogEp] = rpcutil.NewLogEndpoint(testWebAPIBus)
 
 	grpcSvr := grpc.NewServer()
 	rpcpb.RegisterWebApiServer(grpcSvr, was)
@@ -113,7 +113,10 @@ func _TestClientListenNewLogs(t *testing.T) {
 	}
 	defer conn.Close()
 	client := rpcpb.NewWebApiClient(conn)
-	logsReq := &rpcpb.ListenLogsReq{Address: "b5iKa3sE3wMGzbNCYDBs2LWJMGjy4xU1A6v", Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}
+	logsReq := &rpcpb.LogsReq{
+		Addresses: []string{"b5iKa3sE3wMGzbNCYDBs2LWJMGjy4xU1A6v"},
+		Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
+	}
 	stream, err := client.ListenAndReadNewLog(context.Background(), logsReq)
 	if err != nil {
 		t.Fatal(err)

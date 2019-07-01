@@ -6,7 +6,6 @@ package rpcutil
 
 import (
 	"container/list"
-	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -40,7 +39,14 @@ type BlockEndpoint struct {
 
 	eventMtx *sync.RWMutex
 	mtx      sync.Mutex
-	Bus      eventbus.Bus
+	bus      eventbus.Bus
+}
+
+// NewBlockEndpoint return a new block endpoint.
+func NewBlockEndpoint(bus eventbus.Bus) *BlockEndpoint {
+	return &BlockEndpoint{
+		bus: bus,
+	}
 }
 
 // GetQueue return blocks caching list.
@@ -64,7 +70,7 @@ func (bep *BlockEndpoint) Subscribe(...string) error {
 	bep.mtx.Lock()
 	defer bep.mtx.Unlock()
 	if bep.subscribeCnt == 0 {
-		err := bep.Bus.SubscribeUniq(eventbus.TopicRPCSendNewBlock, bep.receiveNewBlockMsg)
+		err := bep.bus.SubscribeUniq(eventbus.TopicRPCSendNewBlock, bep.receiveNewBlockMsg)
 		if err != nil {
 			return err
 		}
@@ -79,7 +85,7 @@ func (bep *BlockEndpoint) Unsubscribe(...string) error {
 	bep.mtx.Lock()
 	defer bep.mtx.Unlock()
 	if bep.subscribeCnt == 1 {
-		err := bep.Bus.Unsubscribe(eventbus.TopicRPCSendNewBlock, bep.receiveNewBlockMsg)
+		err := bep.bus.Unsubscribe(eventbus.TopicRPCSendNewBlock, bep.receiveNewBlockMsg)
 		if err != nil {
 			return err
 		}
@@ -107,11 +113,19 @@ func (bep *BlockEndpoint) receiveNewBlockMsg(block *types.Block) {
 // LogEndpoint is an endpoint to push logs.
 type LogEndpoint struct {
 	queue        *list.List
-	subscribeCnt int
+	subscribeCnt map[string]uint8
 
 	eventMtx *sync.RWMutex
 	mtx      sync.Mutex
-	Bus      eventbus.Bus
+	bus      eventbus.Bus
+}
+
+// NewLogEndpoint return a new log endpoint.
+func NewLogEndpoint(bus eventbus.Bus) *LogEndpoint {
+	return &LogEndpoint{
+		bus:          bus,
+		subscribeCnt: make(map[string]uint8),
+	}
 }
 
 // GetQueue return logs caching list.
@@ -131,37 +145,45 @@ func (lep *LogEndpoint) GetEventMutex() *sync.RWMutex {
 }
 
 // Subscribe subscribe the topic of new logs.
-func (lep *LogEndpoint) Subscribe(addr ...string) error {
-	if len(addr) == 0 {
+func (lep *LogEndpoint) Subscribe(addrs ...string) error {
+	if len(addrs) == 0 {
 		return fmt.Errorf("Need a contract address to subscribe")
 	}
 	lep.mtx.Lock()
 	defer lep.mtx.Unlock()
-	if lep.subscribeCnt == 0 {
-		err := lep.Bus.SubscribeUniq(eventbus.TopicRPCSendNewLog+addr[0], lep.receiveNewLog)
-		if err != nil {
-			return err
+	for _, addr := range addrs {
+		if cnt, ok := lep.subscribeCnt[addr]; !ok || cnt == 0 {
+			err := lep.bus.SubscribeUniq(eventbus.TopicRPCSendNewLog+addr, lep.receiveNewLog)
+			if err != nil {
+				return err
+			}
+			lep.subscribeCnt[addr] = 1
+		} else {
+			lep.subscribeCnt[addr]++
 		}
 	}
-	lep.subscribeCnt++
 	logger.Infof("subscribe new logs#%d", lep.subscribeCnt)
 	return nil
 }
 
 // Unsubscribe unsubscribe the topic of new logs.
-func (lep *LogEndpoint) Unsubscribe(addr ...string) error {
-	if len(addr) == 0 {
+func (lep *LogEndpoint) Unsubscribe(addrs ...string) error {
+	if len(addrs) == 0 {
 		return fmt.Errorf("Need a contract address to subscribe")
 	}
 	lep.mtx.Lock()
 	defer lep.mtx.Unlock()
-	if lep.subscribeCnt == 1 {
-		err := lep.Bus.Unsubscribe(eventbus.TopicRPCSendNewLog+addr[0], lep.receiveNewLog)
-		if err != nil {
-			return err
+	for _, addr := range addrs {
+		if cnt, ok := lep.subscribeCnt[addr]; ok && cnt == 1 {
+			err := lep.bus.Unsubscribe(eventbus.TopicRPCSendNewLog+addr, lep.receiveNewLog)
+			if err != nil {
+				return err
+			}
+			delete(lep.subscribeCnt, addr)
+		} else if ok && cnt > 1 {
+			lep.subscribeCnt[addr]--
 		}
 	}
-	lep.subscribeCnt--
 	logger.Infof("unsubscribe new logs#%d", lep.subscribeCnt)
 	return nil
 }
@@ -170,22 +192,27 @@ func (lep *LogEndpoint) receiveNewLog(logs []*types.Log) {
 	lep.eventMtx.Lock()
 	defer lep.eventMtx.Unlock()
 
-	logDetail := &rpcpb.LogDetail{Logs: make(map[string]*rpcpb.LogDetail_Logs)}
+	newLogs := &rpcpb.Logs{Logs: []*rpcpb.Logs_LogDetail{}}
 	for _, log := range logs {
-		topic := hex.EncodeToString(log.Topics[0].Bytes())
-
-		logs, ok := logDetail.Logs[topic]
-		if !ok {
-			logs = &rpcpb.LogDetail_Logs{
-				Data: []string{},
-			}
-			logDetail.Logs[topic] = logs
+		topics := [][]byte{}
+		for _, topic := range log.Topics {
+			topics = append(topics, topic.Bytes())
 		}
-		logs.Data = append(logs.Data, hex.EncodeToString(log.Data))
+		newLogs.Logs = append(newLogs.Logs, &rpcpb.Logs_LogDetail{
+			Address:     log.Address.Bytes(),
+			Topics:      topics,
+			Data:        log.Data,
+			BlockNumber: log.BlockNumber,
+			TxHash:      log.TxHash.Bytes(),
+			TxIndex:     log.TxIndex,
+			BlockHash:   log.BlockHash.Bytes(),
+			Index:       log.Index,
+			Removed:     log.Removed,
+		})
 	}
 
 	if lep.GetQueue().Len() == newLogMsgSize {
 		lep.queue.Remove(lep.queue.Front())
 	}
-	lep.queue.PushBack(logDetail)
+	lep.queue.PushBack(newLogs)
 }
