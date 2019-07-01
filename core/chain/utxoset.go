@@ -198,16 +198,16 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	deploy := contractAddr == nil
 	if deploy {
 		// deploy smart contract
-		sender, _ := sc.ParseContractSender()
+		from, _ := sc.ParseContractFrom()
 		nonce, _ := sc.ParseContractNonce()
-		contractAddr, _ := types.MakeContractAddress(sender, nonce)
+		contractAddr, _ := types.MakeContractAddress(from, nonce)
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
-		outPoint.Hash = *addressHash
+		outPoint = types.NewOutPoint(addressHash, 0)
 		utxoWrap = types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)
 	} else {
 		// call smart contract
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
-		outPoint := types.NewOutPoint(addressHash, 0)
+		outPoint = types.NewOutPoint(addressHash, 0)
 		var exists bool
 		utxoWrap, exists = u.utxoMap[*outPoint]
 		if !exists {
@@ -559,7 +559,7 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db stora
 		for _, txOut := range tx.Vout {
 			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 			if sc.IsContractPubkey() {
-				contractAddr, err := sc.ExtractAddress()
+				contractAddr, err := sc.ParseContractAddr()
 				if err != nil {
 					logger.Warn(err)
 					return err

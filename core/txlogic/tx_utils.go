@@ -136,10 +136,10 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 
 // MakeContractCreationVout makes txOut
 func MakeContractCreationVout(
-	amount, gas, gasPrice, nonce uint64, code []byte,
+	from *types.AddressHash, amount, gas, gasPrice, nonce uint64, code []byte,
 ) (*corepb.TxOut, error) {
 
-	vs, err := script.MakeContractScriptPubkey(nil, code, gasPrice, gas, nonce, types.VMVersion)
+	vs, err := script.MakeContractScriptPubkey(from, nil, code, gasPrice, gas, nonce, types.VMVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -151,17 +151,13 @@ func MakeContractCreationVout(
 
 // MakeContractCallVout makes txOut
 func MakeContractCallVout(
-	receiver string, amount uint64, gas, gasPrice, nonce uint64, code []byte,
+	from, to *types.AddressHash, amount uint64, gas, gasPrice, nonce uint64, code []byte,
 ) (*corepb.TxOut, error) {
 
-	if !strings.HasPrefix(receiver, types.AddrTypeContractPrefix) {
-		return nil, errors.New("MakeContractCreationVout need contract receiver")
+	if to == nil {
+		return nil, errors.New("MakeContractCreationVout need contract address")
 	}
-	address, err := types.NewContractAddress(receiver)
-	if err != nil {
-		return nil, err
-	}
-	vs, err := script.MakeContractScriptPubkey(address, code, gasPrice, gas, nonce, types.VMVersion)
+	vs, err := script.MakeContractScriptPubkey(from, to, code, gasPrice, gas, nonce, types.VMVersion)
 	if err != nil {
 		return nil, err
 	}

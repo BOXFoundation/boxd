@@ -294,25 +294,28 @@ func _TestExtractBoxTx(t *testing.T) {
 		"5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29" +
 		"f5c3809ff10eb1dd0029"
 	var tests = []struct {
-		value        uint64
-		addrStr      string
-		code         string
-		price, limit uint64
-		nonce        uint64
-		version      int32
-		err          error
+		value          uint64
+		fromStr, toStr string
+		code           string
+		price, limit   uint64
+		nonce          uint64
+		version        int32
+		err            error
 	}{
-		{100, "b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", testVMScriptCode, 100, 20000, 1, 0, nil},
-		{0, "", testVMScriptCode, 100, 20000, 2, 0, nil},
+		{100, "b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT",
+			testVMScriptCode, 100, 20000, 1, 0, nil},
+		{0, "b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", testVMScriptCode, 100, 20000, 2, 0, nil},
 	}
 	blockChain := NewTestBlockChain()
 	for _, tc := range tests {
-		var addr types.Address
-		if tc.addrStr != "" {
-			addr, _ = types.NewAddress(tc.addrStr)
+		var from, to types.Address
+		if tc.toStr != "" {
+			to, _ = types.NewAddress(tc.toStr)
 		}
+		from, _ = types.NewAddress(tc.fromStr)
 		code, _ := hex.DecodeString(tc.code)
-		cs, err := script.MakeContractScriptPubkey(addr, code, tc.price, tc.limit, tc.nonce, tc.version)
+		cs, err := script.MakeContractScriptPubkey(from.Hash160(), to.Hash160(), code,
+			tc.price, tc.limit, tc.nonce, tc.version)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -333,7 +336,7 @@ func _TestExtractBoxTx(t *testing.T) {
 		hashWith, _ := tx.TxHash()
 		if *btx.OriginTxHash() != *hashWith ||
 			*btx.From() != *sender.Hash160() ||
-			(btx.To() != nil && *btx.To() != *addr.Hash160()) ||
+			(btx.To() != nil && *btx.To() != *to.Hash160()) ||
 			btx.Value().Cmp(big.NewInt(int64(tc.value))) != 0 ||
 			btx.GasPrice().Cmp(big.NewInt(int64(tc.price))) != 0 ||
 			btx.Gas() != tc.limit || btx.Nonce() != tc.nonce ||
@@ -516,7 +519,7 @@ func TestFaucetContract(t *testing.T) {
 
 	byteCode, _ := hex.DecodeString(testFaucetContract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue2 := userBalance - vmValue - gasPrice*gasLimit
@@ -535,7 +538,7 @@ func TestFaucetContract(t *testing.T) {
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
 	b3.Header.RootHash.SetString("7a999efa9fcc0d58b3a0e0959ef40cfef8df019a7945d7157033d24435690e83")
-	b3.Header.UtxoRoot.SetString("23e986e2282ddfb84d003b81a32f801eac7579a7a76e66519896b27d0ae362f7")
+	b3.Header.UtxoRoot.SetString("66d8948a76d01de1a99893f92f0c0ab27666ecb8c0e817e9400ceddb40463a0e")
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b3.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil, gasRefundTx)
@@ -558,7 +561,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -578,7 +581,7 @@ func TestFaucetContract(t *testing.T) {
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b4 := nextBlockWithTxs(b3, vmTx)
 	b4.Header.RootHash.SetString("af3defef7e1a7fe8866ba1e14be3a567920a04bae7a77bdbf4095f9a0ecd6f3f")
-	b4.Header.UtxoRoot.SetString("23e986e2282ddfb84d003b81a32f801eac7579a7a76e66519896b27d0ae362f7")
+	b4.Header.UtxoRoot = b3.Header.UtxoRoot
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
 	b4.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
 	contractBlockHandle(t, blockChain, b3, b4, b4, vmParam, nil, gasRefundTx, contractTx)
@@ -598,7 +601,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
-	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ = b3.Txs[1].TxHash()
 	changeValue4 := changeValue2 - vmValue - gasPrice*gasLimit
@@ -616,7 +619,7 @@ func TestFaucetContract(t *testing.T) {
 	//
 	b5 := nextBlockWithTxs(b4, vmTx)
 	b5.Header.RootHash.SetString("0bf64507600e191311f40c2ad178be827e6e43eafbd053d9c7210da1b7a35dd8")
-	b5.Header.UtxoRoot.SetString("9a1b9cb1b8e482a1fd6d4cc7f25442c82d8764a52e8b17ab1c89d9bc5e49387d")
+	b5.Header.UtxoRoot.SetString("dd88373164c5bf428c7d1873bb1602261691080fbe253a500dcf5ed31d11f5b8")
 	vmTxHash, _ = vmTx.TxHash()
 	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed).WithTxIndex(1)
 	b5.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
@@ -637,7 +640,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
-	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ = b5.InternalTxs[0].TxHash()
 	vmTx = types.NewTx(0, 4455, 0).
@@ -663,7 +666,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -832,7 +835,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ := hex.DecodeString(testCoinContract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
@@ -848,7 +851,7 @@ func TestCoinContract(t *testing.T) {
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
 	b3.Header.RootHash.SetString("e64182ce966ec345c08a8f139331e7b96c3cf6069c5e2f55a080a0061fa09ae1")
-	utxoRootHash := "38c155f64dcf43043ea9b0002b71d11d4fd58c0fa6921e59bd7d812e574ccf28"
+	utxoRootHash := "c90c4406bc5d3f01cf782adecb92d0ced4cb7f966d144244cfeb6eb2d683a61e"
 	b3.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ := vmTx.TxHash()
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -871,7 +874,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(mintCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ = b3.Txs[1].TxHash()
@@ -905,7 +908,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(sendCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -940,7 +943,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balancesUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -977,7 +980,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balancesReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1089,7 +1092,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ := hex.DecodeString(testERC20Contract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
@@ -1106,7 +1109,7 @@ func TestERC20Contract(t *testing.T) {
 	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, vmTx)
 	b3.Header.RootHash.SetString("f7c3382e36452cf8df488d4d07b2915f43e871536f0e9ee3b2c0e090ef5407a0")
-	utxoRootHash := "38c155f64dcf43043ea9b0002b71d11d4fd58c0fa6921e59bd7d812e574ccf28"
+	utxoRootHash := "0649cf3595bfb2e5da0919396e7478acc6d9be5f7cd6548b3dd031bbd66f7299"
 	b3.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ := vmTx.TxHash()
 	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed).WithTxIndex(1)
@@ -1129,7 +1132,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1172,7 +1175,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1209,7 +1212,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1252,7 +1255,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1290,7 +1293,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	minerNonce := uint64(1)
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, minerNonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1329,7 +1332,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(approveCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1366,7 +1369,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(increaseAllowanceCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1401,7 +1404,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(allowanceCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1437,7 +1440,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	minerNonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, minerNonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1474,7 +1477,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1517,7 +1520,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout

@@ -28,6 +28,17 @@ const (
 	ContractCallType     ContractType = "contract_call"
 )
 
+// VMTxParams defines BoxTx params parsed from script pubkey
+type VMTxParams struct {
+	GasPrice uint64
+	GasLimit uint64
+	Nonce    uint64
+	Version  int32
+	Code     []byte
+	From     *AddressHash
+	To       *AddressHash
+}
+
 // VMTransaction defines the transaction used to interact with vm
 type VMTransaction struct {
 	version  int32
@@ -40,16 +51,6 @@ type VMTransaction struct {
 	nonce    uint64
 	code     []byte
 	typ      ContractType
-}
-
-// VMTxParams defines BoxTx params parsed from script pubkey
-type VMTxParams struct {
-	GasPrice uint64
-	GasLimit uint64
-	Nonce    uint64
-	Version  int32
-	Code     []byte
-	To       *AddressHash
 }
 
 // NewVMTransaction new a VMTransaction instance with given parameters
