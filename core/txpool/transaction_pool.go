@@ -14,6 +14,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/metrics"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -323,7 +324,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 	var gasPrice uint64
-	if o := chain.GetContractVout(tx); o != nil { // smart contract tx.
+	if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
@@ -580,11 +581,6 @@ func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	}
 	tx := v.(*types.TxWrap)
 	tx.IsScriptValid = true
-	// tx_pool.legalTxs.Store(txHash, tx)
-	// if chain.HasContractVout(tx) {
-	// 	owner := chain.FetchOwnerOfOutPoint(tx.Vin[0].PrevOutPoint, chain.DB())
-
-	// }
 }
 
 func (tx_pool *TransactionPool) cleanExpiredTxs() {

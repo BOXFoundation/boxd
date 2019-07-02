@@ -12,7 +12,9 @@ import (
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
@@ -99,7 +101,7 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 		utxoWrap.SetCoinBase()
 	}
 	u.utxoMap[outPoint] = utxoWrap
-	if !HasContractVout(tx) {
+	if !txlogic.HasContractVout(tx) {
 		u.normalTxUtxoSet[outPoint] = struct{}{}
 	}
 	return nil
@@ -177,7 +179,7 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 			utxoWrap.SetCoinBase()
 		}
 		u.utxoMap[*outPoint] = utxoWrap
-		if !HasContractVout(tx) {
+		if !txlogic.HasContractVout(tx) {
 			u.normalTxUtxoSet[*outPoint] = struct{}{}
 		}
 		return nil
@@ -247,7 +249,7 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Spend the referenced utxos
 	for _, txIn := range tx.Vin {
 		u.SpendUtxo(txIn.PrevOutPoint)
-		if !HasContractVout(tx) {
+		if !txlogic.HasContractVout(tx) {
 			u.normalTxUtxoSet[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
@@ -648,7 +650,7 @@ func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub Balan
 	add = make(BalanceChangeMap)
 	sub = make(BalanceChangeMap)
 	for _, v := range block.Txs {
-		if !HasContractVout(v) {
+		if !txlogic.HasContractVout(v) {
 			for _, vout := range v.Vout {
 				sc := script.NewScriptFromBytes(vout.ScriptPubKey)
 				// calc balance for account state, here only EOA (external owned account)
@@ -682,4 +684,76 @@ func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub Balan
 		}
 	}
 	return
+}
+
+// MakeRollbackContractUtxos makes finally contract utxos from block
+func MakeRollbackContractUtxos(
+	block *types.Block, stateDB *state.StateDB, db storage.Table,
+) (types.UtxoMap, error) {
+	// prevStateDB
+	prevBlock, err := LoadBlockByHash(block.Header.PrevBlockHash, db)
+	if err != nil {
+		return nil, err
+	}
+	prevHeader := prevBlock.Header
+	prevStateDB, err := state.New(&prevHeader.RootHash, &prevHeader.UtxoRoot, db)
+	if err != nil {
+		return nil, err
+	}
+	// balances added and subtracted
+	bAdd, bSub, err := calcContractAddrBalanceChanges(block)
+	if err != nil {
+		logger.Errorf("calc contract addr balance changes error: %s", err)
+		return nil, err
+	}
+	balances := make(map[types.AddressHash]uint64, len(bAdd)+len(bSub))
+	um := make(types.UtxoMap)
+	height := block.Header.Height
+	for a, v := range bAdd {
+		ah := types.NormalizeAddressHash(&a)
+		op := types.NewOutPoint(ah, 0)
+		if _, ok := balances[a]; !ok {
+			balances[a] = stateDB.GetBalance(a).Uint64()
+			sc := script.MakeContractUtxoScriptPubkey(&a, prevStateDB.GetNonce(a), types.VMVersion)
+			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
+		}
+		utxo := um[*op]
+		utxo.SetValue(utxo.Value() - v)
+	}
+	for a, v := range bSub {
+		ah := types.NormalizeAddressHash(&a)
+		op := types.NewOutPoint(ah, 0)
+		if _, ok := balances[a]; !ok {
+			balances[a] = stateDB.GetBalance(a).Uint64()
+			sc := script.MakeContractUtxoScriptPubkey(&a, prevStateDB.GetNonce(a), types.VMVersion)
+			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
+		}
+		utxo := um[*op]
+		utxo.SetValue(utxo.Value() + v)
+	}
+	//
+	for op, u := range um {
+		ah := new(types.AddressHash)
+		ah.SetBytes(op.Hash[:])
+		b := prevStateDB.GetBalance(*ah)
+		if b.Uint64() != u.Value() {
+			addr, _ := types.NewContractAddressFromHash(ah[:])
+			return nil, fmt.Errorf("block %s: contract addr %s rollback to incorrect "+
+				"balance: %d, need: %d", block.BlockHash(), addr, u.Value(), b)
+		}
+		utxoBytes, err := prevStateDB.GetUtxo(*ah)
+		if err != nil {
+			return nil, err
+		}
+		if utxoBytes == nil {
+			u.Spend()
+			continue
+		}
+		utxoWrap, err := DeserializeUtxoWrap(utxoBytes)
+		if err != nil {
+			return nil, err
+		}
+		um[op] = utxoWrap
+	}
+	return um, nil
 }

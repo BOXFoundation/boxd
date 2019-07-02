@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -336,7 +337,7 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
 			hashToTx[*txHash] = pendingTx
-			if chain.HasContractVout(pendingTx.Tx) { // smart contract tx
+			if txlogic.HasContractVout(pendingTx.Tx) { // smart contract tx
 				// from is in txpool if the contract tx used a vout in txpool
 				op := pendingTx.Tx.Vin[0].PrevOutPoint
 				ownerTx, ok := dpos.txpool.GetTxByHash(&op.Hash)
@@ -386,7 +387,7 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			continue
 		}
 		dag.AddNode(*txHash, int(txWrap.GasPrice))
-		if chain.HasContractVout(txWrap.Tx) { // smart contract tx
+		if txlogic.HasContractVout(txWrap.Tx) { // smart contract tx
 			from := hashToAddress[*txHash]
 			sortedNonceTxs := addressToNonceSortedTxs[from]
 			handleVMTx(dag, sortedNonceTxs, hashToTx)
@@ -524,7 +525,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 
 	parentHash := block.Header.PrevBlockHash
-	parent, err := dpos.chain.LoadBlockByHash(parentHash)
+	parent, err := chain.LoadBlockByHash(parentHash, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
@@ -544,7 +545,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	dpos.chain.SetBlockTxs(block)
 	receipts, gasUsed, gasRemainingFee, utxoTxs, err :=
 		dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
@@ -925,7 +925,7 @@ func (dpos *Dpos) verifySign(block *types.Block) (bool, error) {
 func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
 	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > MinConfirmMsgNumberForEternalBlock {
-		block, err := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, dpos.chain.DB())
 		if err != nil {
 			logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
 			return

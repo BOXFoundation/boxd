@@ -447,3 +447,36 @@ func SignTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.Pu
 	}
 	return nil
 }
+
+// HasContractVout return true if tx has a vout with contract creation or call
+func HasContractVout(tx *types.Transaction) bool {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return true
+		}
+	}
+	return false
+}
+
+// GetContractVout return contract out if tx has a vout with contract creation or call
+func GetContractVout(tx *types.Transaction) *corepb.TxOut {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return o
+		}
+	}
+	return nil
+}
+
+// HasContractSpend return true if tx has a vin with Op Spend script sig
+func HasContractSpend(tx *types.Transaction) bool {
+	for _, i := range tx.Vin {
+		sc := script.NewScriptFromBytes(i.ScriptSig)
+		if sc.IsContractSig() {
+			return true
+		}
+	}
+	return false
+}
