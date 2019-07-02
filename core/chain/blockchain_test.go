@@ -365,7 +365,7 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, gascost uint64)
 		return nil, nil, err
 	}
 
-	chain.SetBlockTxs(block)
+	// chain.SetBlockTxs(block)
 	_, _, _, utxoTxs, err :=
 		chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {

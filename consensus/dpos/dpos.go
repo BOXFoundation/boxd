@@ -7,6 +7,7 @@ package dpos
 import (
 	"container/heap"
 	"errors"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -515,6 +516,18 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// Important: wait for packing complete and exit
 	<-continueCh
 
+	parentHash := block.Header.PrevBlockHash
+	parent, err := chain.LoadBlockByHash(parentHash, dpos.chain.DB())
+	if err != nil {
+		return err
+	}
+	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, dpos.chain.DB())
+	if err != nil {
+		return err
+	}
+	logger.Infof("new statedb with root: %s and utxo root: %s block height %d",
+		parent.Header.RootHash, parent.Header.UtxoRoot, block.Header.Height)
+
 	// Pay tx fees to bookkeeper in addition to block reward in coinbase
 	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
 	// blockTxns[0].Vout[0].Value += totalTxFee
@@ -524,7 +537,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	coinbaseTx, err := dpos.chain.MakeCoinbaseTx(addr.Hash160(), amount, 0, block.Header.Height)
+	nonce := statedb.GetNonce(*addr.Hash160())
+	statedb.AddBalance(*addr.Hash160(), new(big.Int).SetUint64(amount))
+	coinbaseTx, err := dpos.chain.MakeCoinbaseTx(addr.Hash160(), amount, nonce+1, block.Header.Height)
 	if err != nil {
 		return err
 	}
@@ -537,17 +552,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 
-	parentHash := block.Header.PrevBlockHash
-	parent, err := chain.LoadBlockByHash(parentHash, dpos.chain.DB())
-	if err != nil {
-		return err
-	}
-	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, dpos.chain.DB())
-	if err != nil {
-		return err
-	}
-	logger.Infof("new statedb with root: %s and utxo root: %s block height %d",
-		parent.Header.RootHash, parent.Header.UtxoRoot, block.Header.Height)
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, true, dpos.chain.DB()); err != nil {
 		return err

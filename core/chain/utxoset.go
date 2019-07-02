@@ -190,9 +190,7 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 		outPoint *types.OutPoint
 		utxoWrap *types.UtxoWrap
 	)
-	if IsCoinBase(tx) {
-		return errors.New("Invalid smart contract tx")
-	}
+
 	contractAddr, err := sc.ParseContractAddr()
 	if err != nil {
 		return err
@@ -203,12 +201,14 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 		from, _ := sc.ParseContractFrom()
 		nonce, _ := sc.ParseContractNonce()
 		contractAddr, _ := types.MakeContractAddress(from, nonce)
+		logger.Errorf("contractAddr: %s", contractAddr.String())
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint = types.NewOutPoint(addressHash, 0)
 		utxoWrap = types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)
 	} else {
 		// call smart contract
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
+		logger.Errorf("contractAddr: %s", contractAddr.String())
 		outPoint = types.NewOutPoint(addressHash, 0)
 		var exists bool
 		utxoWrap, exists = u.utxoMap[*outPoint]
@@ -534,29 +534,32 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db stora
 		hash, _ := tx.TxHash()
 		txs[*hash] = index
 	}
-	for i, tx := range block.Txs[1:] {
-		for _, txIn := range tx.Vin {
-			if !needContract && txIn.PrevOutPoint.IsContractType() {
-				continue
-			}
-			preHash := &txIn.PrevOutPoint.Hash
-			// i points to txs[i + 1], which should be after txs[index]
-			// Thus (i + 1) > index, equavalently, i >= index
-			if index, ok := txs[*preHash]; ok && i >= index {
-				originTx := block.Txs[index]
-				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height); err != nil {
-					logger.Error(err)
+	for i, tx := range block.Txs {
+		if i > 0 {
+			for _, txIn := range tx.Vin {
+				if !needContract && txIn.PrevOutPoint.IsContractType() {
+					continue
 				}
+				preHash := &txIn.PrevOutPoint.Hash
+				// i points to txs[i + 1], which should be after txs[index]
+				// Thus (i + 1) > index, equavalently, i >= index
+				if index, ok := txs[*preHash]; ok && i >= index {
+					originTx := block.Txs[index]
+					if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height); err != nil {
+						logger.Error(err)
+					}
+					continue
+				}
+				if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
+					continue
+				}
+				outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
+			}
+			if !needContract {
 				continue
 			}
-			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
-				continue
-			}
-			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
 		}
-		if !needContract {
-			continue
-		}
+
 		// add utxo for contract vout script pubkey
 		for _, txOut := range tx.Vout {
 			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)

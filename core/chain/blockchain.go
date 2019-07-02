@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1279,6 +1280,11 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, vmerr
 	}
 	ContractAddr = contractAddr
+	addressHash := types.NormalizeAddressHash(&contractAddr)
+	outPoint := types.NewOutPoint(addressHash, 0)
+	utxoWrap := types.NewUtxoWrap(0, []byte{}, 0)
+	logger.Errorf("genesis utxoWrap outpoint: %v", outPoint)
+	utxoSet.utxoMap[*outPoint] = utxoWrap
 
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
 	root, _, err := stateDB.Commit(false)
