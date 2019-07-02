@@ -497,6 +497,7 @@ func CalcTxHashForSig(
 	if txInIdx >= len(originalTx.Vin) {
 		return nil, ErrInputIndexOutOfBound
 	}
+	// construct a transaction from originalTx except scriptPubKey to compute signature hash
 	tx := types.NewTx(originalTx.Version, originalTx.Magic, originalTx.LockTime).
 		AppendVout(originalTx.Vout...)
 	for i, txIn := range originalTx.Vin {
@@ -847,11 +848,12 @@ func MakeContractUtxoScriptPubkey(addr *types.AddressHash, nonce uint64, version
 
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
-	addr types.Address, code []byte, gasPrice, gasLimit, nonce uint64, version int32,
+	from, to *types.AddressHash, code []byte, gasPrice, gasLimit, nonce uint64,
+	version int32,
 ) (*Script, error) {
-	// OP_CONTRACT addr nonce gasPrice gasLimit version code checksum
+	// OP_CONTRACT from to nonce gasPrice gasLimit version code checksum
 	// check params
-	if len(code) == 0 {
+	if from == nil || len(code) == 0 {
 		return nil, ErrInvalidContractParams
 	}
 	overflowVal := uint64(math.MaxInt64)
@@ -864,10 +866,11 @@ func MakeContractScriptPubkey(
 	// set params
 	s := NewScript()
 	toHash := ZeroContractAddress
-	if addr != nil && !reflect.ValueOf(addr).IsNil() {
-		toHash = *addr.Hash160()
+	if to != nil {
+		toHash = *to
 	}
-	s.AddOperand(toHash[:]).
+	s.AddOperand(from[:]).
+		AddOperand(toHash[:]).
 		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
 		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
@@ -896,7 +899,7 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	}
 
 	params = new(types.VMTxParams)
-	// addr
+	// from
 	_, operand, pc, err := s.getNthOp(pc, 0)
 	if err != nil {
 		return
@@ -906,6 +909,19 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 		return
 	}
 	addrHash := new(types.AddressHash)
+	copy(addrHash[:], operand[:])
+	params.From = addrHash
+
+	// contract address
+	_, operand, pc, err = s.getNthOp(pc, 0)
+	if err != nil {
+		return
+	}
+	if len(operand) != ripemd160.Size {
+		err = ErrInvalidContractScript
+		return
+	}
+	addrHash = new(types.AddressHash)
 	copy(addrHash[:], operand[:])
 	if *addrHash == ZeroContractAddress {
 		typ = types.ContractCreationType
@@ -964,14 +980,38 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	return
 }
 
-// ParseContractAddr returns contract address within the script
-func (s *Script) ParseContractAddr() (*types.AddressContract, error) {
-	return nil, nil
+// ParseContractFrom returns contract address within the script
+func (s *Script) ParseContractFrom() (*types.AddressPubKeyHash, error) {
+	if !s.IsContractPubkey() {
+		return nil, errors.New("not a contract script")
+	}
+	_, operand, _, err := s.getNthOp(1, 0) // 1, 22
+	if err != nil {
+		return nil, err
+	}
+	if len(operand) != ripemd160.Size {
+		return nil, ErrInvalidContractScript
+	}
+	return types.NewAddressPubKeyHash(operand)
 }
 
-// ParseContractSender returns contract sender within the script
-func (s *Script) ParseContractSender() (*types.AddressPubKeyHash, error) {
-	return nil, nil
+// ParseContractAddr returns contract contract address within the script
+func (s *Script) ParseContractAddr() (*types.AddressContract, error) {
+	if !s.IsContractPubkey() {
+		return nil, errors.New("not a contract script")
+	}
+	_, operand, _, err := s.getNthOp(22, 0) // 1, 22
+	if err != nil {
+		return nil, err
+	}
+	if len(operand) != ripemd160.Size {
+		return nil, ErrInvalidContractScript
+	}
+	if bytes.Equal(operand, types.ZeroAddressHash[:]) {
+		// contract deploy
+		return nil, nil
+	}
+	return types.NewContractAddressFromHash(operand)
 }
 
 // ParseContractNonce returns address within the script
@@ -979,7 +1019,7 @@ func (s *Script) ParseContractNonce() (uint64, error) {
 	if !s.IsContractPubkey() {
 		return 0, errors.New("not a contract script")
 	}
-	_, operand, _, err := s.getNthOp(22, 0) // 1, 22
+	_, operand, _, err := s.getNthOp(43, 0) // 1, 22, 43
 	if err != nil {
 		return 0, err
 	}
@@ -995,7 +1035,7 @@ func (s *Script) ParseContractGasPrice() (uint64, error) {
 	if !s.IsContractPubkey() {
 		return 0, errors.New("not a contract script")
 	}
-	_, operand, _, err := s.getNthOp(22, 1) // 1, 22
+	_, operand, _, err := s.getNthOp(43, 1) // 1, 22
 	if err != nil {
 		return 0, err
 	}
@@ -1011,7 +1051,7 @@ func (s *Script) ParseContractGas() (uint64, error) {
 	if !s.IsContractPubkey() {
 		return 0, errors.New("not a contract script")
 	}
-	_, operand, _, err := s.getNthOp(22, 2) // 1, 22
+	_, operand, _, err := s.getNthOp(43, 2) // 1, 22
 	if err != nil {
 		return 0, err
 	}

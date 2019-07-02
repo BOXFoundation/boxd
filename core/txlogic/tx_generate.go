@@ -219,7 +219,15 @@ func MakeUnsignedContractDeployTx(
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
-	contractVout, err := MakeContractCreationVout(amount, gasLimit, gasPrice, nonce, byteCode)
+	fromAddr, err := types.ParseAddress(from)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
+		return nil, errors.New("sender account is not PubKeyHash")
+	}
+	contractVout, err := MakeContractCreationVout(fromAddr.Hash160(), amount,
+		gasLimit, gasPrice, nonce, byteCode)
 	if err != nil {
 		return nil, err
 	}
@@ -229,10 +237,24 @@ func MakeUnsignedContractDeployTx(
 //MakeUnsignedContractCallTx call a contract tx without signature
 func MakeUnsignedContractCallTx(
 	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
-	contractAddr string, byteCode []byte, utxos ...*rpcpb.Utxo,
+	to string, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-	contractVout, err := MakeContractCallVout(contractAddr, amount, gasLimit,
-		gasPrice, nonce, byteCode)
+	fromAddr, err := types.ParseAddress(from)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
+		return nil, errors.New("sender account is not PubKeyHash address")
+	}
+	toAddr, err := types.ParseAddress(to)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := toAddr.(*types.AddressContract); !ok {
+		return nil, errors.New("receiver account is not contract address")
+	}
+	contractVout, err := MakeContractCallVout(fromAddr.Hash160(), toAddr.Hash160(),
+		amount, gasLimit, gasPrice, nonce, byteCode)
 	if err != nil {
 		return nil, err
 	}

@@ -294,25 +294,28 @@ func _TestExtractBoxTx(t *testing.T) {
 		"5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29" +
 		"f5c3809ff10eb1dd0029"
 	var tests = []struct {
-		value        uint64
-		addrStr      string
-		code         string
-		price, limit uint64
-		nonce        uint64
-		version      int32
-		err          error
+		value          uint64
+		fromStr, toStr string
+		code           string
+		price, limit   uint64
+		nonce          uint64
+		version        int32
+		err            error
 	}{
-		{100, "b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh", testVMScriptCode, 100, 20000, 1, 0, nil},
-		{0, "", testVMScriptCode, 100, 20000, 2, 0, nil},
+		{100, "b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT",
+			testVMScriptCode, 100, 20000, 1, 0, nil},
+		{0, "b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", testVMScriptCode, 100, 20000, 2, 0, nil},
 	}
 	blockChain := NewTestBlockChain()
 	for _, tc := range tests {
-		var addr types.Address
-		if tc.addrStr != "" {
-			addr, _ = types.NewAddress(tc.addrStr)
+		var from, to types.Address
+		if tc.toStr != "" {
+			to, _ = types.NewAddress(tc.toStr)
 		}
+		from, _ = types.NewAddress(tc.fromStr)
 		code, _ := hex.DecodeString(tc.code)
-		cs, err := script.MakeContractScriptPubkey(addr, code, tc.price, tc.limit, tc.nonce, tc.version)
+		cs, err := script.MakeContractScriptPubkey(from.Hash160(), to.Hash160(), code,
+			tc.price, tc.limit, tc.nonce, tc.version)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -333,7 +336,7 @@ func _TestExtractBoxTx(t *testing.T) {
 		hashWith, _ := tx.TxHash()
 		if *btx.OriginTxHash() != *hashWith ||
 			*btx.From() != *sender.Hash160() ||
-			(btx.To() != nil && *btx.To() != *addr.Hash160()) ||
+			(btx.To() != nil && *btx.To() != *to.Hash160()) ||
 			btx.Value().Cmp(big.NewInt(int64(tc.value))) != 0 ||
 			btx.GasPrice().Cmp(big.NewInt(int64(tc.price))) != 0 ||
 			btx.Gas() != tc.limit || btx.Nonce() != tc.nonce ||
@@ -526,7 +529,7 @@ func TestFaucetContract(t *testing.T) {
 
 	byteCode, _ := hex.DecodeString(testFaucetContract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue2 := userBalance - vmValue - gasPrice*gasLimit
@@ -575,7 +578,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -622,7 +625,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
-	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ = b3.Txs[1].TxHash()
 	changeValue4 := changeValue2 - vmValue - gasPrice*gasLimit
@@ -667,7 +670,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
-	contractVout, err = txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ = b5.InternalTxs[0].TxHash()
 	vmTx = types.NewTx(0, 4455, 0).
@@ -693,7 +696,7 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -869,7 +872,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ := hex.DecodeString(testCoinContract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
@@ -914,7 +917,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(mintCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ = b3.Txs[1].TxHash()
@@ -955,7 +958,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(sendCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -997,7 +1000,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balancesUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1041,7 +1044,7 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balancesReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1160,7 +1163,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ := hex.DecodeString(testERC20Contract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
@@ -1207,7 +1210,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1257,7 +1260,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1301,7 +1304,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1351,7 +1354,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1395,7 +1398,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	minerNonce := uint64(1)
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, minerNonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1440,7 +1443,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(approveCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1484,7 +1487,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(increaseAllowanceCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1526,7 +1529,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(allowanceCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1569,7 +1572,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	minerNonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, minerNonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1612,7 +1615,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout
@@ -1661,7 +1664,7 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(contractAddr.String(),
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
 		vmValue, gasLimit, gasPrice, nonce, byteCode)
 	ensure.Nil(t, err)
 	// use internal tx vout

@@ -519,7 +519,11 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// blockTxns[0].Vout[0].Value += totalTxFee
 	var blockTxns []*types.Transaction
 	amount := chain.CalcBlockSubsidy(block.Header.Height) + totalTxFee
-	coinbaseTx, err := dpos.chain.MakeCoinbaseTx(amount, 0, block.Header.Height)
+	addr, err := types.NewAddress(dpos.bookkeeper.Addr())
+	if err != nil {
+		return err
+	}
+	coinbaseTx, err := dpos.chain.MakeCoinbaseTx(addr.Hash160(), amount, 0, block.Header.Height)
 	if err != nil {
 		return err
 	}
