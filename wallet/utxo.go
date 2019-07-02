@@ -6,18 +6,21 @@ package wallet
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/key"
 	sk "github.com/BOXFoundation/boxd/storage/key"
 )
 
@@ -121,10 +124,27 @@ func fetchModerateUtxos(
 	keys [][]byte, tid *types.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
+	// update utxo cache
 	utxoLiveCache.Shrink()
+	// adjust amount to fetch
+	amountToFetch := total
+	if len(keys) > utxoMergeCnt {
+		logger.Infof("%s has %d utxos [tid: %v], start utxos merger",
+			key.NewKeyFromBytes(keys[0]), len(keys), tid)
+		amountToFetch = math.MaxUint64
+	}
+	// utxos fetch logic
 	result := make([]*rpcpb.Utxo, 0)
-	remain := total
-	for start := 0; start < len(keys) && remain <= total; start += utxoSelUnitCnt {
+	remain := amountToFetch
+	// here "remain <= amountToFetch", because remain and amountToFetch is uint64
+	for start := 0; start < len(keys) && remain <= amountToFetch; start += utxoSelUnitCnt {
+		// check utxos bound
+		if len(result) > core.MaxUtxosInTx {
+			if amountToFetch-remain > total {
+				return result, nil
+			}
+			return nil, core.ErrUtxosOob
+		}
 		// calc start and end keys
 		end := start + utxoSelUnitCnt
 		if end > len(keys) {
@@ -154,6 +174,10 @@ func fetchModerateUtxos(
 
 		remain -= amount
 		result = append(result, selUtxos...)
+	}
+	if amountToFetch != math.MaxUint64 && remain > 0 && remain <= amountToFetch {
+		return nil, fmt.Errorf("amount for %d utxo is less than total %d wanted",
+			len(result), total)
 	}
 
 	return result, nil

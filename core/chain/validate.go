@@ -386,6 +386,11 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 		return core.ErrNoTxOutputs
 	}
 
+	// A transaction must have no more than MaxVins vins
+	if len(tx.Vin) > core.MaxUtxosInTx {
+		return core.ErrUtxosOob
+	}
+
 	// TOOD: check before deserialization
 	// // A transaction must not exceed the maximum allowed block payload when
 	// // serialized.
