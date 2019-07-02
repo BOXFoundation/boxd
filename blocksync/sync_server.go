@@ -346,7 +346,7 @@ func (sm *SyncManager) onLightSyncRequest(msg p2p.Message) error {
 
 	var blocks []*types.Block
 	for _, hash := range hashes {
-		block, err := sm.chain.LoadBlockByHash(*hash)
+		block, err := chain.LoadBlockByHash(*hash, sm.chain.DB())
 		if err != nil {
 			return err
 		}
