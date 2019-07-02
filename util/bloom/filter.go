@@ -34,12 +34,14 @@ type Filter interface {
 	Add(data []byte)
 	MatchesAndAdd(data []byte) bool
 	Merge(f Filter) error
-	GetByte(i uint32) byte
+	Reset()
 
 	Size() uint32
 	K() uint32
 	Tweak() uint32
 	FPRate() float64
+	GetByte(i uint32) byte
+	Indexes() []uint32
 
 	conv.Serializable
 }
@@ -226,6 +228,15 @@ func (bf *filter) Merge(f Filter) error {
 	return err
 }
 
+// Reset reset all flag bits of the bloom filter.
+func (bf *filter) Reset() {
+	bf.sm.Lock()
+	for i := 0; i < len(bf.filter); i++ {
+		bf.filter[i] = byte(0)
+	}
+	bf.sm.Unlock()
+}
+
 // GetByte get the specified byte.
 func (bf *filter) GetByte(i uint32) byte {
 	return bf.filter[i]
@@ -305,4 +316,9 @@ func (bf *filter) Unmarshal(data []byte) error {
 	}
 	bf.filter, err = util.ReadVarBytes(r)
 	return err
+}
+
+// Indexes return marked indexes.
+func (bf *filter) Indexes() []uint32 {
+	return util.BitIndexes(bf.filter)
 }

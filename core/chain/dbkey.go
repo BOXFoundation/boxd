@@ -199,6 +199,6 @@ func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
 }
 
 // SecBloomBitSetKey is the key to store bloom bit set
-func SecBloomBitSetKey(section uint64, bit uint) []byte {
+func SecBloomBitSetKey(section uint32, bit uint) []byte {
 	return secBloomBitSetBase.ChildString(fmt.Sprintf("%x", section)).ChildString(fmt.Sprintf("%x", bit)).Bytes()
 }
