@@ -19,7 +19,7 @@ install:
   - sudo apt-get install g++-4.8 libsnappy-dev zlib1g-dev libbz2-dev cmake-data cmake -qq
   # install rocksdb
   - cd
-  - git clone https://github.com/facebook/rocksdb.git
+  - git clone https://github.com/facebook/rocksdb.git --branch v6.1.2
   - cd rocksdb
   - DEBUG_LEVEL=0 DISABLE_WARNING_AS_ERROR=1 sudo make shared_lib install-shared
   - export LD_LIBRARY_PATH=/usr/local/lib
