@@ -5,7 +5,6 @@
 package chain
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
@@ -467,8 +466,8 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			sc := script.NewScriptFromBytes(utxoWrap.Script())
 			addr, err := sc.ExtractAddress()
 			if err != nil {
-				logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s %s, Err: %v",
-					utxoWrap, sc.Disasm(), hex.EncodeToString(utxoWrap.Script()), err)
+				logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, hex: %x, Err: %v",
+					utxoWrap, sc.Disasm(), utxoWrap.Script(), err)
 				return err
 			}
 			if sc.IsTokenTransfer() || sc.IsTokenIssue() {
@@ -714,7 +713,7 @@ func MakeRollbackContractUtxos(
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			sc := script.MakeContractUtxoScriptPubkey(&a, prevStateDB.GetNonce(a), types.VMVersion)
+			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a, prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]
@@ -725,7 +724,7 @@ func MakeRollbackContractUtxos(
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			sc := script.MakeContractUtxoScriptPubkey(&a, prevStateDB.GetNonce(a), types.VMVersion)
+			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a, prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]

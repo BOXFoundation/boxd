@@ -688,45 +688,34 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
 
-	if s.IsPayToPubKeyHash() || s.IsTokenIssue() || s.IsTokenTransfer() {
-		// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
-		_, pubKeyHash, _, err := s.getNthOp(0, 2)
+	switch {
+	case s.IsTokenTransfer():
+		fallthrough
+	case s.IsTokenIssue():
+		fallthrough
+	case s.IsPayToPubKeyHash():
+		_, pubKeyHash, _, err := s.getNthOp(2, 0)
 		if err != nil {
 			return nil, err
-
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
-	}
-
-	if s.IsSplitAddrScript() || s.IsContractPubkey() {
-		_, pubKeyHash, _, err := s.getNthOp(1, 0)
-		if err != nil {
-			return nil, err
-		}
-		var addr types.Address
-		if s.IsSplitAddrScript() {
-			addr, err = types.NewSplitAddressFromHash(pubKeyHash)
-		} else {
-			if bytes.Equal([]byte(pubKeyHash), ZeroContractAddress[:]) {
-				return (*types.AddressContract)(nil), nil
-			}
-			addr, err = types.NewContractAddressFromHash(pubKeyHash)
-		}
-		if err != nil {
-			return nil, err
-		}
-		return addr, nil
-	}
-
-	if s.IsPayToPubKeyHashCLTVScript() {
+	case s.IsPayToPubKeyHashCLTVScript():
 		_, pubKeyHash, _, err := s.getNthOp(0, 4)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
+	case s.IsContractPubkey():
+		return s.ParseContractAddr()
+	case s.IsSplitAddrScript():
+		_, pubKeyHash, _, err := s.getNthOp(1, 0)
+		if err != nil {
+			return nil, err
+		}
+		return types.NewSplitAddressFromHash(pubKeyHash)
+	default:
+		return nil, ErrAddressNotApplicable
 	}
-
-	return nil, ErrAddressNotApplicable
 }
 
 // ExtractP2PKHAddress returns address within the script
@@ -830,10 +819,11 @@ func (s *Script) IsContractPubkey() bool {
 }
 
 // MakeContractUtxoScriptPubkey makes a script pubkey for contract addr utxo
-func MakeContractUtxoScriptPubkey(addr *types.AddressHash, nonce uint64, version int32) *Script {
-	// OP_CONTRACT contract_addr nonce gasPrice gasLimit version code checksum
+func MakeContractUtxoScriptPubkey(from, to *types.AddressHash, nonce uint64, version int32) *Script {
+	// OP_CONTRACT from contract_addr nonce gasPrice gasLimit version code checksum
 	s := NewScript()
-	s.AddOperand(addr[:]).
+	s.AddOperand(from[:]).
+		AddOperand(to[:]).
 		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(0).Bytes()).
 		AddOperand(big.NewInt(0).Bytes()).
