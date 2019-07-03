@@ -437,11 +437,11 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
-	if err != nil {
-		logger.Error("Failed to load candidate context")
-		return err
-	}
+	// candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
+	// if err != nil {
+	// 	logger.Error("Failed to load candidate context")
+	// 	return err
+	// }
 
 	var packedTxs []*types.Transaction
 	// coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
@@ -469,10 +469,10 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 			txHash, _ := txWrap.Tx.TxHash()
 
-			if err := dpos.prepareCandidateContext(candidateContext, txWrap.Tx); err != nil {
-				// TODO: abandon the error tx
-				continue
-			}
+			// if err := dpos.prepareCandidateContext(candidateContext, txWrap.Tx); err != nil {
+			// 	// TODO: abandon the error tx
+			// 	continue
+			// }
 
 			utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
 			if err != nil {
@@ -516,8 +516,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// Important: wait for packing complete and exit
 	<-continueCh
 
-	parentHash := block.Header.PrevBlockHash
-	parent, err := chain.LoadBlockByHash(parentHash, dpos.chain.DB())
+	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
+	parent, err := chain.LoadBlockByHash(block.Header.PrevBlockHash, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
@@ -525,33 +525,47 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	logger.Infof("new statedb with root: %s and utxo root: %s block height %d",
-		parent.Header.RootHash, parent.Header.UtxoRoot, block.Header.Height)
+	coinbaseTx, err := dpos.makeCoinbaseTx(block, statedb, totalTxFee)
+	if err != nil {
+		return err
+	}
+	block.Txs = append(block.Txs, coinbaseTx)
+	block.Txs = append(block.Txs, packedTxs...)
 
-	// Pay tx fees to bookkeeper in addition to block reward in coinbase
-	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
-	// blockTxns[0].Vout[0].Value += totalTxFee
-	var blockTxns []*types.Transaction
-	amount := chain.CalcBlockSubsidy(block.Header.Height) + totalTxFee
-	addr, err := types.NewAddress(dpos.bookkeeper.Addr())
-	if err != nil {
+	if err := dpos.executeBlock(block, statedb); err != nil {
 		return err
 	}
-	nonce := statedb.GetNonce(*addr.Hash160())
-	statedb.AddBalance(*addr.Hash160(), new(big.Int).SetUint64(amount))
-	coinbaseTx, err := dpos.chain.MakeCoinbaseTx(addr.Hash160(), amount, nonce+1, block.Header.Height)
+	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
+		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),
+		block.Header.Height, len(block.Txs), len(block.InternalTxs), len(sortedTxs))
+	return nil
+}
+
+func (dpos *Dpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64) (*types.Transaction, error) {
+
+	amount := chain.CalcBlockSubsidy(block.Header.Height) + txFee
+	nonce := statedb.GetNonce(block.Header.BookKeeper)
+	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
+	return dpos.chain.MakeCoinbaseTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height)
+}
+
+func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
+
+	candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
 	if err != nil {
+		logger.Error("Failed to load candidate context")
 		return err
 	}
-	blockTxns = append(blockTxns, coinbaseTx)
-	blockTxns = append(blockTxns, packedTxs...)
-	block.Txs = blockTxns
+	genesisContractBalanceOld := statedb.GetBalance(chain.ContractAddr).Uint64()
+
+	logger.Infof("Before execute sblock.statedb root: %s utxo root: %s genesis contract balance: %d block height: %d",
+		statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld, block.Header.Height)
 
 	candidateHash, err := candidateContext.CandidateContextHash()
 	if err != nil {
 		return err
 	}
-
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, true, dpos.chain.DB()); err != nil {
 		return err
@@ -561,7 +575,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
-
 	receipts, gasUsed, gasRemainingFee, utxoTxs, err :=
 		dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
@@ -569,19 +582,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 
 	block.Txs[0].Vout[0].Value -= gasRemainingFee
-	blockCopy.Txs[0].Vout[0].Value -= gasRemainingFee
-	block.Txs[0].ResetTxHash()
-	// handle coinbase utxo
-	if gasRemainingFee > 0 {
-		for k, v := range utxoSet.GetUtxos() {
-			if v.IsCoinBase() {
-				v.SetValue(block.Txs[0].Vout[0].Value)
-				delete(utxoSet.All(), k)
-				utxoSet.AddUtxo(block.Txs[0], 0, block.Header.Height)
-				break
-			}
-		}
-	}
 	dpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 
 	// apply internal txs.
@@ -598,6 +598,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	root, utxoRoot, err := statedb.Commit(false)
 	if err != nil {
 		return err
+	}
+	if genesisContractBalanceOld+block.Txs[0].Vout[0].Value != statedb.GetBalance(chain.ContractAddr).Uint64() {
+		return errors.New("genesis contract state is error")
 	}
 	dpos.chain.StateDBCache()[block.Header.Height] = statedb
 	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
@@ -621,13 +624,8 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		dpos.chain.ReceiptsCache()[block.Header.Height] = receipts
 	}
 	block.Hash = nil
-
 	logger.Infof("block %s height: %d have state root %s utxo root %s",
 		block.BlockHash(), block.Header.Height, root, utxoRoot)
-	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
-	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
-		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),
-		block.Header.Height, len(block.Txs), len(block.InternalTxs), len(sortedTxs))
 	return nil
 }
 

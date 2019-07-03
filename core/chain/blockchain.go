@@ -2046,7 +2046,7 @@ func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
 }
 
 // MakeCoinbaseTx creates a coinbase give bookkeeper address and block height
-func (chain *BlockChain) MakeCoinbaseTx(from *types.AddressHash, amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+func (chain *BlockChain) MakeCoinbaseTx(from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
 	abiObj, err := readAbi(chain.cfg.ContractABIPath)
 	if err != nil {
 		return nil, err
@@ -2061,7 +2061,7 @@ func (chain *BlockChain) MakeCoinbaseTx(from *types.AddressHash, amount uint64, 
 		return nil, err
 	}
 	logger.Errorf("contractAddr: %s", contractAddr.String())
-	vout, err := txlogic.MakeContractCallVout(from, contractAddr.Hash160(), amount, 1e9, 0, nonce, code)
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce, code)
 	if err != nil {
 		return nil, err
 	}

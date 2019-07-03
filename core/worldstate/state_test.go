@@ -196,9 +196,8 @@ func TestSnapshot3(t *testing.T) {
 
 	tr.Update(stateobjaddr0[:], d0)
 	tr.Update(stateobjaddr1[:], d1)
-	root, _ := tr.Commit()
 
-	trNew, _ := trie.New(root, db)
+	trNew, _ := trie.New(tr.RootHash(), db)
 	_, err := trNew.Get(stateobjaddr1[:])
 	ensure.Nil(t, err)
 }
