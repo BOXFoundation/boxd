@@ -774,10 +774,12 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	for a, v := range bAdd {
 		logger.Warnf("DEBUG: update normal balance add %x %d", a[:], v)
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
+		logger.Errorf("DEBUG: addr %x balance %d", a[:], stateDB.GetBalance(a).Uint64())
 	}
 	for a, v := range bSub {
 		logger.Warnf("DEBUG: update normal balance sub %x %d", a[:], v)
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
+		logger.Errorf("DEBUG: addr %x balance %d", a[:], stateDB.GetBalance(a).Uint64())
 	}
 }
 
@@ -819,6 +821,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			logger.Error(err)
 			return err
 		}
+		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
 		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
 			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
 
@@ -943,11 +946,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 
 func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 
-	//if len(utxoTxs) != len(block.InternalTxs) {
-	//	logger.Warnf("utxo txs generated len: %d, internal txs in block len: %d", len(utxoTxs),
-	//		len(block.InternalTxs))
-	//	return core.ErrInvalidInternalTxs
-	//}
 	if len(utxoTxs) > 0 {
 		txsRoot := CalcTxsHash(utxoTxs)
 		if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
@@ -983,7 +981,8 @@ func (chain *BlockChain) ValidateExecuteResult(
 	for _, txOut := range block.Txs[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
-	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
+	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
+	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height)
 	if totalCoinbaseOutput != expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value %v("+
 			"totalTxsFee: %d, gas remaining: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,

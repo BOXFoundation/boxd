@@ -575,13 +575,13 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
-	receipts, gasUsed, gasRemainingFee, utxoTxs, err :=
+	receipts, gasUsed, _, utxoTxs, err :=
 		dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
 
-	block.Txs[0].Vout[0].Value -= gasRemainingFee
+	// block.Txs[0].Vout[0].Value -= gasRemainingFee
 	dpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 
 	// apply internal txs.
