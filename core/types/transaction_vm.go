@@ -347,6 +347,12 @@ func (rcs *Receipts) ToProtoMessage() (proto.Message, error) {
 			Failed:  rc.Failed,
 			GasUsed: rc.GasUsed,
 		}
+
+		for _, log := range rc.Logs {
+			l, _ := log.ToProtoMessage()
+			pbrc.Logs = append(pbrc.Logs, l.(*corepb.Log))
+		}
+
 		pbrcs.Receipts = append(pbrcs.Receipts, pbrc)
 	}
 	return pbrcs, nil
@@ -372,6 +378,14 @@ func (rcs *Receipts) FromProtoMessage(message proto.Message) error {
 		rc.TxIndex = pbrc.TxIndex
 		rc.Failed = pbrc.Failed
 		rc.GasUsed = pbrc.GasUsed
+
+		for _, log := range pbrc.Logs {
+			l := new(Log)
+			if err := l.FromProtoMessage(log); err != nil {
+				return err
+			}
+			rc.Logs = append(rc.Logs, l)
+		}
 		*rcs = append(*rcs, rc)
 	}
 	return nil

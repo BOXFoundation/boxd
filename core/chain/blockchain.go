@@ -135,7 +135,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 
-	if b.sectionMgr, err = NewSectionManager(db); err != nil {
+	if b.sectionMgr, err = NewSectionManager(b, db); err != nil {
 		return nil, err
 	}
 
@@ -1484,6 +1484,24 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	}
 
 	return block, nil
+}
+
+// GetLogs get logs by block hash.
+func (chain *BlockChain) GetLogs(hash *crypto.HashType) ([]*types.Log, error) {
+	bin, err := chain.db.Get(ReceiptKey(hash))
+	if err != nil {
+		return nil, err
+	}
+
+	receipts := new(types.Receipts)
+	if err := receipts.Unmarshal(bin); err != nil {
+		return nil, err
+	}
+	logs := []*types.Log{}
+	for _, receipt := range *receipts {
+		logs = append(logs, receipt.Logs...)
+	}
+	return logs, nil
 }
 
 // GetEvmByHeight get evm by block height.

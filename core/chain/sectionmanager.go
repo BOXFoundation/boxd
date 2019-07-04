@@ -5,6 +5,10 @@
 package chain
 
 import (
+	"bytes"
+	"encoding/hex"
+	"sync"
+
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/storage"
@@ -24,13 +28,15 @@ type SectionManager struct {
 	section uint32                                         // Section is the section number being processed currently
 	// Offset uint                                     // Next bit position to set when adding a bloom
 
-	db storage.Table
+	chain *BlockChain
+	db    storage.Table
+	mtx   sync.Mutex
 }
 
 // NewSectionManager creates a rotated bloom section manager that can iteratively fill a
 // batched bloom filter's bits.
-func NewSectionManager(db storage.Storage) (mgr *SectionManager, err error) {
-	mgr = &SectionManager{section: 1}
+func NewSectionManager(chain *BlockChain, db storage.Storage) (mgr *SectionManager, err error) {
+	mgr = &SectionManager{section: 1, chain: chain}
 	if mgr.db, err = db.Table(SectionTableName); err != nil {
 		return nil, err
 	}
@@ -41,7 +47,8 @@ func NewSectionManager(db storage.Storage) (mgr *SectionManager, err error) {
 // in memory accordingly.
 func (sm *SectionManager) AddBloom(index uint, bloom bloom.Filter) error {
 
-	// TODO: mutex?
+	sm.mtx.Lock()
+	defer sm.mtx.Unlock()
 
 	index = index % SectionBloomLength
 
@@ -74,6 +81,9 @@ func (sm *SectionManager) AddBloom(index uint, bloom bloom.Filter) error {
 // RemoveBloom takes a single bloom filter and reset the corresponding bit column
 // in memory accordingly.
 func (sm *SectionManager) RemoveBloom(index uint) {
+
+	sm.mtx.Lock()
+	defer sm.mtx.Unlock()
 
 	// TODO: 库里修改
 
@@ -110,14 +120,14 @@ func (sm *SectionManager) commit() error {
 		}
 		// a := [SectionBloomLength]byte{}
 		// if !bytes.Equal(bits, a[:]) {
-		// 	fmt.Println("PUT: ", i)
+		// 	logger.Errorf("PUT: %d, section: %d", i, sm.section)
 		// }
 	}
 	return sm.db.Flush()
 }
 
-// Index get blocks' height matchs key words.
-func (sm *SectionManager) Index(from, to uint32, topicslist [][][]byte) ([]uint32, error) {
+// GetLogs get logs matchs key words.
+func (sm *SectionManager) GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error) {
 
 	section := sm.section
 	start := from/SectionBloomLength + 1
@@ -141,7 +151,7 @@ func (sm *SectionManager) Index(from, to uint32, topicslist [][][]byte) ([]uint3
 			if err != nil {
 				return nil, err
 			}
-			if i == 0 || i == int(start-end) {
+			if i == 0 || i == int(end-start) {
 				for _, hh := range h {
 					if hh >= from && hh <= to {
 						heights = append(heights, hh)
@@ -153,14 +163,14 @@ func (sm *SectionManager) Index(from, to uint32, topicslist [][][]byte) ([]uint3
 		}
 	}
 	if to%SectionBloomLength != 0 {
-		h, err := sm.unIndexed(end*SectionBloomLength+1, to, topicslist)
+		h, err := sm.unIndexed(to-to%SectionBloomLength, to, topicslist)
 		if err != nil {
 			return nil, err
 		}
 		heights = append(heights, h...)
 	}
 
-	return heights, nil
+	return sm.getLogs(heights, topicslist)
 }
 
 func (sm *SectionManager) indexed(section uint32, topicslist [][][]byte) ([]uint32, error) {
@@ -169,6 +179,9 @@ func (sm *SectionManager) indexed(section uint32, topicslist [][][]byte) ([]uint
 		创建bloom filter
 		for 一个地址内的所有的topics list {
 			创建一个[]byte matcher保存每个位置的匹配结果
+			if 不是第一二个位置(因为是合约地址s和topic ids) && len==0 {
+				continue (因为空集合匹配所有indexes)
+			}
 			for 一个topic位置的所有可能 {
 				bloom.Reset()
 				bloom.Add(topic)
@@ -190,6 +203,9 @@ func (sm *SectionManager) indexed(section uint32, topicslist [][][]byte) ([]uint
 	for i, topics := range topicslist {
 
 		topicMatcher := [SectionBloomLength]byte{}
+		if i > 1 && len(topics) == 0 {
+			continue
+		}
 
 		for j, topic := range topics {
 			bf.Reset()
@@ -209,6 +225,13 @@ func (sm *SectionManager) indexed(section uint32, topicslist [][][]byte) ([]uint
 				} else {
 					copy(tmp[:], util.ANDBytes(tmp[:], bits))
 				}
+
+				// a := [SectionBloomLength]byte{}
+				// if !bytes.Equal(tmp[:], a[:]) {
+				// 	logger.Errorf("PUT: true index: %d, %d", index, section)
+				// } else {
+				// 	logger.Errorf("PUT: false index: %d, %d", index, section)
+				// }
 			}
 			if j == 0 {
 				copy(topicMatcher[:], tmp[:])
@@ -231,5 +254,113 @@ func (sm *SectionManager) indexed(section uint32, topicslist [][][]byte) ([]uint
 }
 
 func (sm *SectionManager) unIndexed(from, to uint32, topicslist [][][]byte) ([]uint32, error) {
-	return nil, nil
+
+	var heights []uint32
+	for ; from <= to; from++ {
+		block, err := sm.chain.LoadBlockByHeight(from)
+		if err != nil {
+			logger.Errorf("Load block failed. Height: %d, Err: %v", from, err)
+			continue
+		}
+
+		if sm.bloomFilter(block.Header.Bloom, topicslist) {
+			heights = append(heights, from)
+		}
+
+	}
+
+	return heights, nil
+}
+
+func (sm *SectionManager) getLogs(heights []uint32, topicslist [][][]byte) ([]*types.Log, error) {
+	var ret []*types.Log
+	for _, height := range heights {
+		block, err := sm.chain.LoadBlockByHeight(height)
+		if err != nil {
+			return nil, err
+		}
+		logs, err := sm.chain.GetLogs(block.Hash)
+		if err != nil {
+			logger.Errorf("Get block failed. Err: %v", err)
+			continue
+		}
+		logs, err = sm.filterLogs(logs, topicslist)
+		if err != nil {
+			logger.Errorf("Filter logs failed. Err: %v", err)
+			continue
+		}
+		ret = append(ret, logs...)
+	}
+	return ret, nil
+}
+
+func (sm *SectionManager) filterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error) {
+
+	ret := []*types.Log{}
+	addrs := topicslist[0]
+LOGS:
+	for _, log := range logs {
+		if len(addrs) > 0 && !include(addrs, log.Address.Bytes()) {
+			continue
+		}
+		if len(topicslist)-1 > len(log.Topics) {
+			continue
+		}
+
+		for i, sub := range topicslist[1:] {
+			match := len(sub) == 0 // empty rule set == wildcard
+			for _, topic := range sub {
+				logger.Errorf("topic: %s", hex.EncodeToString(log.Topics[i].Bytes()))
+				if bytes.Equal(log.Topics[i].Bytes(), topic) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue LOGS
+			}
+		}
+		ret = append(ret, log)
+	}
+	return ret, nil
+}
+
+func (sm *SectionManager) bloomFilter(bf bloom.Filter, topicslist [][][]byte) bool {
+	if len(topicslist[0]) > 0 {
+		var included bool
+		for _, addr := range topicslist[0] {
+			bb := bloom.NewFilterWithMK(types.BloomBitLength, 3)
+			bb.Add(addr)
+			if bf.Matches(addr) {
+				included = true
+				break
+			}
+		}
+		if !included {
+			return false
+		}
+	}
+
+	for _, sub := range topicslist[1:] {
+		included := len(sub) == 0 // empty rule set == wildcard
+		for _, topic := range sub {
+			if bf.Matches(topic) {
+				included = true
+				break
+			}
+		}
+		if !included {
+			return false
+		}
+	}
+	return true
+}
+
+func include(s [][]byte, d []byte) bool {
+	for _, ss := range s {
+		if bytes.Equal(ss, d) {
+			return true
+		}
+	}
+	return false
 }

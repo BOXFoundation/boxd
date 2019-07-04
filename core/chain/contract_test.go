@@ -5,20 +5,96 @@ package chain
 
 import (
 	"encoding/hex"
+	"fmt"
 	"log"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/facebookgo/ensure"
 )
+
+var unmarshalLogTests = map[string]struct {
+	input     string
+	want      *types.Log
+	wantError error
+}{
+	"ok": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x000000000000000000000000000000000000000000000001a055690d9db80000","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
+			BlockNumber: 2019236,
+			Data:        hexutil.MustDecode("0x000000000000000000000000000000000000000000000001a055690d9db80000"),
+			Index:       2,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+			},
+		},
+	},
+	"empty data": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
+			BlockNumber: 2019236,
+			Data:        []byte{},
+			Index:       2,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+				crypto.BytesToHash([]byte("0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615")),
+			},
+		},
+	},
+	"missing block fields (pending logs)": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","data":"0x","logIndex":"0x0","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.HashType{},
+			BlockNumber: 0,
+			Data:        []byte{},
+			Index:       0,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+			},
+		},
+	},
+	"Removed: true": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3","removed":true}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
+			BlockNumber: 2019236,
+			Data:        []byte{},
+			Index:       2,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+			},
+			Removed: true,
+		},
+	},
+	"missing data": {
+		input:     `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615","0x000000000000000000000000f9dff387dcb5cc4cca5b91adb07a95f54e9f1bb6"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		wantError: fmt.Errorf("missing required field 'data' for Log"),
+	},
+}
 
 const (
 	testERC20Contract = "60806040523480156200001157600080fd5b5060408051908101604052806" +
@@ -1115,8 +1191,13 @@ func TestERC20Contract(t *testing.T) {
 	utxoRootHash := "38c155f64dcf43043ea9b0002b71d11d4fd58c0fa6921e59bd7d812e574ccf28"
 	b3.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ := vmTx.TxHash()
-	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	logs := []*types.Log{unmarshalLogTests["ok"].want}
+	logs[0].Address.SetBytes(contractAddr.Hash())
+	eventid, _ := hex.DecodeString("ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
+	logs[0].Topics[0].SetBytes(eventid)
+	receipt := types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b3.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b3.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil, gasRefundTx)
 	stateDB, err := state.New(&b3.Header.RootHash, &b3.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1151,8 +1232,9 @@ func TestERC20Contract(t *testing.T) {
 	b3A.Header.RootHash.SetString("92185cea3cc5e92e61a93aad8d447b9bd6619a98a16c37e4e234f12251da925b")
 	b3A.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b3A.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b3A.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b3, b3A, b3A, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b3A.Header.RootHash, &b3A.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1194,8 +1276,9 @@ func TestERC20Contract(t *testing.T) {
 	b4.Header.RootHash.SetString("d5a85c1cbc4fe6db563b2f5e375cabbcaec9fb649ac13b2a4ccf8839a82c7a0b")
 	b4.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b4.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b4.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b3A, b4, b4, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b4.Header.RootHash, &b4.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1231,8 +1314,9 @@ func TestERC20Contract(t *testing.T) {
 	b5.Header.RootHash.SetString("ad50bfd5f3801eb79ed0778acb3870f18bffba04140c9edb486cab657eac7c50")
 	b5.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b5.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b5.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b5.Header.RootHash, &b5.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1274,8 +1358,9 @@ func TestERC20Contract(t *testing.T) {
 	b6.Header.RootHash.SetString("431863d3250351ec4d9945f2f3affce6f34880b370b780a7b85fb6aa76fda4f1")
 	b6.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b6.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b6.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b6.Header.RootHash, &b6.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1312,8 +1397,9 @@ func TestERC20Contract(t *testing.T) {
 	b7.Header.RootHash.SetString("e8afb2306dcbaa6c61669220c3bad300a421082b4bcc6aaea7d481e831fce9b8")
 	b7.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), true, gasUsed, logs).WithTxIndex(1)
 	b7.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b7.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	userBalance += gasUsed * gasPrice
 	minerBalance -= gasUsed * gasPrice
 	contractBlockHandle(t, blockChain, b6, b7, b7, vmParam, nil, gasRefundTx)
@@ -1351,8 +1437,9 @@ func TestERC20Contract(t *testing.T) {
 	b8.Header.RootHash.SetString("4c92d920e640fe8eaacb84516001bfebd0f037d19f352597676d2910a85b6123")
 	b8.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b8.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b8.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b7, b8, b8, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b8.Header.RootHash, &b8.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1388,8 +1475,9 @@ func TestERC20Contract(t *testing.T) {
 	b9.Header.RootHash.SetString("7816518ce1ebd785bee0a4618597fbf300461cb627942a6ba683401788e0f913")
 	b9.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b9.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b9.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b8, b9, b9, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b9.Header.RootHash, &b9.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1423,8 +1511,9 @@ func TestERC20Contract(t *testing.T) {
 	b10.Header.RootHash.SetString("dfce597d21b1db7c34bda440906a240ec2e471ad34f41e8c9a9761c11fb0e621")
 	b10.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b10.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b10.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b9, b10, b10, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b10.Header.RootHash, &b10.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1459,8 +1548,9 @@ func TestERC20Contract(t *testing.T) {
 	b11.Header.RootHash.SetString("9a6d121fcacacc199c687343ddda4bb40375e4f796e7bf5ef110140dbb89ea13")
 	b11.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b11.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b11.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	userBalance += gasUsed * gasPrice
 	minerBalance -= gasUsed * gasPrice
 	contractBlockHandle(t, blockChain, b10, b11, b11, vmParam, nil, gasRefundTx)
@@ -1496,8 +1586,9 @@ func TestERC20Contract(t *testing.T) {
 	b12.Header.RootHash.SetString("005f1476e3bb297d71f9b3239b914b26dc331b1d5ea313959f6afca7976ac277")
 	b12.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b12.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b12.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b11, b12, b12, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b12.Header.RootHash, &b12.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1539,8 +1630,9 @@ func TestERC20Contract(t *testing.T) {
 	b13.Header.RootHash.SetString("61ad6fa5ef8dacf0f512b0d20c59dc50dd9d071b2b539d02611dd719238bd84f")
 	b13.Header.UtxoRoot.SetString(utxoRootHash)
 	vmTxHash, _ = vmTx.TxHash()
-	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, nil).WithTxIndex(1)
+	receipt = types.NewReceipt(vmTxHash, contractAddr.Hash160(), false, gasUsed, logs).WithTxIndex(1)
 	b13.Header.ReceiptHash = *(new(types.Receipts).Append(receipt).Hash())
+	b13.Header.Bloom = types.CreateReceiptsBloom([]*types.Receipt{receipt})
 	contractBlockHandle(t, blockChain, b12, b13, b13, vmParam, nil, gasRefundTx)
 	stateDB, err = state.New(&b13.Header.RootHash, &b13.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1549,4 +1641,44 @@ func TestERC20Contract(t *testing.T) {
 	// check balances
 	// return d0471f0000000000000000000000000000000000000000000000000000000000
 	// 0x1f47d0 = 2050000, check okay
+
+	tmp := blockChain.tail
+	for i := 0; i < 10000; i++ {
+
+		state, err := state.New(&tmp.Header.RootHash, &tmp.Header.UtxoRoot, blockChain.db)
+		ensure.Nil(t, err)
+		miner := minerAddr.Hash160()
+		state.AddBalance(*miner, big.NewInt(50*core.DuPerBox))
+		root, utxoroot, err := state.Commit(false)
+		ensure.Nil(t, err)
+
+		tmp = nextBlockWithTxs(tmp)
+		tmp.Header.TxsRoot = *CalcTxsHash(tmp.Txs)
+		tmp.Header.RootHash = *root
+		tmp.Header.UtxoRoot = *utxoroot
+		verifyProcessBlock(t, blockChain, tmp, nil, tmp.Header.Height, tmp)
+	}
+
+	// eventid, _ := hex.DecodeString("3935326261376631363363346131313632386635356134646635323362336566")
+
+	topicslist = [][][]byte{
+		[][]byte{
+			logs[0].Address.Bytes(),
+		},
+		[][]byte{
+			eventid,
+			// []byte("952ba7f163c4a11628f55a4df523b3ef"),
+			// []byte("25b9c3c7c80a205b1e29b2f7c01403ddf3841e7d42714fd15b7decebe5e15b8c"),
+			// []byte("6c429d83c6125e57697a4d2027499622cc34df42eca52865be7bd1de6063a2a9"),
+		},
+		[][]byte{
+			// []byte("cbbf30a1b0fc8983c647d754c6525615"),
+		},
+		[][]byte{},
+	}
+
+	heights, err := blockChain.sectionMgr.GetLogs(3, 10000, topicslist)
+	fmt.Println(heights)
+	ensure.Nil(t, err)
+
 }

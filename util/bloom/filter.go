@@ -35,6 +35,7 @@ type Filter interface {
 	MatchesAndAdd(data []byte) bool
 	Merge(f Filter) error
 	Reset()
+	Copy(f Filter) error
 
 	Size() uint32
 	K() uint32
@@ -42,6 +43,7 @@ type Filter interface {
 	FPRate() float64
 	GetByte(i uint32) byte
 	Indexes() []uint32
+	IsEmpty() bool
 
 	conv.Serializable
 }
@@ -236,6 +238,10 @@ func (bf *filter) Reset() {
 	}
 	bf.sm.Unlock()
 }
+func (bf *filter) Copy(f Filter) error {
+	bf = NewFilterWithMK(f.Size(), f.K()).(*filter)
+	return bf.Merge(f)
+}
 
 // GetByte get the specified byte.
 func (bf *filter) GetByte(i uint32) byte {
@@ -321,4 +327,14 @@ func (bf *filter) Unmarshal(data []byte) error {
 // Indexes return marked indexes.
 func (bf *filter) Indexes() []uint32 {
 	return util.BitIndexes(bf.filter)
+}
+
+// IsEmpty return whether it is empty.
+func (bf *filter) IsEmpty() bool {
+	for _, b := range bf.filter {
+		if b != byte(0) {
+			return false
+		}
+	}
+	return true
 }
