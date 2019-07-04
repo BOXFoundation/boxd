@@ -21,6 +21,7 @@ const (
 	MaxCoinbaseScriptLen = 1000
 
 	MaxUtxosInTx = 1024
+	MaxVoutInTx  = 1024
 
 	MaxBlockTimeOut = 1
 

@@ -466,7 +466,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 			sc := script.NewScriptFromBytes(utxoWrap.Script())
 			addr, err := sc.ExtractAddress()
 			if err != nil {
-				logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, hex: %x, Err: %v",
+				logger.Warnf("Failed to extract address. utxoWrap: %+v, sc disasm: %s, hex: %x, Err: %s",
 					utxoWrap, sc.Disasm(), utxoWrap.Script(), err)
 				return err
 			}

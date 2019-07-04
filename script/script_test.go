@@ -130,8 +130,8 @@ func TestP2PKH(t *testing.T) {
 	scriptSig, scriptPubKey, _ := genP2PKHScript(false, false, 0)
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
-	ensure.DeepEqual(t, scriptSig.GetSigOpCount(), 0)
-	ensure.DeepEqual(t, scriptPubKey.GetSigOpCount(), 1)
+	ensure.DeepEqual(t, scriptSig.getSigOpCount(), 0)
+	ensure.DeepEqual(t, scriptPubKey.getSigOpCount(), 1)
 
 	// Append anything and immediately drop it to test OP_DROP; shall not affect script validity
 	scriptSig, scriptPubKey, _ = genP2PKHScript(false, true, 0)
@@ -346,7 +346,6 @@ func TestParseSplitAddrScript(t *testing.T) {
 
 func TestCheckLockTimeVerify(t *testing.T) {
 	scriptSig, scriptPubKey, _ := genP2PKHScript(true /* prepend CLTV */, false, tx.LockTime)
-	ensure.True(t, scriptPubKey.IsRegisterCandidateScriptOfBlock(tx.LockTime))
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
 

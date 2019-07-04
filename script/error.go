@@ -21,7 +21,7 @@ var (
 	ErrScriptEqualVerify         = errors.New("Equality verification failure")
 	ErrScriptSignatureVerifyFail = errors.New("Signature verification failure")
 	ErrInputIndexOutOfBound      = errors.New("input index out of bound")
-	ErrAddressNotApplicable      = errors.New("Address only applies to p2pkh and token txs")
+	ErrAddressNotApplicable      = errors.New("Address not applicable")
 	ErrOpReturn                  = errors.New("Encounter OP_RETURN")
 	ErrInvalidSplitAddrScript    = errors.New("Invalid split address script")
 	ErrScriptLockTimeVerifyFail  = errors.New("Check lock time verification failure")

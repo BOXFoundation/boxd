@@ -9,7 +9,7 @@ import (
 	"math"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -95,22 +95,22 @@ func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, erro
 
 // return the number of signature operations for all transaction
 // input and output scripts in the provided transaction.
-func countSigOps(tx *types.Transaction) int {
-	// Accumulate the number of signature operations in all transaction inputs.
-	totalSigOps := 0
-	for _, txIn := range tx.Vin {
-		numSigOps := script.NewScriptFromBytes(txIn.ScriptSig).GetSigOpCount()
-		totalSigOps += numSigOps
-	}
-
-	// Accumulate the number of signature operations in all transaction outputs.
-	for _, txOut := range tx.Vout {
-		numSigOps := script.NewScriptFromBytes(txOut.ScriptPubKey).GetSigOpCount()
-		totalSigOps += numSigOps
-	}
-
-	return totalSigOps
-}
+//func countSigOps(tx *types.Transaction) int {
+//	// Accumulate the number of signature operations in all transaction inputs.
+//	totalSigOps := 0
+//	for _, txIn := range tx.Vin {
+//		numSigOps := script.NewScriptFromBytes(txIn.ScriptSig).GetSigOpCount()
+//		totalSigOps += numSigOps
+//	}
+//
+//	// Accumulate the number of signature operations in all transaction outputs.
+//	for _, txOut := range tx.Vout {
+//		numSigOps := script.NewScriptFromBytes(txOut.ScriptPubKey).GetSigOpCount()
+//		totalSigOps += numSigOps
+//	}
+//
+//	return totalSigOps
+//}
 
 // MarshalTxIndex writes Tx height and index to bytes
 func MarshalTxIndex(height, index uint32) (data []byte, err error) {
