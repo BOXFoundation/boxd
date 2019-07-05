@@ -616,22 +616,20 @@ func (s *Script) IsContractPubkey() bool {
 // IsStandard returns if a script is standard
 // Only certain types of transactions are allowed, i.e., regarded as standard
 func (s *Script) IsStandard() bool {
-	if !s.IsPayToPubKeyHash() &&
-		!s.IsPayToScriptHash() &&
-		!s.IsPayToPubKeyHashCLTVScript() &&
-		!s.IsTokenIssue() &&
-		!s.IsTokenTransfer() &&
-		!s.IsSplitAddrScript() &&
-		!s.IsContractPubkey() {
-		return false
-	}
-
+	//if !s.IsPayToPubKeyHash() &&
+	//	!s.IsContractPubkey() &&
+	//	!s.IsTokenTransfer() &&
+	//	!s.IsTokenIssue() &&
+	//	!s.IsSplitAddrScript() &&
+	//	!s.IsPayToScriptHash() &&
+	//	!s.IsPayToPubKeyHashCLTVScript() {
+	//	return false
+	//}
 	_, err := s.ExtractAddress()
-	if err != nil && err != ErrAddressNotApplicable {
+	if err != nil {
 		logger.Errorf("Failed to extract address. script: %s, Err: %v", s.Disasm(), err)
 		return false
 	}
-
 	return true
 }
 
@@ -673,19 +671,12 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 func (s *Script) ExtractAddress() (types.Address, error) {
 
 	switch {
+	case s.IsPayToPubKeyHash():
+		fallthrough
 	case s.IsTokenTransfer():
 		fallthrough
 	case s.IsTokenIssue():
-		fallthrough
-	case s.IsPayToPubKeyHash():
 		_, pubKeyHash, _, err := s.getNthOp(2, 0)
-		if err != nil {
-			return nil, err
-		}
-		return types.NewAddressPubKeyHash(pubKeyHash)
-	case s.IsPayToPubKeyHashCLTVScript():
-		l := len(*s)
-		_, pubKeyHash, _, err := s.getNthOp(l-23, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -698,6 +689,19 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 			return nil, err
 		}
 		return types.NewSplitAddressFromHash(pubKeyHash)
+	case s.IsPayToPubKeyHashCLTVScript():
+		l := len(*s)
+		_, pubKeyHash, _, err := s.getNthOp(l-23, 0)
+		if err != nil {
+			return nil, err
+		}
+		return types.NewAddressPubKeyHash(pubKeyHash)
+	case s.IsPayToScriptHash():
+		_, pubKeyHash, _, err := s.getNthOp(1, 0)
+		if err != nil {
+			return nil, err
+		}
+		return types.NewAddressPubKeyHash(pubKeyHash)
 	default:
 		return nil, ErrAddressNotApplicable
 	}
