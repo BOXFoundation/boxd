@@ -23,7 +23,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
@@ -191,7 +190,8 @@ func (dpos *Dpos) Process(block *types.Block, db interface{}) error {
 
 // VerifyTx notify consensus to verify new tx.
 func (dpos *Dpos) VerifyTx(tx *types.Transaction) error {
-	return dpos.checkRegisterOrVoteTx(tx)
+	return nil
+	//return dpos.checkRegisterOrVoteTx(tx)
 }
 
 func (dpos *Dpos) loop(p goprocess.Process) {
@@ -958,66 +958,66 @@ func (dpos *Dpos) subscribe() {
 	}, false)
 }
 
-func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
-	if tx.Data == nil {
-		return nil
-	}
-	content := tx.Data.Content
-	switch int(tx.Data.Type) {
-	case types.RegisterCandidateTx:
-		registerCandidateContent := new(types.RegisterCandidateContent)
-		if err := registerCandidateContent.Unmarshal(content); err != nil {
-			return err
-		}
-		if dpos.IsCandidateExist(registerCandidateContent.Addr()) {
-			return ErrCandidateIsAlreadyExist
-		}
-		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
-			return ErrInvalidRegisterCandidateOrVoteTx
-		}
-	case types.VoteTx:
-		votesContent := new(types.VoteContent)
-		if err := votesContent.Unmarshal(content); err != nil {
-			return err
-		}
-		if !dpos.IsCandidateExist(votesContent.Addr()) {
-			return ErrCandidateNotFound
-		}
-		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
-			return ErrInvalidRegisterCandidateOrVoteTx
-		}
-	}
+//func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
+//	if tx.Data == nil {
+//		return nil
+//	}
+//	content := tx.Data.Content
+//	switch int(tx.Data.Type) {
+//	case types.RegisterCandidateTx:
+//		registerCandidateContent := new(types.RegisterCandidateContent)
+//		if err := registerCandidateContent.Unmarshal(content); err != nil {
+//			return err
+//		}
+//		if dpos.IsCandidateExist(registerCandidateContent.Addr()) {
+//			return ErrCandidateIsAlreadyExist
+//		}
+//		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
+//			return ErrInvalidRegisterCandidateOrVoteTx
+//		}
+//	case types.VoteTx:
+//		votesContent := new(types.VoteContent)
+//		if err := votesContent.Unmarshal(content); err != nil {
+//			return err
+//		}
+//		if !dpos.IsCandidateExist(votesContent.Addr()) {
+//			return ErrCandidateNotFound
+//		}
+//		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
+//			return ErrInvalidRegisterCandidateOrVoteTx
+//		}
+//	}
+//
+//	return nil
+//}
 
-	return nil
-}
-
-func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
-	for _, vout := range tx.Vout {
-		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
-		if scriptPubKey.IsRegisterCandidateScriptOfBlock(calcCandidatePledgeHeight(
-			int64(dpos.chain.TailBlock().Header.Height))) {
-
-			if tx.Data.Type == types.RegisterCandidateTx {
-				if vout.Value >= CandidatePledge {
-					return true
-				}
-			} else if tx.Data.Type == types.VoteTx {
-				if vout.Value >= MinNumOfVotes {
-					votesContent := new(types.VoteContent)
-					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
-						return false
-					}
-					if votesContent.Votes() == int64(vout.Value) {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
-}
+//func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
+//	for _, vout := range tx.Vout {
+//		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
+//		if scriptPubKey.IsRegisterCandidateScriptOfBlock(calcCandidatePledgeHeight(
+//			int64(dpos.chain.TailBlock().Header.Height))) {
+//
+//			if tx.Data.Type == types.RegisterCandidateTx {
+//				if vout.Value >= CandidatePledge {
+//					return true
+//				}
+//			} else if tx.Data.Type == types.VoteTx {
+//				if vout.Value >= MinNumOfVotes {
+//					votesContent := new(types.VoteContent)
+//					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
+//						return false
+//					}
+//					if votesContent.Votes() == int64(vout.Value) {
+//						return true
+//					}
+//				}
+//			}
+//		}
+//	}
+//	return false
+//}
 
 // calcCandidatePledgeHeight calc current candidate pledge height
-func calcCandidatePledgeHeight(tailHeight int64) int64 {
-	return (tailHeight/PeriodDuration + 2) * PeriodDuration
-}
+//func calcCandidatePledgeHeight(tailHeight int64) int64 {
+//	return (tailHeight/PeriodDuration + 2) * PeriodDuration
+//}

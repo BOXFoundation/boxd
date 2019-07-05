@@ -262,6 +262,9 @@ func (s *txServer) MakeUnsignedTx(
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -278,7 +281,7 @@ func (s *txServer) MakeUnsignedTx(
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	amounts, gasPrice := req.GetAmounts(), req.GasPrice
+	amounts, gasPrice := req.GetAmounts(), req.GetGasPrice()
 	gasUsed := gasPrice * core.TransferGasLimit
 	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, gasUsed)
 	if err != nil {
@@ -301,6 +304,9 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned split addr tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -349,6 +355,9 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 ) (resp *rpcpb.MakeTokenIssueTxResp, err error) {
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned token issue tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -398,6 +407,9 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned token transfer tx: %s error: %s", string(bytes),
 				resp.Message)
@@ -448,6 +460,9 @@ func (s *txServer) MakeUnsignedContractTx(
 ) (resp *rpcpb.MakeContractTxResp, err error) {
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned contract tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -524,6 +539,67 @@ func newMakeContractTxResp(
 		RawMsgs:      rawMsgs,
 		ContractAddr: contractAddr,
 	}
+}
+
+func (s *txServer) MakeUnsignedCombineTx(
+	ctx context.Context, req *rpcpb.MakeCombineTx,
+) (resp *rpcpb.MakeTxResp, err error) {
+
+	defer func() {
+		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned combine tx: %s error: %s", string(bytes), resp.Message)
+		} else {
+			logger.Infof("make unsigned combine tx: %s succeeded, response: %+v", string(bytes), resp)
+		}
+	}()
+	wa := s.server.GetWalletAgent()
+	if wa == nil || reflect.ValueOf(wa).IsNil() {
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
+	}
+	from := req.GetAddr()
+	// check address
+	if err := types.ValidateAddr(from); err != nil {
+		logger.Warn(err)
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	// gasUsed
+	gasPrice := req.GetGasPrice()
+	gasUsed := gasPrice * core.TransferGasLimit
+	//
+	var (
+		tx    *types.Transaction
+		utxos []*rpcpb.Utxo
+	)
+	// make tx
+	tokenHashStr, tokenIdx := req.GetTokenHash(), req.GetTokenIndex()
+	if tokenHashStr != "" {
+		tokenHash := new(crypto.HashType)
+		if err := tokenHash.SetString(tokenHashStr); err != nil {
+			logger.Warn("make unsigned combine tx error, invalid token hash %s", req.GetTokenHash())
+			return newMakeTxResp(-1, "invalid token hash", nil, nil), nil
+		}
+		tid := (*types.TokenID)(types.NewOutPoint(tokenHash, tokenIdx))
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, from, tid, gasUsed)
+	} else {
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, from, gasUsed)
+	}
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	pbTx, err := tx.ConvToPbTx()
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	// raw messages
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
 }
 
 // MakeTxRawMsgsForSign make tx raw msg for sign

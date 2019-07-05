@@ -51,6 +51,8 @@ var (
 	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
 	ErrNonLocalMessage            = errors.New("Received non-local message")
 	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
+	ErrUtxosOob                   = errors.New("utxos in tx out of bound")
+	ErrVoutsOob                   = errors.New("vout in tx out of bound")
 
 	//block.go
 	ErrSerializeHeader                = errors.New("Serialize block header error")

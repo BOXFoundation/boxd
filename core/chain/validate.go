@@ -107,15 +107,16 @@ func validateBlock(block *types.Block) error {
 	}
 
 	// Enforce number of signature operations.
-	totalSigOpCnt := 0
-	for _, tx := range transactions {
-		totalSigOpCnt += countSigOps(tx)
-		if totalSigOpCnt > maxBlockSigOpCnt {
-			logger.Errorf("block contains too many signature "+
-				"operations - got %v, max %v", totalSigOpCnt, maxBlockSigOpCnt)
-			return core.ErrTooManySigOps
-		}
-	}
+	// NOTE: add vin and vout count limitation with 1024
+	//totalSigOpCnt := 0
+	//for _, tx := range transactions {
+	//	totalSigOpCnt += countSigOps(tx)
+	//	if totalSigOpCnt > maxBlockSigOpCnt {
+	//		logger.Errorf("block contains too many signature "+
+	//			"operations - got %v, max %v", totalSigOpCnt, maxBlockSigOpCnt)
+	//		return core.ErrTooManySigOps
+	//	}
+	//}
 
 	return nil
 }
@@ -388,6 +389,16 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 	// A transaction must have at least one output.
 	if len(tx.Vout) == 0 {
 		return core.ErrNoTxOutputs
+	}
+
+	// A transaction must have no more than MaxVins vins
+	if len(tx.Vin) > core.MaxUtxosInTx {
+		return core.ErrUtxosOob
+	}
+
+	// A transaction must have no more than MaxVins vins
+	if len(tx.Vout) > core.MaxVoutInTx {
+		return core.ErrVoutsOob
 	}
 
 	// TOOD: check before deserialization

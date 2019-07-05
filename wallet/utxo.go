@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -18,6 +19,7 @@ import (
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/key"
 	sk "github.com/BOXFoundation/boxd/storage/key"
 )
 
@@ -56,7 +58,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 		return 0, err
 	}
 	//
-	utxos, err := FetchUtxosOf(addr, tid, 0, db)
+	utxos, err := FetchUtxosOf(addr, tid, 0, true, db)
 	//logger.Debugf("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
 		return 0, err
@@ -81,7 +83,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 // NOTE: if total is 0, fetch all utxos
 // NOTE: if tokenID is nil, fetch box utxos
 func FetchUtxosOf(
-	addr string, tid *types.TokenID, total uint64, db storage.Table,
+	addr string, tid *types.TokenID, total uint64, forBalance bool, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	var utxoKey []byte
@@ -93,16 +95,12 @@ func FetchUtxosOf(
 	//
 	keys := db.KeysWithPrefix(utxoKey)
 	// fetch all utxos if total equals to 0
-	if total == 0 {
+	if forBalance {
 		utxos, err := makeUtxosFromDB(keys, tid, db)
 		if err != nil {
 			return nil, err
 		}
 		return utxos, nil
-	}
-	if len(keys) > utxoMergeCnt {
-		logger.Infof("%s has %d utxos [tid: %v], start utxos merger", addr, len(keys), tid)
-		total = math.MaxUint64
 	}
 	// fetch moderate utxos by adjustint to total
 	utxos, err := fetchModerateUtxos(keys, tid, total, db)
@@ -116,11 +114,27 @@ func fetchModerateUtxos(
 	keys [][]byte, tid *types.TokenID, total uint64, db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
+	// update utxo cache
 	utxoLiveCache.Shrink()
+	// adjust amount to fetch
+	amountToFetch := total
+	if len(keys) > utxoMergeCnt || total == 0 {
+		logger.Infof("%s has %d utxos [tid: %v, request amount: %d], start utxos merger",
+			key.NewKeyFromBytes(keys[0]).List()[1], len(keys), tid, total)
+		amountToFetch = math.MaxUint64
+	}
+	// utxos fetch logic
 	result := make([]*rpcpb.Utxo, 0)
-	remain := total
-	// here "remain <= total", because remain and total is uint64
-	for start := 0; start < len(keys) && remain <= total; start += utxoSelUnitCnt {
+	remain := amountToFetch
+	// here "remain <= amountToFetch", because remain and amountToFetch is uint64
+	for start := 0; start < len(keys) && remain <= amountToFetch; start += utxoSelUnitCnt {
+		// check utxos bound
+		if len(result) == core.MaxUtxosInTx {
+			if amountToFetch-remain > total {
+				return result, nil
+			}
+			return nil, core.ErrUtxosOob
+		}
 		// calc start and end keys
 		end := start + utxoSelUnitCnt
 		if end > len(keys) {
@@ -151,9 +165,9 @@ func fetchModerateUtxos(
 		remain -= amount
 		result = append(result, selUtxos...)
 	}
-	if total != math.MaxUint64 && remain > 0 && remain <= total {
-		return nil, fmt.Errorf("amount for %d utxo is less than total %d wanted",
-			len(result), total)
+	if amountToFetch != math.MaxUint64 && remain > 0 && remain <= amountToFetch {
+		return nil, fmt.Errorf("amount for %d utxo %d is less than total %d wanted",
+			len(result), amountToFetch-remain, total)
 	}
 
 	return result, nil

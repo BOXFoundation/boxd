@@ -1499,8 +1499,8 @@ func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Rec
 // LoadBlockInfoByTxHash returns block and txIndex of transaction with the input param hash
 func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, *types.Transaction, error) {
 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
-	if err != nil {
-		return nil, nil, fmt.Errorf("db get txIndex with tx hash %s error %s", hash, err)
+	if err != nil || len(txIndex) == 0 {
+		return nil, nil, fmt.Errorf("db get txIndex with tx hash %s error %v", hash, err)
 	}
 	height, index, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
@@ -1509,7 +1509,7 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 	}
 	block, err := chain.LoadBlockByHeight(height)
 	if err != nil {
-		logger.Error(err)
+		logger.Warn(err)
 		return nil, nil, err
 	}
 
@@ -1811,11 +1811,15 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, error) {
 	b, _, err := chain.LoadBlockInfoByTxHash(*txHash)
 	if err != nil {
+		logger.Warn(err)
 		return nil, err
 	}
 	value, err := chain.db.Get(ReceiptKey(b.BlockHash()))
 	if err != nil {
 		return nil, err
+	}
+	if len(value) == 0 {
+		return nil, fmt.Errorf("receipt for block %s %d not found in db", b.BlockHash(), b.Header.Height)
 	}
 	receipts := new(types.Receipts)
 	if err := receipts.Unmarshal(value); err != nil {

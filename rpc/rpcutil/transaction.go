@@ -228,7 +228,7 @@ func CreateRawTransaction(
 		utxo := txlogic.MakePbUtxo(op, uw)
 		utxos = append(utxos, utxo)
 	}
-	changeAmt, overflowed := calcChangeAmount(amounts, 0, utxos...)
+	changeAmt, _, overflowed := calcChangeAmount(amounts, 0, utxos...)
 	if overflowed {
 		return nil, txlogic.ErrInsufficientBalance
 	}
@@ -517,11 +517,75 @@ func MakeUnsignedTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
+	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
 	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
+	return tx, utxos, err
+}
+
+// MakeUnsignedCombineTx make a combine tx without signature
+func MakeUnsignedCombineTx(
+	wa service.WalletAgent, from string, gasUsed uint64,
+) (*types.Transaction, []*rpcpb.Utxo, error) {
+
+	utxos, err := wa.Utxos(from, nil, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	utxosAmt := uint64(0)
+	for _, u := range utxos {
+		amount, _, err := txlogic.ParseUtxoAmount(u)
+		if err != nil {
+			logger.Warn(err)
+			continue
+		}
+		utxosAmt += amount
+	}
+	tx, err := txlogic.MakeUnsignedTx(from, []string{from}, []uint64{utxosAmt - gasUsed},
+		0, utxos...)
+	return tx, utxos, err
+}
+
+// MakeUnsignedCombineTokenTx make a combine tx without signature
+func MakeUnsignedCombineTokenTx(
+	wa service.WalletAgent, from string, tid *types.TokenID, gasUsed uint64,
+) (*types.Transaction, []*rpcpb.Utxo, error) {
+
+	// fetch box utxos
+	utxos, err := wa.Utxos(from, nil, gasUsed)
+	if err != nil {
+		return nil, nil, err
+	}
+	utxosAmt := uint64(0)
+	for _, u := range utxos {
+		amount, _, err := txlogic.ParseUtxoAmount(u)
+		if err != nil {
+			logger.Warn(err)
+			return nil, nil, err
+		}
+		utxosAmt += amount
+	}
+	totalUtxos := utxos
+	// fetch token utxos
+	utxos, err = wa.Utxos(from, tid, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	utxosAmtT := uint64(0)
+	for _, u := range utxos {
+		amount, _, err := txlogic.ParseUtxoAmount(u)
+		if err != nil {
+			logger.Warn(err)
+			return nil, nil, err
+		}
+		utxosAmtT += amount
+	}
+	totalUtxos = append(totalUtxos, utxos...)
+	// make tx
+	tx, _, err := txlogic.MakeUnsignedTokenTransferTx(from, []string{from}, []uint64{utxosAmtT},
+		tid, utxosAmt-gasUsed, totalUtxos...)
 	return tx, utxos, err
 }
 
@@ -537,7 +601,7 @@ func MakeUnsignedContractDeployTx(
 		return nil, nil, err
 	}
 	amounts := []uint64{amount}
-	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
+	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
@@ -561,7 +625,7 @@ func MakeUnsignedContractCallTx(
 		return nil, nil, err
 	}
 	amounts := []uint64{amount}
-	changeAmt, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
+	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
@@ -582,7 +646,7 @@ func MakeUnsignedSplitAddrTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
+	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
@@ -605,7 +669,7 @@ func MakeUnsignedTokenIssueTx(
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
+	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
 	}
@@ -631,7 +695,7 @@ func MakeUnsignedTokenTransferTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	changeAmt, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
+	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
@@ -642,19 +706,20 @@ func MakeUnsignedTokenTransferTx(
 	return tx, mixUtxos, err
 }
 
-func calcChangeAmount(amounts []uint64, gasUsed uint64, utxos ...*rpcpb.Utxo) (uint64, bool) {
+func calcChangeAmount(
+	amounts []uint64, gasUsed uint64, utxos ...*rpcpb.Utxo,
+) (changeAmt uint64, utxosAmt uint64, overflowed bool) {
 	total := gasUsed
 	for _, a := range amounts {
 		total += a
 	}
-	uv := uint64(0)
 	for _, u := range utxos {
 		amount, tid, err := txlogic.ParseUtxoAmount(u)
 		if err != nil || tid != nil {
 			continue
 		}
-		uv += amount
+		utxosAmt += amount
 	}
-	changeAmt := uv - total
-	return changeAmt, changeAmt > uv
+	changeAmt = utxosAmt - total
+	return changeAmt, utxosAmt, changeAmt > utxosAmt
 }
