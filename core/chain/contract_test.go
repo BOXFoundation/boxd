@@ -390,7 +390,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0, blockChain)
-	root, utxoRoot, err := calcRootHash(b0, b1, blockChain, 0)
+	root, utxoRoot, err := calcRootHash(b0, b1, blockChain)
 	b1.Header.RootHash = *root
 	if utxoRoot != nil {
 		b1.Header.UtxoRoot = *utxoRoot
@@ -421,7 +421,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	ensure.DeepEqual(t, err, nil)
 
 	b2 := nextBlockWithTxs(b1, blockChain, tx)
-	root, utxoRoot, _ = calcRootHash(b1, b2, blockChain, 0)
+	root, utxoRoot, _ = calcRootHash(b1, b2, blockChain)
 	b2.Header.RootHash = *root
 	if utxoRoot != nil {
 		b2.Header.UtxoRoot = *utxoRoot
@@ -446,20 +446,10 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 
 func contractBlockHandle(
 	t *testing.T, blockChain *BlockChain, parent, block, tail *types.Block,
-	param *testContractParam, err error, internalTxs ...*types.Transaction,
-) {
+	param *testContractParam, err error) {
 
 	gasCost := param.gasUsed * param.gasPrice
-	// if len(internalTxs) > 0 {
-	// 	block.InternalTxs = append(block.InternalTxs, internalTxs...)
-	// 	block.Header.InternalTxsRoot.SetBytes(CalcTxsHash(block.InternalTxs)[:])
-	// }
-	// block.Header.GasUsed = param.gasUsed
-	// block.Txs[0].Vout[0].Value += gasCost
-	block.Txs[0].ResetTxHash()
-	block.Header.TxsRoot = *CalcTxsHash(block.Txs)
-	height := tail.Header.Height
-	verifyProcessBlock(t, blockChain, block, err, height, tail)
+	verifyProcessBlock(t, blockChain, block, err, tail.Header.Height, tail)
 	// check balance
 	expectUserBalance := userBalance - param.vmValue - gasCost + param.userRecv
 	expectMinerBalance := minerBalance
@@ -560,17 +550,10 @@ func TestFaucetContract(t *testing.T) {
 	ensure.Nil(t, err)
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
-	t.Logf("contract address: %s", contractAddr)
-	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
+
 	b3 := nextBlockWithTxs(b2, blockChain, vmTx)
-
-	root, utxoRoot, _ := calcRootHash(b2, b3, blockChain, gasPrice*gasUsed)
-	b3.Header.RootHash = *root
-	if utxoRoot != nil {
-		b3.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil, gasRefundTx)
+	calcRootHash(b2, b3, blockChain)
+	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil)
 	stateDB, err = state.New(&b3.Header.RootHash, &b3.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
@@ -600,23 +583,13 @@ func TestFaucetContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue3))
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
-	op := types.NewOutPoint(types.NormalizeAddressHash(contractAddr.Hash160()), 0)
-	contractTx := types.NewTx(0, 0, 0).
-		AppendVin(txlogic.MakeContractVin(op, 0)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 2000))
 	signTx(vmTx, privKey, pubKey)
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
+
 	b4 := nextBlockWithTxs(b3, blockChain, vmTx)
-
-	root, utxoRoot, _ = calcRootHash(b3, b4, blockChain, gasPrice*gasUsed)
-	b4.Header.RootHash = *root
-	if utxoRoot != nil {
-		b4.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b3, b4, b4, vmParam, nil, gasRefundTx, contractTx)
+	calcRootHash(b3, b4, blockChain)
+	contractBlockHandle(t, blockChain, b3, b4, b4, vmParam, nil)
 	stateDB, err = state.New(&b4.Header.RootHash, &b4.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
@@ -642,22 +615,10 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue4))
 	signTx(vmTx, privKey, pubKey)
-	// make refund tx
-	contractAddrHash := types.CreateAddress(*userAddr.Hash160(), nonce)
-	refundTx := types.NewTx(0, 0, 0).
-		AppendVin(txlogic.MakeContractVin(
-			types.NewOutPoint(types.NormalizeAddressHash(contractAddrHash), 0), 0)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), vmValue))
-	//
+
 	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
-
-	root, utxoRoot, _ = calcRootHash(b4, b5, blockChain, gasPrice*gasUsed)
-	b5.Header.RootHash = *root
-	if utxoRoot != nil {
-		b5.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil, refundTx)
+	calcRootHash(b4, b5, blockChain)
+	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil)
 	stateDB, err = state.New(&b5.Header.RootHash, &b5.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
@@ -684,7 +645,7 @@ func TestFaucetContract(t *testing.T) {
 	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
 	b6.Header.RootHash.SetString("")
 	b6.Header.UtxoRoot.SetString("")
-	contractBlockHandle(t, blockChain, b5, b6, b5, vmParam, errInsufficientBalanceForGas, refundTx)
+	contractBlockHandle(t, blockChain, b5, b6, b5, vmParam, errInsufficientBalanceForGas)
 	nonce--
 	t.Logf("b5 -> b6 failed, now tail height: %d", blockChain.LongestChainHeight)
 
@@ -711,19 +672,13 @@ func TestFaucetContract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue6))
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	signTx(vmTx, privKey, pubKey)
 	vmTxHash, _ = vmTx.TxHash()
 	t.Logf("vmTx hash: %s", vmTxHash)
 	b6 = nextBlockWithTxs(b5, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b5, b6, blockChain, gasPrice*gasUsed)
-	b6.Header.RootHash = *root
-	if utxoRoot != nil {
-		b6.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil, gasRefundTx)
+	calcRootHash(b5, b6, blockChain)
+	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil)
 	stateDB, err = state.New(&b6.Header.RootHash, &b6.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
@@ -885,16 +840,10 @@ func TestCoinContract(t *testing.T) {
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
 	// TODO
-	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, blockChain, vmTx)
 
-	root, utxoRoot, _ := calcRootHash(b2, b3, blockChain, gasPrice*gasUsed)
-	b3.Header.RootHash = *root
-	if utxoRoot != nil {
-		b3.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil, gasRefundTx)
+	calcRootHash(b2, b3, blockChain)
+	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil)
 	stateDB, err := state.New(&b3.Header.RootHash, &b3.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -922,16 +871,10 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	signTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b4 := nextBlockWithTxs(b3, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b3, b4, blockChain, gasPrice*gasUsed)
-	b4.Header.RootHash = *root
-	if utxoRoot != nil {
-		b4.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b3, b4, b4, vmParam, nil, gasRefundTx)
+	calcRootHash(b3, b4, blockChain)
+	contractBlockHandle(t, blockChain, b3, b4, b4, vmParam, nil)
 	stateDB, err = state.New(&b4.Header.RootHash, &b4.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -959,16 +902,10 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	signTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b4, b5, blockChain, gasPrice*gasUsed)
-	b5.Header.RootHash = *root
-	if utxoRoot != nil {
-		b5.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil, gasRefundTx)
+	calcRootHash(b4, b5, blockChain)
+	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil)
 	stateDB, err = state.New(&b5.Header.RootHash, &b5.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -996,16 +933,11 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	signTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
+	// gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b5, b6, blockChain, gasPrice*gasUsed)
-	b6.Header.RootHash = *root
-	if utxoRoot != nil {
-		b6.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil, gasRefundTx)
+	calcRootHash(b5, b6, blockChain)
+	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil)
 	stateDB, err = state.New(&b5.Header.RootHash, &b5.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1035,18 +967,10 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	signTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
-	gasRefundTxHash, _ := gasRefundTx.TxHash()
-	t.Logf("refund tx: %s", gasRefundTxHash)
 	b7 := nextBlockWithTxs(b6, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b6, b7, blockChain, gasPrice*gasUsed)
-	b7.Header.RootHash = *root
-	if utxoRoot != nil {
-		b7.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b6, b7, b7, vmParam, nil, gasRefundTx)
+	calcRootHash(b6, b7, blockChain)
+	contractBlockHandle(t, blockChain, b6, b7, b7, vmParam, nil)
 	stateDB, err = state.New(&b7.Header.RootHash, &b7.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1151,17 +1075,10 @@ func TestERC20Contract(t *testing.T) {
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
 	t.Logf("user addr: %s", hex.EncodeToString(userAddr.Hash160()[:]))
-	//
-	gasRefundTx := createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3 := nextBlockWithTxs(b2, blockChain, vmTx)
 
-	root, utxoRoot, _ := calcRootHash(b2, b3, blockChain, gasPrice*gasUsed)
-	b3.Header.RootHash = *root
-	if utxoRoot != nil {
-		b3.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil, gasRefundTx)
+	calcRootHash(b2, b3, blockChain)
+	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil)
 	stateDB, err := state.New(&b3.Header.RootHash, &b3.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1190,16 +1107,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b3A := nextBlockWithTxs(b3, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b3, b3A, blockChain, gasPrice*gasUsed)
-	b3A.Header.RootHash = *root
-	if utxoRoot != nil {
-		b3A.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b3, b3A, b3A, vmParam, nil, gasRefundTx)
+	calcRootHash(b3, b3A, blockChain)
+	contractBlockHandle(t, blockChain, b3, b3A, b3A, vmParam, nil)
 	stateDB, err = state.New(&b3A.Header.RootHash, &b3A.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1235,16 +1146,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b4 := nextBlockWithTxs(b3A, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b3A, b4, blockChain, gasPrice*gasUsed)
-	b4.Header.RootHash = *root
-	if utxoRoot != nil {
-		b4.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b3A, b4, b4, vmParam, nil, gasRefundTx)
+	calcRootHash(b3A, b4, blockChain)
+	contractBlockHandle(t, blockChain, b3A, b4, b4, vmParam, nil)
 	stateDB, err = state.New(&b4.Header.RootHash, &b4.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1274,16 +1179,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b4, b5, blockChain, gasPrice*gasUsed)
-	b5.Header.RootHash = *root
-	if utxoRoot != nil {
-		b5.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil, gasRefundTx)
+	calcRootHash(b4, b5, blockChain)
+	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil)
 	stateDB, err = state.New(&b5.Header.RootHash, &b5.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1319,16 +1218,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b5, b6, blockChain, gasPrice*gasUsed)
-	b6.Header.RootHash = *root
-	if utxoRoot != nil {
-		b6.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil, gasRefundTx)
+	calcRootHash(b5, b6, blockChain)
+	contractBlockHandle(t, blockChain, b5, b6, b6, vmParam, nil)
 	stateDB, err = state.New(&b6.Header.RootHash, &b6.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1360,18 +1253,12 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
-	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), minerNonce)
 	b7 := nextBlockWithTxs(b6, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b6, b7, blockChain, gasPrice*gasUsed)
-	b7.Header.RootHash = *root
-	if utxoRoot != nil {
-		b7.Header.UtxoRoot = *utxoRoot
-	}
-
+	calcRootHash(b6, b7, blockChain)
 	userBalance += gasUsed * gasPrice
 	minerBalance -= gasUsed * gasPrice
-	contractBlockHandle(t, blockChain, b6, b7, b7, vmParam, nil, gasRefundTx)
+	contractBlockHandle(t, blockChain, b6, b7, b7, vmParam, nil)
 	stateDB, err = state.New(&b7.Header.RootHash, &b7.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("miner nonce: %d", stateDB.GetNonce(*minerAddr.Hash160()))
@@ -1401,16 +1288,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
+	// gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b8 := nextBlockWithTxs(b7, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b7, b8, blockChain, gasPrice*gasUsed)
-	b8.Header.RootHash = *root
-	if utxoRoot != nil {
-		b8.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b7, b8, b8, vmParam, nil, gasRefundTx)
+	calcRootHash(b7, b8, blockChain)
+	contractBlockHandle(t, blockChain, b7, b8, b8, vmParam, nil)
 	stateDB, err = state.New(&b8.Header.RootHash, &b8.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1440,16 +1322,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
+	// gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b9 := nextBlockWithTxs(b8, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b8, b9, blockChain, gasPrice*gasUsed)
-	b9.Header.RootHash = *root
-	if utxoRoot != nil {
-		b9.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b8, b9, b9, vmParam, nil, gasRefundTx)
+	calcRootHash(b8, b9, blockChain)
+	contractBlockHandle(t, blockChain, b8, b9, b9, vmParam, nil)
 	stateDB, err = state.New(&b9.Header.RootHash, &b9.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1477,16 +1354,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b10 := nextBlockWithTxs(b9, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b9, b10, blockChain, gasPrice*gasUsed)
-	b10.Header.RootHash = *root
-	if utxoRoot != nil {
-		b10.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b9, b10, b10, vmParam, nil, gasRefundTx)
+	calcRootHash(b9, b10, blockChain)
+	contractBlockHandle(t, blockChain, b9, b10, b10, vmParam, nil)
 	stateDB, err = state.New(&b10.Header.RootHash, &b10.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1515,21 +1386,12 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
-	gasRefundTx = createGasRefundUtxoTx(minerAddr.Hash160(), gasPrice*(gasLimit-gasUsed), minerNonce)
 	b11 := nextBlockWithTxs(b10, blockChain, vmTx)
 
-	root, utxoRoot, err = calcRootHash(b10, b11, blockChain, gasPrice*gasUsed)
-	if err != nil {
-		t.Logf("ERROR: %v", err)
-	}
-	b11.Header.RootHash = *root
-	if utxoRoot != nil {
-		b11.Header.UtxoRoot = *utxoRoot
-	}
-
+	calcRootHash(b10, b11, blockChain)
 	userBalance += gasUsed * gasPrice
 	minerBalance -= gasUsed * gasPrice
-	contractBlockHandle(t, blockChain, b10, b11, b11, vmParam, nil, gasRefundTx)
+	contractBlockHandle(t, blockChain, b10, b11, b11, vmParam, nil)
 	stateDB, err = state.New(&b11.Header.RootHash, &b11.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("miner nonce: %d", stateDB.GetNonce(*minerAddr.Hash160()))
@@ -1557,16 +1419,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b12 := nextBlockWithTxs(b11, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b11, b12, blockChain, gasPrice*gasUsed)
-	b12.Header.RootHash = *root
-	if utxoRoot != nil {
-		b12.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b11, b12, b12, vmParam, nil, gasRefundTx)
+	calcRootHash(b11, b12, blockChain)
+	contractBlockHandle(t, blockChain, b11, b12, b12, vmParam, nil)
 	stateDB, err = state.New(&b12.Header.RootHash, &b12.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))
@@ -1602,16 +1458,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b13 := nextBlockWithTxs(b12, blockChain, vmTx)
 
-	root, utxoRoot, _ = calcRootHash(b12, b13, blockChain, gasPrice*gasUsed)
-	b13.Header.RootHash = *root
-	if utxoRoot != nil {
-		b13.Header.UtxoRoot = *utxoRoot
-	}
-
-	contractBlockHandle(t, blockChain, b12, b13, b13, vmParam, nil, gasRefundTx)
+	calcRootHash(b12, b13, blockChain)
+	contractBlockHandle(t, blockChain, b12, b13, b13, vmParam, nil)
 	stateDB, err = state.New(&b13.Header.RootHash, &b13.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	t.Logf("user nonce: %d", stateDB.GetNonce(*userAddr.Hash160()))

@@ -239,7 +239,6 @@ func TestChainTx(t *testing.T) {
 	txs = append(txs, tx)
 	// tx3
 	prevHash, _ = tx.TxHash()
-	t.Logf("tx2: %s", prevHash)
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeVout(splitAddrA.String(), 2500000)).
@@ -249,13 +248,7 @@ func TestChainTx(t *testing.T) {
 	txs = append(txs, tx)
 
 	b3 := nextBlockWithTxs(b2, blockChain, txs...)
-
-	root, utxoRoot, _ := calcRootHash(b2, b3, blockChain, 0)
-	b3.Header.RootHash = *root
-	if utxoRoot != nil {
-		b3.Header.UtxoRoot = *utxoRoot
-	}
-	// b3.Header.RootHash.SetString("68f2397dbcea4db529d2b5a208ebe690b18494eb8e2177c024bc8348264b8c57")
+	calcRootHash(b2, b3, blockChain)
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
 	// check balance
 	// for userAddr
@@ -362,7 +355,7 @@ func verifyProcessBlock(
 	ensure.DeepEqual(t, getTailBlock(blockChain), expectedChainTail)
 }
 
-func calcRootHash(parent, block *types.Block, chain *BlockChain, gascost uint64) (*crypto.HashType, *crypto.HashType, error) {
+func calcRootHash(parent, block *types.Block, chain *BlockChain) (*crypto.HashType, *crypto.HashType, error) {
 	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.DB())
 	if err != nil {
 		return nil, nil, err
@@ -404,11 +397,16 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, gascost uint64)
 	if err != nil {
 		return nil, nil, err
 	}
+	block.Header.RootHash = *root
+	if utxoRoot != nil {
+		block.Header.UtxoRoot = *utxoRoot
+	}
 
 	block.Header.GasUsed = gasUsed
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
 	}
+	block.Header.TxsRoot = *CalcTxsHash(block.Txs)
 	return root, utxoRoot, nil
 }
 

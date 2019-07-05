@@ -468,11 +468,9 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			}
 
 			txHash, _ := txWrap.Tx.TxHash()
-
-			// if err := dpos.prepareCandidateContext(candidateContext, txWrap.Tx); err != nil {
-			// 	// TODO: abandon the error tx
-			// 	continue
-			// }
+			if txlogic.HasContractVout(txWrap.Tx) {
+				continue
+			}
 
 			utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
 			if err != nil {
