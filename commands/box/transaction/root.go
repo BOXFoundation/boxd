@@ -64,7 +64,7 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "createtx [from] [to1,to2...] [amounts1,amounts2...] [fee]",
+			Use:   "createtx [from] [to1,to2...] [amounts1,amounts2...] [gasPrice]",
 			Short: "create an unsigned transaction,",
 			Long:  "Returns a set of raw message for signing and a hex encoded transaction string",
 			Run:   maketx,
@@ -149,17 +149,17 @@ func maketx(cmd *cobra.Command, args []string) {
 		amounts = append(amounts, uint64(tmp))
 	}
 
-	fee, err := strconv.ParseUint(args[3], 10, 64)
+	gasPrice, err := strconv.ParseUint(args[3], 10, 64)
 	if err != nil {
 		fmt.Println("Conversion failed: ", err)
 		return
 	}
 
 	req := &rpcpb.MakeTxReq{
-		From:    from,
-		To:      toAddr,
-		Amounts: amounts,
-		Fee:     fee,
+		From:     from,
+		To:       toAddr,
+		Amounts:  amounts,
+		GasPrice: gasPrice,
 	}
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
