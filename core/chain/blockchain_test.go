@@ -386,10 +386,6 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, gascost uint64)
 		return nil, nil, err
 	}
 
-	// block.Txs[0].Vout[0].Value += gascost
-	// block.Txs[0].ResetTxHash()
-	// hash, _ := block.Txs[0].TxHash()
-	// receipts[0].TxHash = *hash
 	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 	block.InternalTxs = utxoTxs
 
@@ -408,8 +404,7 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, gascost uint64)
 	if err != nil {
 		return nil, nil, err
 	}
-	// block.InternalTxs = nil
-	// block.Txs[0].Vout[0].Value -= gascost
+
 	block.Header.GasUsed = gasUsed
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
