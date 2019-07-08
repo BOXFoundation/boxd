@@ -109,6 +109,25 @@ func readAbi(filename string) (*abi.ABI, error) {
 	return &abiObj, err
 }
 
+// return the number of signature operations for all transaction
+// input and output scripts in the provided transaction.
+//func countSigOps(tx *types.Transaction) int {
+//	// Accumulate the number of signature operations in all transaction inputs.
+//	totalSigOps := 0
+//	for _, txIn := range tx.Vin {
+//		numSigOps := script.NewScriptFromBytes(txIn.ScriptSig).GetSigOpCount()
+//		totalSigOps += numSigOps
+//	}
+//
+//	// Accumulate the number of signature operations in all transaction outputs.
+//	for _, txOut := range tx.Vout {
+//		numSigOps := script.NewScriptFromBytes(txOut.ScriptPubKey).GetSigOpCount()
+//		totalSigOps += numSigOps
+//	}
+//
+//	return totalSigOps
+//}
+
 // // MakeCoinbaseTx creates a coinbase give bookkeeper address and block height
 // func MakeCoinbaseTx(amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
 // 	abiObj, err := readAbi()

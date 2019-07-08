@@ -19,15 +19,15 @@ install:
   - sudo apt-get install g++-4.8 libsnappy-dev zlib1g-dev libbz2-dev cmake-data cmake -qq
   # install rocksdb
   - cd
-  - git clone https://github.com/facebook/rocksdb.git
+  - git clone https://github.com/facebook/rocksdb.git --branch v6.1.2
   - cd rocksdb
-  - DEBUG_LEVEL=0 sudo make shared_lib install-shared
+  - DEBUG_LEVEL=0 DISABLE_WARNING_AS_ERROR=1 sudo make shared_lib install-shared
   - export LD_LIBRARY_PATH=/usr/local/lib
 
 script:
   - cd $GOPATH/src/github.com/BOXFoundation/boxd/
   - export CGO_CFLAGS="-I/usr/local/include"
-  - export CGO_LDFLAGS="-L/usr/local/lib -lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy"
+  - export CGO_LDFLAGS="-L/usr/local/lib -lrocksdb -ldl -lstdc++ -lm -lz -lbz2 -lsnappy"
   - make vendor
   # fix cgo vendering ignoreing C files issue
   - go get github.com/nomad-software/vend
