@@ -76,6 +76,7 @@ var (
 	ErrInvalidTxOutProtoMessage            = errors.New("Invalid TxOut proto message")
 	ErrInvalidTxProtoMessage               = errors.New("Invalid tx proto message")
 	ErrInvalidIrreversibleInfoProtoMessage = errors.New("Invalid IrreversibleInfo proto message")
+	ErrInvalidFee                          = errors.New("Invalid contract transaction fee")
 
 	//address.go
 	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")

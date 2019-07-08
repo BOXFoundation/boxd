@@ -6,6 +6,7 @@ package txpool
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -321,8 +322,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 		return err
 	}
 
-	// To check script later so main thread is not blocked
-	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 	var gasPrice uint64
 	if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
@@ -334,6 +333,11 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 			return errors.New("Invalid contract transaction fee")
 		}
 		gasPrice = param.GasPrice
+		// check contract tx from
+		if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
+			*addr.Hash160() != *param.From {
+			return fmt.Errorf("contract tx from address mismatched")
+		}
 	} else {
 		gasPrice = txFee / core.TransferGasLimit
 	}
@@ -341,6 +345,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	if gasPrice < core.MinGasPrice {
 		return errors.New("tx gasPrice is too low")
 	}
+
+	// To check script later so main thread is not blocked
+	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, gasPrice)

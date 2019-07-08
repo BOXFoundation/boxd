@@ -695,6 +695,21 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		if totalFees < lastTotalFees {
 			return core.ErrBadFees
 		}
+
+		if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
+			sc := script.NewScriptFromBytes(o.ScriptPubKey)
+			param, _, err := sc.ParseContractParams()
+			if err != nil {
+				return err
+			}
+			if txFee != param.GasLimit*param.GasPrice {
+				return core.ErrInvalidFee
+			}
+			if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
+				*addr.Hash160() != *param.From {
+				return fmt.Errorf("contract tx from address mismatched")
+			}
+		}
 	}
 
 	return chain.applyBlock(block, utxoSet, totalFees, messageFrom)
