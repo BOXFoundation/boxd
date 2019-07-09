@@ -52,22 +52,15 @@ func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBal
 func (s *txServer) GetBalance(
 	ctx context.Context, req *rpcpb.GetBalanceReq,
 ) (*rpcpb.GetBalanceResp, error) {
-	walletAgent := s.server.GetWalletAgent()
-	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
-		logger.Warn("get balance error ", ErrAPINotSupported)
-		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
-	}
 	balances := make([]uint64, len(req.GetAddrs()))
+	statedb := s.server.GetChainReader().TailState()
 	for i, addr := range req.Addrs {
-		if err := types.ValidateAddr(addr); err != nil {
+		address, err := types.NewAddress(addr)
+		if err != nil {
 			logger.Warn(err)
 			return newGetBalanceResp(-1, err.Error()), nil
 		}
-		amount, err := walletAgent.Balance(addr, nil)
-		if err != nil {
-			logger.Warnf("get balance for %s error %s", addr, err)
-			return newGetBalanceResp(-1, err.Error()), nil
-		}
+		amount := statedb.GetBalance(*address.Hash160()).Uint64()
 		balances[i] = amount
 	}
 	return newGetBalanceResp(0, "ok", balances...), nil
