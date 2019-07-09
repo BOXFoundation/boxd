@@ -707,9 +707,24 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		if totalFees < lastTotalFees {
 			return core.ErrBadFees
 		}
+
+		if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
+			sc := script.NewScriptFromBytes(o.ScriptPubKey)
+			param, _, err := sc.ParseContractParams()
+			if err != nil {
+				return err
+			}
+			if txFee != param.GasLimit*param.GasPrice {
+				return core.ErrInvalidFee
+			}
+			if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
+				*addr.Hash160() != *param.From {
+				return fmt.Errorf("contract tx from address mismatched")
+			}
+		}
 	}
 
-	return chain.applyBlock(block, utxoSet, totalFees, messageFrom)
+	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
@@ -783,8 +798,8 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	}
 }
 
-// UpdateUtxoState updates contract utxo in statedb
-func (chain *BlockChain) UpdateUtxoState(statedb *state.StateDB, utxoSet *UtxoSet) error {
+// UpdateContractUtxoState updates contract utxo in statedb
+func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet *UtxoSet) error {
 	for _, o := range utxoSet.contractUtxos {
 		// address
 		contractAddr := new(types.AddressHash)
@@ -805,9 +820,7 @@ func (chain *BlockChain) UpdateUtxoState(statedb *state.StateDB, utxoSet *UtxoSe
 	return nil
 }
 
-func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID) error {
-
-	ttt1 := time.Now().UnixNano()
+func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID) error {
 
 	blockCopy := block.Copy()
 	// Split tx outputs if any
@@ -849,7 +862,7 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 				return err
 			}
 		}
-		if err := chain.UpdateUtxoState(stateDB, utxoSet); err != nil {
+		if err := chain.UpdateContractUtxoState(stateDB, utxoSet); err != nil {
 			logger.Errorf("chain update utxo state error: %s", err)
 			return err
 		}
@@ -880,6 +893,23 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 	chain.db.EnableBatch()
 	defer chain.db.DisableBatch()
 
+	if err := chain.writeBlockToDB(block, splitTxs, utxoSet); err != nil {
+		return err
+	}
+
+	chain.tryToClearCache([]*types.Block{block}, nil)
+
+	// notify mem_pool when chain update
+	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
+
+	// This block is now the end of the best chain.
+	chain.ChangeNewTail(block)
+
+	return nil
+}
+
+func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, utxoSet *UtxoSet) error {
+
 	if err := chain.StoreBlockWithIndex(block, chain.db); err != nil {
 		return err
 	}
@@ -890,8 +920,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 			return err
 		}
 	}
-
-	ttt2 := time.Now().UnixNano()
 
 	if err := chain.consensus.Process(block, chain.db); err != nil {
 		return err
@@ -907,18 +935,15 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		return err
 	}
 
-	ttt3 := time.Now().UnixNano()
 	// store split addr index
 	if err := chain.WriteSplitAddrIndex(block, chain.db); err != nil {
 		logger.Error(err)
 		return err
 	}
-	ttt4 := time.Now().UnixNano()
 	// save utxoset to database
 	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
 		return err
 	}
-	ttt5 := time.Now().UnixNano()
 	// save current tail to database
 	if err := chain.StoreTailBlock(block, chain.db); err != nil {
 		return err
@@ -928,18 +953,6 @@ func (chain *BlockChain) applyBlock(block *types.Block, utxoSet *UtxoSet, totalT
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Header.Height, err.Error())
 		return err
-	}
-	ttt6 := time.Now().UnixNano()
-	chain.tryToClearCache([]*types.Block{block}, nil)
-
-	// notify mem_pool when chain update
-	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
-
-	// This block is now the end of the best chain.
-	chain.ChangeNewTail(block)
-	ttt7 := time.Now().UnixNano()
-	if needToTracking((ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6) {
-		logger.Infof("ttt Time tracking: ttt1` = %d ttt2` = %d ttt3` = %d ttt4` = %d ttt5` = %d ttt6` = %d ", (ttt2-ttt1)/1e6, (ttt3-ttt2)/1e6, (ttt4-ttt3)/1e6, (ttt5-ttt4)/1e6, (ttt6-ttt5)/1e6, (ttt7-ttt6)/1e6)
 	}
 	return nil
 }

@@ -589,7 +589,7 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 			return err
 		}
 	}
-	if err := dpos.chain.UpdateUtxoState(statedb, utxoSet); err != nil {
+	if err := dpos.chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -645,7 +646,7 @@ func TestFaucetContract(t *testing.T) {
 	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
 	b6.Header.RootHash.SetString("")
 	b6.Header.UtxoRoot.SetString("")
-	contractBlockHandle(t, blockChain, b5, b6, b5, vmParam, errInsufficientBalanceForGas)
+	contractBlockHandle(t, blockChain, b5, b6, b5, vmParam, core.ErrInvalidFee)
 	nonce--
 	t.Logf("b5 -> b6 failed, now tail height: %d", blockChain.LongestChainHeight)
 

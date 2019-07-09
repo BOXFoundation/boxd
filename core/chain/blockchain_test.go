@@ -389,7 +389,7 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain) (*crypto.HashTy
 			return nil, nil, err
 		}
 	}
-	if err := chain.UpdateUtxoState(statedb, utxoSet); err != nil {
+	if err := chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return nil, nil, err
 	}
 

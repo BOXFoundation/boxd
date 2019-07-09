@@ -232,3 +232,16 @@ func UnmarshalMissData(data []byte) (height uint32, miss uint32, ts int64, err e
 	ts, err = util.ReadInt64(buf)
 	return
 }
+
+// FetchOutPointOwner fetchs owner of outpoint in utxo set
+func FetchOutPointOwner(op *types.OutPoint, utxoSet *UtxoSet) (types.Address, error) {
+	utxoWrap := utxoSet.FindUtxo(*op)
+	if utxoWrap == nil {
+		return nil, core.ErrUtxoNotFound
+	}
+	address, err := script.NewScriptFromBytes(utxoWrap.Script()).ExtractAddress()
+	if err != nil {
+		return nil, err
+	}
+	return address, nil
+}
