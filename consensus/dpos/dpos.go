@@ -574,7 +574,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			return err
 		}
 	}
-	if err := dpos.chain.UpdateUtxoState(statedb, utxoSet); err != nil {
+	if err := dpos.chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}
 
