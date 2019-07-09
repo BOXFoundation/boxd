@@ -6,6 +6,7 @@ package service
 
 import (
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/vm"
 )
@@ -16,7 +17,6 @@ type ChainReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
-	GetLatestNonce(address *types.AddressHash) (uint64, error)
 
 	//
 	GetDataFromDB([]byte) ([]byte, error)
@@ -26,4 +26,5 @@ type ChainReader interface {
 	GetBlockHeight() uint32
 	GetBlockHash(uint32) (*crypto.HashType, error)
 	EternalBlock() *types.Block
+	TailState() *state.StateDB
 }

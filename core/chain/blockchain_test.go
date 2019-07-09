@@ -240,17 +240,17 @@ func TestChainTx(t *testing.T) {
 	// check balance
 	// for userAddr
 	balance := getBalance(userAddr.String(), blockChain.db)
-	stateBalance, _ := blockChain.GetBalance(userAddr)
+	stateBalance := blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, uint64(500000))
 	// for miner
 	balance = getBalance(minerAddr.String(), blockChain.db)
-	stateBalance, _ = blockChain.GetBalance(minerAddr)
+	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, 3*BaseSubsidy-6000000)
 	// for splitAddrA
 	balance = getBalance(splitAddrA.String(), blockChain.db)
-	stateBalance, _ = blockChain.GetBalance(splitAddrA)
+	stateBalance = blockChain.tailState.GetBalance(*splitAddrA.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, uint64(5500000))
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)

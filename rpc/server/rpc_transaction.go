@@ -494,7 +494,7 @@ func (s *txServer) MakeUnsignedContractTx(
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 		}
-		nonce, _ := s.server.GetChainReader().GetLatestNonce(fromHash.Hash160())
+		nonce := s.server.GetChainReader().TailState().GetNonce(*fromHash.Hash160())
 		if req.GetNonce() <= nonce {
 			eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil

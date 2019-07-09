@@ -20,6 +20,7 @@ import (
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
@@ -70,8 +71,8 @@ type ChainBlockReader interface {
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
+	TailState() *state.StateDB
 	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
-	GetLatestNonce(address *types.AddressHash) (uint64, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -419,11 +420,7 @@ func (s *webapiServer) Nonce(
 		return newNonceResp(-1, "only allow eoa and contract address", 0), nil
 	case *types.AddressContract, *types.AddressPubKeyHash:
 	}
-	nonce, err := s.GetLatestNonce(address.Hash160())
-	if err != nil {
-		return newNonceResp(-1, err.Error(), 0), nil
-	}
-	return newNonceResp(0, "", nonce), nil
+	return newNonceResp(0, "", s.TailState().GetNonce(*address.Hash160())), nil
 }
 
 func detailTx(

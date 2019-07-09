@@ -78,6 +78,7 @@ type BlockChain struct {
 	genesis       *types.Block
 	tail          *types.Block
 	eternal       *types.Block
+	tailState     *state.StateDB
 	// some txs may be parents of other txs in the block
 	proc                      goprocess.Process
 	LongestChainHeight        uint32
@@ -93,7 +94,6 @@ type BlockChain struct {
 	status                    int32
 	stateProcessor            *StateProcessor
 	vmConfig                  vm.Config
-	stateDBCache              map[uint32]*state.StateDB
 	utxoSetCache              map[uint32]*UtxoSet
 	receiptsCache             map[uint32]types.Receipts
 }
@@ -114,7 +114,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
-		stateDBCache:              make(map[uint32]*state.StateDB),
 		utxoSetCache:              make(map[uint32]*UtxoSet),
 		receiptsCache:             make(map[uint32]types.Receipts),
 		bus:                       eventbus.Default(),
@@ -152,6 +151,14 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	}
 	logger.Infof("load tail block: %s, height: %d", b.tail.BlockHash(),
 		b.tail.Header.Height)
+
+	if err := b.SetTailState(&b.tail.Header.RootHash, &b.tail.Header.UtxoRoot); err != nil {
+		logger.Error("Failed to load tail state ", err)
+		return nil, err
+	}
+	logger.Infof("load tail state with root: %s utxo root: %s",
+		b.tail.Header.RootHash, b.tail.Header.UtxoRoot)
+
 	b.LongestChainHeight = b.tail.Header.Height
 	b.splitAddrFilter = loadSplitAddrFilter(b.db)
 	logger.Infof("load split address bloom filter finished")
@@ -194,11 +201,6 @@ func (chain *BlockChain) DB() storage.Table {
 // StateProcessor returns chain stateProcessor.
 func (chain *BlockChain) StateProcessor() *StateProcessor {
 	return chain.stateProcessor
-}
-
-// StateDBCache returns chain stateDB cache.
-func (chain *BlockChain) StateDBCache() map[uint32]*state.StateDB {
-	return chain.stateDBCache
 }
 
 // UtxoSetCache returns chain utxoSet cache.
@@ -860,13 +862,12 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
 				block.Header.Height)
 		}
-		if !utxoRoot.IsEqual(&block.Header.UtxoRoot) &&
+		if (utxoRoot != nil && !utxoRoot.IsEqual(&block.Header.UtxoRoot)) &&
 			!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {
 			return fmt.Errorf("Invalid utxo state root in block header, have %s, got: %s, "+
 				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.BlockHash(),
 				block.Header.Height)
 		}
-		chain.stateDBCache[block.Header.Height] = stateDB
 		if len(receipts) > 0 {
 			chain.receiptsCache[block.Header.Height] = receipts
 		}
@@ -886,6 +887,10 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
+	// set tail state
+	if err := chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -1132,6 +1137,9 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
 		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
 	}
+	if err := chain.SetTailState(&newTail.Header.RootHash, &newTail.Header.UtxoRoot); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1149,7 +1157,22 @@ func (chain *BlockChain) TailBlock() *types.Block {
 	return chain.tail
 }
 
-// Genesis return chain tail block.
+// TailState returns chain tail statedb
+func (chain *BlockChain) TailState() *state.StateDB {
+	return chain.tailState
+}
+
+// SetTailState returns chain tail statedb
+func (chain *BlockChain) SetTailState(root, utxoRoot *crypto.HashType) error {
+	stateDB, err := state.New(root, utxoRoot, chain.db)
+	if err != nil {
+		return err
+	}
+	chain.tailState = stateDB
+	return nil
+}
+
+// Genesis return chain genesis block.
 func (chain *BlockChain) Genesis() *types.Block {
 	return chain.genesis
 }
@@ -1184,15 +1207,6 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 // GetBlockHeight returns current height of main chain
 func (chain *BlockChain) GetBlockHeight() uint32 {
 	return chain.LongestChainHeight
-}
-
-// GetBalance finds the block in target height of main chain and returns it's hash
-func (chain *BlockChain) GetBalance(addr types.Address) (uint64, error) {
-	stateDB := chain.stateDBCache[chain.LongestChainHeight]
-	if stateDB == nil {
-		return 0, errors.New("state db is nil")
-	}
-	return stateDB.GetBalance(*addr.Hash160()).Uint64(), nil
 }
 
 // GetBlockHash finds the block in target height of main chain and returns it's hash
@@ -1256,12 +1270,15 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, err
 	}
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
-	root, _, err := stateDB.Commit(false)
+	root, utxoRoot, err := stateDB.Commit(false)
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("genesis root hash: %s", root)
+	logger.Infof("genesis root hash: %s, utxo root hash: %s", root, utxoRoot)
 	genesis.Header.RootHash = *root
+	if utxoRoot != nil {
+		genesis.Header.UtxoRoot = *utxoRoot
+	}
 
 	chain.db.EnableBatch()
 	defer chain.db.DisableBatch()
@@ -1406,16 +1423,6 @@ func (chain *BlockChain) GetEvmByHeight(msg types.Message, height uint32) (*vm.E
 	state.SetBalance(*msg.From(), math.MaxBig256)
 	context := NewEVMContext(msg, block.Header, chain)
 	return vm.NewEVM(context, state, vm.Config{}), state.Error, nil
-}
-
-// GetLatestNonce get nonce in chain now
-func (chain *BlockChain) GetLatestNonce(address *types.AddressHash) (uint64, error) {
-	header := chain.TailBlock().Header
-	state, err := state.New(&header.RootHash, &header.UtxoRoot, chain.db)
-	if state == nil || err != nil {
-		return 0, err
-	}
-	return state.GetNonce(*address), nil
 }
 
 // StoreBlockWithIndex store block to db in batch mod.
