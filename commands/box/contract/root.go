@@ -86,7 +86,7 @@ Successful call will return a transaction hash value`,
 
 func encode(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	abifile := args[0] + ".abi"
@@ -123,7 +123,7 @@ func encode(cmd *cobra.Command, args []string) {
 
 func importAbi(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	abifile := args[0] + ".abi"
@@ -143,7 +143,7 @@ func importAbi(cmd *cobra.Command, args []string) {
 
 func docall(cmd *cobra.Command, args []string) {
 	if len(args) < 3 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	from := args[0]
@@ -185,13 +185,13 @@ func docall(cmd *cobra.Command, args []string) {
 }
 func deploycontract(cmd *cobra.Command, args []string) {
 	if len(args) != 6 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	from := args[0]
 	//validate address
 	if err := types.ValidateAddr(from); err != nil {
-		fmt.Println("from address is Invalide: ", err)
+		fmt.Println("From address is Invalid: ", err)
 		return
 	}
 	if len(args[5]) == 0 {
@@ -251,16 +251,16 @@ func deploycontract(cmd *cobra.Command, args []string) {
 
 func callcontract(cmd *cobra.Command, args []string) {
 	if len(args) != 7 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	from := args[0]
 	if err := types.ValidateAddr(from); err != nil {
-		fmt.Println("from address is Invalide: ", err)
+		fmt.Println("From address is Invalid: ", err)
 		return
 	}
 	if len(args[6]) == 0 {
-		fmt.Println("data error")
+		fmt.Println("Data error")
 		return
 	}
 	contractAddr := args[1]
@@ -378,7 +378,7 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 
 func getLogs(cmd *cobra.Command, args []string) {
 	// if len(args) < 1 {
-	// 	fmt.Println("Invalide argument number")
+	// 	fmt.Println("Invalid argument number")
 	// 	return
 	// }
 	// argsjson := args[0]

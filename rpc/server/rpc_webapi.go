@@ -5,7 +5,6 @@
 package rpc
 
 import (
-	"bytes"
 	"container/list"
 	"encoding/hex"
 	"fmt"
@@ -62,8 +61,11 @@ type ChainBlockReader interface {
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
+	TailBlock() *types.Block
 	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 	GetLatestNonce(address *types.AddressHash) (uint64, error)
+	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
+	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -340,22 +342,39 @@ func (s *webapiServer) ListenAndReadNewLog(
 
 	for {
 		// get logs
-		logs := elm.Value.(*rpcpb.Logs)
+		logs := elm.Value.([]*types.Log)
 		retLogs := &rpcpb.Logs{Logs: []*rpcpb.Logs_LogDetail{}}
 
-	LOG:
-		for _, log := range logs.Logs {
-			for _, logtopic := range log.Topics {
-				for _, topics := range req.Topics {
-					for _, topic := range topics.Topics {
-						if bytes.Equal(logtopic, []byte(topic)) {
-							retLogs.Logs = append(retLogs.Logs, log)
-							continue LOG
-						}
-					}
+		topicslist := [][][]byte{[][]byte{}}
+
+		for _, addr := range req.Addresses {
+
+			contractAddress, err := types.NewContractAddress(addr)
+			if err != nil {
+				logger.Error(err)
+				return err
+			}
+			topicslist[0] = append(topicslist[0], contractAddress.Hash())
+		}
+
+		for i, topiclist := range req.Topics {
+			topicslist = append(topicslist, [][]byte{})
+			for _, topic := range topiclist.Topics {
+				t, err := hex.DecodeString(topic)
+				if err != nil {
+					logger.Error(err)
+					return err
 				}
+				topicslist[i+1] = append(topicslist[i+1], t)
 			}
 		}
+
+		filterlogs, err := s.ChainBlockReader.FilterLogs(logs, topicslist)
+		if err != nil {
+			logger.Error(err)
+			return err
+		}
+		retLogs.Logs = append(retLogs.Logs, rpcutil.ToPbLogs(filterlogs)...)
 		// send log detail
 		if err := stream.Send(retLogs); err != nil {
 			logger.Warnf("webapi send log error %s, exit listen connection!", err)
@@ -471,8 +490,69 @@ func (s *webapiServer) Nonce(
 	return newNonceResp(0, "", nonce), nil
 }
 
-func (s *webapiServer) GetLogs(context.Context, *rpcpb.LogsReq) (*rpcpb.Logs, error) {
-	return nil, nil
+func newLogsResp(code int32, msg string, logs []*types.Log) *rpcpb.Logs {
+
+	return &rpcpb.Logs{
+		Code:    code,
+		Message: msg,
+		Logs:    rpcutil.ToPbLogs(logs),
+	}
+}
+
+func (s *webapiServer) GetLogs(ctx context.Context, req *rpcpb.LogsReq) (logs *rpcpb.Logs, err error) {
+
+	from, to := req.From, req.To
+
+	if len(req.Hash) != 0 && req.To == 0 {
+		hash, err := hex.DecodeString(req.Hash)
+		if err != nil {
+			return newLogsResp(-1, err.Error(), nil), nil
+		}
+		hh := crypto.BytesToHash(hash)
+		b, _, err := s.ChainBlockReader.ReadBlockFromDB(&hh)
+		if err != nil {
+			return newLogsResp(-1, err.Error(), nil), nil
+		}
+		from, to = b.Header.Height, b.Header.Height
+	} else {
+		tail := s.ChainBlockReader.TailBlock()
+		if from > tail.Header.Height {
+			return newLogsResp(0, "", nil), nil
+		}
+		if to > tail.Header.Height {
+			to = tail.Header.Height
+		}
+		if from > to {
+			return newLogsResp(-1, fmt.Sprint("From not allowed to be greater than To"), nil), nil
+		}
+	}
+
+	topicslist := [][][]byte{[][]byte{}}
+	for _, addr := range req.Addresses {
+
+		contractAddress, err := types.NewContractAddress(addr)
+		if err != nil {
+			return newLogsResp(-1, err.Error(), nil), nil
+		}
+		topicslist[0] = append(topicslist[0], contractAddress.Hash())
+	}
+
+	for i, topiclist := range req.Topics {
+		topicslist = append(topicslist, [][]byte{})
+		for _, topic := range topiclist.Topics {
+			t, err := hex.DecodeString(topic)
+			if err != nil {
+				return newLogsResp(-1, err.Error(), nil), nil
+			}
+			topicslist[i+1] = append(topicslist[i+1], t)
+		}
+	}
+
+	blocklogs, err := s.ChainBlockReader.GetLogs(from, to, topicslist)
+	if err != nil {
+		return newLogsResp(-1, err.Error(), nil), nil
+	}
+	return newLogsResp(0, "", blocklogs), nil
 }
 
 func detailTx(

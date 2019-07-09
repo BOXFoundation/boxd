@@ -107,7 +107,9 @@ message LogsReq {
 }
 
 message Logs {
-    repeated LogDetail logs = 1;
+    int32 code = 1;
+    string message = 2;
+    repeated LogDetail logs = 3;
 
     message LogDetail {
         bytes address = 1;

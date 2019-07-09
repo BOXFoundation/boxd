@@ -192,13 +192,21 @@ func (lep *LogEndpoint) receiveNewLog(logs []*types.Log) {
 	lep.eventMtx.Lock()
 	defer lep.eventMtx.Unlock()
 
-	newLogs := &rpcpb.Logs{Logs: []*rpcpb.Logs_LogDetail{}}
+	if lep.GetQueue().Len() == newLogMsgSize {
+		lep.queue.Remove(lep.queue.Front())
+	}
+	lep.queue.PushBack(logs)
+}
+
+// ToPbLogs convert []*types.Log to []*rpcpb.Logs_LogDetail.
+func ToPbLogs(logs []*types.Log) []*rpcpb.Logs_LogDetail {
+	ret := []*rpcpb.Logs_LogDetail{}
 	for _, log := range logs {
 		topics := [][]byte{}
 		for _, topic := range log.Topics {
 			topics = append(topics, topic.Bytes())
 		}
-		newLogs.Logs = append(newLogs.Logs, &rpcpb.Logs_LogDetail{
+		ret = append(ret, &rpcpb.Logs_LogDetail{
 			Address:     log.Address.Bytes(),
 			Topics:      topics,
 			Data:        log.Data,
@@ -210,9 +218,5 @@ func (lep *LogEndpoint) receiveNewLog(logs []*types.Log) {
 			Removed:     log.Removed,
 		})
 	}
-
-	if lep.GetQueue().Len() == newLogMsgSize {
-		lep.queue.Remove(lep.queue.Front())
-	}
-	lep.queue.PushBack(newLogs)
+	return ret
 }

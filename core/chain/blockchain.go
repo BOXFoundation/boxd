@@ -1486,8 +1486,33 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
-// GetLogs get logs by block hash.
-func (chain *BlockChain) GetLogs(hash *crypto.HashType) ([]*types.Log, error) {
+// GetLogs filter logs.
+func (chain *BlockChain) GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error) {
+	return chain.sectionMgr.GetLogs(from, to, topicslist)
+}
+
+// FilterLogs filter logs by addrs and topicslist.
+func (chain *BlockChain) FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error) {
+
+	// topicslist = [][][]byte{}
+	// var data []byte
+
+	// topicslist[0] = make([][]byte, len(addrs))
+	// for i, addr := range addrs {
+	// 	topicslist[0][i] = addr
+	// }
+
+	// for i, topics := range topicslist {
+	// 	for j, topic := range topics {
+	// 		copy(topicslist[i+1][j], topic)
+	// 	}
+	// }
+
+	return chain.sectionMgr.filterLogs(logs, topicslist)
+}
+
+// GetBlockLogs get logs by block hash.
+func (chain *BlockChain) GetBlockLogs(hash *crypto.HashType) ([]*types.Log, error) {
 	bin, err := chain.db.Get(ReceiptKey(hash))
 	if err != nil {
 		return nil, err
@@ -1563,6 +1588,8 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 
 // StoreReceipts store receipts to db in batch mod.
 func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
+
+	logger.Errorf("Receipts: %v", receipts)
 
 	data, err := receipts.Marshal()
 	if err != nil {

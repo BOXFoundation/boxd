@@ -6,7 +6,6 @@ package chain
 
 import (
 	"bytes"
-	"encoding/hex"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -129,13 +128,17 @@ func (sm *SectionManager) commit() error {
 // GetLogs get logs matchs key words.
 func (sm *SectionManager) GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error) {
 
+	tail := sm.chain.TailBlock()
+	if to > tail.Header.Height {
+		to = tail.Header.Height
+	}
+
 	section := sm.section
 	start := from/SectionBloomLength + 1
 	end := to/SectionBloomLength + 1
 	if start > end {
 		return nil, core.ErrInvalidBounds
 	}
-	// TODO: from to 异常处理
 
 	if start >= section {
 		start = section - 1
@@ -169,6 +172,7 @@ func (sm *SectionManager) GetLogs(from, to uint32, topicslist [][][]byte) ([]*ty
 		}
 		heights = append(heights, h...)
 	}
+	logger.Debugf("HEIGHT: %d", heights)
 
 	return sm.getLogs(heights, topicslist)
 }
@@ -279,7 +283,7 @@ func (sm *SectionManager) getLogs(heights []uint32, topicslist [][][]byte) ([]*t
 		if err != nil {
 			return nil, err
 		}
-		logs, err := sm.chain.GetLogs(block.Hash)
+		logs, err := sm.chain.GetBlockLogs(block.Hash)
 		if err != nil {
 			logger.Errorf("Get block failed. Err: %v", err)
 			continue
@@ -310,7 +314,6 @@ LOGS:
 		for i, sub := range topicslist[1:] {
 			match := len(sub) == 0 // empty rule set == wildcard
 			for _, topic := range sub {
-				logger.Errorf("topic: %s", hex.EncodeToString(log.Topics[i].Bytes()))
 				if bytes.Equal(log.Topics[i].Bytes(), topic) {
 					match = true
 					break

@@ -114,7 +114,7 @@ func _TestClientListenNewLogs(t *testing.T) {
 	defer conn.Close()
 	client := rpcpb.NewWebApiClient(conn)
 	logsReq := &rpcpb.LogsReq{
-		Addresses: []string{"b5iKa3sE3wMGzbNCYDBs2LWJMGjy4xU1A6v"},
+		Addresses: []string{"b5fwJovC3TRR2vQemTdfzE9kqP1b1hS4Cpv"},
 		Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
 	}
 	stream, err := client.ListenAndReadNewLog(context.Background(), logsReq)
@@ -345,6 +345,18 @@ func (r *TestDetailBlockChainReader) GetLatestNonce(address *types.AddressHash) 
 
 func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, error) {
 	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error) {
+	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error) {
+	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) TailBlock() *types.Block {
+	return nil
 }
 
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {

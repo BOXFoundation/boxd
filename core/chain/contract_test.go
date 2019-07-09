@@ -1642,8 +1642,9 @@ func TestERC20Contract(t *testing.T) {
 	// return d0471f0000000000000000000000000000000000000000000000000000000000
 	// 0x1f47d0 = 2050000, check okay
 
+	emptyBlockNum := 10
 	tmp := blockChain.tail
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < emptyBlockNum; i++ {
 
 		state, err := state.New(&tmp.Header.RootHash, &tmp.Header.UtxoRoot, blockChain.db)
 		ensure.Nil(t, err)
@@ -1659,20 +1660,15 @@ func TestERC20Contract(t *testing.T) {
 		verifyProcessBlock(t, blockChain, tmp, nil, tmp.Header.Height, tmp)
 	}
 
-	// eventid, _ := hex.DecodeString("3935326261376631363363346131313632386635356134646635323362336566")
-
-	topicslist = [][][]byte{
+	topicslist := [][][]byte{
 		[][]byte{
 			logs[0].Address.Bytes(),
 		},
 		[][]byte{
 			eventid,
-			// []byte("952ba7f163c4a11628f55a4df523b3ef"),
-			// []byte("25b9c3c7c80a205b1e29b2f7c01403ddf3841e7d42714fd15b7decebe5e15b8c"),
-			// []byte("6c429d83c6125e57697a4d2027499622cc34df42eca52865be7bd1de6063a2a9"),
 		},
 		[][]byte{
-			// []byte("cbbf30a1b0fc8983c647d754c6525615"),
+			// []byte("ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
 		},
 		[][]byte{},
 	}
