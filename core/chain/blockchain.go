@@ -453,7 +453,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return err
 	}
 	prevHash := block.Header.PrevBlockHash
-	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
+	if prevHashExists := chain.blockExists(prevHash); !prevHashExists && !chain.isInOrphanPool(*blockHash) {
 
 		// Orphan block.
 		logger.Infof("Adding orphan block %s %d with parent %s", blockHash,
@@ -506,7 +506,7 @@ func needToTracking(t ...int64) bool {
 }
 
 func (chain *BlockChain) verifyExists(blockHash crypto.HashType) bool {
-	return chain.blockExists(blockHash) || chain.isInOrphanPool(blockHash)
+	return chain.blockExists(blockHash)
 }
 
 func (chain *BlockChain) blockExists(blockHash crypto.HashType) bool {
@@ -627,6 +627,7 @@ func (chain *BlockChain) processOrphans(block *types.Block, messageFrom peer.ID)
 			delete(chain.hashToOrphanBlock, *orphanHash)
 			// Potentially accept the block into the block chain.
 			if err := chain.tryAcceptBlock(orphan, messageFrom); err != nil {
+				logger.Warnf("process orphan %s %d error %s", orphan.BlockHash(), orphan.Header.Height, err)
 				return err
 			}
 			// Add this block to the list of blocks to process so any orphan
