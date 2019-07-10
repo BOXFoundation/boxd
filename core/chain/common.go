@@ -95,7 +95,8 @@ func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, erro
 	return tx, nil
 }
 
-func readAbi(filename string) (*abi.ABI, error) {
+// ReadAbi read genesis abi file.
+func ReadAbi(filename string) (*abi.ABI, error) {
 
 	abiFile, err := os.Open(filename)
 	if err != nil {

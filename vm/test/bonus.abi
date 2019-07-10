@@ -190,34 +190,8 @@
 		"name": "getDynasty",
 		"outputs": [
 			{
-				"components": [
-					{
-						"name": "addr",
-						"type": "address"
-					},
-					{
-						"name": "peerID",
-						"type": "string"
-					},
-					{
-						"name": "votes",
-						"type": "uint256"
-					},
-					{
-						"name": "pledgeAmount",
-						"type": "uint256"
-					},
-					{
-						"name": "score",
-						"type": "uint256"
-					},
-					{
-						"name": "isExist",
-						"type": "bool"
-					}
-				],
 				"name": "",
-				"type": "tuple[15]"
+				"type": "address[15]"
 			}
 		],
 		"payable": false,

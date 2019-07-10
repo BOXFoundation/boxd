@@ -193,14 +193,19 @@ func (chain *BlockChain) Run() error {
 	return nil
 }
 
-// Consensus return chain consensus.
+// Consensus returns chain consensus.
 func (chain *BlockChain) Consensus() Consensus {
 	return chain.consensus
 }
 
-// DB return chain db storage.
+// DB returns chain db storage.
 func (chain *BlockChain) DB() storage.Table {
 	return chain.db
+}
+
+// Cfg returns chain config.
+func (chain *BlockChain) Cfg() *Config {
+	return chain.cfg
 }
 
 // StateProcessor returns chain stateProcessor.
@@ -1441,8 +1446,8 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
-// GetEvmByHeight get evm by block height.
-func (chain *BlockChain) GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
+// NewEvmContextForLocalCallByHeight new a evm context for loval call by block height.
+func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
 	if height == 0 {
 		height = chain.tail.Header.Height
 	}
@@ -2063,7 +2068,7 @@ func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
 
 // MakeCoinbaseTx creates a coinbase give bookkeeper address and block height
 func (chain *BlockChain) MakeCoinbaseTx(from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
-	abiObj, err := readAbi(chain.cfg.ContractABIPath)
+	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
 	if err != nil {
 		return nil, err
 	}

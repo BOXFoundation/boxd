@@ -15,7 +15,7 @@ type ChainReader interface {
 	// interface to read transactions
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
-	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
+	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 	GetLatestNonce(address *types.AddressHash) (uint64, error)
 
 	//

@@ -7,6 +7,7 @@ package dpos
 import (
 	"container/heap"
 	"errors"
+	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -82,14 +83,14 @@ func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 	dpos.blockHashToCandidateContext, _ = lru.New(512)
 	context := &ConsensusContext{}
 	dpos.context = context
-	period, err := dpos.LoadPeriodContext()
-	if err != nil {
-		return nil, err
-	}
-	context.periodContext = period
-	if err := dpos.LoadCandidates(); err != nil {
-		return nil, err
-	}
+	// period, err := dpos.LoadPeriodContext()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// context.periodContext = period
+	// if err := dpos.LoadCandidates(); err != nil {
+	// 	return nil, err
+	// }
 
 	return dpos, nil
 }
@@ -232,7 +233,7 @@ func (dpos *Dpos) run(timestamp int64) error {
 // verifyProposer check to verify if bookkeeper can mint at the timestamp
 func (dpos *Dpos) verifyBookkeeper(timestamp int64) error {
 
-	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(timestamp)
+	bookkeeper, err := dpos.FindProposerWithTimeStamp(timestamp)
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,11 @@ func (dpos *Dpos) IsBookkeeper() bool {
 	if err != nil {
 		return false
 	}
-	if !util.InArray(*addr.Hash160(), dpos.context.periodContext.periodAddrs) {
+	dynasty, err := dpos.fetchCurrentDynasty()
+	if err != nil {
+		return false
+	}
+	if !util.InArray(*addr.Hash160(), dynasty.addrs) {
 		return false
 	}
 	if err := dpos.bookkeeper.UnlockWithPassphrase(dpos.cfg.Passphrase); err != nil {
@@ -628,30 +633,30 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 }
 
 // LoadPeriodContext load period context
-func (dpos *Dpos) LoadPeriodContext() (*PeriodContext, error) {
+// func (dpos *Dpos) LoadPeriodContext() (*PeriodContext, error) {
 
-	db := dpos.chain.DB()
-	period, err := db.Get(chain.PeriodKey)
-	if err != nil {
-		return nil, err
-	}
-	if period != nil {
-		periodContext := new(PeriodContext)
-		if err := periodContext.Unmarshal(period); err != nil {
-			return nil, err
-		}
-		return periodContext, nil
-	}
-	periodContext, err := InitPeriodContext()
-	if err != nil {
-		return nil, err
-	}
-	dpos.context.periodContext = periodContext
-	if err := dpos.StorePeriodContext(); err != nil {
-		return nil, err
-	}
-	return periodContext, nil
-}
+// 	db := dpos.chain.DB()
+// 	period, err := db.Get(chain.PeriodKey)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if period != nil {
+// 		periodContext := new(PeriodContext)
+// 		if err := periodContext.Unmarshal(period); err != nil {
+// 			return nil, err
+// 		}
+// 		return periodContext, nil
+// 	}
+// 	periodContext, err := InitPeriodContext()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	dpos.context.periodContext = periodContext
+// 	if err := dpos.StorePeriodContext(); err != nil {
+// 		return nil, err
+// 	}
+// 	return periodContext, nil
+// }
 
 // BroadcastBFTMsgToBookkeepers broadcast block BFT message to bookkeepers
 func (dpos *Dpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uint32) error {
@@ -884,7 +889,7 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 func (dpos *Dpos) verifyBookkeeperEpoch(block *types.Block) error {
 
 	tail := dpos.chain.TailBlock()
-	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
+	bookkeeper, err := dpos.FindProposerWithTimeStamp(block.Header.TimeStamp)
 	if err != nil {
 		return err
 	}
@@ -898,7 +903,7 @@ func (dpos *Dpos) verifyBookkeeperEpoch(block *types.Block) error {
 		if err != nil {
 			return err
 		}
-		target, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
+		target, err := dpos.FindProposerWithTimeStamp(block.Header.TimeStamp)
 		if err != nil {
 			return err
 		}
@@ -913,7 +918,7 @@ func (dpos *Dpos) verifyBookkeeperEpoch(block *types.Block) error {
 // verifySign consensus verifies signature info.
 func (dpos *Dpos) verifySign(block *types.Block) (bool, error) {
 
-	bookkeeper, err := dpos.context.periodContext.FindProposerWithTimeStamp(block.Header.TimeStamp)
+	bookkeeper, err := dpos.FindProposerWithTimeStamp(block.Header.TimeStamp)
 	if err != nil {
 		return false, err
 	}
@@ -956,66 +961,71 @@ func (dpos *Dpos) subscribe() {
 	}, false)
 }
 
-//func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
-//	if tx.Data == nil {
-//		return nil
-//	}
-//	content := tx.Data.Content
-//	switch int(tx.Data.Type) {
-//	case types.RegisterCandidateTx:
-//		registerCandidateContent := new(types.RegisterCandidateContent)
-//		if err := registerCandidateContent.Unmarshal(content); err != nil {
-//			return err
-//		}
-//		if dpos.IsCandidateExist(registerCandidateContent.Addr()) {
-//			return ErrCandidateIsAlreadyExist
-//		}
-//		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
-//			return ErrInvalidRegisterCandidateOrVoteTx
-//		}
-//	case types.VoteTx:
-//		votesContent := new(types.VoteContent)
-//		if err := votesContent.Unmarshal(content); err != nil {
-//			return err
-//		}
-//		if !dpos.IsCandidateExist(votesContent.Addr()) {
-//			return ErrCandidateNotFound
-//		}
-//		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
-//			return ErrInvalidRegisterCandidateOrVoteTx
-//		}
-//	}
-//
-//	return nil
-//}
+// Delegate is a bookkeeper node.
+type Delegate struct {
+	Addr         types.AddressHash
+	PeerID       string
+	Votes        *big.Int
+	PledgeAmount *big.Int
+	Score        *big.Int
+	IsExist      bool
+}
 
-//func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
-//	for _, vout := range tx.Vout {
-//		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
-//		if scriptPubKey.IsRegisterCandidateScriptOfBlock(calcCandidatePledgeHeight(
-//			int64(dpos.chain.TailBlock().Header.Height))) {
-//
-//			if tx.Data.Type == types.RegisterCandidateTx {
-//				if vout.Value >= CandidatePledge {
-//					return true
-//				}
-//			} else if tx.Data.Type == types.VoteTx {
-//				if vout.Value >= MinNumOfVotes {
-//					votesContent := new(types.VoteContent)
-//					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
-//						return false
-//					}
-//					if votesContent.Votes() == int64(vout.Value) {
-//						return true
-//					}
-//				}
-//			}
-//		}
-//	}
-//	return false
-//}
+// Dynasty is a collection of current bookkeeper nodes.
+type Dynasty struct {
+	delegates *[PeriodSize]Delegate
+	addrs     []types.AddressHash
+}
 
-// calcCandidatePledgeHeight calc current candidate pledge height
-//func calcCandidatePledgeHeight(tailHeight int64) int64 {
-//	return (tailHeight/PeriodDuration + 2) * PeriodDuration
-//}
+// FindProposerWithTimeStamp find proposer in given timestamp
+func (dpos *Dpos) FindProposerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
+
+	dynasty, err := dpos.fetchCurrentDynasty()
+	if err != nil {
+		return nil, err
+	}
+	offsetPeriod := (timestamp * SecondInMs) % (BookkeeperRefreshInterval * PeriodSize)
+	offset := (offsetPeriod / BookkeeperRefreshInterval) % PeriodSize
+
+	var bookkeeper *types.AddressHash
+	if offset >= 0 && int(offset) < PeriodSize {
+		bookkeeper = &dynasty.delegates[offset].Addr
+	} else {
+		return nil, ErrNotFoundBookkeeper
+	}
+	return bookkeeper, nil
+}
+
+func (dpos *Dpos) fetchCurrentDynasty() (*Dynasty, error) {
+
+	abiObj, err := chain.ReadAbi(dpos.chain.Cfg().ContractABIPath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := abiObj.Pack("getDynasty")
+	if err != nil {
+		return nil, err
+	}
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
+		0, nil, types.ContractCallType, data).WithFrom(dpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
+	evm, vmErr, err := dpos.chain.NewEvmContextForLocalCallByHeight(msg, dpos.chain.LongestChainHeight)
+
+	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
+	if err := vmErr(); err != nil {
+		return nil, err
+	}
+	var dynasty [PeriodSize]Delegate
+	if err := abiObj.Unpack(&dynasty, "getDynasty", output); err != nil {
+		logger.Errorf("Failed to unpack the result of call getDynasty")
+		return nil, err
+	}
+	logger.Infof("get dynasty from contract: %v", dynasty)
+	addrs := make([]types.AddressHash, PeriodSize)
+	for i := 0; i < PeriodSize; i++ {
+		addrs[i] = dynasty[i].Addr
+	}
+	return &Dynasty{
+		delegates: &dynasty,
+		addrs:     addrs,
+	}, nil
+}

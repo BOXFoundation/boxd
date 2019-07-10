@@ -126,28 +126,28 @@ func TestDpos_signBlock(t *testing.T) {
 	ensure.DeepEqual(t, ok, true)
 }
 
-func TestDpos_LoadPeriodContext(t *testing.T) {
+// func TestDpos_LoadPeriodContext(t *testing.T) {
 
-	result, err := dposBookkeeper.dpos.LoadPeriodContext()
-	ensure.Nil(t, err)
+// 	result, err := dposBookkeeper.dpos.LoadPeriodContext()
+// 	ensure.Nil(t, err)
 
-	initperiod, err := InitPeriodContext()
-	ensure.Nil(t, err)
+// 	initperiod, err := InitPeriodContext()
+// 	ensure.Nil(t, err)
 
-	ensure.DeepEqual(t, result.period, initperiod.period)
+// 	ensure.DeepEqual(t, result.period, initperiod.period)
 
-	dposBookkeeper.dpos.context.periodContext.period = append(dposBookkeeper.dpos.context.periodContext.period, &Period{
-		addr:   types.AddressHash{156, 17, 133, 165, 197, 233, 252, 84, 97, 40, 8, 151, 126, 232, 245, 72, 178, 37, 141, 49},
-		peerID: "",
-	})
-	err = dposBookkeeper.dpos.StorePeriodContext()
-	ensure.Nil(t, err)
-	result, err = dposBookkeeper.dpos.LoadPeriodContext()
-	ensure.Nil(t, err)
+// 	dposBookkeeper.dpos.context.periodContext.period = append(dposBookkeeper.dpos.context.periodContext.period, &Period{
+// 		addr:   types.AddressHash{156, 17, 133, 165, 197, 233, 252, 84, 97, 40, 8, 151, 126, 232, 245, 72, 178, 37, 141, 49},
+// 		peerID: "",
+// 	})
+// 	err = dposBookkeeper.dpos.StorePeriodContext()
+// 	ensure.Nil(t, err)
+// 	result, err = dposBookkeeper.dpos.LoadPeriodContext()
+// 	ensure.Nil(t, err)
 
-	ensure.DeepEqual(t, result.period, dposBookkeeper.dpos.context.periodContext.period)
+// 	ensure.DeepEqual(t, result.period, dposBookkeeper.dpos.context.periodContext.period)
 
-}
+// }
 
 func TestSortPendingTxs(t *testing.T) {
 	var pendingTxs []*types.TxWrap

@@ -70,7 +70,7 @@ type ChainBlockReader interface {
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
-	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
+	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 	GetLatestNonce(address *types.AddressHash) (uint64, error)
 }
 
@@ -366,7 +366,7 @@ func (s *webapiServer) DoCall(
 	defer cancel()
 
 	// Get a new instance of the EVM.
-	evm, vmErr, err := s.GetEvmByHeight(msg, req.Height)
+	evm, vmErr, err := s.NewEvmContextForLocalCallByHeight(msg, req.Height)
 	if err != nil {
 		return newCallResp(-1, err.Error()), nil
 	}
