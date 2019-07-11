@@ -19,9 +19,9 @@ import (
 
 // Define const.
 const (
-	EternalBlockMsgChBufferSize        = 65536
-	MaxEternalBlockMsgCacheTime        = 5
-	MinConfirmMsgNumberForEternalBlock = 2 * PeriodSize / 3
+	EternalBlockMsgChBufferSize = 65536
+	MaxEternalBlockMsgCacheTime = 5
+	// MinConfirmMsgNumberForEternalBlock = 2 * PeriodSize / 3
 )
 
 // BftService use for quick identification of eternal block.
@@ -110,7 +110,13 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 		blockHash := *block.BlockHash()
 		if value, ok := bft.blockCommitMsgCache.Load(blockHash); ok {
 			signatures := value.([][]byte)
-			if len(signatures) > MinConfirmMsgNumberForEternalBlock {
+			dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+			if err != nil {
+				height--
+				offset--
+				continue
+			}
+			if len(signatures) > 2*len(dynasty.delegates)/3 {
 				// go bft.updateEternal(block)
 				irreversibleInfo := new(types.IrreversibleInfo)
 				irreversibleInfo.Hash = blockHash
@@ -187,7 +193,7 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 			}
 			value = append(value, signature)
 			bft.blockPrepareMsgCache.Store(key, value)
-			if len(value) > MinConfirmMsgNumberForEternalBlock {
+			if len(value) > 2*len(dynasty.delegates)/3 {
 				bft.blockPrepareMsgKey.Add(key, key)
 				bft.consensus.BroadcastBFTMsgToBookkeepers(block, p2p.BlockCommitMsg)
 				bft.blockPrepareMsgCache.Delete(key)
@@ -242,7 +248,7 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 			}
 			value = append(value, signature)
 			bft.blockCommitMsgCache.Store(key, value)
-			if len(value) > MinConfirmMsgNumberForEternalBlock {
+			if len(value) > 2*len(dynasty.delegates)/3 {
 				bft.blockCommitMsgKey.Add(key, key)
 				// receive more than 2/3 block commit msg. update local eternal block.
 				bft.updateEternal(block)

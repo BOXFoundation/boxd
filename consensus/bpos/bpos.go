@@ -36,9 +36,9 @@ const (
 	SecondInMs                = int64(1000)
 	BookkeeperRefreshInterval = int64(5000)
 	MaxPackedTxTime           = int64(100)
-	PeriodSize                = 6
-	BlockNumPerPeiod          = 5
-	PeriodDuration            = 21 * 5 * 10000
+	// PeriodSize                = 6
+	BlockNumPerPeiod = 5
+	PeriodDuration   = 21 * 5 * 10000
 
 	// CandidatePledge is pledge for candidate to mint.
 	CandidatePledge = (uint64)(1e6 * core.DuPerBox)
@@ -653,7 +653,11 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 
 	irreversibleInfo := block.IrreversibleInfo
 	if irreversibleInfo != nil {
-		if len(irreversibleInfo.Signatures) <= MinConfirmMsgNumberForEternalBlock {
+		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height)
+		if err != nil {
+			return err
+		}
+		if len(irreversibleInfo.Signatures) <= 2*len(dynasty.delegates)/3 {
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
 		// check hash is exist
@@ -663,10 +667,7 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 		// 	return ErrInvalidHashInIrreversibleInfo
 		// }
 		//TODO: period switching requires extra processing
-		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height)
-		if err != nil {
-			return err
-		}
+
 		addrs := dynasty.addrs
 		remains := []types.AddressHash{}
 		for _, v := range irreversibleInfo.Signatures {
@@ -693,7 +694,7 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 				return errors.New("Invalid irreversible signature in block")
 			}
 		}
-		if len(remains) <= MinConfirmMsgNumberForEternalBlock {
+		if len(remains) <= 2*len(dynasty.delegates)/3 {
 			logger.Errorf("Invalid irreversible info in block. Hash: %s, Height: %d, remains: %d", block.BlockHash().String(), block.Header.Height, len(remains))
 			return errors.New("Invalid irreversible info in block")
 		}
@@ -742,7 +743,11 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 // TryToUpdateEternalBlock try to update eternal block.
 func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
-	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > MinConfirmMsgNumberForEternalBlock {
+	dynasty, err := bpos.fetchDynastyByHeight(src.Header.Height)
+	if err != nil {
+		return
+	}
+	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > 2*len(dynasty.delegates)/3 {
 		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, bpos.chain.DB())
 		if err != nil {
 			logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
@@ -786,11 +791,12 @@ type Dynasty struct {
 // FindProposerWithTimeStamp find proposer in given timestamp
 func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegate) (*types.AddressHash, error) {
 
+	PeriodSize := int64(len(delegates))
 	offsetPeriod := (timestamp * SecondInMs) % (BookkeeperRefreshInterval * PeriodSize)
 	offset := (offsetPeriod / BookkeeperRefreshInterval) % PeriodSize
 
 	var bookkeeper *types.AddressHash
-	if offset >= 0 && int(offset) < PeriodSize {
+	if offset >= 0 && offset < PeriodSize {
 		bookkeeper = &delegates[offset].Addr
 	} else {
 		return nil, ErrNotFoundBookkeeper
@@ -816,12 +822,13 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 	if err := vmErr(); err != nil {
 		return nil, err
 	}
-	var dynasty = make([]Delegate, PeriodSize)
+	var dynasty []Delegate
 	if err := abiObj.Unpack(&dynasty, "getDynasty", output); err != nil {
 		logger.Errorf("Failed to unpack the result of call getDynasty")
 		return nil, err
 	}
 	logger.Infof("get dynasty from contract: %v", dynasty)
+	PeriodSize := len(dynasty)
 	addrs := make([]types.AddressHash, PeriodSize)
 	peers := make([]string, PeriodSize)
 	for i := 0; i < PeriodSize; i++ {
