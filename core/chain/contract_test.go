@@ -19,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/facebookgo/ensure"
+	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 )
 
 const (

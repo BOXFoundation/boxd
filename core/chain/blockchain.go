@@ -923,7 +923,7 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 		return err
 	}
 
-	return nil
+	return chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot)
 }
 
 func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, utxoSet *UtxoSet) error {
@@ -1169,10 +1169,8 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	if needToTracking((dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6) {
 		logger.Infof("dtt Time tracking: dtt0` = %d dtt1` = %d dtt2` = %d dtt3` = %d dtt4` = %d dtt5` = %d dtt6` = %d", (dtt1-dtt0)/1e6, (dtt2-dtt1)/1e6, (dtt3-dtt2)/1e6, (dtt4-dtt3)/1e6, (dtt5-dtt4)/1e6, (dtt6-dtt5)/1e6, (dtt7-dtt6)/1e6)
 	}
-	if err := chain.SetTailState(&newTail.Header.RootHash, &newTail.Header.UtxoRoot); err != nil {
-		return err
-	}
-	return nil
+
+	return chain.SetTailState(&newTail.Header.RootHash, &newTail.Header.UtxoRoot)
 }
 
 // StoreTailBlock store tail block to db.
