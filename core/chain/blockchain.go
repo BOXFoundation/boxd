@@ -55,7 +55,6 @@ const (
 	MaxBlockSize         = 32000000
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
-	PeriodDuration       = 21 * 5 * 10000
 
 	MaxBlocksPerSync = 1024
 

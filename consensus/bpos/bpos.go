@@ -36,14 +36,7 @@ const (
 	SecondInMs                = int64(1000)
 	BookkeeperRefreshInterval = int64(5000)
 	MaxPackedTxTime           = int64(100)
-	// PeriodSize                = 6
-	BlockNumPerPeiod = 5
-	PeriodDuration   = 21 * 5 * 10000
-
-	// CandidatePledge is pledge for candidate to mint.
-	CandidatePledge = (uint64)(1e6 * core.DuPerBox)
-	// MinNumOfVotes is Minimum number of votes
-	MinNumOfVotes = (uint64)(100)
+	BlockNumPerPeiod          = 5
 )
 
 // Config defines the configurations of bpos
