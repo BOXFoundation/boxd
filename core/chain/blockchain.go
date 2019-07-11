@@ -489,7 +489,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 
 	chain.BroadcastOrRelayBlock(block, transferMode)
 	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
-	go chain.sectionMgr.AddBloom(uint(block.Header.Height), block.Header.Bloom)
 
 	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Header.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
@@ -1210,7 +1209,6 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 
 	// del receipt
 	chain.db.Del(ReceiptKey(block.BlockHash()))
-	chain.sectionMgr.RemoveBloom(uint(block.Header.Height))
 
 	if err := chain.db.Flush(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
@@ -1258,6 +1256,7 @@ func (chain *BlockChain) SetEternal(block *types.Block) error {
 			return err
 		}
 		chain.eternal = block
+		go chain.sectionMgr.AddBloom(uint(eternal.Header.Height), eternal.Header.Bloom)
 		return nil
 	}
 	return core.ErrFailedToSetEternal
@@ -1524,7 +1523,10 @@ func (chain *BlockChain) GetBlockLogs(hash *crypto.HashType) ([]*types.Log, erro
 	}
 	logs := []*types.Log{}
 	for _, receipt := range *receipts {
-		logs = append(logs, receipt.Logs...)
+		for _, log := range receipt.Logs {
+			log.BlockHash.SetBytes(hash.Bytes())
+			logs = append(logs, log)
+		}
 	}
 	return logs, nil
 }
@@ -1923,6 +1925,11 @@ func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, 
 	receipts := new(types.Receipts)
 	if err := receipts.Unmarshal(value); err != nil {
 		return nil, err
+	}
+	for _, receipt := range *receipts {
+		for _, log := range receipt.Logs {
+			log.BlockHash.SetBytes(b.Hash.Bytes())
+		}
 	}
 	return receipts.GetTxReceipt(txHash), nil
 }

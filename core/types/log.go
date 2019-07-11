@@ -59,7 +59,6 @@ func (log *Log) ToProtoMessage() (proto.Message, error) {
 		BlockNumber: log.BlockNumber,
 		TxHash:      log.TxHash[:],
 		TxIndex:     log.TxIndex,
-		BlockHash:   log.BlockHash[:],
 		Index:       log.Index,
 		Removed:     log.Removed,
 	}, nil
@@ -86,7 +85,6 @@ func (log *Log) FromProtoMessage(message proto.Message) error {
 	log.BlockNumber = pblog.BlockNumber
 	copy(log.TxHash[:], pblog.TxHash[:])
 	log.TxIndex = pblog.TxIndex
-	copy(log.BlockHash[:], pblog.BlockHash[:])
 	log.Index = pblog.Index
 	log.Removed = pblog.Removed
 	return nil

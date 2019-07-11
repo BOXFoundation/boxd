@@ -62,6 +62,12 @@ func (sp *StateProcessor) Process(
 			return nil, 0, 0, nil, fmt.Errorf("incorrect nonce(%d, %d in statedb) in tx: %s",
 				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.OriginTxHash())
 		}
+		thash, err1 := tx.TxHash()
+		if err1 != nil {
+			err = err1
+			break
+		}
+		stateDB.Prepare(*thash, *block.Hash, i)
 		receipt, gasUsedPerTx, gasRemainingFeePerTx, txs, err1 :=
 			ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err1 != nil {

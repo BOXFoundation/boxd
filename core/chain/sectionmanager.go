@@ -77,26 +77,6 @@ func (sm *SectionManager) AddBloom(index uint, bloom bloom.Filter) error {
 	return nil
 }
 
-// RemoveBloom takes a single bloom filter and reset the corresponding bit column
-// in memory accordingly.
-func (sm *SectionManager) RemoveBloom(index uint) {
-
-	sm.mtx.Lock()
-	defer sm.mtx.Unlock()
-
-	// TODO: 库里修改
-
-	index = index % SectionBloomLength
-
-	byteIndex := index / 8
-	bitMask := ^(byte(1) << byte(7-index%8))
-
-	// Rotate the bloom and insert into our collection
-	for i := 0; i < types.BloomBitLength; i++ {
-		sm.blooms[i][byteIndex] &= bitMask
-	}
-}
-
 // Bitset returns the bit vector belonging to the given bit index after all
 // blooms have been added.
 func (sm *SectionManager) Bitset(idx uint) ([]byte, error) {
