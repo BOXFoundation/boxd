@@ -1,6 +1,7 @@
 module github.com/BOXFoundation/boxd
 
 require (
+	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/btcsuite/btcd v0.0.0-20190315201642-aa6e0f35703c
 	github.com/btcsuite/btcutil v0.0.0-20190316010144-3ac1210f4b38
 	github.com/ethereum/go-ethereum v1.8.23

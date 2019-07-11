@@ -400,7 +400,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	contractKey, _ := types.NewContractAddressFromHash(ContractAddr.Bytes())
 	balance := getBalance(contractKey.String(), blockChain.db)
 	addr, _ := types.NewAddress(ContractAddr.String())
-	stateBalance, _ := blockChain.GetBalance(addr)
+	stateBalance := blockChain.tailState.GetBalance(*addr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, BaseSubsidy)
 	t.Logf("b0 -> b1 passed, now tail height: %d", blockChain.LongestChainHeight)
@@ -431,13 +431,13 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// check balance
 	// for userAddr
 	balance = getBalance(userAddr.String(), blockChain.db)
-	stateBalance, _ = blockChain.GetBalance(userAddr)
+	stateBalance = blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, userBalance)
 	t.Logf("user balance: %d", userBalance)
 	// for miner
 	balance = getBalance(minerAddr.String(), blockChain.db)
-	stateBalance, _ = blockChain.GetBalance(minerAddr)
+	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, BaseSubsidy-userBalance)
 	minerBalance = balance
@@ -463,7 +463,7 @@ func contractBlockHandle(
 	}
 	// for userAddr
 	balance := getBalance(userAddr.String(), blockChain.db)
-	stateBalance, _ := blockChain.GetBalance(userAddr)
+	stateBalance := blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
 	t.Logf("user %s balance: %d, stateBalance: %d, expect balance: %d",
 		userAddr, balance, stateBalance, expectUserBalance)
 	ensure.DeepEqual(t, balance, stateBalance)
@@ -471,7 +471,7 @@ func contractBlockHandle(
 	userBalance = balance
 	// for miner
 	balance = getBalance(minerAddr.String(), blockChain.db)
-	stateBalance, _ = blockChain.GetBalance(minerAddr)
+	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
 	t.Logf("miner %s balance: %d, stateBalance: %d, expect balance: %d",
 		minerAddr, balance, stateBalance, expectMinerBalance)
 	ensure.DeepEqual(t, balance, stateBalance)
@@ -479,7 +479,7 @@ func contractBlockHandle(
 	minerBalance = balance
 	// for contract address
 	balance = getBalance(param.contractAddr.String(), blockChain.db)
-	stateBalance, _ = blockChain.GetBalance(param.contractAddr)
+	stateBalance = blockChain.tailState.GetBalance(*param.contractAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, stateBalance, param.contractBalance)
 	contractBalance = stateBalance

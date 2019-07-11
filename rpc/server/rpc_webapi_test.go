@@ -20,6 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/vm"
@@ -309,12 +310,12 @@ func (r *TestDetailBlockChainReader) NewEvmContextForLocalCallByHeight(msg types
 	return nil, nil, nil
 }
 
-func (r *TestDetailBlockChainReader) GetLatestNonce(address *types.AddressHash) (uint64, error) {
-	return 0, nil
-}
-
 func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, error) {
 	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) TailState() *state.StateDB {
+	return nil
 }
 
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {

@@ -605,7 +605,7 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if genesisContractBalanceOld+block.Txs[0].Vout[0].Value != statedb.GetBalance(chain.ContractAddr).Uint64() {
 		return errors.New("genesis contract state is error")
 	}
-	dpos.chain.StateDBCache()[block.Header.Height] = statedb
+
 	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
 	block.Header.CandidatesHash = *candidateHash
