@@ -83,7 +83,7 @@ func newWebAPIServer(s *Server) *webapiServer {
 	}
 
 	if s.cfg.SubScribeBlocks {
-		server.endpoints[rpcutil.BlockEp] = rpcutil.NewLogEndpoint(s.eventBus)
+		server.endpoints[rpcutil.BlockEp] = rpcutil.NewBlockEndpoint(s.eventBus)
 	}
 	if s.cfg.SubScribeLogs {
 		server.endpoints[rpcutil.LogEp] = rpcutil.NewLogEndpoint(s.eventBus)
