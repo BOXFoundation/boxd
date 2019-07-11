@@ -223,7 +223,7 @@ func (s *stateObject) updateTrie() *trie.Trie {
 		}
 		s.originStorage[key] = value
 
-		if (value == corecrypto.HashType{}) {
+		if value == corecrypto.ZeroHash {
 			s.setError(tr.Delete(key[:]))
 			continue
 		}
@@ -238,6 +238,7 @@ func (s *stateObject) updateTrie() *trie.Trie {
 func (s *stateObject) updateRoot() {
 	s.updateTrie()
 	s.data.Root = s.trie.Hash()
+	logger.Debugf("DEBUG: state object update addr %x root: %s", s.address[:], s.data.Root)
 }
 
 // CommitTrie the storage trie of the object to dwb.
@@ -247,7 +248,10 @@ func (s *stateObject) CommitTrie() (*corecrypto.HashType, error) {
 	if s.dbErr != nil {
 		return nil, s.dbErr
 	}
-	return s.trie.Commit()
+	//return s.trie.Commit()
+	root, _ := s.trie.Commit()
+	logger.Debugf("DEBUG: state object CommitTrie addr %x root: %s", s.address[:], root)
+	return root, nil
 }
 
 // AddBalance removes amount from c's balance.

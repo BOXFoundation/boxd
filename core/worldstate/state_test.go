@@ -7,7 +7,9 @@ package worldstate
 import (
 	"bytes"
 	"math/big"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/BOXFoundation/boxd/core/trie"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -246,5 +248,43 @@ func compareStateObjects(so0, so1 *stateObject, t *testing.T) {
 		if so1.originStorage[k] != v {
 			t.Errorf("Origin storage key %x mismatch: have %v, want none.", k, v)
 		}
+	}
+}
+
+func TestRandAddBalance(t *testing.T) {
+	count := 1000
+	addrs := make([]*types.AddressHash, count)
+	balances := make([]*big.Int, count)
+	seq := make([]int, count)
+	rand.Seed(int64(time.Now().UnixNano()))
+	for i := 0; i < count; i++ {
+		_, pubKey, _ := crypto.NewKeyPair()
+		addr, _ := types.NewAddressFromPubKey(pubKey)
+		addrs[i] = addr.Hash160()
+		balances[i] = big.NewInt(rand.Int63())
+		seq[i] = i
+	}
+	lastRoot := &crypto.HashType{}
+	for k := 0; k < 5; k++ {
+		// rand seq
+		for i := 0; i < count; i++ {
+			j := rand.Intn(count - i)
+			seq[i], seq[i+j] = seq[i+j], seq[i]
+		}
+
+		// new state db
+		state, err := New(nil, nil, initDB())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < count; i++ {
+			idx := seq[i]
+			state.AddBalance(*addrs[idx], balances[idx])
+		}
+		root, _, err := state.Commit(false)
+		if k > 0 && *root != *lastRoot {
+			t.Fatalf("root hash change at the %dth time, last: %s, current: %s", k, lastRoot, root)
+		}
+		lastRoot = root
 	}
 }

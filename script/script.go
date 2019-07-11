@@ -8,10 +8,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"math"
 	"math/big"
-	"reflect"
 	"strings"
 
 	"github.com/BOXFoundation/boxd/core/types"
@@ -81,7 +79,13 @@ type Script []byte
 
 // NewScript returns an empty script
 func NewScript() *Script {
-	emptyBytes := make([]byte, 0)
+	emptyBytes := make([]byte, 0, p2PKHScriptLen)
+	return (*Script)(&emptyBytes)
+}
+
+// NewScriptWithCap returns an empty script
+func NewScriptWithCap(cap int) *Script {
+	emptyBytes := make([]byte, 0, cap)
 	return (*Script)(&emptyBytes)
 }
 
@@ -490,20 +494,21 @@ func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *type
 }
 
 // CalcTxHashForSig calculates the hash of a tx input, used for signature
-func CalcTxHashForSig(scriptPubKey []byte, originalTx *types.Transaction, txInIdx int) (*crypto.HashType, error) {
+func CalcTxHashForSig(
+	scriptPubKey []byte, originalTx *types.Transaction, txInIdx int,
+) (*crypto.HashType, error) {
+
 	if txInIdx >= len(originalTx.Vin) {
 		return nil, ErrInputIndexOutOfBound
 	}
-
-	// Make a hard copy here to avoid racing conditions when verifying signature in parallel
-	tx := originalTx.Copy()
-	for i, txIn := range tx.Vin {
+	// construct a transaction from originalTx except scriptPubKey to compute signature hash
+	tx := types.NewTx(originalTx.Version, originalTx.Magic, originalTx.LockTime).
+		AppendVout(originalTx.Vout...)
+	for i, txIn := range originalTx.Vin {
 		if i != txInIdx {
-			// Blank out other inputs' signatures
-			txIn.ScriptSig = nil
+			tx.AppendVin(types.NewTxIn(&txIn.PrevOutPoint, nil, txIn.Sequence))
 		} else {
-			// Replace scriptSig with referenced scriptPubKey
-			txIn.ScriptSig = scriptPubKey
+			tx.AppendVin(types.NewTxIn(&txIn.PrevOutPoint, scriptPubKey, txIn.Sequence))
 		}
 	}
 
@@ -559,94 +564,72 @@ func (s *Script) IsPayToPubKeyHash() bool {
 	if len(*s) != p2PKHScriptLen {
 		return false
 	}
-
-	r := s.parse()
-	return len(r) == 5 && reflect.DeepEqual(r[0], OPDUP) && reflect.DeepEqual(r[1], OPHASH160) &&
-		isOperandOfLen(r[2], 20) && reflect.DeepEqual(r[3], OPEQUALVERIFY) && reflect.DeepEqual(r[4], OPCHECKSIG)
+	ss := *s
+	return ss[0] == byte(OPDUP) && ss[1] == byte(OPHASH160) && ss[2] == ripemd160.Size &&
+		ss[23] == byte(OPEQUALVERIFY) && ss[24] == byte(OPCHECKSIG)
 }
 
 // IsPayToPubKeyHashCLTVScript returns if the script is p2pkhCLTV
 func (s *Script) IsPayToPubKeyHashCLTVScript() bool {
-	r := s.parse()
-	return len(r) == 7 && reflect.DeepEqual(r[1], OPCHECKLOCKTIMEVERIFY) && reflect.DeepEqual(r[2], OPDUP) && reflect.DeepEqual(r[3], OPHASH160) && isOperandOfLen(r[4], 20) && reflect.DeepEqual(r[5], OPEQUALVERIFY) && reflect.DeepEqual(r[6], OPCHECKSIG)
+	ss := *s
+	l := len(ss)
+	return l >= 27 && ss[l-1] == byte(OPCHECKSIG) && ss[l-2] == byte(OPEQUALVERIFY) &&
+		ss[l-23] == ripemd160.Size && ss[l-24] == byte(OPHASH160) &&
+		ss[l-25] == byte(OPDUP) && ss[l-26] == byte(OPCHECKLOCKTIMEVERIFY)
 }
 
 // IsPayToScriptHash returns if the script is p2sh
 func (s *Script) IsPayToScriptHash() bool {
-	if len(*s) != p2SHScriptLen {
+	ss := *s
+	if len(ss) != p2SHScriptLen {
 		return false
 	}
-
-	// OP_HASH160 <160-bit redeemp script hash> OP_EQUAL
-	r := s.parse()
-	return len(r) == 3 && reflect.DeepEqual(r[0], OPHASH160) && isOperandOfLen(r[1], 20) && reflect.DeepEqual(r[2], OPEQUAL)
+	return ss[0] == byte(OPHASH160) && ss[1] == ripemd160.Size && ss[22] == byte(OPEQUAL)
 }
 
 // IsSplitAddrScript returns if the script is split address
-// Note: assume OP_RETURN is only used for split address here. Add a magic number if OP_RETURN is used for something else
+// Note: assume OP_RETURN is only used for split address here.
+// Add a magic number if OP_RETURN is used for something else
 func (s *Script) IsSplitAddrScript() bool {
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
-	r := s.parse()
-	return len(r) >= 4 && len(r)%2 == 0 && reflect.DeepEqual(r[0], OPRETURN) && isOperandOfLen(r[1], 20)
+	ss := *s
+	// 45 = 1 len(op) + 1 (addr size) + 20 (addr len) + 1 (addr size) +
+	//			20 (addr len) + 1 (weight size) + 1 (weight len) + ...
+	return len(ss) >= 45 && ss[0] == byte(OPRETURN) && ss[1] == ripemd160.Size
 }
 
-// IsRegisterCandidateScript returns if the script is register candidate script
-func (s *Script) IsRegisterCandidateScript() bool {
-	r := s.parse()
-
-	if len(r) == 0 {
-		return false
-	}
-	v, ok := r[0].(Operand)
-	if !ok {
-		return false
-	}
-	if _, err := v.int64(); err != nil {
-		return false
-	}
-
-	return true
+// IsContractSig returns true if the script sig contains OPCONTRACT code
+func (s *Script) IsContractSig() bool {
+	return len(*s) == 1 && (*s)[0] == byte(OPCONTRACT)
 }
 
-// IsRegisterCandidateScriptOfBlock returns if the script is register candidate script of certain block time/height
-func (s *Script) IsRegisterCandidateScriptOfBlock(blockTimeOrHeight int64) bool {
-	r := s.parse()
-
-	if len(r) < 7 {
-		return false
-	}
-	v, ok := r[0].(Operand)
-	if !ok {
-		return false
-	}
-	w, err := v.int64()
-	if err != nil {
-		return false
-	}
-
-	return w == blockTimeOrHeight
+// IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
+func (s *Script) IsContractPubkey() bool {
+	ss := *s
+	// 52 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addraddr len)+
+	//			1(nonce size)+1(gasPrice size)+1(gasLimit size)+1(version size)+
+	//			1(code size)+4(checksum len)
+	return len(ss) >= 52 && ss[0] == byte(OPCONTRACT) && ss[1] == ripemd160.Size &&
+		ss[22] == ripemd160.Size
 }
 
 // IsStandard returns if a script is standard
 // Only certain types of transactions are allowed, i.e., regarded as standard
 func (s *Script) IsStandard() bool {
-	if !s.IsPayToPubKeyHash() &&
-		!s.IsPayToScriptHash() &&
-		!s.IsPayToPubKeyHashCLTVScript() &&
-		!s.IsTokenIssue() &&
-		!s.IsTokenTransfer() &&
-		!s.IsSplitAddrScript() &&
-		!s.IsContractPubkey() &&
-		!s.IsRegisterCandidateScript() {
-		return false
-	}
-
+	//if !s.IsPayToPubKeyHash() &&
+	//	!s.IsContractPubkey() &&
+	//	!s.IsTokenTransfer() &&
+	//	!s.IsTokenIssue() &&
+	//	!s.IsSplitAddrScript() &&
+	//	!s.IsPayToScriptHash() &&
+	//	!s.IsPayToPubKeyHashCLTVScript() {
+	//	return false
+	//}
 	_, err := s.ExtractAddress()
-	if err != nil && err != ErrAddressNotApplicable {
+	if err != nil {
 		logger.Errorf("Failed to extract address. script: %s, Err: %v", s.Disasm(), err)
 		return false
 	}
-
 	return true
 }
 
@@ -687,57 +670,41 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
 
-	if s.IsPayToPubKeyHash() || s.IsTokenIssue() || s.IsTokenTransfer() {
-		// p2pkh scriptPubKey: OPDUP OPHASH160 <pubKeyHash> OPEQUALVERIFY OPCHECKSIG [token parameters]
-		_, pubKeyHash, _, err := s.getNthOp(0, 2)
+	switch {
+	case s.IsPayToPubKeyHash():
+		fallthrough
+	case s.IsTokenTransfer():
+		fallthrough
+	case s.IsTokenIssue():
+		_, pubKeyHash, _, err := s.getNthOp(2, 0)
 		if err != nil {
 			return nil, err
-
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
-	}
-
-	if s.IsSplitAddrScript() || s.IsContractPubkey() {
+	case s.IsContractPubkey():
+		return s.ParseContractAddr()
+	case s.IsSplitAddrScript():
 		_, pubKeyHash, _, err := s.getNthOp(1, 0)
 		if err != nil {
 			return nil, err
 		}
-		var addr types.Address
-		if s.IsSplitAddrScript() {
-			addr, err = types.NewSplitAddressFromHash(pubKeyHash)
-		} else {
-			if reflect.DeepEqual([]byte(pubKeyHash), []byte(ZeroContractAddress[:])) {
-				return (*types.AddressContract)(nil), nil
-			}
-			addr, err = types.NewContractAddressFromHash(pubKeyHash)
-		}
-		if err != nil {
-			return nil, err
-		}
-		return addr, nil
-	}
-
-	if s.IsPayToPubKeyHashCLTVScript() {
-		_, pubKeyHash, _, err := s.getNthOp(0, 4)
+		return types.NewSplitAddressFromHash(pubKeyHash)
+	case s.IsPayToPubKeyHashCLTVScript():
+		l := len(*s)
+		_, pubKeyHash, _, err := s.getNthOp(l-23, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
-	}
-
-	return nil, ErrAddressNotApplicable
-}
-
-// ExtractP2PKHAddress returns address within the script
-func (s *Script) ExtractP2PKHAddress() ([]byte, error) {
-	if s.IsPayToPubKeyHash() {
-		_, pubKeyHash, _, err := s.getNthOp(0, 2)
+	case s.IsPayToScriptHash():
+		_, pubKeyHash, _, err := s.getNthOp(1, 0)
 		if err != nil {
 			return nil, err
 		}
-		return pubKeyHash, nil
+		return types.NewAddressPubKeyHash(pubKeyHash)
+	default:
+		return nil, ErrAddressNotApplicable
 	}
-	return nil, nil
 }
 
 // ParseSplitAddrScript returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]
@@ -753,8 +720,8 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint64, error) {
 		return nil, nil, ErrInvalidSplitAddrScript
 	}
 
-	addrs := make([]types.Address, 0)
-	weights := make([]uint64, 0)
+	addrs := make([]types.Address, 0, 2)
+	weights := make([]uint64, 0, 2)
 
 	for i := 0; ; i++ {
 		// public key
@@ -799,7 +766,7 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint64, error) {
 }
 
 // GetSigOpCount returns number of signature operations in a script
-func (s *Script) GetSigOpCount() int {
+func (s *Script) getSigOpCount() int {
 	numSigs := 0
 
 	elements := s.parse()
@@ -818,26 +785,16 @@ func (s *Script) GetSigOpCount() int {
 	return numSigs
 }
 
-// IsContractSig returns true if the script sig contains OPCONTRACT code
-func (s *Script) IsContractSig() bool {
-	return len(*s) == 1 && (*s)[0] == byte(OPCONTRACT)
-}
-
-// IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
-func (s *Script) IsContractPubkey() bool {
-	return len(*s) > 1 && (*s)[0] == byte(OPCONTRACT)
-}
-
 // MakeContractUtxoScriptPubkey makes a script pubkey for contract addr utxo
-func MakeContractUtxoScriptPubkey(addr *types.AddressHash, nonce uint64, version int32) *Script {
-	// OP_CONTRACT contract_addr nonce gasPrice gasLimit version code checksum
-	s := NewScript()
-	s.AddOperand(addr[:]).
+func MakeContractUtxoScriptPubkey(from, to *types.AddressHash, nonce uint64, version int32) *Script {
+	// OP_CONTRACT from contract_addr nonce gasPrice gasLimit version code checksum
+	s := NewScriptWithCap(66)
+	s.AddOperand(from[:]).
+		AddOperand(to[:]).
 		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(0).Bytes()).
 		AddOperand(big.NewInt(0).Bytes()).
-		AddOperand(big.NewInt(int64(version)).Bytes()).
-		AddOperand(nil)
+		AddOperand(big.NewInt(int64(version)).Bytes())
 	// add checksum
 	scriptHash := crypto.Hash160(*s)
 	checksum := scriptHash[:4]
@@ -847,11 +804,12 @@ func MakeContractUtxoScriptPubkey(addr *types.AddressHash, nonce uint64, version
 
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
-	addr types.Address, code []byte, gasPrice, gasLimit, nonce uint64, version int32,
+	from, to *types.AddressHash, code []byte, gasPrice, gasLimit, nonce uint64,
+	version int32,
 ) (*Script, error) {
-	// OP_CONTRACT addr nonce gasPrice gasLimit version code checksum
+	// OP_CONTRACT from to nonce gasPrice gasLimit version code checksum
 	// check params
-	if len(code) == 0 {
+	if from == nil || len(code) == 0 {
 		return nil, ErrInvalidContractParams
 	}
 	overflowVal := uint64(math.MaxInt64)
@@ -862,12 +820,13 @@ func MakeContractScriptPubkey(
 		return nil, ErrInvalidContractParams
 	}
 	// set params
-	s := NewScript()
+	s := NewScriptWithCap(86 + len(code))
 	toHash := ZeroContractAddress
-	if addr != nil && !reflect.ValueOf(addr).IsNil() {
-		toHash = *addr.Hash160()
+	if to != nil {
+		toHash = *to
 	}
-	s.AddOperand(toHash[:]).
+	s.AddOperand(from[:]).
+		AddOperand(toHash[:]).
 		AddOperand(big.NewInt(int64(nonce)).Bytes()).
 		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
 		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
@@ -882,7 +841,7 @@ func MakeContractScriptPubkey(
 
 // MakeContractScriptSig makes a script sig for contract vin
 func MakeContractScriptSig() *Script {
-	return NewScript().AddOpCode(OPCONTRACT)
+	return NewScriptWithCap(1).AddOpCode(OPCONTRACT)
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack
@@ -896,7 +855,7 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	}
 
 	params = new(types.VMTxParams)
-	// addr
+	// from
 	_, operand, pc, err := s.getNthOp(pc, 0)
 	if err != nil {
 		return
@@ -906,6 +865,19 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 		return
 	}
 	addrHash := new(types.AddressHash)
+	copy(addrHash[:], operand[:])
+	params.From = addrHash
+
+	// contract address
+	_, operand, pc, err = s.getNthOp(pc, 0)
+	if err != nil {
+		return
+	}
+	if len(operand) != ripemd160.Size {
+		err = ErrInvalidContractScript
+		return
+	}
+	addrHash = new(types.AddressHash)
 	copy(addrHash[:], operand[:])
 	if *addrHash == ZeroContractAddress {
 		typ = types.ContractCreationType
@@ -964,12 +936,37 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	return
 }
 
+// ParseContractFrom returns contract address within the script
+func (s *Script) ParseContractFrom() (*types.AddressPubKeyHash, error) {
+	_, operand, _, err := s.getNthOp(1, 0) // 1, 22
+	if err != nil {
+		return nil, err
+	}
+	if len(operand) != ripemd160.Size {
+		return nil, ErrInvalidContractScript
+	}
+	return types.NewAddressPubKeyHash(operand)
+}
+
+// ParseContractAddr returns contract contract address within the script
+func (s *Script) ParseContractAddr() (*types.AddressContract, error) {
+	_, operand, _, err := s.getNthOp(22, 0) // 1, 22
+	if err != nil {
+		return nil, err
+	}
+	if len(operand) != ripemd160.Size {
+		return nil, ErrInvalidContractScript
+	}
+	if bytes.Equal(operand, types.ZeroAddressHash[:]) {
+		// contract deploy
+		return nil, nil
+	}
+	return types.NewContractAddressFromHash(operand)
+}
+
 // ParseContractNonce returns address within the script
 func (s *Script) ParseContractNonce() (uint64, error) {
-	if !s.IsContractPubkey() {
-		return 0, errors.New("not a contract script")
-	}
-	_, operand, _, err := s.getNthOp(22, 0) // 1, 22
+	_, operand, _, err := s.getNthOp(43, 0) // 1, 22, 43
 	if err != nil {
 		return 0, err
 	}
@@ -982,10 +979,7 @@ func (s *Script) ParseContractNonce() (uint64, error) {
 
 // ParseContractGasPrice returns address within the script
 func (s *Script) ParseContractGasPrice() (uint64, error) {
-	if !s.IsContractPubkey() {
-		return 0, errors.New("not a contract script")
-	}
-	_, operand, _, err := s.getNthOp(22, 1) // 1, 22
+	_, operand, _, err := s.getNthOp(43, 1) // 1, 22
 	if err != nil {
 		return 0, err
 	}
@@ -998,10 +992,7 @@ func (s *Script) ParseContractGasPrice() (uint64, error) {
 
 // ParseContractGas returns address within the script
 func (s *Script) ParseContractGas() (uint64, error) {
-	if !s.IsContractPubkey() {
-		return 0, errors.New("not a contract script")
-	}
-	_, operand, _, err := s.getNthOp(22, 2) // 1, 22
+	_, operand, _, err := s.getNthOp(43, 2) // 1, 22
 	if err != nil {
 		return 0, err
 	}

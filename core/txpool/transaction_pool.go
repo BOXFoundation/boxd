@@ -6,6 +6,7 @@ package txpool
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/metrics"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -133,7 +135,7 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 		select {
 		case msg := <-tx_pool.newTxMsgCh:
 			if err := tx_pool.processTxMsg(msg); err != nil {
-				logger.Errorf("Failed to processTxMsg. Err: %v", err)
+				logger.Warnf("Failed to processTxMsg from %s. Err: %s", msg.From().Pretty(), err)
 			}
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
@@ -182,7 +184,7 @@ func (tx_pool *TransactionPool) cleanExpiredTxsLoop(p goprocess.Process) {
 func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 
 	for _, v := range msg.DetachBlocks {
-		logger.Debugf("Block %v disconnects from main chain", v.BlockHash())
+		logger.Debugf("Block %s %d disconnects from main chain", v.BlockHash(), v.Header.Height)
 		for _, tx := range v.Txs[1:] {
 			txHash, _ := tx.TxHash()
 			if tx_pool.txcache.Contains(*txHash) {
@@ -209,7 +211,7 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 		}
 	}
 	for _, v := range msg.AttachBlocks {
-		logger.Debugf("Block %v connects to main chain", v.BlockHash())
+		logger.Debugf("Block %s %d connects to main chain", v.BlockHash(), v.Header.Height)
 		tx_pool.removeBlockTxs(v)
 	}
 
@@ -251,15 +253,16 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 func (tx_pool *TransactionPool) ProcessTx(tx *types.Transaction, transferMode core.TransferMode) error {
 	if err := tx_pool.maybeAcceptTx(tx, transferMode, true); err != nil {
 		txHash, _ := tx.TxHash()
-		logger.Errorf("Failed to accept tx. TxHash: %s, Err: %v", txHash, err)
+		logger.Warnf("Failed to accept tx. TxHash: %s, Err: %s", txHash, err)
 		return err
 	}
 	return tx_pool.processOrphans(tx)
 }
 
 // Potentially accept the transaction to the memory pool.
-func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
-	transferMode core.TransferMode, detectDupOrphan bool) error {
+func (tx_pool *TransactionPool) maybeAcceptTx(
+	tx *types.Transaction, transferMode core.TransferMode, detectDupOrphan bool,
+) error {
 	txHash, _ := tx.TxHash()
 	logger.Debugf("Maybe accept tx. Hash: %v", txHash)
 	tx_pool.txMutex.Lock()
@@ -319,10 +322,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 		return err
 	}
 
-	// To check script later so main thread is not blocked
-	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 	var gasPrice uint64
-	if o := chain.GetContractVout(tx); o != nil { // smart contract tx.
+	if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
@@ -332,6 +333,11 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 			return errors.New("Invalid contract transaction fee")
 		}
 		gasPrice = param.GasPrice
+		// check contract tx from
+		if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
+			*addr.Hash160() != *param.From {
+			return fmt.Errorf("contract tx from address mismatched")
+		}
 	} else {
 		gasPrice = txFee / core.TransferGasLimit
 	}
@@ -339,6 +345,9 @@ func (tx_pool *TransactionPool) maybeAcceptTx(tx *types.Transaction,
 	if gasPrice < core.MinGasPrice {
 		return errors.New("tx gasPrice is too low")
 	}
+
+	// To check script later so main thread is not blocked
+	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 
 	// add transaction to pool.
 	tx_pool.addTx(tx, nextBlockHeight, gasPrice)
@@ -579,11 +588,6 @@ func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	}
 	tx := v.(*types.TxWrap)
 	tx.IsScriptValid = true
-	// tx_pool.legalTxs.Store(txHash, tx)
-	// if chain.HasContractVout(tx) {
-	// 	owner := chain.FetchOwnerOfOutPoint(tx.Vin[0].PrevOutPoint, chain.DB())
-
-	// }
 }
 
 func (tx_pool *TransactionPool) cleanExpiredTxs() {

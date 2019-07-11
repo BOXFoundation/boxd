@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"container/list"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -40,9 +41,9 @@ func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 		return trie, nil
 	}
 
-	if _, err := trie.db.Get(rootHash[:]); err != nil {
-		logger.Error(err)
-		return nil, err
+	if v, err := trie.db.Get(rootHash[:]); err != nil || v == nil {
+		logger.Error("Failed to build a new trie with an existing root.")
+		return nil, errors.New("Failed to build a new trie with an existing root")
 	}
 	return trie, nil
 }

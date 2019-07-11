@@ -105,13 +105,18 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 	op, uw = types.NewOutPoint(&prevHash2, 0), NewUtxoWrap(from, 3, utxoValue2)
 	utxo2 := MakePbUtxo(op, uw)
 
-	tx, splitAddr, err := MakeUnsignedSplitAddrTx(from, addrs, weights, changeAmt,
-		utxo1, utxo2)
+	tx, err := MakeUnsignedSplitAddrTx(from, addrs, weights, changeAmt, utxo1, utxo2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantSplitAddr := "b2NRN8v4ArV7B5R77xpBBq2HKrV6xUdyUbV"
-	if splitAddr != wantSplitAddr {
+	txHash, _ := tx.TxHash()
+	addresses := make([]types.Address, len(addrs))
+	for i, addr := range addrs {
+		addresses[i], _ = types.ParseAddress(addr)
+	}
+	splitAddr := MakeSplitAddress(txHash, 0, addresses, weights)
+	wantSplitAddr := "b2c4cs8JQGDHfDfzTzrzwg5WUL9meN5hJgB"
+	if splitAddr.String() != wantSplitAddr {
 		t.Fatalf("aplit addr want: %s, got: %s", wantSplitAddr, splitAddr)
 	}
 
@@ -156,14 +161,15 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 }
 
 func TestMakeContractTx(t *testing.T) {
-	outAddr := "b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x"
+	fromAddr := "b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x"
+	from, _ := types.NewAddress(fromAddr)
 	hash, idx, value := hashFromUint64(1), uint32(2), uint64(100)
 
 	// normal vin, contract creation vout
 	gas, gasPrice, nonce := uint64(200), uint64(5), uint64(1)
 	codeStr := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565" + "b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
 	code, _ := hex.DecodeString(codeStr)
-	cvout, _ := MakeContractCreationVout(value, gas, gasPrice, nonce, code)
+	cvout, _ := MakeContractCreationVout(from.Hash160(), value, gas, gasPrice, nonce, code)
 	tx := types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout)
@@ -176,10 +182,11 @@ func TestMakeContractTx(t *testing.T) {
 	}
 
 	// normal vin, contract call vout
-	receiver := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
+	toAddr := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
+	to, _ := types.NewContractAddress(toAddr)
 	codeStr = "60fe47b10000000000000000000000000000000000000000000000000000000000000006"
 	code, _ = hex.DecodeString(codeStr)
-	cvout, _ = MakeContractCallVout(receiver, value, gas, gasPrice, nonce, code)
+	cvout, _ = MakeContractCallVout(from.Hash160(), to.Hash160(), value, gas, gasPrice, nonce, code)
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout)
@@ -194,7 +201,7 @@ func TestMakeContractTx(t *testing.T) {
 	// contract vin, normal vout
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 0)).
-		AppendVout(MakeVout(outAddr, value))
+		AppendVout(MakeVout(fromAddr, value))
 	if len(tx.Vin[0].ScriptSig) != 1 || tx.Vin[0].ScriptSig[0] != byte(script.OPCONTRACT) ||
 		tx.Vin[0].PrevOutPoint.Hash != hash || tx.Vin[0].PrevOutPoint.Index != idx ||
 		tx.Vout[0].Value != value {

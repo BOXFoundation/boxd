@@ -10,10 +10,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
@@ -29,6 +30,9 @@ func (twa *TestWalletAgent) Utxos(
 ) (utxos []*rpcpb.Utxo, err error) {
 
 	count := uint64(2)
+	if amount == 0 {
+		amount = 1000000
+	}
 	ave := amount / count
 
 	for h, remain := uint32(0), amount; remain <= amount; h++ {
@@ -144,6 +148,95 @@ func TestMakeUnsignedTx(t *testing.T) {
 	for i := 0; i < len(rawMsgs); i++ {
 		if hex.EncodeToString(rawMsgs[i]) != wantRawMsgs[i] {
 			t.Fatalf("for raw msg %d, want: %s, got: %s", i, wantRawMsgs[i], rawMsgs[i])
+		}
+	}
+}
+
+func TestMakeUnsignedCombineTx(t *testing.T) {
+	from := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+
+	wa := new(TestWalletAgent)
+	gasUsed := uint64(2) * core.TransferGasLimit
+	tx, utxos, err := rpcutil.MakeUnsignedCombineTx(wa, from, gasUsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	txBytes, _ := json.MarshalIndent(tx, "", "  ")
+
+	wantTxStr := `{
+  "Version": 0,
+  "Vin": [
+    {
+      "PrevOutPoint": {
+        "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
+        "Index": 0
+      },
+      "ScriptSig": "",
+      "Sequence": 0
+    },
+    {
+      "PrevOutPoint": {
+        "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
+        "Index": 1
+      },
+      "ScriptSig": "",
+      "Sequence": 0
+    },
+    {
+      "PrevOutPoint": {
+        "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
+        "Index": 2
+      },
+      "ScriptSig": "",
+      "Sequence": 0
+    },
+    {
+      "PrevOutPoint": {
+        "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
+        "Index": 3
+      },
+      "ScriptSig": "",
+      "Sequence": 0
+    },
+    {
+      "PrevOutPoint": {
+        "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
+        "Index": 4
+      },
+      "ScriptSig": "",
+      "Sequence": 0
+    }
+  ],
+  "Vout": [
+    {
+      "value": 1208000,
+      "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrA=="
+    }
+  ],
+  "Data": null,
+  "Magic": 0,
+  "LockTime": 0
+}`
+	// 1208000 = 1000000/2/2*5-2*21000
+	if string(txBytes) != wantTxStr {
+		t.Fatalf("want: %s, len: %d, got: %s, len: %d", wantTxStr, len(wantTxStr),
+			string(txBytes), len(string(txBytes)))
+	}
+
+	wantRawMsgs := []string{
+		"123f0a220a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac12260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100112260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100212260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100312260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f110041a1f08c0dd49121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac",
+		"12240a220a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f112410a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f11001121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac12260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100212260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100312260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f110041a1f08c0dd49121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac",
+		"12240a220a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f112260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100112410a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f11002121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac12260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100312260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f110041a1f08c0dd49121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac",
+		"12240a220a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f112260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100112260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100212410a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f11003121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac12260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f110041a1f08c0dd49121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac",
+		"12240a220a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f112260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100112260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100212260a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f1100312410a240a202467f11db05fa8df6d7b0b6a374933a273ff8439a6bee9f68b81f4732e2480f11004121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac1a1f08c0dd49121976a914ce86056786e3415530f8cc739fb414a87435b4b688ac",
+	}
+	for i := 0; i < len(rawMsgs); i++ {
+		if hex.EncodeToString(rawMsgs[i]) != wantRawMsgs[i] {
+			t.Fatalf("for raw msg %d, want: %s, got: %x", i, wantRawMsgs[i], rawMsgs[i])
 		}
 	}
 }

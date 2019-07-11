@@ -103,6 +103,8 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 	for offset >= 0 && height > 0 {
 		block, err := bft.chain.LoadBlockByHeight(height)
 		if err != nil {
+			height--
+			offset--
 			continue
 		}
 		blockHash := *block.BlockHash()
@@ -258,7 +260,7 @@ func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block
 		return nil, nil, err
 	}
 
-	block, err := bft.chain.LoadBlockByHash(eternalBlockMsg.Hash)
+	block, err := chain.LoadBlockByHash(eternalBlockMsg.Hash, bft.chain.DB())
 	if err != nil {
 		return nil, nil, err
 	}

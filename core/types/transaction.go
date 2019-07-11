@@ -5,9 +5,9 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"math"
-	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -155,7 +155,8 @@ func (op OutPoint) IsContractType() bool {
 	if op.Index != 0 {
 		return false
 	}
-	if !reflect.DeepEqual(op.Hash[:12], ZeroAddressHash[:12]) {
+	if !bytes.Equal(op.Hash[:12], ZeroAddressHash[:12]) ||
+		bytes.Equal(op.Hash[12:], ZeroAddressHash[12:]) {
 		return false
 	}
 	return true
@@ -381,7 +382,7 @@ func (tx *Transaction) SerializeSize() (int, error) {
 // Copy returns a deep copy, mostly for parallel script verification
 // Do not copy hash since it will be updated anyway in script verification
 func (tx *Transaction) Copy() *Transaction {
-	vin := make([]*TxIn, 0)
+	vin := make([]*TxIn, 0, len(tx.Vin))
 	for _, txIn := range tx.Vin {
 		txInCopy := &TxIn{
 			PrevOutPoint: txIn.PrevOutPoint,
@@ -391,7 +392,7 @@ func (tx *Transaction) Copy() *Transaction {
 		vin = append(vin, txInCopy)
 	}
 
-	vout := make([]*corepb.TxOut, 0)
+	vout := make([]*corepb.TxOut, 0, len(tx.Vout))
 	for _, txOut := range tx.Vout {
 		txOutCopy := &corepb.TxOut{
 			Value:        txOut.Value,

@@ -18,6 +18,7 @@ import (
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -62,10 +63,10 @@ type ChainBlockReader interface {
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
 	TailBlock() *types.Block
-	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
-	GetLatestNonce(address *types.AddressHash) (uint64, error)
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
+	TailState() *state.StateDB
+	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -483,11 +484,7 @@ func (s *webapiServer) Nonce(
 		return newNonceResp(-1, "only allow eoa and contract address", 0), nil
 	case *types.AddressContract, *types.AddressPubKeyHash:
 	}
-	nonce, err := s.GetLatestNonce(address.Hash160())
-	if err != nil {
-		return newNonceResp(-1, err.Error(), 0), nil
-	}
-	return newNonceResp(0, "", nonce), nil
+	return newNonceResp(0, "", s.TailState().GetNonce(*address.Hash160())), nil
 }
 
 func newLogsResp(code int32, msg string, logs []*types.Log) *rpcpb.Logs {
@@ -566,6 +563,7 @@ func detailTx(
 	for i := range tx.Vout {
 		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), br)
 		if err != nil {
+			logger.Warnf("detail tx vout for %s %d %+v error: %s", txHash, i, tx.Vout[i], err)
 			return nil, err
 		}
 		if strings.HasPrefix(outDetail.Addr, types.AddrTypeSplitAddrPrefix) &&
@@ -583,6 +581,9 @@ func detailTx(
 		if err != nil {
 			return nil, err
 		}
+		if len(buf) == 0 {
+			return nil, fmt.Errorf("split tx for %s not found in db", txHash)
+		}
 		tx = new(types.Transaction)
 		if err := tx.Unmarshal(buf); err != nil {
 			return nil, err
@@ -593,6 +594,7 @@ func detailTx(
 		for i := range tx.Vout {
 			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), br)
 			if err != nil {
+				logger.Warnf("detail split tx vout for %s %d %+v error: %s", hash, i, tx.Vout[i], err)
 				return nil, err
 			}
 			detail.Vout = append(detail.Vout, outDetail)
@@ -604,6 +606,7 @@ func detailTx(
 	for _, in := range tx.Vin {
 		inDetail, err := detailTxIn(in, br, tr, detailVin)
 		if err != nil {
+			logger.Warnf("detail tx vin for %s %+v error: %s", txHash, in, err)
 			return nil, err
 		}
 		detail.Vin = append(detail.Vin, inDetail)
@@ -635,6 +638,8 @@ func detailBlock(
 	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r, tr, false, detailVin)
 		if err != nil {
+			hash, _ := tx.TxHash()
+			logger.Warnf("detail tx %s error: %s", hash, err)
 			return nil, err
 		}
 		detail.Txs = append(detail.Txs, txDetail)
@@ -670,8 +675,10 @@ func detailTxIn(
 		index := txIn.PrevOutPoint.Index
 		prevTxHash, _ := prevTx.TxHash()
 		detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
-			txIn.PrevOutPoint.Index, r)
+			index, r)
 		if err != nil {
+			logger.Warnf("detail prev tx vout for %s %d %+v error: %s", prevTxHash,
+				index, prevTx.Vout[index], err)
 			return nil, err
 		}
 	}
@@ -685,7 +692,7 @@ func detailTxOut(
 	detail := new(rpcpb.TxOutDetail)
 	sc := script.NewScriptFromBytes(txOut.GetScriptPubKey())
 	// addr
-	addr, err := ParseAddrFrom(sc, br)
+	addr, err := ParseAddrFrom(sc, txHash, index, br)
 	if err != nil {
 		return nil, err
 	}
@@ -760,16 +767,15 @@ func detailTxOut(
 		if err != nil {
 			return nil, err
 		}
-
 		// get tx reveipt.
 		receipt, err := br.GetTxReceipt(txHash)
 		if err != nil {
+			logger.Warn(err)
 			return nil, err
 		}
 		if receipt == nil {
 			return nil, fmt.Errorf("receipt for tx %s not found", txHash)
 		}
-
 		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
 			ContractInfo: &rpcpb.ContractInfo{
 				Fee:      uint32(receipt.GasUsed * params.GasPrice),
@@ -834,25 +840,37 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 }
 
 // ParseAddrFrom parse addr from scriptPubkey
-func ParseAddrFrom(sc *script.Script, tr ChainTxReader) (string, error) {
-	addrBytes, _ := sc.ExtractP2PKHAddress()
+func ParseAddrFrom(
+	sc *script.Script, txHash *crypto.HashType, idx uint32, tr ChainTxReader,
+) (string, error) {
 	var (
 		address types.Address
 		err     error
 	)
-	address, err = types.NewSplitAddressFromHash(addrBytes)
-	if err != nil {
-		address, err := sc.ExtractAddress()
+	switch {
+	case sc.IsContractPubkey():
+		address, err = sc.ParseContractAddr()
+		if err == nil && address == nil {
+			// smart contract deploy
+			from, err := sc.ParseContractFrom()
+			if err != nil {
+				return "", err
+			}
+			nonce, err := sc.ParseContractNonce()
+			if err != nil {
+				return "", err
+			}
+			address, _ = types.MakeContractAddress(from, nonce)
+		}
+	case sc.IsSplitAddrScript():
+		addrs, weights, err := sc.ParseSplitAddrScript()
 		if err != nil {
 			return "", err
 		}
-		return address.String(), nil
+		address = txlogic.MakeSplitAddress(txHash, idx, addrs, weights)
+	default:
+		address, err = sc.ExtractAddress()
 	}
-	data, _ := tr.GetDataFromDB(chain.SplitAddrKey(address.Hash()))
-	if data != nil {
-		return address.String(), nil
-	}
-	address, err = sc.ExtractAddress()
 	if err != nil {
 		return "", err
 	}

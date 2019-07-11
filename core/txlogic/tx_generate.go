@@ -48,7 +48,7 @@ func NewTxWithUtxos(
 // NewSplitAddrTxWithUtxos new split address tx
 func NewSplitAddrTxWithUtxos(
 	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
-) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
+) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 
 	if len(addrs) != len(weights) {
 		err = ErrInvalidArguments
@@ -61,7 +61,7 @@ func NewSplitAddrTxWithUtxos(
 	}
 	changeAmt := utxoValue - fee
 	// make unsigned split addr tx
-	tx, splitAddr, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
+	tx, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
 		changeAmt, utxos...)
 	if err != nil {
 		return
@@ -219,7 +219,15 @@ func MakeUnsignedContractDeployTx(
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
-	contractVout, err := MakeContractCreationVout(amount, gasLimit, gasPrice, nonce, byteCode)
+	fromAddr, err := types.ParseAddress(from)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
+		return nil, errors.New("sender account is not PubKeyHash")
+	}
+	contractVout, err := MakeContractCreationVout(fromAddr.Hash160(), amount,
+		gasLimit, gasPrice, nonce, byteCode)
 	if err != nil {
 		return nil, err
 	}
@@ -229,10 +237,24 @@ func MakeUnsignedContractDeployTx(
 //MakeUnsignedContractCallTx call a contract tx without signature
 func MakeUnsignedContractCallTx(
 	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
-	contractAddr string, byteCode []byte, utxos ...*rpcpb.Utxo,
+	to string, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-	contractVout, err := MakeContractCallVout(contractAddr, amount, gasLimit,
-		gasPrice, nonce, byteCode)
+	fromAddr, err := types.ParseAddress(from)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
+		return nil, errors.New("sender account is not PubKeyHash address")
+	}
+	toAddr, err := types.ParseAddress(to)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := toAddr.(*types.AddressContract); !ok {
+		return nil, errors.New("receiver account is not contract address")
+	}
+	contractVout, err := MakeContractCallVout(fromAddr.Hash160(), toAddr.Hash160(),
+		amount, gasLimit, gasPrice, nonce, byteCode)
 	if err != nil {
 		return nil, err
 	}
@@ -268,14 +290,14 @@ func NewContractTxWithUtxos(
 // MakeUnsignedSplitAddrTx make unsigned split addr tx
 func MakeUnsignedSplitAddrTx(
 	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*types.Transaction, string, error) {
+) (*types.Transaction, error) {
 
 	if len(addrs) != len(weights) {
-		return nil, "", ErrInvalidArguments
+		return nil, ErrInvalidArguments
 	}
 
 	if !checkAmount(nil, changeAmt, utxos...) {
-		return nil, "", ErrInsufficientBalance
+		return nil, ErrInsufficientBalance
 	}
 	// vin
 	vins := make([]*types.TxIn, 0)
@@ -283,7 +305,12 @@ func MakeUnsignedSplitAddrTx(
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
-	splitAddrOut := MakeSplitAddrVout(addrs, weights)
+	addresses := make([]types.Address, 0, len(addrs))
+	for _, addr := range addrs {
+		address, _ := types.ParseAddress(addr)
+		addresses = append(addresses, address)
+	}
+	splitAddrOut := MakeSplitAddrVout(addresses, weights)
 	// construct transaction
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
@@ -292,10 +319,8 @@ func MakeUnsignedSplitAddrTx(
 	if changeAmt > 0 {
 		tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
 	}
-	// calc split addr
-	addr, err := MakeSplitAddr(addrs, weights)
 	//
-	return tx, addr, err
+	return tx, nil
 }
 
 // MakeUnsignedTokenIssueTx make unsigned token issue tx

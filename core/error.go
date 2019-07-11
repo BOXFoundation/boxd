@@ -51,6 +51,8 @@ var (
 	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
 	ErrNonLocalMessage            = errors.New("Received non-local message")
 	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
+	ErrUtxosOob                   = errors.New("utxos in tx out of bound")
+	ErrVoutsOob                   = errors.New("vout in tx out of bound")
 
 	//block.go
 	ErrSerializeHeader                = errors.New("Serialize block header error")
@@ -77,6 +79,7 @@ var (
 	ErrInvalidTxOutProtoMessage            = errors.New("Invalid TxOut proto message")
 	ErrInvalidTxProtoMessage               = errors.New("Invalid tx proto message")
 	ErrInvalidIrreversibleInfoProtoMessage = errors.New("Invalid IrreversibleInfo proto message")
+	ErrInvalidFee                          = errors.New("Invalid contract transaction fee")
 
 	//address.go
 	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")
@@ -95,6 +98,7 @@ var (
 
 	//utxoset.go
 	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
+	ErrUtxoNotFound                = errors.New("utxo not found")
 	ErrAddExistingUtxo             = errors.New("Trying to add utxo already existed")
 	ErrInvalidUtxoWrapProtoMessage = errors.New("Invalid utxo wrap proto message")
 

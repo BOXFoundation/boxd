@@ -15,15 +15,16 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
@@ -189,7 +190,8 @@ func (dpos *Dpos) Process(block *types.Block, db interface{}) error {
 
 // VerifyTx notify consensus to verify new tx.
 func (dpos *Dpos) VerifyTx(tx *types.Transaction) error {
-	return dpos.checkRegisterOrVoteTx(tx)
+	return nil
+	//return dpos.checkRegisterOrVoteTx(tx)
 }
 
 func (dpos *Dpos) loop(p goprocess.Process) {
@@ -275,6 +277,8 @@ func (dpos *Dpos) produceBlock() error {
 	tail := dpos.chain.TailBlock()
 	block := types.NewBlock(tail)
 	block.Header.TimeStamp = dpos.context.timestamp
+	block.Header.Bloom = bloom.NewFilterWithMK(types.BloomBitLength, types.BloomHashNum)
+
 	if block.Header.Height > 0 && block.Header.Height%chain.PeriodDuration == 0 {
 		// TODO: period changed
 	} else {
@@ -336,7 +340,7 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
 			hashToTx[*txHash] = pendingTx
-			if chain.HasContractVout(pendingTx.Tx) { // smart contract tx
+			if txlogic.HasContractVout(pendingTx.Tx) { // smart contract tx
 				// from is in txpool if the contract tx used a vout in txpool
 				op := pendingTx.Tx.Vin[0].PrevOutPoint
 				ownerTx, ok := dpos.txpool.GetTxByHash(&op.Hash)
@@ -386,7 +390,7 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			continue
 		}
 		dag.AddNode(*txHash, int(txWrap.GasPrice))
-		if chain.HasContractVout(txWrap.Tx) { // smart contract tx
+		if txlogic.HasContractVout(txWrap.Tx) { // smart contract tx
 			from := hashToAddress[*txHash]
 			sortedNonceTxs := addressToNonceSortedTxs[from]
 			handleVMTx(dag, sortedNonceTxs, hashToTx)
@@ -524,7 +528,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 
 	parentHash := block.Header.PrevBlockHash
-	parent, err := dpos.chain.LoadBlockByHash(parentHash)
+	parent, err := chain.LoadBlockByHash(parentHash, dpos.chain.DB())
 	if err != nil {
 		return err
 	}
@@ -532,19 +536,18 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	logger.Infof("new statedb with root: %s and utxo root: %s block %s:%d",
-		parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
+	logger.Infof("new statedb with root: %s and utxo root: %s block height %d",
+		parent.Header.RootHash, parent.Header.UtxoRoot, block.Header.Height)
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, true, dpos.chain.DB()); err != nil {
 		return err
 	}
 	blockCopy := block.Copy()
 	dpos.chain.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy, dpos.chain.DB()); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
 
-	dpos.chain.SetBlockTxs(block)
 	receipts, gasUsed, gasRemainingFee, utxoTxs, err :=
 		dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
@@ -570,11 +573,11 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
 	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, dpos.chain.DB()); err != nil {
+		if err := utxoSet.ApplyInternalTxs(block); err != nil {
 			return err
 		}
 	}
-	if err := dpos.chain.UpdateUtxoState(statedb, utxoSet); err != nil {
+	if err := dpos.chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}
 
@@ -582,7 +585,6 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	dpos.chain.StateDBCache()[block.Header.Height] = statedb
 	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
 	block.Header.CandidatesHash = *candidateHash
@@ -927,7 +929,7 @@ func (dpos *Dpos) verifySign(block *types.Block) (bool, error) {
 func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
 	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > MinConfirmMsgNumberForEternalBlock {
-		block, err := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, dpos.chain.DB())
 		if err != nil {
 			logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
 			return
@@ -945,66 +947,66 @@ func (dpos *Dpos) subscribe() {
 	}, false)
 }
 
-func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
-	if tx.Data == nil {
-		return nil
-	}
-	content := tx.Data.Content
-	switch int(tx.Data.Type) {
-	case types.RegisterCandidateTx:
-		registerCandidateContent := new(types.RegisterCandidateContent)
-		if err := registerCandidateContent.Unmarshal(content); err != nil {
-			return err
-		}
-		if dpos.IsCandidateExist(registerCandidateContent.Addr()) {
-			return ErrCandidateIsAlreadyExist
-		}
-		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
-			return ErrInvalidRegisterCandidateOrVoteTx
-		}
-	case types.VoteTx:
-		votesContent := new(types.VoteContent)
-		if err := votesContent.Unmarshal(content); err != nil {
-			return err
-		}
-		if !dpos.IsCandidateExist(votesContent.Addr()) {
-			return ErrCandidateNotFound
-		}
-		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
-			return ErrInvalidRegisterCandidateOrVoteTx
-		}
-	}
+//func (dpos *Dpos) checkRegisterOrVoteTx(tx *types.Transaction) error {
+//	if tx.Data == nil {
+//		return nil
+//	}
+//	content := tx.Data.Content
+//	switch int(tx.Data.Type) {
+//	case types.RegisterCandidateTx:
+//		registerCandidateContent := new(types.RegisterCandidateContent)
+//		if err := registerCandidateContent.Unmarshal(content); err != nil {
+//			return err
+//		}
+//		if dpos.IsCandidateExist(registerCandidateContent.Addr()) {
+//			return ErrCandidateIsAlreadyExist
+//		}
+//		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
+//			return ErrInvalidRegisterCandidateOrVoteTx
+//		}
+//	case types.VoteTx:
+//		votesContent := new(types.VoteContent)
+//		if err := votesContent.Unmarshal(content); err != nil {
+//			return err
+//		}
+//		if !dpos.IsCandidateExist(votesContent.Addr()) {
+//			return ErrCandidateNotFound
+//		}
+//		if !dpos.checkRegisterCandidateOrVoteTx(tx) {
+//			return ErrInvalidRegisterCandidateOrVoteTx
+//		}
+//	}
+//
+//	return nil
+//}
 
-	return nil
-}
-
-func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
-	for _, vout := range tx.Vout {
-		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
-		if scriptPubKey.IsRegisterCandidateScriptOfBlock(calcCandidatePledgeHeight(
-			int64(dpos.chain.TailBlock().Header.Height))) {
-
-			if tx.Data.Type == types.RegisterCandidateTx {
-				if vout.Value >= CandidatePledge {
-					return true
-				}
-			} else if tx.Data.Type == types.VoteTx {
-				if vout.Value >= MinNumOfVotes {
-					votesContent := new(types.VoteContent)
-					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
-						return false
-					}
-					if votesContent.Votes() == int64(vout.Value) {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
-}
+//func (dpos *Dpos) checkRegisterCandidateOrVoteTx(tx *types.Transaction) bool {
+//	for _, vout := range tx.Vout {
+//		scriptPubKey := script.NewScriptFromBytes(vout.ScriptPubKey)
+//		if scriptPubKey.IsRegisterCandidateScriptOfBlock(calcCandidatePledgeHeight(
+//			int64(dpos.chain.TailBlock().Header.Height))) {
+//
+//			if tx.Data.Type == types.RegisterCandidateTx {
+//				if vout.Value >= CandidatePledge {
+//					return true
+//				}
+//			} else if tx.Data.Type == types.VoteTx {
+//				if vout.Value >= MinNumOfVotes {
+//					votesContent := new(types.VoteContent)
+//					if err := votesContent.Unmarshal(tx.Data.Content); err != nil {
+//						return false
+//					}
+//					if votesContent.Votes() == int64(vout.Value) {
+//						return true
+//					}
+//				}
+//			}
+//		}
+//	}
+//	return false
+//}
 
 // calcCandidatePledgeHeight calc current candidate pledge height
-func calcCandidatePledgeHeight(tailHeight int64) int64 {
-	return (tailHeight/PeriodDuration + 2) * PeriodDuration
-}
+//func calcCandidatePledgeHeight(tailHeight int64) int64 {
+//	return (tailHeight/PeriodDuration + 2) * PeriodDuration
+//}

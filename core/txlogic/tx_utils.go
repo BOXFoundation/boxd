@@ -6,7 +6,6 @@ package txlogic
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -137,10 +136,10 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 
 // MakeContractCreationVout makes txOut
 func MakeContractCreationVout(
-	amount, gas, gasPrice, nonce uint64, code []byte,
+	from *types.AddressHash, amount, gas, gasPrice, nonce uint64, code []byte,
 ) (*corepb.TxOut, error) {
 
-	vs, err := script.MakeContractScriptPubkey(nil, code, gasPrice, gas, nonce, types.VMVersion)
+	vs, err := script.MakeContractScriptPubkey(from, nil, code, gasPrice, gas, nonce, types.VMVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -152,17 +151,13 @@ func MakeContractCreationVout(
 
 // MakeContractCallVout makes txOut
 func MakeContractCallVout(
-	receiver string, amount uint64, gas, gasPrice, nonce uint64, code []byte,
+	from, to *types.AddressHash, amount uint64, gas, gasPrice, nonce uint64, code []byte,
 ) (*corepb.TxOut, error) {
 
-	if !strings.HasPrefix(receiver, types.AddrTypeContractPrefix) {
-		return nil, errors.New("MakeContractCreationVout need contract receiver")
+	if to == nil {
+		return nil, errors.New("MakeContractCreationVout need contract address")
 	}
-	address, err := types.NewContractAddress(receiver)
-	if err != nil {
-		return nil, err
-	}
-	vs, err := script.MakeContractScriptPubkey(address, code, gasPrice, gas, nonce, types.VMVersion)
+	vs, err := script.MakeContractScriptPubkey(from, to, code, gasPrice, gas, nonce, types.VMVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -345,36 +340,27 @@ func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.
 }
 
 // MakeSplitAddrVout make split addr vout
-func MakeSplitAddrVout(addrs []string, weights []uint64) *corepb.TxOut {
+func MakeSplitAddrVout(addrs []types.Address, weights []uint64) *corepb.TxOut {
 	return &corepb.TxOut{
 		Value:        0,
-		ScriptPubKey: MakeSplitAddrPubkey(addrs, weights),
+		ScriptPubKey: *script.SplitAddrScript(addrs, weights),
 	}
 }
 
-// MakeSplitAddrPubkey make split addr
-func MakeSplitAddrPubkey(addrs []string, weights []uint64) []byte {
-	addresses := make([]types.Address, len(addrs))
-	for i, addr := range addrs {
-		addresses[i], _ = types.NewAddress(addr)
-	}
-	return *script.SplitAddrScript(addresses, weights)
-}
-
-// MakeSplitAddr make split addr
-func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
-	pk := MakeSplitAddrPubkey(addrs, weights)
-	splitAddrScriptStr := script.NewScriptFromBytes(pk).Disasm()
-	s := strings.Split(splitAddrScriptStr, " ")
-	pubKeyHash, err := hex.DecodeString(s[1])
-	if err != nil {
-		return "", err
-	}
-	addr, err := types.NewSplitAddressFromHash(pubKeyHash)
-	if err != nil {
-		return "", err
-	}
-	return addr.String(), nil
+// MakeSplitAddress make split addr
+func MakeSplitAddress(
+	txHash *crypto.HashType, idx uint32, addrs []types.Address, weights []uint64,
+) types.Address {
+	pk := *script.SplitAddrScript(addrs, weights)
+	sc := script.NewScriptFromBytes(pk)
+	addr, _ := sc.ExtractAddress()
+	idxBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(idxBytes, idx)
+	raw := append(txHash[:], idxBytes...)
+	raw = append(raw, addr.Hash()...)
+	splitAddrHash := crypto.Hash160(raw)
+	addr, _ = types.NewSplitAddressFromHash(splitAddrHash)
+	return addr
 }
 
 // EncodeOutPoint encode token to string
@@ -460,4 +446,37 @@ func SignTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.Pu
 		}
 	}
 	return nil
+}
+
+// HasContractVout return true if tx has a vout with contract creation or call
+func HasContractVout(tx *types.Transaction) bool {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return true
+		}
+	}
+	return false
+}
+
+// GetContractVout return contract out if tx has a vout with contract creation or call
+func GetContractVout(tx *types.Transaction) *corepb.TxOut {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return o
+		}
+	}
+	return nil
+}
+
+// HasContractSpend return true if tx has a vin with Op Spend script sig
+func HasContractSpend(tx *types.Transaction) bool {
+	for _, i := range tx.Vin {
+		sc := script.NewScriptFromBytes(i.ScriptSig)
+		if sc.IsContractSig() {
+			return true
+		}
+	}
+	return false
 }

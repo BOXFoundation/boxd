@@ -52,22 +52,15 @@ func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBal
 func (s *txServer) GetBalance(
 	ctx context.Context, req *rpcpb.GetBalanceReq,
 ) (*rpcpb.GetBalanceResp, error) {
-	walletAgent := s.server.GetWalletAgent()
-	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
-		logger.Warn("get balance error ", ErrAPINotSupported)
-		return newGetBalanceResp(-1, ErrAPINotSupported.Error()), ErrAPINotSupported
-	}
 	balances := make([]uint64, len(req.GetAddrs()))
+	statedb := s.server.GetChainReader().TailState()
 	for i, addr := range req.Addrs {
-		if err := types.ValidateAddr(addr); err != nil {
+		address, err := types.NewAddress(addr)
+		if err != nil {
 			logger.Warn(err)
 			return newGetBalanceResp(-1, err.Error()), nil
 		}
-		amount, err := walletAgent.Balance(addr, nil)
-		if err != nil {
-			logger.Warnf("get balance for %s error %s", addr, err)
-			return newGetBalanceResp(-1, err.Error()), nil
-		}
+		amount := statedb.GetBalance(*address.Hash160()).Uint64()
 		balances[i] = amount
 	}
 	return newGetBalanceResp(0, "ok", balances...), nil
@@ -129,7 +122,7 @@ func (s *txServer) FetchUtxos(
 			for _, u := range resp.GetUtxos() {
 				amount, _, err := txlogic.ParseUtxoAmount(u)
 				if err != nil {
-					logger.Warnf("fetch utxos for %+v error %s", req, err)
+					logger.Warnf("parse utxo %+v amout error %s", u, err)
 					continue
 				}
 				total += amount
@@ -141,7 +134,6 @@ func (s *txServer) FetchUtxos(
 
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
-		logger.Warn("fetch utxos error ", ErrAPINotSupported)
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	var tid *types.TokenID
@@ -155,12 +147,10 @@ func (s *txServer) FetchUtxos(
 	}
 	addr := req.GetAddr()
 	if err := types.ValidateAddr(addr); err != nil {
-		logger.Warn(err)
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
 	utxos, err := walletAgent.Utxos(addr, tid, req.GetAmount())
 	if err != nil {
-		logger.Warnf("fetch utxos for %+v error %s", req, err)
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
 	return newFetchUtxosResp(0, "ok", utxos...), nil
@@ -265,6 +255,9 @@ func (s *txServer) MakeUnsignedTx(
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -281,7 +274,7 @@ func (s *txServer) MakeUnsignedTx(
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	amounts, gasPrice := req.GetAmounts(), req.GasPrice
+	amounts, gasPrice := req.GetAmounts(), req.GetGasPrice()
 	gasUsed := gasPrice * core.TransferGasLimit
 	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, gasUsed)
 	if err != nil {
@@ -298,19 +291,15 @@ func (s *txServer) MakeUnsignedTx(
 	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
 }
 
-func newMakeSplitAddrTxResp(code int32, msg string) *rpcpb.MakeSplitAddrTxResp {
-	return &rpcpb.MakeSplitAddrTxResp{
-		Code:    code,
-		Message: msg,
-	}
-}
-
 func (s *txServer) MakeUnsignedSplitAddrTx(
 	ctx context.Context, req *rpcpb.MakeSplitAddrTxReq,
-) (resp *rpcpb.MakeSplitAddrTxResp, err error) {
+) (resp *rpcpb.MakeTxResp, err error) {
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned split addr tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -321,33 +310,30 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 	//
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
-		return newMakeSplitAddrTxResp(-1, ErrAPINotSupported.Error()), nil
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, addrs := req.GetFrom(), req.GetAddrs()
 	if err := types.ValidateAddr(append(addrs, from)...); err != nil {
 		logger.Warn(err)
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	weights, gasPrice := req.GetWeights(), req.GasPrice
 	gasUsed := gasPrice * core.TransferGasLimit
 	// make tx without sign
-	tx, splitAddr, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs,
-		weights, gasUsed)
+	tx, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs, weights, gasUsed)
 	if err != nil {
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	pbTx, err := tx.ConvToPbTx()
 	if err != nil {
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	// calc raw msgs
 	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
 	if err != nil {
-		return newMakeSplitAddrTxResp(-1, err.Error()), nil
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	resp = newMakeSplitAddrTxResp(0, "success")
-	resp.SplitAddr, resp.Tx, resp.RawMsgs = splitAddr, pbTx, rawMsgs
-	return resp, nil
+	return newMakeTxResp(0, "success", pbTx, rawMsgs), nil
 }
 
 func newMakeTokenIssueTxResp(code int32, msg string) *rpcpb.MakeTokenIssueTxResp {
@@ -362,6 +348,9 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 ) (resp *rpcpb.MakeTokenIssueTxResp, err error) {
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned token issue tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -411,6 +400,9 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned token transfer tx: %s error: %s", string(bytes),
 				resp.Message)
@@ -461,6 +453,9 @@ func (s *txServer) MakeUnsignedContractTx(
 ) (resp *rpcpb.MakeContractTxResp, err error) {
 	defer func() {
 		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned contract tx: %s error: %s", string(bytes), resp.Message)
 		} else {
@@ -492,7 +487,7 @@ func (s *txServer) MakeUnsignedContractTx(
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 		}
-		nonce, _ := s.server.GetChainReader().GetLatestNonce(fromHash.Hash160())
+		nonce := s.server.GetChainReader().TailState().GetNonce(*fromHash.Hash160())
 		if req.GetNonce() <= nonce {
 			eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
@@ -537,6 +532,67 @@ func newMakeContractTxResp(
 		RawMsgs:      rawMsgs,
 		ContractAddr: contractAddr,
 	}
+}
+
+func (s *txServer) MakeUnsignedCombineTx(
+	ctx context.Context, req *rpcpb.MakeCombineTx,
+) (resp *rpcpb.MakeTxResp, err error) {
+
+	defer func() {
+		bytes, _ := json.Marshal(req)
+		if len(bytes) > 4096 {
+			bytes = bytes[:4096]
+		}
+		if resp.Code != 0 {
+			logger.Warnf("make unsigned combine tx: %s error: %s", string(bytes), resp.Message)
+		} else {
+			logger.Infof("make unsigned combine tx: %s succeeded, response: %+v", string(bytes), resp)
+		}
+	}()
+	wa := s.server.GetWalletAgent()
+	if wa == nil || reflect.ValueOf(wa).IsNil() {
+		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
+	}
+	from := req.GetAddr()
+	// check address
+	if err := types.ValidateAddr(from); err != nil {
+		logger.Warn(err)
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	// gasUsed
+	gasPrice := req.GetGasPrice()
+	gasUsed := gasPrice * core.TransferGasLimit
+	//
+	var (
+		tx    *types.Transaction
+		utxos []*rpcpb.Utxo
+	)
+	// make tx
+	tokenHashStr, tokenIdx := req.GetTokenHash(), req.GetTokenIndex()
+	if tokenHashStr != "" {
+		tokenHash := new(crypto.HashType)
+		if err := tokenHash.SetString(tokenHashStr); err != nil {
+			logger.Warn("make unsigned combine tx error, invalid token hash %s", req.GetTokenHash())
+			return newMakeTxResp(-1, "invalid token hash", nil, nil), nil
+		}
+		tid := (*types.TokenID)(types.NewOutPoint(tokenHash, tokenIdx))
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, from, tid, gasUsed)
+	} else {
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, from, gasUsed)
+	}
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	pbTx, err := tx.ConvToPbTx()
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	// raw messages
+	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	return newMakeTxResp(0, "", pbTx, rawMsgs), nil
 }
 
 // MakeTxRawMsgsForSign make tx raw msg for sign
