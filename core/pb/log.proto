@@ -13,7 +13,6 @@ message Log {
   uint64 block_number = 4;
   bytes tx_hash = 5;
   uint32 tx_index = 6;
-  bytes block_hash = 7;
   uint32 index = 8;
   bool removed = 9;
 }

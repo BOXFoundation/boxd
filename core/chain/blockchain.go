@@ -106,6 +106,7 @@ type BlockChain struct {
 	vmConfig                  vm.Config
 	utxoSetCache              map[uint32]*UtxoSet
 	receiptsCache             map[uint32]types.Receipts
+	sectionMgr                *SectionManager
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -140,6 +141,10 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.stateProcessor = stateProcessor
 
 	if b.db, err = db.Table(BlockTableName); err != nil {
+		return nil, err
+	}
+
+	if b.sectionMgr, err = NewSectionManager(b, db); err != nil {
 		return nil, err
 	}
 
@@ -859,6 +864,17 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 
 		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
 			block, stateDB, utxoSet)
+		go func() {
+			for _, receipt := range receipts {
+				if len(receipt.Logs) != 0 {
+					contractAddr, err := types.NewContractAddressFromHash(receipt.ContractAddress.Bytes())
+					if err != nil {
+						logger.Errorf("Contract address convert failed. %s", receipt.ContractAddress.String())
+					}
+					chain.Bus().Publish(eventbus.TopicRPCSendNewLog+contractAddr.String(), receipt.Logs)
+				}
+			}
+		}()
 		if err != nil {
 			logger.Error(err)
 			return err
@@ -1210,6 +1226,7 @@ func (chain *BlockChain) SetEternal(block *types.Block) error {
 			return err
 		}
 		chain.eternal = block
+		go chain.sectionMgr.AddBloom(uint(eternal.Header.Height), eternal.Header.Bloom)
 		return nil
 	}
 	return core.ErrFailedToSetEternal
@@ -1464,6 +1481,52 @@ func (chain *BlockChain) LoadBlockByHeight(height uint32) (*types.Block, error) 
 	return block, nil
 }
 
+// GetLogs filter logs.
+func (chain *BlockChain) GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error) {
+	return chain.sectionMgr.GetLogs(from, to, topicslist)
+}
+
+// FilterLogs filter logs by addrs and topicslist.
+func (chain *BlockChain) FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error) {
+
+	// topicslist = [][][]byte{}
+	// var data []byte
+
+	// topicslist[0] = make([][]byte, len(addrs))
+	// for i, addr := range addrs {
+	// 	topicslist[0][i] = addr
+	// }
+
+	// for i, topics := range topicslist {
+	// 	for j, topic := range topics {
+	// 		copy(topicslist[i+1][j], topic)
+	// 	}
+	// }
+
+	return chain.sectionMgr.filterLogs(logs, topicslist)
+}
+
+// GetBlockLogs get logs by block hash.
+func (chain *BlockChain) GetBlockLogs(hash *crypto.HashType) ([]*types.Log, error) {
+	bin, err := chain.db.Get(ReceiptKey(hash))
+	if err != nil {
+		return nil, err
+	}
+
+	receipts := new(types.Receipts)
+	if err := receipts.Unmarshal(bin); err != nil {
+		return nil, err
+	}
+	logs := []*types.Log{}
+	for _, receipt := range *receipts {
+		for _, log := range receipt.Logs {
+			log.BlockHash.SetBytes(hash.Bytes())
+			logs = append(logs, log)
+		}
+	}
+	return logs, nil
+}
+
 // NewEvmContextForLocalCallByHeight new a evm context for loval call by block height.
 func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
 	if height == 0 {
@@ -1513,6 +1576,8 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 
 // StoreReceipts store receipts to db in batch mod.
 func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
+
+	logger.Errorf("Receipts: %v", receipts)
 
 	data, err := receipts.Marshal()
 	if err != nil {
@@ -1851,6 +1916,11 @@ func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, 
 	if err := receipts.Unmarshal(value); err != nil {
 		return nil, err
 	}
+	for _, receipt := range *receipts {
+		for _, log := range receipt.Logs {
+			log.BlockHash.SetBytes(b.Hash.Bytes())
+		}
+	}
 	return receipts.GetTxReceipt(txHash), nil
 }
 
@@ -2055,7 +2125,7 @@ func calcContractAddrBalanceChanges(block *types.Block) (add, sub BalanceChangeM
 }
 
 func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
-	filter := bloom.NewFilter(bloom.MaxFilterSize, 0.0001)
+	filter := bloom.NewFilter(bloom.MaxFilterSize, bloom.DefaultConflictRate)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for key := range reader.IterKeysWithPrefix(ctx, splitAddrBase.Bytes()) {

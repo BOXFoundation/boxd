@@ -15,7 +15,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/BOXFoundation/boxd/vm/common/math"
-	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 )
 
 // Storage represents a contract's storage.
@@ -232,7 +231,7 @@ func WriteTrace(writer io.Writer, logs []StructLog) {
 }
 
 // WriteLogs writes vm logs in a readable format to the given writer
-func WriteLogs(writer io.Writer, logs []*vmtypes.Log) {
+func WriteLogs(writer io.Writer, logs []*types.Log) {
 	for _, log := range logs {
 		fmt.Fprintf(writer, "LOG%d: %x bn=%d txi=%x\n", len(log.Topics), log.Address, log.BlockNumber, log.TxIndex)
 

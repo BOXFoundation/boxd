@@ -5,6 +5,7 @@ package chain
 
 import (
 	"encoding/hex"
+	"fmt"
 	"log"
 	"math/big"
 	"strings"
@@ -18,8 +19,82 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/facebookgo/ensure"
 )
+
+var unmarshalLogTests = map[string]struct {
+	input     string
+	want      *types.Log
+	wantError error
+}{
+	"ok": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x000000000000000000000000000000000000000000000001a055690d9db80000","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
+			BlockNumber: 2019236,
+			Data:        hexutil.MustDecode("0x000000000000000000000000000000000000000000000001a055690d9db80000"),
+			Index:       2,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+			},
+		},
+	},
+	"empty data": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
+			BlockNumber: 2019236,
+			Data:        []byte{},
+			Index:       2,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+				crypto.BytesToHash([]byte("0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615")),
+			},
+		},
+	},
+	"missing block fields (pending logs)": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","data":"0x","logIndex":"0x0","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.HashType{},
+			BlockNumber: 0,
+			Data:        []byte{},
+			Index:       0,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+			},
+		},
+	},
+	"Removed: true": {
+		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3","removed":true}`,
+		want: &types.Log{
+			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
+			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
+			BlockNumber: 2019236,
+			Data:        []byte{},
+			Index:       2,
+			TxIndex:     3,
+			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
+			Topics: []crypto.HashType{
+				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
+			},
+			Removed: true,
+		},
+	},
+	"missing data": {
+		input:     `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615","0x000000000000000000000000f9dff387dcb5cc4cca5b91adb07a95f54e9f1bb6"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
+		wantError: fmt.Errorf("missing required field 'data' for Log"),
+	},
+}
 
 const (
 	testERC20Contract = "60806040523480156200001157600080fd5b5060408051908101604052806" +
@@ -286,6 +361,12 @@ const (
 	}
 ]`
 )
+
+// func TestAbi(t *testing.T) {
+// 	aaa := abi.ABI{}
+// 	aaa.UnmarshalJSON([]byte(testERC20Abi))
+// 	fmt.Printf("%x", aaa.Events["Transfer"].Id())
+// }
 
 func _TestExtractBoxTx(t *testing.T) {
 	// contract Temp {
@@ -809,7 +890,7 @@ func init() {
 	log.Printf("balances %s: %s\n", receiver, balancesReceiverCall)
 }
 
-func TestCoinContract(t *testing.T) {
+func _TestCoinContract(t *testing.T) {
 
 	blockChain := NewTestBlockChain()
 	// blockchain
@@ -980,7 +1061,7 @@ func TestCoinContract(t *testing.T) {
 	// return 0x1e8480 = 2000000, check okay
 }
 
-func TestERC20Contract(t *testing.T) {
+func _TestERC20Contract(t *testing.T) {
 
 	var (
 		transferCall, balanceOfUserCall, balanceOfReceiverCall string

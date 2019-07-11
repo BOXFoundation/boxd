@@ -22,7 +22,6 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/BOXFoundation/boxd/util"
-	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 	"github.com/jbenet/goprocess"
 )
 
@@ -278,7 +277,7 @@ func newTestAction(addr types.AddressHash, r *rand.Rand) testAction {
 			fn: func(a testAction, s *StateDB) {
 				data := make([]byte, 2)
 				binary.BigEndian.PutUint16(data, uint16(a.args[0]))
-				s.AddLog(&vmtypes.Log{Address: addr, Data: data})
+				s.AddLog(&types.Log{Address: addr, Data: data})
 			},
 			args: make([]int64, 1),
 		},

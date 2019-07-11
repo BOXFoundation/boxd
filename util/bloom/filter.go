@@ -23,6 +23,9 @@ const (
 
 	// MaxFilterSize is the maximum byte size in bytes a filter may be.
 	MaxFilterSize = 1024 * 1024
+
+	// DefaultConflictRate is the default conflict rate for any key.
+	DefaultConflictRate = 0.0001
 )
 
 // Filter defines bloom filter interface
@@ -31,11 +34,16 @@ type Filter interface {
 	Add(data []byte)
 	MatchesAndAdd(data []byte) bool
 	Merge(f Filter) error
+	Reset()
+	Copy(f Filter) error
 
 	Size() uint32
 	K() uint32
 	Tweak() uint32
 	FPRate() float64
+	GetByte(i uint32) byte
+	Indexes() []uint32
+	IsEmpty() bool
 
 	conv.Serializable
 }
@@ -222,6 +230,24 @@ func (bf *filter) Merge(f Filter) error {
 	return err
 }
 
+// Reset reset all flag bits of the bloom filter.
+func (bf *filter) Reset() {
+	bf.sm.Lock()
+	for i := 0; i < len(bf.filter); i++ {
+		bf.filter[i] = byte(0)
+	}
+	bf.sm.Unlock()
+}
+func (bf *filter) Copy(f Filter) error {
+	bf = NewFilterWithMK(f.Size(), f.K()).(*filter)
+	return bf.Merge(f)
+}
+
+// GetByte get the specified byte.
+func (bf *filter) GetByte(i uint32) byte {
+	return bf.filter[i]
+}
+
 // Size returns the length of filter in bits.
 func (bf *filter) Size() uint32 {
 	bf.sm.Lock()
@@ -296,4 +322,19 @@ func (bf *filter) Unmarshal(data []byte) error {
 	}
 	bf.filter, err = util.ReadVarBytes(r)
 	return err
+}
+
+// Indexes return marked indexes.
+func (bf *filter) Indexes() []uint32 {
+	return util.BitIndexes(bf.filter)
+}
+
+// IsEmpty return whether it is empty.
+func (bf *filter) IsEmpty() bool {
+	for _, b := range bf.filter {
+		if b != byte(0) {
+			return false
+		}
+	}
+	return true
 }

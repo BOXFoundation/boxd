@@ -200,7 +200,7 @@ func maketx(cmd *cobra.Command, args []string) {
 
 func createRawTransaction(cmd *cobra.Command, args []string) {
 	if len(args) != 4 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	fmt.Println("createRawTx called")
@@ -329,7 +329,7 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 func decoderawtx(cmd *cobra.Command, args []string) {
 	fmt.Println("decoderawtx called")
 	if len(args) != 1 {
-		fmt.Println("Invalide argument number")
+		fmt.Println("Invalid argument number")
 		return
 	}
 	txByte, err := hex.DecodeString(args[0])

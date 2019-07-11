@@ -69,6 +69,9 @@ var (
 	//Receipt
 	ErrInvalidReceiptProtoMessage = errors.New("Invalid receipt proto message")
 
+	//Log
+	ErrInvalidLogProtoMessage = errors.New("Invalid log proto message")
+
 	//transaction.go
 	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
 	ErrInvalidOutPointProtoMessage         = errors.New("Invalid OutPoint proto message")
@@ -102,6 +105,10 @@ var (
 	//filterholder.go
 	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
 	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
+
+	//sectionmanager.go
+	ErrBloomBitOutOfBounds = errors.New("Bloom bit out of bounds")
+	ErrInvalidBounds       = errors.New("Invalid section bounds")
 
 	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
 )

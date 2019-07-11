@@ -13,6 +13,7 @@ import (
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -26,6 +27,13 @@ const (
 	ContractUnkownType   ContractType = "contract_unkown"
 	ContractCreationType ContractType = "contract_creation"
 	ContractCallType     ContractType = "contract_call"
+
+	// BloomByteLength represents the number of bytes used in a header log bloom.
+	BloomByteLength = 256
+	// BloomBitLength represents the number of bits used in a header log bloom.
+	BloomBitLength = 8 * BloomByteLength
+	// BloomHashNum represents the number of hash functions.
+	BloomHashNum = 3
 )
 
 // VMTxParams defines BoxTx params parsed from script pubkey
@@ -157,6 +165,9 @@ type Receipt struct {
 	GasUsed         uint64
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
+
+	Logs  []*Log
+	Bloom bloom.Filter
 }
 
 var _ conv.Convertible = (*Receipt)(nil)
@@ -164,7 +175,7 @@ var _ conv.Serializable = (*Receipt)(nil)
 
 // NewReceipt news a Receipt
 func NewReceipt(
-	txHash *crypto.HashType, contractAddr *AddressHash, failed bool, gasUsed uint64,
+	txHash *crypto.HashType, contractAddr *AddressHash, failed bool, gasUsed uint64, logs []*Log,
 ) *Receipt {
 	if txHash == nil {
 		txHash = new(crypto.HashType)
@@ -172,12 +183,15 @@ func NewReceipt(
 	if contractAddr == nil {
 		contractAddr = new(AddressHash)
 	}
-	return &Receipt{
+	rc := &Receipt{
 		TxHash:          *txHash,
 		ContractAddress: *contractAddr,
 		Failed:          failed,
 		GasUsed:         gasUsed,
+		Logs:            logs,
 	}
+	rc.Bloom = createLogBloom(rc.Logs)
+	return rc
 }
 
 // WithTxIndex sets TxIndex field
@@ -201,12 +215,53 @@ func (rc *Receipt) WithBlockHeight(h uint32) *Receipt {
 	return rc
 }
 
+// CreateReceiptsBloom create a bloom filter matches Receipts.
+func CreateReceiptsBloom(rcs Receipts) bloom.Filter {
+	bloom := bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
+	for _, rc := range rcs {
+		bloom.Merge(createLogBloom(rc.Logs))
+	}
+	return bloom
+}
+
+func createLogBloom(logs []*Log) bloom.Filter {
+	bloom := bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
+	for _, log := range logs {
+		bloom.Add(log.Address.Bytes())
+		for _, topic := range log.Topics {
+			bloom.Add(topic.Bytes())
+		}
+	}
+	return bloom
+}
+
 // ToProtoMessage converts Receipt to proto message.
 func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
+
+	var logs []*corepb.Log
+	for _, l := range rc.Logs {
+		log, err := l.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if log, ok := log.(*corepb.Log); ok {
+			logs = append(logs, log)
+		}
+	}
+	if rc.Bloom == nil {
+		rc.Bloom = CreateReceiptsBloom(nil)
+	}
+	bloom, err := rc.Bloom.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
 	return &corepb.Receipt{
 		TxIndex: rc.TxIndex,
 		Failed:  rc.Failed,
 		GasUsed: rc.GasUsed,
+		Logs:    logs,
+		Bloom:   bloom,
 	}, nil
 }
 
@@ -219,9 +274,26 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 	if message == nil {
 		return core.ErrEmptyProtoMessage
 	}
+
+	var logs []*Log
+	for _, l := range pbrc.Logs {
+		log := new(Log)
+		if err := log.FromProtoMessage(l); err != nil {
+			return err
+		}
+		logs = append(logs, log)
+	}
+	if rc.Bloom == nil {
+		rc.Bloom = CreateReceiptsBloom(nil)
+	}
+	err := rc.Bloom.Unmarshal(pbrc.Bloom)
+	if err != nil {
+		return err
+	}
 	rc.TxIndex = pbrc.TxIndex
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
+	rc.Logs = logs
 	return nil
 }
 
@@ -276,6 +348,12 @@ func (rcs *Receipts) ToProtoMessage() (proto.Message, error) {
 			Failed:  rc.Failed,
 			GasUsed: rc.GasUsed,
 		}
+
+		for _, log := range rc.Logs {
+			l, _ := log.ToProtoMessage()
+			pbrc.Logs = append(pbrc.Logs, l.(*corepb.Log))
+		}
+
 		pbrcs.Receipts = append(pbrcs.Receipts, pbrc)
 	}
 	return pbrcs, nil
@@ -301,6 +379,14 @@ func (rcs *Receipts) FromProtoMessage(message proto.Message) error {
 		rc.TxIndex = pbrc.TxIndex
 		rc.Failed = pbrc.Failed
 		rc.GasUsed = pbrc.GasUsed
+
+		for _, log := range pbrc.Logs {
+			l := new(Log)
+			if err := l.FromProtoMessage(log); err != nil {
+				return err
+			}
+			rc.Logs = append(rc.Logs, l)
+		}
 		*rcs = append(*rcs, rc)
 	}
 	return nil

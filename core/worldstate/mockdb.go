@@ -10,7 +10,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	vmtypes "github.com/BOXFoundation/boxd/vm/common/types"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -161,7 +160,7 @@ func (mock *Mockdb) Snapshot() int {
 }
 
 // AddLog add log.
-func (mock *Mockdb) AddLog(log *vmtypes.Log) {
+func (mock *Mockdb) AddLog(log *types.Log) {
 }
 
 // AddPreimage add preimage.
