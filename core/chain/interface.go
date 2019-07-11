@@ -17,10 +17,7 @@ type Consensus interface {
 	RecoverMint()
 
 	Verify(*types.Block) error
-	Process(*types.Block, interface{}) error
 	Finalize(*types.Block) error
-
-	VerifyTx(*types.Transaction) error
 }
 
 // SyncManager define sync manager interface

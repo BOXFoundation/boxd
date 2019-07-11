@@ -939,10 +939,6 @@ func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.
 		}
 	}
 
-	if err := chain.consensus.Process(block, chain.db); err != nil {
-		return err
-	}
-
 	// save tx index
 	if err := chain.WriteTxIndex(block, splitTxs, chain.db); err != nil {
 		return err

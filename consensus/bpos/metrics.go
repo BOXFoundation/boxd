@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package dpos
+package bpos
 
 import (
 	"github.com/BOXFoundation/boxd/metrics"
@@ -10,5 +10,5 @@ import (
 
 var (
 	// MetricsMintTurnCounter signs whose turn to mint
-	MetricsMintTurnCounter = metrics.NewCounter("box.dpos.mint.turn")
+	MetricsMintTurnCounter = metrics.NewCounter("box.bpos.mint.turn")
 )

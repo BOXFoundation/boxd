@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/consensus/bpos"
 	"github.com/BOXFoundation/boxd/core/chain"
 	logtypes "github.com/BOXFoundation/boxd/log/types"
 	"github.com/BOXFoundation/boxd/metrics"
@@ -46,7 +46,7 @@ type Config struct {
 	P2p       p2p.Config      `mapstructure:"p2p"`
 	RPC       rpc.Config      `mapstructure:"rpc"`
 	Database  storage.Config  `mapstructure:"database"`
-	Dpos      dpos.Config     `mapstructure:"dpos"`
+	Bpos      bpos.Config     `mapstructure:"bpos"`
 	Chain     chain.Config    `mapstructure:"chain"`
 	Metrics   metrics.Config  `mapstructure:"metrics"`
 	Pprof     string          `mapstructure:"pprof"`
@@ -131,9 +131,9 @@ func (c *Config) Prepare() {
 		c.P2p.KeyPath = filepath.Join(c.Workspace, keyPath)
 	}
 
-	// dpos
-	var keystorePath = c.Dpos.Keypath
-	c.Dpos.Keypath = filepath.Join(c.Workspace, keystorePath)
+	// bpos
+	var keystorePath = c.Bpos.Keypath
+	c.Bpos.Keypath = filepath.Join(c.Workspace, keystorePath)
 
 	// chain
 	c.Chain.ContractBinPath = filepath.Join(c.Workspace, "contracts/bonus.bin")

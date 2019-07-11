@@ -19,7 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	config "github.com/BOXFoundation/boxd/config"
-	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/consensus/bpos"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
@@ -49,7 +49,7 @@ type Server struct {
 	blockChain  *chain.BlockChain
 	txPool      *txpool.TransactionPool
 	syncManager *blocksync.SyncManager
-	consensus   *dpos.Dpos
+	consensus   *bpos.Bpos
 	wallet      *wallet.Server
 }
 
@@ -149,11 +149,7 @@ func (server *Server) Prepare() {
 	server.txPool = txPool
 
 	// prepare consensus.
-	consensus, err := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
-	if err != nil {
-		logger.Fatalf("Failed to new Dpos. Err: %v", err)
-	}
-	server.consensus = consensus
+	server.consensus = bpos.NewBpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Bpos)
 
 	if cfg.Wallet.Enable {
 		server.wallet, _ = wallet.NewServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
@@ -165,9 +161,9 @@ func (server *Server) Prepare() {
 	}
 
 	// prepare sync manager.
-	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
+	syncManager := blocksync.NewSyncManager(blockChain, peer, server.consensus, blockChain.Proc())
 	server.syncManager = syncManager
-	server.blockChain.Setup(consensus, syncManager)
+	server.blockChain.Setup(server.consensus, syncManager)
 
 }
 

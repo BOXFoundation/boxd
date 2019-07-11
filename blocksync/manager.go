@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/consensus"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -112,7 +112,7 @@ type SyncManager struct {
 
 	proc      goprocess.Process
 	chain     *chain.BlockChain
-	consensus *dpos.Dpos
+	consensus consensus.Consensus
 	p2pNet    p2p.Net
 
 	messageCh         chan p2p.Message
@@ -144,7 +144,7 @@ func (sm *SyncManager) resetAll() {
 
 // NewSyncManager returns new block sync manager.
 func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
-	consensus *dpos.Dpos, parent goprocess.Process) *SyncManager {
+	consensus consensus.Consensus, parent goprocess.Process) *SyncManager {
 	return &SyncManager{
 		status:       freeStatus,
 		chain:        blockChain,

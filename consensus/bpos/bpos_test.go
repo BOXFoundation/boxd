@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package dpos
+package bpos
 
 import (
 	"testing"
@@ -21,8 +21,8 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
-type DummyDpos struct {
-	dpos         *Dpos
+type DummyBpos struct {
+	bpos         *Bpos
 	isBookkeeper bool
 }
 
@@ -39,8 +39,8 @@ var (
 		Passphrase: "1",
 	}
 
-	dpos           = NewDummyDpos(cfg)
-	dposBookkeeper = NewDummyDpos(cfgBookkeeper)
+	bpos           = NewDummyBpos(cfg)
+	bposBookkeeper = NewDummyBpos(cfgBookkeeper)
 	bus            = eventbus.New()
 
 	privKey, pubKey, _ = crypto.NewKeyPair()
@@ -49,86 +49,87 @@ var (
 	scriptPubKey       = script.PayToPubKeyHashScript(scriptAddr)
 )
 
-func NewDummyDpos(cfg *Config) *DummyDpos {
+func NewDummyBpos(cfg *Config) *DummyBpos {
 
 	blockchain := chain.NewTestBlockChain()
 	txPool := txpool.NewTransactionPool(blockchain.Proc(), p2p.NewDummyPeer(), blockchain, bus)
-	dpos, _ := NewDpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
-	blockchain.Setup(dpos, nil)
-	dpos.Setup()
-	isBookkeeper := dpos.IsBookkeeper()
-	bftService, _ := NewBftService(dpos)
-	dpos.bftservice = bftService
-	return &DummyDpos{
-		dpos:         dpos,
+	bpos := NewBpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
+	blockchain.Setup(bpos, nil)
+	bpos.Setup()
+	isBookkeeper := bpos.IsBookkeeper()
+	bftService, _ := NewBftService(bpos)
+	bpos.bftservice = bftService
+	return &DummyBpos{
+		bpos:         bpos,
 		isBookkeeper: isBookkeeper,
 	}
 }
 
 func TestDpos_ValidateMiner(t *testing.T) {
-	ensure.DeepEqual(t, dpos.isBookkeeper, false)
-	ensure.DeepEqual(t, dposBookkeeper.isBookkeeper, true)
+	ensure.DeepEqual(t, bpos.isBookkeeper, false)
+	ensure.DeepEqual(t, bposBookkeeper.isBookkeeper, true)
 }
 
 func TestDpos_verifyBookkeeper(t *testing.T) {
 
 	timestamp := int64(1541824620)
-
+	dynasty, err := bpos.bpos.fetchDynastyByHeight(bpos.bpos.chain.LongestChainHeight)
+	ensure.Nil(t, err)
 	// check bookkeeper in right time but wrong bookkeeper.
-	result := dpos.dpos.verifyBookkeeper(timestamp)
+	result := bpos.bpos.verifyBookkeeper(timestamp, dynasty.delegates)
 	ensure.DeepEqual(t, result, ErrNotMyTurnToProduce)
 
 	// check bookkeeper with right bookkeeper and right time.
-	result = dposBookkeeper.dpos.verifyBookkeeper(timestamp)
+	result = bposBookkeeper.bpos.verifyBookkeeper(timestamp, dynasty.delegates)
 	ensure.Nil(t, result)
 }
 
 func TestDpos_run(t *testing.T) {
 
-	dposBookkeeper.dpos.StopMint()
-	result := dposBookkeeper.dpos.run(time.Now().Unix())
+	bposBookkeeper.bpos.StopMint()
+	result := bposBookkeeper.bpos.run(time.Now().Unix())
 	ensure.DeepEqual(t, result, ErrNoLegalPowerToProduce)
 
-	dposBookkeeper.dpos.RecoverMint()
+	bposBookkeeper.bpos.RecoverMint()
 
 	timestamp := int64(1541824625)
-	result = dposBookkeeper.dpos.run(timestamp)
+	result = bposBookkeeper.bpos.run(timestamp)
 	ensure.DeepEqual(t, result, ErrNotMyTurnToProduce)
 
 	timestamp1 := int64(1541824620)
-	result = dposBookkeeper.dpos.run(timestamp1)
+	result = bposBookkeeper.bpos.run(timestamp1)
 	ensure.Nil(t, result)
 
 }
 
-func TestDpos_FindProposerWithTimeStamp(t *testing.T) {
-	hash, err := dposBookkeeper.dpos.context.periodContext.FindProposerWithTimeStamp(1541824620)
-	ensure.Nil(t, err)
-	ensure.DeepEqual(t, *hash, dposBookkeeper.dpos.context.periodContext.period[0].addr)
-}
+// func TestDpos_FindProposerWithTimeStamp(t *testing.T) {
+// 	hash, err := bposBookkeeper.bpos.context.periodContext.FindProposerWithTimeStamp(1541824620)
+// 	ensure.Nil(t, err)
+// 	ensure.DeepEqual(t, *hash, bposBookkeeper.bpos.context.periodContext.period[0].addr)
+// }
 
 func TestDpos_signBlock(t *testing.T) {
 
-	ensure.DeepEqual(t, dposBookkeeper.isBookkeeper, true)
+	ensure.DeepEqual(t, bposBookkeeper.isBookkeeper, true)
 	block := &chain.GenesisBlock
 
 	block.Header.TimeStamp = 1541824626
-	err := dposBookkeeper.dpos.signBlock(block)
+	err := bposBookkeeper.bpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err := dposBookkeeper.dpos.verifySign(block)
+	ok, err := bposBookkeeper.bpos.verifySign(block)
 	ensure.DeepEqual(t, ok, false)
 
 	block.Header.TimeStamp = 1541824620
-	err = dposBookkeeper.dpos.signBlock(block)
+	err = bposBookkeeper.bpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err = dposBookkeeper.dpos.verifySign(block)
+	ok, err = bposBookkeeper.bpos.verifySign(block)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, ok, true)
 }
 
 // func TestDpos_LoadPeriodContext(t *testing.T) {
 
-// 	result, err := dposBookkeeper.dpos.LoadPeriodContext()
+// 	result, err := bposBookkeeper.bpos.LoadPeriodContext()
 // 	ensure.Nil(t, err)
 
 // 	initperiod, err := InitPeriodContext()
@@ -136,16 +137,16 @@ func TestDpos_signBlock(t *testing.T) {
 
 // 	ensure.DeepEqual(t, result.period, initperiod.period)
 
-// 	dposBookkeeper.dpos.context.periodContext.period = append(dposBookkeeper.dpos.context.periodContext.period, &Period{
+// 	bposBookkeeper.bpos.context.periodContext.period = append(bposBookkeeper.bpos.context.periodContext.period, &Period{
 // 		addr:   types.AddressHash{156, 17, 133, 165, 197, 233, 252, 84, 97, 40, 8, 151, 126, 232, 245, 72, 178, 37, 141, 49},
 // 		peerID: "",
 // 	})
-// 	err = dposBookkeeper.dpos.StorePeriodContext()
+// 	err = bposBookkeeper.bpos.StorePeriodContext()
 // 	ensure.Nil(t, err)
-// 	result, err = dposBookkeeper.dpos.LoadPeriodContext()
+// 	result, err = bposBookkeeper.bpos.LoadPeriodContext()
 // 	ensure.Nil(t, err)
 
-// 	ensure.DeepEqual(t, result.period, dposBookkeeper.dpos.context.periodContext.period)
+// 	ensure.DeepEqual(t, result.period, bposBookkeeper.bpos.context.periodContext.period)
 
 // }
 
@@ -166,7 +167,7 @@ func TestSortPendingTxs(t *testing.T) {
 
 	pendingTxs = []*types.TxWrap{txwrap0, txwrap1, txwrap2, txwrap20, txwrap21, txwrap10, txwrap11}
 
-	sortedTxs, err := dpos.dpos.sortPendingTxs(pendingTxs)
+	sortedTxs, err := bpos.bpos.sortPendingTxs(pendingTxs)
 	ensure.Nil(t, err)
 	var sortedGasPrice []uint64
 	for _, v := range sortedTxs {

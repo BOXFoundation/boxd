@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package dpos
+package bpos
 
 import (
 	"sync"
@@ -30,7 +30,7 @@ type BftService struct {
 	blockCommitMsgCh  chan p2p.Message
 	notifiee          p2p.Net
 	chain             *chain.BlockChain
-	consensus         *Dpos
+	consensus         *Bpos
 	// msgCache             *sync.Map
 	blockPrepareMsgCache *sync.Map
 	blockCommitMsgCache  *sync.Map
@@ -40,7 +40,7 @@ type BftService struct {
 }
 
 // NewBftService new bft service for eternalBlockMsg.
-func NewBftService(consensus *Dpos) (*BftService, error) {
+func NewBftService(consensus *Bpos) (*BftService, error) {
 
 	bft := &BftService{
 		blockPrepareMsgCh:    make(chan p2p.Message, EternalBlockMsgChBufferSize),
@@ -160,20 +160,23 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 		logger.Debugf("Enough block prepare message has been received.")
 		return nil
 	}
-
 	if pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.Hash[:], signature); ok {
 		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
 			return err
 		}
+		dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+		if err != nil {
+			return err
+		}
 		addr := *addrPubKeyHash.Hash160()
-		var period *Period
-		for _, v := range bft.consensus.context.periodContext.period {
-			if v.addr == addr && msg.From().Pretty() == v.peerID {
-				period = v
+		var delegate *Delegate
+		for _, v := range dynasty.delegates {
+			if v.Addr == addr && msg.From().Pretty() == v.PeerID {
+				delegate = &v
 			}
 		}
-		if period == nil {
+		if delegate == nil {
 			return ErrIllegalMsg
 		}
 
@@ -218,13 +221,17 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 			return err
 		}
 		addr := *addrPubKeyHash.Hash160()
-		var period *Period
-		for _, v := range bft.consensus.context.periodContext.period {
-			if v.addr == addr && msg.From().Pretty() == v.peerID {
-				period = v
+		dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+		if err != nil {
+			return err
+		}
+		var delegate *Delegate
+		for _, v := range dynasty.delegates {
+			if v.Addr == addr && msg.From().Pretty() == v.PeerID {
+				delegate = &v
 			}
 		}
-		if period == nil {
+		if delegate == nil {
 			return ErrIllegalMsg
 		}
 
@@ -251,9 +258,6 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block, error) {
 	// quick check
 	peerID := msg.From().Pretty()
-	if !util.InArray(peerID, bft.consensus.context.periodContext.periodPeers) {
-		return nil, nil, ErrNotBookkeeperPeer
-	}
 
 	eternalBlockMsg := new(EternalBlockMsg)
 	if err := eternalBlockMsg.Unmarshal(msg.Body()); err != nil {
@@ -267,6 +271,15 @@ func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block
 	// block height is lower than current eternal block.
 	if block.Header.Height < bft.chain.EternalBlock().Header.Height {
 		return nil, nil, nil
+	}
+
+	dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !util.InArray(peerID, dynasty.peers) {
+		return nil, nil, ErrNotBookkeeperPeer
 	}
 
 	now := time.Now().Unix()

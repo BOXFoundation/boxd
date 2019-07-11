@@ -2,15 +2,15 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package dpos
+package bpos
 
 import (
 	"container/heap"
+	"encoding/json"
 	"errors"
 	"math"
 	"math/big"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -24,14 +24,12 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/util"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
 
-var logger = log.NewLogger("dpos") // logger
+var logger = log.NewLogger("bpos") // logger
 
 // Define const
 const (
@@ -48,116 +46,109 @@ const (
 	MinNumOfVotes = (uint64)(100)
 )
 
-// Config defines the configurations of dpos
+// Config defines the configurations of bpos
 type Config struct {
 	Keypath    string `mapstructure:"keypath"`
 	EnableMint bool   `mapstructure:"enable_mint"`
 	Passphrase string `mapstructure:"passphrase"`
 }
 
-// Dpos define dpos struct
-type Dpos struct {
-	chain                       *chain.BlockChain
-	txpool                      *txpool.TransactionPool
-	context                     *ConsensusContext
-	net                         p2p.Net
-	proc                        goprocess.Process
-	cfg                         *Config
-	bookkeeper                  *acc.Account
-	canMint                     bool
-	disableMint                 bool
-	bftservice                  *BftService
-	blockHashToCandidateContext *lru.Cache
+// Bpos define bpos struct
+type Bpos struct {
+	chain       *chain.BlockChain
+	txpool      *txpool.TransactionPool
+	context     *ConsensusContext
+	net         p2p.Net
+	proc        goprocess.Process
+	cfg         *Config
+	bookkeeper  *acc.Account
+	canMint     bool
+	disableMint bool
+	bftservice  *BftService
 }
 
-// NewDpos new a dpos implement.
-func NewDpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Dpos, error) {
-	dpos := &Dpos{
+// ConsensusContext represents consensus context info.
+type ConsensusContext struct {
+	timestamp int64
+	dynasty   *Dynasty
+}
+
+// NewBpos new a bpos implement.
+func NewBpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) *Bpos {
+	return &Bpos{
 		chain:   chain,
 		txpool:  txpool,
 		net:     net,
 		proc:    goprocess.WithParent(parent),
 		cfg:     cfg,
 		canMint: false,
+		context: &ConsensusContext{},
 	}
-	dpos.blockHashToCandidateContext, _ = lru.New(512)
-	context := &ConsensusContext{}
-	dpos.context = context
-	// period, err := dpos.LoadPeriodContext()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// context.periodContext = period
-	// if err := dpos.LoadCandidates(); err != nil {
-	// 	return nil, err
-	// }
-
-	return dpos, nil
 }
 
 // EnableMint return the peer mint status
-func (dpos *Dpos) EnableMint() bool {
-	return dpos.cfg.EnableMint
+func (bpos *Bpos) EnableMint() bool {
+	return bpos.cfg.EnableMint
 }
 
-// Setup setup dpos
-func (dpos *Dpos) Setup() error {
-	account, err := acc.NewAccountFromFile(dpos.cfg.Keypath)
+// Setup setup bpos
+func (bpos *Bpos) Setup() error {
+	account, err := acc.NewAccountFromFile(bpos.cfg.Keypath)
 	if err != nil {
 		return err
 	}
-	dpos.bookkeeper = account
+	bpos.bookkeeper = account
 
 	return nil
 }
 
 // implement interface service.Server
-var _ service.Server = (*Dpos)(nil)
+var _ service.Server = (*Bpos)(nil)
 
-// Run start dpos
-func (dpos *Dpos) Run() error {
-	logger.Info("Dpos run")
-	if !dpos.IsBookkeeper() {
+// Run start bpos
+func (bpos *Bpos) Run() error {
+	logger.Info("Bpos run")
+	if !bpos.IsBookkeeper() {
 		logger.Warn("You have no authority to produce block")
 		return ErrNoLegalPowerToProduce
 	}
 
 	// peer is bookkeeper, start bftService.
-	bftService, err := NewBftService(dpos)
+	bftService, err := NewBftService(bpos)
 	if err != nil {
 		return err
 	}
-	dpos.bftservice = bftService
-	dpos.subscribe()
+	bpos.bftservice = bftService
+	bpos.subscribe()
 	bftService.Run()
-	dpos.proc.Go(dpos.loop)
+	bpos.proc.Go(bpos.loop)
 
 	return nil
 }
 
 // Proc returns the goprocess running the service
-func (dpos *Dpos) Proc() goprocess.Process {
-	return dpos.proc
+func (bpos *Bpos) Proc() goprocess.Process {
+	return bpos.proc
 }
 
-// Stop dpos
-func (dpos *Dpos) Stop() {
-	dpos.proc.Close()
+// Stop bpos
+func (bpos *Bpos) Stop() {
+	bpos.proc.Close()
 }
 
 // StopMint stops producing blocks.
-func (dpos *Dpos) StopMint() {
-	dpos.disableMint = true
+func (bpos *Bpos) StopMint() {
+	bpos.disableMint = true
 }
 
 // RecoverMint resumes producing blocks.
-func (dpos *Dpos) RecoverMint() {
-	dpos.disableMint = false
+func (bpos *Bpos) RecoverMint() {
+	bpos.disableMint = false
 }
 
 // Verify check the legality of the block.
-func (dpos *Dpos) Verify(block *types.Block) error {
-	ok, err := dpos.verifySign(block)
+func (bpos *Bpos) Verify(block *types.Block) error {
+	ok, err := bpos.verifySign(block)
 	if err != nil {
 		return err
 	}
@@ -165,79 +156,70 @@ func (dpos *Dpos) Verify(block *types.Block) error {
 		return errors.New("Failed to verify sign block")
 	}
 
-	if err := dpos.verifyCandidates(block); err != nil {
+	if err := bpos.verifyDynasty(block); err != nil {
 		return err
 	}
 
-	return dpos.verifyIrreversibleInfo(block)
+	return bpos.verifyIrreversibleInfo(block)
 }
 
 // Finalize notify consensus to change new tail.
-func (dpos *Dpos) Finalize(tail *types.Block) error {
-	if err := dpos.UpdateCandidateContext(tail); err != nil {
-		return err
+func (bpos *Bpos) Finalize(tail *types.Block) error {
+	if bpos.IsBookkeeper() && time.Now().Unix()-tail.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
+		go bpos.BroadcastBFTMsgToBookkeepers(tail, p2p.BlockPrepareMsg)
 	}
-	if dpos.IsBookkeeper() && time.Now().Unix()-tail.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
-		go dpos.BroadcastBFTMsgToBookkeepers(tail, p2p.BlockPrepareMsg)
-	}
-	go dpos.TryToUpdateEternalBlock(tail)
+	go bpos.TryToUpdateEternalBlock(tail)
 	return nil
 }
 
-// Process notify consensus to process new block.
-func (dpos *Dpos) Process(block *types.Block, db interface{}) error {
-	return dpos.StoreCandidateContext(block, db.(storage.Table))
-}
-
-// VerifyTx notify consensus to verify new tx.
-func (dpos *Dpos) VerifyTx(tx *types.Transaction) error {
-	return nil
-	//return dpos.checkRegisterOrVoteTx(tx)
-}
-
-func (dpos *Dpos) loop(p goprocess.Process) {
-	logger.Info("Start dpos loop")
+func (bpos *Bpos) loop(p goprocess.Process) {
+	logger.Info("Start bpos loop")
 	timeChan := time.NewTicker(time.Second)
 	defer timeChan.Stop()
 	for {
 		select {
 		case <-timeChan.C:
-			if !dpos.chain.IsBusy() {
-				dpos.run(time.Now().Unix())
+			if !bpos.chain.IsBusy() {
+				bpos.run(time.Now().Unix())
 			}
 
 		case <-p.Closing():
-			logger.Info("Stopped Dpos Mining.")
+			logger.Info("Stopped Bpos Mining.")
 			return
 		}
 	}
 }
 
-func (dpos *Dpos) run(timestamp int64) error {
+func (bpos *Bpos) run(timestamp int64) error {
 
 	// disableMint might be set true by sync business or others
-	if dpos.disableMint {
+	if bpos.disableMint {
 		return ErrNoLegalPowerToProduce
 	}
 
-	if err := dpos.verifyBookkeeper(timestamp); err != nil {
-		return err
-	}
-	dpos.context.timestamp = timestamp
-	MetricsMintTurnCounter.Inc(1)
-
-	logger.Infof("My turn to produce a block, time: %d", timestamp)
-	return dpos.produceBlock()
-}
-
-// verifyProposer check to verify if bookkeeper can mint at the timestamp
-func (dpos *Dpos) verifyBookkeeper(timestamp int64) error {
-
-	bookkeeper, err := dpos.FindProposerWithTimeStamp(timestamp)
+	dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return err
 	}
-	addr, err := types.NewAddress(dpos.bookkeeper.Addr())
+	bpos.context.dynasty = dynasty
+
+	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
+		return err
+	}
+	bpos.context.timestamp = timestamp
+	MetricsMintTurnCounter.Inc(1)
+
+	logger.Infof("My turn to produce a block, time: %d", timestamp)
+	return bpos.produceBlock()
+}
+
+// verifyProposer check to verify if bookkeeper can mint at the timestamp
+func (bpos *Bpos) verifyBookkeeper(timestamp int64, delegates []Delegate) error {
+	bookkeeper, err := bpos.FindProposerWithTimeStamp(timestamp, delegates)
+	if err != nil {
+		return err
+	}
+	addr, err := types.NewAddress(bpos.bookkeeper.Addr())
 	if err != nil {
 		return err
 	}
@@ -248,57 +230,58 @@ func (dpos *Dpos) verifyBookkeeper(timestamp int64) error {
 }
 
 // IsBookkeeper verifies whether the peer has authority to produce block.
-func (dpos *Dpos) IsBookkeeper() bool {
+func (bpos *Bpos) IsBookkeeper() bool {
 
-	if dpos.bookkeeper == nil {
+	if bpos.bookkeeper == nil {
 		return false
 	}
 
-	if dpos.canMint {
+	if bpos.canMint {
 		return true
 	}
 
-	addr, err := types.NewAddress(dpos.bookkeeper.Addr())
+	addr, err := types.NewAddress(bpos.bookkeeper.Addr())
 	if err != nil {
 		return false
 	}
-	dynasty, err := dpos.fetchCurrentDynasty()
+	dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return false
 	}
 	if !util.InArray(*addr.Hash160(), dynasty.addrs) {
 		return false
 	}
-	if err := dpos.bookkeeper.UnlockWithPassphrase(dpos.cfg.Passphrase); err != nil {
+	if err := bpos.bookkeeper.UnlockWithPassphrase(bpos.cfg.Passphrase); err != nil {
 		logger.Error(err)
 		return false
 	}
-	dpos.canMint = true
+	bpos.canMint = true
 	return true
 }
 
-func (dpos *Dpos) produceBlock() error {
+func (bpos *Bpos) produceBlock() error {
 
-	tail := dpos.chain.TailBlock()
+	tail := bpos.chain.TailBlock()
 	block := types.NewBlock(tail)
-	block.Header.TimeStamp = dpos.context.timestamp
-	if block.Header.Height > 0 && block.Header.Height%chain.PeriodDuration == 0 {
-		// TODO: period changed
-	} else {
-		block.Header.PeriodHash = tail.Header.PeriodHash
+	block.Header.TimeStamp = bpos.context.timestamp
+	dynastyBytes, err := json.Marshal(bpos.context.dynasty)
+	if err != nil {
+		return err
 	}
-	if err := dpos.PackTxs(block, dpos.bookkeeper.PubKeyHash()); err != nil {
+	block.Header.DynastyHash = crypto.DoubleHashH(dynastyBytes)
+
+	if err := bpos.PackTxs(block, bpos.bookkeeper.PubKeyHash()); err != nil {
 		logger.Warnf("Failed to pack txs. err: %s", err.Error())
 		return err
 	}
-	if err := dpos.signBlock(block); err != nil {
+	if err := bpos.signBlock(block); err != nil {
 		logger.Warnf("Failed to sign block. err: %s", err.Error())
 		return err
 	}
 
 	go func() {
-		dpos.chain.BroadcastOrRelayBlock(block, core.BroadcastMode)
-		if err := dpos.chain.ProcessBlock(block, core.DefaultMode, ""); err != nil {
+		bpos.chain.BroadcastOrRelayBlock(block, core.BroadcastMode)
+		if err := bpos.chain.ProcessBlock(block, core.DefaultMode, ""); err != nil {
 			logger.Warnf("Failed to process block mint by self. err: %s", err.Error())
 		}
 	}()
@@ -315,14 +298,14 @@ func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 	return txi.GasPrice > txj.GasPrice
 }
 
-func (dpos *Dpos) nonceFunc(queue *util.PriorityQueue, i, j int) bool {
+func (bpos *Bpos) nonceFunc(queue *util.PriorityQueue, i, j int) bool {
 	txi := queue.Items(i).(*types.VMTransaction)
 	txj := queue.Items(j).(*types.VMTransaction)
 	return txi.Nonce() < txj.Nonce()
 }
 
 // sort pending transactions in mempool
-func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, error) {
+func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, error) {
 
 	pool := util.NewPriorityQueue(lessFunc)
 	hashToTx := make(map[crypto.HashType]*types.TxWrap)
@@ -330,8 +313,8 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 	addressToNonceSortedTxs := make(map[types.AddressHash][]*types.VMTransaction)
 	hashToAddress := make(map[crypto.HashType]types.AddressHash)
 
-	tail := dpos.chain.TailBlock()
-	statedb, err := state.New(&tail.Header.RootHash, &tail.Header.UtxoRoot, dpos.chain.DB())
+	tail := bpos.chain.TailBlock()
+	statedb, err := state.New(&tail.Header.RootHash, &tail.Header.UtxoRoot, bpos.chain.DB())
 	if err != nil {
 		return nil, err
 	}
@@ -346,12 +329,12 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			if txlogic.HasContractVout(pendingTx.Tx) { // smart contract tx
 				// from is in txpool if the contract tx used a vout in txpool
 				op := pendingTx.Tx.Vin[0].PrevOutPoint
-				ownerTx, ok := dpos.txpool.GetTxByHash(&op.Hash)
+				ownerTx, ok := bpos.txpool.GetTxByHash(&op.Hash)
 				if !ok { // no need to find owner in orphan tx pool
 					ownerTx = nil
 				}
 				// extract contract tx
-				vmTx, err := dpos.chain.ExtractVMTransactions(pendingTx.Tx, ownerTx.GetTx())
+				vmTx, err := bpos.chain.ExtractVMTransactions(pendingTx.Tx, ownerTx.GetTx())
 				if err != nil {
 					return nil, err
 				}
@@ -359,7 +342,7 @@ func (dpos *Dpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 				if v, exists := addressToTxs[from]; exists {
 					heap.Push(v, vmTx)
 				} else {
-					nonceQueue := util.NewPriorityQueue(dpos.nonceFunc)
+					nonceQueue := util.NewPriorityQueue(bpos.nonceFunc)
 					heap.Push(nonceQueue, vmTx)
 					addressToTxs[from] = nonceQueue
 					hashToAddress[*txHash] = from
@@ -433,29 +416,29 @@ func handleVMTx(dag *util.Dag, sortedNonceTxs []*types.VMTransaction, hashToTx m
 }
 
 // PackTxs packed txs and add them to block.
-func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
+func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
 	// otherwise the former's utxo is missing
-	pendingTxs := dpos.txpool.GetAllTxs()
-	sortedTxs, err := dpos.sortPendingTxs(pendingTxs)
+	pendingTxs := bpos.txpool.GetAllTxs()
+	sortedTxs, err := bpos.sortPendingTxs(pendingTxs)
 	if err != nil {
 		return err
 	}
-	// candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
+	// candidateContext, err := bpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
 	// if err != nil {
 	// 	logger.Error("Failed to load candidate context")
 	// 	return err
 	// }
 
 	var packedTxs []*types.Transaction
-	// coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, dpos.chain.LongestChainHeight+1)
+	// coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, bpos.chain.LongestChainHeight+1)
 	// if err != nil || coinbaseTx == nil {
 	// 	return errors.New("Failed to create coinbaseTx")
 	// }
 
 	// blockTxns = append(blockTxns, coinbaseTx)
-	remainTimeInMs := dpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
+	remainTimeInMs := bpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	spendableTxs := new(sync.Map)
 
 	// Total fees of all packed txs
@@ -477,7 +460,7 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				continue
 			}
 
-			utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, dpos.chain.DB(), spendableTxs)
+			utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, bpos.chain.DB(), spendableTxs)
 			if err != nil {
 				logger.Warnf("Could not get extended utxo set for tx %v", txHash)
 				continue
@@ -519,73 +502,73 @@ func (dpos *Dpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// Important: wait for packing complete and exit
 	<-continueCh
 
-	block.Header.BookKeeper = *dpos.bookkeeper.Address.Hash160()
-	parent, err := chain.LoadBlockByHash(block.Header.PrevBlockHash, dpos.chain.DB())
+	block.Header.BookKeeper = *bpos.bookkeeper.Address.Hash160()
+	parent, err := chain.LoadBlockByHash(block.Header.PrevBlockHash, bpos.chain.DB())
 	if err != nil {
 		return err
 	}
-	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, dpos.chain.DB())
+	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bpos.chain.DB())
 	if err != nil {
 		return err
 	}
-	coinbaseTx, err := dpos.makeCoinbaseTx(block, statedb, totalTxFee)
+	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTxFee)
 	if err != nil {
 		return err
 	}
 	block.Txs = append(block.Txs, coinbaseTx)
 	block.Txs = append(block.Txs, packedTxs...)
 
-	if err := dpos.executeBlock(block, statedb); err != nil {
+	if err := bpos.executeBlock(block, statedb); err != nil {
 		return err
 	}
-	block.IrreversibleInfo = dpos.bftservice.FetchIrreversibleInfo()
+	block.IrreversibleInfo = bpos.bftservice.FetchIrreversibleInfo()
 	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
 		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),
 		block.Header.Height, len(block.Txs), len(block.InternalTxs), len(sortedTxs))
 	return nil
 }
 
-func (dpos *Dpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64) (*types.Transaction, error) {
+func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64) (*types.Transaction, error) {
 
 	amount := chain.CalcBlockSubsidy(block.Header.Height) + txFee
 	nonce := statedb.GetNonce(block.Header.BookKeeper)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	return dpos.chain.MakeCoinbaseTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height)
+	return bpos.chain.MakeCoinbaseTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height)
 }
 
-func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
+func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
 
-	candidateContext, err := dpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
-	if err != nil {
-		logger.Error("Failed to load candidate context")
-		return err
-	}
+	// candidateContext, err := bpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
+	// if err != nil {
+	// 	logger.Error("Failed to load candidate context")
+	// 	return err
+	// }
 	genesisContractBalanceOld := statedb.GetBalance(chain.ContractAddr).Uint64()
 
 	logger.Infof("Before execute sblock.statedb root: %s utxo root: %s genesis contract balance: %d block height: %d",
 		statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld, block.Header.Height)
 
-	candidateHash, err := candidateContext.CandidateContextHash()
-	if err != nil {
-		return err
-	}
+	// candidateHash, err := candidateContext.CandidateContextHash()
+	// if err != nil {
+	// 	return err
+	// }
 	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, true, dpos.chain.DB()); err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, true, bpos.chain.DB()); err != nil {
 		return err
 	}
 	blockCopy := block.Copy()
-	dpos.chain.SplitBlockOutputs(blockCopy)
+	bpos.chain.SplitBlockOutputs(blockCopy)
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
 	receipts, gasUsed, _, utxoTxs, err :=
-		dpos.chain.StateProcessor().Process(block, statedb, utxoSet)
+		bpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
 
 	// block.Txs[0].Vout[0].Value -= gasRemainingFee
-	dpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
+	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
@@ -594,7 +577,7 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 			return err
 		}
 	}
-	if err := dpos.chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
+	if err := bpos.chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}
 
@@ -606,9 +589,9 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		return errors.New("genesis contract state is error")
 	}
 
-	dpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
+	bpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
-	block.Header.CandidatesHash = *candidateHash
+	// block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
 
@@ -624,7 +607,7 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	}
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
-		dpos.chain.ReceiptsCache()[block.Header.Height] = receipts
+		bpos.chain.ReceiptsCache()[block.Header.Height] = receipts
 	}
 	block.Hash = nil
 	logger.Infof("block %s height: %d have state root %s utxo root %s",
@@ -632,168 +615,41 @@ func (dpos *Dpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	return nil
 }
 
-// LoadPeriodContext load period context
-// func (dpos *Dpos) LoadPeriodContext() (*PeriodContext, error) {
-
-// 	db := dpos.chain.DB()
-// 	period, err := db.Get(chain.PeriodKey)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if period != nil {
-// 		periodContext := new(PeriodContext)
-// 		if err := periodContext.Unmarshal(period); err != nil {
-// 			return nil, err
-// 		}
-// 		return periodContext, nil
-// 	}
-// 	periodContext, err := InitPeriodContext()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	dpos.context.periodContext = periodContext
-// 	if err := dpos.StorePeriodContext(); err != nil {
-// 		return nil, err
-// 	}
-// 	return periodContext, nil
-// }
-
 // BroadcastBFTMsgToBookkeepers broadcast block BFT message to bookkeepers
-func (dpos *Dpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uint32) error {
+func (bpos *Bpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uint32) error {
 
 	prepareBlockMsg := &EternalBlockMsg{}
 	hash := block.BlockHash()
-	signature, err := crypto.SignCompact(dpos.bookkeeper.PrivateKey(), hash[:])
+	signature, err := crypto.SignCompact(bpos.bookkeeper.PrivateKey(), hash[:])
 	if err != nil {
 		return err
 	}
 	prepareBlockMsg.Hash = *hash
 	prepareBlockMsg.Signature = signature
 	prepareBlockMsg.Timestamp = block.Header.TimeStamp
-	bookkeepers := dpos.context.periodContext.periodPeers
+	bookkeepers := bpos.context.dynasty.peers
 
-	return dpos.net.BroadcastToBookkeepers(messageID, prepareBlockMsg, bookkeepers)
-}
-
-// StorePeriodContext store period context
-func (dpos *Dpos) StorePeriodContext() error {
-
-	db := dpos.chain.DB()
-	context, err := dpos.context.periodContext.Marshal()
-	if err != nil {
-		return err
-	}
-	return db.Put(chain.PeriodKey, context)
-}
-
-// LoadCandidates load candidates info.
-func (dpos *Dpos) LoadCandidates() error {
-
-	tail := dpos.chain.TailBlock()
-	db := dpos.chain.DB()
-
-	candidates, err := db.Get(tail.Header.CandidatesHash[:])
-	if err != nil {
-		return err
-	}
-	if candidates != nil {
-		candidatesContext := new(CandidateContext)
-		if err := candidatesContext.Unmarshal(candidates); err != nil {
-			return err
-		}
-		dpos.context.candidateContext = candidatesContext
-		return nil
-	}
-
-	candidatesContext := InitCandidateContext()
-	dpos.context.candidateContext = candidatesContext
-	return nil
-}
-
-// UpdateCandidateContext update candidate context in memory.
-func (dpos *Dpos) UpdateCandidateContext(block *types.Block) error {
-	candidateContext, err := dpos.LoadCandidateByBlockHash(block.BlockHash())
-	if err != nil {
-		return err
-	}
-	dpos.context.candidateContext = candidateContext
-	return nil
-}
-
-// LoadCandidateByBlockHash load candidate by block hash
-func (dpos *Dpos) LoadCandidateByBlockHash(hash *crypto.HashType) (*CandidateContext, error) {
-
-	if v, ok := dpos.blockHashToCandidateContext.Get(*hash); ok {
-		return v.(*CandidateContext), nil
-	}
-	candidateContextBin, err := dpos.chain.DB().Get(chain.CandidatesKey(hash))
-	if err != nil {
-		return nil, err
-	}
-	candidateContext := new(CandidateContext)
-	if err := candidateContext.Unmarshal(candidateContextBin); err != nil {
-		return nil, err
-	}
-	return candidateContext, nil
-}
-
-// StoreCandidateContext store candidate context
-// The cache is not used here to avoid problems caused by revert block.
-// So when block revert occurs, here we don't have to do revert.
-func (dpos *Dpos) StoreCandidateContext(block *types.Block, db storage.Table) error {
-
-	parentBlock := dpos.chain.GetParentBlock(block)
-	candidateContext, err := dpos.LoadCandidateByBlockHash(parentBlock.BlockHash())
-	if err != nil {
-		return err
-	}
-	for _, tx := range block.Txs {
-		if err := dpos.prepareCandidateContext(candidateContext, tx); err != nil {
-			return err
-		}
-	}
-	bytes, err := candidateContext.Marshal()
-	if err != nil {
-		return err
-	}
-	db.Put(chain.CandidatesKey(block.BlockHash()), bytes)
-	dpos.blockHashToCandidateContext.Add(*block.BlockHash(), candidateContext)
-	return nil
-}
-
-// IsCandidateExist check candidate is exist.
-func (dpos *Dpos) IsCandidateExist(addr types.AddressHash) bool {
-
-	for _, v := range dpos.context.candidateContext.addrs {
-		if v == addr {
-			return true
-		}
-	}
-	return false
+	return bpos.net.BroadcastToBookkeepers(messageID, prepareBlockMsg, bookkeepers)
 }
 
 // verifyCandidates vefiry if the block candidates hash is right.
-func (dpos *Dpos) verifyCandidates(block *types.Block) error {
+func (bpos *Bpos) verifyDynasty(block *types.Block) error {
 
-	candidateContext := dpos.context.candidateContext.Copy()
-	for _, tx := range block.Txs {
-		if err := dpos.prepareCandidateContext(candidateContext, tx); err != nil {
-			return err
-		}
-	}
-	candidateHash, err := candidateContext.CandidateContextHash()
+	dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height)
+	dynastyBytes, err := json.Marshal(dynasty)
 	if err != nil {
 		return err
 	}
-	if !candidateHash.IsEqual(&block.Header.CandidatesHash) {
-		return ErrInvalidCandidateHash
+	dynastyHash := crypto.DoubleHashH(dynastyBytes)
+	if (&block.Header.DynastyHash).IsEqual(&dynastyHash) {
+		return ErrInvalidDynastyHash
 	}
 
 	return nil
 }
 
 // verifyIrreversibleInfo vefiry if the block irreversibleInfo is right.
-func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
+func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 
 	irreversibleInfo := block.IrreversibleInfo
 	if irreversibleInfo != nil {
@@ -801,13 +657,17 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
 		// check hash is exist
-		// block, _ := dpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
+		// block, _ := bpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
 		// if block == nil {
 		// 	logger.Warnf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
 		// 	return ErrInvalidHashInIrreversibleInfo
 		// }
 		//TODO: period switching requires extra processing
-		addrs := dpos.context.periodContext.periodAddrs
+		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height)
+		if err != nil {
+			return err
+		}
+		addrs := dynasty.addrs
 		remains := []types.AddressHash{}
 		for _, v := range irreversibleInfo.Signatures {
 			if pubkey, ok := crypto.RecoverCompact(irreversibleInfo.Hash[:], v); ok {
@@ -841,43 +701,10 @@ func (dpos *Dpos) verifyIrreversibleInfo(block *types.Block) error {
 	return nil
 }
 
-// prepareCandidateContext prepare to update CandidateContext.
-func (dpos *Dpos) prepareCandidateContext(candidateContext *CandidateContext, tx *types.Transaction) error {
-
-	if tx.Data == nil {
-		return nil
-	}
-	content := tx.Data.Content
-	switch int(tx.Data.Type) {
-	case types.RegisterCandidateTx:
-		registerCandidateContent := new(types.RegisterCandidateContent)
-		if err := registerCandidateContent.Unmarshal(content); err != nil {
-			return err
-		}
-		candidate := &Candidate{
-			addr:  registerCandidateContent.Addr(),
-			votes: 0,
-		}
-		candidateContext.candidates = append(candidateContext.candidates, candidate)
-	case types.VoteTx:
-		votesContent := new(types.VoteContent)
-		if err := votesContent.Unmarshal(content); err != nil {
-			return err
-		}
-		for _, v := range candidateContext.candidates {
-			if v.addr == votesContent.Addr() {
-				atomic.AddInt64(&v.votes, votesContent.Votes())
-			}
-		}
-	default:
-	}
-	return nil
-}
-
-func (dpos *Dpos) signBlock(block *types.Block) error {
+func (bpos *Bpos) signBlock(block *types.Block) error {
 
 	hash := block.BlockHash()
-	signature, err := crypto.SignCompact(dpos.bookkeeper.PrivateKey(), hash[:])
+	signature, err := crypto.SignCompact(bpos.bookkeeper.PrivateKey(), hash[:])
 	if err != nil {
 		return err
 	}
@@ -885,40 +712,13 @@ func (dpos *Dpos) signBlock(block *types.Block) error {
 	return nil
 }
 
-// verifies bookkeeper epoch.
-func (dpos *Dpos) verifyBookkeeperEpoch(block *types.Block) error {
-
-	tail := dpos.chain.TailBlock()
-	bookkeeper, err := dpos.FindProposerWithTimeStamp(block.Header.TimeStamp)
-	if err != nil {
-		return err
-	}
-
-	for idx := 0; idx < 2*PeriodSize/3; {
-		height := tail.Header.Height - uint32(idx)
-		if height == 0 {
-			break
-		}
-		block, err := dpos.chain.LoadBlockByHeight(height)
-		if err != nil {
-			return err
-		}
-		target, err := dpos.FindProposerWithTimeStamp(block.Header.TimeStamp)
-		if err != nil {
-			return err
-		}
-		if target == bookkeeper {
-			return ErrInvalidBookkeeperEpoch
-		}
-		idx++
-	}
-	return nil
-}
-
 // verifySign consensus verifies signature info.
-func (dpos *Dpos) verifySign(block *types.Block) (bool, error) {
-
-	bookkeeper, err := dpos.FindProposerWithTimeStamp(block.Header.TimeStamp)
+func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
+	dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height)
+	if err != nil {
+		return false, err
+	}
+	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, dynasty.delegates)
 	if err != nil {
 		return false, err
 	}
@@ -940,24 +740,29 @@ func (dpos *Dpos) verifySign(block *types.Block) (bool, error) {
 }
 
 // TryToUpdateEternalBlock try to update eternal block.
-func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
+func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
 	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > MinConfirmMsgNumberForEternalBlock {
-		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, dpos.chain.DB())
+		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, bpos.chain.DB())
 		if err != nil {
 			logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
 			return
 		}
-		dpos.bftservice.updateEternal(block)
+		bpos.bftservice.updateEternal(block)
 	}
 }
 
-func (dpos *Dpos) subscribe() {
-	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
-		out <- dpos.context.periodContext.periodPeers
+func (bpos *Bpos) subscribe() {
+	bpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
+		out <- bpos.context.dynasty.peers
 	}, false)
-	dpos.chain.Bus().Reply(eventbus.TopicCheckMiner, func(timestamp int64, out chan<- error) {
-		out <- dpos.verifyBookkeeper(timestamp)
+	bpos.chain.Bus().Reply(eventbus.TopicCheckMiner, func(timestamp int64, out chan<- error) {
+		dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
+		if err != nil {
+			out <- err
+		} else {
+			out <- bpos.verifyBookkeeper(timestamp, dynasty.delegates)
+		}
 	}, false)
 }
 
@@ -973,32 +778,29 @@ type Delegate struct {
 
 // Dynasty is a collection of current bookkeeper nodes.
 type Dynasty struct {
-	delegates *[PeriodSize]Delegate
+	delegates []Delegate
 	addrs     []types.AddressHash
+	peers     []string
 }
 
 // FindProposerWithTimeStamp find proposer in given timestamp
-func (dpos *Dpos) FindProposerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
+func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegate) (*types.AddressHash, error) {
 
-	dynasty, err := dpos.fetchCurrentDynasty()
-	if err != nil {
-		return nil, err
-	}
 	offsetPeriod := (timestamp * SecondInMs) % (BookkeeperRefreshInterval * PeriodSize)
 	offset := (offsetPeriod / BookkeeperRefreshInterval) % PeriodSize
 
 	var bookkeeper *types.AddressHash
 	if offset >= 0 && int(offset) < PeriodSize {
-		bookkeeper = &dynasty.delegates[offset].Addr
+		bookkeeper = &delegates[offset].Addr
 	} else {
 		return nil, ErrNotFoundBookkeeper
 	}
 	return bookkeeper, nil
 }
 
-func (dpos *Dpos) fetchCurrentDynasty() (*Dynasty, error) {
+func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 
-	abiObj, err := chain.ReadAbi(dpos.chain.Cfg().ContractABIPath)
+	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1007,25 +809,28 @@ func (dpos *Dpos) fetchCurrentDynasty() (*Dynasty, error) {
 		return nil, err
 	}
 	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).WithFrom(dpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
-	evm, vmErr, err := dpos.chain.NewEvmContextForLocalCallByHeight(msg, dpos.chain.LongestChainHeight)
+		0, nil, types.ContractCallType, data).WithFrom(bpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
+	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
 
 	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
 	if err := vmErr(); err != nil {
 		return nil, err
 	}
-	var dynasty [PeriodSize]Delegate
+	var dynasty = make([]Delegate, PeriodSize)
 	if err := abiObj.Unpack(&dynasty, "getDynasty", output); err != nil {
 		logger.Errorf("Failed to unpack the result of call getDynasty")
 		return nil, err
 	}
 	logger.Infof("get dynasty from contract: %v", dynasty)
 	addrs := make([]types.AddressHash, PeriodSize)
+	peers := make([]string, PeriodSize)
 	for i := 0; i < PeriodSize; i++ {
 		addrs[i] = dynasty[i].Addr
+		peers[i] = dynasty[i].PeerID
 	}
 	return &Dynasty{
-		delegates: &dynasty,
+		delegates: dynasty,
 		addrs:     addrs,
+		peers:     peers,
 	}, nil
 }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package dpos
+package bpos
 
 import "errors"
 
@@ -24,6 +24,7 @@ var (
 	ErrCandidateIsAlreadyExist          = errors.New("The candidate is already exist")
 	ErrInvalidRegisterCandidateOrVoteTx = errors.New("Invalid register candidate or vote tx")
 	ErrCircleTxExistInDag               = errors.New("circle tx exist in dag")
+	ErrInvalidDynastyHash               = errors.New("Invalid dynasty hash in block header")
 
 	// context
 	ErrInvalidCandidateProtoMessage        = errors.New("Invalid candidate proto message")
