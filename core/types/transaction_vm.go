@@ -328,14 +328,64 @@ func (rcs *Receipts) Append(rc ...*Receipt) *Receipts {
 	return rcs
 }
 
+func (rcs *Receipts) toHashReceipts() (*HashReceipts, error) {
+
+	pbrcs := new(HashReceipts)
+
+	for _, rc := range *rcs {
+		hashrc := &hashReceipt{
+			TxIndex:     rc.TxIndex,
+			Failed:      rc.Failed,
+			GasUsed:     rc.GasUsed,
+			BlockHeight: rc.BlockHeight,
+		}
+		hashrc.TxHash.SetBytes(rc.TxHash.Bytes())
+		hashrc.ContractAddress.SetBytes(rc.ContractAddress.Bytes())
+
+		hashrc.Logs = []*hashLog{}
+		for _, log := range rc.Logs {
+			hashlog := log.toHashLog()
+			hashrc.Logs = append(hashrc.Logs, hashlog)
+		}
+
+		if rc.Bloom == nil {
+			rc.Bloom = CreateReceiptsBloom(nil)
+		}
+		err := rc.Bloom.Copy(rc.Bloom)
+		if err != nil {
+			return nil, err
+		}
+		*pbrcs = append(*pbrcs, hashrc)
+	}
+	return pbrcs, nil
+}
+
 // Hash calculates and returns receipts' hash
 func (rcs *Receipts) Hash() *crypto.HashType {
-	data, err := rcs.Marshal()
+
+	hashrcs, err := rcs.toHashReceipts()
 	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
+	data, err := hashrcs.Marshal()
+	if err != nil {
+		logger.Error(err)
 		return nil
 	}
 	hash := crypto.DoubleHashH(data)
 	return &hash
+}
+
+// GetTxReceipt returns a tx receipt in receipts
+func (rcs *Receipts) GetTxReceipt(hash *crypto.HashType) *Receipt {
+	for _, r := range *rcs {
+		if r.TxHash == *hash {
+			return r
+		}
+	}
+	return nil
 }
 
 // ToProtoMessage converts Receipt to proto message.
@@ -406,12 +456,168 @@ func (rcs *Receipts) Unmarshal(data []byte) error {
 	return rcs.FromProtoMessage(pbrcs)
 }
 
-// GetTxReceipt returns a tx receipt in receipts
-func (rcs *Receipts) GetTxReceipt(hash *crypto.HashType) *Receipt {
-	for _, r := range *rcs {
-		if r.TxHash == *hash {
-			return r
+// hashReceipt is a wrapper around a Receipt that used by Hash()
+type hashReceipt struct {
+	TxHash          crypto.HashType
+	TxIndex         uint32
+	ContractAddress AddressHash
+	Failed          bool
+	GasUsed         uint64
+	BlockHash       crypto.HashType
+	BlockHeight     uint32
+
+	Logs  []*hashLog
+	Bloom bloom.Filter
+}
+
+var _ conv.Convertible = (*hashReceipt)(nil)
+var _ conv.Serializable = (*hashReceipt)(nil)
+
+// ToProtoMessage converts Receipt to proto message.
+func (rc *hashReceipt) ToProtoMessage() (proto.Message, error) {
+
+	var logs []*corepb.HashLog
+	for _, l := range rc.Logs {
+		log, err := l.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if log, ok := log.(*corepb.HashLog); ok {
+			logs = append(logs, log)
 		}
 	}
+	if rc.Bloom == nil {
+		rc.Bloom = CreateReceiptsBloom(nil)
+	}
+	bloom, err := rc.Bloom.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	return &corepb.HashReceipt{
+		TxIndex: rc.TxIndex,
+		Failed:  rc.Failed,
+		GasUsed: rc.GasUsed,
+		Logs:    logs,
+		Bloom:   bloom,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to Receipt.
+func (rc *hashReceipt) FromProtoMessage(message proto.Message) error {
+	pbrc, ok := message.(*corepb.Receipt)
+	if !ok {
+		return core.ErrInvalidReceiptProtoMessage
+	}
+	if message == nil {
+		return core.ErrEmptyProtoMessage
+	}
+
+	var logs []*hashLog
+	for _, l := range pbrc.Logs {
+		log := new(hashLog)
+		if err := log.FromProtoMessage(l); err != nil {
+			return err
+		}
+		logs = append(logs, log)
+	}
+	if rc.Bloom == nil {
+		rc.Bloom = CreateReceiptsBloom(nil)
+	}
+	err := rc.Bloom.Unmarshal(pbrc.Bloom)
+	if err != nil {
+		return err
+	}
+	rc.TxIndex = pbrc.TxIndex
+	rc.Failed = pbrc.Failed
+	rc.GasUsed = pbrc.GasUsed
+	rc.Logs = logs
 	return nil
+}
+
+// Marshal method marshal Receipt object to binary
+func (rc *hashReceipt) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(rc)
+}
+
+// Unmarshal method unmarshal binary data to Receipt object
+func (rc *hashReceipt) Unmarshal(data []byte) error {
+	pbrc := new(corepb.HashReceipt)
+	if err := proto.Unmarshal(data, pbrc); err != nil {
+		return err
+	}
+	return rc.FromProtoMessage(pbrc)
+}
+
+// HashReceipts is a wrapper around a Log that used by Hash()
+type HashReceipts []*hashReceipt
+
+var _ conv.Convertible = (*HashReceipts)(nil)
+var _ conv.Serializable = (*HashReceipts)(nil)
+
+// ToProtoMessage converts Receipt to proto message.
+func (rcs *HashReceipts) ToProtoMessage() (proto.Message, error) {
+	pbrcs := new(corepb.HashReceipts)
+	for _, rc := range *rcs {
+		pbrc := &corepb.HashReceipt{
+			TxHash:  rc.TxHash[:],
+			TxIndex: rc.TxIndex,
+			Failed:  rc.Failed,
+			GasUsed: rc.GasUsed,
+		}
+		for _, log := range rc.Logs {
+			l, _ := log.ToProtoMessage()
+			pbrc.Logs = append(pbrc.Logs, l.(*corepb.HashLog))
+		}
+
+		pbrcs.Receipts = append(pbrcs.Receipts, pbrc)
+	}
+	return pbrcs, nil
+}
+
+// FromProtoMessage converts proto message to Receipt.
+func (rcs *HashReceipts) FromProtoMessage(message proto.Message) error {
+	pbrcs, ok := message.(*corepb.Receipts)
+	if !ok {
+		return core.ErrInvalidReceiptProtoMessage
+	}
+	if pbrcs == nil {
+		return core.ErrEmptyProtoMessage
+	}
+	for _, pbrc := range pbrcs.Receipts {
+		txHash := new(crypto.HashType)
+		err := txHash.SetBytes(pbrc.TxHash)
+		if err != nil {
+			return err
+		}
+		rc := new(hashReceipt)
+		rc.TxHash = *txHash
+		rc.TxIndex = pbrc.TxIndex
+		rc.Failed = pbrc.Failed
+		rc.GasUsed = pbrc.GasUsed
+
+		for _, log := range pbrc.Logs {
+			l := new(hashLog)
+			if err := l.FromProtoMessage(log); err != nil {
+				return err
+			}
+			rc.Logs = append(rc.Logs, l)
+		}
+		*rcs = append(*rcs, rc)
+	}
+	return nil
+}
+
+// Marshal method marshal Receipt object to binary
+func (rcs *HashReceipts) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(rcs)
+}
+
+// Unmarshal method unmarshal binary data to Receipt object
+func (rcs *HashReceipts) Unmarshal(data []byte) error {
+	pbrcs := new(corepb.HashReceipts)
+	if err := proto.Unmarshal(data, pbrcs); err != nil {
+		return err
+	}
+	return rcs.FromProtoMessage(pbrcs)
 }
