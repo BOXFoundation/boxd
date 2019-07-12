@@ -195,7 +195,7 @@ func (server *Server) Run() error {
 
 	if server.consensus.EnableMint() {
 		if err := server.consensus.Setup(); err != nil {
-			logger.Fatalf("Failed to Setup dpos, Err: %v", err)
+			logger.Fatalf("Failed to Setup consensus, Err: %v", err)
 		}
 		if err := server.consensus.Run(); err != nil {
 			logger.Fatalf("Failed to start consensus. Err: %v", err)

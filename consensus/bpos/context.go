@@ -5,353 +5,88 @@
 package bpos
 
 import (
+	"math"
+	"math/big"
+
 	bpospb "github.com/BOXFoundation/boxd/consensus/bpos/pb"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
 )
 
-// // ConsensusContext represents consensus context info.
-// // type ConsensusContext struct {
-// // 	timestamp        int64
-// // 	periodContext    *PeriodContext
-// // 	candidateContext *CandidateContext
-// // }
+// Delegate is a bookkeeper node.
+type Delegate struct {
+	Addr         types.AddressHash
+	PeerID       string
+	Votes        *big.Int
+	PledgeAmount *big.Int
+	Score        *big.Int
+	IsExist      bool
+}
 
-// // PeriodContext represents period context info.
-// type PeriodContext struct {
-// 	period      []*Period
-// 	nextPeriod  []*Period
-// 	periodAddrs []types.AddressHash
-// 	periodPeers []string
-// }
+// Dynasty is a collection of current bookkeeper nodes.
+type Dynasty struct {
+	delegates []Delegate
+	addrs     []types.AddressHash
+	peers     []string
+}
 
-// // InitPeriodContext initializes period context.
-// func InitPeriodContext() (*PeriodContext, error) {
+// FindProposerWithTimeStamp find proposer in given timestamp
+func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegate) (*types.AddressHash, error) {
 
-// 	periods := make([]*Period, len(chain.GenesisPeriod))
-// 	periodAddrs := make([]types.AddressHash, len(chain.GenesisPeriod))
-// 	periodPeers := make([]string, len(chain.GenesisPeriod))
-// 	for k, v := range chain.GenesisPeriod {
-// 		period := new(Period)
-// 		addr, err := types.NewAddress(v["addr"])
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		period.addr = *addr.Hash160()
-// 		period.peerID = v["peerID"]
-// 		periods[k] = period
-// 		periodAddrs[k] = period.addr
-// 		periodPeers[k] = period.peerID
-// 	}
-// 	return &PeriodContext{
-// 		period:      periods,
-// 		periodAddrs: periodAddrs,
-// 		periodPeers: periodPeers,
-// 	}, nil
-// }
+	dynastySize := int64(len(delegates))
+	offsetPeriod := (timestamp * SecondInMs) % (BookkeeperRefreshInterval * dynastySize)
+	offset := (offsetPeriod / BookkeeperRefreshInterval) % dynastySize
 
-// var _ conv.Convertible = (*PeriodContext)(nil)
-// var _ conv.Serializable = (*PeriodContext)(nil)
+	var bookkeeper *types.AddressHash
+	if offset >= 0 && offset < dynastySize {
+		bookkeeper = &delegates[offset].Addr
+	} else {
+		return nil, ErrNotFoundBookkeeper
+	}
+	return bookkeeper, nil
+}
 
-// // ToProtoMessage converts PeriodContext to proto message.
-// func (pc *PeriodContext) ToProtoMessage() (proto.Message, error) {
+func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 
-// 	periods := make([]*dpospb.Period, len(pc.period))
-// 	for k, v := range pc.period {
-// 		period, err := v.ToProtoMessage()
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		if period, ok := period.(*dpospb.Period); ok {
-// 			periods[k] = period
-// 		}
-// 	}
+	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := abiObj.Pack("getDynasty")
+	if err != nil {
+		return nil, err
+	}
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
+		0, nil, types.ContractCallType, data).WithFrom(bpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
+	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
 
-// 	nextPeriods := make([]*dpospb.Period, len(pc.nextPeriod))
-// 	for k, v := range pc.nextPeriod {
-// 		period, err := v.ToProtoMessage()
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		if period, ok := period.(*dpospb.Period); ok {
-// 			nextPeriods[k] = period
-// 		}
-// 	}
-
-// 	return &dpospb.PeriodContext{
-// 		Period:     periods,
-// 		NextPeriod: nextPeriods,
-// 	}, nil
-// }
-
-// // FromProtoMessage converts proto message to PeriodContext.
-// func (pc *PeriodContext) FromProtoMessage(message proto.Message) error {
-// 	if message, ok := message.(*dpospb.PeriodContext); ok {
-// 		if message != nil {
-// 			periods := make([]*Period, len(message.Period))
-// 			periodAddrs := make([]types.AddressHash, len(message.Period))
-// 			periodPeers := make([]string, len(message.Period))
-// 			for k, v := range message.Period {
-// 				period := new(Period)
-// 				if err := period.FromProtoMessage(v); err != nil {
-// 					return err
-// 				}
-// 				periods[k] = period
-// 				periodAddrs[k] = period.addr
-// 				periodPeers[k] = period.peerID
-// 			}
-
-// 			nextPeriods := make([]*Period, len(message.NextPeriod))
-// 			for k, v := range message.NextPeriod {
-// 				period := new(Period)
-// 				if err := period.FromProtoMessage(v); err != nil {
-// 					return err
-// 				}
-// 				nextPeriods[k] = period
-// 			}
-
-// 			pc.period = periods
-// 			pc.nextPeriod = nextPeriods
-// 			pc.periodAddrs = periodAddrs
-// 			pc.periodPeers = periodPeers
-// 			return nil
-// 		}
-// 		return core.ErrEmptyProtoMessage
-// 	}
-
-// 	return ErrInvalidPeriodContextProtoMessage
-// }
-
-// // Marshal method marshal ConsensusContext object to binary
-// func (pc *PeriodContext) Marshal() (data []byte, err error) {
-// 	return conv.MarshalConvertible(pc)
-// }
-
-// // Unmarshal method unmarshal binary data to ConsensusContext object
-// func (pc *PeriodContext) Unmarshal(data []byte) error {
-// 	msg := &dpospb.PeriodContext{}
-// 	if err := proto.Unmarshal(data, msg); err != nil {
-// 		return err
-// 	}
-// 	return pc.FromProtoMessage(msg)
-// }
-
-// // FindProposerWithTimeStamp find proposer in given timestamp
-// func (pc *PeriodContext) FindProposerWithTimeStamp(timestamp int64) (*types.AddressHash, error) {
-
-// 	period := pc.period
-// 	offsetPeriod := (timestamp * SecondInMs) % (BookkeeperRefreshInterval * PeriodSize)
-// 	// if (offsetPeriod % MinerRefreshInterval) != 0 {
-// 	// 	return nil, ErrWrongTimeToMint
-// 	// }
-// 	offset := offsetPeriod / BookkeeperRefreshInterval
-// 	offset = offset % PeriodSize
-
-// 	var bookkeeper *types.AddressHash
-// 	if offset >= 0 && int(offset) < len(period) {
-// 		bookkeeper = &period[offset].addr
-// 	} else {
-// 		return nil, ErrNotFoundBookkeeper
-// 	}
-// 	return bookkeeper, nil
-// }
-
-// // Period represents period info.
-// type Period struct {
-// 	addr   types.AddressHash
-// 	peerID string
-// }
-
-// var _ conv.Convertible = (*Period)(nil)
-// var _ conv.Serializable = (*Period)(nil)
-
-// // ToProtoMessage converts candidate to proto message.
-// func (period *Period) ToProtoMessage() (proto.Message, error) {
-// 	return &dpospb.Period{
-// 		Addr:   period.addr[:],
-// 		PeerId: period.peerID,
-// 	}, nil
-// }
-
-// // FromProtoMessage converts proto message to candidate.
-// func (period *Period) FromProtoMessage(message proto.Message) error {
-// 	if message, ok := message.(*dpospb.Period); ok {
-// 		if message != nil {
-// 			copy(period.addr[:], message.Addr)
-// 			period.peerID = message.PeerId
-// 			return nil
-// 		}
-// 		return core.ErrEmptyProtoMessage
-// 	}
-
-// 	return ErrInvalidPeriodProtoMessage
-// }
-
-// // Marshal method marshal Period object to binary
-// func (period *Period) Marshal() (data []byte, err error) {
-// 	return conv.MarshalConvertible(period)
-// }
-
-// // Unmarshal method unmarshal binary data to Period object
-// func (period *Period) Unmarshal(data []byte) error {
-// 	msg := &dpospb.CandidateContext{}
-// 	if err := proto.Unmarshal(data, msg); err != nil {
-// 		return err
-// 	}
-// 	return period.FromProtoMessage(msg)
-// }
-
-// ///////////////////////////////////////////////////////////////////////////////////
-// //////////////////////////////////////////////////////////////////////////////////
-
-// // CandidateContext represents possible to be the bookkeepers.
-// type CandidateContext struct {
-// 	candidates []*Candidate
-// 	addrs      []types.AddressHash
-// }
-
-// // InitCandidateContext init candidate context
-// func InitCandidateContext() *CandidateContext {
-// 	return &CandidateContext{
-// 		candidates: []*Candidate{},
-// 		addrs:      []types.AddressHash{},
-// 	}
-// }
-
-// var _ conv.Convertible = (*CandidateContext)(nil)
-// var _ conv.Serializable = (*CandidateContext)(nil)
-
-// // ToProtoMessage converts block header to proto message.
-// func (candidateContext *CandidateContext) ToProtoMessage() (proto.Message, error) {
-
-// 	candidates := make([]*dpospb.Candidate, len(candidateContext.candidates))
-// 	for k, v := range candidateContext.candidates {
-// 		candidate, err := v.ToProtoMessage()
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		if candidate, ok := candidate.(*dpospb.Candidate); ok {
-// 			candidates[k] = candidate
-// 		}
-// 	}
-
-// 	return &dpospb.CandidateContext{
-// 		Candidates: candidates,
-// 	}, nil
-// }
-
-// // FromProtoMessage converts proto message to candidate.
-// func (candidateContext *CandidateContext) FromProtoMessage(message proto.Message) error {
-
-// 	if message, ok := message.(*dpospb.CandidateContext); ok {
-// 		if message != nil {
-// 			candidates := make([]*Candidate, len(message.Candidates))
-// 			addrs := make([]types.AddressHash, len(message.Candidates))
-// 			for k, v := range message.Candidates {
-// 				candidate := new(Candidate)
-// 				if err := candidate.FromProtoMessage(v); err != nil {
-// 					return err
-// 				}
-// 				candidates[k] = candidate
-// 				addrs[k] = candidate.addr
-// 			}
-// 			candidateContext.candidates = candidates
-// 			candidateContext.addrs = addrs
-// 			return nil
-// 		}
-// 		return core.ErrEmptyProtoMessage
-// 	}
-
-// 	return ErrInvalidCandidateContextProtoMessage
-// }
-
-// // Copy returns a deep copy of CandidateContext
-// func (candidateContext *CandidateContext) Copy() *CandidateContext {
-
-// 	cc := &CandidateContext{addrs: candidateContext.addrs}
-// 	candidates := make([]*Candidate, len(candidateContext.candidates))
-// 	for idx, v := range candidateContext.candidates {
-// 		candidates[idx] = v
-// 	}
-// 	cc.candidates = candidates
-// 	return cc
-// }
-
-// // Marshal method marshal CandidateContext object to binary
-// func (candidateContext *CandidateContext) Marshal() (data []byte, err error) {
-// 	return conv.MarshalConvertible(candidateContext)
-// }
-
-// // Unmarshal method unmarshal binary data to CandidateContext object
-// func (candidateContext *CandidateContext) Unmarshal(data []byte) error {
-// 	msg := &dpospb.CandidateContext{}
-// 	if err := proto.Unmarshal(data, msg); err != nil {
-// 		return err
-// 	}
-// 	return candidateContext.FromProtoMessage(msg)
-// }
-
-// // CandidateContextHash calc candidate context hash.
-// func (candidateContext *CandidateContext) CandidateContextHash() (*crypto.HashType, error) {
-// 	bytes, err := candidateContext.Marshal()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	hash := crypto.DoubleHashH(bytes) // dhash of header
-// 	return &hash, nil
-// }
-
-// ///////////////////////////////////////////////////////////////////////////////////
-// //////////////////////////////////////////////////////////////////////////////////
-
-// // Candidate represents possible to be the miner.
-// type Candidate struct {
-// 	addr  types.AddressHash
-// 	votes int64
-// 	peer  peer.ID
-// }
-
-// var _ conv.Convertible = (*Candidate)(nil)
-// var _ conv.Serializable = (*Candidate)(nil)
-
-// // ToProtoMessage converts candidate to proto message.
-// func (candidate *Candidate) ToProtoMessage() (proto.Message, error) {
-// 	return &dpospb.Candidate{
-// 		Addr:  candidate.addr[:],
-// 		Votes: candidate.votes,
-// 		// Peer:  candidate.peer.Pretty(),
-// 	}, nil
-// }
-
-// // FromProtoMessage converts proto message to candidate.
-// func (candidate *Candidate) FromProtoMessage(message proto.Message) error {
-// 	if message, ok := message.(*dpospb.Candidate); ok {
-// 		if message != nil {
-// 			copy(candidate.addr[:], message.Addr)
-// 			candidate.votes = message.Votes
-// 			return nil
-// 		}
-// 		return core.ErrEmptyProtoMessage
-// 	}
-
-// 	return ErrInvalidCandidateProtoMessage
-// }
-
-// // Marshal method marshal Candidate object to binary
-// func (candidate *Candidate) Marshal() (data []byte, err error) {
-// 	return conv.MarshalConvertible(candidate)
-// }
-
-// // Unmarshal method unmarshal binary data to Candidate object
-// func (candidate *Candidate) Unmarshal(data []byte) error {
-// 	msg := &dpospb.Candidate{}
-// 	if err := proto.Unmarshal(data, msg); err != nil {
-// 		return err
-// 	}
-// 	return candidate.FromProtoMessage(msg)
-// }
+	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
+	if err := vmErr(); err != nil {
+		return nil, err
+	}
+	var dynasty []Delegate
+	if err := abiObj.Unpack(&dynasty, "getDynasty", output); err != nil {
+		logger.Errorf("Failed to unpack the result of call getDynasty")
+		return nil, err
+	}
+	logger.Infof("get dynasty from contract: %v", dynasty)
+	PeriodSize := len(dynasty)
+	addrs := make([]types.AddressHash, PeriodSize)
+	peers := make([]string, PeriodSize)
+	for i := 0; i < PeriodSize; i++ {
+		addrs[i] = dynasty[i].Addr
+		peers[i] = dynasty[i].PeerID
+	}
+	return &Dynasty{
+		delegates: dynasty,
+		addrs:     addrs,
+		peers:     peers,
+	}, nil
+}
 
 // ///////////////////////////////////////////////////////////////////////////////////
 // //////////////////////////////////////////////////////////////////////////////////

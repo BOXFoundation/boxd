@@ -8,7 +8,6 @@ import (
 	"container/heap"
 	"encoding/json"
 	"errors"
-	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -418,19 +417,8 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	// candidateContext, err := bpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
-	// if err != nil {
-	// 	logger.Error("Failed to load candidate context")
-	// 	return err
-	// }
 
 	var packedTxs []*types.Transaction
-	// coinbaseTx, err := chain.CreateCoinbaseTx(scriptAddr, bpos.chain.LongestChainHeight+1)
-	// if err != nil || coinbaseTx == nil {
-	// 	return errors.New("Failed to create coinbaseTx")
-	// }
-
-	// blockTxns = append(blockTxns, coinbaseTx)
 	remainTimeInMs := bpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
 	spendableTxs := new(sync.Map)
 
@@ -531,20 +519,10 @@ func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txF
 
 func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
 
-	// candidateContext, err := bpos.LoadCandidateByBlockHash(&block.Header.PrevBlockHash)
-	// if err != nil {
-	// 	logger.Error("Failed to load candidate context")
-	// 	return err
-	// }
 	genesisContractBalanceOld := statedb.GetBalance(chain.ContractAddr).Uint64()
-
-	logger.Infof("Before execute sblock.statedb root: %s utxo root: %s genesis contract balance: %d block height: %d",
+	logger.Infof("Before execute block.statedb root: %s utxo root: %s genesis contract balance: %d block height: %d",
 		statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld, block.Header.Height)
 
-	// candidateHash, err := candidateContext.CandidateContextHash()
-	// if err != nil {
-	// 	return err
-	// }
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, true, bpos.chain.DB()); err != nil {
 		return err
@@ -578,19 +556,19 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err != nil {
 		return err
 	}
+	logger.Infof("After execute block.statedb root: %s utxo root: %s genesis contract balance: %d block height: %d",
+		statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr).Uint64(), block.Header.Height)
 	if genesisContractBalanceOld+block.Txs[0].Vout[0].Value != statedb.GetBalance(chain.ContractAddr).Uint64() {
 		return errors.New("genesis contract state is error")
 	}
 
 	bpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
-	// block.Header.CandidatesHash = *candidateHash
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
 
 	txsRoot := chain.CalcTxsHash(block.Txs)
 	block.Header.TxsRoot = *txsRoot
-	// block.Txs = blockTxns
 	if len(utxoTxs) > 0 {
 		internalTxsRoot := chain.CalcTxsHash(utxoTxs)
 		block.Header.InternalTxsRoot = *internalTxsRoot
@@ -762,75 +740,4 @@ func (bpos *Bpos) subscribe() {
 			out <- bpos.verifyBookkeeper(timestamp, dynasty.delegates)
 		}
 	}, false)
-}
-
-// Delegate is a bookkeeper node.
-type Delegate struct {
-	Addr         types.AddressHash
-	PeerID       string
-	Votes        *big.Int
-	PledgeAmount *big.Int
-	Score        *big.Int
-	IsExist      bool
-}
-
-// Dynasty is a collection of current bookkeeper nodes.
-type Dynasty struct {
-	delegates []Delegate
-	addrs     []types.AddressHash
-	peers     []string
-}
-
-// FindProposerWithTimeStamp find proposer in given timestamp
-func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegate) (*types.AddressHash, error) {
-
-	PeriodSize := int64(len(delegates))
-	offsetPeriod := (timestamp * SecondInMs) % (BookkeeperRefreshInterval * PeriodSize)
-	offset := (offsetPeriod / BookkeeperRefreshInterval) % PeriodSize
-
-	var bookkeeper *types.AddressHash
-	if offset >= 0 && offset < PeriodSize {
-		bookkeeper = &delegates[offset].Addr
-	} else {
-		return nil, ErrNotFoundBookkeeper
-	}
-	return bookkeeper, nil
-}
-
-func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
-
-	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)
-	if err != nil {
-		return nil, err
-	}
-	data, err := abiObj.Pack("getDynasty")
-	if err != nil {
-		return nil, err
-	}
-	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).WithFrom(bpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
-	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
-
-	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
-	if err := vmErr(); err != nil {
-		return nil, err
-	}
-	var dynasty []Delegate
-	if err := abiObj.Unpack(&dynasty, "getDynasty", output); err != nil {
-		logger.Errorf("Failed to unpack the result of call getDynasty")
-		return nil, err
-	}
-	logger.Infof("get dynasty from contract: %v", dynasty)
-	PeriodSize := len(dynasty)
-	addrs := make([]types.AddressHash, PeriodSize)
-	peers := make([]string, PeriodSize)
-	for i := 0; i < PeriodSize; i++ {
-		addrs[i] = dynasty[i].Addr
-		peers[i] = dynasty[i].PeerID
-	}
-	return &Dynasty{
-		delegates: dynasty,
-		addrs:     addrs,
-		peers:     peers,
-	}, nil
 }
