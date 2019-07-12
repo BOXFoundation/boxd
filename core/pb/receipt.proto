@@ -20,3 +20,16 @@ message Receipt {
 message Receipts {
   repeated Receipt receipts = 1;
 }
+
+message HashReceipt {
+  bytes tx_hash = 1;
+  uint32 tx_index = 2;
+  bool failed = 3;
+  uint64 gas_used = 4;
+  repeated HashLog logs = 5;
+  bytes bloom = 6;
+}
+
+message HashReceipts {
+  repeated HashReceipt receipts = 1;
+}

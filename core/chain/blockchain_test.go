@@ -18,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	"github.com/facebookgo/ensure"
 )
 
@@ -187,6 +188,8 @@ func nextBlock(parentBlock *types.Block) *types.Block {
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	newBlock.Header.TimeStamp = timestamp
+	newBlock.Header.Bloom = bloom.NewFilterWithMK(types.BloomBitLength, types.BloomHashNum)
+
 	return newBlock
 }
 
