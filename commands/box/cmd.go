@@ -8,7 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	_ "github.com/BOXFoundation/boxd/commands/box/ctl" // init ctl cmd
+	_ "github.com/BOXFoundation/boxd/commands/box/contract" // init contract cmd
+	_ "github.com/BOXFoundation/boxd/commands/box/ctl"      // init ctl cmd
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	_ "github.com/BOXFoundation/boxd/commands/box/splitaddr"   // init splitaddr cmd
 	_ "github.com/BOXFoundation/boxd/commands/box/start"       // init start cmd

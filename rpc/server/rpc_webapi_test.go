@@ -5,7 +5,6 @@
 package rpc
 
 import (
-	"container/list"
 	"context"
 	"encoding/json"
 	"io"
@@ -20,8 +19,11 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	"google.golang.org/grpc"
 )
@@ -53,10 +55,11 @@ func setupWebAPIMockSvr() {
 	was := &webapiServer{
 		ChainBlockReader: br,
 		proc:             goprocess.WithSignals(os.Interrupt),
-		subscribeBlocks:  true,
-		bus:              testWebAPIBus,
-		newBlocksQueue:   list.New(),
+		endpoints:        make(map[string]rpcutil.Endpoint),
 	}
+	was.endpoints[rpcutil.BlockEp] = rpcutil.NewBlockEndpoint(testWebAPIBus)
+	was.endpoints[rpcutil.LogEp] = rpcutil.NewLogEndpoint(testWebAPIBus)
+
 	grpcSvr := grpc.NewServer()
 	rpcpb.RegisterWebApiServer(grpcSvr, was)
 
@@ -78,7 +81,7 @@ func sendWebAPITestBlocks() {
 }
 
 func _TestClientListenNewBlocks(t *testing.T) {
-	rpcAddr := "127.0.0.1:19111"
+	rpcAddr := "127.0.0.1:19191"
 	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
 	if err != nil {
 		t.Fatal(err)
@@ -103,12 +106,41 @@ func _TestClientListenNewBlocks(t *testing.T) {
 	}
 }
 
-func TestListenAndReadNewBlock(t *testing.T) {
+func _TestClientListenNewLogs(t *testing.T) {
+	rpcAddr := "127.0.0.1:19111"
+	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	client := rpcpb.NewWebApiClient(conn)
+	logsReq := &rpcpb.LogsReq{
+		Addresses: []string{"b5fwJovC3TRR2vQemTdfzE9kqP1b1hS4Cpv"},
+		Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
+	}
+	stream, err := client.ListenAndReadNewLog(context.Background(), logsReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		log, err := stream.Recv()
+		if err == io.EOF {
+			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+			break
+		}
+		if err != nil {
+			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+		}
+		logger.Infof("log data: %v", log)
+	}
+}
+
+func _TestListenAndReadNewBlock(t *testing.T) {
 	// start grpc server
 	starter.Do(setupWebAPIMockSvr)
 	// start send blocks goroutine
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		sendWebAPITestBlocks()
 	}()
 
@@ -158,7 +190,7 @@ func newTestBlock(count int) []*types.Block {
 	miner, coinBaseAmount := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o", uint64(50000)
 	for i := 0; i < count; i++ {
 		coinBaseTx := types.NewTx(0, 4455, 100).
-			AppendVin(txlogic.NewCoinBaseTxIn()).
+			AppendVin(types.NewCoinBaseTxIn()).
 			AppendVout(txlogic.MakeVout(miner, coinBaseAmount))
 		b := types.NewBlock(prevBlock).AppendTx(coinBaseTx)
 		blocks = append(blocks, b)
@@ -304,14 +336,34 @@ func (r *TestDetailBlockChainReader) GetDataFromDB([]byte) ([]byte, error) {
 	return nil, nil
 }
 
+func (r *TestDetailBlockChainReader) GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
+	return nil, nil, nil
+}
+
+func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, error) {
+	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error) {
+	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error) {
+	return nil, nil
+}
+
+func (r *TestDetailBlockChainReader) TailState() *state.StateDB {
+	return nil
+}
+
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {
 	addr, amount := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
-		AppendVin(txlogic.NewCoinBaseTxIn()).
+		AppendVin(types.NewCoinBaseTxIn()).
 		AppendVout(txlogic.MakeVout(addr, amount))
 	_, tx, _ := r.LoadBlockInfoByTxHash(crypto.HashType{})
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
-	block.Height = 10
+	block.Header.Height = 10
 	return block, 10240, nil
 }
 
@@ -323,17 +375,20 @@ func (r *TestDetailBlockChainReader) LoadBlockInfoByTxHash(
 
 func (r *TestDetailBlockChainReader) EternalBlock() *types.Block {
 	block, _, _ := r.ReadBlockFromDB(&crypto.HashType{})
-	block.Height = 1
+	block.Header.Height = 1
 	return block
+}
+
+func (r *TestDetailBlockChainReader) TailBlock() *types.Block {
+	return nil
 }
 
 func genTestTx(from, to string, amount uint64, prevHash *crypto.HashType) *types.Transaction {
 	// make tx
 	tx := types.NewTx(0, 4455, 1000)
 	// append vin
-	op, uw := types.NewOutPoint(prevHash, 0), txlogic.NewUtxoWrap(from, 10, amount+1)
-	inUtxo := txlogic.MakePbUtxo(op, uw)
-	tx.AppendVin(txlogic.MakeVin(inUtxo, 0))
+	op := types.NewOutPoint(prevHash, 0)
+	tx.AppendVin(txlogic.MakeVin(op, 0))
 	// append vout
 	tx.AppendVout(txlogic.MakeVout(to, amount))
 	return tx
@@ -385,7 +440,7 @@ func _TestDetailTxAndBlock(t *testing.T) {
 	// gen coinbase tx
 	coinBaseAmount := uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
-		AppendVin(txlogic.NewCoinBaseTxIn()).
+		AppendVin(types.NewCoinBaseTxIn()).
 		AppendVout(txlogic.MakeVout(from, coinBaseAmount))
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
 	blockDetail, err := detailBlock(block, blockReader, nil, true)

@@ -5,7 +5,9 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
+	"math"
 
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -40,8 +42,24 @@ type TxWrap struct {
 	Tx             *Transaction
 	AddedTimestamp int64
 	Height         uint32
-	FeePerKB       uint64
+	GasPrice       uint64
 	IsScriptValid  bool
+}
+
+// GetTx return tx in TxWrap
+func (w *TxWrap) GetTx() *Transaction {
+	if w == nil {
+		return nil
+	}
+	return w.Tx
+}
+
+// String prints TxWrap
+func (w *TxWrap) String() string {
+	txHash, _ := w.Tx.TxHash()
+	return fmt.Sprintf("{Tx: %s, AddedTimestamp: %d, Height: %d, "+
+		"GasPrice: %d, IsScriptValid: %t}", txHash, w.AddedTimestamp,
+		w.Height, w.GasPrice, w.IsScriptValid)
 }
 
 var _ conv.Convertible = (*Transaction)(nil)
@@ -53,6 +71,36 @@ func NewTx(ver int32, magic uint32, lockTime int64) *Transaction {
 		Version:  ver,
 		Magic:    magic,
 		LockTime: lockTime,
+	}
+}
+
+// NewTxOut generates a new TxOut
+func NewTxOut(value uint64, scriptPubKey []byte) *corepb.TxOut {
+	return &corepb.TxOut{
+		Value:        value,
+		ScriptPubKey: scriptPubKey,
+	}
+}
+
+// NewTxIn generates a new TxIn
+func NewTxIn(prevOutPoint *OutPoint, scriptSig []byte, seq uint32) *TxIn {
+	return &TxIn{
+		PrevOutPoint: *prevOutPoint,
+		ScriptSig:    scriptSig,
+		Sequence:     seq,
+	}
+}
+
+// IsCoinBaseTxIn check whether tx in is coin base tx in
+func IsCoinBaseTxIn(txIn *TxIn) bool {
+	return ((txIn.PrevOutPoint.Index == math.MaxUint32) &&
+		(txIn.PrevOutPoint.Hash == crypto.HashType{}))
+}
+
+// NewCoinBaseTxIn new a coinbase tx in
+func NewCoinBaseTxIn() *TxIn {
+	return &TxIn{
+		PrevOutPoint: OutPoint{Index: math.MaxUint32},
 	}
 }
 
@@ -100,6 +148,18 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *OutPoint {
 
 func (op OutPoint) String() string {
 	return fmt.Sprintf("{Hash: %s, Index: %d}", op.Hash, op.Index)
+}
+
+// IsContractType tells if the OutPoint is an OutPoint pointing to contract
+func (op OutPoint) IsContractType() bool {
+	if op.Index != 0 {
+		return false
+	}
+	if !bytes.Equal(op.Hash[:12], ZeroAddressHash[:12]) ||
+		bytes.Equal(op.Hash[12:], ZeroAddressHash[12:]) {
+		return false
+	}
+	return true
 }
 
 var _ conv.Convertible = (*OutPoint)(nil)
@@ -322,7 +382,7 @@ func (tx *Transaction) SerializeSize() (int, error) {
 // Copy returns a deep copy, mostly for parallel script verification
 // Do not copy hash since it will be updated anyway in script verification
 func (tx *Transaction) Copy() *Transaction {
-	vin := make([]*TxIn, 0)
+	vin := make([]*TxIn, 0, len(tx.Vin))
 	for _, txIn := range tx.Vin {
 		txInCopy := &TxIn{
 			PrevOutPoint: txIn.PrevOutPoint,
@@ -332,7 +392,7 @@ func (tx *Transaction) Copy() *Transaction {
 		vin = append(vin, txInCopy)
 	}
 
-	vout := make([]*corepb.TxOut, 0)
+	vout := make([]*corepb.TxOut, 0, len(tx.Vout))
 	for _, txOut := range tx.Vout {
 		txOutCopy := &corepb.TxOut{
 			Value:        txOut.Value,

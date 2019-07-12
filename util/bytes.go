@@ -160,6 +160,47 @@ func Less(a []byte, b []byte) bool {
 	return HashBytes(a) < HashBytes(b)
 }
 
+// ANDBytes ands one by one. It works on all architectures, independent if
+// it supports unaligned read/writes or not.
+func ANDBytes(a, b []byte) []byte {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	dst := make([]byte, n)
+	for i := 0; i < n; i++ {
+		dst[i] = a[i] & b[i]
+	}
+	return dst
+}
+
+// ORBytes ors one by one. It works on all architectures, independent if
+// it supports unaligned read/writes or not.
+func ORBytes(a, b []byte) []byte {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	dst := make([]byte, n)
+	for i := 0; i < n; i++ {
+		dst[i] = a[i] | b[i]
+	}
+	return dst
+}
+
+// BitIndexes return marked bit indexes.
+func BitIndexes(data []byte) []uint32 {
+	indexes := []uint32{}
+	for i := 0; i < len(data)*8; i++ {
+		bitMask := byte(1) << byte(7-i%8)
+
+		if (data[i/8] & bitMask) != 0 {
+			indexes = append(indexes, uint32(i))
+		}
+	}
+	return indexes
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // read/write via reader/writer
 

@@ -38,6 +38,9 @@ var (
 	ErrFailedToVerifyWithCandidates = errors.New("Failed to verify block with candidates")
 	ErrExpiredBlock                 = errors.New("Expired block")
 	ErrBlockInSideChain             = errors.New("The block is in side chain")
+	ErrInvalidInternalTxs           = errors.New("Invalid internal txs")
+	ErrInvalidMessageSender         = errors.New("Invalid message sender")
+	ErrContractNotFound             = errors.New("Contract not found")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
@@ -48,12 +51,26 @@ var (
 	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
 	ErrNonLocalMessage            = errors.New("Received non-local message")
 	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
+	ErrUtxosOob                   = errors.New("utxos in tx out of bound")
+	ErrVoutsOob                   = errors.New("vout in tx out of bound")
 
 	//block.go
 	ErrSerializeHeader                = errors.New("Serialize block header error")
 	ErrEmptyProtoMessage              = errors.New("Empty proto message")
 	ErrInvalidBlockHeaderProtoMessage = errors.New("Invalid block header proto message")
 	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
+
+	//trie.go
+	ErrInvalidTrieProtoMessage = errors.New("Invalid trie proto message")
+	ErrNodeNotFound            = errors.New("node is not found")
+	ErrInvalidNodeType         = errors.New("Invalid node type")
+	ErrInvalidKeyPath          = errors.New("Invalid key path")
+
+	//Receipt
+	ErrInvalidReceiptProtoMessage = errors.New("Invalid receipt proto message")
+
+	//Log
+	ErrInvalidLogProtoMessage = errors.New("Invalid log proto message")
 
 	//transaction.go
 	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
@@ -62,6 +79,7 @@ var (
 	ErrInvalidTxOutProtoMessage            = errors.New("Invalid TxOut proto message")
 	ErrInvalidTxProtoMessage               = errors.New("Invalid tx proto message")
 	ErrInvalidIrreversibleInfoProtoMessage = errors.New("Invalid IrreversibleInfo proto message")
+	ErrInvalidFee                          = errors.New("Invalid contract transaction fee")
 
 	//address.go
 	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")
@@ -80,12 +98,17 @@ var (
 
 	//utxoset.go
 	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
+	ErrUtxoNotFound                = errors.New("utxo not found")
 	ErrAddExistingUtxo             = errors.New("Trying to add utxo already existed")
 	ErrInvalidUtxoWrapProtoMessage = errors.New("Invalid utxo wrap proto message")
 
 	//filterholder.go
 	ErrInvalidFilterHeight = errors.New("Filter can only be added in chain sequence")
 	ErrLoadBlockFilters    = errors.New("Fail to load block filters")
+
+	//sectionmanager.go
+	ErrBloomBitOutOfBounds = errors.New("Bloom bit out of bounds")
+	ErrInvalidBounds       = errors.New("Invalid section bounds")
 
 	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
 )

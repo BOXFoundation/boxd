@@ -27,10 +27,12 @@ type LockTime struct {
 func VerifyBlockTimeOut(block *types.Block) error {
 	now := time.Now().Unix()
 	if now-block.Header.TimeStamp > core.MaxBlockTimeOut {
-		logger.Warnf("The block is timeout. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
+		logger.Warnf("The block is timeout. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %s %d",
+			now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash, block.Header.Height)
 		return core.ErrBlockTimeOut
 	} else if now < block.Header.TimeStamp {
-		logger.Warnf("The block is a future block. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %v", now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash.String())
+		logger.Warnf("The block is a future block. Now: %d BlockTimeStamp: %d Timeout: %d Hash: %s %d",
+			now, block.Header.TimeStamp, (now - block.Header.TimeStamp), block.Hash, block.Header.Height)
 		return core.ErrFutureBlock
 	}
 	return nil
@@ -65,7 +67,7 @@ func validateBlock(block *types.Block) error {
 	blockTime := block.Header.TimeStamp
 	existingOutPoints := make(map[types.OutPoint]struct{})
 	for _, tx := range transactions {
-		if !IsTxFinalized(tx, block.Height, blockTime) {
+		if !IsTxFinalized(tx, block.Header.Height, blockTime) {
 			txHash, _ := tx.TxHash()
 			logger.Errorf("block contains unfinalized transaction %v", txHash)
 			return core.ErrUnfinalizedTx
@@ -87,9 +89,9 @@ func validateBlock(block *types.Block) error {
 	// TODO: caching all of the transaction hashes in the block to speed up future hashing
 	calculatedMerkleRoot := CalcTxsHash(transactions)
 	if !header.TxsRoot.IsEqual(calculatedMerkleRoot) {
-		logger.Errorf("block merkle root is invalid - block "+
-			"header indicates %v, but calculated value is %v",
-			header.TxsRoot, *calculatedMerkleRoot)
+		logger.Errorf("block %s:%d merkle root is invalid - block header indicates %v, "+
+			"but calculated value is %v", block.BlockHash(), header.Height, header.TxsRoot,
+			*calculatedMerkleRoot)
 		return core.ErrBadMerkleRoot
 	}
 
@@ -105,15 +107,16 @@ func validateBlock(block *types.Block) error {
 	}
 
 	// Enforce number of signature operations.
-	totalSigOpCnt := 0
-	for _, tx := range transactions {
-		totalSigOpCnt += countSigOps(tx)
-		if totalSigOpCnt > maxBlockSigOpCnt {
-			logger.Errorf("block contains too many signature "+
-				"operations - got %v, max %v", totalSigOpCnt, maxBlockSigOpCnt)
-			return core.ErrTooManySigOps
-		}
-	}
+	// NOTE: add vin and vout count limitation with 1024
+	//totalSigOpCnt := 0
+	//for _, tx := range transactions {
+	//	totalSigOpCnt += countSigOps(tx)
+	//	if totalSigOpCnt > maxBlockSigOpCnt {
+	//		logger.Errorf("block contains too many signature "+
+	//			"operations - got %v, max %v", totalSigOpCnt, maxBlockSigOpCnt)
+	//		return core.ErrTooManySigOps
+	//	}
+	//}
 
 	return nil
 }
@@ -246,11 +249,13 @@ func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
 		if utxo == nil {
-			logger.Errorf("output %v referenced from transaction %s:%d does not exist", txIn.PrevOutPoint, txHash, txInIdx)
+			logger.Errorf("prev outpoint %v in tx %s vin[%d] does not exist",
+				txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}
 		if utxo.IsSpent() {
-			logger.Errorf("output %v referenced from transaction %s:%d has already been spent", txIn.PrevOutPoint, txHash, txInIdx)
+			logger.Errorf("prev outpoint %v in tx %s vin[%d] has already been spent",
+				txIn.PrevOutPoint, txHash, txInIdx)
 			return nil, core.ErrMissingTxOut
 		}
 
@@ -281,14 +286,14 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 	txHash, _ := tx.TxHash()
 	var totalInputAmount uint64
 	tokenInputAmounts := make(map[script.TokenID]uint64)
-	for txInIndex, txIn := range tx.Vin {
+	for _, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		if utxo == nil || utxo.IsSpent() {
-			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
-				"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
-			return 0, core.ErrMissingTxOut
-		}
+		// if utxo == nil || utxo.IsSpent() {
+		// 	logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
+		// 		"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
+		// 	return 0, core.ErrMissingTxOut
+		// }
 
 		// Immature coinbase coins cannot be spent.
 		if utxo.IsCoinBase() {
@@ -386,6 +391,16 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 		return core.ErrNoTxOutputs
 	}
 
+	// A transaction must have no more than MaxVins vins
+	if len(tx.Vin) > core.MaxUtxosInTx {
+		return core.ErrUtxosOob
+	}
+
+	// A transaction must have no more than MaxVins vins
+	if len(tx.Vout) > core.MaxVoutInTx {
+		return core.ErrVoutsOob
+	}
+
 	// TOOD: check before deserialization
 	// // A transaction must not exceed the maximum allowed block payload when
 	// // serialized.
@@ -405,7 +420,7 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 		value := txOut.Value
 		if value > TotalSupply {
 			logger.Errorf("transaction output value of %v is "+
-				"higher than max allowed value of %v", TotalSupply)
+				"higher than max allowed value of %v", value, TotalSupply)
 			return core.ErrBadTxOutValue
 		}
 

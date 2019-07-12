@@ -16,7 +16,7 @@ type Consensus interface {
 
 	Verify(*types.Block) error
 	Process(*types.Block, interface{}) error
-	Seal(*types.Block) error
+	Finalize(*types.Block) error
 
 	VerifyTx(*types.Transaction) error
 }

@@ -14,6 +14,17 @@ const (
 	modified
 )
 
+// UtxoType descript utxo type
+type UtxoType string
+
+//
+const (
+	PayToPubkeyUtxo   UtxoType = "pay_to_pubkey_utxo"
+	TokenIssueUtxo    UtxoType = "token_issue_utxo"
+	TokenTransferUtxo UtxoType = "token_transfer_utxo"
+	SplitAddrUtxo     UtxoType = "split_addr_utxo"
+)
+
 // UtxoWrap contains info about utxo
 type UtxoWrap struct {
 	value  uint64
@@ -88,7 +99,18 @@ func (utxoWrap *UtxoWrap) Value() uint64 {
 	return utxoWrap.value
 }
 
+// SetValue set utxoWrap value.
+func (utxoWrap *UtxoWrap) SetValue(value uint64) {
+	utxoWrap.value = value
+	utxoWrap.Modified()
+}
+
 // Script returns the pubkey script of the output.
 func (utxoWrap *UtxoWrap) Script() []byte {
 	return utxoWrap.script
+}
+
+// SetScript sets the pubkey script of the output.
+func (utxoWrap *UtxoWrap) SetScript(s []byte) {
+	utxoWrap.script = s
 }

@@ -12,8 +12,8 @@ import (
 )
 
 func TestTxInConvertWithProtoMessage(t *testing.T) {
-	var prevOutPoint = NewOutPoint(&crypto.HashType{0x0010}, 0)
-	txIn := NewTxIn(*prevOutPoint)
+	prevOutPoint := NewOutPoint(&crypto.HashType{0x0010}, 0)
+	txIn := NewTxIn(prevOutPoint, nil, 0)
 	var txIn1 = &TxIn{}
 	msg, err := txIn.ToProtoMessage()
 	ensure.Nil(t, err)

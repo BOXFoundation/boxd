@@ -68,8 +68,8 @@ func (dpos *DummyDpos) Verify(*types.Block) error { return nil }
 // Process notify consensus to process new block.
 func (dpos *DummyDpos) Process(*types.Block, interface{}) error { return nil }
 
-// Seal notify consensus to change new tail.
-func (dpos *DummyDpos) Seal(*types.Block) error { return nil }
+// Finalize notify consensus to change new tail.
+func (dpos *DummyDpos) Finalize(*types.Block) error { return nil }
 
 // VerifyTx notify consensus to verify new tx.
 func (dpos *DummyDpos) VerifyTx(*types.Transaction) error { return nil }

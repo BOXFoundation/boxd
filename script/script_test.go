@@ -5,7 +5,9 @@
 package script
 
 import (
+	"bytes"
 	"encoding/hex"
+	"math"
 	"math/big"
 	"strings"
 	"testing"
@@ -128,8 +130,8 @@ func TestP2PKH(t *testing.T) {
 	scriptSig, scriptPubKey, _ := genP2PKHScript(false, false, 0)
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
-	ensure.DeepEqual(t, scriptSig.GetSigOpCount(), 0)
-	ensure.DeepEqual(t, scriptPubKey.GetSigOpCount(), 1)
+	ensure.DeepEqual(t, scriptSig.getSigOpCount(), 0)
+	ensure.DeepEqual(t, scriptPubKey.getSigOpCount(), 1)
 
 	// Append anything and immediately drop it to test OP_DROP; shall not affect script validity
 	scriptSig, scriptPubKey, _ = genP2PKHScript(false, true, 0)
@@ -287,7 +289,7 @@ func TestExtractAddress(t *testing.T) {
 	// p2sh
 	_, scriptPubKey = genP2SHScript()
 	_, err = scriptPubKey.ExtractAddress()
-	ensure.NotNil(t, err)
+	ensure.Nil(t, err)
 
 	// p2pkhCLTV
 	scriptPubKey = PayToPubKeyHashCLTVScript(testPubKeyHash, 63072000)
@@ -344,11 +346,78 @@ func TestParseSplitAddrScript(t *testing.T) {
 
 func TestCheckLockTimeVerify(t *testing.T) {
 	scriptSig, scriptPubKey, _ := genP2PKHScript(true /* prepend CLTV */, false, tx.LockTime)
-	ensure.True(t, scriptPubKey.IsRegisterCandidateScript(tx.LockTime))
 	err := Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.Nil(t, err)
 
 	scriptSig, scriptPubKey, _ = genP2PKHScript(true /* prepend CLTV */, false, tx.LockTime+1)
 	err = Validate(scriptSig, scriptPubKey, tx, 0)
 	ensure.DeepEqual(t, err, ErrScriptLockTimeVerifyFail)
+}
+
+func TestContractScript(t *testing.T) {
+	// contract Temp {
+	//     function () payable {}
+	// }
+	code := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+	var tests = []struct {
+		fromAddr     string
+		toAddr       string
+		code         string
+		price, limit uint64
+		nonce        uint64
+		version      int32
+		err          error
+	}{
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", code, 100, 20000, 1, 1, nil},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", code, 1, 200, 2, 1, nil},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", code, math.MaxUint64, 20000, 3, 1, ErrInvalidContractParams},
+	}
+	for _, tc := range tests {
+		var from, to *types.AddressHash
+		if tc.toAddr != "" {
+			a, _ := types.NewContractAddress(tc.toAddr)
+			to = a.Hash160()
+		}
+		f, _ := types.NewAddress(tc.fromAddr)
+		from = f.Hash160()
+		code, _ := hex.DecodeString(tc.code)
+		cs, err := MakeContractScriptPubkey(from, to, code, tc.price, tc.limit, tc.nonce, tc.version)
+		if tc.err != err {
+			t.Fatal(err)
+		}
+		if err != nil {
+			continue
+		}
+		p, typ, err := cs.ParseContractParams()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (to != nil && !bytes.Equal(p.To[:], to[:])) ||
+			p.GasPrice != tc.price || p.GasLimit != tc.limit ||
+			p.Nonce != tc.nonce || p.Version != tc.version ||
+			(tc.toAddr != "" && typ != types.ContractCallType ||
+				tc.toAddr == "" && typ != types.ContractCreationType) ||
+			!bytes.Equal(p.Code, code) {
+			t.Fatalf("parse contract params got: %s, %d, %d, %d, %s, want: %s, %d, %d, %d, %s",
+				hex.EncodeToString(p.To[:]), p.GasPrice, p.GasLimit, p.Version,
+				hex.EncodeToString(p.Code),
+				hex.EncodeToString(to[:]), tc.price, tc.limit, tc.version, code)
+		}
+		if eAddr, err := cs.ParseContractAddr(); err != nil ||
+			(to != nil && *eAddr.Hash160() != *to) {
+			t.Fatalf("extract contract address mismatch, error: %v, want: %s, got: %v", err, to, eAddr)
+		}
+		if n, err := cs.ParseContractNonce(); err != nil ||
+			n != tc.nonce {
+			t.Fatalf("parse contract nonce error: %v, want: %d, got: %d", err, tc.nonce, n)
+		}
+		if n, err := cs.ParseContractGas(); err != nil ||
+			n != tc.limit {
+			t.Fatalf("parse contract gas error: %v, want: %d, got: %d", err, tc.limit, n)
+		}
+		if n, err := cs.ParseContractGasPrice(); err != nil ||
+			n != tc.price {
+			t.Fatalf("parse contract gas price error: %v, want: %d, got: %d", err, tc.price, n)
+		}
+	}
 }

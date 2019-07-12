@@ -190,6 +190,14 @@ func TestAddressPrefix(t *testing.T) {
 			"b4111111111111111111111111111111111",
 			"132c4e98881f36237717e0b7725b0f855b713dbf467600000000",
 		},
+		{
+			"b5111111111111111111111111111111111",
+			"132ecacfd3c26b4f6ca78256530ba646f2a03897f7b000000000",
+		},
+		{
+			"b6111111111111111111111111111111111",
+			"133147071f65a07b623723f533bc3d0889cf3370a8ea00000000",
+		},
 	}
 	for _, tc := range tests {
 		rawBytes := base58.Decode(tc.addr)
@@ -233,11 +241,36 @@ func TestAddressValidate(t *testing.T) {
 			"b3KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twq0",
 			false,
 		},
+		{
+			"b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT",
+			true,
+		},
+		{
+			"b5KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twq0",
+			false,
+		},
 	}
+
 	for _, tc := range tests {
 		_, err := ParseAddress(tc.addr)
 		if err != nil && tc.valid {
 			t.Error(err)
 		}
+	}
+}
+
+func TestMakeContractAddress(t *testing.T) {
+	// parameters
+	senderStr := "b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x"
+	nonce := uint64(6)
+	sender, _ := NewAddress(senderStr)
+	//
+	ca, err := MakeContractAddress(sender, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAddr := "b5hogno5HPcJcMav8gpG4AE1sHPCD6Driqr"
+	if ca.String() != wantAddr {
+		t.Fatalf("want: %s, got: %s", wantAddr, ca)
 	}
 }

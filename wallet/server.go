@@ -12,7 +12,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/jbenet/goprocess"
 )
@@ -134,7 +134,7 @@ func (w *Server) Utxos(addr string, tokenID *types.TokenID, amount uint64) (
 	if w.cfg == nil || !w.cfg.Enable {
 		return nil, fmt.Errorf("fetch utxos not supported for non-wallet node")
 	}
-	utxos, err := FetchUtxosOf(addr, tokenID, amount, w.table)
+	utxos, err := FetchUtxosOf(addr, tokenID, amount, false, w.table)
 	if err != nil {
 		logger.Warnf("Utxos for %s error %s", addr, err)
 		return nil, err

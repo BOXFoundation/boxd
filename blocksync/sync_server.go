@@ -139,6 +139,8 @@ func (sm *SyncManager) onLocateResponse(msg p2p.Message) error {
 	// get headers hashes needed to sync
 	hashes := sm.rmOverlap(sh.Hashes)
 	if hashes == nil {
+		logger.Infof("onLocateResponse have not any hash after removing overlap hashes")
+		sm.lastLocatedHash = sh.Hashes[len(sh.Hashes)-1]
 		tryPushErrFlagChan(sm.locateErrCh, errFlagNoHash)
 		return nil
 	}
@@ -311,7 +313,7 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	// process blocks
 	go func() {
 		for _, b := range sb.Blocks {
-			err := sm.chain.ProcessBlock(b, core.DefaultMode, "")
+			err := sm.chain.ProcessBlock(b, core.DefaultMode, core.SyncFlag)
 			if err != nil {
 				if err == core.ErrBlockExists ||
 					err == core.ErrOrphanBlockExists ||
@@ -346,7 +348,7 @@ func (sm *SyncManager) onLightSyncRequest(msg p2p.Message) error {
 
 	var blocks []*types.Block
 	for _, hash := range hashes {
-		block, err := sm.chain.LoadBlockByHash(*hash)
+		block, err := chain.LoadBlockByHash(*hash, sm.chain.DB())
 		if err != nil {
 			return err
 		}
@@ -362,7 +364,7 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 		return err
 	}
 	for _, b := range sb.Blocks {
-		if err := sm.chain.ProcessBlock(b, core.DefaultMode, ""); err != nil {
+		if err := sm.chain.ProcessBlock(b, core.DefaultMode, core.SyncFlag); err != nil {
 			if err == core.ErrBlockExists ||
 				err == core.ErrOrphanBlockExists ||
 				err == core.ErrExpiredBlock ||

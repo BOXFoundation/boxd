@@ -28,17 +28,17 @@ type Manager struct {
 // NewWalletManager creates a wallet manager from files in the path
 func NewWalletManager(path string) (*Manager, error) {
 	f, err := os.Open(path)
-	defer f.Close()
 	if err != nil {
 		if os.IsNotExist(err) {
-			errCreate := os.Mkdir(path, os.ModePerm)
-			if errCreate != nil {
-				return nil, errCreate
+			err := os.Mkdir(path, os.ModePerm)
+			if err != nil && !os.IsExist(err) {
+				return nil, err
 			}
 		} else {
 			return nil, err
 		}
 	}
+	defer f.Close()
 	wlt := Manager{path: path}
 	return &wlt, wlt.loadAccounts()
 }

@@ -6,17 +6,16 @@ package txlogic
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
 	"strings"
 
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/script"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	base58 "github.com/jbenet/go-base58"
@@ -69,6 +68,7 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 	s := script.NewScriptFromBytes(scp)
 	if s.IsPayToPubKeyHash() ||
 		s.IsPayToPubKeyHashCLTVScript() ||
+		s.IsContractPubkey() ||
 		s.IsPayToScriptHash() {
 		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
@@ -113,7 +113,7 @@ func ParseTokenAmount(spk []byte) (uint64, error) {
 // MakeVout makes txOut
 func MakeVout(addr string, amount uint64) *corepb.TxOut {
 	var address types.Address
-	if strings.HasPrefix(addr, "b2") {
+	if strings.HasPrefix(addr, types.AddrTypeSplitAddrPrefix) {
 		address, _ = types.NewSplitAddress(addr)
 	} else {
 		address, _ = types.NewAddress(addr)
@@ -134,21 +134,61 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 	}
 }
 
+// MakeContractCreationVout makes txOut
+func MakeContractCreationVout(
+	from *types.AddressHash, amount, gas, gasPrice, nonce uint64, code []byte,
+) (*corepb.TxOut, error) {
+
+	vs, err := script.MakeContractScriptPubkey(from, nil, code, gasPrice, gas, nonce, types.VMVersion)
+	if err != nil {
+		return nil, err
+	}
+	return &corepb.TxOut{
+		Value:        amount,
+		ScriptPubKey: *vs,
+	}, nil
+}
+
+// MakeContractCallVout makes txOut
+func MakeContractCallVout(
+	from, to *types.AddressHash, amount uint64, gas, gasPrice, nonce uint64, code []byte,
+) (*corepb.TxOut, error) {
+
+	if to == nil {
+		return nil, errors.New("MakeContractCreationVout need contract address")
+	}
+	vs, err := script.MakeContractScriptPubkey(from, to, code, gasPrice, gas, nonce, types.VMVersion)
+	if err != nil {
+		return nil, err
+	}
+	return &corepb.TxOut{
+		Value:        amount,
+		ScriptPubKey: *vs,
+	}, nil
+}
+
 // MakeVin makes txIn
-func MakeVin(utxo *rpcpb.Utxo, seq uint32) *types.TxIn {
-	hash := new(crypto.HashType)
-	copy(hash[:], utxo.GetOutPoint().Hash)
+func MakeVin(op *types.OutPoint, seq uint32) *types.TxIn {
 	return &types.TxIn{
-		PrevOutPoint: *types.NewOutPoint(hash, utxo.GetOutPoint().GetIndex()),
+		PrevOutPoint: *op,
 		ScriptSig:    []byte{},
 		Sequence:     seq,
 	}
 }
 
+// MakeContractVin makes txIn
+func MakeContractVin(op *types.OutPoint, seq uint32) *types.TxIn {
+	return &types.TxIn{
+		PrevOutPoint: *op,
+		ScriptSig:    *script.MakeContractScriptSig(),
+		Sequence:     seq,
+	}
+}
+
 // MakePbVin makes txIn
-func MakePbVin(utxo *rpcpb.Utxo, seq uint32) *corepb.TxIn {
+func MakePbVin(op *corepb.OutPoint, seq uint32) *corepb.TxIn {
 	return &corepb.TxIn{
-		PrevOutPoint: utxo.OutPoint,
+		PrevOutPoint: op,
 		ScriptSig:    []byte{},
 		Sequence:     seq,
 	}
@@ -300,49 +340,27 @@ func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.
 }
 
 // MakeSplitAddrVout make split addr vout
-func MakeSplitAddrVout(addrs []string, weights []uint64) *corepb.TxOut {
+func MakeSplitAddrVout(addrs []types.Address, weights []uint64) *corepb.TxOut {
 	return &corepb.TxOut{
 		Value:        0,
-		ScriptPubKey: MakeSplitAddrPubkey(addrs, weights),
+		ScriptPubKey: *script.SplitAddrScript(addrs, weights),
 	}
 }
 
-// MakeSplitAddrPubkey make split addr
-func MakeSplitAddrPubkey(addrs []string, weights []uint64) []byte {
-	addresses := make([]types.Address, len(addrs))
-	for i, addr := range addrs {
-		addresses[i], _ = types.NewAddress(addr)
-	}
-	return *script.SplitAddrScript(addresses, weights)
-}
-
-// MakeSplitAddr make split addr
-func MakeSplitAddr(addrs []string, weights []uint64) (string, error) {
-	pk := MakeSplitAddrPubkey(addrs, weights)
-	splitAddrScriptStr := script.NewScriptFromBytes(pk).Disasm()
-	s := strings.Split(splitAddrScriptStr, " ")
-	pubKeyHash, err := hex.DecodeString(s[1])
-	if err != nil {
-		return "", err
-	}
-	addr, err := types.NewSplitAddressFromHash(pubKeyHash)
-	if err != nil {
-		return "", err
-	}
-	return addr.String(), nil
-}
-
-// IsCoinBaseTxIn check whether tx in is coin base tx in
-func IsCoinBaseTxIn(txIn *types.TxIn) bool {
-	return ((txIn.PrevOutPoint.Index == math.MaxUint32) &&
-		(txIn.PrevOutPoint.Hash == crypto.HashType{}))
-}
-
-// NewCoinBaseTxIn new a coinbase tx in
-func NewCoinBaseTxIn() *types.TxIn {
-	return &types.TxIn{
-		PrevOutPoint: types.OutPoint{Index: math.MaxUint32},
-	}
+// MakeSplitAddress make split addr
+func MakeSplitAddress(
+	txHash *crypto.HashType, idx uint32, addrs []types.Address, weights []uint64,
+) types.Address {
+	pk := *script.SplitAddrScript(addrs, weights)
+	sc := script.NewScriptFromBytes(pk)
+	addr, _ := sc.ExtractAddress()
+	idxBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(idxBytes, idx)
+	raw := append(txHash[:], idxBytes...)
+	raw = append(raw, addr.Hash()...)
+	splitAddrHash := crypto.Hash160(raw)
+	addr, _ = types.NewSplitAddressFromHash(splitAddrHash)
+	return addr
 }
 
 // EncodeOutPoint encode token to string
@@ -381,4 +399,84 @@ func DecodeOutPoint(id string) (*corepb.OutPoint, error) {
 	hash := new(crypto.HashType)
 	hash.SetBytes(buf[:crypto.HashSize])
 	return NewPbOutPoint(hash, index), nil
+}
+
+// ************************* use for testcase *****************************
+
+// MakeVinForTest use for testcase
+func MakeVinForTest(tx *types.Transaction, index uint32) []*types.TxIn {
+	hash, _ := tx.TxHash()
+	outPoint := types.OutPoint{
+		Hash:  *hash,
+		Index: index,
+	}
+	txIn := &types.TxIn{
+		PrevOutPoint: outPoint,
+		ScriptSig:    []byte{},
+		Sequence:     0,
+	}
+	vIn := []*types.TxIn{
+		txIn,
+	}
+	return vIn
+}
+
+// SignTx use for testcase
+func SignTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.PublicKey) error {
+
+	addr, _ := types.NewAddressFromPubKey(pubKey)
+	scriptPubKey := script.PayToPubKeyHashScript(addr.Hash())
+	// sign it
+	for txInIdx, txIn := range tx.Vin {
+		sigHash, err := script.CalcTxHashForSig(*scriptPubKey, tx, txInIdx)
+		if err != nil {
+			return err
+		}
+		sig, err := crypto.Sign(privKey, sigHash)
+		if err != nil {
+			return err
+		}
+		scriptSig := script.SignatureScript(sig, pubKey.Serialize())
+		txIn.ScriptSig = *scriptSig
+
+		// test to ensure
+		if err = script.Validate(scriptSig, scriptPubKey, tx, txInIdx); err != nil {
+			logger.Errorf("failed to validate tx. Err: %v", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// HasContractVout return true if tx has a vout with contract creation or call
+func HasContractVout(tx *types.Transaction) bool {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return true
+		}
+	}
+	return false
+}
+
+// GetContractVout return contract out if tx has a vout with contract creation or call
+func GetContractVout(tx *types.Transaction) *corepb.TxOut {
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			return o
+		}
+	}
+	return nil
+}
+
+// HasContractSpend return true if tx has a vin with Op Spend script sig
+func HasContractSpend(tx *types.Transaction) bool {
+	for _, i := range tx.Vin {
+		sc := script.NewScriptFromBytes(i.ScriptSig)
+		if sc.IsContractSig() {
+			return true
+		}
+	}
+	return false
 }

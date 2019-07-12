@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/signal"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 type scopeValue string
 
 const (
+	voidScope     scopeValue = "void"
 	basicScope    scopeValue = "basic"
 	mainScope     scopeValue = "main"
 	fullScope     scopeValue = "full"
@@ -93,9 +95,17 @@ func main() {
 		time.Sleep(3 * time.Second) // wait for 3s to let boxd started
 	}
 
-	// print tx count per TickerDurationTxs
-	if scopeValue(*scope) == continueScope {
+	switch scopeValue(*scope) {
+	case continueScope:
+		// print tx count per TickerDurationTxs
 		go CountGlobalTxs()
+	case voidScope:
+		logger.Info("integration run in void mode, nodes run without txs")
+		quitCh := make(chan os.Signal, 1)
+		signal.Notify(quitCh, os.Interrupt, os.Kill)
+		<-quitCh
+		logger.Info("quit integration in void mode")
+		return
 	}
 
 	var wg sync.WaitGroup
@@ -137,5 +147,11 @@ func testItems() []func() {
 	if utils.SplitAddrTestEnable() {
 		items = append(items, splitAddrTest)
 	}
+
+	// test contract
+	if utils.ContractTestEnable() {
+		items = append(items, contractTest)
+	}
+
 	return items
 }

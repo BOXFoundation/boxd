@@ -332,7 +332,7 @@ func TestHashType_SetBytes(t *testing.T) {
 			name:    "wrong size",
 			hash:    &HashType{},
 			args:    args{[]byte("")},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name:    "correct size",

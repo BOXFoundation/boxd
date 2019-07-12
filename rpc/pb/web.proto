@@ -24,11 +24,41 @@ service WebApi {
     }
 
     rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
+
+    rpc DoCall (CallReq) returns (CallResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/call"
+            body: "*"
+        };
+    }
+
+    rpc Nonce (NonceReq) returns (NonceResp) {
+        option (google.api.http) = {
+            post: "/v1/account/nonce"
+            body: "*"
+        };
+    }
+
+    rpc ListenAndReadNewLog(LogsReq) returns (stream Logs);
+
+    rpc GetLogs (LogsReq) returns (Logs) {
+        option (google.api.http) = {
+            post: "/v1/contract/getLogs"
+            body: "*"
+        };
+    }
 }
 
 message ViewTxDetailReq {
     string hash = 1;
     bool spread_split = 2;
+}
+
+enum TxStatus {
+    unknown = 0;
+    pending = 1;
+    onchain = 2;
+    confirmed = 3;
 }
 
 message ViewTxDetailResp {
@@ -37,12 +67,6 @@ message ViewTxDetailResp {
     int32 version = 3;
     int64 block_time = 4;
     uint32 block_height = 5;
-    enum TxStatus {
-        unknown = 0;
-        pending = 1;
-        onchain = 2;
-        confirmed = 3;
-    }
     TxStatus status = 6;
     TxDetail detail = 7;
 }
@@ -57,7 +81,47 @@ message ViewBlockDetailResp {
     BlockDetail detail = 3;
 }
 
+message ContractInfo {
+  uint32 fee = 1;
+  bool failed = 2;
+  uint64 gas_limit = 3;
+  uint64 gas_used = 4;
+  uint64 gas_price = 5;
+  uint64 nonce = 6;
+  string data = 7;
+}
+
 message ListenBlocksReq {
+}
+
+message LogsReq {
+    string hash = 1;
+    uint32 from = 2;
+    uint32 to = 3;
+    repeated string addresses = 4;
+    repeated topiclist topics = 5;
+
+    message topiclist {
+        repeated string topics = 1;
+    }
+}
+
+message Logs {
+    int32 code = 1;
+    string message = 2;
+    repeated LogDetail logs = 3;
+
+    message LogDetail {
+        bytes address = 1;
+        repeated bytes topics = 2;
+        bytes data = 3;
+        uint64 block_number = 4;
+        bytes tx_hash = 5;
+        uint32 tx_index = 6;
+        bytes block_hash = 7;
+        uint32 index = 8;
+        bool removed = 9;
+    }
 }
 
 message TxDetail {
@@ -86,12 +150,15 @@ message TxOutDetail {
         token_transfer = 4;
         new_split_addr = 5;
         pay_to_script_hash = 6;
+        contract_create = 7;
+        contract_call = 8;
     }
     TxOutType type = 5; 
     oneof appendix {
         TokenIssueInfo token_issue_info = 6; 
-        TokenTransferInfo token_transfer_info= 7;
-        SplitContractInfo split_contract_info= 8;
+        TokenTransferInfo token_transfer_info = 7;
+        SplitContractInfo split_contract_info = 8;
+        ContractInfo contract_info = 9;
     }
 }
 
@@ -119,4 +186,28 @@ message SplitContractInfo  {
 
 message TokenTransferInfo {
     string token_id = 1;
+}
+
+message CallReq {
+    string from = 1;
+    string to = 2;
+    string data = 3;
+    uint32 height = 4;
+    uint32 timeout = 5;
+}
+
+message CallResp {
+    int32 code = 1;
+    string message = 2;
+    string output = 3;
+}
+
+message NonceReq {
+    string addr = 1;
+}
+
+message NonceResp {
+    int32 code = 1;
+    string message = 2;
+    uint64 nonce = 3;
 }

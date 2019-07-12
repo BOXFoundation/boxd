@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/facebookgo/ensure"

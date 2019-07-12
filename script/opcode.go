@@ -130,6 +130,9 @@ const (
 	OPCHECKMULTISIG       OpCode = 0xae // 174
 	OPCHECKMULTISIGVERIFY OpCode = 0xaf // 175
 	OPCHECKLOCKTIMEVERIFY OpCode = 0xb0 // 176
+
+	// vm
+	OPCONTRACT OpCode = 0xb1 // 177
 )
 
 // opCodeToName maps op code to name
@@ -352,6 +355,10 @@ func opCodeToName(opCode OpCode) string {
 		return "OP_CHECKMULTISIGVERIFY"
 	case OPCHECKLOCKTIMEVERIFY:
 		return "OP_CHECKLOCKTIMEVERIFY"
+
+	// vm
+	case OPCONTRACT:
+		return "OP_CONTRACT"
 
 	default:
 		return "OP_UNKNOWN"

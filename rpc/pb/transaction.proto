@@ -11,75 +11,100 @@ import "common.proto";
 
 service TransactionCommand {
 
-    rpc GetBalance(GetBalanceReq) returns (GetBalanceResp) {
+    rpc GetBalance (GetBalanceReq) returns (GetBalanceResp) {
         option (google.api.http) = {
             post: "/v1/tx/getbalance"
             body: "*"
         };
     }
 
-    rpc GetTokenBalance(GetTokenBalanceReq) returns (GetBalanceResp) {
+    rpc GetTokenBalance (GetTokenBalanceReq) returns (GetBalanceResp) {
         option (google.api.http) = {
             post: "/v1/tx/gettokenbalance"
             body: "*"
         };
     }
 
-    rpc FetchUtxos(FetchUtxosReq) returns (FetchUtxosResp) {
+    rpc FetchUtxos (FetchUtxosReq) returns (FetchUtxosResp) {
         option (google.api.http) = {
             post: "/v1/tx/fetchutxos"
             body: "*"
         };
     }
 
-    rpc SendTransaction(SendTransactionReq) returns (SendTransactionResp) {
+    rpc SendTransaction (SendTransactionReq) returns (SendTransactionResp) {
         option (google.api.http) = {
             post: "/v1/tx/sendtransaction"
             body: "*"
         };
     }
 
-    rpc GetRawTransaction(GetRawTransactionRequest) returns (GetRawTransactionResponse) {
+    rpc SendRawTransaction (SendRawTransactionReq) returns (SendTransactionResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/sendrawtransaction"
+            body: "*"
+        };
+    }
+
+    rpc GetRawTransaction (GetRawTransactionRequest) returns (GetRawTransactionResponse) {
         option (google.api.http) = {
             post: "/v1/tx/getrawtransaction"
             body: "*"
         };
     }
 
-    rpc GetFeePrice(GetFeePriceRequest) returns (GetFeePriceResponse) {
+    rpc GetFeePrice (GetFeePriceRequest) returns (GetFeePriceResponse) {
         option (google.api.http) = {
             post: "/v1/tx/getfeeprice"
             body: "*"
         };
     }
 
-    rpc MakeUnsignedTx(MakeTxReq) returns (MakeTxResp) {
+    rpc MakeUnsignedTx (MakeTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx"
             body: "*"
         };
     }
 
-    rpc MakeUnsignedSplitAddrTx(MakeSplitAddrTxReq) returns (MakeSplitAddrTxResp) {
+    rpc MakeUnsignedSplitAddrTx (MakeSplitAddrTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/splitaddr"
             body: "*"
         };
     }
 
-    rpc MakeUnsignedTokenIssueTx(MakeTokenIssueTxReq) returns (MakeTokenIssueTxResp) {
+    rpc MakeUnsignedTokenIssueTx (MakeTokenIssueTxReq) returns (MakeTokenIssueTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/token/issue"
             body: "*"
         };
     }
 
-    rpc MakeUnsignedTokenTransferTx(MakeTokenTransferTxReq) returns (MakeTxResp) {
+    rpc MakeUnsignedTokenTransferTx (MakeTokenTransferTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx/token/transfer"
             body: "*"
         };
     }
+
+    rpc MakeUnsignedContractTx (MakeContractTxReq) returns (MakeContractTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedtx/contract"
+            body: "*"
+        };
+    }
+
+    rpc MakeUnsignedCombineTx (MakeCombineTx) returns (MakeTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedtx/combine"
+            body: "*"
+        };
+    }
+}
+
+message SendRawTransactionReq {
+    string tx = 1;
 }
 
 message GetBalanceReq {
@@ -129,7 +154,7 @@ message SendTransactionResp {
     string hash = 3;
 }
 
-message GetFeePriceRequest{
+message GetFeePriceRequest {
 }
 
 message GetFeePriceResponse {
@@ -140,7 +165,7 @@ message MakeTxReq {
     string from = 1;
     repeated string to = 2;
     repeated uint64 amounts = 3;
-    uint64 fee = 4;
+    uint64 gas_price = 4;
 }
 
 message MakeTxResp {
@@ -154,22 +179,14 @@ message MakeSplitAddrTxReq {
     string from = 1;
     repeated string addrs = 2;
     repeated uint64 weights = 3;
-    uint64 fee = 4;
-}
-
-message MakeSplitAddrTxResp {
-    int32 code = 1;
-    string message = 2;
-    string splitAddr = 3;
-    corepb.Transaction tx = 4;
-    repeated bytes rawMsgs = 5;
+    uint64 gas_price = 4;
 }
 
 message MakeTokenIssueTxReq {
     string issuer = 1;
-    string issuee = 2;
+    string owner = 2;
     TokenTag tag = 3;
-    uint64 fee = 4;
+    uint64 gas_price = 4;
 } 
 
 message MakeTokenIssueTxResp {
@@ -186,12 +203,38 @@ message MakeTokenTransferTxReq {
     repeated uint64 amounts = 3;
     string token_hash = 4;
     uint32 token_index = 5;
-    uint64 fee = 6;
+    uint64 gas_price = 6;
 }
 
 message TokenTag {
-  string name = 1;
-  string symbol = 2;
-  uint64 supply = 3;
-  uint32 decimal = 4;
+    string name = 1;
+    string symbol = 2;
+    uint64 supply = 3;
+    uint32 decimal = 4;
+}
+
+message MakeContractTxReq {
+    string from = 1;
+    string to = 2;
+    uint64 amount = 3;
+    uint64 gas_price = 4;
+    uint64 gas_limit = 5;
+    uint64 nonce = 6;
+    bool is_deploy = 7;
+    string data = 8;
+}
+
+message MakeContractTxResp {
+    int32 code = 1;
+    string message = 2;
+    corepb.Transaction tx = 3;
+    repeated bytes rawMsgs = 4;
+    string contract_addr = 5;
+}
+
+message MakeCombineTx {
+    string addr = 1;
+    uint64 gas_price = 2;
+    string token_hash = 3; // combine box if token_hash is set empty
+    uint32 token_index = 4;
 }

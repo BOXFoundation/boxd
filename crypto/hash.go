@@ -9,13 +9,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 
 	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/sha3"
 )
 
 const (
 	// HashSize is length of digest
 	HashSize = 32
+)
+
+var (
+	// ZeroHash is a HashType full of 0
+	ZeroHash = HashType{}
 )
 
 // HashType is renamed hash type
@@ -69,6 +76,15 @@ func Sha256(buf []byte) []byte {
 	return digest[:]
 }
 
+// Sha3256 returns the SHA3-256 digest of the data.
+func Sha3256(args ...[]byte) []byte {
+	hasher := sha3.New256()
+	for _, bytes := range args {
+		hasher.Write(bytes)
+	}
+	return hasher.Sum(nil)
+}
+
 // Sha256Multi calculates the sha256 digest of buf array
 func Sha256Multi(data ...[]byte) []byte {
 	h := sha256.New()
@@ -103,10 +119,10 @@ func (hash *HashType) IsEqual(target *HashType) bool {
 
 // SetBytes convert type []byte to HashType
 func (hash *HashType) SetBytes(hashBytes []byte) error {
-	if len(hashBytes) != HashSize {
-		return fmt.Errorf("Incorrect hash length : %v", hashBytes)
+	if len(hashBytes) > len(hash) {
+		hashBytes = hashBytes[len(hashBytes)-HashSize:]
 	}
-	copy(hash[:], hashBytes)
+	copy(hash[HashSize-len(hashBytes):], hashBytes)
 	return nil
 }
 
@@ -115,4 +131,31 @@ func (hash *HashType) GetBytes() []byte {
 	hashBytes := make([]byte, HashSize)
 	copy(hashBytes, hash[:])
 	return hashBytes
+}
+
+// Bytes get bytes.
+func (hash HashType) Bytes() []byte { return hash[:] }
+
+// Big get big.
+func (hash *HashType) Big() *big.Int { return new(big.Int).SetBytes(hash[:]) }
+
+// BigToHash convert big to hash.
+func BigToHash(b *big.Int) HashType {
+	var h HashType
+	bb := b.Bytes()
+
+	if len(bb) > len(h) {
+		bb = bb[len(bb)-HashSize:]
+	}
+
+	copy(h[HashSize-len(bb):], bb)
+
+	return BytesToHash(h.Bytes())
+}
+
+// BytesToHash convert bytes to hash.
+func BytesToHash(b []byte) HashType {
+	var h HashType
+	h.SetBytes(b)
+	return h
 }

@@ -10,10 +10,18 @@ message BlockHeader {
     int32 version = 1;
     bytes prev_block_hash = 2;
     bytes txs_root = 3;
-    int64 time_stamp = 4;
-    uint32 magic = 5;
-    bytes period_hash = 6;
-    bytes candidates_hash = 7;
+    bytes internal_txs_root = 4;
+    bytes utxo_root = 5;
+    bytes receipt_hash = 6;
+    int64 time_stamp = 7;
+    uint32 magic = 8;
+    bytes period_hash = 9;
+    bytes candidates_hash = 10;
+    bytes root_hash = 11;
+    uint32 height = 12;
+    uint64 gas_used = 13;
+    bytes book_keeper = 14;
+    bytes bloom = 15;
 }
 
 message IrreversibleInfo {
@@ -24,7 +32,7 @@ message IrreversibleInfo {
 message Block {
     BlockHeader header = 1;
     repeated Transaction txs = 2;
-    uint32 height = 3;
+    repeated Transaction internal_txs = 3;
     bytes signature = 4;
     IrreversibleInfo irreversible_info = 5;
 }
@@ -60,7 +68,7 @@ message Data {
 }
 
 message UtxoWrap {
-    TxOut output = 1;
+  TxOut output = 1;
 	uint32 block_height = 2;
 	bool is_spent = 3;
 	bool is_coinbase = 4;

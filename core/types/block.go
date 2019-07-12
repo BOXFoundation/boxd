@@ -10,6 +10,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	proto "github.com/gogo/protobuf/proto"
 )
 
@@ -23,10 +24,9 @@ type Block struct {
 	Hash             *crypto.HashType
 	Header           *BlockHeader
 	Txs              []*Transaction
+	InternalTxs      []*Transaction
 	Signature        []byte
 	IrreversibleInfo *IrreversibleInfo
-
-	Height uint32
 }
 
 var _ conv.Convertible = (*Block)(nil)
@@ -38,9 +38,10 @@ func NewBlock(parent *Block) *Block {
 		Header: &BlockHeader{
 			Magic:         parent.Header.Magic,
 			PrevBlockHash: *parent.BlockHash(),
+			Height:        parent.Header.Height + 1,
 		},
-		Txs:    make([]*Transaction, 0),
-		Height: parent.Height + 1,
+		Txs:         make([]*Transaction, 0),
+		InternalTxs: make([]*Transaction, 0),
 	}
 }
 
@@ -72,12 +73,24 @@ func (block *Block) ToProtoMessage() (proto.Message, error) {
 				txs = append(txs, tx)
 			}
 		}
+
+		var internalTxs []*corepb.Transaction
+		for _, v := range block.InternalTxs {
+			tx, err := v.ToProtoMessage()
+			if err != nil {
+				return nil, err
+			}
+			if tx, ok := tx.(*corepb.Transaction); ok {
+				internalTxs = append(internalTxs, tx)
+			}
+		}
+
 		return &corepb.Block{
 			Header:           header,
 			Txs:              txs,
+			InternalTxs:      internalTxs,
 			Signature:        block.Signature,
 			IrreversibleInfo: ii,
-			Height:           block.Height,
 		}, nil
 	}
 
@@ -109,11 +122,20 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 				}
 				txs = append(txs, tx)
 			}
+
+			var internalTxs []*Transaction
+			for _, v := range message.InternalTxs {
+				tx := new(Transaction)
+				if err := tx.FromProtoMessage(v); err != nil {
+					return err
+				}
+				internalTxs = append(internalTxs, tx)
+			}
 			block.Header = header
 			// Fill in hash after header is set
 			block.Hash = block.BlockHash()
 			block.Txs = txs
-			block.Height = message.Height
+			block.InternalTxs = internalTxs
 			block.Signature = message.Signature
 			block.IrreversibleInfo = ii
 			return nil
@@ -128,44 +150,54 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 // Only copy needed fields to save efforts: height & vin & vout
 func (block *Block) Copy() *Block {
 	newBlock := &Block{
-		Height: block.Height,
+		Header: &BlockHeader{Height: block.Header.Height},
 	}
 
-	txs := make([]*Transaction, len(block.Txs))
-	for k, tx := range block.Txs {
-		vin := make([]*TxIn, len(tx.Vin))
-		for idx, txIn := range tx.Vin {
-			txInCopy := &TxIn{
-				PrevOutPoint: txIn.PrevOutPoint,
-				ScriptSig:    txIn.ScriptSig,
-				Sequence:     txIn.Sequence,
+	var txss [2][]*Transaction
+	for i, btxs := range [][]*Transaction{block.Txs, block.InternalTxs} {
+		if len(btxs) == 0 {
+			continue
+		}
+		txs := make([]*Transaction, len(btxs))
+		for k, tx := range btxs {
+			vin := make([]*TxIn, len(tx.Vin))
+			for idx, txIn := range tx.Vin {
+				txInCopy := &TxIn{
+					PrevOutPoint: txIn.PrevOutPoint,
+					ScriptSig:    txIn.ScriptSig,
+					Sequence:     txIn.Sequence,
+				}
+				vin[idx] = txInCopy
 			}
-			vin[idx] = txInCopy
-		}
 
-		vout := make([]*corepb.TxOut, len(tx.Vout))
-		for idx, txOut := range tx.Vout {
-			txOutCopy := &corepb.TxOut{
-				Value:        txOut.Value,
-				ScriptPubKey: txOut.ScriptPubKey,
+			vout := make([]*corepb.TxOut, len(tx.Vout))
+			for idx, txOut := range tx.Vout {
+				txOutCopy := &corepb.TxOut{
+					Value:        txOut.Value,
+					ScriptPubKey: txOut.ScriptPubKey,
+				}
+				vout[idx] = txOutCopy
 			}
-			vout[idx] = txOutCopy
-		}
 
-		txHash, _ := tx.TxHash()
-		txCopy := &Transaction{
-			hash:     txHash,
-			Vin:      vin,
-			Vout:     vout,
-			Data:     tx.Data,
-			Magic:    tx.Magic,
-			LockTime: tx.LockTime,
-			Version:  tx.Version,
+			txHash, _ := tx.TxHash()
+			txCopy := &Transaction{
+				hash:     txHash,
+				Vin:      vin,
+				Vout:     vout,
+				Data:     tx.Data,
+				Magic:    tx.Magic,
+				LockTime: tx.LockTime,
+				Version:  tx.Version,
+			}
+			txs[k] = txCopy
 		}
-		txs[k] = txCopy
+		txss[i] = txs
 	}
 
-	newBlock.Txs = txs
+	newBlock.Txs = txss[0]
+	newBlock.InternalTxs = txss[1]
+	newBlock.Header.Bloom = bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
+	newBlock.Header.Bloom.Copy(block.Header.Bloom)
 	return newBlock
 }
 
@@ -209,6 +241,17 @@ func (block *Block) calcBlockHash() (*crypto.HashType, error) {
 	return &hash, nil
 }
 
+// GetTx returns tx and index via tx hash
+func (block *Block) GetTx(hash *crypto.HashType) (*Transaction, int) {
+	for i, tx := range block.Txs {
+		h, _ := tx.TxHash()
+		if *h == *hash {
+			return tx, i
+		}
+	}
+	return nil, 0
+}
+
 // BlockHeader defines information about a block and is used in the
 // block (Block) and headers (MsgHeaders) messages.
 type BlockHeader struct {
@@ -221,6 +264,15 @@ type BlockHeader struct {
 	// Merkle tree reference to hash of all transactions for the block.
 	TxsRoot crypto.HashType
 
+	// Merkle tree reference to hash of all internal transactions generated during contract execution for the block.
+	InternalTxsRoot crypto.HashType
+
+	// UtxoRoot reference to hash of all contract utxos.
+	UtxoRoot crypto.HashType
+
+	// ReceiptHash reference to hash of all receipt
+	ReceiptHash crypto.HashType
+
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
 	TimeStamp int64
@@ -228,9 +280,19 @@ type BlockHeader struct {
 	// Distinguish between mainnet and testnet.
 	Magic uint32
 
+	RootHash crypto.HashType
+
 	PeriodHash crypto.HashType
 
 	CandidatesHash crypto.HashType
+
+	Height uint32
+
+	GasUsed uint64
+
+	BookKeeper AddressHash
+
+	Bloom bloom.Filter
 }
 
 var _ conv.Convertible = (*BlockHeader)(nil)
@@ -239,29 +301,59 @@ var _ conv.Serializable = (*BlockHeader)(nil)
 // ToProtoMessage converts block header to proto message.
 func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 
+	if header.Bloom == nil {
+		header.Bloom = CreateReceiptsBloom(nil)
+	}
+	bloom, err := header.Bloom.Marshal()
+	if err != nil {
+		return nil, err
+	}
 	// todo check error if necessary
-	return &corepb.BlockHeader{
-		Version:        header.Version,
-		PrevBlockHash:  header.PrevBlockHash[:],
-		TxsRoot:        header.TxsRoot[:],
-		TimeStamp:      header.TimeStamp,
-		Magic:          header.Magic,
-		PeriodHash:     header.PeriodHash[:],
-		CandidatesHash: header.CandidatesHash[:],
-	}, nil
+	h := &corepb.BlockHeader{
+		Version:         header.Version,
+		PrevBlockHash:   header.PrevBlockHash[:],
+		TxsRoot:         header.TxsRoot[:],
+		InternalTxsRoot: header.InternalTxsRoot[:],
+		UtxoRoot:        header.UtxoRoot[:],
+		ReceiptHash:     header.ReceiptHash[:],
+		TimeStamp:       header.TimeStamp,
+		Magic:           header.Magic,
+		PeriodHash:      header.PeriodHash[:],
+		CandidatesHash:  header.CandidatesHash[:],
+		RootHash:        header.RootHash[:],
+		Height:          header.Height,
+		GasUsed:         header.GasUsed,
+		BookKeeper:      header.BookKeeper[:],
+	}
+	h.Bloom = bloom
+	return h, nil
 }
 
 // FromProtoMessage converts proto message to block header.
 func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.BlockHeader); ok {
 		if message != nil {
+			if header.Bloom == nil {
+				header.Bloom = CreateReceiptsBloom(nil)
+			}
+			err := header.Bloom.Unmarshal(message.Bloom)
+			if err != nil {
+				return err
+			}
 			header.Version = message.Version
 			copy(header.PrevBlockHash[:], message.PrevBlockHash)
 			copy(header.TxsRoot[:], message.TxsRoot)
+			copy(header.InternalTxsRoot[:], message.InternalTxsRoot)
+			copy(header.UtxoRoot[:], message.UtxoRoot)
+			copy(header.ReceiptHash[:], message.ReceiptHash)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
 			copy(header.PeriodHash[:], message.PeriodHash)
 			copy(header.CandidatesHash[:], message.CandidatesHash)
+			copy(header.RootHash[:], message.RootHash)
+			header.Height = message.Height
+			header.GasUsed = message.GasUsed
+			copy(header.BookKeeper[:], message.BookKeeper)
 			return nil
 		}
 		return core.ErrEmptyProtoMessage

@@ -5,7 +5,7 @@ database:
 log:
     out:
         name: null # stdout|stderr|null
-    level: warning # debug|info|warning|error|fatal
+    level: debug # debug|info|warning|error|fatal
     formatter:
         name: text # json|text
     hooks:
@@ -29,8 +29,9 @@ rpc:
     port: 19111
     http:
         port: 19110
-    faucet_keyfile: ../keyfile/key1.keystore
+    faucet_keyfile: ./.devconfig/keyfile/pre.keystore
     subscribe_blocks: true
+    subscribe_logs: true
 
 dpos:
     keypath: key.keystore

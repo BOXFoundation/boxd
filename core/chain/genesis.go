@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -22,8 +22,8 @@ var GenesisBlock = types.Block{
 		Version:       1,
 		PrevBlockHash: crypto.HashType{}, // 0000000000000000000000000000000000000000000000000000000000000000
 		TimeStamp:     time.Date(2018, 1, 31, 0, 0, 0, 0, time.UTC).Unix(),
+		Height:        0,
 	},
-	Height: 0,
 }
 
 // GenesisPeriod genesis period

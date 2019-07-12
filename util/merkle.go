@@ -36,10 +36,10 @@ func BuildMerkleRoot(hashs []*crypto.HashType) []*crypto.HashType {
 		case merkles[i] == nil:
 			merkles[offset] = nil
 		case merkles[i+1] == nil:
-			newHash := CombineHash(merkles[i], merkles[i])
+			newHash := combineHash(merkles[i], merkles[i])
 			merkles[offset] = newHash
 		default:
-			newHash := CombineHash(merkles[i], merkles[i+1])
+			newHash := combineHash(merkles[i], merkles[i+1])
 			merkles[offset] = newHash
 		}
 		offset++
@@ -57,8 +57,8 @@ func calcLowestHierarchyCount(n int) int {
 	return 1 << hierarchy
 }
 
-// CombineHash takes two hashes, and returns the hash of their concatenation.
-func CombineHash(left *crypto.HashType, right *crypto.HashType) *crypto.HashType {
+// combineHash takes two hashes, and returns the hash of their concatenation.
+func combineHash(left *crypto.HashType, right *crypto.HashType) *crypto.HashType {
 	var hash [crypto.HashSize * 2]byte
 	copy(hash[:crypto.HashSize], left[:])
 	copy(hash[crypto.HashSize:], right[:])

@@ -13,7 +13,6 @@ DIR_WORKSPACE=$(shell pwd)
 DIR_OUTPUTS=${DIR_WORKSPACE}
 BIN="${DIR_OUTPUTS}/${NAME}"
 
-LDFLAGS = -ldflags "-X github.com/BOXFoundation/boxd/config.Version=${VERSION} -X github.com/BOXFoundation/boxd/config.GitCommit=${COMMIT} -X github.com/BOXFoundation/boxd/config.GitBranch=${BRANCH}"
 
 export GO15VENDOREXPERIMENT=1
 export GO111MODULE=on
@@ -27,11 +26,8 @@ PKG_FILES ?= $(shell ls -d  */ | grep -v "vendor") *.go
 # stable release.
 GO_VERSION := $(shell go version | cut -d " " -f 3)
 GO_MINOR_VERSION := $(word 2,$(subst ., ,$(GO_VERSION)))
-LINTABLE_MINOR_VERSIONS := 11
-ifneq ($(filter $(LINTABLE_MINOR_VERSIONS),$(GO_MINOR_VERSION)),)
-SHOULD_LINT := true
-endif
 
+LDFLAGS = -ldflags "-X github.com/BOXFoundation/boxd/config.Version=${VERSION} -X github.com/BOXFoundation/boxd/config.GitCommit=${COMMIT} -X github.com/BOXFoundation/boxd/config.GitBranch=${BRANCH} -X github.com/BOXFoundation/boxd/config.GoVersion=${GO_VERSION}"
 
 .PHONY: all
 all: clean lint test build
@@ -53,12 +49,8 @@ dependencies:
 	go get -u github.com/axw/gocov/gocov
 	go get -u github.com/mattn/goveralls
 	go get -v github.com/cweill/gotests/...
-ifdef SHOULD_LINT
 	@echo "Installing golint..."
 	go get -u github.com/golang/lint/golint
-else
-	@echo "Not installing golint, since we don't expect to lint on" $(GO_VERSION)
-endif
 
 .PHONY: vendor
 vendor:
@@ -70,14 +62,13 @@ VET_RULES := -printf=false
 
 .PHONY: lint
 lint:
-ifdef SHOULD_LINT
 	@rm -rf lint.log
 	@echo "Checking formatting..."
 	@gofmt -d $(PKG_FILES) 2>&1 | tee lint.log
 	@echo "Installing test dependencies for vet..."
 	@go test -i $(PKGS)
 	@echo "Checking vet..."
-	@$(foreach dir,$(PKG_FILES),go tool vet $(VET_RULES) $(dir) 2>&1 | tee -a lint.log;)
+	@$(foreach dir,$(PKGS),go vet $(dir) 2>&1 | tee -a lint.log;)
 	@echo "Checking lint..."
 	@$(foreach dir,$(PKGS),golint $(dir) 2>&1 | tee -a lint.log;)
 	@echo "Checking for unresolved FIXMEs..."
@@ -85,9 +76,6 @@ ifdef SHOULD_LINT
 	@echo "Checking for license headers..."
 	@./check_license.sh | tee -a lint.log
 	@[ ! -s lint.log ]
-else
-	@echo "Skipping linters on" $(GO_VERSION)
-endif
 
 .PHONY: test
 test:
@@ -100,7 +88,7 @@ clean:
 	@rm -rf ${BIN}
 
 .PHONY: build
-build: lint fullnode 
+build:  lint fullnode 
 
 .PHONY: fullnode
 fullnode:		

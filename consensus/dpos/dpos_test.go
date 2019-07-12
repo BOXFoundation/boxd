@@ -10,9 +10,13 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/script"
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/facebookgo/ensure"
 )
@@ -38,6 +42,11 @@ var (
 	dpos           = NewDummyDpos(cfg)
 	dposBookkeeper = NewDummyDpos(cfgBookkeeper)
 	bus            = eventbus.New()
+
+	privKey, pubKey, _ = crypto.NewKeyPair()
+	addr, _            = types.NewAddressFromPubKey(pubKey)
+	scriptAddr         = addr.Hash()
+	scriptPubKey       = script.PayToPubKeyHashScript(scriptAddr)
 )
 
 func NewDummyDpos(cfg *Config) *DummyDpos {
@@ -106,13 +115,13 @@ func TestDpos_signBlock(t *testing.T) {
 	block.Header.TimeStamp = 1541824626
 	err := dposBookkeeper.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err := dposBookkeeper.dpos.VerifySign(block)
+	ok, err := dposBookkeeper.dpos.verifySign(block)
 	ensure.DeepEqual(t, ok, false)
 
 	block.Header.TimeStamp = 1541824620
 	err = dposBookkeeper.dpos.signBlock(block)
 	ensure.Nil(t, err)
-	ok, err = dposBookkeeper.dpos.VerifySign(block)
+	ok, err = dposBookkeeper.dpos.verifySign(block)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, ok, true)
 }
@@ -138,4 +147,51 @@ func TestDpos_LoadPeriodContext(t *testing.T) {
 
 	ensure.DeepEqual(t, result.period, dposBookkeeper.dpos.context.periodContext.period)
 
+}
+
+func TestSortPendingTxs(t *testing.T) {
+	var pendingTxs []*types.TxWrap
+	tx0, _ := chain.CreateCoinbaseTx(addr.Hash(), 0)
+	tx1, _ := chain.CreateCoinbaseTx(addr.Hash(), 1)
+	tx2, _ := chain.CreateCoinbaseTx(addr.Hash(), 2)
+	txwrap0 := createTxWrap(tx0, 100)
+	txwrap1 := createTxWrap(tx1, 200)
+	txwrap2 := createTxWrap(tx2, 300)
+
+	txwrap20 := createTxWrap(txwrap2.Tx, 200)
+	txwrap21 := createTxWrap(txwrap20.Tx, 500)
+
+	txwrap10 := createTxWrap(txwrap1.Tx, 600)
+	txwrap11 := createTxWrap(txwrap10.Tx, 900)
+
+	pendingTxs = []*types.TxWrap{txwrap0, txwrap1, txwrap2, txwrap20, txwrap21, txwrap10, txwrap11}
+
+	sortedTxs, err := dpos.dpos.sortPendingTxs(pendingTxs)
+	ensure.Nil(t, err)
+	var sortedGasPrice []uint64
+	for _, v := range sortedTxs {
+		sortedGasPrice = append(sortedGasPrice, v.GasPrice)
+	}
+	ensure.DeepEqual(t, sortedGasPrice, []uint64{300, 200, 100, 600, 200, 900, 500})
+
+}
+
+func createTxWrap(tx *types.Transaction, gasPrice uint64) *types.TxWrap {
+	txchild := createTx(tx, addr.String())
+	return &types.TxWrap{
+		Tx:            txchild,
+		GasPrice:      gasPrice,
+		IsScriptValid: true,
+	}
+}
+
+func createTx(parentTx *types.Transaction, address string) *types.Transaction {
+	vIn := txlogic.MakeVinForTest(parentTx, 0)
+	txOut := txlogic.MakeVout(address, 1)
+	vOut := []*corepb.TxOut{txOut}
+	tx := &types.Transaction{
+		Vin:  vIn,
+		Vout: vOut,
+	}
+	return tx
 }

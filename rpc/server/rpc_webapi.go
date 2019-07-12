@@ -8,24 +8,24 @@ import (
 	"container/list"
 	"encoding/hex"
 	"fmt"
+	"math"
+	"math/big"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	"golang.org/x/net/context"
-)
-
-const (
-	newBlockMsgSize = 60
 )
 
 func init() {
@@ -44,19 +44,16 @@ func registerWebapi(s *Server) {
 type webapiServer struct {
 	ChainBlockReader
 	TxPoolReader
-	proc            goprocess.Process
-	newBlockMutex   sync.RWMutex
-	newBlocksQueue  *list.List
-	bus             eventbus.Bus
-	subscribeBlocks bool
-	subscribeMutex  sync.Mutex
-	subscribeCnt    int
+	proc goprocess.Process
+
+	endpoints map[string]rpcutil.Endpoint
 }
 
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	GetDataFromDB([]byte) ([]byte, error)
+	GetTxReceipt(*crypto.HashType) (*types.Receipt, error)
 }
 
 // ChainBlockReader defines chain block reader interface
@@ -65,6 +62,11 @@ type ChainBlockReader interface {
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
+	TailBlock() *types.Block
+	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
+	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
+	TailState() *state.StateDB
+	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -73,14 +75,21 @@ type TxPoolReader interface {
 }
 
 func newWebAPIServer(s *Server) *webapiServer {
-	return &webapiServer{
+	server := &webapiServer{
 		ChainBlockReader: s.GetChainReader(),
 		TxPoolReader:     s.GetTxHandler(),
 		proc:             s.Proc(),
-		newBlocksQueue:   list.New(),
-		bus:              s.eventBus,
-		subscribeBlocks:  s.cfg.SubScribeBlocks,
+		endpoints:        make(map[string]rpcutil.Endpoint),
 	}
+
+	if s.cfg.SubScribeBlocks {
+		server.endpoints[rpcutil.BlockEp] = rpcutil.NewBlockEndpoint(s.eventBus)
+	}
+	if s.cfg.SubScribeLogs {
+		server.endpoints[rpcutil.LogEp] = rpcutil.NewLogEndpoint(s.eventBus)
+	}
+
+	return server
 }
 
 func (s *webapiServer) Closing() bool {
@@ -90,32 +99,6 @@ func (s *webapiServer) Closing() bool {
 	default:
 		return false
 	}
-}
-
-func (s *webapiServer) receiveNewBlockMsg(block *types.Block) {
-	s.newBlockMutex.Lock()
-	if s.newBlocksQueue.Len() == newBlockMsgSize {
-		s.newBlocksQueue.Remove(s.newBlocksQueue.Front())
-	}
-	// detail block
-	logger.Debugf("webapiServer receives a block, hash: %s, height: %d",
-		block.BlockHash(), block.Height)
-	blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader, true)
-	if err != nil {
-		logger.Warnf("detail block %s height %d error: %s",
-			block.BlockHash(), block.Height, err)
-		s.newBlockMutex.Unlock()
-		return
-	}
-	br := s.ChainBlockReader
-	_, n, err := br.ReadBlockFromDB(block.BlockHash())
-	if err != nil {
-		logger.Warn(err)
-	}
-	blockDetail.Size_ = uint32(n)
-	// push
-	s.newBlocksQueue.PushBack(blockDetail)
-	s.newBlockMutex.Unlock()
 }
 
 func newViewTxDetailResp(code int32, msg string) *rpcpb.ViewTxDetailResp {
@@ -146,12 +129,12 @@ func (s *webapiServer) ViewTxDetail(
 	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
 		// calc tx status
 		if blockConfirmed(block, br) {
-			resp.Status = rpcpb.ViewTxDetailResp_confirmed
+			resp.Status = rpcpb.TxStatus_confirmed
 		} else {
-			resp.Status = rpcpb.ViewTxDetailResp_onchain
+			resp.Status = rpcpb.TxStatus_onchain
 		}
 		resp.BlockTime = block.Header.TimeStamp
-		resp.BlockHeight = block.Height
+		resp.BlockHeight = block.Header.Height
 	} else {
 		logger.Warnf("view tx detail load block by tx hash %s error: %s,"+
 			" try get it from tx pool", hash, err)
@@ -160,7 +143,7 @@ func (s *webapiServer) ViewTxDetail(
 			return newViewTxDetailResp(-1, "tx not found"), nil
 		}
 		tx = txWrap.Tx
-		resp.Status = rpcpb.ViewTxDetailResp_pending
+		resp.Status = rpcpb.TxStatus_pending
 		resp.BlockTime = txWrap.AddedTimestamp
 		resp.BlockHeight = txWrap.Height
 	}
@@ -215,16 +198,17 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	req *rpcpb.ListenBlocksReq,
 	stream rpcpb.WebApi_ListenAndReadNewBlockServer,
 ) error {
-	if !s.subscribeBlocks {
+	endpoint, ok := s.endpoints[rpcutil.BlockEp]
+	if !ok {
 		return ErrAPINotSupported
 	}
 	logger.Info("start listen new blocks")
-	if err := s.subscribe(); err != nil {
+	if err := s.subscribeBlockEndpoint(); err != nil {
 		logger.Error(err)
 		return err
 	}
 	defer func() {
-		if err := s.unsubscribe(); err != nil {
+		if err := endpoint.Unsubscribe(); err != nil {
 			logger.Error(err)
 		}
 	}()
@@ -237,83 +221,335 @@ func (s *webapiServer) ListenAndReadNewBlock(
 			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
 			return nil
 		}
-		s.newBlockMutex.RLock()
-		if s.newBlocksQueue.Len() != 0 {
-			elm = s.newBlocksQueue.Front()
-			s.newBlockMutex.RUnlock()
+		rwmtx := endpoint.GetEventMutex()
+		rwmtx.RLock()
+		if endpoint.GetQueue().Len() != 0 {
+			elm = endpoint.GetQueue().Front()
+			rwmtx.RUnlock()
 			break
 		}
-		s.newBlockMutex.RUnlock()
+		rwmtx.RUnlock()
 		time.Sleep(100 * time.Millisecond)
 	}
 	for {
 		// get block
-		blockDetail := elm.Value.(*rpcpb.BlockDetail)
-		// send block info
-		if err := stream.Send(blockDetail); err != nil {
-			logger.Warnf("webapi send block error %s, exit listen connection!", err)
-			return err
+		block := elm.Value.(*types.Block)
+
+		blockDetail, err := detailBlock(block, s.ChainBlockReader, s.TxPoolReader, true)
+		if err == nil {
+			br := s.ChainBlockReader
+			_, n, err := br.ReadBlockFromDB(block.BlockHash())
+			if err != nil {
+				logger.Warn(err)
+			}
+			blockDetail.Size_ = uint32(n)
+
+			// send block info
+			if err := stream.Send(blockDetail); err != nil {
+				logger.Warnf("webapi send block error %s, exit listen connection!", err)
+				return err
+			}
+			logger.Debugf("webapi server sent a block, hash: %s, height: %d",
+				blockDetail.Hash, blockDetail.Height)
+		} else {
+			logger.Warnf("detail block %s height %d error: %s",
+				block.BlockHash(), block.Header.Height, err)
 		}
-		logger.Debugf("webapi server sent a block, hash: %s, height: %d",
-			blockDetail.Hash, blockDetail.Height)
-		if elm, exit = s.moveToNextElem(elm); exit {
+
+		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
 			return nil
 		}
 	}
 }
 
-func (s *webapiServer) moveToNextElem(elm *list.Element) (elmA *list.Element, exit bool) {
+func (s *webapiServer) moveToNextElem(endpoint rpcutil.Endpoint, elm *list.Element) (elmA *list.Element, exit bool) {
 	// move to next element
 	for {
 		if s.Closing() {
 			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
 			return nil, true
 		}
-		s.newBlockMutex.RLock()
+		rwmtx := endpoint.GetEventMutex()
+		rwmtx.RLock()
 		if next := elm.Next(); next != nil {
 			elmA = next
 		} else if elm.Prev() == nil {
-			// if this element is removed, move to the fromt of list
-			elmA = s.newBlocksQueue.Front()
+			// if this element is removed, move to the front of list
+			elmA = endpoint.GetQueue().Front()
 		}
 		// occur when elm is the front
 		if elmA != nil && elm != elmA {
-			s.newBlockMutex.RUnlock()
+			rwmtx.RUnlock()
 			return elmA, false
 		}
-		s.newBlockMutex.RUnlock()
+		rwmtx.RUnlock()
 		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-func (s *webapiServer) subscribe() error {
-	s.subscribeMutex.Lock()
-	if s.subscribeCnt == 0 {
-		err := s.bus.SubscribeUniq(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
-		if err != nil {
-			s.subscribeMutex.Unlock()
-			return err
-		}
-	}
-	s.subscribeCnt++
-	s.subscribeMutex.Unlock()
-	logger.Infof("subscribe new blocks#%d", s.subscribeCnt)
-	return nil
+func (s *webapiServer) subscribeBlockEndpoint() error {
+	return s.endpoints[rpcutil.BlockEp].Subscribe()
 }
 
-func (s *webapiServer) unsubscribe() error {
-	s.subscribeMutex.Lock()
-	if s.subscribeCnt == 1 {
-		err := s.bus.Unsubscribe(eventbus.TopicRPCSendNewBlock, s.receiveNewBlockMsg)
+func (s *webapiServer) subscribeLogEndpoint(addr []string) error {
+	return s.endpoints[rpcutil.LogEp].Subscribe(addr...)
+}
+
+func (s *webapiServer) unsubscribeBlockEndpoint() error {
+	return s.endpoints[rpcutil.BlockEp].Unsubscribe()
+}
+
+func (s *webapiServer) unsubscribeLogEndpoint(addr []string) error {
+	return s.endpoints[rpcutil.LogEp].Unsubscribe(addr...)
+}
+
+func (s *webapiServer) ListenAndReadNewLog(
+	req *rpcpb.LogsReq,
+	stream rpcpb.WebApi_ListenAndReadNewLogServer,
+) error {
+	endpoint, ok := s.endpoints[rpcutil.LogEp]
+	if !ok {
+		return ErrAPINotSupported
+	}
+	logger.Info("start listen new logs")
+	if err := s.subscribeLogEndpoint(req.Addresses); err != nil {
+		logger.Error(err)
+		return err
+	}
+	defer func() {
+		if err := s.unsubscribeLogEndpoint(req.Addresses); err != nil {
+			logger.Error(err)
+		}
+	}()
+	var (
+		elm  *list.Element
+		exit bool
+	)
+	for {
+		if s.Closing() {
+			logger.Info("receive closing signal, exit ListenAndReadNewLog ...")
+			return nil
+		}
+		rwmtx := endpoint.GetEventMutex()
+		rwmtx.RLock()
+		if endpoint.GetQueue().Len() != 0 {
+			elm = endpoint.GetQueue().Front()
+			rwmtx.RUnlock()
+			break
+		}
+		rwmtx.RUnlock()
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	for {
+		// get logs
+		logs := elm.Value.([]*types.Log)
+		retLogs := &rpcpb.Logs{Logs: []*rpcpb.Logs_LogDetail{}}
+
+		topicslist := [][][]byte{[][]byte{}}
+
+		for _, addr := range req.Addresses {
+
+			contractAddress, err := types.NewContractAddress(addr)
+			if err != nil {
+				logger.Error(err)
+				return err
+			}
+			topicslist[0] = append(topicslist[0], contractAddress.Hash())
+		}
+
+		for i, topiclist := range req.Topics {
+			topicslist = append(topicslist, [][]byte{})
+			for _, topic := range topiclist.Topics {
+				t, err := hex.DecodeString(topic)
+				if err != nil {
+					logger.Error(err)
+					return err
+				}
+				topicslist[i+1] = append(topicslist[i+1], t)
+			}
+		}
+
+		filterlogs, err := s.ChainBlockReader.FilterLogs(logs, topicslist)
 		if err != nil {
-			s.subscribeMutex.Unlock()
+			logger.Error(err)
 			return err
 		}
+		retLogs.Logs = append(retLogs.Logs, rpcutil.ToPbLogs(filterlogs)...)
+		// send log detail
+		if err := stream.Send(retLogs); err != nil {
+			logger.Warnf("webapi send log error %s, exit listen connection!", err)
+			return err
+		}
+		logger.Debugf("webapi server sent a log, data: %v", retLogs.Logs)
+		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
+			return nil
+		}
 	}
-	s.subscribeCnt--
-	s.subscribeMutex.Unlock()
-	logger.Infof("unsubscribe new blocks#%d", s.subscribeCnt)
-	return nil
+}
+
+func newCallResp(code int32, msg string) *rpcpb.CallResp {
+	return &rpcpb.CallResp{
+		Code:    code,
+		Message: msg,
+	}
+}
+
+func (s *webapiServer) DoCall(
+	ctx context.Context, req *rpcpb.CallReq,
+) (resp *rpcpb.CallResp, err error) {
+
+	from, to := req.GetFrom(), req.GetTo()
+	fromHash, err := types.ParseAddress(from)
+	if err != nil || !strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
+		return newCallResp(-1, "invalid from address"), nil
+	}
+	contractAddr, err := types.ParseAddress(to)
+	if err != nil || !strings.HasPrefix(to, types.AddrTypeContractPrefix) {
+		return newCallResp(-1, "invalid contract address"), nil
+	}
+
+	data, err := hex.DecodeString(req.GetData())
+	if err != nil {
+		return newCallResp(-1, "invalid contract data"), nil
+	}
+
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
+		0, nil, types.ContractCallType, data).
+		WithFrom(fromHash.Hash160()).WithTo(contractAddr.Hash160())
+
+	// Setup context so it may be cancelled the call has completed
+	// or, in case of unmetered gas, setup a context with a timeout.
+	var cancel context.CancelFunc
+	if req.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(req.Timeout))
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	// Make sure the context is cancelled when the call has completed
+	// this makes sure resources are cleaned up.
+	defer cancel()
+
+	// Get a new instance of the EVM.
+	evm, vmErr, err := s.GetEvmByHeight(msg, req.Height)
+	if err != nil {
+		return newCallResp(-1, err.Error()), nil
+	}
+	// Wait for the context to be done and cancel the evm. Even if the
+	// EVM has finished, cancelling may be done (repeatedly)
+	go func() {
+		<-ctx.Done()
+		evm.Cancel()
+	}()
+
+	// Setup the gas pool (also for unmetered requests)
+	// and apply the message.
+	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
+	if err := vmErr(); err != nil {
+		return newCallResp(-1, err.Error()), nil
+	}
+
+	// Make sure we have a contract to operate on, and bail out otherwise.
+	if err == nil && len(output) == 0 {
+		conHash := msg.To()
+		// Make sure we have a contract to operate on, and bail out otherwise.
+		if code := evm.StateDB.GetCode(*conHash); len(code) == 0 {
+			return newCallResp(-1, core.ErrContractNotFound.Error()), nil
+		}
+	}
+
+	resp = newCallResp(0, "")
+	resp.Output = hex.EncodeToString(output)
+	return resp, nil
+}
+
+func newNonceResp(code int32, msg string, nonce uint64) *rpcpb.NonceResp {
+	return &rpcpb.NonceResp{
+		Code:    code,
+		Message: msg,
+		Nonce:   nonce,
+	}
+}
+
+func (s *webapiServer) Nonce(
+	ctx context.Context, req *rpcpb.NonceReq,
+) (*rpcpb.NonceResp, error) {
+
+	address, err := types.ParseAddress(req.GetAddr())
+	if err != nil {
+		return newNonceResp(-1, err.Error(), 0), nil
+	}
+	switch address.(type) {
+	default:
+		return newNonceResp(-1, "only allow eoa and contract address", 0), nil
+	case *types.AddressContract, *types.AddressPubKeyHash:
+	}
+	return newNonceResp(0, "", s.TailState().GetNonce(*address.Hash160())), nil
+}
+
+func newLogsResp(code int32, msg string, logs []*types.Log) *rpcpb.Logs {
+
+	return &rpcpb.Logs{
+		Code:    code,
+		Message: msg,
+		Logs:    rpcutil.ToPbLogs(logs),
+	}
+}
+
+func (s *webapiServer) GetLogs(ctx context.Context, req *rpcpb.LogsReq) (logs *rpcpb.Logs, err error) {
+
+	from, to := req.From, req.To
+
+	if len(req.Hash) != 0 && req.To == 0 {
+		hash, err := hex.DecodeString(req.Hash)
+		if err != nil {
+			return newLogsResp(-1, err.Error(), nil), nil
+		}
+		hh := crypto.BytesToHash(hash)
+		b, _, err := s.ChainBlockReader.ReadBlockFromDB(&hh)
+		if err != nil {
+			return newLogsResp(-1, err.Error(), nil), nil
+		}
+		from, to = b.Header.Height, b.Header.Height
+	} else {
+		tail := s.ChainBlockReader.TailBlock()
+		if from > tail.Header.Height {
+			return newLogsResp(0, "", nil), nil
+		}
+		if to > tail.Header.Height {
+			to = tail.Header.Height
+		}
+		if from > to {
+			return newLogsResp(-1, fmt.Sprint("From not allowed to be greater than To"), nil), nil
+		}
+	}
+
+	topicslist := [][][]byte{[][]byte{}}
+	for _, addr := range req.Addresses {
+
+		contractAddress, err := types.NewContractAddress(addr)
+		if err != nil {
+			return newLogsResp(-1, err.Error(), nil), nil
+		}
+		topicslist[0] = append(topicslist[0], contractAddress.Hash())
+	}
+
+	for i, topiclist := range req.Topics {
+		topicslist = append(topicslist, [][]byte{})
+		for _, topic := range topiclist.Topics {
+			t, err := hex.DecodeString(topic)
+			if err != nil {
+				return newLogsResp(-1, err.Error(), nil), nil
+			}
+			topicslist[i+1] = append(topicslist[i+1], t)
+		}
+	}
+
+	blocklogs, err := s.ChainBlockReader.GetLogs(from, to, topicslist)
+	if err != nil {
+		return newLogsResp(-1, err.Error(), nil), nil
+	}
+	return newLogsResp(0, "", blocklogs), nil
 }
 
 func detailTx(
@@ -327,6 +563,7 @@ func detailTx(
 	for i := range tx.Vout {
 		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), br)
 		if err != nil {
+			logger.Warnf("detail tx vout for %s %d %+v error: %s", txHash, i, tx.Vout[i], err)
 			return nil, err
 		}
 		if strings.HasPrefix(outDetail.Addr, types.AddrTypeSplitAddrPrefix) &&
@@ -344,6 +581,9 @@ func detailTx(
 		if err != nil {
 			return nil, err
 		}
+		if len(buf) == 0 {
+			return nil, fmt.Errorf("split tx for %s not found in db", txHash)
+		}
 		tx = new(types.Transaction)
 		if err := tx.Unmarshal(buf); err != nil {
 			return nil, err
@@ -354,6 +594,7 @@ func detailTx(
 		for i := range tx.Vout {
 			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), br)
 			if err != nil {
+				logger.Warnf("detail split tx vout for %s %d %+v error: %s", hash, i, tx.Vout[i], err)
 				return nil, err
 			}
 			detail.Vout = append(detail.Vout, outDetail)
@@ -365,6 +606,7 @@ func detailTx(
 	for _, in := range tx.Vin {
 		inDetail, err := detailTxIn(in, br, tr, detailVin)
 		if err != nil {
+			logger.Warnf("detail tx vin for %s %+v error: %s", txHash, in, err)
 			return nil, err
 		}
 		detail.Vin = append(detail.Vin, inDetail)
@@ -381,7 +623,7 @@ func detailBlock(
 	}
 	detail := new(rpcpb.BlockDetail)
 	detail.Version = block.Header.Version
-	detail.Height = block.Height
+	detail.Height = block.Header.Height
 	detail.TimeStamp = block.Header.TimeStamp
 	detail.Hash = block.BlockHash().String()
 	detail.PrevBlockHash = block.Header.PrevBlockHash.String()
@@ -396,6 +638,8 @@ func detailBlock(
 	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r, tr, false, detailVin)
 		if err != nil {
+			hash, _ := tx.TxHash()
+			logger.Warnf("detail tx %s error: %s", hash, err)
 			return nil, err
 		}
 		detail.Txs = append(detail.Txs, txDetail)
@@ -409,7 +653,7 @@ func detailTxIn(
 
 	detail := new(rpcpb.TxInDetail)
 	// if tx in is coin base
-	if txlogic.IsCoinBaseTxIn(txIn) {
+	if types.IsCoinBaseTxIn(txIn) {
 		return detail, nil
 	}
 	//
@@ -431,8 +675,10 @@ func detailTxIn(
 		index := txIn.PrevOutPoint.Index
 		prevTxHash, _ := prevTx.TxHash()
 		detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
-			txIn.PrevOutPoint.Index, r)
+			index, r)
 		if err != nil {
+			logger.Warnf("detail prev tx vout for %s %d %+v error: %s", prevTxHash,
+				index, prevTx.Vout[index], err)
 			return nil, err
 		}
 	}
@@ -446,7 +692,7 @@ func detailTxOut(
 	detail := new(rpcpb.TxOutDetail)
 	sc := script.NewScriptFromBytes(txOut.GetScriptPubKey())
 	// addr
-	addr, err := ParseAddrFrom(sc, br)
+	addr, err := ParseAddrFrom(sc, txHash, index, br)
 	if err != nil {
 		return nil, err
 	}
@@ -513,6 +759,37 @@ func detailTxOut(
 			},
 		}
 		detail.Appendix = splitContractInfo
+	case rpcpb.TxOutDetail_contract_call:
+		var params *types.VMTxParams
+		var typ types.ContractType
+		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+		params, typ, err = sc.ParseContractParams()
+		if err != nil {
+			return nil, err
+		}
+		// get tx reveipt.
+		receipt, err := br.GetTxReceipt(txHash)
+		if err != nil {
+			logger.Warn(err)
+			return nil, err
+		}
+		if receipt == nil {
+			return nil, fmt.Errorf("receipt for tx %s not found", txHash)
+		}
+		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
+			ContractInfo: &rpcpb.ContractInfo{
+				Fee:      uint32(receipt.GasUsed * params.GasPrice),
+				Failed:   receipt.Failed,
+				GasLimit: params.GasLimit,
+				GasUsed:  receipt.GasUsed,
+				Nonce:    params.Nonce,
+				Data:     hex.EncodeToString(params.Code),
+			},
+		}
+		if typ == types.ContractCreationType {
+			detail.Type = rpcpb.TxOutDetail_contract_create
+		}
+		detail.Appendix = contractInfo
 	}
 	//
 	return detail, nil
@@ -532,23 +809,26 @@ func parseVoutType(txOut *corepb.TxOut) rpcpb.TxOutDetail_TxOutType {
 		return rpcpb.TxOutDetail_new_split_addr
 	} else if sc.IsPayToScriptHash() {
 		return rpcpb.TxOutDetail_pay_to_script_hash
-	} else {
-		return rpcpb.TxOutDetail_unknown
+	} else if sc.IsContractPubkey() {
+		// distinguish create and call after this.
+		return rpcpb.TxOutDetail_contract_call
 	}
+
+	return rpcpb.TxOutDetail_unknown
 }
 
 func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
 	if b == nil {
 		return false
 	}
-	eternalHeight := r.EternalBlock().Height
-	return eternalHeight >= b.Height
+	eternalHeight := r.EternalBlock().Header.Height
+	return eternalHeight >= b.Header.Height
 }
 
 func getCoinbaseAddr(block *types.Block) (string, error) {
 	if block.Txs == nil || len(block.Txs) == 0 {
 		return "", fmt.Errorf("coinbase does not exist in block %s height %d",
-			block.BlockHash(), block.Height)
+			block.BlockHash(), block.Header.Height)
 	}
 	tx := block.Txs[0]
 	sc := *script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
@@ -560,21 +840,37 @@ func getCoinbaseAddr(block *types.Block) (string, error) {
 }
 
 // ParseAddrFrom parse addr from scriptPubkey
-func ParseAddrFrom(sc *script.Script, tr ChainTxReader) (string, error) {
-	addrBytes, err := sc.ExtractP2PKHAddress()
-	address, err := types.NewSplitAddressFromHash(addrBytes)
-	if err != nil {
-		address, err := sc.ExtractAddress()
+func ParseAddrFrom(
+	sc *script.Script, txHash *crypto.HashType, idx uint32, tr ChainTxReader,
+) (string, error) {
+	var (
+		address types.Address
+		err     error
+	)
+	switch {
+	case sc.IsContractPubkey():
+		address, err = sc.ParseContractAddr()
+		if err == nil && address == nil {
+			// smart contract deploy
+			from, err := sc.ParseContractFrom()
+			if err != nil {
+				return "", err
+			}
+			nonce, err := sc.ParseContractNonce()
+			if err != nil {
+				return "", err
+			}
+			address, _ = types.MakeContractAddress(from, nonce)
+		}
+	case sc.IsSplitAddrScript():
+		addrs, weights, err := sc.ParseSplitAddrScript()
 		if err != nil {
 			return "", err
 		}
-		return address.String(), nil
+		address = txlogic.MakeSplitAddress(txHash, idx, addrs, weights)
+	default:
+		address, err = sc.ExtractAddress()
 	}
-	data, _ := tr.GetDataFromDB(chain.SplitAddrKey(address.Hash()))
-	if data != nil {
-		return address.String(), nil
-	}
-	address, err = sc.ExtractAddress()
 	if err != nil {
 		return "", err
 	}

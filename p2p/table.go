@@ -150,7 +150,7 @@ func (t *Table) lookup(pid peer.ID) {
 	}
 
 	if err := conn.PeerDiscover(); err != nil {
-		logger.Errorf("Failed to sync route table from peer: %s err: %s", pid.Pretty(), err.Error())
+		logger.Warnf("Failed to sync route table from peer: %s err: %s", pid.Pretty(), err)
 	}
 }
 

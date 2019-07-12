@@ -7,10 +7,10 @@ package txlogic
 import (
 	"errors"
 
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
@@ -48,7 +48,7 @@ func NewTxWithUtxos(
 // NewSplitAddrTxWithUtxos new split address tx
 func NewSplitAddrTxWithUtxos(
 	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
-) (tx *types.Transaction, splitAddr string, change *rpcpb.Utxo, err error) {
+) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 
 	if len(addrs) != len(weights) {
 		err = ErrInvalidArguments
@@ -61,7 +61,7 @@ func NewSplitAddrTxWithUtxos(
 	}
 	changeAmt := utxoValue - fee
 	// make unsigned split addr tx
-	tx, splitAddr, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
+	tx, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
 		changeAmt, utxos...)
 	if err != nil {
 		return
@@ -173,7 +173,7 @@ func MakeUnsignedTx(
 	// vin
 	vins := make([]*types.TxIn, 0, len(utxos))
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 
 	// vout for toAddrs
@@ -193,25 +193,124 @@ func MakeUnsignedTx(
 	return tx, nil
 }
 
+func makeUnsignedContractTx(
+	addr string, amount, changeAmt uint64, contractVout *corepb.TxOut, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, error) {
+
+	amounts := []uint64{amount}
+	if !checkAmount(amounts, changeAmt, utxos...) {
+		return nil, ErrInsufficientBalance
+	}
+
+	vins := make([]*types.TxIn, 0, len(utxos))
+	for _, utxo := range utxos {
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
+	}
+	tx := new(types.Transaction).AppendVin(vins...).AppendVout(contractVout)
+	if changeAmt > 0 {
+		tx.Vout = append(tx.Vout, MakeVout(addr, changeAmt))
+	}
+	return tx, nil
+}
+
+//MakeUnsignedContractDeployTx make a contract tx without signature
+func MakeUnsignedContractDeployTx(
+	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	byteCode []byte, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, error) {
+
+	fromAddr, err := types.ParseAddress(from)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
+		return nil, errors.New("sender account is not PubKeyHash")
+	}
+	contractVout, err := MakeContractCreationVout(fromAddr.Hash160(), amount,
+		gasLimit, gasPrice, nonce, byteCode)
+	if err != nil {
+		return nil, err
+	}
+	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, utxos...)
+}
+
+//MakeUnsignedContractCallTx call a contract tx without signature
+func MakeUnsignedContractCallTx(
+	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	to string, byteCode []byte, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, error) {
+	fromAddr, err := types.ParseAddress(from)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
+		return nil, errors.New("sender account is not PubKeyHash address")
+	}
+	toAddr, err := types.ParseAddress(to)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := toAddr.(*types.AddressContract); !ok {
+		return nil, errors.New("receiver account is not contract address")
+	}
+	contractVout, err := MakeContractCallVout(fromAddr.Hash160(), toAddr.Hash160(),
+		amount, gasLimit, gasPrice, nonce, byteCode)
+	if err != nil {
+		return nil, err
+	}
+	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, utxos...)
+}
+
+// NewContractTxWithUtxos new a contract transaction
+func NewContractTxWithUtxos(
+	fromAcc *acc.Account, contractAddr string, amount, changeAmt, gasPrice,
+	gasLimit, nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, *rpcpb.Utxo, error) {
+	tx, err := MakeUnsignedContractCallTx(fromAcc.Addr(), amount, changeAmt,
+		gasLimit, gasPrice, nonce, contractAddr, byteCode, utxos...)
+	if err != nil {
+		return nil, nil, err
+	}
+	// sign vin
+	if err := SignTxWithUtxos(tx, utxos, fromAcc); err != nil {
+		return nil, nil, err
+	}
+	// change
+	var change *rpcpb.Utxo
+	if changeAmt > 0 {
+		txHash, _ := tx.TxHash()
+		idx := uint32(len(tx.Vout)) - 1
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		change = MakePbUtxo(op, uw)
+	}
+	//
+	return tx, change, nil
+}
+
 // MakeUnsignedSplitAddrTx make unsigned split addr tx
 func MakeUnsignedSplitAddrTx(
 	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*types.Transaction, string, error) {
+) (*types.Transaction, error) {
 
 	if len(addrs) != len(weights) {
-		return nil, "", ErrInvalidArguments
+		return nil, ErrInvalidArguments
 	}
 
 	if !checkAmount(nil, changeAmt, utxos...) {
-		return nil, "", ErrInsufficientBalance
+		return nil, ErrInsufficientBalance
 	}
 	// vin
 	vins := make([]*types.TxIn, 0)
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
-	splitAddrOut := MakeSplitAddrVout(addrs, weights)
+	addresses := make([]types.Address, 0, len(addrs))
+	for _, addr := range addrs {
+		address, _ := types.ParseAddress(addr)
+		addresses = append(addresses, address)
+	}
+	splitAddrOut := MakeSplitAddrVout(addresses, weights)
 	// construct transaction
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
@@ -220,15 +319,13 @@ func MakeUnsignedSplitAddrTx(
 	if changeAmt > 0 {
 		tx.Vout = append(tx.Vout, MakeVout(from, changeAmt))
 	}
-	// calc split addr
-	addr, err := MakeSplitAddr(addrs, weights)
 	//
-	return tx, addr, err
+	return tx, nil
 }
 
 // MakeUnsignedTokenIssueTx make unsigned token issue tx
 func MakeUnsignedTokenIssueTx(
-	issuer string, issuee string, tag *rpcpb.TokenTag, changeAmt uint64,
+	issuer string, Owner string, tag *rpcpb.TokenTag, changeAmt uint64,
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint32, error) {
 
@@ -238,10 +335,10 @@ func MakeUnsignedTokenIssueTx(
 	// vin
 	vins := make([]*types.TxIn, 0)
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
-	issueOut, err := MakeIssueTokenVout(issuee, tag)
+	issueOut, err := MakeIssueTokenVout(Owner, tag)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -273,7 +370,7 @@ func MakeUnsignedTokenTransferTx(
 	// vin
 	vins := make([]*types.TxIn, 0)
 	for _, utxo := range utxos {
-		vins = append(vins, MakeVin(utxo, 0))
+		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout
 	vouts := make([]*corepb.TxOut, 0)

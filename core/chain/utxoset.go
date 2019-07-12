@@ -7,25 +7,33 @@ package chain
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
-	"github.com/BOXFoundation/boxd/util"
 )
 
 // UtxoSet contains all utxos
 type UtxoSet struct {
-	utxoMap types.UtxoMap
+	utxoMap         types.UtxoMap
+	normalTxUtxoSet map[types.OutPoint]struct{}
+	contractUtxos   []*types.OutPoint
 }
+
+// BalanceChangeMap defines the balance changes of accounts (add or subtract)
+type BalanceChangeMap map[types.AddressHash]uint64
 
 // NewUtxoSet new utxo set
 func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
-		utxoMap: make(types.UtxoMap),
+		utxoMap:         make(types.UtxoMap),
+		normalTxUtxoSet: make(map[types.OutPoint]struct{}),
 	}
 }
 
@@ -52,6 +60,16 @@ func (u *UtxoSet) All() types.UtxoMap {
 	return u.utxoMap
 }
 
+// ImportUtxoMap imports utxos from a UtxoMap
+func (u *UtxoSet) ImportUtxoMap(m types.UtxoMap, overwrite bool) {
+	for op, um := range m {
+		if _, ok := u.utxoMap[op]; ok && !overwrite {
+			continue
+		}
+		u.utxoMap[op] = um
+	}
+}
+
 // FindUtxo returns information about an outpoint.
 func (u *UtxoSet) FindUtxo(outPoint types.OutPoint) *types.UtxoWrap {
 	return u.utxoMap[outPoint]
@@ -65,15 +83,26 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	}
 
 	txHash, _ := tx.TxHash()
+	vout := tx.Vout[txOutIdx]
+	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+	if sc.IsContractPubkey() { // smart contract utxo
+		return fmt.Errorf("UtxoSet AddUtxo: tx %s incluces a contract vout", txHash)
+	}
+
+	// common tx
+	var utxoWrap *types.UtxoWrap
 	outPoint := types.OutPoint{Hash: *txHash, Index: txOutIdx}
-	if utxoWrap := u.utxoMap[outPoint]; utxoWrap != nil {
+	if utxoWrap = u.utxoMap[outPoint]; utxoWrap != nil {
 		return core.ErrAddExistingUtxo
 	}
-	utxoWrap := types.NewUtxoWrap(tx.Vout[txOutIdx].Value, tx.Vout[txOutIdx].ScriptPubKey, blockHeight)
+	utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
 	if IsCoinBase(tx) {
 		utxoWrap.SetCoinBase()
 	}
 	u.utxoMap[outPoint] = utxoWrap
+	if !txlogic.HasContractVout(tx) {
+		u.normalTxUtxoSet[outPoint] = struct{}{}
+	}
 	return nil
 }
 
@@ -86,8 +115,6 @@ func (u *UtxoSet) SpendUtxo(outPoint types.OutPoint) {
 		u.utxoMap[outPoint] = utxoWrap
 	}
 	utxoWrap.Spend()
-	// utxoWrap.IsSpent = true
-	// utxoWrap.IsModified = true
 }
 
 // TxInputAmount returns total amount from tx's inputs
@@ -122,17 +149,89 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 		}
 		if v, exists := spendableTxs.Load(txIn.PrevOutPoint.Hash); exists {
 			spendableTxWrap := v.(*types.TxWrap)
-			utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index, spendableTxWrap.Height)
+			if err := utxoSet.AddUtxo(spendableTxWrap.Tx, txIn.PrevOutPoint.Index,
+				spendableTxWrap.Height); err != nil {
+				logger.Error(err)
+			}
 		}
 	}
 	return utxoSet, nil
 }
 
-// ApplyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
+func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight uint32) error {
+	if txOutIdx >= uint32(len(tx.Vout)) {
+		return core.ErrTxOutIndexOob
+	}
+	txHash, _ := tx.TxHash()
+	vout := tx.Vout[txOutIdx]
+	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+
+	// common tx
+	if !sc.IsContractPubkey() {
+		outPoint := types.NewOutPoint(txHash, txOutIdx)
+		utxoWrap, exists := u.utxoMap[*outPoint]
+		if exists {
+			return core.ErrAddExistingUtxo
+		}
+		utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
+		if IsCoinBase(tx) {
+			utxoWrap.SetCoinBase()
+		}
+		u.utxoMap[*outPoint] = utxoWrap
+		if !txlogic.HasContractVout(tx) {
+			u.normalTxUtxoSet[*outPoint] = struct{}{}
+		}
+		return nil
+	}
+
+	// smart contract utxo
+	var (
+		outPoint *types.OutPoint
+		utxoWrap *types.UtxoWrap
+	)
+	if IsCoinBase(tx) {
+		return errors.New("Invalid smart contract tx")
+	}
+	contractAddr, err := sc.ParseContractAddr()
+	if err != nil {
+		return err
+	}
+	deploy := contractAddr == nil
+	if deploy {
+		// deploy smart contract
+		from, _ := sc.ParseContractFrom()
+		nonce, _ := sc.ParseContractNonce()
+		contractAddr, _ := types.MakeContractAddress(from, nonce)
+		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
+		outPoint = types.NewOutPoint(addressHash, 0)
+		utxoWrap = types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)
+	} else {
+		// call smart contract
+		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
+		outPoint = types.NewOutPoint(addressHash, 0)
+		var exists bool
+		utxoWrap, exists = u.utxoMap[*outPoint]
+		if !exists {
+			return fmt.Errorf("contract utxo[%v] not found in utxoset", outPoint)
+		}
+	}
+	if deploy || vout.Value > 0 {
+		value := utxoWrap.Value() + vout.Value
+		logger.Infof("modify contract utxo, outpoint: %+v, value: %d, previous value: %d",
+			outPoint, value, utxoWrap.Value())
+		utxoWrap.SetValue(value)
+		u.utxoMap[*outPoint] = utxoWrap
+		u.contractUtxos = append(u.contractUtxos, outPoint)
+	}
+
+	return nil
+}
+
+// applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
+func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Add new utxos
 	for txOutIdx := range tx.Vout {
-		if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				// This can occur when a tx spends from another tx in front of it in the same block
 				continue
@@ -149,6 +248,31 @@ func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Spend the referenced utxos
 	for _, txIn := range tx.Vin {
 		u.SpendUtxo(txIn.PrevOutPoint)
+		if !txlogic.HasContractVout(tx) {
+			u.normalTxUtxoSet[txIn.PrevOutPoint] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32) error {
+	for txOutIdx := range tx.Vout {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+			if err == core.ErrAddExistingUtxo {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// ApplyInternalTxs applies internal txs in block
+func (u *UtxoSet) ApplyInternalTxs(block *types.Block) error {
+	for _, tx := range block.InternalTxs {
+		if err := u.applyInternalTx(tx, block.Header.Height); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -157,11 +281,11 @@ func (u *UtxoSet) ApplyTx(tx *types.Transaction, blockHeight uint32) error {
 func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.ApplyTx(tx, block.Height); err != nil {
+		if err := u.applyTx(tx, block.Header.Height); err != nil {
 			return err
 		}
 	}
-	logger.Debugf("UTXO: apply block with %d transactions", len(block.Txs))
+	logger.Debugf("UTXO: apply block %s with %d transactions", block.BlockHash(), len(block.Txs))
 	return nil
 }
 
@@ -171,8 +295,12 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 	txHash, _ := tx.TxHash()
 
 	// Remove added utxos
-	for txOutIdx := range tx.Vout {
-		u.SpendUtxo(types.OutPoint{Hash: *txHash, Index: (uint32)(txOutIdx)})
+	for i, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			continue
+		}
+		u.SpendUtxo(*types.NewOutPoint(txHash, uint32(i)))
 	}
 
 	// Coinbase transaction doesn't spend any utxo.
@@ -182,10 +310,11 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 
 	// "Unspend" the referenced utxos
 	for _, txIn := range tx.Vin {
+		if txIn.PrevOutPoint.IsContractType() {
+			continue
+		}
 		utxoWrap := u.utxoMap[txIn.PrevOutPoint]
 		if utxoWrap != nil {
-			// utxoWrap.IsSpent = false
-			// utxoWrap.IsModified = true
 			utxoWrap.UnSpend()
 			continue
 		}
@@ -193,12 +322,12 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		// The UTXO txIn spends have been deleted from UTXO set, so we load it from tx index
 		block, prevTx, err := chain.LoadBlockInfoByTxHash(txIn.PrevOutPoint.Hash)
 		if err != nil {
-			logger.Error("Failed to load block info by txhash. Err: %v", err)
+			logger.Errorf("Failed to load block info by txhash. Err: %s", err)
 			logger.Panicf("Trying to unspend non-existing spent output %v", txIn.PrevOutPoint)
 		}
 		// prevTx := block.Txs[txIdx]
-		utxoWrap = types.NewUtxoWrap(prevTx.Vout[txIn.PrevOutPoint.Index].Value,
-			prevTx.Vout[txIn.PrevOutPoint.Index].ScriptPubKey, block.Height)
+		prevOut := prevTx.Vout[txIn.PrevOutPoint.Index]
+		utxoWrap = types.NewUtxoWrap(prevOut.Value, prevOut.ScriptPubKey, block.Header.Height)
 		if IsCoinBase(prevTx) {
 			utxoWrap.SetCoinBase()
 		}
@@ -213,47 +342,14 @@ func (u *UtxoSet) RevertBlock(block *types.Block, chain *BlockChain) error {
 	// Loop backwards through all transactions so everything is unspent in reverse order.
 	// This is necessary since transactions later in a block can spend from previous ones.
 	txs := block.Txs
+	if len(block.InternalTxs) > 0 {
+		txs = append(txs, block.InternalTxs...)
+	}
 	for txIdx := len(txs) - 1; txIdx >= 0; txIdx-- {
 		tx := txs[txIdx]
 		if err := u.RevertTx(tx, chain); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// ApplyBlockWithScriptFilter adds or remove all utxos that transactions use or generate
-// with the specified script bytes
-func (u *UtxoSet) ApplyBlockWithScriptFilter(block *types.Block, targetScript []byte) error {
-	txs := block.Txs
-	for _, tx := range txs {
-		if err := u.ApplyTxWithScriptFilter(tx, block.Height, targetScript); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ApplyTxWithScriptFilter adds or remove an utxo if the transaction uses or generates an utxo
-// with the specified script bytes
-func (u *UtxoSet) ApplyTxWithScriptFilter(tx *types.Transaction, blockHeight uint32, targetScript []byte) error {
-	// Add new utxos
-	for txOutIdx := range tx.Vout {
-		if util.IsPrefixed(tx.Vout[txOutIdx].ScriptPubKey, targetScript) {
-			if err := u.AddUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) {
-		return nil
-	}
-
-	// Spend the referenced utxos
-	for _, txIn := range tx.Vin {
-		delete(u.utxoMap, txIn.PrevOutPoint)
 	}
 	return nil
 }
@@ -351,7 +447,7 @@ func DeserializeUtxoWrap(serialized []byte) (*types.UtxoWrap, error) {
 }
 
 // WriteUtxoSetToDB store utxo set to database.
-func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
+func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 
 	for outpoint, utxoWrap := range u.utxoMap {
 		if utxoWrap == nil || !utxoWrap.IsModified() {
@@ -359,32 +455,46 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 		}
 		utxoKey := utxoKey(outpoint)
 		var addrUtxoKey []byte
-		sc := *script.NewScriptFromBytes(utxoWrap.Script())
-		addr, err := sc.ExtractAddress()
-		if err != nil {
-			logger.Warnf("Failed to extract address. utxoWrap: %+v, sc: %s, Err: %v", utxoWrap, sc.Disasm(), err)
-			return err
-		}
-		if sc.IsTokenTransfer() || sc.IsTokenIssue() {
-			var tokenID types.OutPoint
-			if sc.IsTokenTransfer() {
-				v, err := sc.GetTransferParams()
-				if err != nil {
-					logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
-				}
-				tokenID = v.OutPoint
-			} else {
-				tokenID = outpoint
+
+		if len(utxoWrap.Script()) == 0 { // for the utxo deleted from db later
+			if outpoint.IsContractType() {
+				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
+				addr, _ := types.NewContractAddressFromHash(addrHash[:])
+				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 			}
-			addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
 		} else {
-			addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+			sc := script.NewScriptFromBytes(utxoWrap.Script())
+			addr, err := sc.ExtractAddress()
+			if err != nil {
+				logger.Warnf("Failed to extract address. utxoWrap: %+v, sc disasm: %s, hex: %x, Err: %s",
+					utxoWrap, sc.Disasm(), utxoWrap.Script(), err)
+				return err
+			}
+			if sc.IsTokenTransfer() || sc.IsTokenIssue() {
+				var tokenID types.OutPoint
+				if sc.IsTokenTransfer() {
+					v, err := sc.GetTransferParams()
+					if err != nil {
+						logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
+					}
+					tokenID = v.OutPoint
+				} else {
+					tokenID = outpoint
+				}
+				addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
+			} else if sc.IsContractPubkey() {
+				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
+				addr, _ := types.NewContractAddressFromHash(addrHash[:])
+				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+			} else {
+				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+			}
 		}
 
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent() {
-			batch.Del(*utxoKey)
-			batch.Del(addrUtxoKey)
+			db.Del(*utxoKey)
+			db.Del(addrUtxoKey)
 			// recycleOutpointKey(utxoKey)
 			continue
 		} else if utxoWrap.IsModified() {
@@ -393,8 +503,8 @@ func (u *UtxoSet) WriteUtxoSetToDB(batch storage.Batch) error {
 			if err != nil {
 				return err
 			}
-			batch.Put(*utxoKey, serialized)
-			batch.Put(addrUtxoKey, serialized)
+			db.Put(*utxoKey, serialized)
+			db.Put(addrUtxoKey, serialized)
 		}
 	}
 	return nil
@@ -416,29 +526,52 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 }
 
 // LoadBlockUtxos loads UTXOs txs in the block spend
-func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
-
-	txs := map[crypto.HashType]int{}
+func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db storage.Table) error {
 	outPointsToFetch := make(map[types.OutPoint]struct{})
-
+	txs := map[crypto.HashType]int{}
 	for index, tx := range block.Txs {
 		hash, _ := tx.TxHash()
 		txs[*hash] = index
 	}
 	for i, tx := range block.Txs[1:] {
 		for _, txIn := range tx.Vin {
+			if !needContract && txIn.PrevOutPoint.IsContractType() {
+				continue
+			}
 			preHash := &txIn.PrevOutPoint.Hash
 			// i points to txs[i + 1], which should be after txs[index]
 			// Thus (i + 1) > index, equavalently, i >= index
 			if index, ok := txs[*preHash]; ok && i >= index {
 				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
+				if err := u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Header.Height); err != nil {
+					logger.Error(err)
+				}
 				continue
 			}
 			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
 				continue
 			}
 			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
+		}
+		if !needContract {
+			continue
+		}
+		// add utxo for contract vout script pubkey
+		for _, txOut := range tx.Vout {
+			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+			if sc.IsContractPubkey() {
+				contractAddr, err := sc.ParseContractAddr()
+				if err != nil {
+					logger.Warn(err)
+					return err
+				}
+				if contractAddr == nil || reflect.ValueOf(contractAddr).IsNil() {
+					continue
+				}
+				hash := types.NormalizeAddressHash(contractAddr.Hash160())
+				outPoint := types.NewOutPoint(hash, 0)
+				outPointsToFetch[*outPoint] = struct{}{}
+			}
 		}
 	}
 
@@ -448,58 +581,42 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, db storage.Table) error {
 		}
 	}
 	return nil
-
 }
 
 // LoadBlockAllUtxos loads all UTXOs txs in the block
-func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, db storage.Table) error {
+func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, needContract bool, db storage.Table) error {
+	// for vin
+	u.LoadBlockUtxos(block, needContract, db)
 
-	txs := map[crypto.HashType]int{}
+	// for vout
 	outPointsToFetch := make(map[types.OutPoint]struct{})
-
-	for index, tx := range block.Txs {
-		hash, _ := tx.TxHash()
-		txs[*hash] = index
+	txs := block.Txs
+	if len(block.InternalTxs) > 0 {
+		txs = append(txs, block.InternalTxs...)
 	}
-	for i, tx := range block.Txs[1:] {
-		for _, txIn := range tx.Vin {
-			preHash := &txIn.PrevOutPoint.Hash
-			// i points to txs[i + 1], which should be after txs[index]
-			// Thus (i + 1) > index, equavalently, i >= index
-			if index, ok := txs[*preHash]; ok && i >= index {
-				originTx := block.Txs[index]
-				u.AddUtxo(originTx, txIn.PrevOutPoint.Index, block.Height)
-				continue
-			}
-			if _, ok := u.utxoMap[txIn.PrevOutPoint]; ok {
-				continue
-			}
-			outPointsToFetch[txIn.PrevOutPoint] = struct{}{}
-		}
-
-	}
-
-	for _, tx := range block.Txs {
+	for _, tx := range txs {
 		hash, _ := tx.TxHash()
 		outPoint := types.OutPoint{Hash: *hash}
-		for idx := range tx.Vout {
+		for idx, out := range tx.Vout {
+			sc := script.NewScriptFromBytes(out.ScriptPubKey)
+			if !needContract && sc.IsContractPubkey() {
+				continue
+			}
 			outPoint.Index = uint32(idx)
 			outPointsToFetch[outPoint] = struct{}{}
 		}
 	}
-
 	if len(outPointsToFetch) > 0 {
 		if err := u.fetchUtxosFromOutPointSet(outPointsToFetch, db); err != nil {
 			return err
 		}
 	}
 	return nil
-
 }
 
 func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{}, db storage.Table) error {
 	for outPoint := range outPoints {
-		entry, err := u.fetchUtxoWrapFromDB(db, outPoint)
+		entry, err := fetchUtxoWrapFromDB(db, &outPoint)
 		if err != nil {
 			return err
 		}
@@ -510,9 +627,9 @@ func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{
 	return nil
 }
 
-func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint) (*types.UtxoWrap, error) {
-	utxoKey := utxoKey(outpoint)
-	serializedUtxoWrap, err := db.Get(*utxoKey)
+func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*types.UtxoWrap, error) {
+	utxoKey := utxoKey(*outpoint)
+	serializedUtxoWrap, err := reader.Get(*utxoKey)
 	recycleOutpointKey(utxoKey)
 	if err != nil {
 		return nil, err
@@ -525,4 +642,117 @@ func (u *UtxoSet) fetchUtxoWrapFromDB(db storage.Table, outpoint types.OutPoint)
 		return nil, err
 	}
 	return utxoWrap, nil
+}
+
+func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub BalanceChangeMap) {
+
+	add = make(BalanceChangeMap)
+	sub = make(BalanceChangeMap)
+	for _, v := range block.Txs {
+		if !txlogic.HasContractVout(v) {
+			for _, vout := range v.Vout {
+				sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+				// calc balance for account state, here only EOA (external owned account)
+				// have balance state
+				if !sc.IsPayToPubKeyHash() {
+					continue
+				}
+				address, _ := sc.ExtractAddress()
+				addr := address.Hash160()
+				add[*addr] += vout.Value
+				//logger.Warnf("add addr: %s, value: %d", addr, vout.Value)
+			}
+		}
+	}
+
+	for o, w := range u.utxoMap {
+		_, exists := u.normalTxUtxoSet[o]
+		if !exists {
+			continue
+		}
+		sc := script.NewScriptFromBytes(w.Script())
+		// calc balance for account state, here only EOA (external owned account)
+		// have balance state
+		if !sc.IsPayToPubKeyHash() {
+			continue
+		}
+		address, _ := sc.ExtractAddress()
+		addr := address.Hash160()
+		if w.IsSpent() {
+			sub[*addr] += w.Value()
+		}
+	}
+	return
+}
+
+// MakeRollbackContractUtxos makes finally contract utxos from block
+func MakeRollbackContractUtxos(
+	block *types.Block, stateDB *state.StateDB, db storage.Table,
+) (types.UtxoMap, error) {
+	// prevStateDB
+	prevBlock, err := LoadBlockByHash(block.Header.PrevBlockHash, db)
+	if err != nil {
+		return nil, err
+	}
+	prevHeader := prevBlock.Header
+	prevStateDB, err := state.New(&prevHeader.RootHash, &prevHeader.UtxoRoot, db)
+	if err != nil {
+		return nil, err
+	}
+	// balances added and subtracted
+	bAdd, bSub, err := calcContractAddrBalanceChanges(block)
+	if err != nil {
+		logger.Errorf("calc contract addr balance changes error: %s", err)
+		return nil, err
+	}
+	balances := make(map[types.AddressHash]uint64, len(bAdd)+len(bSub))
+	um := make(types.UtxoMap)
+	height := block.Header.Height
+	for a, v := range bAdd {
+		ah := types.NormalizeAddressHash(&a)
+		op := types.NewOutPoint(ah, 0)
+		if _, ok := balances[a]; !ok {
+			balances[a] = stateDB.GetBalance(a).Uint64()
+			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a, prevStateDB.GetNonce(a), types.VMVersion)
+			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
+		}
+		utxo := um[*op]
+		utxo.SetValue(utxo.Value() - v)
+	}
+	for a, v := range bSub {
+		ah := types.NormalizeAddressHash(&a)
+		op := types.NewOutPoint(ah, 0)
+		if _, ok := balances[a]; !ok {
+			balances[a] = stateDB.GetBalance(a).Uint64()
+			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a, prevStateDB.GetNonce(a), types.VMVersion)
+			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
+		}
+		utxo := um[*op]
+		utxo.SetValue(utxo.Value() + v)
+	}
+	//
+	for op, u := range um {
+		ah := new(types.AddressHash)
+		ah.SetBytes(op.Hash[:])
+		b := prevStateDB.GetBalance(*ah)
+		if b.Uint64() != u.Value() {
+			addr, _ := types.NewContractAddressFromHash(ah[:])
+			return nil, fmt.Errorf("block %s: contract addr %s rollback to incorrect "+
+				"balance: %d, need: %d", block.BlockHash(), addr, u.Value(), b)
+		}
+		utxoBytes, err := prevStateDB.GetUtxo(*ah)
+		if err != nil {
+			return nil, err
+		}
+		if utxoBytes == nil {
+			u.Spend()
+			continue
+		}
+		utxoWrap, err := DeserializeUtxoWrap(utxoBytes)
+		if err != nil {
+			return nil, err
+		}
+		um[op] = utxoWrap
+	}
+	return um, nil
 }

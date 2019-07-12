@@ -31,6 +31,9 @@ var GitCommit string
 // GitBranch name of source code
 var GitBranch string
 
+//GoVersion number of the build
+var GoVersion string
+
 ////////////////////////////////////////////////////////////////
 
 // Config is a configuration data structure for box blockchain server,
@@ -73,7 +76,7 @@ func (c *Config) Prepare() {
 	mkDirAll(c.Workspace)
 
 	// check if the network is correct.
-	if magic, ok := p2p.NetworkNamtToMagic[c.Network]; ok {
+	if magic, ok := p2p.NetworkNameToMagic[c.Network]; ok {
 		c.P2p.Magic = magic
 	} else {
 		fmt.Println("Incorrect network name ", c.Network)

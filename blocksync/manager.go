@@ -109,6 +109,8 @@ type SyncManager struct {
 	blocksSynced int32
 	// server started only once
 	svrStarted int32
+	// last the end located hash received that been remove by rmOverlap method
+	lastLocatedHash *crypto.HashType
 
 	proc      goprocess.Process
 	chain     *chain.BlockChain
@@ -241,11 +243,7 @@ out_sync:
 				cleanStopTimer(timer)
 				break out_locate
 			case ef := <-sm.locateErrCh:
-				// no hash sent from locate peer, no need to sync
-				if ef == errFlagNoHash {
-					return
-				}
-				logger.Infof("SyncManager locate wrong, restart sync")
+				logger.Infof("SyncManager locate error %d, restart sync", ef)
 				continue out_sync
 			case <-timer.C:
 				logger.Info("timeout for locate and restart sync!")
@@ -257,6 +255,7 @@ out_sync:
 				return
 			}
 		}
+		sm.lastLocatedHash = nil
 
 		// find other Peers to check header
 		sm.setStatus(checkStatus)
@@ -374,9 +373,17 @@ out_sync:
 
 func (sm *SyncManager) locateHashes() error {
 	// get block locator hashes
-	hashes, err := sm.getLatestBlockLocator()
-	if err != nil {
-		return err
+	var (
+		hashes []*crypto.HashType
+		err    error
+	)
+	if sm.lastLocatedHash != nil {
+		hashes = []*crypto.HashType{sm.lastLocatedHash}
+	} else {
+		hashes, err = sm.getLatestBlockLocator()
+		if err != nil {
+			return err
+		}
 	}
 	logger.Infof("locateHashes get lastestBlockLocator %d hashes", len(hashes))
 	lh := newLocateHeaders(hashes...)
@@ -386,8 +393,8 @@ func (sm *SyncManager) locateHashes() error {
 		return err
 	}
 	sm.stalePeers.Store(pid, locatePeerStatus)
-	logger.Infof("send message[0x%X] (%d hashes) to peer %s",
-		p2p.LocateForkPointRequest, len(hashes), pid.Pretty())
+	logger.Infof("send message[0x%X] (begin: %s, len %d) to peer %s",
+		p2p.LocateForkPointRequest, hashes[len(hashes)-1], len(hashes), pid.Pretty())
 	return sm.p2pNet.SendMessageToPeer(p2p.LocateForkPointRequest, lh, pid)
 }
 
@@ -471,7 +478,7 @@ func (sm *SyncManager) verifyPeerStatus(status peerStatus, id peer.ID) bool {
 // and log2(height-@beginSeqHashes) entries to geneses for the skip portion.
 func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 	hashes := make([]*crypto.HashType, 0)
-	tailHeight := sm.chain.TailBlock().Height
+	tailHeight := sm.chain.TailBlock().Header.Height
 	if tailHeight == 0 {
 		return []*crypto.HashType{sm.chain.Genesis().BlockHash()}, nil
 	}
@@ -482,7 +489,7 @@ func (sm *SyncManager) getLatestBlockLocator() ([]*crypto.HashType, error) {
 			return nil, fmt.Errorf("LoadBlockByHeight error: %s, h: %d, heights: %v",
 				err, h, heights)
 		}
-		hashes = append(hashes, b.Hash)
+		hashes = append(hashes, b.BlockHash())
 	}
 	return hashes, nil
 }
@@ -512,7 +519,7 @@ func heightLocator(height uint32) []uint32 {
 // rmOverlap remove overlapped headers between locateHashes and local chain
 func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) []*crypto.HashType {
 	for i, h := range locateHashes {
-		if block, _ := sm.chain.LoadBlockByHash(*h); block == nil {
+		if block, _ := chain.LoadBlockByHash(*h, sm.chain.DB()); block == nil {
 			return locateHashes[i:]
 		}
 	}

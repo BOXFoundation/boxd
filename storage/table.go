@@ -9,7 +9,12 @@ type Table interface {
 	Operations
 
 	// create a new write batch
-	NewBatch() Batch
+	// NewBatch() Batch
+
+	EnableBatch()
+	DisableBatch()
+	IsInBatch() bool
+	Flush() error
 
 	// NewTransaction creates a new transaction on the Storage.
 	NewTransaction() (Transaction, error)
