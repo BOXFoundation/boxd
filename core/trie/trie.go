@@ -25,6 +25,12 @@ type Trie struct {
 	db       storage.Table
 }
 
+// Copy news a Trie that be same with given Trie
+func (t *Trie) Copy() *Trie {
+	tt := *t
+	return &tt
+}
+
 // New creates a trie with an existing root hash from db.
 func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 	if db == nil {

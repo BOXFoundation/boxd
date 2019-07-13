@@ -830,7 +830,7 @@ func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet
 			return err
 		}
 		// update statedb utxo trie
-		logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddr, u)
+		//logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddr, u)
 		if err := statedb.UpdateUtxo(*contractAddr, utxoBytes); err != nil {
 			logger.Error(err)
 			return err
@@ -1200,7 +1200,7 @@ func (chain *BlockChain) TailBlock() *types.Block {
 
 // TailState returns chain tail statedb
 func (chain *BlockChain) TailState() *state.StateDB {
-	return chain.tailState
+	return chain.tailState.Copy()
 }
 
 // SetTailState returns chain tail statedb
