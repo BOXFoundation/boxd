@@ -44,7 +44,7 @@ func (db *rocksdb) DisableBatch() {
 	db.sm.Lock()
 	defer db.sm.Unlock()
 	db.enableBatch = false
-	db.batch = nil
+	db.batch.Close()
 }
 
 // IsInBatch indicates whether db is in batch
@@ -281,6 +281,7 @@ func (db *rocksdb) KeysWithPrefix(prefix []byte) [][]byte {
 			buf := data(it.Key())
 			keys = append(keys, buf)
 		} else {
+			it.Key().Free()
 			break
 		}
 	}
@@ -329,10 +330,12 @@ func (db *rocksdb) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan
 
 			key := iter.Key()
 			if !bytes.HasPrefix(key.Data(), prefix) {
+				key.Free()
 				return
 			}
 			select {
 			case <-ctx.Done():
+				key.Free()
 				return
 			case out <- data(key):
 				iter.Next()

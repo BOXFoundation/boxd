@@ -194,6 +194,7 @@ func (t *rtable) KeysWithPrefix(prefix []byte) [][]byte {
 		if bytes.HasPrefix(key.Data(), prefix) {
 			keys = append(keys, data(key))
 		} else {
+			key.Free()
 			break
 		}
 	}
@@ -240,10 +241,12 @@ func (t *rtable) IterKeysWithPrefix(ctx context.Context, prefix []byte) <-chan [
 
 			key := iter.Key()
 			if !bytes.HasPrefix(key.Data(), prefix) {
+				key.Free()
 				return
 			}
 			select {
 			case <-ctx.Done():
+				key.Free()
 				return
 			case out <- data(key):
 				iter.Next()
