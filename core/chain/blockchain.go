@@ -926,6 +926,7 @@ func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.
 		if err := chain.StoreReceipts(block.BlockHash(), receipts, chain.db); err != nil {
 			return err
 		}
+		delete(chain.receiptsCache, block.Header.Height)
 	}
 
 	if err := chain.consensus.Process(block, chain.db); err != nil {
