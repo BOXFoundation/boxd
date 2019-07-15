@@ -63,6 +63,9 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
 		0, nil, types.ContractCallType, data).WithFrom(bpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
 	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
+	if err != nil {
+		return nil, err
+	}
 
 	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
 	if err := vmErr(); err != nil {
@@ -70,7 +73,7 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 	}
 	var dynasty []Delegate
 	if err := abiObj.Unpack(&dynasty, "getDynasty", output); err != nil {
-		logger.Errorf("Failed to unpack the result of call getDynasty")
+		logger.Errorf("Failed to unpack the result of call getDynasty. Err: %v", err)
 		return nil, err
 	}
 	logger.Infof("get dynasty from contract: %v", dynasty)

@@ -31,7 +31,7 @@ rpc:
     port: 19151
     http:
         port: 19150
-dpos:
+bpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1

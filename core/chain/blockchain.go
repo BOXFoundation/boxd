@@ -460,13 +460,13 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return core.ErrRepeatedMintAtSameTime
 	}
 
-	if messageFrom != "" { // local block does not require validation
-		if err := chain.consensus.Verify(block); err != nil {
-			logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
-				block.BlockHash(), block.Header.Height, err)
-			return err
-		}
-	}
+	// if messageFrom != "" { // local block does not require validation
+	// 	if err := chain.consensus.Verify(block); err != nil {
+	// 		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+	// 			block.BlockHash(), block.Header.Height, err)
+	// 		return err
+	// 	}
+	// }
 
 	if err := validateBlock(block); err != nil {
 		logger.Errorf("Failed to validate block. Hash: %s, Height: %d, Err: %s",
@@ -554,6 +554,14 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 	parentBlock := chain.GetParentBlock(block)
 	if parentBlock == nil {
 		return core.ErrParentBlockNotExist
+	}
+
+	if messageFrom != "" { // local block does not require validation
+		if err := chain.consensus.Verify(block); err != nil {
+			logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+				block.BlockHash(), block.Header.Height, err)
+			return err
+		}
 	}
 
 	// The height of this block must be one more than the referenced parent block.
@@ -1288,6 +1296,13 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		if err := genesis.Unmarshal(genesisBin); err != nil {
 			return nil, err
 		}
+		adminAddr, err := types.NewAddress(Admin)
+		if err != nil {
+			return nil, err
+		}
+
+		ContractAddr = *types.CreateAddress(*adminAddr.Hash160(), 1)
+		logger.Errorf("load genesis contract addr: %v", ContractAddr)
 
 		return genesis, nil
 	}
@@ -1329,6 +1344,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, vmerr
 	}
 	ContractAddr = contractAddr
+	logger.Errorf("load genesis contract addr: %v", ContractAddr)
 	addressHash := types.NormalizeAddressHash(&contractAddr)
 	outPoint := types.NewOutPoint(addressHash, 0)
 	utxoWrap := types.NewUtxoWrap(0, []byte{}, 0)
