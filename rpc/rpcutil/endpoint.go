@@ -6,6 +6,7 @@ package rpcutil
 
 import (
 	"container/list"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -202,18 +203,18 @@ func (lep *LogEndpoint) receiveNewLog(logs []*types.Log) {
 func ToPbLogs(logs []*types.Log) []*rpcpb.Logs_LogDetail {
 	ret := []*rpcpb.Logs_LogDetail{}
 	for _, log := range logs {
-		topics := [][]byte{}
+		topics := []string{}
 		for _, topic := range log.Topics {
-			topics = append(topics, topic.Bytes())
+			topics = append(topics, hex.EncodeToString(topic.Bytes()))
 		}
 		ret = append(ret, &rpcpb.Logs_LogDetail{
-			Address:     log.Address.Bytes(),
+			Address:     log.Address.String(),
 			Topics:      topics,
-			Data:        log.Data,
+			Data:        hex.EncodeToString(log.Data),
 			BlockNumber: log.BlockNumber,
-			TxHash:      log.TxHash.Bytes(),
+			TxHash:      hex.EncodeToString(log.TxHash.Bytes()),
 			TxIndex:     log.TxIndex,
-			BlockHash:   log.BlockHash.Bytes(),
+			BlockHash:   hex.EncodeToString(log.BlockHash.Bytes()),
 			Index:       log.Index,
 			Removed:     log.Removed,
 		})
