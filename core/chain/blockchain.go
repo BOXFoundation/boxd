@@ -556,13 +556,13 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 		return core.ErrParentBlockNotExist
 	}
 
-	if messageFrom != "" { // local block does not require validation
-		if err := chain.consensus.Verify(block); err != nil {
-			logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
-				block.BlockHash(), block.Header.Height, err)
-			return err
-		}
+	// if messageFrom != "" { // local block does not require validation
+	if err := chain.consensus.Verify(block); err != nil {
+		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+			block.BlockHash(), block.Header.Height, err)
+		return err
 	}
+	// }
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Header.Height != parentBlock.Header.Height+1 {
@@ -1592,8 +1592,6 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 
 // StoreReceipts store receipts to db in batch mod.
 func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
-
-	logger.Errorf("Receipts: %v", receipts)
 
 	data, err := receipts.Marshal()
 	if err != nil {

@@ -6,7 +6,6 @@ package bpos
 
 import (
 	"container/heap"
-	"encoding/json"
 	"errors"
 	"math/big"
 	"sync"
@@ -57,12 +56,6 @@ type Bpos struct {
 	canMint     bool
 	disableMint bool
 	bftservice  *BftService
-}
-
-// ConsensusContext represents consensus context info.
-type ConsensusContext struct {
-	timestamp int64
-	dynasty   *Dynasty
 }
 
 // NewBpos new a bpos implement.
@@ -256,7 +249,7 @@ func (bpos *Bpos) produceBlock() error {
 	tail := bpos.chain.TailBlock()
 	block := types.NewBlock(tail)
 	block.Header.TimeStamp = bpos.context.timestamp
-	dynastyBytes, err := json.Marshal(bpos.context.dynasty)
+	dynastyBytes, err := bpos.context.dynasty.Marshal()
 	if err != nil {
 		return err
 	}
@@ -598,7 +591,7 @@ func (bpos *Bpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uin
 	prepareBlockMsg.Hash = *hash
 	prepareBlockMsg.Signature = signature
 	prepareBlockMsg.Timestamp = block.Header.TimeStamp
-	bookkeepers := bpos.context.dynasty.peers
+	bookkeepers := bpos.context.verifyDynasty.peers
 
 	return bpos.net.BroadcastToBookkeepers(messageID, prepareBlockMsg, bookkeepers)
 }
@@ -606,13 +599,16 @@ func (bpos *Bpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uin
 // verifyCandidates vefiry if the block candidates hash is right.
 func (bpos *Bpos) verifyDynasty(block *types.Block) error {
 	if block.Header.Height > 0 {
-		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
-		dynastyBytes, err := json.Marshal(dynasty)
+		// dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
+		// if err != nil {
+		// 	return err
+		// }
+		dynastyBytes, err := bpos.context.verifyDynasty.Marshal()
 		if err != nil {
 			return err
 		}
 		dynastyHash := crypto.DoubleHashH(dynastyBytes)
-		if (&block.Header.DynastyHash).IsEqual(&dynastyHash) {
+		if !(&block.Header.DynastyHash).IsEqual(&dynastyHash) {
 			return ErrInvalidDynastyHash
 		}
 	}
@@ -625,10 +621,7 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 
 	irreversibleInfo := block.IrreversibleInfo
 	if irreversibleInfo != nil {
-		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
-		if err != nil {
-			return err
-		}
+		dynasty := bpos.context.verifyDynasty
 		if len(irreversibleInfo.Signatures) <= 2*len(dynasty.delegates)/3 {
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
@@ -695,6 +688,7 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	bpos.context.verifyDynasty = dynasty
 	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, dynasty.delegates)
 	if err != nil {
 		return false, err
@@ -719,10 +713,11 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 // TryToUpdateEternalBlock try to update eternal block.
 func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
-	dynasty, err := bpos.fetchDynastyByHeight(src.Header.Height - 1)
-	if err != nil {
-		return
-	}
+	// dynasty, err := bpos.fetchDynastyByHeight(src.Header.Height - 1)
+	// if err != nil {
+	// 	return
+	// }
+	dynasty := bpos.context.verifyDynasty
 	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > 2*len(dynasty.delegates)/3 {
 		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, bpos.chain.DB())
 		if err != nil {

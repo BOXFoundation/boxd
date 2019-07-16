@@ -33,6 +33,8 @@ var (
 	ErrInvalidPeriodContextProtoMessage    = errors.New("Invalid period contex proto message")
 	ErrInvalidPeriodProtoMessage           = errors.New("Invalid period proto message")
 	ErrInvalidEternalBlockMsgProtoMessage  = errors.New("Invalid eternalBlockMsg proto message")
+	ErrInvalidDelegateProtoMessage         = errors.New("Invalid delegate proto message")
+	ErrInvalidDynastyProtoMessage          = errors.New("Invalid dynasty proto message")
 
 	// bft_service
 	ErrNoNeedToUpdateEternalBlock = errors.New("No need to update Eternal block")

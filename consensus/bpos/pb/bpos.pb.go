@@ -22,6 +22,150 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
+type Dynasty struct {
+	Delegates []*Delegate `protobuf:"bytes,1,rep,name=delegates,proto3" json:"delegates,omitempty"`
+	Addrs     [][]byte    `protobuf:"bytes,2,rep,name=addrs,proto3" json:"addrs,omitempty"`
+	Peers     []string    `protobuf:"bytes,3,rep,name=peers,proto3" json:"peers,omitempty"`
+}
+
+func (m *Dynasty) Reset()         { *m = Dynasty{} }
+func (m *Dynasty) String() string { return proto.CompactTextString(m) }
+func (*Dynasty) ProtoMessage()    {}
+func (*Dynasty) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d02302bca865a0e7, []int{0}
+}
+func (m *Dynasty) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Dynasty) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Dynasty.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Dynasty) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Dynasty.Merge(m, src)
+}
+func (m *Dynasty) XXX_Size() int {
+	return m.Size()
+}
+func (m *Dynasty) XXX_DiscardUnknown() {
+	xxx_messageInfo_Dynasty.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Dynasty proto.InternalMessageInfo
+
+func (m *Dynasty) GetDelegates() []*Delegate {
+	if m != nil {
+		return m.Delegates
+	}
+	return nil
+}
+
+func (m *Dynasty) GetAddrs() [][]byte {
+	if m != nil {
+		return m.Addrs
+	}
+	return nil
+}
+
+func (m *Dynasty) GetPeers() []string {
+	if m != nil {
+		return m.Peers
+	}
+	return nil
+}
+
+type Delegate struct {
+	Addr         []byte `protobuf:"bytes,1,opt,name=Addr,proto3" json:"Addr,omitempty"`
+	PeerID       string `protobuf:"bytes,2,opt,name=PeerID,proto3" json:"PeerID,omitempty"`
+	Votes        int64  `protobuf:"varint,3,opt,name=Votes,proto3" json:"Votes,omitempty"`
+	PledgeAmount int64  `protobuf:"varint,4,opt,name=PledgeAmount,proto3" json:"PledgeAmount,omitempty"`
+	Score        int64  `protobuf:"varint,5,opt,name=Score,proto3" json:"Score,omitempty"`
+	IsExist      bool   `protobuf:"varint,6,opt,name=IsExist,proto3" json:"IsExist,omitempty"`
+}
+
+func (m *Delegate) Reset()         { *m = Delegate{} }
+func (m *Delegate) String() string { return proto.CompactTextString(m) }
+func (*Delegate) ProtoMessage()    {}
+func (*Delegate) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d02302bca865a0e7, []int{1}
+}
+func (m *Delegate) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Delegate) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Delegate.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Delegate) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Delegate.Merge(m, src)
+}
+func (m *Delegate) XXX_Size() int {
+	return m.Size()
+}
+func (m *Delegate) XXX_DiscardUnknown() {
+	xxx_messageInfo_Delegate.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Delegate proto.InternalMessageInfo
+
+func (m *Delegate) GetAddr() []byte {
+	if m != nil {
+		return m.Addr
+	}
+	return nil
+}
+
+func (m *Delegate) GetPeerID() string {
+	if m != nil {
+		return m.PeerID
+	}
+	return ""
+}
+
+func (m *Delegate) GetVotes() int64 {
+	if m != nil {
+		return m.Votes
+	}
+	return 0
+}
+
+func (m *Delegate) GetPledgeAmount() int64 {
+	if m != nil {
+		return m.PledgeAmount
+	}
+	return 0
+}
+
+func (m *Delegate) GetScore() int64 {
+	if m != nil {
+		return m.Score
+	}
+	return 0
+}
+
+func (m *Delegate) GetIsExist() bool {
+	if m != nil {
+		return m.IsExist
+	}
+	return false
+}
+
 type EternalBlockMsg struct {
 	Hash      []byte `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
 	Timestamp int64  `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
@@ -32,7 +176,7 @@ func (m *EternalBlockMsg) Reset()         { *m = EternalBlockMsg{} }
 func (m *EternalBlockMsg) String() string { return proto.CompactTextString(m) }
 func (*EternalBlockMsg) ProtoMessage()    {}
 func (*EternalBlockMsg) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d02302bca865a0e7, []int{0}
+	return fileDescriptor_d02302bca865a0e7, []int{2}
 }
 func (m *EternalBlockMsg) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -83,23 +227,143 @@ func (m *EternalBlockMsg) GetSignature() []byte {
 }
 
 func init() {
+	proto.RegisterType((*Dynasty)(nil), "bpospb.Dynasty")
+	proto.RegisterType((*Delegate)(nil), "bpospb.Delegate")
 	proto.RegisterType((*EternalBlockMsg)(nil), "bpospb.EternalBlockMsg")
 }
 
 func init() { proto.RegisterFile("bpos.proto", fileDescriptor_d02302bca865a0e7) }
 
 var fileDescriptor_d02302bca865a0e7 = []byte{
-	// 149 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x4a, 0x2a, 0xc8, 0x2f,
-	0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x03, 0xb1, 0x0b, 0x92, 0x94, 0x12, 0xb9, 0xf8,
-	0x5d, 0x4b, 0x52, 0x8b, 0xf2, 0x12, 0x73, 0x9c, 0x72, 0xf2, 0x93, 0xb3, 0x7d, 0x8b, 0xd3, 0x85,
-	0x84, 0xb8, 0x58, 0x32, 0x12, 0x8b, 0x33, 0x24, 0x18, 0x15, 0x18, 0x35, 0x78, 0x82, 0xc0, 0x6c,
-	0x21, 0x19, 0x2e, 0xce, 0x92, 0xcc, 0xdc, 0xd4, 0xe2, 0x92, 0xc4, 0xdc, 0x02, 0x09, 0x26, 0x05,
-	0x46, 0x0d, 0xe6, 0x20, 0x84, 0x00, 0x48, 0xb6, 0x38, 0x33, 0x3d, 0x2f, 0xb1, 0xa4, 0xb4, 0x28,
-	0x55, 0x82, 0x19, 0xac, 0x0d, 0x21, 0xe0, 0x24, 0x71, 0xe2, 0x91, 0x1c, 0xe3, 0x85, 0x47, 0x72,
-	0x8c, 0x0f, 0x1e, 0xc9, 0x31, 0x4e, 0x78, 0x2c, 0xc7, 0x70, 0xe1, 0xb1, 0x1c, 0xc3, 0x8d, 0xc7,
-	0x72, 0x0c, 0x49, 0x6c, 0x60, 0xb7, 0x18, 0x03, 0x02, 0x00, 0x00, 0xff, 0xff, 0xf4, 0xf7, 0x1d,
-	0xb3, 0x99, 0x00, 0x00, 0x00,
+	// 309 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x54, 0x91, 0x41, 0x6a, 0x02, 0x31,
+	0x14, 0x86, 0x8d, 0xd1, 0xd1, 0x49, 0x07, 0x5a, 0x42, 0x29, 0x59, 0x94, 0x21, 0xcc, 0x2a, 0xab,
+	0x59, 0xb4, 0x27, 0x50, 0x74, 0xe1, 0xa2, 0x20, 0x29, 0x74, 0x1f, 0x9d, 0xc7, 0x28, 0x1d, 0x27,
+	0x43, 0x12, 0xa1, 0xde, 0xa2, 0x47, 0xe8, 0x71, 0xba, 0x74, 0xd9, 0x65, 0xd1, 0x8b, 0x94, 0x64,
+	0x94, 0xa1, 0xbb, 0xff, 0xfb, 0xff, 0xf7, 0x1e, 0x3f, 0x3c, 0x42, 0x56, 0x8d, 0xb6, 0x79, 0x63,
+	0xb4, 0xd3, 0x34, 0xf2, 0xba, 0x59, 0x65, 0x40, 0x46, 0xb3, 0x43, 0xad, 0xac, 0x3b, 0xd0, 0x9c,
+	0xc4, 0x05, 0x54, 0x50, 0x2a, 0x07, 0x96, 0x21, 0x8e, 0xc5, 0xcd, 0xd3, 0x5d, 0xde, 0x8e, 0xe5,
+	0xb3, 0x4b, 0x20, 0xbb, 0x11, 0x7a, 0x4f, 0x86, 0xaa, 0x28, 0x8c, 0x65, 0x7d, 0x8e, 0x45, 0x22,
+	0x5b, 0xf0, 0x6e, 0x03, 0x60, 0x2c, 0xc3, 0x1c, 0x8b, 0x58, 0xb6, 0x90, 0x7d, 0x21, 0x32, 0xbe,
+	0xde, 0xa0, 0x94, 0x0c, 0x26, 0x45, 0x61, 0x18, 0xe2, 0x48, 0x24, 0x32, 0x68, 0xfa, 0x40, 0xa2,
+	0x25, 0x80, 0x59, 0xcc, 0x58, 0x9f, 0x23, 0x11, 0xcb, 0x0b, 0xf9, 0x73, 0x6f, 0xda, 0x17, 0xc2,
+	0x1c, 0x09, 0x2c, 0x5b, 0xa0, 0x19, 0x49, 0x96, 0x15, 0x14, 0x25, 0x4c, 0x76, 0x7a, 0x5f, 0x3b,
+	0x36, 0x08, 0xe1, 0x3f, 0xcf, 0x6f, 0xbe, 0xae, 0xb5, 0x01, 0x36, 0x6c, 0x37, 0x03, 0x50, 0x46,
+	0x46, 0x0b, 0x3b, 0xff, 0xd8, 0x5a, 0xc7, 0x22, 0x8e, 0xc4, 0x58, 0x5e, 0x31, 0x53, 0xe4, 0x76,
+	0xee, 0xc0, 0xd4, 0xaa, 0x9a, 0x56, 0x7a, 0xfd, 0xfe, 0x62, 0x4b, 0x5f, 0x74, 0xa3, 0xec, 0xe6,
+	0x5a, 0xd4, 0x6b, 0xfa, 0x48, 0x62, 0xb7, 0xdd, 0x81, 0x75, 0x6a, 0xd7, 0x84, 0xae, 0x58, 0x76,
+	0x86, 0x4f, 0xed, 0xb6, 0xac, 0x95, 0xdb, 0x1b, 0x08, 0x95, 0x13, 0xd9, 0x19, 0x53, 0xf6, 0x7d,
+	0x4a, 0xd1, 0xf1, 0x94, 0xa2, 0xdf, 0x53, 0x8a, 0x3e, 0xcf, 0x69, 0xef, 0x78, 0x4e, 0x7b, 0x3f,
+	0xe7, 0xb4, 0xb7, 0x8a, 0xc2, 0x57, 0x9e, 0xff, 0x02, 0x00, 0x00, 0xff, 0xff, 0xc0, 0x4b, 0x80,
+	0x13, 0xa3, 0x01, 0x00, 0x00,
+}
+
+func (m *Dynasty) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Dynasty) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Delegates) > 0 {
+		for _, msg := range m.Delegates {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintBpos(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.Addrs) > 0 {
+		for _, b := range m.Addrs {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintBpos(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
+		}
+	}
+	if len(m.Peers) > 0 {
+		for _, s := range m.Peers {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	return i, nil
+}
+
+func (m *Delegate) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Delegate) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Addr) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintBpos(dAtA, i, uint64(len(m.Addr)))
+		i += copy(dAtA[i:], m.Addr)
+	}
+	if len(m.PeerID) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintBpos(dAtA, i, uint64(len(m.PeerID)))
+		i += copy(dAtA[i:], m.PeerID)
+	}
+	if m.Votes != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintBpos(dAtA, i, uint64(m.Votes))
+	}
+	if m.PledgeAmount != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintBpos(dAtA, i, uint64(m.PledgeAmount))
+	}
+	if m.Score != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintBpos(dAtA, i, uint64(m.Score))
+	}
+	if m.IsExist {
+		dAtA[i] = 0x30
+		i++
+		if m.IsExist {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	return i, nil
 }
 
 func (m *EternalBlockMsg) Marshal() (dAtA []byte, err error) {
@@ -146,6 +410,62 @@ func encodeVarintBpos(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
+func (m *Dynasty) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Delegates) > 0 {
+		for _, e := range m.Delegates {
+			l = e.Size()
+			n += 1 + l + sovBpos(uint64(l))
+		}
+	}
+	if len(m.Addrs) > 0 {
+		for _, b := range m.Addrs {
+			l = len(b)
+			n += 1 + l + sovBpos(uint64(l))
+		}
+	}
+	if len(m.Peers) > 0 {
+		for _, s := range m.Peers {
+			l = len(s)
+			n += 1 + l + sovBpos(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *Delegate) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Addr)
+	if l > 0 {
+		n += 1 + l + sovBpos(uint64(l))
+	}
+	l = len(m.PeerID)
+	if l > 0 {
+		n += 1 + l + sovBpos(uint64(l))
+	}
+	if m.Votes != 0 {
+		n += 1 + sovBpos(uint64(m.Votes))
+	}
+	if m.PledgeAmount != 0 {
+		n += 1 + sovBpos(uint64(m.PledgeAmount))
+	}
+	if m.Score != 0 {
+		n += 1 + sovBpos(uint64(m.Score))
+	}
+	if m.IsExist {
+		n += 2
+	}
+	return n
+}
+
 func (m *EternalBlockMsg) Size() (n int) {
 	if m == nil {
 		return 0
@@ -171,6 +491,353 @@ func sovBpos(x uint64) (n int) {
 }
 func sozBpos(x uint64) (n int) {
 	return sovBpos(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *Dynasty) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBpos
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Dynasty: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Dynasty: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Delegates", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthBpos
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Delegates = append(m.Delegates, &Delegate{})
+			if err := m.Delegates[len(m.Delegates)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Addrs", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthBpos
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Addrs = append(m.Addrs, make([]byte, postIndex-iNdEx))
+			copy(m.Addrs[len(m.Addrs)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Peers", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBpos
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Peers = append(m.Peers, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBpos(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Delegate) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBpos
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Delegate: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Delegate: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Addr", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthBpos
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Addr = append(m.Addr[:0], dAtA[iNdEx:postIndex]...)
+			if m.Addr == nil {
+				m.Addr = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PeerID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBpos
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PeerID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Votes", wireType)
+			}
+			m.Votes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Votes |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PledgeAmount", wireType)
+			}
+			m.PledgeAmount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PledgeAmount |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Score", wireType)
+			}
+			m.Score = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Score |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IsExist", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBpos
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.IsExist = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBpos(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthBpos
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *EternalBlockMsg) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)

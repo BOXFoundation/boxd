@@ -17,6 +17,13 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 )
 
+// ConsensusContext represents consensus context info.
+type ConsensusContext struct {
+	timestamp     int64
+	dynasty       *Dynasty
+	verifyDynasty *Dynasty
+}
+
 // Delegate is a bookkeeper node.
 type Delegate struct {
 	Addr         types.AddressHash
@@ -27,11 +34,118 @@ type Delegate struct {
 	IsExist      bool
 }
 
+var _ conv.Convertible = (*Delegate)(nil)
+var _ conv.Serializable = (*Delegate)(nil)
+
+// ToProtoMessage converts Delegate to proto message.
+func (delegate *Delegate) ToProtoMessage() (proto.Message, error) {
+	return &bpospb.Delegate{
+		Addr:         delegate.Addr[:],
+		PeerID:       delegate.PeerID,
+		Votes:        delegate.Votes.Int64(),
+		PledgeAmount: delegate.PledgeAmount.Int64(),
+		Score:        delegate.Score.Int64(),
+		IsExist:      delegate.IsExist,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to Delegate.
+func (delegate *Delegate) FromProtoMessage(message proto.Message) error {
+
+	if message, ok := message.(*bpospb.Delegate); ok {
+		if message != nil {
+			copy(delegate.Addr[:], message.Addr)
+			delegate.PeerID = message.PeerID
+			delegate.Votes = big.NewInt(message.Votes)
+			delegate.PledgeAmount = big.NewInt(message.PledgeAmount)
+			delegate.Score = big.NewInt(message.Score)
+			delegate.IsExist = message.IsExist
+			return nil
+		}
+		return core.ErrEmptyProtoMessage
+	}
+
+	return ErrInvalidDelegateProtoMessage
+}
+
+// Marshal method marshal Delegate object to binary
+func (delegate *Delegate) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(delegate)
+}
+
+// Unmarshal method unmarshal binary data to Delegate object
+func (delegate *Delegate) Unmarshal(data []byte) error {
+	msg := &bpospb.EternalBlockMsg{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return delegate.FromProtoMessage(msg)
+}
+
+// ///////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////
+
 // Dynasty is a collection of current bookkeeper nodes.
 type Dynasty struct {
 	delegates []Delegate
 	addrs     []types.AddressHash
 	peers     []string
+}
+
+var _ conv.Convertible = (*Dynasty)(nil)
+var _ conv.Serializable = (*Dynasty)(nil)
+
+// ToProtoMessage converts Dynasty to proto message.
+func (dynasty *Dynasty) ToProtoMessage() (proto.Message, error) {
+	delegates := make([]*bpospb.Delegate, len(dynasty.delegates))
+	for k, v := range dynasty.delegates {
+		delegate, err := v.ToProtoMessage()
+		if err != nil {
+			return nil, err
+		}
+		if delegate, ok := delegate.(*bpospb.Delegate); ok {
+			delegates[k] = delegate
+		}
+	}
+	return &bpospb.Dynasty{
+		Delegates: delegates,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to Dynasty.
+func (dynasty *Dynasty) FromProtoMessage(message proto.Message) error {
+
+	if message, ok := message.(*bpospb.Dynasty); ok {
+		if message != nil {
+			delegates := make([]Delegate, len(message.Delegates))
+			for k, v := range message.Delegates {
+				delegate := new(Delegate)
+				if err := delegate.FromProtoMessage(v); err != nil {
+					return err
+				}
+				delegates[k] = *delegate
+			}
+			dynasty.delegates = delegates
+			return nil
+		}
+		return core.ErrEmptyProtoMessage
+	}
+
+	return ErrInvalidDynastyProtoMessage
+}
+
+// Marshal method marshal Dynasty object to binary
+func (dynasty *Dynasty) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(dynasty)
+}
+
+// Unmarshal method unmarshal binary data to Dynasty object
+func (dynasty *Dynasty) Unmarshal(data []byte) error {
+	msg := &bpospb.EternalBlockMsg{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
+	}
+	return dynasty.FromProtoMessage(msg)
 }
 
 // FindProposerWithTimeStamp find proposer in given timestamp
@@ -76,7 +190,6 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 		logger.Errorf("Failed to unpack the result of call getDynasty. Err: %v", err)
 		return nil, err
 	}
-	logger.Infof("get dynasty from contract: %v", dynasty)
 	PeriodSize := len(dynasty)
 	addrs := make([]types.AddressHash, PeriodSize)
 	peers := make([]string, PeriodSize)
