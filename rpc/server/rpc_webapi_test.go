@@ -55,7 +55,7 @@ func setupWebAPIMockSvr() {
 	was := &webapiServer{
 		ChainBlockReader: br,
 		proc:             goprocess.WithSignals(os.Interrupt),
-		endpoints:        make(map[string]rpcutil.Endpoint),
+		endpoints:        make(map[uint32]rpcutil.Endpoint),
 	}
 	was.endpoints[rpcutil.BlockEp] = rpcutil.NewBlockEndpoint(testWebAPIBus)
 	was.endpoints[rpcutil.LogEp] = rpcutil.NewLogEndpoint(testWebAPIBus)
@@ -103,6 +103,43 @@ func _TestClientListenNewBlocks(t *testing.T) {
 			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
 		}
 		logger.Infof("block hegiht: %d, size: %d", block.Height, block.Size_)
+	}
+}
+
+func TestClient(t *testing.T) {
+	rpcAddr := "127.0.0.1:19191"
+	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	client := rpcpb.NewWebApiClient(conn)
+
+	stream, err := client.Connect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		for {
+			stream.Send(&rpcpb.RegisterReq{
+				Type: 123,
+				Info: &rpcpb.RegisterReq_LogsReq{},
+			})
+			time.Sleep(time.Second)
+		}
+	}()
+
+	for {
+		log, err := stream.Recv()
+		if err == io.EOF {
+			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+			break
+		}
+		if err != nil {
+			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+		}
+		logger.Infof("log data: %v", log)
 	}
 }
 
