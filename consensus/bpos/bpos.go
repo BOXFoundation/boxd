@@ -605,16 +605,17 @@ func (bpos *Bpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uin
 
 // verifyCandidates vefiry if the block candidates hash is right.
 func (bpos *Bpos) verifyDynasty(block *types.Block) error {
-
-	// dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
-	// dynastyBytes, err := json.Marshal(dynasty)
-	// if err != nil {
-	// 	return err
-	// }
-	// dynastyHash := crypto.DoubleHashH(dynastyBytes)
-	// if (&block.Header.DynastyHash).IsEqual(&dynastyHash) {
-	// 	return ErrInvalidDynastyHash
-	// }
+	if block.Header.Height > 0 {
+		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
+		dynastyBytes, err := json.Marshal(dynasty)
+		if err != nil {
+			return err
+		}
+		dynastyHash := crypto.DoubleHashH(dynastyBytes)
+		if (&block.Header.DynastyHash).IsEqual(&dynastyHash) {
+			return ErrInvalidDynastyHash
+		}
+	}
 
 	return nil
 }
@@ -624,7 +625,7 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 
 	irreversibleInfo := block.IrreversibleInfo
 	if irreversibleInfo != nil {
-		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height)
+		dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
 		if err != nil {
 			return err
 		}
@@ -686,7 +687,11 @@ func (bpos *Bpos) signBlock(block *types.Block) error {
 
 // verifySign consensus verifies signature info.
 func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
-	dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
+	var height uint32
+	if block.Header.Height > 0 {
+		height = block.Header.Height - 1
+	}
+	dynasty, err := bpos.fetchDynastyByHeight(height)
 	if err != nil {
 		return false, err
 	}
@@ -714,7 +719,7 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 // TryToUpdateEternalBlock try to update eternal block.
 func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
-	dynasty, err := bpos.fetchDynastyByHeight(src.Header.Height)
+	dynasty, err := bpos.fetchDynastyByHeight(src.Header.Height - 1)
 	if err != nil {
 		return
 	}
