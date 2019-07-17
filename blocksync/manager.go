@@ -60,7 +60,9 @@ const (
 	retryTimes         = 10
 	retryInterval      = 1 * time.Second
 	maxSyncTries       = 20
+)
 
+const (
 	availablePeerStatus peerStatus = iota
 	locatePeerStatus
 	locateDonePeerStatus
@@ -69,12 +71,17 @@ const (
 	blocksPeerStatus
 	blocksDonePeerStatus
 	errPeerStatus
+)
 
+const (
 	freeStatus syncStatus = iota
 	locateStatus
 	checkStatus
 	blocksStatus
-	// err falg
+)
+
+// err falg
+const (
 	errFlagNoHash errFlag = iota
 	errFlagInSync
 	errFlagUnmarshal
@@ -243,6 +250,10 @@ out_sync:
 				cleanStopTimer(timer)
 				break out_locate
 			case ef := <-sm.locateErrCh:
+				// no hash sent from locate peer, no need to sync
+				if ef == errFlagNoHash && sm.lastLocatedHash == nil {
+					return
+				}
 				logger.Infof("SyncManager locate error %d, restart sync", ef)
 				continue out_sync
 			case <-timer.C:
