@@ -200,18 +200,6 @@ func (s *webapiServer) Connect(
 
 	resultCh := make(chan *rpcpb.ListenedData)
 
-	for {
-		select {
-		case data := <-resultCh:
-			if err := stream.Send(data); err != nil {
-				logger.Warnf("Webapi send data error %v", err)
-			}
-		case <-s.proc.Closing():
-			logger.Info("Close the persistent conn.")
-			return nil
-		}
-	}
-
 	// register endpoints.
 	s.proc.Go(func(p goprocess.Process) {
 		for {
@@ -225,7 +213,7 @@ func (s *webapiServer) Connect(
 			registerReq, err := stream.Recv()
 			if err != nil {
 				logger.Error(err)
-				continue
+				break
 			}
 
 			endpoint, ok := s.endpoints[registerReq.Type]
@@ -245,7 +233,18 @@ func (s *webapiServer) Connect(
 
 		}
 	})
-	return nil
+
+	for {
+		select {
+		case data := <-resultCh:
+			if err := stream.Send(data); err != nil {
+				logger.Warnf("Webapi send data error %v", err)
+			}
+		case <-s.proc.Closing():
+			logger.Info("Close the persistent conn.")
+			return nil
+		}
+	}
 }
 
 func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rpcpb.ListenedData) {

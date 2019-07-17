@@ -30,6 +30,8 @@ rpc:
     http:
         port: 19190
     faucet_keyfile: ./keyfile/key1.keystore
+    subscribe_blocks: true
+    subscribe_logs: true
 dpos:
     keypath: key.keystore
     enable_mint: true

@@ -80,31 +80,31 @@ func sendWebAPITestBlocks() {
 	proc.Signal(os.Interrupt)
 }
 
-func _TestClientListenNewBlocks(t *testing.T) {
-	rpcAddr := "127.0.0.1:19191"
-	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	client := rpcpb.NewWebApiClient(conn)
-	blockReq := &rpcpb.ListenBlocksReq{}
-	stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for {
-		block, err := stream.Recv()
-		if err == io.EOF {
-			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
-			break
-		}
-		if err != nil {
-			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
-		}
-		logger.Infof("block hegiht: %d, size: %d", block.Height, block.Size_)
-	}
-}
+// func _TestClientListenNewBlocks(t *testing.T) {
+// 	rpcAddr := "127.0.0.1:19191"
+// 	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	defer conn.Close()
+// 	client := rpcpb.NewWebApiClient(conn)
+// 	blockReq := &rpcpb.ListenBlocksReq{}
+// 	stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	for {
+// 		block, err := stream.Recv()
+// 		if err == io.EOF {
+// 			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
+// 			break
+// 		}
+// 		if err != nil {
+// 			t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
+// 		}
+// 		logger.Infof("block hegiht: %d, size: %d", block.Height, block.Size_)
+// 	}
+// }
 
 func TestClient(t *testing.T) {
 	rpcAddr := "127.0.0.1:19191"
@@ -120,18 +120,19 @@ func TestClient(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	go func() {
-		for {
-			stream.Send(&rpcpb.RegisterReq{
-				Type: 123,
-				Info: &rpcpb.RegisterReq_LogsReq{},
-			})
-			time.Sleep(time.Second)
-		}
-	}()
-
+	stream.Send(&rpcpb.RegisterReq{
+		Type: 0,
+		// Info: &rpcpb.RegisterReq_LogsReq{},
+	})
+	stream.Send(&rpcpb.RegisterReq{
+		Type: 1,
+		Info: &rpcpb.RegisterReq_LogsReq{LogsReq: &rpcpb.LogsReq{
+			Addresses: []string{"b5fwJovC3TRR2vQemTdfzE9kqP1b1hS4Cpv"},
+			Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
+		}},
+	})
 	for {
-		log, err := stream.Recv()
+		block, err := stream.Recv()
 		if err == io.EOF {
 			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
 			break
@@ -139,86 +140,86 @@ func TestClient(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
 		}
-		logger.Infof("log data: %v", log)
+		logger.Infof("block data: %v", block)
 	}
 }
 
-func _TestClientListenNewLogs(t *testing.T) {
-	rpcAddr := "127.0.0.1:19111"
-	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	client := rpcpb.NewWebApiClient(conn)
-	logsReq := &rpcpb.LogsReq{
-		Addresses: []string{"b5fwJovC3TRR2vQemTdfzE9kqP1b1hS4Cpv"},
-		Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
-	}
-	stream, err := client.ListenAndReadNewLog(context.Background(), logsReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for {
-		log, err := stream.Recv()
-		if err == io.EOF {
-			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
-			break
-		}
-		if err != nil {
-			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
-		}
-		logger.Infof("log data: %v", log)
-	}
-}
+// func _TestClientListenNewLogs(t *testing.T) {
+// 	rpcAddr := "127.0.0.1:19111"
+// 	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	defer conn.Close()
+// 	client := rpcpb.NewWebApiClient(conn)
+// 	logsReq := &rpcpb.LogsReq{
+// 		Addresses: []string{"b5fwJovC3TRR2vQemTdfzE9kqP1b1hS4Cpv"},
+// 		Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
+// 	}
+// 	stream, err := client.ListenAndReadNewLog(context.Background(), logsReq)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	for {
+// 		log, err := stream.Recv()
+// 		if err == io.EOF {
+// 			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+// 			break
+// 		}
+// 		if err != nil {
+// 			t.Fatalf("%v.ListenAndReadNewLog(_) = _, %v", client, err)
+// 		}
+// 		logger.Infof("log data: %v", log)
+// 	}
+// }
 
-func _TestListenAndReadNewBlock(t *testing.T) {
-	// start grpc server
-	starter.Do(setupWebAPIMockSvr)
-	// start send blocks goroutine
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		sendWebAPITestBlocks()
-	}()
+// func _TestListenAndReadNewBlock(t *testing.T) {
+// 	// start grpc server
+// 	starter.Do(setupWebAPIMockSvr)
+// 	// start send blocks goroutine
+// 	go func() {
+// 		time.Sleep(100 * time.Millisecond)
+// 		sendWebAPITestBlocks()
+// 	}()
 
-	var wg sync.WaitGroup
-	clientCnt := 4
-	for i := 0; i < clientCnt; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			// create grpc stub
-			conn, err := grpc.Dial(rpcAddr.String(), grpc.WithInsecure())
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer conn.Close()
-			client := rpcpb.NewWebApiClient(conn)
+// 	var wg sync.WaitGroup
+// 	clientCnt := 4
+// 	for i := 0; i < clientCnt; i++ {
+// 		wg.Add(1)
+// 		go func(idx int) {
+// 			defer wg.Done()
+// 			// create grpc stub
+// 			conn, err := grpc.Dial(rpcAddr.String(), grpc.WithInsecure())
+// 			if err != nil {
+// 				t.Fatal(err)
+// 			}
+// 			defer conn.Close()
+// 			client := rpcpb.NewWebApiClient(conn)
 
-			blockReq := &rpcpb.ListenBlocksReq{}
-			stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for i := 1; i < blockCnt+1; i++ {
-				block, err := stream.Recv()
-				if err == io.EOF {
-					t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
-					break
-				}
-				if err != nil {
-					t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
-				}
-				if uint32(i) != block.Height {
-					t.Fatalf("block height mismatch, want: %d, got: %d", i, block.Height)
-				}
-				//bytes, err := json.MarshalIndent(block, "", "  ")
-				//t.Logf("[%d] recv block: %s", idx, string(bytes))
-			}
-		}(i)
-	}
-	wg.Wait()
-}
+// 			blockReq := &rpcpb.ListenBlocksReq{}
+// 			stream, err := client.ListenAndReadNewBlock(context.Background(), blockReq)
+// 			if err != nil {
+// 				t.Fatal(err)
+// 			}
+// 			for i := 1; i < blockCnt+1; i++ {
+// 				block, err := stream.Recv()
+// 				if err == io.EOF {
+// 					t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
+// 					break
+// 				}
+// 				if err != nil {
+// 					t.Fatalf("%v.ListenAndReadNewBlock(_) = _, %v", client, err)
+// 				}
+// 				if uint32(i) != block.Height {
+// 					t.Fatalf("block height mismatch, want: %d, got: %d", i, block.Height)
+// 				}
+// 				//bytes, err := json.MarshalIndent(block, "", "  ")
+// 				//t.Logf("[%d] recv block: %s", idx, string(bytes))
+// 			}
+// 		}(i)
+// 	}
+// 	wg.Wait()
+// }
 
 func newTestBlock(count int) []*types.Block {
 	var blocks []*types.Block
