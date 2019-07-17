@@ -505,9 +505,9 @@ func (s *StateDB) ForEachStorage(addr types.AddressHash, cb func(key, value core
 func (s *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	state := &StateDB{
-		db:   s.db,
-		trie: nil,
-		// trie:              s.db.CopyTrie(s.trie),
+		db:                s.db,
+		trie:              s.trie.Copy(),
+		utxoTrie:          s.utxoTrie.Copy(),
 		stateObjects:      make(map[types.AddressHash]*stateObject, len(s.journal.dirties)),
 		stateObjectsDirty: make(map[types.AddressHash]struct{}, len(s.journal.dirties)),
 		refund:            s.refund,

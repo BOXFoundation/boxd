@@ -296,8 +296,7 @@ func (s *stateObject) ReturnGas(gas *big.Int) {}
 func (s *stateObject) deepCopy(db *StateDB) *stateObject {
 	stateObject := newObject(db, s.address, s.data)
 	if s.trie != nil {
-		// stateObject.trie = db.db.CopyTrie(s.trie)
-		stateObject.trie = nil
+		stateObject.trie = db.trie.Copy()
 	}
 	stateObject.code = s.code
 	stateObject.dirtyStorage = s.dirtyStorage.Copy()
