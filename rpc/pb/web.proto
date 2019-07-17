@@ -129,7 +129,6 @@ message LogDetails {
     repeated LogDetail logs = 1;
 }
 
-
 message LogDetail {
     string address = 1;
     repeated string topics = 2;

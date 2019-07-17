@@ -196,8 +196,10 @@ func (block *Block) Copy() *Block {
 
 	newBlock.Txs = txss[0]
 	newBlock.InternalTxs = txss[1]
-	newBlock.Header.Bloom = bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
-	newBlock.Header.Bloom.Copy(block.Header.Bloom)
+	if block.Header.Bloom != nil {
+		newBlock.Header.Bloom = bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
+		newBlock.Header.Bloom.Copy(block.Header.Bloom)
+	}
 	return newBlock
 }
 

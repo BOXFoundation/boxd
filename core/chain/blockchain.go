@@ -1523,8 +1523,6 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 // StoreReceipts store receipts to db in batch mod.
 func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
 
-	logger.Errorf("Receipts: %v", receipts)
-
 	data, err := receipts.Marshal()
 	if err != nil {
 		return err

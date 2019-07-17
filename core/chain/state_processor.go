@@ -12,6 +12,7 @@ import (
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 )
@@ -67,7 +68,11 @@ func (sp *StateProcessor) Process(
 			err = err1
 			break
 		}
-		stateDB.Prepare(*thash, *block.Hash, i)
+		if block.Hash == nil {
+			stateDB.Prepare(*thash, crypto.HashType{}, i)
+		} else {
+			stateDB.Prepare(*thash, *block.Hash, i)
+		}
 		receipt, gasUsedPerTx, gasRemainingFeePerTx, txs, err1 :=
 			ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err1 != nil {

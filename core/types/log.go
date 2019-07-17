@@ -43,8 +43,29 @@ type Log struct {
 	Removed bool `json:"removed"`
 }
 
-var _ conv.Convertible = (*Receipt)(nil)
-var _ conv.Serializable = (*Receipt)(nil)
+func (log *Log) toHashLog() *hashLog {
+	hashlog := new(hashLog)
+	copy(hashlog.Address[:], log.Address[:])
+	hashlog.Topics = make([]crypto.HashType, len(log.Topics))
+	for i, topic := range log.Topics {
+		hash := new(crypto.HashType)
+		hashlog.Topics[i] = *hash
+		copy(hashlog.Topics[i][:], topic[:])
+	}
+	copy(hashlog.Data[:], log.Data[:])
+	return hashlog
+}
+
+type hashLog struct {
+	Address AddressHash
+	Topics  []crypto.HashType
+	Data    []byte
+}
+
+var _ conv.Convertible = (*Log)(nil)
+var _ conv.Serializable = (*Log)(nil)
+var _ conv.Convertible = (*hashLog)(nil)
+var _ conv.Serializable = (*hashLog)(nil)
 
 // ToProtoMessage converts Receipt to proto message.
 func (log *Log) ToProtoMessage() (proto.Message, error) {
@@ -98,6 +119,54 @@ func (log *Log) Marshal() (data []byte, err error) {
 // Unmarshal method unmarshal binary data to Receipt object
 func (log *Log) Unmarshal(data []byte) error {
 	pblog := new(corepb.Log)
+	if err := proto.Unmarshal(data, pblog); err != nil {
+		return err
+	}
+	return log.FromProtoMessage(pblog)
+}
+
+// ToProtoMessage converts Receipt to proto message.
+func (log *hashLog) ToProtoMessage() (proto.Message, error) {
+	topics := [][]byte{}
+	for _, topic := range log.Topics {
+		topics = append(topics, topic.Bytes())
+	}
+	return &corepb.HashLog{
+		Address: log.Address[:],
+		Topics:  topics,
+		Data:    log.Data,
+	}, nil
+}
+
+// FromProtoMessage converts proto message to Receipt.
+func (log *hashLog) FromProtoMessage(message proto.Message) error {
+	pblog, ok := message.(*corepb.HashLog)
+	if !ok {
+		return core.ErrInvalidLogProtoMessage
+	}
+	if message == nil {
+		return core.ErrEmptyProtoMessage
+	}
+
+	copy(log.Address[:], pblog.Address[:])
+	log.Topics = make([]crypto.HashType, len(pblog.Topics))
+	for i, topic := range pblog.Topics {
+		hash := new(crypto.HashType)
+		log.Topics[i] = *hash
+		copy(log.Topics[i][:], topic[:])
+	}
+	copy(log.Data[:], pblog.Data[:])
+	return nil
+}
+
+// Marshal method marshal Receipt object to binary
+func (log *hashLog) Marshal() (data []byte, err error) {
+	return conv.MarshalConvertible(log)
+}
+
+// Unmarshal method unmarshal binary data to Receipt object
+func (log *hashLog) Unmarshal(data []byte) error {
+	pblog := new(corepb.HashLog)
 	if err := proto.Unmarshal(data, pblog); err != nil {
 		return err
 	}
