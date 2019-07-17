@@ -844,14 +844,23 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
 			block, stateDB, utxoSet)
 		go func() {
+			logs := make(map[string][]*types.Log)
 			for _, receipt := range receipts {
 				if len(receipt.Logs) != 0 {
 					contractAddr, err := types.NewContractAddressFromHash(receipt.ContractAddress.Bytes())
 					if err != nil {
 						logger.Errorf("Contract address convert failed. %s", receipt.ContractAddress.String())
+						continue
 					}
-					chain.Bus().Publish(eventbus.TopicRPCSendNewLog+contractAddr.String(), receipt.Logs)
+					if l, ok := logs[contractAddr.String()]; ok {
+						l = append(l, receipt.Logs...)
+					} else {
+						logs[contractAddr.String()] = receipt.Logs
+					}
 				}
+			}
+			if len(logs) != 0 {
+				chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
 			}
 		}()
 		if err != nil {

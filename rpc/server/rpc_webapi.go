@@ -197,11 +197,11 @@ func (s *webapiServer) ViewBlockDetail(
 func (s *webapiServer) Connect(
 	stream rpcpb.WebApi_ConnectServer,
 ) error {
+	defer logger.Info("Close the persistent conn.")
 
 	resultCh := make(chan *rpcpb.ListenedData)
-
 	// register endpoints.
-	s.proc.Go(func(p goprocess.Process) {
+	p := s.proc.Go(func(p goprocess.Process) {
 		for {
 			select {
 			case <-p.Closing():
@@ -241,7 +241,8 @@ func (s *webapiServer) Connect(
 				logger.Warnf("Webapi send data error %v", err)
 			}
 		case <-s.proc.Closing():
-			logger.Info("Close the persistent conn.")
+			return nil
+		case <-p.Closing():
 			return nil
 		}
 	}
@@ -292,7 +293,7 @@ func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rp
 			}
 			blockDetail.Size_ = uint32(n)
 
-			resultCh <- &rpcpb.ListenedData{Data: &rpcpb.ListenedData_Block{Block: blockDetail}}
+			resultCh <- &rpcpb.ListenedData{Type: rpcutil.BlockEp, Data: &rpcpb.ListenedData_Block{Block: blockDetail}}
 
 			logger.Debugf("webapi server sent a block, hash: %s, height: %d",
 				blockDetail.Hash, blockDetail.Height)
@@ -315,7 +316,7 @@ func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint r
 	}
 	req := logsreq.LogsReq
 
-	logger.Info("start listen new logs")
+	logger.Error("start listen new logs")
 	if err := s.subscribeLogEndpoint(); err != nil {
 		logger.Error(err)
 	}
@@ -381,7 +382,7 @@ func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint r
 		}
 
 		resultLogs := rpcutil.ToPbLogs(filteredLogs)
-		resultCh <- &rpcpb.ListenedData{Data: &rpcpb.ListenedData_Logs{Logs: &rpcpb.LogDetails{Logs: resultLogs}}}
+		resultCh <- &rpcpb.ListenedData{Type: rpcutil.LogEp, Data: &rpcpb.ListenedData_Logs{Logs: &rpcpb.LogDetails{Logs: resultLogs}}}
 
 		logger.Debugf("webapi server sent a log, data: %v", resultLogs)
 		if elm, exit = s.moveToNextElem(endpoint, elm); exit {

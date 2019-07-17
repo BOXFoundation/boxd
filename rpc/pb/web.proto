@@ -56,9 +56,10 @@ message RegisterReq {
 }
 
 message ListenedData {
+    uint32 type = 1;
     oneof data {
-        BlockDetail block = 1;
-        LogDetails logs = 2;
+        BlockDetail block = 2;
+        LogDetails logs = 3;
     }
 }
     

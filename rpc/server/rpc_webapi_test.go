@@ -106,8 +106,8 @@ func sendWebAPITestBlocks() {
 // 	}
 // }
 
-func TestClient(t *testing.T) {
-	rpcAddr := "127.0.0.1:19191"
+func _TestConnect(t *testing.T) {
+	rpcAddr := "127.0.0.1:19111"
 	conn, err := grpc.Dial(rpcAddr, grpc.WithInsecure())
 	if err != nil {
 		t.Fatal(err)
@@ -122,12 +122,11 @@ func TestClient(t *testing.T) {
 
 	stream.Send(&rpcpb.RegisterReq{
 		Type: 0,
-		// Info: &rpcpb.RegisterReq_LogsReq{},
 	})
 	stream.Send(&rpcpb.RegisterReq{
 		Type: 1,
 		Info: &rpcpb.RegisterReq_LogsReq{LogsReq: &rpcpb.LogsReq{
-			Addresses: []string{"b5fwJovC3TRR2vQemTdfzE9kqP1b1hS4Cpv"},
+			Addresses: []string{"b5oJavkSc2MeUMUb8f51EpwfzuhkzCz5thS"},
 			Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
 		}},
 	})
