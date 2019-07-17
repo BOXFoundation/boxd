@@ -816,12 +816,10 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	for a, v := range bAdd {
 		logger.Warnf("DEBUG: update normal balance add %x %d", a[:], v)
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
-		logger.Errorf("DEBUG: addr %x balance %d", a[:], stateDB.GetBalance(a).Uint64())
 	}
 	for a, v := range bSub {
 		logger.Warnf("DEBUG: update normal balance sub %x %d", a[:], v)
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
-		logger.Errorf("DEBUG: addr %x balance %d", a[:], stateDB.GetBalance(a).Uint64())
 	}
 }
 
@@ -1344,11 +1342,9 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, vmerr
 	}
 	ContractAddr = contractAddr
-	logger.Errorf("load genesis contract addr: %v", ContractAddr)
 	addressHash := types.NormalizeAddressHash(&contractAddr)
 	outPoint := types.NewOutPoint(addressHash, 0)
 	utxoWrap := types.NewUtxoWrap(0, []byte{}, 0)
-	logger.Errorf("genesis utxoWrap outpoint: %v", outPoint)
 	utxoSet.utxoMap[*outPoint] = utxoWrap
 
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)

@@ -207,7 +207,6 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	} else {
 		// call smart contract
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
-		logger.Errorf("contractAddr: %s", contractAddr.String())
 		outPoint = types.NewOutPoint(addressHash, 0)
 		var exists bool
 		utxoWrap, exists = u.utxoMap[*outPoint]
