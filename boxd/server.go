@@ -203,7 +203,7 @@ func (server *Server) Run() error {
 	}
 
 	server.syncManager.Run()
-	metrics.Run(&cfg.Metrics, proc)
+	metrics.Run(&cfg.Metrics)
 	if len(cfg.P2p.Seeds) > 0 {
 		server.consensus.StopMint()
 		server.syncManager.StartSync()
