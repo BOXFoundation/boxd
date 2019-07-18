@@ -474,7 +474,11 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return err
 	}
 	prevHash := block.Header.PrevBlockHash
-	if prevHashExists := chain.blockExists(prevHash); !prevHashExists && !chain.isInOrphanPool(*blockHash) {
+	if prevHashExists := chain.blockExists(prevHash); !prevHashExists {
+		if chain.isInOrphanPool(*blockHash) {
+			logger.Infof("block %s %d has been in orphan pool", blockHash, block.Header.Height)
+			return nil
+		}
 
 		// Orphan block.
 		logger.Infof("Adding orphan block %s %d with parent %s", blockHash,
