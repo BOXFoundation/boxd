@@ -193,8 +193,13 @@ func ToPbLogs(logs []*types.Log) []*rpcpb.LogDetail {
 		for _, topic := range log.Topics {
 			topics = append(topics, hex.EncodeToString(topic.Bytes()))
 		}
+		contractAddr, err := types.NewContractAddressFromHash(log.Address.Bytes()[:])
+		if err != nil {
+			logger.Errorf("ToPbLogs failed, Err: %v", err)
+			return nil
+		}
 		ret = append(ret, &rpcpb.LogDetail{
-			Address:     log.Address.String(),
+			Address:     contractAddr.String(),
 			Topics:      topics,
 			Data:        hex.EncodeToString(log.Data),
 			BlockNumber: log.BlockNumber,

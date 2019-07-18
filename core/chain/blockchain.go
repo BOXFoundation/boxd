@@ -1213,7 +1213,7 @@ func (chain *BlockChain) SetEternal(block *types.Block) error {
 			return err
 		}
 		chain.eternal = block
-		go chain.sectionMgr.AddBloom(uint(eternal.Header.Height), eternal.Header.Bloom)
+		go chain.sectionMgr.AddBloom(eternal.Header.Height, eternal.Header.Bloom)
 		return nil
 	}
 	return core.ErrFailedToSetEternal
