@@ -39,6 +39,7 @@ func (pq *PriorityMsgQueue) Run(proc goprocess.Process, f func(interface{})) {
 	var x interface{}
 	top := len(pq.queues) - 1
 	p := top
+	defer logger.Info("Quit PriorityMsgQueue loop")
 	for {
 		q = pq.queues[p]
 		select {
@@ -55,6 +56,8 @@ func (pq *PriorityMsgQueue) Run(proc goprocess.Process, f func(interface{})) {
 			select {
 			case <-pq.notify:
 				p = top
+			case <-proc.Closing():
+				return
 			}
 		}
 	}
