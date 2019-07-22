@@ -158,6 +158,7 @@ func (tr *dbtx) Discard() {
 
 	if !tr.closed {
 		tr.closed = true
+		tr.batch.Close()
 		<-tr.writeLock
 	}
 }
