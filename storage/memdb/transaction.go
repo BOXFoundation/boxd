@@ -156,6 +156,7 @@ func (tx *mtx) Discard() {
 		return
 	}
 
+	tx.batch.Close()
 	tx.closed = true
 	<-tx.writeLock
 }
