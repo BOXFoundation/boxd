@@ -87,14 +87,18 @@ func (sm *SectionManager) Bitset(idx uint) ([]byte, error) {
 }
 
 func (sm *SectionManager) commit() error {
-	sm.db.EnableBatch()
-	defer sm.db.DisableBatch()
+	txn, err := sm.db.NewTransaction()
+	if err != nil {
+		return err
+	}
+	defer txn.Discard()
+
 	for i := 0; i < types.BloomBitLength; i++ {
 		bits, err := sm.Bitset(uint(i))
 		if err != nil {
 			return err
 		}
-		if err := sm.db.Put(SecBloomBitSetKey(sm.section, uint(i)), bits); err != nil {
+		if err := txn.Put(SecBloomBitSetKey(sm.section, uint(i)), bits); err != nil {
 			return err
 		}
 		// a := [SectionBloomLength]byte{}
@@ -102,7 +106,7 @@ func (sm *SectionManager) commit() error {
 		// 	logger.Errorf("PUT: %d, section: %d", i, sm.section)
 		// }
 	}
-	return sm.db.Flush()
+	return txn.Commit()
 }
 
 // GetLogs get logs matchs key words.
