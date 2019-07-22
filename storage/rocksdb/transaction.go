@@ -156,9 +156,10 @@ func (tr *dbtx) Discard() {
 	tr.sm.Lock()
 	defer tr.sm.Unlock()
 
-	if !tr.closed {
-		tr.closed = true
-		tr.batch.Close()
-		<-tr.writeLock
+	tr.batch.Close()
+	if tr.closed {
+		return
 	}
+	tr.closed = true
+	<-tr.writeLock
 }
