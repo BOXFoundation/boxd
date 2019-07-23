@@ -145,7 +145,8 @@ func ApplyTransaction(
 		}
 		txs = append(txs, internalTxs)
 	}
-	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, fail, gasUsed, statedb.Logs())
+	txhash := tx.OriginTxHash()
+	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, fail, gasUsed, statedb.GetLogs(*txhash))
 
 	return receipt, gasUsed, gasRemainingFee, txs, nil
 }
