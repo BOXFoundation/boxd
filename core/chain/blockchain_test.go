@@ -408,6 +408,7 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain) (*crypto.HashTy
 	block.Header.GasUsed = gasUsed
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
+		logger.Errorf("DPOS: receipts hash: %v", block.Header.ReceiptHash)
 	}
 	block.Header.TxsRoot = *CalcTxsHash(block.Txs)
 	return root, utxoRoot, nil

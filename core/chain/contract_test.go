@@ -19,6 +19,7 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/facebookgo/ensure"
 )
@@ -447,7 +448,7 @@ func nextBlockWithTxs(parent *types.Block, chain *BlockChain, txs ...*types.Tran
 }
 
 var (
-	userBalance, minerBalance, contractBalance uint64
+	userBalance, minerBalance, contractBalance, coinbbaseGasUsed uint64
 )
 
 type testContractParam struct {
@@ -457,6 +458,7 @@ type testContractParam struct {
 }
 
 func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
+	var err error
 	b0 := getTailBlock(blockChain)
 
 	statedb, _ := state.New(&b0.Header.RootHash, &b0.Header.UtxoRoot, blockChain.DB())
@@ -468,15 +470,32 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	root, _, _ := statedb.Commit(false)
 	b0.Header.RootHash = *root
 
+	// statedb, _ = state.New(&b0.Header.RootHash, &b0.Header.UtxoRoot, blockChain.DB())
+	// newBlock := types.NewBlock(b0)
+	// newBlock.Header.BookKeeper = *minerAddr.Hash160()
+	// coinbaseVMTX, _ := makeCoinbaseTx(b0, newBlock, blockChain, statedb)
+	// coinbaseVMTX.Vin[0].Sequence = uint32(time.Now().UnixNano())
+	// vmtx, _ := blockChain.ExtractVMTransactions(coinbaseVMTX)
+	// context := NewEVMContext(vmtx, newBlock.Header, blockChain)
+	// evm := vm.NewEVM(context, statedb, blockChain.vmConfig)
+
+	// // evm, _, _ := blockChain.NewEvmContextForLocalCallByHeight(vmtx, 0)
+	// _, coinbbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
+	// logger.Errorf("coinbbaseGasUsed: %d", coinbbaseGasUsed)
+
+	// ctx := NewEVMContext(vmtx, b0.Header, blockChain)
+	// logConfig := vm.LogConfig{}
+	// structLogger := vm.NewStructLogger(&logConfig)
+	// vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
+	// vmtx, _ := blockChain.ExtractVMTransactions(coinbaseTx)
+	// evm, _, _ := blockChain.NewEvmContextForLocalCallByHeight(vmtx, 0)
+	// _, coinbbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
+
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b0 -> b1
 	b1 := nextBlock(b0, blockChain)
-	root, utxoRoot, err := calcRootHash(b0, b1, blockChain)
-	b1.Header.RootHash = *root
-	if utxoRoot != nil {
-		b1.Header.UtxoRoot = *utxoRoot
-	}
+	calcRootHash(b0, b1, blockChain)
 	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 	contractKey, _ := types.NewContractAddressFromHash(ContractAddr.Bytes())
 	balance := getBalance(contractKey.String(), blockChain.db)
@@ -502,12 +521,21 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	err = signTx(tx, privKeyMiner, pubKeyMiner)
 	ensure.DeepEqual(t, err, nil)
 
+	statedb, _ = state.New(&b1.Header.RootHash, &b1.Header.UtxoRoot, blockChain.DB())
+	newBlock := types.NewBlock(b1)
+	newBlock.Header.BookKeeper = *minerAddr.Hash160()
+	coinbaseVMTX, _ := makeCoinbaseTx(b1, newBlock, blockChain, statedb)
+	coinbaseVMTX.Vin[0].Sequence = uint32(time.Now().UnixNano())
+	vmtx, _ := blockChain.ExtractVMTransactions(coinbaseVMTX)
+	context := NewEVMContext(vmtx, newBlock.Header, blockChain)
+	evm := vm.NewEVM(context, statedb, blockChain.vmConfig)
+
+	// evm, _, _ := blockChain.NewEvmContextForLocalCallByHeight(vmtx, 0)
+	_, coinbbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
+	// logger.Errorf("coinbbaseGasUsed: %d", coinbbaseGasUsed)
+
 	b2 := nextBlockWithTxs(b1, blockChain, tx)
-	root, utxoRoot, _ = calcRootHash(b1, b2, blockChain)
-	b2.Header.RootHash = *root
-	if utxoRoot != nil {
-		b2.Header.UtxoRoot = *utxoRoot
-	}
+	calcRootHash(b1, b2, blockChain)
 	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
 	// check balance
 	// for userAddr
@@ -530,7 +558,7 @@ func contractBlockHandle(
 	t *testing.T, blockChain *BlockChain, parent, block, tail *types.Block,
 	param *testContractParam, err error) {
 
-	gasCost := param.gasUsed * param.gasPrice
+	gasCost := (block.Header.GasUsed - coinbbaseGasUsed) * param.gasPrice
 	verifyProcessBlock(t, blockChain, block, err, tail.Header.Height, tail)
 	// check balance
 	expectUserBalance := userBalance - param.vmValue - gasCost + param.userRecv
@@ -890,7 +918,7 @@ func init() {
 	log.Printf("balances %s: %s\n", receiver, balancesReceiverCall)
 }
 
-func _TestCoinContract(t *testing.T) {
+func TestCoinContract(t *testing.T) {
 
 	blockChain := NewTestBlockChain()
 	// blockchain
@@ -902,10 +930,10 @@ func _TestCoinContract(t *testing.T) {
 	// extend main chain
 	// b2 -> b3
 	// make creation contract tx
-	gasUsed, vmValue, gasPrice, gasLimit := uint64(246403), uint64(0), uint64(10), uint64(400000)
+	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(400000)
 	vmParam := &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
+		0, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
 	}
 	byteCode, _ := hex.DecodeString(testCoinContract)
 	nonce := uint64(1)
@@ -936,7 +964,7 @@ func _TestCoinContract(t *testing.T) {
 	// extend main chain
 	// b3 -> b4
 	// make mint 8000000 call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(23177), uint64(0), uint64(6), uint64(30000)
+	gasUsed, vmValue, gasPrice, gasLimit := uint64(23177), uint64(0), uint64(6), uint64(30000)
 	vmParam = &testContractParam{
 		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
 		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
@@ -1061,7 +1089,7 @@ func _TestCoinContract(t *testing.T) {
 	// return 0x1e8480 = 2000000, check okay
 }
 
-func _TestERC20Contract(t *testing.T) {
+func TestERC20Contract(t *testing.T) {
 
 	var (
 		transferCall, balanceOfUserCall, balanceOfReceiverCall string
