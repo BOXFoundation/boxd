@@ -1830,13 +1830,13 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 
 	totalWeight := uint64(0)
 	for i := 0; i < n; i++ {
-		totalWeight += sai.weights[i]
+		totalWeight += uint64(sai.weights[i])
 	}
 
 	totalValue := uint64(0)
 	for i := 0; i < n; i++ {
 		// An composite address splits value per its weight
-		value := txOut.Value * sai.weights[i] / totalWeight
+		value := txOut.Value * uint64(sai.weights[i]) / totalWeight
 		if i == n-1 {
 			// Last address gets the remainder value in case value is indivisible
 			value = txOut.Value - totalValue
@@ -1883,7 +1883,7 @@ func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, 
 
 type splitAddrInfo struct {
 	addrs   []types.Address
-	weights []uint64
+	weights []uint32
 }
 
 // Marshall Serialize splitAddrInfo into bytes
@@ -1891,11 +1891,11 @@ func (s *splitAddrInfo) Marshall() ([]byte, error) {
 	if len(s.addrs) != len(s.weights) {
 		return nil, fmt.Errorf("invalid split addr info")
 	}
-	res := make([]byte, 0, len(s.addrs)*(ripemd160.Size+8))
+	res := make([]byte, 0, len(s.addrs)*(ripemd160.Size+4))
 	for i := 0; i < len(s.addrs); i++ {
 		res = append(res, s.addrs[i].Hash()...)
-		weightByte := make([]byte, 8)
-		binary.BigEndian.PutUint64(weightByte, s.weights[i])
+		weightByte := make([]byte, 4)
+		binary.LittleEndian.PutUint32(weightByte, s.weights[i])
 		res = append(res, weightByte...)
 	}
 	return res, nil
@@ -1903,20 +1903,20 @@ func (s *splitAddrInfo) Marshall() ([]byte, error) {
 
 // Unmarshall parse splitAddrInfo from bytes
 func (s *splitAddrInfo) Unmarshall(data []byte) error {
-	minLenght := ripemd160.Size + 8
+	minLenght := ripemd160.Size + 4
 	if len(data)%minLenght != 0 {
 		return fmt.Errorf("invalid byte length")
 	}
 	count := len(data) / minLenght
 	addrs := make([]types.Address, 0, count)
-	weights := make([]uint64, 0, count)
+	weights := make([]uint32, 0, count)
 	for i := 0; i < count; i++ {
 		offset := i * minLenght
 		addr, err := types.NewAddressPubKeyHash(data[offset : offset+ripemd160.Size])
 		if err != nil {
 			return err
 		}
-		weight := binary.BigEndian.Uint64(data[offset+ripemd160.Size : offset+minLenght])
+		weight := binary.LittleEndian.Uint32(data[offset+ripemd160.Size : offset+minLenght])
 		addrs = append(addrs, addr)
 		weights = append(weights, weight)
 	}

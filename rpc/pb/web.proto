@@ -199,7 +199,7 @@ message TokenIssueInfo {
 
 message SplitContractInfo  {
     repeated string addrs = 1;
-    repeated uint64 weights = 2;
+    repeated uint32 weights = 2;
 }
 
 message TokenTransferInfo {

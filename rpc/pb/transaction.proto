@@ -178,7 +178,7 @@ message MakeTxResp {
 message MakeSplitAddrTxReq {
     string from = 1;
     repeated string addrs = 2;
-    repeated uint64 weights = 3;
+    repeated uint32 weights = 3;
     uint64 gas_price = 4;
 }
 

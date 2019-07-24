@@ -334,7 +334,7 @@ func TestGetNthOp(t *testing.T) {
 
 func TestParseSplitAddrScript(t *testing.T) {
 	addrs := []types.Address{addr, addr1, addr2}
-	weights := []uint64{1, 4, 7}
+	weights := []uint32{1, 4, 7}
 	splitAddrScript := SplitAddrScript(addrs, weights)
 	ensure.True(t, splitAddrScript.IsSplitAddrScript())
 	ensure.True(t, util.IsPrefixed(*splitAddrScript, *splitAddrScript.GetSplitAddrScriptPrefix()))
