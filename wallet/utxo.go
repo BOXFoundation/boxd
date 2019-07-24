@@ -95,7 +95,7 @@ func FetchUtxosOf(
 	//
 	keys := db.KeysWithPrefix(utxoKey)
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("no utxo for utxo prefix: %x", utxoKey)
+		return nil, nil
 	}
 	// fetch all utxos if total equals to 0
 	if forBalance {
