@@ -382,9 +382,10 @@ func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint r
 		}
 
 		resultLogs := rpcutil.ToPbLogs(filteredLogs)
-		resultCh <- &rpcpb.ListenedData{Type: rpcutil.LogEp, Data: &rpcpb.ListenedData_Logs{Logs: &rpcpb.LogDetails{Logs: resultLogs}}}
-
-		logger.Debugf("webapi server sent a log, data: %v", resultLogs)
+		if len(resultLogs) != 0 {
+			resultCh <- &rpcpb.ListenedData{Type: rpcutil.LogEp, Data: &rpcpb.ListenedData_Logs{Logs: &rpcpb.LogDetails{Logs: resultLogs}}}
+			logger.Debugf("webapi server sent a log, data: %v", resultLogs)
+		}
 		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
 			return nil
 		}
