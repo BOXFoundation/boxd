@@ -47,7 +47,7 @@ func NewTxWithUtxos(
 
 // NewSplitAddrTxWithUtxos new split address tx
 func NewSplitAddrTxWithUtxos(
-	acc *acc.Account, addrs []string, weights []uint64, utxos []*rpcpb.Utxo, fee uint64,
+	acc *acc.Account, addrs []string, weights []uint32, utxos []*rpcpb.Utxo, fee uint64,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 
 	if len(addrs) != len(weights) {
@@ -289,7 +289,7 @@ func NewContractTxWithUtxos(
 
 // MakeUnsignedSplitAddrTx make unsigned split addr tx
 func MakeUnsignedSplitAddrTx(
-	from string, addrs []string, weights []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+	from string, addrs []string, weights []uint32, changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
 	if len(addrs) != len(weights) {

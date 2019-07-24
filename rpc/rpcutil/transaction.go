@@ -495,7 +495,7 @@ func NewERC20TransferFromContractTxs(
 
 // NewSplitAddrTxWithFee new split address tx
 func NewSplitAddrTxWithFee(
-	acc *acc.Account, addrs []string, weights []uint64, gasUsed uint64, conn *grpc.ClientConn,
+	acc *acc.Account, addrs []string, weights []uint32, gasUsed uint64, conn *grpc.ClientConn,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// get utxos
 	utxos, err := fetchUtxos(conn, acc.Addr(), gasUsed, "", 0)
@@ -640,7 +640,7 @@ func MakeUnsignedContractCallTx(
 // MakeUnsignedSplitAddrTx news tx to make split addr without signature
 // it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
-	wa service.WalletAgent, from string, addrs []string, weights []uint64, gasUsed uint64,
+	wa service.WalletAgent, from string, addrs []string, weights []uint32, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {

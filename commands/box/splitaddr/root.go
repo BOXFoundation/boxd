@@ -6,6 +6,7 @@ package splitaddrcmd
 
 import (
 	"fmt"
+	"math"
 	"path"
 	"strconv"
 
@@ -82,15 +83,15 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	// addrs and weights
-	addrs, weights := make([]string, 0), make([]uint64, 0)
+	addrs, weights := make([]string, 0), make([]uint32, 0)
 	for i := 1; i < len(args)-1; i += 2 {
 		addrs = append(addrs, args[i])
 		a, err := strconv.ParseUint(args[i+1], 10, 64)
-		if err != nil {
+		if err != nil || a >= math.MaxUint32 {
 			fmt.Printf("Invalid amount %s\n", args[i+1])
 			return
 		}
-		weights = append(weights, a)
+		weights = append(weights, uint32(a))
 	}
 	if err := types.ValidateAddr(addrs...); err != nil {
 		fmt.Println(err)

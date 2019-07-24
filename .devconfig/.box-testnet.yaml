@@ -29,6 +29,8 @@ rpc:
     port: 19191
     http:
         port: 19190
+    subscribe_blocks: true
+    subscribe_logs: true
 dpos:
     keypath: key.keystore
     enable_mint: true

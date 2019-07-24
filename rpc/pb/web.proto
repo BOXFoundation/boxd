@@ -23,8 +23,6 @@ service WebApi {
         };
     }
 
-    rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
-
     rpc DoCall (CallReq) returns (CallResp) {
         option (google.api.http) = {
             post: "/v1/contract/call"
@@ -39,16 +37,32 @@ service WebApi {
         };
     }
 
-    rpc ListenAndReadNewLog(LogsReq) returns (stream Logs);
-
     rpc GetLogs (LogsReq) returns (Logs) {
         option (google.api.http) = {
             post: "/v1/contract/getLogs"
             body: "*"
         };
     }
+
+    rpc Connect (stream RegisterReq) returns (stream ListenedData);
+
 }
 
+message RegisterReq {
+    uint32 type = 1;
+    oneof info {
+        LogsReq logs_req= 2;
+    }
+}
+
+message ListenedData {
+    uint32 type = 1;
+    oneof data {
+        BlockDetail block = 2;
+        LogDetails logs = 3;
+    }
+}
+    
 message ViewTxDetailReq {
     string hash = 1;
     bool spread_split = 2;
@@ -110,18 +124,22 @@ message Logs {
     int32 code = 1;
     string message = 2;
     repeated LogDetail logs = 3;
+}
 
-    message LogDetail {
-        string address = 1;
-        repeated string topics = 2;
-        string data = 3;
-        uint64 block_number = 4;
-        string tx_hash = 5;
-        uint32 tx_index = 6;
-        string block_hash = 7;
-        uint32 index = 8;
-        bool removed = 9;
-    }
+message LogDetails {
+    repeated LogDetail logs = 1;
+}
+
+message LogDetail {
+    string address = 1;
+    repeated string topics = 2;
+    string data = 3;
+    uint64 block_number = 4;
+    string tx_hash = 5;
+    uint32 tx_index = 6;
+    string block_hash = 7;
+    uint32 index = 8;
+    bool removed = 9;
 }
 
 message TxDetail {
@@ -181,7 +199,7 @@ message TokenIssueInfo {
 
 message SplitContractInfo  {
     repeated string addrs = 1;
-    repeated uint64 weights = 2;
+    repeated uint32 weights = 2;
 }
 
 message TokenTransferInfo {

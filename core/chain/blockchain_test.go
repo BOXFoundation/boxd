@@ -50,7 +50,7 @@ var (
 	timestamp = time.Now().Unix()
 
 	addrs   = []types.Address{splitAddrA, splitAddrB}
-	weights = []uint64{5, 5}
+	weights = []uint32{5, 5}
 )
 
 // Test if appending a slice while looping over it using index works.

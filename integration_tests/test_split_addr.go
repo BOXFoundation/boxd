@@ -81,7 +81,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 
 	sender, receivers := addrs[0], addrs[1:]
-	weights := []uint64{1, 2, 3, 4}
+	weights := []uint32{1, 2, 3, 4}
 
 	// send box to sender
 	prevSenderBalance := utils.BalanceFor(sender, conn)
@@ -115,7 +115,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 }
 
 func splitAddrRepeatTest(
-	sender string, receivers []string, weights []uint64, times int, txCnt *uint64,
+	sender string, receivers []string, weights []uint32, times int, txCnt *uint64,
 	conn *grpc.ClientConn,
 ) {
 	logger.Info("=== RUN   splitAddrRepeatTest")
@@ -198,10 +198,10 @@ func splitAddrRepeatTest(
 
 	totalWeight := uint64(0)
 	for _, w := range weights {
-		totalWeight += w
+		totalWeight += uint64(w)
 	}
 	for i, addr := range receivers {
-		amount := receiversBalancePre[i] + transfer/totalWeight*weights[i]
+		amount := receiversBalancePre[i] + transfer/totalWeight*uint64(weights[i])
 		logger.Infof("wait for balance of receivers[%d] receive %d(%d/%d), timeout: %v",
 			i, amount, weights[i], totalWeight, timeoutToChain)
 		_, err := utils.WaitBalanceEnough(addr, amount, conn, timeoutToChain)

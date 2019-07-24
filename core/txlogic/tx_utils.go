@@ -340,7 +340,7 @@ func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.
 }
 
 // MakeSplitAddrVout make split addr vout
-func MakeSplitAddrVout(addrs []types.Address, weights []uint64) *corepb.TxOut {
+func MakeSplitAddrVout(addrs []types.Address, weights []uint32) *corepb.TxOut {
 	return &corepb.TxOut{
 		Value:        0,
 		ScriptPubKey: *script.SplitAddrScript(addrs, weights),
@@ -349,17 +349,22 @@ func MakeSplitAddrVout(addrs []types.Address, weights []uint64) *corepb.TxOut {
 
 // MakeSplitAddress make split addr
 func MakeSplitAddress(
-	txHash *crypto.HashType, idx uint32, addrs []types.Address, weights []uint64,
+	txHash *crypto.HashType, idx uint32, addrs []types.Address, weights []uint32,
 ) types.Address {
-	pk := *script.SplitAddrScript(addrs, weights)
-	sc := script.NewScriptFromBytes(pk)
-	addr, _ := sc.ExtractAddress()
+
+	s := script.NewScript()
+	for i := 0; i < len(addrs) && i < len(weights); i++ {
+		w := make([]byte, 4)
+		binary.LittleEndian.PutUint32(w, weights[i])
+		s.AddOperand(addrs[i].Hash()).AddOperand(w)
+	}
+	splitHash := crypto.Hash160(*s)
 	idxBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(idxBytes, idx)
 	raw := append(txHash[:], idxBytes...)
-	raw = append(raw, addr.Hash()...)
+	raw = append(raw, splitHash...)
 	splitAddrHash := crypto.Hash160(raw)
-	addr, _ = types.NewSplitAddressFromHash(splitAddrHash)
+	addr, _ := types.NewSplitAddressFromHash(splitAddrHash)
 	return addr
 }
 
