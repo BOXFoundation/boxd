@@ -31,6 +31,8 @@ rpc:
     port: 19161
     http:
         port: 19160
+    subscribe_blocks: true
+    subscribe_logs: true
 dpos:
     keypath: key.keystore
     enable_mint: true

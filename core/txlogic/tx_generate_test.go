@@ -95,7 +95,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 		"b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
 		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
 	}
-	weights := []uint64{3, 7}
+	weights := []uint32{3, 7}
 	changeAmt := uint64(200)
 	prevHash1 := hashFromUint64(1)
 	utxoValue1, utxoValue2 := uint64(200), uint64(400)
@@ -115,7 +115,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 		addresses[i], _ = types.ParseAddress(addr)
 	}
 	splitAddr := MakeSplitAddress(txHash, 0, addresses, weights)
-	wantSplitAddr := "b2c4cs8JQGDHfDfzTzrzwg5WUL9meN5hJgB"
+	wantSplitAddr := "b2aHFbpWrqpdso3GU5aEgGbHJ6WuwtbUZqf"
 	if splitAddr.String() != wantSplitAddr {
 		t.Fatalf("aplit addr want: %s, got: %s", wantSplitAddr, splitAddr)
 	}
@@ -142,7 +142,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
   ],
   "Vout": [
     {
-      "script_pub_key": "ahRBIDWMx7+U00Rev3pzsNaKjE7uvhRQVwzHO7GKUfxBU+7GjSHREF0ybgEDFK4+ltAIZY22TdT43y1zbtvGvhwxAQc="
+      "script_pub_key": "ahSsjWfwyO2I8themQCbGrUhz8D5VRRQVwzHO7GKUfxBU+7GjSHREF0ybgQDAAAAFK4+ltAIZY22TdT43y1zbtvGvhwxBAcAAAA="
     },
     {
       "value": 200,

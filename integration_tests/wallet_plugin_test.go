@@ -169,7 +169,7 @@ func _TestSplitAddrTx(t *testing.T) {
 		"b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N",
 		"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
 	}
-	weights := []uint64{1, 2, 3, 4}
+	weights := []uint32{1, 2, 3, 4}
 	req := &rpcpb.MakeSplitAddrTxReq{
 		From:     from,
 		Addrs:    addrs,

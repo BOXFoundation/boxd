@@ -7,7 +7,6 @@ package rpcutil
 import (
 	"container/list"
 	"encoding/hex"
-	"fmt"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -17,8 +16,8 @@ import (
 
 // Key to endpoints.
 const (
-	BlockEp = "block_endpoint"
-	LogEp   = "log_endpoint"
+	BlockEp uint32 = iota
+	LogEp
 
 	newBlockMsgSize = 60
 	newLogMsgSize   = 100
@@ -29,8 +28,8 @@ type Endpoint interface {
 	GetQueue() *list.List
 	GetEventMutex() *sync.RWMutex
 
-	Subscribe(...string) error
-	Unsubscribe(...string) error
+	Subscribe() error
+	Unsubscribe() error
 }
 
 // BlockEndpoint is an endpoint to push new blocks.
@@ -67,7 +66,7 @@ func (bep *BlockEndpoint) GetEventMutex() *sync.RWMutex {
 }
 
 // Subscribe subscribe the topic of new blocks.
-func (bep *BlockEndpoint) Subscribe(...string) error {
+func (bep *BlockEndpoint) Subscribe() error {
 	bep.mtx.Lock()
 	defer bep.mtx.Unlock()
 	if bep.subscribeCnt == 0 {
@@ -82,7 +81,7 @@ func (bep *BlockEndpoint) Subscribe(...string) error {
 }
 
 // Unsubscribe unsubscribe the topic of new blocks.
-func (bep *BlockEndpoint) Unsubscribe(...string) error {
+func (bep *BlockEndpoint) Unsubscribe() error {
 	bep.mtx.Lock()
 	defer bep.mtx.Unlock()
 	if bep.subscribeCnt == 1 {
@@ -114,7 +113,7 @@ func (bep *BlockEndpoint) receiveNewBlockMsg(block *types.Block) {
 // LogEndpoint is an endpoint to push logs.
 type LogEndpoint struct {
 	queue        *list.List
-	subscribeCnt map[string]uint8
+	subscribeCnt uint8
 
 	eventMtx *sync.RWMutex
 	mtx      sync.Mutex
@@ -124,8 +123,8 @@ type LogEndpoint struct {
 // NewLogEndpoint return a new log endpoint.
 func NewLogEndpoint(bus eventbus.Bus) *LogEndpoint {
 	return &LogEndpoint{
-		bus:          bus,
-		subscribeCnt: make(map[string]uint8),
+		bus:   bus,
+		queue: list.New(),
 	}
 }
 
@@ -146,69 +145,61 @@ func (lep *LogEndpoint) GetEventMutex() *sync.RWMutex {
 }
 
 // Subscribe subscribe the topic of new logs.
-func (lep *LogEndpoint) Subscribe(addrs ...string) error {
-	if len(addrs) == 0 {
-		return fmt.Errorf("Need a contract address to subscribe")
-	}
+func (lep *LogEndpoint) Subscribe() error {
 	lep.mtx.Lock()
 	defer lep.mtx.Unlock()
-	for _, addr := range addrs {
-		if cnt, ok := lep.subscribeCnt[addr]; !ok || cnt == 0 {
-			err := lep.bus.SubscribeUniq(eventbus.TopicRPCSendNewLog+addr, lep.receiveNewLog)
-			if err != nil {
-				return err
-			}
-			lep.subscribeCnt[addr] = 1
-		} else {
-			lep.subscribeCnt[addr]++
+	if lep.subscribeCnt == 0 {
+		err := lep.bus.SubscribeUniq(eventbus.TopicRPCSendNewLog, lep.receiveNewLog)
+		if err != nil {
+			return err
 		}
 	}
+	lep.subscribeCnt++
 	logger.Infof("subscribe new logs#%d", lep.subscribeCnt)
 	return nil
 }
 
 // Unsubscribe unsubscribe the topic of new logs.
-func (lep *LogEndpoint) Unsubscribe(addrs ...string) error {
-	if len(addrs) == 0 {
-		return fmt.Errorf("Need a contract address to subscribe")
-	}
+func (lep *LogEndpoint) Unsubscribe() error {
 	lep.mtx.Lock()
 	defer lep.mtx.Unlock()
-	for _, addr := range addrs {
-		if cnt, ok := lep.subscribeCnt[addr]; ok && cnt == 1 {
-			err := lep.bus.Unsubscribe(eventbus.TopicRPCSendNewLog+addr, lep.receiveNewLog)
-			if err != nil {
-				return err
-			}
-			delete(lep.subscribeCnt, addr)
-		} else if ok && cnt > 1 {
-			lep.subscribeCnt[addr]--
+	if lep.subscribeCnt == 1 {
+		err := lep.bus.Unsubscribe(eventbus.TopicRPCSendNewLog, lep.receiveNewLog)
+		if err != nil {
+			return err
 		}
 	}
+	lep.subscribeCnt--
 	logger.Infof("unsubscribe new logs#%d", lep.subscribeCnt)
 	return nil
 }
 
-func (lep *LogEndpoint) receiveNewLog(logs []*types.Log) {
+func (lep *LogEndpoint) receiveNewLog(logs map[string][]*types.Log) {
 	lep.eventMtx.Lock()
 	defer lep.eventMtx.Unlock()
 
-	if lep.GetQueue().Len() == newLogMsgSize {
-		lep.queue.Remove(lep.queue.Front())
+	queue := lep.GetQueue()
+	if queue.Len() == newLogMsgSize {
+		queue.Remove(queue.Front())
 	}
-	lep.queue.PushBack(logs)
+	queue.PushBack(logs)
 }
 
 // ToPbLogs convert []*types.Log to []*rpcpb.Logs_LogDetail.
-func ToPbLogs(logs []*types.Log) []*rpcpb.Logs_LogDetail {
-	ret := []*rpcpb.Logs_LogDetail{}
+func ToPbLogs(logs []*types.Log) []*rpcpb.LogDetail {
+	ret := []*rpcpb.LogDetail{}
 	for _, log := range logs {
 		topics := []string{}
 		for _, topic := range log.Topics {
 			topics = append(topics, hex.EncodeToString(topic.Bytes()))
 		}
-		ret = append(ret, &rpcpb.Logs_LogDetail{
-			Address:     log.Address.String(),
+		contractAddr, err := types.NewContractAddressFromHash(log.Address.Bytes()[:])
+		if err != nil {
+			logger.Errorf("ToPbLogs failed, Err: %v", err)
+			return nil
+		}
+		ret = append(ret, &rpcpb.LogDetail{
+			Address:     contractAddr.String(),
 			Topics:      topics,
 			Data:        hex.EncodeToString(log.Data),
 			BlockNumber: log.BlockNumber,

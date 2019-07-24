@@ -121,7 +121,7 @@ func (w *Server) Balance(addr string, tokenID *types.TokenID) (uint64, error) {
 	}
 	balance, err := BalanceFor(addr, tokenID, w.table)
 	if err != nil {
-		logger.Warnf("BalanceFor %s error %s", addr, err)
+		logger.Warnf("BalanceFor %s token id: %+v error: %s", addr, tokenID, err)
 	}
 	return balance, err
 }
@@ -136,7 +136,7 @@ func (w *Server) Utxos(addr string, tokenID *types.TokenID, amount uint64) (
 	}
 	utxos, err := FetchUtxosOf(addr, tokenID, amount, false, w.table)
 	if err != nil {
-		logger.Warnf("Utxos for %s error %s", addr, err)
+		logger.Warnf("Utxos for %s token id: %+v error: %s", addr, tokenID, err)
 		return nil, err
 	}
 	return utxos, nil

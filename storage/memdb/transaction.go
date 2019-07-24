@@ -152,10 +152,10 @@ func (tx *mtx) Discard() {
 	tx.txsm.Lock()
 	defer tx.txsm.Unlock()
 
+	tx.batch.Close()
 	if tx.closed {
 		return
 	}
-
 	tx.closed = true
 	<-tx.writeLock
 }

@@ -81,8 +81,7 @@ func (s *txServer) GetTokenBalance(
 		logger.Warn("get token balance error, invalid token hash %s", req.GetTokenHash())
 		return newGetBalanceResp(-1, "invalid token hash"), nil
 	}
-	op := txlogic.NewPbOutPoint(thash, req.GetTokenIndex())
-	tid := (*types.TokenID)(txlogic.ConvPbOutPoint(op))
+	tid := txlogic.NewTokenID(thash, req.GetTokenIndex())
 	// valide addrs
 	if err := types.ValidateAddr(req.Addrs...); err != nil {
 		logger.Warn(err)
@@ -91,7 +90,7 @@ func (s *txServer) GetTokenBalance(
 	for i, addr := range req.Addrs {
 		amount, err := walletAgent.Balance(addr, tid)
 		if err != nil {
-			logger.Warnf("get token balance for %s error %s", addr, err)
+			logger.Warnf("get token balance for %s token id: %+v error: %s", addr, tid, err)
 			return newGetBalanceResp(-1, err.Error()), nil
 		}
 		balances[i] = amount

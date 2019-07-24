@@ -38,7 +38,7 @@ func TestMakeSplitAddrVout(t *testing.T) {
 		"b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N",
 		"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
 	}
-	weights := []uint64{1, 2, 3, 4}
+	weights := []uint32{1, 2, 3, 4}
 	addresses := make([]types.Address, len(addrs))
 	for i, addr := range addrs {
 		addresses[i], _ = types.ParseAddress(addr)
@@ -91,47 +91,47 @@ func TestMakeSplitAddress(t *testing.T) {
 
 	var tests = []struct {
 		addrs     []string
-		weights   []uint64
+		weights   []uint32
 		splitAddr string
 	}{
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
-			[]uint64{5, 5},
-			"b2aA6qXXJHfkzDhecBt9s5qiVVSe5jtPp1r",
+			[]uint32{5, 5},
+			"b2WeyKZJ3WJjsWcxpAkM6gnm24LWzaqsoQX",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
-			[]uint64{3, 7},
-			"b2QqfWj6oBwHUYZjj4KvtpfJmHjj2t51j6k",
+			[]uint32{3, 7},
+			"b2QBrAPAySqzUSg8BTR4QGzaK5qfC2qu8hY",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD"},
-			[]uint64{1, 2},
-			"b2KGTXZnFmBNz8HSr22Nt3kzfxU9LJR87AS",
+			[]uint32{1, 2},
+			"b2KXUNtf25cz9MjDZSnVBaBVq17AUW3wHjR",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1WkepSk6YEeBwd3UxBLoQPHJ5k74c1ZGcg",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
-			[]uint64{1, 2, 3},
-			"b2H6EPRPYFbsS2pYeG4rivGCDByw7F5icdq",
+			[]uint32{1, 2, 3},
+			"b2SyjrVSQXjRF8gy6czR3MZj4HEakocJEQN",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
-			[]uint64{2, 3, 4},
-			"b2XiDbmiG8R5kctBJgmF3R7HS7dh72Zt2Go",
+			[]uint32{2, 3, 4},
+			"b2dz4ipBPpaUsFqFCVJqGPhCjijkvyCCN3s",
 		},
 		{
 			[]string{"b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
 				"b1YVsw5ZUfPNmANEhpBezDMfg2Xvj2U2Wrk"},
-			[]uint64{2, 2, 4},
-			"b2XeRQSeED8EyaQ4xnUsNd1oV1EdLebCoFC",
+			[]uint32{2, 2, 4},
+			"b2HEtVD58nKXcfnJiSAabHV8ebmaSdLCP4k",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt", "b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
-			[]uint64{1, 2, 3},
-			"b2aJ14fh6KW1zb8kJiVCXEsnEqjiz47EPVP",
+			[]uint32{1, 2, 3},
+			"b2dDT8boDTZebiDzkKXpFjqb8FiFJMGS8D4",
 		},
 	}
 	txHash := new(crypto.HashType)
