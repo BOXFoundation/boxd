@@ -18,6 +18,17 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
+// Node is used to distinguish peer types in the network.
+type Node uint8
+
+const (
+	seed Node = iota
+	miner
+	candidate
+	server
+	layfolk
+)
+
 // const
 const (
 	PeerDiscoverLoopInterval        = 120 * 1000
