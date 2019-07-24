@@ -46,7 +46,7 @@ type webapiServer struct {
 	TxPoolReader
 	proc goprocess.Process
 
-	endpoints map[string]rpcutil.Endpoint
+	endpoints map[uint32]rpcutil.Endpoint
 }
 
 // ChainTxReader defines chain tx reader interface
@@ -79,7 +79,7 @@ func newWebAPIServer(s *Server) *webapiServer {
 		ChainBlockReader: s.GetChainReader(),
 		TxPoolReader:     s.GetTxHandler(),
 		proc:             s.Proc(),
-		endpoints:        make(map[string]rpcutil.Endpoint),
+		endpoints:        make(map[uint32]rpcutil.Endpoint),
 	}
 
 	if s.cfg.SubScribeBlocks {
@@ -194,24 +194,73 @@ func (s *webapiServer) ViewBlockDetail(
 	return resp, nil
 }
 
-func (s *webapiServer) ListenAndReadNewBlock(
-	req *rpcpb.ListenBlocksReq,
-	stream rpcpb.WebApi_ListenAndReadNewBlockServer,
+func (s *webapiServer) Connect(
+	stream rpcpb.WebApi_ConnectServer,
 ) error {
-	endpoint, ok := s.endpoints[rpcutil.BlockEp]
-	if !ok {
-		return ErrAPINotSupported
+	defer logger.Info("Close the persistent conn.")
+
+	resultCh := make(chan *rpcpb.ListenedData)
+	// register endpoints.
+	p := s.proc.Go(func(p goprocess.Process) {
+		for {
+			select {
+			case <-p.Closing():
+				logger.Debug("Closing rpc stream")
+				return
+			default:
+			}
+
+			registerReq, err := stream.Recv()
+			if err != nil {
+				logger.Error(err)
+				break
+			}
+
+			endpoint, ok := s.endpoints[registerReq.Type]
+			if !ok {
+				logger.Errorf("Api not supported: %d", registerReq.Type)
+				continue
+			}
+
+			switch registerReq.Type {
+			case rpcutil.BlockEp:
+				go s.listenBlocks(endpoint, resultCh)
+			case rpcutil.LogEp:
+				go s.listenLogs(registerReq.Info.(*rpcpb.RegisterReq_LogsReq), endpoint, resultCh)
+			default:
+				logger.Errorf("Register type not found: %d", registerReq.Type)
+			}
+
+		}
+	})
+
+	for {
+		select {
+		case data := <-resultCh:
+			if err := stream.Send(data); err != nil {
+				logger.Warnf("Webapi send data error %v", err)
+			}
+		case <-s.proc.Closing():
+			return nil
+		case <-p.Closing():
+			return nil
+		}
 	}
+}
+
+func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rpcpb.ListenedData) {
 	logger.Info("start listen new blocks")
 	if err := s.subscribeBlockEndpoint(); err != nil {
 		logger.Error(err)
-		return err
+		// FIXME: 发送错误给ch
+		return
 	}
 	defer func() {
 		if err := endpoint.Unsubscribe(); err != nil {
 			logger.Error(err)
 		}
 	}()
+
 	var (
 		elm  *list.Element
 		exit bool
@@ -219,7 +268,7 @@ func (s *webapiServer) ListenAndReadNewBlock(
 	for {
 		if s.Closing() {
 			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
-			return nil
+			return
 		}
 		rwmtx := endpoint.GetEventMutex()
 		rwmtx.RLock()
@@ -244,11 +293,8 @@ func (s *webapiServer) ListenAndReadNewBlock(
 			}
 			blockDetail.Size_ = uint32(n)
 
-			// send block info
-			if err := stream.Send(blockDetail); err != nil {
-				logger.Warnf("webapi send block error %s, exit listen connection!", err)
-				return err
-			}
+			resultCh <- &rpcpb.ListenedData{Type: rpcutil.BlockEp, Data: &rpcpb.ListenedData_Block{Block: blockDetail}}
+
 			logger.Debugf("webapi server sent a block, hash: %s, height: %d",
 				blockDetail.Hash, blockDetail.Height)
 		} else {
@@ -256,6 +302,90 @@ func (s *webapiServer) ListenAndReadNewBlock(
 				block.BlockHash(), block.Header.Height, err)
 		}
 
+		// FIXME: 这个退出条件有没有问题 如果把queue消耗完了但是后续还会有block这里会退出还是会等待
+		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
+			return
+		}
+	}
+}
+
+func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint rpcutil.Endpoint, resultCh chan *rpcpb.ListenedData) error {
+
+	if logsreq == nil {
+		return fmt.Errorf("Invalid params")
+	}
+	req := logsreq.LogsReq
+
+	logger.Error("start listen new logs")
+	if err := s.subscribeLogEndpoint(); err != nil {
+		logger.Error(err)
+	}
+	defer func() {
+		if err := s.unsubscribeLogEndpoint(); err != nil {
+			logger.Error(err)
+		}
+	}()
+	var (
+		elm  *list.Element
+		exit bool
+	)
+	for {
+		if s.Closing() {
+			logger.Info("receive closing signal, exit ListenAndReadNewLog ...")
+			return nil
+		}
+		rwmtx := endpoint.GetEventMutex()
+		rwmtx.RLock()
+		if endpoint.GetQueue().Len() != 0 {
+			elm = endpoint.GetQueue().Front()
+			rwmtx.RUnlock()
+			break
+		}
+		rwmtx.RUnlock()
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	for {
+		// get logs
+		logs := elm.Value.(map[string][]*types.Log)
+
+		filteredLogs := []*types.Log{}
+		topicslist := [][][]byte{[][]byte{}}
+		for _, addr := range req.Addresses {
+			if l, ok := logs[addr]; ok {
+				filteredLogs = append(filteredLogs, l...)
+			}
+			contractAddress, err := types.NewContractAddress(addr)
+			if err != nil {
+				logger.Error(err)
+				return err
+			}
+			topicslist[0] = append(topicslist[0], contractAddress.Hash())
+		}
+
+		for i, topiclist := range req.Topics {
+			topicslist = append(topicslist, [][]byte{})
+			for _, topic := range topiclist.Topics {
+				t, err := hex.DecodeString(topic)
+				if err != nil {
+					logger.Error(err)
+					return err
+				}
+				topicslist[i+1] = append(topicslist[i+1], t)
+			}
+		}
+
+		filteredLogs, err := s.ChainBlockReader.FilterLogs(filteredLogs, topicslist)
+		if err != nil {
+			logger.Error(err)
+			return err
+		}
+
+		resultLogs := rpcutil.ToPbLogs(filteredLogs)
+		if len(resultLogs) != 0 {
+			resultCh <- &rpcpb.ListenedData{Type: rpcutil.LogEp, Data: &rpcpb.ListenedData_Logs{Logs: &rpcpb.LogDetails{Logs: resultLogs}}}
+			logger.Debugf("webapi server sent a log, data: %v", resultLogs)
+		}
 		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
 			return nil
 		}
@@ -291,101 +421,16 @@ func (s *webapiServer) subscribeBlockEndpoint() error {
 	return s.endpoints[rpcutil.BlockEp].Subscribe()
 }
 
-func (s *webapiServer) subscribeLogEndpoint(addr []string) error {
-	return s.endpoints[rpcutil.LogEp].Subscribe(addr...)
+func (s *webapiServer) subscribeLogEndpoint() error {
+	return s.endpoints[rpcutil.LogEp].Subscribe()
 }
 
 func (s *webapiServer) unsubscribeBlockEndpoint() error {
 	return s.endpoints[rpcutil.BlockEp].Unsubscribe()
 }
 
-func (s *webapiServer) unsubscribeLogEndpoint(addr []string) error {
-	return s.endpoints[rpcutil.LogEp].Unsubscribe(addr...)
-}
-
-func (s *webapiServer) ListenAndReadNewLog(
-	req *rpcpb.LogsReq,
-	stream rpcpb.WebApi_ListenAndReadNewLogServer,
-) error {
-	endpoint, ok := s.endpoints[rpcutil.LogEp]
-	if !ok {
-		return ErrAPINotSupported
-	}
-	logger.Info("start listen new logs")
-	if err := s.subscribeLogEndpoint(req.Addresses); err != nil {
-		logger.Error(err)
-		return err
-	}
-	defer func() {
-		if err := s.unsubscribeLogEndpoint(req.Addresses); err != nil {
-			logger.Error(err)
-		}
-	}()
-	var (
-		elm  *list.Element
-		exit bool
-	)
-	for {
-		if s.Closing() {
-			logger.Info("receive closing signal, exit ListenAndReadNewLog ...")
-			return nil
-		}
-		rwmtx := endpoint.GetEventMutex()
-		rwmtx.RLock()
-		if endpoint.GetQueue().Len() != 0 {
-			elm = endpoint.GetQueue().Front()
-			rwmtx.RUnlock()
-			break
-		}
-		rwmtx.RUnlock()
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	for {
-		// get logs
-		logs := elm.Value.([]*types.Log)
-		retLogs := &rpcpb.Logs{Logs: []*rpcpb.Logs_LogDetail{}}
-
-		topicslist := [][][]byte{[][]byte{}}
-
-		for _, addr := range req.Addresses {
-
-			contractAddress, err := types.NewContractAddress(addr)
-			if err != nil {
-				logger.Error(err)
-				return err
-			}
-			topicslist[0] = append(topicslist[0], contractAddress.Hash())
-		}
-
-		for i, topiclist := range req.Topics {
-			topicslist = append(topicslist, [][]byte{})
-			for _, topic := range topiclist.Topics {
-				t, err := hex.DecodeString(topic)
-				if err != nil {
-					logger.Error(err)
-					return err
-				}
-				topicslist[i+1] = append(topicslist[i+1], t)
-			}
-		}
-
-		filterlogs, err := s.ChainBlockReader.FilterLogs(logs, topicslist)
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-		retLogs.Logs = append(retLogs.Logs, rpcutil.ToPbLogs(filterlogs)...)
-		// send log detail
-		if err := stream.Send(retLogs); err != nil {
-			logger.Warnf("webapi send log error %s, exit listen connection!", err)
-			return err
-		}
-		logger.Debugf("webapi server sent a log, data: %v", retLogs.Logs)
-		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
-			return nil
-		}
-	}
+func (s *webapiServer) unsubscribeLogEndpoint() error {
+	return s.endpoints[rpcutil.LogEp].Unsubscribe()
 }
 
 func newCallResp(code int32, msg string) *rpcpb.CallResp {

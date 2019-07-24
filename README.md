@@ -1,6 +1,10 @@
 # Boxd
 
-A Go implementation of BOX Payout blockchain. [![Build Status](https://travis-ci.com/BOXFoundation/boxd.svg?branch=master)](https://travis-ci.com/BOXFoundation/boxd)
+A Go implementation of BOX Payout blockchain.
+
+|Branch|Master	| Develop |
+|:---|:---:|:---:|
+|CI Status|[![Build Status](https://travis-ci.com/BOXFoundation/boxd.svg?branch=master)](https://travis-ci.com/BOXFoundation/boxd)|[![Build Status](https://travis-ci.com/BOXFoundation/boxd.svg?branch=develop)](https://travis-ci.com/BOXFoundation/boxd)
 
 ## Overview
 
