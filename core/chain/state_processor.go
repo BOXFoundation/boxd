@@ -83,7 +83,6 @@ func (sp *StateProcessor) Process(
 			utxoTxs = append(utxoTxs, txs...)
 		}
 		*usedGas += gasUsedPerTx
-		logger.Errorf("===================gasUsedPerTx: %d", gasUsedPerTx)
 		*gasRemainingFee += gasRemainingFeePerTx
 		receipt.WithTxIndex(uint32(i)).WithBlockHash(block.BlockHash()).
 			WithBlockHeight(block.Header.Height)

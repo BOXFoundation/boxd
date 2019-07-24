@@ -818,11 +818,11 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	// update EOA accounts' balance state
 	bAdd, bSub := utxoset.calcNormalTxBalanceChanges(block)
 	for a, v := range bAdd {
-		logger.Warnf("DEBUG: update normal balance add %x %d", a[:], v)
+		logger.Infof("DEBUG: update normal balance add %x %d", a[:], v)
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
 	}
 	for a, v := range bSub {
-		logger.Warnf("DEBUG: update normal balance sub %x %d", a[:], v)
+		logger.Infof("DEBUG: update normal balance sub %x %d", a[:], v)
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
 }
@@ -2183,7 +2183,6 @@ func (chain *BlockChain) MakeCoinbaseTx(from types.AddressHash, amount uint64, n
 	if err != nil {
 		return nil, err
 	}
-	logger.Errorf("contractAddr: %s", contractAddr.String())
 	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce, code)
 	if err != nil {
 		return nil, err

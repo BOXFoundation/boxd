@@ -200,7 +200,6 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 		from, _ := sc.ParseContractFrom()
 		nonce, _ := sc.ParseContractNonce()
 		contractAddr, _ := types.MakeContractAddress(from, nonce)
-		logger.Errorf("contractAddr: %s", contractAddr.String())
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint = types.NewOutPoint(addressHash, 0)
 		utxoWrap = types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)

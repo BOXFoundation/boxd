@@ -448,11 +448,11 @@ func nextBlockWithTxs(parent *types.Block, chain *BlockChain, txs ...*types.Tran
 }
 
 var (
-	userBalance, minerBalance, contractBalance, coinbbaseGasUsed uint64
+	userBalance, minerBalance, contractBalance, coinbaseGasUsed uint64
 )
 
 type testContractParam struct {
-	gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv uint64
+	vmValue, gasPrice, gasLimit, contractBalance, userRecv uint64
 
 	contractAddr *types.AddressContract
 }
@@ -480,8 +480,8 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// evm := vm.NewEVM(context, statedb, blockChain.vmConfig)
 
 	// // evm, _, _ := blockChain.NewEvmContextForLocalCallByHeight(vmtx, 0)
-	// _, coinbbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
-	// logger.Errorf("coinbbaseGasUsed: %d", coinbbaseGasUsed)
+	// _, coinbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
+	// logger.Errorf("coinbaseGasUsed: %d", coinbaseGasUsed)
 
 	// ctx := NewEVMContext(vmtx, b0.Header, blockChain)
 	// logConfig := vm.LogConfig{}
@@ -489,7 +489,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
 	// vmtx, _ := blockChain.ExtractVMTransactions(coinbaseTx)
 	// evm, _, _ := blockChain.NewEvmContextForLocalCallByHeight(vmtx, 0)
-	// _, coinbbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
+	// _, coinbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
@@ -531,8 +531,8 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	evm := vm.NewEVM(context, statedb, blockChain.vmConfig)
 
 	// evm, _, _ := blockChain.NewEvmContextForLocalCallByHeight(vmtx, 0)
-	_, coinbbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
-	// logger.Errorf("coinbbaseGasUsed: %d", coinbbaseGasUsed)
+	_, coinbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
+	// logger.Errorf("coinbaseGasUsed: %d", coinbaseGasUsed)
 
 	b2 := nextBlockWithTxs(b1, blockChain, tx)
 	calcRootHash(b1, b2, blockChain)
@@ -558,7 +558,7 @@ func contractBlockHandle(
 	t *testing.T, blockChain *BlockChain, parent, block, tail *types.Block,
 	param *testContractParam, err error) {
 
-	gasCost := (block.Header.GasUsed - coinbbaseGasUsed) * param.gasPrice
+	gasCost := (block.Header.GasUsed - coinbaseGasUsed) * param.gasPrice
 	verifyProcessBlock(t, blockChain, block, err, tail.Header.Height, tail)
 	// check balance
 	expectUserBalance := userBalance - param.vmValue - gasCost + param.userRecv
@@ -637,10 +637,10 @@ func TestFaucetContract(t *testing.T) {
 	// extend main chain
 	// b2 -> b3
 	// make creation contract tx
-	gasUsed, vmValue, gasPrice, gasLimit := uint64(56160), uint64(10000), uint64(10), uint64(200000)
+	vmValue, gasPrice, gasLimit := uint64(10000), uint64(10), uint64(200000)
 	vmParam := &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, vmValue, 0, nil,
 	}
 
 	byteCode, _ := hex.DecodeString(testFaucetContract)
@@ -668,18 +668,19 @@ func TestFaucetContract(t *testing.T) {
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
 
-	gasRefundValue := vmParam.gasPrice * (vmParam.gasLimit - vmParam.gasUsed)
+	gasUsed := b3.Header.GasUsed - coinbaseGasUsed
+	gasRefundValue := vmParam.gasPrice * (vmParam.gasLimit - gasUsed)
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b3 -> b4
 	// make call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(9912), uint64(0), uint64(6), uint64(20000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(20000)
 	contractBalance := uint64(10000 - 2000) // withdraw 2000, construct contract with 10000
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, 2000, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, contractBalance, 2000, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall)
 	nonce++
@@ -709,10 +710,10 @@ func TestFaucetContract(t *testing.T) {
 	// extend main chain
 	// b4 -> b5
 	// make creation contract tx with insufficient gas
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(20000), uint64(1000), uint64(10), uint64(20000)
+	vmValue, gasPrice, gasLimit = uint64(1000), uint64(10), uint64(20000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, vmValue, vmParam.contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, contractBalance, vmValue, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
@@ -738,10 +739,10 @@ func TestFaucetContract(t *testing.T) {
 	// extend main chain
 	// b5 -> b6
 	// make creation contract tx with insufficient balance
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(20000), uint64(1000), uint64(10), uint64(600000)
+	vmValue, gasPrice, gasLimit = uint64(1000), uint64(10), uint64(600000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, contractBalance, vmValue, vmParam.contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, contractBalance, vmValue, vmParam.contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
@@ -763,11 +764,11 @@ func TestFaucetContract(t *testing.T) {
 	// extend main chain
 	// b5 -> b6
 	// make call contract tx with insufficient contract balance
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(9914), uint64(0), uint64(6), uint64(20000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(20000)
 	contractBalance = uint64(0) // withdraw 2000+9000, construct contract with 10000
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 8000, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 8000, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce++
@@ -894,28 +895,24 @@ func init() {
 		log.Fatal(err)
 	}
 	mintCall = hex.EncodeToString(input)
-	log.Printf("mint 8000000: %s\n", mintCall)
 	// sent 2000000
 	input, err = abiObj.Pack("send", *receiver.Hash160(), big.NewInt(2000000))
 	if err != nil {
 		log.Fatal(err)
 	}
 	sendCall = hex.EncodeToString(input)
-	log.Printf("send 2000000: %s\n", sendCall)
 	// balances user addr
 	input, err = abiObj.Pack("balances", *userAddr.Hash160())
 	if err != nil {
 		log.Fatal(err)
 	}
 	balancesUserCall = hex.EncodeToString(input)
-	log.Printf("balancesUser: %s\n", balancesUserCall)
 	// balances test Addr
 	input, err = abiObj.Pack("balances", receiver.Hash160())
 	if err != nil {
 		log.Fatal(err)
 	}
 	balancesReceiverCall = hex.EncodeToString(input)
-	log.Printf("balances %s: %s\n", receiver, balancesReceiverCall)
 }
 
 func TestCoinContract(t *testing.T) {
@@ -932,8 +929,8 @@ func TestCoinContract(t *testing.T) {
 	// make creation contract tx
 	vmValue, gasPrice, gasLimit := uint64(0), uint64(10), uint64(400000)
 	vmParam := &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		0, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, vmValue, 0, nil,
 	}
 	byteCode, _ := hex.DecodeString(testCoinContract)
 	nonce := uint64(1)
@@ -964,10 +961,10 @@ func TestCoinContract(t *testing.T) {
 	// extend main chain
 	// b3 -> b4
 	// make mint 8000000 call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit := uint64(23177), uint64(0), uint64(6), uint64(30000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(30000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(mintCall)
 	nonce++
@@ -994,10 +991,10 @@ func TestCoinContract(t *testing.T) {
 	// extend main chain
 	// b4 -> b5
 	// make send 2000000 call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(30219), uint64(0), uint64(6), uint64(40000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(40000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(sendCall)
 	nonce++
@@ -1025,10 +1022,10 @@ func TestCoinContract(t *testing.T) {
 	// extend main chain
 	// b5 -> b6
 	// make balances user call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(2825), uint64(0), uint64(6), uint64(4000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(balancesUserCall)
 	nonce++
@@ -1059,10 +1056,10 @@ func TestCoinContract(t *testing.T) {
 	// extend main chain
 	// b6 -> b7
 	// make balances receiver call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(2825), uint64(0), uint64(6), uint64(4000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(balancesReceiverCall)
 	nonce++
@@ -1165,10 +1162,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b2 -> b3
 	// deploy contract
-	gasUsed, vmValue, gasPrice, gasLimit := uint64(995919), uint64(0), uint64(2), uint64(2000000)
+	vmValue, gasPrice, gasLimit := uint64(0), uint64(2), uint64(2000000)
 	vmParam := &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, vmValue, 0, nil,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, vmValue, 0, nil,
 	}
 	byteCode, _ := hex.DecodeString(testERC20Contract)
 	nonce := uint64(1)
@@ -1199,10 +1196,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b3 -> b3A
 	// make balances user call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
@@ -1238,10 +1235,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b3A -> b4
 	// make transfer 2000000 call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(32148), uint64(0), uint64(6), uint64(40000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(40000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(transferCall)
 	nonce++
@@ -1271,10 +1268,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b4 -> b5
 	// make balances user call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
@@ -1310,10 +1307,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b5 -> b6
 	// make balances userA call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
@@ -1344,10 +1341,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b6 -> b7
 	// transferFrom user to userA 40000, failed contract execution
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(17616), uint64(0), uint64(2), uint64(40000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(2), uint64(40000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	// minerNonce := uint64(9)
@@ -1366,6 +1363,7 @@ func TestERC20Contract(t *testing.T) {
 	b7 := nextBlockWithTxs(b6, blockChain, vmTx)
 
 	calcRootHash(b6, b7, blockChain)
+	gasUsed := b7.Header.GasUsed - coinbaseGasUsed
 	userBalance += gasUsed * gasPrice
 	minerBalance -= gasUsed * gasPrice
 	contractBlockHandle(t, blockChain, b6, b7, b7, vmParam, nil)
@@ -1380,10 +1378,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b7 -> b8
 	// approve miner spend user 40000
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(24805), uint64(0), uint64(2), uint64(40000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(2), uint64(40000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(approveCall)
 	nonce++
@@ -1414,10 +1412,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b8 -> b9
 	// increaseAllowance miner to spend user 20000
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(10430), uint64(0), uint64(2), uint64(40000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(2), uint64(40000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(increaseAllowanceCall)
 	nonce++
@@ -1446,10 +1444,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b9 -> b10
 	// allowance user miner
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(3362), uint64(0), uint64(2), uint64(40000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(2), uint64(40000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(allowanceCall)
 	nonce++
@@ -1478,10 +1476,10 @@ func TestERC20Contract(t *testing.T) {
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b10 -> b11
-	// transferFrom user to userA 40000 by miner, successful contract execution
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(24777), uint64(0), uint64(2), uint64(40000)
+	// transferFrom user to userA 50000 by miner, successful contract execution
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(2), uint64(40000)
 	vmParam = &testContractParam{
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	minerNonce = stateDB.GetNonce(*minerAddr.Hash160()) + 2 // note: coinbase tx has already add 1.
@@ -1499,6 +1497,7 @@ func TestERC20Contract(t *testing.T) {
 	b11 := nextBlockWithTxs(b10, blockChain, vmTx)
 
 	calcRootHash(b10, b11, blockChain)
+	gasUsed = b11.Header.GasUsed - coinbaseGasUsed
 	userBalance += gasUsed * gasPrice
 	minerBalance -= gasUsed * gasPrice
 	contractBlockHandle(t, blockChain, b10, b11, b11, vmParam, nil)
@@ -1511,10 +1510,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b11 -> b12
 	// make balances user call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
@@ -1550,10 +1549,10 @@ func TestERC20Contract(t *testing.T) {
 	// extend main chain
 	// b12 -> b13
 	// make balances userA call contract tx
-	gasUsed, vmValue, gasPrice, gasLimit = uint64(3017), uint64(0), uint64(6), uint64(4000)
+	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(4000)
 	vmParam = &testContractParam{
-		// gasUsed, vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		gasUsed, vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
+		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasPrice, gasLimit, 0, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
