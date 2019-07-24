@@ -168,8 +168,12 @@ func (sm *SectionManager) GetLogs(from, to uint32, topicslist [][][]byte) ([]*ty
 		}
 	}
 	if to > sm.section*SectionBloomBitLength {
-		h, err := sm.unIndexed(section*SectionBloomBitLength, to, topicslist)
-		logger.Errorf("get2 heights: %v", h)
+		f := section * SectionBloomBitLength
+		if from > f {
+			f = from
+		}
+		h, err := sm.unIndexed(f, to, topicslist)
+		logger.Debugf("get2 heights: %v", h)
 		if err != nil {
 			return nil, err
 		}

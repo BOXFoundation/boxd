@@ -76,7 +76,7 @@ func (log *Log) ToProtoMessage() (proto.Message, error) {
 	return &corepb.Log{
 		Address:     log.Address[:],
 		Topics:      topics,
-		Data:        log.Data,
+		Data:        log.Data[:],
 		BlockNumber: log.BlockNumber,
 		TxHash:      log.TxHash[:],
 		TxIndex:     log.TxIndex,
@@ -102,7 +102,8 @@ func (log *Log) FromProtoMessage(message proto.Message) error {
 		log.Topics[i] = *hash
 		copy(log.Topics[i][:], topic[:])
 	}
-	copy(log.Data[:], pblog.Data[:])
+	log.Data = make([]byte, len(pblog.Data))
+	copy(log.Data, pblog.Data)
 	log.BlockNumber = pblog.BlockNumber
 	copy(log.TxHash[:], pblog.TxHash[:])
 	log.TxIndex = pblog.TxIndex
@@ -155,6 +156,7 @@ func (log *hashLog) FromProtoMessage(message proto.Message) error {
 		log.Topics[i] = *hash
 		copy(log.Topics[i][:], topic[:])
 	}
+	log.Data = make([]byte, len(pblog.Data))
 	copy(log.Data[:], pblog.Data[:])
 	return nil
 }
