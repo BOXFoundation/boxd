@@ -252,7 +252,6 @@ func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rp
 	logger.Info("start listen new blocks")
 	if err := s.subscribeBlockEndpoint(); err != nil {
 		logger.Error(err)
-		// FIXME: 发送错误给ch
 		return
 	}
 	defer func() {
@@ -302,7 +301,6 @@ func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rp
 				block.BlockHash(), block.Header.Height, err)
 		}
 
-		// FIXME: 这个退出条件有没有问题 如果把queue消耗完了但是后续还会有block这里会退出还是会等待
 		if elm, exit = s.moveToNextElem(endpoint, elm); exit {
 			return
 		}

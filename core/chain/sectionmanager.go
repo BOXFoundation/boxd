@@ -38,7 +38,6 @@ type SectionManager struct {
 // NewSectionManager creates a rotated bloom section manager that can iteratively fill a
 // batched bloom filter's bits.
 func NewSectionManager(chain *BlockChain, db storage.Storage) (mgr *SectionManager, err error) {
-	// FIXME: 要先从库里读初始化section height数据
 	mgr = &SectionManager{chain: chain}
 	if mgr.db, err = db.Table(SectionTableName); err != nil {
 		return nil, err
