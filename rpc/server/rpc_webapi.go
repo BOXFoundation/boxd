@@ -543,7 +543,7 @@ func (s *webapiServer) GetLogs(ctx context.Context, req *rpcpb.LogsReq) (logs *r
 
 	from, to := req.From, req.To
 
-	if len(req.Hash) != 0 && req.To == 0 {
+	if len(req.Hash) != 0 {
 		hash, err := hex.DecodeString(req.Hash)
 		if err != nil {
 			return newLogsResp(-1, err.Error(), nil), nil
