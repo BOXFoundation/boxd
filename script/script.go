@@ -622,8 +622,7 @@ func (s *Script) IsStandard() bool {
 		!s.IsPayToPubKeyHashCLTVScript() &&
 		!s.IsTokenIssue() &&
 		!s.IsTokenTransfer() &&
-		!s.IsSplitAddrScript() &&
-		!s.IsRegisterCandidateScript() {
+		!s.IsSplitAddrScript() {
 		return false
 	}
 
