@@ -12,7 +12,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
@@ -89,7 +89,7 @@ func (f *faucet) Claim(
 		if resp.Code != 0 {
 			logger.Warnf("faucet claim %+v error: %s", req, resp.Message)
 		} else {
-			logger.Infof("faucet claim: %+v succeeded, response: %+v", resp)
+			logger.Infof("faucet claim: %+v succeeded, response: %+v", req, resp)
 		}
 	}()
 
