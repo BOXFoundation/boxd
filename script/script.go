@@ -61,6 +61,9 @@ func GasRefundSignatureScript(nonce uint64) *Script {
 
 // SplitAddrScript returns a script to store a split address output
 func SplitAddrScript(addrs []types.Address, weights []uint32) *Script {
+	if len(addrs) == 0 || len(addrs) != len(weights) {
+		return nil
+	}
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
 	s := NewScript()
 	// use as many address/weight pairs as possbile
@@ -593,9 +596,19 @@ func (s *Script) IsPayToScriptHash() bool {
 func (s *Script) IsSplitAddrScript() bool {
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
 	ss := *s
-	// 45 = 1 len(op) + 1 (addr size) + 20 (addr len) + 1 (addr size) +
+	// 1 len(op) + 1 (addr size) + 20 (addr len) + 1 (addr size) +
 	//			20 (addr len) + 1 (weight size) + 1 (weight len) + ...
-	return len(ss) >= 45 && ss[0] == byte(OPRETURN) && ss[1] == ripemd160.Size
+	// 22 = len(op) + 1(addr size) + 20(addr len)
+	// 26 = 1(addr size) + 20(addr len) + 1(weight size) + 4(weight len)
+	if (len(ss)-22)%26 != 0 || ss[0] != byte(OPRETURN) {
+		return false
+	}
+	for i := 22; i < len(ss); i += 26 {
+		if ss[i] != ripemd160.Size || ss[i+21] != 4 {
+			return false
+		}
+	}
+	return true
 }
 
 // IsContractSig returns true if the script sig contains OPCONTRACT code
@@ -716,7 +729,7 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint32, error) {
 	}
 
 	_, operandHash, pc, err := s.getNthOp(pc, 0)
-	if err != nil || opCode != OPRETURN {
+	if err != nil || len(operandHash) != ripemd160.Size {
 		return nil, nil, ErrInvalidSplitAddrScript
 	}
 
@@ -742,6 +755,9 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint32, error) {
 			addrs = append(addrs, addr)
 		} else {
 			// weight
+			if len(operand) != 4 {
+				return nil, nil, ErrInvalidSplitAddrScript
+			}
 			weights = append(weights, binary.LittleEndian.Uint32(operand))
 		}
 	}
