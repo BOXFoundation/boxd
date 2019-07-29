@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"math"
 	"math/big"
 	"strings"
@@ -619,25 +620,34 @@ func (s *Script) IsContractSig() bool {
 // IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
 func (s *Script) IsContractPubkey() bool {
 	ss := *s
-	// 52 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addraddr len)+
-	//			1(nonce size)+1(gasPrice size)+1(gasLimit size)+1(version size)+
-	//			1(code size)+4(checksum len)
-	return len(ss) >= 52 && ss[0] == byte(OPCONTRACT) && ss[1] == ripemd160.Size &&
-		ss[22] == ripemd160.Size
+	// 94 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addraddr len)+
+	//			1(nonce size)+8(nonce len)+1(gasPrice size)+8(gasPrice len)+
+	//			1(gasLimit size)+8(gasLimit size)+1(version size)+4(version len)+
+	//			1/2(code size)+n(code len)+1(checksum size)+4(checksum len)
+	if len(ss) < 94 {
+		return false
+	}
+	if ss[0] != byte(OPCONTRACT) ||
+		ss[1] != ripemd160.Size || ss[22] != ripemd160.Size ||
+		ss[43] != 8 || ss[52] != 8 || ss[61] != 8 || ss[70] != 4 ||
+		ss[len(ss)-5] != 4 {
+		return false
+	}
+	// check code size
+	_, _, pc, err := s.parseNextOp(75)
+	if err != nil {
+		logger.Warn(err)
+		return false
+	}
+	if pc != len(ss)-5 {
+		return false
+	}
+	return true
 }
 
 // IsStandard returns if a script is standard
 // Only certain types of transactions are allowed, i.e., regarded as standard
 func (s *Script) IsStandard() bool {
-	//if !s.IsPayToPubKeyHash() &&
-	//	!s.IsContractPubkey() &&
-	//	!s.IsTokenTransfer() &&
-	//	!s.IsTokenIssue() &&
-	//	!s.IsSplitAddrScript() &&
-	//	!s.IsPayToScriptHash() &&
-	//	!s.IsPayToPubKeyHashCLTVScript() {
-	//	return false
-	//}
 	_, err := s.ExtractAddress()
 	if err != nil {
 		logger.Errorf("Failed to extract address. script: %s, Err: %v", s.Disasm(), err)
@@ -837,13 +847,18 @@ func MakeContractScriptPubkey(
 	if to != nil {
 		toHash = *to
 	}
-	s.AddOperand(from[:]).
-		AddOperand(toHash[:]).
-		AddOperand(big.NewInt(int64(nonce)).Bytes()).
-		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
-		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
-		AddOperand(big.NewInt(int64(version)).Bytes()).
-		AddOperand(code)
+	buf := make([]byte, 8)
+	s.AddOperand(from[:]).AddOperand(toHash[:])
+	binary.LittleEndian.PutUint64(buf, nonce)
+	s.AddOperand(buf)
+	binary.LittleEndian.PutUint64(buf, gasPrice)
+	s.AddOperand(buf)
+	binary.LittleEndian.PutUint64(buf, gasLimit)
+	s.AddOperand(buf)
+	buf = make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, uint32(version))
+	s.AddOperand(buf)
+	s.AddOperand(code)
 	// add checksum
 	scriptHash := crypto.Hash160(*s)
 	checksum := scriptHash[:4]
@@ -914,12 +929,12 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 		return
 	}
 	// version
-	n, pc, e := s.readUint64(pc)
+	ver, pc, e := s.readUint32(pc)
 	if err != nil {
 		err = e
 		return
 	}
-	params.Version = int32(n)
+	params.Version = int32(ver)
 	// code
 	_, operand, pc, err = s.getNthOp(pc, 0)
 	if err != nil {
@@ -982,11 +997,11 @@ func (s *Script) ParseContractNonce() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, err
+	if len(operand) != 8 {
+		return 0, errors.New("nonce must be 8 byte in script")
 	}
-	return uint64(n), nil
+	n := binary.LittleEndian.Uint64(operand)
+	return n, nil
 }
 
 // ParseContractGasPrice returns address within the script
@@ -995,11 +1010,11 @@ func (s *Script) ParseContractGasPrice() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, err
+	if len(operand) != 8 {
+		return 0, errors.New("gas price must be 8 byte in script")
 	}
-	return uint64(n), nil
+	n := binary.LittleEndian.Uint64(operand)
+	return n, nil
 }
 
 // ParseContractGas returns address within the script
@@ -1008,29 +1023,33 @@ func (s *Script) ParseContractGas() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, err
+	if len(operand) != 8 {
+		return 0, errors.New("gas must be 8 byte in script")
 	}
-	return uint64(n), nil
+	n := binary.LittleEndian.Uint64(operand)
+	return n, nil
 }
 
-func (s *Script) readInt64(pc int) (int64, int /* pc */, error) {
+func (s *Script) readUint64(pc int) (uint64, int /* pc */, error) {
 	_, operand, pc, err := s.getNthOp(pc, 0)
 	if err != nil {
 		return 0, pc, err
 	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, pc, err
+	if len(operand) != 8 {
+		return 0, pc, errors.New("operand is not 8 bytes when readUInt64")
 	}
+	n := binary.LittleEndian.Uint64(operand)
 	return n, pc, nil
 }
 
-func (s *Script) readUint64(pc int) (uint64, int /* pc */, error) {
-	n, pc, err := s.readInt64(pc)
+func (s *Script) readUint32(pc int) (uint32, int /* pc */, error) {
+	_, operand, pc, err := s.getNthOp(pc, 0)
 	if err != nil {
 		return 0, pc, err
 	}
-	return uint64(n), pc, nil
+	if len(operand) != 4 {
+		return 0, pc, errors.New("operand is not 4 bytes when readUInt32")
+	}
+	n := binary.LittleEndian.Uint32(operand)
+	return n, pc, nil
 }
