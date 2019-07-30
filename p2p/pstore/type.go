@@ -5,8 +5,21 @@
 package pstore
 
 import (
+	"encoding/gob"
+	"fmt"
 	"strings"
+
+	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/key"
+	pool "github.com/libp2p/go-buffer-pool"
+	peer "github.com/libp2p/go-libp2p-peer"
 )
+
+// Metadata is stored under the following db key pattern:
+// /peers/type/<peer type>/<b32 peer id no padding>
+var ptBase = key.NewKey("/peers/type")
+
+var tb = &typeBook{}
 
 // PeerType is used to distinguish peer types in the p2p network.
 type PeerType uint8
@@ -46,4 +59,37 @@ func (pt PeerType) Mask() uint8 {
 		return 0
 	}
 	return 1 << (pt - 1)
+}
+
+type typeBook struct {
+	store storage.Table
+}
+
+func (tb *typeBook) setStore(s storage.Table) {
+	tb.store = s
+}
+
+// PutType puts the type of peer into db.
+func PutType(p peer.ID, key uint32, val int64) error {
+	k := ptBase.ChildString(p.Pretty()).ChildString(fmt.Sprintf("%x", key))
+	var buf pool.Buffer
+	if err := gob.NewEncoder(&buf).Encode(&val); err != nil {
+		return err
+	}
+	return tb.store.Put(k.Bytes(), buf.Bytes())
+}
+
+// ListPeerIDByType list peer ids by peer type.
+func ListPeerIDByType(pt PeerType) ([]peer.ID, error) {
+	peerIDs := []peer.ID{}
+	for _, k := range tb.store.KeysWithPrefix(ptBase.ChildString(fmt.Sprintf("%x", pt.Mask())).Bytes()) {
+		pk := key.NewKeyFromBytes(k)
+		pid, err := peer.IDB58Decode(pk.Parent().BaseName())
+		if err != nil {
+			return nil, err
+		}
+		logger.Errorf("PID: %s", pid.Pretty())
+		peerIDs = append(peerIDs, pid)
+	}
+	return peerIDs, nil
 }

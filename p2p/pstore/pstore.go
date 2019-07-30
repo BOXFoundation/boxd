@@ -47,6 +47,7 @@ func NewDefaultPeerstoreWithAddrBook(proc goprocess.Process, s storage.Storage, 
 	if err != nil {
 		return nil, err
 	}
+	tb.setStore(t)
 
 	return peerstore.NewPeerstore(kb, ab, md), nil
 }

@@ -123,16 +123,17 @@ func (t *Table) peerDiscover() {
 	}
 }
 
-func (t *Table) selectMinerPeers(num uint32) (peerIDs []peer.ID) {
-	return
-}
-
-func (t *Table) selectCandidatePeers(num uint32) (peerIDs []peer.ID) {
-	return
-}
-
-func (t *Table) selectServerPeers(num uint32) (peerIDs []peer.ID) {
-	return
+func (t *Table) selectTypedPeers(pt pstore.PeerType, num int) []peer.ID {
+	peerIDs, err := pstore.ListPeerIDByType(pt)
+	if err != nil {
+		logger.Errorf("selectTypedPeers failed, Err: %v", err)
+		return nil
+	}
+	peerIDs = shufflePeerID(peerIDs)
+	if len(peerIDs) > num {
+		return peerIDs[:num]
+	}
+	return peerIDs
 }
 
 // FIXME: 加对节点类型的判断
@@ -169,6 +170,14 @@ func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, lay
 
 // Returns a list of IDs configured with the current node.
 func (t *Table) selectConfigedPeers() (peerIDs []peer.ID, seeds []peer.ID) {
+
+	// for _, seed := range t.peer.config.Seeds {
+	// 	seedEle := strings.Split(seed, "/")
+	// 	pid, err := peer.IDFromString(seedEle[len(seedEle)-1])
+	// 	seeds = append(seeds, pid)
+	// }
+
+	// return peerIDs, t.peer.config.Seeds
 	return
 }
 
@@ -180,10 +189,10 @@ func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 	}
 	peerIDs = append(peerIDs, servers...)
 
-	candidates := t.selectCandidatePeers(MaxPeerCountToSyncRouteTable / 2)
+	candidates := t.selectTypedPeers(pstore.CandidatePeer, MaxPeerCountToSyncRouteTable/2)
 	peerIDs = append(peerIDs, candidates...)
 
-	miners := t.selectServerPeers(MaxPeerCountToSyncRouteTable - uint32(len(peerIDs)))
+	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable-len(peerIDs))
 	peerIDs = append(peerIDs, miners...)
 
 	return
@@ -197,10 +206,10 @@ func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 	}
 	peerIDs = append(peerIDs, servers...)
 
-	miners := t.selectServerPeers(MaxPeerCountToSyncRouteTable / 2)
+	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable/2)
 	peerIDs = append(peerIDs, miners...)
 
-	candidates := t.selectCandidatePeers(MaxPeerCountToSyncRouteTable - uint32(len(peerIDs)))
+	candidates := t.selectTypedPeers(pstore.CandidatePeer, MaxPeerCountToSyncRouteTable-len(peerIDs))
 	peerIDs = append(peerIDs, candidates...)
 	return
 }
@@ -278,6 +287,7 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 			continue
 		}
 		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(v.Type))
+		pstore.PutType(pid, v.Type, time.Now().Unix())
 		t.addPeerInfo(pid, v.Addrs)
 	}
 }
