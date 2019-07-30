@@ -40,6 +40,7 @@ var (
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
+	peertype        pstore.PeerType
 	conns           *sync.Map
 	config          *Config
 	host            host.Host
@@ -61,7 +62,7 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
-	boxPeer := &BoxPeer{conns: new(sync.Map), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
+	boxPeer := &BoxPeer{peertype: pstore.ParsePeerType(config.Type), conns: new(sync.Map), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err

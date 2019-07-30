@@ -20,6 +20,9 @@ import (
 // /peers/metadata/<b32 peer id no padding>/<key>
 var pmBase = key.NewKey("/peers/metadata")
 
+// PTypeSuf is the suffix of peer type metadata
+var PTypeSuf = "PeerType"
+
 type peerMetadata struct {
 	store storage.Table
 }
@@ -43,8 +46,17 @@ func NewPeerMetadata(_ goprocess.Process, store storage.Table) (peerstore.PeerMe
 }
 
 func (pm *peerMetadata) Get(p peer.ID, key string) (interface{}, error) {
+	return getMetadata(pm.store, p, key)
+}
+
+func (pm *peerMetadata) Put(p peer.ID, key string, val interface{}) error {
+	return putMetadata(pm.store, p, key, val)
+}
+
+// getMetadata puts the metadata of peer into db.
+func getMetadata(db storage.Table, p peer.ID, key string) (interface{}, error) {
 	k := pmBase.ChildString(p.Pretty()).ChildString(key)
-	value, err := pm.store.Get(k.Bytes())
+	value, err := db.Get(k.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +71,12 @@ func (pm *peerMetadata) Get(p peer.ID, key string) (interface{}, error) {
 	return res, nil
 }
 
-func (pm *peerMetadata) Put(p peer.ID, key string, val interface{}) error {
+// putMetadata puts the metadata of peer into db.
+func putMetadata(db storage.Table, p peer.ID, key string, val interface{}) error {
 	k := pmBase.ChildString(p.Pretty()).ChildString(key)
 	var buf pool.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&val); err != nil {
 		return err
 	}
-	return pm.store.Put(k.Bytes(), buf.Bytes())
+	return db.Put(k.Bytes(), buf.Bytes())
 }

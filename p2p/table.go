@@ -10,6 +10,7 @@ import (
 	"time"
 
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 	kbucket "github.com/libp2p/go-libp2p-kbucket"
@@ -18,22 +19,12 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
-// Node is used to distinguish peer types in the network.
-type Node uint8
-
-const (
-	seed Node = iota
-	miner
-	candidate
-	server
-	layfolk
-)
-
 // const
 const (
 	PeerDiscoverLoopInterval        = 120 * 1000
 	MaxPeerCountToSyncRouteTable    = 16
 	MaxPeerCountToReplyPeerDiscover = 16
+	DefaultUnestablishRatio         = 0.25
 )
 
 // Table peer route table struct.
@@ -114,8 +105,41 @@ func (t *Table) peerDiscover() {
 		return
 	}
 
+	var peerIDs []peer.ID
+
+	switch t.peer.peertype {
+	case pstore.MinerPeer:
+		peerIDs = t.minerDiscover(all)
+	case pstore.CandidatePeer:
+		peerIDs = t.candidateDiscover(all)
+	case pstore.ServerPeer:
+		peerIDs = t.serverDiscover(all)
+	default:
+		peerIDs = t.defaultDiscover(all)
+	}
+
+	for _, v := range peerIDs {
+		go t.lookup(v)
+	}
+}
+
+func (t *Table) selectMinerPeers(num uint32) (peerIDs []peer.ID) {
+	return
+}
+
+func (t *Table) selectCandidatePeers(num uint32) (peerIDs []peer.ID) {
+	return
+}
+
+func (t *Table) selectServerPeers(num uint32) (peerIDs []peer.ID) {
+	return
+}
+
+// FIXME: 加对节点类型的判断
+// param: std standard deviation
+func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, layfolk bool) (peerIDs []peer.ID) {
 	// Randomly select some peer to do sync routes from the established and unconnected peers
-	// 3/4 from established peers, and 1/4 from unconnected peers
+	// 1-<std> from established peers, and <std> from unconnected peers
 	var establishedID []peer.ID
 	t.peer.conns.Range(func(k, v interface{}) bool {
 		establishedID = append(establishedID, k.(peer.ID))
@@ -129,21 +153,69 @@ func (t *Table) peerDiscover() {
 		}
 	}
 
-	var peerIDs []peer.ID
-	if len(unestablishedID) < MaxPeerCountToSyncRouteTable/4 {
+	cap := int(num)
+	if len(unestablishedID) < int(float32(cap)*std) {
 		peerIDs = append(peerIDs, unestablishedID...)
-		peerIDs = append(peerIDs, establishedID[:MaxPeerCountToSyncRouteTable-len(unestablishedID)]...)
-	} else if len(establishedID) > MaxPeerCountToSyncRouteTable {
-		peerIDs = append(peerIDs, unestablishedID[:MaxPeerCountToSyncRouteTable/4]...)
-		peerIDs = append(peerIDs, establishedID[:MaxPeerCountToSyncRouteTable-len(peerIDs)]...)
+		peerIDs = append(peerIDs, establishedID[:cap-len(unestablishedID)]...)
+	} else if len(establishedID) > cap {
+		peerIDs = append(peerIDs, unestablishedID[:int(float32(cap)*std)]...)
+		peerIDs = append(peerIDs, establishedID[:cap-len(peerIDs)]...)
 	} else {
 		peerIDs = append(peerIDs, establishedID...)
-		peerIDs = append(peerIDs, unestablishedID[:MaxPeerCountToSyncRouteTable-len(establishedID)]...)
+		peerIDs = append(peerIDs, unestablishedID[:cap-len(establishedID)]...)
 	}
+	return
+}
 
-	for _, v := range peerIDs {
-		go t.lookup(v)
+// Returns a list of IDs configured with the current node.
+func (t *Table) selectConfigedPeers() (peerIDs []peer.ID, seeds []peer.ID) {
+	return
+}
+
+func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	servers, _ := t.selectConfigedPeers()
+
+	if len(servers) == 0 {
+		return t.defaultDiscover(all)
 	}
+	peerIDs = append(peerIDs, servers...)
+
+	candidates := t.selectCandidatePeers(MaxPeerCountToSyncRouteTable / 2)
+	peerIDs = append(peerIDs, candidates...)
+
+	miners := t.selectServerPeers(MaxPeerCountToSyncRouteTable - uint32(len(peerIDs)))
+	peerIDs = append(peerIDs, miners...)
+
+	return
+}
+
+func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	servers, _ := t.selectConfigedPeers()
+
+	if len(servers) == 0 {
+		return t.defaultDiscover(all)
+	}
+	peerIDs = append(peerIDs, servers...)
+
+	miners := t.selectServerPeers(MaxPeerCountToSyncRouteTable / 2)
+	peerIDs = append(peerIDs, miners...)
+
+	candidates := t.selectCandidatePeers(MaxPeerCountToSyncRouteTable - uint32(len(peerIDs)))
+	peerIDs = append(peerIDs, candidates...)
+	return
+}
+
+func (t *Table) serverDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	configedPeers, _ := t.selectConfigedPeers()
+	if len(configedPeers) != 0 {
+		peerIDs = append(peerIDs, configedPeers...)
+	}
+	peerIDs = append(peerIDs, t.selectRandomPeers(all, uint32(MaxPeerCountToSyncRouteTable-len(peerIDs)), DefaultUnestablishRatio, true)...)
+	return
+}
+
+func (t *Table) defaultDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	return t.selectRandomPeers(all, MaxPeerCountToSyncRouteTable, DefaultUnestablishRatio, false)
 }
 
 func (t *Table) lookup(pid peer.ID) {
@@ -183,6 +255,8 @@ func (t *Table) GetRandomPeers(pid peer.ID) []peerstore.PeerInfo {
 func (t *Table) AddPeerToTable(conn *Conn) {
 
 	peerID := conn.stream.Conn().RemotePeer()
+	// FIXME: 判断如果有就不put，如果是超级节点或者是备选节点或者自己配好的服务节点，则附相应的值
+	t.peerStore.Put(peerID, pstore.PTypeSuf, uint8(pstore.UnkownPeer))
 	t.peerStore.AddAddr(
 		peerID,
 		conn.stream.Conn().RemoteMultiaddr(),
@@ -198,21 +272,23 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 		conn.Close()
 	}
 	for _, v := range peers.Peers {
-		t.addPeerInfo(v.Id, v.Addrs)
+		pid, err := peer.IDB58Decode(v.Id)
+		if err != nil {
+			logger.Errorf("get pid failed. Err: %v", err)
+			continue
+		}
+		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(v.Type))
+		t.addPeerInfo(pid, v.Addrs)
 	}
 }
 
-func (t *Table) addPeerInfo(prettyID string, addrStr []string) error {
-	pid, err := peer.IDB58Decode(prettyID)
-	if err != nil {
-		return nil
-	}
+func (t *Table) addPeerInfo(pid peer.ID, addrStr []string) (err error) {
 
 	addrs := make([]ma.Multiaddr, len(addrStr))
 	for i, v := range addrStr {
 		addrs[i], err = ma.NewMultiaddr(v)
 		if err != nil {
-			return err
+			return
 		}
 	}
 	if t.routeTable.Find(pid) != "" {

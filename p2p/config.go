@@ -10,6 +10,7 @@ import (
 
 // Config for peer configuration
 type Config struct {
+	Type            string        `mapstructure:"type"`
 	Magic           uint32        `mapstructure:"magic"`
 	KeyPath         string        `mapstructure:"key_path"`
 	Port            uint32        `mapstructure:"port"`

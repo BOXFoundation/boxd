@@ -5,10 +5,13 @@
 package pstore
 
 import (
+	"bytes"
+
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	log "github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/storage/key"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
@@ -73,4 +76,30 @@ func uniquePeerIDs(store storage.Table, prefix []byte, parse func(key.Key) strin
 		i++
 	}
 	return pids, nil
+}
+
+// MarshalPeerAddr writes peer addr and type to bytes.
+func MarshalPeerAddr(peertype uint8, addr []byte) (data []byte, err error) {
+	var buf bytes.Buffer
+	if err := util.WriteUint8(&buf, peertype); err != nil {
+		return nil, err
+	}
+	if err := util.WriteBytes(&buf, addr); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalPeerAddr return peer type and addr from bytes.
+func UnmarshalPeerAddr(data []byte) (peertype uint8, addr []byte, err error) {
+	buf := bytes.NewBuffer(data)
+	if peertype, err = util.ReadUint8(buf); err != nil {
+		return
+	}
+	addr = make([]byte, buf.Len())
+	if err = util.ReadBytes(buf, addr); err != nil {
+		return
+	}
+	return
 }
