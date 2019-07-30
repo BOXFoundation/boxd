@@ -7,6 +7,7 @@ package p2p
 import (
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
@@ -27,6 +28,12 @@ const (
 	DefaultUnestablishRatio         = 0.25
 )
 
+var (
+	seeds      = []peer.ID{}
+	agents     = []peer.ID{}
+	principals = []peer.ID{}
+)
+
 // Table peer route table struct.
 type Table struct {
 	peerStore  peerstore.Peerstore
@@ -36,21 +43,51 @@ type Table struct {
 }
 
 // NewTable return a new route table.
-func NewTable(peer *BoxPeer) *Table {
+func NewTable(bp *BoxPeer) *Table {
 
 	table := &Table{
-		peerStore: peer.host.Peerstore(),
-		peer:      peer,
+		peerStore: bp.host.Peerstore(),
+		peer:      bp,
 	}
 	table.routeTable = kbucket.NewRoutingTable(
-		peer.config.Bucketsize,
-		kbucket.ConvertPeerID(peer.id),
-		peer.config.Latency,
+		bp.config.Bucketsize,
+		kbucket.ConvertPeerID(bp.id),
+		bp.config.Latency,
 		table.peerStore,
 	)
-	table.routeTable.Update(peer.id)
-	table.peerStore.AddPubKey(peer.id, peer.networkIdentity.GetPublic())
-	table.peerStore.AddPrivKey(peer.id, peer.networkIdentity)
+	table.routeTable.Update(bp.id)
+	table.peerStore.AddPubKey(bp.id, bp.networkIdentity.GetPublic())
+	table.peerStore.AddPrivKey(bp.id, bp.networkIdentity)
+
+	for _, seed := range table.peer.config.Seeds {
+		seedEle := strings.Split(seed, "/")
+		pid, err := peer.IDFromString(seedEle[len(seedEle)-1])
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v", err)
+			continue
+		}
+		seeds = append(seeds, pid)
+	}
+
+	for _, pri := range table.peer.config.Principals {
+		priEle := strings.Split(pri, "/")
+		pid, err := peer.IDFromString(priEle[len(priEle)-1])
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v", err)
+			continue
+		}
+		principals = append(principals, pid)
+	}
+
+	for _, agent := range table.peer.config.Agents {
+		agentEle := strings.Split(agent, "/")
+		pid, err := peer.IDFromString(agentEle[len(agentEle)-1])
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v", err)
+			continue
+		}
+		agents = append(agents, pid)
+	}
 
 	return table
 }
@@ -168,26 +205,11 @@ func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, lay
 	return
 }
 
-// Returns a list of IDs configured with the current node.
-func (t *Table) selectConfigedPeers() (peerIDs []peer.ID, seeds []peer.ID) {
-
-	// for _, seed := range t.peer.config.Seeds {
-	// 	seedEle := strings.Split(seed, "/")
-	// 	pid, err := peer.IDFromString(seedEle[len(seedEle)-1])
-	// 	seeds = append(seeds, pid)
-	// }
-
-	// return peerIDs, t.peer.config.Seeds
-	return
-}
-
 func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
-	servers, _ := t.selectConfigedPeers()
-
-	if len(servers) == 0 {
+	if len(agents) == 0 {
 		return t.defaultDiscover(all)
 	}
-	peerIDs = append(peerIDs, servers...)
+	peerIDs = append(peerIDs, agents...)
 
 	candidates := t.selectTypedPeers(pstore.CandidatePeer, MaxPeerCountToSyncRouteTable/2)
 	peerIDs = append(peerIDs, candidates...)
@@ -199,12 +221,10 @@ func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 }
 
 func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
-	servers, _ := t.selectConfigedPeers()
-
-	if len(servers) == 0 {
+	if len(agents) == 0 {
 		return t.defaultDiscover(all)
 	}
-	peerIDs = append(peerIDs, servers...)
+	peerIDs = append(peerIDs, agents...)
 
 	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable/2)
 	peerIDs = append(peerIDs, miners...)
@@ -215,9 +235,11 @@ func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 }
 
 func (t *Table) serverDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
-	configedPeers, _ := t.selectConfigedPeers()
-	if len(configedPeers) != 0 {
-		peerIDs = append(peerIDs, configedPeers...)
+	if len(principals) != 0 {
+		peerIDs = append(peerIDs, principals...)
+	}
+	if len(agents) != 0 {
+		peerIDs = append(peerIDs, agents...)
 	}
 	peerIDs = append(peerIDs, t.selectRandomPeers(all, uint32(MaxPeerCountToSyncRouteTable-len(peerIDs)), DefaultUnestablishRatio, true)...)
 	return
@@ -264,8 +286,7 @@ func (t *Table) GetRandomPeers(pid peer.ID) []peerstore.PeerInfo {
 func (t *Table) AddPeerToTable(conn *Conn) {
 
 	peerID := conn.stream.Conn().RemotePeer()
-	// FIXME: 判断如果有就不put，如果是超级节点或者是备选节点或者自己配好的服务节点，则附相应的值
-	t.peerStore.Put(peerID, pstore.PTypeSuf, uint8(pstore.UnkownPeer))
+	t.peerStore.Put(peerID, pstore.PTypeSuf, uint8(t.peer.Type(peerID)))
 	t.peerStore.AddAddr(
 		peerID,
 		conn.stream.Conn().RemoteMultiaddr(),
@@ -286,8 +307,8 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 			logger.Errorf("get pid failed. Err: %v", err)
 			continue
 		}
-		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(v.Type))
-		pstore.PutType(pid, v.Type, time.Now().Unix())
+		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(t.peer.Type(pid)))
+		pstore.PutType(pid, uint32(t.peer.Type(pid)), time.Now().Unix())
 		t.addPeerInfo(pid, v.Addrs)
 	}
 }

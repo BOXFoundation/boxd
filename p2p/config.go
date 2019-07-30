@@ -16,6 +16,8 @@ type Config struct {
 	Port            uint32        `mapstructure:"port"`
 	Address         string        `mapstructure:"address"`
 	Seeds           []string      `mapstructure:"seeds"`
+	Principals      []string      `mapstructure:"principals"`
+	Agents          []string      `mapstructure:"agents"`
 	Bucketsize      int           `mapstructure:"bucket_size"`
 	Latency         time.Duration `mapstructure:"latency"`
 	AddPeers        []string      `mapstructure:"addpeer"`

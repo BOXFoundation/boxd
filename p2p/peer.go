@@ -357,6 +357,12 @@ func (p *BoxPeer) PeerSynced(peerID peer.ID) (bool, bool) {
 	return val.(*Conn).isSynced, ok
 }
 
+// Type return returns the type corresponding to the peer id.
+// FIXME:
+func (p *BoxPeer) Type(pid peer.ID) pstore.PeerType {
+	return pstore.UnkownPeer
+}
+
 // UpdateSynced update peers' isSynced
 func UpdateSynced(synced bool) {
 	isSynced = synced

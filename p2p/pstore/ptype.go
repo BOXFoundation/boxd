@@ -93,3 +93,4 @@ func ListPeerIDByType(pt PeerType) ([]peer.ID, error) {
 	}
 	return peerIDs, nil
 }
+

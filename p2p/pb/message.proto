@@ -34,8 +34,6 @@ message Peers {
 }
 
 message PeerInfo {
-    uint32 type = 1;
-    string id = 2;
-    repeated string addrs = 3;
-
+    string id = 1;
+    repeated string addrs = 2;
 }

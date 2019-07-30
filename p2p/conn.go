@@ -274,7 +274,6 @@ func (conn *Conn) OnPeerDiscover(body []byte) error {
 
 	for i, v := range peers {
 		peerInfo := &p2ppb.PeerInfo{
-			Type:  uint32(conn.peer.peertype.Mask()),
 			Id:    v.ID.Pretty(),
 			Addrs: []string{}[:],
 		}
