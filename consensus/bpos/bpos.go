@@ -148,12 +148,13 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 	return bpos.verifyIrreversibleInfo(block)
 }
 
-// Finalize notify consensus to change new tail.
+// Finalize notify consensus to finalize the parent block by bft service.
 func (bpos *Bpos) Finalize(tail *types.Block) error {
-	if bpos.IsBookkeeper() && time.Now().Unix()-tail.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
-		go bpos.BroadcastBFTMsgToBookkeepers(tail, p2p.BlockPrepareMsg)
+	parent := bpos.chain.GetParentBlock(tail)
+	if bpos.IsBookkeeper() && time.Now().Unix()-parent.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
+		go bpos.BroadcastBFTMsgToBookkeepers(parent, p2p.BlockPrepareMsg)
 	}
-	go bpos.TryToUpdateEternalBlock(tail)
+	go bpos.TryToUpdateEternalBlock(parent)
 	return nil
 }
 
@@ -713,10 +714,6 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 // TryToUpdateEternalBlock try to update eternal block.
 func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
-	// dynasty, err := bpos.fetchDynastyByHeight(src.Header.Height - 1)
-	// if err != nil {
-	// 	return
-	// }
 	dynasty := bpos.context.verifyDynasty
 	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > 2*len(dynasty.delegates)/3 {
 		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, bpos.chain.DB())
