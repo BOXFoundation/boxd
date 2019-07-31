@@ -79,7 +79,7 @@ func (sp *StateProcessor) Process(
 			err = err1
 			break
 		}
-		if txs != nil {
+		if len(txs) > 0 {
 			utxoTxs = append(utxoTxs, txs...)
 		}
 		*usedGas += gasUsedPerTx
@@ -194,6 +194,9 @@ func createRefundTx(
 		return nil, errors.New("contract utxo does not exist")
 	}
 	if utxoWrap.Value() < vmtx.Value().Uint64() {
+		contractAddrB, _ := types.NewContractAddressFromHash(contractAddr[:])
+		logger.Errorf("contractAddr %s balance: %d, vmtx value: %d",
+			contractAddrB, utxoWrap.Value(), vmtx.Value().Uint64())
 		return nil, errors.New("Insufficient balance of smart contract")
 	}
 	value := utxoWrap.Value() - vmtx.Value().Uint64()
@@ -239,6 +242,9 @@ func makeTx(
 		vouts = append(vouts, vout)
 		value := utxoWrap.Value() - transferInfos[i].value.Uint64()
 		if value > utxoWrap.Value() {
+			contractAddrB, _ := types.NewContractAddressFromHash(transferInfos[0].from[:])
+			logger.Errorf("contractAddr %s balance: %d, vmtx value: %d",
+				contractAddrB, utxoWrap.Value(), transferInfos[i].value.Uint64())
 			return nil, errors.New("Insufficient balance of smart contract")
 		}
 		utxoWrap.SetValue(value)

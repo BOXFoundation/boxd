@@ -330,7 +330,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 			return err
 		}
 		if txFee != param.GasLimit*param.GasPrice {
-			return errors.New("Invalid contract transaction fee")
+			return core.ErrInvalidFee
 		}
 		gasPrice = param.GasPrice
 		// check contract tx from

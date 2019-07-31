@@ -403,10 +403,9 @@ func (chain *BlockChain) calMissRate() (total uint32, miss uint32) {
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
-	if exist, ok := chain.repeatedMintCache.Get(block.Header.TimeStamp); ok {
-		if block.Header.BookKeeper != (exist.(*types.Block)).Header.BookKeeper {
-			return false
-		}
+	if exist, ok := chain.repeatedMintCache.Get(block.Header.TimeStamp); ok &&
+		block.Header.BookKeeper == (exist.(*types.Block)).Header.BookKeeper {
+		return false
 	}
 	return true
 }
@@ -840,7 +839,8 @@ func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet
 			return err
 		}
 		// update statedb utxo trie
-		//logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddr, u)
+		contractAddrB, _ := types.NewContractAddressFromHash(contractAddr[:])
+		logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddrB, u)
 		if err := statedb.UpdateUtxo(*contractAddr, utxoBytes); err != nil {
 			logger.Error(err)
 			return err
@@ -863,9 +863,9 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 			logger.Error(err)
 			return err
 		}
-		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
 		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
 			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
+		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy); err != nil {
@@ -874,6 +874,10 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 
 		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
 			block, stateDB, utxoSet)
+		if err != nil {
+			logger.Error(err)
+			return err
+		}
 		go func() {
 			logs := make(map[string][]*types.Log)
 			for _, receipt := range receipts {
@@ -894,10 +898,6 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 				chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
 			}
 		}()
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee,
 			totalTxsFee, receipts); err != nil {
 			return err
@@ -921,8 +921,9 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 			logger.Errorf("stateDB commit failed: %s", err)
 			return err
 		}
+		logger.Infof("statedb commit with root: %s, utxo root: %s block: %s:%d",
+			root, utxoRoot, block.BlockHash(), block.Header.Height)
 		if !root.IsEqual(&block.Header.RootHash) {
-			logger.Warnf("DEBUG: utxoRoot after commit: %s, %s in header", utxoRoot, block.Header.UtxoRoot)
 			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
 				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
 				block.Header.Height)
@@ -1101,7 +1102,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			panic("Failed to disconnect block from main chain")
 		}
 		stt1 := time.Now().UnixNano()
-		logger.Infof("Disconnect block %s Height: %d, time tracking: %d",
+		logger.Infof("block %s %d disconnected from chain, time tracking: %d",
 			detachBlock.BlockHash(), detachBlock.Header.Height, (stt1-stt0)/1e6)
 	}
 
@@ -1147,7 +1148,10 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		logger.Error(err)
 		return err
 	}
-	utxoSet.ImportUtxoMap(contractUtxos, false)
+	for k, v := range contractUtxos {
+		logger.Debugf("make rollback contract utxos op: %+v, utxo wrap: %+v", k, v)
+	}
+	utxoSet.ImportUtxoMap(contractUtxos)
 
 	chain.db.EnableBatch()
 	defer chain.db.DisableBatch()
@@ -2201,5 +2205,6 @@ func (chain *BlockChain) MakeCoinbaseTx(from types.AddressHash, amount uint64, n
 		},
 		Vout: []*corepb.TxOut{vout},
 	}
+	logger.Infof("CoinbaseTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
 	return tx, nil
 }

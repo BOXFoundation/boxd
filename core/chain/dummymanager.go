@@ -10,7 +10,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/p2p"
-	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
 )
@@ -34,18 +34,13 @@ func (dm *DummySyncManager) ActiveLightSync(pid peer.ID) error { return nil }
 
 // NewTestBlockChain generate a chain for testing
 func NewTestBlockChain() *BlockChain {
-	dbCfg := &storage.Config{
-		Name: "memdb",
-		Path: "~/tmp",
-	}
-
 	cfg := &Config{
 		ContractBinPath: "../../contracts/bonus.bin",
 		ContractABIPath: "../../contracts/bonus.abi",
 	}
 
 	proc := goprocess.WithSignals(os.Interrupt)
-	db, _ := storage.NewDatabase(proc, dbCfg)
+	db, _ := memdb.NewMemoryDB("", nil)
 	blockChain, _ := NewBlockChain(proc, p2p.NewDummyPeer(), db, eventbus.Default(), cfg)
 	// set sync manager
 	blockChain.Setup(new(DummyDpos), NewDummySyncManager())

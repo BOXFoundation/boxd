@@ -7,7 +7,6 @@ package chain
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -61,11 +60,8 @@ func (u *UtxoSet) All() types.UtxoMap {
 }
 
 // ImportUtxoMap imports utxos from a UtxoMap
-func (u *UtxoSet) ImportUtxoMap(m types.UtxoMap, overwrite bool) {
+func (u *UtxoSet) ImportUtxoMap(m types.UtxoMap) {
 	for op, um := range m {
-		if _, ok := u.utxoMap[op]; ok && !overwrite {
-			continue
-		}
 		u.utxoMap[op] = um
 	}
 }
@@ -493,10 +489,12 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
 		if utxoWrap.IsSpent() {
 			db.Del(*utxoKey)
 			db.Del(addrUtxoKey)
+			logger.Debugf("delete utxo key: %x, utxo wrap: %+v", *utxoKey, utxoWrap)
 			// recycleOutpointKey(utxoKey)
 			continue
 		} else if utxoWrap.IsModified() {
 			// Serialize and store the utxo entry.
+			logger.Debugf("put utxo to db: %x, utxo wrap: %+v", *utxoKey, utxoWrap)
 			serialized, err := SerializeUtxoWrap(utxoWrap)
 			if err != nil {
 				return err
@@ -566,7 +564,7 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db stora
 					logger.Warn(err)
 					return err
 				}
-				if contractAddr == nil || reflect.ValueOf(contractAddr).IsNil() {
+				if contractAddr == nil {
 					continue
 				}
 				hash := types.NormalizeAddressHash(contractAddr.Hash160())
@@ -714,7 +712,8 @@ func MakeRollbackContractUtxos(
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a, prevStateDB.GetNonce(a), types.VMVersion)
+			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a,
+				prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]
@@ -725,18 +724,23 @@ func MakeRollbackContractUtxos(
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a, prevStateDB.GetNonce(a), types.VMVersion)
+			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a,
+				prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]
 		utxo.SetValue(utxo.Value() + v)
 	}
 	//
+	// to update ContractAddr utxo via the value stored in previous state.
+	// because gas used of txs that create or call contract
+	// are directly added to ContractAddr, and to which there are not utxos corresponding
+	//
 	for op, u := range um {
 		ah := new(types.AddressHash)
 		ah.SetBytes(op.Hash[:])
 		b := prevStateDB.GetBalance(*ah)
-		if b.Uint64() != u.Value() {
+		if b.Uint64() != u.Value() && *ah != ContractAddr {
 			addr, _ := types.NewContractAddressFromHash(ah[:])
 			return nil, fmt.Errorf("block %s: contract addr %s rollback to incorrect "+
 				"balance: %d, need: %d", block.BlockHash(), addr, u.Value(), b)
