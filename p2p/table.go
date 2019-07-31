@@ -61,7 +61,7 @@ func NewTable(bp *BoxPeer) *Table {
 
 	for _, seed := range table.peer.config.Seeds {
 		seedEle := strings.Split(seed, "/")
-		pid, err := peer.IDFromString(seedEle[len(seedEle)-1])
+		pid, err := peer.IDB58Decode(seedEle[len(seedEle)-1])
 		if err != nil {
 			logger.Errorf("IDFromString failed, Err: %v", err)
 			continue
@@ -71,7 +71,7 @@ func NewTable(bp *BoxPeer) *Table {
 
 	for _, pri := range table.peer.config.Principals {
 		priEle := strings.Split(pri, "/")
-		pid, err := peer.IDFromString(priEle[len(priEle)-1])
+		pid, err := peer.IDB58Decode(priEle[len(priEle)-1])
 		if err != nil {
 			logger.Errorf("IDFromString failed, Err: %v", err)
 			continue
@@ -81,9 +81,9 @@ func NewTable(bp *BoxPeer) *Table {
 
 	for _, agent := range table.peer.config.Agents {
 		agentEle := strings.Split(agent, "/")
-		pid, err := peer.IDFromString(agentEle[len(agentEle)-1])
+		pid, err := peer.IDB58Decode(agentEle[len(agentEle)-1])
 		if err != nil {
-			logger.Errorf("IDFromString failed, Err: %v", err)
+			logger.Errorf("IDFromString failed, Err: %v, agent: %s", err, agent)
 			continue
 		}
 		agents = append(agents, pid)
@@ -133,14 +133,14 @@ func (t *Table) peerDiscover() {
 			all = append(all, p)
 		}
 	}
-	// TODO check peer score
-	if len(all) <= MaxPeerCountToSyncRouteTable {
-		// TODO sort by peer score
-		for _, v := range all {
-			go t.lookup(v)
-		}
-		return
-	}
+	// // TODO check peer score
+	// if len(all) <= MaxPeerCountToSyncRouteTable {
+	// 	// TODO sort by peer score
+	// 	for _, v := range all {
+	// 		go t.lookup(v)
+	// 	}
+	// 	return
+	// }
 
 	var peerIDs []peer.ID
 
@@ -178,7 +178,7 @@ func (t *Table) selectTypedPeers(pt pstore.PeerType, num int) []peer.ID {
 func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, layfolk bool) (peerIDs []peer.ID) {
 	// Randomly select some peer to do sync routes from the established and unconnected peers
 	// 1-<std> from established peers, and <std> from unconnected peers
-	var establishedID []peer.ID
+	establishedID := []peer.ID{}
 	t.peer.conns.Range(func(k, v interface{}) bool {
 		establishedID = append(establishedID, k.(peer.ID))
 		return true
@@ -194,13 +194,25 @@ func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, lay
 	cap := int(num)
 	if len(unestablishedID) < int(float32(cap)*std) {
 		peerIDs = append(peerIDs, unestablishedID...)
-		peerIDs = append(peerIDs, establishedID[:cap-len(unestablishedID)]...)
+		if len(establishedID) < cap-len(unestablishedID) {
+			peerIDs = append(peerIDs, establishedID...)
+		} else {
+			peerIDs = append(peerIDs, establishedID[:cap-len(unestablishedID)]...)
+		}
 	} else if len(establishedID) > cap {
-		peerIDs = append(peerIDs, unestablishedID[:int(float32(cap)*std)]...)
+		if len(unestablishedID) < int(float32(cap)*std) {
+			peerIDs = append(peerIDs, unestablishedID...)
+		} else {
+			peerIDs = append(peerIDs, unestablishedID[:int(float32(cap)*std)]...)
+		}
 		peerIDs = append(peerIDs, establishedID[:cap-len(peerIDs)]...)
 	} else {
 		peerIDs = append(peerIDs, establishedID...)
-		peerIDs = append(peerIDs, unestablishedID[:cap-len(establishedID)]...)
+		if len(unestablishedID) < cap-len(establishedID) {
+			peerIDs = append(peerIDs, unestablishedID...)
+		} else {
+			peerIDs = append(peerIDs, unestablishedID[:cap-len(establishedID)]...)
+		}
 	}
 	return
 }
@@ -302,12 +314,14 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 		conn.Close()
 	}
 	for _, v := range peers.Peers {
+		if v.Id == t.peer.id.Pretty() {
+			continue
+		}
 		pid, err := peer.IDB58Decode(v.Id)
 		if err != nil {
 			logger.Errorf("get pid failed. Err: %v", err)
 			continue
 		}
-		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(t.peer.Type(pid)))
 		pstore.PutType(pid, uint32(t.peer.Type(pid)), time.Now().Unix())
 		t.addPeerInfo(pid, v.Addrs)
 	}

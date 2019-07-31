@@ -938,6 +938,16 @@ func (dpos *Dpos) TryToUpdateEternalBlock(src *types.Block) {
 	}
 }
 
+// Miners return miners.
+func (dpos *Dpos) Miners() []string {
+	return dpos.context.periodContext.periodPeers
+}
+
+// Candidates return miners.
+func (dpos *Dpos) Candidates() []string {
+	return []string{}
+}
+
 func (dpos *Dpos) subscribe() {
 	dpos.chain.Bus().Reply(eventbus.TopicMiners, func(out chan<- []string) {
 		out <- dpos.context.periodContext.periodPeers

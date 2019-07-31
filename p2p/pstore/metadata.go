@@ -50,6 +50,7 @@ func (pm *peerMetadata) Get(p peer.ID, key string) (interface{}, error) {
 }
 
 func (pm *peerMetadata) Put(p peer.ID, key string, val interface{}) error {
+	logger.Errorf("Put %s %v", p.Pretty(), key)
 	return putMetadata(pm.store, p, key, val)
 }
 

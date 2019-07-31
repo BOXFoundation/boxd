@@ -25,10 +25,8 @@ var tb = &typeBook{}
 type PeerType uint8
 
 const (
-	// UnkownPeer identifies an unkown peer.
-	UnkownPeer PeerType = iota
 	// ServerPeer provides RPC services. It is recommended to configure it as a seed node.
-	ServerPeer
+	ServerPeer PeerType = iota
 	// MinerPeer acts as the mining node.
 	MinerPeer
 	// CandidatePeer identifies the MinerPeer of the next dynasty.
@@ -46,18 +44,13 @@ func ParsePeerType(pt string) PeerType {
 		return MinerPeer
 	case "candidate":
 		return CandidatePeer
-	case "layfolk":
-		return LayfolkPeer
 	default:
-		return UnkownPeer
+		return LayfolkPeer
 	}
 }
 
 // Mask coverts PeerType to uint8. Each bit refers to a PeerType.
 func (pt PeerType) Mask() uint8 {
-	if pt == UnkownPeer {
-		return 0
-	}
 	return 1 << (pt - 1)
 }
 
@@ -71,7 +64,7 @@ func (tb *typeBook) setStore(s storage.Table) {
 
 // PutType puts the type of peer into db.
 func PutType(p peer.ID, key uint32, val int64) error {
-	k := ptBase.ChildString(p.Pretty()).ChildString(fmt.Sprintf("%x", key))
+	k := ptBase.ChildString(fmt.Sprintf("%x", key)).ChildString(p.Pretty())
 	var buf pool.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&val); err != nil {
 		return err
@@ -93,4 +86,3 @@ func ListPeerIDByType(pt PeerType) ([]peer.ID, error) {
 	}
 	return peerIDs, nil
 }
-

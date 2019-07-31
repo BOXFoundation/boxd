@@ -7,6 +7,7 @@ package pstore
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -410,11 +411,11 @@ func (ab *addrBook) setAddrs(p peer.ID, addrs []ma.Multiaddr, ttl time.Duration,
 	if ab.cache != nil {
 		ab.cache.Remove(p)
 	}
-
+	debug.PrintStack()
 	// Get peer type.
 	peertype, err := getMetadata(ab.store, p, PTypeSuf)
 	if err != nil {
-		logger.Errorf("get metadata failed. Err: %v, p: %s", err, p.String())
+		logger.Errorf("get metadata failed. Err: %v, p: %s", err, p.Pretty())
 		peertype = uint8(LayfolkPeer)
 	}
 

@@ -14,6 +14,8 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	pq "github.com/BOXFoundation/boxd/p2p/priorityqueue"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
+	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -67,6 +69,8 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 	conn.mutex.Lock()
 	if conn.proc == nil {
 		conn.proc = goprocess.WithParent(parent)
+		logger.Errorf("START PUT!!!!")
+		conn.peer.table.peerStore.Put(conn.remotePeer, pstore.PTypeSuf, uint8(conn.peer.Type(conn.remotePeer)))
 		conn.proc.Go(conn.loop).SetTeardown(conn.Close)
 
 		go conn.pq.Run(conn.proc, func(i interface{}) {
@@ -222,6 +226,9 @@ func (conn *Conn) OnPing(data []byte) error {
 	if PingBody != string(data) {
 		return ErrMessageDataContent
 	}
+	if !conn.KeepConn() {
+		return ErrNoConnectPermission
+	}
 
 	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	conn.Establish() // establish connection
@@ -233,6 +240,9 @@ func (conn *Conn) OnPing(data []byte) error {
 func (conn *Conn) OnPong(data []byte) error {
 	if PongBody != string(data) {
 		return ErrMessageDataContent
+	}
+	if !conn.KeepConn() {
+		return ErrNoConnectPermission
 	}
 	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	if !conn.Establish() {
@@ -437,4 +447,29 @@ func (conn *Conn) checkMessage(msg *message) error {
 	}
 
 	return msg.check()
+}
+
+// KeepConn decides if the connection needs to be maintained.
+func (conn *Conn) KeepConn() bool {
+	remoteType := conn.peer.Type(conn.remotePeer)
+	switch conn.peer.peertype {
+	case pstore.MinerPeer, pstore.CandidatePeer:
+		if len(agents) == 0 {
+			return true
+		}
+		if remoteType == pstore.LayfolkPeer {
+			return false
+		}
+		return true
+	case pstore.ServerPeer:
+		if len(principals) == 0 {
+			return true
+		}
+		if util.InArray(remoteType, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer}) &&
+			util.InArray(conn.remotePeer, principals) {
+			return true
+		}
+		return false
+	}
+	return true
 }

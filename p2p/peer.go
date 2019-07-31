@@ -53,6 +53,7 @@ type BoxPeer struct {
 	scoremgr        *ScoreManager
 	addrbook        service.Server
 	bus             eventbus.Bus
+	minerreader     service.MinerReader
 }
 
 var _ Net = (*BoxPeer)(nil) // BoxPeer implements Net interface
@@ -62,7 +63,14 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
-	boxPeer := &BoxPeer{peertype: pstore.ParsePeerType(config.Type), conns: new(sync.Map), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
+	boxPeer := &BoxPeer{
+		peertype: pstore.ParsePeerType(config.Type),
+		conns:    new(sync.Map),
+		config:   config,
+		notifier: NewNotifier(),
+		proc:     proc,
+		bus:      bus,
+	}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -207,6 +215,7 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 		return err
 	}
 
+	p.table.peerStore.Put(pid, pstore.PTypeSuf, uint8(p.Type(pid)))
 	// TODO, we must consider how long the peer should be in the peerstore,
 	// PermanentAddrTTL should only be for peer configured by user.
 	// Peer that is connected or observed from other peers should have different TTL.
@@ -351,16 +360,30 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 	return pid
 }
 
-// PeerSynced get sync states of remote peers
+// PeerSynced get sync states of remote peers.
 func (p *BoxPeer) PeerSynced(peerID peer.ID) (bool, bool) {
 	val, ok := p.conns.Load(peerID)
 	return val.(*Conn).isSynced, ok
 }
 
+// SetMinerReader set minerreader.
+func (p *BoxPeer) SetMinerReader(mr service.MinerReader) {
+	p.minerreader = mr
+}
+
 // Type return returns the type corresponding to the peer id.
-// FIXME:
 func (p *BoxPeer) Type(pid peer.ID) pstore.PeerType {
-	return pstore.UnkownPeer
+	if util.InArray(pid, agents) {
+		return pstore.ServerPeer
+	}
+	pretty := pid.Pretty()
+	if util.InArray(pretty, p.minerreader.Miners()) {
+		return pstore.MinerPeer
+	}
+	if util.InArray(pretty, p.minerreader.Candidates()) {
+		return pstore.CandidatePeer
+	}
+	return pstore.LayfolkPeer
 }
 
 // UpdateSynced update peers' isSynced

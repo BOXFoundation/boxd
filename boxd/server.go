@@ -154,6 +154,7 @@ func (server *Server) Prepare() {
 		logger.Fatalf("Failed to new Dpos. Err: %v", err)
 	}
 	server.consensus = consensus
+	peer.SetMinerReader(consensus)
 
 	if cfg.Wallet.Enable {
 		server.wallet, _ = wallet.NewServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
