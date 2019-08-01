@@ -164,6 +164,33 @@ func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegat
 	return bookkeeper, nil
 }
 
+func (bpos *Bpos) fetchDelegatesByHeight(height uint32) ([]Delegate, error) {
+	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := abiObj.Pack("getDelegates")
+	if err != nil {
+		return nil, err
+	}
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
+		0, nil, types.ContractCallType, data).WithFrom(bpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
+	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
+	if err != nil {
+		return nil, err
+	}
+	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
+	if err := vmErr(); err != nil {
+		return nil, err
+	}
+	var delegates []Delegate
+	if err := abiObj.Unpack(&delegates, "getDelegates", output); err != nil {
+		logger.Errorf("Failed to unpack the result of call getCandidates. Err: %v", err)
+		return nil, err
+	}
+	return delegates, nil
+}
+
 func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 
 	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)

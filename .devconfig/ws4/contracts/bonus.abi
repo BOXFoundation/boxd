@@ -187,6 +187,46 @@
 	{
 		"constant": true,
 		"inputs": [],
+		"name": "getDelegates",
+		"outputs": [
+			{
+				"components": [
+					{
+						"name": "addr",
+						"type": "address"
+					},
+					{
+						"name": "peerID",
+						"type": "string"
+					},
+					{
+						"name": "votes",
+						"type": "uint256"
+					},
+					{
+						"name": "pledgeAmount",
+						"type": "uint256"
+					},
+					{
+						"name": "score",
+						"type": "uint256"
+					},
+					{
+						"name": "isExist",
+						"type": "bool"
+					}
+				],
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [],
 		"name": "getDynasty",
 		"outputs": [
 			{

@@ -102,15 +102,27 @@ contract Bonus is Permission{
         _vote_frozen_block_number = 2000;
         dynasty.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
          0, 0, 0, true));
+        delegates.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
+         0, 0, 0, true));
         dynasty.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
+         0, 0, 0, true));
+        delegates.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
          0, 0, 0, true));
         dynasty.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
          0, 0, 0, true));
+        delegates.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
+         0, 0, 0, true));
         dynasty.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
+         0, 0, 0, true));
+        delegates.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
          0, 0, 0, true));
         dynasty.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
          0, 0, 0, true));
+        delegates.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
+         0, 0, 0, true));
         dynasty.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
+         0, 0, 0, true));
+        delegates.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
          0, 0, 0, true));
     }
 
@@ -202,12 +214,11 @@ contract Bonus is Permission{
     }
 
     function getDynasty() public view returns (Delegate[] memory) {
-        // address[DYNASTY_SIZE] memory addrs;
-        // for (uint i = 0; i < DYNASTY_SIZE; i++) {
-        //     addrs[i] = dynasty[i].addr;
-        // }
-        // return addrs;
         return dynasty;
+    }
+
+    function getDelegates() public view returns (Delegate[] memory) {
+        return delegates;
     }
 
     function calcScore(Delegate memory delegate)  internal pure returns (uint) {
