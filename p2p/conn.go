@@ -67,9 +67,12 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 // Loop start
 func (conn *Conn) Loop(parent goprocess.Process) {
 	conn.mutex.Lock()
+	if !conn.KeepConn() {
+		logger.Errorf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
+		return
+	}
 	if conn.proc == nil {
 		conn.proc = goprocess.WithParent(parent)
-		logger.Errorf("START PUT!!!!")
 		conn.peer.table.peerStore.Put(conn.remotePeer, pstore.PTypeSuf, uint8(conn.peer.Type(conn.remotePeer)))
 		conn.proc.Go(conn.loop).SetTeardown(conn.Close)
 
@@ -138,6 +141,7 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	}
 
 	if err := conn.checkMessage(msg); err != nil {
+		logger.Errorf("MSG: %v, %v", msg, msg.messageHeader)
 		return nil, err
 	}
 
@@ -226,9 +230,6 @@ func (conn *Conn) OnPing(data []byte) error {
 	if PingBody != string(data) {
 		return ErrMessageDataContent
 	}
-	if !conn.KeepConn() {
-		return ErrNoConnectPermission
-	}
 
 	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	conn.Establish() // establish connection
@@ -240,9 +241,6 @@ func (conn *Conn) OnPing(data []byte) error {
 func (conn *Conn) OnPong(data []byte) error {
 	if PongBody != string(data) {
 		return ErrMessageDataContent
-	}
-	if !conn.KeepConn() {
-		return ErrNoConnectPermission
 	}
 	conn.peer.bus.Publish(eventbus.TopicConnEvent, conn.remotePeer, eventbus.HeartBeatEvent)
 	if !conn.Establish() {

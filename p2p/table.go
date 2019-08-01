@@ -322,7 +322,9 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 			logger.Errorf("get pid failed. Err: %v", err)
 			continue
 		}
-		pstore.PutType(pid, uint32(t.peer.Type(pid)), time.Now().Unix())
+		ptype := uint32(t.peer.Type(pid))
+		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(ptype))
+		pstore.PutType(pid, ptype, time.Now().Unix())
 		t.addPeerInfo(pid, v.Addrs)
 	}
 }
