@@ -373,7 +373,7 @@ func (r *TestDetailBlockChainReader) GetDataFromDB([]byte) ([]byte, error) {
 	return nil, nil
 }
 
-func (r *TestDetailBlockChainReader) GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
+func (r *TestDetailBlockChainReader) NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
 	return nil, nil, nil
 }
 

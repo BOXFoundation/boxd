@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package dpos
+package bpos
 
 import (
 	"sync"
@@ -19,9 +19,9 @@ import (
 
 // Define const.
 const (
-	EternalBlockMsgChBufferSize        = 65536
-	MaxEternalBlockMsgCacheTime        = 5
-	MinConfirmMsgNumberForEternalBlock = 2 * PeriodSize / 3
+	EternalBlockMsgChBufferSize = 65536
+	MaxEternalBlockMsgCacheTime = 5
+	// MinConfirmMsgNumberForEternalBlock = 2 * PeriodSize / 3
 )
 
 // BftService use for quick identification of eternal block.
@@ -30,7 +30,7 @@ type BftService struct {
 	blockCommitMsgCh  chan p2p.Message
 	notifiee          p2p.Net
 	chain             *chain.BlockChain
-	consensus         *Dpos
+	consensus         *Bpos
 	// msgCache             *sync.Map
 	blockPrepareMsgCache *sync.Map
 	blockCommitMsgCache  *sync.Map
@@ -40,7 +40,7 @@ type BftService struct {
 }
 
 // NewBftService new bft service for eternalBlockMsg.
-func NewBftService(consensus *Dpos) (*BftService, error) {
+func NewBftService(consensus *Bpos) (*BftService, error) {
 
 	bft := &BftService{
 		blockPrepareMsgCh:    make(chan p2p.Message, EternalBlockMsgChBufferSize),
@@ -110,7 +110,13 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 		blockHash := *block.BlockHash()
 		if value, ok := bft.blockCommitMsgCache.Load(blockHash); ok {
 			signatures := value.([][]byte)
-			if len(signatures) > MinConfirmMsgNumberForEternalBlock {
+			dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+			if err != nil {
+				height--
+				offset--
+				continue
+			}
+			if len(signatures) > 2*len(dynasty.delegates)/3 {
 				// go bft.updateEternal(block)
 				irreversibleInfo := new(types.IrreversibleInfo)
 				irreversibleInfo.Hash = blockHash
@@ -160,20 +166,23 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 		logger.Debugf("Enough block prepare message has been received.")
 		return nil
 	}
-
 	if pubkey, ok := crypto.RecoverCompact(eternalBlockMsg.Hash[:], signature); ok {
 		addrPubKeyHash, err := types.NewAddressFromPubKey(pubkey)
 		if err != nil {
 			return err
 		}
+		dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+		if err != nil {
+			return err
+		}
 		addr := *addrPubKeyHash.Hash160()
-		var period *Period
-		for _, v := range bft.consensus.context.periodContext.period {
-			if v.addr == addr && msg.From().Pretty() == v.peerID {
-				period = v
+		var delegate *Delegate
+		for _, v := range dynasty.delegates {
+			if v.Addr == addr && msg.From().Pretty() == v.PeerID {
+				delegate = &v
 			}
 		}
-		if period == nil {
+		if delegate == nil {
 			return ErrIllegalMsg
 		}
 
@@ -184,7 +193,7 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 			}
 			value = append(value, signature)
 			bft.blockPrepareMsgCache.Store(key, value)
-			if len(value) > MinConfirmMsgNumberForEternalBlock {
+			if len(value) > 2*len(dynasty.delegates)/3 {
 				bft.blockPrepareMsgKey.Add(key, key)
 				bft.consensus.BroadcastBFTMsgToBookkeepers(block, p2p.BlockCommitMsg)
 				bft.blockPrepareMsgCache.Delete(key)
@@ -218,13 +227,17 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 			return err
 		}
 		addr := *addrPubKeyHash.Hash160()
-		var period *Period
-		for _, v := range bft.consensus.context.periodContext.period {
-			if v.addr == addr && msg.From().Pretty() == v.peerID {
-				period = v
+		dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+		if err != nil {
+			return err
+		}
+		var delegate *Delegate
+		for _, v := range dynasty.delegates {
+			if v.Addr == addr && msg.From().Pretty() == v.PeerID {
+				delegate = &v
 			}
 		}
-		if period == nil {
+		if delegate == nil {
 			return ErrIllegalMsg
 		}
 
@@ -235,7 +248,7 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 			}
 			value = append(value, signature)
 			bft.blockCommitMsgCache.Store(key, value)
-			if len(value) > MinConfirmMsgNumberForEternalBlock {
+			if len(value) > 2*len(dynasty.delegates)/3 {
 				bft.blockCommitMsgKey.Add(key, key)
 				// receive more than 2/3 block commit msg. update local eternal block.
 				bft.updateEternal(block)
@@ -251,9 +264,6 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block, error) {
 	// quick check
 	peerID := msg.From().Pretty()
-	if !util.InArray(peerID, bft.consensus.context.periodContext.periodPeers) {
-		return nil, nil, ErrNotBookkeeperPeer
-	}
 
 	eternalBlockMsg := new(EternalBlockMsg)
 	if err := eternalBlockMsg.Unmarshal(msg.Body()); err != nil {
@@ -267,6 +277,15 @@ func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block
 	// block height is lower than current eternal block.
 	if block.Header.Height < bft.chain.EternalBlock().Header.Height {
 		return nil, nil, nil
+	}
+
+	dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !util.InArray(peerID, dynasty.peers) {
+		return nil, nil, ErrNotBookkeeperPeer
 	}
 
 	now := time.Now().Unix()

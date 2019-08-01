@@ -294,10 +294,10 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 		logger.Errorf("Tx %v is not standard", txHash.String())
 		return core.ErrNonStandardTransaction
 	}
-	if err := tx_pool.chain.Consensus().VerifyTx(tx); err != nil {
-		logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
-		return err
-	}
+	// if err := tx_pool.chain.Consensus().VerifyTx(tx); err != nil {
+	// 	logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
+	// 	return err
+	// }
 	// Quickly detects if the tx double spends with any transaction in the pool.
 	// Double spending with the main chain txs will be checked in ValidateTxInputs.
 	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
@@ -330,7 +330,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 			return err
 		}
 		if txFee != param.GasLimit*param.GasPrice {
-			return errors.New("Invalid contract transaction fee")
+			return core.ErrInvalidFee
 		}
 		gasPrice = param.GasPrice
 		// check contract tx from

@@ -12,9 +12,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	sysmath "math"
 	"math/big"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,6 +38,7 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/util/bloom"
 	"github.com/BOXFoundation/boxd/vm"
+	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/BOXFoundation/boxd/vm/common/math"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
@@ -51,7 +55,6 @@ const (
 	MaxBlockSize         = 32000000
 	CoinbaseLib          = 100
 	maxBlockSigOpCnt     = 80000
-	PeriodDuration       = 21 * 5 * 10000
 
 	MaxBlocksPerSync = 1024
 
@@ -69,8 +72,15 @@ var logger = log.NewLogger("chain") // logger
 
 var _ service.ChainReader = (*BlockChain)(nil)
 
+// Config defines the configurations of chain
+type Config struct {
+	ContractBinPath string `mapstructure:"contract_bin_path"`
+	ContractABIPath string `mapstructure:"contract_abi_path"`
+}
+
 // BlockChain define chain struct
 type BlockChain struct {
+	cfg           *Config
 	notifiee      p2p.Net
 	newblockMsgCh chan p2p.Message
 	consensus     Consensus
@@ -107,9 +117,10 @@ type UpdateMsg struct {
 }
 
 // NewBlockChain return a blockchain.
-func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus) (*BlockChain, error) {
+func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storage, bus eventbus.Bus, cfg *Config) (*BlockChain, error) {
 
 	b := &BlockChain{
+		cfg:                       cfg,
 		notifiee:                  notifiee,
 		newblockMsgCh:             make(chan p2p.Message, BlockMsgChBufferSize),
 		proc:                      goprocess.WithParent(parent),
@@ -193,14 +204,19 @@ func (chain *BlockChain) Run() error {
 	return nil
 }
 
-// Consensus return chain consensus.
+// Consensus returns chain consensus.
 func (chain *BlockChain) Consensus() Consensus {
 	return chain.consensus
 }
 
-// DB return chain db storage.
+// DB returns chain db storage.
 func (chain *BlockChain) DB() storage.Table {
 	return chain.db
+}
+
+// Cfg returns chain config.
+func (chain *BlockChain) Cfg() *Config {
+	return chain.cfg
 }
 
 // StateProcessor returns chain stateProcessor.
@@ -387,10 +403,9 @@ func (chain *BlockChain) calMissRate() (total uint32, miss uint32) {
 }
 
 func (chain *BlockChain) verifyRepeatedMint(block *types.Block) bool {
-	if exist, ok := chain.repeatedMintCache.Get(block.Header.TimeStamp); ok {
-		if block.Header.BookKeeper != (exist.(*types.Block)).Header.BookKeeper {
-			return false
-		}
+	if exist, ok := chain.repeatedMintCache.Get(block.Header.TimeStamp); ok &&
+		block.Header.BookKeeper == (exist.(*types.Block)).Header.BookKeeper {
+		return false
 	}
 	return true
 }
@@ -444,13 +459,13 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return core.ErrRepeatedMintAtSameTime
 	}
 
-	if messageFrom != "" { // local block does not require validation
-		if err := chain.consensus.Verify(block); err != nil {
-			logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
-				block.BlockHash(), block.Header.Height, err)
-			return err
-		}
-	}
+	// if messageFrom != "" { // local block does not require validation
+	// 	if err := chain.consensus.Verify(block); err != nil {
+	// 		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+	// 			block.BlockHash(), block.Header.Height, err)
+	// 		return err
+	// 	}
+	// }
 
 	if err := validateBlock(block); err != nil {
 		logger.Errorf("Failed to validate block. Hash: %s, Height: %d, Err: %s",
@@ -543,6 +558,14 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 	if parentBlock == nil {
 		return core.ErrParentBlockNotExist
 	}
+
+	// if messageFrom != "" { // local block does not require validation
+	if err := chain.consensus.Verify(block); err != nil {
+		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+			block.BlockHash(), block.Header.Height, err)
+		return err
+	}
+	// }
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Header.Height != parentBlock.Header.Height+1 {
@@ -794,9 +817,11 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 	// update EOA accounts' balance state
 	bAdd, bSub := utxoset.calcNormalTxBalanceChanges(block)
 	for a, v := range bAdd {
+		logger.Infof("DEBUG: update normal balance add %x %d", a[:], v)
 		stateDB.AddBalance(a, new(big.Int).SetUint64(v))
 	}
 	for a, v := range bSub {
+		logger.Infof("DEBUG: update normal balance sub %x %d", a[:], v)
 		stateDB.SubBalance(a, new(big.Int).SetUint64(v))
 	}
 }
@@ -814,7 +839,8 @@ func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet
 			return err
 		}
 		// update statedb utxo trie
-		//logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddr, u)
+		contractAddrB, _ := types.NewContractAddressFromHash(contractAddr[:])
+		logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddrB, u)
 		if err := statedb.UpdateUtxo(*contractAddr, utxoBytes); err != nil {
 			logger.Error(err)
 			return err
@@ -839,6 +865,7 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 		}
 		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
 			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
+		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy); err != nil {
@@ -847,6 +874,10 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 
 		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
 			block, stateDB, utxoSet)
+		if err != nil {
+			logger.Error(err)
+			return err
+		}
 		go func() {
 			logs := make(map[string][]*types.Log)
 			for _, receipt := range receipts {
@@ -867,10 +898,6 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 				chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
 			}
 		}()
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee,
 			totalTxsFee, receipts); err != nil {
 			return err
@@ -894,6 +921,8 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 			logger.Errorf("stateDB commit failed: %s", err)
 			return err
 		}
+		logger.Infof("statedb commit with root: %s, utxo root: %s block: %s:%d",
+			root, utxoRoot, block.BlockHash(), block.Header.Height)
 		if !root.IsEqual(&block.Header.RootHash) {
 			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
 				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
@@ -924,6 +953,10 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
+	// set tail state
+	if err := chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot); err != nil {
+		return err
+	}
 
 	return chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot)
 }
@@ -940,10 +973,6 @@ func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.
 			return err
 		}
 		delete(chain.receiptsCache, block.Header.Height)
-	}
-
-	if err := chain.consensus.Process(block, chain.db); err != nil {
-		return err
 	}
 
 	// save tx index
@@ -1015,7 +1044,8 @@ func (chain *BlockChain) ValidateExecuteResult(
 	for _, txOut := range block.Txs[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
-	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
+	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
+	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height)
 	if totalCoinbaseOutput != expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value %v("+
 			"totalTxsFee: %d, gas remaining: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,
@@ -1072,7 +1102,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			panic("Failed to disconnect block from main chain")
 		}
 		stt1 := time.Now().UnixNano()
-		logger.Infof("Disconnect block %s Height: %d, time tracking: %d",
+		logger.Infof("block %s %d disconnected from chain, time tracking: %d",
 			detachBlock.BlockHash(), detachBlock.Header.Height, (stt1-stt0)/1e6)
 	}
 
@@ -1118,7 +1148,10 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		logger.Error(err)
 		return err
 	}
-	utxoSet.ImportUtxoMap(contractUtxos, false)
+	for k, v := range contractUtxos {
+		logger.Debugf("make rollback contract utxos op: %+v, utxo wrap: %+v", k, v)
+	}
+	utxoSet.ImportUtxoMap(contractUtxos)
 
 	chain.db.EnableBatch()
 	defer chain.db.DisableBatch()
@@ -1279,6 +1312,13 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		if err := genesis.Unmarshal(genesisBin); err != nil {
 			return nil, err
 		}
+		adminAddr, err := types.NewAddress(Admin)
+		if err != nil {
+			return nil, err
+		}
+
+		ContractAddr = *types.CreateAddress(*adminAddr.Hash160(), 1)
+		logger.Errorf("load genesis contract addr: %v", ContractAddr)
 
 		return genesis, nil
 	}
@@ -1302,6 +1342,29 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+	code, err := readBin(chain.cfg.ContractBinPath)
+	vmTx := types.NewVMTransaction(big.NewInt(0), big.NewInt(0), 1e8, 1, nil, types.ContractCreationType, code)
+	adminAddr, err := types.NewAddress(Admin)
+	if err != nil {
+		return nil, err
+	}
+	vmTx.WithFrom(adminAddr.Hash160())
+	ctx := NewEVMContext(vmTx, genesis.Header, chain)
+	logConfig := vm.LogConfig{}
+	structLogger := vm.NewStructLogger(&logConfig)
+	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
+
+	evm := vm.NewEVM(ctx, stateDB, vmConfig)
+	_, contractAddr, _, vmerr := evm.Create(vm.AccountRef(*vmTx.From()), vmTx.Data(), vmTx.Gas(), big.NewInt(0), false)
+	if vmerr != nil {
+		return nil, vmerr
+	}
+	ContractAddr = contractAddr
+	addressHash := types.NormalizeAddressHash(&contractAddr)
+	outPoint := types.NewOutPoint(addressHash, 0)
+	utxoWrap := types.NewUtxoWrap(0, []byte{}, 0)
+	utxoSet.utxoMap[*outPoint] = utxoWrap
+
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
 	root, utxoRoot, err := stateDB.Commit(false)
 	if err != nil {
@@ -1330,6 +1393,14 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, err
 	}
 	return &genesis, nil
+}
+
+func readBin(filename string) ([]byte, error) {
+	code, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return hexutil.MustDecode("0x" + strings.TrimSpace(string(code))), nil
 }
 
 // LoadEternalBlock returns the current highest eternal block
@@ -1486,8 +1557,8 @@ func (chain *BlockChain) GetBlockLogs(hash *crypto.HashType) ([]*types.Log, erro
 	return logs, nil
 }
 
-// GetEvmByHeight get evm by block height.
-func (chain *BlockChain) GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
+// NewEvmContextForLocalCallByHeight new a evm context for loval call by block height.
+func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
 	if height == 0 {
 		height = chain.tail.Header.Height
 	}
@@ -2099,4 +2170,41 @@ func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
 		filter.Add(addrHash)
 	}
 	return filter
+}
+
+// MakeCoinbaseTx creates a coinbase give bookkeeper address and block height
+func (chain *BlockChain) MakeCoinbaseTx(from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
+	if err != nil {
+		return nil, err
+	}
+	code, err := abiObj.Pack("calcBonus")
+	if err != nil {
+		return nil, err
+	}
+	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
+	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
+	if err != nil {
+		return nil, err
+	}
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce, code)
+	if err != nil {
+		return nil, err
+	}
+	tx := &types.Transaction{
+		Version: 1,
+		Vin: []*types.TxIn{
+			{
+				PrevOutPoint: types.OutPoint{
+					Hash:  zeroHash,
+					Index: sysmath.MaxUint32,
+				},
+				ScriptSig: *coinbaseScriptSig,
+				Sequence:  sysmath.MaxUint32,
+			},
+		},
+		Vout: []*corepb.TxOut{vout},
+	}
+	logger.Infof("CoinbaseTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
+	return tx, nil
 }

@@ -248,10 +248,8 @@ func (s *stateObject) CommitTrie() (*corecrypto.HashType, error) {
 	if s.dbErr != nil {
 		return nil, s.dbErr
 	}
-	//return s.trie.Commit()
-	root, _ := s.trie.Commit()
-	logger.Debugf("DEBUG: state object CommitTrie addr %x root: %s", s.address[:], root)
-	return root, nil
+	logger.Debugf("DEBUG: state object CommitTrie addr %x root: %s", s.address[:], s.trie.RootHash())
+	return s.trie.RootHash(), nil
 }
 
 // AddBalance removes amount from c's balance.

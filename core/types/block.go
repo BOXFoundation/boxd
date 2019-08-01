@@ -284,9 +284,7 @@ type BlockHeader struct {
 
 	RootHash crypto.HashType
 
-	PeriodHash crypto.HashType
-
-	CandidatesHash crypto.HashType
+	DynastyHash crypto.HashType
 
 	Height uint32
 
@@ -320,8 +318,7 @@ func (header *BlockHeader) ToProtoMessage() (proto.Message, error) {
 		ReceiptHash:     header.ReceiptHash[:],
 		TimeStamp:       header.TimeStamp,
 		Magic:           header.Magic,
-		PeriodHash:      header.PeriodHash[:],
-		CandidatesHash:  header.CandidatesHash[:],
+		DynastyHash:     header.DynastyHash[:],
 		RootHash:        header.RootHash[:],
 		Height:          header.Height,
 		GasUsed:         header.GasUsed,
@@ -350,8 +347,7 @@ func (header *BlockHeader) FromProtoMessage(message proto.Message) error {
 			copy(header.ReceiptHash[:], message.ReceiptHash)
 			header.TimeStamp = message.TimeStamp
 			header.Magic = message.Magic
-			copy(header.PeriodHash[:], message.PeriodHash)
-			copy(header.CandidatesHash[:], message.CandidatesHash)
+			copy(header.DynastyHash[:], message.DynastyHash)
 			copy(header.RootHash[:], message.RootHash)
 			header.Height = message.Height
 			header.GasUsed = message.GasUsed

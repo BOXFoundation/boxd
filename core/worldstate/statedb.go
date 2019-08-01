@@ -659,19 +659,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecr
 		}
 		delete(s.stateObjectsDirty, addr)
 	}
-	// Write trie changes.
-	root, err := s.trie.Commit()
-	if err != nil {
-		logger.Error(err)
-		return nil, nil, err
-	}
-	// for utxo trie root hash
-	utxoRoot, err := s.utxoTrie.Commit()
-	if err != nil {
-		logger.Error(err)
-		return nil, nil, err
-	}
-	return root, utxoRoot, nil
+	return s.trie.RootHash(), s.utxoTrie.RootHash(), nil
 }
 
 // GetUtxo return contract address utxo at given contract addr
@@ -682,4 +670,14 @@ func (s *StateDB) GetUtxo(addr types.AddressHash) ([]byte, error) {
 // UpdateUtxo updates statedb utxo at given contract addr
 func (s *StateDB) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error {
 	return s.utxoTrie.Update(addr[:], utxoBytes)
+}
+
+// RootHash return stateDB root hash.
+func (s *StateDB) RootHash() *corecrypto.HashType {
+	return s.trie.RootHash()
+}
+
+// UtxoRoot return stateDB utxo root hash.
+func (s *StateDB) UtxoRoot() *corecrypto.HashType {
+	return s.utxoTrie.RootHash()
 }

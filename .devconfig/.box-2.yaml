@@ -35,7 +35,7 @@ rpc:
         port: 19180
     subscribe_blocks: true
     subscribe_logs: true
-dpos:
+bpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1

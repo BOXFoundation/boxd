@@ -62,11 +62,11 @@ type ChainBlockReader interface {
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
+	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 	TailBlock() *types.Block
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 	TailState() *state.StateDB
-	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -474,7 +474,7 @@ func (s *webapiServer) DoCall(
 	defer cancel()
 
 	// Get a new instance of the EVM.
-	evm, vmErr, err := s.GetEvmByHeight(msg, req.Height)
+	evm, vmErr, err := s.NewEvmContextForLocalCallByHeight(msg, req.Height)
 	if err != nil {
 		return newCallResp(-1, err.Error()), nil
 	}

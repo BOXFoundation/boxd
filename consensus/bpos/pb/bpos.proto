@@ -1,0 +1,28 @@
+// Copyright (c) 2018 ContentBox Authors.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package bpospb;
+
+message Dynasty {
+    repeated Delegate delegates = 1;
+    repeated bytes addrs = 2;
+    repeated string peers = 3;
+}
+
+message Delegate {
+    bytes Addr = 1;
+    string PeerID = 2;
+    int64 Votes = 3;
+    int64 PledgeAmount = 4;
+    int64 Score = 5;
+    bool IsExist = 6;
+}
+
+message EternalBlockMsg {
+    bytes hash =1;
+    int64 timestamp = 2;
+    bytes signature = 3;
+}

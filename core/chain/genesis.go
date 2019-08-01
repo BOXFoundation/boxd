@@ -16,6 +16,12 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 )
 
+// Admin represents admin address.
+var Admin = "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+
+// ContractAddr genesis contract address.
+var ContractAddr types.AddressHash
+
 // GenesisBlock represents genesis block.
 var GenesisBlock = types.Block{
 	Header: &types.BlockHeader{
