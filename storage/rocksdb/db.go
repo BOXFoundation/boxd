@@ -55,7 +55,7 @@ func NewRocksDB(name string, o *storage.Options) (storage.Storage, error) {
 	options.SetMaxBackgroundFlushes(2)
 	options.SetMaxBackgroundCompactions(4)
 	options.SetBytesPerSync(1024 * 1024) // 1M
-	options.SetMaxOpenFiles(512)
+	options.SetMaxOpenFiles(4)
 
 	prepare(name)
 	// get all column families
