@@ -18,7 +18,7 @@ import (
 var logger = log.NewLogger("rocksdb")
 
 const number = 10
-const cachesize = 3 << 30
+const cachesize = 256 << 20
 
 func init() {
 	// register rocksdb impl
