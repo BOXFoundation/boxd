@@ -173,8 +173,9 @@ func (bpos *Bpos) fetchDelegatesByHeight(height uint32) ([]Delegate, error) {
 	if err != nil {
 		return nil, err
 	}
+	adminAddr, err := types.NewAddress(chain.Admin)
 	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).WithFrom(bpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
+		0, nil, types.ContractCallType, data).WithFrom(adminAddr.Hash160()).WithTo(&chain.ContractAddr)
 	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
 	if err != nil {
 		return nil, err
@@ -201,8 +202,9 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 	if err != nil {
 		return nil, err
 	}
+	adminAddr, err := types.NewAddress(chain.Admin)
 	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).WithFrom(bpos.bookkeeper.Address.Hash160()).WithTo(&chain.ContractAddr)
+		0, nil, types.ContractCallType, data).WithFrom(adminAddr.Hash160()).WithTo(&chain.ContractAddr)
 	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
 	if err != nil {
 		return nil, err
