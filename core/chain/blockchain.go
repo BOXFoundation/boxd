@@ -2172,8 +2172,8 @@ func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
 	return filter
 }
 
-// MakeCoinbaseTx creates a coinbase give bookkeeper address and block height
-func (chain *BlockChain) MakeCoinbaseTx(from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+// MakeInternalContractTx creates a coinbase give bookkeeper address and block height
+func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32, method string) (*types.Transaction, error) {
 	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
 	if err != nil {
 		return nil, err

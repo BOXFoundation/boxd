@@ -39,6 +39,20 @@
 	{
 		"constant": true,
 		"inputs": [],
+		"name": "getDynastyChangeThreshold",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [],
 		"name": "newAdmin",
 		"outputs": [
 			{
@@ -105,6 +119,24 @@
 		"constant": false,
 		"inputs": [
 			{
+				"name": "proposalID",
+				"type": "uint256"
+			},
+			{
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "giveProposal",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
 				"name": "_newAdmin",
 				"type": "address"
 			}
@@ -133,11 +165,11 @@
 		"constant": false,
 		"inputs": [
 			{
-				"name": "dynasty_threshold",
+				"name": "proposalID",
 				"type": "uint256"
 			}
 		],
-		"name": "setDynastyThreshold",
+		"name": "voteProposal",
 		"outputs": [],
 		"payable": false,
 		"stateMutability": "nonpayable",
@@ -150,20 +182,6 @@
 		"outputs": [],
 		"payable": true,
 		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [
-			{
-				"name": "threshold",
-				"type": "uint256"
-			}
-		],
-		"name": "setThreshold",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{

@@ -187,7 +187,12 @@ func (bpos *Bpos) run(timestamp int64) error {
 	if err != nil {
 		return err
 	}
+	dynastyCycle, err := bpos.fetchDynastyCycleByHeight(bpos.chain.LongestChainHeight)
+	if err != nil {
+		return err
+	}
 	bpos.context.dynasty = dynasty
+	bpos.context.dynastyCycle = dynastyCycle
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err
@@ -486,11 +491,19 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTxFee)
+	nonce := statedb.GetNonce(block.Header.BookKeeper)
+	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTxFee, nonce)
 	if err != nil {
 		return err
 	}
 	block.Txs = append(block.Txs, coinbaseTx)
+	if uint64((block.Header.Height+1))%bpos.context.dynastyCycle.Uint64() == 0 { // dynasty switch
+		dynastySwitchTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, "execBonus")
+		if err != nil {
+			return err
+		}
+		block.Txs = append(block.Txs, dynastySwitchTx)
+	}
 	block.Txs = append(block.Txs, packedTxs...)
 
 	if err := bpos.executeBlock(block, statedb); err != nil {
@@ -503,12 +516,11 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	return nil
 }
 
-func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64) (*types.Transaction, error) {
+func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64, nonce uint64) (*types.Transaction, error) {
 
 	amount := chain.CalcBlockSubsidy(block.Header.Height) + txFee
-	nonce := statedb.GetNonce(block.Header.BookKeeper)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	return bpos.chain.MakeCoinbaseTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height)
+	return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height, "calcBonus")
 }
 
 func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {

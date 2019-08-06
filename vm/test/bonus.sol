@@ -71,7 +71,7 @@ contract Bonus is Permission{
         uint id;
         uint value;
         uint createtime;
-        Delegate[] dynasty;
+        address[DYNASTY_SIZE] dynasty;
         address[] voters;
         bool isExist;
     }
@@ -215,7 +215,7 @@ contract Bonus is Permission{
     function execBonus() public {
         require(msg.sender == block.coinbase || msg.sender == admin, "Not enough permissions.");
         if (msg.sender == block.coinbase) {
-            require(block.number % _dynasty_change_threshold == 0, "Not the time to switch dynasties");
+            require((block.number+1) % _dynasty_change_threshold == 0, "Not the time to switch dynasties");
         }
 
         for(uint i = 0; i < dynasty.length; i++) {
@@ -283,9 +283,9 @@ contract Bonus is Permission{
         pledgeAddrList.length--;
     }
 
-    function isInDynasty(address addr, Delegate[] dynasty) internal view returns (bool) {
-        for (uint i = 0; i < dynasty.length; i++) {
-            if (addr == dynasty[i].addr) {
+    function addressIsInDynasty(address addr, address[DYNASTY_SIZE] addrs) internal view returns (bool) {
+        for (uint i = 0; i < DYNASTY_SIZE; i++) {
+            if (addr == addrs[i]) {
                 return true;
             }
         }
@@ -356,16 +356,20 @@ contract Bonus is Permission{
     function giveProposal(uint proposalID, uint value) public {
         require(proposals[proposalID].isExist == false || (block.timestamp
          - proposals[proposalID].createtime > 3 * 24 * 3600) , "the proposal is exist.");
-        require(isInDynasty(msg.sender, dynasty) == true, "Insufficient permissions.");
-        Proposal memory proposal = Proposal(proposalID, value, block.timestamp, dynasty, new address[](0), true);
+        require(addressIsInDynasty(msg.sender, proposal.dynasty) == true, "Insufficient permissions.");
+        address[DYNASTY_SIZE] memory addrs;
+        for(uint i = 0; i < dynasty.length; i++) {
+            addrs[i] = dynasty[i].addr;
+        }
+        Proposal memory proposal = Proposal(proposalID, value, block.timestamp, addrs, new address[](0), true);
         proposals[proposalID] = proposal;
     }
 
     function voteProposal(uint proposalID) public {
-        Proposal proposal = proposals[proposalID];
+        Proposal storage proposal = proposals[proposalID];
         require(proposal.isExist == true && (block.timestamp
          - proposal.createtime <= 3 * 24 * 3600) , "the proposal is not exist.");
-        require(isInDynasty(msg.sender, proposal.dynasty) == true, "Insufficient permissions.");
+        require(addressIsInDynasty(msg.sender, proposal.dynasty) == true, "Insufficient permissions.");
         require(addressIsExist(msg.sender, proposal.voters) == false, "Repeated voting is forbidden.");
         proposal.voters.push(msg.sender);
         if (proposal.voters.length > 2 * DYNASTY_SIZE / 3) {
@@ -374,7 +378,7 @@ contract Bonus is Permission{
     }
 
     function doProposal(uint proposalID) internal {
-        Proposal proposal = proposals[proposalID];
+        Proposal memory proposal = proposals[proposalID];
         if (proposalID == PLEDGE_THRESHOLD) {
             setPledgeThreshold(proposal.value);
         } else if (proposalID == DYNASTY_CHANGE_THRESHOLD) {
@@ -384,6 +388,10 @@ contract Bonus is Permission{
 
     function setPledgeThreshold(uint threshold) internal {
         _pledge_threshold = threshold;
+    }
+
+    function getDynastyChangeThreshold() public view returns (uint) {
+        return _dynasty_change_threshold;
     }
 
     function setDynastyThreshold(uint dynasty_change_threshold) internal {

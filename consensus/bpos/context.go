@@ -10,6 +10,7 @@ import (
 
 	bpospb "github.com/BOXFoundation/boxd/consensus/bpos/pb"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -22,6 +23,7 @@ type ConsensusContext struct {
 	timestamp     int64
 	dynasty       *Dynasty
 	verifyDynasty *Dynasty
+	dynastyCycle  *big.Int
 }
 
 // Delegate is a bookkeeper node.
@@ -165,23 +167,8 @@ func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegat
 }
 
 func (bpos *Bpos) fetchDelegatesByHeight(height uint32) ([]Delegate, error) {
-	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)
+	abiObj, output, err := bpos.doCall(height, "getDelegates")
 	if err != nil {
-		return nil, err
-	}
-	data, err := abiObj.Pack("getDelegates")
-	if err != nil {
-		return nil, err
-	}
-	adminAddr, err := types.NewAddress(chain.Admin)
-	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).WithFrom(adminAddr.Hash160()).WithTo(&chain.ContractAddr)
-	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
-	if err != nil {
-		return nil, err
-	}
-	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
-	if err := vmErr(); err != nil {
 		return nil, err
 	}
 	var delegates []Delegate
@@ -194,24 +181,8 @@ func (bpos *Bpos) fetchDelegatesByHeight(height uint32) ([]Delegate, error) {
 
 func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 
-	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)
+	abiObj, output, err := bpos.doCall(height, "getDynasty")
 	if err != nil {
-		return nil, err
-	}
-	data, err := abiObj.Pack("getDynasty")
-	if err != nil {
-		return nil, err
-	}
-	adminAddr, err := types.NewAddress(chain.Admin)
-	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).WithFrom(adminAddr.Hash160()).WithTo(&chain.ContractAddr)
-	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
-	if err != nil {
-		return nil, err
-	}
-
-	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
-	if err := vmErr(); err != nil {
 		return nil, err
 	}
 	var dynasty []Delegate
@@ -231,6 +202,43 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 		addrs:     addrs,
 		peers:     peers,
 	}, nil
+}
+
+func (bpos *Bpos) fetchDynastyCycleByHeight(height uint32) (*big.Int, error) {
+
+	abiObj, output, err := bpos.doCall(height, "getDynastyChangeThreshold")
+	if err != nil {
+		return nil, err
+	}
+	var res *big.Int
+	if err := abiObj.Unpack(&res, "getDynastyChangeThreshold", output); err != nil {
+		logger.Errorf("Failed to unpack the result of call getDynastyChangeThreshold. Err: %v", err)
+		return nil, err
+	}
+	return res, nil
+}
+
+func (bpos *Bpos) doCall(height uint32, method string) (*abi.ABI, []byte, error) {
+	abiObj, err := chain.ReadAbi(bpos.chain.Cfg().ContractABIPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	data, err := abiObj.Pack(method)
+	if err != nil {
+		return nil, nil, err
+	}
+	adminAddr, err := types.NewAddress(chain.Admin)
+	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
+		0, nil, types.ContractCallType, data).WithFrom(adminAddr.Hash160()).WithTo(&chain.ContractAddr)
+	evm, vmErr, err := bpos.chain.NewEvmContextForLocalCallByHeight(msg, height)
+	if err != nil {
+		return nil, nil, err
+	}
+	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
+	if err := vmErr(); err != nil {
+		return nil, nil, err
+	}
+	return abiObj, output, nil
 }
 
 // ///////////////////////////////////////////////////////////////////////////////////

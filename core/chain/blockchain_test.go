@@ -121,7 +121,7 @@ func makeCoinbaseTx(parent *types.Block, block *types.Block, chain *BlockChain, 
 	nonce := statedb.GetNonce(block.Header.BookKeeper)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
 
-	return chain.MakeCoinbaseTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height)
+	return chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height, "calcBonus")
 }
 
 func makeCoinbaseTxV2(
@@ -129,8 +129,8 @@ func makeCoinbaseTxV2(
 ) (*types.Transaction, error) {
 
 	amount := CalcBlockSubsidy(block.Header.Height)
-	return chain.MakeCoinbaseTx(block.Header.BookKeeper, amount,
-		uint64(parent.Header.Height+1), block.Header.Height)
+	return chain.MakeInternalContractTx(block.Header.BookKeeper, amount,
+		uint64(parent.Header.Height+1), block.Header.Height, "calcBonus")
 }
 
 // generate a child block
