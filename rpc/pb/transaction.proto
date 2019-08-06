@@ -87,6 +87,13 @@ service TransactionCommand {
             body: "*"
         };
     }
+
+    rpc MakeUnsignedCombineTx (MakeCombineTx) returns (MakeTxResp) {
+        option (google.api.http) = {
+            post: "/v1/tx/makeunsignedtx/combine"
+            body: "*"
+        };
+    }
 }
 
 message SendRawTransactionReq {
@@ -207,4 +214,11 @@ message TokenTag {
     string symbol = 2;
     uint64 supply = 3;
     uint32 decimal = 4;
+}
+
+message MakeCombineTx {
+    string addr = 1;
+    uint64 gas_price = 2;
+    string token_hash = 3; // combine box if token_hash is set empty
+    uint32 token_index = 4;
 }

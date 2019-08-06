@@ -230,7 +230,7 @@ func walletUtxosSaveGetTest(
 					balanceGot)
 			}
 			// check utxos
-			utxosGot, err := FetchUtxosOf(addr, tid, 0, db)
+			utxosGot, err := FetchUtxosOf(addr, tid, 0, true, db)
 			if err != nil {
 				t.Error(err)
 			}
@@ -242,7 +242,7 @@ func walletUtxosSaveGetTest(
 			}
 			// check fetching partial utxos
 			t.Logf("fetch utxos for %d", balanceGot/2)
-			utxosGot, err = FetchUtxosOf(addr, tid, balanceGot/2, db)
+			utxosGot, err = FetchUtxosOf(addr, tid, balanceGot/2, false, db)
 			if err != nil {
 				t.Error(err)
 			}

@@ -372,7 +372,7 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -400,7 +400,7 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -410,9 +410,6 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthFaucet
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthFaucet
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -432,7 +429,7 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Amount |= uint64(b&0x7F) << shift
+				m.Amount |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -444,9 +441,6 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthFaucet
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthFaucet
 			}
 			if (iNdEx + skippy) > l {
@@ -476,7 +470,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -504,7 +498,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Code |= int32(b&0x7F) << shift
+				m.Code |= (int32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -523,7 +517,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -533,9 +527,6 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthFaucet
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthFaucet
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -555,7 +546,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -565,9 +556,6 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthFaucet
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthFaucet
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -580,9 +568,6 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthFaucet
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthFaucet
 			}
 			if (iNdEx + skippy) > l {
@@ -651,11 +636,8 @@ func skipFaucet(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			if length < 0 {
-				return 0, ErrInvalidLengthFaucet
-			}
 			iNdEx += length
-			if iNdEx < 0 {
+			if length < 0 {
 				return 0, ErrInvalidLengthFaucet
 			}
 			return iNdEx, nil
@@ -686,9 +668,6 @@ func skipFaucet(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthFaucet
-				}
 			}
 			return iNdEx, nil
 		case 4:
