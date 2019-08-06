@@ -22,6 +22,7 @@ type ConsensusContext struct {
 	timestamp     int64
 	dynasty       *Dynasty
 	verifyDynasty *Dynasty
+	candidates    []Delegate
 }
 
 // Delegate is a bookkeeper node.

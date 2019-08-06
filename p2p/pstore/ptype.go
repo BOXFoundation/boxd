@@ -7,7 +7,6 @@ package pstore
 import (
 	"encoding/gob"
 	"fmt"
-	"strings"
 
 	"github.com/BOXFoundation/boxd/storage"
 	"github.com/BOXFoundation/boxd/storage/key"
@@ -25,6 +24,8 @@ var tb = &typeBook{}
 type PeerType uint8
 
 const (
+	// UnknownPeer means I dont know what kind of node I am.
+	UnknownPeer PeerType = iota
 	// ServerPeer provides RPC services. It is recommended to configure it as a seed node.
 	ServerPeer PeerType = iota
 	// MinerPeer acts as the mining node.
@@ -34,20 +35,6 @@ const (
 	// LayfolkPeer identifies a common full node.
 	LayfolkPeer
 )
-
-// ParsePeerType takes a string level and returns the Logrus log level constant.
-func ParsePeerType(pt string) PeerType {
-	switch strings.ToLower(pt) {
-	case "server":
-		return ServerPeer
-	case "miner":
-		return MinerPeer
-	case "candidate":
-		return CandidatePeer
-	default:
-		return LayfolkPeer
-	}
-}
 
 // Mask coverts PeerType to uint8. Each bit refers to a PeerType.
 func (pt PeerType) Mask() uint8 {

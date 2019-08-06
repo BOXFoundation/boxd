@@ -67,13 +67,10 @@ func NewConn(stream libp2pnet.Stream, peer *BoxPeer, peerID peer.ID) *Conn {
 // Loop start
 func (conn *Conn) Loop(parent goprocess.Process) {
 	conn.mutex.Lock()
-	if !conn.KeepConn() {
-		logger.Errorf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
-		return
-	}
 	if conn.proc == nil {
 		conn.proc = goprocess.WithParent(parent)
-		conn.peer.table.peerStore.Put(conn.remotePeer, pstore.PTypeSuf, uint8(conn.peer.Type(conn.remotePeer)))
+		ptype, _ := conn.peer.Type(conn.remotePeer)
+		conn.peer.table.peerStore.Put(conn.remotePeer, pstore.PTypeSuf, uint8(ptype))
 		conn.proc.Go(conn.loop).SetTeardown(conn.Close)
 
 		go conn.pq.Run(conn.proc, func(i interface{}) {
@@ -141,7 +138,6 @@ func (conn *Conn) readMessage(r io.Reader) (*remoteMessage, error) {
 	}
 
 	if err := conn.checkMessage(msg); err != nil {
-		logger.Errorf("MSG: %v, %v", msg, msg.messageHeader)
 		return nil, err
 	}
 
@@ -449,7 +445,24 @@ func (conn *Conn) checkMessage(msg *message) error {
 
 // KeepConn decides if the connection needs to be maintained.
 func (conn *Conn) KeepConn() bool {
-	remoteType := conn.peer.Type(conn.remotePeer)
+
+	// If I don't know who you are and I have an agent, then connections are not allowed.
+	remoteType, nodoubt := conn.peer.Type(conn.remotePeer)
+	if !nodoubt && len(agents) != 0 {
+		return false
+	}
+
+	// If I don't know who I am, I can't connect to layfolk peer.
+	if conn.peer.peertype == pstore.UnknownPeer {
+		pType, nodoubt := conn.peer.Type(conn.peer.id)
+		if !nodoubt {
+			if remoteType != pstore.LayfolkPeer {
+				return true
+			}
+			return false
+		}
+		conn.peer.peertype = pType
+	}
 	switch conn.peer.peertype {
 	case pstore.MinerPeer, pstore.CandidatePeer:
 		if len(agents) == 0 {

@@ -64,7 +64,6 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
 	boxPeer := &BoxPeer{
-		peertype: pstore.ParsePeerType(config.Type),
 		conns:    new(sync.Map),
 		config:   config,
 		notifier: NewNotifier(),
@@ -160,6 +159,11 @@ func saveNetworkIdentity(path string, key crypto.PrivKey) error {
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	conn := NewConn(s, p, s.Conn().RemotePeer())
+	if !conn.KeepConn() {
+		s.Close()
+		logger.Errorf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
+		return
+	}
 	conn.Loop(p.proc)
 }
 
@@ -215,7 +219,8 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 		return err
 	}
 
-	p.table.peerStore.Put(pid, pstore.PTypeSuf, uint8(p.Type(pid)))
+	ptype, _ := p.Type(pid)
+	p.table.peerStore.Put(pid, pstore.PTypeSuf, uint8(ptype))
 	// TODO, we must consider how long the peer should be in the peerstore,
 	// PermanentAddrTTL should only be for peer configured by user.
 	// Peer that is connected or observed from other peers should have different TTL.
@@ -239,7 +244,6 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
 			return true
 		}
-		// go conn.Write(code, body)
 		go func(conn *Conn) {
 			if err := conn.Write(code, body); err != nil {
 				logger.Errorf("Failed to broadcast message to remote peer.Code: %X, Err: %v", code, err)
@@ -372,18 +376,25 @@ func (p *BoxPeer) SetMinerReader(mr service.MinerReader) {
 }
 
 // Type return returns the type corresponding to the peer id.
-func (p *BoxPeer) Type(pid peer.ID) pstore.PeerType {
+// The second return value indicates skepticism about the result.
+func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
 	if util.InArray(pid, agents) {
-		return pstore.ServerPeer
+		return pstore.ServerPeer, true
+	}
+	miners := p.minerreader.Miners()
+	// The 0 length of miners means I am not yet able to identify
+	// myself and am therefore not eligible to join the network.
+	if len(miners) == 0 {
+		return pstore.LayfolkPeer, false
 	}
 	pretty := pid.Pretty()
-	if util.InArray(pretty, p.minerreader.Miners()) {
-		return pstore.MinerPeer
+	if util.InArray(pretty, miners) {
+		return pstore.MinerPeer, true
 	}
 	if util.InArray(pretty, p.minerreader.Candidates()) {
-		return pstore.CandidatePeer
+		return pstore.CandidatePeer, true
 	}
-	return pstore.LayfolkPeer
+	return pstore.LayfolkPeer, true
 }
 
 // UpdateSynced update peers' isSynced

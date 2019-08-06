@@ -298,7 +298,8 @@ func (t *Table) GetRandomPeers(pid peer.ID) []peerstore.PeerInfo {
 func (t *Table) AddPeerToTable(conn *Conn) {
 
 	peerID := conn.stream.Conn().RemotePeer()
-	t.peerStore.Put(peerID, pstore.PTypeSuf, uint8(t.peer.Type(peerID)))
+	ptype, _ := t.peer.Type(peerID)
+	t.peerStore.Put(peerID, pstore.PTypeSuf, uint8(ptype))
 	t.peerStore.AddAddr(
 		peerID,
 		conn.stream.Conn().RemoteMultiaddr(),
@@ -322,9 +323,9 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 			logger.Errorf("get pid failed. Err: %v", err)
 			continue
 		}
-		ptype := uint32(t.peer.Type(pid))
+		ptype, _ := t.peer.Type(pid)
 		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(ptype))
-		pstore.PutType(pid, ptype, time.Now().Unix())
+		pstore.PutType(pid, uint32(ptype), time.Now().Unix())
 		t.addPeerInfo(pid, v.Addrs)
 	}
 }
