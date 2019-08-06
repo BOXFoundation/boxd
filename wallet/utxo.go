@@ -132,7 +132,7 @@ func fetchModerateUtxos(
 	// here "remain <= amountToFetch", because remain and amountToFetch is uint64
 	for start := 0; start < len(keys) && remain <= amountToFetch; start += utxoSelUnitCnt {
 		// check utxos bound
-		if len(result) == core.MaxUtxosInTx {
+		if len(result) >= core.MaxUtxosInTx {
 			if amountToFetch-remain > total {
 				return result, nil
 			}
