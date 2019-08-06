@@ -84,7 +84,6 @@ func (f *faucet) Claim(
 	ctx context.Context, req *rpcpb.ClaimReq,
 ) (resp *rpcpb.ClaimResp, err error) {
 
-	logger.Infof("faucet claim req: %+v", req)
 	defer func() {
 		if resp.Code != 0 {
 			logger.Warnf("faucet claim %+v error: %s", req, resp.Message)
