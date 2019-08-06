@@ -127,7 +127,9 @@ message GetRawTransactionRequest {
 }
 
 message GetRawTransactionResponse {
-    corepb.Transaction tx = 1;
+    int32 code = 1;
+    string message = 2;
+    corepb.Transaction tx = 3;
 }
 
 message SendTransactionReq {

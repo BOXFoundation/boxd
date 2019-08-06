@@ -13,11 +13,11 @@ import (
 	"reflect"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/pb"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 )
 
@@ -121,9 +121,8 @@ func (s *txServer) FetchUtxos(
 ) (resp *rpcpb.FetchUtxosResp, err error) {
 
 	defer func() {
-		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("fetch utxos: %s error: %s", string(bytes), resp.Message)
+			logger.Warnf("fetch utxos: %s error: %s", tolog(req, 4096), resp.Message)
 		} else {
 			total := uint64(0)
 			for _, u := range resp.GetUtxos() {
@@ -135,7 +134,7 @@ func (s *txServer) FetchUtxos(
 				total += amount
 			}
 			logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
-				string(bytes), len(resp.GetUtxos()), total)
+				tolog(req, 4096), len(resp.GetUtxos()), total)
 		}
 	}()
 
@@ -189,11 +188,21 @@ func (s *txServer) SendRawTransaction(
 	if err = tx.Unmarshal(txByte); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
+	hash, _ := tx.TxHash()
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("send raw tx %s error: %s", hash, resp.Message)
+		} else {
+			logger.Infof("send raw tx %s succeeded", hash)
+		}
+	}()
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		if err == core.ErrOrphanTransaction {
+			return newSendTransactionResp(0, err.Error(), hash.String()), nil
+		}
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
-	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 
@@ -201,25 +210,26 @@ func (s *txServer) SendTransaction(
 	ctx context.Context, req *rpcpb.SendTransactionReq,
 ) (resp *rpcpb.SendTransactionResp, err error) {
 
-	defer func() {
-		bytes, _ := json.Marshal(req)
-		if resp.Code != 0 {
-			logger.Warnf("send tx req: %s error: %s", string(bytes), resp.Message)
-		} else {
-			logger.Infof("send tx req: %s succeeded, response: %+v", string(bytes), resp)
-		}
-	}()
-
 	tx := new(types.Transaction)
 	if err := tx.FromProtoMessage(req.Tx); err != nil {
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
 
+	hash, _ := tx.TxHash()
+	defer func() {
+		if resp.Code != 0 {
+			logger.Warnf("send tx req: %s error: %s", tolog(req, 1024), resp.Message)
+		} else {
+			logger.Infof("send tx req: %s succeeded, response: %s", tolog(req, 1024), resp)
+		}
+	}()
 	txpool := s.server.GetTxHandler()
 	if err := txpool.ProcessTx(tx, core.BroadcastMode); err != nil {
+		if err == core.ErrOrphanTransaction {
+			return newSendTransactionResp(0, err.Error(), hash.String()), nil
+		}
 		return newSendTransactionResp(-1, err.Error(), ""), nil
 	}
-	hash, _ := tx.TxHash()
 	return newSendTransactionResp(0, "success", hash.String()), nil
 }
 
@@ -233,10 +243,13 @@ func (s *txServer) GetRawTransaction(
 	_, tx, err := s.server.GetChainReader().LoadBlockInfoByTxHash(hash)
 	if err != nil {
 		logger.Debug(err)
-		return &rpcpb.GetRawTransactionResponse{}, err
+		return &rpcpb.GetRawTransactionResponse{Code: -1, Message: err.Error()}, nil
 	}
 	rpcTx, err := tx.ToProtoMessage()
-	return &rpcpb.GetRawTransactionResponse{Tx: rpcTx.(*corepb.Transaction)}, err
+	if err != nil {
+		return &rpcpb.GetRawTransactionResponse{Code: -1, Message: err.Error()}, nil
+	}
+	return &rpcpb.GetRawTransactionResponse{Code: 0, Message: "success", Tx: rpcTx.(*corepb.Transaction)}, nil
 }
 
 func newMakeTxResp(
@@ -255,11 +268,10 @@ func (s *txServer) MakeUnsignedTx(
 ) (resp *rpcpb.MakeTxResp, err error) {
 
 	defer func() {
-		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned tx: %s error: %s", string(bytes), resp.Message)
+			logger.Warnf("make unsigned tx: %s error: %s", tolog(req, 1024), resp.Message)
 		} else {
-			logger.Infof("make unsigned tx: %s succeeded, response: %+v", string(bytes), resp)
+			logger.Infof("make unsigned tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -300,12 +312,10 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 ) (resp *rpcpb.MakeSplitAddrTxResp, err error) {
 
 	defer func() {
-		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned split addr tx: %s error: %s", string(bytes), resp.Message)
+			logger.Warnf("make unsigned split addr tx: %s error: %s", tolog(req, 1024), resp.Message)
 		} else {
-			logger.Infof("make unsigned split addr tx: %s succeeded, response: %+v",
-				string(bytes), resp)
+			logger.Infof("make unsigned split addr tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
 		}
 	}()
 	//
@@ -350,12 +360,10 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	ctx context.Context, req *rpcpb.MakeTokenIssueTxReq,
 ) (resp *rpcpb.MakeTokenIssueTxResp, err error) {
 	defer func() {
-		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned token issue tx: %s error: %s", string(bytes), resp.Message)
+			logger.Warnf("make unsigned token issue tx: %s error: %s", tolog(req, 1024), resp.Message)
 		} else {
-			logger.Infof("make unsigned token issue tx: %s succeeded, response: %+v",
-				string(bytes), resp)
+			logger.Infof("make unsigned token issue tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
 		}
 	}()
 	if req.GetTag().GetDecimal() > maxDecimal {
@@ -398,13 +406,10 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 ) (resp *rpcpb.MakeTxResp, err error) {
 
 	defer func() {
-		bytes, _ := json.Marshal(req)
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned token transfer tx: %s error: %s", string(bytes),
-				resp.Message)
+			logger.Warnf("make unsigned token transfer tx: %s error: %s", tolog(req, 1024), resp.Message)
 		} else {
-			logger.Infof("make unsigned token transfer tx: %s succeeded, response: %+v",
-				string(bytes), resp)
+			logger.Infof("make unsigned token transfer tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -465,4 +470,15 @@ func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte
 		msgs = append(msgs, data)
 	}
 	return msgs, nil
+}
+
+func tolog(v interface{}, maxLen int) string {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	if len(bytes) > maxLen {
+		bytes = bytes[:maxLen]
+	}
+	return string(bytes)
 }
