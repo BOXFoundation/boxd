@@ -347,7 +347,9 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 	if len(utxos) == 0 {
 		return fmt.Errorf("no utxo to apply")
 	}
-	db.EnableBatch()
+	// db.EnableBatch()
+	batch := db.NewBatch()
+	defer batch.Close()
 	for o, u := range utxos {
 		if u == nil {
 			logger.Warnf("invalid utxo, outpoint: %s, utxoWrap: %+v", o, u)
@@ -387,17 +389,17 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 			continue
 		}
 		if u.IsSpent() {
-			db.Del(utxoKey)
+			batch.Del(utxoKey)
 		} else {
 			serialized, err := chain.SerializeUtxoWrap(u)
 			if err != nil {
 				return err
 			}
-			db.Put(utxoKey, serialized)
+			batch.Put(utxoKey, serialized)
 		}
 	}
 	// write storage
-	return db.Flush()
+	return batch.Write()
 }
 
 func isTxUtxo(scriptBytes []byte) bool {

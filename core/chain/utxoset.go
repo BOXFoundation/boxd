@@ -441,7 +441,7 @@ func DeserializeUtxoWrap(serialized []byte) (*types.UtxoWrap, error) {
 }
 
 // WriteUtxoSetToDB store utxo set to database.
-func (u *UtxoSet) WriteUtxoSetToDB(db storage.Table) error {
+func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 
 	for outpoint, utxoWrap := range u.utxoMap {
 		if utxoWrap == nil || !utxoWrap.IsModified() {

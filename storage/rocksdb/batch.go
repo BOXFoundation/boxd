@@ -17,21 +17,23 @@ type rbatch struct {
 }
 
 // put the value to entry associate with the key
-func (b *rbatch) Put(key, value []byte) {
+func (b *rbatch) Put(key, value []byte) error {
 	if b.cf != nil {
 		b.wb.PutCF(b.cf, key, value)
 	} else {
 		b.wb.Put(key, value)
 	}
+	return nil
 }
 
 // delete the entry associate with the key in the Storage
-func (b *rbatch) Del(key []byte) {
+func (b *rbatch) Del(key []byte) error {
 	if b.cf != nil {
 		b.wb.DeleteCF(b.cf, key)
 	} else {
 		b.wb.Delete(key)
 	}
+	return nil
 }
 
 // remove all the enqueued put/delete

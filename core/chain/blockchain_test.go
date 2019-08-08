@@ -235,8 +235,10 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	b0 := getTailBlock(blockChain)
 
 	b1 := nextBlockV2(b0, blockChain)
-	blockChain.db.EnableBatch()
-	defer blockChain.db.DisableBatch()
+	// blockChain.db.EnableBatch()
+	// defer blockChain.db.DisableBatch()
+	batch := blockChain.db.NewBatch()
+	defer batch.Close()
 
 	prevHash, _ := b0.Txs[0].TxHash()
 	tx := types.NewTx(0, 4455, 0).
@@ -276,10 +278,10 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	splitTxs[*splitTxHash1] = splitTx1
 	splitTxs[*splitTxHash2] = splitTx2
 
-	ensure.Nil(t, blockChain.StoreBlockWithIndex(b2, blockChain.db))
-	ensure.Nil(t, blockChain.WriteTxIndex(b2, splitTxs, blockChain.db))
-	ensure.Nil(t, blockChain.StoreSplitTxs(splitTxs, blockChain.db))
-	blockChain.db.Flush()
+	ensure.Nil(t, blockChain.StoreBlockWithIndex(b2, batch))
+	ensure.Nil(t, blockChain.WriteTxIndex(b2, splitTxs, batch))
+	ensure.Nil(t, blockChain.StoreSplitTxs(splitTxs, batch))
+	batch.Write()
 
 	// check
 	coinBaseTxHash, _ := b2.Txs[0].TxHash()
@@ -292,9 +294,9 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 		ensure.Nil(t, err)
 		ensure.DeepEqual(t, txs[i], tx)
 	}
-	ensure.Nil(t, blockChain.DelTxIndex(b2, splitTxs, blockChain.db))
-	ensure.Nil(t, blockChain.DelSplitTxs(splitTxs, blockChain.db))
-	blockChain.db.Flush()
+	ensure.Nil(t, blockChain.DelTxIndex(b2, splitTxs, batch))
+	ensure.Nil(t, blockChain.DelSplitTxs(splitTxs, batch))
+	batch.Write()
 	for _, hash := range hashes {
 		_, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
 		ensure.NotNil(t, err)

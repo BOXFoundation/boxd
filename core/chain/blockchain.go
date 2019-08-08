@@ -939,8 +939,8 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 		}
 	}
 
-	chain.db.EnableBatch()
-	defer chain.db.DisableBatch()
+	// chain.db.EnableBatch()
+	// defer chain.db.DisableBatch()
 
 	if err := chain.writeBlockToDB(block, splitTxs, utxoSet); err != nil {
 		return err
@@ -963,43 +963,46 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 
 func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, utxoSet *UtxoSet) error {
 
-	if err := chain.StoreBlockWithIndex(block, chain.db); err != nil {
+	var batch = chain.db.NewBatch()
+	defer batch.Close()
+
+	if err := chain.StoreBlockWithIndex(block, batch); err != nil {
 		return err
 	}
 
 	receipts := chain.receiptsCache[block.Header.Height]
 	if len(receipts) > 0 {
-		if err := chain.StoreReceipts(block.BlockHash(), receipts, chain.db); err != nil {
+		if err := chain.StoreReceipts(block.BlockHash(), receipts, batch); err != nil {
 			return err
 		}
 		delete(chain.receiptsCache, block.Header.Height)
 	}
 
 	// save tx index
-	if err := chain.WriteTxIndex(block, splitTxs, chain.db); err != nil {
+	if err := chain.WriteTxIndex(block, splitTxs, batch); err != nil {
 		return err
 	}
 
 	// save split tx
-	if err := chain.StoreSplitTxs(splitTxs, chain.db); err != nil {
+	if err := chain.StoreSplitTxs(splitTxs, batch); err != nil {
 		return err
 	}
 
 	// store split addr index
-	if err := chain.WriteSplitAddrIndex(block, chain.db); err != nil {
+	if err := chain.WriteSplitAddrIndex(block, batch); err != nil {
 		logger.Error(err)
 		return err
 	}
 	// save utxoset to database
-	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
+	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
 	// save current tail to database
-	if err := chain.StoreTailBlock(block, chain.db); err != nil {
+	if err := chain.StoreTailBlock(block, batch); err != nil {
 		return err
 	}
 
-	if err := chain.db.Flush(); err != nil {
+	if err := batch.Write(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Header.Height, err.Error())
 		return err
@@ -1153,8 +1156,10 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	}
 	utxoSet.ImportUtxoMap(contractUtxos)
 
-	chain.db.EnableBatch()
-	defer chain.db.DisableBatch()
+	// chain.db.EnableBatch()
+	// defer chain.db.DisableBatch()
+	batch := chain.db.NewBatch()
+	defer batch.Close()
 
 	dtt2 := time.Now().UnixNano()
 	chain.db.Del(BlockHashKey(block.Header.Height))
@@ -1162,34 +1167,34 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	// chain.filterHolder.ResetFilters(block.Height)
 	dtt3 := time.Now().UnixNano()
 	// del tx index
-	if err := chain.DelTxIndex(block, splitTxs, chain.db); err != nil {
+	if err := chain.DelTxIndex(block, splitTxs, batch); err != nil {
 		return err
 	}
 
 	// del split tx
-	if err := chain.DelSplitTxs(splitTxs, chain.db); err != nil {
+	if err := chain.DelSplitTxs(splitTxs, batch); err != nil {
 		return err
 	}
 
-	if err := chain.DeleteSplitAddrIndex(block, chain.db); err != nil {
+	if err := chain.DeleteSplitAddrIndex(block, batch); err != nil {
 		return err
 	}
 	dtt4 := time.Now().UnixNano()
-	if err := utxoSet.WriteUtxoSetToDB(chain.db); err != nil {
+	if err := utxoSet.WriteUtxoSetToDB(batch); err != nil {
 		return err
 	}
 	dtt5 := time.Now().UnixNano()
 
 	// del receipt
-	chain.db.Del(ReceiptKey(block.BlockHash()))
+	batch.Del(ReceiptKey(block.BlockHash()))
 	// store previous block as tail
 	newTail := chain.GetParentBlock(block)
-	if err := chain.StoreTailBlock(newTail, chain.db); err != nil {
+	if err := chain.StoreTailBlock(newTail, batch); err != nil {
 		logger.Error(err)
 		return err
 	}
 
-	if err := chain.db.Flush(); err != nil {
+	if err := batch.Write(); err != nil {
 		logger.Errorf("Failed to batch write block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Header.Height, err.Error())
 	}
@@ -1209,7 +1214,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 }
 
 // StoreTailBlock store tail block to db.
-func (chain *BlockChain) StoreTailBlock(block *types.Block, db storage.Table) error {
+func (chain *BlockChain) StoreTailBlock(block *types.Block, db storage.Writer) error {
 	data, err := block.Marshal()
 	if err != nil {
 		return err
@@ -1380,20 +1385,18 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		genesis.Header.UtxoRoot = *utxoRoot
 	}
 
-	chain.db.EnableBatch()
-	defer chain.db.DisableBatch()
-
-	utxoSet.WriteUtxoSetToDB(chain.db)
-	if err := chain.WriteTxIndex(&genesis, nil, chain.db); err != nil {
+	batch := chain.db.NewBatch()
+	utxoSet.WriteUtxoSetToDB(batch)
+	if err := chain.WriteTxIndex(&genesis, nil, batch); err != nil {
 		return nil, err
 	}
 	genesisBin, err := genesis.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	chain.db.Put(BlockKey(genesis.BlockHash()), genesisBin)
-	chain.db.Put(GenesisKey, genesisBin)
-	if err := chain.db.Flush(); err != nil {
+	batch.Put(BlockKey(genesis.BlockHash()), genesisBin)
+	batch.Put(GenesisKey, genesisBin)
+	if err := batch.Write(); err != nil {
 		return nil, err
 	}
 	return &genesis, nil
@@ -1580,7 +1583,7 @@ func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, he
 }
 
 // StoreBlockWithIndex store block to db in batch mod.
-func (chain *BlockChain) StoreBlockWithIndex(block *types.Block, db storage.Table) error {
+func (chain *BlockChain) StoreBlockWithIndex(block *types.Block, db storage.Writer) error {
 
 	hash := block.BlockHash()
 	db.Put(BlockHashKey(block.Header.Height), hash[:])
@@ -1609,7 +1612,7 @@ func (chain *BlockChain) RemoveBlock(block *types.Block) {
 }
 
 // StoreReceipts store receipts to db in batch mod.
-func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Table) error {
+func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Receipts, db storage.Writer) error {
 
 	data, err := receipts.Marshal()
 	if err != nil {
@@ -1669,7 +1672,7 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Blo
 // WriteTxIndex builds tx index in block
 // Save split transaction copies before and after split. The latter is needed when reverting a transaction during reorg,
 // spending from utxo/coin received at a split address
-func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Table) error {
+func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Writer) error {
 
 	allTxs := block.Txs
 	if len(block.InternalTxs) > 0 {
@@ -1695,7 +1698,7 @@ func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs map[crypto.Ha
 
 // StoreSplitTxs store split txs.
 func (chain *BlockChain) StoreSplitTxs(
-	splitTxs map[crypto.HashType]*types.Transaction, db storage.Table,
+	splitTxs map[crypto.HashType]*types.Transaction, db storage.Writer,
 ) error {
 	for hash, tx := range splitTxs {
 		txHash, err := tx.TxHash()
@@ -1715,7 +1718,7 @@ func (chain *BlockChain) StoreSplitTxs(
 // DelTxIndex deletes tx index in block
 // Delete split transaction copies saved earlier, both before and after split
 func (chain *BlockChain) DelTxIndex(
-	block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Table,
+	block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Writer,
 ) error {
 
 	allTxs := block.Txs
@@ -1738,7 +1741,7 @@ func (chain *BlockChain) DelTxIndex(
 }
 
 // DelSplitTxs del split txs.
-func (chain *BlockChain) DelSplitTxs(splitTxs map[crypto.HashType]*types.Transaction, db storage.Table) error {
+func (chain *BlockChain) DelSplitTxs(splitTxs map[crypto.HashType]*types.Transaction, db storage.Writer) error {
 	for hash, tx := range splitTxs {
 		txHash, err := tx.TxHash()
 		if err != nil {
@@ -2029,7 +2032,7 @@ func (chain *BlockChain) GetDataFromDB(key []byte) ([]byte, error) {
 }
 
 // WriteSplitAddrIndex writes split addr info index
-func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Table) error {
+func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Writer) error {
 	for _, tx := range block.Txs {
 		for i, vout := range tx.Vout {
 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)
@@ -2059,7 +2062,7 @@ func (chain *BlockChain) WriteSplitAddrIndex(block *types.Block, db storage.Tabl
 }
 
 // DeleteSplitAddrIndex remove split address index from both db and cache
-func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Table) error {
+func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Writer) error {
 	for _, tx := range block.Txs {
 		for i, vout := range tx.Vout {
 			sc := *script.NewScriptFromBytes(vout.ScriptPubKey)

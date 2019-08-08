@@ -88,17 +88,14 @@ func _TestTableBatchAndPut(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		t1.EnableBatch()
-		defer t1.DisableBatch()
+		var batch = t1.NewBatch()
 		for i := 50000; i < 150000; i++ {
 			buf := make([]byte, 4)
 			binary.LittleEndian.PutUint32(buf, uint32(i))
-			if err := t1.Put(buf, buf); err != nil {
-				t.Fatal(err)
-			}
-			if err := t1.Flush(); err != nil {
-				t.Fatal(err)
-			}
+			batch.Put(buf, buf)
+		}
+		if err := batch.Write(); err != nil {
+			t.Fatal(err)
 		}
 		wg.Done()
 	}()

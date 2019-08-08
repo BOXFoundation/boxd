@@ -57,25 +57,25 @@ func (t *rtable) NewTransaction() (tr storage.Transaction, err error) {
 	return tr, nil
 }
 
-func (t *rtable) EnableBatch() {
-	t.enableBatch = true
-	t.batch = t.NewBatch()
-}
+// func (t *rtable) EnableBatch() {
+// 	t.enableBatch = true
+// 	t.batch = t.NewBatch()
+// }
 
-// DisableBatch disable batch write.
-func (t *rtable) DisableBatch() {
-	t.sm.Lock()
-	defer t.sm.Unlock()
-	t.enableBatch = false
-	t.batch.Close()
-}
+// // DisableBatch disable batch write.
+// func (t *rtable) DisableBatch() {
+// 	t.sm.Lock()
+// 	defer t.sm.Unlock()
+// 	t.enableBatch = false
+// 	t.batch.Close()
+// }
 
-// IsInBatch indicates whether db is in batch
-func (t *rtable) IsInBatch() bool {
-	t.sm.Lock()
-	defer t.sm.Unlock()
-	return t.enableBatch
-}
+// // IsInBatch indicates whether db is in batch
+// func (t *rtable) IsInBatch() bool {
+// 	t.sm.Lock()
+// 	defer t.sm.Unlock()
+// 	return t.enableBatch
+// }
 
 // put the value to entry associate with the key
 func (t *rtable) Put(key, value []byte) (err error) {
@@ -85,13 +85,9 @@ func (t *rtable) Put(key, value []byte) (err error) {
 		}
 	}()
 
-	if t.enableBatch {
-		t.batch.Put(key, value)
-	} else {
-		t.writeLock <- struct{}{}
-		err = t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
-		<-t.writeLock
-	}
+	t.writeLock <- struct{}{}
+	err = t.rocksdb.PutCF(t.writeOptions, t.cf, key, value)
+	<-t.writeLock
 
 	return err
 }
@@ -104,32 +100,28 @@ func (t *rtable) Del(key []byte) (err error) {
 		}
 	}()
 
-	if t.enableBatch {
-		t.batch.Del(key)
-	} else {
-		t.writeLock <- struct{}{}
-		err = t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
-		<-t.writeLock
-	}
+	t.writeLock <- struct{}{}
+	err = t.rocksdb.DeleteCF(t.writeOptions, t.cf, key)
+	<-t.writeLock
 
 	return err
 }
 
 // Flush atomic writes all enqueued put/delete
-func (t *rtable) Flush() (err error) {
-	defer func() {
-		if recover() != nil {
-			err = storage.ErrDatabasePanic
-		}
-	}()
+// func (t *rtable) Flush() (err error) {
+// 	defer func() {
+// 		if recover() != nil {
+// 			err = storage.ErrDatabasePanic
+// 		}
+// 	}()
 
-	if t.enableBatch {
-		err = t.batch.Write()
-	} else {
-		err = storage.ErrOnlySupportBatchOpt
-	}
-	return err
-}
+// 	if t.enableBatch {
+// 		err = t.batch.Write()
+// 	} else {
+// 		err = storage.ErrOnlySupportBatchOpt
+// 	}
+// 	return err
+// }
 
 // return value associate with the key in the Storage
 func (t *rtable) Get(key []byte) ([]byte, error) {
