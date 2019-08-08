@@ -150,6 +150,7 @@ func (server *Server) Prepare() {
 
 	// prepare consensus.
 	server.consensus = bpos.NewBpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Bpos)
+	peer.SetMinerReader(server.consensus)
 
 	if cfg.Wallet.Enable {
 		server.wallet, _ = wallet.NewServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)

@@ -20,6 +20,8 @@ log:
 p2p:
     key_path: peer.key
     port: 19199
+    agents:
+        - "/ip4/127.0.0.1/tcp/19189/p2p/12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200

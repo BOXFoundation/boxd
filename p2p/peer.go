@@ -40,6 +40,7 @@ var (
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
+	peertype        pstore.PeerType
 	conns           *sync.Map
 	config          *Config
 	host            host.Host
@@ -52,6 +53,7 @@ type BoxPeer struct {
 	scoremgr        *ScoreManager
 	addrbook        service.Server
 	bus             eventbus.Bus
+	minerreader     service.MinerReader
 }
 
 var _ Net = (*BoxPeer)(nil) // BoxPeer implements Net interface
@@ -61,7 +63,13 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
-	boxPeer := &BoxPeer{conns: new(sync.Map), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
+	boxPeer := &BoxPeer{
+		conns:    new(sync.Map),
+		config:   config,
+		notifier: NewNotifier(),
+		proc:     proc,
+		bus:      bus,
+	}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -151,6 +159,11 @@ func saveNetworkIdentity(path string, key crypto.PrivKey) error {
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	conn := NewConn(s, p, s.Conn().RemotePeer())
+	if !conn.KeepConn() {
+		s.Close()
+		logger.Errorf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
+		return
+	}
 	conn.Loop(p.proc)
 }
 
@@ -206,6 +219,8 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 		return err
 	}
 
+	ptype, _ := p.Type(pid)
+	p.table.peerStore.Put(pid, pstore.PTypeSuf, uint8(ptype))
 	// TODO, we must consider how long the peer should be in the peerstore,
 	// PermanentAddrTTL should only be for peer configured by user.
 	// Peer that is connected or observed from other peers should have different TTL.
@@ -229,7 +244,6 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
 			return true
 		}
-		// go conn.Write(code, body)
 		go func(conn *Conn) {
 			if err := conn.Write(code, body); err != nil {
 				logger.Errorf("Failed to broadcast message to remote peer.Code: %X, Err: %v", code, err)
@@ -350,10 +364,37 @@ func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 	return pid
 }
 
-// PeerSynced get sync states of remote peers
+// PeerSynced get sync states of remote peers.
 func (p *BoxPeer) PeerSynced(peerID peer.ID) (bool, bool) {
 	val, ok := p.conns.Load(peerID)
 	return val.(*Conn).isSynced, ok
+}
+
+// SetMinerReader set minerreader.
+func (p *BoxPeer) SetMinerReader(mr service.MinerReader) {
+	p.minerreader = mr
+}
+
+// Type return returns the type corresponding to the peer id.
+// The second return value indicates skepticism about the result.
+func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
+	if util.InArray(pid, agents) {
+		return pstore.ServerPeer, true
+	}
+	miners := p.minerreader.Miners()
+	// The 0 length of miners means I am not yet able to identify
+	// myself and am therefore not eligible to join the network.
+	if len(miners) == 0 {
+		return pstore.LayfolkPeer, false
+	}
+	pretty := pid.Pretty()
+	if util.InArray(pretty, miners) {
+		return pstore.MinerPeer, true
+	}
+	if util.InArray(pretty, p.minerreader.Candidates()) {
+		return pstore.CandidatePeer, true
+	}
+	return pstore.LayfolkPeer, true
 }
 
 // UpdateSynced update peers' isSynced

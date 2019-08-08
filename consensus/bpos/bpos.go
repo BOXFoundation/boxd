@@ -194,6 +194,12 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.dynasty = dynasty
 	bpos.context.dynastyCycle = dynastyCycle
 
+	delegates, err := bpos.fetchDelegatesByHeight(bpos.chain.LongestChainHeight)
+	if err != nil {
+		return err
+	}
+	bpos.context.candidates = bpos.filterCandidates(delegates, dynasty.delegates)
+
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err
 	}
@@ -202,6 +208,20 @@ func (bpos *Bpos) run(timestamp int64) error {
 
 	logger.Infof("My turn to produce a block, time: %d", timestamp)
 	return bpos.produceBlock()
+}
+
+func (bpos *Bpos) filterCandidates(delegates []Delegate, miners []Delegate) []Delegate {
+	candidates := make([]Delegate, len(delegates)-len(miners))
+	minerPid := make(map[string]interface{}, len(miners))
+	for _, miner := range miners {
+		minerPid[miner.PeerID] = struct{}{}
+	}
+	for _, delegate := range delegates {
+		if _, ok := minerPid[delegate.PeerID]; !ok {
+			candidates = append(candidates, delegate)
+		}
+	}
+	return candidates
 }
 
 // verifyProposer check to verify if bookkeeper can mint at the timestamp
@@ -735,6 +755,23 @@ func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 		}
 		bpos.bftservice.updateEternal(block)
 	}
+}
+
+// Miners return miners.
+func (bpos *Bpos) Miners() []string {
+	if bpos.context.dynasty == nil {
+		return []string{}
+	}
+	return bpos.context.dynasty.peers
+}
+
+// Candidates return miners.
+func (bpos *Bpos) Candidates() []string {
+	candidates := make([]string, len(bpos.context.candidates))
+	for i, c := range bpos.context.candidates {
+		candidates[i] = c.PeerID
+	}
+	return candidates
 }
 
 func (bpos *Bpos) subscribe() {

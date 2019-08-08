@@ -21,7 +21,15 @@ p2p:
     address: 0.0.0.0
     port: 19139
     seeds:
-        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
+        # - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
+        - "/ip4/127.0.0.1/tcp/19189/p2p/12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA"
+
+        # - "/ip4/39.105.210.220/tcp/19009/p2p/12D3KooWPGai3zWoov6LfRLCAqqd3BDSp7i7p2wXCvpBsptMUDDS"
+        # - "/ip4/39.105.210.220/tcp/19129/p2p/12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA"
+        # - "/ip4/39.105.210.220/tcp/19139/p2p/12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi"
+        # - "/ip4/39.105.214.10/tcp/19149/p2p/12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ"
+        # - "/ip4/39.105.214.10/tcp/19159/p2p/12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P"
+        # - "/ip4/39.105.214.10/tcp/19169/p2p/12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200 
@@ -35,9 +43,9 @@ rpc:
 dpos:
     enable_mint: false
 metrics:
-    enable: false
+    enable: true
     host: http://localhost:8086
     db: box
     user: 
     password: 
-    tags: [region:us-west, host:box-6]
+    tags: [region:us-west, host:box-7]

@@ -10,11 +10,14 @@ import (
 
 // Config for peer configuration
 type Config struct {
+	Type            string        `mapstructure:"type"`
 	Magic           uint32        `mapstructure:"magic"`
 	KeyPath         string        `mapstructure:"key_path"`
 	Port            uint32        `mapstructure:"port"`
 	Address         string        `mapstructure:"address"`
 	Seeds           []string      `mapstructure:"seeds"`
+	Principals      []string      `mapstructure:"principals"`
+	Agents          []string      `mapstructure:"agents"`
 	Bucketsize      int           `mapstructure:"bucket_size"`
 	Latency         time.Duration `mapstructure:"latency"`
 	AddPeers        []string      `mapstructure:"addpeer"`

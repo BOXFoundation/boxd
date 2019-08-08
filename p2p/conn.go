@@ -14,6 +14,8 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	pq "github.com/BOXFoundation/boxd/p2p/priorityqueue"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
+	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -67,6 +69,8 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 	conn.mutex.Lock()
 	if conn.proc == nil {
 		conn.proc = goprocess.WithParent(parent)
+		ptype, _ := conn.peer.Type(conn.remotePeer)
+		conn.peer.table.peerStore.Put(conn.remotePeer, pstore.PTypeSuf, uint8(ptype))
 		conn.proc.Go(conn.loop).SetTeardown(conn.Close)
 
 		go conn.pq.Run(conn.proc, func(i interface{}) {
@@ -437,4 +441,46 @@ func (conn *Conn) checkMessage(msg *message) error {
 	}
 
 	return msg.check()
+}
+
+// KeepConn decides if the connection needs to be maintained.
+func (conn *Conn) KeepConn() bool {
+
+	// If I don't know who you are and I have an agent, then connections are not allowed.
+	remoteType, nodoubt := conn.peer.Type(conn.remotePeer)
+	if !nodoubt && len(agents) != 0 {
+		return false
+	}
+
+	// If I don't know who I am, I can't connect to layfolk peer.
+	if conn.peer.peertype == pstore.UnknownPeer {
+		pType, nodoubt := conn.peer.Type(conn.peer.id)
+		if !nodoubt {
+			if remoteType != pstore.LayfolkPeer {
+				return true
+			}
+			return false
+		}
+		conn.peer.peertype = pType
+	}
+	switch conn.peer.peertype {
+	case pstore.MinerPeer, pstore.CandidatePeer:
+		if len(agents) == 0 {
+			return true
+		}
+		if remoteType == pstore.LayfolkPeer {
+			return false
+		}
+		return true
+	case pstore.ServerPeer:
+		if len(principals) == 0 {
+			return true
+		}
+		if util.InArray(remoteType, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer}) &&
+			util.InArray(conn.remotePeer, principals) {
+			return true
+		}
+		return false
+	}
+	return true
 }
