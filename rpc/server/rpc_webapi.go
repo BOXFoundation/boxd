@@ -893,7 +893,7 @@ func ParseAddrFrom(
 	switch {
 	case sc.IsContractPubkey():
 		address, err = sc.ParseContractAddr()
-		if err == nil && address == nil {
+		if err == nil && (address == nil || len(address.Hash()) == 0) {
 			// smart contract deploy
 			from, err := sc.ParseContractFrom()
 			if err != nil {
