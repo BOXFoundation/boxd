@@ -463,10 +463,9 @@ func TestBlockProcessing(t *testing.T) {
 	logger.Infof("create a split tx. addr: %s", splitAddr)
 	// b3A
 	b3A := nextBlockWithTxs(b2, blockChain, vmTx, splitTx)
-	if err := calcRootHash(b2, b3A, blockChain); err != nil {
+	if err := calcRootHash(b2, b3A, blockChainA); err != nil {
 		t.Fatal(err)
 	}
-	b3A.Header.UtxoRoot.SetString("8b8974f4d9eef9de5a40262c42db7b3b4e82a8c0f24dc91924084a425e8d9103")
 	contractBlockHandle(t, blockChain, b2, b3A, b3, vmParam, core.ErrBlockInSideChain)
 	t.Logf("b3A block hash: %s", b3A.BlockHash())
 	t.Logf("b2 -> b3A failed: %s", core.ErrBlockInSideChain)
