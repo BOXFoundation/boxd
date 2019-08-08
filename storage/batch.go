@@ -7,10 +7,10 @@ package storage
 // Batch defines the batch of put, del operations
 type Batch interface {
 	// put the value to entry associate with the key
-	Put(key, value []byte)
+	Put(key, value []byte) error
 
 	// delete the entry associate with the key in the Storage
-	Del(key []byte)
+	Del(key []byte) error
 
 	// remove all the enqueued put/delete
 	Clear()

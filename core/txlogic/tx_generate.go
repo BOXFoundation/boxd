@@ -16,8 +16,9 @@ import (
 
 //
 var (
-	ErrInsufficientBalance = errors.New("insufficient account balance")
-	ErrInvalidArguments    = errors.New("invalid arguments")
+	ErrInsufficientBalance      = errors.New("insufficient balance")
+	ErrInsufficientTokenBalance = errors.New("insufficient token balance")
+	ErrInvalidArguments         = errors.New("invalid arguments")
 )
 
 // NewTxWithUtxos new a transaction
@@ -365,7 +366,7 @@ func MakeUnsignedTokenTransferTx(
 	}
 	ok, tokenRemain := checkTokenAmount(tid, amounts, changeAmt, utxos...)
 	if !ok {
-		return nil, 0, ErrInsufficientBalance
+		return nil, 0, ErrInsufficientTokenBalance
 	}
 	// vin
 	vins := make([]*types.TxIn, 0)
@@ -443,5 +444,5 @@ func checkTokenAmount(
 	for _, a := range amounts {
 		amount += a
 	}
-	return (amt > changeAmt && tAmt >= amount), tAmt - amount
+	return (amt >= changeAmt && tAmt >= amount), tAmt - amount
 }

@@ -121,7 +121,7 @@ func makeCoinbaseTx(parent *types.Block, block *types.Block, chain *BlockChain, 
 	nonce := statedb.GetNonce(block.Header.BookKeeper)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
 
-	return chain.MakeCoinbaseTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height)
+	return chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height, "calcBonus")
 }
 
 func makeCoinbaseTxV2(
@@ -129,8 +129,8 @@ func makeCoinbaseTxV2(
 ) (*types.Transaction, error) {
 
 	amount := CalcBlockSubsidy(block.Header.Height)
-	return chain.MakeCoinbaseTx(block.Header.BookKeeper, amount,
-		uint64(parent.Header.Height+1), block.Header.Height)
+	return chain.MakeInternalContractTx(block.Header.BookKeeper, amount,
+		uint64(parent.Header.Height+1), block.Header.Height, "calcBonus")
 }
 
 // generate a child block
@@ -235,8 +235,10 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	b0 := getTailBlock(blockChain)
 
 	b1 := nextBlockV2(b0, blockChain)
-	blockChain.db.EnableBatch()
-	defer blockChain.db.DisableBatch()
+	// blockChain.db.EnableBatch()
+	// defer blockChain.db.DisableBatch()
+	batch := blockChain.db.NewBatch()
+	defer batch.Close()
 
 	prevHash, _ := b0.Txs[0].TxHash()
 	tx := types.NewTx(0, 4455, 0).
@@ -276,10 +278,10 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	splitTxs[*splitTxHash1] = splitTx1
 	splitTxs[*splitTxHash2] = splitTx2
 
-	ensure.Nil(t, blockChain.StoreBlockWithIndex(b2, blockChain.db))
-	ensure.Nil(t, blockChain.WriteTxIndex(b2, splitTxs, blockChain.db))
-	ensure.Nil(t, blockChain.StoreSplitTxs(splitTxs, blockChain.db))
-	blockChain.db.Flush()
+	ensure.Nil(t, blockChain.StoreBlockWithIndex(b2, batch))
+	ensure.Nil(t, blockChain.WriteTxIndex(b2, splitTxs, batch))
+	ensure.Nil(t, blockChain.StoreSplitTxs(splitTxs, batch))
+	batch.Write()
 
 	// check
 	coinBaseTxHash, _ := b2.Txs[0].TxHash()
@@ -292,9 +294,9 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 		ensure.Nil(t, err)
 		ensure.DeepEqual(t, txs[i], tx)
 	}
-	ensure.Nil(t, blockChain.DelTxIndex(b2, splitTxs, blockChain.db))
-	ensure.Nil(t, blockChain.DelSplitTxs(splitTxs, blockChain.db))
-	blockChain.db.Flush()
+	ensure.Nil(t, blockChain.DelTxIndex(b2, splitTxs, batch))
+	ensure.Nil(t, blockChain.DelSplitTxs(splitTxs, batch))
+	batch.Write()
 	for _, hash := range hashes {
 		_, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
 		ensure.NotNil(t, err)
@@ -463,10 +465,9 @@ func TestBlockProcessing(t *testing.T) {
 	logger.Infof("create a split tx. addr: %s", splitAddr)
 	// b3A
 	b3A := nextBlockWithTxs(b2, blockChain, vmTx, splitTx)
-	if err := calcRootHash(b2, b3A, blockChain); err != nil {
+	if err := calcRootHash(b2, b3A, blockChainA); err != nil {
 		t.Fatal(err)
 	}
-	b3A.Header.UtxoRoot.SetString("8b8974f4d9eef9de5a40262c42db7b3b4e82a8c0f24dc91924084a425e8d9103")
 	contractBlockHandle(t, blockChain, b2, b3A, b3, vmParam, core.ErrBlockInSideChain)
 	t.Logf("b3A block hash: %s", b3A.BlockHash())
 	t.Logf("b2 -> b3A failed: %s", core.ErrBlockInSideChain)

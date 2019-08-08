@@ -42,28 +42,45 @@ func NewSectionManager(chain *BlockChain, db storage.Storage) (mgr *SectionManag
 	if mgr.db, err = db.Table(SectionTableName); err != nil {
 		return nil, err
 	}
+	d, err := db.Get(SectionKey)
+	if err != nil {
+		logger.Error(err)
+	}
+	if len(d) != 0 {
+		mgr.section = util.Uint32(d)
+		mgr.height = (mgr.section + 1) * SectionBloomBitLength
+	}
 	return mgr, nil
 }
 
 // AddBloom takes a single bloom filter and sets the corresponding bit column
 // in memory accordingly.
 func (sm *SectionManager) AddBloom(index uint32, bloom bloom.Filter) error {
+	logger.Errorf("index: %d, section: %d, height: %d", index, sm.section, sm.height)
+	sm.mtx.Lock()
+	defer sm.mtx.Unlock()
+
 	if index <= sm.height && sm.height != 0 {
 		return nil
 	}
-	if index > sm.height+1 {
-		block, err := sm.chain.LoadBlockByHeight(index - 1)
-		if err != nil {
-			return err
-		}
-		err = sm.AddBloom(index-1, block.Header.Bloom)
-		if err != nil {
-			return err
-		}
-	}
 
-	sm.mtx.Lock()
-	defer sm.mtx.Unlock()
+	if index > sm.height+1 {
+		for i := sm.height + 1; i <= index; i++ {
+			block, err := sm.chain.LoadBlockByHeight(index - 1)
+			if err != nil {
+				return err
+			}
+			if err = sm.addBloom(i, block.Header.Bloom); err != nil {
+				return err
+			}
+		}
+	} else {
+		return sm.addBloom(index, bloom)
+	}
+	return nil
+}
+
+func (sm *SectionManager) addBloom(index uint32, bloom bloom.Filter) error {
 
 	h := index
 	index = index % SectionBloomBitLength
@@ -105,6 +122,7 @@ func (sm *SectionManager) Bitset(idx uint) ([]byte, error) {
 }
 
 func (sm *SectionManager) commit() error {
+	logger.Infof("commit section manager: %d", sm.section)
 	txn, err := sm.db.NewTransaction()
 	if err != nil {
 		return err
@@ -119,10 +137,10 @@ func (sm *SectionManager) commit() error {
 		if err := txn.Put(SecBloomBitSetKey(sm.section, uint(i)), bits); err != nil {
 			return err
 		}
-		// a := [SectionBloomByteLength]byte{}
-		// if !bytes.Equal(bits, a[:]) {
-		// 	logger.Errorf("PUT: %d, section: %d", i, sm.section)
-		// }
+	}
+
+	if err = txn.Put(SectionKey, util.FromUint32(sm.section)); err != nil {
+		return err
 	}
 	return txn.Commit()
 }

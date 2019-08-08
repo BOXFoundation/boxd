@@ -50,6 +50,8 @@ contract Bonus is Permission{
     using SafeMath for uint;
 
     uint constant DYNASTY_SIZE = 15;
+    uint constant PLEDGE_THRESHOLD = 1;
+    uint constant DYNASTY_CHANGE_THRESHOLD = 2;
 
     struct Delegate {
         address addr;
@@ -63,6 +65,15 @@ contract Bonus is Permission{
     struct FrozenVote {
         uint votes;
         uint timestamp;
+    }
+
+    struct Proposal {
+        uint id;
+        uint value;
+        uint createtime;
+        address[DYNASTY_SIZE] dynasty;
+        address[] voters;
+        bool isExist;
     }
 
     Delegate[] dynasty;
@@ -81,13 +92,15 @@ contract Bonus is Permission{
 
     mapping(address => Delegate) frozenDelegate;
 
+    mapping(uint => Proposal) proposals;
+
 
     uint pledgePool;
     uint dynastyBonusPool;
     uint voteBonusPool;
 
     uint _pledge_threshold;
-    uint _dynasty_threshold;
+    uint _dynasty_change_threshold;
     uint _vote_threshold;
     uint _min_vote_bonus_limit_to_pick;
     uint _vote_frozen_block_number;
@@ -97,7 +110,7 @@ contract Bonus is Permission{
 
     constructor() public {
         _pledge_threshold = 1800000 * 10**8;
-        _dynasty_threshold = 10000;
+        _dynasty_change_threshold = 10000;
         _min_vote_bonus_limit_to_pick = 1 * 10**8;
         _vote_frozen_block_number = 2000;
         dynasty.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
@@ -152,7 +165,7 @@ contract Bonus is Permission{
 
     function pickRedeemPledge() public {
         require(frozenDelegate[msg.sender].isExist == true, "not frozen delegate node.");
-        if (block.number > ((block.number / _dynasty_threshold) + 1) * _dynasty_threshold) {
+        if (block.number > ((block.number / _dynasty_change_threshold) + 1) * _dynasty_change_threshold) {
             msg.sender.transfer(addrToDelegates[msg.sender].pledgeAmount);
             delete frozenDelegate[msg.sender];
             for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
@@ -202,7 +215,7 @@ contract Bonus is Permission{
     function execBonus() public {
         require(msg.sender == block.coinbase || msg.sender == admin, "Not enough permissions.");
         if (msg.sender == block.coinbase) {
-            require(block.number % _dynasty_threshold == 0, "Not the time to switch dynasties");
+            require((block.number+1) % _dynasty_change_threshold == 0, "Not the time to switch dynasties");
         }
 
         for(uint i = 0; i < dynasty.length; i++) {
@@ -270,6 +283,24 @@ contract Bonus is Permission{
         pledgeAddrList.length--;
     }
 
+    function addressIsInDynasty(address addr, address[DYNASTY_SIZE] addrs) internal view returns (bool) {
+        for (uint i = 0; i < DYNASTY_SIZE; i++) {
+            if (addr == addrs[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function addressIsExist(address addr, address[] addrs) internal view returns (bool) {
+        for (uint i = 0; i < addrs.length; i++) {
+            if (addr == addrs[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function quickSort(Delegate[] storage arr, uint left, uint right) internal {
         uint i = left;
         uint j = right;
@@ -322,12 +353,49 @@ contract Bonus is Permission{
         return votes[msg.sender][delegate];
     }
 
-    function setThreshold(uint threshold) public onlyAdmin {
+    function giveProposal(uint proposalID, uint value) public {
+        require(proposals[proposalID].isExist == false || (block.timestamp
+         - proposals[proposalID].createtime > 3 * 24 * 3600) , "the proposal is exist.");
+        require(addressIsInDynasty(msg.sender, proposal.dynasty) == true, "Insufficient permissions.");
+        address[DYNASTY_SIZE] memory addrs;
+        for(uint i = 0; i < dynasty.length; i++) {
+            addrs[i] = dynasty[i].addr;
+        }
+        Proposal memory proposal = Proposal(proposalID, value, block.timestamp, addrs, new address[](0), true);
+        proposals[proposalID] = proposal;
+    }
+
+    function voteProposal(uint proposalID) public {
+        Proposal storage proposal = proposals[proposalID];
+        require(proposal.isExist == true && (block.timestamp
+         - proposal.createtime <= 3 * 24 * 3600) , "the proposal is not exist.");
+        require(addressIsInDynasty(msg.sender, proposal.dynasty) == true, "Insufficient permissions.");
+        require(addressIsExist(msg.sender, proposal.voters) == false, "Repeated voting is forbidden.");
+        proposal.voters.push(msg.sender);
+        if (proposal.voters.length > 2 * DYNASTY_SIZE / 3) {
+            doProposal(proposalID);
+        }
+    }
+
+    function doProposal(uint proposalID) internal {
+        Proposal memory proposal = proposals[proposalID];
+        if (proposalID == PLEDGE_THRESHOLD) {
+            setPledgeThreshold(proposal.value);
+        } else if (proposalID == DYNASTY_CHANGE_THRESHOLD) {
+            setDynastyThreshold(proposal.value);
+        }
+    }
+
+    function setPledgeThreshold(uint threshold) internal {
         _pledge_threshold = threshold;
     }
 
-    function setDynastyThreshold(uint dynasty_threshold) public onlyAdmin {
-        _dynasty_threshold = dynasty_threshold;
+    function getDynastyChangeThreshold() public view returns (uint) {
+        return _dynasty_change_threshold;
+    }
+
+    function setDynastyThreshold(uint dynasty_change_threshold) internal {
+        _dynasty_change_threshold = dynasty_change_threshold;
     }
 
     function setMinVoteBonusLimitToPick(uint min_vote_bonus_limit_to_pick) public onlyAdmin {

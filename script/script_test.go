@@ -388,6 +388,9 @@ func TestContractScript(t *testing.T) {
 		if err != nil {
 			continue
 		}
+		if !cs.IsContractPubkey() {
+			t.Fatal("not contract pubkey")
+		}
 		p, typ, err := cs.ParseContractParams()
 		if err != nil {
 			t.Fatal(err)

@@ -5,8 +5,10 @@
 package rocksdb
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 
 	storage "github.com/BOXFoundation/boxd/storage"
@@ -59,6 +61,54 @@ func TestTablePutGetDel(t *testing.T) {
 	t.Run("put2", dbtest.StoragePutGetDelTest(t1, []byte("tk2"), []byte("tv2")))
 	t.Run("put3", dbtest.StoragePutGetDelTest(t1, []byte("tk3"), []byte("tv3")))
 	t.Run("put4", dbtest.StoragePutGetDelTest(t1, []byte("tk4"), []byte("tv4")))
+}
+
+func _TestTableBatchAndPut(t *testing.T) {
+	dbpath, db, err := getDatabase()
+	ensure.Nil(t, err)
+	defer releaseDatabase(dbpath, db)
+
+	t1, err := db.Table("t1")
+	ensure.Nil(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		bt := t1.(*rtable).NewBatch()
+		for i := 0; i < 100000; i++ {
+			buf := make([]byte, 4)
+			binary.LittleEndian.PutUint32(buf, uint32(i))
+			bt.Put(buf, buf)
+		}
+		if err := bt.Write(); err != nil {
+			t.Fatal(err)
+		}
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		var batch = t1.NewBatch()
+		for i := 50000; i < 150000; i++ {
+			buf := make([]byte, 4)
+			binary.LittleEndian.PutUint32(buf, uint32(i))
+			batch.Put(buf, buf)
+		}
+		if err := batch.Write(); err != nil {
+			t.Fatal(err)
+		}
+		wg.Done()
+	}()
+
+	for i := 50000; i < 150000; i++ {
+		buf := make([]byte, 4)
+		binary.LittleEndian.PutUint32(buf, uint32(i))
+		if err := t1.Put(buf, buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	wg.Wait()
 }
 
 func TestTableDelNotExists(t *testing.T) {

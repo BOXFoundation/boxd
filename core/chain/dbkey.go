@@ -38,6 +38,9 @@ const (
 	// value: 4 bytes height + 4 bytes miss count + 10 bytes ts
 	MissCount = "/missrate"
 
+	// Section is the db key name of section manager's section
+	Section = "/sec"
+
 	// BlockPrefix is the key prefix of database key to store block content
 	// /bk/{hex encoded block hash}
 	// e.g.
@@ -130,6 +133,9 @@ var PeriodKey = []byte(Period)
 
 // MissrateKey is the db key to store bookkeeper's blocks miss rate
 var MissrateKey = []byte(MissCount)
+
+// SectionKey is the db key to store section manager's section
+var SectionKey = []byte(Section)
 
 // BlockKey returns the db key to store block content of the hash
 func BlockKey(h *crypto.HashType) []byte {

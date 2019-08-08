@@ -42,7 +42,7 @@ func (b *mbatch) realkey(key []byte) []byte {
 }
 
 // put the value to entry associate with the key
-func (b *mbatch) Put(key, value []byte) {
+func (b *mbatch) Put(key, value []byte) error {
 	b.bsm.Lock()
 	defer b.bsm.Unlock()
 
@@ -51,10 +51,11 @@ func (b *mbatch) Put(key, value []byte) {
 		k: key,
 		v: value,
 	})
+	return nil
 }
 
 // delete the entry associate with the key in the Storage
-func (b *mbatch) Del(key []byte) {
+func (b *mbatch) Del(key []byte) error {
 	b.bsm.Lock()
 	defer b.bsm.Unlock()
 
@@ -63,6 +64,7 @@ func (b *mbatch) Del(key []byte) {
 		k: key,
 		v: nil,
 	})
+	return nil
 }
 
 // remove all the enqueued put/delete
