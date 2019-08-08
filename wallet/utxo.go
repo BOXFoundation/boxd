@@ -131,13 +131,6 @@ func fetchModerateUtxos(
 	remain := amountToFetch
 	// here "remain <= amountToFetch", because remain and amountToFetch is uint64
 	for start := 0; start < len(keys) && remain <= amountToFetch; start += utxoSelUnitCnt {
-		// check utxos bound
-		if len(result) >= core.MaxUtxosInTx {
-			if amountToFetch-remain > total {
-				return result, nil
-			}
-			return nil, core.ErrUtxosOob
-		}
 		// calc start and end keys
 		end := start + utxoSelUnitCnt
 		if end > len(keys) {
@@ -167,6 +160,13 @@ func fetchModerateUtxos(
 
 		remain -= amount
 		result = append(result, selUtxos...)
+		// check utxos bound
+		if len(result) >= core.MaxUtxosInTx {
+			if amountToFetch-remain >= total {
+				return result[:core.MaxUtxosInTx], nil
+			}
+			return nil, core.ErrUtxosOob
+		}
 	}
 	if amountToFetch != math.MaxUint64 && remain > 0 && remain <= amountToFetch {
 		return nil, fmt.Errorf("amount for %d utxo %d is less than total %d wanted",
