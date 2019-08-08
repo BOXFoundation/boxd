@@ -707,13 +707,14 @@ func MakeRollbackContractUtxos(
 	balances := make(map[types.AddressHash]uint64, len(bAdd)+len(bSub))
 	um := make(types.UtxoMap)
 	height := block.Header.Height
+	tempCode, tempLimit := []byte{0, 0, 0, 0}, uint64(core.TransferGasLimit)
 	for a, v := range bAdd {
 		ah := types.NormalizeAddressHash(&a)
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a,
-				prevStateDB.GetNonce(a), types.VMVersion)
+			sc, _ := script.MakeContractScriptPubkey(&types.ZeroAddressHash, &a,
+				tempCode, 0, tempLimit, prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]
@@ -724,8 +725,8 @@ func MakeRollbackContractUtxos(
 		op := types.NewOutPoint(ah, 0)
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
-			sc := script.MakeContractUtxoScriptPubkey(&types.ZeroAddressHash, &a,
-				prevStateDB.GetNonce(a), types.VMVersion)
+			sc, _ := script.MakeContractScriptPubkey(&types.ZeroAddressHash, &a,
+				tempCode, 0, tempLimit, prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]

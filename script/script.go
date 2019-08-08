@@ -624,7 +624,7 @@ func (s *Script) IsContractPubkey() bool {
 	//			1(nonce size)+8(nonce len)+1(gasPrice size)+8(gasPrice len)+
 	//			1(gasLimit size)+8(gasLimit size)+1(version size)+4(version len)+
 	//			1/2(code size)+n(code len)+1(checksum size)+4(checksum len)
-	if len(ss) < 94 {
+	if len(ss) < 85 {
 		return false
 	}
 	if ss[0] != byte(OPCONTRACT) ||
@@ -807,23 +807,6 @@ func (s *Script) getSigOpCount() int {
 	return numSigs
 }
 
-// MakeContractUtxoScriptPubkey makes a script pubkey for contract addr utxo
-func MakeContractUtxoScriptPubkey(from, to *types.AddressHash, nonce uint64, version int32) *Script {
-	// OP_CONTRACT from contract_addr nonce gasPrice gasLimit version code checksum
-	s := NewScriptWithCap(66)
-	s.AddOperand(from[:]).
-		AddOperand(to[:]).
-		AddOperand(big.NewInt(int64(nonce)).Bytes()).
-		AddOperand(big.NewInt(0).Bytes()).
-		AddOperand(big.NewInt(0).Bytes()).
-		AddOperand(big.NewInt(int64(version)).Bytes())
-	// add checksum
-	scriptHash := crypto.Hash160(*s)
-	checksum := scriptHash[:4]
-
-	return NewScript().AddOpCode(OPCONTRACT).AddScript(s).AddOperand(checksum)
-}
-
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
 	from, to *types.AddressHash, code []byte, gasPrice, gasLimit, nonce uint64,
@@ -834,6 +817,9 @@ func MakeContractScriptPubkey(
 	if from == nil || len(code) == 0 {
 		return nil, ErrInvalidContractParams
 	}
+	if gasLimit == 0 {
+		return nil, ErrInvalidContractParams
+	}
 	overflowVal := uint64(math.MaxInt64)
 	if gasPrice > overflowVal || gasLimit > overflowVal {
 		return nil, ErrInvalidContractParams
@@ -842,7 +828,7 @@ func MakeContractScriptPubkey(
 		return nil, ErrInvalidContractParams
 	}
 	// set params
-	s := NewScriptWithCap(86 + len(code))
+	s := NewScriptWithCap(84 + len(code))
 	toHash := ZeroContractAddress
 	if to != nil {
 		toHash = *to
