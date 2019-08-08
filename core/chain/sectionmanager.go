@@ -42,12 +42,12 @@ func NewSectionManager(chain *BlockChain, db storage.Storage) (mgr *SectionManag
 	if mgr.db, err = db.Table(SectionTableName); err != nil {
 		return nil, err
 	}
-	d, err := db.Get(SectionKey)
+	d, err := mgr.db.Get(SectionKey)
 	if err != nil {
 		logger.Error(err)
 	}
 	if len(d) != 0 {
-		mgr.section = util.Uint32(d)
+		mgr.section = util.Uint32(d) + 1
 		mgr.height = (mgr.section + 1) * SectionBloomBitLength
 	}
 	return mgr, nil
@@ -56,7 +56,6 @@ func NewSectionManager(chain *BlockChain, db storage.Storage) (mgr *SectionManag
 // AddBloom takes a single bloom filter and sets the corresponding bit column
 // in memory accordingly.
 func (sm *SectionManager) AddBloom(index uint32, bloom bloom.Filter) error {
-	logger.Errorf("index: %d, section: %d, height: %d", index, sm.section, sm.height)
 	sm.mtx.Lock()
 	defer sm.mtx.Unlock()
 
