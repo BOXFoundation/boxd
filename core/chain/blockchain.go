@@ -724,17 +724,20 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		if err != nil {
 			return err
 		}
+
+		// Check contract tx from and fee
+		txOut := txlogic.GetContractVout(tx)
+		if txOut == nil {
+			continue
+		}
+
 		// Check for overflow.
 		lastTotalFees := totalFees
 		totalFees += txFee
 		if totalFees < lastTotalFees {
 			return core.ErrBadFees
 		}
-		// Check contract tx from and fee
-		txOut := txlogic.GetContractVout(tx)
-		if txOut == nil {
-			continue
-		}
+
 		// skip coinbase tx
 		if IsCoinBase(tx) {
 			continue
@@ -872,7 +875,7 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 			return err
 		}
 
-		receipts, gasUsed, gasRemainingFee, utxoTxs, err := chain.stateProcessor.Process(
+		receipts, gasUsed, _, utxoTxs, err := chain.stateProcessor.Process(
 			block, stateDB, utxoSet)
 		if err != nil {
 			logger.Error(err)
@@ -898,7 +901,7 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 				chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
 			}
 		}()
-		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, gasRemainingFee,
+		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed,
 			totalTxsFee, receipts); err != nil {
 			return err
 		}
@@ -1030,7 +1033,7 @@ func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 
 // ValidateExecuteResult validates evm execute result
 func (chain *BlockChain) ValidateExecuteResult(
-	block *types.Block, utxoTxs []*types.Transaction, usedGas, gasRemainingFee, totalTxsFee uint64,
+	block *types.Block, utxoTxs []*types.Transaction, usedGas, totalTxsFee uint64,
 	receipts types.Receipts,
 ) error {
 
@@ -1047,12 +1050,12 @@ func (chain *BlockChain) ValidateExecuteResult(
 	for _, txOut := range block.Txs[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
-	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee - gasRemainingFee
-	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height)
+	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee
+	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height)
 	if totalCoinbaseOutput != expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %v which is more than expected value %v("+
-			"totalTxsFee: %d, gas remaining: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,
-			totalTxsFee, gasRemainingFee)
+			"totalTxsFee: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,
+			totalTxsFee)
 		return core.ErrBadCoinbaseValue
 	}
 	// check receipt
