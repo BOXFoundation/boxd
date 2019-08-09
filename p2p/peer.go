@@ -381,6 +381,10 @@ func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
 	if util.InArray(pid, agents) {
 		return pstore.ServerPeer, true
 	}
+	// Need to init minerreader.
+	if p.minerreader == nil {
+		return pstore.LayfolkPeer, false
+	}
 	miners := p.minerreader.Miners()
 	// The 0 length of miners means I am not yet able to identify
 	// myself and am therefore not eligible to join the network.
