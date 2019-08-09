@@ -80,8 +80,8 @@ func UnlockAccount(addr string) *acc.Account {
 	return account
 }
 
-// MinerAccounts get miners' accounts
-func MinerAccounts(keyFiles ...string) ([]string, []*acc.Account) {
+// LoadAccounts get miners' accounts
+func LoadAccounts(keyFiles ...string) ([]string, []*acc.Account) {
 	var (
 		addrs    []string
 		accounts []*acc.Account

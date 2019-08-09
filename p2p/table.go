@@ -173,7 +173,6 @@ func (t *Table) selectTypedPeers(pt pstore.PeerType, num int) []peer.ID {
 	return peerIDs
 }
 
-// FIXME: 加对节点类型的判断
 // param: std standard deviation
 func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, layfolk bool) (peerIDs []peer.ID) {
 	// Randomly select some peer to do sync routes from the established and unconnected peers

@@ -28,12 +28,12 @@ const (
 
 func init() {
 	utils.LoadConf()
-	initAcc()
+	initPreAcc()
 }
 
-func initAcc() {
+func initPreAcc() {
 	file := utils.LocalConf.KeyDir + "pre.keystore"
-	addr, acc := utils.MinerAccounts(file)
+	addr, acc := utils.LoadAccounts(file)
 	AddrToAcc.Store(addr[0], acc[0])
 }
 

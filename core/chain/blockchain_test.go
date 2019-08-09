@@ -179,8 +179,8 @@ func TestChainTx(t *testing.T) {
 	prevHash, _ := b2.Txs[1].TxHash()
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.String(), 1000000)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 5000000))
+		AppendVout(txlogic.MakeVout(splitAddrA.String(), 100000000)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 500000000))
 	err := txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
@@ -189,8 +189,8 @@ func TestChainTx(t *testing.T) {
 	t.Logf("tx1: %s", prevHash)
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.String(), 2000000)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 3000000))
+		AppendVout(txlogic.MakeVout(splitAddrA.String(), 200000000)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 300000000))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
@@ -198,8 +198,8 @@ func TestChainTx(t *testing.T) {
 	prevHash, _ = tx.TxHash()
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.String(), 2500000)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 500000))
+		AppendVout(txlogic.MakeVout(splitAddrA.String(), 250000000)).
+		AppendVout(txlogic.MakeVout(userAddr.String(), 50000000))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
@@ -214,7 +214,7 @@ func TestChainTx(t *testing.T) {
 	balance := getBalance(userAddr.String(), blockChain.db)
 	stateBalance := blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, uint64(500000))
+	ensure.DeepEqual(t, balance, uint64(50000000))
 	// for miner
 	balance = getBalance(minerAddr.String(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
@@ -224,7 +224,7 @@ func TestChainTx(t *testing.T) {
 	balance = getBalance(splitAddrA.String(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*splitAddrA.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, uint64(5500000))
+	ensure.DeepEqual(t, balance, uint64(550000000))
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 }
 

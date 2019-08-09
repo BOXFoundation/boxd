@@ -10,12 +10,16 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	"google.golang.org/grpc"
 )
 
 type scopeValue string
@@ -37,6 +41,9 @@ var (
 	minerAddrs []string
 	minerAccs  []*acc.Account
 
+	preAddr string
+	preAcc  *acc.Account
+
 	//AddrToAcc stores addr to account
 	AddrToAcc = new(sync.Map)
 )
@@ -45,17 +52,21 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-func initMinerAcc() {
+func initAcc() {
 	minerCnt := len(utils.MinerAddrs())
-	files := make([]string, minerCnt)
+	files := make([]string, minerCnt+1)
 	for i := 0; i < minerCnt; i++ {
 		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
 	}
-	minerAddrs, minerAccs = utils.MinerAccounts(files...)
-	logger.Infof("minersAddrs: %v", minerAddrs)
+	files[minerCnt] = utils.LocalConf.KeyDir + "pre.keystore"
+	addrs, accs := utils.LoadAccounts(files...)
+	logger.Infof("init accounts: %v", addrs)
+	minerAddrs, minerAccs = addrs[:minerCnt], accs[:minerCnt]
 	for i, addr := range minerAddrs {
 		AddrToAcc.Store(addr, minerAccs[i])
 	}
+	preAddr, preAcc = addrs[minerCnt], accs[minerCnt]
+	AddrToAcc.Store(preAddr, preAcc)
 }
 
 func main() {
@@ -68,7 +79,7 @@ func main() {
 	if err := utils.LoadConf(); err != nil {
 		logger.Panic(err)
 	}
-	initMinerAcc()
+	initAcc()
 	initMinerPicker(len(minerAddrs))
 	peersAddr = utils.PeerAddrs()
 
@@ -94,6 +105,8 @@ func main() {
 		}
 		time.Sleep(3 * time.Second) // wait for 3s to let boxd started
 	}
+
+	go topupMiners()
 
 	switch scopeValue(*scope) {
 	case continueScope:
@@ -154,4 +167,55 @@ func testItems() []func() {
 	}
 
 	return items
+}
+
+func topupMiners() {
+	// quit channel
+	quitCh := make(chan os.Signal, 1)
+	signal.Notify(quitCh, os.Interrupt, os.Kill)
+	// conn
+	conn, err := grpc.Dial(peersAddr[0], grpc.WithInsecure())
+	if err != nil {
+		logger.Panic(err)
+	}
+	defer conn.Close()
+
+	t := time.NewTicker(2 * time.Second)
+	defer t.Stop()
+	minerCnt := len(utils.MinerAddrs())
+	i := 0
+	for {
+		select {
+		case <-t.C:
+			balance, err := utils.BalanceNoPanicFor(preAddr, conn)
+			if err != nil {
+				logger.Errorf("fetch balance for pre addr %s error %s", preAddr, err)
+				continue
+			}
+			minerI, minerJ := minerAddrs[i%minerCnt], minerAddrs[(i+3)%minerCnt]
+			i++
+			amount := 25 * uint64(core.DuPerBox)
+			tx, _, fee, err := rpcutil.NewTx(preAcc, []string{minerI, minerJ},
+				[]uint64{amount, amount}, conn)
+			if err != nil {
+				logger.Errorf("new tx for pre addr %s to miner %s %s error %s", preAddr,
+					minerI, minerJ, err)
+				continue
+			}
+			_, err = rpcutil.SendTransaction(conn, tx)
+			if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
+				logger.Error(err)
+				continue
+				//logger.Panic(err)
+			}
+			balance, err = utils.WaitBalanceEqual(preAddr, balance-2*amount-fee, conn,
+				10*time.Second)
+			if err != nil {
+				logger.Error(err)
+				continue
+			}
+		case <-quitCh:
+			logger.Info("quit topupMiners.")
+		}
+	}
 }

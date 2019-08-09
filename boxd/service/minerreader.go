@@ -7,6 +7,5 @@ package service
 // MinerReader reads the status information of miners and candidates during the era.
 type MinerReader interface {
 	Miners() []string
-
 	Candidates() []string
 }

@@ -49,4 +49,4 @@ metrics:
 wallet:
     enable: true
     cache_size: 512
-    utxo_cache_time: 10
+    utxo_cache_time: 1

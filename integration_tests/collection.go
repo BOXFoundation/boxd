@@ -107,7 +107,6 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		logger.Panic(err)
-		return true
 	}
 	defer conn.Close()
 	//

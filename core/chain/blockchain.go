@@ -728,14 +728,13 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		// Check contract tx from and fee
 		txOut := txlogic.GetContractVout(tx)
 		if txOut == nil {
+			// Check for overflow.
+			lastTotalFees := totalFees
+			totalFees += txFee
+			if totalFees < lastTotalFees {
+				return core.ErrBadFees
+			}
 			continue
-		}
-
-		// Check for overflow.
-		lastTotalFees := totalFees
-		totalFees += txFee
-		if totalFees < lastTotalFees {
-			return core.ErrBadFees
 		}
 
 		// skip coinbase tx
@@ -1053,8 +1052,8 @@ func (chain *BlockChain) ValidateExecuteResult(
 	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee
 	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height)
 	if totalCoinbaseOutput != expectedCoinbaseOutput {
-		logger.Errorf("coinbase transaction for block pays %v which is more than expected value %v("+
-			"totalTxsFee: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,
+		logger.Errorf("coinbase transaction for block pays %d which is not equal to"+
+			" expected value %d(totalTxsFee: %d)", totalCoinbaseOutput, expectedCoinbaseOutput,
 			totalTxsFee)
 		return core.ErrBadCoinbaseValue
 	}
