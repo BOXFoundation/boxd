@@ -50,8 +50,9 @@ service WebApi {
 
 message RegisterReq {
     uint32 type = 1;
+    uint32 cancel = 2;
     oneof info {
-        LogsReq logs_req= 2;
+        LogsReq logs_req= 3;
     }
 }
 
@@ -96,13 +97,14 @@ message ViewBlockDetailResp {
 }
 
 message ContractInfo {
-  uint32 fee = 1;
-  bool failed = 2;
-  uint64 gas_limit = 3;
-  uint64 gas_used = 4;
-  uint64 gas_price = 5;
-  uint64 nonce = 6;
-  string data = 7;
+    uint32 fee = 1;
+    bool failed = 2;
+    uint64 gas_limit = 3;
+    uint64 gas_used = 4;
+    uint64 gas_price = 5;
+    uint64 nonce = 6;
+    string data = 7;
+    repeated LogDetail logs = 8;
 }
 
 message ListenBlocksReq {

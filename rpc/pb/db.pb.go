@@ -9,8 +9,11 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -45,7 +48,7 @@ func (m *GetDatabaseKeysRequest) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return xxx_messageInfo_GetDatabaseKeysRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +116,7 @@ func (m *GetDatabaseKeysResponse) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_GetDatabaseKeysResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +182,7 @@ func (m *GetDatabaseValueRequest) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_GetDatabaseValueRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +235,7 @@ func (m *GetDatabaseValueResponse) XXX_Marshal(b []byte, deterministic bool) ([]
 		return xxx_messageInfo_GetDatabaseValueResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -361,6 +364,17 @@ type DatabaseCommandServer interface {
 	GetDatabaseValue(context.Context, *GetDatabaseValueRequest) (*GetDatabaseValueResponse, error)
 }
 
+// UnimplementedDatabaseCommandServer can be embedded to have forward compatible implementations.
+type UnimplementedDatabaseCommandServer struct {
+}
+
+func (*UnimplementedDatabaseCommandServer) GetDatabaseKeys(ctx context.Context, req *GetDatabaseKeysRequest) (*GetDatabaseKeysResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDatabaseKeys not implemented")
+}
+func (*UnimplementedDatabaseCommandServer) GetDatabaseValue(ctx context.Context, req *GetDatabaseValueRequest) (*GetDatabaseValueResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDatabaseValue not implemented")
+}
+
 func RegisterDatabaseCommandServer(s *grpc.Server, srv DatabaseCommandServer) {
 	s.RegisterService(&_DatabaseCommand_serviceDesc, srv)
 }
@@ -421,7 +435,7 @@ var _DatabaseCommand_serviceDesc = grpc.ServiceDesc{
 func (m *GetDatabaseKeysRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -429,39 +443,46 @@ func (m *GetDatabaseKeysRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetDatabaseKeysRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetDatabaseKeysRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Table) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(len(m.Table)))
-		i += copy(dAtA[i:], m.Table)
-	}
-	if len(m.Prefix) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(len(m.Prefix)))
-		i += copy(dAtA[i:], m.Prefix)
+	if m.Limit != 0 {
+		i = encodeVarintDb(dAtA, i, uint64(m.Limit))
+		i--
+		dAtA[i] = 0x20
 	}
 	if m.Skip != 0 {
-		dAtA[i] = 0x18
-		i++
 		i = encodeVarintDb(dAtA, i, uint64(m.Skip))
+		i--
+		dAtA[i] = 0x18
 	}
-	if m.Limit != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(m.Limit))
+	if len(m.Prefix) > 0 {
+		i -= len(m.Prefix)
+		copy(dAtA[i:], m.Prefix)
+		i = encodeVarintDb(dAtA, i, uint64(len(m.Prefix)))
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.Table) > 0 {
+		i -= len(m.Table)
+		copy(dAtA[i:], m.Table)
+		i = encodeVarintDb(dAtA, i, uint64(len(m.Table)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetDatabaseKeysResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -469,48 +490,48 @@ func (m *GetDatabaseKeysResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetDatabaseKeysResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetDatabaseKeysResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Code != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(m.Code))
-	}
-	if len(m.Message) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(len(m.Message)))
-		i += copy(dAtA[i:], m.Message)
-	}
-	if m.Skip != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(m.Skip))
-	}
 	if len(m.Keys) > 0 {
-		for _, s := range m.Keys {
+		for iNdEx := len(m.Keys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Keys[iNdEx])
+			copy(dAtA[i:], m.Keys[iNdEx])
+			i = encodeVarintDb(dAtA, i, uint64(len(m.Keys[iNdEx])))
+			i--
 			dAtA[i] = 0x22
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	return i, nil
+	if m.Skip != 0 {
+		i = encodeVarintDb(dAtA, i, uint64(m.Skip))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.Message) > 0 {
+		i -= len(m.Message)
+		copy(dAtA[i:], m.Message)
+		i = encodeVarintDb(dAtA, i, uint64(len(m.Message)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Code != 0 {
+		i = encodeVarintDb(dAtA, i, uint64(m.Code))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetDatabaseValueRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -518,29 +539,36 @@ func (m *GetDatabaseValueRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetDatabaseValueRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetDatabaseValueRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Table) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(len(m.Table)))
-		i += copy(dAtA[i:], m.Table)
-	}
 	if len(m.Key) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
 		i = encodeVarintDb(dAtA, i, uint64(len(m.Key)))
-		i += copy(dAtA[i:], m.Key)
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.Table) > 0 {
+		i -= len(m.Table)
+		copy(dAtA[i:], m.Table)
+		i = encodeVarintDb(dAtA, i, uint64(len(m.Table)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetDatabaseValueResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -548,38 +576,47 @@ func (m *GetDatabaseValueResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetDatabaseValueResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetDatabaseValueResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Code != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(m.Code))
+	if len(m.Value) > 0 {
+		i -= len(m.Value)
+		copy(dAtA[i:], m.Value)
+		i = encodeVarintDb(dAtA, i, uint64(len(m.Value)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if len(m.Message) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Message)
+		copy(dAtA[i:], m.Message)
 		i = encodeVarintDb(dAtA, i, uint64(len(m.Message)))
-		i += copy(dAtA[i:], m.Message)
+		i--
+		dAtA[i] = 0x12
 	}
-	if len(m.Value) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintDb(dAtA, i, uint64(len(m.Value)))
-		i += copy(dAtA[i:], m.Value)
+	if m.Code != 0 {
+		i = encodeVarintDb(dAtA, i, uint64(m.Code))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintDb(dAtA []byte, offset int, v uint64) int {
+	offset -= sovDb(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *GetDatabaseKeysRequest) Size() (n int) {
 	if m == nil {
@@ -667,14 +704,7 @@ func (m *GetDatabaseValueResponse) Size() (n int) {
 }
 
 func sovDb(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozDb(x uint64) (n int) {
 	return sovDb(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -694,7 +724,7 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -722,7 +752,7 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -732,6 +762,9 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -751,7 +784,7 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -761,6 +794,9 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -780,7 +816,7 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Skip |= (int32(b) & 0x7F) << shift
+				m.Skip |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -799,7 +835,7 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Limit |= (int32(b) & 0x7F) << shift
+				m.Limit |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -811,6 +847,9 @@ func (m *GetDatabaseKeysRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthDb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthDb
 			}
 			if (iNdEx + skippy) > l {
@@ -840,7 +879,7 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -868,7 +907,7 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Code |= (int32(b) & 0x7F) << shift
+				m.Code |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -887,7 +926,7 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -897,6 +936,9 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -916,7 +958,7 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Skip |= (int32(b) & 0x7F) << shift
+				m.Skip |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -935,7 +977,7 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -945,6 +987,9 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -957,6 +1002,9 @@ func (m *GetDatabaseKeysResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthDb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthDb
 			}
 			if (iNdEx + skippy) > l {
@@ -986,7 +1034,7 @@ func (m *GetDatabaseValueRequest) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1014,7 +1062,7 @@ func (m *GetDatabaseValueRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1024,6 +1072,9 @@ func (m *GetDatabaseValueRequest) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1043,7 +1094,7 @@ func (m *GetDatabaseValueRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1053,6 +1104,9 @@ func (m *GetDatabaseValueRequest) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1065,6 +1119,9 @@ func (m *GetDatabaseValueRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthDb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthDb
 			}
 			if (iNdEx + skippy) > l {
@@ -1094,7 +1151,7 @@ func (m *GetDatabaseValueResponse) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1122,7 +1179,7 @@ func (m *GetDatabaseValueResponse) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Code |= (int32(b) & 0x7F) << shift
+				m.Code |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1141,7 +1198,7 @@ func (m *GetDatabaseValueResponse) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1151,6 +1208,9 @@ func (m *GetDatabaseValueResponse) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1170,7 +1230,7 @@ func (m *GetDatabaseValueResponse) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1179,6 +1239,9 @@ func (m *GetDatabaseValueResponse) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthDb
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthDb
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1194,6 +1257,9 @@ func (m *GetDatabaseValueResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthDb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthDb
 			}
 			if (iNdEx + skippy) > l {
@@ -1262,8 +1328,11 @@ func skipDb(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			iNdEx += length
 			if length < 0 {
+				return 0, ErrInvalidLengthDb
+			}
+			iNdEx += length
+			if iNdEx < 0 {
 				return 0, ErrInvalidLengthDb
 			}
 			return iNdEx, nil
@@ -1294,6 +1363,9 @@ func skipDb(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthDb
+				}
 			}
 			return iNdEx, nil
 		case 4:

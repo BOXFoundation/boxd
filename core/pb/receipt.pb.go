@@ -8,6 +8,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -44,7 +45,7 @@ func (m *Receipt) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Receipt.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +124,7 @@ func (m *Receipts) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Receipts.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +173,7 @@ func (m *HashReceipt) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_HashReceipt.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -251,7 +252,7 @@ func (m *HashReceipts) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_HashReceipts.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -312,7 +313,7 @@ var fileDescriptor_ace1d6eb38fad2c8 = []byte{
 func (m *Receipt) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -320,61 +321,70 @@ func (m *Receipt) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Receipt) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Receipt) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.TxHash) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
-		i += copy(dAtA[i:], m.TxHash)
+	if len(m.Bloom) > 0 {
+		i -= len(m.Bloom)
+		copy(dAtA[i:], m.Bloom)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
+		i--
+		dAtA[i] = 0x32
 	}
-	if m.TxIndex != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+	if len(m.Logs) > 0 {
+		for iNdEx := len(m.Logs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Logs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if m.GasUsed != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
+		i--
+		dAtA[i] = 0x20
 	}
 	if m.Failed {
-		dAtA[i] = 0x18
-		i++
+		i--
 		if m.Failed {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x18
 	}
-	if m.GasUsed != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
+	if m.TxIndex != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+		i--
+		dAtA[i] = 0x10
 	}
-	if len(m.Logs) > 0 {
-		for _, msg := range m.Logs {
-			dAtA[i] = 0x2a
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
+	if len(m.TxHash) > 0 {
+		i -= len(m.TxHash)
+		copy(dAtA[i:], m.TxHash)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
+		i--
+		dAtA[i] = 0xa
 	}
-	if len(m.Bloom) > 0 {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
-		i += copy(dAtA[i:], m.Bloom)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Receipts) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -382,29 +392,36 @@ func (m *Receipts) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Receipts) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Receipts) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Receipts) > 0 {
-		for _, msg := range m.Receipts {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Receipts) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Receipts[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *HashReceipt) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -412,61 +429,70 @@ func (m *HashReceipt) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *HashReceipt) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HashReceipt) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.TxHash) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
-		i += copy(dAtA[i:], m.TxHash)
+	if len(m.Bloom) > 0 {
+		i -= len(m.Bloom)
+		copy(dAtA[i:], m.Bloom)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
+		i--
+		dAtA[i] = 0x32
 	}
-	if m.TxIndex != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+	if len(m.Logs) > 0 {
+		for iNdEx := len(m.Logs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Logs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if m.GasUsed != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
+		i--
+		dAtA[i] = 0x20
 	}
 	if m.Failed {
-		dAtA[i] = 0x18
-		i++
+		i--
 		if m.Failed {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x18
 	}
-	if m.GasUsed != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
+	if m.TxIndex != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+		i--
+		dAtA[i] = 0x10
 	}
-	if len(m.Logs) > 0 {
-		for _, msg := range m.Logs {
-			dAtA[i] = 0x2a
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
+	if len(m.TxHash) > 0 {
+		i -= len(m.TxHash)
+		copy(dAtA[i:], m.TxHash)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
+		i--
+		dAtA[i] = 0xa
 	}
-	if len(m.Bloom) > 0 {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
-		i += copy(dAtA[i:], m.Bloom)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *HashReceipts) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -474,33 +500,42 @@ func (m *HashReceipts) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *HashReceipts) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HashReceipts) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Receipts) > 0 {
-		for _, msg := range m.Receipts {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Receipts) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Receipts[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintReceipt(dAtA []byte, offset int, v uint64) int {
+	offset -= sovReceipt(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Receipt) Size() (n int) {
 	if m == nil {
@@ -597,14 +632,7 @@ func (m *HashReceipts) Size() (n int) {
 }
 
 func sovReceipt(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozReceipt(x uint64) (n int) {
 	return sovReceipt(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -624,7 +652,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -652,7 +680,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -661,6 +689,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -683,7 +714,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TxIndex |= (uint32(b) & 0x7F) << shift
+				m.TxIndex |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -702,7 +733,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= (int(b) & 0x7F) << shift
+				v |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -722,7 +753,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.GasUsed |= (uint64(b) & 0x7F) << shift
+				m.GasUsed |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -741,7 +772,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -750,6 +781,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -772,7 +806,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -781,6 +815,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -796,6 +833,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -825,7 +865,7 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -853,7 +893,7 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -862,6 +902,9 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -877,6 +920,9 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -906,7 +952,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -934,7 +980,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -943,6 +989,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -965,7 +1014,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TxIndex |= (uint32(b) & 0x7F) << shift
+				m.TxIndex |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -984,7 +1033,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= (int(b) & 0x7F) << shift
+				v |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1004,7 +1053,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.GasUsed |= (uint64(b) & 0x7F) << shift
+				m.GasUsed |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1023,7 +1072,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1032,6 +1081,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1054,7 +1106,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1063,6 +1115,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1078,6 +1133,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -1107,7 +1165,7 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1135,7 +1193,7 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1144,6 +1202,9 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1159,6 +1220,9 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -1227,8 +1291,11 @@ func skipReceipt(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			iNdEx += length
 			if length < 0 {
+				return 0, ErrInvalidLengthReceipt
+			}
+			iNdEx += length
+			if iNdEx < 0 {
 				return 0, ErrInvalidLengthReceipt
 			}
 			return iNdEx, nil
@@ -1259,6 +1326,9 @@ func skipReceipt(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthReceipt
+				}
 			}
 			return iNdEx, nil
 		case 4:
