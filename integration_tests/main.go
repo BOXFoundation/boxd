@@ -170,6 +170,11 @@ func testItems() []func() {
 }
 
 func topupMiners() {
+	defer func() {
+		if x := recover(); x != nil {
+			logger.Warn(x)
+		}
+	}()
 	// quit channel
 	quitCh := make(chan os.Signal, 1)
 	signal.Notify(quitCh, os.Interrupt, os.Kill)
@@ -208,6 +213,12 @@ func topupMiners() {
 				continue
 				//logger.Panic(err)
 			}
+			select {
+			case <-quitCh:
+				logger.Info("quit topupMiners.")
+				return
+			default:
+			}
 			balance, err = utils.WaitBalanceEqual(preAddr, balance-2*amount-fee, conn,
 				10*time.Second)
 			if err != nil {
@@ -216,6 +227,7 @@ func topupMiners() {
 			}
 		case <-quitCh:
 			logger.Info("quit topupMiners.")
+			return
 		}
 	}
 }

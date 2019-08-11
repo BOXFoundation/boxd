@@ -11,8 +11,8 @@ log:
     hooks:
         - name: filewithformatter
           options:
-              filename: box.log
-              maxlines: 100000
+              filename: box3.log
+              maxlines: 10000000
               # daily: true
               # maxsize: 10240000
               rotate: true
