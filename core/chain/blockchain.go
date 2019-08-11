@@ -842,9 +842,8 @@ func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet
 		}
 		// update statedb utxo trie
 		contractAddrB, _ := types.NewContractAddressFromHash(contractAddr[:])
-		logger.Debugf("update utxo in statedb, account: %s, utxo: %+v", contractAddrB, u)
+		logger.Debugf("update utxo in statedb, account: %s, utxo: %d", contractAddrB, u.Value())
 		if err := statedb.UpdateUtxo(*contractAddr, utxoBytes); err != nil {
-			logger.Error(err)
 			return err
 		}
 	}

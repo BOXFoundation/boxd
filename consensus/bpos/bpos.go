@@ -7,6 +7,7 @@ package bpos
 import (
 	"container/heap"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -457,6 +458,8 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 			txHash, _ := txWrap.Tx.TxHash()
 			if txlogic.HasContractVout(txWrap.Tx) {
+				spendableTxs.Store(*txHash, txWrap)
+				packedTxs = append(packedTxs, txWrap.Tx)
 				continue
 			}
 
@@ -539,6 +542,8 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64, nonce uint64) (*types.Transaction, error) {
 
 	amount := chain.CalcBlockSubsidy(block.Header.Height) + txFee
+	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
+		block.BlockHash(), block.Header.Height, amount, txFee)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
 	return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height, "calcBonus")
 }
@@ -546,8 +551,8 @@ func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txF
 func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
 
 	genesisContractBalanceOld := statedb.GetBalance(chain.ContractAddr).Uint64()
-	logger.Infof("Before execute block.statedb root: %s utxo root: %s genesis contract balance: %d block height: %d",
-		statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld, block.Header.Height)
+	logger.Infof("Before execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
+		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld)
 
 	utxoSet := chain.NewUtxoSet()
 	if err := utxoSet.LoadBlockUtxos(block, true, bpos.chain.DB()); err != nil {
@@ -558,7 +563,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
-	receipts, gasUsed, _, utxoTxs, err :=
+	receipts, gasUsed, feeUsed, utxoTxs, err :=
 		bpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
@@ -582,10 +587,12 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err != nil {
 		return err
 	}
-	logger.Infof("After execute block.statedb root: %s utxo root: %s genesis contract balance: %d block height: %d",
-		statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr).Uint64(), block.Header.Height)
-	if genesisContractBalanceOld+block.Txs[0].Vout[0].Value != statedb.GetBalance(chain.ContractAddr).Uint64() {
-		return errors.New("genesis contract state is error")
+	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
+		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr))
+	if genesisContractBalanceOld+block.Txs[0].Vout[0].Value+feeUsed != statedb.GetBalance(chain.ContractAddr).Uint64() {
+		return fmt.Errorf("genesis contract balance got wrong, previous %d, "+
+			"coinbase value: %d, fee contracts used %d, now %d in statedb", genesisContractBalanceOld,
+			block.Txs[0].Vout[0].Value, feeUsed, statedb.GetBalance(chain.ContractAddr))
 	}
 
 	bpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet

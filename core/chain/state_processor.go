@@ -43,13 +43,13 @@ func (sp *StateProcessor) Process(
 ) (types.Receipts, uint64, uint64, []*types.Transaction, error) {
 
 	var (
-		header          = block.Header
-		usedGas         = new(uint64)
-		gasRemainingFee = new(uint64)
-		receipts        types.Receipts
-		utxoTxs         []*types.Transaction
-		err             error
+		usedGas  uint64
+		feeUsed  uint64
+		receipts types.Receipts
+		utxoTxs  []*types.Transaction
+		err      error
 	)
+	header := block.Header
 	for i, tx := range block.Txs {
 		vmTx, err1 := sp.bc.ExtractVMTransactions(tx)
 		if err1 != nil {
@@ -73,7 +73,7 @@ func (sp *StateProcessor) Process(
 		} else {
 			stateDB.Prepare(*thash, *block.Hash, i)
 		}
-		receipt, gasUsedPerTx, gasRemainingFeePerTx, txs, err1 :=
+		receipt, gasUsedPerTx, _, txs, err1 :=
 			ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err1 != nil {
 			err = err1
@@ -82,8 +82,8 @@ func (sp *StateProcessor) Process(
 		if len(txs) > 0 {
 			utxoTxs = append(utxoTxs, txs...)
 		}
-		*usedGas += gasUsedPerTx
-		*gasRemainingFee += gasRemainingFeePerTx
+		usedGas += gasUsedPerTx
+		feeUsed += vmTx.GasPrice().Uint64() * gasUsedPerTx
 		receipt.WithTxIndex(uint32(i)).WithBlockHash(block.BlockHash()).
 			WithBlockHeight(block.Header.Height)
 		receipts = append(receipts, receipt)
@@ -93,7 +93,7 @@ func (sp *StateProcessor) Process(
 		return nil, 0, 0, nil, err
 	}
 
-	return receipts, *usedGas, *gasRemainingFee, utxoTxs, nil
+	return receipts, usedGas, feeUsed, utxoTxs, nil
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database

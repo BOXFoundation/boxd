@@ -494,7 +494,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 			continue
 		} else if utxoWrap.IsModified() {
 			// Serialize and store the utxo entry.
-			logger.Debugf("put utxo to db: %x, utxo wrap: %+v", *utxoKey, utxoWrap)
+			logger.Debugf("put utxo to db: %x, utxo wrap: %d", *utxoKey, utxoWrap.Value())
 			serialized, err := SerializeUtxoWrap(utxoWrap)
 			if err != nil {
 				return err
