@@ -488,7 +488,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		logger.Infof("Adding orphan block %s %d with parent %s", blockHash,
 			block.Header.Height, prevHash)
 		chain.addOrphanBlock(block, *blockHash, prevHash)
-		chain.repeatedMintCache.Add(block.Header.TimeStamp, block)
+		// chain.repeatedMintCache.Add(block.Header.TimeStamp, block)
 		height := chain.tail.Header.Height
 		if height < block.Header.Height && messageFrom != core.SyncFlag {
 			if block.Header.Height-height < Threshold {
