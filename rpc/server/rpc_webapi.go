@@ -820,15 +820,6 @@ func detailTxOut(
 			return nil, fmt.Errorf("receipt for tx %s not found", txHash)
 		}
 
-		logs := make([]*rpcpb.LogDetail, len(receipt.Logs))
-		for i, l := range receipt.Logs {
-			detail, err := l.ToProtoMessage()
-			if err != nil {
-				return nil, err
-			}
-			logs[i] = detail.(*rpcpb.LogDetail)
-		}
-
 		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
 			ContractInfo: &rpcpb.ContractInfo{
 				Fee:      uint32(receipt.GasUsed * params.GasPrice),
@@ -837,7 +828,7 @@ func detailTxOut(
 				GasUsed:  receipt.GasUsed,
 				Nonce:    params.Nonce,
 				Data:     hex.EncodeToString(params.Code),
-				Logs:     logs,
+				Logs:     rpcutil.ToPbLogs(receipt.Logs),
 			},
 		}
 		if typ == types.ContractCreationType {
