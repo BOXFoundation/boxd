@@ -679,7 +679,9 @@ func (chain *BlockChain) processOrphans(block *types.Block, messageFrom peer.ID)
 
 // GetParentBlock Finds the parent of a block. Return nil if nonexistent
 func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
-
+	if block.Hash.IsEqual(chain.genesis.BlockHash()) {
+		return chain.genesis
+	}
 	// check for genesis.
 	if block.Header.PrevBlockHash.IsEqual(chain.genesis.BlockHash()) {
 		return chain.genesis
