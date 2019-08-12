@@ -45,7 +45,6 @@ func TestMakeUnsignedTx(t *testing.T) {
         "Hash": "276abb0e0c27f6a7a9b482579dd9861deccdab04b10c4f3e117549bd6b3f5308",
         "Index": 0
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -53,22 +52,21 @@ func TestMakeUnsignedTx(t *testing.T) {
         "Hash": "18bc65f0e5c91ffef96a3e4bc923bc31a82ce58bebd05105d4074d3b7264e63f",
         "Index": 0
       },
-      "ScriptSig": "",
       "Sequence": 0
     }
   ],
   "Vout": [
     {
-      "value": 100,
-      "script_pub_key": "dqkUUFcMxzuxilH8QVPuxo0h0RBdMm6IrA=="
+      "Value": 100,
+      "ScriptPubKey": "76a91450570cc73bb18a51fc4153eec68d21d1105d326e88ac"
     },
     {
-      "value": 200,
-      "script_pub_key": "dqkUrj6W0AhljbZN1PjfLXNu28a+HDGIrA=="
+      "Value": 200,
+      "ScriptPubKey": "76a914ae3e96d008658db64dd4f8df2d736edbc6be1c3188ac"
     },
     {
-      "value": 200,
-      "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrA=="
+      "Value": 200,
+      "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
   "Data": null,
@@ -128,7 +126,6 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
         "Hash": "276abb0e0c27f6a7a9b482579dd9861deccdab04b10c4f3e117549bd6b3f5308",
         "Index": 0
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -136,17 +133,17 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
         "Hash": "18bc65f0e5c91ffef96a3e4bc923bc31a82ce58bebd05105d4074d3b7264e63f",
         "Index": 0
       },
-      "ScriptSig": "",
       "Sequence": 0
     }
   ],
   "Vout": [
     {
-      "script_pub_key": "ahSsjWfwyO2I8themQCbGrUhz8D5VRRQVwzHO7GKUfxBU+7GjSHREF0ybgQDAAAAFK4+ltAIZY22TdT43y1zbtvGvhwxBAcAAAA="
+      "Value": 0,
+      "ScriptPubKey": "6a14ac8d67f0c8ed88f2d85e99009b1ab521cfc0f9551450570cc73bb18a51fc4153eec68d21d1105d326e040300000014ae3e96d008658db64dd4f8df2d736edbc6be1c310407000000"
     },
     {
-      "value": 200,
-      "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrA=="
+      "Value": 200,
+      "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
   "Data": null,

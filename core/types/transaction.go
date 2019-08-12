@@ -6,6 +6,8 @@ package types
 
 import (
 	"bytes"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 
@@ -29,8 +31,31 @@ type TokenID OutPoint
 // TxOut defines Transaction output as corepb.TxOut
 type TxOut corepb.TxOut
 
+// MarshalJSON implements TxOut json marshaler interface
+func (txout *TxOut) MarshalJSON() ([]byte, error) {
+	out := struct {
+		Value        uint64
+		ScriptPubKey string
+	}{
+		txout.Value,
+		hex.EncodeToString(txout.ScriptPubKey),
+	}
+	return json.Marshal(out)
+}
+
 // Data defines transaction payload as corepb.Data
 type Data corepb.Data
+
+// NewData news a Data instance
+func NewData(typ int32, data []byte) *Data {
+	return &Data{Type: typ, Content: data}
+}
+
+// MarshalJSON implements Data json marshaler interface
+func (data *Data) MarshalJSON() ([]byte, error) {
+	td := struct{ Type int32 }{data.Type}
+	return json.Marshal(td)
+}
 
 // Transaction defines a transaction.
 type Transaction struct {
@@ -176,6 +201,18 @@ var _ conv.Serializable = (*OutPoint)(nil)
 func (txin *TxIn) String() string {
 	return fmt.Sprintf("{PrevOutPoint: %s, ScriptSig: %x, Sequence: %d}",
 		txin.PrevOutPoint, txin.ScriptSig, txin.Sequence)
+}
+
+// MarshalJSON implements TxIn json marshaler interface
+func (txin *TxIn) MarshalJSON() ([]byte, error) {
+	in := struct {
+		PrevOutPoint *OutPoint
+		Sequence     uint32
+	}{
+		&txin.PrevOutPoint,
+		txin.Sequence,
+	}
+	return json.Marshal(in)
 }
 
 // ToProtoMessage converts txin to proto message.

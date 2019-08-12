@@ -79,7 +79,6 @@ func TestMakeUnsignedTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 0
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -87,7 +86,6 @@ func TestMakeUnsignedTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 1
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -95,7 +93,6 @@ func TestMakeUnsignedTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 2
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -103,7 +100,6 @@ func TestMakeUnsignedTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 3
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -111,22 +107,21 @@ func TestMakeUnsignedTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 4
       },
-      "ScriptSig": "",
       "Sequence": 0
     }
   ],
   "Vout": [
     {
-      "value": 24000,
-      "script_pub_key": "dqkUrj6W0AhljbZN1PjfLXNu28a+HDGIrA=="
+      "Value": 24000,
+      "ScriptPubKey": "76a914ae3e96d008658db64dd4f8df2d736edbc6be1c3188ac"
     },
     {
-      "value": 38000,
-      "script_pub_key": "dqkUBks3fJVVuDpD0Fx3PO98OmIJFU+IrA=="
+      "Value": 38000,
+      "ScriptPubKey": "76a914064b377c9555b83a43d05c773cef7c3a6209154f88ac"
     },
     {
-      "value": 15750,
-      "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrA=="
+      "Value": 15750,
+      "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
   "Data": null,
@@ -175,7 +170,6 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 0
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -183,7 +177,6 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 1
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -191,7 +184,6 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 2
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -199,7 +191,6 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 3
       },
-      "ScriptSig": "",
       "Sequence": 0
     },
     {
@@ -207,14 +198,13 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
         "Hash": "f180242e73f4818bf6e9bea63984ff73a23349376a0b7b6ddfa85fb01df16724",
         "Index": 4
       },
-      "ScriptSig": "",
       "Sequence": 0
     }
   ],
   "Vout": [
     {
-      "value": 1208000,
-      "script_pub_key": "dqkUzoYFZ4bjQVUw+Mxzn7QUqHQ1tLaIrA=="
+      "Value": 1208000,
+      "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
   "Data": null,
