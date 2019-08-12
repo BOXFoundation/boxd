@@ -26,8 +26,11 @@ const (
 // TokenID defines token id
 type TokenID OutPoint
 
-// TxOut defines as corepb.TxOut
+// TxOut defines Transaction output as corepb.TxOut
 type TxOut corepb.TxOut
+
+// Data defines transaction payload as corepb.Data
+type Data corepb.Data
 
 // Transaction defines a transaction.
 type Transaction struct {
@@ -35,7 +38,7 @@ type Transaction struct {
 	Version  int32
 	Vin      []*TxIn
 	Vout     []*TxOut
-	Data     *corepb.Data
+	Data     *Data
 	Magic    uint32
 	LockTime int64
 }
@@ -120,7 +123,7 @@ func (tx *Transaction) AppendVout(out ...*TxOut) *Transaction {
 }
 
 // WithData sets Data to tx
-func (tx *Transaction) WithData(data *corepb.Data) *Transaction {
+func (tx *Transaction) WithData(data *Data) *Transaction {
 	tx.Data = data
 	return tx
 }
@@ -311,7 +314,7 @@ func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 		Version:  tx.Version,
 		Vin:      vins,
 		Vout:     vouts,
-		Data:     tx.Data,
+		Data:     (*corepb.Data)(tx.Data),
 		Magic:    tx.Magic,
 		LockTime: tx.LockTime,
 	}, nil
@@ -348,7 +351,7 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 			tx.Version = message.Version
 			tx.Vin = vins
 			tx.Vout = vouts
-			tx.Data = message.Data
+			tx.Data = (*Data)(message.Data)
 			tx.Magic = message.Magic
 			tx.LockTime = message.LockTime
 			return nil
@@ -412,7 +415,7 @@ func (tx *Transaction) Copy() *Transaction {
 		vout = append(vout, txOutCopy)
 	}
 
-	data := &corepb.Data{}
+	data := new(Data)
 	if tx.Data != nil {
 		data.Type = tx.Data.Type
 		copy(data.Content, tx.Data.Content)
