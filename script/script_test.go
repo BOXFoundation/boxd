@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
@@ -32,11 +31,11 @@ var (
 	vIn = []*types.TxIn{
 		txIn,
 	}
-	txOut = &corepb.TxOut{
+	txOut = &types.TxOut{
 		Value:        1,
 		ScriptPubKey: []byte{},
 	}
-	vOut = []*corepb.TxOut{txOut}
+	vOut = []*types.TxOut{txOut}
 	tx   = &types.Transaction{
 		Version:  1,
 		Vin:      vIn,

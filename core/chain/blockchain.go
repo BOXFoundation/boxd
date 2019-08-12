@@ -26,7 +26,6 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/metrics"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -1888,7 +1887,7 @@ func (chain *BlockChain) SplitBlockOutputs(block *types.Block) map[crypto.HashTy
 // return if the transaction contains split address output
 func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) bool {
 	isSplitTx := false
-	vout := make([]*corepb.TxOut, 0)
+	vout := make([]*types.TxOut, 0)
 	for _, txOut := range tx.Vout {
 		txOuts := chain.splitTxOutput(txOut)
 		vout = append(vout, txOuts...)
@@ -1906,9 +1905,9 @@ func (chain *BlockChain) splitTxOutputs(tx *types.Transaction) bool {
 }
 
 // split an output to a split address into  multiple outputs to composite addresses
-func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
+func (chain *BlockChain) splitTxOutput(txOut *types.TxOut) []*types.TxOut {
 	// return the output itself if it cannot be split
-	txOuts := []*corepb.TxOut{txOut}
+	txOuts := []*types.TxOut{txOut}
 	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 	if !sc.IsPayToPubKeyHash() {
 		return txOuts
@@ -1928,7 +1927,7 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 	}
 
 	// split it
-	txOuts = make([]*corepb.TxOut, 0)
+	txOuts = make([]*types.TxOut, 0)
 	n := len(sai.addrs)
 
 	totalWeight := uint64(0)
@@ -1946,7 +1945,7 @@ func (chain *BlockChain) splitTxOutput(txOut *corepb.TxOut) []*corepb.TxOut {
 		} else {
 			totalValue += value
 		}
-		childTxOut := &corepb.TxOut{
+		childTxOut := &types.TxOut{
 			Value:        value,
 			ScriptPubKey: *script.PayToPubKeyHashScript(sai.addrs[i].Hash()),
 		}
@@ -2235,7 +2234,7 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 				Sequence:  sysmath.MaxUint32,
 			},
 		},
-		Vout: []*corepb.TxOut{vout},
+		Vout: []*types.TxOut{vout},
 	}
 	logger.Infof("CoinbaseTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
 	return tx, nil

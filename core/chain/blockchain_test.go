@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -72,14 +71,14 @@ func createSplitTx(parentTx *types.Transaction, index uint32, amount uint64) (*t
 
 	prevHash, _ := parentTx.TxHash()
 	vIn := txlogic.MakeVin(types.NewOutPoint(prevHash, index), 0)
-	txOut := &corepb.TxOut{
+	txOut := &types.TxOut{
 		Value:        amount,
 		ScriptPubKey: *scriptPubKeyMiner,
 	}
 	splitAddrOut := txlogic.MakeSplitAddrVout(addrs, weights)
 	tx := &types.Transaction{
 		Vin:  []*types.TxIn{vIn},
-		Vout: []*corepb.TxOut{txOut, splitAddrOut},
+		Vout: []*types.TxOut{txOut, splitAddrOut},
 	}
 	if err := txlogic.SignTx(tx, privKeyMiner, pubKeyMiner); err != nil {
 		logger.Errorf("Failed to sign tx. Err: %v", err)

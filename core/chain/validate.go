@@ -349,7 +349,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 	for _, txOut := range tx.Vout {
 		totalOutputAmount += txOut.Value
 		// token tx output amount
-		scriptPubKey := script.NewScriptFromBytes(txOut.GetScriptPubKey())
+		scriptPubKey := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		// do not count token issued
 		if scriptPubKey.IsTokenTransfer() {
 			// no need to check error since it will not err

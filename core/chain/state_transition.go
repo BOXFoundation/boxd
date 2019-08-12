@@ -9,7 +9,6 @@ import (
 	"math"
 	"math/big"
 
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
@@ -224,7 +223,7 @@ func (st *StateTransition) refundGas() {
 func createGasRefundUtxoTx(addrHash *types.AddressHash, value, nonce uint64) *types.Transaction {
 
 	addrScript := *script.PayToPubKeyHashScript(addrHash[:])
-	vout := &corepb.TxOut{
+	vout := &types.TxOut{
 		Value:        value,
 		ScriptPubKey: addrScript,
 	}

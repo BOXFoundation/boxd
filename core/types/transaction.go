@@ -26,12 +26,15 @@ const (
 // TokenID defines token id
 type TokenID OutPoint
 
+// TxOut defines as corepb.TxOut
+type TxOut corepb.TxOut
+
 // Transaction defines a transaction.
 type Transaction struct {
 	hash     *crypto.HashType
 	Version  int32
 	Vin      []*TxIn
-	Vout     []*corepb.TxOut
+	Vout     []*TxOut
 	Data     *corepb.Data
 	Magic    uint32
 	LockTime int64
@@ -75,8 +78,8 @@ func NewTx(ver int32, magic uint32, lockTime int64) *Transaction {
 }
 
 // NewTxOut generates a new TxOut
-func NewTxOut(value uint64, scriptPubKey []byte) *corepb.TxOut {
-	return &corepb.TxOut{
+func NewTxOut(value uint64, scriptPubKey []byte) *TxOut {
+	return &TxOut{
 		Value:        value,
 		ScriptPubKey: scriptPubKey,
 	}
@@ -111,7 +114,7 @@ func (tx *Transaction) AppendVin(in ...*TxIn) *Transaction {
 }
 
 // AppendVout appends a tx out to tx
-func (tx *Transaction) AppendVout(out ...*corepb.TxOut) *Transaction {
+func (tx *Transaction) AppendVout(out ...*TxOut) *Transaction {
 	tx.Vout = append(tx.Vout, out...)
 	return tx
 }
@@ -168,8 +171,8 @@ var _ conv.Serializable = (*OutPoint)(nil)
 ////////////////////////////////////////////////////////////////////////////////
 
 func (txin *TxIn) String() string {
-	return fmt.Sprintf("{PrevOutPoint: %s, ScriptSig: %s, Sequence: %d}",
-		txin.PrevOutPoint, string(txin.ScriptSig), txin.Sequence)
+	return fmt.Sprintf("{PrevOutPoint: %s, ScriptSig: %x, Sequence: %d}",
+		txin.PrevOutPoint, txin.ScriptSig, txin.Sequence)
 }
 
 // ToProtoMessage converts txin to proto message.
@@ -299,11 +302,15 @@ func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
 			vins = append(vins, vin)
 		}
 	}
+	vouts := make([]*corepb.TxOut, 0, len(tx.Vout))
+	for _, v := range tx.Vout {
+		vouts = append(vouts, (*corepb.TxOut)(v))
+	}
 
 	return &corepb.Transaction{
 		Version:  tx.Version,
 		Vin:      vins,
-		Vout:     tx.Vout,
+		Vout:     vouts,
 		Data:     tx.Data,
 		Magic:    tx.Magic,
 		LockTime: tx.LockTime,
@@ -331,12 +338,16 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 				}
 				vins = append(vins, txin)
 			}
+			vouts := make([]*TxOut, 0, len(message.Vout))
+			for _, v := range message.Vout {
+				vouts = append(vouts, (*TxOut)(v))
+			}
 
 			// fill in hash
 			tx.hash, _ = calcProtoMsgDoubleHash(message)
 			tx.Version = message.Version
 			tx.Vin = vins
-			tx.Vout = message.Vout
+			tx.Vout = vouts
 			tx.Data = message.Data
 			tx.Magic = message.Magic
 			tx.LockTime = message.LockTime
@@ -392,9 +403,9 @@ func (tx *Transaction) Copy() *Transaction {
 		vin = append(vin, txInCopy)
 	}
 
-	vout := make([]*corepb.TxOut, 0, len(tx.Vout))
+	vout := make([]*TxOut, 0, len(tx.Vout))
 	for _, txOut := range tx.Vout {
-		txOutCopy := &corepb.TxOut{
+		txOutCopy := &TxOut{
 			Value:        txOut.Value,
 			ScriptPubKey: txOut.ScriptPubKey,
 		}

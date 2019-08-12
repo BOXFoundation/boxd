@@ -170,9 +170,9 @@ func (block *Block) Copy() *Block {
 				vin[idx] = txInCopy
 			}
 
-			vout := make([]*corepb.TxOut, len(tx.Vout))
+			vout := make([]*TxOut, len(tx.Vout))
 			for idx, txOut := range tx.Vout {
-				txOutCopy := &corepb.TxOut{
+				txOutCopy := &TxOut{
 					Value:        txOut.Value,
 					ScriptPubKey: txOut.ScriptPubKey,
 				}

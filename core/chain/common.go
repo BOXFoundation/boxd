@@ -11,7 +11,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
-	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -85,7 +84,7 @@ func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, erro
 				Sequence:  math.MaxUint32,
 			},
 		},
-		Vout: []*corepb.TxOut{
+		Vout: []*types.TxOut{
 			{
 				Value:        blockReward,
 				ScriptPubKey: pkScript,

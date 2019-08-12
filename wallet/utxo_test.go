@@ -82,7 +82,7 @@ func TestSelectUtxos(t *testing.T) {
 	utxos := make([]*rpcpb.Utxo, 0)
 	values := []uint64{1, 2, 3, 4, 5, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 5, 4, 3, 2, 1}
 	for _, v := range values {
-		utxos = append(utxos, &rpcpb.Utxo{TxOut: txlogic.MakeVout("a", v)})
+		utxos = append(utxos, &rpcpb.Utxo{TxOut: (*corepb.TxOut)(txlogic.MakeVout("a", v))})
 	}
 	t.Run("t1", selUtxosTest(utxos, 10, []uint64{1, 1, 2, 2, 3, 3}))
 	t.Run("t2", selUtxosTest(utxos, 0, []uint64{}))

@@ -5,7 +5,6 @@
 package types
 
 import (
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
@@ -35,7 +34,7 @@ func NewTransaction(prevOutPoint OutPoint, value uint64, lockTime int64) *Transa
 	return &Transaction{
 		Version:  0,
 		Vin:      []*TxIn{NewTxIn(&prevOutPoint, nil, 0)},
-		Vout:     []*corepb.TxOut{NewTxOut(value, nil)},
+		Vout:     []*TxOut{NewTxOut(value, nil)},
 		Magic:    0,
 		LockTime: lockTime,
 	}

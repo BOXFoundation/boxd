@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -207,7 +206,7 @@ func createRefundTx(
 		PrevOutPoint: outPoint,
 		ScriptSig:    *script.MakeContractScriptSig(),
 	}
-	vout := &corepb.TxOut{
+	vout := &types.TxOut{
 		Value:        vmtx.Value().Uint64(),
 		ScriptPubKey: *script.PayToPubKeyHashScript(vmtx.From().Bytes()),
 	}
@@ -231,11 +230,11 @@ func makeTx(
 		logger.Errorf("outpoint hash: %v, index: %d", outPoint.Hash[:], outPoint.Index)
 		return nil, fmt.Errorf("contract utxo outpoint %+v does not exist", outPoint)
 	}
-	var vouts []*corepb.TxOut
+	var vouts []*types.TxOut
 	for i := voutBegin; i < voutEnd; i++ {
 		to := transferInfos[i].to
 		addrScript := *script.PayToPubKeyHashScript(to.Bytes())
-		vout := &corepb.TxOut{
+		vout := &types.TxOut{
 			Value:        transferInfos[i].value.Uint64(),
 			ScriptPubKey: addrScript,
 		}

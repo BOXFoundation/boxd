@@ -11,7 +11,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -154,7 +153,7 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 					Sequence:  math.MaxUint32,
 				},
 			},
-			Vout: []*corepb.TxOut{
+			Vout: []*types.TxOut{
 				{
 					Value:        value * core.DuPerBox,
 					ScriptPubKey: pkScript,

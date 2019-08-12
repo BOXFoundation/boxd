@@ -7,7 +7,6 @@ package txlogic
 import (
 	"errors"
 
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
@@ -178,7 +177,7 @@ func MakeUnsignedTx(
 	}
 
 	// vout for toAddrs
-	vouts := make([]*corepb.TxOut, 0, len(to))
+	vouts := make([]*types.TxOut, 0, len(to))
 	for i, addr := range to {
 		vouts = append(vouts, MakeVout(addr, amounts[i]))
 	}
@@ -195,7 +194,7 @@ func MakeUnsignedTx(
 }
 
 func makeUnsignedContractTx(
-	addr string, amount, changeAmt uint64, contractVout *corepb.TxOut, utxos ...*rpcpb.Utxo,
+	addr string, amount, changeAmt uint64, contractVout *types.TxOut, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
 	amounts := []uint64{amount}
@@ -374,7 +373,7 @@ func MakeUnsignedTokenTransferTx(
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout
-	vouts := make([]*corepb.TxOut, 0)
+	vouts := make([]*types.TxOut, 0)
 	for i, addr := range to {
 		o, err := MakeTokenVout(addr, tid, amounts[i])
 		if err != nil {

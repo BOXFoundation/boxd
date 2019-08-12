@@ -10,7 +10,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -189,7 +188,7 @@ func createTxWrap(tx *types.Transaction, gasPrice uint64) *types.TxWrap {
 func createTx(parentTx *types.Transaction, address string) *types.Transaction {
 	vIn := txlogic.MakeVinForTest(parentTx, 0)
 	txOut := txlogic.MakeVout(address, 1)
-	vOut := []*corepb.TxOut{txOut}
+	vOut := []*types.TxOut{txOut}
 	tx := &types.Transaction{
 		Vin:  vIn,
 		Vout: vOut,

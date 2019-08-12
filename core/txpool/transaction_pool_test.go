@@ -11,7 +11,6 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -52,11 +51,11 @@ func createChildTx(parentTx *types.Transaction) *types.Transaction {
 	vIn := []*types.TxIn{
 		txIn,
 	}
-	txOut := &corepb.TxOut{
+	txOut := &types.TxOut{
 		Value:        value,
 		ScriptPubKey: *scriptPubKey,
 	}
-	vOut := []*corepb.TxOut{txOut}
+	vOut := []*types.TxOut{txOut}
 	tx := &types.Transaction{
 		Version:  1,
 		Vin:      vIn,

@@ -15,7 +15,6 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -729,11 +728,11 @@ func detailTxIn(
 }
 
 func detailTxOut(
-	txHash *crypto.HashType, txOut *corepb.TxOut, index uint32, br ChainTxReader,
+	txHash *crypto.HashType, txOut *types.TxOut, index uint32, br ChainTxReader,
 ) (*rpcpb.TxOutDetail, error) {
 
 	detail := new(rpcpb.TxOutDetail)
-	sc := script.NewScriptFromBytes(txOut.GetScriptPubKey())
+	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 	// addr
 	addr, err := ParseAddrFrom(sc, txHash, index, br)
 	if err != nil {
@@ -840,7 +839,7 @@ func detailTxOut(
 	return detail, nil
 }
 
-func parseVoutType(txOut *corepb.TxOut) rpcpb.TxOutDetail_TxOutType {
+func parseVoutType(txOut *types.TxOut) rpcpb.TxOutDetail_TxOutType {
 	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 	if sc.IsPayToPubKeyHash() {
 		return rpcpb.TxOutDetail_pay_to_pubkey_hash

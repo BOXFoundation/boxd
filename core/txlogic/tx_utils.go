@@ -111,7 +111,7 @@ func ParseTokenAmount(spk []byte) (uint64, error) {
 }
 
 // MakeVout makes txOut
-func MakeVout(addr string, amount uint64) *corepb.TxOut {
+func MakeVout(addr string, amount uint64) *types.TxOut {
 	var address types.Address
 	if strings.HasPrefix(addr, types.AddrTypeSplitAddrPrefix) {
 		address, _ = types.NewSplitAddress(addr)
@@ -120,7 +120,7 @@ func MakeVout(addr string, amount uint64) *corepb.TxOut {
 	}
 	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
 	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
-	return &corepb.TxOut{
+	return &types.TxOut{
 		Value:        amount,
 		ScriptPubKey: addrScript,
 	}
@@ -137,13 +137,13 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 // MakeContractCreationVout makes txOut
 func MakeContractCreationVout(
 	from *types.AddressHash, amount, gas, gasPrice, nonce uint64, code []byte,
-) (*corepb.TxOut, error) {
+) (*types.TxOut, error) {
 
 	vs, err := script.MakeContractScriptPubkey(from, nil, code, gasPrice, gas, nonce, types.VMVersion)
 	if err != nil {
 		return nil, err
 	}
-	return &corepb.TxOut{
+	return &types.TxOut{
 		Value:        amount,
 		ScriptPubKey: *vs,
 	}, nil
@@ -152,7 +152,7 @@ func MakeContractCreationVout(
 // MakeContractCallVout makes txOut
 func MakeContractCallVout(
 	from, to *types.AddressHash, amount uint64, gas, gasPrice, nonce uint64, code []byte,
-) (*corepb.TxOut, error) {
+) (*types.TxOut, error) {
 
 	if to == nil {
 		return nil, errors.New("MakeContractCreationVout need contract address")
@@ -161,7 +161,7 @@ func MakeContractCallVout(
 	if err != nil {
 		return nil, err
 	}
-	return &corepb.TxOut{
+	return &types.TxOut{
 		Value:        amount,
 		ScriptPubKey: *vs,
 	}, nil
@@ -211,7 +211,7 @@ func NewIssueTokenUtxoWrap(
 	if err != nil {
 		return nil, err
 	}
-	return types.NewUtxoWrap(0, vout.GetScriptPubKey(), height), nil
+	return types.NewUtxoWrap(0, vout.ScriptPubKey, height), nil
 }
 
 // NewTokenUtxoWrap makes a UtxoWrap
@@ -222,7 +222,7 @@ func NewTokenUtxoWrap(
 	if err != nil {
 		return nil, err
 	}
-	return types.NewUtxoWrap(0, vout.GetScriptPubKey(), height), nil
+	return types.NewUtxoWrap(0, vout.ScriptPubKey, height), nil
 }
 
 // NewPbOutPoint constructs a OutPoint
@@ -313,16 +313,16 @@ func MakeIssueTokenScript(addr string, tag *rpcpb.TokenTag) ([]byte, error) {
 }
 
 // MakeIssueTokenVout make issue token vout
-func MakeIssueTokenVout(addr string, tag *rpcpb.TokenTag) (*corepb.TxOut, error) {
+func MakeIssueTokenVout(addr string, tag *rpcpb.TokenTag) (*types.TxOut, error) {
 	spk, err := MakeIssueTokenScript(addr, tag)
 	if err != nil {
 		return nil, err
 	}
-	return &corepb.TxOut{Value: 0, ScriptPubKey: spk}, nil
+	return &types.TxOut{Value: 0, ScriptPubKey: spk}, nil
 }
 
 // MakeTokenVout make token tx vout
-func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.TxOut, error) {
+func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*types.TxOut, error) {
 	address, err := types.NewAddress(addr)
 	if err != nil {
 		return nil, err
@@ -336,12 +336,12 @@ func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*corepb.
 	transferParams.Index = tokenID.Index
 	transferParams.Amount = amount
 	addrScript := *script.TransferTokenScript(addrPkh.Hash(), transferParams)
-	return &corepb.TxOut{Value: 0, ScriptPubKey: addrScript}, nil
+	return &types.TxOut{Value: 0, ScriptPubKey: addrScript}, nil
 }
 
 // MakeSplitAddrVout make split addr vout
-func MakeSplitAddrVout(addrs []types.Address, weights []uint32) *corepb.TxOut {
-	return &corepb.TxOut{
+func MakeSplitAddrVout(addrs []types.Address, weights []uint32) *types.TxOut {
+	return &types.TxOut{
 		Value:        0,
 		ScriptPubKey: *script.SplitAddrScript(addrs, weights),
 	}
@@ -465,7 +465,7 @@ func HasContractVout(tx *types.Transaction) bool {
 }
 
 // GetContractVout return contract out if tx has a vout with contract creation or call
-func GetContractVout(tx *types.Transaction) *corepb.TxOut {
+func GetContractVout(tx *types.Transaction) *types.TxOut {
 	for _, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		if sc.IsContractPubkey() {
