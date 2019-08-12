@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/abi"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -21,6 +22,12 @@ var Admin = "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
 
 // ContractAddr genesis contract address.
 var ContractAddr types.AddressHash
+
+// ContractBin genesis contract bin.
+var ContractBin []byte
+
+// ContractAbi genesis contract abi.
+var ContractAbi *abi.ABI
 
 // GenesisBlock represents genesis block.
 var GenesisBlock = types.Block{

@@ -148,6 +148,11 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		return nil, err
 	}
 
+	if err := b.LoadGenesisContract(); err != nil {
+		logger.Error("Failed to load genesis contract ", err)
+		return nil, err
+	}
+
 	if b.genesis, err = b.loadGenesis(); err != nil {
 		logger.Error("Failed to load genesis block ", err)
 		return nil, err
@@ -1311,6 +1316,23 @@ func (chain *BlockChain) ChangeNewTail(tail *types.Block) {
 	metrics.MetricsBlockTailHashGauge.Update(int64(util.HashBytes(tail.BlockHash().GetBytes())))
 }
 
+// LoadGenesisContract load genesis contract info.
+func (chain *BlockChain) LoadGenesisContract() error {
+	if ContractBin != nil && ContractAbi != nil {
+		return nil
+	}
+	bin, err := readBin(chain.cfg.ContractBinPath)
+	if err != nil {
+		return err
+	}
+	abi, err := ReadAbi(chain.cfg.ContractABIPath)
+	if err != nil {
+		return err
+	}
+	ContractBin, ContractAbi = bin, abi
+	return nil
+}
+
 func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 
 	if ok, _ := chain.db.Has(GenesisKey); ok {
@@ -1352,8 +1374,8 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	code, err := readBin(chain.cfg.ContractBinPath)
-	vmTx := types.NewVMTransaction(big.NewInt(0), big.NewInt(0), 1e8, 1, nil, types.ContractCreationType, code)
+	// code, err := readBin(chain.cfg.ContractBinPath)
+	vmTx := types.NewVMTransaction(big.NewInt(0), big.NewInt(0), 1e8, 1, nil, types.ContractCreationType, ContractBin)
 	adminAddr, err := types.NewAddress(Admin)
 	if err != nil {
 		return nil, err
