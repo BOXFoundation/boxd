@@ -235,7 +235,7 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
 	}
 
 	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) {
+	if IsCoinBase(tx) || IsDynastySwitch(tx) {
 		return nil
 	}
 
@@ -298,7 +298,7 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 	}
 
 	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) {
+	if IsCoinBase(tx) || IsDynastySwitch(tx) {
 		return nil
 	}
 
@@ -509,7 +509,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 // LoadTxUtxos loads the unspent transaction outputs related to tx
 func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 
-	if IsCoinBase(tx) {
+	if IsCoinBase(tx) || IsDynastySwitch(tx) {
 		return nil
 	}
 
