@@ -514,7 +514,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	nonce := statedb.GetNonce(block.Header.BookKeeper)
+	nonce := statedb.GetNonce(block.Header.BookKeeper) + 1
 	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTxFee, nonce)
 	if err != nil {
 		return err
@@ -545,7 +545,7 @@ func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txF
 	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
 		block.BlockHash(), block.Header.Height, amount, txFee)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height, "calcBonus")
+	return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce, block.Header.Height, "calcBonus")
 }
 
 func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
