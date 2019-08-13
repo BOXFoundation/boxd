@@ -71,21 +71,21 @@ var GenesisPeriod = []map[string]string{
 // 0.45 billion for team, unlocked in four years, 112.5 million per year.
 var tokenPreAllocation = []map[string]string{
 	{ // token for team
-		"addr":  "b1UTiZvrJMfUtcyW24viemR2dSYtkpZxouR",
+		"addr":  "b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
 		"value": "112500000",
 	},
 	{ // token for team
-		"addr":     "b1jHVRpT8WTkn5RRQYKocjvf7u7tpfFbvRs",
+		"addr":     "b1n4ffVkctWmXptM6ojVkrA3vsrtyf9nm1e",
 		"value":    "112500000",
 		"locktime": "31536000",
 	},
 	{ // token for team
-		"addr":     "b1TpriWdFvGQ4qRSvUvWvT9Eqx7dxKeAyKq",
+		"addr":     "b1nLUWNCE7s8V3uskQj2gTXbghi6RUCKAZz",
 		"value":    "112500000",
 		"locktime": "63072000",
 	},
 	{ // token for team
-		"addr":     "b1ebddZsUpng3nCKFrjdu7vGDkpUgKqDU8c",
+		"addr":     "b1pPwQFTKHwQ39P8iDwY59PGLHqpbRxDwuM",
 		"value":    "112500000",
 		"locktime": "94608000",
 	},
@@ -94,19 +94,19 @@ var tokenPreAllocation = []map[string]string{
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1qgzftUmcsnj2cXJjELAoeMY6Mxd2izeiu",
+		"addr":  "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1rXV1dcj7AnHhJCGEx7FdR5UTgPjcgAseS",
+		"addr":  "b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn",
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1fMbSSDHRLQszXucPYhNXKQ9EXScQVAdVH",
+		"addr":  "b1fJy9WSDDn1vwiDb8Cd7GiF3mPzaYFPEdy",
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1YSz8ciqPSpybTr19dnxEh7tHJLRU2z85t",
+		"addr":  "b1fNm3MuBgAKD7WwZbLZBWJ6nV2JVVcFAv7",
 		"value": "330000000",
 	},
 }
