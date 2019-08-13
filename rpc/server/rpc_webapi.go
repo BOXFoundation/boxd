@@ -24,6 +24,7 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
+	uuid "github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 )
 
@@ -45,7 +46,8 @@ type webapiServer struct {
 	TxPoolReader
 	proc goprocess.Process
 
-	endpoints map[uint32]rpcutil.Endpoint
+	endpoints      map[uint32]rpcutil.Endpoint
+	connController map[string]map[string]chan<- bool
 }
 
 // ChainTxReader defines chain tx reader interface
@@ -79,6 +81,7 @@ func newWebAPIServer(s *Server) *webapiServer {
 		TxPoolReader:     s.GetTxHandler(),
 		proc:             s.Proc(),
 		endpoints:        make(map[uint32]rpcutil.Endpoint),
+		connController:   make(map[string]map[string]chan<- bool),
 	}
 
 	if s.cfg.SubScribeBlocks {
@@ -97,6 +100,55 @@ func (s *webapiServer) Closing() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func (s *webapiServer) CloseConn(uid string) {
+	if subs, ok := s.connController[uid]; ok {
+		for _, ch := range subs {
+			if ch != nil {
+				ch <- true
+			}
+		}
+		s.connController[uid] = nil
+		delete(s.connController, uid)
+	}
+}
+
+func (s *webapiServer) subscribe(uids ...string) (string, chan bool, error) {
+	ch := make(chan bool, 1)
+	if len(uids) < 1 {
+		return "", nil, fmt.Errorf("Invalid uids")
+	}
+	connuid := uids[0]
+	var uid string
+
+	if len(uids) > 1 {
+		uid = uids[1]
+	} else {
+		uid = uuid.NewV1().String()
+	}
+
+	if subs, ok := s.connController[connuid]; ok {
+		subs[uid] = chan<- bool(ch)
+	} else {
+		subs = make(map[string]chan<- bool)
+		subs[uid] = ch
+		s.connController[connuid] = subs
+	}
+	return uid, ch, nil
+}
+
+func (s *webapiServer) Unsubscribe(connuid, uid string) {
+	logger.Debugf("Unsubscribe webapiServer connuid: %v, uid: %v", connuid, uid)
+	if subs, ok := s.connController[connuid]; ok {
+		if ch, ok := subs[uid]; ok {
+			ch <- true
+		}
+		delete(subs, uid)
+		if len(subs) == 0 {
+			delete(s.connController, connuid)
+		}
 	}
 }
 
@@ -196,7 +248,13 @@ func (s *webapiServer) ViewBlockDetail(
 func (s *webapiServer) Connect(
 	stream rpcpb.WebApi_ConnectServer,
 ) error {
-	defer logger.Info("Close the persistent conn.")
+
+	connuid := uuid.NewV1().String()
+
+	defer func() {
+		s.CloseConn(connuid)
+		logger.Info("Close the persistent conn.")
+	}()
 
 	resultCh := make(chan *rpcpb.ListenedData)
 	// register endpoints.
@@ -211,8 +269,18 @@ func (s *webapiServer) Connect(
 
 			registerReq, err := stream.Recv()
 			if err != nil {
-				logger.Error(err)
+				logger.Warn(err)
 				break
+			}
+			if registerReq.Cancel {
+				switch registerReq.Type {
+				case rpcutil.BlockEp:
+					s.unsubscribeBlockEndpoint(connuid)
+				case rpcutil.LogEp:
+					uid := registerReq.Info.(*rpcpb.RegisterReq_LogsReq).LogsReq.Uid
+					s.unsubscribeLogEndpoint(connuid, uid)
+				}
+				continue
 			}
 
 			endpoint, ok := s.endpoints[registerReq.Type]
@@ -221,11 +289,24 @@ func (s *webapiServer) Connect(
 				continue
 			}
 
+			var ch chan bool
+			var uid string
 			switch registerReq.Type {
 			case rpcutil.BlockEp:
-				go s.listenBlocks(endpoint, resultCh)
+				if _, ch, err = s.subscribeBlockEndpoint(connuid); err != nil {
+					logger.Error(err)
+					continue
+				}
+				go s.listenBlocks(endpoint, resultCh, ch)
 			case rpcutil.LogEp:
-				go s.listenLogs(registerReq.Info.(*rpcpb.RegisterReq_LogsReq), endpoint, resultCh)
+				if uid, ch, err = s.subscribeLogEndpoint(connuid); err != nil {
+					logger.Error(err)
+					continue
+				}
+				go s.listenLogs(registerReq.Info.(*rpcpb.RegisterReq_LogsReq), endpoint, resultCh, ch)
+				if err := stream.Send(&rpcpb.ListenedData{Type: rpcutil.RegisterResp, Data: &rpcpb.ListenedData_Info{Info: &rpcpb.RegisterDetails{Uid: uid}}}); err != nil {
+					logger.Warnf("Webapi send uid data error %v", err)
+				}
 			default:
 				logger.Errorf("Register type not found: %d", registerReq.Type)
 			}
@@ -247,12 +328,8 @@ func (s *webapiServer) Connect(
 	}
 }
 
-func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rpcpb.ListenedData) {
+func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rpcpb.ListenedData, cancelCh <-chan bool) {
 	logger.Info("start listen new blocks")
-	if err := s.subscribeBlockEndpoint(); err != nil {
-		logger.Error(err)
-		return
-	}
 	defer func() {
 		if err := endpoint.Unsubscribe(); err != nil {
 			logger.Error(err)
@@ -264,6 +341,12 @@ func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rp
 		exit bool
 	)
 	for {
+		select {
+		case <-cancelCh:
+			return
+		default:
+		}
+
 		if s.Closing() {
 			logger.Info("receive closing signal, exit ListenAndReadNewBlock ...")
 			return
@@ -279,6 +362,13 @@ func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rp
 		time.Sleep(100 * time.Millisecond)
 	}
 	for {
+		select {
+		case <-cancelCh:
+			logger.Info("Unsubscribe Blocks.")
+			return
+		default:
+		}
+
 		// get block
 		block := elm.Value.(*types.Block)
 
@@ -306,19 +396,16 @@ func (s *webapiServer) listenBlocks(endpoint rpcutil.Endpoint, resultCh chan *rp
 	}
 }
 
-func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint rpcutil.Endpoint, resultCh chan *rpcpb.ListenedData) error {
+func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint rpcutil.Endpoint, resultCh chan *rpcpb.ListenedData, cancelCh <-chan bool) error {
 
 	if logsreq == nil {
 		return fmt.Errorf("Invalid params")
 	}
 	req := logsreq.LogsReq
 
-	logger.Error("start listen new logs")
-	if err := s.subscribeLogEndpoint(); err != nil {
-		logger.Error(err)
-	}
+	logger.Info("start listen new logs")
 	defer func() {
-		if err := s.unsubscribeLogEndpoint(); err != nil {
+		if err := endpoint.Unsubscribe(); err != nil {
 			logger.Error(err)
 		}
 	}()
@@ -327,6 +414,12 @@ func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint r
 		exit bool
 	)
 	for {
+		select {
+		case <-cancelCh:
+			return nil
+		default:
+		}
+
 		if s.Closing() {
 			logger.Info("receive closing signal, exit ListenAndReadNewLog ...")
 			return nil
@@ -343,6 +436,11 @@ func (s *webapiServer) listenLogs(logsreq *rpcpb.RegisterReq_LogsReq, endpoint r
 	}
 
 	for {
+		select {
+		case <-cancelCh:
+			return nil
+		default:
+		}
 		// get logs
 		logs := elm.Value.(map[string][]*types.Log)
 
@@ -414,20 +512,40 @@ func (s *webapiServer) moveToNextElem(endpoint rpcutil.Endpoint, elm *list.Eleme
 	}
 }
 
-func (s *webapiServer) subscribeBlockEndpoint() error {
-	return s.endpoints[rpcutil.BlockEp].Subscribe()
+func (s *webapiServer) subscribeBlockEndpoint(connuid string) (string, chan bool, error) {
+	uid, ch, err := s.subscribe([]string{connuid, "blocks"}...)
+	if err != nil {
+		return "", nil, err
+	}
+	err = s.endpoints[rpcutil.BlockEp].Subscribe()
+	if err != nil {
+		return "", nil, err
+	}
+	return uid, ch, nil
 }
 
-func (s *webapiServer) subscribeLogEndpoint() error {
-	return s.endpoints[rpcutil.LogEp].Subscribe()
+func (s *webapiServer) subscribeLogEndpoint(connuid string) (string, chan bool, error) {
+	uid, ch, err := s.subscribe(connuid)
+	if err != nil {
+		return "", nil, err
+	}
+	err = s.endpoints[rpcutil.LogEp].Subscribe()
+	if err != nil {
+		return "", nil, err
+	}
+	return uid, ch, nil
 }
 
-func (s *webapiServer) unsubscribeBlockEndpoint() error {
-	return s.endpoints[rpcutil.BlockEp].Unsubscribe()
+func (s *webapiServer) unsubscribeBlockEndpoint(connuid string) {
+	s.Unsubscribe(connuid, "blocks")
+	// Infrequent unsubscribe
+	// return s.endpoints[rpcutil.BlockEp].Unsubscribe()
 }
 
-func (s *webapiServer) unsubscribeLogEndpoint() error {
-	return s.endpoints[rpcutil.LogEp].Unsubscribe()
+func (s *webapiServer) unsubscribeLogEndpoint(connuid, uid string) {
+	s.Unsubscribe(connuid, uid)
+	// Infrequent unsubscribe
+	// return s.endpoints[rpcutil.LogEp].Unsubscribe()
 }
 
 func newCallResp(code int32, msg string) *rpcpb.CallResp {

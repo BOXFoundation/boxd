@@ -123,13 +123,23 @@ func _TestConnect(t *testing.T) {
 	stream.Send(&rpcpb.RegisterReq{
 		Type: 0,
 	})
-	stream.Send(&rpcpb.RegisterReq{
-		Type: 1,
-		Info: &rpcpb.RegisterReq_LogsReq{LogsReq: &rpcpb.LogsReq{
-			Addresses: []string{"b5oJavkSc2MeUMUb8f51EpwfzuhkzCz5thS"},
-			Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
-		}},
-	})
+	// stream.Send(&rpcpb.RegisterReq{
+	// 	Type: 1,
+	// 	Info: &rpcpb.RegisterReq_LogsReq{LogsReq: &rpcpb.LogsReq{
+	// 		Addresses: []string{"b5oJavkSc2MeUMUb8f51EpwfzuhkzCz5thS"},
+	// 		Topics:    []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: []string{"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}}},
+	// 	}},
+	// })
+
+	// go func() {
+	// 	time.Sleep(10 * time.Second)
+	// 	logger.Errorf("cancel")
+	// 	stream.Send(&rpcpb.RegisterReq{
+	// 		Type:   0,
+	// 		Cancel: true,
+	// 	})
+	// }()
+
 	for {
 		block, err := stream.Recv()
 		if err == io.EOF {

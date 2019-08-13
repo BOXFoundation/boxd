@@ -18,6 +18,7 @@ import (
 const (
 	BlockEp uint32 = iota
 	LogEp
+	RegisterResp
 
 	newBlockMsgSize = 60
 	newLogMsgSize   = 100
@@ -76,7 +77,7 @@ func (bep *BlockEndpoint) Subscribe() error {
 		}
 	}
 	bep.subscribeCnt++
-	logger.Infof("subscribe new blocks#%d", bep.subscribeCnt)
+	logger.Warnf("subscribe new blocks#%d", bep.subscribeCnt)
 	return nil
 }
 
@@ -91,7 +92,7 @@ func (bep *BlockEndpoint) Unsubscribe() error {
 		}
 	}
 	bep.subscribeCnt--
-	logger.Infof("unsubscribe new blocks#%d", bep.subscribeCnt)
+	logger.Warnf("unsubscribe new blocks#%d", bep.subscribeCnt)
 	return nil
 }
 
@@ -155,7 +156,7 @@ func (lep *LogEndpoint) Subscribe() error {
 		}
 	}
 	lep.subscribeCnt++
-	logger.Infof("subscribe new logs#%d", lep.subscribeCnt)
+	logger.Warnf("subscribe new logs#%d", lep.subscribeCnt)
 	return nil
 }
 
@@ -170,7 +171,7 @@ func (lep *LogEndpoint) Unsubscribe() error {
 		}
 	}
 	lep.subscribeCnt--
-	logger.Infof("unsubscribe new logs#%d", lep.subscribeCnt)
+	logger.Warnf("unsubscribe new logs#%d", lep.subscribeCnt)
 	return nil
 }
 

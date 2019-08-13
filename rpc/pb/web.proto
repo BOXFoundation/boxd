@@ -50,7 +50,7 @@ service WebApi {
 
 message RegisterReq {
     uint32 type = 1;
-    uint32 cancel = 2;
+    bool cancel = 2;
     oneof info {
         LogsReq logs_req= 3;
     }
@@ -61,7 +61,12 @@ message ListenedData {
     oneof data {
         BlockDetail block = 2;
         LogDetails logs = 3;
+        RegisterDetails info = 4;
     }
+}
+
+message RegisterDetails {
+    string uid = 1;
 }
     
 message ViewTxDetailReq {
@@ -111,11 +116,12 @@ message ListenBlocksReq {
 }
 
 message LogsReq {
-    string hash = 1;
-    uint32 from = 2;
-    uint32 to = 3;
-    repeated string addresses = 4;
-    repeated topiclist topics = 5;
+    string uid = 1;
+    string hash = 2;
+    uint32 from = 3;
+    uint32 to = 4;
+    repeated string addresses = 5;
+    repeated topiclist topics = 6;
 
     message topiclist {
         repeated string topics = 1;
