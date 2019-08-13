@@ -37,6 +37,15 @@ func isNullOutPoint(outPoint *types.OutPoint) bool {
 	return outPoint.Index == math.MaxUint32 && outPoint.Hash == zeroHash
 }
 
+// IsDynastySwitch determines whether or not a transaction is a dynasty switch tx.
+func IsDynastySwitch(tx *types.Transaction) bool {
+	if len(tx.Vin) != 1 {
+		return false
+	}
+	outPoint := &tx.Vin[0].PrevOutPoint
+	return outPoint.Index == 0 && outPoint.Hash == zeroHash
+}
+
 // IsCoinBase determines whether or not a transaction is a coinbase.
 func IsCoinBase(tx *types.Transaction) bool {
 	// A coin base must only have one transaction input.

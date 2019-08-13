@@ -744,7 +744,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 
 		// skip coinbase tx
-		if IsCoinBase(tx) {
+		if IsCoinBase(tx) || IsDynastySwitch(tx) {
 			continue
 		}
 		// smart contract tx.
