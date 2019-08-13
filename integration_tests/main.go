@@ -106,12 +106,7 @@ func main() {
 		time.Sleep(3 * time.Second) // wait for 3s to let boxd started
 	}
 
-	go topupMiners()
-
 	switch scopeValue(*scope) {
-	case continueScope:
-		// print tx count per TickerDurationTxs
-		go CountGlobalTxs()
 	case voidScope:
 		logger.Info("integration run in void mode, nodes run without txs")
 		quitCh := make(chan os.Signal, 1)
@@ -119,6 +114,12 @@ func main() {
 		<-quitCh
 		logger.Info("quit integration in void mode")
 		return
+	case continueScope:
+		// print tx count per TickerDurationTxs
+		go CountGlobalTxs()
+		fallthrough
+	default:
+		go topupMiners()
 	}
 
 	var wg sync.WaitGroup
