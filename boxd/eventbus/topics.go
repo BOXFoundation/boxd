@@ -26,6 +26,9 @@ const (
 	// either chain reorg, or chain extended.
 	TopicChainUpdate = "chain:update"
 
+	// TopicInvalidTx is topic for notifying that the invalid tx when execute tx in vm.
+	TopicInvalidTx = "chain:invalid"
+
 	// TopicUtxoUpdate is topic for notifying that chain utxo is changed
 	TopicUtxoUpdate = "chain:utxoupdate"
 

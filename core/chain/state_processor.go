@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -49,22 +50,27 @@ func (sp *StateProcessor) Process(
 		err      error
 	)
 	header := block.Header
+	var invalidTx *types.Transaction
 	for i, tx := range block.Txs {
 		vmTx, err1 := sp.bc.ExtractVMTransactions(tx)
 		if err1 != nil {
 			err = err1
+			invalidTx = tx
 			break
 		}
 		if vmTx == nil {
 			continue
 		}
 		if vmTx.Nonce() != stateDB.GetNonce(*vmTx.From())+1 {
-			return nil, 0, 0, nil, fmt.Errorf("incorrect nonce(%d, %d in statedb) in tx: %s",
+			err = fmt.Errorf("incorrect nonce(%d, %d in statedb) in tx: %s",
 				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.OriginTxHash())
+			invalidTx = tx
+			break
 		}
 		thash, err1 := tx.TxHash()
 		if err1 != nil {
 			err = err1
+			invalidTx = tx
 			break
 		}
 		if block.Hash == nil {
@@ -76,6 +82,7 @@ func (sp *StateProcessor) Process(
 			ApplyTransaction(vmTx, header, sp.bc, stateDB, sp.cfg, utxoSet)
 		if err1 != nil {
 			err = err1
+			invalidTx = tx
 			break
 		}
 		if len(txs) > 0 {
@@ -89,10 +96,15 @@ func (sp *StateProcessor) Process(
 	}
 
 	if err != nil {
+		sp.notifyInvalidTx(invalidTx)
 		return nil, 0, 0, nil, err
 	}
 
 	return receipts, usedGas, feeUsed, utxoTxs, nil
+}
+
+func (sp *StateProcessor) notifyInvalidTx(tx *types.Transaction) {
+	sp.bc.bus.Publish(eventbus.TopicChainUpdate, tx, true)
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database

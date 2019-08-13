@@ -22,6 +22,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/vm"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
@@ -106,6 +107,9 @@ func (tx_pool *TransactionPool) Run() error {
 	// chain update msg
 	tx_pool.bus.SubscribeAsync(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg, true)
 
+	// chain update msg
+	tx_pool.bus.SubscribeAsync(eventbus.TopicInvalidTx, tx_pool.removeTx, true)
+
 	tx_pool.proc.Go(tx_pool.loop)
 
 	tx_pool.proc.Go(tx_pool.cleanExpiredTxsLoop)
@@ -161,6 +165,7 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 			logger.Info("Quit transaction pool loop.")
 			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
 			tx_pool.bus.Unsubscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
+			tx_pool.bus.Unsubscribe(eventbus.TopicInvalidTx, tx_pool.removeTx)
 			return
 		}
 	}
@@ -325,12 +330,20 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	var gasPrice uint64
 	if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
-		param, _, err := sc.ParseContractParams()
+		param, ty, err := sc.ParseContractParams()
 		if err != nil {
 			return err
 		}
 		if txFee != param.GasLimit*param.GasPrice {
 			return core.ErrInvalidFee
+		}
+		contractCreation := ty == types.ContractCreationType
+		gas, err := chain.IntrinsicGas(param.Code, contractCreation)
+		if err != nil {
+			return err
+		}
+		if param.GasLimit < gas {
+			return vm.ErrOutOfGas
 		}
 		gasPrice = param.GasPrice
 		// check contract tx from
