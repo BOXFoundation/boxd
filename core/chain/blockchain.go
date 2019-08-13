@@ -2209,7 +2209,7 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 	if err != nil {
 		return nil, err
 	}
-	code, err := abiObj.Pack("calcBonus")
+	code, err := abiObj.Pack(method)
 	if err != nil {
 		return nil, err
 	}
@@ -2222,13 +2222,19 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 	if err != nil {
 		return nil, err
 	}
+	var index uint32
+	if method == "calcBonus" {
+		index = sysmath.MaxUint32
+	} else {
+		index = 0
+	}
 	tx := &types.Transaction{
 		Version: 1,
 		Vin: []*types.TxIn{
 			{
 				PrevOutPoint: types.OutPoint{
 					Hash:  zeroHash,
-					Index: sysmath.MaxUint32,
+					Index: index,
 				},
 				ScriptSig: *coinbaseScriptSig,
 				Sequence:  sysmath.MaxUint32,
@@ -2236,6 +2242,6 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 		},
 		Vout: []*types.TxOut{vout},
 	}
-	logger.Infof("CoinbaseTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
+	logger.Infof("InternalContractTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
 	return tx, nil
 }
