@@ -263,9 +263,9 @@ func MakePbUtxo(op *types.OutPoint, uw *types.UtxoWrap) *rpcpb.Utxo {
 	}
 	return &rpcpb.Utxo{
 		BlockHeight: uw.Height(),
-		IsCoinbase:  uw.IsCoinBase(),
-		IsSpent:     uw.IsSpent(),
-		OutPoint:    NewPbOutPoint(&op.Hash, op.Index),
+		// IsCoinbase:  uw.IsCoinBase(),
+		IsSpent:  uw.IsSpent(),
+		OutPoint: NewPbOutPoint(&op.Hash, op.Index),
 		TxOut: &corepb.TxOut{
 			Value:        value,
 			ScriptPubKey: uw.Script(),

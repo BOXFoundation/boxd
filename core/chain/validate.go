@@ -299,16 +299,16 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 		// }
 
 		// Immature coinbase coins cannot be spent.
-		if utxo.IsCoinBase() {
-			originHeight := utxo.Height()
-			blocksSincePrev := txHeight - originHeight
-			if blocksSincePrev < CoinbaseMaturity {
-				logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
-					"at height %v before required maturity of %v blocks", txIn.PrevOutPoint,
-					originHeight, txHeight, CoinbaseMaturity)
-				return 0, core.ErrImmatureSpend
-			}
-		}
+		// if utxo.IsCoinBase() {
+		// 	originHeight := utxo.Height()
+		// 	blocksSincePrev := txHeight - originHeight
+		// 	if blocksSincePrev < CoinbaseMaturity {
+		// 		logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
+		// 			"at height %v before required maturity of %v blocks", txIn.PrevOutPoint,
+		// 			originHeight, txHeight, CoinbaseMaturity)
+		// 		return 0, core.ErrImmatureSpend
+		// 	}
+		// }
 
 		// Tx amount must be in range.
 		utxoAmount := utxo.Value()

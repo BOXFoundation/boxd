@@ -7,9 +7,7 @@ package types
 type utxoFlags uint8
 
 const (
-	coinBase utxoFlags = 1 << iota
-
-	spent
+	spent utxoFlags = 1 << iota
 
 	modified
 )
@@ -58,14 +56,14 @@ func (utxoWrap *UtxoWrap) Modified() {
 
 // IsCoinBase returns whether or not the output was contained in a coinbase
 // transaction.
-func (utxoWrap *UtxoWrap) IsCoinBase() bool {
-	return utxoWrap.flags&coinBase == coinBase
-}
+// func (utxoWrap *UtxoWrap) IsCoinBase() bool {
+// 	return utxoWrap.flags&coinBase == coinBase
+// }
 
 // SetCoinBase marks the output as coinBase.
-func (utxoWrap *UtxoWrap) SetCoinBase() {
-	utxoWrap.flags |= coinBase
-}
+// func (utxoWrap *UtxoWrap) SetCoinBase() {
+// 	utxoWrap.flags |= coinBase
+// }
 
 // IsSpent returns whether or not the output has been spent.
 func (utxoWrap *UtxoWrap) IsSpent() bool {
@@ -89,9 +87,9 @@ func (utxoWrap *UtxoWrap) Spend() {
 // UnSpend marks the output as unspent.
 func (utxoWrap *UtxoWrap) UnSpend() {
 	utxoWrap.flags = modified
-	if utxoWrap.IsCoinBase() {
-		utxoWrap.SetCoinBase()
-	}
+	// if utxoWrap.IsCoinBase() {
+	// 	utxoWrap.SetCoinBase()
+	// }
 }
 
 // Value returns the value of the output.

@@ -92,9 +92,9 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 		return core.ErrAddExistingUtxo
 	}
 	utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
-	if IsCoinBase(tx) {
-		utxoWrap.SetCoinBase()
-	}
+	// if IsCoinBase(tx) {
+	// 	utxoWrap.SetCoinBase()
+	// }
 	u.utxoMap[outPoint] = utxoWrap
 	if !txlogic.HasContractVout(tx) {
 		u.normalTxUtxoSet[outPoint] = struct{}{}
@@ -322,9 +322,9 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		// prevTx := block.Txs[txIdx]
 		prevOut := prevTx.Vout[txIn.PrevOutPoint.Index]
 		utxoWrap = types.NewUtxoWrap(prevOut.Value, prevOut.ScriptPubKey, block.Header.Height)
-		if IsCoinBase(prevTx) {
-			utxoWrap.SetCoinBase()
-		}
+		// if IsCoinBase(prevTx) {
+		// 	utxoWrap.SetCoinBase()
+		// }
 		u.utxoMap[txIn.PrevOutPoint] = utxoWrap
 	}
 	return nil
@@ -381,9 +381,9 @@ func utxoWrapHeaderCode(utxoWrap *types.UtxoWrap) (uint64, error) {
 	// encodes the height shifted over one bit and the coinbase flag in the
 	// lowest bit.
 	headerCode := uint64(utxoWrap.Height()) << 1
-	if utxoWrap.IsCoinBase() {
-		headerCode |= 0x01
-	}
+	// if utxoWrap.IsCoinBase() {
+	// 	headerCode |= 0x01
+	// }
 
 	return headerCode, nil
 }
@@ -422,7 +422,7 @@ func DeserializeUtxoWrap(serialized []byte) (*types.UtxoWrap, error) {
 		return nil, errors.New("unexpected end of data after header")
 	}
 
-	isCoinBase := code&0x01 != 0
+	// isCoinBase := code&0x01 != 0
 	blockHeight := uint32(code >> 1)
 
 	// Decode the compressed unspent transaction output.
@@ -433,9 +433,9 @@ func DeserializeUtxoWrap(serialized []byte) (*types.UtxoWrap, error) {
 	}
 
 	utxoWrap := types.NewUtxoWrap(value, pkScript, blockHeight)
-	if isCoinBase {
-		utxoWrap.SetCoinBase()
-	}
+	// if isCoinBase {
+	// 	utxoWrap.SetCoinBase()
+	// }
 
 	return utxoWrap, nil
 }
