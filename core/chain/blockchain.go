@@ -721,14 +721,29 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 	}
 
-	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
+	totalFees, err := validateBlockInputs(block, utxoSet)
+	if err != nil {
+		return err
+	}
+
+	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
+}
+
+func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 	var totalFees uint64
+	transactions := block.Txs
 	for _, tx := range transactions {
+
+		// skip coinbase tx
+		if IsCoinBase(tx) || IsDynastySwitch(tx) {
+			continue
+		}
+
 		txFee, err := ValidateTxInputs(utxoSet, tx, block.Header.Height)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		// Check contract tx from and fee
@@ -738,31 +753,26 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 			lastTotalFees := totalFees
 			totalFees += txFee
 			if totalFees < lastTotalFees {
-				return core.ErrBadFees
+				return 0, core.ErrBadFees
 			}
 			continue
 		}
 
-		// skip coinbase tx
-		if IsCoinBase(tx) || IsDynastySwitch(tx) {
-			continue
-		}
 		// smart contract tx.
 		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if txFee != param.GasLimit*param.GasPrice {
-			return core.ErrInvalidFee
+			return 0, core.ErrInvalidFee
 		}
 		if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
 			*addr.Hash160() != *param.From {
-			return fmt.Errorf("contract tx from address mismatched")
+			return 0, fmt.Errorf("contract tx from address mismatched")
 		}
 	}
-
-	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
+	return totalFees, nil
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {

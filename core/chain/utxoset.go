@@ -170,9 +170,9 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 			return core.ErrAddExistingUtxo
 		}
 		utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
-		if IsCoinBase(tx) {
-			utxoWrap.SetCoinBase()
-		}
+		// if IsCoinBase(tx) {
+		// 	utxoWrap.SetCoinBase()
+		// }
 		u.utxoMap[*outPoint] = utxoWrap
 		if !txlogic.HasContractVout(tx) {
 			u.normalTxUtxoSet[*outPoint] = struct{}{}

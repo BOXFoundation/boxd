@@ -153,7 +153,7 @@ func IsTxFinalized(tx *types.Transaction, blockHeight uint32, blockTime int64) b
 func validateBlockScripts(utxoSet *UtxoSet, block *types.Block) error {
 	var scriptItems []*ScriptItem
 
-	// Skip coinbases.
+	// Skip coinbases && dynasty switch tx
 	for _, tx := range block.Txs[1:] {
 		if IsDynastySwitch(tx) {
 			continue
