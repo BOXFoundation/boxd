@@ -9,13 +9,13 @@ It translates gRPC into RESTful JSON APIs.
 package rpcpb
 
 import (
+	"context"
 	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -551,31 +551,31 @@ func RegisterTransactionCommandHandlerClient(ctx context.Context, mux *runtime.S
 }
 
 var (
-	pattern_TransactionCommand_GetBalance_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getbalance"}, ""))
+	pattern_TransactionCommand_GetBalance_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getbalance"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_GetTokenBalance_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "gettokenbalance"}, ""))
+	pattern_TransactionCommand_GetTokenBalance_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "gettokenbalance"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_FetchUtxos_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "fetchutxos"}, ""))
+	pattern_TransactionCommand_FetchUtxos_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "fetchutxos"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_SendTransaction_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "sendtransaction"}, ""))
+	pattern_TransactionCommand_SendTransaction_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "sendtransaction"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_SendRawTransaction_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "sendrawtransaction"}, ""))
+	pattern_TransactionCommand_SendRawTransaction_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "sendrawtransaction"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_GetRawTransaction_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getrawtransaction"}, ""))
+	pattern_TransactionCommand_GetRawTransaction_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getrawtransaction"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_GetFeePrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getfeeprice"}, ""))
+	pattern_TransactionCommand_GetFeePrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "getfeeprice"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_MakeUnsignedTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "makeunsignedtx"}, ""))
+	pattern_TransactionCommand_MakeUnsignedTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "makeunsignedtx"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_MakeUnsignedSplitAddrTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "tx", "makeunsignedtx", "splitaddr"}, ""))
+	pattern_TransactionCommand_MakeUnsignedSplitAddrTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "tx", "makeunsignedtx", "splitaddr"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_MakeUnsignedTokenIssueTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "tx", "makeunsignedtx", "token", "issue"}, ""))
+	pattern_TransactionCommand_MakeUnsignedTokenIssueTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "tx", "makeunsignedtx", "token", "issue"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_MakeUnsignedTokenTransferTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "tx", "makeunsignedtx", "token", "transfer"}, ""))
+	pattern_TransactionCommand_MakeUnsignedTokenTransferTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "tx", "makeunsignedtx", "token", "transfer"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_MakeUnsignedContractTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "tx", "makeunsignedtx", "contract"}, ""))
+	pattern_TransactionCommand_MakeUnsignedContractTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "tx", "makeunsignedtx", "contract"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_TransactionCommand_MakeUnsignedCombineTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "tx", "makeunsignedtx", "combine"}, ""))
+	pattern_TransactionCommand_MakeUnsignedCombineTx_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "tx", "makeunsignedtx", "combine"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (

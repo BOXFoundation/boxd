@@ -9,13 +9,13 @@ It translates gRPC into RESTful JSON APIs.
 package rpcpb
 
 import (
+	"context"
 	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -403,23 +403,23 @@ func RegisterContorlCommandHandlerClient(ctx context.Context, mux *runtime.Serve
 }
 
 var (
-	pattern_ContorlCommand_SetDebugLevel_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "debuglevel"}, ""))
+	pattern_ContorlCommand_SetDebugLevel_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "debuglevel"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_UpdateNetworkID_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "networkid"}, ""))
+	pattern_ContorlCommand_UpdateNetworkID_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "networkid"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_GetNetworkID_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getnetwork"}, ""))
+	pattern_ContorlCommand_GetNetworkID_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getnetwork"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_AddNode_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "addnode"}, ""))
+	pattern_ContorlCommand_AddNode_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "addnode"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_GetBlockHeight_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblockheight"}, ""))
+	pattern_ContorlCommand_GetBlockHeight_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblockheight"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_GetBlockHash_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblockhash"}, ""))
+	pattern_ContorlCommand_GetBlockHash_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblockhash"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_GetBlockHeader_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblockheader"}, ""))
+	pattern_ContorlCommand_GetBlockHeader_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblockheader"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_GetBlock_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblock"}, ""))
+	pattern_ContorlCommand_GetBlock_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblock"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_ContorlCommand_GetNodeInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getnodeinfo"}, ""))
+	pattern_ContorlCommand_GetNodeInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getnodeinfo"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (
