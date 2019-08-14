@@ -26,15 +26,22 @@ const (
 	connAddr = "127.0.0.1:19111"
 )
 
+var (
+	preAddrT string
+	preAccT  *acc.Account
+)
+
 func init() {
 	utils.LoadConf()
 	initPreAcc()
 }
 
 func initPreAcc() {
-	file := utils.LocalConf.KeyDir + "pre.keystore"
+	file := utils.LocalConf.KeyDir + "pre2.keystore"
 	addr, acc := utils.LoadAccounts(file)
+	logger.Infof("init pre allocation account addr: %s", addr)
 	AddrToAcc.Store(addr[0], acc[0])
+	preAddrT, preAccT = addr[0], acc[0]
 }
 
 type makeTxResp interface {
@@ -131,7 +138,7 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 // port: 19111
 func _TestNormalTx(t *testing.T) {
 
-	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	from := preAddrT
 	to := []string{
 		//"b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn",
 		//"b1fJy9WSDDn1vwiDb8Cd7GiF3mPzaYFPEdy",
@@ -162,7 +169,7 @@ func _TestNormalTx(t *testing.T) {
 // port: 19111
 func _TestSplitAddrTx(t *testing.T) {
 
-	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	from := preAddrT
 	addrs := []string{
 		"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh",
 		"b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU",
@@ -192,7 +199,7 @@ func _TestSplitAddrTx(t *testing.T) {
 func _TestTokenTx(t *testing.T) {
 
 	// token issue
-	issuer := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	issuer := preAddrT
 	owner := issuer
 	tag := txlogic.NewTokenTag("box test token", "XOX", 4, 20000)
 	req := &rpcpb.MakeTokenIssueTxReq{
@@ -214,7 +221,7 @@ func _TestTokenTx(t *testing.T) {
 	})
 
 	// token transfer
-	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	from := preAddrT
 	to := []string{
 		"b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
 		"b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
@@ -261,7 +268,7 @@ func _TestContractTx(t *testing.T) {
 	defer conn.Close()
 
 	// contract deploy
-	from := "b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m"
+	from := preAddrT
 	req := &rpcpb.MakeContractTxReq{
 		From:     from,
 		Amount:   0,

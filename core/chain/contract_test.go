@@ -6,7 +6,6 @@ package chain
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -1712,6 +1711,6 @@ func TestCallBetweenContracts(t *testing.T) {
 
 	t.Logf("b3 block hash: %s", b3.BlockHash())
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
-	bytes, _ := json.MarshalIndent(b3, "", "  ")
+	//bytes, _ := json.MarshalIndent(b3, "", "  ")
 	//t.Logf("b6 block: %s", string(bytes))
 }
