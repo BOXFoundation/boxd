@@ -795,7 +795,7 @@ func detailBlock(
 	detail.CoinBase = coinBase
 	detail.Confirmed = blockConfirmed(block, r)
 	detail.Signature = hex.EncodeToString(block.Signature)
-	for _, tx := range append(block.Txs, block.InternalTxs...) {
+	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r, tr, false, detailVin)
 		if err != nil {
 			hash, _ := tx.TxHash()
@@ -803,6 +803,15 @@ func detailBlock(
 			return nil, err
 		}
 		detail.Txs = append(detail.Txs, txDetail)
+	}
+	for _, tx := range block.InternalTxs {
+		txDetail, err := detailTx(tx, r, tr, false, detailVin)
+		if err != nil {
+			hash, _ := tx.TxHash()
+			logger.Warnf("detail tx %s error: %s", hash, err)
+			return nil, err
+		}
+		detail.InternalTxs = append(detail.InternalTxs, txDetail)
 	}
 	return detail, nil
 }
