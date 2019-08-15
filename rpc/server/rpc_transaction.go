@@ -114,7 +114,7 @@ func (s *txServer) FetchUtxos(
 
 	defer func() {
 		if resp.Code != 0 {
-			logger.Warnf("fetch utxos: %s error: %s", tolog(req, 4096), resp.Message)
+			logger.Warnf("fetch utxos: %s error: %s", tolog(req), resp.Message)
 		} else {
 			total := uint64(0)
 			for _, u := range resp.GetUtxos() {
@@ -126,7 +126,7 @@ func (s *txServer) FetchUtxos(
 				total += amount
 			}
 			logger.Infof("fetch utxos: %s succeeded, return %d utxos total %d",
-				tolog(req, 4096), len(resp.GetUtxos()), total)
+				tolog(req), len(resp.GetUtxos()), total)
 		}
 	}()
 
@@ -206,10 +206,11 @@ func (s *txServer) SendTransaction(
 
 	hash, _ := tx.TxHash()
 	defer func() {
+
 		if resp.Code != 0 {
-			logger.Warnf("send tx req: %s error: %s", tolog(req, 1024), resp.Message)
+			logger.Warnf("send tx req: %s error: %s", tolog(types.ConvPbTx(req.GetTx())), resp.Message)
 		} else {
-			logger.Infof("send tx req: %s succeeded, response: %s", tolog(req, 1024), resp)
+			logger.Infof("send tx req: %s succeeded, response: %s", tolog(types.ConvPbTx(req.GetTx())), resp)
 		}
 	}()
 	txpool := s.server.GetTxHandler()
@@ -257,10 +258,11 @@ func (s *txServer) MakeUnsignedTx(
 ) (resp *rpcpb.MakeTxResp, err error) {
 
 	defer func() {
+
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned tx: %s error: %s", tolog(req, 1024), resp.Message)
+			logger.Warnf("make unsigned tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
+			logger.Infof("make unsigned tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -296,12 +298,11 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 
 	defer func() {
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned split addr tx: %s error: %s", tolog(req, 1024), resp.Message)
+			logger.Warnf("make unsigned split addr tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned split addr tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
+			logger.Infof("make unsigned split addr tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
-	//
 	wa := s.server.GetWalletAgent()
 	if wa == nil || reflect.ValueOf(wa).IsNil() {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
@@ -342,9 +343,9 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 ) (resp *rpcpb.MakeTokenIssueTxResp, err error) {
 	defer func() {
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned token issue tx: %s error: %s", tolog(req, 1024), resp.Message)
+			logger.Warnf("make unsigned token issue tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned token issue tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
+			logger.Infof("make unsigned token issue tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	if req.GetTag().GetDecimal() > maxDecimal {
@@ -389,9 +390,9 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 
 	defer func() {
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned token transfer tx: %s error: %s", tolog(req, 1024), resp.Message)
+			logger.Warnf("make unsigned token transfer tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned token transfer tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
+			logger.Infof("make unsigned token transfer tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -436,10 +437,10 @@ func (s *txServer) MakeUnsignedContractTx(
 ) (resp *rpcpb.MakeContractTxResp, err error) {
 	defer func() {
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned contract tx: %s error: %s", tolog(req, 1024), resp.Message)
+			logger.Warnf("make unsigned contract tx: %s error: %s", tolog(req), resp.Message)
 		} else {
 			logger.Debugf("make unsigned contract tx: %s succeeded, response: %s, contract addr: %s",
-				tolog(req, 1024), tolog(resp.GetTx(), 4096), resp.ContractAddr)
+				tolog(req), tolog(types.ConvPbTx(resp.GetTx())), resp.ContractAddr)
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -519,9 +520,9 @@ func (s *txServer) MakeUnsignedCombineTx(
 
 	defer func() {
 		if resp.Code != 0 {
-			logger.Warnf("make unsigned combine tx: %s error: %s", tolog(req, 1024), resp.Message)
+			logger.Warnf("make unsigned combine tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned combine tx: %s succeeded, response: %s", tolog(req, 1024), tolog(resp.GetTx(), 4096))
+			logger.Infof("make unsigned combine tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -595,13 +596,13 @@ func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte
 	return msgs, nil
 }
 
-func tolog(v interface{}, maxLen int) string {
+func tolog(v interface{}) string {
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return ""
 	}
-	if len(bytes) > maxLen {
-		bytes = bytes[:maxLen]
+	if len(bytes) > 4096 {
+		bytes = bytes[:4096]
 	}
 	return string(bytes)
 }
