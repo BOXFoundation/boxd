@@ -399,12 +399,12 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 }
 
 // ConvPbTx  convert a pb tx to types tx
-func ConvPbTx(orig *corepb.Transaction) (*Transaction, error) {
+func ConvPbTx(orig *corepb.Transaction) *Transaction {
 	tx := new(Transaction)
 	if err := tx.FromProtoMessage(orig); err != nil {
-		return nil, err
+		return nil
 	}
-	return tx, nil
+	return tx
 }
 
 // Marshal method marshal tx object to binary
