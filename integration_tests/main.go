@@ -44,6 +44,9 @@ var (
 	preAddr string
 	preAcc  *acc.Account
 
+	allAddrs []string
+	allAccs  []*acc.Account
+
 	//AddrToAcc stores addr to account
 	AddrToAcc = new(sync.Map)
 )
@@ -53,19 +56,21 @@ func init() {
 }
 
 func initAcc() {
-	minerCnt := len(utils.MinerAddrs())
-	files := make([]string, minerCnt+1)
-	for i := 0; i < minerCnt; i++ {
+	nodeCnt := len(utils.AllAddrs())
+	files := make([]string, nodeCnt+1)
+	for i := 0; i < nodeCnt; i++ {
 		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
 	}
-	files[minerCnt] = utils.LocalConf.KeyDir + "pre.keystore"
-	addrs, accs := utils.LoadAccounts(files...)
-	logger.Infof("init accounts: %v", addrs)
-	minerAddrs, minerAccs = addrs[:minerCnt], accs[:minerCnt]
+	files[nodeCnt] = utils.LocalConf.KeyDir + "pre.keystore"
+	allAddrs, allAccs = utils.LoadAccounts(files...)
+	logger.Infof("init accounts: %v", allAddrs)
+
+	minerCnt := len(utils.MinerAddrs())
+	minerAddrs, minerAccs = allAddrs[:minerCnt], allAccs[:minerCnt]
 	for i, addr := range minerAddrs {
 		AddrToAcc.Store(addr, minerAccs[i])
 	}
-	preAddr, preAcc = addrs[minerCnt], accs[minerCnt]
+	preAddr, preAcc = allAddrs[nodeCnt], allAccs[nodeCnt]
 	AddrToAcc.Store(preAddr, preAcc)
 }
 
@@ -85,7 +90,7 @@ func main() {
 
 	if *utils.NewNodes {
 		// prepare environment and clean history data
-		if err := utils.PrepareEnv(len(minerAddrs)); err != nil {
+		if err := utils.PrepareEnv(len(allAddrs) - 1); err != nil {
 			logger.Panic(err)
 		}
 		//defer utils.TearDown(len(minerAddrs))
@@ -97,7 +102,7 @@ func main() {
 			}
 			defer utils.StopNodes()
 		} else {
-			processes, err := utils.StartLocalNodes(len(minerAddrs))
+			processes, err := utils.StartLocalNodes(len(allAddrs) - 1)
 			defer utils.StopLocalNodes(processes...)
 			if err != nil {
 				logger.Panic(err)

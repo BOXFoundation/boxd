@@ -149,7 +149,10 @@ func (server *Server) Prepare() {
 	server.txPool = txPool
 
 	// prepare consensus.
-	server.consensus = bpos.NewBpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Bpos)
+	server.consensus, err = bpos.NewBpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Bpos)
+	if err != nil {
+		logger.Fatalf("Failed to new bpos... Err: %s", err.Error())
+	}
 	peer.SetMinerReader(server.consensus)
 
 	if cfg.Wallet.Enable {

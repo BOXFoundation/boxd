@@ -1,0 +1,52 @@
+network: mainnet
+workspace: .devconfig/ws9
+database:
+    name: rocksdb
+log:
+    out:
+        name: stderr # stdout|stderr|null
+    level: warning # debug|info|warning|error|fatal
+    formatter:
+        name: text # json|text
+    hooks:
+        - name: filewithformatter
+          options:
+              filename: box9.log
+              maxlines: 10000000
+              # daily: true
+              # maxsize: 10240000
+              rotate: true
+              level:  5 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
+p2p:
+    key_path: peer.key
+    port: 19119
+    seeds:
+        - "/ip4/127.0.0.1/tcp/19179/p2p/12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi"
+    principals:
+        - "/ip4/127.0.0.1/tcp/19179/p2p/12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi"
+    bucket_size: 16
+    latency: 10
+    conn_max_capacity: 200
+    conn_load_factor: 0.8
+    relay_size: 32
+rpc:
+    port: 19191
+    http:
+        port: 19190
+    subscribe_blocks: true
+    subscribe_logs: true
+bpos:
+    keypath: key.keystore
+    enable_mint: false
+    passphrase: 1
+metrics:
+    enable: false
+    host: http://localhost:8086
+    db: box
+    user: 
+    password: 
+    tags: [region:us-west, host:box-9]
+wallet:
+    enable: true
+    cache_size: 512
+    utxo_cache_time: 1

@@ -383,22 +383,30 @@ func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
 	}
 	// Need to init minerreader.
 	if p.minerreader == nil {
-		return pstore.LayfolkPeer, false
+		return pstore.UnknownPeer, false
 	}
-	miners := p.minerreader.Miners()
-	// The 0 length of miners means I am not yet able to identify
-	// myself and am therefore not eligible to join the network.
-	if len(miners) == 0 {
-		return pstore.LayfolkPeer, false
-	}
+	miners, canmint := p.minerreader.Miners()
+
 	pretty := pid.Pretty()
 	if util.InArray(pretty, miners) {
 		return pstore.MinerPeer, true
 	}
-	if util.InArray(pretty, p.minerreader.Candidates()) {
+
+	candidates, _ := p.minerreader.Candidates()
+	if util.InArray(pretty, candidates) {
 		return pstore.CandidatePeer, true
 	}
-	return pstore.LayfolkPeer, true
+
+	if len(miners) != 0 || (!canmint && len(miners) == 0) {
+		if pretty == p.id.Pretty() {
+			if len(principals) == 0 {
+				return pstore.LayfolkPeer, true
+			}
+			return pstore.ServerPeer, true
+		}
+	}
+
+	return pstore.LayfolkPeer, false
 }
 
 // UpdateSynced update peers' isSynced

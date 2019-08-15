@@ -46,6 +46,13 @@ service WebApi {
 
     rpc Connect (stream RegisterReq) returns (stream ListenedData);
 
+    rpc Table (TableReq) returns (TableResp) {
+        option (google.api.http) = {
+            post: "/v1/p2p/table"
+            body: "*"
+        };
+    }
+
 }
 
 message RegisterReq {
@@ -236,4 +243,11 @@ message NonceResp {
     int32 code = 1;
     string message = 2;
     uint64 nonce = 3;
+}
+
+message TableReq {
+}
+
+message TableResp {
+    repeated string table = 1;
 }

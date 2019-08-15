@@ -22,6 +22,8 @@ p2p:
     port: 19189
     seeds:
         - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
+    agents:
+        - "/ip4/127.0.0.1/tcp/19129/p2p/12D3KooWQiFFfDt8mBvgPdZgfJ8oktMhvx6PmB2z5ovG3Dm4xRMq"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200

@@ -44,6 +44,8 @@ var (
 	NewNodes = flag.Bool("nodes", true, "need to start nodes?")
 	// EnableDocker flag indicates to need start docker
 	EnableDocker = flag.Bool("docker", false, "test in docker containers?")
+	// NewFullNodes flag indicates to create other full nodes composed networks
+	NewFullNodes = flag.Int("fullnodes", 0, "need to create other types of full nodes?")
 
 	// LocalConf defines local test devconfig
 	LocalConf = struct {
@@ -225,17 +227,46 @@ func MinerAddrs() []string {
 	)
 	if *NewNodes {
 		if *EnableDocker {
-			addrs, err = GetStrArrayCfgVal(nil, "iplist", "docker")
+			addrs, err = GetStrArrayCfgVal(nil, "miners", "docker")
 		} else {
-			addrs, err = GetStrArrayCfgVal(nil, "iplist", "local")
+			addrs, err = GetStrArrayCfgVal(nil, "miners", "local")
 		}
 	} else {
-		addrs, err = GetStrArrayCfgVal(nil, "iplist", "testnet")
+		addrs, err = GetStrArrayCfgVal(nil, "miners", "testnet")
 	}
 	if err != nil {
 		logger.Panic(err)
 	}
 	return addrs
+}
+
+// OtherAddrs gets all addresses that are not miners
+func OtherAddrs() []string {
+	var (
+		addrs []string
+		err   error
+	)
+	length := *NewFullNodes
+	if length > 0 {
+		if *EnableDocker {
+			addrs, err = GetStrArrayCfgVal(nil, "iplist", "docker")
+		} else {
+			addrs, err = GetStrArrayCfgVal(nil, "iplist", "local")
+		}
+		if length > len(addrs) {
+			length = len(addrs)
+		}
+		return addrs[:length]
+	}
+	if err != nil {
+		logger.Panic(err)
+	}
+	return []string{}
+}
+
+// AllAddrs gets all addresses from config file
+func AllAddrs() []string {
+	return append(MinerAddrs(), OtherAddrs()...)
 }
 
 // PeerAddrs gets execute transactions peers addresses from config file

@@ -60,8 +60,9 @@ type Bpos struct {
 }
 
 // NewBpos new a bpos implement.
-func NewBpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) *Bpos {
-	return &Bpos{
+func NewBpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Bpos, error) {
+
+	bpos := &Bpos{
 		chain:   chain,
 		txpool:  txpool,
 		net:     net,
@@ -70,6 +71,13 @@ func NewBpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		canMint: false,
 		context: &ConsensusContext{},
 	}
+	// peer is bookkeeper, start bftService.
+	bftService, err := NewBftService(bpos)
+	if err != nil {
+		return nil, err
+	}
+	bpos.bftservice = bftService
+	return bpos, nil
 }
 
 // EnableMint return the peer mint status
@@ -99,14 +107,8 @@ func (bpos *Bpos) Run() error {
 		return ErrNoLegalPowerToProduce
 	}
 
-	// peer is bookkeeper, start bftService.
-	bftService, err := NewBftService(bpos)
-	if err != nil {
-		return err
-	}
-	bpos.bftservice = bftService
 	bpos.subscribe()
-	bftService.Run()
+	bpos.bftservice.Run()
 	bpos.proc.Go(bpos.loop)
 
 	return nil
@@ -765,20 +767,20 @@ func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 }
 
 // Miners return miners.
-func (bpos *Bpos) Miners() []string {
+func (bpos *Bpos) Miners() ([]string, bool) {
 	if bpos.context.dynasty == nil {
-		return []string{}
+		return []string{}, bpos.cfg.EnableMint
 	}
-	return bpos.context.dynasty.peers
+	return bpos.context.dynasty.peers, bpos.cfg.EnableMint
 }
 
 // Candidates return miners.
-func (bpos *Bpos) Candidates() []string {
+func (bpos *Bpos) Candidates() ([]string, bool) {
 	candidates := make([]string, len(bpos.context.candidates))
 	for i, c := range bpos.context.candidates {
 		candidates[i] = c.PeerID
 	}
-	return candidates
+	return candidates, bpos.cfg.EnableMint
 }
 
 func (bpos *Bpos) subscribe() {

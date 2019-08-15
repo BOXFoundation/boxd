@@ -15,7 +15,6 @@ import (
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	pq "github.com/BOXFoundation/boxd/p2p/priorityqueue"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
-	"github.com/BOXFoundation/boxd/util"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -472,15 +471,6 @@ func (conn *Conn) KeepConn() bool {
 			return false
 		}
 		return true
-	case pstore.ServerPeer:
-		if len(principals) == 0 {
-			return true
-		}
-		if util.InArray(remoteType, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer}) &&
-			util.InArray(conn.remotePeer, principals) {
-			return true
-		}
-		return false
 	}
 	return true
 }
