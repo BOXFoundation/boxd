@@ -136,10 +136,9 @@ func MakeVoutWithSPk(amount uint64, scriptPk []byte) *corepb.TxOut {
 
 // MakeContractCreationVout makes txOut
 func MakeContractCreationVout(
-	from *types.AddressHash, amount, gas, gasPrice, nonce uint64, code []byte,
+	from *types.AddressHash, amount, gas, gasPrice, nonce uint64,
 ) (*types.TxOut, error) {
-
-	vs, err := script.MakeContractScriptPubkey(from, nil, code, gasPrice, gas, nonce, types.VMVersion)
+	vs, err := script.MakeContractScriptPubkey(from, nil, gasPrice, gas, nonce, types.VMVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -151,13 +150,12 @@ func MakeContractCreationVout(
 
 // MakeContractCallVout makes txOut
 func MakeContractCallVout(
-	from, to *types.AddressHash, amount uint64, gas, gasPrice, nonce uint64, code []byte,
+	from, to *types.AddressHash, amount uint64, gas, gasPrice, nonce uint64,
 ) (*types.TxOut, error) {
-
 	if to == nil {
 		return nil, errors.New("MakeContractCreationVout need contract address")
 	}
-	vs, err := script.MakeContractScriptPubkey(from, to, code, gasPrice, gas, nonce, types.VMVersion)
+	vs, err := script.MakeContractScriptPubkey(from, to, gasPrice, gas, nonce, types.VMVersion)
 	if err != nil {
 		return nil, err
 	}

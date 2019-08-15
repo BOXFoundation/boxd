@@ -164,12 +164,15 @@ func TestMakeContractTx(t *testing.T) {
 
 	// normal vin, contract creation vout
 	gas, gasPrice, nonce := uint64(200), uint64(5), uint64(1)
-	codeStr := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565" + "b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+	codeStr := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b5" +
+		"65b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f" +
+		"5c3809ff10eb1dd0029"
 	code, _ := hex.DecodeString(codeStr)
-	cvout, _ := MakeContractCreationVout(from.Hash160(), value, gas, gasPrice, nonce, code)
+	cvout, _ := MakeContractCreationVout(from.Hash160(), value, gas, gasPrice, nonce)
 	tx := types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
-		AppendVout(cvout)
+		AppendVout(cvout).
+		WithData(types.ContractDataType, code)
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||
@@ -183,10 +186,11 @@ func TestMakeContractTx(t *testing.T) {
 	to, _ := types.NewContractAddress(toAddr)
 	codeStr = "60fe47b10000000000000000000000000000000000000000000000000000000000000006"
 	code, _ = hex.DecodeString(codeStr)
-	cvout, _ = MakeContractCallVout(from.Hash160(), to.Hash160(), value, gas, gasPrice, nonce, code)
+	cvout, _ = MakeContractCallVout(from.Hash160(), to.Hash160(), value, gas, gasPrice, nonce)
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
-		AppendVout(cvout)
+		AppendVout(cvout).
+		WithData(types.ContractDataType, code)
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||

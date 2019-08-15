@@ -252,7 +252,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut := txlogic.MakeVout(testAddr, testAmount)
 	tx := types.NewTx(0, 4455, 1000).AppendVout(txOut)
 	txHash, _ := tx.TxHash()
-	detail, err := detailTxOut(txHash, tx.Vout[0], 0, testDetailReader)
+	detail, err := detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +271,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut, _ = txlogic.MakeIssueTokenVout(testAddr, tag)
 	tx = types.NewTx(0, 4455, 1000).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
-	detail, err = detailTxOut(txHash, tx.Vout[0], 0, testDetailReader)
+	detail, err = detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +324,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut, _ = txlogic.MakeTokenVout(testAddr, tid, testAmount)
 	tx = types.NewTx(0, 4455, 100).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
-	detail, err = detailTxOut(txHash, tx.Vout[0], 0, testDetailReader)
+	detail, err = detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}

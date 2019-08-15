@@ -55,8 +55,7 @@ func TestTxMashal(t *testing.T) {
 		AppendVin(NewTxIn(NewOutPoint(&hash, idx), []byte{1, 2, 3, 4, 5, 6}, 100)).
 		AppendVout(NewTxOut(value, []byte{6, 5, 4, 3, 2, 1}))
 	content, _ := hex.DecodeString(codeStr)
-	typ := int32(2)
-	tx.Data = NewData(typ, content)
+	tx.Data = NewData(ContractDataType, content)
 	bytes, err := json.MarshalIndent(tx, "", "  ")
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +78,8 @@ func TestTxMashal(t *testing.T) {
     }
   ],
   "Data": {
-    "Type": 2
+    "Type": 1,
+    "Content": "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
   },
   "Magic": 21828,
   "LockTime": 0

@@ -42,7 +42,6 @@ type VMTxParams struct {
 	GasLimit uint64
 	Nonce    uint64
 	Version  int32
-	Code     []byte
 	From     *AddressHash
 	To       *AddressHash
 }

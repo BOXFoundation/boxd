@@ -46,14 +46,37 @@ func (txout *TxOut) MarshalJSON() ([]byte, error) {
 // Data defines transaction payload as corepb.Data
 type Data corepb.Data
 
+// DataType is used to indicate Transaction type filled in Data.Type
+type DataType int32
+
+//
+const (
+	GeneralDataType DataType = iota
+	ContractDataType
+)
+
 // NewData news a Data instance
-func NewData(typ int32, data []byte) *Data {
-	return &Data{Type: typ, Content: data}
+func NewData(typ DataType, data []byte) *Data {
+	return &Data{Type: int32(typ), Content: data}
 }
 
 // MarshalJSON implements Data json marshaler interface
 func (data *Data) MarshalJSON() ([]byte, error) {
-	td := struct{ Type int32 }{data.Type}
+	if data == nil {
+		return nil, nil
+	}
+	content, suffix := data.Content, ""
+	if len(content) > 256 {
+		content = append(content[:100])
+		suffix = "..."
+	}
+	td := struct {
+		Type    int32
+		Content string
+	}{
+		data.Type,
+		hex.EncodeToString(content) + suffix,
+	}
 	return json.Marshal(td)
 }
 
@@ -148,8 +171,8 @@ func (tx *Transaction) AppendVout(out ...*TxOut) *Transaction {
 }
 
 // WithData sets Data to tx
-func (tx *Transaction) WithData(data *Data) *Transaction {
-	tx.Data = data
+func (tx *Transaction) WithData(typ DataType, code []byte) *Transaction {
+	tx.Data = NewData(typ, code)
 	return tx
 }
 

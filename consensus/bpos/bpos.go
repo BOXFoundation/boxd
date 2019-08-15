@@ -350,7 +350,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 					ownerTx = nil
 				}
 				// extract contract tx
-				vmTx, err := bpos.chain.ExtractVMTransactions(pendingTx.Tx, ownerTx.GetTx())
+				vmTx, err := chain.ExtractVMTransaction(pendingTx.Tx, ownerTx.GetTx())
 				if err != nil {
 					return nil, err
 				}

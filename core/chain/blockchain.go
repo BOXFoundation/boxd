@@ -2116,8 +2116,8 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Wri
 	return nil
 }
 
-// ExtractVMTransactions extract Transaction to VMTransaction
-func (chain *BlockChain) ExtractVMTransactions(
+// ExtractVMTransaction extract Transaction to VMTransaction
+func ExtractVMTransaction(
 	tx *types.Transaction, ownerTxs ...*types.Transaction,
 ) (*types.VMTransaction, error) {
 	// check
@@ -2135,9 +2135,12 @@ func (chain *BlockChain) ExtractVMTransactions(
 			if e != nil {
 				return nil, e
 			}
+			if tx.Data == nil || len(tx.Data.Content) == 0 {
+				return nil, core.ErrContractDataNotFound
+			}
 			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
-				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash, t, p.Code).
-				WithFrom(p.From)
+				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash,
+				t, tx.Data.Content).WithFrom(p.From)
 			if t == types.ContractCallType {
 				vmTx.WithTo(p.To)
 			}
@@ -2228,7 +2231,7 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 	if err != nil {
 		return nil, err
 	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce, code)
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -2252,6 +2255,7 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 		},
 		Vout: []*types.TxOut{vout},
 	}
+	tx.WithData(types.ContractDataType, code)
 	logger.Infof("InternalContractTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
 	return tx, nil
 }

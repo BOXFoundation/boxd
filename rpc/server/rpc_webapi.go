@@ -721,7 +721,7 @@ func detailTx(
 	// parse vout
 	txHash, _ := tx.TxHash()
 	for i := range tx.Vout {
-		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), br)
+		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), tx.Data, br)
 		if err != nil {
 			logger.Warnf("detail tx vout for %s %d %+v error: %s", txHash, i, tx.Vout[i], err)
 			return nil, err
@@ -752,7 +752,7 @@ func detailTx(
 		hash, _ := tx.TxHash()
 		logger.Infof("spread split addr tx: %s", hash)
 		for i := range tx.Vout {
-			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), br)
+			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), tx.Data, br)
 			if err != nil {
 				logger.Warnf("detail split tx vout for %s %d %+v error: %s", hash, i, tx.Vout[i], err)
 				return nil, err
@@ -844,7 +844,7 @@ func detailTxIn(
 		index := txIn.PrevOutPoint.Index
 		prevTxHash, _ := prevTx.TxHash()
 		detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
-			index, r)
+			index, prevTx.Data, r)
 		if err != nil {
 			logger.Warnf("detail prev tx vout for %s %d %+v error: %s", prevTxHash,
 				index, prevTx.Vout[index], err)
@@ -855,7 +855,8 @@ func detailTxIn(
 }
 
 func detailTxOut(
-	txHash *crypto.HashType, txOut *types.TxOut, index uint32, br ChainTxReader,
+	txHash *crypto.HashType, txOut *types.TxOut, index uint32, data *types.Data,
+	br ChainTxReader,
 ) (*rpcpb.TxOutDetail, error) {
 
 	detail := new(rpcpb.TxOutDetail)
@@ -929,8 +930,14 @@ func detailTxOut(
 		}
 		detail.Appendix = splitContractInfo
 	case rpcpb.TxOutDetail_contract_call:
-		var params *types.VMTxParams
-		var typ types.ContractType
+		var (
+			params *types.VMTxParams
+			typ    types.ContractType
+		)
+		if data == nil || data.Type != int32(types.ContractDataType) ||
+			len(data.Content) == 0 {
+			return nil, core.ErrContractDataNotFound
+		}
 		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		params, typ, err = sc.ParseContractParams()
 		if err != nil {
@@ -953,7 +960,7 @@ func detailTxOut(
 				GasLimit: params.GasLimit,
 				GasUsed:  receipt.GasUsed,
 				Nonce:    params.Nonce,
-				Data:     hex.EncodeToString(params.Code),
+				Data:     hex.EncodeToString(data.Content),
 				Logs:     rpcutil.ToPbLogs(receipt.Logs),
 			},
 		}

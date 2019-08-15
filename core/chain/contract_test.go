@@ -385,7 +385,6 @@ func TestExtractBoxTx(t *testing.T) {
 			testVMScriptCode, 100, 20000, 1, 0, nil},
 		{0, "b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", testVMScriptCode, 100, 20000, 2, 0, nil},
 	}
-	blockChain := NewTestBlockChain()
 	for _, tc := range tests {
 		var (
 			from, to      types.Address
@@ -401,7 +400,7 @@ func TestExtractBoxTx(t *testing.T) {
 		} else {
 			toAddressHash = new(types.AddressHash)
 		}
-		cs, err = script.MakeContractScriptPubkey(from.Hash160(), toAddressHash, code,
+		cs, err = script.MakeContractScriptPubkey(from.Hash160(), toAddressHash,
 			tc.price, tc.limit, tc.nonce, tc.version)
 		if err != nil {
 			t.Fatal(err)
@@ -413,8 +412,9 @@ func TestExtractBoxTx(t *testing.T) {
 		prevOp := types.NewOutPoint(hash, 0)
 		txin := types.NewTxIn(prevOp, nil, 0)
 		txout := types.NewTxOut(tc.value, *cs)
-		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout)
-		btx, err := blockChain.ExtractVMTransactions(tx)
+		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout).
+			WithData(types.ContractDataType, code)
+		btx, err := ExtractVMTransaction(tx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -515,7 +515,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	newBlock.Header.BookKeeper = *minerAddr.Hash160()
 	coinbaseVMTX, _ := makeCoinbaseTx(b1, newBlock, blockChain, statedb)
 	coinbaseVMTX.Vin[0].Sequence = uint32(time.Now().UnixNano())
-	vmtx, _ := blockChain.ExtractVMTransactions(coinbaseVMTX)
+	vmtx, _ := ExtractVMTransaction(coinbaseVMTX)
 	// new evm
 	context := NewEVMContext(vmtx, newBlock.Header, blockChain)
 	evm := vm.NewEVM(context, statedb, blockChain.vmConfig)
@@ -649,14 +649,16 @@ func TestFaucetContract(t *testing.T) {
 
 	byteCode, _ := hex.DecodeString(testFaucetContract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(),
+		vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue2 := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue2)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	stateDB, err := state.New(&b2.Header.RootHash, nil, blockChain.db)
 	ensure.Nil(t, err)
@@ -688,8 +690,8 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b3.InternalTxs[0].TxHash()
@@ -697,7 +699,8 @@ func TestFaucetContract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue3))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue3)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 
 	b4 := nextBlockWithTxs(b3, blockChain, vmTx)
@@ -721,14 +724,16 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
-	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(),
+		vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	prevHash, _ = b3.Txs[1].TxHash()
 	changeValue4 := changeValue2 - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue4))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue4)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 
 	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
@@ -752,12 +757,14 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetContract)
 	nonce++
-	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(),
+		vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	prevHash, _ = b5.InternalTxs[0].TxHash()
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(contractVout)
+		AppendVout(contractVout).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
 	b6.Header.RootHash.SetString("")
@@ -778,8 +785,8 @@ func TestFaucetContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b5.Txs[1].TxHash()
@@ -788,7 +795,8 @@ func TestFaucetContract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue6))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue6)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b6 = nextBlockWithTxs(b5, blockChain, vmTx)
 
@@ -940,14 +948,16 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ := hex.DecodeString(testCoinContract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(),
+		vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
@@ -974,15 +984,16 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(mintCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	prevHash, _ = b3.Txs[1].TxHash()
 	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b4 := nextBlockWithTxs(b3, blockChain, vmTx)
 
@@ -1006,8 +1017,8 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(sendCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b4.Txs[1].TxHash()
@@ -1015,7 +1026,8 @@ func TestCoinContract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
 
@@ -1039,8 +1051,8 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balancesUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b5.Txs[1].TxHash()
@@ -1048,7 +1060,8 @@ func TestCoinContract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	// gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
@@ -1075,8 +1088,8 @@ func TestCoinContract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balancesReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b6.Txs[1].TxHash()
@@ -1084,7 +1097,8 @@ func TestCoinContract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b7 := nextBlockWithTxs(b6, blockChain, vmTx)
 
@@ -1183,14 +1197,16 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ := hex.DecodeString(testERC20Contract)
 	nonce := uint64(1)
-	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(),
+		vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
@@ -1218,8 +1234,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b3.Txs[1].TxHash()
@@ -1227,7 +1243,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b3A := nextBlockWithTxs(b3, blockChain, vmTx)
 
@@ -1259,8 +1276,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b3A.Txs[1].TxHash()
@@ -1268,7 +1285,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b4 := nextBlockWithTxs(b3A, blockChain, vmTx)
 
@@ -1294,8 +1312,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b4.Txs[1].TxHash()
@@ -1303,7 +1321,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
 
@@ -1335,8 +1354,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b5.Txs[1].TxHash()
@@ -1344,7 +1363,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
 
@@ -1372,8 +1392,8 @@ func TestERC20Contract(t *testing.T) {
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	// minerNonce := uint64(9)
 	minerNonce := stateDB.GetNonce(*minerAddr.Hash160()) + 2 // note: coinbase tx has already add 1.
-	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, minerNonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, minerNonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b2.Txs[1].TxHash()
@@ -1381,7 +1401,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
+		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	b7 := nextBlockWithTxs(b6, blockChain, vmTx)
 
@@ -1410,8 +1431,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(approveCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b6.Txs[1].TxHash()
@@ -1419,7 +1440,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	// gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b8 := nextBlockWithTxs(b7, blockChain, vmTx)
@@ -1446,8 +1468,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(increaseAllowanceCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b8.Txs[1].TxHash()
@@ -1455,7 +1477,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	// gasRefundTx = createGasRefundUtxoTx(userAddr.Hash160(), gasPrice*(gasLimit-gasUsed), nonce)
 	b9 := nextBlockWithTxs(b8, blockChain, vmTx)
@@ -1480,8 +1503,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(allowanceCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b9.Txs[1].TxHash()
@@ -1489,7 +1512,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b10 := nextBlockWithTxs(b9, blockChain, vmTx)
 
@@ -1514,8 +1538,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(transferFromCall)
 	minerNonce = stateDB.GetNonce(*minerAddr.Hash160()) + 2 // note: coinbase tx has already add 1.
-	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, minerNonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, minerNonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b7.Txs[1].TxHash()
@@ -1523,7 +1547,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue))
+		AppendVout(txlogic.MakeVout(minerAddr.String(), minerChangeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	b11 := nextBlockWithTxs(b10, blockChain, vmTx)
 
@@ -1550,8 +1575,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b10.Txs[1].TxHash()
@@ -1559,7 +1584,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b12 := nextBlockWithTxs(b11, blockChain, vmTx)
 
@@ -1591,8 +1617,8 @@ func TestERC20Contract(t *testing.T) {
 	}
 	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
-	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(), contractAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		contractAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
 	prevHash, _ = b12.Txs[1].TxHash()
@@ -1600,7 +1626,8 @@ func TestERC20Contract(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b13 := nextBlockWithTxs(b12, blockChain, vmTx)
 
@@ -1654,13 +1681,14 @@ func TestCallBetweenContracts(t *testing.T) {
 	vmValue, gasPrice, gasLimit := uint64(0), uint64(1), uint64(800000)
 	nonce := uint64(1)
 	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, tokenCode)
+		vmValue, gasLimit, gasPrice, nonce)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx1 := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, tokenCode)
 	txlogic.SignTx(vmTx1, privKey, pubKey)
 	tokenAddr, _ := types.MakeContractAddress(userAddr, nonce)
 
@@ -1669,13 +1697,14 @@ func TestCallBetweenContracts(t *testing.T) {
 	bankCode = append(bankCode, types.NormalizeAddressHash(tokenAddr.Hash160())[:]...)
 	nonce++
 	contractVout, _ = txlogic.MakeContractCreationVout(userAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, bankCode)
+		vmValue, gasLimit, gasPrice, nonce)
 	prevHash, _ = vmTx1.TxHash()
 	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	vmTx2 := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, bankCode)
 	txlogic.SignTx(vmTx2, privKey, pubKey)
 	bankAddr, _ := types.MakeContractAddress(userAddr, nonce)
 
@@ -1685,22 +1714,24 @@ func TestCallBetweenContracts(t *testing.T) {
 	input := transferCall(bankAddr.Hash160(), changeValue)
 	t.Logf("transfer call input: %x", input)
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		tokenAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, input)
+		tokenAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	vmTx3 := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, input)
 	txlogic.SignTx(vmTx3, privKey, pubKey)
 
 	nonce++
-	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(), bankAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, rechargeCall)
+	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		bankAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	prevHash, _ = vmTx3.TxHash()
 	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	vmTx4 := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, rechargeCall)
 	txlogic.SignTx(vmTx4, privKey, pubKey)
 
 	b3 := nextBlockWithTxs(b2, blockChain, vmTx1, vmTx2)

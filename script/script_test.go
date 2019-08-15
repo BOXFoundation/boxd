@@ -357,19 +357,17 @@ func TestContractScript(t *testing.T) {
 	// contract Temp {
 	//     function () payable {}
 	// }
-	code := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
 	var tests = []struct {
 		fromAddr     string
 		toAddr       string
-		code         string
 		price, limit uint64
 		nonce        uint64
 		version      int32
 		err          error
 	}{
-		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", code, 100, 20000, 1, 1, nil},
-		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", code, 1, 200, 2, 1, nil},
-		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", code, math.MaxUint64, 20000, 3, 1, ErrInvalidContractParams},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", 100, 20000, 1, 1, nil},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", 1, 200, 2, 1, nil},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", math.MaxUint64, 20000, 3, 1, ErrInvalidContractParams},
 	}
 	for _, tc := range tests {
 		var from, to *types.AddressHash
@@ -379,8 +377,7 @@ func TestContractScript(t *testing.T) {
 		}
 		f, _ := types.NewAddress(tc.fromAddr)
 		from = f.Hash160()
-		code, _ := hex.DecodeString(tc.code)
-		cs, err := MakeContractScriptPubkey(from, to, code, tc.price, tc.limit, tc.nonce, tc.version)
+		cs, err := MakeContractScriptPubkey(from, to, tc.price, tc.limit, tc.nonce, tc.version)
 		if tc.err != err {
 			t.Fatal(err)
 		}
@@ -398,12 +395,10 @@ func TestContractScript(t *testing.T) {
 			p.GasPrice != tc.price || p.GasLimit != tc.limit ||
 			p.Nonce != tc.nonce || p.Version != tc.version ||
 			(tc.toAddr != "" && typ != types.ContractCallType ||
-				tc.toAddr == "" && typ != types.ContractCreationType) ||
-			!bytes.Equal(p.Code, code) {
-			t.Fatalf("parse contract params got: %s, %d, %d, %d, %s, want: %s, %d, %d, %d, %s",
+				tc.toAddr == "" && typ != types.ContractCreationType) {
+			t.Fatalf("parse contract params got: %s, %d, %d, %d, want: %s, %d, %d, %d",
 				hex.EncodeToString(p.To[:]), p.GasPrice, p.GasLimit, p.Version,
-				hex.EncodeToString(p.Code),
-				hex.EncodeToString(to[:]), tc.price, tc.limit, tc.version, code)
+				hex.EncodeToString(to[:]), tc.price, tc.limit, tc.version)
 		}
 		if eAddr, err := cs.ParseContractAddr(); err != nil ||
 			(to != nil && *eAddr.Hash160() != *to) {
