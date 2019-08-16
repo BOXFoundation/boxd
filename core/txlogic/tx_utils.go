@@ -11,6 +11,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -451,33 +452,26 @@ func SignTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.Pu
 	return nil
 }
 
+// CheckAndGetContractVout return true if tx has a vout with contract creation or call
+func CheckAndGetContractVout(tx *types.Transaction) (*types.TxOut, error) {
+	var out *types.TxOut
+	for _, o := range tx.Vout {
+		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		if sc.IsContractPubkey() {
+			if out != nil {
+				return nil, core.ErrMultipleContractVouts
+			}
+			out = o
+		}
+	}
+	return out, nil
+}
+
 // HasContractVout return true if tx has a vout with contract creation or call
 func HasContractVout(tx *types.Transaction) bool {
 	for _, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		if sc.IsContractPubkey() {
-			return true
-		}
-	}
-	return false
-}
-
-// GetContractVout return contract out if tx has a vout with contract creation or call
-func GetContractVout(tx *types.Transaction) *types.TxOut {
-	for _, o := range tx.Vout {
-		sc := script.NewScriptFromBytes(o.ScriptPubKey)
-		if sc.IsContractPubkey() {
-			return o
-		}
-	}
-	return nil
-}
-
-// HasContractSpend return true if tx has a vin with Op Spend script sig
-func HasContractSpend(tx *types.Transaction) bool {
-	for _, i := range tx.Vin {
-		sc := script.NewScriptFromBytes(i.ScriptSig)
-		if sc.IsContractSig() {
 			return true
 		}
 	}

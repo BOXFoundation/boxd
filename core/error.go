@@ -81,6 +81,7 @@ var (
 	ErrInvalidIrreversibleInfoProtoMessage = errors.New("Invalid IrreversibleInfo proto message")
 	ErrInvalidFee                          = errors.New("Invalid contract transaction fee")
 	ErrContractDataNotFound                = errors.New("contract data not found in tx")
+	ErrMultipleContractVouts               = errors.New("multiple contract vouts")
 
 	//address.go
 	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")

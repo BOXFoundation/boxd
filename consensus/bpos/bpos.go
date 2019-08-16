@@ -16,7 +16,6 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -342,7 +341,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
 			hashToTx[*txHash] = pendingTx
-			if txlogic.HasContractVout(pendingTx.Tx) { // smart contract tx
+			if pendingTx.IsContract {
 				// from is in txpool if the contract tx used a vout in txpool
 				op := pendingTx.Tx.Vin[0].PrevOutPoint
 				ownerTx, ok := bpos.txpool.GetTxByHash(&op.Hash)
@@ -392,7 +391,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			continue
 		}
 		dag.AddNode(*txHash, int(txWrap.GasPrice))
-		if txlogic.HasContractVout(txWrap.Tx) { // smart contract tx
+		if txWrap.IsContract {
 			from := hashToAddress[*txHash]
 			sortedNonceTxs := addressToNonceSortedTxs[from]
 			handleVMTx(dag, sortedNonceTxs, hashToTx)
@@ -418,7 +417,10 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 	return sortedTxs, nil
 }
 
-func handleVMTx(dag *util.Dag, sortedNonceTxs []*types.VMTransaction, hashToTx map[crypto.HashType]*types.TxWrap) {
+func handleVMTx(
+	dag *util.Dag, sortedNonceTxs []*types.VMTransaction,
+	hashToTx map[crypto.HashType]*types.TxWrap,
+) {
 	var parentHash *crypto.HashType
 	for _, vmTx := range sortedNonceTxs {
 		hash := vmTx.OriginTxHash()
@@ -461,7 +463,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			}
 
 			txHash, _ := txWrap.Tx.TxHash()
-			if txlogic.HasContractVout(txWrap.Tx) {
+			if txWrap.IsContract {
 				spendableTxs.Store(*txHash, txWrap)
 				packedTxs = append(packedTxs, txWrap.Tx)
 				continue

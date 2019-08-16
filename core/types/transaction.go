@@ -97,6 +97,7 @@ type TxWrap struct {
 	AddedTimestamp int64
 	Height         uint32
 	GasPrice       uint64
+	IsContract     bool
 	IsScriptValid  bool
 }
 

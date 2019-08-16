@@ -328,12 +328,16 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 
 	var gasPrice uint64
-	if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
+	contractVout, err := txlogic.CheckAndGetContractVout(tx)
+	if err != nil {
+		return err
+	}
+	if contractVout != nil { // smart contract tx.
 		if tx.Data == nil || tx.Data.Type != int32(types.ContractDataType) ||
 			len(tx.Data.Content) == 0 {
 			return core.ErrContractDataNotFound
 		}
-		sc := script.NewScriptFromBytes(o.ScriptPubKey)
+		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 		param, ty, err := sc.ParseContractParams()
 		if err != nil {
 			return err
@@ -465,6 +469,9 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, gasP
 		GasPrice:       gasPrice,
 		IsScriptValid:  false,
 	}
+	if o, _ := txlogic.CheckAndGetContractVout(tx); o != nil {
+		txWrap.IsContract = true
+	}
 	tx_pool.hashToTx.Store(*txHash, txWrap)
 	// outputs spent by this new tx
 	for _, txIn := range tx.Vin {
@@ -589,7 +596,7 @@ func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) 
 // check admitted tx's script
 func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	// verify crypto signatures for each input
-	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false /* validate script */); err != nil {
+	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false); err != nil {
 		// remove
 		txHash, _ := txScript.tx.TxHash()
 		logger.Errorf("tx %v script verification failed", txHash)
