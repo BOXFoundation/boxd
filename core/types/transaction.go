@@ -46,14 +46,37 @@ func (txout *TxOut) MarshalJSON() ([]byte, error) {
 // Data defines transaction payload as corepb.Data
 type Data corepb.Data
 
+// DataType is used to indicate Transaction type filled in Data.Type
+type DataType int32
+
+//
+const (
+	GeneralDataType DataType = iota
+	ContractDataType
+)
+
 // NewData news a Data instance
-func NewData(typ int32, data []byte) *Data {
-	return &Data{Type: typ, Content: data}
+func NewData(typ DataType, data []byte) *Data {
+	return &Data{Type: int32(typ), Content: data}
 }
 
 // MarshalJSON implements Data json marshaler interface
 func (data *Data) MarshalJSON() ([]byte, error) {
-	td := struct{ Type int32 }{data.Type}
+	if data == nil {
+		return nil, nil
+	}
+	content, suffix := data.Content, ""
+	if len(content) > 256 {
+		content = append(content[:100])
+		suffix = "..."
+	}
+	td := struct {
+		Type    int32
+		Content string
+	}{
+		data.Type,
+		hex.EncodeToString(content) + suffix,
+	}
 	return json.Marshal(td)
 }
 
@@ -122,12 +145,6 @@ func NewTxIn(prevOutPoint *OutPoint, scriptSig []byte, seq uint32) *TxIn {
 	}
 }
 
-// IsCoinBaseTxIn check whether tx in is coin base tx in
-func IsCoinBaseTxIn(txIn *TxIn) bool {
-	return ((txIn.PrevOutPoint.Index == math.MaxUint32) &&
-		(txIn.PrevOutPoint.Hash == crypto.HashType{}))
-}
-
 // NewCoinBaseTxIn new a coinbase tx in
 func NewCoinBaseTxIn() *TxIn {
 	return &TxIn{
@@ -148,8 +165,8 @@ func (tx *Transaction) AppendVout(out ...*TxOut) *Transaction {
 }
 
 // WithData sets Data to tx
-func (tx *Transaction) WithData(data *Data) *Transaction {
-	tx.Data = data
+func (tx *Transaction) WithData(typ DataType, code []byte) *Transaction {
+	tx.Data = NewData(typ, code)
 	return tx
 }
 
@@ -399,12 +416,12 @@ func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 }
 
 // ConvPbTx  convert a pb tx to types tx
-func ConvPbTx(orig *corepb.Transaction) (*Transaction, error) {
+func ConvPbTx(orig *corepb.Transaction) *Transaction {
 	tx := new(Transaction)
 	if err := tx.FromProtoMessage(orig); err != nil {
-		return nil, err
+		return nil
 	}
-	return tx, nil
+	return tx
 }
 
 // Marshal method marshal tx object to binary

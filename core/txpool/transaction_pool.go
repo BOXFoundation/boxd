@@ -329,6 +329,10 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 
 	var gasPrice uint64
 	if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
+		if tx.Data == nil || tx.Data.Type != int32(types.ContractDataType) ||
+			len(tx.Data.Content) == 0 {
+			return core.ErrContractDataNotFound
+		}
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		param, ty, err := sc.ParseContractParams()
 		if err != nil {
@@ -338,7 +342,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 			return core.ErrInvalidFee
 		}
 		contractCreation := ty == types.ContractCreationType
-		gas, err := chain.IntrinsicGas(param.Code, contractCreation)
+		gas, err := chain.IntrinsicGas(tx.Data.Content, contractCreation)
 		if err != nil {
 			return err
 		}

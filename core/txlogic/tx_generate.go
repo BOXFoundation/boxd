@@ -194,7 +194,8 @@ func MakeUnsignedTx(
 }
 
 func makeUnsignedContractTx(
-	addr string, amount, changeAmt uint64, contractVout *types.TxOut, utxos ...*rpcpb.Utxo,
+	addr string, amount, changeAmt uint64, contractVout *types.TxOut,
+	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
 	amounts := []uint64{amount}
@@ -206,7 +207,8 @@ func makeUnsignedContractTx(
 	for _, utxo := range utxos {
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
-	tx := new(types.Transaction).AppendVin(vins...).AppendVout(contractVout)
+	tx := new(types.Transaction).AppendVin(vins...).AppendVout(contractVout).
+		WithData(types.ContractDataType, byteCode)
 	if changeAmt > 0 {
 		tx.Vout = append(tx.Vout, MakeVout(addr, changeAmt))
 	}
@@ -227,11 +229,11 @@ func MakeUnsignedContractDeployTx(
 		return nil, errors.New("sender account is not PubKeyHash")
 	}
 	contractVout, err := MakeContractCreationVout(fromAddr.Hash160(), amount,
-		gasLimit, gasPrice, nonce, byteCode)
+		gasLimit, gasPrice, nonce)
 	if err != nil {
 		return nil, err
 	}
-	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, utxos...)
+	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, byteCode, utxos...)
 }
 
 //MakeUnsignedContractCallTx call a contract tx without signature
@@ -254,11 +256,11 @@ func MakeUnsignedContractCallTx(
 		return nil, errors.New("receiver account is not contract address")
 	}
 	contractVout, err := MakeContractCallVout(fromAddr.Hash160(), toAddr.Hash160(),
-		amount, gasLimit, gasPrice, nonce, byteCode)
+		amount, gasLimit, gasPrice, nonce)
 	if err != nil {
 		return nil, err
 	}
-	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, utxos...)
+	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, byteCode, utxos...)
 }
 
 // NewContractTxWithUtxos new a contract transaction

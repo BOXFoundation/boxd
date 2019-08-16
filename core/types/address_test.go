@@ -49,6 +49,7 @@ func TestNewAddressPubKeyHash(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
+			t.Logf("addr %s pubkey hash: %x", tt.addr, ac.Hash())
 			ad := ac.String()
 			if !reflect.DeepEqual(tt.addr, ad) {
 				t.Errorf("NewAddressPubKeyHash() = %v, want %v", tt.addr, ad)

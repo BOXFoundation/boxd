@@ -161,7 +161,7 @@ func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	conn := NewConn(s, p, s.Conn().RemotePeer())
 	if !conn.KeepConn() {
 		s.Close()
-		logger.Errorf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
+		logger.Warnf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
 		return
 	}
 	conn.Loop(p.proc)
@@ -407,6 +407,21 @@ func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
 	}
 
 	return pstore.LayfolkPeer, false
+}
+
+// ConnectingPeers return all connecting peers' ids.
+func (p *BoxPeer) ConnectingPeers() []string {
+	pids := []string{}
+	p.conns.Range(func(k, v interface{}) bool {
+		pids = append(pids, k.(peer.ID).Pretty())
+		return true
+	})
+	return pids
+}
+
+// PeerID return peer.ID.
+func (p *BoxPeer) PeerID() string {
+	return p.id.Pretty()
 }
 
 // UpdateSynced update peers' isSynced

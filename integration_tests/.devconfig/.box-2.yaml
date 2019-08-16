@@ -40,7 +40,7 @@ bpos:
     enable_mint: true
     passphrase: 1
 metrics:
-    enable: false
+    enable: true
     host: http://localhost:8086
     db: box
     user: 

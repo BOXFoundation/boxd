@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -63,6 +64,7 @@ type Server struct {
 
 	ChainReader service.ChainReader
 	TxHandler   service.TxHandler
+	TableReader service.TableReader
 	WalletAgent service.WalletAgent
 	eventBus    eventbus.Bus
 	server      *grpc.Server
@@ -113,11 +115,12 @@ type GRPCServer interface {
 // NewServer creates a RPC server instance.
 func NewServer(parent goprocess.Process, cfg *Config,
 	cr service.ChainReader, txh service.TxHandler,
-	wa service.WalletAgent, bus eventbus.Bus) *Server {
+	wa service.WalletAgent, peer *p2p.BoxPeer, bus eventbus.Bus) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
 		TxHandler:   txh,
+		TableReader: peer,
 		eventBus:    bus,
 		WalletAgent: wa,
 		gRPCProc:    goprocess.WithParent(parent),
@@ -154,6 +157,11 @@ func (s *Server) GetChainReader() service.ChainReader {
 // GetTxHandler returns a handler to deal with transactions
 func (s *Server) GetTxHandler() service.TxHandler {
 	return s.TxHandler
+}
+
+// GetTableReader returns an interface to query routing table
+func (s *Server) GetTableReader() service.TableReader {
+	return s.TableReader
 }
 
 // GetWalletAgent returns the wallet related service handler

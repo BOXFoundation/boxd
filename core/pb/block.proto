@@ -65,10 +65,3 @@ message Data {
     int32 type = 1;
     bytes content = 2;
 }
-
-message UtxoWrap {
-    TxOut output = 1;
-	uint32 block_height = 2;
-	bool is_spent = 3;
-	bool is_coinbase = 4;
-}

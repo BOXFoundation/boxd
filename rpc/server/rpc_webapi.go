@@ -44,6 +44,7 @@ func registerWebapi(s *Server) {
 type webapiServer struct {
 	ChainBlockReader
 	TxPoolReader
+	TableReader
 	proc goprocess.Process
 
 	endpoints      map[uint32]rpcutil.Endpoint
@@ -75,10 +76,17 @@ type TxPoolReader interface {
 	GetTxByHash(hash *crypto.HashType) (*types.TxWrap, bool)
 }
 
+// TableReader defines basic operations routing table exposes
+type TableReader interface {
+	ConnectingPeers() []string
+	PeerID() string
+}
+
 func newWebAPIServer(s *Server) *webapiServer {
 	server := &webapiServer{
 		ChainBlockReader: s.GetChainReader(),
 		TxPoolReader:     s.GetTxHandler(),
+		TableReader:      s.GetTableReader(),
 		proc:             s.Proc(),
 		endpoints:        make(map[uint32]rpcutil.Endpoint),
 		connController:   make(map[string]map[string]chan<- bool),
@@ -721,7 +729,7 @@ func detailTx(
 	// parse vout
 	txHash, _ := tx.TxHash()
 	for i := range tx.Vout {
-		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), br)
+		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), tx.Data, br)
 		if err != nil {
 			logger.Warnf("detail tx vout for %s %d %+v error: %s", txHash, i, tx.Vout[i], err)
 			return nil, err
@@ -752,7 +760,7 @@ func detailTx(
 		hash, _ := tx.TxHash()
 		logger.Infof("spread split addr tx: %s", hash)
 		for i := range tx.Vout {
-			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), br)
+			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), tx.Data, br)
 			if err != nil {
 				logger.Warnf("detail split tx vout for %s %d %+v error: %s", hash, i, tx.Vout[i], err)
 				return nil, err
@@ -763,10 +771,10 @@ func detailTx(
 	// hash
 	detail.Hash = txHash.String()
 	// parse vin
-	for _, in := range tx.Vin {
+	for i, in := range tx.Vin {
 		inDetail, err := detailTxIn(in, br, tr, detailVin)
 		if err != nil {
-			logger.Warnf("detail tx vin for %s %+v error: %s", txHash, in, err)
+			logger.Warnf("detail tx vin for %s %d %+v error: %s", txHash, i, in, err)
 			return nil, err
 		}
 		detail.Vin = append(detail.Vin, inDetail)
@@ -787,15 +795,14 @@ func detailBlock(
 	detail.TimeStamp = block.Header.TimeStamp
 	detail.Hash = block.BlockHash().String()
 	detail.PrevBlockHash = block.Header.PrevBlockHash.String()
-	// coin base is miner address or block fee receiver
-	coinBase, err := getCoinbaseAddr(block)
+	coinBase, err := types.NewAddressPubKeyHash(block.Header.BookKeeper[:])
 	if err != nil {
 		return nil, err
 	}
-	detail.CoinBase = coinBase
+	detail.CoinBase = coinBase.String()
 	detail.Confirmed = blockConfirmed(block, r)
 	detail.Signature = hex.EncodeToString(block.Signature)
-	for _, tx := range append(block.Txs, block.InternalTxs...) {
+	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r, tr, false, detailVin)
 		if err != nil {
 			hash, _ := tx.TxHash()
@@ -803,6 +810,15 @@ func detailBlock(
 			return nil, err
 		}
 		detail.Txs = append(detail.Txs, txDetail)
+	}
+	for _, tx := range block.InternalTxs {
+		txDetail, err := detailTx(tx, r, tr, false, detailVin)
+		if err != nil {
+			hash, _ := tx.TxHash()
+			logger.Warnf("detail tx %s error: %s", hash, err)
+			return nil, err
+		}
+		detail.InternalTxs = append(detail.InternalTxs, txDetail)
 	}
 	return detail, nil
 }
@@ -813,7 +829,7 @@ func detailTxIn(
 
 	detail := new(rpcpb.TxInDetail)
 	// if tx in is coin base
-	if types.IsCoinBaseTxIn(txIn) {
+	if txIn.PrevOutPoint.Hash == crypto.ZeroHash {
 		return detail, nil
 	}
 	//
@@ -835,7 +851,7 @@ func detailTxIn(
 		index := txIn.PrevOutPoint.Index
 		prevTxHash, _ := prevTx.TxHash()
 		detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
-			index, r)
+			index, prevTx.Data, r)
 		if err != nil {
 			logger.Warnf("detail prev tx vout for %s %d %+v error: %s", prevTxHash,
 				index, prevTx.Vout[index], err)
@@ -846,7 +862,8 @@ func detailTxIn(
 }
 
 func detailTxOut(
-	txHash *crypto.HashType, txOut *types.TxOut, index uint32, br ChainTxReader,
+	txHash *crypto.HashType, txOut *types.TxOut, index uint32, data *types.Data,
+	br ChainTxReader,
 ) (*rpcpb.TxOutDetail, error) {
 
 	detail := new(rpcpb.TxOutDetail)
@@ -920,8 +937,14 @@ func detailTxOut(
 		}
 		detail.Appendix = splitContractInfo
 	case rpcpb.TxOutDetail_contract_call:
-		var params *types.VMTxParams
-		var typ types.ContractType
+		var (
+			params *types.VMTxParams
+			typ    types.ContractType
+		)
+		if data == nil || data.Type != int32(types.ContractDataType) ||
+			len(data.Content) == 0 {
+			return nil, core.ErrContractDataNotFound
+		}
 		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		params, typ, err = sc.ParseContractParams()
 		if err != nil {
@@ -944,7 +967,7 @@ func detailTxOut(
 				GasLimit: params.GasLimit,
 				GasUsed:  receipt.GasUsed,
 				Nonce:    params.Nonce,
-				Data:     hex.EncodeToString(params.Code),
+				Data:     hex.EncodeToString(data.Content),
 				Logs:     rpcutil.ToPbLogs(receipt.Logs),
 			},
 		}
@@ -987,20 +1010,6 @@ func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
 	return eternalHeight >= b.Header.Height
 }
 
-func getCoinbaseAddr(block *types.Block) (string, error) {
-	if block.Txs == nil || len(block.Txs) == 0 {
-		return "", fmt.Errorf("coinbase does not exist in block %s height %d",
-			block.BlockHash(), block.Header.Height)
-	}
-	tx := block.Txs[0]
-	sc := *script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
-	address, err := sc.ExtractAddress()
-	if err != nil {
-		return "", err
-	}
-	return address.String(), nil
-}
-
 // ParseAddrFrom parse addr from scriptPubkey
 func ParseAddrFrom(
 	sc *script.Script, txHash *crypto.HashType, idx uint32, tr ChainTxReader,
@@ -1037,4 +1046,26 @@ func ParseAddrFrom(
 		return "", err
 	}
 	return address.String(), nil
+}
+
+func (s *webapiServer) Table(
+	ctx context.Context, req *rpcpb.TableReq,
+) (*rpcpb.TableResp, error) {
+
+	return &rpcpb.TableResp{
+		Code:    0,
+		Message: "",
+		Table:   s.TableReader.ConnectingPeers(),
+	}, nil
+}
+
+func (s *webapiServer) PeerID(
+	ctx context.Context, req *rpcpb.PeerIDReq,
+) (*rpcpb.PeerIDResp, error) {
+
+	return &rpcpb.PeerIDResp{
+		Code:    0,
+		Message: "",
+		Peerid:  s.TableReader.PeerID(),
+	}, nil
 }

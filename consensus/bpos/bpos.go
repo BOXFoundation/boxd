@@ -144,6 +144,10 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 		return errors.New("Failed to verify sign block")
 	}
 
+	if err := bpos.verifyDynastySwitch(block); err != nil {
+		return err
+	}
+
 	if err := bpos.verifyDynasty(block); err != nil {
 		return err
 	}
@@ -348,7 +352,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 					ownerTx = nil
 				}
 				// extract contract tx
-				vmTx, err := bpos.chain.ExtractVMTransactions(pendingTx.Tx, ownerTx.GetTx())
+				vmTx, err := chain.ExtractVMTransaction(pendingTx.Tx, ownerTx.GetTx())
 				if err != nil {
 					return nil, err
 				}
@@ -730,7 +734,13 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	dynastyCycle, err := bpos.fetchDynastyCycleByHeight(height)
+	if err != nil {
+		return false, err
+	}
+
 	bpos.context.verifyDynasty = dynasty
+	bpos.context.verifyDynastyCycle = dynastyCycle
 	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, dynasty.delegates)
 	if err != nil {
 		return false, err
@@ -750,6 +760,28 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
+
+	if uint64((block.Header.Height+1))%bpos.context.verifyDynastyCycle.Uint64() == 0 { // dynasty switch
+		if !chain.IsDynastySwitch(block.Txs[1]) {
+			return ErrInvalidDynastySwitchTx
+		}
+		for i, tx := range block.Txs[2:] {
+			if chain.IsDynastySwitch(tx) {
+				logger.Errorf("block contains second dynasty switch tx at index %d", i+2)
+				return ErrMultipleDynastySwitchTx
+			}
+		}
+	} else {
+		for _, tx := range block.Txs {
+			if chain.IsDynastySwitch(tx) {
+				return ErrDynastySwitchIsNotAllowed
+			}
+		}
+	}
+	return nil
 }
 
 // TryToUpdateEternalBlock try to update eternal block.

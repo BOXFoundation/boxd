@@ -8,13 +8,16 @@ import "errors"
 
 // Define err message
 var (
-	// dpos
-	ErrNoLegalPowerToProduce = errors.New("No legal power to produce block")
-	ErrNotMyTurnToProduce    = errors.New("Not my turn to produce block")
-	ErrNotFoundBookkeeper    = errors.New("Failed to find bookkeeper")
-	ErrNotBookkeeperPeer     = errors.New("Invalid bookkeeper peer")
-	ErrCircleTxExistInDag    = errors.New("circle tx exist in dag")
-	ErrInvalidDynastyHash    = errors.New("Invalid dynasty hash in block header")
+	// bpos
+	ErrNoLegalPowerToProduce     = errors.New("No legal power to produce block")
+	ErrNotMyTurnToProduce        = errors.New("Not my turn to produce block")
+	ErrNotFoundBookkeeper        = errors.New("Failed to find bookkeeper")
+	ErrNotBookkeeperPeer         = errors.New("Invalid bookkeeper peer")
+	ErrCircleTxExistInDag        = errors.New("circle tx exist in dag")
+	ErrInvalidDynastyHash        = errors.New("Invalid dynasty hash in block header")
+	ErrInvalidDynastySwitchTx    = errors.New("Invalid dynasty switch tx")
+	ErrMultipleDynastySwitchTx   = errors.New("multiple dynasty switch tx")
+	ErrDynastySwitchIsNotAllowed = errors.New("Dynasty switching is not allowed in the current block")
 
 	// context
 	ErrInvalidEternalBlockMsgProtoMessage = errors.New("Invalid eternalBlockMsg proto message")

@@ -248,10 +248,12 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	prevHash, _ = b1.Txs[0].TxHash()
 	gasUsed, vmValue, gasPrice, gasLimit, nonce := uint64(9912), uint64(0), uint64(6), uint64(20000), uint64(2)
-	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce, []byte{1})
+	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue,
+		gasLimit, gasPrice, nonce)
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(contractVout)
+		AppendVout(contractVout).
+		WithData(types.ContractDataType, []byte{1})
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
 	vmTxHash, _ := vmTx.TxHash()
 
@@ -401,13 +403,14 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ := hex.DecodeString(testFaucetContract)
 	nonce := uint64(1)
 	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+		vmValue, gasLimit, gasPrice, nonce)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddrFaucet, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddrFaucet
@@ -418,7 +421,7 @@ func TestBlockProcessing(t *testing.T) {
 	gasUsed := b3.Header.GasUsed - coinbaseGasUsed
 	gasRefundValue := gasPrice * (gasLimit - gasUsed)
 	t.Logf("b3 gas refund value: %d", gasRefundValue)
-	contractBlockHandle(t, blockChain, b2, b3, b3, vmParam, nil)
+	contractBlockHandle(t, blockChain, b3, b3, vmParam, nil)
 	t.Logf("faucet contract addr %s %x balance: %d", contractAddrFaucet,
 		contractAddrFaucet.Hash(), blockChain.tailState.GetBalance(*contractAddrFaucet.Hash160()))
 	bUserBalance := userBalance
@@ -441,13 +444,14 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(testCoinContract)
 	nonce = uint64(1)
 	contractVout, _ = txlogic.MakeContractCreationVout(userAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce, byteCode)
+		vmValue, gasLimit, gasPrice, nonce)
 	prevHash, _ = b2.Txs[1].TxHash()
 	changeValueA := bAUserBalance - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	prevHash, _ = vmTx.TxHash()
 	t.Logf("prevHash: %s", prevHash)
@@ -467,7 +471,7 @@ func TestBlockProcessing(t *testing.T) {
 	if err := calcRootHash(b2, b3A, blockChainA); err != nil {
 		t.Fatal(err)
 	}
-	contractBlockHandle(t, blockChain, b2, b3A, b3, vmParam, core.ErrBlockInSideChain)
+	contractBlockHandle(t, blockChain, b3A, b3, vmParam, core.ErrBlockInSideChain)
 	t.Logf("b3A block hash: %s", b3A.BlockHash())
 	t.Logf("b2 -> b3A failed: %s", core.ErrBlockInSideChain)
 	gasRefundA := (gasLimit - (b3A.Header.GasUsed - coinbaseGasUsed)) * gasPrice
@@ -507,7 +511,7 @@ func TestBlockProcessing(t *testing.T) {
 	//
 	vmParam = &testContractParam{contractAddr: vmParam.contractAddr}
 	userBalance = changeValueA + gasRefundA
-	contractBlockHandle(t, blockChain, b3A, b4A, b4A, vmParam, nil)
+	contractBlockHandle(t, blockChain, b4A, b4A, vmParam, nil)
 	bAUserBalance = userBalance
 	t.Logf("b4A block hash: %s", b4A.BlockHash())
 	bAUserBalance = userBalance
@@ -536,7 +540,7 @@ func TestBlockProcessing(t *testing.T) {
 	}
 	//
 	userBalance = bAUserBalance
-	contractBlockHandle(t, blockChain, b3, b4, b4A, vmParam, core.ErrBlockInSideChain)
+	contractBlockHandle(t, blockChain, b4, b4A, vmParam, core.ErrBlockInSideChain)
 	t.Logf("b4 block hash: %s", b4.BlockHash())
 	t.Logf("b3 -> b4 failed, now tail height: %d", blockChain.LongestChainHeight)
 	// process b5
@@ -548,14 +552,15 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(testFaucetCall)
 	nonce = 2
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrFaucet.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+		contractAddrFaucet.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	// use internal tx vout
 	prevHash, _ = b3.InternalTxs[0].TxHash()
 	changeValue5 := gasRefundValue - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue5))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue5)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b5 := nextBlockWithTxsV2(b4, blockChain, vmTx)
 	userBalance = bUserBalance
@@ -567,7 +572,7 @@ func TestBlockProcessing(t *testing.T) {
 		t.Fatal(err)
 	}
 	//
-	contractBlockHandle(t, blockChain, b4, b5, b5, vmParam, nil)
+	contractBlockHandle(t, blockChain, b5, b5, vmParam, nil)
 	bUserBalance = userBalance
 	t.Logf("b5 block hash: %s", b5.BlockHash())
 	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
@@ -593,7 +598,7 @@ func TestBlockProcessing(t *testing.T) {
 		t.Fatal(err)
 	}
 	//
-	contractBlockHandle(t, blockChain, b4A, b5A, b5, vmParam, core.ErrBlockInSideChain)
+	contractBlockHandle(t, blockChain, b5A, b5, vmParam, core.ErrBlockInSideChain)
 	t.Logf("b5A block hash: %s", b5A.BlockHash())
 	t.Logf("b4A -> b5A failed, now tail height: %d", blockChain.LongestChainHeight)
 	// b6A
@@ -616,7 +621,7 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(mintCall)
 	nonce = 2
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrCoin.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+		contractAddrCoin.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	changeValueA = changeValueA - gasPrice*gasLimit
 	// prev hash
 	ensure.True(t, blockChainA.splitTxOutputs(toSplitTx))
@@ -624,7 +629,8 @@ func TestBlockProcessing(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 2), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA)).
+		WithData(types.ContractDataType, byteCode)
 	t.Logf("b6a change value: %d", changeValueA)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b6A = nextBlockWithTxsV2(b5A, blockChain, vmTx)
@@ -640,7 +646,7 @@ func TestBlockProcessing(t *testing.T) {
 	}
 	//
 	userBalance = bAUserBalance
-	contractBlockHandle(t, blockChain, b5A, b6A, b6A, vmParam, nil)
+	contractBlockHandle(t, blockChain, b6A, b6A, vmParam, nil)
 	bAUserBalance = userBalance
 	b6AUserBalance := userBalance
 	t.Logf("b6A block hash: %s", b6A.BlockHash())
@@ -679,7 +685,7 @@ func TestBlockProcessing(t *testing.T) {
 		t.Fatal(err)
 	}
 	//
-	contractBlockHandle(t, blockChain, b6A, b7A, b7A, vmParam, nil)
+	contractBlockHandle(t, blockChain, b7A, b7A, vmParam, nil)
 	bAUserBalance = userBalance
 	t.Logf("b7A block hash: %s", b7A.BlockHash())
 	t.Logf("b6A -> b7A pass, now tail height: %d", blockChain.LongestChainHeight)
@@ -702,13 +708,14 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(sendCall)
 	nonce = uint64(3)
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrCoin.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+		contractAddrCoin.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	prevHash, _ = b6A.Txs[1].TxHash()
 	changeValueA = changeValueA - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA)).
+		WithData(types.ContractDataType, byteCode)
 	t.Logf("b7b change value: %d", changeValueA)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b7B := nextBlockWithTxsV2(b6A, blockChain, vmTx)
@@ -721,7 +728,7 @@ func TestBlockProcessing(t *testing.T) {
 	}
 	//
 	userBalance = bAUserBalance
-	contractBlockHandle(t, blockChain, b6A, b7B, b7A, vmParam, core.ErrBlockInSideChain)
+	contractBlockHandle(t, blockChain, b7B, b7A, vmParam, core.ErrBlockInSideChain)
 	t.Logf("b7B block hash: %s", b7B.BlockHash())
 	t.Logf("b6A -> b7B failed, now tail height: %d", blockChain.LongestChainHeight)
 
@@ -737,7 +744,7 @@ func TestBlockProcessing(t *testing.T) {
 	userBalance = blockChainB.TailState().GetBalance(*userAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, userBalance, b6AUserBalance-(b7B.Header.GasUsed-coinbaseGasUsed)*gasPrice)
 	vmParam = &testContractParam{contractAddr: contractAddrCoin}
-	contractBlockHandle(t, blockChain, b7B, b8B, b8B, vmParam, nil)
+	contractBlockHandle(t, blockChain, b8B, b8B, vmParam, nil)
 	t.Logf("b8B block hash: %s", b8B.BlockHash())
 	t.Logf("b7B -> b8B pass, now tail height: %d", blockChain.LongestChainHeight)
 
@@ -797,13 +804,14 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce = 3
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrFaucet.Hash160(), vmValue, gasLimit, gasPrice, nonce, byteCode)
+		contractAddrFaucet.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	prevHash, _ = b3.Txs[1].TxHash()
 	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b9 := nextBlockWithTxsV2(b8, blockChain, vmTx)
 	//
@@ -815,7 +823,7 @@ func TestBlockProcessing(t *testing.T) {
 	}
 	//
 	userBalance = bUserBalance
-	contractBlockHandle(t, blockChain, b8, b9, b9, vmParam, nil)
+	contractBlockHandle(t, blockChain, b9, b9, vmParam, nil)
 	t.Logf("b9 block hash: %s", b9.BlockHash())
 	t.Logf("b8 -> b9 passed, now tail height: %d", blockChain.LongestChainHeight)
 

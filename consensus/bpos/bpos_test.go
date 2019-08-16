@@ -52,7 +52,7 @@ func NewDummyBpos(cfg *Config) *DummyBpos {
 
 	blockchain := chain.NewTestBlockChain()
 	txPool := txpool.NewTransactionPool(blockchain.Proc(), p2p.NewDummyPeer(), blockchain, bus)
-	bpos := NewBpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
+	bpos, _ := NewBpos(txPool.Proc(), blockchain, txPool, p2p.NewDummyPeer(), cfg)
 	blockchain.Setup(bpos, nil)
 	bpos.Setup()
 	isBookkeeper := bpos.IsBookkeeper()

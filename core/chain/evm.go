@@ -73,6 +73,13 @@ func Transfer(db vm.StateDB, sender, recipient types.AddressHash, amount *big.In
 	if interpreterInvoke && amount.Uint64() > 0 {
 		transferInfo := NewTransferInfo(sender, recipient, amount)
 		if v, ok := Transfers[sender]; ok {
+			for _, w := range v {
+				if w.to == recipient {
+					// NOTE: cannot miss 'w.value = '
+					w.value = w.value.Add(w.value, amount)
+					return
+				}
+			}
 			v = append(v, transferInfo)
 		} else {
 			Transfers[sender] = []*TransferInfo{transferInfo}

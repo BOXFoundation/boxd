@@ -17,11 +17,12 @@ require (
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.1
 	github.com/golang/snappy v0.0.1
-	github.com/grpc-ecosystem/grpc-gateway v1.8.5
+	github.com/grpc-ecosystem/grpc-gateway v1.9.2
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/heirko/go-contrib v0.0.0-20170921174445-82c95aa7d665
 	github.com/heralight/logrus_mate v0.0.0-20170807195635-969b6efb860e
 	github.com/hoisie/redis v0.0.0-20160730154456-b5c6e81454e0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/influxdb1-client v0.0.0-20190124185755-16c852ea613f // indirect
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
 	github.com/jbenet/goprocess v0.0.0-20160826012719-b497e2f366b8
@@ -53,4 +54,5 @@ require (
 	golang.org/x/net v0.0.0-20190318221613-d196dffd7c2b
 	google.golang.org/genproto v0.0.0-20190307195333-5fe7a883aa19
 	google.golang.org/grpc v1.19.0
+	gopkg.in/yaml.v2 v2.2.2
 )

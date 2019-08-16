@@ -21,7 +21,7 @@ p2p:
     key_path: peer.key
     port: 19039
     seeds:
-        - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
+        - "/ip4/127.0.0.1/tcp/19139/p2p/12D3KooW9zwdCPaaHarsJ9H2boX6KbnTDGsx3WN6G1onHB8zjvqQ"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
@@ -38,7 +38,7 @@ bpos:
     enable_mint: false
     passphrase: 1
 metrics:
-    enable: false
+    enable: true
     host: http://localhost:8086
     db: box
     user: 

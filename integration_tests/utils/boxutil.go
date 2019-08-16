@@ -275,6 +275,36 @@ func CallContract(addr, contractAddr string, code []byte, conn *grpc.ClientConn)
 	return output
 }
 
+// Table get connecting peers' id
+func Table(conn *grpc.ClientConn) []string {
+	client := rpcpb.NewWebApiClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req := &rpcpb.TableReq{}
+	resp, err := client.Table(ctx, req)
+	if err != nil {
+		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Panic(errors.New(resp.Message))
+	}
+	return resp.Table
+}
+
+// PeerID get peer's id
+func PeerID(conn *grpc.ClientConn) string {
+	client := rpcpb.NewWebApiClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req := &rpcpb.PeerIDReq{}
+	resp, err := client.PeerID(ctx, req)
+	if err != nil {
+		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Panic(errors.New(resp.Message))
+	}
+	return resp.Peerid
+}
+
 func parseContractNumberResult(ret []byte) (uint64, error) {
 	r, err := strconv.ParseUint(hex.EncodeToString(ret), 16, 64)
 	if err != nil {

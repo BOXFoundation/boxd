@@ -21,9 +21,9 @@ library SafeMath {
 
 contract Token {
     using SafeMath for uint;
-    
+
     string public symbol;
-    string public  name;
+    string public name;
     uint8 public decimals;
     uint _totalSupply;
 
@@ -31,7 +31,6 @@ contract Token {
     mapping(address => mapping(address => uint)) allowed;
 
     event Transfer(address indexed from, address indexed to, uint tokens);
-
 
     constructor() public{
         symbol = "dudu";

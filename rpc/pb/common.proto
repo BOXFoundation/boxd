@@ -11,8 +11,7 @@ message Utxo {
     corepb.OutPoint out_point = 1;
     corepb.TxOut    tx_out = 2;
 	  uint32          block_height = 3;
-	  bool            is_coinbase = 4;
-	  bool            is_spent = 5;
+	  bool            is_spent = 4;
 }
 
 message BaseResponse {

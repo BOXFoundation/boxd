@@ -43,7 +43,7 @@ bpos:
 pprof: "0.0.0.0:8888"
 
 metrics:
-    enable: false
+    enable: true
     host: http://localhost:8086
     db: box
     user: 

@@ -52,7 +52,7 @@ func (sp *StateProcessor) Process(
 	header := block.Header
 	var invalidTx *types.Transaction
 	for i, tx := range block.Txs {
-		vmTx, err1 := sp.bc.ExtractVMTransactions(tx)
+		vmTx, err1 := ExtractVMTransaction(tx)
 		if err1 != nil {
 			err = err1
 			invalidTx = tx

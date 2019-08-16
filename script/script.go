@@ -623,23 +623,12 @@ func (s *Script) IsContractPubkey() bool {
 	// 94 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addraddr len)+
 	//			1(nonce size)+8(nonce len)+1(gasPrice size)+8(gasPrice len)+
 	//			1(gasLimit size)+8(gasLimit size)+1(version size)+4(version len)+
-	//			1/2(code size)+n(code len)+1(checksum size)+4(checksum len)
-	if len(ss) < 85 {
+	if len(ss) != 75 {
 		return false
 	}
 	if ss[0] != byte(OPCONTRACT) ||
 		ss[1] != ripemd160.Size || ss[22] != ripemd160.Size ||
-		ss[43] != 8 || ss[52] != 8 || ss[61] != 8 || ss[70] != 4 ||
-		ss[len(ss)-5] != 4 {
-		return false
-	}
-	// check code size
-	_, _, pc, err := s.parseNextOp(75)
-	if err != nil {
-		logger.Warn(err)
-		return false
-	}
-	if pc != len(ss)-5 {
+		ss[43] != 8 || ss[52] != 8 || ss[61] != 8 || ss[70] != 4 {
 		return false
 	}
 	return true
@@ -809,12 +798,12 @@ func (s *Script) getSigOpCount() int {
 
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
-	from, to *types.AddressHash, code []byte, gasPrice, gasLimit, nonce uint64,
+	from, to *types.AddressHash, gasPrice, gasLimit, nonce uint64,
 	version int32,
 ) (*Script, error) {
-	// OP_CONTRACT from to nonce gasPrice gasLimit version code checksum
+	// OP_CONTRACT from to nonce gasPrice gasLimit version checksum
 	// check params
-	if from == nil || len(code) == 0 {
+	if from == nil {
 		return nil, ErrInvalidContractParams
 	}
 	if gasLimit == 0 {
@@ -828,7 +817,7 @@ func MakeContractScriptPubkey(
 		return nil, ErrInvalidContractParams
 	}
 	// set params
-	s := NewScriptWithCap(84 + len(code))
+	s := NewScriptWithCap(75)
 	toHash := ZeroContractAddress
 	if to != nil {
 		toHash = *to
@@ -844,12 +833,8 @@ func MakeContractScriptPubkey(
 	buf = make([]byte, 4)
 	binary.LittleEndian.PutUint32(buf, uint32(version))
 	s.AddOperand(buf)
-	s.AddOperand(code)
-	// add checksum
-	scriptHash := crypto.Hash160(*s)
-	checksum := scriptHash[:4]
 
-	return NewScript().AddOpCode(OPCONTRACT).AddScript(s).AddOperand(checksum), nil
+	return NewScript().AddOpCode(OPCONTRACT).AddScript(s), nil
 }
 
 // MakeContractScriptSig makes a script sig for contract vin
@@ -921,27 +906,6 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 		return
 	}
 	params.Version = int32(ver)
-	// code
-	_, operand, pc, err = s.getNthOp(pc, 0)
-	if err != nil {
-		return
-	}
-	params.Code = operand
-	// checksum
-	cs := crypto.Hash160((*s)[1:pc])
-	_, operand, pc, err = s.getNthOp(pc, 0)
-	if err != nil {
-		return
-	}
-	if len(operand) != 4 {
-		err = ErrInvalidContractScript
-		return
-	}
-	if !bytes.Equal(operand, cs[:4]) {
-		logger.Warnf("contract script checksum mismatched")
-		err = ErrInvalidContractScript
-		return
-	}
 	if _, _, _, e := s.getNthOp(pc, 0); e != ErrScriptBound {
 		err = ErrInvalidContractScript
 		return

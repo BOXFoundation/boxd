@@ -721,14 +721,29 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 	}
 
-	transactions := block.Txs
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
+	totalFees, err := validateBlockInputs(block, utxoSet)
+	if err != nil {
+		return err
+	}
+
+	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
+}
+
+func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 	var totalFees uint64
+	transactions := block.Txs
 	for _, tx := range transactions {
+
+		// skip coinbase tx
+		if IsCoinBase(tx) || IsDynastySwitch(tx) {
+			continue
+		}
+
 		txFee, err := ValidateTxInputs(utxoSet, tx, block.Header.Height)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		// Check contract tx from and fee
@@ -738,31 +753,26 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 			lastTotalFees := totalFees
 			totalFees += txFee
 			if totalFees < lastTotalFees {
-				return core.ErrBadFees
+				return 0, core.ErrBadFees
 			}
 			continue
 		}
 
-		// skip coinbase tx
-		if IsCoinBase(tx) || IsDynastySwitch(tx) {
-			continue
-		}
 		// smart contract tx.
 		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if txFee != param.GasLimit*param.GasPrice {
-			return core.ErrInvalidFee
+			return 0, core.ErrInvalidFee
 		}
 		if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
 			*addr.Hash160() != *param.From {
-			return fmt.Errorf("contract tx from address mismatched")
+			return 0, fmt.Errorf("contract tx from address mismatched")
 		}
 	}
-
-	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
+	return totalFees, nil
 }
 
 func (chain *BlockChain) tryToClearCache(attachBlocks, detachBlocks []*types.Block) {
@@ -2106,8 +2116,8 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Wri
 	return nil
 }
 
-// ExtractVMTransactions extract Transaction to VMTransaction
-func (chain *BlockChain) ExtractVMTransactions(
+// ExtractVMTransaction extract Transaction to VMTransaction
+func ExtractVMTransaction(
 	tx *types.Transaction, ownerTxs ...*types.Transaction,
 ) (*types.VMTransaction, error) {
 	// check
@@ -2125,9 +2135,12 @@ func (chain *BlockChain) ExtractVMTransactions(
 			if e != nil {
 				return nil, e
 			}
+			if tx.Data == nil || len(tx.Data.Content) == 0 {
+				return nil, core.ErrContractDataNotFound
+			}
 			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
-				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash, t, p.Code).
-				WithFrom(p.From)
+				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash,
+				t, tx.Data.Content).WithFrom(p.From)
 			if t == types.ContractCallType {
 				vmTx.WithTo(p.To)
 			}
@@ -2218,7 +2231,7 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 	if err != nil {
 		return nil, err
 	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce, code)
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -2242,6 +2255,7 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 		},
 		Vout: []*types.TxOut{vout},
 	}
+	tx.WithData(types.ContractDataType, code)
 	logger.Infof("InternalContractTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
 	return tx, nil
 }

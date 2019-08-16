@@ -53,6 +53,13 @@ service WebApi {
         };
     }
 
+    rpc PeerID (PeerIDReq) returns (PeerIDResp) {
+        option (google.api.http) = {
+            post: "/v1/p2p/id"
+            body: "*"
+        };
+    }
+
 }
 
 message RegisterReq {
@@ -206,6 +213,7 @@ message BlockDetail {
     bool confirmed = 8;
     string signature = 9;
     repeated TxDetail txs = 10;
+    repeated TxDetail internal_txs = 11;
 }
 
 message TokenIssueInfo {
@@ -249,5 +257,16 @@ message TableReq {
 }
 
 message TableResp {
-    repeated string table = 1;
+    int32 code = 1;
+    string message = 2;
+    repeated string table = 3;
+}
+
+message PeerIDReq {
+}
+
+message PeerIDResp {
+    int32 code = 1;
+    string message = 2;
+    string peerid = 3;
 }

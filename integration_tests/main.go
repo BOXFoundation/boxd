@@ -104,6 +104,7 @@ func main() {
 		} else {
 			processes, err := utils.StartLocalNodes(len(allAddrs) - 1)
 			defer utils.StopLocalNodes(processes...)
+			go testP2p()
 			if err != nil {
 				logger.Panic(err)
 			}

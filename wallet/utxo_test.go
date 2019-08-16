@@ -305,17 +305,17 @@ func newComparableUtxoWrap(uw *types.UtxoWrap) *ComparableUtxoWrap {
 			ScriptPubKey: uw.Script(),
 		},
 		BlockHeight: uw.Height(),
-		IsCoinBase:  uw.IsCoinBase(),
-		IsSpent:     uw.IsSpent(),
-		IsModified:  uw.IsModified(),
+		// IsCoinBase:  uw.IsCoinBase(),
+		IsSpent:    uw.IsSpent(),
+		IsModified: uw.IsModified(),
 	}
 }
 
 func (u ComparableUtxoWrap) String() string {
 	return fmt.Sprintf("{Output:{Value: %d, ScriptPubKey: %s}, BlockHeight: %d, "+
-		"IsCoinBase: %t, IsSpent: %t, IsModified: %t}", u.Output.GetValue(),
+		" IsSpent: %t, IsModified: %t}", u.Output.GetValue(),
 		base64.StdEncoding.EncodeToString(u.Output.GetScriptPubKey()),
-		u.BlockHeight, u.IsCoinBase, u.IsSpent,
+		u.BlockHeight, u.IsSpent,
 		u.IsModified)
 }
 
@@ -326,9 +326,9 @@ func makeUtxoMapFromPbUtxos(utxos []*rpcpb.Utxo) types.UtxoMap {
 		copy(hash[:], u.OutPoint.Hash[:])
 		op := types.NewOutPoint(&hash, u.OutPoint.Index)
 		m[*op] = types.NewUtxoWrap(u.TxOut.Value, u.TxOut.ScriptPubKey, u.BlockHeight)
-		if u.IsCoinbase {
-			m[*op].SetCoinBase()
-		}
+		// if u.IsCoinbase {
+		// 	m[*op].SetCoinBase()
+		// }
 	}
 	return m
 }

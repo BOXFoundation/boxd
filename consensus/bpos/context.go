@@ -19,11 +19,12 @@ import (
 
 // ConsensusContext represents consensus context info.
 type ConsensusContext struct {
-	timestamp     int64
-	dynasty       *Dynasty
-	verifyDynasty *Dynasty
-	candidates    []Delegate
-	dynastyCycle  *big.Int
+	timestamp          int64
+	dynasty            *Dynasty
+	verifyDynasty      *Dynasty
+	candidates         []Delegate
+	dynastyCycle       *big.Int
+	verifyDynastyCycle *big.Int
 }
 
 // Delegate is a bookkeeper node.

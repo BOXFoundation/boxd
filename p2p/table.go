@@ -142,8 +142,15 @@ func (t *Table) peerDiscover() {
 	// 	return
 	// }
 
-	var peerIDs []peer.ID
+	if t.peer.peertype == pstore.UnknownPeer {
+		pType, nodoubt := t.peer.Type(t.peer.id)
+		if !nodoubt {
+			return
+		}
+		t.peer.peertype = pType
+	}
 
+	var peerIDs []peer.ID
 	switch t.peer.peertype {
 	case pstore.MinerPeer:
 		peerIDs = t.minerDiscover(all)
@@ -151,6 +158,8 @@ func (t *Table) peerDiscover() {
 		peerIDs = t.candidateDiscover(all)
 	case pstore.ServerPeer:
 		peerIDs = t.serverDiscover(all)
+	case pstore.UnknownPeer:
+		return
 	default:
 		peerIDs = t.defaultDiscover(all)
 	}
@@ -228,6 +237,9 @@ func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable-len(peerIDs))
 	peerIDs = append(peerIDs, miners...)
 
+	for _, pid := range peerIDs {
+		logger.Errorf("%s minerDiscover %s", t.peer.id.Pretty(), pid.Pretty())
+	}
 	return
 }
 
