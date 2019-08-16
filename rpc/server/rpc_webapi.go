@@ -763,10 +763,10 @@ func detailTx(
 	// hash
 	detail.Hash = txHash.String()
 	// parse vin
-	for _, in := range tx.Vin {
+	for i, in := range tx.Vin {
 		inDetail, err := detailTxIn(in, br, tr, detailVin)
 		if err != nil {
-			logger.Warnf("detail tx vin for %s %+v error: %s", txHash, in, err)
+			logger.Warnf("detail tx vin for %s %d %+v error: %s", txHash, i, in, err)
 			return nil, err
 		}
 		detail.Vin = append(detail.Vin, inDetail)
@@ -787,12 +787,11 @@ func detailBlock(
 	detail.TimeStamp = block.Header.TimeStamp
 	detail.Hash = block.BlockHash().String()
 	detail.PrevBlockHash = block.Header.PrevBlockHash.String()
-	// coin base is miner address or block fee receiver
-	coinBase, err := getCoinbaseAddr(block)
+	coinBase, err := types.NewAddressPubKeyHash(block.Header.BookKeeper[:])
 	if err != nil {
 		return nil, err
 	}
-	detail.CoinBase = coinBase
+	detail.CoinBase = coinBase.String()
 	detail.Confirmed = blockConfirmed(block, r)
 	detail.Signature = hex.EncodeToString(block.Signature)
 	for _, tx := range block.Txs {
@@ -822,7 +821,7 @@ func detailTxIn(
 
 	detail := new(rpcpb.TxInDetail)
 	// if tx in is coin base
-	if types.IsCoinBaseTxIn(txIn) {
+	if txIn.PrevOutPoint.Hash == crypto.ZeroHash {
 		return detail, nil
 	}
 	//
@@ -1001,20 +1000,6 @@ func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
 	}
 	eternalHeight := r.EternalBlock().Header.Height
 	return eternalHeight >= b.Header.Height
-}
-
-func getCoinbaseAddr(block *types.Block) (string, error) {
-	if block.Txs == nil || len(block.Txs) == 0 {
-		return "", fmt.Errorf("coinbase does not exist in block %s height %d",
-			block.BlockHash(), block.Header.Height)
-	}
-	tx := block.Txs[0]
-	sc := *script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
-	address, err := sc.ExtractAddress()
-	if err != nil {
-		return "", err
-	}
-	return address.String(), nil
 }
 
 // ParseAddrFrom parse addr from scriptPubkey

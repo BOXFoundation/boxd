@@ -145,12 +145,6 @@ func NewTxIn(prevOutPoint *OutPoint, scriptSig []byte, seq uint32) *TxIn {
 	}
 }
 
-// IsCoinBaseTxIn check whether tx in is coin base tx in
-func IsCoinBaseTxIn(txIn *TxIn) bool {
-	return ((txIn.PrevOutPoint.Index == math.MaxUint32) &&
-		(txIn.PrevOutPoint.Hash == crypto.HashType{}))
-}
-
 // NewCoinBaseTxIn new a coinbase tx in
 func NewCoinBaseTxIn() *TxIn {
 	return &TxIn{
