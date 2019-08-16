@@ -508,6 +508,7 @@ func CalcTxHashForSig(
 	// construct a transaction from originalTx except scriptPubKey to compute signature hash
 	tx := types.NewTx(originalTx.Version, originalTx.Magic, originalTx.LockTime).
 		AppendVout(originalTx.Vout...)
+	tx.Data = originalTx.Data
 	for i, txIn := range originalTx.Vin {
 		if i != txInIdx {
 			tx.AppendVin(types.NewTxIn(&txIn.PrevOutPoint, nil, txIn.Sequence))
