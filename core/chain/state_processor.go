@@ -8,8 +8,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -269,4 +272,34 @@ func makeTx(
 	tx.Vin = append(tx.Vin, vin)
 	tx.Vout = append(tx.Vout, vouts...)
 	return tx, nil
+}
+
+// ExtractVMTransaction extract Transaction to VMTransaction
+func ExtractVMTransaction(
+	tx *types.Transaction, ownerTxs ...*types.Transaction,
+) (*types.VMTransaction, error) {
+	// check
+	contractVout, err := txlogic.CheckAndGetContractVout(tx)
+	if err != nil {
+		return nil, err
+	}
+	if contractVout == nil { // non-contract tx
+		return nil, nil
+	}
+	txHash, _ := tx.TxHash()
+	// take only one contract vout in a transaction
+	p, t, e := script.NewScriptFromBytes(contractVout.ScriptPubKey).ParseContractParams()
+	if e != nil {
+		return nil, e
+	}
+	if tx.Data == nil || len(tx.Data.Content) == 0 {
+		return nil, core.ErrContractDataNotFound
+	}
+	vmTx := types.NewVMTransaction(big.NewInt(int64(contractVout.Value)),
+		big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash,
+		t, tx.Data.Content).WithFrom(p.From)
+	if t == types.ContractCallType {
+		vmTx.WithTo(p.To)
+	}
+	return vmTx, nil
 }

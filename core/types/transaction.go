@@ -97,6 +97,7 @@ type TxWrap struct {
 	AddedTimestamp int64
 	Height         uint32
 	GasPrice       uint64
+	IsContract     bool
 	IsScriptValid  bool
 }
 
@@ -349,7 +350,7 @@ func (tx *Transaction) ResetTxHash() {
 
 // ToProtoMessage converts transaction to proto message.
 func (tx *Transaction) ToProtoMessage() (proto.Message, error) {
-	var vins []*corepb.TxIn
+	vins := make([]*corepb.TxIn, 0, len(tx.Vin))
 	for _, v := range tx.Vin {
 		vin, err := v.ToProtoMessage()
 		if err != nil {
@@ -387,7 +388,7 @@ func (tx *Transaction) ConvToPbTx() (*corepb.Transaction, error) {
 func (tx *Transaction) FromProtoMessage(message proto.Message) error {
 	if message, ok := message.(*corepb.Transaction); ok {
 		if message != nil {
-			var vins []*TxIn
+			vins := make([]*TxIn, 0, len(message.Vin))
 			for _, v := range message.Vin {
 				txin := new(TxIn)
 				if err := txin.FromProtoMessage(v); err != nil {
@@ -469,19 +470,11 @@ func (tx *Transaction) Copy() *Transaction {
 		vout = append(vout, txOutCopy)
 	}
 
-	data := new(Data)
-	if tx.Data != nil {
-		data.Type = tx.Data.Type
-		copy(data.Content, tx.Data.Content)
-	} else {
-		data = nil
-	}
-
 	return &Transaction{
 		Version:  tx.Version,
 		Vin:      vin,
 		Vout:     vout,
-		Data:     data,
+		Data:     tx.Data,
 		Magic:    tx.Magic,
 		LockTime: tx.LockTime,
 	}

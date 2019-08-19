@@ -55,10 +55,15 @@ func (s *txServer) GetBalance(
 	balances := make([]uint64, len(req.GetAddrs()))
 	statedb := s.server.GetChainReader().TailState()
 	for i, addr := range req.Addrs {
-		address, err := types.NewAddress(addr)
+		address, err := types.ParseAddress(addr)
 		if err != nil {
 			logger.Warn(err)
 			return newGetBalanceResp(-1, err.Error()), nil
+		}
+		_, ok1 := address.(*types.AddressContract)
+		_, ok2 := address.(*types.AddressPubKeyHash)
+		if !ok1 && !ok2 {
+			return newGetBalanceResp(-1, "only p2pkh or contract can get balance"), nil
 		}
 		amount := statedb.GetBalance(*address.Hash160()).Uint64()
 		balances[i] = amount

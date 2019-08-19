@@ -643,47 +643,6 @@ func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*type
 	return utxoWrap, nil
 }
 
-func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub BalanceChangeMap) {
-
-	add = make(BalanceChangeMap)
-	sub = make(BalanceChangeMap)
-	for _, v := range block.Txs {
-		if !txlogic.HasContractVout(v) {
-			for _, vout := range v.Vout {
-				sc := script.NewScriptFromBytes(vout.ScriptPubKey)
-				// calc balance for account state, here only EOA (external owned account)
-				// have balance state
-				if !sc.IsPayToPubKeyHash() {
-					continue
-				}
-				address, _ := sc.ExtractAddress()
-				addr := address.Hash160()
-				add[*addr] += vout.Value
-				//logger.Warnf("add addr: %s, value: %d", addr, vout.Value)
-			}
-		}
-	}
-
-	for o, w := range u.utxoMap {
-		_, exists := u.normalTxUtxoSet[o]
-		if !exists {
-			continue
-		}
-		sc := script.NewScriptFromBytes(w.Script())
-		// calc balance for account state, here only EOA (external owned account)
-		// have balance state
-		if !sc.IsPayToPubKeyHash() {
-			continue
-		}
-		address, _ := sc.ExtractAddress()
-		addr := address.Hash160()
-		if w.IsSpent() {
-			sub[*addr] += w.Value()
-		}
-	}
-	return
-}
-
 // MakeRollbackContractUtxos makes finally contract utxos from block
 func MakeRollbackContractUtxos(
 	block *types.Block, stateDB *state.StateDB, db storage.Table,
@@ -761,4 +720,50 @@ func MakeRollbackContractUtxos(
 		um[op] = utxoWrap
 	}
 	return um, nil
+}
+
+func calcContractAddrBalanceChanges(block *types.Block) (add, sub BalanceChangeMap, err error) {
+
+	add = make(BalanceChangeMap)
+	sub = make(BalanceChangeMap)
+	for _, v := range block.Txs {
+		if !txlogic.HasContractVout(v) {
+			continue
+		}
+		for _, vout := range v.Vout {
+			sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+			if !sc.IsContractPubkey() {
+				continue
+			}
+			param, t, err := sc.ParseContractParams()
+			if err != nil {
+				logger.Error(err)
+				return nil, nil, err
+			}
+			var addr *types.AddressHash
+			if t == types.ContractCreationType {
+				from, _ := types.NewAddressPubKeyHash(param.From[:])
+				contractAddr, _ := types.MakeContractAddress(from, param.Nonce)
+				addr = contractAddr.Hash160()
+			} else {
+				addr = param.To
+			}
+			add[*addr] += vout.Value
+		}
+	}
+
+	for _, tx := range block.InternalTxs {
+		if !tx.Vin[0].PrevOutPoint.IsContractType() {
+			continue
+		}
+		inAddr := new(types.AddressHash)
+		inAddr.SetBytes(tx.Vin[0].PrevOutPoint.Hash[:])
+		spend := uint64(0)
+		for _, out := range tx.Vout {
+			spend += out.Value
+			// TODO: if vout points to a contract address
+		}
+		sub[*inAddr] += spend
+	}
+	return
 }

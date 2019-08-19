@@ -747,8 +747,11 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 		}
 
 		// Check contract tx from and fee
-		txOut := txlogic.GetContractVout(tx)
-		if txOut == nil {
+		contractVout, err := txlogic.CheckAndGetContractVout(tx)
+		if err != nil {
+			return 0, err
+		}
+		if contractVout == nil {
 			// Check for overflow.
 			lastTotalFees := totalFees
 			totalFees += txFee
@@ -759,7 +762,7 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 		}
 
 		// smart contract tx.
-		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
 			return 0, err
@@ -2116,82 +2119,42 @@ func (chain *BlockChain) DeleteSplitAddrIndex(block *types.Block, db storage.Wri
 	return nil
 }
 
-// ExtractVMTransaction extract Transaction to VMTransaction
-func ExtractVMTransaction(
-	tx *types.Transaction, ownerTxs ...*types.Transaction,
-) (*types.VMTransaction, error) {
-	// check
-	if !txlogic.HasContractVout(tx) {
-		return nil, nil
-	}
-	// HashWith
-	txHash, _ := tx.TxHash()
-
-	// take only one contract vout in a transaction
-	for _, o := range tx.Vout {
-		sc := script.NewScriptFromBytes(o.ScriptPubKey)
-		if sc.IsContractPubkey() {
-			p, t, e := sc.ParseContractParams()
-			if e != nil {
-				return nil, e
-			}
-			if tx.Data == nil || len(tx.Data.Content) == 0 {
-				return nil, core.ErrContractDataNotFound
-			}
-			vmTx := types.NewVMTransaction(big.NewInt(int64(o.Value)),
-				big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash,
-				t, tx.Data.Content).WithFrom(p.From)
-			if t == types.ContractCallType {
-				vmTx.WithTo(p.To)
-			}
-			return vmTx, nil
-		}
-	}
-	return nil, fmt.Errorf("no vm tx in tx: %s", txHash)
-}
-
-func calcContractAddrBalanceChanges(block *types.Block) (add, sub BalanceChangeMap, err error) {
-
+func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub BalanceChangeMap) {
 	add = make(BalanceChangeMap)
 	sub = make(BalanceChangeMap)
 	for _, v := range block.Txs {
 		if !txlogic.HasContractVout(v) {
-			continue
-		}
-		for _, vout := range v.Vout {
-			sc := script.NewScriptFromBytes(vout.ScriptPubKey)
-			if !sc.IsContractPubkey() {
-				continue
+			for _, vout := range v.Vout {
+				sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+				// calc balance for account state, here only EOA (external owned account)
+				// have balance state
+				if !sc.IsPayToPubKeyHash() {
+					continue
+				}
+				address, _ := sc.ExtractAddress()
+				addr := address.Hash160()
+				add[*addr] += vout.Value
+				//logger.Warnf("add addr: %s, value: %d", addr, vout.Value)
 			}
-			param, t, err := sc.ParseContractParams()
-			if err != nil {
-				logger.Error(err)
-				return nil, nil, err
-			}
-			var addr *types.AddressHash
-			if t == types.ContractCreationType {
-				from, _ := types.NewAddressPubKeyHash(param.From[:])
-				contractAddr, _ := types.MakeContractAddress(from, param.Nonce)
-				addr = contractAddr.Hash160()
-			} else {
-				addr = param.To
-			}
-			add[*addr] += vout.Value
 		}
 	}
 
-	for _, tx := range block.InternalTxs {
-		if !tx.Vin[0].PrevOutPoint.IsContractType() {
+	for o, w := range u.utxoMap {
+		_, exists := u.normalTxUtxoSet[o]
+		if !exists {
 			continue
 		}
-		inAddr := new(types.AddressHash)
-		inAddr.SetBytes(tx.Vin[0].PrevOutPoint.Hash[:])
-		spend := uint64(0)
-		for _, out := range tx.Vout {
-			spend += out.Value
-			// TODO: if vout points to a contract address
+		sc := script.NewScriptFromBytes(w.Script())
+		// calc balance for account state, here only EOA (external owned account)
+		// have balance state
+		if !sc.IsPayToPubKeyHash() {
+			continue
 		}
-		sub[*inAddr] += spend
+		address, _ := sc.ExtractAddress()
+		addr := address.Hash160()
+		if w.IsSpent() {
+			sub[*addr] += w.Value()
+		}
 	}
 	return
 }
