@@ -413,7 +413,7 @@ func (ab *addrBook) setAddrs(p peer.ID, addrs []ma.Multiaddr, ttl time.Duration,
 	// Get peer type.
 	peertype, err := getMetadata(ab.store, p, PTypeSuf)
 	if err != nil {
-		logger.Errorf("get metadata failed. Err: %v, p: %s", err, p.Pretty())
+		logger.Warnf("get metadata failed. Err: %v, p: %s", err, p.Pretty())
 		peertype = uint8(LayfolkPeer)
 	}
 

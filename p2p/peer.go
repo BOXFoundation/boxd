@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
@@ -164,6 +165,11 @@ func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 		logger.Warnf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
 		return
 	}
+	ptype, _ := p.Type(conn.remotePeer)
+	err := pstore.UpdateType(conn.remotePeer, uint32(ptype))
+	if err != nil {
+		logger.Error(err)
+	}
 	conn.Loop(p.proc)
 }
 
@@ -180,9 +186,32 @@ func (p *BoxPeer) Run() error {
 		p.connectSeeds()
 		p.table.Loop(p.proc)
 	}
+	go p.Metrics(p.proc)
 	p.notifier.Loop(p.proc)
 
 	return nil
+}
+
+// Metrics is used to measure data
+func (p *BoxPeer) Metrics(proc goprocess.Process) {
+
+	ticker := time.NewTicker(metricsLoopInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-proc.Closing():
+			logger.Info("Quit peer metrics.")
+			return
+		case <-ticker.C:
+			var len int64
+			p.conns.Range(func(k, v interface{}) bool {
+				len++
+				return true
+			})
+			metricsConnGauge.Update(len)
+		}
+	}
+
 }
 
 // Proc returns the gopreocess of database

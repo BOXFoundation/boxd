@@ -144,10 +144,9 @@ func (t *Table) peerDiscover() {
 
 	if t.peer.peertype == pstore.UnknownPeer {
 		pType, nodoubt := t.peer.Type(t.peer.id)
-		if !nodoubt {
-			return
+		if pType != pstore.UnknownPeer && nodoubt {
+			t.peer.peertype = pType
 		}
-		t.peer.peertype = pType
 	}
 
 	var peerIDs []peer.ID
@@ -159,7 +158,7 @@ func (t *Table) peerDiscover() {
 	case pstore.ServerPeer:
 		peerIDs = t.serverDiscover(all)
 	case pstore.UnknownPeer:
-		return
+		peerIDs = t.unknownDiscover(all)
 	default:
 		peerIDs = t.defaultDiscover(all)
 	}
@@ -236,10 +235,6 @@ func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 
 	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable-len(peerIDs))
 	peerIDs = append(peerIDs, miners...)
-
-	for _, pid := range peerIDs {
-		logger.Errorf("%s minerDiscover %s", t.peer.id.Pretty(), pid.Pretty())
-	}
 	return
 }
 
@@ -265,6 +260,16 @@ func (t *Table) serverDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 		peerIDs = append(peerIDs, agents...)
 	}
 	peerIDs = append(peerIDs, t.selectRandomPeers(all, uint32(MaxPeerCountToSyncRouteTable-len(peerIDs)), DefaultUnestablishRatio, true)...)
+	return
+}
+
+func (t *Table) unknownDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	permitToConnect := append(append(t.peer.config.Seeds, t.peer.config.Principals...), t.peer.config.Agents...)
+	for _, pid := range all {
+		if t.peer.config.exist(pid.Pretty(), permitToConnect) {
+			peerIDs = append(peerIDs, pid)
+		}
+	}
 	return
 }
 
@@ -336,7 +341,11 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 		}
 		ptype, _ := t.peer.Type(pid)
 		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(ptype))
-		pstore.PutType(pid, uint32(ptype), time.Now().Unix())
+		err = pstore.UpdateType(pid, uint32(ptype))
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
 		t.addPeerInfo(pid, v.Addrs)
 	}
 }

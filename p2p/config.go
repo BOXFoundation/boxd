@@ -5,7 +5,10 @@
 package p2p
 
 import (
+	"strings"
 	"time"
+
+	"github.com/BOXFoundation/boxd/util"
 )
 
 // Config for peer configuration
@@ -24,4 +27,17 @@ type Config struct {
 	ConnMaxCapacity uint32        `mapstructure:"conn_max_capacity"`
 	ConnLoadFactor  float32       `mapstructure:"conn_load_factor"`
 	RelaySize       uint32        `mapstructure:"relay_size"`
+}
+
+func (cfg *Config) exist(pid string, slice []string) bool {
+	pids := []string{}
+	for _, s := range slice {
+		if strings.ContainsAny(s, "/") {
+			strs := strings.Split(s, "/")
+			pids = append(pids, strs[len(strs)-1])
+		} else {
+			pids = append(pids, s)
+		}
+	}
+	return util.InArray(pid, pids)
 }

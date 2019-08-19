@@ -38,6 +38,9 @@
     "repeat_times": 20,
     "enable_repeat_random": true
   },
+  "p2p_test": {
+    "enable": true
+  },
   "miners": {
     "docker": [
       "127.0.0.1:19111",

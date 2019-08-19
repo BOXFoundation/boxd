@@ -19,6 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	"github.com/jbenet/goprocess"
 	"google.golang.org/grpc"
 )
 
@@ -75,6 +76,7 @@ func initAcc() {
 }
 
 func main() {
+	proc := goprocess.WithSignals(os.Interrupt)
 	defer func() {
 		if x := recover(); x != nil {
 			os.Exit(1)
@@ -104,7 +106,9 @@ func main() {
 		} else {
 			processes, err := utils.StartLocalNodes(len(allAddrs) - 1)
 			defer utils.StopLocalNodes(processes...)
-			go testP2p()
+			if utils.P2pTestEnable() {
+				go testP2p(proc)
+			}
 			if err != nil {
 				logger.Panic(err)
 			}

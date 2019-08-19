@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
+	"github.com/jbenet/goprocess"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -26,13 +27,23 @@ type Yaml struct {
 	}
 }
 
-func testP2p() {
+func testP2p(proc goprocess.Process) {
 
 	miners := utils.MinerAddrs()
 	others := utils.OtherAddrs()
+	if len(others) == 0 {
+		return
+	}
 
+	ticker := time.NewTicker(10 * time.Second)
 	for {
-		time.Sleep(time.Second * 10)
+
+		select {
+		case <-ticker.C:
+		case <-proc.Closing():
+			logger.Info("Quit p2p test loop.")
+			return
+		}
 
 		minerAddrs := []string{}
 		for _, addr := range miners {

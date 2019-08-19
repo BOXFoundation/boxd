@@ -38,6 +38,8 @@ var (
 	contractRepeatTxTimes = 50
 	contractRepeatRandom  = true
 
+	p2pTestEnable = true
+
 	timesToUpdateAddrs = 100
 
 	// NewNodes flag indicates to need to start nodes
@@ -116,6 +118,13 @@ func LoadConf() error {
 		return err
 	}
 	logger.Infof("transaction test enable_repeat_random = %t", circuRepeatRandom)
+
+	// p2p
+	p2pTestEnable, err = GetBoolCfgVal(true, "p2p_test", "enable")
+	if err != nil {
+		return err
+	}
+	logger.Infof("p2p test enable = %t", p2pTestEnable)
 
 	// token
 	tokenTestEnable, err = GetBoolCfgVal(true, "token_test", "enable")
@@ -349,6 +358,11 @@ func TokenRepeatRandom() bool {
 // TokenTestEnable return tokenTestEnable
 func TokenTestEnable() bool {
 	return tokenTestEnable
+}
+
+// P2pTestEnable return p2pTestEnable
+func P2pTestEnable() bool {
+	return p2pTestEnable
 }
 
 // SplitAddrTestEnable return splitAddrTestEnable
