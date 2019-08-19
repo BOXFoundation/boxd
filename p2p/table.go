@@ -229,6 +229,7 @@ func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 		return t.defaultDiscover(all)
 	}
 	peerIDs = append(peerIDs, agents...)
+	peerIDs = append(peerIDs, seeds...)
 
 	candidates := t.selectTypedPeers(pstore.CandidatePeer, MaxPeerCountToSyncRouteTable/2)
 	peerIDs = append(peerIDs, candidates...)
@@ -243,6 +244,7 @@ func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 		return t.defaultDiscover(all)
 	}
 	peerIDs = append(peerIDs, agents...)
+	peerIDs = append(peerIDs, seeds...)
 
 	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable/2)
 	peerIDs = append(peerIDs, miners...)
@@ -253,12 +255,9 @@ func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 }
 
 func (t *Table) serverDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
-	if len(principals) != 0 {
-		peerIDs = append(peerIDs, principals...)
-	}
-	if len(agents) != 0 {
-		peerIDs = append(peerIDs, agents...)
-	}
+	peerIDs = append(peerIDs, principals...)
+	peerIDs = append(peerIDs, agents...)
+	peerIDs = append(peerIDs, seeds...)
 	peerIDs = append(peerIDs, t.selectRandomPeers(all, uint32(MaxPeerCountToSyncRouteTable-len(peerIDs)), DefaultUnestablishRatio, true)...)
 	return
 }
