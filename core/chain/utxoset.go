@@ -469,7 +469,8 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 				if sc.IsTokenTransfer() {
 					v, err := sc.GetTransferParams()
 					if err != nil {
-						logger.Warnf("Failed to get transfer param when write utxo to db. Err: %v", err)
+						logger.Warnf("Failed to get token transfer param when write utxo to db. Err: %v", err)
+						return err
 					}
 					tokenID = v.OutPoint
 				} else {

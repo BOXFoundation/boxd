@@ -14,8 +14,6 @@ import (
 
 // Transfers used to record the transfer information
 var (
-	// Transfers          map[types.AddressHash][]*TransferInfo
-	// TransferToContract *types.Transaction
 	Transfers = make(map[types.AddressHash][]*TransferInfo)
 )
 
@@ -68,10 +66,13 @@ func CanTransfer(db vm.StateDB, addr types.AddressHash, amount *big.Int) bool {
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient types.AddressHash, amount *big.Int, interpreterInvoke bool) {
+	logger.Warnf("Transfer sender: %x, recipient: %x, amount: %d", sender[:], recipient[:], amount)
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
 	if interpreterInvoke && amount.Uint64() > 0 {
 		transferInfo := NewTransferInfo(sender, recipient, amount)
+		logger.Debugf("new transfer info: sender: %x, recipient: %x, amount: %d",
+			sender[:], recipient[:], amount)
 		if v, ok := Transfers[sender]; ok {
 			for _, w := range v {
 				if w.to == recipient {

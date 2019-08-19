@@ -571,32 +571,29 @@ func contractBlockHandle(
 		}
 	}
 	// for userAddr
-	balance := getBalance(userAddr.String(), blockChain.db)
-	stateBalance := blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
-	t.Logf("user %s balance: %d, stateBalance: %d, expect balance: %d",
-		userAddr, balance, stateBalance, expectUserBalance)
-	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, expectUserBalance)
-	userBalance = balance
+	checkTestAddrBalance(t, blockChain, userAddr, expectUserBalance)
+	t.Logf("user %s balance: %d", userAddr, expectUserBalance)
+	userBalance = expectUserBalance
 	// for miner
-	balance = getBalance(minerAddr.String(), blockChain.db)
-	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
-	t.Logf("miner %s balance: %d, stateBalance: %d, expect balance: %d",
-		minerAddr, balance, stateBalance, expectMinerBalance)
-	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, expectMinerBalance)
-	minerBalance = balance
+	checkTestAddrBalance(t, blockChain, minerAddr, expectMinerBalance)
+	t.Logf("user %s balance: %d", minerAddr, expectMinerBalance)
+	minerBalance = expectMinerBalance
 	// for contract address
-	balance = getBalance(param.contractAddr.String(), blockChain.db)
-	stateBalance = blockChain.tailState.GetBalance(*param.contractAddr.Hash160()).Uint64()
-	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, stateBalance, param.contractBalance)
-	contractBalance = stateBalance
-	t.Logf("contract %s balance: %d", param.contractAddr, contractBalance)
+	checkTestAddrBalance(t, blockChain, minerAddr, param.contractBalance)
+	t.Logf("contract %s balance: %d", param.contractAddr, param.contractBalance)
+	contractBalance = param.contractBalance
 	// for admin contract address
 	bonusContractAddr, _ := types.NewContractAddressFromHash(ContractAddr[:])
-	stateBalance = blockChain.tailState.GetBalance(ContractAddr).Uint64()
-	t.Logf("bonus contract %s balance: %d", bonusContractAddr, stateBalance)
+	bonusBalance := blockChain.tailState.GetBalance(ContractAddr).Uint64()
+	t.Logf("bonus contract %s balance: %d", bonusContractAddr, bonusBalance)
+}
+
+func checkTestAddrBalance(t *testing.T, bc *BlockChain, addr types.Address, expect uint64) {
+	utxoBalance := getBalance(addr.String(), bc.db)
+	stateBalance := bc.tailState.GetBalance(*addr.Hash160()).Uint64()
+	t.Logf("%s utxo balance: %d state balance: %d", addr, utxoBalance, stateBalance)
+	ensure.DeepEqual(t, utxoBalance, expect, "incorrect utxo balance for "+addr.String())
+	ensure.DeepEqual(t, stateBalance, expect, "incorrect state balance for "+addr.String())
 }
 
 const (
@@ -1674,8 +1671,9 @@ func TestCallBetweenContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("user address: %x", userAddr.Hash160()[:])
 
-	//
+	// deploy token contract
 	blockChain := NewTestBlockChain()
 	b2 := genTestChain(t, blockChain)
 	vmValue, gasPrice, gasLimit := uint64(0), uint64(1), uint64(800000)
@@ -1691,9 +1689,9 @@ func TestCallBetweenContracts(t *testing.T) {
 		WithData(types.ContractDataType, tokenCode)
 	txlogic.SignTx(vmTx1, privKey, pubKey)
 	tokenAddr, _ := types.MakeContractAddress(userAddr, nonce)
-
-	vmValue, gasPrice, gasLimit = uint64(0), uint64(1), uint64(200000)
-	t.Logf("token addr normalize: %x", types.NormalizeAddressHash(tokenAddr.Hash160())[:])
+	t.Logf("token contract address: %x", tokenAddr.Hash160()[:])
+	// deploy bank contract
+	vmValue, gasPrice, gasLimit = 80000, 1, 200000
 	bankCode = append(bankCode, types.NormalizeAddressHash(tokenAddr.Hash160())[:]...)
 	nonce++
 	contractVout, _ = txlogic.MakeContractCreationVout(userAddr.Hash160(),
@@ -1707,12 +1705,14 @@ func TestCallBetweenContracts(t *testing.T) {
 		WithData(types.ContractDataType, bankCode)
 	txlogic.SignTx(vmTx2, privKey, pubKey)
 	bankAddr, _ := types.MakeContractAddress(userAddr, nonce)
-
+	bankBalance := vmValue
+	t.Logf("bank contract address: %x", bankAddr.Hash160()[:])
+	// call token.transfer api
+	vmValue, gasPrice, gasLimit = 0, 1, 40000
 	nonce++
 	prevHash, _ = vmTx2.TxHash()
 	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	input := transferCall(bankAddr.Hash160(), changeValue)
-	t.Logf("transfer call input: %x", input)
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		tokenAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
 	vmTx3 := types.NewTx(0, 4455, 0).
@@ -1721,7 +1721,8 @@ func TestCallBetweenContracts(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
 		WithData(types.ContractDataType, input)
 	txlogic.SignTx(vmTx3, privKey, pubKey)
-
+	// call bank.recharge api
+	vmValue, gasPrice, gasLimit = 20000, 1, 30000
 	nonce++
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		bankAddr.Hash160(), vmValue, gasLimit, gasPrice, nonce)
@@ -1733,15 +1734,21 @@ func TestCallBetweenContracts(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
 		WithData(types.ContractDataType, rechargeCall)
 	txlogic.SignTx(vmTx4, privKey, pubKey)
+	bankBalance -= vmValue
+	tokenBalance := vmValue
 
-	b3 := nextBlockWithTxs(b2, blockChain, vmTx1, vmTx2)
+	// bring them on chain
+	b3 := nextBlockWithTxs(b2, blockChain, vmTx1, vmTx2, vmTx3, vmTx4)
 	if err := calcRootHash(b2, b3, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
-
 	t.Logf("b3 block hash: %s", b3.BlockHash())
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
-	//bytes, _ := json.MarshalIndent(b3, "", "  ")
-	//t.Logf("b6 block: %s", string(bytes))
+
+	// check balance
+	checkTestAddrBalance(t, blockChain, tokenAddr, tokenBalance)
+	checkTestAddrBalance(t, blockChain, bankAddr, bankBalance)
+	userBalance -= (b3.Header.GasUsed - coinbaseGasUsed) * gasPrice
+	checkTestAddrBalance(t, blockChain, userAddr, userBalance)
 }
