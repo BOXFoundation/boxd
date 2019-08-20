@@ -1133,6 +1133,21 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 		stt0 := time.Now().UnixNano()
 		attachBlock := attachBlocks[blockIdx]
 		if err := chain.tryConnectBlockToMainChain(attachBlock, messageFrom); err != nil {
+			// Roll back to the original state
+			for idx := blockIdx + 1; idx < len(attachBlocks); idx++ {
+				block := attachBlocks[idx]
+				if err := chain.tryDisConnectBlockFromMainChain(block); err != nil {
+					logger.Errorf("RollBack: Failed to disconnect block from main chain. Err: %v", err)
+					panic("RollBack: Failed to disconnect block from main chain")
+				}
+			}
+			for idx := len(detachBlocks) - 1; idx >= 0; idx-- {
+				block := attachBlocks[idx]
+				if err := chain.tryConnectBlockToMainChain(block, messageFrom); err != nil {
+					logger.Errorf("RollBack: Failed to connect block to main chain. Err: %v", err)
+					panic("RollBack: Failed to connect block to main chain")
+				}
+			}
 			return err
 		}
 		stt1 := time.Now().UnixNano()
