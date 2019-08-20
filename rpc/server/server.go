@@ -39,16 +39,22 @@ var (
 
 // Config defines the configurations of rpc server
 type Config struct {
-	Enabled         bool       `mapstructure:"enabled"`
-	Address         string     `mapstructure:"address"`
-	Port            int        `mapstructure:"port"`
-	HTTP            HTTPConfig `mapstructure:"http"`
-	GrpcLimits      int        `mapstructure:"grpc_limits"`
-	HTTPLimits      int        `mapstructure:"http_limits"`
-	HTTPCors        []string   `mapstructure:"http_cors"`
-	FaucetKeyFile   string     `mapstructure:"faucet_keyfile"`
-	SubScribeBlocks bool       `mapstructure:"subscribe_blocks"`
-	SubScribeLogs   bool       `mapstructure:"subscribe_logs"`
+	Enabled         bool         `mapstructure:"enabled"`
+	Address         string       `mapstructure:"address"`
+	Port            int          `mapstructure:"port"`
+	HTTP            HTTPConfig   `mapstructure:"http"`
+	GrpcLimits      int          `mapstructure:"grpc_limits"`
+	HTTPLimits      int          `mapstructure:"http_limits"`
+	HTTPCors        []string     `mapstructure:"http_cors"`
+	Faucet          FaucetConfig `mapstructure:"faucet"`
+	SubScribeBlocks bool         `mapstructure:"subscribe_blocks"`
+	SubScribeLogs   bool         `mapstructure:"subscribe_logs"`
+}
+
+//FaucetConfig  defines the faucet config
+type FaucetConfig struct {
+	Keyfile string   `mapstructure:"keyfile"`
+	IPList  []string `mapstructure:"ip_list"`
 }
 
 // HTTPConfig defines the address/port of rest api over http

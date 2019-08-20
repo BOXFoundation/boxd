@@ -31,7 +31,13 @@ rpc:
     port: 19191
     http:
         port: 19190
-    faucet_keyfile: ./keyfile/key1.keystore
+    faucet:
+        keyfile: ./keyfile/key1.keystore
+        ip_list:
+            - 192.168.21.255
+            - 192.168.21.76
+            - 127.0.0.1
+
     subscribe_blocks: true
     subscribe_logs: true
 bpos:
