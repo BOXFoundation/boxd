@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -21,8 +22,12 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
+const (
+	amountPerSec = 10000 * core.DuPerBox
+)
+
 var (
-	remainBalance = int64(10000)
+	remainBalance uint64 = amountPerSec
 )
 
 func init() {
@@ -54,7 +59,7 @@ func registerFaucet(s *Server) {
 		return
 	}
 	logger.Infof("rpc register faucet account: %+v", account)
-	f := newFaucet(s.cfg.Faucet, s.GetTxHandler(), s.GetWalletAgent(), account)
+	f := newFaucet(s.cfg.Faucet.IPList, s.GetTxHandler(), s.GetWalletAgent(), account)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
 
@@ -67,15 +72,17 @@ type walletAgent interface {
 	Balance(addr string, tid *types.TokenID) (uint64, error)
 }
 type faucet struct {
-	faucetConfig FaucetConfig
+	refreshTimer *time.Ticker
+	whiteList    []string
 	walletAgent
 	txHandler
 	account *acc.Account
 }
 
-func newFaucet(faucetCon FaucetConfig, handler txHandler, wa walletAgent, account *acc.Account) *faucet {
+func newFaucet(whiteLists []string, handler txHandler, wa walletAgent, account *acc.Account) *faucet {
 	return &faucet{
-		faucetConfig: faucetCon,
+		refreshTimer: time.NewTicker(time.Second),
+		whiteList:    whiteLists,
 		txHandler:    handler,
 		walletAgent:  wa,
 		account:      account,
@@ -102,47 +109,52 @@ func (f *faucet) Claim(
 	}()
 
 	pr, ok := peer.FromContext(ctx)
-	logger.Warnf("peer form context pr: %+v, ok : %t", pr, ok)
+	logger.Infof("peer form context pr: %+v, ok : %t", pr, ok)
+
+	if !ok {
+		return newClaimResp(-1, err.Error()), err
+	}
+	ipSlice := strings.Split(pr.Addr.String(), ":")
+	ipClient := ipSlice[0]
+
 	inWhiteList := false
-	for _, v := range f.faucetConfig.IPList {
-		if strings.HasPrefix(pr.Addr.String(), v) {
+	for _, v := range f.whiteList {
+		if ipClient == v {
 			inWhiteList = true
 			break
 		}
 	}
 	if !inWhiteList {
-		return newClaimResp(-1, "IP can not recongize"), err
+		return newClaimResp(-1, "unauthorized IP!"), err
 	}
-	// set a time to limit the amount
-	timer := time.NewTicker(time.Second)
-	defer timer.Stop()
 
 	select {
-	case <-timer.C:
-		remainBalance = 10000
-		remainBalance -= int64(req.Amount)
+	case <-f.refreshTimer.C:
+		atomic.StoreUint64(&remainBalance, amountPerSec)
+	default:
 	}
-	if remainBalance > 0 {
-		addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
-		if err != nil {
-			return newClaimResp(-1, err.Error()), nil
-		}
-		from, to, amount, fee := addrPubHash.String(), req.Addr, req.Amount, uint64(1000)
-		tx, utxos, err := rpcutil.MakeUnsignedTx(f.walletAgent, from, []string{to},
-			[]uint64{amount}, fee)
-		if err != nil {
-			return newClaimResp(-1, err.Error()), err
-		}
-		if err := txlogic.SignTxWithUtxos(tx, utxos, f.account); err != nil {
-			return newClaimResp(-1, err.Error()), err
-		}
-		if err := f.ProcessTx(tx, core.BroadcastMode); err != nil {
-			return newClaimResp(-1, err.Error()), err
-		}
-		resp = newClaimResp(0, "success")
-		hash, _ := tx.TxHash()
-		resp.Hash = hash.String()
-		return resp, nil
+	remain := atomic.AddUint64(&remainBalance, ^uint64(req.Amount-1))
+	if remain < req.Amount {
+		return newClaimResp(-1, " it is not enough to assign!"), err
 	}
-	return newClaimResp(-1, " it is not enough to assign"), err
+	addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
+	if err != nil {
+		return newClaimResp(-1, err.Error()), nil
+	}
+	from, to, amount, fee := addrPubHash.String(), req.Addr, req.Amount, uint64(1000)
+	tx, utxos, err := rpcutil.MakeUnsignedTx(f.walletAgent, from, []string{to},
+		[]uint64{amount}, fee)
+	if err != nil {
+		return newClaimResp(-1, err.Error()), err
+	}
+	if err := txlogic.SignTxWithUtxos(tx, utxos, f.account); err != nil {
+		return newClaimResp(-1, err.Error()), err
+	}
+	if err := f.ProcessTx(tx, core.BroadcastMode); err != nil {
+		return newClaimResp(-1, err.Error()), err
+	}
+	resp = newClaimResp(0, "success")
+	hash, _ := tx.TxHash()
+	resp.Hash = hash.String()
+	return resp, nil
 }
