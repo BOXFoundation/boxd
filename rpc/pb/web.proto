@@ -60,6 +60,12 @@ service WebApi {
         };
     }
 
+    rpc Miners (MinersReq) returns (MinersResp) {
+        option (google.api.http) = {
+            post: "/v1/miners"
+            body: "*"
+        };
+    }
 }
 
 message RegisterReq {
@@ -269,4 +275,19 @@ message PeerIDResp {
     int32 code = 1;
     string message = 2;
     string peerid = 3;
+}
+
+message MinersReq {
+}
+
+message MinersResp {
+    int32 code = 1;
+    string message = 2;
+    repeated MinerDetail miners = 3;
+}
+
+message MinerDetail {
+    string id = 1;
+    string address = 2;
+    repeated string iplist = 3;
 }

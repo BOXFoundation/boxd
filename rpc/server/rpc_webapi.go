@@ -80,6 +80,7 @@ type TxPoolReader interface {
 type TableReader interface {
 	ConnectingPeers() []string
 	PeerID() string
+	Miners() []*types.PeerInfo
 }
 
 func newWebAPIServer(s *Server) *webapiServer {
@@ -1067,5 +1068,27 @@ func (s *webapiServer) PeerID(
 		Code:    0,
 		Message: "",
 		Peerid:  s.TableReader.PeerID(),
+	}, nil
+}
+
+func (s *webapiServer) Miners(
+	ctx context.Context, req *rpcpb.MinersReq,
+) (*rpcpb.MinersResp, error) {
+
+	infos := s.TableReader.Miners()
+	miners := make([]*rpcpb.MinerDetail, len(infos))
+
+	for i, info := range infos {
+		miners[i] = &rpcpb.MinerDetail{
+			Id:      info.ID,
+			Address: info.Addr,
+			Iplist:  info.Iplist,
+		}
+	}
+
+	return &rpcpb.MinersResp{
+		Code:    0,
+		Message: "",
+		Miners:  miners,
 	}, nil
 }

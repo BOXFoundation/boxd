@@ -11,11 +11,13 @@ import (
 	"hash/crc64"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
@@ -37,6 +39,8 @@ var (
 	crc64Table = crc64.MakeTable(crc64.ECMA)
 
 	isSynced = false
+
+	ipRegex = "(2(5[0-5]{1}|[0-4]\\d{1})|[0-1]?\\d{1,2})(\\.(2(5[0-5]{1}|[0-4]\\d{1})|[0-1]?\\d{1,2})){3}"
 )
 
 // BoxPeer represents a connected remote node.
@@ -451,6 +455,37 @@ func (p *BoxPeer) ConnectingPeers() []string {
 // PeerID return peer.ID.
 func (p *BoxPeer) PeerID() string {
 	return p.id.Pretty()
+}
+
+// Miners return miners and ips.
+func (p *BoxPeer) Miners() []*types.PeerInfo {
+	miners, _ := p.minerreader.Miners()
+	re, _ := regexp.Compile(ipRegex)
+
+	infos := []*types.PeerInfo{}
+	for _, m := range miners {
+		pid, err := peer.IDB58Decode(m)
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v, m: %s", err, m)
+			continue
+		}
+		info := p.table.peerStore.PeerInfo(pid)
+		iplist := []string{}
+		for _, ip := range info.Addrs {
+			ipp := re.Find([]byte(ip.String()))
+			if len(ipp) == 0 {
+				continue
+			}
+			iplist = append(iplist, string(ipp))
+		}
+
+		pinfo := &types.PeerInfo{
+			ID:     m,
+			Iplist: iplist,
+		}
+		infos = append(infos, pinfo)
+	}
+	return infos
 }
 
 // UpdateSynced update peers' isSynced
