@@ -611,7 +611,7 @@ func TestBlockProcessing(t *testing.T) {
 		AppendVout(txlogic.MakeVout(minerAddr.String(), changeValueATemp))
 	txlogic.SignTx(toUserTx, privKeyMiner, pubKeyMiner)
 	b6A := nextBlockWithTxsV2(b5A, blockChain, toUserTx)
-	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5A)
+	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5)
 	t.Logf("b5A -> b6A failed, now tail height: %d", blockChain.LongestChainHeight)
 
 	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(30000)

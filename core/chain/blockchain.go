@@ -1142,7 +1142,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 				}
 			}
 			for idx := len(detachBlocks) - 1; idx >= 0; idx-- {
-				block := attachBlocks[idx]
+				block := detachBlocks[idx]
 				if err := chain.tryConnectBlockToMainChain(block, messageFrom); err != nil {
 					logger.Errorf("RollBack: Failed to connect block to main chain. Err: %v", err)
 					panic("RollBack: Failed to connect block to main chain")
