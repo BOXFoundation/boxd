@@ -119,6 +119,7 @@ func (f *faucet) Claim(
 
 	select {
 	case <-timer.C:
+		remainBalance = 10000
 		remainBalance -= int64(req.Amount)
 	}
 	if remainBalance > 0 {
@@ -143,6 +144,5 @@ func (f *faucet) Claim(
 		resp.Hash = hash.String()
 		return resp, nil
 	}
-	remainBalance = 10000
 	return newClaimResp(-1, " it is not enough to assign"), err
 }
