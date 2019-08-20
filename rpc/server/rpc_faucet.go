@@ -36,7 +36,6 @@ func init() {
 func registerFaucet(s *Server) {
 	keyFile := s.cfg.Faucet.Keyfile
 	if _, err := os.Stat(keyFile); os.IsNotExist(err) {
-		logger.Error(err)
 		return
 	}
 	filePath, err := filepath.Abs(keyFile)
@@ -54,7 +53,7 @@ func registerFaucet(s *Server) {
 		logger.Warnf("rpc register faucet unlock account error: %s", err)
 		return
 	}
-	logger.Errorf("rpc register faucet account: %+v", account)
+	logger.Infof("rpc register faucet account: %+v", account)
 	f := newFaucet(s.cfg.Faucet, s.GetTxHandler(), s.GetWalletAgent(), account)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
