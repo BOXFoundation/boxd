@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	remainBalance uint64 = amountPerSec
+	remainBalance int64 = amountPerSec
 )
 
 func init() {
@@ -59,7 +59,7 @@ func registerFaucet(s *Server) {
 		return
 	}
 	logger.Infof("rpc register faucet account: %+v", account)
-	f := newFaucet(s.cfg.Faucet.IPList, s.GetTxHandler(), s.GetWalletAgent(), account)
+	f := newFaucet(s.cfg.Faucet.WhiteList, s.GetTxHandler(), s.GetWalletAgent(), account)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
 
@@ -109,17 +109,14 @@ func (f *faucet) Claim(
 	}()
 
 	pr, ok := peer.FromContext(ctx)
-	logger.Infof("peer form context pr: %+v, ok : %t", pr, ok)
 
 	if !ok {
-		return newClaimResp(-1, err.Error()), err
+		return newClaimResp(-1, "unable to parse ip from context"), err
 	}
-	ipSlice := strings.Split(pr.Addr.String(), ":")
-	ipClient := ipSlice[0]
-
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
 	inWhiteList := false
 	for _, v := range f.whiteList {
-		if ipClient == v {
+		if cliIP == v {
 			inWhiteList = true
 			break
 		}
@@ -127,15 +124,19 @@ func (f *faucet) Claim(
 	if !inWhiteList {
 		return newClaimResp(-1, "unauthorized IP!"), err
 	}
+	if req.Amount == 0 {
+		return newClaimResp(-1, "Illegal amount input,amount should be more than 0 "), err
+	}
 
 	select {
 	case <-f.refreshTimer.C:
-		atomic.StoreUint64(&remainBalance, amountPerSec)
+		atomic.StoreInt64(&remainBalance, amountPerSec)
 	default:
 	}
-	remain := atomic.AddUint64(&remainBalance, ^uint64(req.Amount-1))
-	if remain < req.Amount {
-		return newClaimResp(-1, " it is not enough to assign!"), err
+	remain := atomic.AddInt64(&remainBalance, -int64(req.Amount))
+
+	if remain < 0 {
+		return newClaimResp(-1, " exceed max amount this second"), err
 	}
 	addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
 	if err != nil {

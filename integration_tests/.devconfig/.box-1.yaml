@@ -31,9 +31,8 @@ rpc:
         port: 19110
     faucet:
         keyfile: ./.devconfig/keyfile/pre.keystore
-        ip_list:
-            - 192.168.21.255
-            - 192.168.21.76
+        white_list:
+            - 161.117.80.37
             - 127.0.0.1
     subscribe_blocks: true
     subscribe_logs: true

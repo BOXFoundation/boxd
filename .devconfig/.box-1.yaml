@@ -33,9 +33,8 @@ rpc:
         port: 19190
     faucet:
         keyfile: ./keyfile/key1.keystore
-        ip_list:
-            - 192.168.21.255
-            - 192.168.21.76
+        white_list:
+            - 161.117.80.37
             - 127.0.0.1
 
     subscribe_blocks: true

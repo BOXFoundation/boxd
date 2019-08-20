@@ -53,8 +53,8 @@ type Config struct {
 
 //FaucetConfig  defines the faucet config
 type FaucetConfig struct {
-	Keyfile string   `mapstructure:"keyfile"`
-	IPList  []string `mapstructure:"ip_list"`
+	Keyfile   string   `mapstructure:"keyfile"`
+	WhiteList []string `mapstructure:"white_list"`
 }
 
 // HTTPConfig defines the address/port of rest api over http
