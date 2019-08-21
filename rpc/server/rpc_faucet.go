@@ -8,6 +8,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -15,6 +18,16 @@ import (
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+
+	"google.golang.org/grpc/peer"
+)
+
+const (
+	amountPerSec = 10000 * core.DuPerBox
+)
+
+var (
+	remainBalance uint64 = amountPerSec
 )
 
 func init() {
@@ -26,7 +39,7 @@ func init() {
 }
 
 func registerFaucet(s *Server) {
-	keyFile := s.cfg.FaucetKeyFile
+	keyFile := s.cfg.Faucet.Keyfile
 	if _, err := os.Stat(keyFile); os.IsNotExist(err) {
 		return
 	}
@@ -46,7 +59,7 @@ func registerFaucet(s *Server) {
 		return
 	}
 	logger.Infof("rpc register faucet account: %+v", account)
-	f := newFaucet(s.GetTxHandler(), s.GetWalletAgent(), account)
+	f := newFaucet(s.cfg.Faucet.WhiteList, s.GetTxHandler(), s.GetWalletAgent(), account)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
 
@@ -58,18 +71,21 @@ type walletAgent interface {
 	Utxos(addr string, tid *types.TokenID, amount uint64) ([]*rpcpb.Utxo, error)
 	Balance(addr string, tid *types.TokenID) (uint64, error)
 }
-
 type faucet struct {
+	refreshTimer *time.Ticker
+	whiteList    []string
 	walletAgent
 	txHandler
 	account *acc.Account
 }
 
-func newFaucet(handler txHandler, wa walletAgent, account *acc.Account) *faucet {
+func newFaucet(whiteLists []string, handler txHandler, wa walletAgent, account *acc.Account) *faucet {
 	return &faucet{
-		txHandler:   handler,
-		walletAgent: wa,
-		account:     account,
+		refreshTimer: time.NewTicker(time.Second),
+		whiteList:    whiteLists,
+		txHandler:    handler,
+		walletAgent:  wa,
+		account:      account,
 	}
 }
 
@@ -92,6 +108,36 @@ func (f *faucet) Claim(
 		}
 	}()
 
+	pr, ok := peer.FromContext(ctx)
+
+	if !ok {
+		return newClaimResp(-1, "unable to parse ip from context"), err
+	}
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
+	inWhiteList := false
+	for _, v := range f.whiteList {
+		if cliIP == v {
+			inWhiteList = true
+			break
+		}
+	}
+	if !inWhiteList {
+		return newClaimResp(-1, "unauthorized IP!"), err
+	}
+	if req.Amount == 0 {
+		return newClaimResp(-1, "Amount must be more than 0 "), err
+	}
+
+	select {
+	case <-f.refreshTimer.C:
+		atomic.StoreUint64(&remainBalance, amountPerSec)
+	default:
+	}
+	remain := atomic.LoadUint64(&remainBalance)
+	if remain-req.Amount > remain {
+		return newClaimResp(-1, "exceed max amount this second"), err
+	}
+	atomic.AddUint64(&remainBalance, ^uint64(req.Amount-1))
 	addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
 	if err != nil {
 		return newClaimResp(-1, err.Error()), nil

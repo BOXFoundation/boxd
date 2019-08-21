@@ -31,7 +31,11 @@ rpc:
     port: 19111
     http:
         port: 19110
-    faucet_keyfile: ./.devconfig/keyfile/pre.keystore
+    faucet:
+        keyfile: ./.devconfig/keyfile/pre.keystore
+        white_list:
+            - 161.117.80.37
+            - 127.0.0.1
     subscribe_blocks: true
     subscribe_logs: true
 
