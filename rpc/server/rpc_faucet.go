@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	remainBalance int64 = amountPerSec
+	remainBalance uint64 = amountPerSec
 )
 
 func init() {
@@ -125,19 +125,19 @@ func (f *faucet) Claim(
 		return newClaimResp(-1, "unauthorized IP!"), err
 	}
 	if req.Amount == 0 {
-		return newClaimResp(-1, "Illegal amount input,amount should be more than 0 "), err
+		return newClaimResp(-1, "Amount must be more than 0 "), err
 	}
 
 	select {
 	case <-f.refreshTimer.C:
-		atomic.StoreInt64(&remainBalance, amountPerSec)
+		atomic.StoreUint64(&remainBalance, amountPerSec)
 	default:
 	}
-	remain := atomic.AddInt64(&remainBalance, -int64(req.Amount))
-
-	if remain < 0 {
-		return newClaimResp(-1, " exceed max amount this second"), err
+	remain := atomic.LoadUint64(&remainBalance)
+	if remain-req.Amount > remain {
+		return newClaimResp(-1, "exceed max amount this second"), err
 	}
+	atomic.AddUint64(&remainBalance, ^uint64(req.Amount-1))
 	addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
 	if err != nil {
 		return newClaimResp(-1, err.Error()), nil
