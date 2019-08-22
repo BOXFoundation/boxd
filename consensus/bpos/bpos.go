@@ -37,6 +37,9 @@ const (
 	BlockNumPerPeiod          = 5
 )
 
+// TODO: add for check bookkeeper reward. This will be removed later.
+var reward uint64
+
 // Config defines the configurations of bpos
 type Config struct {
 	Keypath    string `mapstructure:"keypath"`
@@ -597,6 +600,12 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err != nil {
 		return err
 	}
+
+	reward += block.Txs[0].Vout[0].Value + feeUsed
+	if uint64(block.Header.Height)%bpos.context.dynastySwitchThreshold.Uint64() == 0 {
+		logger.Infof("Before dynasty switch the bookkeeper total reward: %d", reward)
+	}
+
 	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr))
 	if genesisContractBalanceOld+block.Txs[0].Vout[0].Value+feeUsed != statedb.GetBalance(chain.ContractAddr).Uint64() {
