@@ -60,6 +60,8 @@ const (
 	metricsLoopInterval = 500 * time.Millisecond
 	tokenIssueFilterKey = "token_issue"
 	Threshold           = 32
+
+	AddrFilterNumbers = 10000000
 )
 
 const (
@@ -95,6 +97,7 @@ type BlockChain struct {
 	repeatedMintCache         *lru.Cache
 	heightToBlock             *lru.Cache
 	splitAddrFilter           bloom.Filter
+	contractAddrFilter        bloom.Filter
 	bus                       eventbus.Bus
 	chainLock                 sync.RWMutex
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
@@ -180,8 +183,10 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		b.tail.Header.RootHash, b.tail.Header.UtxoRoot)
 
 	b.LongestChainHeight = b.tail.Header.Height
-	b.splitAddrFilter = loadSplitAddrFilter(b.db)
+	b.splitAddrFilter = loadAddrFilter(b.db, splitAddrBase.Bytes())
 	logger.Infof("load split address bloom filter finished")
+	b.contractAddrFilter = loadAddrFilter(b.db, contractAddrBase.Bytes())
+	logger.Infof("load contract address bloom filter finished")
 
 	return b, nil
 }
@@ -849,19 +854,18 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 
 // UpdateContractUtxoState updates contract utxo in statedb
 func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet *UtxoSet) error {
-	for _, o := range utxoSet.contractUtxos {
+	for o := range utxoSet.contractUtxos {
 		// address
 		contractAddr := new(types.AddressHash)
 		contractAddr.SetBytes(o.Hash[:])
 		// serialize utxo wrap
-		u := utxoSet.utxoMap[*o]
+		u := utxoSet.utxoMap[o]
 		utxoBytes, err := SerializeUtxoWrap(u)
 		if err != nil {
 			return err
 		}
 		// update statedb utxo trie
-		contractAddrB, _ := types.NewContractAddressFromHash(contractAddr[:])
-		logger.Debugf("update utxo in statedb, account: %s, utxo: %d", contractAddrB, u.Value())
+		logger.Debugf("update utxo in statedb, account: %x, utxo: %d", contractAddr[:], u.Value())
 		if err := statedb.UpdateUtxo(*contractAddr, utxoBytes); err != nil {
 			return err
 		}
@@ -869,7 +873,13 @@ func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet
 	return nil
 }
 
-func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID) error {
+func (chain *BlockChain) executeBlock(
+	block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID,
+) error {
+
+	var (
+		receipts types.Receipts
+	)
 
 	blockCopy := block.Copy()
 	// Split tx outputs if any
@@ -892,15 +902,14 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 			return err
 		}
 
-		receipts, gasUsed, _, utxoTxs, err := chain.stateProcessor.Process(
-			block, stateDB, utxoSet)
+		rcps, gasUsed, _, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			logger.Error(err)
 			return err
 		}
 		go func() {
 			logs := make(map[string][]*types.Log)
-			for _, receipt := range receipts {
+			for _, receipt := range rcps {
 				if len(receipt.Logs) != 0 {
 					contractAddr, err := types.NewContractAddressFromHash(receipt.ContractAddress.Bytes())
 					if err != nil {
@@ -918,8 +927,7 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 				chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
 			}
 		}()
-		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed,
-			totalTxsFee, receipts); err != nil {
+		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee, rcps); err != nil {
 			return err
 		}
 
@@ -955,14 +963,14 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 				block.Header.Height)
 		}
 		if len(receipts) > 0 {
-			chain.receiptsCache[block.Header.Height] = receipts
+			receipts = rcps
 		}
+	} else {
+		receipts = chain.receiptsCache[block.Header.Height]
+		delete(chain.receiptsCache, block.Header.Height)
 	}
 
-	// chain.db.EnableBatch()
-	// defer chain.db.DisableBatch()
-
-	if err := chain.writeBlockToDB(block, splitTxs, utxoSet); err != nil {
+	if err := chain.writeBlockToDB(block, splitTxs, utxoSet, receipts); err != nil {
 		return err
 	}
 
@@ -974,14 +982,13 @@ func (chain *BlockChain) executeBlock(block *types.Block, utxoSet *UtxoSet, tota
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
 	// set tail state
-	if err := chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot); err != nil {
-		return err
-	}
-
 	return chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot)
 }
 
-func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, utxoSet *UtxoSet) error {
+func (chain *BlockChain) writeBlockToDB(
+	block *types.Block, splitTxs map[crypto.HashType]*types.Transaction,
+	utxoSet *UtxoSet, receipts types.Receipts,
+) error {
 
 	var batch = chain.db.NewBatch()
 	defer batch.Close()
@@ -990,12 +997,17 @@ func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.
 		return err
 	}
 
-	receipts := chain.receiptsCache[block.Header.Height]
 	if len(receipts) > 0 {
 		if err := chain.StoreReceipts(block.BlockHash(), receipts, batch); err != nil {
 			return err
 		}
-		delete(chain.receiptsCache, block.Header.Height)
+		// write contract address to db
+		for _, receipt := range receipts {
+			if receipt.Deployed && !receipt.Failed {
+				batch.Put(ContractAddrKey(receipt.ContractAddress[:]), nil)
+				chain.contractAddrFilter.Add(receipt.ContractAddress[:])
+			}
+		}
 	}
 
 	// save tx index
@@ -1032,18 +1044,18 @@ func (chain *BlockChain) writeBlockToDB(block *types.Block, splitTxs map[crypto.
 
 func checkInternalTxs(block *types.Block, utxoTxs []*types.Transaction) error {
 
-	if len(utxoTxs) > 0 {
-		txsRoot := CalcTxsHash(utxoTxs)
-		if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
-			utxoTxsBytes, _ := json.MarshalIndent(utxoTxs, "", "  ")
-			internalTxs, _ := json.MarshalIndent(block.InternalTxs, "", "  ")
-			logger.Warnf("utxo txs generated: %s, internal txs in block: %v",
-				string(utxoTxsBytes), string(internalTxs))
-			logger.Warnf("utxo txs root: %s, internal txs root: %s", txsRoot, block.Header.InternalTxsRoot)
-			return core.ErrInvalidInternalTxs
-		}
-	} else {
+	if len(utxoTxs) == 0 {
 		block.InternalTxs = make([]*types.Transaction, 0)
+		return nil
+	}
+	txsRoot := CalcTxsHash(utxoTxs)
+	if !(&block.Header.InternalTxsRoot).IsEqual(txsRoot) {
+		utxoTxsBytes, _ := json.MarshalIndent(utxoTxs, "", "  ")
+		internalTxs, _ := json.MarshalIndent(block.InternalTxs, "", "  ")
+		logger.Warnf("utxo txs generated: %s, internal txs in block: %v",
+			string(utxoTxsBytes), string(internalTxs))
+		logger.Warnf("utxo txs root: %s, internal txs root: %s", txsRoot, block.Header.InternalTxsRoot)
+		return core.ErrInvalidInternalTxs
 	}
 	return nil
 }
@@ -1379,7 +1391,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		}
 
 		ContractAddr = *types.CreateAddress(*adminAddr.Hash160(), 1)
-		logger.Errorf("load genesis contract addr: %v", ContractAddr)
+		logger.Infof("load genesis contract addr: %v", ContractAddr)
 
 		return genesis, nil
 	}
@@ -2174,14 +2186,15 @@ func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub Balan
 	return
 }
 
-func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
-	filter := bloom.NewFilter(bloom.MaxFilterSize, bloom.DefaultConflictRate)
+// NOTE: key in db must be pattern "/abc/def"
+func loadAddrFilter(reader storage.Reader, addrPrefix []byte) bloom.Filter {
+	filter := bloom.NewFilter(AddrFilterNumbers, bloom.DefaultConflictRate)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	for key := range reader.IterKeysWithPrefix(ctx, splitAddrBase.Bytes()) {
+	for key := range reader.IterKeysWithPrefix(ctx, addrPrefix) {
 		splits := bytes.Split(key, []byte{'/'})
 		if len(splits) != 3 {
-			logger.Errorf("split addr key %v in db is incorrect", key)
+			logger.Errorf("addr filter key %v in db is not 3 sections", key)
 			continue
 		}
 		addrHash, err := hex.DecodeString(string(splits[2]))
@@ -2195,7 +2208,10 @@ func loadSplitAddrFilter(reader storage.Reader) bloom.Filter {
 }
 
 // MakeInternalContractTx creates a coinbase give bookkeeper address and block height
-func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32, method string) (*types.Transaction, error) {
+func (chain *BlockChain) MakeInternalContractTx(
+	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
+	method string,
+) (*types.Transaction, error) {
 	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
 	if err != nil {
 		return nil, err
@@ -2236,4 +2252,29 @@ func (chain *BlockChain) MakeInternalContractTx(from types.AddressHash, amount u
 	tx.WithData(types.ContractDataType, code)
 	logger.Infof("InternalContractTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
 	return tx, nil
+}
+
+// IsContractAddr check addr whether is contract address
+func IsContractAddr(
+	addr *types.AddressHash, filter bloom.Filter, db storage.Reader, utxoSet *UtxoSet,
+) bool {
+	if addr == nil {
+		return false
+	}
+	// may be the contract address is generated in this block
+	for op := range utxoSet.contractUtxos {
+		if *types.NormalizeAddressHash(addr) == op.Hash {
+			return true
+		}
+	}
+	// check in bloom filter
+	if !filter.Matches(addr[:]) {
+		// Definitely not a contract address
+		return false
+	}
+	// May be a contract address, query db to find out
+	if ok, err := db.Has(ContractAddrKey(addr[:])); err != nil || !ok {
+		return false
+	}
+	return true
 }

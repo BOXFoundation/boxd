@@ -579,7 +579,7 @@ func contractBlockHandle(
 	t.Logf("user %s balance: %d", minerAddr, expectMinerBalance)
 	minerBalance = expectMinerBalance
 	// for contract address
-	checkTestAddrBalance(t, blockChain, minerAddr, param.contractBalance)
+	checkTestAddrBalance(t, blockChain, param.contractAddr, param.contractBalance)
 	t.Logf("contract %s balance: %d", param.contractAddr, param.contractBalance)
 	contractBalance = param.contractBalance
 	// for admin contract address
@@ -1706,6 +1706,7 @@ func TestCallBetweenContracts(t *testing.T) {
 	txlogic.SignTx(vmTx2, privKey, pubKey)
 	bankAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	bankBalance := vmValue
+	userBalance -= vmValue
 	t.Logf("bank contract address: %x", bankAddr.Hash160()[:])
 	// call token.transfer api
 	vmValue, gasPrice, gasLimit = 0, 1, 40000
@@ -1734,8 +1735,8 @@ func TestCallBetweenContracts(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
 		WithData(types.ContractDataType, rechargeCall)
 	txlogic.SignTx(vmTx4, privKey, pubKey)
-	bankBalance -= vmValue
 	tokenBalance := vmValue
+	userBalance -= vmValue
 
 	// bring them on chain
 	b3 := nextBlockWithTxs(b2, blockChain, vmTx1, vmTx2, vmTx3, vmTx4)

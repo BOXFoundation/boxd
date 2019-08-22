@@ -17,6 +17,8 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/storage"
+	"github.com/BOXFoundation/boxd/util/bloom"
 	"github.com/BOXFoundation/boxd/vm"
 )
 
@@ -138,13 +140,14 @@ func ApplyTransaction(
 	}
 
 	var contractAddr *types.AddressHash
-	if tx.Type() == types.ContractCreationType {
+	deployed := tx.Type() == types.ContractCreationType
+	if deployed {
 		contractAddr = types.CreateAddress(*tx.From(), tx.Nonce())
 	} else {
 		contractAddr = tx.To()
 	}
 	if !fail && len(Transfers) > 0 {
-		internalTxs, err := createUtxoTx(utxoSet)
+		internalTxs, err := createUtxoTx(utxoSet, bc.contractAddrFilter, bc.db)
 		if err != nil {
 			logger.Warn(err)
 			return nil, 0, 0, nil, err
@@ -159,12 +162,15 @@ func ApplyTransaction(
 		txs = append(txs, internalTxs)
 	}
 	txhash := tx.OriginTxHash()
-	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, fail, gasUsed, statedb.GetLogs(*txhash))
+	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, deployed, fail,
+		gasUsed, statedb.GetLogs(*txhash))
 
 	return receipt, gasUsed, gasRemainingFee, txs, nil
 }
 
-func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
+func createUtxoTx(
+	utxoSet *UtxoSet, contractAddrFilter bloom.Filter, db storage.Reader,
+) ([]*types.Transaction, error) {
 
 	var txs []*types.Transaction
 	for _, v := range Transfers {
@@ -178,7 +184,7 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 				} else {
 					end = len(v) - begin
 				}
-				tx, err := makeTx(v, begin, end, utxoSet)
+				tx, err := makeTx(v, begin, end, utxoSet, contractAddrFilter, db)
 				if err != nil {
 					logger.Error("create utxo tx error: ", err)
 					return nil, err
@@ -186,7 +192,7 @@ func createUtxoTx(utxoSet *UtxoSet) ([]*types.Transaction, error) {
 				txs = append(txs, tx)
 			}
 		} else {
-			tx, err := makeTx(v, 0, len(v), utxoSet)
+			tx, err := makeTx(v, 0, len(v), utxoSet, contractAddrFilter, db)
 			if err != nil {
 				logger.Error("create utxo tx error: ", err)
 				return nil, err
@@ -233,39 +239,58 @@ func createRefundTx(
 
 func makeTx(
 	transferInfos []*TransferInfo, voutBegin int, voutEnd int, utxoSet *UtxoSet,
+	contractAddrFilter bloom.Filter, db storage.Reader,
 ) (*types.Transaction, error) {
 
-	hash := types.NormalizeAddressHash(&transferInfos[0].from)
+	from := &transferInfos[0].from
+	hash := types.NormalizeAddressHash(from)
 	if hash.IsEqual(&zeroHash) {
-		return nil, errors.New("Invalid contract address")
+		return nil, errors.New("makeTx] Invalid contract address for from")
 	}
-	var utxoWrap *types.UtxoWrap
-	outPoint := types.NewOutPoint(hash, 0)
-	if utxoWrap = utxoSet.utxoMap[*outPoint]; utxoWrap == nil {
-		logger.Errorf("outpoint hash: %v, index: %d", outPoint.Hash[:], outPoint.Index)
-		return nil, fmt.Errorf("contract utxo outpoint %+v does not exist", outPoint)
+	inOp := types.NewOutPoint(hash, 0)
+	fromUtxoWrap, ok := utxoSet.utxoMap[*inOp]
+	if !ok {
+		wrap, err := fetchUtxoWrapFromDB(db, inOp)
+		if err != nil || wrap == nil {
+			return nil, fmt.Errorf("makeTx] fetch from contract %x utxo error: %v or nil", from, err)
+		}
+		utxoSet.utxoMap[*inOp] = wrap
+		fromUtxoWrap = wrap
 	}
 	var vouts []*types.TxOut
 	for i := voutBegin; i < voutEnd; i++ {
-		to := transferInfos[i].to
-		addrScript := *script.PayToPubKeyHashScript(to.Bytes())
-		vout := &types.TxOut{
-			Value:        transferInfos[i].value.Uint64(),
-			ScriptPubKey: addrScript,
+		to := &transferInfos[i].to
+		if *to == types.ZeroAddressHash {
+			return nil, fmt.Errorf("makeTx] to contract is zero address")
 		}
+		var spk *script.Script
+		if IsContractAddr(to, contractAddrFilter, db, utxoSet) {
+			spk, _ = script.MakeContractScriptPubkey(from, to, 0, 1, 0, 0)
+			outOp := types.NewOutPoint(types.NormalizeAddressHash(to), 0)
+			utxoSet.contractUtxos[*outOp] = struct{}{}
+			// update contract utxowrap in utxoSet
+			if _, ok := utxoSet.utxoMap[*outOp]; !ok {
+				wrap, err := fetchUtxoWrapFromDB(db, outOp)
+				if err != nil || wrap == nil {
+					return nil, fmt.Errorf("makeTx] fetch to contract %x utxo error: %v or nil", to, err)
+				}
+				utxoSet.utxoMap[*outOp] = wrap
+			}
+		} else {
+			spk = script.PayToPubKeyHashScript(to.Bytes())
+		}
+		toValue := transferInfos[i].value.Uint64()
+		vout := types.NewTxOut(toValue, *spk)
 		vouts = append(vouts, vout)
-		value := utxoWrap.Value() - transferInfos[i].value.Uint64()
-		if value > utxoWrap.Value() {
-			contractAddrB, _ := types.NewContractAddressFromHash(transferInfos[0].from[:])
-			logger.Errorf("contractAddr %s balance: %d, vmtx value: %d",
-				contractAddrB, utxoWrap.Value(), transferInfos[i].value.Uint64())
-			return nil, errors.New("Insufficient balance of smart contract")
+		fromValue := fromUtxoWrap.Value() - toValue
+		if fromValue > fromUtxoWrap.Value() {
+			return nil, fmt.Errorf("makeTx] balance of from %x is insufficient,"+
+				" now %d, need %d to %s", from[:], fromUtxoWrap.Value(), toValue, to[:])
 		}
-		utxoWrap.SetValue(value)
+		fromUtxoWrap.SetValue(fromValue)
 	}
-	utxoSet.utxoMap[*outPoint] = utxoWrap
 	vin := &types.TxIn{
-		PrevOutPoint: *outPoint,
+		PrevOutPoint: *inOp,
 		ScriptSig:    *script.MakeContractScriptSig(),
 	}
 	tx := new(types.Transaction)

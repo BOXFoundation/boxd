@@ -799,8 +799,7 @@ func (s *Script) getSigOpCount() int {
 
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
-	from, to *types.AddressHash, gasPrice, gasLimit, nonce uint64,
-	version int32,
+	from, to *types.AddressHash, gasPrice, gasLimit, nonce uint64, version int32,
 ) (*Script, error) {
 	// OP_CONTRACT from to nonce gasPrice gasLimit version checksum
 	// check params

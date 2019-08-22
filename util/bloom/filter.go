@@ -20,12 +20,10 @@ const ln2Squared = math.Ln2 * math.Ln2
 const (
 	// MaxFilterHashFuncs is the maximum number of hash functions of bloom filter.
 	MaxFilterHashFuncs = 256
-
 	// MaxFilterSize is the maximum byte size in bytes a filter may be.
-	MaxFilterSize = 1024 * 1024
-
+	MaxFilterSize = 32 * 1024 * 1024
 	// DefaultConflictRate is the default conflict rate for any key.
-	DefaultConflictRate = 0.0001
+	DefaultConflictRate = 0.001
 )
 
 // Filter defines bloom filter interface

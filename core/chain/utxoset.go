@@ -22,7 +22,7 @@ import (
 type UtxoSet struct {
 	utxoMap         types.UtxoMap
 	normalTxUtxoSet map[types.OutPoint]struct{}
-	contractUtxos   []*types.OutPoint
+	contractUtxos   map[types.OutPoint]struct{}
 }
 
 // BalanceChangeMap defines the balance changes of accounts (add or subtract)
@@ -33,6 +33,7 @@ func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
 		utxoMap:         make(types.UtxoMap),
 		normalTxUtxoSet: make(map[types.OutPoint]struct{}),
+		contractUtxos:   make(map[types.OutPoint]struct{}),
 	}
 }
 
@@ -162,7 +163,7 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 	vout := tx.Vout[txOutIdx]
 	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
 
-	// common tx
+	// common vout
 	if !sc.IsContractPubkey() {
 		outPoint := types.NewOutPoint(txHash, txOutIdx)
 		utxoWrap, exists := u.utxoMap[*outPoint]
@@ -170,9 +171,6 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 			return core.ErrAddExistingUtxo
 		}
 		utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
-		// if IsCoinBase(tx) {
-		// 	utxoWrap.SetCoinBase()
-		// }
 		u.utxoMap[*outPoint] = utxoWrap
 		if !txlogic.HasContractVout(tx) {
 			u.normalTxUtxoSet[*outPoint] = struct{}{}
@@ -180,7 +178,7 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 		return nil
 	}
 
-	// smart contract utxo
+	// smart contract vout
 	var (
 		outPoint *types.OutPoint
 		utxoWrap *types.UtxoWrap
@@ -215,7 +213,7 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 			outPoint, value, utxoWrap.Value())
 		utxoWrap.SetValue(value)
 		u.utxoMap[*outPoint] = utxoWrap
-		u.contractUtxos = append(u.contractUtxos, outPoint)
+		u.contractUtxos[*outPoint] = struct{}{}
 	}
 
 	return nil
@@ -477,11 +475,11 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 					tokenID = outpoint
 				}
 				addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
-			} else if sc.IsContractPubkey() {
-				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
-				addr, _ := types.NewContractAddressFromHash(addrHash[:])
+			} else if !sc.IsContractPubkey() {
 				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 			} else {
+				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
+				addr, _ := types.NewContractAddressFromHash(addrHash[:])
 				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
 			}
 		}
@@ -489,7 +487,9 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 		// Remove the utxo entry if it is spent.
 		if utxoWrap.IsSpent() {
 			db.Del(*utxoKey)
-			db.Del(addrUtxoKey)
+			if len(addrUtxoKey) > 0 {
+				db.Del(addrUtxoKey)
+			}
 			logger.Debugf("delete utxo key: %x, utxo wrap: %+v", *utxoKey, utxoWrap)
 			// recycleOutpointKey(utxoKey)
 			continue
@@ -501,7 +501,9 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 				return err
 			}
 			db.Put(*utxoKey, serialized)
-			db.Put(addrUtxoKey, serialized)
+			if len(addrUtxoKey) > 0 {
+				db.Put(addrUtxoKey, serialized)
+			}
 		}
 	}
 	return nil

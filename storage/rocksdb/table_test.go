@@ -61,6 +61,8 @@ func TestTablePutGetDel(t *testing.T) {
 	t.Run("put2", dbtest.StoragePutGetDelTest(t1, []byte("tk2"), []byte("tv2")))
 	t.Run("put3", dbtest.StoragePutGetDelTest(t1, []byte("tk3"), []byte("tv3")))
 	t.Run("put4", dbtest.StoragePutGetDelTest(t1, []byte("tk4"), []byte("tv4")))
+	t.Run("put5", dbtest.StoragePutGetDelTest(t1, []byte("tk5"), []byte{}))
+	t.Run("put6", dbtest.StoragePutGetDelTest(t1, []byte("tk6"), nil))
 }
 
 func _TestTableBatchAndPut(t *testing.T) {

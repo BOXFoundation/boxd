@@ -160,6 +160,7 @@ type Receipt struct {
 	TxHash          crypto.HashType
 	TxIndex         uint32
 	ContractAddress AddressHash
+	Deployed        bool
 	Failed          bool
 	GasUsed         uint64
 	BlockHash       crypto.HashType
@@ -174,7 +175,8 @@ var _ conv.Serializable = (*Receipt)(nil)
 
 // NewReceipt news a Receipt
 func NewReceipt(
-	txHash *crypto.HashType, contractAddr *AddressHash, failed bool, gasUsed uint64, logs []*Log,
+	txHash *crypto.HashType, contractAddr *AddressHash, deployed, failed bool,
+	gasUsed uint64, logs []*Log,
 ) *Receipt {
 	if txHash == nil {
 		txHash = new(crypto.HashType)
@@ -185,6 +187,7 @@ func NewReceipt(
 	rc := &Receipt{
 		TxHash:          *txHash,
 		ContractAddress: *contractAddr,
+		Deployed:        deployed,
 		Failed:          failed,
 		GasUsed:         gasUsed,
 		Logs:            logs,
@@ -256,11 +259,12 @@ func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
 	}
 
 	return &corepb.Receipt{
-		TxIndex: rc.TxIndex,
-		Failed:  rc.Failed,
-		GasUsed: rc.GasUsed,
-		Logs:    logs,
-		Bloom:   bloom,
+		TxIndex:  rc.TxIndex,
+		Deployed: rc.Deployed,
+		Failed:   rc.Failed,
+		GasUsed:  rc.GasUsed,
+		Logs:     logs,
+		Bloom:    bloom,
 	}, nil
 }
 
@@ -290,6 +294,7 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 		return err
 	}
 	rc.TxIndex = pbrc.TxIndex
+	rc.Deployed = pbrc.Deployed
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
 	rc.Logs = logs
@@ -334,6 +339,7 @@ func (rcs *Receipts) toHashReceipts() (*HashReceipts, error) {
 	for _, rc := range *rcs {
 		hashrc := &hashReceipt{
 			TxIndex:     rc.TxIndex,
+			Deployed:    rc.Deployed,
 			Failed:      rc.Failed,
 			GasUsed:     rc.GasUsed,
 			BlockHeight: rc.BlockHeight,
@@ -392,10 +398,11 @@ func (rcs *Receipts) ToProtoMessage() (proto.Message, error) {
 	pbrcs := new(corepb.Receipts)
 	for _, rc := range *rcs {
 		pbrc := &corepb.Receipt{
-			TxHash:  rc.TxHash[:],
-			TxIndex: rc.TxIndex,
-			Failed:  rc.Failed,
-			GasUsed: rc.GasUsed,
+			TxHash:   rc.TxHash[:],
+			TxIndex:  rc.TxIndex,
+			Deployed: rc.Deployed,
+			Failed:   rc.Failed,
+			GasUsed:  rc.GasUsed,
 		}
 
 		for _, log := range rc.Logs {
@@ -426,6 +433,7 @@ func (rcs *Receipts) FromProtoMessage(message proto.Message) error {
 		rc := new(Receipt)
 		rc.TxHash = *txHash
 		rc.TxIndex = pbrc.TxIndex
+		rc.Deployed = pbrc.Deployed
 		rc.Failed = pbrc.Failed
 		rc.GasUsed = pbrc.GasUsed
 
@@ -460,6 +468,7 @@ type hashReceipt struct {
 	TxHash          crypto.HashType
 	TxIndex         uint32
 	ContractAddress AddressHash
+	Deployed        bool
 	Failed          bool
 	GasUsed         uint64
 	BlockHash       crypto.HashType
@@ -494,11 +503,12 @@ func (rc *hashReceipt) ToProtoMessage() (proto.Message, error) {
 	}
 
 	return &corepb.HashReceipt{
-		TxIndex: rc.TxIndex,
-		Failed:  rc.Failed,
-		GasUsed: rc.GasUsed,
-		Logs:    logs,
-		Bloom:   bloom,
+		TxIndex:  rc.TxIndex,
+		Deployed: rc.Deployed,
+		Failed:   rc.Failed,
+		GasUsed:  rc.GasUsed,
+		Logs:     logs,
+		Bloom:    bloom,
 	}, nil
 }
 
@@ -528,6 +538,7 @@ func (rc *hashReceipt) FromProtoMessage(message proto.Message) error {
 		return err
 	}
 	rc.TxIndex = pbrc.TxIndex
+	rc.Deployed = pbrc.Deployed
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
 	rc.Logs = logs
@@ -559,10 +570,11 @@ func (rcs *HashReceipts) ToProtoMessage() (proto.Message, error) {
 	pbrcs := new(corepb.HashReceipts)
 	for _, rc := range *rcs {
 		pbrc := &corepb.HashReceipt{
-			TxHash:  rc.TxHash[:],
-			TxIndex: rc.TxIndex,
-			Failed:  rc.Failed,
-			GasUsed: rc.GasUsed,
+			TxHash:   rc.TxHash[:],
+			TxIndex:  rc.TxIndex,
+			Deployed: rc.Deployed,
+			Failed:   rc.Failed,
+			GasUsed:  rc.GasUsed,
 		}
 		for _, log := range rc.Logs {
 			l, _ := log.ToProtoMessage()
@@ -592,6 +604,7 @@ func (rcs *HashReceipts) FromProtoMessage(message proto.Message) error {
 		rc := new(hashReceipt)
 		rc.TxHash = *txHash
 		rc.TxIndex = pbrc.TxIndex
+		rc.Deployed = pbrc.Deployed
 		rc.Failed = pbrc.Failed
 		rc.GasUsed = pbrc.GasUsed
 

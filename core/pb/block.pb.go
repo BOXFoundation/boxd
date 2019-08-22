@@ -8,7 +8,6 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -53,7 +52,7 @@ func (m *BlockHeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_BlockHeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +188,7 @@ func (m *IrreversibleInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_IrreversibleInfo.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +243,7 @@ func (m *Block) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Block.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -321,7 +320,7 @@ func (m *Transaction) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_Transaction.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -402,7 +401,7 @@ func (m *TxIn) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_TxIn.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -461,7 +460,7 @@ func (m *TxOut) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_TxOut.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -513,7 +512,7 @@ func (m *OutPoint) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_OutPoint.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -565,7 +564,7 @@ func (m *Data) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Data.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -663,7 +662,7 @@ var fileDescriptor_8e550b1f5926e92d = []byte{
 func (m *BlockHeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -671,110 +670,96 @@ func (m *BlockHeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *BlockHeader) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *BlockHeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.Bloom) > 0 {
-		i -= len(m.Bloom)
-		copy(dAtA[i:], m.Bloom)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.Bloom)))
-		i--
-		dAtA[i] = 0x72
-	}
-	if len(m.BookKeeper) > 0 {
-		i -= len(m.BookKeeper)
-		copy(dAtA[i:], m.BookKeeper)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.BookKeeper)))
-		i--
-		dAtA[i] = 0x6a
-	}
-	if m.GasUsed != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.GasUsed))
-		i--
-		dAtA[i] = 0x60
-	}
-	if m.Height != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Height))
-		i--
-		dAtA[i] = 0x58
-	}
-	if len(m.RootHash) > 0 {
-		i -= len(m.RootHash)
-		copy(dAtA[i:], m.RootHash)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.RootHash)))
-		i--
-		dAtA[i] = 0x52
-	}
-	if len(m.DynastyHash) > 0 {
-		i -= len(m.DynastyHash)
-		copy(dAtA[i:], m.DynastyHash)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.DynastyHash)))
-		i--
-		dAtA[i] = 0x4a
-	}
-	if m.Magic != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Magic))
-		i--
-		dAtA[i] = 0x40
-	}
-	if m.TimeStamp != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.TimeStamp))
-		i--
-		dAtA[i] = 0x38
-	}
-	if len(m.ReceiptHash) > 0 {
-		i -= len(m.ReceiptHash)
-		copy(dAtA[i:], m.ReceiptHash)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.ReceiptHash)))
-		i--
-		dAtA[i] = 0x32
-	}
-	if len(m.UtxoRoot) > 0 {
-		i -= len(m.UtxoRoot)
-		copy(dAtA[i:], m.UtxoRoot)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.UtxoRoot)))
-		i--
-		dAtA[i] = 0x2a
-	}
-	if len(m.InternalTxsRoot) > 0 {
-		i -= len(m.InternalTxsRoot)
-		copy(dAtA[i:], m.InternalTxsRoot)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.InternalTxsRoot)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.TxsRoot) > 0 {
-		i -= len(m.TxsRoot)
-		copy(dAtA[i:], m.TxsRoot)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.TxsRoot)))
-		i--
-		dAtA[i] = 0x1a
+	if m.Version != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Version))
 	}
 	if len(m.PrevBlockHash) > 0 {
-		i -= len(m.PrevBlockHash)
-		copy(dAtA[i:], m.PrevBlockHash)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.PrevBlockHash)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.PrevBlockHash)))
+		i += copy(dAtA[i:], m.PrevBlockHash)
 	}
-	if m.Version != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Version))
-		i--
-		dAtA[i] = 0x8
+	if len(m.TxsRoot) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.TxsRoot)))
+		i += copy(dAtA[i:], m.TxsRoot)
 	}
-	return len(dAtA) - i, nil
+	if len(m.InternalTxsRoot) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.InternalTxsRoot)))
+		i += copy(dAtA[i:], m.InternalTxsRoot)
+	}
+	if len(m.UtxoRoot) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.UtxoRoot)))
+		i += copy(dAtA[i:], m.UtxoRoot)
+	}
+	if len(m.ReceiptHash) > 0 {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.ReceiptHash)))
+		i += copy(dAtA[i:], m.ReceiptHash)
+	}
+	if m.TimeStamp != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.TimeStamp))
+	}
+	if m.Magic != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Magic))
+	}
+	if len(m.DynastyHash) > 0 {
+		dAtA[i] = 0x4a
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.DynastyHash)))
+		i += copy(dAtA[i:], m.DynastyHash)
+	}
+	if len(m.RootHash) > 0 {
+		dAtA[i] = 0x52
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.RootHash)))
+		i += copy(dAtA[i:], m.RootHash)
+	}
+	if m.Height != 0 {
+		dAtA[i] = 0x58
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Height))
+	}
+	if m.GasUsed != 0 {
+		dAtA[i] = 0x60
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.GasUsed))
+	}
+	if len(m.BookKeeper) > 0 {
+		dAtA[i] = 0x6a
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.BookKeeper)))
+		i += copy(dAtA[i:], m.BookKeeper)
+	}
+	if len(m.Bloom) > 0 {
+		dAtA[i] = 0x72
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.Bloom)))
+		i += copy(dAtA[i:], m.Bloom)
+	}
+	return i, nil
 }
 
 func (m *IrreversibleInfo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -782,38 +767,31 @@ func (m *IrreversibleInfo) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *IrreversibleInfo) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *IrreversibleInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
+	if len(m.Hash) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.Hash)))
+		i += copy(dAtA[i:], m.Hash)
+	}
 	if len(m.Signatures) > 0 {
-		for iNdEx := len(m.Signatures) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Signatures[iNdEx])
-			copy(dAtA[i:], m.Signatures[iNdEx])
-			i = encodeVarintBlock(dAtA, i, uint64(len(m.Signatures[iNdEx])))
-			i--
+		for _, b := range m.Signatures {
 			dAtA[i] = 0x12
+			i++
+			i = encodeVarintBlock(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
 		}
 	}
-	if len(m.Hash) > 0 {
-		i -= len(m.Hash)
-		copy(dAtA[i:], m.Hash)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.Hash)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *Block) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -821,81 +799,67 @@ func (m *Block) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Block) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Block) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.IrreversibleInfo != nil {
-		{
-			size, err := m.IrreversibleInfo.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintBlock(dAtA, i, uint64(size))
+	if m.Header != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Header.Size()))
+		n1, err := m.Header.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	if len(m.Signature) > 0 {
-		i -= len(m.Signature)
-		copy(dAtA[i:], m.Signature)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.Signature)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.InternalTxs) > 0 {
-		for iNdEx := len(m.InternalTxs) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.InternalTxs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintBlock(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x1a
-		}
+		i += n1
 	}
 	if len(m.Txs) > 0 {
-		for iNdEx := len(m.Txs) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Txs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintBlock(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Txs {
 			dAtA[i] = 0x12
-		}
-	}
-	if m.Header != nil {
-		{
-			size, err := m.Header.MarshalToSizedBuffer(dAtA[:i])
+			i++
+			i = encodeVarintBlock(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
 			if err != nil {
 				return 0, err
 			}
-			i -= size
-			i = encodeVarintBlock(dAtA, i, uint64(size))
+			i += n
 		}
-		i--
-		dAtA[i] = 0xa
 	}
-	return len(dAtA) - i, nil
+	if len(m.InternalTxs) > 0 {
+		for _, msg := range m.InternalTxs {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintBlock(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.Signature) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.Signature)))
+		i += copy(dAtA[i:], m.Signature)
+	}
+	if m.IrreversibleInfo != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.IrreversibleInfo.Size()))
+		n2, err := m.IrreversibleInfo.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
+	}
+	return i, nil
 }
 
 func (m *Transaction) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -903,77 +867,66 @@ func (m *Transaction) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Transaction) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Transaction) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.LockTime != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.LockTime))
-		i--
-		dAtA[i] = 0x30
+	if m.Version != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Version))
 	}
-	if m.Magic != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Magic))
-		i--
-		dAtA[i] = 0x28
-	}
-	if m.Data != nil {
-		{
-			size, err := m.Data.MarshalToSizedBuffer(dAtA[:i])
+	if len(m.Vin) > 0 {
+		for _, msg := range m.Vin {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintBlock(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
 			if err != nil {
 				return 0, err
 			}
-			i -= size
-			i = encodeVarintBlock(dAtA, i, uint64(size))
+			i += n
 		}
-		i--
-		dAtA[i] = 0x22
 	}
 	if len(m.Vout) > 0 {
-		for iNdEx := len(m.Vout) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Vout[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintBlock(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Vout {
 			dAtA[i] = 0x1a
-		}
-	}
-	if len(m.Vin) > 0 {
-		for iNdEx := len(m.Vin) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Vin[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintBlock(dAtA, i, uint64(size))
+			i++
+			i = encodeVarintBlock(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
 			}
-			i--
-			dAtA[i] = 0x12
+			i += n
 		}
 	}
-	if m.Version != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Version))
-		i--
-		dAtA[i] = 0x8
+	if m.Data != nil {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Data.Size()))
+		n3, err := m.Data.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
 	}
-	return len(dAtA) - i, nil
+	if m.Magic != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Magic))
+	}
+	if m.LockTime != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.LockTime))
+	}
+	return i, nil
 }
 
 func (m *TxIn) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -981,46 +934,38 @@ func (m *TxIn) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TxIn) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TxIn) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.Sequence != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Sequence))
-		i--
-		dAtA[i] = 0x18
+	if m.PrevOutPoint != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.PrevOutPoint.Size()))
+		n4, err := m.PrevOutPoint.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n4
 	}
 	if len(m.ScriptSig) > 0 {
-		i -= len(m.ScriptSig)
-		copy(dAtA[i:], m.ScriptSig)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.ScriptSig)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.ScriptSig)))
+		i += copy(dAtA[i:], m.ScriptSig)
 	}
-	if m.PrevOutPoint != nil {
-		{
-			size, err := m.PrevOutPoint.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintBlock(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
+	if m.Sequence != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Sequence))
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *TxOut) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1028,34 +973,28 @@ func (m *TxOut) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TxOut) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TxOut) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.ScriptPubKey) > 0 {
-		i -= len(m.ScriptPubKey)
-		copy(dAtA[i:], m.ScriptPubKey)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.ScriptPubKey)))
-		i--
-		dAtA[i] = 0x12
-	}
 	if m.Value != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Value))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Value))
 	}
-	return len(dAtA) - i, nil
+	if len(m.ScriptPubKey) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.ScriptPubKey)))
+		i += copy(dAtA[i:], m.ScriptPubKey)
+	}
+	return i, nil
 }
 
 func (m *OutPoint) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1063,34 +1002,28 @@ func (m *OutPoint) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *OutPoint) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *OutPoint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.Index != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Index))
-		i--
-		dAtA[i] = 0x10
-	}
 	if len(m.Hash) > 0 {
-		i -= len(m.Hash)
-		copy(dAtA[i:], m.Hash)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.Hash)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.Hash)))
+		i += copy(dAtA[i:], m.Hash)
 	}
-	return len(dAtA) - i, nil
+	if m.Index != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Index))
+	}
+	return i, nil
 }
 
 func (m *Data) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1098,40 +1031,32 @@ func (m *Data) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Data) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Data) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.Content) > 0 {
-		i -= len(m.Content)
-		copy(dAtA[i:], m.Content)
-		i = encodeVarintBlock(dAtA, i, uint64(len(m.Content)))
-		i--
-		dAtA[i] = 0x12
-	}
 	if m.Type != 0 {
-		i = encodeVarintBlock(dAtA, i, uint64(m.Type))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(m.Type))
 	}
-	return len(dAtA) - i, nil
+	if len(m.Content) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintBlock(dAtA, i, uint64(len(m.Content)))
+		i += copy(dAtA[i:], m.Content)
+	}
+	return i, nil
 }
 
 func encodeVarintBlock(dAtA []byte, offset int, v uint64) int {
-	offset -= sovBlock(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func (m *BlockHeader) Size() (n int) {
 	if m == nil {
@@ -1348,7 +1273,14 @@ func (m *Data) Size() (n int) {
 }
 
 func sovBlock(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozBlock(x uint64) (n int) {
 	return sovBlock(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1368,7 +1300,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1396,7 +1328,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Version |= int32(b&0x7F) << shift
+				m.Version |= (int32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1415,7 +1347,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1424,9 +1356,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1449,7 +1378,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1458,9 +1387,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1483,7 +1409,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1492,9 +1418,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1517,7 +1440,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1526,9 +1449,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1551,7 +1471,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1560,9 +1480,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1585,7 +1502,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TimeStamp |= int64(b&0x7F) << shift
+				m.TimeStamp |= (int64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1604,7 +1521,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Magic |= uint32(b&0x7F) << shift
+				m.Magic |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1623,7 +1540,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1632,9 +1549,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1657,7 +1571,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1666,9 +1580,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1691,7 +1602,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Height |= uint32(b&0x7F) << shift
+				m.Height |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1710,7 +1621,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.GasUsed |= uint64(b&0x7F) << shift
+				m.GasUsed |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1729,7 +1640,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1738,9 +1649,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1763,7 +1671,7 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1772,9 +1680,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1790,9 +1695,6 @@ func (m *BlockHeader) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -1822,7 +1724,7 @@ func (m *IrreversibleInfo) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1850,7 +1752,7 @@ func (m *IrreversibleInfo) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1859,9 +1761,6 @@ func (m *IrreversibleInfo) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1884,7 +1783,7 @@ func (m *IrreversibleInfo) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1893,9 +1792,6 @@ func (m *IrreversibleInfo) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1909,9 +1805,6 @@ func (m *IrreversibleInfo) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -1941,7 +1834,7 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1969,7 +1862,7 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1978,9 +1871,6 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2005,7 +1895,7 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2014,9 +1904,6 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2039,7 +1926,7 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2048,9 +1935,6 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2073,7 +1957,7 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2082,9 +1966,6 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2107,7 +1988,7 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2116,9 +1997,6 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2136,9 +2014,6 @@ func (m *Block) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -2168,7 +2043,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -2196,7 +2071,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Version |= int32(b&0x7F) << shift
+				m.Version |= (int32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2215,7 +2090,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2224,9 +2099,6 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2249,7 +2121,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2258,9 +2130,6 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2283,7 +2152,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2292,9 +2161,6 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2319,7 +2185,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Magic |= uint32(b&0x7F) << shift
+				m.Magic |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2338,7 +2204,7 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.LockTime |= int64(b&0x7F) << shift
+				m.LockTime |= (int64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2350,9 +2216,6 @@ func (m *Transaction) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -2382,7 +2245,7 @@ func (m *TxIn) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -2410,7 +2273,7 @@ func (m *TxIn) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2419,9 +2282,6 @@ func (m *TxIn) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2446,7 +2306,7 @@ func (m *TxIn) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2455,9 +2315,6 @@ func (m *TxIn) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2480,7 +2337,7 @@ func (m *TxIn) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Sequence |= uint32(b&0x7F) << shift
+				m.Sequence |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2492,9 +2349,6 @@ func (m *TxIn) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -2524,7 +2378,7 @@ func (m *TxOut) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -2552,7 +2406,7 @@ func (m *TxOut) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Value |= uint64(b&0x7F) << shift
+				m.Value |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2571,7 +2425,7 @@ func (m *TxOut) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2580,9 +2434,6 @@ func (m *TxOut) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2598,9 +2449,6 @@ func (m *TxOut) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -2630,7 +2478,7 @@ func (m *OutPoint) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -2658,7 +2506,7 @@ func (m *OutPoint) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2667,9 +2515,6 @@ func (m *OutPoint) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2692,7 +2537,7 @@ func (m *OutPoint) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Index |= uint32(b&0x7F) << shift
+				m.Index |= (uint32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2704,9 +2549,6 @@ func (m *OutPoint) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -2736,7 +2578,7 @@ func (m *Data) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -2764,7 +2606,7 @@ func (m *Data) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Type |= int32(b&0x7F) << shift
+				m.Type |= (int32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2783,7 +2625,7 @@ func (m *Data) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				byteLen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -2792,9 +2634,6 @@ func (m *Data) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthBlock
 			}
 			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthBlock
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -2810,9 +2649,6 @@ func (m *Data) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthBlock
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthBlock
 			}
 			if (iNdEx + skippy) > l {
@@ -2881,11 +2717,8 @@ func skipBlock(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			if length < 0 {
-				return 0, ErrInvalidLengthBlock
-			}
 			iNdEx += length
-			if iNdEx < 0 {
+			if length < 0 {
 				return 0, ErrInvalidLengthBlock
 			}
 			return iNdEx, nil
@@ -2916,9 +2749,6 @@ func skipBlock(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthBlock
-				}
 			}
 			return iNdEx, nil
 		case 4:
