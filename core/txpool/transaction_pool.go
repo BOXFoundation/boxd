@@ -294,6 +294,14 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 		return core.ErrCoinbaseTx
 	}
 
+	// A standard transaction must not include a contract vin
+	for i, txin := range tx.Vin {
+		if txin.PrevOutPoint.IsContractType() {
+			logger.Debugf("Tx %v %d Vin is contract input", txHash, i)
+			return core.ErrContractInputTx
+		}
+	}
+
 	// ensure it is a standard transaction
 	if !tx_pool.isStandardTx(tx) {
 		logger.Errorf("Tx %v is not standard", txHash.String())
