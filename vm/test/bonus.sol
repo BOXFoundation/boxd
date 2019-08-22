@@ -50,8 +50,17 @@ contract Bonus is Permission{
     using SafeMath for uint;
 
     uint constant DYNASTY_SIZE = 15;
+
     uint constant PLEDGE_THRESHOLD = 1;
     uint constant DYNASTY_CHANGE_THRESHOLD = 2;
+    uint constant MIN_VOTE_BONUS_LIMIT_TO_PICK = 3;
+    uint constant VOTE_FROZEN_BLOCK_NUMBER = 4;
+    uint constant VOTE_THRESHOLD = 5;
+    uint constant MIN_PROPOSAL_THRESHOLD = 6;
+    uint constant PLEDGE_OPEN_LIMIT = 7;
+    uint constant PROPOSAL_EXPIRATION_TIME = 8;
+    uint constant BOOK_KEEPER_REWARD = 9;
+    uint constant BONUS_TO_VOTERS = 10;
 
     struct Delegate {
         address addr;
@@ -71,9 +80,13 @@ contract Bonus is Permission{
         uint id;
         uint value;
         uint createtime;
-        address[DYNASTY_SIZE] dynasty;
         address[] voters;
-        bool isExist;
+        bool result;
+    }
+
+    struct FrozenDelegate {
+        address addr;
+        uint blockNumber;
     }
 
     Delegate[] dynasty;
@@ -90,29 +103,59 @@ contract Bonus is Permission{
     mapping(address => uint) voteBonus;
     mapping(address => uint) dynastyToBonus;
 
-    mapping(address => Delegate) frozenDelegate;
+    mapping(address => FrozenDelegate) frozenDelegate;
 
     mapping(uint => Proposal) proposals;
+    Proposal[] proposalList;
+    mapping(uint => uint) netParams;
+    uint[] changedProposalIDs;
+    mapping(uint => uint) changedProposals;
 
 
     uint pledgePool;
     uint dynastyBonusPool;
     uint voteBonusPool;
 
-    uint _pledge_threshold;
-    uint _dynasty_change_threshold;
-    uint _vote_threshold;
-    uint _min_vote_bonus_limit_to_pick;
-    uint _vote_frozen_block_number;
+    uint _global_open_pledge_limit;
 
     event ExecBonus();
     event CalcBonus(address _coinbase, uint value);
 
     constructor() public {
-        _pledge_threshold = 1800000 * 10**8;
-        _dynasty_change_threshold = 10000;
-        _min_vote_bonus_limit_to_pick = 1 * 10**8;
-        _vote_frozen_block_number = 2000;
+        _global_open_pledge_limit = 10000;
+        initNetParams();
+        initDynasty();
+    }
+
+     modifier onlyPledgeIsOpen {
+        require(block.number > _global_open_pledge_limit, "you can not do it util the pledge is open.");
+        _;
+    }
+
+    modifier onlyDynasty {
+        require(IsInDynasty(msg.sender), "only dynasty can do it.");
+        _;
+    }
+
+    function initAdmin(address _admin) public {
+        require(block.number == 0, "init admin out of genesis block");
+        admin = _admin;
+    }
+
+    function initNetParams() internal {
+        netParams[PLEDGE_THRESHOLD] = 1800000 * 10**8;
+        netParams[DYNASTY_CHANGE_THRESHOLD] = 10000;
+        netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK] = 1 * 10**8;
+        netParams[VOTE_FROZEN_BLOCK_NUMBER] = 2000;
+        netParams[VOTE_THRESHOLD] = 1 * 10**8;
+        netParams[MIN_PROPOSAL_THRESHOLD] = 100 * 10**8;
+        netParams[PLEDGE_OPEN_LIMIT] = 8000;
+        netParams[PROPOSAL_EXPIRATION_TIME] = 3 * 24 * 3600;
+        netParams[BOOK_KEEPER_REWARD] = 50 * 10**8;
+        netParams[BONUS_TO_VOTERS] = 50;
+    }
+
+    function initDynasty() internal {
         dynasty.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
          0, 0, 0, true));
         delegates.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
@@ -139,13 +182,9 @@ contract Bonus is Permission{
          0, 0, 0, true));
     }
 
-    function initAdmin(address _admin) public {
-        require(block.number == 0, "init admin out of genesis block");
-        admin = _admin;
-    }
-
-    function  pledge() public payable {
-        require(msg.value > _pledge_threshold, "pledge amount is not correct.");
+    function  pledge() public payable onlyPledgeIsOpen{
+        require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] <= netParams[PLEDGE_OPEN_LIMIT], "pledge is not open.");
+        require(msg.value > netParams[PLEDGE_THRESHOLD], "pledge amount is not correct.");
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
 
         Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, true);
@@ -156,22 +195,27 @@ contract Bonus is Permission{
     }
 
     function redeemPledgeApply() public {
+        require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] > netParams[PLEDGE_OPEN_LIMIT], "redeem pledge apply is not allowed.");
         require(addrToDelegates[msg.sender].isExist == true, "not delegate node.");
-        frozenDelegate[msg.sender] = addrToDelegates[msg.sender];
+        FrozenDelegate memory fd = FrozenDelegate(msg.sender, block.number);
+        frozenDelegate[msg.sender] = fd;
         delete addrToDelegates[msg.sender];
         uint idx = getIdxInPledgeAddrList(msg.sender);
         deletePledgeAddrList(idx);
     }
 
     function pickRedeemPledge() public {
-        require(frozenDelegate[msg.sender].isExist == true, "not frozen delegate node.");
-        if (block.number > ((block.number / _dynasty_change_threshold) + 1) * _dynasty_change_threshold) {
-            msg.sender.transfer(addrToDelegates[msg.sender].pledgeAmount);
+        require(frozenDelegate[msg.sender].blockNumber > 0, "not frozen delegate node.");
+        if (block.number > ((frozenDelegate[msg.sender].blockNumber / netParams
+        [DYNASTY_CHANGE_THRESHOLD]) + 1) * netParams[DYNASTY_CHANGE_THRESHOLD]) {
             delete frozenDelegate[msg.sender];
+            msg.sender.transfer(addrToDelegates[msg.sender].pledgeAmount);
             for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
                 if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
-                    delegateToVoters[msg.sender][i].transfer(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
+                    // delegateToVoters[msg.sender][i].transfer(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
                     delete delegateToVoters[msg.sender];
+                    voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
+                    add(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
                 }
             }
         }
@@ -192,7 +236,7 @@ contract Bonus is Permission{
 
     function pickRedeemVote(address delegateAddr) public {
         if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
-            block.timestamp > (frozenVotes[delegateAddr][msg.sender].timestamp + _vote_frozen_block_number)) {
+            block.timestamp > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
             msg.sender.transfer(frozenVotes[delegateAddr][msg.sender].votes);
         }
     }
@@ -202,12 +246,12 @@ contract Bonus is Permission{
 
         dynastyBonusPool = dynastyBonusPool.add(msg.value/2);
         voteBonusPool = voteBonusPool.add(msg.value/2);
-        dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(msg.value/2);
+        dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(msg.value * (100 - netParams[BONUS_TO_VOTERS])/100);
 
         for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
             uint vote = delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]];
             voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
-            add((msg.value/2) * vote/addrToDelegates[msg.sender].votes);
+            add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * vote/addrToDelegates[msg.sender].votes);
         }
         emit CalcBonus(msg.sender, msg.value);
     }
@@ -215,7 +259,7 @@ contract Bonus is Permission{
     function execBonus() public {
         require(msg.sender == block.coinbase || msg.sender == admin, "Not enough permissions.");
         if (msg.sender == block.coinbase) {
-            require((block.number+1) % _dynasty_change_threshold == 0, "Not the time to switch dynasties");
+            require((block.number+1) % netParams[DYNASTY_CHANGE_THRESHOLD] == 0, "Not the time to switch dynasties");
         }
 
         for(uint i = 0; i < dynasty.length; i++) {
@@ -223,7 +267,10 @@ contract Bonus is Permission{
                 dynasty[i].addr.transfer(dynastyToBonus[dynasty[i].addr]);
             }
         }
-        updateDynasty();
+        if (pledgeAddrList.length > DYNASTY_SIZE) {
+            updateDynasty();
+            updateNetParams();
+        }
     }
 
     function getDynasty() public view returns (Delegate[] memory) {
@@ -255,6 +302,14 @@ contract Bonus is Permission{
         }
     }
 
+    function updateNetParams() internal {
+        for(uint i = 0; i < changedProposalIDs.length; i++) {
+            netParams[changedProposalIDs[i]] = changedProposals[changedProposalIDs[i]];
+            delete changedProposals[changedProposalIDs[i]];
+        }
+        delete changedProposalIDs;
+    }
+
     function deleteFrozenVote(FrozenVote[] storage array, uint index) internal{
         uint len = array.length;
         if (index >= len) return;
@@ -283,16 +338,16 @@ contract Bonus is Permission{
         pledgeAddrList.length--;
     }
 
-    function addressIsInDynasty(address addr, address[DYNASTY_SIZE] addrs) internal view returns (bool) {
-        for (uint i = 0; i < DYNASTY_SIZE; i++) {
-            if (addr == addrs[i]) {
+    function IsInDynasty(address addr) internal view returns (bool) {
+        for (uint i = 0; i < dynasty.length; i++) {
+            if (addr == dynasty[i].addr) {
                 return true;
             }
         }
         return false;
     }
 
-    function addressIsExist(address addr, address[] addrs) internal view returns (bool) {
+    function addressIsExist(address addr, address[] addrs) internal pure returns (bool) {
         for (uint i = 0; i < addrs.length; i++) {
             if (addr == addrs[i]) {
                 return true;
@@ -324,7 +379,7 @@ contract Bonus is Permission{
     }
 
     function vote(address delegateAddr) public payable {
-        require(msg.value > _vote_threshold, "vote amount is not correct.");
+        require(msg.value > netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "vote amount is not correct.");
 
         if (votes[msg.sender][delegateAddr] > 0) {
             votes[msg.sender][delegateAddr] = votes[msg.sender][delegateAddr].add(msg.value);
@@ -344,7 +399,7 @@ contract Bonus is Permission{
     }
 
     function pickVoteBonus() public {
-        require(voteBonus[msg.sender] > _min_vote_bonus_limit_to_pick, "you don`t have enough vote bonus.");
+        require(voteBonus[msg.sender] > netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "you don`t have enough vote bonus.");
         delete voteBonus[msg.sender];
         msg.sender.transfer(voteBonus[msg.sender]);
     }
@@ -353,56 +408,38 @@ contract Bonus is Permission{
         return votes[msg.sender][delegate];
     }
 
-    function giveProposal(uint proposalID, uint value) public {
-        require(proposals[proposalID].isExist == false || (block.timestamp
-         - proposals[proposalID].createtime > 3 * 24 * 3600) , "the proposal is exist.");
-        require(addressIsInDynasty(msg.sender, proposal.dynasty) == true, "Insufficient permissions.");
-        address[DYNASTY_SIZE] memory addrs;
-        for(uint i = 0; i < dynasty.length; i++) {
-            addrs[i] = dynasty[i].addr;
-        }
-        Proposal memory proposal = Proposal(proposalID, value, block.timestamp, addrs, new address[](0), true);
+    function giveProposal(uint proposalID, uint value) public onlyDynasty payable{
+        require(msg.value >= netParams[MIN_PROPOSAL_THRESHOLD] && proposalID > 0, "Insufficient minimum fee for give proposal.");
+        require(proposals[proposalID].id == 0 || (block.timestamp
+         - proposals[proposalID].createtime > netParams[PROPOSAL_EXPIRATION_TIME]) , "the proposal is exist.");
+        Proposal memory proposal = Proposal(proposalID, value, block.timestamp, new address[](0), false);
         proposals[proposalID] = proposal;
+        proposalList.push(proposal);
     }
 
-    function voteProposal(uint proposalID) public {
+    function voteProposal(uint proposalID) public onlyDynasty{
+        require(proposalID > 0, "proposalID is not legal.");
         Proposal storage proposal = proposals[proposalID];
-        require(proposal.isExist == true && (block.timestamp
-         - proposal.createtime <= 3 * 24 * 3600) , "the proposal is not exist.");
-        require(addressIsInDynasty(msg.sender, proposal.dynasty) == true, "Insufficient permissions.");
+        require(proposal.id == proposalID && (block.timestamp
+         - proposal.createtime <= netParams[PROPOSAL_EXPIRATION_TIME]) , "the proposal is not exist.");
         require(addressIsExist(msg.sender, proposal.voters) == false, "Repeated voting is forbidden.");
         proposal.voters.push(msg.sender);
         if (proposal.voters.length > 2 * DYNASTY_SIZE / 3) {
-            doProposal(proposalID);
+            proposal.result = true;
+            changedProposals[proposalID] = proposal.value;
+            changedProposalIDs.push(proposalID);
         }
     }
 
-    function doProposal(uint proposalID) internal {
-        Proposal memory proposal = proposals[proposalID];
-        if (proposalID == PLEDGE_THRESHOLD) {
-            setPledgeThreshold(proposal.value);
-        } else if (proposalID == DYNASTY_CHANGE_THRESHOLD) {
-            setDynastyThreshold(proposal.value);
-        }
+    function getProposal() public view returns (Proposal[] memory) {
+        return proposalList;
     }
 
-    function setPledgeThreshold(uint threshold) internal {
-        _pledge_threshold = threshold;
+    function setGlobalOpenPledgeLimit(uint value) public onlyAdmin {
+        _global_open_pledge_limit = value;
     }
 
-    function getDynastyChangeThreshold() public view returns (uint) {
-        return _dynasty_change_threshold;
-    }
-
-    function setDynastyThreshold(uint dynasty_change_threshold) internal {
-        _dynasty_change_threshold = dynasty_change_threshold;
-    }
-
-    function setMinVoteBonusLimitToPick(uint min_vote_bonus_limit_to_pick) public onlyAdmin {
-        _min_vote_bonus_limit_to_pick = min_vote_bonus_limit_to_pick;
-    }
-
-    function setVoteFrozenBlockNumber(uint vote_frozen_block_number) public onlyAdmin {
-        _vote_frozen_block_number = vote_frozen_block_number;
+    function getNetParams() public view returns (uint,uint) {
+        return (netParams[DYNASTY_CHANGE_THRESHOLD],netParams[BOOK_KEEPER_REWARD]);
     }
 }

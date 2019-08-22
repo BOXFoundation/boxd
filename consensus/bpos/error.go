@@ -18,6 +18,7 @@ var (
 	ErrInvalidDynastySwitchTx    = errors.New("Invalid dynasty switch tx")
 	ErrMultipleDynastySwitchTx   = errors.New("multiple dynasty switch tx")
 	ErrDynastySwitchIsNotAllowed = errors.New("Dynasty switching is not allowed in the current block")
+	ErrFailedToVerifySign        = errors.New("Failed to verify sign block")
 
 	// context
 	ErrInvalidEternalBlockMsgProtoMessage = errors.New("Invalid eternalBlockMsg proto message")

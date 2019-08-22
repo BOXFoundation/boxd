@@ -140,7 +140,7 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 		return err
 	}
 	if !ok {
-		return errors.New("Failed to verify sign block")
+		return ErrFailedToVerifySign
 	}
 
 	if err := bpos.verifyDynastySwitch(block); err != nil {
@@ -193,12 +193,13 @@ func (bpos *Bpos) run(timestamp int64) error {
 	if err != nil {
 		return err
 	}
-	dynastyCycle, err := bpos.fetchDynastyCycleByHeight(bpos.chain.LongestChainHeight)
+	netParams, err := bpos.chain.FetchNetParamsByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return err
 	}
 	bpos.context.dynasty = dynasty
-	bpos.context.dynastyCycle = dynastyCycle
+	bpos.context.dynastySwitchThreshold = netParams.DynastySwitchThreshold
+	bpos.context.bookKeeperReward = netParams.BookKeeperReward
 
 	delegates, err := bpos.fetchDelegatesByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
@@ -528,7 +529,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 	block.Txs = append(block.Txs, coinbaseTx)
-	if uint64((block.Header.Height+1))%bpos.context.dynastyCycle.Uint64() == 0 { // dynasty switch
+	if uint64((block.Header.Height+1))%bpos.context.dynastySwitchThreshold.Uint64() == 0 { // dynasty switch
 		dynastySwitchTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, "execBonus")
 		if err != nil {
 			return err
@@ -549,7 +550,8 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64, nonce uint64) (*types.Transaction, error) {
 
-	amount := chain.CalcBlockSubsidy(block.Header.Height) + txFee
+	// amount := chain.CalcBlockSubsidy(block.Header.Height) + txFee
+	amount := bpos.context.bookKeeperReward.Uint64() + txFee
 	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
 		block.BlockHash(), block.Header.Height, amount, txFee)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
@@ -736,13 +738,13 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	dynastyCycle, err := bpos.fetchDynastyCycleByHeight(height)
+	netParams, err := bpos.chain.FetchNetParamsByHeight(height)
 	if err != nil {
 		return false, err
 	}
 
 	bpos.context.verifyDynasty = dynasty
-	bpos.context.verifyDynastyCycle = dynastyCycle
+	bpos.context.verifyDynastySwitchThreshold = netParams.DynastySwitchThreshold
 	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, dynasty.delegates)
 	if err != nil {
 		return false, err
@@ -766,7 +768,7 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 
 func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
 
-	if uint64((block.Header.Height+1))%bpos.context.verifyDynastyCycle.Uint64() == 0 { // dynasty switch
+	if uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0 { // dynasty switch
 		if !chain.IsDynastySwitch(block.Txs[1]) {
 			return ErrInvalidDynastySwitchTx
 		}

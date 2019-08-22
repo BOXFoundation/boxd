@@ -1079,7 +1079,13 @@ func (chain *BlockChain) ValidateExecuteResult(
 	for _, txOut := range block.Txs[0].Vout {
 		totalCoinbaseOutput += txOut.Value
 	}
-	expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height) + totalTxsFee
+
+	netParams, err := chain.FetchNetParamsByHeight(chain.LongestChainHeight)
+	if err != nil {
+		return err
+	}
+
+	expectedCoinbaseOutput := netParams.BookKeeperReward.Uint64() + totalTxsFee
 	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height)
 	if totalCoinbaseOutput != expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %d which is not equal to"+

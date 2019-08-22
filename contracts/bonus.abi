@@ -23,34 +23,6 @@
 		"type": "function"
 	},
 	{
-		"constant": false,
-		"inputs": [
-			{
-				"name": "vote_frozen_block_number",
-				"type": "uint256"
-			}
-		],
-		"name": "setVoteFrozenBlockNumber",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "getDynastyChangeThreshold",
-		"outputs": [
-			{
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
 		"constant": true,
 		"inputs": [],
 		"name": "newAdmin",
@@ -102,6 +74,38 @@
 		"type": "function"
 	},
 	{
+		"constant": true,
+		"inputs": [],
+		"name": "getNetParams",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "setGlobalOpenPledgeLimit",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"constant": false,
 		"inputs": [
 			{
@@ -129,8 +133,8 @@
 		],
 		"name": "giveProposal",
 		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
+		"payable": true,
+		"stateMutability": "payable",
 		"type": "function"
 	},
 	{
@@ -142,20 +146,6 @@
 			}
 		],
 		"name": "transferAdmin",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [
-			{
-				"name": "min_vote_bonus_limit_to_pick",
-				"type": "uint256"
-			}
-		],
-		"name": "setMinVoteBonusLimitToPick",
 		"outputs": [],
 		"payable": false,
 		"stateMutability": "nonpayable",
@@ -191,6 +181,42 @@
 		"outputs": [],
 		"payable": false,
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "getProposal",
+		"outputs": [
+			{
+				"components": [
+					{
+						"name": "id",
+						"type": "uint256"
+					},
+					{
+						"name": "value",
+						"type": "uint256"
+					},
+					{
+						"name": "createtime",
+						"type": "uint256"
+					},
+					{
+						"name": "voters",
+						"type": "address[]"
+					},
+					{
+						"name": "result",
+						"type": "bool"
+					}
+				],
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
