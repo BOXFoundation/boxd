@@ -131,7 +131,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 	tag := txlogic.NewTokenTag(tokenName, tokenSymbol, uint32(tokenDecimals),
 		uint64(tokenTotalSupply))
-	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.String(), tag, conn)
+	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.Hash160(), tag, conn)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -197,6 +197,11 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		}
 		amounts = append(amounts, a)
 	}
+	toHashes := make([]*types.AddressHash, 0, len(to))
+	for _, addr := range to {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
+	}
 	if err := types.ValidateAddr(to...); err != nil {
 		fmt.Println(err)
 		return
@@ -208,7 +213,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTokenTx(account, to, amounts, hashStr, uint32(tIdx), conn)
+	tx, _, _, err := rpcutil.NewTokenTx(account, toHashes, amounts, hashStr, uint32(tIdx), conn)
 	if err != nil {
 		fmt.Println(err)
 		return

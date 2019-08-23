@@ -21,12 +21,12 @@ import (
 type TestWalletAgent struct {
 }
 
-func (twa *TestWalletAgent) Balance(addr string, tid *types.TokenID) (uint64, error) {
+func (twa *TestWalletAgent) Balance(addr *types.AddressHash, tid *types.TokenID) (uint64, error) {
 	return 0, nil
 }
 
 func (twa *TestWalletAgent) Utxos(
-	addr string, tid *types.TokenID, amount uint64,
+	addr *types.AddressHash, tid *types.TokenID, amount uint64,
 ) (utxos []*rpcpb.Utxo, err error) {
 
 	count := uint64(2)
@@ -52,11 +52,11 @@ func (twa *TestWalletAgent) Utxos(
 }
 
 func TestMakeUnsignedTx(t *testing.T) {
-	from := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	to := []string{
-		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
-		"b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva",
-	}
+	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+	from := fromAddr.Hash160()
+	toAddr1, _ := types.ParseAddress("b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7")
+	toAddr2, _ := types.ParseAddress("b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva")
+	to := []*types.AddressHash{toAddr1.Hash160(), toAddr2.Hash160()}
 	amounts := []uint64{24000, 38000}
 	fee := uint64(1000)
 
@@ -148,8 +148,8 @@ func TestMakeUnsignedTx(t *testing.T) {
 }
 
 func TestMakeUnsignedCombineTx(t *testing.T) {
-	from := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-
+	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+	from := fromAddr.Hash160()
 	wa := new(TestWalletAgent)
 	gasUsed := uint64(2) * core.TransferGasLimit
 	tx, utxos, err := rpcutil.MakeUnsignedCombineTx(wa, from, gasUsed)

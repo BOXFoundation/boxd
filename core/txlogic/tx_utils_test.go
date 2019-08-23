@@ -14,10 +14,10 @@ import (
 )
 
 func TestNewIssueTokenUtxoWrap(t *testing.T) {
-	addr := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	name, sym, deci := "box token", "BOX", uint32(8)
 	tag := NewTokenTag(name, sym, deci, 10000)
-	uw, err := NewIssueTokenUtxoWrap(addr, tag, 1)
+	uw, err := NewIssueTokenUtxoWrap(fromAddr.Hash160(), tag, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,18 +32,16 @@ func TestNewIssueTokenUtxoWrap(t *testing.T) {
 }
 
 func TestMakeSplitAddrVout(t *testing.T) {
-	addrs := []string{
-		"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh",
-		"b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU",
-		"b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N",
-		"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
+	toAddr1, _ := types.NewAddress("b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh")
+	toAddr2, _ := types.NewAddress("b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU")
+	toAddr3, _ := types.NewAddress("b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N")
+	toAddr4, _ := types.NewAddress("b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc")
+	to := []*types.AddressHash{
+		toAddr1.Hash160(), toAddr2.Hash160(),
+		toAddr3.Hash160(), toAddr4.Hash160(),
 	}
 	weights := []uint32{1, 2, 3, 4}
-	addresses := make([]types.Address, len(addrs))
-	for i, addr := range addrs {
-		addresses[i], _ = types.ParseAddress(addr)
-	}
-	out := MakeSplitAddrVout(addresses, weights)
+	out := MakeSplitAddrVout(to, weights)
 
 	sc := script.NewScriptFromBytes(out.ScriptPubKey)
 	if !sc.IsSplitAddrScript() {
@@ -53,12 +51,8 @@ func TestMakeSplitAddrVout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	aas := make([]string, 0)
-	for _, a := range as {
-		aas = append(aas, a.String())
-	}
-	if !reflect.DeepEqual(aas, addrs) {
-		t.Fatalf("addrs want: %v, got %v", addrs, aas)
+	if !reflect.DeepEqual(as, to) {
+		t.Fatalf("addrs want: %v, got %v", to, as)
 	}
 	if !reflect.DeepEqual(ws, weights) {
 		t.Fatalf("weights want: %v, got %v", weights, ws)
@@ -137,11 +131,12 @@ func TestMakeSplitAddress(t *testing.T) {
 	txHash := new(crypto.HashType)
 	txHash.SetString("fc7de81e29e3bcb127d63f9576ec2fffd7bd560aac2dcbe31c119799e3f51b92")
 	for _, tc := range tests {
-		addresses := make([]types.Address, len(tc.addrs))
+		to := make([]*types.AddressHash, len(tc.addrs))
 		for i, addr := range tc.addrs {
-			addresses[i], _ = types.ParseAddress(addr)
+			address, _ := types.NewAddress(addr)
+			to[i] = address.Hash160()
 		}
-		splitAddr := MakeSplitAddress(txHash, 0, addresses, tc.weights)
+		splitAddr := MakeSplitAddress(txHash, 0, to, tc.weights)
 		if splitAddr.String() != tc.splitAddr {
 			t.Errorf("split addr for %v want: %s, got: %s", tc.addrs, tc.splitAddr, splitAddr)
 		}

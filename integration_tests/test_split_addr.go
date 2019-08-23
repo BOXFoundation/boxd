@@ -87,7 +87,9 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	prevSenderBalance := utils.BalanceFor(sender, conn)
 	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
 	minerAcc, _ := AddrToAcc.Load(miner)
-	senderTx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{sender},
+	senderAddress, _ := types.NewAddress(sender)
+	senderTx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
+		[]*types.AddressHash{senderAddress.Hash160()},
 		[]uint64{testAmount + splitFee}, conn)
 	if err != nil {
 		logger.Error(err)
@@ -133,8 +135,13 @@ func splitAddrRepeatTest(
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
 	senderAcc, _ := AddrToAcc.Load(sender)
+	toHashes := make([]*types.AddressHash, 0, len(receivers))
+	for _, addr := range receivers {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
+	}
 	splitTx, _, err := rpcutil.NewSplitAddrTxWithFee(senderAcc.(*acc.Account),
-		receivers, weights, splitFee, conn)
+		toHashes, weights, splitFee, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -163,14 +170,11 @@ func splitAddrRepeatTest(
 	//addrSub, err := MakeSplitAddr(receivers[:2], weights[:2])
 	splitTxHash := new(crypto.HashType)
 	splitTxHash.SetString(hashStr)
-	receiverAddrs := make([]types.Address, len(receivers))
-	for i, addr := range receivers {
-		receiverAddrs[i], _ = types.ParseAddress(addr)
-	}
-	addr := txlogic.MakeSplitAddress(splitTxHash, 0, receiverAddrs, weights)
+	addr := txlogic.MakeSplitAddress(splitTxHash, 0, toHashes, weights)
 
 	// transfer
-	txss, transfer, fee, count, err := rpcutil.NewTxs(senderAcc.(*acc.Account), addr.String(), 1, conn)
+	txss, transfer, fee, count, err := rpcutil.NewTxs(senderAcc.(*acc.Account),
+		addr.Hash160(), 1, conn)
 	if err != nil {
 		logger.Panic(err)
 	}

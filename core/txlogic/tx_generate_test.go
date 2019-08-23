@@ -17,11 +17,11 @@ import (
 
 func TestMakeUnsignedTx(t *testing.T) {
 
-	from := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	to := []string{
-		"b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
-		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
-	}
+	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+	from := fromAddr.Hash160()
+	toAddr1, _ := types.NewAddress("b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ")
+	toAddr2, _ := types.NewAddress("b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7")
+	to := []*types.AddressHash{toAddr1.Hash160(), toAddr2.Hash160()}
 	amounts := []uint64{100, 200}
 	changeAmt := uint64(200)
 	prevHash1 := hashFromUint64(1)
@@ -88,11 +88,11 @@ func hashFromUint64(n uint64) crypto.HashType {
 
 func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 
-	from := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	addrs := []string{
-		"b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ",
-		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
-	}
+	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+	from := fromAddr.Hash160()
+	toAddr1, _ := types.ParseAddress("b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ")
+	toAddr2, _ := types.ParseAddress("b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7")
+	to := []*types.AddressHash{toAddr1.Hash160(), toAddr2.Hash160()}
 	weights := []uint32{3, 7}
 	changeAmt := uint64(200)
 	prevHash1 := hashFromUint64(1)
@@ -103,16 +103,12 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 	op, uw = types.NewOutPoint(&prevHash2, 0), NewUtxoWrap(from, 3, utxoValue2)
 	utxo2 := MakePbUtxo(op, uw)
 
-	tx, err := MakeUnsignedSplitAddrTx(from, addrs, weights, changeAmt, utxo1, utxo2)
+	tx, err := MakeUnsignedSplitAddrTx(from, to, weights, changeAmt, utxo1, utxo2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	txHash, _ := tx.TxHash()
-	addresses := make([]types.Address, len(addrs))
-	for i, addr := range addrs {
-		addresses[i], _ = types.ParseAddress(addr)
-	}
-	splitAddr := MakeSplitAddress(txHash, 0, addresses, weights)
+	splitAddr := MakeSplitAddress(txHash, 0, to, weights)
 	wantSplitAddr := "b2aHFbpWrqpdso3GU5aEgGbHJ6WuwtbUZqf"
 	if splitAddr.String() != wantSplitAddr {
 		t.Fatalf("aplit addr want: %s, got: %s", wantSplitAddr, splitAddr)
@@ -202,7 +198,7 @@ func TestMakeContractTx(t *testing.T) {
 	// contract vin, normal vout
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 0)).
-		AppendVout(MakeVout(fromAddr, value))
+		AppendVout(MakeVout(from.Hash160(), value))
 	if len(tx.Vin[0].ScriptSig) != 1 || tx.Vin[0].ScriptSig[0] != byte(script.OPCONTRACT) ||
 		tx.Vin[0].PrevOutPoint.Hash != hash || tx.Vin[0].PrevOutPoint.Index != idx ||
 		tx.Vout[0].Value != value {

@@ -97,6 +97,11 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
+	addrHashes := make([]*types.AddressHash, 0, len(addrs))
+	for _, addr := range addrs {
+		address, _ := types.ParseAddress(addr)
+		addrHashes = append(addrHashes, address.Hash160())
+	}
 	// fee
 	fee := uint64(10)
 	// conn
@@ -107,8 +112,7 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	defer conn.Close()
 	// send tx
-	tx, _, err := rpcutil.NewSplitAddrTxWithFee(account, addrs,
-		weights, fee, conn)
+	tx, _, err := rpcutil.NewSplitAddrTxWithFee(account, addrHashes, weights, fee, conn)
 	if err != nil {
 		fmt.Println(err)
 		return

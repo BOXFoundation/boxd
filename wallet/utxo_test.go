@@ -81,8 +81,9 @@ func TestSelectUtxos(t *testing.T) {
 
 	utxos := make([]*rpcpb.Utxo, 0)
 	values := []uint64{1, 2, 3, 4, 5, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 5, 4, 3, 2, 1}
+	address, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	for _, v := range values {
-		utxos = append(utxos, &rpcpb.Utxo{TxOut: (*corepb.TxOut)(txlogic.MakeVout("a", v))})
+		utxos = append(utxos, &rpcpb.Utxo{TxOut: (*corepb.TxOut)(txlogic.MakeVout(address.Hash160(), v))})
 	}
 	t.Run("t1", selUtxosTest(utxos, 10, []uint64{1, 1, 2, 2, 3, 3}))
 	t.Run("t2", selUtxosTest(utxos, 0, []uint64{}))
@@ -113,28 +114,32 @@ func releaseDatabase(dbpath string, db storage.Storage) {
 	os.RemoveAll(dbpath)
 }
 
-func newTestUtxoSet(n int, addrs ...string) (types.UtxoMap, map[string]uint64,
-	map[string]types.UtxoMap) {
+func newTestUtxoSet(
+	n int, addrs ...string,
+) (types.UtxoMap, map[types.AddressHash]uint64, map[types.AddressHash]types.UtxoMap) {
 
 	utxoMap := make(types.UtxoMap, n)
-	addrBalance := make(map[string]uint64)
-	addrUtxos := make(map[string]types.UtxoMap)
+	addrBalance := make(map[types.AddressHash]uint64)
+	addrUtxos := make(map[types.AddressHash]types.UtxoMap)
+	addrHashes := make([]*types.AddressHash, 0)
 	for _, addr := range addrs {
-		addrUtxos[addr] = make(types.UtxoMap)
+		address, _ := types.ParseAddress(addr)
+		addrHashes = append(addrHashes, address.Hash160())
+		addrUtxos[*address.Hash160()] = make(types.UtxoMap)
 	}
 	for h := uint32(0); h < uint32(n); h++ {
 		// outpoint
 		hash := hashFromUint64(uint64(time.Now().UnixNano()))
 		outpoint := types.NewOutPoint(&hash, h%10)
 		// utxo wrap
-		addr := addrs[int(h)%len(addrs)]
+		addr := addrHashes[int(h)%len(addrs)]
 		value := 1 + uint64(rand.Intn(10000))
 		utxoWrap := txlogic.NewUtxoWrap(addr, h, value)
 		utxoMap[*outpoint] = utxoWrap
 		// update balance
-		addrBalance[addr] += value
+		addrBalance[*addr] += value
 		// update utxo
-		addrUtxos[addr][*outpoint] = utxoWrap
+		addrUtxos[*addr][*outpoint] = utxoWrap
 	}
 	// log
 	log.Printf("newTestUtxoSet: balances: %+v, utxos count: %d\n",
@@ -143,42 +148,46 @@ func newTestUtxoSet(n int, addrs ...string) (types.UtxoMap, map[string]uint64,
 	return utxoMap, addrBalance, addrUtxos
 }
 
-func newTestTokenUtxoSet(n int, addrs ...string) (types.UtxoMap, map[string]uint64,
-	map[string]types.UtxoMap, *types.TokenID) {
+func newTestTokenUtxoSet(
+	n int, addrs ...string,
+) (types.UtxoMap, map[types.AddressHash]uint64, map[types.AddressHash]types.UtxoMap, *types.TokenID) {
 
 	// initial variables
 	utxoMap := make(types.UtxoMap, n)
-	addrBalance := make(map[string]uint64)
-	addrUtxos := make(map[string]types.UtxoMap)
+	addrBalance := make(map[types.AddressHash]uint64)
+	addrUtxos := make(map[types.AddressHash]types.UtxoMap)
+	addrHashes := make([]*types.AddressHash, 0)
 	for _, addr := range addrs {
-		addrUtxos[addr] = make(types.UtxoMap)
+		address, _ := types.ParseAddress(addr)
+		addrHashes = append(addrHashes, address.Hash160())
+		addrUtxos[*address.Hash160()] = make(types.UtxoMap)
 	}
 
 	// generate issue utxo
 	hash := hashFromUint64(uint64(time.Now().UnixNano()))
 	tid := txlogic.NewTokenID(&hash, 0)
-	addr, supply := addrs[0], uint64(1000000)
+	addr, supply := addrHashes[0], uint64(1000000)
 	tag := txlogic.NewTokenTag("box token", "BOX", 8, supply)
 	issueUtxo, _ := txlogic.NewIssueTokenUtxoWrap(addr, tag, 0)
 	outpoint := types.NewOutPoint(&hash, 0)
 
 	utxoMap[*outpoint] = issueUtxo
-	addrBalance[addr] += supply * uint64(math.Pow10(int(tag.Decimal)))
-	addrUtxos[addr][*outpoint] = issueUtxo
+	addrBalance[*addr] += supply * uint64(math.Pow10(int(tag.Decimal)))
+	addrUtxos[*addr][*outpoint] = issueUtxo
 
 	for h := uint32(0); h < uint32(n); h++ {
 		// outpoint
 		hash := hashFromUint64(uint64(time.Now().UnixNano()))
 		outpoint := types.NewOutPoint(&hash, h%10)
 		// utxo wrap
-		addr := addrs[int(h)%len(addrs)]
+		addr := addrHashes[int(h)%len(addrs)]
 		value := 1 + uint64(rand.Intn(10000))
 		utxoWrap, _ := txlogic.NewTokenUtxoWrap(addr, tid, h, value)
 		utxoMap[*outpoint] = utxoWrap
 		// update balance
-		addrBalance[addr] += value
+		addrBalance[*addr] += value
 		// update utxo
-		addrUtxos[addr][*outpoint] = utxoWrap
+		addrUtxos[*addr][*outpoint] = utxoWrap
 	}
 	// log
 	log.Printf("newTestTokenUtxoSet: balances: %+v, utxos count: %d\n",
@@ -205,8 +214,8 @@ func walletUtxosSaveGetTest(
 		// gen utxos
 		var (
 			utxoMap  types.UtxoMap
-			balances map[string]uint64
-			utxos    map[string]types.UtxoMap
+			balances map[types.AddressHash]uint64
+			utxos    map[types.AddressHash]types.UtxoMap
 			tid      *types.TokenID
 		)
 		if flag == tokenTest {
@@ -218,15 +227,20 @@ func walletUtxosSaveGetTest(
 		if err := applyUtxosTest(utxoMap, db); err != nil {
 			t.Fatal(err)
 		}
-		// check balance and utxos
+		addrHashes := make([]*types.AddressHash, 0, len(addrs))
 		for _, addr := range addrs {
+			address, _ := types.ParseAddress(addr)
+			addrHashes = append(addrHashes, address.Hash160())
+		}
+		// check balance and utxos
+		for _, addr := range addrHashes {
 			// check balance
 			balanceGot, err := BalanceFor(addr, tid, db)
 			if err != nil {
 				t.Error(err)
 			}
-			if balances[addr] != balanceGot {
-				t.Errorf("for balance of addr %s, want: %d, got: %d", addr, balances[addr],
+			if balances[*addr] != balanceGot {
+				t.Errorf("for balance of addr %s, want: %d, got: %d", addr, balances[*addr],
 					balanceGot)
 			}
 			// check utxos
@@ -234,7 +248,7 @@ func walletUtxosSaveGetTest(
 			if err != nil {
 				t.Error(err)
 			}
-			utxosWantC := comparableUtxoWrapMap(utxos[addr])
+			utxosWantC := comparableUtxoWrapMap(utxos[*addr])
 			utxosGotC := comparableUtxoWrapMap(makeUtxoMapFromPbUtxos(utxosGot))
 			if !reflect.DeepEqual(utxosWantC, utxosGotC) {
 				t.Errorf("for utxos of addr %s, want map: %+v, got map: %+v", addr,
@@ -379,11 +393,11 @@ func applyUtxosTest(utxos types.UtxoMap, db storage.Table) error {
 					u.Script(), err)
 			}
 			tid := types.TokenID(param.TokenID.OutPoint)
-			utxoKey = chain.AddrTokenUtxoKey(addr.String(), tid, o)
+			utxoKey = chain.AddrTokenUtxoKey(addr.Hash160(), tid, o)
 		} else if sc.IsTokenIssue() {
-			utxoKey = chain.AddrTokenUtxoKey(addr.String(), types.TokenID(o), o)
+			utxoKey = chain.AddrTokenUtxoKey(addr.Hash160(), types.TokenID(o), o)
 		} else if sc.IsPayToPubKeyHash() {
-			utxoKey = chain.AddrUtxoKey(addr.String(), o)
+			utxoKey = chain.AddrUtxoKey(addr.Hash160(), o)
 		} else {
 			logger.Warnf("utxo[%s, %+v] is not tx utxo", o, u)
 			continue

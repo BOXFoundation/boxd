@@ -176,7 +176,12 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	}
 	logger.Debugf("sent %v from %s to others test addrs", amounts, c.minerAddr)
 	minerAcc, _ := AddrToAcc.Load(c.minerAddr)
-	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), addrs, amounts, conn)
+	toHashes := make([]*types.AddressHash, 0, len(addrs))
+	for _, addr := range addrs {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
+	}
+	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), toHashes, amounts, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -222,7 +227,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 				amountsRecv[j] += amounts2[j]
 			}
 			account, _ := AddrToAcc.Load(addrs[i])
-			tx, _, fee, err := rpcutil.NewTx(account.(*acc.Account), addrs, amounts2, conn)
+			tx, _, fee, err := rpcutil.NewTx(account.(*acc.Account), toHashes, amounts2, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
@@ -257,6 +262,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	// gather count*count utxo via transfering from others to the first one
 	lastBalance := utils.BalanceFor(addr, conn)
 	total := uint64(0)
+	address, _ := types.NewAddress(addr)
 	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func(i int) {
@@ -269,7 +275,8 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 			logger.Debugf("start to gather utxo from addr %d to addr %s", i, addr)
 			fromAddr := addrs[i]
 			fromAcc, _ := AddrToAcc.Load(fromAddr)
-			txss, transfer, _, _, err := rpcutil.NewTxs(fromAcc.(*acc.Account), addr, count, conn)
+			txss, transfer, _, _, err := rpcutil.NewTxs(fromAcc.(*acc.Account),
+				address.Hash160(), count, conn)
 			if err != nil {
 				logger.Panic(err)
 			}

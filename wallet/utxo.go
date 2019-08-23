@@ -52,13 +52,9 @@ func filterTokenTransfer(raw []byte) bool {
 }
 
 // BalanceFor returns balance amount of an address using balance index
-func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, error) {
-	// check addr
-	if _, err := types.NewAddress(addr); err != nil {
-		return 0, err
-	}
+func BalanceFor(addrHash *types.AddressHash, tid *types.TokenID, db storage.Table) (uint64, error) {
 	//
-	utxos, err := FetchUtxosOf(addr, tid, 0, true, db)
+	utxos, err := FetchUtxosOf(addrHash, tid, 0, true, db)
 	//logger.Debugf("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
 		return 0, err
@@ -66,7 +62,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 	var balance uint64
 	for _, u := range utxos {
 		if u == nil || u.IsSpent {
-			logger.Warnf("fetch utxos for %s error, utxo: %+v", addr, u)
+			logger.Warnf("fetch utxos for %x error, utxo: %+v", addrHash[:], u)
 			continue
 		}
 		n, _, err := txlogic.ParseUtxoAmount(u)
@@ -83,14 +79,15 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 // NOTE: if total is 0, fetch all utxos
 // NOTE: if tokenID is nil, fetch box utxos
 func FetchUtxosOf(
-	addr string, tid *types.TokenID, total uint64, forBalance bool, db storage.Table,
+	addrHash *types.AddressHash, tid *types.TokenID, total uint64, forBalance bool,
+	db storage.Table,
 ) ([]*rpcpb.Utxo, error) {
 
 	var utxoKey []byte
 	if tid == nil {
-		utxoKey = chain.AddrAllUtxoKey(addr)
+		utxoKey = chain.AddrAllUtxoKey(addrHash)
 	} else {
-		utxoKey = chain.AddrAllTokenUtxoKey(addr, *tid)
+		utxoKey = chain.AddrAllTokenUtxoKey(addrHash, *tid)
 	}
 	//
 	keys := db.KeysWithPrefix(utxoKey)

@@ -31,7 +31,6 @@ import (
 const (
 	blockCnt = 10
 
-	testAddr   = "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
 	testAmount = uint64(12345)
 )
 
@@ -40,6 +39,9 @@ var (
 	starter sync.Once
 
 	testWebAPIBus = eventbus.Default()
+
+	testAddrS, _ = types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+	testAddr     = testAddrS.Hash160()
 )
 
 func init() {
@@ -234,7 +236,9 @@ func newTestBlock(count int) []*types.Block {
 	var blocks []*types.Block
 	prevBlock := &chain.GenesisBlock
 
-	miner, coinBaseAmount := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o", uint64(50000)
+	minerAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+	miner := minerAddr.Hash160()
+	coinBaseAmount := uint64(50000)
 	for i := 0; i < count; i++ {
 		coinBaseTx := types.NewTx(0, 4455, 100).
 			AppendVin(types.NewCoinBaseTxIn()).
@@ -258,7 +262,7 @@ func TestDetailTxOut(t *testing.T) {
 	}
 	disasmScript := "OP_DUP OP_HASH160 ce86056786e3415530f8cc739fb414a87435b4b6" +
 		" OP_EQUALVERIFY OP_CHECKSIG"
-	if detail.Addr != testAddr || detail.Value != testAmount ||
+	if detail.Addr != testAddrS.String() || detail.Value != testAmount ||
 		detail.ScriptDisasm != disasmScript ||
 		detail.Type != rpcpb.TxOutDetail_pay_to_pubkey_hash {
 		t.Fatalf("normal detail tx out, want: %s %d %s %v, got: %+v", testAddr,
@@ -289,7 +293,7 @@ func TestDetailTxOut(t *testing.T) {
 	for i := uint32(0); i < decimal; i++ {
 		wantValue *= 10
 	}
-	if detail.Addr != testAddr || detail.Value != wantValue ||
+	if detail.Addr != testAddrS.String() || detail.Value != wantValue ||
 		detail.ScriptDisasm != disasmScript ||
 		detail.Type != rpcpb.TxOutDetail_token_issue ||
 		tokenPbTag.Name != name || tokenPbTag.Symbol != sym ||
@@ -341,7 +345,7 @@ func TestDetailTxOut(t *testing.T) {
 	//	" 3930000000000000 OP_DROP", hashT)
 	// NOTE: in order to compare detail.ScriptDisasm,
 	// token id in script pubkey needs reverse hash string
-	if detail.Addr != testAddr || detail.Value != testAmount ||
+	if detail.Addr != testAddrS.String() || detail.Value != testAmount ||
 		//detail.ScriptDisasm != disasmScript || // need reverse hash string
 		detail.Type != rpcpb.TxOutDetail_token_transfer ||
 		gotTid != txlogic.EncodeOutPoint(txlogic.ConvOutPoint((*types.OutPoint)(tid))) {
@@ -374,9 +378,10 @@ var (
 )
 
 func (r *TestDetailBlockChainReader) LoadTxByHash(crypto.HashType) (*types.Transaction, error) {
-	from, to, amount := testAddr, "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(300)
+	toAddr, _ := types.NewAddress("b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ")
+	to, amount := toAddr.Hash160(), uint64(300)
 	prevHash := hashFromUint64(1)
-	return genTestTx(from, to, amount, &prevHash), nil
+	return genTestTx(to, amount, &prevHash), nil
 }
 
 func (r *TestDetailBlockChainReader) GetDataFromDB([]byte) ([]byte, error) {
@@ -404,7 +409,8 @@ func (r *TestDetailBlockChainReader) TailState() *state.StateDB {
 }
 
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {
-	addr, amount := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(50000)
+	addrS, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
+	addr, amount := addrS.Hash160(), uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
 		AppendVin(types.NewCoinBaseTxIn()).
 		AppendVout(txlogic.MakeVout(addr, amount))
@@ -430,7 +436,7 @@ func (r *TestDetailBlockChainReader) TailBlock() *types.Block {
 	return nil
 }
 
-func genTestTx(from, to string, amount uint64, prevHash *crypto.HashType) *types.Transaction {
+func genTestTx(to *types.AddressHash, amount uint64, prevHash *crypto.HashType) *types.Transaction {
 	// make tx
 	tx := types.NewTx(0, 4455, 1000)
 	// append vin
@@ -443,8 +449,9 @@ func genTestTx(from, to string, amount uint64, prevHash *crypto.HashType) *types
 
 func _TestDetailTxAndBlock(t *testing.T) {
 	prevHash := hashFromUint64(1)
-	from, to, amount := testAddr, "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ", uint64(300)
-	tx := genTestTx(from, to, amount, &prevHash)
+	toAddr, _ := types.NewAddress("b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ")
+	from, to, amount := testAddr, toAddr.Hash160(), uint64(300)
+	tx := genTestTx(to, amount, &prevHash)
 	// detail tx
 	blockReader := new(TestDetailBlockChainReader)
 	detail, err := detailTx(tx, blockReader, nil, false, true)

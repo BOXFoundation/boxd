@@ -61,17 +61,17 @@ func GasRefundSignatureScript(nonce uint64) *Script {
 }
 
 // SplitAddrScript returns a script to store a split address output
-func SplitAddrScript(addrs []types.Address, weights []uint32) *Script {
+func SplitAddrScript(addrs []*types.AddressHash, weights []uint32) *Script {
 	if len(addrs) == 0 || len(addrs) != len(weights) {
 		return nil
 	}
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
 	s := NewScript()
 	// use as many address/weight pairs as possbile
-	for i := 0; i < len(addrs) && i < len(weights); i++ {
+	for i := 0; i < len(addrs); i++ {
 		w := make([]byte, 4)
 		binary.LittleEndian.PutUint32(w, weights[i])
-		s.AddOperand(addrs[i].Hash()).AddOperand(w)
+		s.AddOperand(addrs[i][:]).AddOperand(w)
 	}
 	// Hash acts as address, like in p2sh
 	scriptHash := crypto.Hash160(*s)
@@ -722,7 +722,7 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 
 // ParseSplitAddrScript returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]
 // OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
-func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint32, error) {
+func (s *Script) ParseSplitAddrScript() ([]*types.AddressHash, []uint32, error) {
 	opCode, _, pc, err := s.getNthOp(0, 0)
 	if err != nil || opCode != OPRETURN {
 		return nil, nil, ErrInvalidSplitAddrScript
@@ -733,7 +733,7 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint32, error) {
 		return nil, nil, ErrInvalidSplitAddrScript
 	}
 
-	addrs := make([]types.Address, 0, 2)
+	addrs := make([]*types.AddressHash, 0, 2)
 	weights := make([]uint32, 0, 2)
 
 	for i := 0; ; i++ {
@@ -752,7 +752,7 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint32, error) {
 			if err != nil {
 				return nil, nil, ErrInvalidSplitAddrScript
 			}
-			addrs = append(addrs, addr)
+			addrs = append(addrs, addr.Hash160())
 		} else {
 			// weight
 			if len(operand) != 4 {
@@ -766,7 +766,7 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint32, error) {
 	for i := 0; i < len(addrs); i++ {
 		w := make([]byte, 4)
 		binary.LittleEndian.PutUint32(w, weights[i])
-		script.AddOperand(addrs[i].Hash()).AddOperand(w)
+		script.AddOperand(addrs[i][:]).AddOperand(w)
 	}
 	scriptHash := crypto.Hash160(*script)
 	// Check hash is expected

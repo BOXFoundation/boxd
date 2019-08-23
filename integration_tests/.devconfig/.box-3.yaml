@@ -48,5 +48,4 @@ metrics:
     tags: [region:us-west, host:box-3]
 wallet:
     enable: true
-    cache_size: 512
     utxo_cache_time: 1

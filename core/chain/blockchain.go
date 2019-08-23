@@ -1993,7 +1993,7 @@ func (chain *BlockChain) splitTxOutput(txOut *types.TxOut) []*types.TxOut {
 		}
 		childTxOut := &types.TxOut{
 			Value:        value,
-			ScriptPubKey: *script.PayToPubKeyHashScript(sai.addrs[i].Hash()),
+			ScriptPubKey: *script.PayToPubKeyHashScript(sai.addrs[i][:]),
 		}
 		// recursively find if the child tx output is splittable
 		childTxOuts := chain.splitTxOutput(childTxOut)
@@ -2030,7 +2030,7 @@ func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, 
 }
 
 type splitAddrInfo struct {
-	addrs   []types.Address
+	addrs   []*types.AddressHash
 	weights []uint32
 }
 
@@ -2041,7 +2041,7 @@ func (s *splitAddrInfo) Marshall() ([]byte, error) {
 	}
 	res := make([]byte, 0, len(s.addrs)*(ripemd160.Size+4))
 	for i := 0; i < len(s.addrs); i++ {
-		res = append(res, s.addrs[i].Hash()...)
+		res = append(res, s.addrs[i][:]...)
 		weightByte := make([]byte, 4)
 		binary.LittleEndian.PutUint32(weightByte, s.weights[i])
 		res = append(res, weightByte...)
@@ -2056,7 +2056,7 @@ func (s *splitAddrInfo) Unmarshall(data []byte) error {
 		return fmt.Errorf("invalid byte length")
 	}
 	count := len(data) / minLenght
-	addrs := make([]types.Address, 0, count)
+	addrs := make([]*types.AddressHash, 0, count)
 	weights := make([]uint32, 0, count)
 	for i := 0; i < count; i++ {
 		offset := i * minLenght
@@ -2065,7 +2065,7 @@ func (s *splitAddrInfo) Unmarshall(data []byte) error {
 			return err
 		}
 		weight := binary.LittleEndian.Uint32(data[offset+ripemd160.Size : offset+minLenght])
-		addrs = append(addrs, addr)
+		addrs = append(addrs, addr.Hash160())
 		weights = append(weights, weight)
 	}
 	s.addrs = addrs

@@ -22,10 +22,10 @@ var (
 
 // NewTxWithUtxos new a transaction
 func NewTxWithUtxos(
-	fromAcc *acc.Account, utxos []*rpcpb.Utxo, toAddrs []string,
-	amounts []uint64, changeAmt uint64,
+	fromAcc *acc.Account, toAddrs []*types.AddressHash, utxos []*rpcpb.Utxo, amounts []uint64,
+	changeAmt uint64,
 ) (*types.Transaction, *rpcpb.Utxo, error) {
-	tx, err := MakeUnsignedTx(fromAcc.Addr(), toAddrs, amounts, changeAmt, utxos...)
+	tx, err := MakeUnsignedTx(fromAcc.AddressHash(), toAddrs, amounts, changeAmt, utxos...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -38,7 +38,8 @@ func NewTxWithUtxos(
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
-		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.AddressHash(),
+			0, changeAmt)
 		change = MakePbUtxo(op, uw)
 	}
 	//
@@ -47,7 +48,8 @@ func NewTxWithUtxos(
 
 // NewSplitAddrTxWithUtxos new split address tx
 func NewSplitAddrTxWithUtxos(
-	acc *acc.Account, addrs []string, weights []uint32, utxos []*rpcpb.Utxo, fee uint64,
+	acc *acc.Account, addrs []*types.AddressHash, weights []uint32,
+	utxos []*rpcpb.Utxo, fee uint64,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 
 	if len(addrs) != len(weights) {
@@ -61,7 +63,7 @@ func NewSplitAddrTxWithUtxos(
 	}
 	changeAmt := utxoValue - fee
 	// make unsigned split addr tx
-	tx, err = MakeUnsignedSplitAddrTx(acc.Addr(), addrs, weights,
+	tx, err = MakeUnsignedSplitAddrTx(acc.AddressHash(), addrs, weights,
 		changeAmt, utxos...)
 	if err != nil {
 		return
@@ -74,7 +76,7 @@ func NewSplitAddrTxWithUtxos(
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
-		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(acc.Addr(), 0, changeAmt)
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(acc.AddressHash(), 0, changeAmt)
 		change = MakePbUtxo(op, uw)
 	}
 	return
@@ -82,12 +84,12 @@ func NewSplitAddrTxWithUtxos(
 
 // NewTokenIssueTxWithUtxos new token issue tx with utxos
 func NewTokenIssueTxWithUtxos(
-	fromAcc *acc.Account, to string, tag *rpcpb.TokenTag, changeAmt uint64,
+	fromAcc *acc.Account, to *types.AddressHash, tag *rpcpb.TokenTag, changeAmt uint64,
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
-	tx, issueOutIndex, err := MakeUnsignedTokenIssueTx(fromAcc.Addr(), to, tag,
-		changeAmt, utxos...)
+	tx, issueOutIndex, err := MakeUnsignedTokenIssueTx(fromAcc.AddressHash(), to,
+		tag, changeAmt, utxos...)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -101,7 +103,8 @@ func NewTokenIssueTxWithUtxos(
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
-		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.AddressHash(),
+			0, changeAmt)
 		change = MakePbUtxo(op, uw)
 	}
 	return tx, NewTokenID(txHash, issueOutIndex), change, nil
@@ -110,7 +113,7 @@ func NewTokenIssueTxWithUtxos(
 // NewTokenTransferTxWithUtxos new token Transfer tx with utxos
 // it returns tx, box change and token change
 func NewTokenTransferTxWithUtxos(
-	fromAcc *acc.Account, to []string, amounts []uint64, tid *types.TokenID,
+	fromAcc *acc.Account, to []*types.AddressHash, amounts []uint64, tid *types.TokenID,
 	changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 
@@ -118,8 +121,8 @@ func NewTokenTransferTxWithUtxos(
 		return nil, nil, nil, ErrInvalidArguments
 	}
 	// unsigned tx
-	tx, tokenRemain, err := MakeUnsignedTokenTransferTx(fromAcc.Addr(), to, amounts,
-		tid, changeAmt, utxos...)
+	tx, tokenRemain, err := MakeUnsignedTokenTransferTx(fromAcc.AddressHash(), to,
+		amounts, tid, changeAmt, utxos...)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -138,7 +141,8 @@ func NewTokenTransferTxWithUtxos(
 	}
 	if changeAmt > 0 {
 		idx := uint32(len(tx.Vout)) - 1
-		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.AddressHash(),
+			0, changeAmt)
 		boxChange = MakePbUtxo(op, uw)
 	}
 	if tokenRemain > 0 {
@@ -147,7 +151,7 @@ func NewTokenTransferTxWithUtxos(
 			idx--
 		}
 		op := types.NewOutPoint(txHash, idx)
-		uw, err := NewTokenUtxoWrap(fromAcc.Addr(), tid, 0, tokenRemain)
+		uw, err := NewTokenUtxoWrap(fromAcc.AddressHash(), tid, 0, tokenRemain)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -159,7 +163,8 @@ func NewTokenTransferTxWithUtxos(
 
 // MakeUnsignedTx make a tx without signature
 func MakeUnsignedTx(
-	from string, to []string, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
+	from *types.AddressHash, to []*types.AddressHash, amounts []uint64,
+	changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
 	if len(to) != len(amounts) {
@@ -194,7 +199,7 @@ func MakeUnsignedTx(
 }
 
 func makeUnsignedContractTx(
-	addr string, amount, changeAmt uint64, contractVout *types.TxOut,
+	addr *types.AddressHash, amount, changeAmt uint64, contractVout *types.TxOut,
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
@@ -217,18 +222,11 @@ func makeUnsignedContractTx(
 
 //MakeUnsignedContractDeployTx make a contract tx without signature
 func MakeUnsignedContractDeployTx(
-	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	from *types.AddressHash, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
-	fromAddr, err := types.ParseAddress(from)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
-		return nil, errors.New("sender account is not PubKeyHash")
-	}
-	contractVout, err := MakeContractCreationVout(fromAddr.Hash160(), amount,
+	contractVout, err := MakeContractCreationVout(from, amount,
 		gasLimit, gasPrice, nonce)
 	if err != nil {
 		return nil, err
@@ -238,25 +236,10 @@ func MakeUnsignedContractDeployTx(
 
 //MakeUnsignedContractCallTx call a contract tx without signature
 func MakeUnsignedContractCallTx(
-	from string, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
-	to string, byteCode []byte, utxos ...*rpcpb.Utxo,
+	from, to *types.AddressHash, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-	fromAddr, err := types.ParseAddress(from)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := fromAddr.(*types.AddressPubKeyHash); !ok {
-		return nil, errors.New("sender account is not PubKeyHash address")
-	}
-	toAddr, err := types.ParseAddress(to)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := toAddr.(*types.AddressContract); !ok {
-		return nil, errors.New("receiver account is not contract address")
-	}
-	contractVout, err := MakeContractCallVout(fromAddr.Hash160(), toAddr.Hash160(),
-		amount, gasLimit, gasPrice, nonce)
+	contractVout, err := MakeContractCallVout(from, to, amount, gasLimit, gasPrice, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -265,11 +248,11 @@ func MakeUnsignedContractCallTx(
 
 // NewContractTxWithUtxos new a contract transaction
 func NewContractTxWithUtxos(
-	fromAcc *acc.Account, contractAddr string, amount, changeAmt, gasPrice,
-	gasLimit, nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
+	fromAcc *acc.Account, contractAddr *types.AddressHash, amount, changeAmt,
+	gasPrice, gasLimit, nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, error) {
-	tx, err := MakeUnsignedContractCallTx(fromAcc.Addr(), amount, changeAmt,
-		gasLimit, gasPrice, nonce, contractAddr, byteCode, utxos...)
+	tx, err := MakeUnsignedContractCallTx(fromAcc.AddressHash(), contractAddr,
+		amount, changeAmt, gasLimit, gasPrice, nonce, byteCode, utxos...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -282,7 +265,8 @@ func NewContractTxWithUtxos(
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
-		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.Addr(), 0, changeAmt)
+		op, uw := types.NewOutPoint(txHash, idx), NewUtxoWrap(fromAcc.AddressHash(),
+			0, changeAmt)
 		change = MakePbUtxo(op, uw)
 	}
 	//
@@ -291,13 +275,13 @@ func NewContractTxWithUtxos(
 
 // MakeUnsignedSplitAddrTx make unsigned split addr tx
 func MakeUnsignedSplitAddrTx(
-	from string, addrs []string, weights []uint32, changeAmt uint64, utxos ...*rpcpb.Utxo,
+	from *types.AddressHash, addrs []*types.AddressHash, weights []uint32,
+	changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
 	if len(addrs) != len(weights) {
 		return nil, ErrInvalidArguments
 	}
-
 	if !checkAmount(nil, changeAmt, utxos...) {
 		return nil, ErrInsufficientBalance
 	}
@@ -307,12 +291,7 @@ func MakeUnsignedSplitAddrTx(
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
-	addresses := make([]types.Address, 0, len(addrs))
-	for _, addr := range addrs {
-		address, _ := types.ParseAddress(addr)
-		addresses = append(addresses, address)
-	}
-	splitAddrOut := MakeSplitAddrVout(addresses, weights)
+	splitAddrOut := MakeSplitAddrVout(addrs, weights)
 	// construct transaction
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
@@ -327,7 +306,7 @@ func MakeUnsignedSplitAddrTx(
 
 // MakeUnsignedTokenIssueTx make unsigned token issue tx
 func MakeUnsignedTokenIssueTx(
-	issuer string, Owner string, tag *rpcpb.TokenTag, changeAmt uint64,
+	issuer, owner *types.AddressHash, tag *rpcpb.TokenTag, changeAmt uint64,
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint32, error) {
 
@@ -340,7 +319,7 @@ func MakeUnsignedTokenIssueTx(
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
-	issueOut, err := MakeIssueTokenVout(Owner, tag)
+	issueOut, err := MakeIssueTokenVout(owner, tag)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -358,7 +337,8 @@ func MakeUnsignedTokenIssueTx(
 
 // MakeUnsignedTokenTransferTx make unsigned token transfer tx
 func MakeUnsignedTokenTransferTx(
-	from string, to []string, amounts []uint64, tid *types.TokenID, changeAmt uint64,
+	from *types.AddressHash, to []*types.AddressHash, amounts []uint64,
+	tid *types.TokenID, changeAmt uint64,
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint64, error) {
 

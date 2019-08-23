@@ -5,6 +5,7 @@
 package chain
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/core/types"
@@ -187,30 +188,27 @@ func ContractAddrKey(hash []byte) []byte {
 }
 
 // AddrUtxoKey is the key to store an utxo which belongs to the input param address
-func AddrUtxoKey(addr string, op types.OutPoint) []byte {
-	return addrUtxoBase.
-		ChildString(addr).
-		ChildString(op.Hash.String()).
-		ChildString(fmt.Sprintf("%x", op.Index)).
-		Bytes()
+func AddrUtxoKey(addrHash *types.AddressHash, op types.OutPoint) []byte {
+	return addrUtxoBase.ChildString(hex.EncodeToString(addrHash[:])).
+		ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
 }
 
 // AddrAllUtxoKey is the key prefix to explore all utxos of an address
-func AddrAllUtxoKey(addr string) []byte {
-	return addrUtxoBase.ChildString(addr).Bytes()
+func AddrAllUtxoKey(addrHash *types.AddressHash) []byte {
+	return addrUtxoBase.ChildString(hex.EncodeToString(addrHash[:])).Bytes()
 }
 
 // AddrTokenUtxoKey is the key to store an token utxo which belongs to the input param address
-func AddrTokenUtxoKey(addr string, tid types.TokenID, op types.OutPoint) []byte {
-	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
-		ChildString(fmt.Sprintf("%x", tid.Index)).ChildString(op.Hash.String()).
-		ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
+func AddrTokenUtxoKey(addrHash *types.AddressHash, tid types.TokenID, op types.OutPoint) []byte {
+	return addrTokenUtxoBase.ChildString(hex.EncodeToString(addrHash[:])).
+		ChildString(tid.Hash.String()).ChildString(fmt.Sprintf("%x", tid.Index)).
+		ChildString(op.Hash.String()).ChildString(fmt.Sprintf("%x", op.Index)).Bytes()
 }
 
 // AddrAllTokenUtxoKey is the key prefix to explore all token utxos of an address
-func AddrAllTokenUtxoKey(addr string, tid types.TokenID) []byte {
-	return addrTokenUtxoBase.ChildString(addr).ChildString(tid.Hash.String()).
-		ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
+func AddrAllTokenUtxoKey(addrHash *types.AddressHash, tid types.TokenID) []byte {
+	return addrTokenUtxoBase.ChildString(hex.EncodeToString(addrHash[:])).
+		ChildString(tid.Hash.String()).ChildString(fmt.Sprintf("%x", tid.Index)).Bytes()
 }
 
 // SecBloomBitSetKey is the key to store bloom bit set

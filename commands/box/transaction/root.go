@@ -205,6 +205,11 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 	}
 	fmt.Println("createRawTx called")
 	from := args[0]
+	fromAddress, err := types.NewAddress(from)
+	if err != nil {
+		fmt.Println("Invalid from address")
+		return
+	}
 	//Cut characters around commas
 	txHashStr := strings.Split(args[1], ",")
 	txHash := make([]crypto.HashType, 0)
@@ -230,6 +235,15 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 	to := make([]string, 0)
 	for _, x := range toStr {
 		to = append(to, x)
+	}
+	toHashes := make([]*types.AddressHash, 0, len(to))
+	for _, addr := range to {
+		address, err := types.ParseAddress(addr)
+		if err != nil {
+			fmt.Println("Invalid to address")
+			return
+		}
+		toHashes = append(toHashes, address.Hash160())
 	}
 	amountStr := strings.Split(args[4], ",")
 	amounts := make([]uint64, 0)
@@ -260,7 +274,8 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	tx, err := rpcutil.CreateRawTransaction(from, txHash, vout, to, amounts, height)
+	tx, err := rpcutil.CreateRawTransaction(fromAddress.Hash160(), toHashes,
+		txHash, vout, amounts, height)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -456,9 +471,14 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		}
 		amounts = append(amounts, a)
 	}
-	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println(err)
-		return
+	toHashes := make([]*types.AddressHash, 0, len(addrs))
+	for _, addr := range addrs {
+		address, err := types.ParseAddress(addr)
+		if err != nil {
+			fmt.Println("Invalid to address")
+			return
+		}
+		toHashes = append(toHashes, address.Hash160())
 	}
 	//
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
@@ -466,7 +486,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTx(account, addrs, amounts, conn)
+	tx, _, _, err := rpcutil.NewTx(account, toHashes, amounts, conn)
 	if err != nil {
 		fmt.Println("new tx error: ", err)
 		return

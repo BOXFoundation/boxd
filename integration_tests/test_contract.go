@@ -89,10 +89,13 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return true
 	}
 	owner, spender, receivers := addrs[0], addrs[1], addrs[2:]
+	ownerAddress, _ := types.NewAddress(owner)
+	spenderAddress, _ := types.NewAddress(spender)
 	prevOwnerBalance := utils.BalanceFor(owner, conn)
 	prevSpenderBalance := utils.BalanceFor(spender, conn)
 	minerAcc, _ := AddrToAcc.Load(miner)
-	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{owner, spender},
+	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
+		[]*types.AddressHash{ownerAddress.Hash160(), spenderAddress.Hash160()},
 		[]uint64{createGas, sendGas}, conn)
 	if err != nil {
 		logger.Error(err)
@@ -166,8 +169,9 @@ func contractRepeatTest(
 	logger.Infof("%s approve spender %s 10000*10^8 token", owner, spender)
 	gasLimit = 40000
 	code = erc20ApproveCall(spender, totalAmount)
-	tx, err = rpcutil.NewContractCallTx(ownerAcc.(*acc.Account), contractAddr, gasPrice,
-		gasLimit, nonce, code, conn)
+	contractAddress, _ := types.ParseAddress(contractAddr)
+	tx, err = rpcutil.NewContractCallTx(ownerAcc.(*acc.Account),
+		contractAddress.Hash160(), gasPrice, gasLimit, nonce, code, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -198,7 +202,7 @@ func contractRepeatTest(
 	spendNonce := utils.NonceFor(spender, conn) + 1
 	code = erc20TransferFromCall(owner, receiver, amount/uint64(times))
 	txs, err := rpcutil.NewERC20TransferFromContractTxs(spenderAcc.(*acc.Account),
-		contractAddr, times, gasPrice, gasLimit, spendNonce, code, conn)
+		contractAddress.Hash160(), times, gasPrice, gasLimit, spendNonce, code, conn)
 	// send contract transferFrom txs
 	for _, tx := range txs {
 		if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&

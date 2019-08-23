@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -208,14 +209,15 @@ func topupMiners() {
 				logger.Errorf("fetch balance for pre addr %s error %s", preAddr, err)
 				continue
 			}
-			minerI, minerJ := minerAddrs[i%minerCnt], minerAddrs[(i+3)%minerCnt]
+			minerI, minerJ := minerAccs[i%minerCnt], minerAccs[(i+3)%minerCnt]
 			i++
 			amount := 25 * uint64(core.DuPerBox)
-			tx, _, fee, err := rpcutil.NewTx(preAcc, []string{minerI, minerJ},
+			tx, _, fee, err := rpcutil.NewTx(preAcc,
+				[]*types.AddressHash{minerI.AddressHash(), minerJ.AddressHash()},
 				[]uint64{amount, amount}, conn)
 			if err != nil {
 				logger.Errorf("new tx for pre addr %s to miner %s %s error %s", preAddr,
-					minerI, minerJ, err)
+					minerI.Addr(), minerJ.Addr(), err)
 				continue
 			}
 			_, err = rpcutil.SendTransaction(conn, tx)

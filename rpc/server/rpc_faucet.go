@@ -7,11 +7,11 @@ package rpc
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -43,12 +43,6 @@ func registerFaucet(s *Server) {
 	if _, err := os.Stat(keyFile); os.IsNotExist(err) {
 		return
 	}
-	filePath, err := filepath.Abs(keyFile)
-	if err != nil {
-		logger.Warn(err)
-		return
-	}
-	logger.Infof("rpc register faucet keyfile %s", filePath)
 	account, err := acc.NewAccountFromFile(keyFile)
 	if err != nil {
 		logger.Warnf("rpc register faucet new account error: %s", err)
@@ -58,33 +52,27 @@ func registerFaucet(s *Server) {
 		logger.Warnf("rpc register faucet unlock account error: %s", err)
 		return
 	}
-	logger.Infof("rpc register faucet account: %+v", account)
 	f := newFaucet(s.cfg.Faucet.WhiteList, s.GetTxHandler(), s.GetWalletAgent(), account)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
 
-type txHandler interface {
-	ProcessTx(*types.Transaction, core.TransferMode) error
-}
-
-type walletAgent interface {
-	Utxos(addr string, tid *types.TokenID, amount uint64) ([]*rpcpb.Utxo, error)
-	Balance(addr string, tid *types.TokenID) (uint64, error)
-}
 type faucet struct {
 	refreshTimer *time.Ticker
 	whiteList    []string
-	walletAgent
-	txHandler
+	service.WalletAgent
+	service.TxHandler
 	account *acc.Account
 }
 
-func newFaucet(whiteLists []string, handler txHandler, wa walletAgent, account *acc.Account) *faucet {
+func newFaucet(
+	whiteLists []string, handler service.TxHandler, wa service.WalletAgent,
+	account *acc.Account,
+) *faucet {
 	return &faucet{
 		refreshTimer: time.NewTicker(time.Second),
 		whiteList:    whiteLists,
-		txHandler:    handler,
-		walletAgent:  wa,
+		TxHandler:    handler,
+		WalletAgent:  wa,
 		account:      account,
 	}
 }
@@ -142,9 +130,13 @@ func (f *faucet) Claim(
 	if err != nil {
 		return newClaimResp(-1, err.Error()), nil
 	}
-	from, to, amount, fee := addrPubHash.String(), req.Addr, req.Amount, uint64(1000)
-	tx, utxos, err := rpcutil.MakeUnsignedTx(f.walletAgent, from, []string{to},
-		[]uint64{amount}, fee)
+	from, toAddr, amount, fee := addrPubHash.Hash160(), req.Addr, req.Amount, uint64(1000)
+	toAddress, err := types.NewAddress(toAddr)
+	if err != nil {
+		return newClaimResp(-1, "invalid receiver address"), err
+	}
+	tx, utxos, err := rpcutil.MakeUnsignedTx(f.WalletAgent,
+		from, []*types.AddressHash{toAddress.Hash160()}, []uint64{amount}, fee)
 	if err != nil {
 		return newClaimResp(-1, err.Error()), err
 	}

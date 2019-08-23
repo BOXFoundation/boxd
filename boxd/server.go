@@ -50,7 +50,6 @@ type Server struct {
 	txPool      *txpool.TransactionPool
 	syncManager *blocksync.SyncManager
 	consensus   *bpos.Bpos
-	wallet      *wallet.Server
 }
 
 // NewServer new a boxd server
@@ -155,15 +154,6 @@ func (server *Server) Prepare() {
 	}
 	peer.SetMinerReader(server.consensus)
 
-	if cfg.Wallet.Enable {
-		server.wallet, _ = wallet.NewServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
-	}
-
-	// prepare grpc server.
-	if cfg.RPC.Enabled {
-		server.grpcsvr = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.wallet, peer, server.bus)
-	}
-
 	// prepare sync manager.
 	syncManager := blocksync.NewSyncManager(blockChain, peer, server.consensus, blockChain.Proc())
 	server.syncManager = syncManager
@@ -213,13 +203,13 @@ func (server *Server) Run() error {
 		server.syncManager.StartSync()
 	}
 
-	if cfg.Wallet.Enable && server.wallet != nil {
-		server.wallet.Run()
-	}
-
 	if cfg.RPC.Enabled {
-		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain,
-			server.txPool, server.wallet, server.peer, server.bus)
+		var walletAgent service.WalletAgent
+		if cfg.Wallet.Enable {
+			walletAgent = wallet.NewWalletAgent(server.blockChain.DB(), cfg.Wallet.UtxoCacheTime)
+		}
+		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC,
+			server.blockChain, server.txPool, walletAgent, server.peer, server.bus)
 		server.grpcsvr.Run()
 	}
 

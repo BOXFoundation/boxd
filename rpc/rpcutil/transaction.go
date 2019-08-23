@@ -101,7 +101,7 @@ func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
 
 // NewIssueTokenTx new a issue token transaction
 func NewIssueTokenTx(
-	acc *acc.Account, to string, tag *rpcpb.TokenTag, conn *grpc.ClientConn,
+	acc *acc.Account, to *types.AddressHash, tag *rpcpb.TokenTag, conn *grpc.ClientConn,
 ) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
@@ -141,7 +141,7 @@ func NewContractDeployTx(
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	//
-	tx, err := txlogic.MakeUnsignedContractDeployTx(acc.Addr(), 0,
+	tx, err := txlogic.MakeUnsignedContractDeployTx(acc.AddressHash(), 0,
 		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, code, utxos...)
 	if err != nil {
 		return nil, "", err
@@ -162,7 +162,8 @@ func NewContractDeployTx(
 
 // NewContractCallTx new a call contract transaction
 func NewContractCallTx(
-	acc *acc.Account, to string, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+	acc *acc.Account, to *types.AddressHash, gasPrice, gasLimit, nonce uint64,
+	code []byte, conn *grpc.ClientConn,
 ) (*types.Transaction, error) {
 	// fetch utxos for gas
 	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
@@ -174,8 +175,8 @@ func NewContractCallTx(
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	//
-	tx, err := txlogic.MakeUnsignedContractCallTx(acc.Addr(), 0,
-		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, to, code, utxos...)
+	tx, err := txlogic.MakeUnsignedContractCallTx(acc.AddressHash(), to, 0,
+		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, code, utxos...)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +214,8 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 
 //CreateRawTransaction create a tx without signature,it returns a tx and utxo
 func CreateRawTransaction(
-	from string, txhash []crypto.HashType, vout []uint32, to []string, amounts []uint64, height uint32,
+	from *types.AddressHash, to []*types.AddressHash, txhash []crypto.HashType,
+	vout []uint32, amounts []uint64, height uint32,
 ) (*types.Transaction, error) {
 	total := uint64(0)
 	for _, a := range amounts {
@@ -222,7 +224,6 @@ func CreateRawTransaction(
 
 	utxos := make([]*rpcpb.Utxo, 0)
 	for i := 0; i < len(txhash); i++ {
-
 		op := types.NewOutPoint(&txhash[i], vout[i])
 		uw := txlogic.NewUtxoWrap(from, height, total)
 		utxo := txlogic.MakePbUtxo(op, uw)
@@ -253,9 +254,10 @@ func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, 
 }
 
 // NewTx new a tx and return change utxo
-func NewTx(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
-	conn *grpc.ClientConn) (tx *types.Transaction, change *rpcpb.Utxo, fee uint64,
-	err error) {
+func NewTx(
+	fromAcc *acc.Account, toAddrs []*types.AddressHash, amounts []uint64,
+	conn *grpc.ClientConn,
+) (tx *types.Transaction, change *rpcpb.Utxo, fee uint64, err error) {
 	// calc fee
 	amount := uint64(0)
 	for _, a := range amounts {
@@ -270,7 +272,7 @@ func NewTx(fromAcc *acc.Account, toAddrs []string, amounts []uint64,
 
 // NewTxWithFee new a tx and return change utxo
 func NewTxWithFee(
-	fromAcc *acc.Account, toAddrs []string, amounts []uint64, fee uint64,
+	fromAcc *acc.Account, toAddrs []*types.AddressHash, amounts []uint64, fee uint64,
 	conn *grpc.ClientConn,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// calc amount
@@ -299,13 +301,13 @@ func NewTxWithFee(
 		return
 	}
 	//
-	tx, change, err = txlogic.NewTxWithUtxos(fromAcc, utxos, toAddrs, amounts, changeAmt)
+	tx, change, err = txlogic.NewTxWithUtxos(fromAcc, toAddrs, utxos, amounts, changeAmt)
 	return
 }
 
 // NewTxs construct some transactions
 func NewTxs(
-	fromAcc *acc.Account, toAddr string, count int, conn *grpc.ClientConn,
+	fromAcc *acc.Account, toAddr *types.AddressHash, count int, conn *grpc.ClientConn,
 ) (txss [][]*types.Transaction, transfer, totalFee uint64, num int, err error) {
 
 	// get utxoes
@@ -341,8 +343,8 @@ func NewTxs(
 			amount := aveAmt - fee
 			changeAmt = changeAmt - aveAmt
 			tx := new(types.Transaction)
-			tx, change, err = txlogic.NewTxWithUtxos(fromAcc, []*rpcpb.Utxo{change},
-				[]string{toAddr}, []uint64{amount}, changeAmt)
+			tx, change, err = txlogic.NewTxWithUtxos(fromAcc, []*types.AddressHash{toAddr},
+				[]*rpcpb.Utxo{change}, []uint64{amount}, changeAmt)
 			if err != nil {
 				logger.Warn(err)
 				continue
@@ -386,7 +388,7 @@ func GetGRPCConn(peerAddr string) (*grpc.ClientConn, error) {
 
 // NewTokenTx new a token tx
 func NewTokenTx(
-	acc *acc.Account, toAddrs []string, amounts []uint64, tHashStr string,
+	acc *acc.Account, toAddrs []*types.AddressHash, amounts []uint64, tHashStr string,
 	tIdx uint32, conn *grpc.ClientConn,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 
@@ -415,7 +417,7 @@ func NewTokenTx(
 
 // NewTokenTxs new a token tx
 func NewTokenTxs(
-	acc *acc.Account, toAddr string, amountT uint64, count int, tHashStr string,
+	acc *acc.Account, toAddr *types.AddressHash, amountT uint64, count int, tHashStr string,
 	tIdx uint32, conn *grpc.ClientConn,
 ) ([]*types.Transaction, error) {
 	// get utxos
@@ -444,8 +446,8 @@ func NewTokenTxs(
 			unitT = amountT - unitT*uint64(i)
 		}
 		changeAmt -= maxTokenFee
-		tx, change, changeT, err := txlogic.NewTokenTransferTxWithUtxos(acc, []string{toAddr},
-			[]uint64{unitT}, tid, changeAmt, utxos...)
+		tx, change, changeT, err := txlogic.NewTokenTransferTxWithUtxos(acc,
+			[]*types.AddressHash{toAddr}, []uint64{unitT}, tid, changeAmt, utxos...)
 		if err != nil {
 			return nil, err
 		}
@@ -460,7 +462,7 @@ func NewTokenTxs(
 
 // NewERC20TransferFromContractTxs new a contract transferFrom tx
 func NewERC20TransferFromContractTxs(
-	acc *acc.Account, contractAddr string, count int, gasPrice, gasLimit, startNonce uint64,
+	acc *acc.Account, contractAddr *types.AddressHash, count int, gasPrice, gasLimit, startNonce uint64,
 	code []byte, conn *grpc.ClientConn,
 ) ([]*types.Transaction, error) {
 	// get utxos
@@ -495,7 +497,7 @@ func NewERC20TransferFromContractTxs(
 
 // NewSplitAddrTxWithFee new split address tx
 func NewSplitAddrTxWithFee(
-	acc *acc.Account, addrs []string, weights []uint32, gasUsed uint64, conn *grpc.ClientConn,
+	acc *acc.Account, addrs []*types.AddressHash, weights []uint32, gasUsed uint64, conn *grpc.ClientConn,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// get utxos
 	utxos, err := fetchUtxos(conn, acc.Addr(), gasUsed, "", 0)
@@ -507,7 +509,8 @@ func NewSplitAddrTxWithFee(
 
 // MakeUnsignedTx make a tx without signature
 func MakeUnsignedTx(
-	wa service.WalletAgent, from string, to []string, amounts []uint64, gasUsed uint64,
+	wa service.WalletAgent, from *types.AddressHash, to []*types.AddressHash,
+	amounts []uint64, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	total := gasUsed
 	for _, a := range amounts {
@@ -527,7 +530,7 @@ func MakeUnsignedTx(
 
 // MakeUnsignedCombineTx make a combine tx without signature
 func MakeUnsignedCombineTx(
-	wa service.WalletAgent, from string, gasUsed uint64,
+	wa service.WalletAgent, from *types.AddressHash, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 
 	utxos, err := wa.Utxos(from, nil, 0)
@@ -543,14 +546,14 @@ func MakeUnsignedCombineTx(
 		}
 		utxosAmt += amount
 	}
-	tx, err := txlogic.MakeUnsignedTx(from, []string{from}, []uint64{utxosAmt - gasUsed},
+	tx, err := txlogic.MakeUnsignedTx(from, []*types.AddressHash{from}, []uint64{utxosAmt - gasUsed},
 		0, utxos...)
 	return tx, utxos, err
 }
 
 // MakeUnsignedCombineTokenTx make a combine tx without signature
 func MakeUnsignedCombineTokenTx(
-	wa service.WalletAgent, from string, tid *types.TokenID, gasUsed uint64,
+	wa service.WalletAgent, from *types.AddressHash, tid *types.TokenID, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 
 	// fetch box utxos
@@ -584,14 +587,14 @@ func MakeUnsignedCombineTokenTx(
 	}
 	totalUtxos = append(totalUtxos, utxos...)
 	// make tx
-	tx, _, err := txlogic.MakeUnsignedTokenTransferTx(from, []string{from}, []uint64{utxosAmtT},
-		tid, utxosAmt-gasUsed, totalUtxos...)
+	tx, _, err := txlogic.MakeUnsignedTokenTransferTx(from, []*types.AddressHash{from},
+		[]uint64{utxosAmtT}, tid, utxosAmt-gasUsed, totalUtxos...)
 	return tx, utxos, err
 }
 
 //MakeUnsignedContractDeployTx make a tx without a signature
 func MakeUnsignedContractDeployTx(
-	wa service.WalletAgent, from string, amount, gasLimit, gasPrice, nonce uint64,
+	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, gasPrice, nonce uint64,
 	byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	gasUsed := gasLimit * gasPrice
@@ -615,8 +618,8 @@ func MakeUnsignedContractDeployTx(
 
 //MakeUnsignedContractCallTx call a contract tx without a signature
 func MakeUnsignedContractCallTx(
-	wa service.WalletAgent, from string, amount, gasLimit, gasPrice, nonce uint64,
-	contractAddr string, byteCode []byte,
+	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, gasPrice,
+	nonce uint64, contractAddr *types.AddressHash, byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	gasUsed := gasLimit * gasPrice
 	total := gasUsed + amount
@@ -632,15 +635,16 @@ func MakeUnsignedContractCallTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	tx, err := txlogic.MakeUnsignedContractCallTx(from, amount, changeAmt,
-		gasLimit, gasPrice, nonce, contractAddr, byteCode, utxos...)
+	tx, err := txlogic.MakeUnsignedContractCallTx(from, contractAddr, amount,
+		changeAmt, gasLimit, gasPrice, nonce, byteCode, utxos...)
 	return tx, utxos, err
 }
 
 // MakeUnsignedSplitAddrTx news tx to make split addr without signature
 // it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
-	wa service.WalletAgent, from string, addrs []string, weights []uint32, gasUsed uint64,
+	wa service.WalletAgent, from *types.AddressHash, addrs []*types.AddressHash,
+	weights []uint32, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
@@ -657,7 +661,8 @@ func MakeUnsignedSplitAddrTx(
 
 // MakeUnsignedTokenIssueTx news tx to issue token without signature
 func MakeUnsignedTokenIssueTx(
-	wa service.WalletAgent, issuer, owner string, tag *rpcpb.TokenTag, gasUsed uint64,
+	wa service.WalletAgent, issuer, owner *types.AddressHash, tag *rpcpb.TokenTag,
+	gasUsed uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
 	if tag.GetDecimal() > maxDecimal {
 		return nil, 0, nil, fmt.Errorf("Decimal[%d] is bigger than max Decimal[%d]", tag.GetDecimal(), maxDecimal)
@@ -680,8 +685,8 @@ func MakeUnsignedTokenIssueTx(
 
 // MakeUnsignedTokenTransferTx news tx to transfer token without signature
 func MakeUnsignedTokenTransferTx(
-	wa service.WalletAgent, from string, to []string, amounts []uint64,
-	tid *types.TokenID, gasUsed uint64,
+	wa service.WalletAgent, from *types.AddressHash, to []*types.AddressHash,
+	amounts []uint64, tid *types.TokenID, gasUsed uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {

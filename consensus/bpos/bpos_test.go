@@ -177,7 +177,7 @@ func TestSortPendingTxs(t *testing.T) {
 }
 
 func createTxWrap(tx *types.Transaction, gasPrice uint64) *types.TxWrap {
-	txchild := createTx(tx, addr.String())
+	txchild := createTx(tx, addr.Hash160())
 	return &types.TxWrap{
 		Tx:            txchild,
 		GasPrice:      gasPrice,
@@ -185,7 +185,7 @@ func createTxWrap(tx *types.Transaction, gasPrice uint64) *types.TxWrap {
 	}
 }
 
-func createTx(parentTx *types.Transaction, address string) *types.Transaction {
+func createTx(parentTx *types.Transaction, address *types.AddressHash) *types.Transaction {
 	vIn := txlogic.MakeVinForTest(parentTx, 0)
 	txOut := txlogic.MakeVout(address, 1)
 	vOut := []*types.TxOut{txOut}

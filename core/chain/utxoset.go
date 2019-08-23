@@ -451,8 +451,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 		if len(utxoWrap.Script()) == 0 { // for the utxo deleted from db later
 			if outpoint.IsContractType() {
 				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
-				addr, _ := types.NewContractAddressFromHash(addrHash[:])
-				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+				addrUtxoKey = AddrUtxoKey(&addrHash, outpoint)
 			}
 		} else {
 			sc := script.NewScriptFromBytes(utxoWrap.Script())
@@ -474,13 +473,12 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 				} else {
 					tokenID = outpoint
 				}
-				addrUtxoKey = AddrTokenUtxoKey(addr.String(), types.TokenID(tokenID), outpoint)
+				addrUtxoKey = AddrTokenUtxoKey(addr.Hash160(), types.TokenID(tokenID), outpoint)
 			} else if !sc.IsContractPubkey() {
-				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+				addrUtxoKey = AddrUtxoKey(addr.Hash160(), outpoint)
 			} else {
 				addrHash := types.BytesToAddressHash(outpoint.Hash[:])
-				addr, _ := types.NewContractAddressFromHash(addrHash[:])
-				addrUtxoKey = AddrUtxoKey(addr.String(), outpoint)
+				addrUtxoKey = AddrUtxoKey(&addrHash, outpoint)
 			}
 		}
 
@@ -495,11 +493,11 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 			continue
 		} else if utxoWrap.IsModified() {
 			// Serialize and store the utxo entry.
-			logger.Debugf("put utxo to db: %x, utxo wrap: %d", *utxoKey, utxoWrap.Value())
 			serialized, err := SerializeUtxoWrap(utxoWrap)
 			if err != nil {
 				return err
 			}
+			logger.Debugf("put utxo to db: %x, utxo wrap: %d", *utxoKey, utxoWrap.Value())
 			db.Put(*utxoKey, serialized)
 			if len(addrUtxoKey) > 0 {
 				db.Put(addrUtxoKey, serialized)

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -112,14 +111,8 @@ func ParseTokenAmount(spk []byte) (uint64, error) {
 }
 
 // MakeVout makes txOut
-func MakeVout(addr string, amount uint64) *types.TxOut {
-	var address types.Address
-	if strings.HasPrefix(addr, types.AddrTypeSplitAddrPrefix) {
-		address, _ = types.NewSplitAddress(addr)
-	} else {
-		address, _ = types.NewAddress(addr)
-	}
-	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
+func MakeVout(addrHash *types.AddressHash, amount uint64) *types.TxOut {
+	addrPkh, _ := types.NewAddressPubKeyHash(addrHash[:])
 	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
 	return &types.TxOut{
 		Value:        amount,
@@ -194,9 +187,8 @@ func MakePbVin(op *corepb.OutPoint, seq uint32) *corepb.TxIn {
 }
 
 // NewUtxoWrap makes a UtxoWrap
-func NewUtxoWrap(addr string, height uint32, value uint64) *types.UtxoWrap {
-	address, _ := types.NewAddress(addr)
-	addrPkh, _ := types.NewAddressPubKeyHash(address.Hash())
+func NewUtxoWrap(addrHash *types.AddressHash, height uint32, value uint64) *types.UtxoWrap {
+	addrPkh, _ := types.NewAddressPubKeyHash(addrHash[:])
 	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
 
 	return types.NewUtxoWrap(value, addrScript, height)
@@ -204,9 +196,9 @@ func NewUtxoWrap(addr string, height uint32, value uint64) *types.UtxoWrap {
 
 // NewIssueTokenUtxoWrap makes a UtxoWrap
 func NewIssueTokenUtxoWrap(
-	addr string, tag *rpcpb.TokenTag, height uint32,
+	addrHash *types.AddressHash, tag *rpcpb.TokenTag, height uint32,
 ) (*types.UtxoWrap, error) {
-	vout, err := MakeIssueTokenVout(addr, tag)
+	vout, err := MakeIssueTokenVout(addrHash, tag)
 	if err != nil {
 		return nil, err
 	}
@@ -215,9 +207,9 @@ func NewIssueTokenUtxoWrap(
 
 // NewTokenUtxoWrap makes a UtxoWrap
 func NewTokenUtxoWrap(
-	addr string, tid *types.TokenID, height uint32, value uint64,
+	addrHash *types.AddressHash, tid *types.TokenID, height uint32, value uint64,
 ) (*types.UtxoWrap, error) {
-	vout, err := MakeTokenVout(addr, tid, value)
+	vout, err := MakeTokenVout(addrHash, tid, value)
 	if err != nil {
 		return nil, err
 	}
@@ -293,27 +285,19 @@ func SignTxWithUtxos(
 }
 
 // MakeIssueTokenScript make issue token script for addr with supply and tokent ag
-func MakeIssueTokenScript(addr string, tag *rpcpb.TokenTag) ([]byte, error) {
-	address, err := types.NewAddress(addr)
-	if err != nil {
-		return nil, err
-	}
-	addrPkh, err := types.NewAddressPubKeyHash(address.Hash())
-	if err != nil {
-		return nil, err
-	}
+func MakeIssueTokenScript(addrHash *types.AddressHash, tag *rpcpb.TokenTag) ([]byte, error) {
 	issueParams := &script.IssueParams{
 		Name:        tag.Name,
 		Symbol:      tag.Symbol,
 		Decimals:    uint8(tag.Decimal),
 		TotalSupply: tag.Supply,
 	}
-	return *script.IssueTokenScript(addrPkh.Hash(), issueParams), nil
+	return *script.IssueTokenScript(addrHash, issueParams), nil
 }
 
 // MakeIssueTokenVout make issue token vout
-func MakeIssueTokenVout(addr string, tag *rpcpb.TokenTag) (*types.TxOut, error) {
-	spk, err := MakeIssueTokenScript(addr, tag)
+func MakeIssueTokenVout(addrHash *types.AddressHash, tag *rpcpb.TokenTag) (*types.TxOut, error) {
+	spk, err := MakeIssueTokenScript(addrHash, tag)
 	if err != nil {
 		return nil, err
 	}
@@ -321,25 +305,19 @@ func MakeIssueTokenVout(addr string, tag *rpcpb.TokenTag) (*types.TxOut, error) 
 }
 
 // MakeTokenVout make token tx vout
-func MakeTokenVout(addr string, tokenID *types.TokenID, amount uint64) (*types.TxOut, error) {
-	address, err := types.NewAddress(addr)
-	if err != nil {
-		return nil, err
-	}
-	addrPkh, err := types.NewAddressPubKeyHash(address.Hash())
-	if err != nil {
-		return nil, err
-	}
+func MakeTokenVout(
+	addrHash *types.AddressHash, tokenID *types.TokenID, amount uint64,
+) (*types.TxOut, error) {
 	transferParams := &script.TransferParams{}
 	transferParams.Hash = tokenID.Hash
 	transferParams.Index = tokenID.Index
 	transferParams.Amount = amount
-	addrScript := *script.TransferTokenScript(addrPkh.Hash(), transferParams)
+	addrScript := *script.TransferTokenScript(addrHash, transferParams)
 	return &types.TxOut{Value: 0, ScriptPubKey: addrScript}, nil
 }
 
 // MakeSplitAddrVout make split addr vout
-func MakeSplitAddrVout(addrs []types.Address, weights []uint32) *types.TxOut {
+func MakeSplitAddrVout(addrs []*types.AddressHash, weights []uint32) *types.TxOut {
 	return &types.TxOut{
 		Value:        0,
 		ScriptPubKey: *script.SplitAddrScript(addrs, weights),
@@ -348,14 +326,14 @@ func MakeSplitAddrVout(addrs []types.Address, weights []uint32) *types.TxOut {
 
 // MakeSplitAddress make split addr
 func MakeSplitAddress(
-	txHash *crypto.HashType, idx uint32, addrs []types.Address, weights []uint32,
+	txHash *crypto.HashType, idx uint32, addrs []*types.AddressHash, weights []uint32,
 ) types.Address {
 
 	s := script.NewScript()
 	for i := 0; i < len(addrs) && i < len(weights); i++ {
 		w := make([]byte, 4)
 		binary.LittleEndian.PutUint32(w, weights[i])
-		s.AddOperand(addrs[i].Hash()).AddOperand(w)
+		s.AddOperand(addrs[i][:]).AddOperand(w)
 	}
 	splitHash := crypto.Hash160(*s)
 	idxBytes := make([]byte, 4)

@@ -7,6 +7,7 @@ package script
 import (
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/facebookgo/ensure"
 )
@@ -28,7 +29,9 @@ func TestIssueToken(t *testing.T) {
 		TotalSupply: tokenSupply,
 		Decimals:    tokenDecimals,
 	}
-	script := IssueTokenScript(testPubKeyHash, params)
+	addrHash := new(types.AddressHash)
+	addrHash.SetBytes(testPubKeyHash)
+	script := IssueTokenScript(addrHash, params)
 
 	ensure.True(t, script.IsTokenIssue())
 	ensure.True(t, script.P2PKHScriptPrefix().IsPayToPubKeyHash())
@@ -50,7 +53,9 @@ func TestTransferToken(t *testing.T) {
 	params.Hash = *tokenTxHash
 	params.Index = tokenTxOutIdx
 	params.Amount = tokenSupply
-	script := TransferTokenScript(testPubKeyHash, params)
+	addrHash := new(types.AddressHash)
+	addrHash.SetBytes(testPubKeyHash)
+	script := TransferTokenScript(addrHash, params)
 
 	ensure.True(t, script.IsTokenTransfer())
 	ensure.True(t, script.P2PKHScriptPrefix().IsPayToPubKeyHash())

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"strings"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -93,7 +92,8 @@ func (s *txServer) GetTokenBalance(
 		return newGetBalanceResp(-1, err.Error()), nil
 	}
 	for i, addr := range req.Addrs {
-		amount, err := walletAgent.Balance(addr, tid)
+		address, _ := types.NewAddress(addr)
+		amount, err := walletAgent.Balance(address.Hash160(), tid)
 		if err != nil {
 			logger.Warnf("get token balance for %s token id: %+v error: %s", addr, tid, err)
 			return newGetBalanceResp(-1, err.Error()), nil
@@ -136,7 +136,7 @@ func (s *txServer) FetchUtxos(
 	}()
 
 	walletAgent := s.server.GetWalletAgent()
-	if walletAgent == nil || reflect.ValueOf(walletAgent).IsNil() {
+	if walletAgent == nil {
 		return newFetchUtxosResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	var tid *types.TokenID
@@ -152,7 +152,8 @@ func (s *txServer) FetchUtxos(
 	if err := types.ValidateAddr(addr); err != nil {
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
-	utxos, err := walletAgent.Utxos(addr, tid, req.GetAmount())
+	address, _ := types.NewAddress(addr)
+	utxos, err := walletAgent.Utxos(address.Hash160(), tid, req.GetAmount())
 	if err != nil {
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
@@ -271,7 +272,7 @@ func (s *txServer) MakeUnsignedTx(
 		}
 	}()
 	wa := s.server.GetWalletAgent()
-	if wa == nil || reflect.ValueOf(wa).IsNil() {
+	if wa == nil {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, to := req.GetFrom(), req.GetTo()
@@ -282,7 +283,13 @@ func (s *txServer) MakeUnsignedTx(
 	}
 	amounts, gasPrice := req.GetAmounts(), req.GetGasPrice()
 	gasUsed := gasPrice * core.TransferGasLimit
-	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, from, to, amounts, gasUsed)
+	fromAddress, _ := types.NewAddress(from)
+	toHashes := make([]*types.AddressHash, 0, len(to))
+	for _, addr := range to {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
+	}
+	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, fromAddress.Hash160(), toHashes, amounts, gasUsed)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -305,11 +312,12 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned split addr tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned split addr tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
+			logger.Infof("make unsigned split addr tx: %s succeeded, response: %s",
+				tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
-	if wa == nil || reflect.ValueOf(wa).IsNil() {
+	if wa == nil {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, addrs := req.GetFrom(), req.GetAddrs()
@@ -317,10 +325,17 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
+	toHashes := make([]*types.AddressHash, 0, len(addrs))
+	for _, addr := range addrs {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
+	}
 	weights, gasPrice := req.GetWeights(), req.GasPrice
 	gasUsed := gasPrice * core.TransferGasLimit
 	// make tx without sign
-	tx, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, from, addrs, weights, gasUsed)
+	fromAddress, _ := types.NewAddress(from)
+	tx, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, fromAddress.Hash160(),
+		toHashes, weights, gasUsed)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -360,7 +375,7 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 		return newMakeTokenIssueTxResp(-1, "the value is too bigger"), nil
 	}
 	wa := s.server.GetWalletAgent()
-	if wa == nil || reflect.ValueOf(wa).IsNil() {
+	if wa == nil {
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	issuer, owner, tag, gasPrice := req.GetIssuer(), req.GetOwner(), req.GetTag(), req.GasPrice
@@ -370,8 +385,10 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	}
 	gasUsed := gasPrice * core.TransferGasLimit
 	// make tx without sign
-	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa, issuer,
-		owner, tag, gasUsed)
+	issuerHash, _ := types.NewAddress(issuer)
+	ownerHash, _ := types.NewAddress(owner)
+	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa,
+		issuerHash.Hash160(), ownerHash.Hash160(), tag, gasUsed)
 	if err != nil {
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
@@ -401,7 +418,7 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 		}
 	}()
 	wa := s.server.GetWalletAgent()
-	if wa == nil || reflect.ValueOf(wa).IsNil() {
+	if wa == nil {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, gasPrice := req.GetFrom(), req.GasPrice
@@ -410,6 +427,12 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	if err := types.ValidateAddr(append(to, from)...); err != nil {
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
+	fromAddress, _ := types.NewAddress(from)
+	toHashes := make([]*types.AddressHash, 0, len(to))
+	for _, addr := range to {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
 	}
 	// parse token id
 	tHashStr, tIdx := req.GetTokenHash(), req.GetTokenIndex()
@@ -420,8 +443,8 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	}
 	op := types.NewOutPoint(tHash, tIdx)
 	//
-	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, from, to, amounts,
-		(*types.TokenID)(op), gasUsed)
+	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, fromAddress.Hash160(),
+		toHashes, amounts, (*types.TokenID)(op), gasUsed)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -462,35 +485,35 @@ func (s *txServer) MakeUnsignedContractTx(
 		!strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
 		return newMakeContractTxResp(-1, "invalid from address", nil, nil, ""), nil
 	}
+	fromAddress, err := types.NewAddress(from)
+	if err != nil {
+		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
+	}
 	contractAddr := req.GetTo()
 	if req.IsDeploy {
 		if contractAddr != "" {
 			eStr := "contract addr must be empty when deploy contract"
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
 		}
-		fromHash, err := types.NewAddress(from)
-		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
-		}
-		nonce := s.server.GetChainReader().TailState().GetNonce(*fromHash.Hash160())
+		nonce := s.server.GetChainReader().TailState().GetNonce(*fromAddress.Hash160())
 		if req.GetNonce() <= nonce {
 			eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
 		}
-		contractAddress, _ := types.MakeContractAddress(fromHash, req.GetNonce())
-		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, from, amount,
-			gasLimit, gasPrice, req.GetNonce(), byteCode)
+		contractAddress, _ := types.MakeContractAddress(fromAddress, req.GetNonce())
+		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, fromAddress.Hash160(),
+			amount, gasLimit, gasPrice, req.GetNonce(), byteCode)
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
 		}
 		contractAddr = contractAddress.String()
 	} else {
-		if err := types.ValidateAddr(); err != nil ||
-			!strings.HasPrefix(contractAddr, types.AddrTypeContractPrefix) {
+		contractAddress, err := types.NewContractAddress(contractAddr)
+		if err != nil {
 			return newMakeContractTxResp(-1, "invalid contract address", nil, nil, ""), nil
 		}
-		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, from, amount,
-			gasLimit, gasPrice, req.GetNonce(), contractAddr, byteCode)
+		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, fromAddress.Hash160(),
+			amount, gasLimit, gasPrice, req.GetNonce(), contractAddress.Hash160(), byteCode)
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
 		}
@@ -531,12 +554,12 @@ func (s *txServer) MakeUnsignedCombineTx(
 		}
 	}()
 	wa := s.server.GetWalletAgent()
-	if wa == nil || reflect.ValueOf(wa).IsNil() {
+	if wa == nil {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from := req.GetAddr()
-	// check address
-	if err := types.ValidateAddr(from); err != nil {
+	fromAddress, err := types.NewAddress(from)
+	if err != nil {
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -557,9 +580,9 @@ func (s *txServer) MakeUnsignedCombineTx(
 			return newMakeTxResp(-1, "invalid token hash", nil, nil), nil
 		}
 		tid := (*types.TokenID)(types.NewOutPoint(tokenHash, tokenIdx))
-		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, from, tid, gasUsed)
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, fromAddress.Hash160(), tid, gasUsed)
 	} else {
-		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, from, gasUsed)
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, fromAddress.Hash160(), gasUsed)
 	}
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil

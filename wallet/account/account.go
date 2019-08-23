@@ -76,6 +76,11 @@ func (acc *Account) Addr() string {
 	return acc.Address.String()
 }
 
+// AddressHash returns AddressHash
+func (acc *Account) AddressHash() *types.AddressHash {
+	return acc.Address.Hash160()
+}
+
 // AddrType returns Address interface of the account
 func (acc *Account) AddrType() types.Address {
 	return acc.Address

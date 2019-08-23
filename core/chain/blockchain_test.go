@@ -44,7 +44,7 @@ var (
 	startTime = time.Now().Unix()
 	timestamp = startTime
 
-	addrs   = []types.Address{splitAddrA, splitAddrB}
+	addrs   = []*types.AddressHash{splitAddrA.Hash160(), splitAddrB.Hash160()}
 	weights = []uint32{5, 5}
 )
 
@@ -67,7 +67,9 @@ func TestAppendInLoop(t *testing.T) {
 	}
 }
 
-func createSplitTx(parentTx *types.Transaction, index uint32, amount uint64) (*types.Transaction, string) {
+func createSplitTx(
+	parentTx *types.Transaction, index uint32, amount uint64,
+) (*types.Transaction, string) {
 
 	prevHash, _ := parentTx.TxHash()
 	vIn := txlogic.MakeVin(types.NewOutPoint(prevHash, index), 0)
@@ -90,7 +92,7 @@ func createSplitTx(parentTx *types.Transaction, index uint32, amount uint64) (*t
 	return tx, addr.String()
 }
 
-func getBalance(address string, db storage.Table) uint64 {
+func getBalance(address *types.AddressHash, db storage.Table) uint64 {
 	utxoKey := AddrAllUtxoKey(address)
 	keys := db.KeysWithPrefix(utxoKey)
 	values, err := db.MultiGet(keys...)
@@ -178,8 +180,8 @@ func TestChainTx(t *testing.T) {
 	prevHash, _ := b2.Txs[1].TxHash()
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.String(), 100000000)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 500000000))
+		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 100000000)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 500000000))
 	err := txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
@@ -188,8 +190,8 @@ func TestChainTx(t *testing.T) {
 	t.Logf("tx1: %s", prevHash)
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.String(), 200000000)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 300000000))
+		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 200000000)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 300000000))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
@@ -197,8 +199,8 @@ func TestChainTx(t *testing.T) {
 	prevHash, _ = tx.TxHash()
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.String(), 250000000)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 50000000))
+		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 250000000)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 50000000))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
@@ -210,17 +212,17 @@ func TestChainTx(t *testing.T) {
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
 	// check balance
 	// for userAddr
-	balance := getBalance(userAddr.String(), blockChain.db)
+	balance := getBalance(userAddr.Hash160(), blockChain.db)
 	stateBalance := blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, uint64(50000000))
 	// for miner
-	balance = getBalance(minerAddr.String(), blockChain.db)
+	balance = getBalance(minerAddr.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, BaseSubsidy-600000000)
 	// for splitAddrA
-	balance = getBalance(splitAddrA.String(), blockChain.db)
+	balance = getBalance(splitAddrA.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*splitAddrA.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, uint64(550000000))
@@ -242,7 +244,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	prevHash, _ := b0.Txs[0].TxHash()
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 1000))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 1000))
 	txlogic.SignTx(tx, privKeyMiner, pubKeyMiner)
 	txHash, _ := tx.TxHash()
 
@@ -264,7 +266,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	op := types.NewOutPoint(types.NormalizeAddressHash(contractAddr.Hash160()), 0)
 	contractTx := types.NewTx(0, 0, 0).
 		AppendVin(txlogic.MakeContractVin(op, 0)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), 2000))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 2000))
 	contractTxHash, _ := contractTx.TxHash()
 
 	b2 := nextBlockWithTxs(b1, blockChain, tx, vmTx)
@@ -409,7 +411,7 @@ func TestBlockProcessing(t *testing.T) {
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddrFaucet, _ := types.MakeContractAddress(userAddr, nonce)
@@ -450,7 +452,7 @@ func TestBlockProcessing(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValueA)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	prevHash, _ = vmTx.TxHash()
@@ -461,7 +463,7 @@ func TestBlockProcessing(t *testing.T) {
 	splitTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeSplitAddrVout(addrs, weights)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValueA))
 	txlogic.SignTx(splitTx, privKey, pubKey)
 	prevHash, _ = splitTx.TxHash()
 	splitAddr := txlogic.MakeSplitAddress(prevHash, 0, addrs, weights)
@@ -492,8 +494,8 @@ func TestBlockProcessing(t *testing.T) {
 	changeValueA = changeValueA - toSplitAmount
 	toSplitTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(splitAddr.String(), toSplitAmount)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA))
+		AppendVout(txlogic.MakeVout(splitAddr.Hash160(), toSplitAmount)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValueA))
 	txlogic.SignTx(toSplitTx, privKey, pubKey)
 	toSplitTxHash, _ := toSplitTx.TxHash()
 	t.Logf("toSplitTxHash: %s", toSplitTxHash)
@@ -518,9 +520,9 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b3A -> b4A passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// check split address balance
-	blanceSplitA := getBalance(splitAddrA.String(), blockChain.db)
+	blanceSplitA := getBalance(splitAddrA.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(25000))
-	blanceSplitB := getBalance(splitAddrB.String(), blockChain.db)
+	blanceSplitB := getBalance(splitAddrB.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(25000))
 
 	//TODO: add insuffient balance check
@@ -559,7 +561,7 @@ func TestBlockProcessing(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue5)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue5)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b5 := nextBlockWithTxsV2(b4, blockChain, vmTx)
@@ -578,9 +580,9 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b4 -> b5 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// check balance
-	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
+	blanceSplitA = getBalance(splitAddrA.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(0))
-	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(0))
 
 	// b0 -> b1 -> b2  -> b3  -> b4  -> b5
@@ -607,8 +609,8 @@ func TestBlockProcessing(t *testing.T) {
 	prevHash, _ = b2.Txs[1].TxHash()
 	toUserTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 2), 0)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), toUserAmount)).
-		AppendVout(txlogic.MakeVout(minerAddr.String(), changeValueATemp))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), toUserAmount)).
+		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), changeValueATemp))
 	txlogic.SignTx(toUserTx, privKeyMiner, pubKeyMiner)
 	b6A := nextBlockWithTxsV2(b5A, blockChain, toUserTx)
 	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5)
@@ -629,7 +631,7 @@ func TestBlockProcessing(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 2), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValueA)).
 		WithData(types.ContractDataType, byteCode)
 	t.Logf("b6a change value: %d", changeValueA)
 	txlogic.SignTx(vmTx, privKey, pubKey)
@@ -652,9 +654,9 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b6A block hash: %s", b6A.BlockHash())
 	t.Logf("b5A -> b6A pass, now tail height: %d", blockChain.LongestChainHeight)
 	// check balance
-	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
+	blanceSplitA = getBalance(splitAddrA.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, toSplitAmount/2)
-	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, toSplitAmount/2)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -672,7 +674,7 @@ func TestBlockProcessing(t *testing.T) {
 	ensure.DeepEqual(t, prevHash, b4ASplitTxHash)
 	b7ATx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(b4ASplitTxHash, 0), 0)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), toSplitAmount/2))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), toSplitAmount/2))
 	txlogic.SignTx(b7ATx, privKeySplitA, pubKeySplitA)
 	b7A := nextBlockWithTxsV2(b6A, blockChain, b7ATx)
 	userBalance = bAUserBalance + toSplitAmount/2
@@ -691,9 +693,9 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b6A -> b7A pass, now tail height: %d", blockChain.LongestChainHeight)
 
 	// check balance
-	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
+	blanceSplitA = getBalance(splitAddrA.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(0))
-	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, toSplitAmount/2)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -714,7 +716,7 @@ func TestBlockProcessing(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueA)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValueA)).
 		WithData(types.ContractDataType, byteCode)
 	t.Logf("b7b change value: %d", changeValueA)
 	txlogic.SignTx(vmTx, privKey, pubKey)
@@ -749,9 +751,9 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b7B -> b8B pass, now tail height: %d", blockChain.LongestChainHeight)
 
 	// check split balance
-	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
+	blanceSplitA = getBalance(splitAddrA.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, toSplitAmount/2)
-	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, toSplitAmount/2)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -810,7 +812,7 @@ func TestBlockProcessing(t *testing.T) {
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b9 := nextBlockWithTxsV2(b8, blockChain, vmTx)
@@ -828,9 +830,9 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b8 -> b9 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// check balance
-	blanceSplitA = getBalance(splitAddrA.String(), blockChain.db)
+	blanceSplitA = getBalance(splitAddrA.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, uint64(0))
-	blanceSplitB = getBalance(splitAddrB.String(), blockChain.db)
+	blanceSplitB = getBalance(splitAddrB.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, uint64(0))
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -857,13 +859,13 @@ func TestBlockProcessing(t *testing.T) {
 	changeValueATemp = changeValue - toUserAmount
 	toUserTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), toUserAmount)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValueATemp))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), toUserAmount)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValueATemp))
 	txlogic.SignTx(toUserTx, privKey, pubKey)
 	splitTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeSplitAddrVout(addrs, weights)).
-		AppendVout(txlogic.MakeVout(userAddr.String(), changeValue))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	txlogic.SignTx(splitTx, privKey, pubKey)
 	d10ds := nextBlockWithTxsV2(b10, blockChain, toUserTx, splitTx)
 	verifyProcessBlock(t, blockChain, d10ds, core.ErrDoubleSpendTx, 10, b10)
