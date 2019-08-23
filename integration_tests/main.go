@@ -6,7 +6,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -39,15 +38,12 @@ var logger = log.NewLogger("integration") // logger
 var (
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
-	peersAddr  []string
-	minerAddrs []string
-	minerAccs  []*acc.Account
+	peersAddr []string
+	origAddrs []string
+	origAccs  []*acc.Account
 
 	preAddr string
 	preAcc  *acc.Account
-
-	allAddrs []string
-	allAccs  []*acc.Account
 
 	//AddrToAcc stores addr to account
 	AddrToAcc = new(sync.Map)
@@ -58,22 +54,21 @@ func init() {
 }
 
 func initAcc() {
-	nodeCnt := len(utils.AllAddrs())
-	files := make([]string, nodeCnt+1)
-	for i := 0; i < nodeCnt; i++ {
-		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
+	origAccCnt := 6
+	origAddrs = utils.GenTestAddr(origAccCnt)
+	logger.Debugf("original account addrs: %v\n", origAddrs)
+	for _, addr := range origAddrs {
+		acc := utils.UnlockAccount(addr)
+		AddrToAcc.Store(addr, acc)
+		origAccs = append(origAccs, acc)
 	}
-	files[nodeCnt] = utils.LocalConf.KeyDir + "pre.keystore"
-	allAddrs, allAccs = utils.LoadAccounts(files...)
-	logger.Infof("init accounts: %v", allAddrs)
+	utils.RemoveKeystoreFiles(origAddrs...)
 
-	minerCnt := len(utils.MinerAddrs())
-	minerAddrs, minerAccs = allAddrs[:minerCnt], allAccs[:minerCnt]
-	for i, addr := range minerAddrs {
-		AddrToAcc.Store(addr, minerAccs[i])
-	}
-	preAddr, preAcc = allAddrs[nodeCnt], allAccs[nodeCnt]
+	preKeyStore := utils.LocalConf.KeyDir + "pre.keystore"
+	preAddrs, preAccs := utils.LoadAccounts(preKeyStore)
+	preAddr, preAcc = preAddrs[0], preAccs[0]
 	AddrToAcc.Store(preAddr, preAcc)
+	logger.Infof("init pre-allocation accounts: %s", preAddr)
 }
 
 func main() {
@@ -88,14 +83,15 @@ func main() {
 		logger.Panic(err)
 	}
 	initAcc()
-	initMinerPicker(len(minerAddrs))
+	initOrigMinerPicker(len(origAddrs))
 	peersAddr = utils.PeerAddrs()
 
 	if *utils.NewNodes {
 		// prepare environment and clean history data
-		if err := utils.PrepareEnv(len(allAddrs) - 1); err != nil {
+		if err := utils.PrepareEnv(len(utils.MinerAddrs())); err != nil {
 			logger.Panic(err)
 		}
+		logger.Warnf("miner addrs: %v", utils.MinerAddrs())
 		//defer utils.TearDown(len(minerAddrs))
 
 		// start nodes
@@ -105,7 +101,7 @@ func main() {
 			}
 			defer utils.StopNodes()
 		} else {
-			processes, err := utils.StartLocalNodes(len(allAddrs) - 1)
+			processes, err := utils.StartLocalNodes(len(utils.MinerAddrs()))
 			defer utils.StopLocalNodes(processes...)
 			if utils.P2pTestEnable() {
 				go testP2p(proc)
@@ -130,7 +126,7 @@ func main() {
 		go CountGlobalTxs()
 		fallthrough
 	default:
-		go topupMiners()
+		go topupOrigAccs()
 	}
 
 	var wg sync.WaitGroup
@@ -181,11 +177,11 @@ func testItems() []func() {
 	return items
 }
 
-func topupMiners() {
+func topupOrigAccs() {
 	defer func() {
-		if x := recover(); x != nil {
-			logger.Warn(x)
-		}
+		//if x := recover(); x != nil {
+		//	logger.Warn(x)
+		//}
 	}()
 	// quit channel
 	quitCh := make(chan os.Signal, 1)
@@ -199,7 +195,7 @@ func topupMiners() {
 
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
-	minerCnt := len(utils.MinerAddrs())
+	origAccCnt := len(origAddrs)
 	i := 0
 	for {
 		select {
@@ -209,15 +205,15 @@ func topupMiners() {
 				logger.Errorf("fetch balance for pre addr %s error %s", preAddr, err)
 				continue
 			}
-			minerI, minerJ := minerAccs[i%minerCnt], minerAccs[(i+3)%minerCnt]
+			accI, accJ := origAccs[i%origAccCnt], origAccs[(i+3)%origAccCnt]
 			i++
 			amount := 25 * uint64(core.DuPerBox)
 			tx, _, fee, err := rpcutil.NewTx(preAcc,
-				[]*types.AddressHash{minerI.AddressHash(), minerJ.AddressHash()},
+				[]*types.AddressHash{accI.AddressHash(), accJ.AddressHash()},
 				[]uint64{amount, amount}, conn)
 			if err != nil {
-				logger.Errorf("new tx for pre addr %s to miner %s %s error %s", preAddr,
-					minerI.Addr(), minerJ.Addr(), err)
+				logger.Errorf("new tx for pre addr %s to origal account %s %s error %s",
+					preAddr, accI.Addr(), accJ.Addr(), err)
 				continue
 			}
 			_, err = rpcutil.SendTransaction(conn, tx)
@@ -228,7 +224,7 @@ func topupMiners() {
 			}
 			select {
 			case <-quitCh:
-				logger.Info("quit topupMiners.")
+				logger.Info("quit topupOrigAccs.")
 				return
 			default:
 			}
@@ -239,7 +235,7 @@ func topupMiners() {
 				continue
 			}
 		case <-quitCh:
-			logger.Info("quit topupMiners.")
+			logger.Info("quit topupOrigAccs.")
 			return
 		}
 	}
