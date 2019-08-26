@@ -907,26 +907,6 @@ func (chain *BlockChain) executeBlock(
 			logger.Error(err)
 			return err
 		}
-		go func() {
-			logs := make(map[string][]*types.Log)
-			for _, receipt := range rcps {
-				if len(receipt.Logs) != 0 {
-					contractAddr, err := types.NewContractAddressFromHash(receipt.ContractAddress.Bytes())
-					if err != nil {
-						logger.Errorf("Contract address convert failed. %s", receipt.ContractAddress.String())
-						continue
-					}
-					if l, ok := logs[contractAddr.String()]; ok {
-						l = append(l, receipt.Logs...)
-					} else {
-						logs[contractAddr.String()] = receipt.Logs
-					}
-				}
-			}
-			if len(logs) != 0 {
-				chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
-			}
-		}()
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee, rcps); err != nil {
 			return err
 		}
@@ -974,6 +954,8 @@ func (chain *BlockChain) executeBlock(
 		return err
 	}
 
+	go chain.notifyRPCLogs(receipts)
+
 	chain.tryToClearCache([]*types.Block{block}, nil)
 
 	// notify mem_pool when chain update
@@ -983,6 +965,27 @@ func (chain *BlockChain) executeBlock(
 	chain.ChangeNewTail(block)
 	// set tail state
 	return chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot)
+}
+
+func (chain *BlockChain) notifyRPCLogs(receipts types.Receipts) {
+	logs := make(map[string][]*types.Log)
+	for _, receipt := range receipts {
+		if len(receipt.Logs) != 0 {
+			contractAddr, err := types.NewContractAddressFromHash(receipt.ContractAddress.Bytes())
+			if err != nil {
+				logger.Errorf("Contract address convert failed. %s", receipt.ContractAddress.String())
+				continue
+			}
+			if l, ok := logs[contractAddr.String()]; ok {
+				l = append(l, receipt.Logs...)
+			} else {
+				logs[contractAddr.String()] = receipt.Logs
+			}
+		}
+	}
+	if len(logs) != 0 {
+		chain.Bus().Publish(eventbus.TopicRPCSendNewLog, logs)
+	}
 }
 
 func (chain *BlockChain) writeBlockToDB(
