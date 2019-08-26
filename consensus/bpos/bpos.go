@@ -175,7 +175,9 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 		select {
 		case <-timeChan.C:
 			if !bpos.chain.IsBusy() {
-				bpos.run(time.Now().Unix())
+				if err := bpos.run(time.Now().Unix()); err != nil {
+					logger.Error("Bpos run err. Err: ", err.Error())
+				}
 			}
 
 		case <-p.Closing():
