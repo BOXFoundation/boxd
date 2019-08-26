@@ -35,7 +35,7 @@ type (
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
 func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, error) {
 	if contract.CodeAddr != nil {
-		precompiles := PrecompiledContractsByzantium
+		precompiles := PrecompiledContracts
 		if p := precompiles[*contract.CodeAddr]; p != nil {
 			return RunPrecompiledContract(p, input, contract)
 		}
@@ -98,10 +98,6 @@ type EVM struct {
 	// Depth is the current call stack
 	depth int
 
-	// chainConfig contains information about the current chain
-	chainConfig *types.ChainConfig
-	// chain rules contains the chain rules for the current epoch
-	chainRules types.Rules
 	// virtual machine configuration options used to initialise the
 	// evm.
 	vmConfig Config
@@ -122,29 +118,11 @@ type EVM struct {
 // only ever be used *once*.
 func NewEVM(ctx Context, statedb StateDB, vmConfig Config) *EVM {
 	evm := &EVM{
-		Context:  ctx,
-		StateDB:  statedb,
-		vmConfig: vmConfig,
-		// chainConfig:  chainConfig,
-		// chainRules:   chainConfig.Rules(ctx.BlockNumber),
+		Context:      ctx,
+		StateDB:      statedb,
+		vmConfig:     vmConfig,
 		interpreters: make([]Interpreter, 0, 1),
 	}
-
-	// if chainConfig.IsEWASM(ctx.BlockNumber) {
-	// to be implemented by EVM-C and Wagon PRs.
-	// if vmConfig.EWASMInterpreter != "" {
-	//  extIntOpts := strings.Split(vmConfig.EWASMInterpreter, ":")
-	//  path := extIntOpts[0]
-	//  options := []string{}
-	//  if len(extIntOpts) > 1 {
-	//    options = extIntOpts[1..]
-	//  }
-	//  evm.interpreters = append(evm.interpreters, NewEVMVCInterpreter(evm, vmConfig, options))
-	// } else {
-	// 	evm.interpreters = append(evm.interpreters, NewEWASMInterpreter(evm, vmConfig))
-	// }
-	// 	panic("No supported ewasm interpreter yet.")
-	// }
 
 	// vmConfig.EVMInterpreter will be used by EVM-C, it won't be checked here
 	// as we always want to have the built-in EVM as the failover option.
@@ -188,18 +166,17 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 		snapshot = evm.StateDB.Snapshot()
 	)
 	if !evm.StateDB.Exist(addr) {
-		// precompiles := PrecompiledContractsHomestead
-		// if evm.ChainConfig().IsByzantium(evm.BlockNumber) {
-		// 	precompiles = PrecompiledContractsByzantium
-		// }
-		// if precompiles[addr] == nil && evm.ChainConfig().IsEIP158(evm.BlockNumber) && value.Sign() == 0 {
-		// 	// Calling a non existing account, don't do anything, but ping the tracer
-		// 	if evm.vmConfig.Debug && evm.depth == 0 {
-		// 		evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
-		// 		evm.vmConfig.Tracer.CaptureEnd(ret, 0, 0, nil)
-		// 	}
-		// 	return nil, gas, nil
-		// }
+		precompiles := PrecompiledContracts
+		if precompiles[addr] == nil && value.Sign() == 0 {
+			// Calling a non existing account, don't do anything, but ping the tracer
+			if evm.vmConfig.Debug && evm.depth == 0 {
+				evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
+				evm.vmConfig.Tracer.CaptureEnd(ret, 0, 0, nil)
+			}
+			// TODO: del the log later
+			logger.Errorf("ONLY FOR DEBUG: precompiles[addr] == nil && value.Sign() == 0")
+			return nil, gas, nil
+		}
 		evm.StateDB.CreateAccount(addr)
 	}
 	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value, interpreterInvoke)
@@ -455,6 +432,3 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 	contractAddr = *coretypes.CreateAddress2(caller.Address(), corecrypto.BigToHash(salt), codeAndHash.Hash().Bytes())
 	return evm.create(caller, codeAndHash, gas, endowment, contractAddr, false)
 }
-
-// ChainConfig returns the environment's chain configuration
-func (evm *EVM) ChainConfig() *types.ChainConfig { return evm.chainConfig }
