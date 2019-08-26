@@ -7,7 +7,6 @@ package bpos
 import (
 	"container/heap"
 	"errors"
-	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -610,11 +609,11 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 
 	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr))
-	if genesisContractBalanceOld+block.Txs[0].Vout[0].Value+feeUsed != statedb.GetBalance(chain.ContractAddr).Uint64() {
-		return fmt.Errorf("genesis contract balance got wrong, previous %d, "+
-			"coinbase value: %d, fee contracts used %d, now %d in statedb", genesisContractBalanceOld,
-			block.Txs[0].Vout[0].Value, feeUsed, statedb.GetBalance(chain.ContractAddr))
-	}
+	//if genesisContractBalanceOld+block.Txs[0].Vout[0].Value+feeUsed != statedb.GetBalance(chain.ContractAddr).Uint64() {
+	logger.Infof("genesis contract balance change, previous %d, coinbase value: "+
+		"%d, fee used %d, now %d in statedb", genesisContractBalanceOld,
+		block.Txs[0].Vout[0].Value, feeUsed, statedb.GetBalance(chain.ContractAddr))
+	//}
 
 	bpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
