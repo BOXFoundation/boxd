@@ -942,7 +942,7 @@ func (chain *BlockChain) executeBlock(
 				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.BlockHash(),
 				block.Header.Height)
 		}
-		if len(receipts) > 0 {
+		if len(rcps) > 0 {
 			receipts = rcps
 		}
 	} else {
