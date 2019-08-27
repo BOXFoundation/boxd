@@ -213,6 +213,9 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.candidates = bpos.filterCandidates(delegates, dynasty.delegates)
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
+		if err == ErrNotMyTurnToProduce {
+			return nil
+		}
 		return err
 	}
 	bpos.context.timestamp = timestamp
