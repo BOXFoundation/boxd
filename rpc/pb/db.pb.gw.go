@@ -9,13 +9,13 @@ It translates gRPC into RESTful JSON APIs.
 package rpcpb
 
 import (
-	"context"
 	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -144,9 +144,9 @@ func RegisterDatabaseCommandHandlerClient(ctx context.Context, mux *runtime.Serv
 }
 
 var (
-	pattern_DatabaseCommand_GetDatabaseKeys_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "keys"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_DatabaseCommand_GetDatabaseKeys_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "keys"}, ""))
 
-	pattern_DatabaseCommand_GetDatabaseValue_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "get"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_DatabaseCommand_GetDatabaseValue_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "get"}, ""))
 )
 
 var (

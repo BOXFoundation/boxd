@@ -9,13 +9,13 @@ It translates gRPC into RESTful JSON APIs.
 package rpcpb
 
 import (
-	"context"
 	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -514,29 +514,29 @@ func RegisterWebApiHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 }
 
 var (
-	pattern_WebApi_ViewTxDetail_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "detail"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_ViewTxDetail_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "tx", "detail"}, ""))
 
-	pattern_WebApi_ViewBlockDetail_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "block", "detail"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_ViewBlockDetail_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "block", "detail"}, ""))
 
-	pattern_WebApi_DoCall_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "call"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_DoCall_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "call"}, ""))
 
-	pattern_WebApi_GetCode_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "code"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_GetCode_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "code"}, ""))
 
-	pattern_WebApi_GasPrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "gasPrice"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_GasPrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "gasPrice"}, ""))
 
-	pattern_WebApi_EstimateGas_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "estimateGas"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_EstimateGas_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "estimateGas"}, ""))
 
-	pattern_WebApi_GetStorageAt_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "getStorageAt"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_GetStorageAt_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "getStorageAt"}, ""))
 
-	pattern_WebApi_Nonce_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "account", "nonce"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_Nonce_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "account", "nonce"}, ""))
 
-	pattern_WebApi_GetLogs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "getLogs"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_GetLogs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "contract", "getLogs"}, ""))
 
-	pattern_WebApi_Table_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "p2p", "table"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_Table_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "p2p", "table"}, ""))
 
-	pattern_WebApi_PeerID_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "p2p", "id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_PeerID_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "p2p", "id"}, ""))
 
-	pattern_WebApi_Miners_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "miners"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_WebApi_Miners_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "miners"}, ""))
 )
 
 var (
