@@ -17,6 +17,7 @@ type ChainReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
+	GetStateDbByHeight(height uint32) (*state.StateDB, error)
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 
@@ -30,4 +31,5 @@ type ChainReader interface {
 	EternalBlock() *types.Block
 	TailBlock() *types.Block
 	TailState() *state.StateDB
+	SuggestGasPrice() uint32
 }

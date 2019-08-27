@@ -392,6 +392,10 @@ func (r *TestDetailBlockChainReader) NewEvmContextForLocalCallByHeight(msg types
 	return nil, nil, nil
 }
 
+func (r *TestDetailBlockChainReader) GetStateDbByHeight(height uint32) (*state.StateDB, error) {
+	return nil, nil
+}
+
 func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, error) {
 	return nil, nil
 }
@@ -406,6 +410,10 @@ func (r *TestDetailBlockChainReader) FilterLogs(logs []*types.Log, topicslist []
 
 func (r *TestDetailBlockChainReader) TailState() *state.StateDB {
 	return nil
+}
+
+func (r *TestDetailBlockChainReader) SuggestGasPrice() uint32 {
+	return 0
 }
 
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {

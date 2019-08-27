@@ -65,10 +65,12 @@ type ChainBlockReader interface {
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	EternalBlock() *types.Block
 	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
+	GetStateDbByHeight(height uint32) (*state.StateDB, error)
 	TailBlock() *types.Block
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 	TailState() *state.StateDB
+	SuggestGasPrice() uint32
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -568,19 +570,43 @@ func (s *webapiServer) DoCall(
 	ctx context.Context, req *rpcpb.CallReq,
 ) (resp *rpcpb.CallResp, err error) {
 
+	evm, output, _, _, _, _, err := s.callEvm(ctx, req)
+	if err != nil {
+		return newCallResp(-1, err.Error()), nil
+	}
+
+	// Make sure we have a contract to operate on, and bail out otherwise.
+	if err == nil && len(output) == 0 {
+		contractAddr, _ := types.ParseAddress(req.To)
+		conHash := contractAddr.Hash160()
+		// Make sure we have a contract to operate on, and bail out otherwise.
+		if code := evm.StateDB.GetCode(*conHash); len(code) == 0 {
+			return newCallResp(-1, core.ErrContractNotFound.Error()), nil
+		}
+	}
+
+	resp = newCallResp(0, "")
+	resp.Output = hex.EncodeToString(output)
+	return resp, nil
+}
+
+func (s *webapiServer) callEvm(ctx context.Context, req *rpcpb.CallReq) (evm *vm.EVM, ret []byte, usedGas, gasRemaining uint64, failed bool, gasRefundTx *types.Transaction, err error) {
 	from, to := req.GetFrom(), req.GetTo()
 	fromHash, err := types.ParseAddress(from)
 	if err != nil || !strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
-		return newCallResp(-1, "invalid from address"), nil
+		err = fmt.Errorf("invalid from address")
+		return
 	}
 	contractAddr, err := types.ParseAddress(to)
 	if err != nil || !strings.HasPrefix(to, types.AddrTypeContractPrefix) {
-		return newCallResp(-1, "invalid contract address"), nil
+		err = fmt.Errorf("invalid contract address")
+		return
 	}
 
 	data, err := hex.DecodeString(req.GetData())
 	if err != nil {
-		return newCallResp(-1, "invalid contract data"), nil
+		err = fmt.Errorf("invalid contract data")
+		return
 	}
 
 	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
@@ -602,7 +628,7 @@ func (s *webapiServer) DoCall(
 	// Get a new instance of the EVM.
 	evm, vmErr, err := s.NewEvmContextForLocalCallByHeight(msg, req.Height)
 	if err != nil {
-		return newCallResp(-1, err.Error()), nil
+		return
 	}
 	// Wait for the context to be done and cancel the evm. Even if the
 	// EVM has finished, cancelling may be done (repeatedly)
@@ -613,25 +639,13 @@ func (s *webapiServer) DoCall(
 
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
-	output, _, _, _, _, err := chain.ApplyMessage(evm, msg)
-	if err := vmErr(); err != nil {
-		return newCallResp(-1, err.Error()), nil
-	}
+	ret, usedGas, gasRemaining, failed, gasRefundTx, err = chain.ApplyMessage(evm, msg)
 
-	// Make sure we have a contract to operate on, and bail out otherwise.
-	if err == nil && len(output) == 0 {
-		conHash := msg.To()
-		// Make sure we have a contract to operate on, and bail out otherwise.
-		if code := evm.StateDB.GetCode(*conHash); len(code) == 0 {
-			return newCallResp(-1, core.ErrContractNotFound.Error()), nil
-		}
+	if err = vmErr(); err != nil {
+		return
 	}
-
-	resp = newCallResp(0, "")
-	resp.Output = hex.EncodeToString(output)
-	return resp, nil
+	return
 }
-
 func newNonceResp(code int32, msg string, nonce uint64) *rpcpb.NonceResp {
 	return &rpcpb.NonceResp{
 		Code:    code,
@@ -1091,4 +1105,92 @@ func (s *webapiServer) Miners(
 		Message: "",
 		Miners:  miners,
 	}, nil
+}
+
+func newGetCodeResp(code int32, message string, data string) *rpcpb.GetCodeResp {
+	return &rpcpb.GetCodeResp{
+		Code:    code,
+		Message: message,
+		Data:    data,
+	}
+}
+
+func (s *webapiServer) GetCode(
+	ctx context.Context, req *rpcpb.GetCodeReq,
+) (*rpcpb.GetCodeResp, error) {
+	state := s.ChainBlockReader.TailState()
+	contractAddress, err := types.NewContractAddress(req.Address)
+	if err != nil {
+		logger.Error(err)
+		return newGetCodeResp(-1, err.Error(), ""), nil
+	}
+
+	addr := contractAddress.Hash160()
+	code := state.GetCode(*addr)
+	return newGetCodeResp(0, "", hex.EncodeToString(code)), nil
+}
+
+func (s *webapiServer) GasPrice(
+	ctx context.Context, req *rpcpb.GasPriceReq,
+) (*rpcpb.GasPriceResp, error) {
+	return &rpcpb.GasPriceResp{
+		Code:    0,
+		Message: "",
+		Price:   int32(s.SuggestGasPrice()),
+	}, nil
+}
+
+func (s *webapiServer) EstimateGas(
+	ctx context.Context, req *rpcpb.CallReq,
+) (*rpcpb.EstimateGasResp, error) {
+
+	_, _, gas, _, _, _, err := s.callEvm(ctx, req)
+	if err != nil {
+		return &rpcpb.EstimateGasResp{
+			Code:    -1,
+			Message: err.Error(),
+			Gas:     0,
+		}, nil
+	}
+
+	return &rpcpb.EstimateGasResp{
+		Code:    0,
+		Message: "",
+		Gas:     int32(gas),
+	}, nil
+}
+
+func newStorageAtResp(code int32, msg, data string) *rpcpb.StorageResp {
+	return &rpcpb.StorageResp{
+		Code:    code,
+		Message: msg,
+		Data:    data,
+	}
+}
+
+func (s *webapiServer) GetStorageAt(
+	ctx context.Context, req *rpcpb.StorageReq,
+) (*rpcpb.StorageResp, error) {
+
+	state, err := s.GetStateDbByHeight(uint32(req.Height))
+	if err != nil {
+		return newStorageAtResp(-1, err.Error(), ""), nil
+	}
+
+	contractAddress, err := types.NewContractAddress(req.Address)
+	if err != nil {
+		return newStorageAtResp(-1, err.Error(), ""), nil
+	}
+
+	addr := contractAddress.Hash160()
+
+	var key crypto.HashType
+	key.SetString(req.Position)
+
+	val := state.GetState(*addr, key)
+	err = state.Error()
+	if err != nil {
+		return newStorageAtResp(-1, err.Error(), ""), nil
+	}
+	return newStorageAtResp(0, "", val.String()), nil
 }

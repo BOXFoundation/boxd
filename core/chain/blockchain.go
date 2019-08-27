@@ -67,6 +67,8 @@ const (
 const (
 	free int32 = iota
 	busy
+
+	defaultGasPrice = 1
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -75,6 +77,7 @@ var _ service.ChainReader = (*BlockChain)(nil)
 
 // Config defines the configurations of chain
 type Config struct {
+	GasPrice        uint32 `mapstructure:"gas_price"`
 	ContractBinPath string `mapstructure:"contract_bin_path"`
 	ContractABIPath string `mapstructure:"contract_abi_path"`
 }
@@ -1637,7 +1640,7 @@ func (chain *BlockChain) GetBlockLogs(hash *crypto.HashType) ([]*types.Log, erro
 	return logs, nil
 }
 
-// NewEvmContextForLocalCallByHeight new a evm context for loval call by block height.
+// NewEvmContextForLocalCallByHeight new a evm context for local call by block height.
 func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
 	if height == 0 {
 		height = chain.tail.Header.Height
@@ -1653,6 +1656,22 @@ func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, he
 	state.SetBalance(*msg.From(), math.MaxBig256)
 	context := NewEVMContext(msg, block.Header, chain)
 	return vm.NewEVM(context, state, vm.Config{}), state.Error, nil
+}
+
+// GetStateDbByHeight get statedb by block height.
+func (chain *BlockChain) GetStateDbByHeight(height uint32) (*state.StateDB, error) {
+	if height == 0 {
+		return chain.TailState(), nil
+	}
+	block, err := chain.LoadBlockByHeight(height)
+	if block == nil || err != nil {
+		return nil, err
+	}
+	state, err := state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
+	if state == nil || err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // StoreBlockWithIndex store block to db in batch mod.
@@ -2286,4 +2305,13 @@ func IsContractAddr(
 		return false
 	}
 	return true
+}
+
+// SuggestGasPrice gives a recommended gas price to users.
+func (chain *BlockChain) SuggestGasPrice() uint32 {
+	gasPrice := chain.cfg.GasPrice
+	if gasPrice == 0 {
+		return defaultGasPrice
+	}
+	return gasPrice
 }

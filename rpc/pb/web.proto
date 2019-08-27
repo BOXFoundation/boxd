@@ -30,6 +30,34 @@ service WebApi {
         };
     }
 
+    rpc GetCode (GetCodeReq) returns (GetCodeResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/code"
+            body: "*"
+        };
+    }
+
+    rpc GasPrice (GasPriceReq) returns (GasPriceResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/gasPrice"
+            body: "*"
+        };
+    }
+
+    rpc EstimateGas (CallReq) returns (EstimateGasResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/estimateGas"
+            body: "*"
+        };
+    }
+
+    rpc GetStorageAt (StorageReq) returns (StorageResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/getStorageAt"
+            body: "*"
+        };
+    }
+
     rpc Nonce (NonceReq) returns (NonceResp) {
         option (google.api.http) = {
             post: "/v1/account/nonce"
@@ -249,6 +277,12 @@ message CallResp {
     string output = 3;
 }
 
+message EstimateGasResp {
+    int32 code = 1;
+    string message = 2;
+    int32 gas = 3;
+}
+
 message NonceReq {
     string addr = 1;
 }
@@ -290,4 +324,35 @@ message MinerDetail {
     string id = 1;
     string address = 2;
     repeated string iplist = 3;
+}
+
+message GetCodeReq {
+    string address = 1;
+}
+
+message GetCodeResp {
+    int32 code = 1;
+    string message = 2;
+    string data = 3;
+}
+
+message GasPriceReq {
+}
+
+message GasPriceResp {
+    int32 code = 1;
+    string message = 2;
+    int32 price = 3;
+}
+
+message StorageReq {
+    string address = 1;
+    string position = 2;
+    int32 height = 3;
+}
+
+message StorageResp {
+    int32 code = 1;
+    string message = 2;
+    string data = 3;
 }
