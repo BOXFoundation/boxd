@@ -113,8 +113,8 @@ contract Bonus is Permission{
 
 
     uint pledgePool;
-    uint dynastyBonusPool;
-    uint voteBonusPool;
+    // uint dynastyBonusPool;
+    // uint voteBonusPool;
 
     uint _global_open_pledge_limit;
 
@@ -244,8 +244,8 @@ contract Bonus is Permission{
     function calcBonus() public payable {
         require(msg.sender == block.coinbase, "only coinbase can do it.");
 
-        dynastyBonusPool = dynastyBonusPool.add(msg.value/2);
-        voteBonusPool = voteBonusPool.add(msg.value/2);
+        // dynastyBonusPool = dynastyBonusPool.add(msg.value/2);
+        // voteBonusPool = voteBonusPool.add(msg.value/2);
         dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(msg.value * (100 - netParams[BONUS_TO_VOTERS])/100);
 
         for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
@@ -266,7 +266,9 @@ contract Bonus is Permission{
             if (dynastyToBonus[dynasty[i].addr] > 0) {
                 dynasty[i].addr.transfer(dynastyToBonus[dynasty[i].addr]);
             }
+            delete dynastyToBonus[dynasty[i].addr];
         }
+
         if (pledgeAddrList.length > DYNASTY_SIZE) {
             updateDynasty();
             updateNetParams();
