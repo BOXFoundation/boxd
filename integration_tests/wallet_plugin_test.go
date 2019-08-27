@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	connAddr = "127.0.0.1:19111"
+	connAddr = "39.97.168.26:19111"
 )
 
 var (
@@ -110,7 +110,7 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 	time.Sleep(2 * time.Second)
 
 	// view tx detail
-	vconn, err := rpcutil.GetGRPCConn("127.0.0.1:19111")
+	vconn, err := rpcutil.GetGRPCConn(connAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func _TestTokenTx(t *testing.T) {
 		GasPrice: 10,
 	}
 	bytes, _ := json.MarshalIndent(req, "", "  ")
-	logger.Errorf("make unsigned token issue tx: %s", string(bytes))
+	logger.Infof("make unsigned token issue tx: %s", string(bytes))
 	//
 	hashStr := flow(t, func(ctx context.Context,
 		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
