@@ -22,6 +22,7 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
+	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -183,7 +184,7 @@ func maketx(cmd *cobra.Command, args []string) {
 		fmt.Println("Inconsistent parameter numbers")
 		return
 	}
-	fmt.Println("transaction: ", util.PrettyPrint(tx))
+	fmt.Println("transaction: ", format.PrettyPrint(tx))
 	rawTxBytes, err := tx.Marshal()
 	if err != nil {
 		fmt.Println("transaction marshal failed: ", err)
@@ -195,7 +196,7 @@ func maketx(cmd *cobra.Command, args []string) {
 	for _, x := range rawMsgs {
 		rawMsgStr = append(rawMsgStr, hex.EncodeToString(x))
 	}
-	fmt.Println("rawMsgs: ", util.PrettyPrint(rawMsgStr))
+	fmt.Println("rawMsgs: ", format.PrettyPrint(rawMsgStr))
 }
 
 func createRawTransaction(cmd *cobra.Command, args []string) {
@@ -316,7 +317,7 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(util.PrettyPrint(resp))
+	fmt.Println(format.PrettyPrint(resp))
 }
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
@@ -338,7 +339,7 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(util.PrettyPrint(tx))
+	fmt.Println(format.PrettyPrint(tx))
 }
 
 func decoderawtx(cmd *cobra.Command, args []string) {
@@ -357,7 +358,7 @@ func decoderawtx(cmd *cobra.Command, args []string) {
 		fmt.Println("Unmarshal error: ", err)
 		return
 	}
-	fmt.Println(util.PrettyPrint(tx))
+	fmt.Println(format.PrettyPrint(tx))
 }
 
 func signrawtx(cmd *cobra.Command, args []string) {
@@ -425,7 +426,7 @@ func signrawtx(cmd *cobra.Command, args []string) {
 	for i, sig := range scriptSigs {
 		tx.Vin[i].ScriptSig = sig
 	}
-	fmt.Println(util.PrettyPrint(tx))
+	fmt.Println(format.PrettyPrint(tx))
 	mashalTx, err := tx.Marshal()
 	if err != nil {
 		fmt.Println(err)
@@ -496,7 +497,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 	}
 	fmt.Println("Tx Hash: ", hash)
-	fmt.Println(util.PrettyPrint(tx))
+	fmt.Println(format.PrettyPrint(tx))
 }
 
 func parseSendParams(args []string) (addrs []string, amounts []uint64, err error) {

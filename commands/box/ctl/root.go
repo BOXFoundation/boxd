@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
+	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -224,7 +225,7 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Printf("Block info of hash %s is\n%s\n", hash, util.PrettyPrint(block))
+		fmt.Printf("Block info of hash %s is\n%s\n", hash, format.PrettyPrint(block))
 	}
 }
 
@@ -286,7 +287,7 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Printf("Block Header of hash %s is\n%s\n", hash, util.PrettyPrint(header))
+		fmt.Printf("Block Header of hash %s is\n%s\n", hash, format.PrettyPrint(header))
 	}
 }
 

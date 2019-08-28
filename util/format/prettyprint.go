@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 )
 
@@ -21,6 +22,8 @@ func PrettyPrint(obj interface{}) string {
 	switch val.Type() {
 	case hashType:
 		return obj.(crypto.HashType).String()
+	case addrHashType:
+		return obj.(types.AddressHash).String()
 	}
 
 	// basic types
@@ -57,6 +60,8 @@ func printValue(v reflect.Value) string {
 
 var hash crypto.HashType
 var hashType = reflect.TypeOf(hash)
+var addrHash types.AddressHash
+var addrHashType = reflect.TypeOf(addrHash)
 
 func arrayPrint(obj interface{}) string {
 	value := reflect.ValueOf(obj)
