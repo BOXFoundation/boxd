@@ -175,7 +175,9 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 		case <-timeChan.C:
 			if !bpos.chain.IsBusy() {
 				if err := bpos.run(time.Now().Unix()); err != nil {
-					logger.Error("Bpos run err. Err: ", err.Error())
+					if err != ErrNotMyTurnToProduce {
+						logger.Error("Bpos run err. Err: ", err.Error())
+					}
 				}
 			}
 
@@ -212,9 +214,6 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.candidates = bpos.filterCandidates(delegates, dynasty.delegates)
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
-		if err == ErrNotMyTurnToProduce {
-			return nil
-		}
 		return err
 	}
 	bpos.context.timestamp = timestamp
