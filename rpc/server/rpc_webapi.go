@@ -827,7 +827,8 @@ func detailBlock(
 		detail.Txs = append(detail.Txs, txDetail)
 	}
 	for _, tx := range block.InternalTxs {
-		txDetail, err := detailTx(tx, r, tr, false, detailVin)
+		// internal tx have no tx in detail since tx in is from contract utxo
+		txDetail, err := detailTx(tx, r, tr, false, false)
 		if err != nil {
 			hash, _ := tx.TxHash()
 			logger.Warnf("detail tx %s error: %s", hash, err)
