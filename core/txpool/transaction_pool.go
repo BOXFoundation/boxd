@@ -502,6 +502,7 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
 			tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
 			doubleSpentTxHash, _ := doubleSpentTx.TxHash()
+			logger.Warnf("Remove double spend tx when main chain update. TxHash: %v", doubleSpentTxHash)
 			tx_pool.hashToTx.Delete(*doubleSpentTxHash)
 		}
 
