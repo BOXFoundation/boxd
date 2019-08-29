@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -85,6 +86,11 @@ func init() {
 			Use:   "listaccounts",
 			Short: "List local accounts",
 			Run:   listAccountCmdFunc,
+		},
+		&cobra.Command{
+			Use:   "decodeaddress [address]",
+			Short: "decode address from base58 format to hash160",
+			Run:   decodeAddress,
 		},
 	)
 }
@@ -262,4 +268,18 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 		fmt.Println()
 	}
 	fmt.Printf("All wallets are dumped. %d successful %d failed\n", success, len(addrs)-success)
+}
+
+func decodeAddress(cmd *cobra.Command, args []string) {
+	if len(args) != 1 && len(args[0]) == 0 {
+		fmt.Println("invalid args")
+		fmt.Println(cmd.UsageString())
+		return
+	}
+	address, err := types.ParseAddress(args[0])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("address hash: %x\n", address.Hash160()[:])
 }
