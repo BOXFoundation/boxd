@@ -489,15 +489,15 @@ func (s *txServer) MakeUnsignedContractTx(
 	if err != nil {
 		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 	}
+	nonce := s.server.GetChainReader().TailState().GetNonce(*fromAddress.Hash160())
+	if req.GetNonce() <= nonce {
+		eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
+		return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
+	}
 	contractAddr := req.GetTo()
 	if req.IsDeploy {
 		if contractAddr != "" {
 			eStr := "contract addr must be empty when deploy contract"
-			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
-		}
-		nonce := s.server.GetChainReader().TailState().GetNonce(*fromAddress.Hash160())
-		if req.GetNonce() <= nonce {
-			eStr := fmt.Sprintf("mismatch nonce(%d, %d on chain)", req.GetNonce(), nonce)
 			return newMakeContractTxResp(-1, eStr, nil, nil, ""), nil
 		}
 		contractAddress, _ := types.MakeContractAddress(fromAddress, req.GetNonce())
