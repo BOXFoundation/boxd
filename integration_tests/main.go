@@ -101,7 +101,7 @@ func main() {
 			}
 			defer utils.StopNodes()
 		} else {
-			processes, err := utils.StartLocalNodes(len(utils.MinerAddrs()))
+			processes, err := utils.StartLocalNodes(len(utils.AllAddrs()))
 			defer utils.StopLocalNodes(processes...)
 			if utils.P2pTestEnable() {
 				go testP2p(proc)
