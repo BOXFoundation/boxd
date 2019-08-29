@@ -497,17 +497,19 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, gasP
 // Remove transaction from tx pool. Note we do not recursively remove dependent txs here
 func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) {
 	txHash, _ := tx.TxHash()
+	tx_pool.hashToTx.Delete(*txHash)
+
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
 		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
 			tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
 			doubleSpentTxHash, _ := doubleSpentTx.TxHash()
-			logger.Warnf("Remove double spend tx when main chain update. TxHash: %v", doubleSpentTxHash)
-			tx_pool.hashToTx.Delete(*doubleSpentTxHash)
+			if !doubleSpentTxHash.IsEqual(txHash) {
+				logger.Warnf("Remove double spend tx when main chain update. TxHash: %v", doubleSpentTxHash)
+				tx_pool.hashToTx.Delete(*doubleSpentTxHash)
+			}
 		}
-
 	}
-	tx_pool.hashToTx.Delete(*txHash)
 
 	if !recursive {
 		return
