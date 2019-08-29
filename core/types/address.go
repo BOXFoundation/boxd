@@ -5,6 +5,8 @@
 package types
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -75,6 +77,12 @@ func (a *AddressHash) Bytes() []byte {
 		return nil
 	}
 	return a[:]
+}
+
+// MarshalJSON implements Log json marshaler interface
+func (a AddressHash) MarshalJSON() ([]byte, error) {
+	out := hex.EncodeToString(a[:])
+	return json.Marshal(out)
 }
 
 // BytesToAddressHash converts bytes to addressHash.

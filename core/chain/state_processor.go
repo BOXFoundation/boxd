@@ -6,6 +6,7 @@ package chain
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -162,6 +163,9 @@ func ApplyTransaction(
 		txs = append(txs, internalTxs)
 	}
 	txhash := tx.OriginTxHash()
+	logs := statedb.GetLogs(*txhash)
+	logsBytes, _ := json.Marshal(logs)
+	logger.Infof("tx %s contract logs: %s", txhash, string(logsBytes))
 	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, deployed, fail,
 		gasUsed, statedb.GetLogs(*txhash))
 
