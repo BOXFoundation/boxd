@@ -873,6 +873,17 @@ func detailTxIn(
 				index, prevTx.Vout[index], err)
 			return nil, err
 		}
+	} else if script.IsContractSig(txIn.ScriptSig) { // internal contract tx
+		contractAddr, err := types.NewContractAddressFromHash(
+			types.NewAddressHash(txIn.PrevOutPoint.Hash[:])[:])
+		if err != nil {
+			return nil, fmt.Errorf("new contract address from PrevOutpoint %s error: %s",
+				txIn.PrevOutPoint.Hash, err)
+		}
+		detail.PrevOutDetail = &rpcpb.TxOutDetail{
+			Addr: contractAddr.String(),
+			Type: rpcpb.TxOutDetail_unknown,
+		}
 	}
 	return detail, nil
 }

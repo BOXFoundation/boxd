@@ -63,6 +63,13 @@ type AddressType int
 // AddressHash Alias for address hash
 type AddressHash [ripemd160.Size]byte
 
+// NewAddressHash news a AddressHash
+func NewAddressHash(b []byte) *AddressHash {
+	a := new(AddressHash)
+	a.SetBytes(b)
+	return a
+}
+
 // SetBytes set bytes for a addressHash.
 func (a *AddressHash) SetBytes(b []byte) {
 	if len(b) > len(a) {

@@ -614,8 +614,8 @@ func (s *Script) IsSplitAddrScript() bool {
 }
 
 // IsContractSig returns true if the script sig contains OPCONTRACT code
-func (s *Script) IsContractSig() bool {
-	return len(*s) == 1 && (*s)[0] == byte(OPCONTRACT)
+func IsContractSig(sig []byte) bool {
+	return len(sig) == 1 && sig[0] == byte(OPCONTRACT)
 }
 
 // IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
