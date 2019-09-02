@@ -225,9 +225,6 @@ func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, lay
 }
 
 func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
-	if len(agents) == 0 {
-		return t.defaultDiscover(all)
-	}
 	peerIDs = append(peerIDs, agents...)
 	peerIDs = append(peerIDs, seeds...)
 
@@ -240,9 +237,6 @@ func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
 }
 
 func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
-	if len(agents) == 0 {
-		return t.defaultDiscover(all)
-	}
 	peerIDs = append(peerIDs, agents...)
 	peerIDs = append(peerIDs, seeds...)
 

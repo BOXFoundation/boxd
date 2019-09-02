@@ -62,9 +62,6 @@ func testP2p(proc goprocess.Process) {
 			if err != nil {
 				panic(err)
 			}
-			if len(agents) == 0 {
-				continue
-			}
 
 			conn, err := rpcutil.GetGRPCConn(addr)
 			if err != nil {

@@ -5,6 +5,8 @@
 package types
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -61,6 +63,13 @@ type AddressType int
 // AddressHash Alias for address hash
 type AddressHash [ripemd160.Size]byte
 
+// NewAddressHash news a AddressHash
+func NewAddressHash(b []byte) *AddressHash {
+	a := new(AddressHash)
+	a.SetBytes(b)
+	return a
+}
+
 // SetBytes set bytes for a addressHash.
 func (a *AddressHash) SetBytes(b []byte) {
 	if len(b) > len(a) {
@@ -75,6 +84,12 @@ func (a *AddressHash) Bytes() []byte {
 		return nil
 	}
 	return a[:]
+}
+
+// MarshalJSON implements Log json marshaler interface
+func (a AddressHash) MarshalJSON() ([]byte, error) {
+	out := hex.EncodeToString(a[:])
+	return json.Marshal(out)
 }
 
 // BytesToAddressHash converts bytes to addressHash.

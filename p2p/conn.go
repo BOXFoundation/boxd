@@ -446,16 +446,13 @@ func (conn *Conn) checkMessage(msg *message) error {
 func (conn *Conn) KeepConn() bool {
 
 	// If I don't know who you are and I have an agent, then connections are not allowed.
-	remoteType, nodoubt := conn.peer.Type(conn.remotePeer)
-	if !nodoubt && len(agents) != 0 {
-		return false
-	}
+	remoteType, _ := conn.peer.Type(conn.remotePeer)
 
 	// If I don't know who I am, I can't connect to layfolk peer.
 	if conn.peer.peertype == pstore.UnknownPeer {
 		pType, nodoubt := conn.peer.Type(conn.peer.id)
 		if !nodoubt {
-			if remoteType != pstore.LayfolkPeer {
+			if remoteType == pstore.MinerPeer || remoteType == pstore.CandidatePeer {
 				return true
 			}
 			return false
@@ -464,9 +461,6 @@ func (conn *Conn) KeepConn() bool {
 	}
 	switch conn.peer.peertype {
 	case pstore.MinerPeer, pstore.CandidatePeer:
-		if len(agents) == 0 {
-			return true
-		}
 		if remoteType == pstore.LayfolkPeer {
 			return false
 		}

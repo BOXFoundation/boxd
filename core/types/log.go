@@ -5,6 +5,9 @@
 package types
 
 import (
+	"encoding/hex"
+	"encoding/json"
+
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -41,6 +44,32 @@ type Log struct {
 	// The Removed field is true if this log was reverted due to a chain reorganisation.
 	// You must pay attention to this field if you receive logs through a filter query.
 	Removed bool `json:"removed"`
+}
+
+// MarshalJSON implements Log json marshaler interface
+func (log *Log) MarshalJSON() ([]byte, error) {
+	out := struct {
+		Address     AddressHash       `json:"address"`
+		Topics      []crypto.HashType `json:"topics"`
+		Data        string            `json:"data"`
+		BlockNumber uint64            `json:"blockNumber"`
+		TxHash      crypto.HashType   `json:"transactionHash"`
+		TxIndex     uint32            `json:"transactionIndex"`
+		BlockHash   crypto.HashType   `json:"blockHash"`
+		Index       uint32            `json:"logIndex"`
+		Removed     bool              `json:"removed"`
+	}{
+		log.Address,
+		log.Topics,
+		hex.EncodeToString(log.Data),
+		log.BlockNumber,
+		log.TxHash,
+		log.TxIndex,
+		log.BlockHash,
+		log.Index,
+		log.Removed,
+	}
+	return json.Marshal(out)
 }
 
 func (log *Log) toHashLog() *hashLog {
