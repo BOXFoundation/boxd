@@ -27,7 +27,9 @@ const (
 
 	TransferGasLimit = 21000
 
-	MinGasPrice = 0
+	FixedGasPrice = uint64(50)
+
+	TransferFee = FixedGasPrice * TransferGasLimit
 
 	SyncFlag = "sync"
 )

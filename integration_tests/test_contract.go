@@ -23,9 +23,7 @@ import (
 )
 
 const (
-	gasPrice  = 2
-	createGas = uint64(1040000) * gasPrice
-	sendGas   = uint64(40000) * 500 * gasPrice
+	sendGas = uint64(40000) * 500 * core.FixedGasPrice
 )
 
 // ContractTest manage circulation of ERC20 contract
@@ -77,6 +75,7 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	defer UnpickMiner(miner)
 	//
+	createGas := uint64(1040000) * core.FixedGasPrice
 	logger.Infof("waiting for minersAddr %s has %d at least for contract test",
 		miner, createGas+sendGas)
 	_, err = utils.WaitBalanceEnough(miner, createGas+sendGas, conn, timeoutToChain)
@@ -94,7 +93,7 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	prevOwnerBalance := utils.BalanceFor(owner, conn)
 	prevSpenderBalance := utils.BalanceFor(spender, conn)
 	minerAcc, _ := AddrToAcc.Load(miner)
-	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
+	tx, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
 		[]*types.AddressHash{ownerAddress.Hash160(), spenderAddress.Hash160()},
 		[]uint64{createGas, sendGas}, conn)
 	if err != nil {
@@ -137,17 +136,16 @@ func contractRepeatTest(
 	prevOwnerBalance := utils.BalanceFor(owner, conn)
 	prevSpenderBalance := utils.BalanceFor(spender, conn)
 	// issue some token
-	logger.Infof("%s issue 10000*10^8 token to %s", owner, spender)
+	logger.Infof("%s issue 10000*10^8 token to himself", owner)
 	ownerAcc, _ := AddrToAcc.Load(owner)
 	erc20Bytes, _ := hex.DecodeString(testERC20Contract)
 	gasLimit, nonce := uint64(1000000), utils.NonceFor(owner, conn)+1
-	tx, contractAddr, err := rpcutil.NewContractDeployTx(ownerAcc.(*acc.Account), gasPrice,
+	tx, contractAddr, err := rpcutil.NewContractDeployTx(ownerAcc.(*acc.Account),
 		gasLimit, nonce, erc20Bytes, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
 	logger.Infof("contract addr: %s", contractAddr)
-	nonce++
 	if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
@@ -155,9 +153,9 @@ func contractRepeatTest(
 	atomic.AddUint64(txCnt, 1)
 
 	// check issue result
-	totalAmount := uint64(10000 * 100000000)
-	logger.Infof("wait for ERC20 balance of owner %s equal to %d, timeout %v",
-		spender, totalAmount, timeoutToChain)
+	totalAmount := uint64(10000 * 1e8)
+	logger.Infof("wait for ERC20 balance of %s equal to %d, timeout %v",
+		owner, totalAmount, timeoutToChain)
 	code := erc20BalanceOfCall(owner)
 	err = utils.WaitERC20BalanceEqualTo(owner, contractAddr, totalAmount, code,
 		conn, timeoutToChain)
@@ -168,14 +166,14 @@ func contractRepeatTest(
 	// approve spender 10000*10^8
 	logger.Infof("%s approve spender %s 10000*10^8 token", owner, spender)
 	gasLimit = 40000
+	nonce++
 	code = erc20ApproveCall(spender, totalAmount)
-	contractAddress, _ := types.ParseAddress(contractAddr)
+	contractAddress, _ := types.NewContractAddress(contractAddr)
 	tx, err = rpcutil.NewContractCallTx(ownerAcc.(*acc.Account),
-		contractAddress.Hash160(), gasPrice, gasLimit, nonce, code, conn)
+		contractAddress.Hash160(), gasLimit, nonce, code, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
-	nonce++
 	if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
@@ -202,7 +200,7 @@ func contractRepeatTest(
 	spendNonce := utils.NonceFor(spender, conn) + 1
 	code = erc20TransferFromCall(owner, receiver, amount/uint64(times))
 	txs, err := rpcutil.NewERC20TransferFromContractTxs(spenderAcc.(*acc.Account),
-		contractAddress.Hash160(), times, gasPrice, gasLimit, spendNonce, code, conn)
+		contractAddress.Hash160(), times, gasLimit, spendNonce, code, conn)
 	// send contract transferFrom txs
 	for _, tx := range txs {
 		if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
@@ -210,7 +208,7 @@ func contractRepeatTest(
 			logger.Panic(err)
 		}
 		atomic.AddUint64(txCnt, 1)
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	logger.Infof("%s has transfered %d times total %d contract transferFrom tx to %s",
 		spender, times, totalAmount, receiver)
@@ -238,16 +236,18 @@ func contractRepeatTest(
 	// for owner box
 	gasUsed := uint64(995919 + 24815)
 	logger.Infof("wait for box balance of owner %s equal to %d, timeout %v",
-		owner, createGas-gasUsed*gasPrice, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(owner, prevOwnerBalance-gasUsed*gasPrice, conn, timeoutToChain)
+		owner, prevOwnerBalance-gasUsed*core.FixedGasPrice, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(owner, prevOwnerBalance-gasUsed*core.FixedGasPrice,
+		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
 	// for spender box
 	gasUsed = uint64(39792 + 24792*(times-1))
 	logger.Infof("wait for box balance of spender %s equal to %d, timeout %v",
-		spender, sendGas-gasUsed*gasPrice, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance-gasUsed*gasPrice, conn, timeoutToChain)
+		spender, prevSpenderBalance-gasUsed*core.FixedGasPrice, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance-gasUsed*core.FixedGasPrice,
+		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}

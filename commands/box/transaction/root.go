@@ -65,7 +65,7 @@ func init() {
 			},
 		},
 		&cobra.Command{
-			Use:   "createtx [from] [to1,to2...] [amounts1,amounts2...] [gasPrice]",
+			Use:   "createtx [from] [to1,to2...] [amounts1,amounts2...]",
 			Short: "create an unsigned transaction,",
 			Long:  "Returns a set of raw message for signing and a hex encoded transaction string",
 			Run:   maketx,
@@ -126,7 +126,7 @@ to quickly create a Cobra  application.`,
 }
 
 func maketx(cmd *cobra.Command, args []string) {
-	if len(args) != 4 {
+	if len(args) != 3 {
 		fmt.Println("Invalide argument number")
 		return
 	}
@@ -150,17 +150,10 @@ func maketx(cmd *cobra.Command, args []string) {
 		amounts = append(amounts, uint64(tmp))
 	}
 
-	gasPrice, err := strconv.ParseUint(args[3], 10, 64)
-	if err != nil {
-		fmt.Println("Conversion failed: ", err)
-		return
-	}
-
 	req := &rpcpb.MakeTxReq{
-		From:     from,
-		To:       toAddr,
-		Amounts:  amounts,
-		GasPrice: gasPrice,
+		From:    from,
+		To:      toAddr,
+		Amounts: amounts,
 	}
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
@@ -487,7 +480,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTx(account, toHashes, amounts, conn)
+	tx, _, err := rpcutil.NewTx(account, toHashes, amounts, conn)
 	if err != nil {
 		fmt.Println("new tx error: ", err)
 		return

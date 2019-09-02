@@ -7,6 +7,7 @@ package txlogic
 import (
 	"errors"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
@@ -48,8 +49,7 @@ func NewTxWithUtxos(
 
 // NewSplitAddrTxWithUtxos new split address tx
 func NewSplitAddrTxWithUtxos(
-	acc *acc.Account, addrs []*types.AddressHash, weights []uint32,
-	utxos []*rpcpb.Utxo, fee uint64,
+	acc *acc.Account, addrs []*types.AddressHash, weights []uint32, utxos []*rpcpb.Utxo,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 
 	if len(addrs) != len(weights) {
@@ -61,7 +61,7 @@ func NewSplitAddrTxWithUtxos(
 	for _, u := range utxos {
 		utxoValue += u.GetTxOut().GetValue()
 	}
-	changeAmt := utxoValue - fee
+	changeAmt := utxoValue - core.TransferFee
 	// make unsigned split addr tx
 	tx, err = MakeUnsignedSplitAddrTx(acc.AddressHash(), addrs, weights,
 		changeAmt, utxos...)
@@ -222,12 +222,12 @@ func makeUnsignedContractTx(
 
 //MakeUnsignedContractDeployTx make a contract tx without signature
 func MakeUnsignedContractDeployTx(
-	from *types.AddressHash, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	from *types.AddressHash, amount, changeAmt, gasLimit, nonce uint64,
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
-	contractVout, err := MakeContractCreationVout(from, amount,
-		gasLimit, gasPrice, nonce)
+	contractVout, err := MakeContractCreationVout(from, amount, gasLimit,
+		core.FixedGasPrice, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -236,10 +236,11 @@ func MakeUnsignedContractDeployTx(
 
 //MakeUnsignedContractCallTx call a contract tx without signature
 func MakeUnsignedContractCallTx(
-	from, to *types.AddressHash, amount, changeAmt, gasLimit, gasPrice, nonce uint64,
+	from, to *types.AddressHash, amount, changeAmt, gasLimit, nonce uint64,
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-	contractVout, err := MakeContractCallVout(from, to, amount, gasLimit, gasPrice, nonce)
+	contractVout, err := MakeContractCallVout(from, to, amount, gasLimit,
+		core.FixedGasPrice, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -249,10 +250,10 @@ func MakeUnsignedContractCallTx(
 // NewContractTxWithUtxos new a contract transaction
 func NewContractTxWithUtxos(
 	fromAcc *acc.Account, contractAddr *types.AddressHash, amount, changeAmt,
-	gasPrice, gasLimit, nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
+	gasLimit, nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, error) {
 	tx, err := MakeUnsignedContractCallTx(fromAcc.AddressHash(), contractAddr,
-		amount, changeAmt, gasLimit, gasPrice, nonce, byteCode, utxos...)
+		amount, changeAmt, gasLimit, nonce, byteCode, utxos...)
 	if err != nil {
 		return nil, nil, err
 	}

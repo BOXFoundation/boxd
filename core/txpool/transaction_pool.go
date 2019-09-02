@@ -5,7 +5,6 @@
 package txpool
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -711,19 +710,23 @@ func (tx_pool *TransactionPool) CheckGasPrice(
 		// check whether contract utxo exists if it is a contract call tx
 		// NOTE: here not to consider that a contract deploy tx is in tx pool
 		if !contractCreation && !tx_pool.chain.TailState().Exist(*param.To) {
-			return 0, core.ErrContractNotFound
+			return 0, fmt.Errorf("contract call error: %s, tail block: %s:%d",
+				core.ErrContractNotFound, tx_pool.chain.TailBlock().BlockHash(),
+				tx_pool.chain.TailBlock().Header.Height)
 		}
 		// check sender nonce
 		nonceOnChain := tx_pool.chain.TailState().GetNonce(*param.From)
 		if param.Nonce != nonceOnChain+1 {
-			return 0, fmt.Errorf("mismatch nonce(%d, %d on chain)", param.Nonce, nonceOnChain)
+			return 0, fmt.Errorf("mismatch nonce for %s(%d, %d on chain), tail block: %s:%d",
+				param.From, param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().BlockHash(),
+				tx_pool.chain.TailBlock().Header.Height)
 		}
 	} else {
 		gasPrice = txFee / core.TransferGasLimit
 	}
 
-	if gasPrice < core.MinGasPrice {
-		return 0, errors.New("tx gasPrice is too low")
+	if gasPrice != core.FixedGasPrice {
+		return 0, fmt.Errorf("tx gasPrice %d is less than %d", gasPrice, core.FixedGasPrice)
 	}
 	return gasPrice, nil
 }

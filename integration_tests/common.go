@@ -24,7 +24,6 @@ type picker struct {
 
 const (
 	timeoutToChain = 15 * time.Second
-	totalAmount    = 1000000
 )
 
 var (
@@ -53,7 +52,7 @@ func PickOneMiner() (string, bool) {
 
 	for i, picked := range minerPicker.status {
 		if !picked {
-			if _, err := utils.WaitBalanceEnough(origAddrs[i], chain.BaseSubsidy, conn,
+			if _, err := utils.WaitBalanceEnough(origAddrs[i], testCoins, conn,
 				time.Second); err != nil {
 				time.Sleep(time.Second)
 				continue

@@ -173,8 +173,6 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 				evm.vmConfig.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value)
 				evm.vmConfig.Tracer.CaptureEnd(ret, 0, 0, nil)
 			}
-			// TODO: del the log later
-			logger.Errorf("ONLY FOR DEBUG: precompiles[addr] == nil && value.Sign() == 0")
 			return nil, gas, nil
 		}
 		evm.StateDB.CreateAccount(addr)
