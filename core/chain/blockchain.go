@@ -749,7 +749,7 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 			continue
 		}
 
-		txFee, err := ValidateTxInputs(utxoSet, tx, block.Header.Height)
+		txFee, err := ValidateTxInputs(utxoSet, tx)
 		if err != nil {
 			return 0, err
 		}

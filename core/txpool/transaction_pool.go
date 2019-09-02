@@ -330,56 +330,10 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
-	txFee, err := chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
+	gasPrice, err := tx_pool.CheckGasPrice(tx, utxoSet)
 	if err != nil {
 		return err
 	}
-
-	var gasPrice uint64
-	contractVout, err := txlogic.CheckAndGetContractVout(tx)
-	if err != nil {
-		return err
-	}
-	if contractVout != nil { // smart contract tx.
-		if tx.Data == nil || tx.Data.Type != int32(types.ContractDataType) ||
-			len(tx.Data.Content) == 0 {
-			return core.ErrContractDataNotFound
-		}
-		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
-		param, ty, err := sc.ParseContractParams()
-		if err != nil {
-			return err
-		}
-		if txFee != param.GasLimit*param.GasPrice {
-			return core.ErrInvalidFee
-		}
-		contractCreation := ty == types.ContractCreationType
-		gas, err := chain.IntrinsicGas(tx.Data.Content, contractCreation)
-		if err != nil {
-			return err
-		}
-		if param.GasLimit < gas {
-			return vm.ErrOutOfGas
-		}
-		gasPrice = param.GasPrice
-		// check contract tx from
-		if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
-			*addr.Hash160() != *param.From {
-			return fmt.Errorf("contract tx from address mismatched")
-		}
-		// check whether contract utxo exists if it is a contract call tx
-		// NOTE: here not to consider that a contract deploy tx is in tx pool
-		if !contractCreation && !tx_pool.chain.TailState().Exist(*param.To) {
-			return core.ErrContractNotFound
-		}
-	} else {
-		gasPrice = txFee / core.TransferGasLimit
-	}
-
-	if gasPrice < core.MinGasPrice {
-		return errors.New("tx gasPrice is too low")
-	}
-
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 
@@ -456,6 +410,8 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			orphans.Range(func(k, v interface{}) bool {
 				orphan := v.(*types.Transaction)
 				if err := tx_pool.maybeAcceptTx(orphan, core.DefaultMode, false); err != nil {
+					txHash, _ := orphan.TxHash()
+					logger.Warnf("Failed to accept orphan tx. TxHash: %s, Err: %s", txHash, err)
 					return true
 				}
 				tx_pool.removeOrphan(orphan)
@@ -708,4 +664,66 @@ func lengthOfSyncMap(target *sync.Map) int {
 		return true
 	})
 	return length
+}
+
+//CheckGasPrice checks whether gas price of tx is valid
+func (tx_pool *TransactionPool) CheckGasPrice(
+	tx *types.Transaction, utxoSet *chain.UtxoSet,
+) (uint64, error) {
+
+	var gasPrice uint64
+
+	txFee, err := chain.ValidateTxInputs(utxoSet, tx)
+	if err != nil {
+		return 0, err
+	}
+	contractVout, err := txlogic.CheckAndGetContractVout(tx)
+	if err != nil {
+		return 0, err
+	}
+	if contractVout != nil { // smart contract tx.
+		if tx.Data == nil || tx.Data.Type != int32(types.ContractDataType) ||
+			len(tx.Data.Content) == 0 {
+			return 0, core.ErrContractDataNotFound
+		}
+		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+		param, ty, err := sc.ParseContractParams()
+		if err != nil {
+			return 0, err
+		}
+		if txFee != param.GasLimit*param.GasPrice {
+			return 0, core.ErrInvalidFee
+		}
+		contractCreation := ty == types.ContractCreationType
+		gas, err := chain.IntrinsicGas(tx.Data.Content, contractCreation)
+		if err != nil {
+			return 0, err
+		}
+		if param.GasLimit < gas {
+			return 0, vm.ErrOutOfGas
+		}
+		gasPrice = param.GasPrice
+		// check contract tx from
+		if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
+			*addr.Hash160() != *param.From {
+			return 0, fmt.Errorf("contract tx from address mismatched")
+		}
+		// check whether contract utxo exists if it is a contract call tx
+		// NOTE: here not to consider that a contract deploy tx is in tx pool
+		if !contractCreation && !tx_pool.chain.TailState().Exist(*param.To) {
+			return 0, core.ErrContractNotFound
+		}
+		// check sender nonce
+		nonceOnChain := tx_pool.chain.TailState().GetNonce(*param.From)
+		if param.Nonce != nonceOnChain+1 {
+			return 0, fmt.Errorf("mismatch nonce(%d, %d on chain)", param.Nonce, nonceOnChain)
+		}
+	} else {
+		gasPrice = txFee / core.TransferGasLimit
+	}
+
+	if gasPrice < core.MinGasPrice {
+		return 0, errors.New("tx gasPrice is too low")
+	}
+	return gasPrice, nil
 }

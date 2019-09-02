@@ -873,6 +873,17 @@ func detailTxIn(
 				index, prevTx.Vout[index], err)
 			return nil, err
 		}
+	} else if script.IsContractSig(txIn.ScriptSig) { // internal contract tx
+		contractAddr, err := types.NewContractAddressFromHash(
+			types.NewAddressHash(txIn.PrevOutPoint.Hash[:])[:])
+		if err != nil {
+			return nil, fmt.Errorf("new contract address from PrevOutpoint %s error: %s",
+				txIn.PrevOutPoint.Hash, err)
+		}
+		detail.PrevOutDetail = &rpcpb.TxOutDetail{
+			Addr: contractAddr.String(),
+			Type: rpcpb.TxOutDetail_unknown,
+		}
 	}
 	return detail, nil
 }
@@ -957,34 +968,39 @@ func detailTxOut(
 			params *types.VMTxParams
 			typ    types.ContractType
 		)
-		if data == nil || data.Type != int32(types.ContractDataType) ||
-			len(data.Content) == 0 {
-			return nil, core.ErrContractDataNotFound
+		var content []byte
+		if data != nil {
+			content = data.Content
 		}
 		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		params, typ, err = sc.ParseContractParams()
 		if err != nil {
 			return nil, err
 		}
-		// get tx reveipt.
-		receipt, err := br.GetTxReceipt(txHash)
-		if err != nil {
-			logger.Warn(err)
-			return nil, err
+		fee, failed, gasUsed := uint32(0), false, uint64(0)
+		var logs []*rpcpb.LogDetail
+		if content != nil { // not an internal contract tx
+			receipt, err := br.GetTxReceipt(txHash)
+			if err != nil {
+				logger.Warn(err)
+				return nil, err
+			}
+			if receipt == nil {
+				return nil, fmt.Errorf("receipt for tx %s not found", txHash)
+			}
+			fee, failed, gasUsed = uint32(receipt.GasUsed*params.GasPrice),
+				receipt.Failed, receipt.GasUsed
+			logs = rpcutil.ToPbLogs(receipt.Logs)
 		}
-		if receipt == nil {
-			return nil, fmt.Errorf("receipt for tx %s not found", txHash)
-		}
-
 		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
 			ContractInfo: &rpcpb.ContractInfo{
-				Fee:      uint32(receipt.GasUsed * params.GasPrice),
-				Failed:   receipt.Failed,
+				Fee:      fee,
+				Failed:   failed,
 				GasLimit: params.GasLimit,
-				GasUsed:  receipt.GasUsed,
+				GasUsed:  gasUsed,
 				Nonce:    params.Nonce,
-				Data:     hex.EncodeToString(data.Content),
-				Logs:     rpcutil.ToPbLogs(receipt.Logs),
+				Data:     hex.EncodeToString(content),
+				Logs:     logs,
 			},
 		}
 		if typ == types.ContractCreationType {

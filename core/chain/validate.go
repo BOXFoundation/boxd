@@ -280,7 +280,7 @@ func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool
 
 // ValidateTxInputs validates the inputs of a tx.
 // Returns the total tx fee.
-func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) (uint64, error) {
+func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction) (uint64, error) {
 	// Coinbase tx needs no inputs.
 	if IsCoinBase(tx) || IsDynastySwitch(tx) {
 		return 0, nil
