@@ -71,7 +71,6 @@ type TransactionPool struct {
 	// types.OutPoint -> (crypto.HashType -> *types.Transaction)
 	outPointToOrphan *sync.Map
 	txcache          *lru.Cache
-	legalTxs         *sync.Map
 }
 
 // NewTransactionPool new a transaction pool.
@@ -90,7 +89,6 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		outPointToOrphan:    new(sync.Map),
 		outPointToTx:        new(sync.Map),
 		txcache:             txcache,
-		legalTxs:            new(sync.Map),
 	}
 }
 
@@ -310,12 +308,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	// 	logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
 	// 	return err
 	// }
-	// Quickly detects if the tx double spends with any transaction in the pool.
-	// Double spending with the main chain txs will be checked in ValidateTxInputs.
-	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
-		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
-		return err
-	}
 	utxoSet, err := chain.GetExtendedTxUtxoSet(tx, tx_pool.chain.DB(), tx_pool.hashToTx)
 	if err != nil {
 		logger.Errorf("Could not get extended utxo set for tx %v", txHash)
@@ -329,8 +321,14 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
-	gasPrice, err := tx_pool.CheckGasPrice(tx, utxoSet)
+	gasPrice, err := tx_pool.CheckGasAndNonce(tx, utxoSet)
 	if err != nil {
+		return err
+	}
+	// Quickly detects if the tx double spends with any transaction in the pool.
+	// Double spending with the main chain txs will be checked in ValidateTxInputs.
+	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
+		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
 		return err
 	}
 	// To check script later so main thread is not blocked
@@ -379,14 +377,30 @@ func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
 }
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
-	for _, txIn := range tx.Vin {
-		if tx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
-			txHash, _ := tx.TxHash()
-			logger.Debugf("Double spend prev hash: %v, first tx hash: %v", txIn.PrevOutPoint.Hash.String(), txHash.String())
-			return core.ErrOutPutAlreadySpent
+	if dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx); len(dsTxs) > 0 {
+		for i := 0; i < len(dsTxs); i++ {
+			txHash, _ := dsTxs[i].TxHash()
+			logger.Debugf("Double spend prev hash: %v, first tx hash: %v", dsOps[i].Hash, txHash)
 		}
+		return core.ErrOutPutAlreadySpent
 	}
 	return nil
+}
+
+func (tx_pool *TransactionPool) getPoolDoubleSpendTxs(
+	tx *types.Transaction,
+) ([]*types.OutPoint, []*types.Transaction) {
+	var (
+		ops []*types.OutPoint
+		txs []*types.Transaction
+	)
+	for _, txIn := range tx.Vin {
+		if tx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+			ops = append(ops, &txIn.PrevOutPoint)
+			txs = append(txs, tx)
+		}
+	}
+	return ops, txs
 }
 
 // ProcessOrphans used to handle orphan transactions
@@ -665,8 +679,8 @@ func lengthOfSyncMap(target *sync.Map) int {
 	return length
 }
 
-//CheckGasPrice checks whether gas price of tx is valid
-func (tx_pool *TransactionPool) CheckGasPrice(
+// CheckGasAndNonce checks whether gas price of tx is valid
+func (tx_pool *TransactionPool) CheckGasAndNonce(
 	tx *types.Transaction, utxoSet *chain.UtxoSet,
 ) (uint64, error) {
 
@@ -710,16 +724,30 @@ func (tx_pool *TransactionPool) CheckGasPrice(
 		// check whether contract utxo exists if it is a contract call tx
 		// NOTE: here not to consider that a contract deploy tx is in tx pool
 		if !contractCreation && !tx_pool.chain.TailState().Exist(*param.To) {
-			return 0, fmt.Errorf("contract call error: %s, tail block: %s:%d",
-				core.ErrContractNotFound, tx_pool.chain.TailBlock().BlockHash(),
-				tx_pool.chain.TailBlock().Header.Height)
+			return 0, fmt.Errorf("contract call error: %s, block height: %d",
+				core.ErrContractNotFound, tx_pool.chain.TailBlock().Header.Height)
 		}
 		// check sender nonce
 		nonceOnChain := tx_pool.chain.TailState().GetNonce(*param.From)
-		if param.Nonce != nonceOnChain+1 {
-			return 0, fmt.Errorf("mismatch nonce for %s(%d, %d on chain), tail block: %s:%d",
-				param.From, param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().BlockHash(),
-				tx_pool.chain.TailBlock().Header.Height)
+		if param.Nonce < nonceOnChain+1 {
+			return 0, fmt.Errorf("%s(%d, %d on chain), block height: %d",
+				core.ErrNonceTooLow, param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
+		} else if param.Nonce >= nonceOnChain+1 {
+			// check whether a tx is in pool that have a bigger nonce
+			dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
+			for i := 0; i < len(dsTxs); i++ {
+				contractVout, _ := txlogic.CheckAndGetContractVout(dsTxs[i])
+				sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+				p, _, _ := sc.ParseContractParams()
+				if param.Nonce < p.Nonce {
+					txHash, _ := tx.TxHash()
+					dsHash, _ := dsTxs[i].TxHash()
+					logger.Warnf("remove tx %s(nonce %d) from pool since tx %s have a "+
+						"lower nonce(%d)", dsHash, p.Nonce, txHash, param.Nonce)
+					tx_pool.outPointToTx.Delete(*dsOps[i])
+					tx_pool.hashToTx.Delete(*dsHash)
+				}
+			}
 		}
 	} else {
 		gasPrice = txFee / core.TransferGasLimit

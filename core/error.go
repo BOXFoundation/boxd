@@ -41,7 +41,7 @@ var (
 	ErrInvalidInternalTxs           = errors.New("Invalid internal txs")
 	ErrInvalidMessageSender         = errors.New("Invalid message sender")
 	ErrContractNotFound             = errors.New("Contract not found")
-	ErrNonceMismatched              = errors.New("nonce is mismatched")
+	ErrNonceTooLow                  = errors.New("nonce is too low")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
