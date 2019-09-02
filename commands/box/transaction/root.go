@@ -92,6 +92,11 @@ func init() {
 			Run:   getRawTxCmdFunc,
 		},
 		&cobra.Command{
+			Use:   "viewblockdetail [blockhash]",
+			Short: "Get the raw blockInformation for a block hash",
+			Run:   getBlockDetailCmdFunc,
+		},
+		&cobra.Command{
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
 			Run:   sendrawtx,
@@ -113,14 +118,14 @@ to quickly create a Cobra  application.`,
 			Run: decoderawtx,
 		},
 		&cobra.Command{
+			Use:   "fetchutxos [addr] [amount] [token_hash] [token_index]",
+			Short: "fetch utxos ",
+			Run:   fetchUtxosCmdFunc,
+		},
+		&cobra.Command{
 			Use:   "getrawtx [txhash]",
 			Short: "Get the raw transaction for a txid",
 			Run:   getRawTxCmdFunc,
-		},
-		&cobra.Command{
-			Use:   "sendrawtx [rawtx]",
-			Short: "Send a raw transaction to the network",
-			Run:   sendrawtx,
 		},
 	)
 }
@@ -342,6 +347,32 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println(format.PrettyPrint(tx))
 }
 
+//小可爱，这个地方需要补充一个关于通过block的hash获得区块的代码，加油哦
+func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("getBlockDetail called")
+	if len(args) < 1 {
+		fmt.Println("Param txhash required")
+		return
+	}
+	hash := args[0]
+	// this must stay  the same
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	//
+	block, err := rpcutil.GetBlock(conn, hash)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(format.PrettyPrint(block))
+	}
+	//print block
+
+}
+
 func decoderawtx(cmd *cobra.Command, args []string) {
 	fmt.Println("decoderawtx called")
 	if len(args) != 1 {
@@ -498,6 +529,11 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	fmt.Println("Tx Hash: ", hash)
 	fmt.Println(format.PrettyPrint(tx))
+}
+
+//小可爱虽然有点多，但是继续加油啊
+func fetchUtxosCmdFunc(cmd *cobra.Command, args []string) {
+
 }
 
 func parseSendParams(args []string) (addrs []string, amounts []uint64, err error) {
