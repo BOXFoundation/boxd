@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -48,7 +49,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "importabi [contract_addr] [abi]",
+			Use:   "importabi [contract_address] [abi_file_name]",
 			Short: "Import abi for contract.",
 			Run:   importAbi,
 		},
@@ -126,19 +127,26 @@ func importAbi(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	abifile := args[0] + ".abi"
-	abi := args[1]
-
-	if _, err := os.Stat(abifile); !os.IsNotExist(err) {
-		fmt.Println("The abi already exists and the command will overwrite it.")
-	}
-	file, err := os.OpenFile(abifile, os.O_WRONLY|os.O_TRUNC|os.O_APPEND|os.O_CREATE, 0600)
-	defer file.Close()
+	src, err := os.Open(args[1])
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to open src file. ", args[1])
 		return
 	}
-	file.Write([]byte(abi))
+	defer src.Close()
+
+	dstname := args[0] + ".abi"
+	if _, err := os.Stat(dstname); !os.IsNotExist(err) {
+		fmt.Println("The abi already exists and the command will overwrite it.")
+	}
+	dst, err := os.OpenFile(dstname, os.O_WRONLY|os.O_TRUNC|os.O_APPEND|os.O_CREATE, 0600)
+	if err != nil {
+		fmt.Println("Failed to open dst file. ", dstname)
+		return
+	}
+	defer dst.Close()
+	if _, err := io.Copy(dst, src); err != nil {
+		fmt.Println("Failed to copy file. ", err)
+	}
 }
 
 func docall(cmd *cobra.Command, args []string) {
