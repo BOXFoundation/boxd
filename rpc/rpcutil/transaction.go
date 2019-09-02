@@ -9,10 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/service"
+	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -24,7 +24,6 @@ import (
 
 const (
 	connTimeout = 30
-	maxTokenFee = 100
 	maxDecimal  = 8
 )
 
@@ -90,22 +89,13 @@ func FetchUtxos(
 	return resp.GetUtxos(), nil
 }
 
-// GetFeePrice gets the recommended mining fee price according to recent packed transactions
-func GetFeePrice(conn *grpc.ClientConn) (uint64, error) {
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
-	r, err := c.GetFeePrice(ctx, &rpcpb.GetFeePriceRequest{})
-	return r.BoxPerByte, err
-}
-
 // NewIssueTokenTx new a issue token transaction
 func NewIssueTokenTx(
 	acc *acc.Account, to *types.AddressHash, tag *rpcpb.TokenTag, conn *grpc.ClientConn,
 ) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	// fetch utxos for fee
-	utxos, err := fetchUtxos(conn, acc.Addr(), maxTokenFee, "", 0)
+	utxos, err := fetchUtxos(conn, acc.Addr(), core.TransferFee, "", 0)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -113,15 +103,13 @@ func NewIssueTokenTx(
 	for _, u := range utxos {
 		inputAmt += u.GetTxOut().GetValue()
 	}
-	// fee
-	fee := uint64(100)
 	//
 	tx, tid, change, err := txlogic.NewTokenIssueTxWithUtxos(acc, to, tag,
-		inputAmt-fee, utxos...)
+		inputAmt-core.TransferFee, utxos...)
 	if err != nil {
 		logger.Warnf("new issue token tx with utxos from %s to %s tag %+v "+
 			"supply %d change %d with utxos: %+v error: %s", acc.Addr(), to, tag,
-			tag.Supply, inputAmt-fee, utxos, err)
+			tag.Supply, inputAmt-core.TransferFee, utxos, err)
 		return nil, nil, nil, err
 	}
 	return tx, tid, change, nil
@@ -129,10 +117,10 @@ func NewIssueTokenTx(
 
 // NewContractDeployTx new a deploy contract transaction
 func NewContractDeployTx(
-	acc *acc.Account, gasPrice, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
+	acc *acc.Account, gasLimit, nonce uint64, code []byte, conn *grpc.ClientConn,
 ) (*types.Transaction, string, error) {
 	// fetch utxos for gas
-	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
+	utxos, err := fetchUtxos(conn, acc.Addr(), core.FixedGasPrice*gasLimit, "", 0)
 	if err != nil {
 		return nil, "", err
 	}
@@ -142,7 +130,7 @@ func NewContractDeployTx(
 	}
 	//
 	tx, err := txlogic.MakeUnsignedContractDeployTx(acc.AddressHash(), 0,
-		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, code, utxos...)
+		inputAmt-core.FixedGasPrice*gasLimit, gasLimit, nonce, code, utxos...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -162,11 +150,11 @@ func NewContractDeployTx(
 
 // NewContractCallTx new a call contract transaction
 func NewContractCallTx(
-	acc *acc.Account, to *types.AddressHash, gasPrice, gasLimit, nonce uint64,
-	code []byte, conn *grpc.ClientConn,
+	acc *acc.Account, to *types.AddressHash, gasLimit, nonce uint64, code []byte,
+	conn *grpc.ClientConn,
 ) (*types.Transaction, error) {
 	// fetch utxos for gas
-	utxos, err := fetchUtxos(conn, acc.Addr(), gasPrice*gasLimit, "", 0)
+	utxos, err := fetchUtxos(conn, acc.Addr(), core.FixedGasPrice*gasLimit, "", 0)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +164,7 @@ func NewContractCallTx(
 	}
 	//
 	tx, err := txlogic.MakeUnsignedContractCallTx(acc.AddressHash(), to, 0,
-		inputAmt-gasPrice*gasLimit, gasLimit, gasPrice, nonce, code, utxos...)
+		inputAmt-core.FixedGasPrice*gasLimit, gasLimit, nonce, code, utxos...)
 	if err != nil {
 		return nil, err
 	}
@@ -257,23 +245,6 @@ func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, 
 func NewTx(
 	fromAcc *acc.Account, toAddrs []*types.AddressHash, amounts []uint64,
 	conn *grpc.ClientConn,
-) (tx *types.Transaction, change *rpcpb.Utxo, fee uint64, err error) {
-	// calc fee
-	amount := uint64(0)
-	for _, a := range amounts {
-		amount += a
-	}
-	if amount >= 10000 {
-		fee = amount / 10000
-	}
-	tx, change, err = NewTxWithFee(fromAcc, toAddrs, amounts, fee, conn)
-	return
-}
-
-// NewTxWithFee new a tx and return change utxo
-func NewTxWithFee(
-	fromAcc *acc.Account, toAddrs []*types.AddressHash, amounts []uint64, fee uint64,
-	conn *grpc.ClientConn,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// calc amount
 	amount := uint64(0)
@@ -281,10 +252,10 @@ func NewTxWithFee(
 		amount += a
 	}
 	// get utxos
-	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+fee, "", 0)
+	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+core.TransferFee, "", 0)
 	if err != nil {
 		err = fmt.Errorf("fetchUtxos error for %s amount %d: %s",
-			fromAcc.Addr(), amount+fee, err)
+			fromAcc.Addr(), amount+core.TransferFee, err)
 		return
 	}
 	// NOTE: for test only
@@ -294,10 +265,10 @@ func NewTxWithFee(
 	for _, u := range utxos {
 		total += u.GetTxOut().GetValue()
 	}
-	changeAmt := total - amount - fee
+	changeAmt := total - amount - core.TransferFee
 	if changeAmt >= total {
 		err = fmt.Errorf("invalid arguments, addr %s utxo total=%d, amount=%d, "+
-			"fee=%d, changeAmt=%d", fromAcc.Addr(), total, amount, fee, changeAmt)
+			"changeAmt=%d", fromAcc.Addr(), total, amount, changeAmt)
 		return
 	}
 	//
@@ -325,7 +296,6 @@ func NewTxs(
 	txss = make([][]*types.Transaction, 0)
 	n := (count + len(utxos) - 1) / len(utxos)
 
-	transfer, totalFee, num = uint64(0), uint64(0), 0
 	for _, u := range utxos {
 		change := u
 		value := change.GetTxOut().GetValue()
@@ -335,12 +305,8 @@ func NewTxs(
 		}
 		changeAmt := value
 		txs := make([]*types.Transaction, 0)
-		fee := uint64(0)
 		for j := n; num < count && j > 0; j-- {
-			if aveAmt >= 10000 {
-				fee = uint64(rand.Int63n(int64(aveAmt) / 10000))
-			}
-			amount := aveAmt - fee
+			amount := aveAmt - core.TransferFee
 			changeAmt = changeAmt - aveAmt
 			tx := new(types.Transaction)
 			tx, change, err = txlogic.NewTxWithUtxos(fromAcc, []*types.AddressHash{toAddr},
@@ -351,7 +317,7 @@ func NewTxs(
 			}
 			txs = append(txs, tx)
 			transfer += amount
-			totalFee += fee
+			totalFee += core.TransferFee
 			num++
 			if change == nil {
 				break
@@ -392,8 +358,7 @@ func NewTokenTx(
 	tIdx uint32, conn *grpc.ClientConn,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 
-	fee := uint64(100)
-	amount := fee
+	amount := core.TransferFee
 	amountT := uint64(0)
 	for _, a := range amounts {
 		amountT += a
@@ -421,7 +386,7 @@ func NewTokenTxs(
 	tIdx uint32, conn *grpc.ClientConn,
 ) ([]*types.Transaction, error) {
 	// get utxos
-	amount := maxTokenFee * uint64(count)
+	amount := core.TransferFee * uint64(count)
 	boxUtxos, err := fetchUtxos(conn, acc.Addr(), amount, "", 0)
 	if err != nil {
 		return nil, err
@@ -445,7 +410,7 @@ func NewTokenTxs(
 		if i == count-1 {
 			unitT = amountT - unitT*uint64(i)
 		}
-		changeAmt -= maxTokenFee
+		changeAmt -= core.TransferFee
 		tx, change, changeT, err := txlogic.NewTokenTransferTxWithUtxos(acc,
 			[]*types.AddressHash{toAddr}, []uint64{unitT}, tid, changeAmt, utxos...)
 		if err != nil {
@@ -462,11 +427,11 @@ func NewTokenTxs(
 
 // NewERC20TransferFromContractTxs new a contract transferFrom tx
 func NewERC20TransferFromContractTxs(
-	acc *acc.Account, contractAddr *types.AddressHash, count int, gasPrice, gasLimit, startNonce uint64,
+	acc *acc.Account, contractAddr *types.AddressHash, count int, gasLimit, startNonce uint64,
 	code []byte, conn *grpc.ClientConn,
 ) ([]*types.Transaction, error) {
 	// get utxos
-	amount := gasPrice * gasLimit * uint64(count)
+	amount := core.FixedGasPrice * gasLimit * uint64(count)
 	utxos, err := fetchUtxos(conn, acc.Addr(), amount, "", 0)
 	if err != nil {
 		return nil, err
@@ -479,9 +444,9 @@ func NewERC20TransferFromContractTxs(
 	var txs []*types.Transaction
 	changeAmt, nonce := boxAmt, startNonce
 	for i := 0; i < count; i++ {
-		changeAmt -= gasPrice * gasLimit
+		changeAmt -= core.FixedGasPrice * gasLimit
 		tx, change, err := txlogic.NewContractTxWithUtxos(acc, contractAddr, 0,
-			changeAmt, gasPrice, gasLimit, nonce, code, utxos...)
+			changeAmt, gasLimit, nonce, code, utxos...)
 		if err != nil {
 			return nil, err
 		}
@@ -495,16 +460,16 @@ func NewERC20TransferFromContractTxs(
 	return txs, nil
 }
 
-// NewSplitAddrTxWithFee new split address tx
-func NewSplitAddrTxWithFee(
-	acc *acc.Account, addrs []*types.AddressHash, weights []uint32, gasUsed uint64, conn *grpc.ClientConn,
+// NewSplitAddrTx new split address tx
+func NewSplitAddrTx(
+	acc *acc.Account, addrs []*types.AddressHash, weights []uint32, conn *grpc.ClientConn,
 ) (tx *types.Transaction, change *rpcpb.Utxo, err error) {
 	// get utxos
-	utxos, err := fetchUtxos(conn, acc.Addr(), gasUsed, "", 0)
+	utxos, err := fetchUtxos(conn, acc.Addr(), core.TransferFee, "", 0)
 	if err != nil {
 		return
 	}
-	return txlogic.NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos, gasUsed)
+	return txlogic.NewSplitAddrTxWithUtxos(acc, addrs, weights, utxos)
 }
 
 // MakeUnsignedTx make a tx without signature
@@ -594,10 +559,10 @@ func MakeUnsignedCombineTokenTx(
 
 //MakeUnsignedContractDeployTx make a tx without a signature
 func MakeUnsignedContractDeployTx(
-	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, gasPrice, nonce uint64,
+	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, nonce uint64,
 	byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
-	gasUsed := gasLimit * gasPrice
+	gasUsed := gasLimit * core.FixedGasPrice
 	total := gasUsed + amount
 	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
@@ -612,16 +577,16 @@ func MakeUnsignedContractDeployTx(
 		return nil, nil, err
 	}
 	tx, err := txlogic.MakeUnsignedContractDeployTx(from, amount, changeAmt,
-		gasLimit, gasPrice, nonce, byteCode, utxos...)
+		gasLimit, nonce, byteCode, utxos...)
 	return tx, utxos, err
 }
 
 //MakeUnsignedContractCallTx call a contract tx without a signature
 func MakeUnsignedContractCallTx(
-	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, gasPrice,
-	nonce uint64, contractAddr *types.AddressHash, byteCode []byte,
+	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, nonce uint64,
+	contractAddr *types.AddressHash, byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
-	gasUsed := gasLimit * gasPrice
+	gasUsed := gasLimit * core.FixedGasPrice
 	total := gasUsed + amount
 	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
@@ -636,7 +601,7 @@ func MakeUnsignedContractCallTx(
 		return nil, nil, err
 	}
 	tx, err := txlogic.MakeUnsignedContractCallTx(from, contractAddr, amount,
-		changeAmt, gasLimit, gasPrice, nonce, byteCode, utxos...)
+		changeAmt, gasLimit, nonce, byteCode, utxos...)
 	return tx, utxos, err
 }
 

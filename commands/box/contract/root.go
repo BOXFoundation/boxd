@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -19,7 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
@@ -48,7 +49,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "importabi [contract_addr] [abi]",
+			Use:   "importabi [contract_address] [abi_file_name]",
 			Short: "Import abi for contract.",
 			Run:   importAbi,
 		},
@@ -58,14 +59,14 @@ func init() {
 			Run:   docall,
 		},
 		&cobra.Command{
-			Use:   "deploy [from] [amount] [gasprice] [gaslimit] [nonce] [data]",
+			Use:   "deploy [from] [amount] [gaslimit] [nonce] [data]",
 			Short: "Deploy a contract",
 			Long: `On each invocation, "nonce" must be incremented by one. 
 The return value is a hex-encoded transaction sequence and a contract address.`,
 			Run: deploycontract,
 		},
 		&cobra.Command{
-			Use:   "send [from] [contractaddress] [amount] [gasprice] [gaslimit] [nonce] [data]",
+			Use:   "send [from] [contractaddress] [amount] [gaslimit] [nonce] [data]",
 			Short: "Calling a contract",
 			Long: `On each invocation, "nonce" must be incremented by one.
 Successful call will return a transaction hash value`,
@@ -126,19 +127,26 @@ func importAbi(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	abifile := args[0] + ".abi"
-	abi := args[1]
-
-	if _, err := os.Stat(abifile); !os.IsNotExist(err) {
-		fmt.Println("The abi already exists and the command will overwrite it.")
-	}
-	file, err := os.OpenFile(abifile, os.O_WRONLY|os.O_TRUNC|os.O_APPEND|os.O_CREATE, 0600)
-	defer file.Close()
+	src, err := os.Open(args[1])
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to open src file. ", args[1])
 		return
 	}
-	file.Write([]byte(abi))
+	defer src.Close()
+
+	dstname := args[0] + ".abi"
+	if _, err := os.Stat(dstname); !os.IsNotExist(err) {
+		fmt.Println("The abi already exists and the command will overwrite it.")
+	}
+	dst, err := os.OpenFile(dstname, os.O_WRONLY|os.O_TRUNC|os.O_APPEND|os.O_CREATE, 0600)
+	if err != nil {
+		fmt.Println("Failed to open dst file. ", dstname)
+		return
+	}
+	defer dst.Close()
+	if _, err := io.Copy(dst, src); err != nil {
+		fmt.Println("Failed to copy file. ", err)
+	}
 }
 
 func docall(cmd *cobra.Command, args []string) {
@@ -183,8 +191,9 @@ func docall(cmd *cobra.Command, args []string) {
 	defer conn.Close()
 	fmt.Println(output)
 }
+
 func deploycontract(cmd *cobra.Command, args []string) {
-	if len(args) != 6 {
+	if len(args) != 5 {
 		fmt.Println("Invalid argument number")
 		return
 	}
@@ -203,27 +212,21 @@ func deploycontract(cmd *cobra.Command, args []string) {
 		fmt.Println("amount type conversion error: ", err)
 		return
 	}
-	gasprice, err := strconv.ParseUint(args[2], 10, 64)
-	if err != nil {
-		fmt.Println("gasprice type conversion error: ", err)
-		return
-	}
-	gaslimit, err := strconv.ParseUint(args[3], 10, 64)
+	gaslimit, err := strconv.ParseUint(args[2], 10, 64)
 	if err != nil {
 		fmt.Println("gaslimit type conversion error: ", err)
 		return
 	}
 
-	nonce, err := strconv.ParseUint(args[4], 10, 64)
+	nonce, err := strconv.ParseUint(args[3], 10, 64)
 	if err != nil {
 		fmt.Println("nonce type conversion error: ", err)
 		return
 	}
-	data := args[5]
+	data := args[4]
 	req := &rpcpb.MakeContractTxReq{
 		From:     from,
 		Amount:   amount,
-		GasPrice: gasprice,
 		GasLimit: gaslimit,
 		Nonce:    nonce,
 		IsDeploy: true,
@@ -250,7 +253,7 @@ func deploycontract(cmd *cobra.Command, args []string) {
 }
 
 func callcontract(cmd *cobra.Command, args []string) {
-	if len(args) != 7 {
+	if len(args) != 6 {
 		fmt.Println("Invalid argument number")
 		return
 	}
@@ -269,27 +272,21 @@ func callcontract(cmd *cobra.Command, args []string) {
 		fmt.Println("get amount error: ", err)
 		return
 	}
-	gasprice, err := strconv.ParseUint(args[3], 10, 64)
-	if err != nil {
-		fmt.Println("get gasprice error: ", err)
-		return
-	}
-	gaslimit, err := strconv.ParseUint(args[4], 10, 64)
+	gaslimit, err := strconv.ParseUint(args[3], 10, 64)
 	if err != nil {
 		fmt.Println("get getlimit error: ", err)
 		return
 	}
-	nonce, err := strconv.ParseUint(args[5], 10, 64)
+	nonce, err := strconv.ParseUint(args[4], 10, 64)
 	if err != nil {
 		fmt.Println("get nonce error: ", err)
 		return
 	}
-	data := args[6]
+	data := args[5]
 	req := &rpcpb.MakeContractTxReq{
 		From:     from,
 		To:       contractAddr,
 		Amount:   amount,
-		GasPrice: gasprice,
 		GasLimit: gaslimit,
 		Nonce:    nonce,
 		Data:     data,
