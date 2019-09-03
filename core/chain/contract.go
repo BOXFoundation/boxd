@@ -15,6 +15,7 @@ import (
 type NetParams struct {
 	DynastySwitchThreshold *big.Int
 	BookKeeperReward       *big.Int
+	CalcScoreThreshold     *big.Int
 }
 
 // FetchNetParamsByHeight fetch net params from genesis contract.
@@ -24,7 +25,7 @@ func (chain *BlockChain) FetchNetParamsByHeight(height uint32) (*NetParams, erro
 	if err != nil {
 		return nil, err
 	}
-	var res [2]*big.Int
+	var res [3]*big.Int
 	if err := ContractAbi.Unpack(&res, "getNetParams", output); err != nil {
 		logger.Errorf("Failed to unpack the result of call getNetParams. Err: %v", err)
 		return nil, err
@@ -32,6 +33,7 @@ func (chain *BlockChain) FetchNetParamsByHeight(height uint32) (*NetParams, erro
 	return &NetParams{
 		DynastySwitchThreshold: res[0],
 		BookKeeperReward:       res[1],
+		CalcScoreThreshold:     res[2],
 	}, nil
 }
 

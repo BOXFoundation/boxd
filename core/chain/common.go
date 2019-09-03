@@ -7,6 +7,7 @@ package chain
 import (
 	"bytes"
 	"math"
+	sysmath "math"
 	"os"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -43,7 +44,7 @@ func IsDynastySwitch(tx *types.Transaction) bool {
 		return false
 	}
 	outPoint := &tx.Vin[0].PrevOutPoint
-	return outPoint.Index == 0 && outPoint.Hash == zeroHash
+	return outPoint.Index == sysmath.MaxUint32-1 && outPoint.Hash == zeroHash
 }
 
 // IsCoinBase determines whether or not a transaction is a coinbase.
@@ -52,9 +53,11 @@ func IsCoinBase(tx *types.Transaction) bool {
 	if len(tx.Vin) != 1 {
 		return false
 	}
+	outPoint := &tx.Vin[0].PrevOutPoint
+	return outPoint.Index == sysmath.MaxUint32 && outPoint.Hash == zeroHash
 
 	// The previous output of a coin base must have a max value index and a zero hash.
-	return isNullOutPoint(&tx.Vin[0].PrevOutPoint)
+	// return isNullOutPoint(&tx.Vin[0].PrevOutPoint)
 }
 
 // CalcTxsHash calculate txsHash in block.
@@ -87,7 +90,7 @@ func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, erro
 			{
 				PrevOutPoint: types.OutPoint{
 					Hash:  zeroHash,
-					Index: math.MaxUint32,
+					Index: sysmath.MaxUint32,
 				},
 				ScriptSig: *coinbaseScriptSig,
 				Sequence:  math.MaxUint32,

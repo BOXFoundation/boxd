@@ -23,6 +23,7 @@ type ConsensusContext struct {
 	verifyDynasty                *Dynasty
 	candidates                   []Delegate
 	dynastySwitchThreshold       *big.Int
+	calcScoreThreshold           *big.Int
 	verifyDynastySwitchThreshold *big.Int
 	bookKeeperReward             *big.Int
 }

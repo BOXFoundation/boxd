@@ -19,7 +19,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -64,11 +63,6 @@ const (
 	AddrFilterNumbers = 10000000
 )
 
-const (
-	free int32 = iota
-	busy
-)
-
 var logger = log.NewLogger("chain") // logger
 
 var _ service.ChainReader = (*BlockChain)(nil)
@@ -103,7 +97,6 @@ type BlockChain struct {
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               SyncManager
-	status                    int32
 	stateProcessor            *StateProcessor
 	vmConfig                  vm.Config
 	utxoSetCache              map[uint32]*UtxoSet
@@ -131,7 +124,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		utxoSetCache:              make(map[uint32]*UtxoSet),
 		receiptsCache:             make(map[uint32]types.Receipts),
 		bus:                       eventbus.Default(),
-		status:                    free,
 	}
 
 	var err error
@@ -189,12 +181,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	logger.Infof("load contract address bloom filter finished")
 
 	return b, nil
-}
-
-// IsBusy return if the chain is processing a block
-func (chain *BlockChain) IsBusy() bool {
-	v := atomic.LoadInt32(&chain.status)
-	return v == busy
 }
 
 // Setup prepare blockchain.
@@ -448,10 +434,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	chain.chainLock.Lock()
 	defer func() {
 		chain.chainLock.Unlock()
-		atomic.StoreInt32(&chain.status, free)
 	}()
-
-	atomic.StoreInt32(&chain.status, busy)
 
 	t0 := time.Now().UnixNano()
 	blockHash := block.BlockHash()
@@ -2234,6 +2217,10 @@ func loadAddrFilter(reader storage.Reader, addrPrefix []byte) bloom.Filter {
 	return filter
 }
 
+func (chain *BlockChain) calcScores() ([]*big.Int, error) {
+	return nil, nil
+}
+
 // MakeInternalContractTx creates a coinbase give bookkeeper address and block height
 func (chain *BlockChain) MakeInternalContractTx(
 	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
@@ -2243,10 +2230,23 @@ func (chain *BlockChain) MakeInternalContractTx(
 	if err != nil {
 		return nil, err
 	}
-	code, err := abiObj.Pack(method)
-	if err != nil {
-		return nil, err
+	var code []byte
+	if method == CalcScore {
+		scores, err := chain.calcScores()
+		if err != nil {
+			return nil, err
+		}
+		code, err = abiObj.Pack(method, scores)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		code, err = abiObj.Pack(method)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
 	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
 	if err != nil {
@@ -2257,11 +2257,20 @@ func (chain *BlockChain) MakeInternalContractTx(
 		return nil, err
 	}
 	var index uint32
-	if method == "calcBonus" {
+	// if method == "calcBonus" {
+	// 	index = sysmath.MaxUint32
+	// } else {
+	// 	index = 0
+	// }
+	switch method {
+	case CalcBonus:
 		index = sysmath.MaxUint32
-	} else {
-		index = 0
+	case ExecBonus:
+		index = sysmath.MaxUint32 - 1
+	case CalcScore:
+		index = sysmath.MaxUint32 - 2
 	}
+
 	tx := &types.Transaction{
 		Version: 1,
 		Vin: []*types.TxIn{
