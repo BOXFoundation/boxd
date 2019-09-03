@@ -70,7 +70,6 @@ type ChainBlockReader interface {
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 	TailState() *state.StateDB
-	SuggestGasPrice() uint32
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -1145,16 +1144,6 @@ func (s *webapiServer) GetCode(
 	addr := contractAddress.Hash160()
 	code := state.GetCode(*addr)
 	return newGetCodeResp(0, "", hex.EncodeToString(code)), nil
-}
-
-func (s *webapiServer) GasPrice(
-	ctx context.Context, req *rpcpb.GasPriceReq,
-) (*rpcpb.GasPriceResp, error) {
-	return &rpcpb.GasPriceResp{
-		Code:    0,
-		Message: "",
-		Price:   int32(s.SuggestGasPrice()),
-	}, nil
 }
 
 func (s *webapiServer) EstimateGas(

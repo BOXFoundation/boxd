@@ -67,8 +67,6 @@ const (
 const (
 	free int32 = iota
 	busy
-
-	defaultGasPrice = 1
 )
 
 var logger = log.NewLogger("chain") // logger
@@ -77,7 +75,6 @@ var _ service.ChainReader = (*BlockChain)(nil)
 
 // Config defines the configurations of chain
 type Config struct {
-	GasPrice        uint32 `mapstructure:"gas_price"`
 	ContractBinPath string `mapstructure:"contract_bin_path"`
 	ContractABIPath string `mapstructure:"contract_abi_path"`
 }
@@ -2305,13 +2302,4 @@ func IsContractAddr(
 		return false
 	}
 	return true
-}
-
-// SuggestGasPrice gives a recommended gas price to users.
-func (chain *BlockChain) SuggestGasPrice() uint32 {
-	gasPrice := chain.cfg.GasPrice
-	if gasPrice == 0 {
-		return defaultGasPrice
-	}
-	return gasPrice
 }

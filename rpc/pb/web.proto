@@ -37,13 +37,6 @@ service WebApi {
         };
     }
 
-    rpc GasPrice (GasPriceReq) returns (GasPriceResp) {
-        option (google.api.http) = {
-            post: "/v1/contract/gasPrice"
-            body: "*"
-        };
-    }
-
     rpc EstimateGas (CallReq) returns (EstimateGasResp) {
         option (google.api.http) = {
             post: "/v1/contract/estimateGas"
@@ -334,15 +327,6 @@ message GetCodeResp {
     int32 code = 1;
     string message = 2;
     string data = 3;
-}
-
-message GasPriceReq {
-}
-
-message GasPriceResp {
-    int32 code = 1;
-    string message = 2;
-    int32 price = 3;
 }
 
 message StorageReq {
