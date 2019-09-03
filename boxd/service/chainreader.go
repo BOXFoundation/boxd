@@ -31,5 +31,4 @@ type ChainReader interface {
 	EternalBlock() *types.Block
 	TailBlock() *types.Block
 	TailState() *state.StateDB
-	SuggestGasPrice() uint32
 }
