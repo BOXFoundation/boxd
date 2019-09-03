@@ -856,8 +856,7 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet *UtxoSet) error {
 	for o := range utxoSet.contractUtxos {
 		// address
-		contractAddr := new(types.AddressHash)
-		contractAddr.SetBytes(o.Hash[:])
+		contractAddr := types.NewAddressHash(o.Hash[:])
 		// serialize utxo wrap
 		u := utxoSet.utxoMap[o]
 		utxoBytes, err := SerializeUtxoWrap(u)
@@ -1445,6 +1444,8 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	addressHash := types.NormalizeAddressHash(&contractAddr)
 	outPoint := types.NewOutPoint(addressHash, 0)
 	utxoWrap := types.NewUtxoWrap(0, []byte{}, 0)
+	utxoBytes, _ := SerializeUtxoWrap(utxoWrap)
+	stateDB.UpdateUtxo(ContractAddr, utxoBytes)
 	utxoSet.utxoMap[*outPoint] = utxoWrap
 
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
@@ -1459,6 +1460,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	}
 
 	batch := chain.db.NewBatch()
+	defer batch.Close()
 	utxoSet.WriteUtxoSetToDB(batch)
 	if err := chain.WriteTxIndex(&genesis, nil, batch); err != nil {
 		return nil, err
