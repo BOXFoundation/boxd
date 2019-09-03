@@ -609,6 +609,10 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err != nil {
 		return err
 	}
+	// update genesis contract utxo in utxoSet
+	op := types.NewOutPoint(types.NormalizeAddressHash(&chain.ContractAddr), 0)
+	genesisUtxoWrap := utxoSet.GetUtxo(op)
+	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + feeUsed)
 
 	// block.Txs[0].Vout[0].Value -= gasRemainingFee
 	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)

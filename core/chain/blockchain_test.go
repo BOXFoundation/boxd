@@ -317,8 +317,8 @@ func verifyProcessBlock(
 }
 
 func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.StateDB) error {
-	logger.Info("================ start calc root hash ====================")
-	defer logger.Info("================ end calc root hash ====================")
+	logger.Info("================ start calc root hash ================")
+	defer logger.Info("---------------- end calc root hash ----------------")
 	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.DB())
 	if err != nil {
 		return err
@@ -338,13 +338,17 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.
 		return err
 	}
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
-	receipts, gasUsed, _, utxoTxs, err :=
+	receipts, gasUsed, feeUsed, utxoTxs, err :=
 		chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
 
 	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
+	// update genesis contract utxo in utxoSet
+	op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
+	genesisUtxoWrap := utxoSet.GetUtxo(op)
+	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + feeUsed)
 
 	if len(utxoTxs) > 0 {
 		block.InternalTxs = utxoTxs
