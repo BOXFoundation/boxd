@@ -71,7 +71,7 @@ func init() {
 			Run:   maketx,
 		},
 		&cobra.Command{
-			Use:   "signrawtx [rawtx] [address] [raw message1] [raw message2]...",
+			Use:   "signrawtx [address] [rawtx]",
 			Short: "Sign a transaction with privatekey and send it to the network",
 			Run:   signrawtx,
 		},
@@ -384,11 +384,13 @@ func decoderawtx(cmd *cobra.Command, args []string) {
 
 func signrawtx(cmd *cobra.Command, args []string) {
 	fmt.Println("signrawtx called")
-	if len(args) < 3 {
+	//arg[0] represents 'from address'
+	//arg[1] represents 'rawtx'
+	if len(args) < 2 {
 		fmt.Println("Invalide argument number")
 		return
 	}
-	txBytes, err := hex.DecodeString(args[0])
+	txBytes, err := hex.DecodeString(args[1])
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -404,30 +406,32 @@ func signrawtx(cmd *cobra.Command, args []string) {
 		fmt.Println("get wallet manager error", err)
 		return
 	}
-	accI, ok := wltMgr.GetAccount(args[1])
+	accI, ok := wltMgr.GetAccount(args[0])
 	if !ok {
-		fmt.Printf("account for %s not initialled\n", args[1])
+		fmt.Printf("account for %s not initialled\n", args[0])
 		return
 	}
 	passphrase, err := wallet.ReadPassphraseStdin()
+
 	if err := accI.UnlockWithPassphrase(passphrase); err != nil {
 		fmt.Println("Fail to unlock account", err)
 		return
 	}
+	pbk := accI.PublicKey()
 	//get raw messages
-	rawMsgs := make([][]byte, 0)
-	for i := 2; i < len(args); i++ {
-		fmt.Println("Please enter rawmsg for this transaction: ")
-		rawMsgStr := args[i]
-		rawMsgByte, err := hex.DecodeString(rawMsgStr)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		rawMsgs = append(rawMsgs, rawMsgByte)
+	msgs := make([][]byte, 0, len(tx.Vin))
+	newTx := tx.Copy()
+	for _, in := range newTx.Vin {
+		in.ScriptSig = pbk
 	}
-	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
-	for _, msg := range rawMsgs {
+	data, err := newTx.Marshal()
+	if err != nil {
+		return
+	}
+	msgs = append(msgs, data)
+	rawMsgTest := msgs
+	sigHashes := make([]*crypto.HashType, 0, len(rawMsgTest))
+	for _, msg := range rawMsgTest {
 		hash := crypto.DoubleHashH(msg)
 		sigHashes = append(sigHashes, &hash)
 	}
