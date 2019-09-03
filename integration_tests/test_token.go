@@ -63,17 +63,22 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	defer conn.Close()
 	//
-	miner, ok := PickOneMiner()
+	loaner, ok := PickOneMiner()
 	if !ok {
-		logger.Warnf("have no miner address to pick")
+		logger.Warnf("have no loaner address to pick")
 		return true
 	}
-	defer UnpickMiner(miner)
+	defer UnpickMiner(loaner)
 	//
-	testFee, subsidy := uint64(100000), uint64(1000)
+	curTimes := utils.TokenRepeatTxTimes()
+	if utils.TokenRepeatRandom() {
+		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
+	}
+	//
+	totalFee := uint64(curTimes+1) * core.TransferFee
 	logger.Infof("waiting for minersAddr %s has %d at least for token test",
-		miner, testFee+2*subsidy)
-	_, err = utils.WaitBalanceEnough(miner, testFee+2*subsidy, conn, timeoutToChain)
+		loaner, totalFee)
+	_, err = utils.WaitBalanceEnough(loaner, totalFee, conn, timeoutToChain)
 	if err != nil {
 		logger.Error(err)
 		return true
@@ -85,10 +90,10 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	issuer, sender, receivers := addrs[0], addrs[1], addrs[2:]
 	issuerAddress, _ := types.NewAddress(issuer)
 	senderAddress, _ := types.NewAddress(sender)
-	minerAcc, _ := AddrToAcc.Load(miner)
-	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
+	minerAcc, _ := AddrToAcc.Load(loaner)
+	tx, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
 		[]*types.AddressHash{issuerAddress.Hash160(), senderAddress.Hash160()},
-		[]uint64{subsidy, testFee}, conn)
+		[]uint64{core.TransferFee, totalFee - core.TransferFee}, conn)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -98,14 +103,10 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		logger.Error(err)
 		return
 	}
-	UnpickMiner(miner)
+	UnpickMiner(loaner)
 	atomic.AddUint64(&t.txCnt, 1)
-	totalSupply := uint64(10000)
+	totalSupply := uint64(1000 * 1e8)
 	tag := txlogic.NewTokenTag("box token", "FOX", 6, totalSupply)
-	curTimes := utils.TokenRepeatTxTimes()
-	if utils.TokenRepeatRandom() {
-		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
-	}
 	tokenRepeatTest(issuer, sender, receivers[0], tag, curTimes, &t.txCnt, conn)
 	//
 	return

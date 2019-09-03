@@ -160,10 +160,6 @@ func (s *txServer) FetchUtxos(
 	return newFetchUtxosResp(0, "ok", utxos...), nil
 }
 
-func (s *txServer) GetFeePrice(ctx context.Context, req *rpcpb.GetFeePriceRequest) (*rpcpb.GetFeePriceResponse, error) {
-	return &rpcpb.GetFeePriceResponse{BoxPerByte: 1}, nil
-}
-
 func newSendTransactionResp(code int32, msg, hash string) *rpcpb.SendTransactionResp {
 	return &rpcpb.SendTransactionResp{
 		Code:    code,
@@ -212,7 +208,6 @@ func (s *txServer) SendTransaction(
 
 	hash, _ := tx.TxHash()
 	defer func() {
-
 		if resp.Code != 0 {
 			logger.Warnf("send tx req: %s error: %s", tolog(types.ConvPbTx(req.GetTx())), resp.Message)
 		} else {
@@ -281,15 +276,15 @@ func (s *txServer) MakeUnsignedTx(
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	amounts, gasPrice := req.GetAmounts(), req.GetGasPrice()
-	gasUsed := gasPrice * core.TransferGasLimit
+	amounts := req.GetAmounts()
 	fromAddress, _ := types.NewAddress(from)
 	toHashes := make([]*types.AddressHash, 0, len(to))
 	for _, addr := range to {
 		address, _ := types.ParseAddress(addr)
 		toHashes = append(toHashes, address.Hash160())
 	}
-	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, fromAddress.Hash160(), toHashes, amounts, gasUsed)
+	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, fromAddress.Hash160(), toHashes,
+		amounts, core.TransferFee)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -330,12 +325,11 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 		address, _ := types.ParseAddress(addr)
 		toHashes = append(toHashes, address.Hash160())
 	}
-	weights, gasPrice := req.GetWeights(), req.GasPrice
-	gasUsed := gasPrice * core.TransferGasLimit
+	weights := req.GetWeights()
 	// make tx without sign
 	fromAddress, _ := types.NewAddress(from)
 	tx, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, fromAddress.Hash160(),
-		toHashes, weights, gasUsed)
+		toHashes, weights, core.TransferFee)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -378,17 +372,16 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	if wa == nil {
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
-	issuer, owner, tag, gasPrice := req.GetIssuer(), req.GetOwner(), req.GetTag(), req.GasPrice
+	issuer, owner, tag := req.GetIssuer(), req.GetOwner(), req.GetTag()
 	if err := types.ValidateAddr(issuer, owner); err != nil {
 		logger.Warn(err)
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
-	gasUsed := gasPrice * core.TransferGasLimit
 	// make tx without sign
 	issuerHash, _ := types.NewAddress(issuer)
 	ownerHash, _ := types.NewAddress(owner)
 	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa,
-		issuerHash.Hash160(), ownerHash.Hash160(), tag, gasUsed)
+		issuerHash.Hash160(), ownerHash.Hash160(), tag, core.TransferFee)
 	if err != nil {
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
@@ -421,8 +414,7 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	if wa == nil {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
-	from, gasPrice := req.GetFrom(), req.GasPrice
-	gasUsed := gasPrice * core.TransferGasLimit
+	from := req.GetFrom()
 	to, amounts := req.GetTo(), req.GetAmounts()
 	if err := types.ValidateAddr(append(to, from)...); err != nil {
 		logger.Warn(err)
@@ -444,7 +436,7 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	op := types.NewOutPoint(tHash, tIdx)
 	//
 	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, fromAddress.Hash160(),
-		toHashes, amounts, (*types.TokenID)(op), gasUsed)
+		toHashes, amounts, (*types.TokenID)(op), core.TransferFee)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -473,7 +465,7 @@ func (s *txServer) MakeUnsignedContractTx(
 	}()
 	wa := s.server.GetWalletAgent()
 	from := req.GetFrom()
-	amount, gasPrice, gasLimit := req.GetAmount(), req.GetGasPrice(), req.GetGasLimit()
+	amount, gasLimit := req.GetAmount(), req.GetGasLimit()
 	byteCode, err := hex.DecodeString(req.GetData())
 	if err != nil {
 		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
@@ -502,7 +494,7 @@ func (s *txServer) MakeUnsignedContractTx(
 		}
 		contractAddress, _ := types.MakeContractAddress(fromAddress, req.GetNonce())
 		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, fromAddress.Hash160(),
-			amount, gasLimit, gasPrice, req.GetNonce(), byteCode)
+			amount, gasLimit, req.GetNonce(), byteCode)
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
 		}
@@ -513,7 +505,7 @@ func (s *txServer) MakeUnsignedContractTx(
 			return newMakeContractTxResp(-1, "invalid contract address", nil, nil, ""), nil
 		}
 		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, fromAddress.Hash160(),
-			amount, gasLimit, gasPrice, req.GetNonce(), contractAddress.Hash160(), byteCode)
+			amount, gasLimit, req.GetNonce(), contractAddress.Hash160(), byteCode)
 		if err != nil {
 			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
 		}
@@ -563,9 +555,6 @@ func (s *txServer) MakeUnsignedCombineTx(
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	// gasUsed
-	gasPrice := req.GetGasPrice()
-	gasUsed := gasPrice * core.TransferGasLimit
 	//
 	var (
 		tx    *types.Transaction
@@ -580,9 +569,11 @@ func (s *txServer) MakeUnsignedCombineTx(
 			return newMakeTxResp(-1, "invalid token hash", nil, nil), nil
 		}
 		tid := (*types.TokenID)(types.NewOutPoint(tokenHash, tokenIdx))
-		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, fromAddress.Hash160(), tid, gasUsed)
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, fromAddress.Hash160(),
+			tid, core.TransferFee)
 	} else {
-		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, fromAddress.Hash160(), gasUsed)
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, fromAddress.Hash160(),
+			core.TransferFee)
 	}
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
