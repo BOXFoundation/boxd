@@ -860,7 +860,9 @@ func (chain *BlockChain) executeBlock(
 ) error {
 
 	var (
+		stateDB  *state.StateDB
 		receipts types.Receipts
+		err      error
 	)
 
 	blockCopy := block.Copy()
@@ -870,7 +872,7 @@ func (chain *BlockChain) executeBlock(
 	// execute contract tx and update statedb for blocks from remote peers
 	if messageFrom != "" {
 		parent := chain.GetParentBlock(block)
-		stateDB, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.db)
+		stateDB, err = state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.db)
 		if err != nil {
 			logger.Error(err)
 			return err
@@ -928,8 +930,19 @@ func (chain *BlockChain) executeBlock(
 			receipts = rcps
 		}
 	} else {
+		stateDB, _ = state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
 		receipts = chain.receiptsCache[block.Header.Height]
 		delete(chain.receiptsCache, block.Header.Height)
+	}
+
+	// check whether contract balance is identical in utxo and statedb
+	for o, u := range utxoSet.ContractUtxos() {
+		contractAddr := types.NewAddressHash(o.Hash[:])
+		if u.Value() != stateDB.GetBalance(*contractAddr).Uint64() {
+			address, _ := types.NewContractAddressFromHash(contractAddr[:])
+			return fmt.Errorf("contract %s have ambiguous balance(%d in utxo and %d"+
+				" in statedb)", address, u.Value(), stateDB.GetBalance(*contractAddr))
+		}
 	}
 
 	if err := chain.writeBlockToDB(block, splitTxs, utxoSet, receipts); err != nil {

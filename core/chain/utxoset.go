@@ -60,6 +60,15 @@ func (u *UtxoSet) All() types.UtxoMap {
 	return u.utxoMap
 }
 
+// ContractUtxos returns contract utxos
+func (u *UtxoSet) ContractUtxos() types.UtxoMap {
+	utxoMaps := make(types.UtxoMap)
+	for o := range u.contractUtxos {
+		utxoMaps[o] = u.utxoMap[o]
+	}
+	return utxoMaps
+}
+
 // ImportUtxoMap imports utxos from a UtxoMap
 func (u *UtxoSet) ImportUtxoMap(m types.UtxoMap) {
 	for op, um := range m {
