@@ -21,11 +21,11 @@ var (
 type TransferInfo struct {
 	from  types.AddressHash
 	to    types.AddressHash
-	value *big.Int
+	value uint64
 }
 
 // NewTransferInfo creates a new transferInfo.
-func NewTransferInfo(from, to types.AddressHash, value *big.Int) *TransferInfo {
+func NewTransferInfo(from, to types.AddressHash, value uint64) *TransferInfo {
 	return &TransferInfo{
 		from:  from,
 		to:    to,
@@ -66,24 +66,23 @@ func CanTransfer(db vm.StateDB, addr types.AddressHash, amount *big.Int) bool {
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db vm.StateDB, sender, recipient types.AddressHash, amount *big.Int, interpreterInvoke bool) {
-	//logger.Debugf("Transfer sender: %x, recipient: %x, amount: %d", sender[:], recipient[:], amount)
+	// NOTE: amount is a re-used pointer varaible
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
 	if interpreterInvoke && amount.Uint64() > 0 {
-		transferInfo := NewTransferInfo(sender, recipient, amount)
+		transferInfo := NewTransferInfo(sender, recipient, amount.Uint64())
 		logger.Debugf("new transfer info: sender: %x, recipient: %x, amount: %d",
 			sender[:], recipient[:], amount)
 		if v, ok := Transfers[sender]; ok {
+			// if sender and recipient already exists in Transfers, update it instead of append to it
 			for _, w := range v {
 				if w.to == recipient {
 					// NOTE: cannot miss 'w.value = '
-					w.value = w.value.Add(w.value, amount)
+					w.value += amount.Uint64()
 					return
 				}
 			}
-			v = append(v, transferInfo)
-		} else {
-			Transfers[sender] = []*TransferInfo{transferInfo}
 		}
+		Transfers[sender] = append(Transfers[sender], transferInfo)
 	}
 }
