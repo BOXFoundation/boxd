@@ -9,13 +9,13 @@ It translates gRPC into RESTful JSON APIs.
 package rpcpb
 
 import (
-	"context"
 	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/grpc-ecosystem/grpc-gateway/utilities"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
@@ -45,23 +45,6 @@ func request_DatabaseCommand_GetDatabaseKeys_0(ctx context.Context, marshaler ru
 
 }
 
-func local_request_DatabaseCommand_GetDatabaseKeys_0(ctx context.Context, marshaler runtime.Marshaler, server DatabaseCommandServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq GetDatabaseKeysRequest
-	var metadata runtime.ServerMetadata
-
-	newReader, berr := utilities.IOReaderFactory(req.Body)
-	if berr != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
-	}
-	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-
-	msg, err := server.GetDatabaseKeys(ctx, &protoReq)
-	return msg, metadata, err
-
-}
-
 func request_DatabaseCommand_GetDatabaseValue_0(ctx context.Context, marshaler runtime.Marshaler, client DatabaseCommandClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetDatabaseValueRequest
 	var metadata runtime.ServerMetadata
@@ -77,71 +60,6 @@ func request_DatabaseCommand_GetDatabaseValue_0(ctx context.Context, marshaler r
 	msg, err := client.GetDatabaseValue(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
-}
-
-func local_request_DatabaseCommand_GetDatabaseValue_0(ctx context.Context, marshaler runtime.Marshaler, server DatabaseCommandServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq GetDatabaseValueRequest
-	var metadata runtime.ServerMetadata
-
-	newReader, berr := utilities.IOReaderFactory(req.Body)
-	if berr != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
-	}
-	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-
-	msg, err := server.GetDatabaseValue(ctx, &protoReq)
-	return msg, metadata, err
-
-}
-
-// RegisterDatabaseCommandHandlerServer registers the http handlers for service DatabaseCommand to "mux".
-// UnaryRPC     :call DatabaseCommandServer directly.
-// StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
-func RegisterDatabaseCommandHandlerServer(ctx context.Context, mux *runtime.ServeMux, server DatabaseCommandServer) error {
-
-	mux.Handle("POST", pattern_DatabaseCommand_GetDatabaseKeys_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := local_request_DatabaseCommand_GetDatabaseKeys_0(rctx, inboundMarshaler, server, req, pathParams)
-		ctx = runtime.NewServerMetadataContext(ctx, md)
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-
-		forward_DatabaseCommand_GetDatabaseKeys_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
-	})
-
-	mux.Handle("POST", pattern_DatabaseCommand_GetDatabaseValue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := local_request_DatabaseCommand_GetDatabaseValue_0(rctx, inboundMarshaler, server, req, pathParams)
-		ctx = runtime.NewServerMetadataContext(ctx, md)
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-
-		forward_DatabaseCommand_GetDatabaseValue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
-	})
-
-	return nil
 }
 
 // RegisterDatabaseCommandHandlerFromEndpoint is same as RegisterDatabaseCommandHandler but
@@ -226,9 +144,9 @@ func RegisterDatabaseCommandHandlerClient(ctx context.Context, mux *runtime.Serv
 }
 
 var (
-	pattern_DatabaseCommand_GetDatabaseKeys_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "keys"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_DatabaseCommand_GetDatabaseKeys_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "keys"}, ""))
 
-	pattern_DatabaseCommand_GetDatabaseValue_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "get"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_DatabaseCommand_GetDatabaseValue_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "db", "get"}, ""))
 )
 
 var (
