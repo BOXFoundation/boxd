@@ -122,56 +122,6 @@ func TestIntermediateLeaks(t *testing.T) {
 	}
 }
 
-// TestCopy tests that copying a statedb object indeed makes the original and
-// the copy independent of each other. This test is a regression test against
-// https://github.com/ethereum/go-ethereum/pull/15549.
-// func TestCopy(t *testing.T) {
-// 	// Create a random state test to copy and modify "independently"
-// 	orig, _ := New(initDB())
-
-// 	for i := byte(0); i < 255; i++ {
-// 		obj := orig.getOrNewStateObject(types.BytesToAddressHash([]byte{i}))
-// 		obj.AddBalance(big.NewInt(int64(i)))
-// 		orig.updateStateObject(obj)
-// 	}
-// 	orig.Finalise(false)
-
-// 	// Copy the state, modify both in-memory
-// 	copy := orig.Copy()
-
-// 	for i := byte(0); i < 255; i++ {
-// 		origObj := orig.getOrNewStateObject(types.BytesToAddressHash([]byte{i}))
-// 		copyObj := copy.getOrNewStateObject(types.BytesToAddressHash([]byte{i}))
-
-// 		origObj.AddBalance(big.NewInt(2 * int64(i)))
-// 		copyObj.AddBalance(big.NewInt(3 * int64(i)))
-
-// 		orig.updateStateObject(origObj)
-// 		copy.updateStateObject(copyObj)
-// 	}
-// 	// Finalise the changes on both concurrently
-// 	done := make(chan struct{})
-// 	go func() {
-// 		orig.Finalise(true)
-// 		close(done)
-// 	}()
-// 	copy.Finalise(true)
-// 	<-done
-
-// 	// Verify that the two states have been updated independently
-// 	for i := byte(0); i < 255; i++ {
-// 		origObj := orig.getOrNewStateObject(types.BytesToAddressHash([]byte{i}))
-// 		copyObj := copy.getOrNewStateObject(types.BytesToAddressHash([]byte{i}))
-
-// 		if want := big.NewInt(3 * int64(i)); origObj.Balance().Cmp(want) != 0 {
-// 			fmt.Printf("orig obj %d: balance mismatch: have %v, want %v", i, origObj.Balance(), want)
-// 		}
-// 		if want := big.NewInt(4 * int64(i)); copyObj.Balance().Cmp(want) != 0 {
-// 			fmt.Printf("copy obj %d: balance mismatch: have %v, want %v", i, copyObj.Balance(), want)
-// 		}
-// 	}
-// }
-
 func TestSnapshotRandom(t *testing.T) {
 	config := &quick.Config{MaxCount: 1000}
 	err := quick.Check((*snapshotTest).run, config)
@@ -427,7 +377,6 @@ func (s *StateSuite) TestTouchDelete(t *testing.T) {
 }
 
 // TestCopyOfCopy tests that modified objects are carried over to the copy, and the copy of the copy.
-// See https://github.com/ethereum/go-ethereum/pull/15225#issuecomment-380191512
 func TestCopyOfCopy(t *testing.T) {
 	sdb, _ := New(nil, nil, initDB())
 	addr := types.HexToAddressHash("aaaa")
