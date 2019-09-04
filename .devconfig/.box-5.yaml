@@ -17,8 +17,6 @@ log:
               # maxsize: 10240000
               rotate: true
               level:  4 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
-chain:
-    gas_price: 1
 p2p:
     key_path: peer.key
     port: 19159
@@ -40,7 +38,7 @@ bpos:
     enable_mint: true
     passphrase: 1
 metrics:
-    enable: false
+    enable: true
     host: http://localhost:8086
     db: box
     user: 
