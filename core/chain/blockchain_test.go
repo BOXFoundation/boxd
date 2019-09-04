@@ -338,7 +338,7 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.
 		return err
 	}
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
-	receipts, gasUsed, feeUsed, utxoTxs, err :=
+	receipts, gasUsed, utxoTxs, err :=
 		chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
@@ -348,7 +348,7 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.
 	// update genesis contract utxo in utxoSet
 	op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
 	genesisUtxoWrap := utxoSet.GetUtxo(op)
-	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + feeUsed)
+	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
 	if len(utxoTxs) > 0 {
 		block.InternalTxs = utxoTxs
@@ -424,8 +424,7 @@ func TestBlockProcessing(t *testing.T) {
 	if err := calcRootHash(b2, b3, blockChain); err != nil {
 		t.Fatal(err)
 	}
-	gasUsed := b3.Header.GasUsed - coinbaseGasUsed
-	gasRefundValue := gasPrice * (gasLimit - gasUsed)
+	gasRefundValue := gasPrice*gasLimit - b3.Header.GasUsed
 	t.Logf("b3 gas refund value: %d", gasRefundValue)
 	contractBlockHandle(t, blockChain, b3, b3, vmParam, nil)
 	t.Logf("faucet contract addr %s %x balance: %d", contractAddrFaucet,
@@ -480,7 +479,7 @@ func TestBlockProcessing(t *testing.T) {
 	contractBlockHandle(t, blockChain, b3A, b3, vmParam, core.ErrBlockInSideChain)
 	t.Logf("b3A block hash: %s", b3A.BlockHash())
 	t.Logf("b2 -> b3A failed: %s", core.ErrBlockInSideChain)
-	gasRefundA := (gasLimit - (b3A.Header.GasUsed - coinbaseGasUsed)) * gasPrice
+	gasRefundA := gasLimit*gasPrice - b3A.Header.GasUsed
 	//
 	if err := blockChainA.ProcessBlock(b3A, core.DefaultMode, "peer1"); err != nil {
 		t.Fatal(err)
@@ -748,7 +747,7 @@ func TestBlockProcessing(t *testing.T) {
 	}
 	//
 	userBalance = blockChainB.TailState().GetBalance(*userAddr.Hash160()).Uint64()
-	ensure.DeepEqual(t, userBalance, b6AUserBalance-(b7B.Header.GasUsed-coinbaseGasUsed)*gasPrice)
+	ensure.DeepEqual(t, userBalance, b6AUserBalance-b7B.Header.GasUsed)
 	vmParam = &testContractParam{contractAddr: contractAddrCoin}
 	contractBlockHandle(t, blockChain, b8B, b8B, vmParam, nil)
 	t.Logf("b8B block hash: %s", b8B.BlockHash())

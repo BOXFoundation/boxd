@@ -886,7 +886,7 @@ func (chain *BlockChain) executeBlock(
 			return err
 		}
 
-		rcps, gasUsed, feeUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
+		rcps, gasUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			logger.Error(err)
 			return err
@@ -899,7 +899,7 @@ func (chain *BlockChain) executeBlock(
 		// update genesis contract utxo in utxoSet
 		op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
 		genesisUtxoWrap := utxoSet.GetUtxo(op)
-		genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + feeUsed)
+		genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
