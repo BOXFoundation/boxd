@@ -116,6 +116,11 @@ func encode(cmd *cobra.Command, args []string) {
 	}
 
 	if err != nil {
+		// Try use event.
+		if event, ok := aabi.Events[methodname]; ok {
+			fmt.Println(hex.EncodeToString(event.ID().Bytes()))
+			return
+		}
 		fmt.Println(err)
 	} else {
 		fmt.Println(hex.EncodeToString(data))
