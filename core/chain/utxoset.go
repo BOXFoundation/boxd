@@ -55,9 +55,27 @@ func (u *UtxoSet) GetUtxos() types.UtxoMap {
 	return result
 }
 
+// GetUtxo returns the utxo wrap relevant to OutPoint op
+func (u *UtxoSet) GetUtxo(op *types.OutPoint) *types.UtxoWrap {
+	w, ok := u.utxoMap[*op]
+	if !ok {
+		return nil
+	}
+	return w
+}
+
 // All returns all utxo contained including spent utxo
 func (u *UtxoSet) All() types.UtxoMap {
 	return u.utxoMap
+}
+
+// ContractUtxos returns contract utxos
+func (u *UtxoSet) ContractUtxos() types.UtxoMap {
+	utxoMaps := make(types.UtxoMap)
+	for o := range u.contractUtxos {
+		utxoMaps[o] = u.utxoMap[o]
+	}
+	return utxoMaps
 }
 
 // ImportUtxoMap imports utxos from a UtxoMap

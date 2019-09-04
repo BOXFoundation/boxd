@@ -19,7 +19,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -64,11 +63,6 @@ const (
 	AddrFilterNumbers = 10000000
 )
 
-const (
-	free int32 = iota
-	busy
-)
-
 var logger = log.NewLogger("chain") // logger
 
 var _ service.ChainReader = (*BlockChain)(nil)
@@ -103,7 +97,6 @@ type BlockChain struct {
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
 	orphanBlockHashToChildren map[crypto.HashType][]*types.Block
 	syncManager               SyncManager
-	status                    int32
 	stateProcessor            *StateProcessor
 	vmConfig                  vm.Config
 	utxoSetCache              map[uint32]*UtxoSet
@@ -131,7 +124,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		utxoSetCache:              make(map[uint32]*UtxoSet),
 		receiptsCache:             make(map[uint32]types.Receipts),
 		bus:                       eventbus.Default(),
-		status:                    free,
 	}
 
 	var err error
@@ -189,12 +181,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	logger.Infof("load contract address bloom filter finished")
 
 	return b, nil
-}
-
-// IsBusy return if the chain is processing a block
-func (chain *BlockChain) IsBusy() bool {
-	v := atomic.LoadInt32(&chain.status)
-	return v == busy
 }
 
 // Setup prepare blockchain.
@@ -448,10 +434,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	chain.chainLock.Lock()
 	defer func() {
 		chain.chainLock.Unlock()
-		atomic.StoreInt32(&chain.status, free)
 	}()
-
-	atomic.StoreInt32(&chain.status, busy)
 
 	t0 := time.Now().UnixNano()
 	blockHash := block.BlockHash()
@@ -856,8 +839,7 @@ func (chain *BlockChain) UpdateNormalTxBalanceState(block *types.Block, utxoset 
 func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet *UtxoSet) error {
 	for o := range utxoSet.contractUtxos {
 		// address
-		contractAddr := new(types.AddressHash)
-		contractAddr.SetBytes(o.Hash[:])
+		contractAddr := types.NewAddressHash(o.Hash[:])
 		// serialize utxo wrap
 		u := utxoSet.utxoMap[o]
 		utxoBytes, err := SerializeUtxoWrap(u)
@@ -878,7 +860,9 @@ func (chain *BlockChain) executeBlock(
 ) error {
 
 	var (
+		stateDB  *state.StateDB
 		receipts types.Receipts
+		err      error
 	)
 
 	blockCopy := block.Copy()
@@ -888,7 +872,7 @@ func (chain *BlockChain) executeBlock(
 	// execute contract tx and update statedb for blocks from remote peers
 	if messageFrom != "" {
 		parent := chain.GetParentBlock(block)
-		stateDB, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.db)
+		stateDB, err = state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.db)
 		if err != nil {
 			logger.Error(err)
 			return err
@@ -902,7 +886,7 @@ func (chain *BlockChain) executeBlock(
 			return err
 		}
 
-		rcps, gasUsed, _, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
+		rcps, gasUsed, feeUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			logger.Error(err)
 			return err
@@ -912,6 +896,10 @@ func (chain *BlockChain) executeBlock(
 		}
 
 		chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
+		// update genesis contract utxo in utxoSet
+		op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
+		genesisUtxoWrap := utxoSet.GetUtxo(op)
+		genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + feeUsed)
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
@@ -946,8 +934,19 @@ func (chain *BlockChain) executeBlock(
 			receipts = rcps
 		}
 	} else {
+		stateDB, _ = state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
 		receipts = chain.receiptsCache[block.Header.Height]
 		delete(chain.receiptsCache, block.Header.Height)
+	}
+
+	// check whether contract balance is identical in utxo and statedb
+	for o, u := range utxoSet.ContractUtxos() {
+		contractAddr := types.NewAddressHash(o.Hash[:])
+		if u.Value() != stateDB.GetBalance(*contractAddr).Uint64() {
+			address, _ := types.NewContractAddressFromHash(contractAddr[:])
+			return fmt.Errorf("contract %s have ambiguous balance(%d in utxo and %d"+
+				" in statedb)", address, u.Value(), stateDB.GetBalance(*contractAddr))
+		}
 	}
 
 	if err := chain.writeBlockToDB(block, splitTxs, utxoSet, receipts); err != nil {
@@ -1445,6 +1444,8 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	addressHash := types.NormalizeAddressHash(&contractAddr)
 	outPoint := types.NewOutPoint(addressHash, 0)
 	utxoWrap := types.NewUtxoWrap(0, []byte{}, 0)
+	utxoBytes, _ := SerializeUtxoWrap(utxoWrap)
+	stateDB.UpdateUtxo(ContractAddr, utxoBytes)
 	utxoSet.utxoMap[*outPoint] = utxoWrap
 
 	chain.UpdateNormalTxBalanceState(&genesis, utxoSet, stateDB)
@@ -1459,6 +1460,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	}
 
 	batch := chain.db.NewBatch()
+	defer batch.Close()
 	utxoSet.WriteUtxoSetToDB(batch)
 	if err := chain.WriteTxIndex(&genesis, nil, batch); err != nil {
 		return nil, err
@@ -2232,6 +2234,10 @@ func loadAddrFilter(reader storage.Reader, addrPrefix []byte) bloom.Filter {
 	return filter
 }
 
+func (chain *BlockChain) calcScores() ([]*big.Int, error) {
+	return nil, nil
+}
+
 // MakeInternalContractTx creates a coinbase give bookkeeper address and block height
 func (chain *BlockChain) MakeInternalContractTx(
 	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
@@ -2241,10 +2247,23 @@ func (chain *BlockChain) MakeInternalContractTx(
 	if err != nil {
 		return nil, err
 	}
-	code, err := abiObj.Pack(method)
-	if err != nil {
-		return nil, err
+	var code []byte
+	if method == CalcScore {
+		scores, err := chain.calcScores()
+		if err != nil {
+			return nil, err
+		}
+		code, err = abiObj.Pack(method, scores)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		code, err = abiObj.Pack(method)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
 	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
 	if err != nil {
@@ -2255,11 +2274,20 @@ func (chain *BlockChain) MakeInternalContractTx(
 		return nil, err
 	}
 	var index uint32
-	if method == "calcBonus" {
+	// if method == "calcBonus" {
+	// 	index = sysmath.MaxUint32
+	// } else {
+	// 	index = 0
+	// }
+	switch method {
+	case CalcBonus:
 		index = sysmath.MaxUint32
-	} else {
-		index = 0
+	case ExecBonus:
+		index = sysmath.MaxUint32 - 1
+	case CalcScore:
+		index = sysmath.MaxUint32 - 2
 	}
+
 	tx := &types.Transaction{
 		Version: 1,
 		Vin: []*types.TxIn{

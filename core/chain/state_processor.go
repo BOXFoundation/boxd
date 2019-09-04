@@ -252,6 +252,7 @@ func makeTx(
 		return nil, errors.New("makeTx] Invalid contract address for from")
 	}
 	inOp := types.NewOutPoint(hash, 0)
+	utxoSet.contractUtxos[*inOp] = struct{}{}
 	fromUtxoWrap, ok := utxoSet.utxoMap[*inOp]
 	if !ok {
 		wrap, err := fetchUtxoWrapFromDB(db, inOp)
@@ -283,7 +284,7 @@ func makeTx(
 		} else {
 			spk = script.PayToPubKeyHashScript(to.Bytes())
 		}
-		toValue := transferInfos[i].value.Uint64()
+		toValue := transferInfos[i].value
 		vout := types.NewTxOut(toValue, *spk)
 		vouts = append(vouts, vout)
 		fromValue := fromUtxoWrap.Value() - toValue

@@ -238,7 +238,7 @@ func (s *stateObject) updateTrie() *trie.Trie {
 func (s *stateObject) updateRoot() {
 	s.updateTrie()
 	s.data.Root = s.trie.Hash()
-	logger.Debugf("DEBUG: state object update addr %x root: %s", s.address[:], s.data.Root)
+	//logger.Debugf("DEBUG: state object update addr %x root: %s", s.address[:], s.data.Root)
 }
 
 // CommitTrie the storage trie of the object to dwb.
@@ -248,7 +248,7 @@ func (s *stateObject) CommitTrie() (*corecrypto.HashType, error) {
 	if s.dbErr != nil {
 		return nil, s.dbErr
 	}
-	logger.Debugf("DEBUG: state object CommitTrie addr %x root: %s", s.address[:], s.trie.RootHash())
+	//logger.Debugf("DEBUG: state object CommitTrie addr %x root: %s", s.address[:], s.trie.RootHash())
 	return s.trie.RootHash(), nil
 }
 

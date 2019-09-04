@@ -16,17 +16,24 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 )
 
-// Admin represents admin address.
-var Admin = "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+// genesis contract properties
+var (
+	// Admin represents admin address.
+	Admin = "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
 
-// ContractAddr genesis contract address.
-var ContractAddr types.AddressHash
+	// ContractAddr genesis contract address.
+	ContractAddr types.AddressHash
 
-// ContractBin genesis contract bin.
-var ContractBin []byte
+	// ContractBin genesis contract bin.
+	ContractBin []byte
 
-// ContractAbi genesis contract abi.
-var ContractAbi *abi.ABI
+	// ContractAbi genesis contract abi.
+	ContractAbi *abi.ABI
+
+	CalcBonus = "calcBonus"
+	ExecBonus = "execBonus"
+	CalcScore = "calcScore"
+)
 
 // GenesisBlock represents genesis block.
 var GenesisBlock = types.Block{
