@@ -40,9 +40,17 @@ service ContorlCommand {
         };
     }
 
-    rpc GetChainHeight (GetChainHeightRequest) returns (GetChainHeightResponse) {
+
+    rpc GetCurrentBlockHeight (GetCurrentBlockHeightRequest) returns (GetCurrentBlockHeightResponse) {
         option (google.api.http) = {
-            post: "/v1/ctl/getchainheight"
+            post: "/v1/ctl/getcurrentblockheight"
+            body: "*"
+      };
+    }
+
+    rpc GetCurrentBlockHash (GetCurrentBlockHashRequest) returns (GetCurrentBlockHashResponse) {
+        option (google.api.http) = {
+            post: "/v1/ctl/getcurrentblockhash"
             body: "*"
       };
     }
@@ -129,13 +137,23 @@ message AddNodeRequest {
     string node = 1;
 }
 
-message GetChainHeightRequest {
+message GetCurrentBlockHeightRequest {
 }
 
-message GetChainHeightResponse {
+message GetCurrentBlockHeightResponse {
     int32 code = 1;
     string message = 2;
     uint32 height = 3;
+}
+
+message GetCurrentBlockHashRequest{
+
+}
+
+message GetCurrentBlockHashResponse{
+    int32 code = 1;
+    string message = 2;
+    string hash = 3;
 }
 
 message GetBlockHashRequest {

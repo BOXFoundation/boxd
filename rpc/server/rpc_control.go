@@ -101,9 +101,20 @@ func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetwork
 	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
 }
 
+<<<<<<< Updated upstream
 func (s *ctlserver) GetChainHeight(ctx context.Context, req *rpcpb.GetChainHeightRequest) (*rpcpb.GetChainHeightResponse, error) {
 	height := s.server.GetChainReader().GetBlockHeight()
 	return &rpcpb.GetChainHeightResponse{Code: 0, Message: "ok", Height: height}, nil
+=======
+func (s *ctlserver) GetCurrentBlockHeight(ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest) (*rpcpb.GetCurrentBlockHeightResponse, error) {
+	height := s.server.GetChainReader().GetBlockHeight()
+	return &rpcpb.GetCurrentBlockHeightResponse{Code: 0, Message: "ok", Height: height}, nil
+}
+
+func (s *ctlserver) GetCurrentBlockHash(ctx context.Context, req *rpcpb.GetCurrentBlockHashRequest) (*rpcpb.GetCurrentBlockHashResponse, error) {
+	hash := s.server.GetChainReader().TailBlock().Hash
+	return &rpcpb.GetCurrentBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
+>>>>>>> Stashed changes
 }
 
 func (s *ctlserver) GetBlockHash(ctx context.Context, req *rpcpb.GetBlockHashRequest) (*rpcpb.GetBlockHashResponse, error) {

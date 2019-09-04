@@ -62,12 +62,28 @@ func GetBlockCount(conn *grpc.ClientConn) (uint32, error) {
 	defer cancel()
 
 	logger.Info("Querying block count")
-	r, err := c.GetBlockHeight(ctx, &pb.GetBlockHeightRequest{})
+	r, err := c.GetCurrentBlockHeight(ctx, &pb.GetCurrentBlockHeightRequest{})
 	if err != nil {
 		return 0, err
 	}
 	logger.Infof("Block info: %+v", r)
 	return r.Height, nil
+}
+
+// GetCurrentBlockHash query chain height
+func GetCurrentBlockHash(conn *grpc.ClientConn) (string, error) {
+	c := pb.NewContorlCommandClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logger.Info("Querying block hash")
+	r, err := c.GetCurrentBlockHash(ctx, &pb.GetCurrentBlockHashRequest{})
+	if err != nil {
+		return "", err
+	}
+	logger.Infof("Block info: %+v", r)
+	return r.Hash, nil
 }
 
 // GetBlockHash returns block hash of a height

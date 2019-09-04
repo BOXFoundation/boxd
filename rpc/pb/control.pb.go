@@ -249,21 +249,21 @@ func (m *AddNodeRequest) GetNode() string {
 	return ""
 }
 
-type GetChainHeightRequest struct {
+type GetCurrentBlockHeightRequest struct {
 }
 
-func (m *GetChainHeightRequest) Reset()         { *m = GetChainHeightRequest{} }
-func (m *GetChainHeightRequest) String() string { return proto.CompactTextString(m) }
-func (*GetChainHeightRequest) ProtoMessage()    {}
-func (*GetChainHeightRequest) Descriptor() ([]byte, []int) {
+func (m *GetCurrentBlockHeightRequest) Reset()         { *m = GetCurrentBlockHeightRequest{} }
+func (m *GetCurrentBlockHeightRequest) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHeightRequest) ProtoMessage()    {}
+func (*GetCurrentBlockHeightRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_0c5120591600887d, []int{5}
 }
-func (m *GetChainHeightRequest) XXX_Unmarshal(b []byte) error {
+func (m *GetCurrentBlockHeightRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *GetChainHeightRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *GetCurrentBlockHeightRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_GetChainHeightRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_GetCurrentBlockHeightRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -273,36 +273,36 @@ func (m *GetChainHeightRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return b[:n], nil
 	}
 }
-func (m *GetChainHeightRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetChainHeightRequest.Merge(m, src)
+func (m *GetCurrentBlockHeightRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHeightRequest.Merge(m, src)
 }
-func (m *GetChainHeightRequest) XXX_Size() int {
+func (m *GetCurrentBlockHeightRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *GetChainHeightRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetChainHeightRequest.DiscardUnknown(m)
+func (m *GetCurrentBlockHeightRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHeightRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_GetChainHeightRequest proto.InternalMessageInfo
+var xxx_messageInfo_GetCurrentBlockHeightRequest proto.InternalMessageInfo
 
-type GetChainHeightResponse struct {
+type GetCurrentBlockHeightResponse struct {
 	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Height  uint32 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
 }
 
-func (m *GetChainHeightResponse) Reset()         { *m = GetChainHeightResponse{} }
-func (m *GetChainHeightResponse) String() string { return proto.CompactTextString(m) }
-func (*GetChainHeightResponse) ProtoMessage()    {}
-func (*GetChainHeightResponse) Descriptor() ([]byte, []int) {
+func (m *GetCurrentBlockHeightResponse) Reset()         { *m = GetCurrentBlockHeightResponse{} }
+func (m *GetCurrentBlockHeightResponse) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHeightResponse) ProtoMessage()    {}
+func (*GetCurrentBlockHeightResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_0c5120591600887d, []int{6}
 }
-func (m *GetChainHeightResponse) XXX_Unmarshal(b []byte) error {
+func (m *GetCurrentBlockHeightResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *GetChainHeightResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *GetCurrentBlockHeightResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_GetChainHeightResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_GetCurrentBlockHeightResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -312,37 +312,133 @@ func (m *GetChainHeightResponse) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return b[:n], nil
 	}
 }
-func (m *GetChainHeightResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetChainHeightResponse.Merge(m, src)
+func (m *GetCurrentBlockHeightResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHeightResponse.Merge(m, src)
 }
-func (m *GetChainHeightResponse) XXX_Size() int {
+func (m *GetCurrentBlockHeightResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *GetChainHeightResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetChainHeightResponse.DiscardUnknown(m)
+func (m *GetCurrentBlockHeightResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHeightResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_GetChainHeightResponse proto.InternalMessageInfo
+var xxx_messageInfo_GetCurrentBlockHeightResponse proto.InternalMessageInfo
 
-func (m *GetChainHeightResponse) GetCode() int32 {
+func (m *GetCurrentBlockHeightResponse) GetCode() int32 {
 	if m != nil {
 		return m.Code
 	}
 	return 0
 }
 
-func (m *GetChainHeightResponse) GetMessage() string {
+func (m *GetCurrentBlockHeightResponse) GetMessage() string {
 	if m != nil {
 		return m.Message
 	}
 	return ""
 }
 
-func (m *GetChainHeightResponse) GetHeight() uint32 {
+func (m *GetCurrentBlockHeightResponse) GetHeight() uint32 {
 	if m != nil {
 		return m.Height
 	}
 	return 0
+}
+
+type GetCurrentBlockHashRequest struct {
+}
+
+func (m *GetCurrentBlockHashRequest) Reset()         { *m = GetCurrentBlockHashRequest{} }
+func (m *GetCurrentBlockHashRequest) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHashRequest) ProtoMessage()    {}
+func (*GetCurrentBlockHashRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{7}
+}
+func (m *GetCurrentBlockHashRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetCurrentBlockHashRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetCurrentBlockHashRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetCurrentBlockHashRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHashRequest.Merge(m, src)
+}
+func (m *GetCurrentBlockHashRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetCurrentBlockHashRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHashRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetCurrentBlockHashRequest proto.InternalMessageInfo
+
+type GetCurrentBlockHashResponse struct {
+	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Hash    string `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
+}
+
+func (m *GetCurrentBlockHashResponse) Reset()         { *m = GetCurrentBlockHashResponse{} }
+func (m *GetCurrentBlockHashResponse) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHashResponse) ProtoMessage()    {}
+func (*GetCurrentBlockHashResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{8}
+}
+func (m *GetCurrentBlockHashResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetCurrentBlockHashResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetCurrentBlockHashResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetCurrentBlockHashResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHashResponse.Merge(m, src)
+}
+func (m *GetCurrentBlockHashResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetCurrentBlockHashResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHashResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetCurrentBlockHashResponse proto.InternalMessageInfo
+
+func (m *GetCurrentBlockHashResponse) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *GetCurrentBlockHashResponse) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *GetCurrentBlockHashResponse) GetHash() string {
+	if m != nil {
+		return m.Hash
+	}
+	return ""
 }
 
 type GetBlockHashRequest struct {
@@ -353,7 +449,7 @@ func (m *GetBlockHashRequest) Reset()         { *m = GetBlockHashRequest{} }
 func (m *GetBlockHashRequest) String() string { return proto.CompactTextString(m) }
 func (*GetBlockHashRequest) ProtoMessage()    {}
 func (*GetBlockHashRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{7}
+	return fileDescriptor_0c5120591600887d, []int{9}
 }
 func (m *GetBlockHashRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -399,7 +495,7 @@ func (m *GetBlockHashResponse) Reset()         { *m = GetBlockHashResponse{} }
 func (m *GetBlockHashResponse) String() string { return proto.CompactTextString(m) }
 func (*GetBlockHashResponse) ProtoMessage()    {}
 func (*GetBlockHashResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{8}
+	return fileDescriptor_0c5120591600887d, []int{10}
 }
 func (m *GetBlockHashResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -457,7 +553,7 @@ func (m *GetBlockRequest) Reset()         { *m = GetBlockRequest{} }
 func (m *GetBlockRequest) String() string { return proto.CompactTextString(m) }
 func (*GetBlockRequest) ProtoMessage()    {}
 func (*GetBlockRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{9}
+	return fileDescriptor_0c5120591600887d, []int{11}
 }
 func (m *GetBlockRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -503,7 +599,7 @@ func (m *GetBlockHeaderResponse) Reset()         { *m = GetBlockHeaderResponse{}
 func (m *GetBlockHeaderResponse) String() string { return proto.CompactTextString(m) }
 func (*GetBlockHeaderResponse) ProtoMessage()    {}
 func (*GetBlockHeaderResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{10}
+	return fileDescriptor_0c5120591600887d, []int{12}
 }
 func (m *GetBlockHeaderResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -563,7 +659,7 @@ func (m *GetBlockResponse) Reset()         { *m = GetBlockResponse{} }
 func (m *GetBlockResponse) String() string { return proto.CompactTextString(m) }
 func (*GetBlockResponse) ProtoMessage()    {}
 func (*GetBlockResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{11}
+	return fileDescriptor_0c5120591600887d, []int{13}
 }
 func (m *GetBlockResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -623,7 +719,7 @@ func (m *Node) Reset()         { *m = Node{} }
 func (m *Node) String() string { return proto.CompactTextString(m) }
 func (*Node) ProtoMessage()    {}
 func (*Node) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{12}
+	return fileDescriptor_0c5120591600887d, []int{14}
 }
 func (m *Node) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -680,7 +776,7 @@ func (m *GetNodeInfoRequest) Reset()         { *m = GetNodeInfoRequest{} }
 func (m *GetNodeInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*GetNodeInfoRequest) ProtoMessage()    {}
 func (*GetNodeInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{13}
+	return fileDescriptor_0c5120591600887d, []int{15}
 }
 func (m *GetNodeInfoRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -717,7 +813,7 @@ func (m *GetNodeInfoResponse) Reset()         { *m = GetNodeInfoResponse{} }
 func (m *GetNodeInfoResponse) String() string { return proto.CompactTextString(m) }
 func (*GetNodeInfoResponse) ProtoMessage()    {}
 func (*GetNodeInfoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{14}
+	return fileDescriptor_0c5120591600887d, []int{16}
 }
 func (m *GetNodeInfoResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -761,7 +857,7 @@ func (m *GetBlockByHeightReq) Reset()         { *m = GetBlockByHeightReq{} }
 func (m *GetBlockByHeightReq) String() string { return proto.CompactTextString(m) }
 func (*GetBlockByHeightReq) ProtoMessage()    {}
 func (*GetBlockByHeightReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{15}
+	return fileDescriptor_0c5120591600887d, []int{17}
 }
 func (m *GetBlockByHeightReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -805,7 +901,7 @@ func (m *GetBlockTransactionCountByHashReq) Reset()         { *m = GetBlockTrans
 func (m *GetBlockTransactionCountByHashReq) String() string { return proto.CompactTextString(m) }
 func (*GetBlockTransactionCountByHashReq) ProtoMessage()    {}
 func (*GetBlockTransactionCountByHashReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{16}
+	return fileDescriptor_0c5120591600887d, []int{18}
 }
 func (m *GetBlockTransactionCountByHashReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -849,7 +945,7 @@ func (m *GetBlockTransactionCountByHeightReq) Reset()         { *m = GetBlockTra
 func (m *GetBlockTransactionCountByHeightReq) String() string { return proto.CompactTextString(m) }
 func (*GetBlockTransactionCountByHeightReq) ProtoMessage()    {}
 func (*GetBlockTransactionCountByHeightReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{17}
+	return fileDescriptor_0c5120591600887d, []int{19}
 }
 func (m *GetBlockTransactionCountByHeightReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -895,7 +991,7 @@ func (m *GetBlockTxCountResp) Reset()         { *m = GetBlockTxCountResp{} }
 func (m *GetBlockTxCountResp) String() string { return proto.CompactTextString(m) }
 func (*GetBlockTxCountResp) ProtoMessage()    {}
 func (*GetBlockTxCountResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{18}
+	return fileDescriptor_0c5120591600887d, []int{20}
 }
 func (m *GetBlockTxCountResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -954,7 +1050,7 @@ func (m *GetTransactionByBlockHashAndIndexReq) Reset()         { *m = GetTransac
 func (m *GetTransactionByBlockHashAndIndexReq) String() string { return proto.CompactTextString(m) }
 func (*GetTransactionByBlockHashAndIndexReq) ProtoMessage()    {}
 func (*GetTransactionByBlockHashAndIndexReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{19}
+	return fileDescriptor_0c5120591600887d, []int{21}
 }
 func (m *GetTransactionByBlockHashAndIndexReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1008,7 +1104,7 @@ func (m *GetTransactionByBlockHeightAndIndexReq) Reset() {
 func (m *GetTransactionByBlockHeightAndIndexReq) String() string { return proto.CompactTextString(m) }
 func (*GetTransactionByBlockHeightAndIndexReq) ProtoMessage()    {}
 func (*GetTransactionByBlockHeightAndIndexReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{20}
+	return fileDescriptor_0c5120591600887d, []int{22}
 }
 func (m *GetTransactionByBlockHeightAndIndexReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1061,7 +1157,7 @@ func (m *GetTxResp) Reset()         { *m = GetTxResp{} }
 func (m *GetTxResp) String() string { return proto.CompactTextString(m) }
 func (*GetTxResp) ProtoMessage()    {}
 func (*GetTxResp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{21}
+	return fileDescriptor_0c5120591600887d, []int{23}
 }
 func (m *GetTxResp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1117,8 +1213,10 @@ func init() {
 	proto.RegisterType((*GetNetworkIDRequest)(nil), "rpcpb.GetNetworkIDRequest")
 	proto.RegisterType((*GetNetworkIDResponse)(nil), "rpcpb.GetNetworkIDResponse")
 	proto.RegisterType((*AddNodeRequest)(nil), "rpcpb.AddNodeRequest")
-	proto.RegisterType((*GetChainHeightRequest)(nil), "rpcpb.GetChainHeightRequest")
-	proto.RegisterType((*GetChainHeightResponse)(nil), "rpcpb.GetChainHeightResponse")
+	proto.RegisterType((*GetCurrentBlockHeightRequest)(nil), "rpcpb.GetCurrentBlockHeightRequest")
+	proto.RegisterType((*GetCurrentBlockHeightResponse)(nil), "rpcpb.GetCurrentBlockHeightResponse")
+	proto.RegisterType((*GetCurrentBlockHashRequest)(nil), "rpcpb.GetCurrentBlockHashRequest")
+	proto.RegisterType((*GetCurrentBlockHashResponse)(nil), "rpcpb.GetCurrentBlockHashResponse")
 	proto.RegisterType((*GetBlockHashRequest)(nil), "rpcpb.GetBlockHashRequest")
 	proto.RegisterType((*GetBlockHashResponse)(nil), "rpcpb.GetBlockHashResponse")
 	proto.RegisterType((*GetBlockRequest)(nil), "rpcpb.GetBlockRequest")
@@ -1139,74 +1237,77 @@ func init() {
 func init() { proto.RegisterFile("control.proto", fileDescriptor_0c5120591600887d) }
 
 var fileDescriptor_0c5120591600887d = []byte{
-	// 1069 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x56, 0xcf, 0x6f, 0x1b, 0x45,
-	0x14, 0xce, 0x3a, 0x71, 0x4b, 0x5e, 0x7e, 0x76, 0xe2, 0x38, 0xee, 0x26, 0x36, 0xce, 0xa4, 0xaa,
-	0x42, 0xab, 0x7a, 0x69, 0xb8, 0x20, 0x24, 0x10, 0x75, 0x2a, 0xd2, 0x48, 0xa8, 0x08, 0x13, 0x50,
-	0x10, 0xa2, 0x68, 0xbd, 0x33, 0xb1, 0x97, 0xae, 0x77, 0xcc, 0xee, 0xa4, 0x38, 0xd7, 0x9e, 0x38,
-	0x21, 0x24, 0xf8, 0x77, 0xb8, 0x73, 0xac, 0xc4, 0x85, 0x23, 0x4a, 0xf8, 0x43, 0xd0, 0xbc, 0x9d,
-	0xb5, 0xc7, 0x9b, 0xb5, 0xad, 0xe6, 0xb6, 0xe3, 0x79, 0xf3, 0x7d, 0xdf, 0x7b, 0xf3, 0xcd, 0x7b,
-	0x86, 0x15, 0x4f, 0x84, 0x32, 0x12, 0x41, 0xa3, 0x1f, 0x09, 0x29, 0x48, 0x31, 0xea, 0x7b, 0xfd,
-	0xb6, 0xfd, 0xb8, 0xe3, 0xcb, 0xee, 0x79, 0xbb, 0xe1, 0x89, 0x9e, 0xd3, 0xfc, 0xe2, 0xf4, 0x33,
-	0x71, 0x1e, 0x32, 0x57, 0xfa, 0x22, 0x74, 0xda, 0x62, 0xc0, 0x1c, 0x4f, 0x44, 0xdc, 0xe9, 0xb7,
-	0x9d, 0x76, 0x20, 0xbc, 0x97, 0xc9, 0x49, 0x7b, 0xd9, 0x13, 0xbd, 0x9e, 0x08, 0xf5, 0x6a, 0xa7,
-	0x23, 0x44, 0x27, 0xe0, 0x8e, 0xdb, 0xf7, 0x1d, 0x37, 0x0c, 0x85, 0xc4, 0xd3, 0x71, 0xb2, 0x4b,
-	0xdf, 0x83, 0x3b, 0x4f, 0x79, 0xfb, 0xbc, 0xf3, 0x39, 0x7f, 0xc5, 0x83, 0x16, 0xff, 0xe9, 0x9c,
-	0xc7, 0x92, 0x94, 0xa0, 0x18, 0xa8, 0x75, 0xc5, 0xaa, 0x5b, 0xfb, 0x8b, 0xad, 0x64, 0x41, 0xf7,
-	0xa1, 0xfc, 0x75, 0x9f, 0xb9, 0x92, 0x3f, 0xe7, 0xf2, 0x67, 0x11, 0xbd, 0x3c, 0x7e, 0x9a, 0xc6,
-	0xaf, 0x42, 0xc1, 0x67, 0x18, 0xbc, 0xd2, 0x2a, 0xf8, 0x8c, 0x6e, 0xc2, 0xc6, 0x11, 0x97, 0xd9,
-	0x30, 0xfa, 0x29, 0x94, 0xc6, 0x7f, 0x8e, 0xfb, 0x22, 0x8c, 0x79, 0xf6, 0x38, 0xa9, 0xc0, 0xed,
-	0xc0, 0x97, 0x3c, 0x72, 0x83, 0x4a, 0x01, 0x05, 0xa4, 0x4b, 0x7a, 0x0f, 0x56, 0x9f, 0x30, 0xf6,
-	0x5c, 0x30, 0x9e, 0x52, 0x13, 0x58, 0x08, 0x05, 0xe3, 0x5a, 0x29, 0x7e, 0xd3, 0x2d, 0xd8, 0x3c,
-	0xe2, 0xf2, 0xb0, 0xeb, 0xfa, 0xe1, 0x33, 0xee, 0x77, 0xba, 0x32, 0x15, 0xf0, 0x02, 0xca, 0xd9,
-	0x0d, 0x2d, 0x81, 0xc0, 0x82, 0x97, 0xc2, 0x14, 0x5b, 0xf8, 0xad, 0x64, 0xf4, 0x78, 0x1c, 0xbb,
-	0x1d, 0x9e, 0xca, 0xd0, 0x4b, 0x52, 0x86, 0x5b, 0x5d, 0x3c, 0x5f, 0x99, 0x47, 0xd1, 0x7a, 0x45,
-	0x1f, 0x61, 0xde, 0x4d, 0x75, 0x15, 0xcf, 0xdc, 0xb8, 0x9b, 0x6a, 0x1c, 0x85, 0x5b, 0x63, 0xe1,
-	0xa7, 0x58, 0x0f, 0x23, 0xfc, 0x46, 0x62, 0x08, 0x2c, 0x74, 0xdd, 0xb8, 0x8b, 0x52, 0x16, 0x5b,
-	0xf8, 0x4d, 0xdf, 0x87, 0xb5, 0x14, 0x39, 0x15, 0x51, 0x05, 0x40, 0x8f, 0xfc, 0x80, 0xc1, 0x49,
-	0xb9, 0x16, 0xdb, 0x29, 0x37, 0x8d, 0xb1, 0x34, 0x89, 0x16, 0xee, 0x32, 0x1e, 0xdd, 0x50, 0xcd,
-	0x43, 0x95, 0xab, 0x3a, 0x8f, 0x7a, 0x96, 0x0e, 0x36, 0x1a, 0xca, 0xa1, 0xfd, 0x76, 0xc3, 0x84,
-	0xd6, 0x21, 0x94, 0xc3, 0xfa, 0x48, 0xe6, 0x8d, 0xe8, 0xf6, 0xa0, 0x88, 0x39, 0x68, 0xb6, 0x95,
-	0x31, 0xb6, 0x56, 0xb2, 0x47, 0x3f, 0x81, 0x05, 0x65, 0x19, 0xc3, 0x67, 0x8b, 0xe8, 0xb3, 0x12,
-	0x14, 0x5d, 0xc6, 0xa2, 0xb8, 0x52, 0xa8, 0xcf, 0x2b, 0x9b, 0xe3, 0x82, 0xac, 0xc3, 0xbc, 0x94,
-	0x81, 0x2e, 0xa7, 0xfa, 0xa4, 0x25, 0x20, 0xca, 0xb7, 0x82, 0xf1, 0xe3, 0xf0, 0x4c, 0xa4, 0x66,
-	0xfa, 0x30, 0x31, 0xf9, 0xf0, 0x57, 0xad, 0x7f, 0x17, 0x8a, 0xca, 0x84, 0x71, 0xc5, 0xaa, 0xcf,
-	0xef, 0x2f, 0x1d, 0x2c, 0x35, 0xf0, 0x19, 0x37, 0xd0, 0xb3, 0xc9, 0x8e, 0x69, 0x93, 0xe6, 0xc5,
-	0xd0, 0xa1, 0x13, 0x6d, 0xd2, 0x84, 0xdd, 0x34, 0xfc, 0x24, 0x72, 0xc3, 0xd8, 0xf5, 0xd4, 0x03,
-	0x3e, 0x14, 0xe7, 0xa1, 0x6c, 0x5e, 0x68, 0x9f, 0xcd, 0xba, 0xde, 0x8f, 0x61, 0x6f, 0x0a, 0xc6,
-	0x4c, 0x09, 0xdf, 0x8e, 0x14, 0x9f, 0x0c, 0xf0, 0x94, 0xca, 0xf7, 0x2d, 0xef, 0xaa, 0x04, 0x45,
-	0x4f, 0x1d, 0xd5, 0x8f, 0x26, 0x59, 0xd0, 0xef, 0xe0, 0xde, 0x11, 0x97, 0x86, 0xa8, 0xe6, 0xc5,
-	0xf0, 0x45, 0x3c, 0x09, 0xd9, 0x71, 0xc8, 0xf8, 0x60, 0x76, 0x82, 0x0a, 0xdc, 0x57, 0xa1, 0x48,
-	0x5a, 0x6c, 0x25, 0x0b, 0xfa, 0x0d, 0xdc, 0xcf, 0x07, 0xc7, 0xb4, 0x4c, 0xf8, 0x09, 0x99, 0x4f,
-	0xc0, 0x7d, 0x01, 0x8b, 0x0a, 0x77, 0x70, 0x83, 0x2a, 0xec, 0x41, 0xe1, 0x64, 0x90, 0x7d, 0x1c,
-	0x86, 0xc2, 0x56, 0xe1, 0x64, 0x70, 0xf0, 0xe7, 0x32, 0xac, 0x1e, 0x8a, 0x50, 0x8a, 0x28, 0x38,
-	0x14, 0xbd, 0x9e, 0x1b, 0x32, 0xf2, 0x3d, 0xac, 0x7c, 0xc5, 0xe5, 0xa8, 0x57, 0x93, 0x8a, 0x76,
-	0xd6, 0xb5, 0xf6, 0x6d, 0x6f, 0xe8, 0x9d, 0xa6, 0x1b, 0xf3, 0xd4, 0x97, 0xb4, 0xfa, 0xfa, 0xef,
-	0xff, 0x7e, 0x2f, 0x6c, 0x51, 0xe2, 0xbc, 0x7a, 0xec, 0x78, 0x32, 0x70, 0x98, 0x3a, 0x87, 0x9d,
-	0xfd, 0x23, 0xeb, 0x01, 0xf1, 0x60, 0x2d, 0xd3, 0xdc, 0x49, 0x55, 0xc3, 0xe4, 0x37, 0xfd, 0x7c,
-	0x96, 0x1d, 0x64, 0x29, 0xd3, 0x3b, 0x29, 0x4b, 0x98, 0x1c, 0xf3, 0x99, 0x22, 0x39, 0x83, 0x65,
-	0x73, 0x00, 0x10, 0x5b, 0x43, 0xe4, 0x0c, 0x0b, 0x7b, 0x3b, 0x77, 0x6f, 0x52, 0x32, 0x1d, 0x2e,
-	0x35, 0x93, 0xe2, 0xf9, 0x12, 0x6e, 0xeb, 0x31, 0x41, 0x36, 0x35, 0xcc, 0xf8, 0xd8, 0xc8, 0x17,
-	0x6f, 0x23, 0x6a, 0x89, 0xae, 0xa5, 0xa8, 0x2e, 0x63, 0xea, 0xc5, 0x2a, 0xc8, 0x3e, 0xac, 0x8e,
-	0x8f, 0x0e, 0xb2, 0x33, 0x12, 0x78, 0x7d, 0xd4, 0xd8, 0xd5, 0x09, 0xbb, 0x9a, 0x6a, 0x17, 0xa9,
-	0xb6, 0x69, 0xd9, 0x48, 0xc0, 0x53, 0x71, 0x89, 0xed, 0x14, 0x63, 0x17, 0x8b, 0x35, 0x7c, 0x0b,
-	0x66, 0xb1, 0xb2, 0x13, 0xc6, 0x2c, 0xd6, 0xb5, 0x71, 0x42, 0xdf, 0x45, 0xae, 0xbb, 0xb4, 0x64,
-	0x70, 0xe1, 0xc3, 0x51, 0x2f, 0x49, 0x31, 0xfd, 0x88, 0xb9, 0x19, 0x0d, 0x9a, 0x94, 0x33, 0x78,
-	0x39, 0x59, 0xe5, 0x8c, 0x8a, 0xdc, 0xac, 0x12, 0x26, 0x8c, 0x53, 0x5c, 0xa7, 0xf0, 0x4e, 0x7a,
-	0x78, 0x22, 0xcb, 0xd6, 0xb5, 0xdf, 0x35, 0xfe, 0x36, 0xe2, 0x6f, 0xd2, 0xf5, 0x2c, 0xbe, 0x42,
-	0x66, 0xb0, 0x64, 0xf4, 0x63, 0x72, 0xd7, 0xf0, 0xcf, 0x78, 0xe7, 0xb6, 0xed, 0xbc, 0x2d, 0x4d,
-	0x51, 0x43, 0x8a, 0x0a, 0xdd, 0x30, 0x9d, 0x25, 0x18, 0xf7, 0xc3, 0x33, 0xa1, 0x58, 0x82, 0xd1,
-	0xc8, 0x4a, 0x1b, 0xe7, 0xb5, 0x9b, 0x31, 0x3a, 0xea, 0xe4, 0x5c, 0xf6, 0x90, 0xa8, 0x4a, 0x2b,
-	0x06, 0xd1, 0xd8, 0x69, 0xc5, 0xf6, 0xab, 0x05, 0xb5, 0xe9, 0xbd, 0x9f, 0xec, 0x67, 0x08, 0x26,
-	0x8e, 0x08, 0x3b, 0x2b, 0xd3, 0xe8, 0xe4, 0xf4, 0x3e, 0xaa, 0xa9, 0xd3, 0xed, 0x54, 0x0d, 0x96,
-	0xd5, 0x91, 0x03, 0x03, 0x43, 0x09, 0xfa, 0xc3, 0x82, 0xfa, 0xac, 0x41, 0x42, 0x1e, 0xcc, 0x96,
-	0x34, 0xac, 0xcf, 0x34, 0x51, 0xfb, 0x28, 0x8a, 0xd2, 0xea, 0x24, 0x51, 0xc3, 0x3a, 0xbd, 0xb6,
-	0x70, 0x46, 0x4e, 0x9f, 0x22, 0xe4, 0xe1, 0x88, 0x6b, 0xe6, 0xbc, 0xb1, 0xd7, 0x8d, 0x60, 0xec,
-	0xf3, 0xb9, 0xd6, 0x38, 0x19, 0x8c, 0x6a, 0xf3, 0x8b, 0x85, 0x43, 0x76, 0xd6, 0xb4, 0x21, 0x8f,
-	0xa6, 0xca, 0xc8, 0x4e, 0xa6, 0x1c, 0x21, 0x75, 0x14, 0x62, 0xd3, 0xcd, 0xac, 0x90, 0xb4, 0x1e,
-	0xcd, 0xca, 0x5f, 0x97, 0x35, 0xeb, 0xcd, 0x65, 0xcd, 0xfa, 0xf7, 0xb2, 0x66, 0xfd, 0x76, 0x55,
-	0x9b, 0x7b, 0x73, 0x55, 0x9b, 0xfb, 0xe7, 0xaa, 0x36, 0xd7, 0xbe, 0x85, 0x7f, 0xfb, 0x3f, 0xf8,
-	0x3f, 0x00, 0x00, 0xff, 0xff, 0x85, 0x07, 0xc1, 0x1b, 0x6d, 0x0c, 0x00, 0x00,
+	// 1108 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xcf, 0x6f, 0x1b, 0x45,
+	0x14, 0xce, 0x3a, 0x71, 0x4b, 0x5e, 0x9a, 0x1f, 0x9d, 0x38, 0xae, 0xbb, 0x8e, 0x8d, 0x33, 0x89,
+	0xaa, 0xd0, 0xaa, 0x5e, 0x1a, 0x2e, 0x08, 0x09, 0x44, 0x9d, 0x8a, 0x10, 0x09, 0x15, 0x61, 0x0c,
+	0x0a, 0x42, 0x50, 0xad, 0x77, 0x26, 0xb6, 0xe9, 0x7a, 0xc7, 0xec, 0x8e, 0x8b, 0x73, 0xad, 0x38,
+	0x70, 0x40, 0x08, 0x09, 0xfe, 0x28, 0x8e, 0x95, 0xb8, 0x70, 0x84, 0x84, 0x3f, 0x04, 0xcd, 0xdb,
+	0x59, 0x7b, 0xbd, 0xde, 0xb5, 0x45, 0xa4, 0xde, 0x76, 0x76, 0xde, 0xfb, 0xbe, 0xef, 0xcd, 0xbc,
+	0xb7, 0x9f, 0x0d, 0xeb, 0x8e, 0xf0, 0xa4, 0x2f, 0xdc, 0xfa, 0xc0, 0x17, 0x52, 0x90, 0xbc, 0x3f,
+	0x70, 0x06, 0x6d, 0xf3, 0x51, 0xa7, 0x27, 0xbb, 0xc3, 0x76, 0xdd, 0x11, 0x7d, 0xab, 0xf1, 0xe9,
+	0xd9, 0x47, 0x62, 0xe8, 0x31, 0x5b, 0xf6, 0x84, 0x67, 0xb5, 0xc5, 0x88, 0x59, 0x8e, 0xf0, 0xb9,
+	0x35, 0x68, 0x5b, 0x6d, 0x57, 0x38, 0xcf, 0xc3, 0x4c, 0xf3, 0x96, 0x23, 0xfa, 0x7d, 0xe1, 0xe9,
+	0xd5, 0x6e, 0x47, 0x88, 0x8e, 0xcb, 0x2d, 0x7b, 0xd0, 0xb3, 0x6c, 0xcf, 0x13, 0x12, 0xb3, 0x83,
+	0x70, 0x97, 0xbe, 0x05, 0xb7, 0x9f, 0xf0, 0xf6, 0xb0, 0xf3, 0x09, 0x7f, 0xc1, 0xdd, 0x26, 0xff,
+	0x7e, 0xc8, 0x03, 0x49, 0x0a, 0x90, 0x77, 0xd5, 0xba, 0x64, 0xd4, 0x8c, 0xc3, 0xd5, 0x66, 0xb8,
+	0xa0, 0x87, 0x50, 0xfc, 0x62, 0xc0, 0x6c, 0xc9, 0x9f, 0x72, 0xf9, 0x83, 0xf0, 0x9f, 0x9f, 0x3e,
+	0x89, 0xe2, 0x37, 0x20, 0xd7, 0x63, 0x18, 0xbc, 0xde, 0xcc, 0xf5, 0x18, 0xdd, 0x81, 0xed, 0x13,
+	0x2e, 0x93, 0x61, 0xf4, 0x43, 0x28, 0x4c, 0xbf, 0x0e, 0x06, 0xc2, 0x0b, 0x78, 0x32, 0x9d, 0x94,
+	0xe0, 0xa6, 0xdb, 0x93, 0xdc, 0xb7, 0xdd, 0x52, 0x0e, 0x05, 0x44, 0x4b, 0x7a, 0x00, 0x1b, 0x8f,
+	0x19, 0x7b, 0x2a, 0x18, 0x8f, 0xa8, 0x09, 0xac, 0x78, 0x82, 0x71, 0xad, 0x14, 0x9f, 0x69, 0x15,
+	0x76, 0x4f, 0xb8, 0x3c, 0x1e, 0xfa, 0x3e, 0xf7, 0x64, 0x43, 0x1d, 0xcc, 0xc7, 0xbc, 0xd7, 0xe9,
+	0xca, 0x48, 0x07, 0x87, 0x4a, 0xc6, 0xbe, 0x16, 0x44, 0x60, 0xc5, 0x89, 0x40, 0xf3, 0x4d, 0x7c,
+	0x56, 0xa2, 0xfa, 0x3c, 0x08, 0xec, 0x0e, 0x8f, 0x44, 0xe9, 0x25, 0x29, 0xc2, 0x8d, 0x2e, 0xe6,
+	0x97, 0x96, 0xb1, 0x04, 0xbd, 0xa2, 0xbb, 0x60, 0x26, 0x69, 0xec, 0xa0, 0x1b, 0x89, 0x78, 0x06,
+	0xe5, 0xd4, 0xdd, 0x6b, 0x49, 0x20, 0xb0, 0xd2, 0xb5, 0x83, 0x2e, 0x0a, 0x58, 0x6d, 0xe2, 0x33,
+	0x7d, 0x88, 0x97, 0x90, 0xe4, 0x8d, 0xa9, 0x35, 0xa6, 0xd4, 0x9e, 0xe1, 0xe5, 0xbc, 0x0e, 0x21,
+	0x6f, 0xc3, 0x66, 0x84, 0x1c, 0x89, 0xa8, 0x00, 0x60, 0xc3, 0x3e, 0xc3, 0xe0, 0xf0, 0xee, 0x56,
+	0xdb, 0x11, 0x37, 0x0d, 0xa0, 0x38, 0xd6, 0xc2, 0x6d, 0xc6, 0xfd, 0x6b, 0xaa, 0x79, 0xa0, 0x6a,
+	0x55, 0xf9, 0xa8, 0x67, 0xed, 0x68, 0xbb, 0xae, 0xc6, 0x65, 0xd0, 0xae, 0xc7, 0xa1, 0x75, 0x08,
+	0xe5, 0xb0, 0x35, 0x91, 0x79, 0x2d, 0xba, 0x7d, 0xc8, 0x63, 0x0d, 0x9a, 0x6d, 0x7d, 0x8a, 0xad,
+	0x19, 0xee, 0xd1, 0x0f, 0x60, 0x45, 0xf5, 0x6f, 0xac, 0xe9, 0x57, 0xb1, 0xe9, 0x0b, 0x90, 0xb7,
+	0x19, 0xf3, 0x83, 0x52, 0xae, 0xb6, 0xac, 0x66, 0x0e, 0x17, 0x64, 0x0b, 0x96, 0xa5, 0x74, 0xf5,
+	0x71, 0xaa, 0x47, 0x5a, 0x00, 0xa2, 0x86, 0x48, 0x30, 0x7e, 0xea, 0x9d, 0x8b, 0xa8, 0x9b, 0xde,
+	0x0d, 0x27, 0x6e, 0xfc, 0x56, 0xeb, 0xdf, 0x83, 0xbc, 0x9a, 0x88, 0xa0, 0x64, 0xd4, 0x96, 0x0f,
+	0xd7, 0x8e, 0xd6, 0xea, 0xf8, 0x4d, 0xa9, 0xe3, 0x00, 0x85, 0x3b, 0xf1, 0x36, 0x69, 0x5c, 0x8c,
+	0xe7, 0x24, 0xb3, 0x4d, 0x1a, 0xb0, 0x17, 0x85, 0xb7, 0x7c, 0xdb, 0x0b, 0x6c, 0x47, 0x7d, 0x4d,
+	0x8e, 0xc5, 0xd0, 0x93, 0x8d, 0x0b, 0xdd, 0x67, 0x8b, 0xae, 0xf7, 0x7d, 0xd8, 0x9f, 0x83, 0xb1,
+	0x50, 0xc2, 0x57, 0x13, 0xc5, 0xad, 0x11, 0x66, 0xa9, 0x7a, 0xff, 0xe7, 0x5d, 0x15, 0x20, 0xef,
+	0xa8, 0x54, 0x3d, 0xb3, 0xe1, 0x82, 0x7e, 0x0d, 0x07, 0x27, 0x5c, 0xc6, 0x44, 0x35, 0x2e, 0xc6,
+	0x13, 0xf1, 0xd8, 0x63, 0xa7, 0x1e, 0xe3, 0xa3, 0xc5, 0x05, 0x2a, 0xf0, 0x9e, 0x0a, 0x45, 0xd2,
+	0x7c, 0x33, 0x5c, 0xd0, 0x2f, 0xe1, 0x5e, 0x3a, 0x38, 0x96, 0x15, 0x87, 0xcf, 0xa8, 0x3c, 0x03,
+	0xf7, 0x5b, 0x58, 0x55, 0xb8, 0xa3, 0x6b, 0x9c, 0xc2, 0x3e, 0xe4, 0x5a, 0xa3, 0xe4, 0x70, 0xc4,
+	0x14, 0x36, 0x73, 0xad, 0xd1, 0xd1, 0x3f, 0xeb, 0xb0, 0x71, 0x2c, 0x3c, 0x29, 0x7c, 0xf7, 0x58,
+	0xf4, 0xfb, 0xb6, 0xc7, 0xc8, 0x37, 0xb0, 0xfe, 0x39, 0x97, 0x13, 0xe3, 0x20, 0x25, 0xdd, 0x59,
+	0x33, 0x5e, 0x62, 0x6e, 0xeb, 0x9d, 0x86, 0x1d, 0xf0, 0xa8, 0x2f, 0x69, 0xe5, 0xe5, 0x9f, 0xff,
+	0xfe, 0x96, 0xbb, 0x43, 0x89, 0xf5, 0xe2, 0x91, 0xe5, 0x48, 0xd7, 0x62, 0x2a, 0x0f, 0x6d, 0xe6,
+	0x3d, 0xe3, 0x3e, 0x71, 0x60, 0x33, 0xe1, 0x34, 0xa4, 0xa2, 0x61, 0xd2, 0x1d, 0x28, 0x9d, 0x65,
+	0x17, 0x59, 0x8a, 0xf4, 0x76, 0xc4, 0xe2, 0x85, 0x69, 0x3d, 0xa6, 0x48, 0xce, 0xe1, 0x56, 0xdc,
+	0x8d, 0x88, 0xa9, 0x21, 0x52, 0x9c, 0xcb, 0x2c, 0xa7, 0xee, 0x65, 0x15, 0xd3, 0xe1, 0x52, 0x33,
+	0x29, 0x9e, 0xcf, 0xe0, 0xa6, 0xf6, 0x2c, 0xb2, 0xa3, 0x61, 0xa6, 0x3d, 0x2c, 0x5d, 0xbc, 0x89,
+	0xa8, 0x05, 0xba, 0x19, 0xa1, 0xda, 0x8c, 0xa9, 0x89, 0x55, 0x90, 0x3f, 0x1b, 0xb0, 0x93, 0xea,
+	0x60, 0x64, 0x7f, 0x22, 0x34, 0xd3, 0xff, 0xcc, 0x83, 0xf9, 0x41, 0x5a, 0xc0, 0x21, 0x0a, 0xa0,
+	0xb4, 0x12, 0x2b, 0xcb, 0x09, 0xc3, 0xb1, 0xd3, 0xc3, 0x9e, 0x54, 0x72, 0x7e, 0x34, 0x70, 0x22,
+	0x93, 0x5e, 0x46, 0xf6, 0x32, 0x78, 0x26, 0x6e, 0x64, 0xd2, 0x79, 0x21, 0x5a, 0xc8, 0x3d, 0x14,
+	0x52, 0xa3, 0xe5, 0x2c, 0x21, 0x76, 0xd0, 0x55, 0x32, 0xba, 0x78, 0xa1, 0x13, 0xfa, 0xd8, 0x85,
+	0xce, 0xf0, 0x96, 0x53, 0xf7, 0x34, 0xe1, 0x9b, 0x48, 0x78, 0x97, 0x16, 0x62, 0x84, 0x53, 0x4c,
+	0xdf, 0xc1, 0xc6, 0xb4, 0x3f, 0x91, 0x62, 0x02, 0x2f, 0xe2, 0xa9, 0x24, 0x79, 0xa6, 0xec, 0x8c,
+	0xee, 0x21, 0x53, 0x99, 0x16, 0x67, 0x98, 0x30, 0x4e, 0x71, 0x9d, 0xc1, 0x1b, 0x51, 0x72, 0x26,
+	0xcb, 0x9d, 0x99, 0xf7, 0x1a, 0xbf, 0x8c, 0xf8, 0x3b, 0x74, 0x2b, 0x89, 0xaf, 0x90, 0x19, 0xac,
+	0xc5, 0x3c, 0x83, 0xdc, 0x8d, 0xf5, 0xf8, 0xb4, 0xbb, 0x98, 0x66, 0xda, 0x96, 0xa6, 0xa8, 0x22,
+	0x45, 0x89, 0x6e, 0xc7, 0xbb, 0x5f, 0x30, 0xde, 0xf3, 0xce, 0x85, 0x62, 0x71, 0x27, 0xb6, 0x1a,
+	0x7d, 0xdc, 0x67, 0x6e, 0x26, 0xf6, 0xd5, 0xcf, 0xae, 0x65, 0x1f, 0x89, 0x2a, 0xb4, 0x14, 0x23,
+	0x9a, 0xca, 0x56, 0x6c, 0xbf, 0x18, 0x50, 0x9d, 0xef, 0x4f, 0xe4, 0x30, 0x41, 0x90, 0x69, 0x63,
+	0x66, 0x52, 0x66, 0xcc, 0x6d, 0x66, 0x9b, 0x12, 0x8f, 0xd5, 0x92, 0xa3, 0x18, 0x86, 0x12, 0xf4,
+	0xbb, 0x01, 0xb5, 0x45, 0x66, 0x47, 0xee, 0x2f, 0x96, 0x34, 0x3e, 0x9f, 0x79, 0xa2, 0x66, 0x46,
+	0x36, 0x29, 0x6a, 0x7c, 0x4e, 0x2f, 0x0d, 0xf4, 0xf1, 0xf9, 0x4e, 0x47, 0x1e, 0x4c, 0xb8, 0x16,
+	0x7a, 0xa2, 0xb9, 0x15, 0x0b, 0x46, 0x2f, 0x4a, 0x6d, 0x8d, 0xd6, 0x68, 0x72, 0x36, 0x3f, 0x19,
+	0xf8, 0x43, 0x60, 0x91, 0x23, 0x92, 0x87, 0x73, 0x65, 0x24, 0xdd, 0x33, 0x45, 0x48, 0x0d, 0x85,
+	0x98, 0x74, 0x27, 0x29, 0x24, 0x3a, 0x8f, 0x46, 0xe9, 0x8f, 0xcb, 0xaa, 0xf1, 0xea, 0xb2, 0x6a,
+	0xfc, 0x7d, 0x59, 0x35, 0x7e, 0xbd, 0xaa, 0x2e, 0xbd, 0xba, 0xaa, 0x2e, 0xfd, 0x75, 0x55, 0x5d,
+	0x6a, 0xdf, 0xc0, 0xff, 0x49, 0xef, 0xfc, 0x17, 0x00, 0x00, 0xff, 0xff, 0x1b, 0xb5, 0xd5, 0x33,
+	0x9e, 0x0d, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1226,7 +1327,8 @@ type ContorlCommandClient interface {
 	UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error)
 	GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error)
 	AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error)
-	GetChainHeight(ctx context.Context, in *GetChainHeightRequest, opts ...grpc.CallOption) (*GetChainHeightResponse, error)
+	GetCurrentBlockHeight(ctx context.Context, in *GetCurrentBlockHeightRequest, opts ...grpc.CallOption) (*GetCurrentBlockHeightResponse, error)
+	GetCurrentBlockHash(ctx context.Context, in *GetCurrentBlockHashRequest, opts ...grpc.CallOption) (*GetCurrentBlockHashResponse, error)
 	GetBlockHash(ctx context.Context, in *GetBlockHashRequest, opts ...grpc.CallOption) (*GetBlockHashResponse, error)
 	GetBlockHeader(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockHeaderResponse, error)
 	GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
@@ -1282,9 +1384,18 @@ func (c *contorlCommandClient) AddNode(ctx context.Context, in *AddNodeRequest, 
 	return out, nil
 }
 
-func (c *contorlCommandClient) GetChainHeight(ctx context.Context, in *GetChainHeightRequest, opts ...grpc.CallOption) (*GetChainHeightResponse, error) {
-	out := new(GetChainHeightResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetChainHeight", in, out, opts...)
+func (c *contorlCommandClient) GetCurrentBlockHeight(ctx context.Context, in *GetCurrentBlockHeightRequest, opts ...grpc.CallOption) (*GetCurrentBlockHeightResponse, error) {
+	out := new(GetCurrentBlockHeightResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetCurrentBlockHeight", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contorlCommandClient) GetCurrentBlockHash(ctx context.Context, in *GetCurrentBlockHashRequest, opts ...grpc.CallOption) (*GetCurrentBlockHashResponse, error) {
+	out := new(GetCurrentBlockHashResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetCurrentBlockHash", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1379,7 +1490,8 @@ type ContorlCommandServer interface {
 	UpdateNetworkID(context.Context, *UpdateNetworkIDRequest) (*BaseResponse, error)
 	GetNetworkID(context.Context, *GetNetworkIDRequest) (*GetNetworkIDResponse, error)
 	AddNode(context.Context, *AddNodeRequest) (*BaseResponse, error)
-	GetChainHeight(context.Context, *GetChainHeightRequest) (*GetChainHeightResponse, error)
+	GetCurrentBlockHeight(context.Context, *GetCurrentBlockHeightRequest) (*GetCurrentBlockHeightResponse, error)
+	GetCurrentBlockHash(context.Context, *GetCurrentBlockHashRequest) (*GetCurrentBlockHashResponse, error)
 	GetBlockHash(context.Context, *GetBlockHashRequest) (*GetBlockHashResponse, error)
 	GetBlockHeader(context.Context, *GetBlockRequest) (*GetBlockHeaderResponse, error)
 	GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error)
@@ -1407,8 +1519,11 @@ func (*UnimplementedContorlCommandServer) GetNetworkID(ctx context.Context, req 
 func (*UnimplementedContorlCommandServer) AddNode(ctx context.Context, req *AddNodeRequest) (*BaseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddNode not implemented")
 }
-func (*UnimplementedContorlCommandServer) GetChainHeight(ctx context.Context, req *GetChainHeightRequest) (*GetChainHeightResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetChainHeight not implemented")
+func (*UnimplementedContorlCommandServer) GetCurrentBlockHeight(ctx context.Context, req *GetCurrentBlockHeightRequest) (*GetCurrentBlockHeightResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentBlockHeight not implemented")
+}
+func (*UnimplementedContorlCommandServer) GetCurrentBlockHash(ctx context.Context, req *GetCurrentBlockHashRequest) (*GetCurrentBlockHashResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentBlockHash not implemented")
 }
 func (*UnimplementedContorlCommandServer) GetBlockHash(ctx context.Context, req *GetBlockHashRequest) (*GetBlockHashResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBlockHash not implemented")
@@ -1514,20 +1629,38 @@ func _ContorlCommand_AddNode_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ContorlCommand_GetChainHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetChainHeightRequest)
+func _ContorlCommand_GetCurrentBlockHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCurrentBlockHeightRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContorlCommandServer).GetChainHeight(ctx, in)
+		return srv.(ContorlCommandServer).GetCurrentBlockHeight(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/GetChainHeight",
+		FullMethod: "/rpcpb.ContorlCommand/GetCurrentBlockHeight",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).GetChainHeight(ctx, req.(*GetChainHeightRequest))
+		return srv.(ContorlCommandServer).GetCurrentBlockHeight(ctx, req.(*GetCurrentBlockHeightRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContorlCommand_GetCurrentBlockHash_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCurrentBlockHashRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContorlCommandServer).GetCurrentBlockHash(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.ContorlCommand/GetCurrentBlockHash",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContorlCommandServer).GetCurrentBlockHash(ctx, req.(*GetCurrentBlockHashRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1715,8 +1848,12 @@ var _ContorlCommand_serviceDesc = grpc.ServiceDesc{
 			Handler:    _ContorlCommand_AddNode_Handler,
 		},
 		{
-			MethodName: "GetChainHeight",
-			Handler:    _ContorlCommand_GetChainHeight_Handler,
+			MethodName: "GetCurrentBlockHeight",
+			Handler:    _ContorlCommand_GetCurrentBlockHeight_Handler,
+		},
+		{
+			MethodName: "GetCurrentBlockHash",
+			Handler:    _ContorlCommand_GetCurrentBlockHash_Handler,
 		},
 		{
 			MethodName: "GetBlockHash",
@@ -1905,7 +2042,7 @@ func (m *AddNodeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *GetChainHeightRequest) Marshal() (dAtA []byte, err error) {
+func (m *GetCurrentBlockHeightRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -1915,12 +2052,12 @@ func (m *GetChainHeightRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetChainHeightRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetCurrentBlockHeightRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *GetChainHeightRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *GetCurrentBlockHeightRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -1928,7 +2065,7 @@ func (m *GetChainHeightRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *GetChainHeightResponse) Marshal() (dAtA []byte, err error) {
+func (m *GetCurrentBlockHeightResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -1938,12 +2075,12 @@ func (m *GetChainHeightResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetChainHeightResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetCurrentBlockHeightResponse) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *GetChainHeightResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *GetCurrentBlockHeightResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -1952,6 +2089,71 @@ func (m *GetChainHeightResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 		i = encodeVarintControl(dAtA, i, uint64(m.Height))
 		i--
 		dAtA[i] = 0x18
+	}
+	if len(m.Message) > 0 {
+		i -= len(m.Message)
+		copy(dAtA[i:], m.Message)
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Code != 0 {
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetCurrentBlockHashRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetCurrentBlockHashRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetCurrentBlockHashRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
+func (m *GetCurrentBlockHashResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetCurrentBlockHashResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetCurrentBlockHashResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Hash) > 0 {
+		i -= len(m.Hash)
+		copy(dAtA[i:], m.Hash)
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Hash)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if len(m.Message) > 0 {
 		i -= len(m.Message)
@@ -2583,7 +2785,7 @@ func (m *AddNodeRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetChainHeightRequest) Size() (n int) {
+func (m *GetCurrentBlockHeightRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -2592,7 +2794,7 @@ func (m *GetChainHeightRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetChainHeightResponse) Size() (n int) {
+func (m *GetCurrentBlockHeightResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -2607,6 +2809,35 @@ func (m *GetChainHeightResponse) Size() (n int) {
 	}
 	if m.Height != 0 {
 		n += 1 + sovControl(uint64(m.Height))
+	}
+	return n
+}
+
+func (m *GetCurrentBlockHashRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *GetCurrentBlockHashResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	l = len(m.Hash)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
 	}
 	return n
 }
@@ -3255,7 +3486,7 @@ func (m *AddNodeRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetChainHeightRequest) Unmarshal(dAtA []byte) error {
+func (m *GetCurrentBlockHeightRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -3278,10 +3509,10 @@ func (m *GetChainHeightRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetChainHeightRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetCurrentBlockHeightRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetChainHeightRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetCurrentBlockHeightRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:
@@ -3308,7 +3539,7 @@ func (m *GetChainHeightRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetChainHeightResponse) Unmarshal(dAtA []byte) error {
+func (m *GetCurrentBlockHeightResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -3331,10 +3562,10 @@ func (m *GetChainHeightResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetChainHeightResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetCurrentBlockHeightResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetChainHeightResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetCurrentBlockHeightResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -3407,6 +3638,195 @@ func (m *GetChainHeightResponse) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetCurrentBlockHashRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetCurrentBlockHashRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetCurrentBlockHashRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetCurrentBlockHashResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetCurrentBlockHashResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetCurrentBlockHashResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthControl
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hash", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthControl
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hash = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipControl(dAtA[iNdEx:])
