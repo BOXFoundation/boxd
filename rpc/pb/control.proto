@@ -40,9 +40,9 @@ service ContorlCommand {
         };
     }
 
-    rpc GetBlockHeight (GetBlockHeightRequest) returns (GetBlockHeightResponse) {
+    rpc GetChainHeight (GetChainHeightRequest) returns (GetChainHeightResponse) {
         option (google.api.http) = {
-            post: "/v1/ctl/getblockheight"
+            post: "/v1/ctl/getchainheight"
             body: "*"
       };
     }
@@ -129,10 +129,10 @@ message AddNodeRequest {
     string node = 1;
 }
 
-message GetBlockHeightRequest {
+message GetChainHeightRequest {
 }
 
-message GetBlockHeightResponse {
+message GetChainHeightResponse {
     int32 code = 1;
     string message = 2;
     uint32 height = 3;

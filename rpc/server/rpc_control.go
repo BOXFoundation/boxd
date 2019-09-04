@@ -101,24 +101,17 @@ func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetwork
 	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
 }
 
-func (s *ctlserver) GetBlockHeight(ctx context.Context, req *rpcpb.GetBlockHeightRequest) (*rpcpb.GetBlockHeightResponse, error) {
+func (s *ctlserver) GetChainHeight(ctx context.Context, req *rpcpb.GetChainHeightRequest) (*rpcpb.GetChainHeightResponse, error) {
 	height := s.server.GetChainReader().GetBlockHeight()
-	return &rpcpb.GetBlockHeightResponse{Code: 0, Message: "ok", Height: height}, nil
-}
-func newGetBlockHashResponse(code int32, msg string, hash string) *rpcpb.GetBlockHashResponse {
-	return &rpcpb.GetBlockHashResponse{
-		Code:    code,
-		Message: msg,
-		Hash:    hash,
-	}
+	return &rpcpb.GetChainHeightResponse{Code: 0, Message: "ok", Height: height}, nil
 }
 
 func (s *ctlserver) GetBlockHash(ctx context.Context, req *rpcpb.GetBlockHashRequest) (*rpcpb.GetBlockHashResponse, error) {
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
-		return newGetBlockHashResponse(-1, err.Error(), ""), nil
+		return &rpcpb.GetBlockHashResponse{Code: -1, Message: err.Error()}, nil
 	}
-	return newGetBlockHashResponse(0, "ok", hash.String()), nil
+	return &rpcpb.GetBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
 }
 
 func newGetBlockHeaderResponse(code int32, msg string, header *corepb.BlockHeader) *rpcpb.GetBlockHeaderResponse {
@@ -146,7 +139,7 @@ func (s *ctlserver) GetBlockHeader(ctx context.Context, req *rpcpb.GetBlockReque
 	if header, ok := msg.(*corepb.BlockHeader); ok {
 		return newGetBlockHeaderResponse(0, "ok", header), nil
 	}
-	return newGetBlockHeaderResponse(-1, "Internal Error", nil), fmt.Errorf("Error converting proto message")
+	return newGetBlockHeaderResponse(-1, "Internal Error", nil), nil
 }
 
 func newGetBlockResponse(code int32, msg string, block *corepb.Block) *rpcpb.GetBlockResponse {
@@ -174,7 +167,7 @@ func (s *ctlserver) GetBlock(ctx context.Context, req *rpcpb.GetBlockRequest) (*
 	if blockPb, ok := msg.(*corepb.Block); ok {
 		return newGetBlockResponse(0, "ok", blockPb), nil
 	}
-	return newGetBlockResponse(-1, "Internal Error", nil), fmt.Errorf("Error converting proto message")
+	return newGetBlockResponse(-1, "Internal Error", nil), nil
 }
 
 func (s *ctlserver) GetBlockByHeight(ctx context.Context, req *rpcpb.GetBlockByHeightReq) (*rpcpb.GetBlockResponse, error) {
@@ -193,7 +186,7 @@ func (s *ctlserver) GetBlockByHeight(ctx context.Context, req *rpcpb.GetBlockByH
 	if blockPb, ok := msg.(*corepb.Block); ok {
 		return newGetBlockResponse(0, "ok", blockPb), nil
 	}
-	return newGetBlockResponse(-1, "Internal Error", nil), fmt.Errorf("Error converting proto message")
+	return newGetBlockResponse(-1, "Internal Error", nil), nil
 
 }
 
@@ -207,7 +200,6 @@ func newGetBlockTxCountResp(code int32, message string, count uint32) *rpcpb.Get
 
 func (s *ctlserver) GetBlockTransactionCountByHash(ctx context.Context,
 	req *rpcpb.GetBlockTransactionCountByHashReq) (*rpcpb.GetBlockTxCountResp, error) {
-	var num uint32
 	hash := &crypto.HashType{}
 	err := hash.SetString(req.BlockHash)
 	if err != nil {
@@ -224,16 +216,13 @@ func (s *ctlserver) GetBlockTransactionCountByHash(ctx context.Context,
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), fmt.Errorf("Error converting proto message")
+		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), nil
 	}
-	for i := 0; i < len(blockPb.Txs); i++ {
-		num++
-	}
-	return newGetBlockTxCountResp(0, "ok", num), nil
+	count := len(blockPb.Txs)
+	return newGetBlockTxCountResp(0, "ok", uint32(count)), nil
 }
 func (s *ctlserver) GetBlockTransactionCountByHeight(ctx context.Context,
 	req *rpcpb.GetBlockTransactionCountByHeightReq) (*rpcpb.GetBlockTxCountResp, error) {
-	var num uint32
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
 		return newGetBlockTxCountResp(-1, err.Error(), 0), nil
@@ -249,12 +238,10 @@ func (s *ctlserver) GetBlockTransactionCountByHeight(ctx context.Context,
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), fmt.Errorf("Error converting proto message")
+		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), nil
 	}
-	for i := 0; i < len(blockPb.Txs); i++ {
-		num++
-	}
-	return newGetBlockTxCountResp(0, "ok", num), nil
+	count := len(blockPb.Txs)
+	return newGetBlockTxCountResp(0, "ok", uint32(count)), nil
 }
 
 func newGetTxResp(code int32, message string, tx *corepb.Transaction) *rpcpb.GetTxResp {
@@ -283,14 +270,13 @@ func (s *ctlserver) GetTransactionByBlockHashAndIndex(ctx context.Context,
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return newGetTxResp(-1, "can't convert proto message", nil), fmt.Errorf("Error converting proto message")
+		return newGetTxResp(-1, "can't convert proto message", nil), nil
 	}
-	for k, v := range blockPb.Txs {
-		if int32(k) == req.Index {
-			return newGetTxResp(0, "ok", v), nil
-		}
+	tx := blockPb.Txs[req.Index]
+	if tx != nil {
+		return newGetTxResp(0, "ok", tx), nil
 	}
-	return newGetTxResp(-1, "can't find Tx", nil), fmt.Errorf("Can't find the index is %d Tx in hash %v block", req.Index, req.BlockHash)
+	return newGetTxResp(-1, "can't find Tx", nil), nil
 }
 
 func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
@@ -310,14 +296,12 @@ func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return newGetTxResp(-1, "can't convert proto message", nil), fmt.Errorf("Error converting proto message")
+		return newGetTxResp(-1, "can't convert proto message", nil), nil
 	}
-	for k, v := range blockPb.Txs {
-		if int32(k) == req.Index {
-			return newGetTxResp(0, "ok", v), nil
-		}
+	tx := blockPb.Txs[req.Index]
+	if tx != nil {
+		return newGetTxResp(0, "ok", tx), nil
 	}
-	return newGetTxResp(-1, "can't find Tx", nil), fmt.Errorf("Can't find the index is %d Tx in height %d block",
-		req.Index, req.Height)
+	return newGetTxResp(-1, "can't find Tx", nil), nil
 
 }
