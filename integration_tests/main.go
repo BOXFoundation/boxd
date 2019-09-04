@@ -31,6 +31,8 @@ const (
 	mainScope     scopeValue = "main"
 	fullScope     scopeValue = "full"
 	continueScope scopeValue = "continue"
+
+	testCoins uint64 = 25 * core.DuPerBox
 )
 
 var logger = log.NewLogger("integration") // logger
@@ -91,7 +93,7 @@ func main() {
 		if err := utils.PrepareEnv(len(utils.MinerAddrs())); err != nil {
 			logger.Panic(err)
 		}
-		logger.Warnf("miner addrs: %v", utils.MinerAddrs())
+		//logger.Warnf("miner addrs: %v", utils.MinerAddrs())
 		//defer utils.TearDown(len(minerAddrs))
 
 		// start nodes
@@ -198,19 +200,19 @@ func topupOrigAccs() {
 	origAccCnt := len(origAddrs)
 	i := 0
 	for {
+		var balance uint64
 		select {
 		case <-t.C:
-			balance, err := utils.BalanceNoPanicFor(preAddr, conn)
+			balance, err = utils.BalanceNoPanicFor(preAddr, conn)
 			if err != nil {
 				logger.Errorf("fetch balance for pre addr %s error %s", preAddr, err)
 				continue
 			}
 			accI, accJ := origAccs[i%origAccCnt], origAccs[(i+3)%origAccCnt]
 			i++
-			amount := 25 * uint64(core.DuPerBox)
-			tx, _, fee, err := rpcutil.NewTx(preAcc,
+			tx, _, err := rpcutil.NewTx(preAcc,
 				[]*types.AddressHash{accI.AddressHash(), accJ.AddressHash()},
-				[]uint64{amount, amount}, conn)
+				[]uint64{testCoins, testCoins}, conn)
 			if err != nil {
 				logger.Errorf("new tx for pre addr %s to origal account %s %s error %s",
 					preAddr, accI.Addr(), accJ.Addr(), err)
@@ -228,15 +230,15 @@ func topupOrigAccs() {
 				return
 			default:
 			}
-			balance, err = utils.WaitBalanceEqual(preAddr, balance-2*amount-fee, conn,
-				10*time.Second)
-			if err != nil {
-				logger.Error(err)
-				continue
-			}
 		case <-quitCh:
 			logger.Info("quit topupOrigAccs.")
 			return
+		}
+		_, err = utils.WaitBalanceEqual(preAddr, balance-2*testCoins-core.TransferFee,
+			conn, 10*time.Second)
+		if err != nil {
+			logger.Error(err)
+			continue
 		}
 	}
 }

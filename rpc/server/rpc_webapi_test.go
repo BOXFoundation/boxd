@@ -412,10 +412,6 @@ func (r *TestDetailBlockChainReader) TailState() *state.StateDB {
 	return nil
 }
 
-func (r *TestDetailBlockChainReader) SuggestGasPrice() uint32 {
-	return 0
-}
-
 func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error) {
 	addrS, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	addr, amount := addrS.Hash160(), uint64(50000)

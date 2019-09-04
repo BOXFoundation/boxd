@@ -9,6 +9,7 @@ import (
 	"errors"
 	"math/big"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -27,6 +28,11 @@ import (
 )
 
 var logger = log.NewLogger("bpos") // logger
+
+const (
+	free int32 = iota
+	busy
+)
 
 // Define const
 const (
@@ -58,6 +64,7 @@ type Bpos struct {
 	canMint     bool
 	disableMint bool
 	bftservice  *BftService
+	status      int32
 }
 
 // NewBpos new a bpos implement.
@@ -71,6 +78,7 @@ func NewBpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.T
 		cfg:     cfg,
 		canMint: false,
 		context: &ConsensusContext{},
+		status:  free,
 	}
 	// peer is bookkeeper, start bftService.
 	bftService, err := NewBftService(bpos)
@@ -173,12 +181,21 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 	for {
 		select {
 		case <-timeChan.C:
-			if !bpos.chain.IsBusy() {
-				if err := bpos.run(time.Now().Unix()); err != nil {
-					if err != ErrNotMyTurnToProduce {
-						logger.Error("Bpos run err. Err: ", err.Error())
+			// if !bpos.chain.IsBusy() {
+			// 	if err := bpos.run(time.Now().Unix()); err != nil {
+			// 		if err != ErrNotMyTurnToProduce {
+			// 			logger.Error("Bpos run err. Err: ", err.Error())
+			// 		}
+			// 	}
+			// }
+			if atomic.LoadInt32(&bpos.status) == free {
+				go func() {
+					if err := bpos.run(time.Now().Unix()); err != nil {
+						if err != ErrNotMyTurnToProduce {
+							logger.Error("Bpos run err. Err: ", err.Error())
+						}
 					}
-				}
+				}()
 			}
 
 		case <-p.Closing():
@@ -190,10 +207,13 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 
 func (bpos *Bpos) run(timestamp int64) error {
 
+	atomic.StoreInt32(&bpos.status, busy)
+	defer atomic.StoreInt32(&bpos.status, free)
 	// disableMint might be set true by sync business or others
 	if bpos.disableMint {
 		return ErrNoLegalPowerToProduce
 	}
+	logger.Infof("My turn to produce a block, time: %d", timestamp)
 
 	dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
@@ -206,6 +226,7 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.dynasty = dynasty
 	bpos.context.dynastySwitchThreshold = netParams.DynastySwitchThreshold
 	bpos.context.bookKeeperReward = netParams.BookKeeperReward
+	// bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
 
 	delegates, err := bpos.fetchDelegatesByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
@@ -219,7 +240,6 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.timestamp = timestamp
 	MetricsMintTurnCounter.Inc(1)
 
-	logger.Infof("My turn to produce a block, time: %d", timestamp)
 	return bpos.produceBlock()
 }
 
@@ -302,13 +322,10 @@ func (bpos *Bpos) produceBlock() error {
 		logger.Warnf("Failed to sign block. err: %s", err.Error())
 		return err
 	}
-
-	go func() {
-		bpos.chain.BroadcastOrRelayBlock(block, core.BroadcastMode)
-		if err := bpos.chain.ProcessBlock(block, core.DefaultMode, ""); err != nil {
-			logger.Warnf("Failed to process block mint by self. err: %s", err.Error())
-		}
-	}()
+	go bpos.chain.BroadcastOrRelayBlock(block, core.BroadcastMode)
+	if err := bpos.chain.ProcessBlock(block, core.DefaultMode, ""); err != nil {
+		logger.Warnf("Failed to process block mint by self. err: %s", err.Error())
+	}
 
 	return nil
 }
@@ -536,12 +553,20 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 	block.Txs = append(block.Txs, coinbaseTx)
 	if uint64((block.Header.Height+1))%bpos.context.dynastySwitchThreshold.Uint64() == 0 { // dynasty switch
-		dynastySwitchTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, "execBonus")
+		dynastySwitchTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, chain.ExecBonus)
 		if err != nil {
 			return err
 		}
 		block.Txs = append(block.Txs, dynastySwitchTx)
 	}
+	// else if uint64(block.Header.Height)%bpos.context.calcScoreThreshold.Uint64() == 0 { // calc score
+	// 	calcScoreTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, chain.CalcScore)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	block.Txs = append(block.Txs, calcScoreTx)
+	// }
+
 	block.Txs = append(block.Txs, packedTxs...)
 
 	if err := bpos.executeBlock(block, statedb); err != nil {
@@ -561,7 +586,7 @@ func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txF
 	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
 		block.BlockHash(), block.Header.Height, amount, txFee)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce, block.Header.Height, "calcBonus")
+	return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce, block.Header.Height, chain.CalcBonus)
 }
 
 func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
@@ -584,6 +609,10 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err != nil {
 		return err
 	}
+	// update genesis contract utxo in utxoSet
+	op := types.NewOutPoint(types.NormalizeAddressHash(&chain.ContractAddr), 0)
+	genesisUtxoWrap := utxoSet.GetUtxo(op)
+	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + feeUsed)
 
 	// block.Txs[0].Vout[0].Value -= gasRemainingFee
 	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
@@ -611,11 +640,9 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 
 	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr))
-	//if genesisContractBalanceOld+block.Txs[0].Vout[0].Value+feeUsed != statedb.GetBalance(chain.ContractAddr).Uint64() {
 	logger.Infof("genesis contract balance change, previous %d, coinbase value: "+
 		"%d, fee used %d, now %d in statedb", genesisContractBalanceOld,
 		block.Txs[0].Vout[0].Value, feeUsed, statedb.GetBalance(chain.ContractAddr))
-	//}
 
 	bpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 

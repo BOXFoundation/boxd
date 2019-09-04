@@ -148,10 +148,9 @@ func _TestNormalTx(t *testing.T) {
 	//amounts := []uint64{100, 200, 300, 400}
 	amounts := []uint64{1000}
 	req := &rpcpb.MakeTxReq{
-		From:     from,
-		To:       to,
-		Amounts:  amounts,
-		GasPrice: 10,
+		From:    from,
+		To:      to,
+		Amounts: amounts,
 	}
 	//
 	flow(t, func(ctx context.Context,
@@ -177,10 +176,9 @@ func _TestSplitAddrTx(t *testing.T) {
 	}
 	weights := []uint32{1, 2, 3, 4}
 	req := &rpcpb.MakeSplitAddrTxReq{
-		From:     from,
-		Addrs:    addrs,
-		Weights:  weights,
-		GasPrice: 10,
+		From:    from,
+		Addrs:   addrs,
+		Weights: weights,
 	}
 	//
 	flow(t, func(ctx context.Context,
@@ -202,10 +200,9 @@ func _TestTokenTx(t *testing.T) {
 	owner := issuer
 	tag := txlogic.NewTokenTag("box test token", "XOX", 4, 20000)
 	req := &rpcpb.MakeTokenIssueTxReq{
-		Issuer:   issuer,
-		Owner:    owner,
-		Tag:      tag,
-		GasPrice: 10,
+		Issuer: issuer,
+		Owner:  owner,
+		Tag:    tag,
 	}
 	bytes, _ := json.MarshalIndent(req, "", "  ")
 	logger.Infof("make unsigned token issue tx: %s", string(bytes))
@@ -231,7 +228,6 @@ func _TestTokenTx(t *testing.T) {
 		From:       from,
 		To:         to,
 		Amounts:    amounts,
-		GasPrice:   10,
 		TokenHash:  hashStr,
 		TokenIndex: 0,
 	}
@@ -269,7 +265,6 @@ func _TestContractTx(t *testing.T) {
 	req := &rpcpb.MakeContractTxReq{
 		From:     from,
 		Amount:   10000,
-		GasPrice: 2,
 		GasLimit: 200000,
 		Nonce:    utils.NonceFor(from, conn) + 1,
 		IsDeploy: true,
@@ -295,7 +290,6 @@ func _TestContractTx(t *testing.T) {
 		From:     from,
 		To:       contractAddr.String(),
 		Amount:   0,
-		GasPrice: 2,
 		GasLimit: 20000,
 		Nonce:    utils.NonceFor(from, conn) + 1,
 		Data:     testFaucetCall,

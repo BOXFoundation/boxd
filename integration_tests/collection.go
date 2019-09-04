@@ -119,8 +119,8 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	c.minerAddr = maddr
 	//
 	logger.Infof("waiting for minersAddr %s has %d at least on %s for collection test",
-		maddr, totalAmount, peerAddr)
-	_, err = utils.WaitBalanceEnough(c.minerAddr, totalAmount, conn, timeoutToChain)
+		maddr, testCoins, peerAddr)
+	_, err = utils.WaitBalanceEnough(c.minerAddr, testCoins, conn, timeoutToChain)
 	if err != nil {
 		logger.Warn(err)
 		return true
@@ -129,7 +129,7 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	signal.Notify(quitCh, os.Interrupt, os.Kill)
 	select {
 	case collAddr := <-c.collAddrCh:
-		logger.Infof("start to launder some fund %d", totalAmount)
+		logger.Infof("start to launder some fund %d", testCoins)
 		for !c.launderFunds(collAddr, addrs, conn, &c.txCnt) {
 			select {
 			case s := <-quitCh:
@@ -165,7 +165,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	var err error
 	count := len(addrs)
 	// transfer from miner to tests[0:len(addrs)-1]
-	amount := totalAmount / uint64(count) / 3
+	amount := testCoins / uint64(count) / 3
 	amounts := make([]uint64, count)
 	for i := 0; i < count; i++ {
 		amounts[i] = amount + uint64(rand.Int63n(int64(amount)))
@@ -181,7 +181,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 		address, _ := types.ParseAddress(addr)
 		toHashes = append(toHashes, address.Hash160())
 	}
-	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), toHashes, amounts, conn)
+	tx, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), toHashes, amounts, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -205,7 +205,6 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	// send tx from each to each
 	amountsRecv := make([]uint64, count)
 	amountsSend := make([]uint64, count)
-	amountsFees := make([]uint64, count)
 	var txs []*types.Transaction
 	var wg sync.WaitGroup
 	errChans := make(chan error, count)
@@ -227,11 +226,10 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 				amountsRecv[j] += amounts2[j]
 			}
 			account, _ := AddrToAcc.Load(addrs[i])
-			tx, _, fee, err := rpcutil.NewTx(account.(*acc.Account), toHashes, amounts2, conn)
+			tx, _, err := rpcutil.NewTx(account.(*acc.Account), toHashes, amounts2, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
-			amountsFees[i] = fee
 			txs = append(txs, tx)
 			atomic.AddUint64(txCnt, 1)
 		}(i)
@@ -250,7 +248,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	// check balance
 	logger.Infof("wait for test addrs received fund, timeout %v", timeoutToChain)
 	for i := 0; i < count; i++ {
-		expect := balances[i] + amountsRecv[i] - amountsSend[i] - amountsFees[i]
+		expect := balances[i] + amountsRecv[i] - amountsSend[i] - core.TransferFee
 		logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
 			timeoutToChain)
 		balances[i], err = utils.WaitBalanceEqual(addrs[i], expect, conn, timeoutToChain)
