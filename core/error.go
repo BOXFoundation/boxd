@@ -81,7 +81,7 @@ var (
 	ErrInvalidTxOutProtoMessage            = errors.New("Invalid TxOut proto message")
 	ErrInvalidTxProtoMessage               = errors.New("Invalid tx proto message")
 	ErrInvalidIrreversibleInfoProtoMessage = errors.New("Invalid IrreversibleInfo proto message")
-	ErrInvalidFee                          = errors.New("Invalid contract transaction fee")
+	ErrInvalidFee                          = errors.New("Invalid transaction fee")
 	ErrContractDataNotFound                = errors.New("contract data not found in tx")
 	ErrMultipleContractVouts               = errors.New("multiple contract vouts")
 

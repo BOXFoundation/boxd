@@ -721,25 +721,27 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 
 func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 	var totalFees uint64
-	transactions := block.Txs
-	for _, tx := range transactions {
-
+	for idx, tx := range block.Txs {
 		// skip coinbase tx
 		if IsCoinBase(tx) || IsDynastySwitch(tx) {
 			continue
 		}
-
 		txFee, err := ValidateTxInputs(utxoSet, tx)
 		if err != nil {
 			return 0, err
 		}
-
 		// Check contract tx from and fee
 		contractVout, err := txlogic.CheckAndGetContractVout(tx)
 		if err != nil {
 			return 0, err
 		}
+		txHash, _ := tx.TxHash()
 		if contractVout == nil {
+			// check whether gas price is equal to TransferFee
+			if txFee != core.TransferFee {
+				logger.Warnf("non-contract tx %s have wrong fee %d", txHash, txFee)
+				return 0, core.ErrInvalidFee
+			}
 			// Check for overflow.
 			lastTotalFees := totalFees
 			totalFees += txFee
@@ -748,7 +750,6 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 			}
 			continue
 		}
-
 		// smart contract tx.
 		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
@@ -756,7 +757,11 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 			return 0, err
 		}
 		if txFee != param.GasLimit*param.GasPrice {
-			return 0, core.ErrInvalidFee
+			if idx == 0 && param.GasPrice != 0 ||
+				idx > 0 && param.GasPrice != core.FixedGasPrice {
+				logger.Warnf("contract tx %s have wrong fee %d gas price %d", txHash, txFee, param.GasPrice)
+				return 0, core.ErrInvalidFee
+			}
 		}
 		if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
 			*addr.Hash160() != *param.From {
