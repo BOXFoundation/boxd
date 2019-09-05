@@ -272,9 +272,8 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	height := resp.Height
 	tx, err := rpcutil.CreateRawTransaction(fromAddress.Hash160(), toHashes,
-		txHash, vout, amounts, height)
+		txHash, vout, amounts, resp.Height)
 	if err != nil {
 		fmt.Println(err)
 		return

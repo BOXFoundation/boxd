@@ -249,8 +249,7 @@ func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Current Block Height:")
-	fmt.Println(resp.Height)
+	fmt.Println("Current Block Height:", resp.Height)
 }
 
 func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {
