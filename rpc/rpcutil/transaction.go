@@ -200,31 +200,6 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 	return resp.Hash, nil
 }
 
-//CreateRawTransaction create a tx without signature,it returns a tx and utxo
-func CreateRawTransaction(
-	from *types.AddressHash, to []*types.AddressHash, txhash []crypto.HashType,
-	vout []uint32, amounts []uint64, height uint32,
-) (*types.Transaction, error) {
-	total := uint64(0)
-	for _, a := range amounts {
-		total += a
-	}
-
-	utxos := make([]*rpcpb.Utxo, 0)
-	for i := 0; i < len(txhash); i++ {
-		op := types.NewOutPoint(&txhash[i], vout[i])
-		uw := txlogic.NewUtxoWrap(from, height, total)
-		utxo := txlogic.MakePbUtxo(op, uw)
-		utxos = append(utxos, utxo)
-	}
-	changeAmt, _, overflowed := calcChangeAmount(amounts, 0, utxos...)
-	if overflowed {
-		return nil, txlogic.ErrInsufficientBalance
-	}
-	tx, err := txlogic.MakeUnsignedTx(from, to, amounts, changeAmt, utxos...)
-	return tx, err
-}
-
 // GetRawTransaction get the transaction info of given hash
 func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
