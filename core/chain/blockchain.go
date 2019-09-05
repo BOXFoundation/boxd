@@ -2241,27 +2241,20 @@ func (chain *BlockChain) calcScores() ([]*big.Int, error) {
 // MakeInternalContractTx creates a coinbase give bookkeeper address and block height
 func (chain *BlockChain) MakeInternalContractTx(
 	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
-	method string,
+	method string, params ...interface{},
 ) (*types.Transaction, error) {
 	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
 	if err != nil {
 		return nil, err
 	}
 	var code []byte
-	if method == CalcScore {
-		scores, err := chain.calcScores()
-		if err != nil {
-			return nil, err
-		}
-		code, err = abiObj.Pack(method, scores)
-		if err != nil {
-			return nil, err
-		}
-	} else {
+	if len(params) == 0 {
 		code, err = abiObj.Pack(method)
-		if err != nil {
-			return nil, err
-		}
+	} else {
+		code, err = abiObj.Pack(method, params)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)

@@ -5,6 +5,7 @@
 package bpos
 
 import (
+	"math"
 	"math/big"
 
 	bpospb "github.com/BOXFoundation/boxd/consensus/bpos/pb"
@@ -22,6 +23,7 @@ type ConsensusContext struct {
 	dynasty                      *Dynasty
 	verifyDynasty                *Dynasty
 	candidates                   []Delegate
+	delegates                    []Delegate
 	dynastySwitchThreshold       *big.Int
 	calcScoreThreshold           *big.Int
 	verifyDynastySwitchThreshold *big.Int
@@ -30,12 +32,13 @@ type ConsensusContext struct {
 
 // Delegate is a bookkeeper node.
 type Delegate struct {
-	Addr         types.AddressHash
-	PeerID       string
-	Votes        *big.Int
-	PledgeAmount *big.Int
-	Score        *big.Int
-	IsExist      bool
+	Addr            types.AddressHash
+	PeerID          string
+	Votes           *big.Int
+	PledgeAmount    *big.Int
+	Score           *big.Int
+	ContinualPeriod *big.Int
+	IsExist         bool
 }
 
 var _ conv.Convertible = (*Delegate)(nil)
@@ -204,6 +207,30 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 		addrs:     addrs,
 		peers:     peers,
 	}, nil
+}
+
+func (bpos *Bpos) calcScores() ([]*big.Int, error) {
+	var totalVote int64
+	for _, v := range bpos.context.delegates {
+		totalVote += v.Votes.Int64()
+	}
+	var scores []*big.Int
+	for _, v := range bpos.context.delegates {
+		score, err := bpos.calcScore(totalVote, v)
+		if err != nil {
+			return nil, err
+		}
+		scores = append(scores, score)
+	}
+	return scores, nil
+}
+
+func (bpos *Bpos) calcScore(totalVote int64, delegate Delegate) (*big.Int, error) {
+	currentDynasty := (int64(bpos.chain.LongestChainHeight) / bpos.context.dynastySwitchThreshold.Int64()) + 1
+	pledgeScore := float64((int64(len(bpos.context.dynasty.delegates)) * delegate.PledgeAmount.Int64() / int64(len(bpos.context.delegates)))) / math.Pow(float64(currentDynasty), 1.5)
+	voteScore := delegate.Votes.Int64() * delegate.Votes.Int64() / totalVote
+	score := math.Trunc(math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (pledgeScore + float64(voteScore)))
+	return big.NewInt(int64(score)), nil
 }
 
 // ///////////////////////////////////////////////////////////////////////////////////

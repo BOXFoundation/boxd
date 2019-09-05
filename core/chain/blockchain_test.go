@@ -154,6 +154,7 @@ func nextBlockV2(parentBlock *types.Block, chain *BlockChain) *types.Block {
 	newBlock := types.NewBlock(parentBlock)
 	newBlock.Header.BookKeeper = *minerAddr.Hash160()
 	coinbaseTx, _ := makeCoinbaseTxV2(parentBlock, newBlock, chain)
+
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	newBlock.Header.TimeStamp = timestamp

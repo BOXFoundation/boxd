@@ -61,6 +61,7 @@ contract Bonus is Permission{
     uint constant PROPOSAL_EXPIRATION_TIME = 8;
     uint constant BOOK_KEEPER_REWARD = 9;
     uint constant BONUS_TO_VOTERS = 10;
+    uint constant CALC_SCORE_THRESHOLD = 11;
 
     struct Delegate {
         address addr;
@@ -68,6 +69,7 @@ contract Bonus is Permission{
         uint votes;
         uint pledgeAmount;
         uint score;
+        uint continualPeriod;
         bool isExist;
     }
 
@@ -153,33 +155,34 @@ contract Bonus is Permission{
         netParams[PROPOSAL_EXPIRATION_TIME] = 3 * 24 * 3600;
         netParams[BOOK_KEEPER_REWARD] = 50 * 10**8;
         netParams[BONUS_TO_VOTERS] = 50;
+        netParams[CALC_SCORE_THRESHOLD] = 8000;
     }
 
     function initDynasty() internal {
         dynasty.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         delegates.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         dynasty.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         delegates.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         dynasty.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         delegates.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         dynasty.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         delegates.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         dynasty.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         delegates.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         dynasty.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
         delegates.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
-         0, 0, 0, true));
+         0, 0, 0, 0, true));
     }
 
     function  pledge() public payable onlyPledgeIsOpen{
@@ -187,7 +190,7 @@ contract Bonus is Permission{
         require(msg.value > netParams[PLEDGE_THRESHOLD], "pledge amount is not correct.");
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
 
-        Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, true);
+        Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, 0, true);
         delegate.score = calcScore(delegate);
         addrToDelegates[msg.sender] = delegate;
         pledgePool = pledgePool.add(msg.value);
@@ -441,7 +444,7 @@ contract Bonus is Permission{
         _global_open_pledge_limit = value;
     }
 
-    function getNetParams() public view returns (uint,uint) {
-        return (netParams[DYNASTY_CHANGE_THRESHOLD],netParams[BOOK_KEEPER_REWARD]);
+    function getNetParams() public view returns (uint,uint,uint) {
+        return (netParams[DYNASTY_CHANGE_THRESHOLD], netParams[BOOK_KEEPER_REWARD], netParams[CALC_SCORE_THRESHOLD]);
     }
 }
