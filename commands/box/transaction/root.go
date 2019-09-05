@@ -198,7 +198,7 @@ func maketx(cmd *cobra.Command, args []string) {
 }
 
 func createRawTransaction(cmd *cobra.Command, args []string) {
-	if len(args) != 4 {
+	if len(args) != 5 {
 		fmt.Println("Invalid argument number")
 		return
 	}

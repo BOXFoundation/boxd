@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
@@ -24,7 +25,6 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/util"
-	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -79,14 +79,9 @@ Successful call will return a transaction hash value`,
 			Run:   encode,
 		},
 		&cobra.Command{
-			Use:   "getLogs [criteria]",
+			Use:   "getLogs [hash] [from] [to] [address] [topics]",
 			Short: "Get returns logs matching the given argument that are stored within the state",
 			Run:   getLogs,
-		},
-		&cobra.Command{
-			Use:   "makeUnsignContractTx [from] [to] [amount] [gas_limit] [nonce] [is_deploy] [data]",
-			Short: "Get the raw transaction for a txid",
-			Run:   makeUnsignContractTx,
 		},
 	)
 }
@@ -214,7 +209,7 @@ func deploycontract(cmd *cobra.Command, args []string) {
 		fmt.Println("From address is Invalid: ", err)
 		return
 	}
-	if len(args[5]) == 0 {
+	if len(args[4]) == 0 {
 		fmt.Println("data error")
 		return
 	}
@@ -384,47 +379,29 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	return resp.ContractAddr, sendTxResp, nil
 }
 
-func makeUnsignContractTx(cmd *cobra.Command, args []string) {
-	//arg[0] represents 'from address' , arg[1] represents 'to address'
-	//arg[2] represents 'amount', arg[3] represents 'gas_limit'
-	//arg[4] represents 'nonce',arg[5] represents 'is_deploy'
-	//arg[6] represents 'data'
-	if len(args) != 7 {
-		fmt.Println("Invalide argument number")
+func getLogs(cmd *cobra.Command, args []string) {
+	fmt.Println("getLogs called")
+	//arg[0]represents block hash , arg[1] "from"andarg[2"to " represent log between from and to
+	//arg[3]reprensents address arg[4]represents topics
+	if len(args) != 5 {
+		fmt.Println("Invalid argument number")
 		return
 	}
-
-	from := args[0]
-	toAddr := args[1]
-
-	// check address
-	if err := types.ValidateAddr(toAddr, from); err != nil {
+	hash := args[0]
+	from, err := strconv.ParseUint(args[1], 10, 32)
+	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	amountStr := args[2]
-	amount, err := strconv.ParseUint(amountStr, 10, 64)
+	to, err := strconv.ParseUint(args[2], 10, 32)
 	if err != nil {
-		fmt.Println("amount conversion failed: ", err)
+		fmt.Println(err)
 		return
 	}
-	gasLimit, _ := strconv.ParseUint(args[3], 10, 64)
-	nonce, _ := strconv.ParseUint(args[4], 10, 64)
-	isDeploy, err := strconv.ParseBool(args[5])
-	if err != nil {
-		fmt.Println("isDeploy conversion failed: ", err)
-	}
-	data := args[6]
+	address := strings.Split(args[3], ",")
+	topicsStr := strings.Split(args[4], ",")
+	topics := []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: topicsStr}}
 
-	req := &rpcpb.MakeContractTxReq{
-		From:     from,
-		To:       toAddr,
-		Amount:   amount,
-		GasLimit: gasLimit,
-		Nonce:    nonce,
-		IsDeploy: isDeploy,
-		Data:     data,
-	}
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
@@ -433,45 +410,19 @@ func makeUnsignContractTx(cmd *cobra.Command, args []string) {
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	client := rpcpb.NewTransactionCommandClient(conn)
-	resp, err := client.MakeUnsignedContractTx(ctx, req)
+	req := &rpcpb.LogsReq{
+		Uid:       "",
+		Hash:      hash,
+		From:      uint32(from),
+		To:        uint32(to),
+		Addresses: address,
+		Topics:    topics,
+	}
+	client := rpcpb.NewWebApiClient(conn)
+	resp, err := client.GetLogs(ctx, req)
 	if err != nil {
-		fmt.Println("make transaction failed: ", err)
+		fmt.Println(err)
 		return
 	}
-	tx := resp.Tx
-
-	//get raw messages
-	rawMsgs := resp.RawMsgs
-	if len(rawMsgs) != len(tx.Vin) {
-		fmt.Println("Inconsistent parameter numbers")
-		return
-	}
-	fmt.Println("transaction: ", format.PrettyPrint(tx))
-	rawTxBytes, err := tx.Marshal()
-	if err != nil {
-		fmt.Println("transaction marshal failed: ", err)
-		return
-	}
-	rawTx := hex.EncodeToString(rawTxBytes)
-	fmt.Println("raw transaction: ", rawTx)
-	rawMsgStr := make([]string, 0)
-	for _, x := range rawMsgs {
-		rawMsgStr = append(rawMsgStr, hex.EncodeToString(x))
-	}
-	fmt.Println("rawMsgs: ", format.PrettyPrint(rawMsgStr))
-}
-
-func getLogs(cmd *cobra.Command, args []string) {
-	// if len(args) < 1 {
-	// 	fmt.Println("Invalid argument number")
-	// 	return
-	// }
-	// argsjson := args[0]
-
-	// err := json.Unmarshal([]byte(argsjson))
-
-	// if err := dec.Decode(&abi); err != nil {
-	// 	return ABI{}, err
-	// }
+	fmt.Println("Successful, log information:", resp.Logs)
 }
