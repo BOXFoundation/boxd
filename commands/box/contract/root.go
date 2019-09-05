@@ -243,7 +243,6 @@ func deploycontract(cmd *cobra.Command, args []string) {
 		fmt.Println("sign and send transaction error: ", err)
 		return
 	}
-	fmt.Printf("aaaaa, %v", resp)
 	if resp.Code != 0 {
 		fmt.Println("send transaction failed: ", resp.Message)
 		return
@@ -269,7 +268,7 @@ func callcontract(cmd *cobra.Command, args []string) {
 		fmt.Println("From address is Invalid: ", err)
 		return
 	}
-	if len(args[6]) == 0 {
+	if len(args[5]) == 0 {
 		fmt.Println("Data error")
 		return
 	}
