@@ -28,7 +28,7 @@ type AccountRef types.AddressHash
 // Address casts AccountRef to a Address
 func (ar AccountRef) Address() types.AddressHash { return (types.AddressHash)(ar) }
 
-// Contract represents an ethereum contract in the state database. It contains
+// Contract represents a contract in the state database. It contains
 // the contract code, calling arguments. Contract implements ContractRef
 type Contract struct {
 	// CallerAddress is the result of the caller which initialised this

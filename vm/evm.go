@@ -101,7 +101,7 @@ type EVM struct {
 	// virtual machine configuration options used to initialise the
 	// evm.
 	vmConfig Config
-	// global (to this context) ethereum virtual machine
+	// global (to this context) virtual machine
 	// used throughout the execution of the tx.
 	interpreters []Interpreter
 	interpreter  Interpreter

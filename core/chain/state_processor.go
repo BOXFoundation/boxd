@@ -46,11 +46,10 @@ func NewStateProcessor(bc *BlockChain) *StateProcessor {
 // Process processes the state changes using the statedb.
 func (sp *StateProcessor) Process(
 	block *types.Block, stateDB *state.StateDB, utxoSet *UtxoSet,
-) (types.Receipts, uint64, uint64, []*types.Transaction, error) {
+) (types.Receipts, uint64, []*types.Transaction, error) {
 
 	var (
 		usedGas  uint64
-		feeUsed  uint64
 		receipts types.Receipts
 		utxoTxs  []*types.Transaction
 		err      error
@@ -94,8 +93,7 @@ func (sp *StateProcessor) Process(
 		if len(txs) > 0 {
 			utxoTxs = append(utxoTxs, txs...)
 		}
-		usedGas += gasUsedPerTx
-		feeUsed += vmTx.GasPrice().Uint64() * gasUsedPerTx
+		usedGas += vmTx.GasPrice().Uint64() * gasUsedPerTx
 		receipt.WithTxIndex(uint32(i)).WithBlockHash(block.BlockHash()).
 			WithBlockHeight(block.Header.Height)
 		receipts = append(receipts, receipt)
@@ -103,10 +101,10 @@ func (sp *StateProcessor) Process(
 
 	if err != nil {
 		sp.notifyInvalidTx(invalidTx)
-		return nil, 0, 0, nil, err
+		return nil, 0, nil, err
 	}
 
-	return receipts, usedGas, feeUsed, utxoTxs, nil
+	return receipts, usedGas, utxoTxs, nil
 }
 
 func (sp *StateProcessor) notifyInvalidTx(tx *types.Transaction) {

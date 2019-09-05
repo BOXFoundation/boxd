@@ -423,7 +423,7 @@ func MakeContractAddress(
 	return NewContractAddressFromHash(ah[:])
 }
 
-// CreateAddress creates an ethereum address given the bytes and the nonce
+// CreateAddress creates an address given the bytes and the nonce
 //
 //  e.g.
 //	b: [0,0,0,0,0,0,0,0,0,0,120,117,106,105,110,103,115,104,105]
@@ -438,7 +438,7 @@ func CreateAddress(b AddressHash, nonce uint64) *AddressHash {
 	return &addrHash
 }
 
-// CreateAddress2 creates an ethereum address given the address bytes, initial
+// CreateAddress2 creates an address given the address bytes, initial
 // contract code hash and a salt.
 func CreateAddress2(b AddressHash, salt [32]byte, inithash []byte) *AddressHash {
 	addrHash := BytesToAddressHash(vmcrypto.Keccak256([]byte{0xff}, b[:], salt[:], inithash)[12:])
