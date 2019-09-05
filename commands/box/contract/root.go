@@ -243,6 +243,7 @@ func deploycontract(cmd *cobra.Command, args []string) {
 		fmt.Println("sign and send transaction error: ", err)
 		return
 	}
+	fmt.Printf("aaaaa, %v", resp)
 	if resp.Code != 0 {
 		fmt.Println("send transaction failed: ", resp.Message)
 		return
@@ -344,7 +345,7 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	// sign msg
 	accI, ok := wltMgr.GetAccount(req.From)
 	if !ok {
-		fmt.Printf("account for %s not initialled\n", req.From)
+		err = fmt.Errorf("account for %s not initialled", req.From)
 		return "", nil, err
 	}
 	passphrase, err := wallet.ReadPassphraseStdin()
