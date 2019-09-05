@@ -229,7 +229,7 @@ func (s *txServer) GetRawTransaction(
 ) (*rpcpb.GetRawTransactionResponse, error) {
 	hash := crypto.HashType{}
 	if err := hash.SetBytes(req.Hash); err != nil {
-		return &rpcpb.GetRawTransactionResponse{}, err
+		return &rpcpb.GetRawTransactionResponse{}, nil
 	}
 	_, tx, err := s.server.GetChainReader().LoadBlockInfoByTxHash(hash)
 	if err != nil {
@@ -496,7 +496,7 @@ func (s *txServer) MakeUnsignedContractTx(
 		tx, utxos, err = rpcutil.MakeUnsignedContractDeployTx(wa, fromAddress.Hash160(),
 			amount, gasLimit, req.GetNonce(), byteCode)
 		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 		}
 		contractAddr = contractAddress.String()
 	} else {
@@ -507,17 +507,17 @@ func (s *txServer) MakeUnsignedContractTx(
 		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, fromAddress.Hash160(),
 			amount, gasLimit, req.GetNonce(), contractAddress.Hash160(), byteCode)
 		if err != nil {
-			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+			return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 		}
 		contractAddr = ""
 	}
 	pbTx, err := tx.ConvToPbTx()
 	if err != nil {
-		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 	}
 	rawMsgs, err := MakeTxRawMsgsForSign(tx, utxos...)
 	if err != nil {
-		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), err
+		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil
 	}
 	return newMakeContractTxResp(0, "success", pbTx, rawMsgs, contractAddr), nil
 }

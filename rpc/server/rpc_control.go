@@ -53,15 +53,9 @@ func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rp
 	out := make(chan error)
 	s.server.GetEventBus().Send(eventbus.TopicP2PAddPeer, req.Node, out)
 	if err := <-out; err != nil {
-		return &rpcpb.BaseResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return &rpcpb.BaseResponse{Code: -1, Message: err.Error()}, nil
 	}
-	return &rpcpb.BaseResponse{
-		Code:    0,
-		Message: "ok",
-	}, nil
+	return &rpcpb.BaseResponse{Code: 0, Message: "ok"}, nil
 }
 
 // SetDebugLevel implements SetDebugLevel
@@ -90,10 +84,7 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 	} else {
 		literal = "Unknown"
 	}
-	return &rpcpb.GetNetworkIDResponse{
-		Id:      current,
-		Literal: literal,
-	}, nil
+	return &rpcpb.GetNetworkIDResponse{Id: current, Literal: literal}, nil
 }
 
 // UpdateNetworkID implements UpdateNetworkID
@@ -110,221 +101,160 @@ func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetwork
 	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
 }
 
-func (s *ctlserver) GetBlockHeight(ctx context.Context, req *rpcpb.GetBlockHeightRequest) (*rpcpb.GetBlockHeightResponse, error) {
-	height := s.server.GetChainReader().GetBlockHeight()
-	return &rpcpb.GetBlockHeightResponse{
-		Code:    0,
-		Message: "ok",
-		Height:  height,
-	}, nil
+func (s *ctlserver) GetCurrentBlockHeight(ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest) (*rpcpb.GetCurrentBlockHeightResponse, error) {
+	height := s.server.GetChainReader().TailBlock().Header.Height
+	return &rpcpb.GetCurrentBlockHeightResponse{Code: 0, Message: "ok", Height: height}, nil
+}
+
+func (s *ctlserver) GetCurrentBlockHash(ctx context.Context, req *rpcpb.GetCurrentBlockHashRequest) (*rpcpb.GetCurrentBlockHashResponse, error) {
+	hash := s.server.GetChainReader().TailBlock().Hash
+	return &rpcpb.GetCurrentBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
 }
 
 func (s *ctlserver) GetBlockHash(ctx context.Context, req *rpcpb.GetBlockHashRequest) (*rpcpb.GetBlockHashResponse, error) {
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
-		return &rpcpb.GetBlockHashResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return &rpcpb.GetBlockHashResponse{Code: -1, Message: err.Error()}, nil
 	}
-	return &rpcpb.GetBlockHashResponse{
-		Code:    0,
-		Message: "ok",
-		Hash:    hash.String(),
-	}, nil
+	return &rpcpb.GetBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
+}
+
+func newGetBlockHeaderResponse(code int32, msg string, header *corepb.BlockHeader) *rpcpb.GetBlockHeaderResponse {
+	return &rpcpb.GetBlockHeaderResponse{
+		Code:    code,
+		Message: msg,
+		Header:  header,
+	}
 }
 
 func (s *ctlserver) GetBlockHeader(ctx context.Context, req *rpcpb.GetBlockRequest) (*rpcpb.GetBlockHeaderResponse, error) {
 	hash := &crypto.HashType{}
 	err := hash.SetString(req.BlockHash)
 	if err != nil {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    -1,
-			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
-		}, err
+		return newGetBlockHeaderResponse(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), nil), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockHeaderResponse(-1, err.Error(), nil), nil
 	}
 	msg, err := block.Header.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockHeaderResponse(-1, err.Error(), nil), nil
 	}
 	if header, ok := msg.(*corepb.BlockHeader); ok {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    0,
-			Message: "ok",
-			Header:  header,
-		}, nil
+		return newGetBlockHeaderResponse(0, "ok", header), nil
 	}
-	return &rpcpb.GetBlockHeaderResponse{
-		Code:    -1,
-		Message: "Internal Error",
-	}, fmt.Errorf("Error converting proto message")
+	return newGetBlockHeaderResponse(-1, "Internal Error", nil), nil
+}
+
+func newGetBlockResponse(code int32, msg string, block *corepb.Block) *rpcpb.GetBlockResponse {
+	return &rpcpb.GetBlockResponse{
+		Code:    code,
+		Message: msg,
+		Block:   block,
+	}
 }
 
 func (s *ctlserver) GetBlock(ctx context.Context, req *rpcpb.GetBlockRequest) (*rpcpb.GetBlockResponse, error) {
 	hash := &crypto.HashType{}
 	err := hash.SetString(req.BlockHash)
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
-		}, err
+		return newGetBlockResponse(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), nil), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: fmt.Sprintf("Error searching block: %s", req.BlockHash),
-		}, err
+		return newGetBlockResponse(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), nil), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockResponse(-1, err.Error(), nil), nil
 	}
 	if blockPb, ok := msg.(*corepb.Block); ok {
-		return &rpcpb.GetBlockResponse{
-			Code:    0,
-			Message: "ok",
-			Block:   blockPb,
-		}, nil
+		return newGetBlockResponse(0, "ok", blockPb), nil
 	}
-	return &rpcpb.GetBlockResponse{
-		Code:    -1,
-		Message: "Internal Error",
-	}, fmt.Errorf("Error converting proto message")
+	return newGetBlockResponse(-1, "Internal Error", nil), nil
 }
+
 func (s *ctlserver) GetBlockByHeight(ctx context.Context, req *rpcpb.GetBlockByHeightReq) (*rpcpb.GetBlockResponse, error) {
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockResponse(-1, err.Error(), nil), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: "Invalid hash",
-		}, err
+		return newGetBlockResponse(-1, "Invalid hash", nil), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockResponse(-1, err.Error(), nil), nil
 	}
 	if blockPb, ok := msg.(*corepb.Block); ok {
-		return &rpcpb.GetBlockResponse{
-			Code:    0,
-			Message: "ok",
-			Block:   blockPb,
-		}, nil
+		return newGetBlockResponse(0, "ok", blockPb), nil
 	}
-	return &rpcpb.GetBlockResponse{
-		Code:    -1,
-		Message: "Internal Error",
-	}, fmt.Errorf("Error converting proto message")
+	return newGetBlockResponse(-1, "Internal Error", nil), nil
 
+}
+
+func newGetBlockTxCountResp(code int32, message string, count uint32) *rpcpb.GetBlockTxCountResp {
+	return &rpcpb.GetBlockTxCountResp{
+		Code:    code,
+		Message: message,
+		Count:   count,
+	}
 }
 
 func (s *ctlserver) GetBlockTransactionCountByHash(ctx context.Context,
 	req *rpcpb.GetBlockTransactionCountByHashReq) (*rpcpb.GetBlockTxCountResp, error) {
-	var num uint32
 	hash := &crypto.HashType{}
 	err := hash.SetString(req.BlockHash)
 	if err != nil {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    -1,
-			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
-		}, err
+		return newGetBlockTxCountResp(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), 0), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    -1,
-			Message: fmt.Sprintf("Error searching block: %s", req.BlockHash),
-		}, err
+		return newGetBlockTxCountResp(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), 0), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockTxCountResp(-1, err.Error(), 0), nil
 	}
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    0,
-			Message: "can't convert proto message",
-		}, fmt.Errorf("Error converting proto message")
+		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), nil
 	}
-	for i := 0; i < len(blockPb.Txs); i++ {
-		num++
-	}
-	return &rpcpb.GetBlockTxCountResp{
-		Code:    0,
-		Message: "ok",
-		Count:   num,
-	}, nil
-
+	count := len(blockPb.Txs)
+	return newGetBlockTxCountResp(0, "ok", uint32(count)), nil
 }
 func (s *ctlserver) GetBlockTransactionCountByHeight(ctx context.Context,
 	req *rpcpb.GetBlockTransactionCountByHeightReq) (*rpcpb.GetBlockTxCountResp, error) {
-	var num uint32
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockTxCountResp(-1, err.Error(), 0), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    -1,
-			Message: "Invalid hash",
-		}, err
+		return newGetBlockTxCountResp(-1, "Invalid hash", 0), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockTxCountResp(-1, err.Error(), 0), nil
 	}
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return &rpcpb.GetBlockTxCountResp{
-			Code:    0,
-			Message: "can't convert proto message",
-		}, fmt.Errorf("Error converting proto message")
+		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), nil
 	}
-	for i := 0; i < len(blockPb.Txs); i++ {
-		num++
-	}
-	return &rpcpb.GetBlockTxCountResp{
-		Code:    0,
-		Message: "ok",
-		Count:   num,
-	}, nil
+	count := len(blockPb.Txs)
+	return newGetBlockTxCountResp(0, "ok", uint32(count)), nil
+}
 
+func newGetTxResp(code int32, message string, tx *corepb.Transaction) *rpcpb.GetTxResp {
+	return &rpcpb.GetTxResp{
+		Code:    code,
+		Message: message,
+		Tx:      tx,
+	}
 }
 
 func (s *ctlserver) GetTransactionByBlockHashAndIndex(ctx context.Context,
@@ -332,93 +262,50 @@ func (s *ctlserver) GetTransactionByBlockHashAndIndex(ctx context.Context,
 	hash := &crypto.HashType{}
 	err := hash.SetString(req.BlockHash)
 	if err != nil {
-		return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
-		}, err
+		return newGetTxResp(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), nil), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: fmt.Sprintf("Error searching block: %s", req.BlockHash),
-		}, err
+		return newGetTxResp(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), nil), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetTxResp(-1, err.Error(), nil), nil
 	}
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return &rpcpb.GetTxResp{
-			Code:    0,
-			Message: "can't convert proto message",
-		}, fmt.Errorf("Error converting proto message")
+		return newGetTxResp(-1, "can't convert proto message", nil), nil
 	}
-	for k, v := range blockPb.Txs {
-		if int32(k) == req.Index {
-			return &rpcpb.GetTxResp{
-				Code:    0,
-				Message: "ok",
-				Tx:      v,
-			}, nil
-		}
+	if req.Index > uint32(len(blockPb.Txs)-1) {
+		return newGetTxResp(-1, "can't find Tx", nil), nil
 	}
-	return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: "can't find Tx",
-		}, fmt.Errorf("Can't find the index is %d Tx in hash %v block",
-			req.Index, req.BlockHash)
+	tx := blockPb.Txs[req.Index]
+	return newGetTxResp(0, "ok", tx), nil
 }
 
 func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
 	req *rpcpb.GetTransactionByBlockHeightAndIndexReq) (*rpcpb.GetTxResp, error) {
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
-		return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetTxResp(-1, err.Error(), nil), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: "Invalid hash",
-		}, err
+		return newGetTxResp(-1, "Invalid hash", nil), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetTxResp(-1, err.Error(), nil), nil
 	}
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return &rpcpb.GetTxResp{
-			Code:    0,
-			Message: "can't convert proto message",
-		}, fmt.Errorf("Error converting proto message")
+		return newGetTxResp(-1, "can't convert proto message", nil), nil
 	}
-	for k, v := range blockPb.Txs {
-		if int32(k) == req.Index {
-			return &rpcpb.GetTxResp{
-				Code:    0,
-				Message: "ok",
-				Tx:      v,
-			}, nil
-		}
+	if req.Index > uint32(len(blockPb.Txs)-1) {
+		return newGetTxResp(-1, "can't find Tx", nil), nil
 	}
-	return &rpcpb.GetTxResp{
-			Code:    -1,
-			Message: "can't find Tx",
-		}, fmt.Errorf("Can't find the index is %d Tx in height %d block",
-			req.Index, req.Height)
-
+	tx := blockPb.Txs[req.Index]
+	return newGetTxResp(0, "ok", tx), nil
 }

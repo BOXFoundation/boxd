@@ -5,15 +5,18 @@
 package ctl
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/p2p"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	format "github.com/BOXFoundation/boxd/util/format"
@@ -237,11 +240,17 @@ func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer conn.Close()
-	height, err := rpcutil.GetBlockCount(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req := &rpcpb.GetCurrentBlockHeightRequest{}
+	client := rpcpb.NewContorlCommandClient(conn)
+	resp, err := client.GetCurrentBlockHeight(ctx, req)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
-	fmt.Println("Current Height: ", height)
+	fmt.Println("Current Block Height:")
+	fmt.Println(resp.Height)
 }
 
 func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {

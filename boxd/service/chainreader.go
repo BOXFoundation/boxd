@@ -26,7 +26,6 @@ type ChainReader interface {
 	GetTxReceipt(*crypto.HashType) (*types.Receipt, error)
 
 	//interface to reader block status
-	GetBlockHeight() uint32
 	GetBlockHash(uint32) (*crypto.HashType, error)
 	EternalBlock() *types.Block
 	TailBlock() *types.Block

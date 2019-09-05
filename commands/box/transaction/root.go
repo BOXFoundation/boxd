@@ -268,11 +268,16 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer conn.Close()
-	height, err := rpcutil.GetBlockCount(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req := &rpcpb.GetCurrentBlockHeightRequest{}
+	client := rpcpb.NewContorlCommandClient(conn)
+	resp, err := client.GetCurrentBlockHeight(ctx, req)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	height := resp.Height
 	tx, err := rpcutil.CreateRawTransaction(fromAddress.Hash160(), toHashes,
 		txHash, vout, amounts, height)
 	if err != nil {
