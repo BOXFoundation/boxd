@@ -102,7 +102,7 @@ func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetwork
 }
 
 func (s *ctlserver) GetCurrentBlockHeight(ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest) (*rpcpb.GetCurrentBlockHeightResponse, error) {
-	height := s.server.GetChainReader().GetBlockHeight()
+	height := s.server.GetChainReader().TailBlock().Header.Height
 	return &rpcpb.GetCurrentBlockHeightResponse{Code: 0, Message: "ok", Height: height}, nil
 }
 
@@ -277,11 +277,11 @@ func (s *ctlserver) GetTransactionByBlockHashAndIndex(ctx context.Context,
 	if !ok {
 		return newGetTxResp(-1, "can't convert proto message", nil), nil
 	}
-	tx := blockPb.Txs[req.Index]
-	if tx != nil {
-		return newGetTxResp(0, "ok", tx), nil
+	if req.Index > uint32(len(blockPb.Txs)-1) {
+		return newGetTxResp(-1, "can't find Tx", nil), nil
 	}
-	return newGetTxResp(-1, "can't find Tx", nil), nil
+	tx := blockPb.Txs[req.Index]
+	return newGetTxResp(0, "ok", tx), nil
 }
 
 func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
@@ -303,10 +303,9 @@ func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
 	if !ok {
 		return newGetTxResp(-1, "can't convert proto message", nil), nil
 	}
-	tx := blockPb.Txs[req.Index]
-	if tx != nil {
-		return newGetTxResp(0, "ok", tx), nil
+	if req.Index > uint32(len(blockPb.Txs)-1) {
+		return newGetTxResp(-1, "can't find Tx", nil), nil
 	}
-	return newGetTxResp(-1, "can't find Tx", nil), nil
-
+	tx := blockPb.Txs[req.Index]
+	return newGetTxResp(0, "ok", tx), nil
 }

@@ -216,12 +216,12 @@ message GetBlockTxCountResp {
 
 message GetTransactionByBlockHashAndIndexReq {
     string block_hash = 1;
-    int32 index = 2;
+    uint32 index = 2;
 
 }
 message GetTransactionByBlockHeightAndIndexReq {
     uint32 height = 1;
-    int32 index = 2;
+    uint32 index = 2;
 
 }
 

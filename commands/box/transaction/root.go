@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
@@ -263,11 +264,8 @@ func createRawTransaction(cmd *cobra.Command, args []string) {
 		return
 	}
 	defer conn.Close()
-	height, err := rpcutil.GetBlockCount(conn)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	block := chain.NewTestBlockChain()
+	height := block.TailBlock().Header.Height
 	tx, err := rpcutil.CreateRawTransaction(fromAddress.Hash160(), toHashes,
 		txHash, vout, amounts, height)
 	if err != nil {

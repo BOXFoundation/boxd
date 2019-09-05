@@ -12,6 +12,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -231,17 +232,13 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getblockcount called")
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
+	bloc := chain.NewTestBlockChain()
+	h := bloc.TailBlock().Header.Height
+	if h != 0 {
+		fmt.Println("Current Height: ", h)
 	}
-	defer conn.Close()
-	height, err := rpcutil.GetBlockCount(conn)
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("Current Height: ", height)
+	fmt.Println("error")
+
 }
 
 func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {

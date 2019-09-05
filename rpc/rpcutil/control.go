@@ -54,38 +54,6 @@ func UpdateNetworkID(conn *grpc.ClientConn, id uint32) error {
 	return nil
 }
 
-// GetBlockCount query chain height
-func GetBlockCount(conn *grpc.ClientConn) (uint32, error) {
-	c := pb.NewContorlCommandClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	logger.Info("Querying block count")
-	r, err := c.GetCurrentBlockHeight(ctx, &pb.GetCurrentBlockHeightRequest{})
-	if err != nil {
-		return 0, err
-	}
-	logger.Infof("Block info: %+v", r)
-	return r.Height, nil
-}
-
-// GetCurrentBlockHash query chain height
-func GetCurrentBlockHash(conn *grpc.ClientConn) (string, error) {
-	c := pb.NewContorlCommandClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	logger.Info("Querying block hash")
-	r, err := c.GetCurrentBlockHash(ctx, &pb.GetCurrentBlockHashRequest{})
-	if err != nil {
-		return "", err
-	}
-	logger.Infof("Block info: %+v", r)
-	return r.Hash, nil
-}
-
 // GetBlockHash returns block hash of a height
 func GetBlockHash(conn *grpc.ClientConn, height uint32) (string, error) {
 	c := pb.NewContorlCommandClient(conn)
