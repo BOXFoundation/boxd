@@ -60,6 +60,7 @@ var (
 	ErrEmptyProtoMessage              = errors.New("Empty proto message")
 	ErrInvalidBlockHeaderProtoMessage = errors.New("Invalid block header proto message")
 	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
+	ErrOutOfBlockGasLimit             = errors.New("out of block gas limit")
 
 	//trie.go
 	ErrInvalidTrieProtoMessage = errors.New("Invalid trie proto message")

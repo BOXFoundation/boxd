@@ -23,7 +23,8 @@ const (
 	MaxUtxosInTx = 1024
 	MaxVoutInTx  = 1024
 
-	MaxBlockTimeOut = 1
+	MaxBlockTimeOut  = 1
+	MaxBlockGasLimit = 10000 * TransferFee
 
 	TransferGasLimit = 21000
 
