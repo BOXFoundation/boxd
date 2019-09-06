@@ -5,6 +5,7 @@
 package bpos
 
 import (
+	"math/big"
 	"testing"
 	"time"
 
@@ -174,6 +175,82 @@ func TestSortPendingTxs(t *testing.T) {
 	}
 	ensure.DeepEqual(t, sortedGasPrice, []uint64{300, 200, 100, 600, 200, 900, 500})
 
+}
+
+func TestCalcScore(t *testing.T) {
+	bpos.bpos.chain.LongestChainHeight = 100000
+	bpos.bpos.context.dynastySwitchThreshold = big.NewInt(10000)
+	bpos.bpos.context.dynasty = &Dynasty{}
+	bpos.bpos.context.dynasty.delegates = []Delegate{Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}}
+	bpos.bpos.context.delegates = []Delegate{Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}}
+	type args struct {
+		totalVotes int64
+		delegate   Delegate
+	}
+	tests := []struct {
+		name  string
+		args  args
+		score int64
+	}{
+		{
+			"test1",
+			args{
+				10000000,
+				Delegate{
+					*types.NewAddressHash([]byte{0x1}),
+					"a13wr23d42e3e3ti",
+					big.NewInt(1000000),
+					big.NewInt(1800000),
+					big.NewInt(0),
+					big.NewInt(1),
+					true,
+				},
+			},
+			117269,
+		},
+		{
+			"test1",
+			args{
+				10000000,
+				Delegate{
+					*types.NewAddressHash([]byte{0x2}),
+					"a13wr23d42eed43ew",
+					big.NewInt(2000000),
+					big.NewInt(1800000),
+					big.NewInt(0),
+					big.NewInt(1),
+					true,
+				},
+			},
+			388720,
+		},
+		{
+			"test1",
+			args{
+				10000000,
+				Delegate{
+					*types.NewAddressHash([]byte{0x2}),
+					"a13wr23d42eed43ew",
+					big.NewInt(0),
+					big.NewInt(1800000),
+					big.NewInt(0),
+					big.NewInt(10),
+					true,
+				},
+			},
+			10890,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := bpos.bpos.calcScore(tt.args.totalVotes, tt.args.delegate)
+			ensure.Nil(t, err)
+			if got.Int64() != tt.score {
+				t.Errorf("calcScore() = %v, want %v", got, tt.score)
+			}
+		})
+	}
 }
 
 func createTxWrap(tx *types.Transaction, gasPrice uint64) *types.TxWrap {

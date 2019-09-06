@@ -187,7 +187,7 @@ contract Bonus is Permission{
 
     function  pledge() public payable onlyPledgeIsOpen{
         require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] <= netParams[PLEDGE_OPEN_LIMIT], "pledge is not open.");
-        require(msg.value > netParams[PLEDGE_THRESHOLD], "pledge amount is not correct.");
+        require(msg.value >= netParams[PLEDGE_THRESHOLD], "pledge amount is not correct.");
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
 
         Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, 0, true);
@@ -195,6 +195,10 @@ contract Bonus is Permission{
         addrToDelegates[msg.sender] = delegate;
         pledgePool = pledgePool.add(msg.value);
         pledgeAddrList.push(msg.sender);
+    }
+
+    function myPledge() public view returns (uint) {
+        return addrToDelegates[msg.sender].pledgeAmount;
     }
 
     function redeemPledgeApply() public {
@@ -401,6 +405,10 @@ contract Bonus is Permission{
             delegateVotesDetail[delegateAddr][msg.sender] = msg.value;
             delegateToVoters[delegateAddr].push(msg.sender);
         }
+    }
+
+    function myVoteBonus() public view returns (uint) {
+        return voteBonus[msg.sender];
     }
 
     function pickVoteBonus() public {
