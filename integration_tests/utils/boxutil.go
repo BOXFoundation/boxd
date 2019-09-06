@@ -15,6 +15,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -361,4 +362,18 @@ func NonceFor(addr string, conn *grpc.ClientConn) uint64 {
 		logger.Panic(errors.New(resp.Message))
 	}
 	return resp.Nonce
+}
+
+// QueryTxGasUsed get tx gas used
+func QueryTxGasUsed(hash *crypto.HashType, conn *grpc.ClientConn) (uint64, error) {
+	client := rpcpb.NewWebApiClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	resp, err := client.ViewTxDetail(ctx, &rpcpb.ViewTxDetailReq{Hash: hash.String()})
+	if err != nil {
+		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Warnf("query tx %s gas used error %s", hash, resp.Message)
+	}
+	return resp.GetDetail().Vout[0].GetContractInfo().GetGasUsed(), nil
 }

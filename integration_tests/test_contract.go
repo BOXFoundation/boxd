@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
@@ -142,6 +143,7 @@ func contractRepeatTest(
 	gasLimit, nonce := uint64(1000000), utils.NonceFor(owner, conn)+1
 	tx, contractAddr, err := rpcutil.NewContractDeployTx(ownerAcc.(*acc.Account),
 		gasLimit, nonce, erc20Bytes, conn)
+	issueHash, _ := tx.TxHash()
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -174,6 +176,7 @@ func contractRepeatTest(
 	if err != nil {
 		logger.Panic(err)
 	}
+	approveHash, _ := tx.TxHash()
 	if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 		!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		logger.Panic(err)
@@ -202,13 +205,16 @@ func contractRepeatTest(
 	txs, err := rpcutil.NewERC20TransferFromContractTxs(spenderAcc.(*acc.Account),
 		contractAddress.Hash160(), times, gasLimit, spendNonce, code, conn)
 	// send contract transferFrom txs
+	transferHashes := make([]*crypto.HashType, 0, len(txs))
 	for _, tx := range txs {
 		if _, err := rpcutil.SendTransaction(conn, tx); err != nil &&
 			!strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 			logger.Panic(err)
 		}
+		hash, _ := tx.TxHash()
+		transferHashes = append(transferHashes, hash)
 		atomic.AddUint64(txCnt, 1)
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	logger.Infof("%s has transfered %d times total %d contract transferFrom tx to %s",
 		spender, times, totalAmount, receiver)
@@ -234,7 +240,16 @@ func contractRepeatTest(
 		logger.Panic(err)
 	}
 	// for owner box
-	gasUsed := uint64(995919 + 24815)
+	issueGasUsed, err := utils.QueryTxGasUsed(issueHash, conn)
+	if err != nil {
+		logger.Panic(err)
+	}
+	approveGasUsed, err := utils.QueryTxGasUsed(approveHash, conn)
+	if err != nil {
+		logger.Panic(err)
+	}
+	//gasUsed := uint64(995919 + 24815)
+	gasUsed := issueGasUsed + approveGasUsed
 	logger.Infof("wait for box balance of owner %s equal to %d, timeout %v",
 		owner, prevOwnerBalance-gasUsed*core.FixedGasPrice, timeoutToChain)
 	_, err = utils.WaitBalanceEqual(owner, prevOwnerBalance-gasUsed*core.FixedGasPrice,
@@ -243,10 +258,18 @@ func contractRepeatTest(
 		logger.Panic(err)
 	}
 	// for spender box
-	gasUsed = uint64(39792 + 24792*(times-1))
+	var transferGasUsed uint64
+	for _, hash := range transferHashes {
+		gasUsed, err := utils.QueryTxGasUsed(hash, conn)
+		if err != nil {
+			logger.Panic(err)
+		}
+		transferGasUsed += gasUsed
+	}
+	//gasUsed = uint64(39792 + 24792*(times-1))
 	logger.Infof("wait for box balance of spender %s equal to %d, timeout %v",
-		spender, prevSpenderBalance-gasUsed*core.FixedGasPrice, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance-gasUsed*core.FixedGasPrice,
+		spender, prevSpenderBalance-transferGasUsed*core.FixedGasPrice, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(spender, prevSpenderBalance-transferGasUsed*core.FixedGasPrice,
 		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
