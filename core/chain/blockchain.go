@@ -711,7 +711,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
-	totalFees, err := validateBlockInputs(block, utxoSet)
+	totalFees, err := validateBlockInputs(block.Txs, utxoSet)
 	if err != nil {
 		return err
 	}
@@ -719,9 +719,9 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
 }
 
-func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
+func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, error) {
 	var totalFees uint64
-	for idx, tx := range block.Txs {
+	for idx, tx := range txs {
 		// skip coinbase tx
 		if IsCoinBase(tx) || IsDynastySwitch(tx) {
 			continue
@@ -739,7 +739,8 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 		if contractVout == nil {
 			// check whether gas price is equal to TransferFee
 			if txFee != core.TransferFee {
-				logger.Warnf("non-contract tx %s have wrong fee %d", txHash, txFee)
+				bytes, _ := json.Marshal(tx)
+				logger.Warnf("non-contract tx %s %s have wrong fee %d", txHash, string(bytes), txFee)
 				return 0, core.ErrInvalidFee
 			}
 			// Check for overflow.
@@ -756,12 +757,11 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		if txFee != param.GasLimit*param.GasPrice {
-			if idx == 0 && param.GasPrice != 0 ||
-				idx > 0 && param.GasPrice != core.FixedGasPrice {
-				logger.Warnf("contract tx %s have wrong fee %d gas price %d", txHash, txFee, param.GasPrice)
-				return 0, core.ErrInvalidFee
-			}
+		if txFee != param.GasLimit*param.GasPrice ||
+			idx == 0 && param.GasPrice != 0 ||
+			idx > 0 && param.GasPrice != core.FixedGasPrice {
+			logger.Warnf("contract tx %s have wrong fee %d gas price %d", txHash, txFee, param.GasPrice)
+			return 0, core.ErrInvalidFee
 		}
 		if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
 			*addr.Hash160() != *param.From {
@@ -1106,8 +1106,8 @@ func (chain *BlockChain) ValidateExecuteResult(
 		receiptHash = *receipts.Hash()
 	}
 	if receiptHash != block.Header.ReceiptHash {
-		logger.Warnf("receipt hash in block header: %s, now: %s, block hash: %s",
-			block.Header.ReceiptHash, receiptHash, block.BlockHash())
+		logger.Warnf("receipt hash in block header: %s, now: %s, block hash: %s %d",
+			block.Header.ReceiptHash, receiptHash, block.BlockHash(), block.Header.Height)
 		return errors.New("Invalid receipt hash in block header")
 	}
 

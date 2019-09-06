@@ -22,6 +22,10 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
+const (
+	gasPrice = core.FixedGasPrice
+)
+
 // test setup
 var (
 	privBytesMiner  = []byte{41, 227, 111, 180, 124, 210, 49, 28, 156, 148, 131, 249, 89, 211, 79, 210, 54, 82, 97, 208, 81, 183, 244, 45, 28, 30, 187, 247, 167, 35, 181, 153}
@@ -116,7 +120,9 @@ func getBalance(address *types.AddressHash, db storage.Table) uint64 {
 	return blances
 }
 
-func makeCoinbaseTx(parent *types.Block, block *types.Block, chain *BlockChain, statedb *state.StateDB) (*types.Transaction, error) {
+func makeCoinbaseTx(
+	parent *types.Block, block *types.Block, chain *BlockChain, statedb *state.StateDB,
+) (*types.Transaction, error) {
 
 	amount := CalcBlockSubsidy(block.Header.Height)
 	nonce := statedb.GetNonce(block.Header.BookKeeper)
@@ -134,18 +140,23 @@ func makeCoinbaseTxV2(
 		uint64(parent.Header.Height+1), block.Header.Height, "calcBonus")
 }
 
-// generate a child block
-func nextBlock(parentBlock *types.Block, chain *BlockChain) *types.Block {
+// generate a child block with contract tx
+func nextBlockWithTxs(
+	parent *types.Block, chain *BlockChain, txs ...*types.Transaction,
+) *types.Block {
+
 	timestamp++
-	newBlock := types.NewBlock(parentBlock)
-	statedb, _ := state.New(&parentBlock.Header.RootHash, &parentBlock.Header.UtxoRoot, chain.DB())
+	newBlock := types.NewBlock(parent)
+	statedb, _ := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.DB())
 	newBlock.Header.BookKeeper = *minerAddr.Hash160()
-	coinbaseTx, _ := makeCoinbaseTx(parentBlock, newBlock, chain, statedb)
+	coinbaseTx, _ := makeCoinbaseTx(parent, newBlock, chain, statedb)
 	newBlock.Txs = []*types.Transaction{coinbaseTx}
 	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	newBlock.Header.TimeStamp = timestamp
 	newBlock.Header.Bloom = bloom.NewFilterWithMK(types.BloomBitLength, types.BloomHashNum)
 
+	newBlock.Txs = append(newBlock.Txs, txs...)
+	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock
 }
 
@@ -160,6 +171,16 @@ func nextBlockV2(parentBlock *types.Block, chain *BlockChain) *types.Block {
 	newBlock.Header.TimeStamp = timestamp
 	newBlock.Header.Bloom = bloom.NewFilterWithMK(types.BloomBitLength, types.BloomHashNum)
 
+	return newBlock
+}
+
+// generate a child block with contract tx
+func nextBlockWithTxsV2(
+	parent *types.Block, chain *BlockChain, txs ...*types.Transaction,
+) *types.Block {
+	newBlock := nextBlockV2(parent, chain)
+	newBlock.Txs = append(newBlock.Txs, txs...)
+	newBlock.Header.TxsRoot = *CalcTxsHash(newBlock.Txs)
 	return newBlock
 }
 
@@ -179,29 +200,33 @@ func TestChainTx(t *testing.T) {
 	txs := make([]*types.Transaction, 0)
 	// tx1
 	prevHash, _ := b2.Txs[1].TxHash()
+	changeValue := userBalance - 100000000 - core.TransferFee
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 100000000)).
-		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 500000000))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	err := txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
 	// tx2
 	prevHash, _ = tx.TxHash()
 	t.Logf("tx1: %s", prevHash)
+	changeValue -= 200000000 + core.TransferFee
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 200000000)).
-		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 300000000))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
 	// tx3
 	prevHash, _ = tx.TxHash()
+	t.Logf("tx2: %s", prevHash)
+	changeValue -= 250000000 + core.TransferFee
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 250000000)).
-		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 50000000))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
 	txs = append(txs, tx)
@@ -216,12 +241,12 @@ func TestChainTx(t *testing.T) {
 	balance := getBalance(userAddr.Hash160(), blockChain.db)
 	stateBalance := blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, uint64(50000000))
+	ensure.DeepEqual(t, balance, changeValue)
 	// for miner
 	balance = getBalance(minerAddr.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, BaseSubsidy-600000000)
+	ensure.DeepEqual(t, balance, BaseSubsidy-userBalance-core.TransferFee)
 	// for splitAddrA
 	balance = getBalance(splitAddrA.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*splitAddrA.Hash160()).Uint64()
@@ -250,7 +275,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	txHash, _ := tx.TxHash()
 
 	prevHash, _ = b1.Txs[0].TxHash()
-	gasUsed, vmValue, gasPrice, gasLimit, nonce := uint64(9912), uint64(0), uint64(6), uint64(20000), uint64(2)
+	gasUsed, vmValue, gasLimit, nonce := uint64(9912), uint64(0), uint64(20000), uint64(2)
 	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue,
 		gasLimit, gasPrice, nonce)
 	vmTx := types.NewTx(0, 4455, 0).
@@ -333,6 +358,12 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.
 	if err := utxoSet.LoadBlockUtxos(block, true, chain.DB()); err != nil {
 		return err
 	}
+	totalFees, err := validateBlockInputs(block.Txs, utxoSet)
+	if err != nil {
+		return err
+	}
+	block.Txs[0].Vout[0].Value += totalFees
+	block.Txs[0].ResetTxHash()
 	blockCopy := block.Copy()
 	chain.SplitBlockOutputs(blockCopy)
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
@@ -403,9 +434,9 @@ func TestBlockProcessing(t *testing.T) {
 	// extend main chain
 	// b0 -> b1 -> b2 -> b3
 	//
-	vmValue, gasPrice, gasLimit := uint64(10000), uint64(10), uint64(200000)
+	vmValue, gasLimit := uint64(10000), uint64(200000)
 	vmParam := &testContractParam{
-		vmValue, gasPrice, gasLimit, vmValue, 0, nil,
+		vmValue, gasLimit, vmValue, 0, nil,
 	}
 	byteCode, _ := hex.DecodeString(testFaucetContract)
 	nonce := uint64(1)
@@ -443,9 +474,9 @@ func TestBlockProcessing(t *testing.T) {
 	// extend side chain: fork from b1
 	// b0 -> b1 -> b2 -> b3
 	//		          \ -> b3A
-	vmValue, gasPrice, gasLimit = uint64(0), uint64(10), uint64(400000)
+	vmValue, gasLimit = uint64(0), uint64(400000)
 	vmParam = &testContractParam{
-		vmValue, gasPrice, gasLimit, vmParam.contractBalance, 0, nil,
+		vmValue, gasLimit, vmParam.contractBalance, 0, nil,
 	}
 	byteCode, _ = hex.DecodeString(testCoinContract)
 	nonce = uint64(1)
@@ -464,6 +495,7 @@ func TestBlockProcessing(t *testing.T) {
 	contractAddrCoin, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddrCoin
 	// split tx
+	changeValueA -= core.TransferFee
 	splitTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeSplitAddrVout(addrs, weights)).
@@ -494,8 +526,8 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2 -> b3
 	//		           \-> b3A -> b4A
 	//
-	toSplitAmount := uint64(50000)
-	changeValueA = changeValueA - toSplitAmount
+	toSplitAmount := uint64(50000) + 2*core.TransferFee
+	changeValueA = changeValueA - toSplitAmount - core.TransferFee
 	toSplitTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(txlogic.MakeVout(splitAddr.Hash160(), toSplitAmount)).
@@ -520,14 +552,13 @@ func TestBlockProcessing(t *testing.T) {
 	contractBlockHandle(t, blockChain, b4A, b4A, vmParam, nil)
 	bAUserBalance = userBalance
 	t.Logf("b4A block hash: %s", b4A.BlockHash())
-	bAUserBalance = userBalance
 	t.Logf("b3A -> b4A passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// check split address balance
 	blanceSplitA := getBalance(splitAddrA.Hash160(), blockChain.db)
-	ensure.DeepEqual(t, blanceSplitA, uint64(25000))
+	ensure.DeepEqual(t, blanceSplitA, toSplitAmount/2)
 	blanceSplitB := getBalance(splitAddrB.Hash160(), blockChain.db)
-	ensure.DeepEqual(t, blanceSplitB, uint64(25000))
+	ensure.DeepEqual(t, blanceSplitB, toSplitAmount/2)
 
 	//TODO: add insuffient balance check
 
@@ -550,10 +581,10 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b4 block hash: %s", b4.BlockHash())
 	t.Logf("b3 -> b4 failed, now tail height: %d", blockChain.LongestChainHeight)
 	// process b5
-	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(20000)
+	vmValue, gasLimit = uint64(0), uint64(20000)
 	contractBalance := uint64(10000 - 2000) // withdraw 2000, construct contract with 10000
 	vmParam = &testContractParam{
-		vmValue, gasPrice, gasLimit, contractBalance, 2000, contractAddrFaucet,
+		vmValue, gasLimit, contractBalance, 2000, contractAddrFaucet,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall)
 	nonce = 2
@@ -614,15 +645,15 @@ func TestBlockProcessing(t *testing.T) {
 	toUserTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 2), 0)).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), toUserAmount)).
-		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), changeValueATemp))
+		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), changeValueATemp-core.TransferFee))
 	txlogic.SignTx(toUserTx, privKeyMiner, pubKeyMiner)
 	b6A := nextBlockWithTxsV2(b5A, blockChain, toUserTx)
 	verifyProcessBlock(t, blockChain, b6A, core.ErrMissingTxOut, 5, b5)
 	t.Logf("b5A -> b6A failed, now tail height: %d", blockChain.LongestChainHeight)
 
-	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(30000)
+	vmValue, gasLimit = uint64(0), uint64(30000)
 	vmParam = &testContractParam{
-		vmValue, gasPrice, gasLimit, 0, 0, contractAddrCoin,
+		vmValue, gasLimit, 0, 0, contractAddrCoin,
 	}
 	byteCode, _ = hex.DecodeString(mintCall)
 	nonce = 2
@@ -678,10 +709,10 @@ func TestBlockProcessing(t *testing.T) {
 	ensure.DeepEqual(t, prevHash, b4ASplitTxHash)
 	b7ATx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(b4ASplitTxHash, 0), 0)).
-		AppendVout(txlogic.MakeVout(userAddr.Hash160(), toSplitAmount/2))
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), toSplitAmount/2-core.TransferFee))
 	txlogic.SignTx(b7ATx, privKeySplitA, pubKeySplitA)
 	b7A := nextBlockWithTxsV2(b6A, blockChain, b7ATx)
-	userBalance = bAUserBalance + toSplitAmount/2
+	userBalance = bAUserBalance + toSplitAmount/2 - core.TransferFee
 	vmParam = &testContractParam{contractAddr: contractAddrCoin}
 	//
 	if err := calcRootHash(b6A, b7A, blockChainA); err != nil {
@@ -707,9 +738,9 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2  -> b3  -> b4  -> b5
 	// 		             -> b3A -> b4A -> b5A -> b6A -> b7A
 	//                                             -> b7B -> b8B
-	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(40000)
+	vmValue, gasLimit = uint64(0), uint64(40000)
 	vmParam = &testContractParam{
-		vmValue, gasPrice, gasLimit, 0, 0, contractAddrCoin,
+		vmValue, gasLimit, 0, 0, contractAddrCoin,
 	}
 	byteCode, _ = hex.DecodeString(sendCall)
 	nonce = uint64(3)
@@ -801,11 +832,11 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b8 block hash: %s", b8.BlockHash())
 	verifyProcessBlock(t, blockChain, b8, core.ErrBlockInSideChain, 8, b8B)
 
-	vmValue, gasPrice, gasLimit = uint64(0), uint64(6), uint64(20000)
+	vmValue, gasLimit = uint64(0), uint64(20000)
 	//contractBalance = uint64(0) // withdraw 2000+9000, construct contract with 10000
 	vmParam = &testContractParam{
-		// vmValue, gasPrice, gasLimit, contractBalance, userRecv, contractAddr
-		vmValue, gasPrice, gasLimit, 8000, 0, contractAddrFaucet,
+		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
+		vmValue, gasLimit, 8000, 0, contractAddrFaucet,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce = 3
