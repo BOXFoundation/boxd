@@ -298,7 +298,7 @@ func callcontract(cmd *cobra.Command, args []string) {
 		Data:     data,
 	}
 	_, resp, err := signAndSendTx(req)
-	if err != nil {
+	if err != nil || resp == nil {
 		fmt.Println(err)
 		return
 	}
@@ -332,8 +332,10 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	}
 	resp, err := client.MakeUnsignedContractTx(ctx, req)
 	if err != nil {
-		fmt.Println("make contract transaction error: ", err)
 		return "", nil, err
+	}
+	if resp.Code != 0 {
+		return "", nil, fmt.Errorf("make unsigned contract tx failed. Err: %v", resp.Message)
 	}
 	rawMsgs := resp.GetRawMsgs()
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
@@ -371,9 +373,8 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	// send tx
 	sendTransaction := &rpcpb.SendTransactionReq{Tx: tx}
 	sendTxResp, err := client.SendTransaction(ctx, sendTransaction)
-	if err != nil {
-		fmt.Println("send transaction failed: ", sendTxResp.Message)
-		return "", nil, err
+	if err != nil || sendTxResp.Code != 0 {
+		return "", sendTxResp, err
 	}
 
 	return resp.ContractAddr, sendTxResp, nil
