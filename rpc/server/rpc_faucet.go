@@ -22,14 +22,6 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
-const (
-	amountPerSec = 10000 * core.DuPerBox
-)
-
-var (
-	remainBalance uint64 = amountPerSec
-)
-
 func init() {
 	RegisterServiceWithGatewayHandler(
 		"faucet",
@@ -52,28 +44,37 @@ func registerFaucet(s *Server) {
 		logger.Warnf("rpc register faucet unlock account error: %s", err)
 		return
 	}
-	f := newFaucet(s.cfg.Faucet.WhiteList, s.GetTxHandler(), s.GetWalletAgent(), account)
+	amountPerSec := s.cfg.Faucet.AmountPerSec
+	if amountPerSec == 0 {
+		amountPerSec = 10000
+	}
+	f := newFaucet(s.cfg.Faucet.WhiteList, s.GetTxHandler(), s.GetWalletAgent(),
+		account, amountPerSec)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
 
 type faucet struct {
-	refreshTimer *time.Ticker
-	whiteList    []string
 	service.WalletAgent
 	service.TxHandler
-	account *acc.Account
+	refreshTimer  *time.Ticker
+	whiteList     []string
+	account       *acc.Account
+	amountPerSec  uint64
+	remainBalance uint64
 }
 
 func newFaucet(
 	whiteLists []string, handler service.TxHandler, wa service.WalletAgent,
-	account *acc.Account,
+	account *acc.Account, amountPerSec uint64,
 ) *faucet {
 	return &faucet{
-		refreshTimer: time.NewTicker(time.Second),
-		whiteList:    whiteLists,
-		TxHandler:    handler,
-		WalletAgent:  wa,
-		account:      account,
+		refreshTimer:  time.NewTicker(time.Second),
+		whiteList:     whiteLists,
+		TxHandler:     handler,
+		WalletAgent:   wa,
+		account:       account,
+		amountPerSec:  amountPerSec,
+		remainBalance: amountPerSec,
 	}
 }
 
@@ -118,14 +119,14 @@ func (f *faucet) Claim(
 
 	select {
 	case <-f.refreshTimer.C:
-		atomic.StoreUint64(&remainBalance, amountPerSec)
+		atomic.StoreUint64(&f.remainBalance, f.amountPerSec)
 	default:
 	}
-	remain := atomic.LoadUint64(&remainBalance)
+	remain := atomic.LoadUint64(&f.remainBalance)
 	if remain-req.Amount > remain {
 		return newClaimResp(-1, "exceed max amount this second"), err
 	}
-	atomic.AddUint64(&remainBalance, ^uint64(req.Amount-1))
+	atomic.AddUint64(&f.remainBalance, ^uint64(req.Amount-1))
 	addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
 	if err != nil {
 		return newClaimResp(-1, err.Error()), nil

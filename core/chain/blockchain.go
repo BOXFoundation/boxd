@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
@@ -42,6 +43,11 @@ import (
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
 	"golang.org/x/crypto/ripemd160"
+)
+
+const (
+	free int32 = iota
+	busy
 )
 
 // const defines constants
@@ -102,6 +108,7 @@ type BlockChain struct {
 	utxoSetCache              map[uint32]*UtxoSet
 	receiptsCache             map[uint32]types.Receipts
 	sectionMgr                *SectionManager
+	status                    int32
 }
 
 // UpdateMsg sent from blockchain to, e.g., mempool
@@ -124,6 +131,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		utxoSetCache:              make(map[uint32]*UtxoSet),
 		receiptsCache:             make(map[uint32]types.Receipts),
 		bus:                       eventbus.Default(),
+		status:                    free,
 	}
 
 	var err error
@@ -242,6 +250,12 @@ func (chain *BlockChain) Bus() eventbus.Bus {
 // Stop the blockchain service
 func (chain *BlockChain) Stop() {
 	chain.proc.Close()
+}
+
+// IsBusy return if the chain is processing a block
+func (chain *BlockChain) IsBusy() bool {
+	v := atomic.LoadInt32(&chain.status)
+	return v == busy
 }
 
 func (chain *BlockChain) subscribeMessageNotifiee() {
@@ -434,8 +448,10 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	chain.chainLock.Lock()
 	defer func() {
 		chain.chainLock.Unlock()
+		atomic.StoreInt32(&chain.status, free)
 	}()
 
+	atomic.StoreInt32(&chain.status, busy)
 	t0 := time.Now().UnixNano()
 	blockHash := block.BlockHash()
 	logger.Infof("Prepare to process block. Hash: %s, Height: %d from %s",
