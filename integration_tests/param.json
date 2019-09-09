@@ -14,32 +14,32 @@
     "collection_unit_accounts": 4,
     "circulation_accounts": 6,
     "circulation_unit_accounts": 3,
-    "circulation_repeat_times": 200,
-    "enable_repeat_random": false
+    "circulation_repeat_times": 20,
+    "enable_repeat_random": true
   },
   "token_test": {
-    "enable": false,
+    "enable": true,
     "accounts": 6,
     "unit_accounts": 3,
     "repeat_times": 20,
     "enable_repeat_random": true
   },
   "contract_test": {
-    "enable": false,
+    "enable": true,
     "accounts": 3,
     "unit_accounts": 3,
     "repeat_times": 20,
     "enable_repeat_random": true
   },
   "split_addr_test": {
-    "enable": false,
+    "enable": true,
     "accounts": 10,
     "unit_accounts": 5,
     "repeat_times": 20,
     "enable_repeat_random": true
   },
   "p2p_test": {
-    "enable": false
+    "enable": true
   },
   "miners": {
     "docker": [
@@ -97,7 +97,7 @@
 	    "127.0.0.1:19281"
     ],
     "tx_peers": [
-	    "127.0.0.1:19151"
+	    "127.0.0.1:19111"
     ]
   }
 }

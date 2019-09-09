@@ -134,10 +134,10 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 	defer metricsTicker.Stop()
 	for {
 		select {
-		case  <-tx_pool.newTxMsgCh:
-			// if err := tx_pool.processTxMsg(msg); err != nil {
-			// 	logger.Warnf("Failed to processTxMsg from %s. Err: %s", msg.From().Pretty(), err)
-			// }
+		case msg := <-tx_pool.newTxMsgCh:
+			if err := tx_pool.processTxMsg(msg); err != nil {
+				logger.Warnf("Failed to processTxMsg from %s. Err: %s", msg.From().Pretty(), err)
+			}
 		case msg := <-tx_pool.newChainUpdateMsgCh:
 			tx_pool.processChainUpdateMsg(msg)
 		case <-metricsTicker.C:
@@ -339,13 +339,13 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 
 	logger.Debugf("Accepted new tx. Hash: %v", txHash)
 	tx_pool.txcache.Add(*txHash, true)
-	// switch transferMode {
-	// case core.BroadcastMode:
-	// 	return tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
-	// case core.RelayMode:
-	// 	return tx_pool.notifiee.Relay(p2p.TransactionMsg, tx)
-	// default:
-	// }
+	switch transferMode {
+	case core.BroadcastMode:
+		return tx_pool.notifiee.Broadcast(p2p.TransactionMsg, tx)
+	case core.RelayMode:
+		return tx_pool.notifiee.Relay(p2p.TransactionMsg, tx)
+	default:
+	}
 	return nil
 }
 

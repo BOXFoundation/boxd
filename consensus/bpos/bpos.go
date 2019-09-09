@@ -198,8 +198,6 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 	}
 }
 
-var ts int64
-
 func (bpos *Bpos) run(timestamp int64) error {
 
 	atomic.StoreInt32(&bpos.status, busy)
@@ -235,13 +233,6 @@ func (bpos *Bpos) run(timestamp int64) error {
 	}
 	bpos.context.timestamp = timestamp
 	MetricsMintTurnCounter.Inc(1)
-
-	if timestamp == ts+1 {
-		ts = ts + 1
-		return nil
-	} else {
-		ts = timestamp
-	}
 
 	return bpos.produceBlock()
 }
@@ -530,7 +521,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}()
 
 	select {
-	case <-time.After(4 * time.Duration(remainTimeInMs) * time.Millisecond):
+	case <-time.After(time.Duration(remainTimeInMs) * time.Millisecond):
 		logger.Debug("Packing timeout")
 		stopPack = true
 	case <-stopPackCh:

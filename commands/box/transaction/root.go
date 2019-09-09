@@ -108,11 +108,6 @@ to quickly create a Cobra  application.`,
 			Run: decoderawtx,
 		},
 		&cobra.Command{
-			Use:   "fetchutxos [addr] [amount] [token_hash] [token_index]",
-			Short: "fetch utxos ",
-			Run:   fetchUtxosCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "getrawtx [txhash]",
 			Short: "Get the raw transaction for a txid",
 			Run:   getRawTxCmdFunc,
@@ -421,10 +416,6 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	fmt.Println("Tx Hash: ", hash)
 	fmt.Println(format.PrettyPrint(tx))
-}
-
-func fetchUtxosCmdFunc(cmd *cobra.Command, args []string) {
-
 }
 
 func parseSendParams(args []string) (addrs []string, amounts []uint64, err error) {
