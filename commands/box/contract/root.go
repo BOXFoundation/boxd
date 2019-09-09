@@ -79,7 +79,7 @@ Successful call will return a transaction hash value`,
 			Run:   encode,
 		},
 		&cobra.Command{
-			Use:   "getLogs [hash] [from] [to] [address] [topics]",
+			Use:   "getlogs [hash] [from] [to] [address] [topics]",
 			Short: "Get returns logs matching the given argument that are stored within the state",
 			Run:   getLogs,
 		},
