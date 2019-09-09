@@ -181,13 +181,6 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 	for {
 		select {
 		case <-timeChan.C:
-			// if !bpos.chain.IsBusy() {
-			// 	if err := bpos.run(time.Now().Unix()); err != nil {
-			// 		if err != ErrNotMyTurnToProduce {
-			// 			logger.Error("Bpos run err. Err: ", err.Error())
-			// 		}
-			// 	}
-			// }
 			if atomic.LoadInt32(&bpos.status) == free {
 				go func() {
 					if err := bpos.run(time.Now().Unix()); err != nil {
@@ -228,12 +221,13 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.dynasty = dynasty
 	bpos.context.dynastySwitchThreshold = netParams.DynastySwitchThreshold
 	bpos.context.bookKeeperReward = netParams.BookKeeperReward
-	// bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
+	bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
 
 	delegates, err := bpos.fetchDelegatesByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return err
 	}
+	bpos.context.delegates = delegates
 	bpos.context.candidates = bpos.filterCandidates(delegates, dynasty.delegates)
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
@@ -569,7 +563,11 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		block.Txs = append(block.Txs, dynastySwitchTx)
 	}
 	// else if uint64(block.Header.Height)%bpos.context.calcScoreThreshold.Uint64() == 0 { // calc score
-	// 	calcScoreTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, chain.CalcScore)
+	// 	scores, err := bpos.calcScores()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	calcScoreTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, chain.CalcScore, scores)
 	// 	if err != nil {
 	// 		return err
 	// 	}

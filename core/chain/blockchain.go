@@ -711,7 +711,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 
 	// Perform several checks on the inputs for each transaction.
 	// Also accumulate the total fees.
-	totalFees, err := validateBlockInputs(block, utxoSet)
+	totalFees, err := validateBlockInputs(block.Txs, utxoSet)
 	if err != nil {
 		return err
 	}
@@ -719,27 +719,30 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
 }
 
-func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
+func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, error) {
 	var totalFees uint64
-	transactions := block.Txs
-	for _, tx := range transactions {
-
+	for idx, tx := range txs {
 		// skip coinbase tx
 		if IsCoinBase(tx) || IsDynastySwitch(tx) {
 			continue
 		}
-
 		txFee, err := ValidateTxInputs(utxoSet, tx)
 		if err != nil {
 			return 0, err
 		}
-
 		// Check contract tx from and fee
 		contractVout, err := txlogic.CheckAndGetContractVout(tx)
 		if err != nil {
 			return 0, err
 		}
+		txHash, _ := tx.TxHash()
 		if contractVout == nil {
+			// check whether gas price is equal to TransferFee
+			if txFee != core.TransferFee {
+				bytes, _ := json.Marshal(tx)
+				logger.Warnf("non-contract tx %s %s have wrong fee %d", txHash, string(bytes), txFee)
+				return 0, core.ErrInvalidFee
+			}
 			// Check for overflow.
 			lastTotalFees := totalFees
 			totalFees += txFee
@@ -748,14 +751,16 @@ func validateBlockInputs(block *types.Block, utxoSet *UtxoSet) (uint64, error) {
 			}
 			continue
 		}
-
 		// smart contract tx.
 		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
 			return 0, err
 		}
-		if txFee != param.GasLimit*param.GasPrice {
+		if txFee != param.GasLimit*param.GasPrice ||
+			idx == 0 && param.GasPrice != 0 ||
+			idx > 0 && param.GasPrice != core.FixedGasPrice {
+			logger.Warnf("contract tx %s have wrong fee %d gas price %d", txHash, txFee, param.GasPrice)
 			return 0, core.ErrInvalidFee
 		}
 		if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
@@ -1101,8 +1106,8 @@ func (chain *BlockChain) ValidateExecuteResult(
 		receiptHash = *receipts.Hash()
 	}
 	if receiptHash != block.Header.ReceiptHash {
-		logger.Warnf("receipt hash in block header: %s, now: %s, block hash: %s",
-			block.Header.ReceiptHash, receiptHash, block.BlockHash())
+		logger.Warnf("receipt hash in block header: %s, now: %s, block hash: %s %d",
+			block.Header.ReceiptHash, receiptHash, block.BlockHash(), block.Header.Height)
 		return errors.New("Invalid receipt hash in block header")
 	}
 
@@ -2236,27 +2241,20 @@ func (chain *BlockChain) calcScores() ([]*big.Int, error) {
 // MakeInternalContractTx creates a coinbase give bookkeeper address and block height
 func (chain *BlockChain) MakeInternalContractTx(
 	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
-	method string,
+	method string, params ...interface{},
 ) (*types.Transaction, error) {
 	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
 	if err != nil {
 		return nil, err
 	}
 	var code []byte
-	if method == CalcScore {
-		scores, err := chain.calcScores()
-		if err != nil {
-			return nil, err
-		}
-		code, err = abiObj.Pack(method, scores)
-		if err != nil {
-			return nil, err
-		}
-	} else {
+	if len(params) == 0 {
 		code, err = abiObj.Pack(method)
-		if err != nil {
-			return nil, err
-		}
+	} else {
+		code, err = abiObj.Pack(method, params)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)

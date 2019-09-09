@@ -229,7 +229,7 @@ func (s *txServer) GetRawTransaction(
 ) (*rpcpb.GetRawTransactionResponse, error) {
 	hash := crypto.HashType{}
 	if err := hash.SetBytes(req.Hash); err != nil {
-		return &rpcpb.GetRawTransactionResponse{}, nil
+		return &rpcpb.GetRawTransactionResponse{Code: -1, Message: err.Error()}, nil
 	}
 	_, tx, err := s.server.GetChainReader().LoadBlockInfoByTxHash(hash)
 	if err != nil {

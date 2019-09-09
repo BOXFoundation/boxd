@@ -85,6 +85,10 @@
 			{
 				"name": "",
 				"type": "uint256"
+			},
+			{
+				"name": "",
+				"type": "uint256"
 			}
 		],
 		"payable": false,
@@ -175,6 +179,20 @@
 		"type": "function"
 	},
 	{
+		"constant": true,
+		"inputs": [],
+		"name": "myVoteBonus",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"constant": false,
 		"inputs": [],
 		"name": "execBonus",
@@ -231,6 +249,20 @@
 	{
 		"constant": true,
 		"inputs": [],
+		"name": "myPledge",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [],
 		"name": "getDelegates",
 		"outputs": [
 			{
@@ -253,6 +285,10 @@
 					},
 					{
 						"name": "score",
+						"type": "uint256"
+					},
+					{
+						"name": "continualPeriod",
 						"type": "uint256"
 					},
 					{
@@ -293,6 +329,10 @@
 					},
 					{
 						"name": "score",
+						"type": "uint256"
+					},
+					{
+						"name": "continualPeriod",
 						"type": "uint256"
 					},
 					{

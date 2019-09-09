@@ -49,14 +49,20 @@ func (sp *StateProcessor) Process(
 ) (types.Receipts, uint64, []*types.Transaction, error) {
 
 	var (
-		usedGas  uint64
-		receipts types.Receipts
-		utxoTxs  []*types.Transaction
-		err      error
+		usedGas   uint64
+		sumGas    uint64
+		receipts  types.Receipts
+		utxoTxs   []*types.Transaction
+		invalidTx *types.Transaction
+		err       error
 	)
 	header := block.Header
-	var invalidTx *types.Transaction
 	for i, tx := range block.Txs {
+		if sumGas > core.MaxBlockGasLimit {
+			logger.Warnf("block %s:%d used very higher gas, now used %d, index: %d/%d)",
+				block.BlockHash(), block.Header.Height, sumGas, i, len(block.Txs))
+			return nil, 0, nil, core.ErrOutOfBlockGasLimit
+		}
 		vmTx, err1 := ExtractVMTransaction(tx)
 		if err1 != nil {
 			err = err1
@@ -64,6 +70,7 @@ func (sp *StateProcessor) Process(
 			break
 		}
 		if vmTx == nil {
+			sumGas += core.TransferFee
 			continue
 		}
 		if vmTx.Nonce() != stateDB.GetNonce(*vmTx.From())+1 {
@@ -93,7 +100,9 @@ func (sp *StateProcessor) Process(
 		if len(txs) > 0 {
 			utxoTxs = append(utxoTxs, txs...)
 		}
-		usedGas += vmTx.GasPrice().Uint64() * gasUsedPerTx
+		gasThisTx := vmTx.GasPrice().Uint64() * gasUsedPerTx
+		usedGas += gasThisTx
+		sumGas += gasThisTx
 		receipt.WithTxIndex(uint32(i)).WithBlockHash(block.BlockHash()).
 			WithBlockHeight(block.Header.Height)
 		receipts = append(receipts, receipt)
