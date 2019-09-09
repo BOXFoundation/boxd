@@ -43,7 +43,7 @@ rpc:
 dpos:
     enable_mint: false
 metrics:
-    enable: true
+    enable: false
     host: http://localhost:8086
     db: box
     user: 

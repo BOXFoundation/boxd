@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
@@ -78,7 +79,7 @@ Successful call will return a transaction hash value`,
 			Run:   encode,
 		},
 		&cobra.Command{
-			Use:   "getLogs [criteria]",
+			Use:   "getlogs [hash] [from] [to] [address] [topics]",
 			Short: "Get returns logs matching the given argument that are stored within the state",
 			Run:   getLogs,
 		},
@@ -208,7 +209,7 @@ func deploycontract(cmd *cobra.Command, args []string) {
 		fmt.Println("From address is Invalid: ", err)
 		return
 	}
-	if len(args[5]) == 0 {
+	if len(args[4]) == 0 {
 		fmt.Println("data error")
 		return
 	}
@@ -267,7 +268,7 @@ func callcontract(cmd *cobra.Command, args []string) {
 		fmt.Println("From address is Invalid: ", err)
 		return
 	}
-	if len(args[6]) == 0 {
+	if len(args[5]) == 0 {
 		fmt.Println("Data error")
 		return
 	}
@@ -297,7 +298,7 @@ func callcontract(cmd *cobra.Command, args []string) {
 		Data:     data,
 	}
 	_, resp, err := signAndSendTx(req)
-	if err != nil {
+	if err != nil || resp == nil {
 		fmt.Println(err)
 		return
 	}
@@ -331,8 +332,10 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	}
 	resp, err := client.MakeUnsignedContractTx(ctx, req)
 	if err != nil {
-		fmt.Println("make contract transaction error: ", err)
 		return "", nil, err
+	}
+	if resp.Code != 0 {
+		return "", nil, fmt.Errorf("make unsigned contract tx failed. Err: %v", resp.Message)
 	}
 	rawMsgs := resp.GetRawMsgs()
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
@@ -343,7 +346,7 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	// sign msg
 	accI, ok := wltMgr.GetAccount(req.From)
 	if !ok {
-		fmt.Printf("account for %s not initialled\n", req.From)
+		err = fmt.Errorf("account for %s not initialled", req.From)
 		return "", nil, err
 	}
 	passphrase, err := wallet.ReadPassphraseStdin()
@@ -370,24 +373,57 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 	// send tx
 	sendTransaction := &rpcpb.SendTransactionReq{Tx: tx}
 	sendTxResp, err := client.SendTransaction(ctx, sendTransaction)
-	if err != nil {
-		fmt.Println("send transaction failed: ", sendTxResp.Message)
-		return "", nil, err
+	if err != nil || sendTxResp.Code != 0 {
+		return "", sendTxResp, err
 	}
 
 	return resp.ContractAddr, sendTxResp, nil
 }
 
 func getLogs(cmd *cobra.Command, args []string) {
-	// if len(args) < 1 {
-	// 	fmt.Println("Invalid argument number")
-	// 	return
-	// }
-	// argsjson := args[0]
+	fmt.Println("getLogs called")
+	//arg[0]represents block hash , arg[1] "from"andarg[2"to " represent log between from and to
+	//arg[3]reprensents address arg[4]represents topics
+	if len(args) != 5 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	hash := args[0]
+	from, err := strconv.ParseUint(args[1], 10, 32)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	to, err := strconv.ParseUint(args[2], 10, 32)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	address := strings.Split(args[3], ",")
+	topicsStr := strings.Split(args[4], ",")
+	topics := []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: topicsStr}}
 
-	// err := json.Unmarshal([]byte(argsjson))
-
-	// if err := dec.Decode(&abi); err != nil {
-	// 	return ABI{}, err
-	// }
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req := &rpcpb.LogsReq{
+		Uid:       "",
+		Hash:      hash,
+		From:      uint32(from),
+		To:        uint32(to),
+		Addresses: address,
+		Topics:    topics,
+	}
+	client := rpcpb.NewWebApiClient(conn)
+	resp, err := client.GetLogs(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Successful, log information:", resp.Logs)
 }
