@@ -159,7 +159,8 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		logger.Error("Failed to load genesis block ", err)
 		return nil, err
 	}
-	logger.Infof("load genesis block: %s", b.genesis.BlockHash())
+	addrS, _ := types.NewContractAddressFromHash(ContractAddr.Bytes())
+	logger.Infof("load genesis block: %s, contract addr: %s", b.genesis.BlockHash(), addrS)
 
 	if b.eternal, err = b.LoadEternalBlock(); err != nil {
 		logger.Error("Failed to load eternal block ", err)
@@ -1415,7 +1416,6 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		}
 
 		ContractAddr = *types.CreateAddress(*adminAddr.Hash160(), 1)
-		logger.Infof("load genesis contract addr: %v", ContractAddr)
 
 		return genesis, nil
 	}
