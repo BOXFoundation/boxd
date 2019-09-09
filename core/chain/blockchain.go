@@ -1339,11 +1339,6 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 	return chain.eternal
 }
 
-// GetBlockHeight returns current height of main chain
-func (chain *BlockChain) GetBlockHeight() uint32 {
-	return chain.LongestChainHeight
-}
-
 // GetBlockHash finds the block in target height of main chain and returns it's hash
 func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, error) {
 	block, err := chain.LoadBlockByHeight(blockHeight)

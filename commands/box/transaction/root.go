@@ -76,11 +76,6 @@ func init() {
 			Run:   signrawtx,
 		},
 		&cobra.Command{
-			Use:   "createrawtx [from] [txhash1,txhash2...] [vout1,vout2...] [to1,to2...] [amount1,amount2...]",
-			Short: "Create a raw transaction",
-			Run:   createRawTransaction,
-		},
-		&cobra.Command{
 			Use:   "decoderawtx",
 			Short: "decode a raw transaction",
 			Long:  `Given a hex-encoded transaction string, return the details of the transaction`,
@@ -95,11 +90,6 @@ func init() {
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
 			Run:   sendrawtx,
-		},
-		&cobra.Command{
-			Use:   "createrawtx [from] [txhash1,txhash2...] [vout1,vout2...] [to1,to2...] [amount1,amount2...]",
-			Short: "Create a raw transaction",
-			Run:   createRawTransaction,
 		},
 		&cobra.Command{
 			Use:   "decoderawtx",
@@ -190,97 +180,6 @@ func maketx(cmd *cobra.Command, args []string) {
 		rawMsgStr = append(rawMsgStr, hex.EncodeToString(x))
 	}
 	fmt.Println("rawMsgs: ", format.PrettyPrint(rawMsgStr))
-}
-
-func createRawTransaction(cmd *cobra.Command, args []string) {
-	if len(args) != 4 {
-		fmt.Println("Invalid argument number")
-		return
-	}
-	fmt.Println("createRawTx called")
-	from := args[0]
-	fromAddress, err := types.NewAddress(from)
-	if err != nil {
-		fmt.Println("Invalid from address")
-		return
-	}
-	//Cut characters around commas
-	txHashStr := strings.Split(args[1], ",")
-	txHash := make([]crypto.HashType, 0)
-	for _, x := range txHashStr {
-		tmp := crypto.HashType{}
-		if err := tmp.SetString(x); err != nil {
-			fmt.Println("set string error: ", err)
-			return
-		}
-		txHash = append(txHash, tmp)
-	}
-	voutStr := strings.Split(args[2], ",")
-	vout := make([]uint32, 0)
-	for _, x := range voutStr {
-		tmp, err := strconv.Atoi(x)
-		if err != nil {
-			fmt.Println("Type conversion failed: ", err)
-			return
-		}
-		vout = append(vout, uint32(tmp))
-	}
-	toStr := strings.Split(args[3], ",")
-	to := make([]string, 0)
-	for _, x := range toStr {
-		to = append(to, x)
-	}
-	toHashes := make([]*types.AddressHash, 0, len(to))
-	for _, addr := range to {
-		address, err := types.ParseAddress(addr)
-		if err != nil {
-			fmt.Println("Invalid to address")
-			return
-		}
-		toHashes = append(toHashes, address.Hash160())
-	}
-	amountStr := strings.Split(args[4], ",")
-	amounts := make([]uint64, 0)
-	for _, x := range amountStr {
-		tmp, err := strconv.Atoi(x)
-		if err != nil {
-			fmt.Println("Type conversion failed: ", err)
-			return
-		}
-		amounts = append(amounts, uint64(tmp))
-	}
-	if len(txHash) != len(vout) {
-		fmt.Println(" The number of [txid] should be the same as the number of [vout]")
-		return
-	}
-	if len(to) != len(amounts) {
-		fmt.Println("The number of [to] should be the same as the number of [amount]")
-		return
-	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	height, err := rpcutil.GetBlockCount(conn)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	tx, err := rpcutil.CreateRawTransaction(fromAddress.Hash160(), toHashes,
-		txHash, vout, amounts, height)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	mashalTx, err := tx.Marshal()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	strTx := hex.EncodeToString(mashalTx)
-	fmt.Println(strTx)
 }
 
 func sendrawtx(cmd *cobra.Command, args []string) {
