@@ -613,7 +613,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
-	receipts, gasUsed, feeUsed, utxoTxs, err :=
+	receipts, gasUsed, utxoTxs, err :=
 		bpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
@@ -621,7 +621,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	// update genesis contract utxo in utxoSet
 	op := types.NewOutPoint(types.NormalizeAddressHash(&chain.ContractAddr), 0)
 	genesisUtxoWrap := utxoSet.GetUtxo(op)
-	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + feeUsed)
+	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
 	// block.Txs[0].Vout[0].Value -= gasRemainingFee
 	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
@@ -642,7 +642,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		return err
 	}
 
-	reward += block.Txs[0].Vout[0].Value + feeUsed
+	reward += block.Txs[0].Vout[0].Value + gasUsed
 	if uint64(block.Header.Height)%bpos.context.dynastySwitchThreshold.Uint64() == 0 {
 		logger.Infof("Before dynasty switch the bookkeeper total reward: %d", reward)
 	}
@@ -650,8 +650,8 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr))
 	logger.Infof("genesis contract balance change, previous %d, coinbase value: "+
-		"%d, fee used %d, now %d in statedb", genesisContractBalanceOld,
-		block.Txs[0].Vout[0].Value, feeUsed, statedb.GetBalance(chain.ContractAddr))
+		"%d, gas used %d, now %d in statedb", genesisContractBalanceOld,
+		block.Txs[0].Vout[0].Value, gasUsed, statedb.GetBalance(chain.ContractAddr))
 
 	bpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 

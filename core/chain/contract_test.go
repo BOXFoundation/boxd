@@ -12,7 +12,6 @@ import (
 	"math/big"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
@@ -21,7 +20,6 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/facebookgo/ensure"
 )
@@ -453,7 +451,7 @@ func nextBlockWithTxsV2(
 }
 
 var (
-	userBalance, minerBalance, contractBalance, coinbaseGasUsed uint64
+	userBalance, minerBalance, contractBalance uint64
 )
 
 type testContractParam struct {
@@ -508,20 +506,6 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// extend main chain
 	// b1 -> b2
 	// transfer some box to userAddr
-
-	// calc coinbaseGasUsed
-	statedb, _ = state.New(&b1.Header.RootHash, &b1.Header.UtxoRoot, blockChain.DB())
-	newBlock := types.NewBlock(b1)
-	newBlock.Header.BookKeeper = *minerAddr.Hash160()
-	coinbaseVMTX, _ := makeCoinbaseTx(b1, newBlock, blockChain, statedb)
-	coinbaseVMTX.Vin[0].Sequence = uint32(time.Now().UnixNano())
-	vmtx, _ := ExtractVMTransaction(coinbaseVMTX)
-	// new evm
-	context := NewEVMContext(vmtx, newBlock.Header, blockChain)
-	evm := vm.NewEVM(context, statedb, blockChain.vmConfig)
-	_, coinbaseGasUsed, _, _, _, _ = ApplyMessage(evm, vmtx)
-	t.Logf("coinbase gas used: %d", coinbaseGasUsed)
-
 	// generate b2
 	userBalance = uint64(600000000)
 	prevHash, _ := mCoinbaseTx.TxHash()
@@ -559,9 +543,8 @@ func contractBlockHandle(
 ) {
 
 	verifyProcessBlock(t, blockChain, block, err, tail.Header.Height, tail)
-	gasCost := (block.Header.GasUsed - coinbaseGasUsed) * param.gasPrice
 	// check balance
-	expectUserBalance := userBalance - param.vmValue - gasCost + param.userRecv
+	expectUserBalance := userBalance - param.vmValue - block.Header.GasUsed + param.userRecv
 	expectMinerBalance := minerBalance
 	if err != nil {
 		if err == errInsufficientBalanceForGas {
@@ -671,8 +654,7 @@ func TestFaucetContract(t *testing.T) {
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
 
-	gasUsed := b3.Header.GasUsed - coinbaseGasUsed
-	gasRefundValue := vmParam.gasPrice * (vmParam.gasLimit - gasUsed)
+	gasRefundValue := vmParam.gasPrice*vmParam.gasLimit - b3.Header.GasUsed
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1406,9 +1388,8 @@ func TestERC20Contract(t *testing.T) {
 	if err := calcRootHash(b6, b7, blockChain); err != nil {
 		t.Fatal(err)
 	}
-	gasUsed := b7.Header.GasUsed - coinbaseGasUsed
-	userBalance += gasUsed * gasPrice
-	minerBalance -= gasUsed * gasPrice
+	userBalance += b7.Header.GasUsed
+	minerBalance -= b7.Header.GasUsed
 	contractBlockHandle(t, blockChain, b7, b7, vmParam, nil)
 	stateDB, err = state.New(&b7.Header.RootHash, &b7.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1552,9 +1533,8 @@ func TestERC20Contract(t *testing.T) {
 	if err := calcRootHash(b10, b11, blockChain); err != nil {
 		t.Fatal(err)
 	}
-	gasUsed = b11.Header.GasUsed - coinbaseGasUsed
-	userBalance += gasUsed * gasPrice
-	minerBalance -= gasUsed * gasPrice
+	userBalance += b11.Header.GasUsed
+	minerBalance -= b11.Header.GasUsed
 	contractBlockHandle(t, blockChain, b11, b11, vmParam, nil)
 	stateDB, err = state.New(&b11.Header.RootHash, &b11.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
@@ -1750,6 +1730,6 @@ func TestCallBetweenContracts(t *testing.T) {
 	// check balance
 	checkTestAddrBalance(t, blockChain, tokenAddr, tokenBalance)
 	checkTestAddrBalance(t, blockChain, bankAddr, bankBalance)
-	userBalance -= (b3.Header.GasUsed - coinbaseGasUsed) * gasPrice
+	userBalance -= b3.Header.GasUsed
 	checkTestAddrBalance(t, blockChain, userAddr, userBalance)
 }

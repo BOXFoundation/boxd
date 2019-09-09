@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coretypes "github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -21,7 +22,6 @@ import (
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil" // "github.com/BOXFoundation/boxd/vm/core"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/jbenet/goprocess"
 )
 
