@@ -181,7 +181,7 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 	for {
 		select {
 		case <-timeChan.C:
-			if atomic.LoadInt32(&bpos.status) == free {
+			if atomic.LoadInt32(&bpos.status) == free && !bpos.chain.IsBusy() {
 				go func() {
 					if err := bpos.run(time.Now().Unix()); err != nil {
 						if err != ErrNotMyTurnToProduce {
@@ -206,7 +206,6 @@ func (bpos *Bpos) run(timestamp int64) error {
 	if bpos.disableMint {
 		return ErrNoLegalPowerToProduce
 	}
-	logger.Infof("My turn to produce a block, time: %d", timestamp)
 
 	dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
@@ -231,6 +230,7 @@ func (bpos *Bpos) run(timestamp int64) error {
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err
 	}
+	logger.Infof("My turn to produce a block, time: %d", timestamp)
 	bpos.context.timestamp = timestamp
 	MetricsMintTurnCounter.Inc(1)
 
