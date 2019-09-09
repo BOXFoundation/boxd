@@ -5,6 +5,7 @@
 package vm
 
 import (
+	"encoding/json"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -200,6 +201,8 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 	// above we revert to the snapshot and consume any gas remaining. Additionally
 	// when we're in homestead this also counts for code storage gas errors.
 	if err != nil {
+		data, _ := json.Marshal(evm.StateDB.GetLogs(evm.StateDB.THash()))
+		logger.Debugf("Reverted logs: %s", string(data))
 		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)

@@ -570,6 +570,11 @@ func (s *StateDB) RevertToSnapshot(revid int) {
 	s.validRevisions = s.validRevisions[:idx]
 }
 
+// THash returns the thash.
+func (s *StateDB) THash() corecrypto.HashType {
+	return s.thash
+}
+
 // GetRefund returns the current value of the refund counter.
 func (s *StateDB) GetRefund() uint64 {
 	return s.refund

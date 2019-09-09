@@ -52,6 +52,9 @@ type StateDB interface {
 
 	AddLog(*types.Log)
 	AddPreimage(crypto.HashType, []byte)
+	GetLogs(hash crypto.HashType) []*types.Log
+
+	THash() crypto.HashType
 
 	ForEachStorage(types.AddressHash, func(crypto.HashType, crypto.HashType) bool)
 }
