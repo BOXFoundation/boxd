@@ -181,9 +181,9 @@ func testItems() []func() {
 
 func topupOrigAccs() {
 	defer func() {
-		//if x := recover(); x != nil {
-		//	logger.Warn(x)
-		//}
+		if x := recover(); x != nil {
+			logger.Warn(x)
+		}
 	}()
 	// quit channel
 	quitCh := make(chan os.Signal, 1)
