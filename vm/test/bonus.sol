@@ -89,6 +89,7 @@ contract Bonus is Permission{
     struct FrozenDelegate {
         address addr;
         uint blockNumber;
+        uint pledgeAmount;
     }
 
     Delegate[] dynasty;
@@ -191,7 +192,7 @@ contract Bonus is Permission{
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
 
         Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, 0, true);
-        delegate.score = calcScore(delegate);
+        // delegate.score = calcScore(delegate);
         addrToDelegates[msg.sender] = delegate;
         pledgePool = pledgePool.add(msg.value);
         pledgeAddrList.push(msg.sender);
@@ -204,7 +205,7 @@ contract Bonus is Permission{
     function redeemPledgeApply() public {
         require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] > netParams[PLEDGE_OPEN_LIMIT], "redeem pledge apply is not allowed.");
         require(addrToDelegates[msg.sender].isExist == true, "not delegate node.");
-        FrozenDelegate memory fd = FrozenDelegate(msg.sender, block.number);
+        FrozenDelegate memory fd = FrozenDelegate(msg.sender, block.number, addrToDelegates[msg.sender].pledgeAmount);
         frozenDelegate[msg.sender] = fd;
         delete addrToDelegates[msg.sender];
         uint idx = getIdxInPledgeAddrList(msg.sender);
@@ -215,16 +216,16 @@ contract Bonus is Permission{
         require(frozenDelegate[msg.sender].blockNumber > 0, "not frozen delegate node.");
         if (block.number > ((frozenDelegate[msg.sender].blockNumber / netParams
         [DYNASTY_CHANGE_THRESHOLD]) + 1) * netParams[DYNASTY_CHANGE_THRESHOLD]) {
+            FrozenDelegate memory fd = frozenDelegate[msg.sender];
             delete frozenDelegate[msg.sender];
-            msg.sender.transfer(addrToDelegates[msg.sender].pledgeAmount);
+            msg.sender.transfer(fd.pledgeAmount);
             for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
                 if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
-                    // delegateToVoters[msg.sender][i].transfer(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
-                    delete delegateToVoters[msg.sender];
                     voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
                     add(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
                 }
             }
+            delete delegateToVoters[msg.sender];
         }
     }
 
@@ -232,18 +233,18 @@ contract Bonus is Permission{
         require(count <= delegateVotesDetail[delegateAddr][msg.sender], "the vote count is not enough.");
         require(count <= votes[msg.sender][delegateAddr], "the vote count is not enough.");
         frozenVotes[delegateAddr][msg.sender].votes = frozenVotes[delegateAddr][msg.sender].votes.add(count);
-        frozenVotes[delegateAddr][msg.sender].timestamp = block.timestamp;
+        frozenVotes[delegateAddr][msg.sender].timestamp = block.number;
 
         delegateVotesDetail[delegateAddr][msg.sender] = delegateVotesDetail[delegateAddr][msg.sender].sub(count);
         votes[msg.sender][delegateAddr] = votes[msg.sender][delegateAddr].sub(count);
         Delegate storage delegate = addrToDelegates[delegateAddr];
         delegate.votes = delegate.votes.sub(count);
-        delegate.score = calcScore(delegate);
+        // delegate.score = calcScore(delegate);
     }
 
     function pickRedeemVote(address delegateAddr) public {
         if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
-            block.timestamp > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
+            block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
             msg.sender.transfer(frozenVotes[delegateAddr][msg.sender].votes);
         }
     }
@@ -288,11 +289,6 @@ contract Bonus is Permission{
 
     function getDelegates() public view returns (Delegate[] memory) {
         return delegates;
-    }
-
-    function calcScore(Delegate memory delegate)  internal pure returns (uint) {
-        // TODO: wait correct calculation formula.
-        return delegate.votes;
     }
 
     function updateDynasty() internal {
@@ -398,7 +394,7 @@ contract Bonus is Permission{
 
         Delegate storage delegate = addrToDelegates[delegateAddr];
         delegate.votes = delegate.votes.add(msg.value);
-        delegate.score = calcScore(delegate);
+        // delegate.score = calcScore(delegate);
         if (delegateVotesDetail[delegateAddr][msg.sender] > 0) {
             delegateVotesDetail[delegateAddr][msg.sender] = delegateVotesDetail[delegateAddr][msg.sender].add(msg.value);
         } else {
@@ -423,9 +419,9 @@ contract Bonus is Permission{
 
     function giveProposal(uint proposalID, uint value) public onlyDynasty payable{
         require(msg.value >= netParams[MIN_PROPOSAL_THRESHOLD] && proposalID > 0, "Insufficient minimum fee for give proposal.");
-        require(proposals[proposalID].id == 0 || (block.timestamp
-         - proposals[proposalID].createtime > netParams[PROPOSAL_EXPIRATION_TIME]) , "the proposal is exist.");
-        Proposal memory proposal = Proposal(proposalID, value, block.timestamp, new address[](0), false);
+        require(proposals[proposalID].id == 0 ||
+         (block.number - proposals[proposalID].createtime > netParams[PROPOSAL_EXPIRATION_TIME]), "the proposal is exist.");
+        Proposal memory proposal = Proposal(proposalID, value, block.number, new address[](0), false);
         proposals[proposalID] = proposal;
         proposalList.push(proposal);
     }
@@ -433,8 +429,8 @@ contract Bonus is Permission{
     function voteProposal(uint proposalID) public onlyDynasty{
         require(proposalID > 0, "proposalID is not legal.");
         Proposal storage proposal = proposals[proposalID];
-        require(proposal.id == proposalID && (block.timestamp
-         - proposal.createtime <= netParams[PROPOSAL_EXPIRATION_TIME]) , "the proposal is not exist.");
+        require(proposal.id == proposalID &&
+         (block.number - proposal.createtime <= netParams[PROPOSAL_EXPIRATION_TIME]), "the proposal is not exist.");
         require(addressIsExist(msg.sender, proposal.voters) == false, "Repeated voting is forbidden.");
         proposal.voters.push(msg.sender);
         if (proposal.voters.length > 2 * DYNASTY_SIZE / 3) {
