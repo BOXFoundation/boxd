@@ -22,6 +22,7 @@ import (
 	_ "github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil" // "github.com/BOXFoundation/boxd/vm/core"
+	"github.com/facebookgo/ensure"
 	"github.com/jbenet/goprocess"
 )
 
@@ -89,6 +90,37 @@ func (cc ChainContext) GetHeader(number uint32) *coretypes.BlockHeader {
 		Height:    number,
 		TimeStamp: time.Now().Unix(),
 	}
+}
+
+func TestGenesisContract(t *testing.T) {
+	abiFileName := "./bonus.abi"
+	binFileName := "./bonus.bin"
+	data := loadBin(binFileName)
+
+	stateDb, _ := state.New(nil, nil, initDB())
+
+	msg := NewMessage(&fromAddress, big.NewInt(0))
+	cc := ChainContext{}
+	ctx := chain.NewEVMContext(msg, cc.GetHeader(0), blockChain)
+
+	stateDb.SetBalance(fromAddress, big.NewInt(1e18))
+
+	logConfig := vm.LogConfig{}
+	structLogger := vm.NewStructLogger(&logConfig)
+	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
+
+	evm := vm.NewEVM(ctx, stateDb, vmConfig)
+	contractRef := vm.AccountRef(fromAddress)
+	_, contractAddr, _, vmerr := evm.Create(contractRef, data, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	ensure.Nil(t, vmerr)
+
+	ctx = chain.NewEVMContext(msg, cc.GetHeader(15000), blockChain)
+	evm = vm.NewEVM(ctx, stateDb, vmConfig)
+	abiObj := loadAbi(abiFileName)
+	input, err := abiObj.Pack("pledge")
+	must(err)
+	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(1800000*1e8), false)
+	ensure.Nil(t, vmerr)
 }
 
 func _TestEVM(t *testing.T) {
