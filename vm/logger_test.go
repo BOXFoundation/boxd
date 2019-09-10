@@ -37,6 +37,8 @@ type dummyStatedb struct {
 func (*dummyStatedb) GetRefund() uint64                                         { return 1337 }
 func (*dummyStatedb) AddLog(log *types.Log)                                     {}
 func (*dummyStatedb) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error { return nil }
+func (*dummyStatedb) THash() crypto.HashType                                    { return crypto.HashType{} }
+func (*dummyStatedb) GetLogs(hash crypto.HashType) []*types.Log                 { return nil }
 
 func TestStoreCapture(t *testing.T) {
 	var (

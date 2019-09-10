@@ -197,9 +197,9 @@ func TestMakeContractTx(t *testing.T) {
 
 	// contract vin, normal vout
 	tx = types.NewTx(0, 0x5544, 0).
-		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 0)).
+		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 1, 0)).
 		AppendVout(MakeVout(from.Hash160(), value))
-	if len(tx.Vin[0].ScriptSig) != 1 || tx.Vin[0].ScriptSig[0] != byte(script.OPCONTRACT) ||
+	if len(tx.Vin[0].ScriptSig) != 10 || tx.Vin[0].ScriptSig[0] != byte(script.OPCONTRACT) ||
 		tx.Vin[0].PrevOutPoint.Hash != hash || tx.Vin[0].PrevOutPoint.Index != idx ||
 		tx.Vout[0].Value != value {
 		t.Fatalf("contract vin tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",

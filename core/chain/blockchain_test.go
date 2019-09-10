@@ -291,7 +291,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	op := types.NewOutPoint(types.NormalizeAddressHash(contractAddr.Hash160()), 0)
 	contractTx := types.NewTx(0, 0, 0).
-		AppendVin(txlogic.MakeContractVin(op, 0)).
+		AppendVin(txlogic.MakeContractVin(op, 1, 0)).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), 2000))
 	contractTxHash, _ := contractTx.TxHash()
 
