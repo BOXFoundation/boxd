@@ -245,7 +245,9 @@ contract Bonus is Permission{
     function pickRedeemVote(address delegateAddr) public {
         if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
             block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
-            msg.sender.transfer(frozenVotes[delegateAddr][msg.sender].votes);
+            uint vote = frozenVotes[delegateAddr][msg.sender].votes;
+            delete frozenVotes[delegateAddr][msg.sender];
+            msg.sender.transfer(vote);
         }
     }
 
