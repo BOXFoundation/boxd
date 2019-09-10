@@ -602,6 +602,9 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
+
+	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
+
 	receipts, gasUsed, utxoTxs, err :=
 		bpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
@@ -613,7 +616,6 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
 	// block.Txs[0].Vout[0].Value -= gasRemainingFee
-	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs

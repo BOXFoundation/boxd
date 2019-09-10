@@ -908,6 +908,8 @@ func (chain *BlockChain) executeBlock(
 			return err
 		}
 
+		chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
+
 		rcps, gasUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 		if err != nil {
 			logger.Error(err)
@@ -917,7 +919,6 @@ func (chain *BlockChain) executeBlock(
 			return err
 		}
 
-		chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
 		// update genesis contract utxo in utxoSet
 		op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
 		genesisUtxoWrap := utxoSet.GetUtxo(op)
