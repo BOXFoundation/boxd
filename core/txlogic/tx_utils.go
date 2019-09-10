@@ -169,10 +169,10 @@ func MakeVin(op *types.OutPoint, seq uint32) *types.TxIn {
 }
 
 // MakeContractVin makes txIn
-func MakeContractVin(op *types.OutPoint, seq uint32) *types.TxIn {
+func MakeContractVin(op *types.OutPoint, nonce uint64, seq uint32) *types.TxIn {
 	return &types.TxIn{
 		PrevOutPoint: *op,
-		ScriptSig:    *script.MakeContractScriptSig(),
+		ScriptSig:    *script.MakeContractScriptSig(nonce),
 		Sequence:     seq,
 	}
 }

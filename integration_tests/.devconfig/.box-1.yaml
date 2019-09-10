@@ -32,7 +32,7 @@ rpc:
     http:
         port: 19110
     faucet:
-        amount_per_sec: 10000
+        amount_per_sec: 1000000000000
         keyfile: ./.devconfig/keyfile/pre.keystore
         white_list:
             - 161.117.80.37

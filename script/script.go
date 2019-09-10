@@ -615,7 +615,8 @@ func (s *Script) IsSplitAddrScript() bool {
 
 // IsContractSig returns true if the script sig contains OPCONTRACT code
 func IsContractSig(sig []byte) bool {
-	return len(sig) == 1 && sig[0] == byte(OPCONTRACT)
+	// 10 = 1(op)+1(nonce size)+8(nonce len)
+	return len(sig) == 10 && sig[0] == byte(OPCONTRACT) && sig[1] == 8
 }
 
 // IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
@@ -838,8 +839,10 @@ func MakeContractScriptPubkey(
 }
 
 // MakeContractScriptSig makes a script sig for contract vin
-func MakeContractScriptSig() *Script {
-	return NewScriptWithCap(1).AddOpCode(OPCONTRACT)
+func MakeContractScriptSig(nonce uint64) *Script {
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, nonce)
+	return NewScriptWithCap(1).AddOpCode(OPCONTRACT).AddOperand(buf)
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack
