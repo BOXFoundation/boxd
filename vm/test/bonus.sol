@@ -192,9 +192,7 @@ contract Bonus is Permission{
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
 
         Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, 0, true);
-        // delegate.score = calcScore(delegate);
         addrToDelegates[msg.sender] = delegate;
-        pledgePool = pledgePool.add(msg.value);
         pledgeAddrList.push(msg.sender);
     }
 
@@ -279,7 +277,7 @@ contract Bonus is Permission{
             delete dynastyToBonus[dynasty[i].addr];
         }
 
-        if (pledgeAddrList.length > DYNASTY_SIZE) {
+        if (pledgeAddrList.length >= DYNASTY_SIZE) {
             updateDynasty();
             updateNetParams();
         }
@@ -294,7 +292,7 @@ contract Bonus is Permission{
     }
 
     function updateDynasty() internal {
-        require(pledgeAddrList.length > DYNASTY_SIZE, "");
+        require(pledgeAddrList.length >= DYNASTY_SIZE, "");
         delete delegates;
         delete dynasty;
 
@@ -411,8 +409,9 @@ contract Bonus is Permission{
 
     function pickVoteBonus() public {
         require(voteBonus[msg.sender] > netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "you don`t have enough vote bonus.");
+        uint bonus = voteBonus[msg.sender];
         delete voteBonus[msg.sender];
-        msg.sender.transfer(voteBonus[msg.sender]);
+        msg.sender.transfer(bonus);
     }
 
     function myVote(address delegate) public view returns (uint) {
@@ -432,7 +431,7 @@ contract Bonus is Permission{
         require(proposalID > 0, "proposalID is not legal.");
         Proposal storage proposal = proposals[proposalID];
         require(proposal.id == proposalID &&
-         (block.number - proposal.createtime <= netParams[PROPOSAL_EXPIRATION_TIME]), "the proposal is not exist.");
+         (block.number - proposal.createtime <= netParams[PROPOSAL_EXPIRATION_TIME]) && proposal.result == false, "the proposal is not exist.");
         require(addressIsExist(msg.sender, proposal.voters) == false, "Repeated voting is forbidden.");
         proposal.voters.push(msg.sender);
         if (proposal.voters.length > 2 * DYNASTY_SIZE / 3) {
