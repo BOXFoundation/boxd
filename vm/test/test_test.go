@@ -121,6 +121,15 @@ func TestGenesisContract(t *testing.T) {
 	must(err)
 	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(1800000*1e8), false)
 	ensure.Nil(t, vmerr)
+
+	input, err = abiObj.Pack("myPledge")
+	must(err)
+	output, _, vmerr := evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	ensure.Nil(t, vmerr)
+	var result *big.Int
+	ensure.Nil(t, chain.ContractAbi.Unpack(&result, "myPledge", output))
+	ensure.DeepEqual(t, result, big.NewInt(1800000*1e8))
+
 }
 
 func _TestEVM(t *testing.T) {
