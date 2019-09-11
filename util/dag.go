@@ -71,7 +71,7 @@ func (dag *Dag) TopoSort() []*Node {
 	queue := NewPriorityQueue(func(queue *PriorityQueue, i, j int) bool {
 		nodei := queue.Items(i).(*Node)
 		nodej := queue.Items(j).(*Node)
-		return nodei.weight > nodej.weight
+		return nodei.weight < nodej.weight
 	})
 	rootNodes := dag.GetRootNodes()
 	return sortNodes(rootNodes, queue, sortedNode)

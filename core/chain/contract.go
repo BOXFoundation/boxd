@@ -45,8 +45,9 @@ func (chain *BlockChain) Call(height uint32, method string) ([]byte, error) {
 		return nil, err
 	}
 	adminAddr, err := types.NewAddress(Admin)
-	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).WithFrom(adminAddr.Hash160()).WithTo(&ContractAddr)
+	msg := types.NewVMTransaction(new(big.Int), math.MaxUint64/2, 0, 0, nil,
+		types.ContractCallType, data).
+		WithFrom(adminAddr.Hash160()).WithTo(&ContractAddr)
 	evm, vmErr, err := chain.NewEvmContextForLocalCallByHeight(msg, height)
 	if err != nil {
 		return nil, err

@@ -96,7 +96,6 @@ type TxWrap struct {
 	Tx             *Transaction
 	AddedTimestamp int64
 	Height         uint32
-	GasPrice       uint64
 	IsContract     bool
 	IsScriptValid  bool
 }
@@ -112,9 +111,8 @@ func (w *TxWrap) GetTx() *Transaction {
 // String prints TxWrap
 func (w *TxWrap) String() string {
 	txHash, _ := w.Tx.TxHash()
-	return fmt.Sprintf("{Tx: %s, AddedTimestamp: %d, Height: %d, "+
-		"GasPrice: %d, IsScriptValid: %t}", txHash, w.AddedTimestamp,
-		w.Height, w.GasPrice, w.IsScriptValid)
+	return fmt.Sprintf("{Tx: %s, AddedTimestamp: %d, Height: %d, IsScriptValid: %t}",
+		txHash, w.AddedTimestamp, w.Height, w.IsScriptValid)
 }
 
 var _ conv.Convertible = (*Transaction)(nil)

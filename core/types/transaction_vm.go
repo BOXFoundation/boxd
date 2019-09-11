@@ -38,7 +38,6 @@ const (
 
 // VMTxParams defines BoxTx params parsed from script pubkey
 type VMTxParams struct {
-	GasPrice uint64
 	GasLimit uint64
 	Nonce    uint64
 	Version  int32
@@ -62,7 +61,7 @@ type VMTransaction struct {
 
 // NewVMTransaction new a VMTransaction instance with given parameters
 func NewVMTransaction(
-	value, gasPrice *big.Int, gas, nonce uint64, hash *crypto.HashType, typ ContractType,
+	value *big.Int, gas, gasPrice, nonce uint64, hash *crypto.HashType, typ ContractType,
 	code []byte,
 ) *VMTransaction {
 	return &VMTransaction{
@@ -70,7 +69,7 @@ func NewVMTransaction(
 		typ:      typ,
 		value:    value,
 		originTx: hash,
-		gasPrice: gasPrice,
+		gasPrice: new(big.Int).SetUint64(gasPrice),
 		gas:      gas,
 		nonce:    nonce,
 		code:     code,

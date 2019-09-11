@@ -277,7 +277,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	prevHash, _ = b1.Txs[0].TxHash()
 	gasUsed, vmValue, gasLimit, nonce := uint64(9912), uint64(0), uint64(20000), uint64(2)
 	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(), vmValue,
-		gasLimit, gasPrice, nonce)
+		gasLimit, nonce)
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
@@ -441,7 +441,7 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ := hex.DecodeString(testFaucetContract)
 	nonce := uint64(1)
 	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce)
+		vmValue, gasLimit, nonce)
 	prevHash, _ := b2.Txs[1].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
@@ -481,7 +481,7 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(testCoinContract)
 	nonce = uint64(1)
 	contractVout, _ = txlogic.MakeContractCreationVout(userAddr.Hash160(),
-		vmValue, gasLimit, gasPrice, nonce)
+		vmValue, gasLimit, nonce)
 	prevHash, _ = b2.Txs[1].TxHash()
 	changeValueA := bAUserBalance - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
@@ -589,7 +589,7 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(testFaucetCall)
 	nonce = 2
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrFaucet.Hash160(), vmValue, gasLimit, gasPrice, nonce)
+		contractAddrFaucet.Hash160(), vmValue, gasLimit, nonce)
 	// use internal tx vout
 	prevHash, _ = b3.InternalTxs[0].TxHash()
 	changeValue5 := gasRefundValue - vmValue - gasPrice*gasLimit
@@ -658,7 +658,7 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(mintCall)
 	nonce = 2
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrCoin.Hash160(), vmValue, gasLimit, gasPrice, nonce)
+		contractAddrCoin.Hash160(), vmValue, gasLimit, nonce)
 	changeValueA = changeValueA - gasPrice*gasLimit
 	// prev hash
 	ensure.True(t, blockChainA.splitTxOutputs(toSplitTx))
@@ -745,7 +745,7 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(sendCall)
 	nonce = uint64(3)
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrCoin.Hash160(), vmValue, gasLimit, gasPrice, nonce)
+		contractAddrCoin.Hash160(), vmValue, gasLimit, nonce)
 	prevHash, _ = b6A.Txs[1].TxHash()
 	changeValueA = changeValueA - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
@@ -841,7 +841,7 @@ func TestBlockProcessing(t *testing.T) {
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce = 3
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
-		contractAddrFaucet.Hash160(), vmValue, gasLimit, gasPrice, nonce)
+		contractAddrFaucet.Hash160(), vmValue, gasLimit, nonce)
 	prevHash, _ = b3.Txs[1].TxHash()
 	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).

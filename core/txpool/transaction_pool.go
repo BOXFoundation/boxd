@@ -321,8 +321,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
-	gasPrice, err := tx_pool.CheckGasAndNonce(tx, utxoSet)
-	if err != nil {
+	if err := tx_pool.CheckGasAndNonce(tx, utxoSet); err != nil {
 		return err
 	}
 	// Quickly detects if the tx double spends with any transaction in the pool.
@@ -335,7 +334,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 
 	// add transaction to pool.
-	tx_pool.addTx(tx, nextBlockHeight, gasPrice)
+	tx_pool.addTx(tx, nextBlockHeight)
 
 	logger.Debugf("Accepted new tx. Hash: %v", txHash)
 	tx_pool.txcache.Add(*txHash, true)
@@ -442,13 +441,12 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 }
 
 // Add transaction into tx pool
-func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, gasPrice uint64) {
+func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32) {
 	txHash, _ := tx.TxHash()
 	txWrap := &types.TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
-		GasPrice:       gasPrice,
 		IsScriptValid:  false,
 	}
 	if o, _ := txlogic.CheckAndGetContractVout(tx); o != nil {
@@ -680,81 +678,77 @@ func lengthOfSyncMap(target *sync.Map) int {
 }
 
 // CheckGasAndNonce checks whether gas price of tx is valid
-func (tx_pool *TransactionPool) CheckGasAndNonce(
-	tx *types.Transaction, utxoSet *chain.UtxoSet,
-) (uint64, error) {
-
-	var gasPrice uint64
+func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet *chain.UtxoSet) error {
 
 	txFee, err := chain.ValidateTxInputs(utxoSet, tx)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	contractVout, err := txlogic.CheckAndGetContractVout(tx)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	if contractVout != nil { // smart contract tx.
-		if tx.Data == nil || tx.Data.Type != int32(types.ContractDataType) ||
-			len(tx.Data.Content) == 0 {
-			return 0, core.ErrContractDataNotFound
+	if contractVout == nil {
+		if txFee != core.TransferFee {
+			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee, core.TransferFee)
 		}
-		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
-		param, ty, err := sc.ParseContractParams()
-		if err != nil {
-			return 0, err
-		}
-		if txFee != param.GasLimit*param.GasPrice {
-			return 0, core.ErrInvalidFee
-		}
-		contractCreation := ty == types.ContractCreationType
-		gas, err := chain.IntrinsicGas(tx.Data.Content, contractCreation)
-		if err != nil {
-			return 0, err
-		}
-		if param.GasLimit < gas {
-			return 0, vm.ErrOutOfGas
-		}
-		gasPrice = param.GasPrice
-		// check contract tx from
-		if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
-			*addr.Hash160() != *param.From {
-			return 0, fmt.Errorf("contract tx from address mismatched")
-		}
-		// check whether contract utxo exists if it is a contract call tx
-		// NOTE: here not to consider that a contract deploy tx is in tx pool
-		if !contractCreation && !tx_pool.chain.TailState().Exist(*param.To) {
-			return 0, fmt.Errorf("contract call error: %s, block height: %d",
-				core.ErrContractNotFound, tx_pool.chain.TailBlock().Header.Height)
-		}
-		// check sender nonce
-		nonceOnChain := tx_pool.chain.TailState().GetNonce(*param.From)
-		if param.Nonce < nonceOnChain+1 {
-			return 0, fmt.Errorf("%s(%d, %d on chain), block height: %d",
-				core.ErrNonceTooLow, param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
-		} else if param.Nonce >= nonceOnChain+1 {
-			// check whether a tx is in pool that have a bigger nonce
-			dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
-			for i := 0; i < len(dsTxs); i++ {
-				contractVout, _ := txlogic.CheckAndGetContractVout(dsTxs[i])
-				sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
-				p, _, _ := sc.ParseContractParams()
-				if param.Nonce < p.Nonce {
-					txHash, _ := tx.TxHash()
-					dsHash, _ := dsTxs[i].TxHash()
-					logger.Warnf("remove tx %s(nonce %d) from pool since tx %s have a "+
-						"lower nonce(%d)", dsHash, p.Nonce, txHash, param.Nonce)
-					tx_pool.outPointToTx.Delete(*dsOps[i])
-					tx_pool.hashToTx.Delete(*dsHash)
-				}
-			}
-		}
-	} else {
-		gasPrice = txFee / core.TransferGasLimit
+		return nil
 	}
 
-	if gasPrice != core.FixedGasPrice {
-		return 0, fmt.Errorf("tx gasPrice %d is less than %d", gasPrice, core.FixedGasPrice)
+	// smart contract tx.
+	if tx.Data == nil || tx.Data.Type != int32(types.ContractDataType) ||
+		len(tx.Data.Content) == 0 {
+		return core.ErrContractDataNotFound
 	}
-	return gasPrice, nil
+	sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+	param, ty, err := sc.ParseContractParams()
+	if err != nil {
+		return err
+	}
+	if txFee != param.GasLimit*core.FixedGasPrice {
+		return core.ErrInvalidFee
+	}
+	contractCreation := ty == types.ContractCreationType
+	gas, err := chain.IntrinsicGas(tx.Data.Content, contractCreation)
+	if err != nil {
+		return err
+	}
+	if param.GasLimit < gas {
+		return vm.ErrOutOfGas
+	}
+	// check contract tx from
+	if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
+		*addr.Hash160() != *param.From {
+		return fmt.Errorf("contract tx from address mismatched(%x, %x)", addr.Hash(), param.From[:])
+	}
+	// check whether contract utxo exists if it is a contract call tx
+	// NOTE: here not to consider that a contract deploy tx is in tx pool
+	if !contractCreation && !tx_pool.chain.TailState().Exist(*param.To) {
+		return fmt.Errorf("contract call error: %s, block height: %d",
+			core.ErrContractNotFound, tx_pool.chain.TailBlock().Header.Height)
+	}
+	// check sender nonce
+	nonceOnChain := tx_pool.chain.TailState().GetNonce(*param.From)
+	if param.Nonce < nonceOnChain+1 {
+		return fmt.Errorf("%s(%d, %d on chain), block height: %d",
+			core.ErrNonceTooLow, param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
+	} else if param.Nonce >= nonceOnChain+1 {
+		// check whether a tx is in pool that have a bigger nonce and remove it if it exists
+		dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
+		for i := 0; i < len(dsTxs); i++ {
+			contractVout, _ := txlogic.CheckAndGetContractVout(dsTxs[i])
+			sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+			p, _, _ := sc.ParseContractParams()
+			if param.Nonce < p.Nonce {
+				txHash, _ := tx.TxHash()
+				dsHash, _ := dsTxs[i].TxHash()
+				logger.Warnf("remove tx %s(nonce %d) from pool since tx %s have a "+
+					"lower nonce(%d)", dsHash, p.Nonce, txHash, param.Nonce)
+				tx_pool.outPointToTx.Delete(*dsOps[i])
+				tx_pool.hashToTx.Delete(*dsHash)
+			}
+		}
+	}
+
+	return nil
 }

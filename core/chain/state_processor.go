@@ -279,7 +279,7 @@ func makeTx(
 		}
 		var spk *script.Script
 		if IsContractAddr(to, contractAddrFilter, db, utxoSet) {
-			spk, _ = script.MakeContractScriptPubkey(from, to, 0, 1, 0, 0)
+			spk, _ = script.MakeContractScriptPubkey(from, to, 1, 0, 0)
 			outOp := types.NewOutPoint(types.NormalizeAddressHash(to), 0)
 			utxoSet.contractUtxos[*outOp] = struct{}{}
 			// update contract utxowrap in utxoSet
@@ -334,9 +334,12 @@ func ExtractVMTransaction(
 	if tx.Data == nil || len(tx.Data.Content) == 0 {
 		return nil, core.ErrContractDataNotFound
 	}
+	gasPrice := core.FixedGasPrice
+	if IsCoinBase(tx) {
+		gasPrice = 0
+	}
 	vmTx := types.NewVMTransaction(big.NewInt(int64(contractVout.Value)),
-		big.NewInt(int64(p.GasPrice)), p.GasLimit, p.Nonce, txHash,
-		t, tx.Data.Content).WithFrom(p.From)
+		p.GasLimit, gasPrice, p.Nonce, txHash, t, tx.Data.Content).WithFrom(p.From)
 	if t == types.ContractCallType {
 		vmTx.WithTo(p.To)
 	}

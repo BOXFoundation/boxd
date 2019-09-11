@@ -116,7 +116,7 @@ func TestProcessTx(t *testing.T) {
 	verifyProcessTx(t, tx0, core.ErrCoinbaseTx, false, false)
 
 	// manually add tx0 into pool as utxo to bootstrap; otherwise no tx can be accepted
-	txpool.addTx(tx0, chainHeight, 0)
+	txpool.addTx(tx0, chainHeight)
 
 	// tx0(m) <- tx1(m)
 	// tx1 is admitted into main pool since it spends from a valid UTXO, i.e., coinbaseTx

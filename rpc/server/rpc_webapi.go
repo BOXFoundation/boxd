@@ -608,9 +608,8 @@ func (s *webapiServer) callEvm(ctx context.Context, req *rpcpb.CallReq) (evm *vm
 		return
 	}
 
-	msg := types.NewVMTransaction(new(big.Int), big.NewInt(1), math.MaxUint64/2,
-		0, nil, types.ContractCallType, data).
-		WithFrom(fromHash.Hash160()).WithTo(contractAddr.Hash160())
+	msg := types.NewVMTransaction(new(big.Int), math.MaxUint64/2, 0, 0, nil,
+		types.ContractCallType, data).WithFrom(fromHash.Hash160()).WithTo(contractAddr.Hash160())
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -987,7 +986,7 @@ func detailTxOut(
 			if receipt == nil {
 				return nil, fmt.Errorf("receipt for tx %s not found", txHash)
 			}
-			fee, failed, gasUsed = uint32(receipt.GasUsed*params.GasPrice),
+			fee, failed, gasUsed = uint32(receipt.GasUsed*core.FixedGasPrice),
 				receipt.Failed, receipt.GasUsed
 			logs = rpcutil.ToPbLogs(receipt.Logs)
 		}

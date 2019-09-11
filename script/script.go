@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -622,15 +623,15 @@ func IsContractSig(sig []byte) bool {
 // IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
 func (s *Script) IsContractPubkey() bool {
 	ss := *s
-	// 94 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addraddr len)+
-	//			1(nonce size)+8(nonce len)+1(gasPrice size)+8(gasPrice len)+
-	//			1(gasLimit size)+8(gasLimit size)+1(version size)+4(version len)+
-	if len(ss) != 75 {
+	// 66 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addr len)+
+	//			1(nonce size)+8(nonce len)+1(gasLimit size)+8(gasLimit size)+
+	//			1(version size)+4(version len)+
+	if len(ss) != 66 {
 		return false
 	}
 	if ss[0] != byte(OPCONTRACT) ||
 		ss[1] != ripemd160.Size || ss[22] != ripemd160.Size ||
-		ss[43] != 8 || ss[52] != 8 || ss[61] != 8 || ss[70] != 4 {
+		ss[43] != 8 || ss[52] != 8 || ss[61] != 4 {
 		return false
 	}
 	return true
@@ -800,9 +801,9 @@ func (s *Script) getSigOpCount() int {
 
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
-	from, to *types.AddressHash, gasPrice, gasLimit, nonce uint64, version int32,
+	from, to *types.AddressHash, gasLimit, nonce uint64, version int32,
 ) (*Script, error) {
-	// OP_CONTRACT from to nonce gasPrice gasLimit version checksum
+	// OP_CONTRACT from to nonce gasLimit version checksum
 	// check params
 	if from == nil {
 		return nil, ErrInvalidContractParams
@@ -810,11 +811,7 @@ func MakeContractScriptPubkey(
 	if gasLimit == 0 {
 		return nil, ErrInvalidContractParams
 	}
-	overflowVal := uint64(math.MaxInt64)
-	if gasPrice > overflowVal || gasLimit > overflowVal {
-		return nil, ErrInvalidContractParams
-	}
-	if gasPrice > overflowVal/gasLimit {
+	if gasLimit >= uint64(math.MaxInt64)/core.FixedGasPrice {
 		return nil, ErrInvalidContractParams
 	}
 	// set params
@@ -827,11 +824,9 @@ func MakeContractScriptPubkey(
 	s.AddOperand(from[:]).AddOperand(toHash[:])
 	binary.LittleEndian.PutUint64(buf, nonce)
 	s.AddOperand(buf)
-	binary.LittleEndian.PutUint64(buf, gasPrice)
-	s.AddOperand(buf)
 	binary.LittleEndian.PutUint64(buf, gasLimit)
 	s.AddOperand(buf)
-	buf = make([]byte, 4)
+	buf = buf[:4]
 	binary.LittleEndian.PutUint32(buf, uint32(version))
 	s.AddOperand(buf)
 
@@ -889,11 +884,6 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 
 	// nonce
 	params.Nonce, pc, err = s.readUint64(pc)
-	if err != nil {
-		return
-	}
-	// gasPrice
-	params.GasPrice, pc, err = s.readUint64(pc)
 	if err != nil {
 		return
 	}
@@ -957,22 +947,9 @@ func (s *Script) ParseContractNonce() (uint64, error) {
 	return n, nil
 }
 
-// ParseContractGasPrice returns address within the script
-func (s *Script) ParseContractGasPrice() (uint64, error) {
-	_, operand, _, err := s.getNthOp(43, 1) // 1, 22
-	if err != nil {
-		return 0, err
-	}
-	if len(operand) != 8 {
-		return 0, errors.New("gas price must be 8 byte in script")
-	}
-	n := binary.LittleEndian.Uint64(operand)
-	return n, nil
-}
-
 // ParseContractGas returns address within the script
 func (s *Script) ParseContractGas() (uint64, error) {
-	_, operand, _, err := s.getNthOp(43, 2) // 1, 22
+	_, operand, _, err := s.getNthOp(52, 0) // 1, 22, 43, 52
 	if err != nil {
 		return 0, err
 	}

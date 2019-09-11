@@ -226,8 +226,7 @@ func MakeUnsignedContractDeployTx(
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 
-	contractVout, err := MakeContractCreationVout(from, amount, gasLimit,
-		core.FixedGasPrice, nonce)
+	contractVout, err := MakeContractCreationVout(from, amount, gasLimit, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -239,8 +238,7 @@ func MakeUnsignedContractCallTx(
 	from, to *types.AddressHash, amount, changeAmt, gasLimit, nonce uint64,
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-	contractVout, err := MakeContractCallVout(from, to, amount, gasLimit,
-		core.FixedGasPrice, nonce)
+	contractVout, err := MakeContractCallVout(from, to, amount, gasLimit, nonce)
 	if err != nil {
 		return nil, err
 	}

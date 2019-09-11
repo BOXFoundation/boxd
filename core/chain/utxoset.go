@@ -692,7 +692,7 @@ func MakeRollbackContractUtxos(
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
 			sc, _ := script.MakeContractScriptPubkey(&types.ZeroAddressHash, &a,
-				0, tempLimit, prevStateDB.GetNonce(a), types.VMVersion)
+				tempLimit, prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]
@@ -704,7 +704,7 @@ func MakeRollbackContractUtxos(
 		if _, ok := balances[a]; !ok {
 			balances[a] = stateDB.GetBalance(a).Uint64()
 			sc, _ := script.MakeContractScriptPubkey(&types.ZeroAddressHash, &a,
-				0, tempLimit, prevStateDB.GetNonce(a), types.VMVersion)
+				tempLimit, prevStateDB.GetNonce(a), types.VMVersion)
 			um[*op] = types.NewUtxoWrap(balances[a], []byte(*sc), height)
 		}
 		utxo := um[*op]

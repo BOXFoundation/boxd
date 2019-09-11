@@ -738,7 +738,7 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 
 func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, error) {
 	var totalFees uint64
-	for idx, tx := range txs {
+	for _, tx := range txs {
 		// skip coinbase tx
 		if IsCoinBase(tx) || IsDynastySwitch(tx) {
 			continue
@@ -774,11 +774,16 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 		if err != nil {
 			return 0, err
 		}
-		if txFee != param.GasLimit*param.GasPrice ||
-			idx == 0 && param.GasPrice != 0 ||
-			idx > 0 && param.GasPrice != core.FixedGasPrice {
-			logger.Warnf("contract tx %s have wrong fee %d gas price %d", txHash, txFee, param.GasPrice)
-			return 0, core.ErrInvalidFee
+		if IsCoinBase(tx) {
+			if txFee != 0 {
+				logger.Warnf("coinbase tx %s have wrong fee %d", txHash, txFee)
+				return 0, core.ErrInvalidFee
+			}
+		} else {
+			if txFee != param.GasLimit*core.FixedGasPrice {
+				logger.Warnf("contract tx %s have wrong fee %d gas limit %d", txHash, txFee, param.GasLimit)
+				return 0, core.ErrInvalidFee
+			}
 		}
 		if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
 			*addr.Hash160() != *param.From {
@@ -1441,7 +1446,8 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		return nil, err
 	}
 	// code, err := readBin(chain.cfg.ContractBinPath)
-	vmTx := types.NewVMTransaction(big.NewInt(0), big.NewInt(0), 1e8, 1, nil, types.ContractCreationType, ContractBin)
+	vmTx := types.NewVMTransaction(big.NewInt(0), 1e8, 0, 1, nil,
+		types.ContractCreationType, ContractBin)
 	adminAddr, err := types.NewAddress(Admin)
 	if err != nil {
 		return nil, err
@@ -2279,16 +2285,11 @@ func (chain *BlockChain) MakeInternalContractTx(
 	if err != nil {
 		return nil, err
 	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, 0, nonce)
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, nonce)
 	if err != nil {
 		return nil, err
 	}
 	var index uint32
-	// if method == "calcBonus" {
-	// 	index = sysmath.MaxUint32
-	// } else {
-	// 	index = 0
-	// }
 	switch method {
 	case CalcBonus:
 		index = sysmath.MaxUint32

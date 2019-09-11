@@ -327,10 +327,7 @@ func (bpos *Bpos) produceBlock() error {
 func lessFunc(queue *util.PriorityQueue, i, j int) bool {
 	txi := queue.Items(i).(*types.TxWrap)
 	txj := queue.Items(j).(*types.TxWrap)
-	if txi.GasPrice == txj.GasPrice {
-		return txi.AddedTimestamp < txj.AddedTimestamp
-	}
-	return txi.GasPrice > txj.GasPrice
+	return txi.AddedTimestamp < txj.AddedTimestamp
 }
 
 func (bpos *Bpos) nonceFunc(queue *util.PriorityQueue, i, j int) bool {
@@ -410,7 +407,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if _, exists := hashToTx[*txHash]; !exists {
 			continue
 		}
-		dag.AddNode(*txHash, int(txWrap.GasPrice))
+		dag.AddNode(*txHash, int(core.FixedGasPrice))
 		if txWrap.IsContract {
 			from := hashToAddress[*txHash]
 			sortedNonceTxs := addressToNonceSortedTxs[from]
@@ -419,8 +416,8 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		}
 		for _, txIn := range txWrap.Tx.Vin {
 			prevTxHash := txIn.PrevOutPoint.Hash
-			if wrap, exists := hashToTx[prevTxHash]; exists {
-				dag.AddNode(prevTxHash, int(wrap.GasPrice))
+			if _, exists := hashToTx[prevTxHash]; exists {
+				dag.AddNode(prevTxHash, int(core.FixedGasPrice))
 				dag.AddEdge(prevTxHash, *txHash)
 			}
 		}
@@ -444,8 +441,8 @@ func handleVMTx(
 	var parentHash *crypto.HashType
 	for _, vmTx := range sortedNonceTxs {
 		hash := vmTx.OriginTxHash()
-		originTx := hashToTx[*hash]
-		dag.AddNode(*hash, int(originTx.GasPrice))
+		//originTx := hashToTx[*hash]
+		dag.AddNode(*hash, int(core.FixedGasPrice))
 		if parentHash != nil {
 			dag.AddEdge(*parentHash, *hash)
 		}
