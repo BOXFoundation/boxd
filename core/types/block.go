@@ -149,57 +149,17 @@ func (block *Block) FromProtoMessage(message proto.Message) error {
 // Copy returns a deep copy: used only for splitBlockOutputs()
 // Only copy needed fields to save efforts: height & vin & vout
 func (block *Block) Copy() *Block {
-	newBlock := &Block{
-		Header: &BlockHeader{Height: block.Header.Height},
+	newBlock := new(Block)
+	bh := *block.Header
+	newBlock.Header = &bh
+	for _, tx := range block.Txs {
+		newBlock.Txs = append(newBlock.Txs, tx.Copy())
 	}
-
-	var txss [2][]*Transaction
-	for i, btxs := range [][]*Transaction{block.Txs, block.InternalTxs} {
-		if len(btxs) == 0 {
-			continue
-		}
-		txs := make([]*Transaction, len(btxs))
-		for k, tx := range btxs {
-			vin := make([]*TxIn, len(tx.Vin))
-			for idx, txIn := range tx.Vin {
-				txInCopy := &TxIn{
-					PrevOutPoint: txIn.PrevOutPoint,
-					ScriptSig:    txIn.ScriptSig,
-					Sequence:     txIn.Sequence,
-				}
-				vin[idx] = txInCopy
-			}
-
-			vout := make([]*TxOut, len(tx.Vout))
-			for idx, txOut := range tx.Vout {
-				txOutCopy := &TxOut{
-					Value:        txOut.Value,
-					ScriptPubKey: txOut.ScriptPubKey,
-				}
-				vout[idx] = txOutCopy
-			}
-
-			txHash, _ := tx.TxHash()
-			txCopy := &Transaction{
-				hash:     txHash,
-				Vin:      vin,
-				Vout:     vout,
-				Data:     tx.Data,
-				Magic:    tx.Magic,
-				LockTime: tx.LockTime,
-				Version:  tx.Version,
-			}
-			txs[k] = txCopy
-		}
-		txss[i] = txs
+	for _, tx := range block.InternalTxs {
+		newBlock.InternalTxs = append(newBlock.InternalTxs, tx.Copy())
 	}
-
-	newBlock.Txs = txss[0]
-	newBlock.InternalTxs = txss[1]
-	if block.Header.Bloom != nil {
-		newBlock.Header.Bloom = bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
-		newBlock.Header.Bloom.Copy(block.Header.Bloom)
-	}
+	newBlock.Signature = block.Signature
+	newBlock.IrreversibleInfo = block.IrreversibleInfo
 	return newBlock
 }
 
