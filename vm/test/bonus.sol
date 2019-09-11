@@ -128,6 +128,7 @@ contract Bonus is Permission{
         _global_open_pledge_limit = 10000;
         initNetParams();
         initDynasty();
+        admin = msg.sender;
     }
 
      modifier onlyPledgeIsOpen {
@@ -264,12 +265,9 @@ contract Bonus is Permission{
         emit CalcBonus(msg.sender, msg.value);
     }
 
-    function execBonus() public {
-        require(msg.sender == block.coinbase || msg.sender == admin, "Not enough permissions.");
-        if (msg.sender == block.coinbase) {
-            require((block.number+1) % netParams[DYNASTY_CHANGE_THRESHOLD] == 0, "Not the time to switch dynasties");
-        }
+    function execBonus() public onlyAdmin {
 
+        require((block.number+1) % netParams[DYNASTY_CHANGE_THRESHOLD] == 0, "Not the time to switch dynasties");
         for(uint i = 0; i < dynasty.length; i++) {
             if (dynastyToBonus[dynasty[i].addr] > 0) {
                 dynasty[i].addr.transfer(dynastyToBonus[dynasty[i].addr]);

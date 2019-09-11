@@ -385,7 +385,13 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 
 	for from, v := range addressToTxs {
 		var vmtxs []*types.VMTransaction
-		currentNonce := statedb.GetNonce(from)
+		var currentNonce uint64
+		if from == *bpos.bookkeeper.AddressHash() {
+			currentNonce = statedb.GetNonce(from) + 1
+		} else {
+			currentNonce = statedb.GetNonce(from)
+		}
+
 		for v.Len() > 0 {
 			vmTx := heap.Pop(v).(*types.VMTransaction)
 			hash := vmTx.OriginTxHash()
@@ -543,8 +549,13 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 	block.Txs = append(block.Txs, coinbaseTx)
+	adminAddr, err := types.NewAddress(chain.Admin)
+	if err != nil {
+		return err
+	}
+	nonce = statedb.GetNonce(*adminAddr.Hash160()) + 1
 	if uint64((block.Header.Height+1))%bpos.context.dynastySwitchThreshold.Uint64() == 0 { // dynasty switch
-		dynastySwitchTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, chain.ExecBonus)
+		dynastySwitchTx, err := bpos.chain.MakeInternalContractTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.ExecBonus)
 		if err != nil {
 			return err
 		}
