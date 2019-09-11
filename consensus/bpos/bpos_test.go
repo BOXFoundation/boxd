@@ -150,32 +150,32 @@ func TestDpos_signBlock(t *testing.T) {
 
 // }
 
-//func TestSortPendingTxs(t *testing.T) {
-//	var pendingTxs []*types.TxWrap
-//	tx0, _ := chain.CreateCoinbaseTx(addr.Hash(), 0)
-//	tx1, _ := chain.CreateCoinbaseTx(addr.Hash(), 1)
-//	tx2, _ := chain.CreateCoinbaseTx(addr.Hash(), 2)
-//	txwrap0 := createTxWrap(tx0, 100)
-//	txwrap1 := createTxWrap(tx1, 200)
-//	txwrap2 := createTxWrap(tx2, 300)
-//
-//	txwrap20 := createTxWrap(txwrap2.Tx, 200)
-//	txwrap21 := createTxWrap(txwrap20.Tx, 500)
-//
-//	txwrap10 := createTxWrap(txwrap1.Tx, 600)
-//	txwrap11 := createTxWrap(txwrap10.Tx, 900)
-//
-//	pendingTxs = []*types.TxWrap{txwrap0, txwrap1, txwrap2, txwrap20, txwrap21, txwrap10, txwrap11}
-//
-//	sortedTxs, err := bpos.bpos.sortPendingTxs(pendingTxs)
-//	ensure.Nil(t, err)
-//	var sortedGasPrice []uint64
-//	for _, v := range sortedTxs {
-//		sortedGasPrice = append(sortedGasPrice, v.GasPrice)
-//	}
-//	ensure.DeepEqual(t, sortedGasPrice, []uint64{300, 200, 100, 600, 200, 900, 500})
-//
-//}
+func TestSortPendingTxs(t *testing.T) {
+	var pendingTxs []*types.TxWrap
+	tx0, _ := chain.CreateCoinbaseTx(addr.Hash(), 0)
+	tx1, _ := chain.CreateCoinbaseTx(addr.Hash(), 1)
+	tx2, _ := chain.CreateCoinbaseTx(addr.Hash(), 2)
+	txwrap0 := createTxWrap(tx0, 100)
+	txwrap1 := createTxWrap(tx1, 200)
+	txwrap2 := createTxWrap(tx2, 300)
+
+	txwrap20 := createTxWrap(txwrap2.Tx, 200)
+	txwrap21 := createTxWrap(txwrap20.Tx, 500)
+
+	txwrap10 := createTxWrap(txwrap1.Tx, 600)
+	txwrap11 := createTxWrap(txwrap10.Tx, 900)
+
+	pendingTxs = []*types.TxWrap{txwrap0, txwrap1, txwrap2, txwrap20, txwrap21, txwrap10, txwrap11}
+
+	sortedTxs, err := bpos.bpos.sortPendingTxs(pendingTxs)
+	ensure.Nil(t, err)
+	var sortedAddTime []int64
+	for _, v := range sortedTxs {
+		sortedAddTime = append(sortedAddTime, v.AddedTimestamp)
+	}
+	ensure.DeepEqual(t, sortedAddTime, []int64{100, 200, 300, 200, 600, 500, 900})
+
+}
 
 func TestCalcScore(t *testing.T) {
 	bpos.bpos.chain.LongestChainHeight = 100000
@@ -253,11 +253,12 @@ func TestCalcScore(t *testing.T) {
 	}
 }
 
-func createTxWrap(tx *types.Transaction, gasPrice uint64) *types.TxWrap {
+func createTxWrap(tx *types.Transaction, addTime int64) *types.TxWrap {
 	txchild := createTx(tx, addr.Hash160())
 	return &types.TxWrap{
-		Tx:            txchild,
-		IsScriptValid: true,
+		Tx:             txchild,
+		AddedTimestamp: addTime,
+		IsScriptValid:  true,
 	}
 }
 

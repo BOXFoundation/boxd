@@ -335,7 +335,7 @@ func ExtractVMTransaction(
 		return nil, core.ErrContractDataNotFound
 	}
 	gasPrice := core.FixedGasPrice
-	if IsCoinBase(tx) {
+	if IsCoinBase(tx) || IsDynastySwitch(tx) {
 		gasPrice = 0
 	}
 	vmTx := types.NewVMTransaction(big.NewInt(int64(contractVout.Value)),

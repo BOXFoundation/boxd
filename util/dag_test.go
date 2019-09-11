@@ -40,7 +40,7 @@ func TestTopoSort(t *testing.T) {
 		keys = append(keys, v.key.(int))
 	}
 	ensure.DeepEqual(t, dag.IsCirclular(), false)
-	ensure.DeepEqual(t, keys, []int{1, 4, 2, 6, 5, 3, 8, 7, 9, 10})
+	ensure.DeepEqual(t, keys, []int{1, 2, 4, 3, 5, 6, 7, 8, 9, 10})
 }
 
 func TestIsCirclular(t *testing.T) {

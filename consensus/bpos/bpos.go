@@ -407,7 +407,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if _, exists := hashToTx[*txHash]; !exists {
 			continue
 		}
-		dag.AddNode(*txHash, int(core.FixedGasPrice))
+		dag.AddNode(*txHash, int(txWrap.AddedTimestamp))
 		if txWrap.IsContract {
 			from := hashToAddress[*txHash]
 			sortedNonceTxs := addressToNonceSortedTxs[from]
@@ -416,8 +416,8 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		}
 		for _, txIn := range txWrap.Tx.Vin {
 			prevTxHash := txIn.PrevOutPoint.Hash
-			if _, exists := hashToTx[prevTxHash]; exists {
-				dag.AddNode(prevTxHash, int(core.FixedGasPrice))
+			if wrap, exists := hashToTx[prevTxHash]; exists {
+				dag.AddNode(prevTxHash, int(wrap.AddedTimestamp))
 				dag.AddEdge(prevTxHash, *txHash)
 			}
 		}
@@ -441,8 +441,8 @@ func handleVMTx(
 	var parentHash *crypto.HashType
 	for _, vmTx := range sortedNonceTxs {
 		hash := vmTx.OriginTxHash()
-		//originTx := hashToTx[*hash]
-		dag.AddNode(*hash, int(core.FixedGasPrice))
+		originTx := hashToTx[*hash]
+		dag.AddNode(*hash, int(originTx.AddedTimestamp))
 		if parentHash != nil {
 			dag.AddEdge(*parentHash, *hash)
 		}
