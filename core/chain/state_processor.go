@@ -154,15 +154,16 @@ func ApplyTransaction(
 	} else {
 		contractAddr = tx.To()
 	}
+	senderNonce := statedb.GetNonce(*tx.From())
 	if !fail && len(Transfers) > 0 {
-		internalTxs, err := createUtxoTx(utxoSet, bc.contractAddrFilter, bc.db, statedb)
+		internalTxs, err := createUtxoTx(senderNonce, utxoSet, bc.contractAddrFilter, bc.db)
 		if err != nil {
 			logger.Warn(err)
 			return nil, 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs...)
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
-		internalTxs, err := createRefundTx(tx, utxoSet, contractAddr, statedb.GetNonce(*contractAddr))
+		internalTxs, err := createRefundTx(tx, senderNonce, utxoSet, contractAddr)
 		if err != nil {
 			logger.Warn(err)
 			return nil, 0, 0, nil, err
@@ -180,12 +181,12 @@ func ApplyTransaction(
 }
 
 func createUtxoTx(
-	utxoSet *UtxoSet, contractAddrFilter bloom.Filter, db storage.Reader, statedb *state.StateDB,
+	senderNonce uint64, utxoSet *UtxoSet, contractAddrFilter bloom.Filter,
+	db storage.Reader,
 ) ([]*types.Transaction, error) {
 
 	var txs []*types.Transaction
-	for from, v := range Transfers {
-		nonce := statedb.GetNonce(from)
+	for _, v := range Transfers {
 		if len(v) > VoutLimit {
 			txNumber := len(v)/VoutLimit + 1
 			for i := 0; i < txNumber; i++ {
@@ -196,7 +197,7 @@ func createUtxoTx(
 				} else {
 					end = len(v) - begin
 				}
-				tx, err := makeTx(v, nonce, begin, end, utxoSet, contractAddrFilter, db)
+				tx, err := makeTx(v, senderNonce, begin, end, utxoSet, contractAddrFilter, db)
 				if err != nil {
 					logger.Error("create utxo tx error: ", err)
 					return nil, err
@@ -204,7 +205,7 @@ func createUtxoTx(
 				txs = append(txs, tx)
 			}
 		} else {
-			tx, err := makeTx(v, nonce, 0, len(v), utxoSet, contractAddrFilter, db)
+			tx, err := makeTx(v, senderNonce, 0, len(v), utxoSet, contractAddrFilter, db)
 			if err != nil {
 				logger.Error("create utxo tx error: ", err)
 				return nil, err
@@ -216,8 +217,8 @@ func createUtxoTx(
 }
 
 func createRefundTx(
-	vmtx *types.VMTransaction, utxoSet *UtxoSet, contractAddr *types.AddressHash,
-	fromNonce uint64,
+	vmtx *types.VMTransaction, senderNonce uint64, utxoSet *UtxoSet,
+	contractAddr *types.AddressHash,
 ) (*types.Transaction, error) {
 
 	hash := types.NormalizeAddressHash(contractAddr)
@@ -238,7 +239,7 @@ func createRefundTx(
 
 	vin := &types.TxIn{
 		PrevOutPoint: outPoint,
-		ScriptSig:    *script.MakeContractScriptSig(fromNonce),
+		ScriptSig:    *script.MakeContractScriptSig(senderNonce),
 	}
 	vout := &types.TxOut{
 		Value:        vmtx.Value().Uint64(),
@@ -251,7 +252,7 @@ func createRefundTx(
 }
 
 func makeTx(
-	transferInfos []*TransferInfo, fromNonce uint64, voutBegin int, voutEnd int,
+	transferInfos []*TransferInfo, senderNonce uint64, voutBegin int, voutEnd int,
 	utxoSet *UtxoSet, contractAddrFilter bloom.Filter, db storage.Reader,
 ) (*types.Transaction, error) {
 
@@ -305,7 +306,7 @@ func makeTx(
 	}
 	vin := &types.TxIn{
 		PrevOutPoint: *inOp,
-		ScriptSig:    *script.MakeContractScriptSig(fromNonce),
+		ScriptSig:    *script.MakeContractScriptSig(senderNonce),
 	}
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)
