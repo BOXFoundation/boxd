@@ -1177,7 +1177,7 @@ func (s *webapiServer) GetStorageAt(
 	ctx context.Context, req *rpcpb.StorageReq,
 ) (*rpcpb.StorageResp, error) {
 
-	state, err := s.GetStateDbByHeight(uint32(req.Height))
+	state, err := s.GetStateDbByHeight(req.Height)
 	if err != nil {
 		return newStorageAtResp(-1, err.Error(), ""), nil
 	}

@@ -332,7 +332,7 @@ message GetCodeResp {
 message StorageReq {
     string address = 1;
     string position = 2;
-    int32 height = 3;
+    uint32 height = 3;
 }
 
 message StorageResp {
