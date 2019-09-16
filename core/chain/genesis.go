@@ -19,7 +19,7 @@ import (
 // genesis contract properties
 var (
 	// Admin represents admin address.
-	Admin = "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+	Admin = "b1na9uCQXA26d94w1tWrttnnsfjKNz9M2EF"
 
 	// ContractAddr genesis contract address.
 	ContractAddr types.AddressHash
