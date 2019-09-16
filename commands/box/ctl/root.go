@@ -6,7 +6,6 @@ package ctl
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"path"
 	"strconv"
@@ -20,7 +19,6 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	format "github.com/BOXFoundation/boxd/util/format"
-	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -70,14 +68,14 @@ func init() {
 			Run:   updateNetworkID,
 		},
 		&cobra.Command{
-			Use:   "getbalance [address]",
-			Short: "Get the balance for any given address",
-			Run:   getBalanceCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "getblock [hash]",
 			Short: "Get the block with a specific hash",
 			Run:   getBlockCmdFunc,
+		},
+		&cobra.Command{
+			Use:   "getblockbyheight [height]",
+			Short: "Get the block with a specific height",
+			Run:   getBLockByHeight,
 		},
 		&cobra.Command{
 			Use:   "getblockcount",
@@ -94,19 +92,26 @@ func init() {
 			Short: "Get the block header for a hash",
 			Run:   getBlockHeaderCmdFunc,
 		},
+
+		&cobra.Command{
+			Use:   "viewblockdetail [blockhash]",
+			Short: "Get the raw blockInformation for a block hash",
+			Run:   getBlockDetailCmdFunc,
+		},
 		&cobra.Command{
 			Use:   "getinfo",
 			Short: "Get info about the local node",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("getinfo called")
-			},
+			Run:   getInfoCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "getnetworkinfo [network]",
+			Use:   "peerid",
+			Short: "get peerid at p2p",
+			Run:   getPeerIDCmdFunc,
+		},
+		&cobra.Command{
+			Use:   "getnetworkid ",
 			Short: "Get the basic info and performance metrics of a network",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("getnetworkinfo called")
-			},
+			Run:   getNetWorkID,
 		},
 		&cobra.Command{
 			Use:   "searchrawtxs [address]",
@@ -114,16 +119,6 @@ func init() {
 			Run: func(cmd *cobra.Command, args []string) {
 				fmt.Println("searchrawtx called")
 			},
-		},
-		&cobra.Command{
-			Use:   "signmessage [message] [optional publickey]",
-			Short: "Sign a message with a publickey",
-			Run:   signMessageCmdFunc,
-		},
-		&cobra.Command{
-			Use:   "validateaddress [address]",
-			Short: "Check if an address is valid",
-			Run:   validateMessageCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "verifychain",
@@ -177,40 +172,6 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 	rpcutil.UpdateNetworkID(conn, id)
 }
 
-func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
-	addrs := make([]string, 0)
-	if len(args) < 1 {
-		wltMgr, err := wallet.NewWalletManager(walletDir)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		for _, acc := range wltMgr.ListAccounts() {
-			addrs = append(addrs, acc.Addr())
-		}
-	} else {
-		addrs = args
-	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println(err)
-		return
-	}
-	balances, err := rpcutil.GetBalance(conn, addrs)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	for i, b := range balances {
-		fmt.Printf("%s: %d\n", addrs[i], b)
-	}
-}
-
 func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getblock called")
 	if len(args) == 0 {
@@ -230,6 +191,38 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Printf("Block info of hash %s is\n%s\n", hash, format.PrettyPrint(block))
 	}
+}
+
+func getBLockByHeight(cmd *cobra.Command, args []string) {
+	fmt.Println("getblockbyheight called")
+	if len(args) == 0 {
+		fmt.Println("Parameter block height required")
+		return
+	}
+	height, err := strconv.ParseUint(args[0], 10, 32)
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewContorlCommandClient(conn)
+	req := &rpcpb.GetBlockByHeightReq{
+		Height: uint32(height),
+	}
+	resp, err := client.GetBlockByHeight(ctx, req)
+	if err != nil {
+		fmt.Println("getblockbyheight failed : ", err)
+		return
+	}
+	block := &types.Block{}
+	err = block.FromProtoMessage(resp.Block)
+	if err != nil {
+		fmt.Println("the format of block conversion failed :", err)
+	}
+	fmt.Printf("Block Information \n%s\n", format.PrettyPrint(block))
 }
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
@@ -299,51 +292,27 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 	}
 }
 
-func signMessageCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("signmessage called")
-	if len(args) < 2 {
-		fmt.Println("Please input the hex format of signature and publickey hash")
-		return
-	}
-	msg, err := hex.DecodeString(args[0])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	wltMgr, err := wallet.NewWalletManager(walletDir)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if _, exists := wltMgr.GetAccount(args[1]); !exists {
-		fmt.Println(args[1], " is not a managed account")
-		return
-	}
-	passphrase, err := wallet.ReadPassphraseStdin()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	sig, err := wltMgr.Sign(msg, args[1], passphrase)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Signature: ", hex.EncodeToString(sig))
-}
-
-func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
+func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("getBlockDetail called")
 	if len(args) < 1 {
-		fmt.Println("Please specify the address to validate")
+		fmt.Println("Param txhash required")
 		return
 	}
-	fmt.Println("validateing address", args[0])
-	addr := new(types.AddressPubKeyHash)
-	if err := addr.SetString(args[0]); err != nil {
+	hash := args[0]
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	//
+	block, err := rpcutil.GetBlock(conn, hash)
+	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println(args[0], " is a valid address")
+		fmt.Println(format.PrettyPrint(block))
 	}
+
 }
 
 func versionCmdFunc(cmd *cobra.Command, args []string) {
@@ -352,6 +321,73 @@ func versionCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf("boxd ver %s %s(%s) %s\n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion)
+}
+func getInfoCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) != 0 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewContorlCommandClient(conn)
+	req := &rpcpb.GetNodeInfoRequest{}
+	resp, err := client.GetNodeInfo(ctx, req)
+	if err != nil {
+		fmt.Println("get node information failed : ", err)
+		return
+	}
+	fmt.Println(format.PrettyPrint(resp))
+}
+func getPeerIDCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) != 0 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewWebApiClient(conn)
+	req := &rpcpb.PeerIDReq{}
+	resp, err := client.PeerID(ctx, req)
+	if err != nil {
+		fmt.Println("get peer ID failed : ", err)
+		return
+	}
+	fmt.Println("Peer ID : ", format.PrettyPrint(resp.Peerid))
+}
+
+func getNetWorkID(cmd *cobra.Command, args []string) {
+	if len(args) != 0 {
+		fmt.Println("Invalid argument number ")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewContorlCommandClient(conn)
+	req := &rpcpb.GetNetworkIDRequest{}
+	resp, err := client.GetNetworkID(ctx, req)
+	if err != nil {
+		fmt.Println("get network ID failed :", err)
+		return
+	}
+	fmt.Println(format.PrettyPrint(resp))
 }
 
 func getRPCAddr() string {

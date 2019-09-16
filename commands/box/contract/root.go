@@ -83,6 +83,26 @@ Successful call will return a transaction hash value`,
 			Short: "Get returns logs matching the given argument that are stored within the state",
 			Run:   getLogs,
 		},
+		&cobra.Command{
+			Use:   "nonce [addr]",
+			Short: "Get the nonce of address ",
+			Run:   getNonce,
+		},
+		&cobra.Command{
+			Use:   "getcode [contractaddress]",
+			Short: "Get the code of contract_address",
+			Run:   getCode,
+		},
+		&cobra.Command{
+			Use:   "estimategas [from] [to] [data] [height] [timeout]",
+			Short: "Get estimategas about contract_transaction",
+			Run:   getEstimateGas,
+		},
+		&cobra.Command{
+			Use:   "getstorage [address] [position] [height]",
+			Short: "Get the position of variable in storsge",
+			Run:   getStorageAt,
+		},
 	)
 }
 
@@ -124,7 +144,7 @@ func encode(cmd *cobra.Command, args []string) {
 		}
 		fmt.Println(err)
 	} else {
-		fmt.Println(hex.EncodeToString(data))
+		fmt.Println("encode information :", hex.EncodeToString(data))
 	}
 }
 
@@ -426,4 +446,134 @@ func getLogs(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println("Successful, log information:", resp.Logs)
+}
+
+func getNonce(cmd *cobra.Command, args []string) {
+	fmt.Println("get nonce called")
+	if len(args) != 1 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	addr := args[0]
+	//validate address
+	if err := types.ValidateAddr(addr); err != nil {
+		fmt.Println("From address is Invalid: ", err)
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewWebApiClient(conn)
+	req := &rpcpb.NonceReq{
+		Addr: addr,
+	}
+	resp, err := client.Nonce(ctx, req)
+	if err != nil {
+		fmt.Println("RPC call failed ：", err)
+		return
+	}
+	fmt.Println("Nonce : ", resp.Nonce)
+}
+func getCode(cmd *cobra.Command, args []string) {
+	fmt.Println("get code called")
+	if len(args) != 1 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewWebApiClient(conn)
+	req := &rpcpb.GetCodeReq{
+		Address: args[0],
+	}
+	resp, err := client.GetCode(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Code : ", resp.Data)
+}
+
+func getEstimateGas(cmd *cobra.Command, args []string) {
+	fmt.Println("get estimate gas called")
+	if len(args) != 5 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewWebApiClient(conn)
+	height, err := strconv.ParseUint(args[3], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	timeout, err := strconv.ParseUint(args[4], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	req := &rpcpb.CallReq{
+		From:    args[0],
+		To:      args[1],
+		Data:    args[2],
+		Height:  uint32(height),
+		Timeout: uint32(timeout),
+	}
+	resp, err := client.EstimateGas(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Estimate Gas : ", resp.Gas)
+}
+
+func getStorageAt(cmd *cobra.Command, args []string) {
+	fmt.Println("get code called")
+	if len(args) != 3 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewWebApiClient(conn)
+	height, err := strconv.ParseUint(args[2], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	req := &rpcpb.StorageReq{
+		Address:  args[0],
+		Position: args[1],
+		Height:   uint32(height),
+	}
+	resp, err := client.GetStorageAt(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("position : ", resp.Data)
 }

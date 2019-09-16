@@ -12,11 +12,14 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
+	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var cfgFile string
@@ -91,6 +94,21 @@ func init() {
 			Use:   "decodeaddress [address]",
 			Short: "decode address from base58 format to hash160",
 			Run:   decodeAddress,
+		},
+		&cobra.Command{
+			Use:   "getbalance [address]",
+			Short: "Get the balance for any given address",
+			Run:   getBalanceCmdFunc,
+		},
+		&cobra.Command{
+			Use:   "signmessage [message] [optional publickey]",
+			Short: "Sign a message with a publickey",
+			Run:   signMessageCmdFunc,
+		},
+		&cobra.Command{
+			Use:   "validateaddress [address]",
+			Short: "Check if an address is valid",
+			Run:   validateMessageCmdFunc,
 		},
 	)
 }
@@ -282,4 +300,89 @@ func decodeAddress(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf("address hash: %x\n", address.Hash160()[:])
+}
+func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
+	addrs := make([]string, 0)
+	if len(args) < 1 {
+		wltMgr, err := wallet.NewWalletManager(walletDir)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		for _, acc := range wltMgr.ListAccounts() {
+			addrs = append(addrs, acc.Addr())
+		}
+	} else {
+		addrs = args
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	if err := types.ValidateAddr(addrs...); err != nil {
+		fmt.Println(err)
+		return
+	}
+	balances, err := rpcutil.GetBalance(conn, addrs)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for i, b := range balances {
+		fmt.Printf("%s: %d\n", addrs[i], b)
+	}
+}
+
+func signMessageCmdFunc(cmd *cobra.Command, args []string) {
+	fmt.Println("signmessage called")
+	if len(args) < 2 {
+		fmt.Println("Please input the hex format of signature and publickey hash")
+		return
+	}
+	msg, err := hex.DecodeString(args[0])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if _, exists := wltMgr.GetAccount(args[1]); !exists {
+		fmt.Println(args[1], " is not a managed account")
+		return
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	sig, err := wltMgr.Sign(msg, args[1], passphrase)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Signature: ", hex.EncodeToString(sig))
+}
+
+func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		fmt.Println("Please specify the address to validate")
+		return
+	}
+	addr := new(types.AddressPubKeyHash)
+	if err := addr.SetString(args[0]); err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(args[0], " is a valid address")
+	}
+}
+
+func getRPCAddr() string {
+	var cfg config.Config
+	viper.Unmarshal(&cfg)
+	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

@@ -87,11 +87,6 @@ func init() {
 			Run:   getRawTxCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "viewblockdetail [blockhash]",
-			Short: "Get the raw blockInformation for a block hash",
-			Run:   getBlockDetailCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
 			Run:   sendrawtx,
@@ -111,6 +106,31 @@ to quickly create a Cobra  application.`,
 			Use:   "getrawtx [txhash]",
 			Short: "Get the raw transaction for a txid",
 			Run:   getRawTxCmdFunc,
+		},
+		&cobra.Command{
+			Use:   "gettxcountbyhash [blockhash]",
+			Short: "Get the transaction amount by hash",
+			Run:   getTxCountByHash,
+		},
+		&cobra.Command{
+			Use:   "gettxcountbyheight [blockheight]",
+			Short: "Get the transaction amount by height",
+			Run:   getTxCountByHeight,
+		},
+		&cobra.Command{
+			Use:   "gettxbyhash [blockhash] [tx_index]",
+			Short: "Get the transaction by block_hash and block_index",
+			Run:   getTxByHash,
+		},
+		&cobra.Command{
+			Use:   "gettxbyheight [blockheight] [tx_index]",
+			Short: "Get the transaction  by height and tx_index",
+			Run:   getTxByHeight,
+		},
+		&cobra.Command{
+			Use:   "fetchutxo [addr] [amount] [token_hash] [token_index]",
+			Short: "Fetch Utxos",
+			Run:   fetchUtxo,
 		},
 	)
 }
@@ -234,27 +254,132 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println(format.PrettyPrint(tx))
 }
 
-func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getBlockDetail called")
-	if len(args) < 1 {
-		fmt.Println("Param txhash required")
+func getTxCountByHash(cmd *cobra.Command, args []string) {
+	fmt.Println("getTxCountByHash called")
+	if len(args) != 1 {
+		fmt.Println("Invalid argument number")
 		return
 	}
-	hash := args[0]
 	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
-	//
-	block, err := rpcutil.GetBlock(conn, hash)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewContorlCommandClient(conn)
+	req := &rpcpb.GetBlockTransactionCountByHashReq{BlockHash: args[0]}
+	resp, err := client.GetBlockTransactionCountByHash(ctx, req)
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		fmt.Println(format.PrettyPrint(block))
+		return
 	}
+	fmt.Println("transaction amount :", resp.Count)
+}
 
+func getTxCountByHeight(cmd *cobra.Command, args []string) {
+	fmt.Println("getTxCountByHeigh  called")
+	if len(args) != 1 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewContorlCommandClient(conn)
+	height, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	req := &rpcpb.GetBlockTransactionCountByHeightReq{Height: uint32(height)}
+	resp, err := client.GetBlockTransactionCountByHeight(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("transaction amount :", resp.Count)
+}
+
+func getTxByHash(cmd *cobra.Command, args []string) {
+	fmt.Println("getTxByHash  called")
+	if len(args) != 2 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewContorlCommandClient(conn)
+	index, err := strconv.ParseUint(args[1], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	req := &rpcpb.GetTransactionByBlockHashAndIndexReq{BlockHash: args[0], Index: uint32(index)}
+	resp, err := client.GetTransactionByBlockHashAndIndex(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	tx := &types.Transaction{}
+	err = tx.FromProtoMessage(resp.Tx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Transaction :", format.PrettyPrint(tx))
+}
+
+func getTxByHeight(cmd *cobra.Command, args []string) {
+	fmt.Println("getTxByHeight  called")
+	if len(args) != 2 {
+		fmt.Println("Invalid argument number")
+		return
+	}
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := rpcpb.NewContorlCommandClient(conn)
+	height, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	index, err := strconv.ParseUint(args[1], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	req := &rpcpb.GetTransactionByBlockHeightAndIndexReq{Height: uint32(height), Index: uint32(index)}
+	resp, err := client.GetTransactionByBlockHeightAndIndex(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	tx := &types.Transaction{}
+	err = tx.FromProtoMessage(resp.Tx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Transaction :", format.PrettyPrint(tx))
 }
 
 func decoderawtx(cmd *cobra.Command, args []string) {
@@ -432,6 +557,27 @@ func parseSendParams(args []string) (addrs []string, amounts []uint64, err error
 		amounts = append(amounts, uint64(amount))
 	}
 	return addrs, amounts, nil
+}
+
+func fetchUtxo(cmd *cobra.Command, args []string) {
+	fmt.Printf("fetch utxo called")
+	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer conn.Close()
+	amount, err := strconv.ParseUint(args[1], 10, 64)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	index, err := strconv.ParseUint(args[3], 10, 64)
+	utxo, err := rpcutil.FetchUtxos(conn, args[0], amount, args[2], uint32(index))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("utxos : ", utxo)
 }
 
 func getRPCAddr() string {
