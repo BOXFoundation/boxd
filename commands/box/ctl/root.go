@@ -191,22 +191,22 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		addrs = args
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
 	if err := types.ValidateAddr(addrs...); err != nil {
 		fmt.Println(err)
 		return
 	}
-	balances, err := rpcutil.GetBalance(conn, addrs)
+	resp, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetBalance",
+		&rpcpb.GetBalanceReq{Addrs: addrs}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	for i, b := range balances {
+	balResp := resp.(*rpcpb.GetBalanceResp)
+	if balResp.Code != 0 {
+		fmt.Println(balResp.Message)
+		return
+	}
+	for i, b := range balResp.Balances {
 		fmt.Printf("%s: %d\n", addrs[i], b)
 	}
 }
