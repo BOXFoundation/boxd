@@ -33,21 +33,12 @@ func init() {
 	)
 }
 
-const (
-	addr string = "127.0.0.1"
-)
-
 type ctlserver struct {
 	server GRPCServer
 }
 
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
-	pr, ok := peer.FromContext(ctx)
-	if !ok {
-		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "unable to parse ip from context"}, nil
-	}
-	cliIP := strings.Split(pr.Addr.String(), ":")[0]
-	if cliIP != addr {
+	if !IsLocalAddr(ctx) {
 		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "unauthorized IP!"}, nil
 	}
 	bus := s.server.GetEventBus()
@@ -80,12 +71,7 @@ func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rp
 
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
-	pr, ok := peer.FromContext(ctx)
-	if !ok {
-		return &rpcpb.BaseResponse{Code: -1, Message: "unable to parse ip from context"}, nil
-	}
-	cliIP := strings.Split(pr.Addr.String(), ":")[0]
-	if cliIP != addr {
+	if !IsLocalAddr(ctx) {
 		return &rpcpb.BaseResponse{Code: -1, Message: "unauthorized IP!"}, nil
 	}
 	bus := s.server.GetEventBus()
@@ -101,12 +87,7 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 
 // GetNetworkID returns
 func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
-	pr, ok := peer.FromContext(ctx)
-	if !ok {
-		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "unable to parse ip from context"}, nil
-	}
-	cliIP := strings.Split(pr.Addr.String(), ":")[0]
-	if cliIP != addr {
+	if !IsLocalAddr(ctx) {
 		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "unauthorized IP!"}, nil
 	}
 	ch := make(chan uint32)
@@ -126,12 +107,7 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 // UpdateNetworkID implements UpdateNetworkID
 // NOTE: should be remove in product env
 func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
-	pr, ok := peer.FromContext(ctx)
-	if !ok {
-		return &rpcpb.BaseResponse{Code: -1, Message: "unable to parse ip from context"}, nil
-	}
-	cliIP := strings.Split(pr.Addr.String(), ":")[0]
-	if cliIP != addr {
+	if !IsLocalAddr(ctx) {
 		return &rpcpb.BaseResponse{Code: -1, Message: "unauthorized IP!"}, nil
 	}
 	bus := s.server.GetEventBus()
@@ -404,4 +380,17 @@ func (s *ctlserver) CurrentBookkeepers(
 	}
 
 	return newCurrentBookkeepersResp(0, "ok", bookkeepers), nil
+}
+
+//IsLocalAddr verify that the address is a local address
+func IsLocalAddr(ctx context.Context) bool {
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		return false
+	}
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
+	if cliIP != "127.0.0.1" {
+		return false
+	}
+	return true
 }
