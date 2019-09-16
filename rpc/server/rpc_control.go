@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -17,6 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"google.golang.org/grpc/peer"
 )
 
 func registerControl(s *Server) {
@@ -31,17 +33,32 @@ func init() {
 	)
 }
 
+const (
+	addr string = "127.0.0.1"
+)
+
 type ctlserver struct {
 	server GRPCServer
 }
 
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "unable to parse ip from context"}, nil
+	}
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
+	if cliIP != addr {
+		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "unauthorized IP!"}, nil
+	}
 	bus := s.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
 	bus.Send(eventbus.TopicGetAddressBook, ch)
 	defer close(ch)
 	nodes := <-ch
-	resp := &rpcpb.GetNodeInfoResponse{}
+	resp := &rpcpb.GetNodeInfoResponse{
+		Code:    1,
+		Message: "ok",
+	}
 	for _, n := range nodes {
 		resp.Nodes = append(resp.Nodes, &rpcpb.Node{
 			Id:    n.PeerID.Pretty(),
@@ -63,6 +80,14 @@ func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rp
 
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		return &rpcpb.BaseResponse{Code: -1, Message: "unable to parse ip from context"}, nil
+	}
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
+	if cliIP != addr {
+		return &rpcpb.BaseResponse{Code: -1, Message: "unauthorized IP!"}, nil
+	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicSetDebugLevel, in.Level, ch)
@@ -76,6 +101,14 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 
 // GetNetworkID returns
 func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "unable to parse ip from context"}, nil
+	}
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
+	if cliIP != addr {
+		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "unauthorized IP!"}, nil
+	}
 	ch := make(chan uint32)
 	s.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
 	current := <-ch
@@ -87,12 +120,20 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 	} else {
 		literal = "Unknown"
 	}
-	return &rpcpb.GetNetworkIDResponse{Id: current, Literal: literal}, nil
+	return &rpcpb.GetNetworkIDResponse{Code: 1, Message: "ok", Id: current, Literal: literal}, nil
 }
 
 // UpdateNetworkID implements UpdateNetworkID
 // NOTE: should be remove in product env
 func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		return &rpcpb.BaseResponse{Code: -1, Message: "unable to parse ip from context"}, nil
+	}
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
+	if cliIP != addr {
+		return &rpcpb.BaseResponse{Code: -1, Message: "unauthorized IP!"}, nil
+	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicUpdateNetworkID, in.Id, ch)

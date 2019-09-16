@@ -27,6 +27,7 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	uuid "github.com/satori/go.uuid"
+	"google.golang.org/grpc/peer"
 )
 
 func init() {
@@ -1096,7 +1097,14 @@ func (s *webapiServer) Table(
 func (s *webapiServer) PeerID(
 	ctx context.Context, req *rpcpb.PeerIDReq,
 ) (*rpcpb.PeerIDResp, error) {
-
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		return &rpcpb.PeerIDResp{Code: -1, Message: "unable to parse ip from context"}, nil
+	}
+	cliIP := strings.Split(pr.Addr.String(), ":")[0]
+	if cliIP != addr {
+		return &rpcpb.PeerIDResp{Code: -1, Message: "unauthorized IP!"}, nil
+	}
 	return &rpcpb.PeerIDResp{
 		Code:    0,
 		Message: "",
