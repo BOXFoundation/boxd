@@ -769,6 +769,9 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 			continue
 		}
 		// smart contract tx.
+		if len(tx.Data.Content) > core.MaxCodeSize {
+			return 0, core.ErrMaxCodeSizeExceeded
+		}
 		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
