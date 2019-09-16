@@ -962,16 +962,12 @@ func detailTxOut(
 		}
 		detail.Appendix = splitContractInfo
 	case rpcpb.TxOutDetail_contract_call:
-		var (
-			params *types.VMTxParams
-			typ    types.ContractType
-		)
 		var content []byte
 		if data != nil {
 			content = data.Content
 		}
 		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-		params, typ, err = sc.ParseContractParams()
+		params, typ, err := sc.ParseContractParams()
 		if err != nil {
 			return nil, err
 		}
@@ -983,12 +979,12 @@ func detailTxOut(
 				logger.Warn(err)
 				return nil, err
 			}
-			if receipt == nil {
-				return nil, fmt.Errorf("receipt for tx %s not found", txHash)
+			// receipt may be nil if the contract tx is not brought on chain
+			if receipt != nil {
+				fee, failed, gasUsed = uint32(receipt.GasUsed*core.FixedGasPrice),
+					receipt.Failed, receipt.GasUsed
+				logs = rpcutil.ToPbLogs(receipt.Logs)
 			}
-			fee, failed, gasUsed = uint32(receipt.GasUsed*core.FixedGasPrice),
-				receipt.Failed, receipt.GasUsed
-			logs = rpcutil.ToPbLogs(receipt.Logs)
 		}
 		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
 			ContractInfo: &rpcpb.ContractInfo{
