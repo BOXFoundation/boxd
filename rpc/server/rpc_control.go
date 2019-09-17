@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core/chain"
@@ -17,9 +16,8 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
-	"google.golang.org/grpc/metadata"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
-	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/metadata"
 )
 
 func registerControl(s *Server) {
@@ -385,16 +383,15 @@ func (s *ctlserver) CurrentBookkeepers(
 
 //IsLocalAddr verify that the address is a local address
 func IsLocalAddr(ctx context.Context) bool {
-	md, _ := metadata.FromIncomingContext(ctx)
-	logger.Errorf("REQ %v", md["x-forwarded-for"])
-	
-	pr, ok := peer.FromContext(ctx)
+	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return false
 	}
-	cliIP := strings.Split(pr.Addr.String(), ":")[0]
-	if cliIP != "127.0.0.1" {
-		return false
+	clienIPs := md["x-forwarded-for"]
+	for _, v := range clienIPs {
+		if v != "127.0.0.1" {
+			return false
+		}
 	}
 	return true
 }
