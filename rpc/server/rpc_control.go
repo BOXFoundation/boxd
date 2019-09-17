@@ -17,6 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
+	"google.golang.org/grpc/metadata"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"google.golang.org/grpc/peer"
 )
@@ -384,6 +385,9 @@ func (s *ctlserver) CurrentBookkeepers(
 
 //IsLocalAddr verify that the address is a local address
 func IsLocalAddr(ctx context.Context) bool {
+	md, _ := metadata.FromIncomingContext(ctx)
+	logger.Errorf("REQ %v", md["x-forwarded-for"])
+	
 	pr, ok := peer.FromContext(ctx)
 	if !ok {
 		return false
