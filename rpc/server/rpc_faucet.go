@@ -102,11 +102,12 @@ func (f *faucet) Claim(
 		return newClaimResp(-1, "unable to parse ip from context"), err
 	}
 	cliIPs := md["x-forwarded-for"]
+Loop:
 	for _, cliIP := range cliIPs {
 		for _, v := range f.whiteList {
 			if cliIP == v {
 				inWhiteList = true
-				break
+				break Loop
 			}
 		}
 	}

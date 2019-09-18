@@ -38,7 +38,7 @@ type ctlserver struct {
 
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "Access local address only!"}, nil
+		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "Allow only local users!"}, nil
 	}
 	bus := s.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
@@ -46,7 +46,7 @@ func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoReque
 	defer close(ch)
 	nodes := <-ch
 	resp := &rpcpb.GetNodeInfoResponse{
-		Code:    1,
+		Code:    0,
 		Message: "ok",
 	}
 	for _, n := range nodes {
@@ -81,7 +81,7 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 	}
 	var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
-	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+	return &rpcpb.BaseResponse{Code: -1, Message: info}, nil
 }
 
 // GetNetworkID returns
@@ -117,7 +117,7 @@ func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetwork
 		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 	}
 	var info = fmt.Sprintf("Wrong NetworkID: %d", in.Id)
-	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+	return &rpcpb.BaseResponse{Code: -1, Message: info}, nil
 }
 
 func (s *ctlserver) GetCurrentBlockHeight(ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest) (*rpcpb.GetCurrentBlockHeightResponse, error) {
