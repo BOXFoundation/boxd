@@ -29,6 +29,26 @@ func InArray(obj interface{}, array interface{}) bool {
 	return false
 }
 
+// InBytes return if there is an element in the array
+func InBytes(o []byte, bytesArray [][]byte) bool {
+	for _, b := range bytesArray {
+		if bytes.Equal(o, b) {
+			return true
+		}
+	}
+	return false
+}
+
+// InStrings return if there is an element in the array
+func InStrings(o string, strings []string) bool {
+	for _, s := range strings {
+		if o == s {
+			return true
+		}
+	}
+	return false
+}
+
 // HomeDir returns home directory of current user
 func HomeDir() string {
 	if runtime.GOOS == "windows" {

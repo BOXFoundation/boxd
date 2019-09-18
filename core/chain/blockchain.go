@@ -436,9 +436,13 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, core.RelayMode, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
-		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
-		return err
+	if err := chain.ProcessBlock(block, core.RelayMode, msg.From()); err != nil {
+		for _, e := range core.EvilBehavior {
+			if err.Error() == e.Error() {
+				chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
+				return err
+			}
+		}
 	}
 	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil

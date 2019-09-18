@@ -116,5 +116,13 @@ var (
 	ErrBloomBitOutOfBounds = errors.New("Bloom bit out of bounds")
 	ErrInvalidBounds       = errors.New("Invalid section bounds")
 
-	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
+	EvilBehavior = []error{
+		ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig,
+		ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot,
+		ErrDuplicateTx, ErrTooManySigOps, ErrBadFees,
+		ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight,
+		ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx,
+		ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction,
+		ErrDoubleSpendTx,
+	}
 )

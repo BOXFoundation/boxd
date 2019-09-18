@@ -286,7 +286,7 @@ func (bpos *Bpos) IsBookkeeper() bool {
 	if err != nil {
 		return false
 	}
-	if !util.InArray(*addr.Hash160(), dynasty.addrs) {
+	if !types.InAddresses(*addr.Hash160(), dynasty.addrs) {
 		return false
 	}
 	if err := bpos.bookkeeper.UnlockWithPassphrase(bpos.cfg.Passphrase); err != nil {
@@ -730,7 +730,6 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 		// }
 		//TODO: period switching requires extra processing
 
-		addrs := dynasty.addrs
 		remains := []types.AddressHash{}
 		for _, v := range irreversibleInfo.Signatures {
 			if pubkey, ok := crypto.RecoverCompact(irreversibleInfo.Hash[:], v); ok {
@@ -739,8 +738,8 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 					return err
 				}
 				addr := *addrPubKeyHash.Hash160()
-				if util.InArray(addr, addrs) {
-					if !util.InArray(addr, remains) {
+				if types.InAddresses(addr, dynasty.addrs) {
+					if !types.InAddresses(addr, remains) {
 						remains = append(remains, addr)
 					} else {
 						logger.Errorf("Duplicated irreversible signature %v in block. Hash: %s, Height: %d",

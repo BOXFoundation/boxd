@@ -444,3 +444,14 @@ func CreateAddress2(b AddressHash, salt [32]byte, inithash []byte) *AddressHash 
 	addrHash := BytesToAddressHash(vmcrypto.Keccak256([]byte{0xff}, b[:], salt[:], inithash)[12:])
 	return &addrHash
 }
+
+//
+// InAddresses return if there is an element in the address array
+func InAddresses(addr AddressHash, addrs []AddressHash) bool {
+	for _, a := range addrs {
+		if addr == a {
+			return true
+		}
+	}
+	return false
+}

@@ -188,7 +188,7 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 
 		if msg, ok := bft.blockPrepareMsgCache.Load(key); ok {
 			value := msg.([][]byte)
-			if util.InArray(signature, value) {
+			if util.InBytes(signature, value) {
 				return nil
 			}
 			value = append(value, signature)
@@ -243,7 +243,7 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 
 		if msg, ok := bft.blockCommitMsgCache.Load(key); ok {
 			value := msg.([][]byte)
-			if util.InArray(signature, value) {
+			if util.InBytes(signature, value) {
 				return nil
 			}
 			value = append(value, signature)
@@ -284,7 +284,7 @@ func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block
 		return nil, nil, err
 	}
 
-	if !util.InArray(peerID, dynasty.peers) {
+	if !util.InStrings(peerID, dynasty.peers) {
 		return nil, nil, ErrNotBookkeeperPeer
 	}
 

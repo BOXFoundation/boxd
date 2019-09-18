@@ -20,7 +20,6 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/vm"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
@@ -242,9 +241,13 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 	hash, _ := tx.TxHash()
 	logger.Debugf("Start to process tx from network. Hash: %v", hash)
 
-	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil && util.InArray(err, core.EvilBehavior) {
-		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
-		return err
+	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil {
+		for _, e := range core.EvilBehavior {
+			if err.Error() == e.Error() {
+				tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
+				return err
+			}
+		}
 	}
 	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
 	return nil

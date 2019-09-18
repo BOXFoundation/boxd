@@ -12,7 +12,6 @@ import (
 
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
-	"github.com/BOXFoundation/boxd/util"
 	"github.com/jbenet/goprocess"
 	kbucket "github.com/libp2p/go-libp2p-kbucket"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -192,10 +191,14 @@ func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, lay
 	})
 
 	var unestablishedID []peer.ID
+out:
 	for _, v := range all {
-		if !util.InArray(v, establishedID) {
-			unestablishedID = append(unestablishedID, v)
+		for _, e := range establishedID {
+			if v == e {
+				continue out
+			}
 		}
+		unestablishedID = append(unestablishedID, v)
 	}
 
 	cap := int(num)
