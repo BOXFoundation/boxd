@@ -1098,7 +1098,7 @@ func (s *webapiServer) PeerID(
 	ctx context.Context, req *rpcpb.PeerIDReq,
 ) (*rpcpb.PeerIDResp, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.PeerIDResp{Code: -1, Message: "Access local address only!"}, nil
+		return &rpcpb.PeerIDResp{Code: -1, Message: "Allow only local users!"}, nil
 	}
 	return &rpcpb.PeerIDResp{
 		Code:    0,

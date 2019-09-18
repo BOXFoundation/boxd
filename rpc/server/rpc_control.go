@@ -71,7 +71,7 @@ func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rp
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.BaseResponse{Code: -1, Message: "Access local address only!"}, nil
+		return &rpcpb.BaseResponse{Code: -1, Message: "Allow only local users!"}, nil
 	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
@@ -87,7 +87,7 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 // GetNetworkID returns
 func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "Access local address only!"}, nil
+		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "Allow only local users!"}, nil
 	}
 	ch := make(chan uint32)
 	s.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
@@ -107,7 +107,7 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 // NOTE: should be remove in product env
 func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.BaseResponse{Code: -1, Message: "Access local address only!"}, nil
+		return &rpcpb.BaseResponse{Code: -1, Message: "Allow only local users!"}, nil
 	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
