@@ -17,7 +17,6 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
-	"google.golang.org/grpc/metadata"
 )
 
 func registerControl(s *Server) {
@@ -329,17 +328,7 @@ func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
 	return newGetTxResp(0, "ok", tx), nil
 }
 
-func newCurrentBookkeepersResp(
-	code int32, msg string, keepers []*rpcpb.Bookkeeper,
-) *rpcpb.CurrentBookkeepersResp {
-	return &rpcpb.CurrentBookkeepersResp{
-		Code:        code,
-		Message:     msg,
-		Bookkeepers: keepers,
-	}
-}
-
-// Delegate is a bookkeeper node.
+// Delegate is an account to run for bookkeepers.
 type Delegate struct {
 	Addr            types.AddressHash
 	PeerID          string
@@ -350,48 +339,71 @@ type Delegate struct {
 	IsExist         bool
 }
 
-func (s *ctlserver) CurrentBookkeepers(
-	ctx context.Context, req *rpcpb.CurrentBookkeepersReq,
-) (*rpcpb.CurrentBookkeepersResp, error) {
-
-	output, err := s.server.GetChainReader().CallGenesisContract(0, "getDynasty")
+func (s *ctlserver) getDelegates(methodName string) ([]*rpcpb.Delegate, error) {
+	output, err := s.server.GetChainReader().CallGenesisContract(0, methodName)
 	if err != nil {
-		return newCurrentBookkeepersResp(-1, err.Error(), nil), nil
+		return nil, err
 	}
-	var dynasties []Delegate
-	if err := chain.ContractAbi.Unpack(&dynasties, "getDynasty", output); err != nil {
-		return newCurrentBookkeepersResp(-1, err.Error(), nil), nil
+	var delegates []Delegate
+	if err := chain.ContractAbi.Unpack(&delegates, methodName, output); err != nil {
+		return nil, err
 	}
-	bookkeepers := make([]*rpcpb.Bookkeeper, 0, len(dynasties))
-	for _, d := range dynasties {
+	delegatesR := make([]*rpcpb.Delegate, 0, len(delegates))
+	for _, d := range delegates {
 		addr, err := types.NewAddressPubKeyHash(d.Addr[:])
 		if err != nil {
-			return nil, fmt.Errorf("get bokkeeper %x error: %s", d.Addr[:], err)
+			return nil, err
 		}
-		bk := &rpcpb.Bookkeeper{
+		dl := &rpcpb.Delegate{
 			Addr:             addr.String(),
 			Votes:            d.Votes.Uint64(),
 			PledgeAmount:     d.PledgeAmount.Uint64(),
 			Score:            d.Score.Uint64(),
 			ContinualPeriods: uint32(d.ContinualPeriod.Uint64()),
 		}
-		bookkeepers = append(bookkeepers, bk)
+		delegatesR = append(delegatesR, dl)
 	}
-
-	return newCurrentBookkeepersResp(0, "ok", bookkeepers), nil
+	return delegatesR, nil
 }
 
-//IsLocalAddr verify that the address is a local address
-func IsLocalAddr(ctx context.Context) bool {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return false
+func newBookkeepersResp(
+	code int32, msg string, keepers []*rpcpb.Delegate,
+) *rpcpb.BookkeepersResp {
+	return &rpcpb.BookkeepersResp{
+		Code:        code,
+		Message:     msg,
+		Bookkeepers: keepers,
 	}
-	clienIPs := md["x-forwarded-for"]
-	for _, v := range clienIPs {
-		if v != "127.0.0.1" {
-			return false
-		}
+}
+
+func (s *ctlserver) Bookkeepers(
+	ctx context.Context, req *rpcpb.BookkeepersReq,
+) (*rpcpb.BookkeepersResp, error) {
+
+	delegates, err := s.getDelegates("getDynasty")
+	if err != nil {
+		return newBookkeepersResp(-1, err.Error(), nil), nil
 	}
-	return true
+	return newBookkeepersResp(0, "ok", delegates), nil
+}
+
+func newCandidatesResp(
+	code int32, msg string, candidates []*rpcpb.Delegate,
+) *rpcpb.CandidatesResp {
+	return &rpcpb.CandidatesResp{
+		Code:       code,
+		Message:    msg,
+		Candidates: candidates,
+	}
+}
+
+func (s *ctlserver) Candidates(
+	ctx context.Context, req *rpcpb.CandidatesReq,
+) (*rpcpb.CandidatesResp, error) {
+
+	delegates, err := s.getDelegates("getNextDelegates")
+	if err != nil {
+		return newCandidatesResp(-1, err.Error(), nil), nil
+	}
+	return newCandidatesResp(0, "ok", delegates), nil
 }

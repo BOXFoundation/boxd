@@ -23,6 +23,7 @@ import (
 	"github.com/rs/cors"
 	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 var logger = log.NewLogger("rpc")
@@ -318,4 +319,19 @@ func serviceUnavailableHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Errorf("Sorry, the server is busy due to too many requests")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	w.Write([]byte("{\"Err:\",\"Sorry, the server is busy due to too many requests.\nPlease try again later.\"}"))
+}
+
+//IsLocalAddr verify that the address is a local address
+func IsLocalAddr(ctx context.Context) bool {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return false
+	}
+	clienIPs := md["x-forwarded-for"]
+	for _, v := range clienIPs {
+		if v != "127.0.0.1" {
+			return false
+		}
+	}
+	return true
 }
