@@ -269,7 +269,7 @@ contract Bonus is Permission{
             }
             delete dynastyToBonus[dynasty[i].addr];
         }
-        current = next;
+        // current = next;
         if (pledgeAddrList.length >= DYNASTY_SIZE) {
             updateDynasty();
             updateNetParams();
