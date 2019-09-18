@@ -744,7 +744,7 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 	var totalFees uint64
 	for _, tx := range txs {
 		// skip coinbase tx
-		if IsCoinBase(tx) || IsDynastySwitch(tx) {
+		if IsCoinBase(tx) || IsInternalContract(tx) {
 			continue
 		}
 		txFee, err := ValidateTxInputs(utxoSet, tx)
@@ -2304,10 +2304,10 @@ func (chain *BlockChain) MakeInternalContractTx(
 	switch method {
 	case CalcBonus:
 		index = sysmath.MaxUint32
-	case ExecBonus:
+	case ExecBonus, CalcScore:
 		index = sysmath.MaxUint32 - 1
-	case CalcScore:
-		index = sysmath.MaxUint32 - 2
+		// case CalcScore:
+		// 	index = sysmath.MaxUint32 - 2
 	}
 
 	tx := &types.Transaction{

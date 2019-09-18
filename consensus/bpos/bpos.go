@@ -220,12 +220,17 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.bookKeeperReward = netParams.BookKeeperReward
 	bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
 
-	delegates, err := bpos.fetchDelegatesByHeight(bpos.chain.LongestChainHeight)
+	current, err := bpos.fetchCurrentDelegatesByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return err
 	}
-	bpos.context.delegates = delegates
-	bpos.context.candidates = bpos.filterCandidates(delegates, dynasty.delegates)
+	next, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
+	if err != nil {
+		return err
+	}
+	bpos.context.currentDelegates = current
+	bpos.context.nextDelegates = next
+	bpos.context.candidates = bpos.filterCandidates(current, dynasty.delegates)
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err
@@ -566,7 +571,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	// 	if err != nil {
 	// 		return err
 	// 	}
-	// 	calcScoreTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, chain.CalcScore, scores)
+	// 	calcScoreTx, err := bpos.chain.MakeInternalContractTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.CalcScore, scores)
 	// 	if err != nil {
 	// 		return err
 	// 	}
@@ -815,18 +820,18 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
 
 	if uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0 { // dynasty switch
-		if !chain.IsDynastySwitch(block.Txs[1]) {
+		if !chain.IsInternalContract(block.Txs[1]) {
 			return ErrInvalidDynastySwitchTx
 		}
 		for i, tx := range block.Txs[2:] {
-			if chain.IsDynastySwitch(tx) {
+			if chain.IsInternalContract(tx) {
 				logger.Errorf("block contains second dynasty switch tx at index %d", i+2)
 				return ErrMultipleDynastySwitchTx
 			}
 		}
 	} else {
 		for _, tx := range block.Txs {
-			if chain.IsDynastySwitch(tx) {
+			if chain.IsInternalContract(tx) {
 				return ErrDynastySwitchIsNotAllowed
 			}
 		}

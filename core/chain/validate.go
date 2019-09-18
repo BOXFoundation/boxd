@@ -155,7 +155,7 @@ func validateBlockScripts(utxoSet *UtxoSet, block *types.Block) error {
 
 	// Skip coinbases && dynasty switch tx
 	for _, tx := range block.Txs[1:] {
-		if IsDynastySwitch(tx) {
+		if IsInternalContract(tx) {
 			continue
 		}
 		txScriptItems, err := CheckTxScripts(utxoSet, tx, true /* do not validate script here */)
@@ -282,7 +282,7 @@ func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool
 // Returns the total tx fee.
 func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction) (uint64, error) {
 	// Coinbase tx needs no inputs.
-	if IsCoinBase(tx) || IsDynastySwitch(tx) {
+	if IsCoinBase(tx) || IsInternalContract(tx) {
 		return 0, nil
 	}
 
@@ -440,7 +440,7 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 		}
 	}
 
-	if IsCoinBase(tx) || IsDynastySwitch(tx) {
+	if IsCoinBase(tx) || IsInternalContract(tx) {
 		// Coinbase script length must be between min and max length.
 		slen := len(tx.Vin[0].ScriptSig)
 		if slen < core.MinCoinbaseScriptLen || slen > core.MaxCoinbaseScriptLen {
