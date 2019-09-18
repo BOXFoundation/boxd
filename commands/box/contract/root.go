@@ -422,15 +422,6 @@ func getLogs(cmd *cobra.Command, args []string) {
 	address := strings.Split(args[3], ",")
 	topicsStr := strings.Split(args[4], ",")
 	topics := []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: topicsStr}}
-
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 	req := &rpcpb.LogsReq{
 		Uid:       "",
 		Hash:      hash,
@@ -439,17 +430,25 @@ func getLogs(cmd *cobra.Command, args []string) {
 		Addresses: address,
 		Topics:    topics,
 	}
-	client := rpcpb.NewWebApiClient(conn)
-	resp, err := client.GetLogs(ctx, req)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Successful, log information:", resp.Logs)
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetLogs",
+		req, getRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	resp := respRPC.(*rpcpb.Logs)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println("Successful, log information: ", resp.Logs)
 }
 
 func getNonce(cmd *cobra.Command, args []string) {
-	fmt.Println("get nonce called")
 	if len(args) != 1 {
 		fmt.Println("Invalid argument number")
 		return
@@ -457,52 +456,41 @@ func getNonce(cmd *cobra.Command, args []string) {
 	addr := args[0]
 	//validate address
 	if err := types.ValidateAddr(addr); err != nil {
-		fmt.Println("From address is Invalid: ", err)
+		fmt.Println("address is Invalid: ", err)
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "Nonce",
+		&rpcpb.NonceReq{Addr: addr}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewWebApiClient(conn)
-	req := &rpcpb.NonceReq{
-		Addr: addr,
-	}
-	resp, err := client.Nonce(ctx, req)
-	if err != nil {
-		fmt.Println("RPC call failed ：", err)
+	resp := respRPC.(*rpcpb.NonceResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Nonce : ", resp.Nonce)
+	fmt.Println("Nonce: ", resp.Nonce)
 }
+
 func getCode(cmd *cobra.Command, args []string) {
 	fmt.Println("get code called")
 	if len(args) != 1 {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetCode",
+		&rpcpb.GetCodeReq{Address: args[0]}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewWebApiClient(conn)
-	req := &rpcpb.GetCodeReq{
-		Address: args[0],
-	}
-	resp, err := client.GetCode(ctx, req)
-	if err != nil {
-		fmt.Println(err)
+	resp := respRPC.(*rpcpb.GetCodeResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Code : ", resp.Data)
+	fmt.Println("Code: ", resp.Data)
 }
 
 func getEstimateGas(cmd *cobra.Command, args []string) {
@@ -511,15 +499,6 @@ func getEstimateGas(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewWebApiClient(conn)
 	height, err := strconv.ParseUint(args[3], 10, 64)
 	if err != nil {
 		fmt.Println(err)
@@ -537,29 +516,26 @@ func getEstimateGas(cmd *cobra.Command, args []string) {
 		Height:  uint32(height),
 		Timeout: uint32(timeout),
 	}
-	resp, err := client.EstimateGas(ctx, req)
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "EstimateGas",
+		req, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Estimate Gas : ", resp.Gas)
+	resp := respRPC.(*rpcpb.EstimateGasResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println("Estimate Gas: ", resp.Gas)
 }
 
 func getStorageAt(cmd *cobra.Command, args []string) {
-	fmt.Println("get code called")
+	fmt.Println("get storage called")
 	if len(args) != 3 {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewWebApiClient(conn)
 	height, err := strconv.ParseUint(args[2], 10, 64)
 	if err != nil {
 		fmt.Println(err)
@@ -570,10 +546,16 @@ func getStorageAt(cmd *cobra.Command, args []string) {
 		Position: args[1],
 		Height:   uint32(height),
 	}
-	resp, err := client.GetStorageAt(ctx, req)
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetStorageAt",
+		req, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("position : ", resp.Data)
+	resp := respRPC.(*rpcpb.StorageResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println("position: ", resp.Data)
 }

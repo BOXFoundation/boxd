@@ -41,7 +41,8 @@ var (
 	ErrInvalidInternalTxs           = errors.New("Invalid internal txs")
 	ErrInvalidMessageSender         = errors.New("Invalid message sender")
 	ErrContractNotFound             = errors.New("Contract not found")
-	ErrNonceTooLow                  = errors.New("nonce is too low")
+	ErrMaxCodeSizeExceeded          = errors.New("Max contract code size exceeded")
+	ErrNonceTooLow                  = errors.New("Nonce is too low")
 
 	//transaciton_pool.go
 	ErrDuplicateTxInPool          = errors.New("Duplicate transactions in tx pool")
@@ -52,19 +53,19 @@ var (
 	ErrOrphanTransaction          = errors.New("Orphan transaction cannot be admitted into the pool")
 	ErrNonLocalMessage            = errors.New("Received non-local message")
 	ErrLocalMessageNotChainUpdate = errors.New("Received local message is not a chain update")
-	ErrUtxosOob                   = errors.New("utxos in tx out of bound")
-	ErrVoutsOob                   = errors.New("vout in tx out of bound")
+	ErrUtxosOob                   = errors.New("Utxos in tx out of bound")
+	ErrVoutsOob                   = errors.New("Vout in tx out of bound")
 
 	//block.go
 	ErrSerializeHeader                = errors.New("Serialize block header error")
 	ErrEmptyProtoMessage              = errors.New("Empty proto message")
 	ErrInvalidBlockHeaderProtoMessage = errors.New("Invalid block header proto message")
 	ErrInvalidBlockProtoMessage       = errors.New("Invalid block proto message")
-	ErrOutOfBlockGasLimit             = errors.New("out of block gas limit")
+	ErrOutOfBlockGasLimit             = errors.New("Out of block gas limit")
 
 	//trie.go
 	ErrInvalidTrieProtoMessage = errors.New("Invalid trie proto message")
-	ErrNodeNotFound            = errors.New("node is not found")
+	ErrNodeNotFound            = errors.New("Node is not found")
 	ErrInvalidNodeType         = errors.New("Invalid node type")
 	ErrInvalidKeyPath          = errors.New("Invalid key path")
 
@@ -75,19 +76,19 @@ var (
 	ErrInvalidLogProtoMessage = errors.New("Invalid log proto message")
 
 	//transaction.go
-	ErrSerializeOutPoint                   = errors.New("serialize outPoint error")
+	ErrSerializeOutPoint                   = errors.New("Serialize outPoint error")
 	ErrInvalidOutPointProtoMessage         = errors.New("Invalid OutPoint proto message")
 	ErrInvalidTxInProtoMessage             = errors.New("Invalid TxIn proto message")
 	ErrInvalidTxOutProtoMessage            = errors.New("Invalid TxOut proto message")
 	ErrInvalidTxProtoMessage               = errors.New("Invalid tx proto message")
 	ErrInvalidIrreversibleInfoProtoMessage = errors.New("Invalid IrreversibleInfo proto message")
 	ErrInvalidFee                          = errors.New("Invalid transaction fee")
-	ErrContractDataNotFound                = errors.New("contract data not found in tx")
-	ErrMultipleContractVouts               = errors.New("multiple contract vouts")
+	ErrContractDataNotFound                = errors.New("Contract data not found in tx")
+	ErrMultipleContractVouts               = errors.New("Multiple contract vouts")
 
 	//address.go
-	ErrInvalidPKHash        = errors.New("pkHash must be 20 bytes")
-	ErrInvalidAddressString = errors.New("invalid box address format")
+	ErrInvalidPKHash        = errors.New("PkHash must be 20 bytes")
+	ErrInvalidAddressString = errors.New("Invalid box address format")
 
 	//utils.go
 	ErrNoTxInputs           = errors.New("Transaction has no inputs")

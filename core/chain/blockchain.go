@@ -769,6 +769,9 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 			continue
 		}
 		// smart contract tx.
+		if len(tx.Data.Content) > core.MaxCodeSize {
+			return 0, core.ErrMaxCodeSizeExceeded
+		}
 		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 		param, _, err := sc.ParseContractParams()
 		if err != nil {
@@ -1666,6 +1669,10 @@ func (chain *BlockChain) GetBlockLogs(hash *crypto.HashType) ([]*types.Log, erro
 func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error) {
 	if height == 0 {
 		height = chain.tail.Header.Height
+	}
+	if height > chain.tail.Header.Height {
+		return nil, nil, fmt.Errorf("new evm failed with height %d too hight, now %d",
+			height, chain.tail.Header.Height)
 	}
 	block, err := chain.LoadBlockByHeight(height)
 	if block == nil || err != nil {

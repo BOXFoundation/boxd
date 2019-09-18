@@ -21,7 +21,7 @@ type NetParams struct {
 // FetchNetParamsByHeight fetch net params from genesis contract.
 func (chain *BlockChain) FetchNetParamsByHeight(height uint32) (*NetParams, error) {
 
-	output, err := chain.Call(height, "getNetParams")
+	output, err := chain.CallGenesisContract(height, "getNetParams")
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +37,8 @@ func (chain *BlockChain) FetchNetParamsByHeight(height uint32) (*NetParams, erro
 	}, nil
 }
 
-// Call genesis smart contract
-func (chain *BlockChain) Call(height uint32, method string) ([]byte, error) {
+// CallGenesisContract genesis smart contract
+func (chain *BlockChain) CallGenesisContract(height uint32, method string) ([]byte, error) {
 
 	data, err := ContractAbi.Pack(method)
 	if err != nil {

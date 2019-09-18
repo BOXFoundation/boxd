@@ -172,7 +172,7 @@ func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegat
 }
 
 func (bpos *Bpos) fetchDelegatesByHeight(height uint32) ([]Delegate, error) {
-	output, err := bpos.chain.Call(height, "getDelegates")
+	output, err := bpos.chain.CallGenesisContract(height, "getDelegates")
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (bpos *Bpos) fetchDelegatesByHeight(height uint32) ([]Delegate, error) {
 
 func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 
-	output, err := bpos.chain.Call(height, "getDynasty")
+	output, err := bpos.chain.CallGenesisContract(height, "getDynasty")
 	if err != nil {
 		return nil, err
 	}

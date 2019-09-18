@@ -40,7 +40,6 @@ service ContorlCommand {
         };
     }
 
-
     rpc GetCurrentBlockHeight (GetCurrentBlockHeightRequest) returns (GetCurrentBlockHeightResponse) {
         option (google.api.http) = {
             post: "/v1/ctl/getcurrentblockheight"
@@ -82,38 +81,48 @@ service ContorlCommand {
             body: "*"
         };
     }
+
     rpc GetBlockByHeight (GetBlockByHeightReq) returns (GetBlockResponse) {
         option (google.api.http) = {
             post: "/v1/ctl/getBlockByHeight"
             body: "*"
         };
     }
+
     rpc GetBlockTransactionCountByHash (GetBlockTransactionCountByHashReq) returns (GetBlockTxCountResp) {
         option (google.api.http) = {
             post: "/v1/ctl/block/txCountByHash"
             body: "*"
         };
     }
+
     rpc GetBlockTransactionCountByHeight (GetBlockTransactionCountByHeightReq) returns (GetBlockTxCountResp) {
         option (google.api.http) = {
             post: "/v1/ctl/block/txCountByHeight"
             body: "*"
         };
     }
+
     rpc GetTransactionByBlockHashAndIndex (GetTransactionByBlockHashAndIndexReq) returns (GetTxResp) {
         option (google.api.http) = {
             post: "/v1/ctl/getTxByHash"
             body: "*"
         };
     }
+
     rpc GetTransactionByBlockHeightAndIndex (GetTransactionByBlockHeightAndIndexReq) returns (GetTxResp) {
         option (google.api.http) = {
             post: "/v1/ctl/getTxByHeight"
             body: "*"
         };
     }
-    
-    
+
+    rpc CurrentBookkeepers (CurrentBookkeepersReq) returns (CurrentBookkeepersResp) {
+        option (google.api.http) = {
+            post: "/v1/ctl/bookkeepers"
+            body: "*"
+        };
+    }
 }
 
 // The request message containing debug level.
@@ -129,8 +138,10 @@ message GetNetworkIDRequest {
 }
 
 message GetNetworkIDResponse {
-    uint32 id = 1;
-    string literal = 2;
+    int32 code = 1;
+    string message = 2;
+    uint32 id = 3;
+    string literal = 4;
 }
 
 message AddNodeRequest {
@@ -193,7 +204,9 @@ message GetNodeInfoRequest {
 }
 
 message GetNodeInfoResponse {
-    repeated Node nodes = 1;
+    int32 code = 1;
+    string message = 2;
+    repeated Node nodes = 3;
 }
 
 message GetBlockByHeightReq {
@@ -231,4 +244,19 @@ message GetTxResp {
     corepb.Transaction Tx = 3;
 }
 
+message CurrentBookkeepersReq {
+}
 
+message CurrentBookkeepersResp {
+    int32 code = 1;
+    string message = 2;
+    repeated Bookkeeper bookkeepers = 3;
+}
+
+message Bookkeeper {
+    string addr = 1;
+    uint64 votes = 2;
+    uint64 pledge_amount = 3;
+    uint64 score = 4;
+    uint32 continual_periods = 5;
+}

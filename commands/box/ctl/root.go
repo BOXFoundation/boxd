@@ -5,11 +5,9 @@
 package ctl
 
 import (
-	"context"
 	"fmt"
 	"path"
 	"strconv"
-	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
@@ -200,48 +198,34 @@ func getBLockByHeight(cmd *cobra.Command, args []string) {
 		return
 	}
 	height, err := strconv.ParseUint(args[0], 10, 32)
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	if err != nil {
+		fmt.Println("getblockbyheight failed: ", err)
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockByHeight",
+		&rpcpb.GetBlockByHeightReq{Height: uint32(height)}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewContorlCommandClient(conn)
-	req := &rpcpb.GetBlockByHeightReq{
-		Height: uint32(height),
-	}
-	resp, err := client.GetBlockByHeight(ctx, req)
-	if err != nil {
-		fmt.Println("getblockbyheight failed : ", err)
-		return
-	}
+	resp := respRPC.(*rpcpb.GetBlockResponse)
 	block := &types.Block{}
 	err = block.FromProtoMessage(resp.Block)
 	if err != nil {
-		fmt.Println("the format of block conversion failed :", err)
+		fmt.Println("the format of block conversion failed: ", err)
 	}
 	fmt.Printf("Block Information \n%s\n", format.PrettyPrint(block))
 }
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Println("getblockcount called")
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetCurrentBlockHeight",
+		&rpcpb.GetCurrentBlockHeightRequest{}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	req := &rpcpb.GetCurrentBlockHeightRequest{}
-	client := rpcpb.NewContorlCommandClient(conn)
-	resp, err := client.GetCurrentBlockHeight(ctx, req)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	resp := respRPC.(*rpcpb.GetCurrentBlockHeightResponse)
 	fmt.Println("Current Block Height:", resp.Height)
 }
 
@@ -327,19 +311,15 @@ func getInfoCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetNodeInfo",
+		&rpcpb.GetNodeInfoRequest{}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewContorlCommandClient(conn)
-	req := &rpcpb.GetNodeInfoRequest{}
-	resp, err := client.GetNodeInfo(ctx, req)
-	if err != nil {
-		fmt.Println("get node information failed : ", err)
+	resp := respRPC.(*rpcpb.GetNodeInfoResponse)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
 		return
 	}
 	fmt.Println(format.PrettyPrint(resp))
@@ -349,22 +329,18 @@ func getPeerIDCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "PeerID",
+		&rpcpb.PeerIDReq{}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewWebApiClient(conn)
-	req := &rpcpb.PeerIDReq{}
-	resp, err := client.PeerID(ctx, req)
-	if err != nil {
-		fmt.Println("get peer ID failed : ", err)
+	resp := respRPC.(*rpcpb.PeerIDResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Peer ID : ", format.PrettyPrint(resp.Peerid))
+	fmt.Println("Peer ID: ", format.PrettyPrint(resp.Peerid))
 }
 
 func getNetWorkID(cmd *cobra.Command, args []string) {
@@ -372,19 +348,15 @@ func getNetWorkID(cmd *cobra.Command, args []string) {
 		fmt.Println("Invalid argument number ")
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetNetworkID",
+		&rpcpb.GetNetworkIDRequest{}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewContorlCommandClient(conn)
-	req := &rpcpb.GetNetworkIDRequest{}
-	resp, err := client.GetNetworkID(ctx, req)
-	if err != nil {
-		fmt.Println("get network ID failed :", err)
+	resp := respRPC.(*rpcpb.GetNetworkIDResponse)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
 		return
 	}
 	fmt.Println(format.PrettyPrint(resp))

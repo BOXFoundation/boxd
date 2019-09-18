@@ -15,6 +15,7 @@ import (
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -301,6 +302,7 @@ func decodeAddress(cmd *cobra.Command, args []string) {
 	}
 	fmt.Printf("address hash: %x\n", address.Hash160()[:])
 }
+
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	addrs := make([]string, 0)
 	if len(args) < 1 {
@@ -315,22 +317,22 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		addrs = args
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
 	if err := types.ValidateAddr(addrs...); err != nil {
 		fmt.Println(err)
 		return
 	}
-	balances, err := rpcutil.GetBalance(conn, addrs)
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetBalance",
+		&rpcpb.GetBalanceReq{Addrs: addrs}, getRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	for i, b := range balances {
+	resp := respRPC.(*rpcpb.GetBalanceResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	for i, b := range resp.Balances {
 		fmt.Printf("%s: %d\n", addrs[i], b)
 	}
 }

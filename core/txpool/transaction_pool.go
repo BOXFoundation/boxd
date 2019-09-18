@@ -700,6 +700,9 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 		len(tx.Data.Content) == 0 {
 		return core.ErrContractDataNotFound
 	}
+	if len(tx.Data.Content) > core.MaxCodeSize {
+		return core.ErrMaxCodeSizeExceeded
+	}
 	sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 	param, ty, err := sc.ParseContractParams()
 	if err != nil {

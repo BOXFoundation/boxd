@@ -7,13 +7,17 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"google.golang.org/grpc/metadata"
 )
 
 func registerControl(s *Server) {
@@ -33,12 +37,18 @@ type ctlserver struct {
 }
 
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
+	if !IsLocalAddr(ctx) {
+		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "Allow only local users!"}, nil
+	}
 	bus := s.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
 	bus.Send(eventbus.TopicGetAddressBook, ch)
 	defer close(ch)
 	nodes := <-ch
-	resp := &rpcpb.GetNodeInfoResponse{}
+	resp := &rpcpb.GetNodeInfoResponse{
+		Code:    0,
+		Message: "ok",
+	}
 	for _, n := range nodes {
 		resp.Nodes = append(resp.Nodes, &rpcpb.Node{
 			Id:    n.PeerID.Pretty(),
@@ -60,6 +70,9 @@ func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rp
 
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
+	if !IsLocalAddr(ctx) {
+		return &rpcpb.BaseResponse{Code: -1, Message: "Allow only local users!"}, nil
+	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicSetDebugLevel, in.Level, ch)
@@ -68,11 +81,14 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 	}
 	var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
-	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+	return &rpcpb.BaseResponse{Code: -1, Message: info}, nil
 }
 
 // GetNetworkID returns
 func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
+	if !IsLocalAddr(ctx) {
+		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "Allow only local users!"}, nil
+	}
 	ch := make(chan uint32)
 	s.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
 	current := <-ch
@@ -84,12 +100,15 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 	} else {
 		literal = "Unknown"
 	}
-	return &rpcpb.GetNetworkIDResponse{Id: current, Literal: literal}, nil
+	return &rpcpb.GetNetworkIDResponse{Code: 0, Message: "ok", Id: current, Literal: literal}, nil
 }
 
 // UpdateNetworkID implements UpdateNetworkID
 // NOTE: should be remove in product env
 func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
+	if !IsLocalAddr(ctx) {
+		return &rpcpb.BaseResponse{Code: -1, Message: "Allow only local users!"}, nil
+	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicUpdateNetworkID, in.Id, ch)
@@ -98,7 +117,7 @@ func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetwork
 		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
 	}
 	var info = fmt.Sprintf("Wrong NetworkID: %d", in.Id)
-	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+	return &rpcpb.BaseResponse{Code: -1, Message: info}, nil
 }
 
 func (s *ctlserver) GetCurrentBlockHeight(ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest) (*rpcpb.GetCurrentBlockHeightResponse, error) {
@@ -308,4 +327,71 @@ func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
 	}
 	tx := blockPb.Txs[req.Index]
 	return newGetTxResp(0, "ok", tx), nil
+}
+
+func newCurrentBookkeepersResp(
+	code int32, msg string, keepers []*rpcpb.Bookkeeper,
+) *rpcpb.CurrentBookkeepersResp {
+	return &rpcpb.CurrentBookkeepersResp{
+		Code:        code,
+		Message:     msg,
+		Bookkeepers: keepers,
+	}
+}
+
+// Delegate is a bookkeeper node.
+type Delegate struct {
+	Addr            types.AddressHash
+	PeerID          string
+	Votes           *big.Int
+	PledgeAmount    *big.Int
+	Score           *big.Int
+	ContinualPeriod *big.Int
+	IsExist         bool
+}
+
+func (s *ctlserver) CurrentBookkeepers(
+	ctx context.Context, req *rpcpb.CurrentBookkeepersReq,
+) (*rpcpb.CurrentBookkeepersResp, error) {
+
+	output, err := s.server.GetChainReader().CallGenesisContract(0, "getDynasty")
+	if err != nil {
+		return newCurrentBookkeepersResp(-1, err.Error(), nil), nil
+	}
+	var dynasties []Delegate
+	if err := chain.ContractAbi.Unpack(&dynasties, "getDynasty", output); err != nil {
+		return newCurrentBookkeepersResp(-1, err.Error(), nil), nil
+	}
+	bookkeepers := make([]*rpcpb.Bookkeeper, 0, len(dynasties))
+	for _, d := range dynasties {
+		addr, err := types.NewAddressPubKeyHash(d.Addr[:])
+		if err != nil {
+			return nil, fmt.Errorf("get bokkeeper %x error: %s", d.Addr[:], err)
+		}
+		bk := &rpcpb.Bookkeeper{
+			Addr:             addr.String(),
+			Votes:            d.Votes.Uint64(),
+			PledgeAmount:     d.PledgeAmount.Uint64(),
+			Score:            d.Score.Uint64(),
+			ContinualPeriods: uint32(d.ContinualPeriod.Uint64()),
+		}
+		bookkeepers = append(bookkeepers, bk)
+	}
+
+	return newCurrentBookkeepersResp(0, "ok", bookkeepers), nil
+}
+
+//IsLocalAddr verify that the address is a local address
+func IsLocalAddr(ctx context.Context) bool {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return false
+	}
+	clienIPs := md["x-forwarded-for"]
+	for _, v := range clienIPs {
+		if v != "127.0.0.1" {
+			return false
+		}
+	}
+	return true
 }

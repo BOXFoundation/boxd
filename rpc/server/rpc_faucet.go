@@ -7,7 +7,6 @@ package rpc
 import (
 	"context"
 	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 
-	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/metadata"
 )
 
 func init() {
@@ -97,17 +96,19 @@ func (f *faucet) Claim(
 		}
 	}()
 
-	pr, ok := peer.FromContext(ctx)
-
+	inWhiteList := false
+	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return newClaimResp(-1, "unable to parse ip from context"), err
 	}
-	cliIP := strings.Split(pr.Addr.String(), ":")[0]
-	inWhiteList := false
-	for _, v := range f.whiteList {
-		if cliIP == v {
-			inWhiteList = true
-			break
+	cliIPs := md["x-forwarded-for"]
+Loop:
+	for _, cliIP := range cliIPs {
+		for _, v := range f.whiteList {
+			if cliIP == v {
+				inWhiteList = true
+				break Loop
+			}
 		}
 	}
 	if !inWhiteList {
