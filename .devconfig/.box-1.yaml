@@ -30,7 +30,6 @@ p2p:
 rpc:
     port: 19191
     http:
-        address: 0.0.0.0
         port: 19190
     faucet:
         keyfile: ./keyfile/key1.keystore

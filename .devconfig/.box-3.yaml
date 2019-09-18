@@ -28,10 +28,8 @@ p2p:
     conn_load_factor: 0.8
     relay_size: 32
 rpc:
-    address: 0.0.0.0
     port: 19171
     http:
-        address: 0.0.0.0
         port: 19170
     subscribe_blocks: true
     subscribe_logs: true

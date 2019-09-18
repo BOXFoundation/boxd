@@ -27,7 +27,6 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	uuid "github.com/satori/go.uuid"
-	"golang.org/x/net/context"
 )
 
 func init() {

@@ -359,7 +359,7 @@ func getNetWorkID(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println(format.PrettyPrint(resp))
+	fmt.Printf("network id: %d\nnetwork literal: %s\n", resp.Id, resp.Literal)
 }
 
 func getRPCAddr() string {
