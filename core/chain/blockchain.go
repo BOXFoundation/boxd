@@ -1670,6 +1670,10 @@ func (chain *BlockChain) NewEvmContextForLocalCallByHeight(msg types.Message, he
 	if height == 0 {
 		height = chain.tail.Header.Height
 	}
+	if height > chain.tail.Header.Height {
+		return nil, nil, fmt.Errorf("new evm failed with height %d too hight, now %d",
+			height, chain.tail.Header.Height)
+	}
 	block, err := chain.LoadBlockByHeight(height)
 	if block == nil || err != nil {
 		return nil, nil, err

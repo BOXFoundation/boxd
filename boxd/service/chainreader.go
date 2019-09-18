@@ -30,4 +30,5 @@ type ChainReader interface {
 	EternalBlock() *types.Block
 	TailBlock() *types.Block
 	TailState() *state.StateDB
+	CallGenesisContract(height uint32, method string) ([]byte, error)
 }

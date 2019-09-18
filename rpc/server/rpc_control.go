@@ -7,9 +7,12 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
@@ -308,4 +311,56 @@ func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
 	}
 	tx := blockPb.Txs[req.Index]
 	return newGetTxResp(0, "ok", tx), nil
+}
+
+func newCurrentBookkeepersResp(
+	code int32, msg string, keepers []*rpcpb.Bookkeeper,
+) *rpcpb.CurrentBookkeepersResp {
+	return &rpcpb.CurrentBookkeepersResp{
+		Code:        code,
+		Message:     msg,
+		Bookkeepers: keepers,
+	}
+}
+
+// Delegate is a bookkeeper node.
+type Delegate struct {
+	Addr            types.AddressHash
+	PeerID          string
+	Votes           *big.Int
+	PledgeAmount    *big.Int
+	Score           *big.Int
+	ContinualPeriod *big.Int
+	IsExist         bool
+}
+
+func (s *ctlserver) CurrentBookkeepers(
+	ctx context.Context, req *rpcpb.CurrentBookkeepersReq,
+) (*rpcpb.CurrentBookkeepersResp, error) {
+
+	output, err := s.server.GetChainReader().CallGenesisContract(0, "getDynasty")
+	if err != nil {
+		return newCurrentBookkeepersResp(-1, err.Error(), nil), nil
+	}
+	var dynasties []Delegate
+	if err := chain.ContractAbi.Unpack(&dynasties, "getDynasty", output); err != nil {
+		return newCurrentBookkeepersResp(-1, err.Error(), nil), nil
+	}
+	bookkeepers := make([]*rpcpb.Bookkeeper, 0, len(dynasties))
+	for _, d := range dynasties {
+		addr, err := types.NewAddressPubKeyHash(d.Addr[:])
+		if err != nil {
+			return nil, fmt.Errorf("get bokkeeper %x error: %s", d.Addr[:], err)
+		}
+		bk := &rpcpb.Bookkeeper{
+			Addr:             addr.String(),
+			Votes:            d.Votes.Uint64(),
+			PledgeAmount:     d.PledgeAmount.Uint64(),
+			Score:            d.Score.Uint64(),
+			ContinualPeriods: uint32(d.ContinualPeriod.Uint64()),
+		}
+		bookkeepers = append(bookkeepers, bk)
+	}
+
+	return newCurrentBookkeepersResp(0, "ok", bookkeepers), nil
 }
