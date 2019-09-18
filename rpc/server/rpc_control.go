@@ -38,7 +38,7 @@ type ctlserver struct {
 
 func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "unauthorized IP!"}, nil
+		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "Access local address only!"}, nil
 	}
 	bus := s.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
@@ -71,7 +71,7 @@ func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rp
 // SetDebugLevel implements SetDebugLevel
 func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.BaseResponse{Code: -1, Message: "unauthorized IP!"}, nil
+		return &rpcpb.BaseResponse{Code: -1, Message: "Access local address only!"}, nil
 	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
@@ -87,7 +87,7 @@ func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelReque
 // GetNetworkID returns
 func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "unauthorized IP!"}, nil
+		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "Access local address only!"}, nil
 	}
 	ch := make(chan uint32)
 	s.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
@@ -100,14 +100,14 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 	} else {
 		literal = "Unknown"
 	}
-	return &rpcpb.GetNetworkIDResponse{Code: 1, Message: "ok", Id: current, Literal: literal}, nil
+	return &rpcpb.GetNetworkIDResponse{Code: 0, Message: "ok", Id: current, Literal: literal}, nil
 }
 
 // UpdateNetworkID implements UpdateNetworkID
 // NOTE: should be remove in product env
 func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
 	if !IsLocalAddr(ctx) {
-		return &rpcpb.BaseResponse{Code: -1, Message: "unauthorized IP!"}, nil
+		return &rpcpb.BaseResponse{Code: -1, Message: "Access local address only!"}, nil
 	}
 	bus := s.server.GetEventBus()
 	ch := make(chan bool)
