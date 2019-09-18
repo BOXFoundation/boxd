@@ -6,7 +6,9 @@ package rpc
 
 import (
 	"container/list"
+	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -25,7 +27,6 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	uuid "github.com/satori/go.uuid"
-	"golang.org/x/net/context"
 )
 
 func init() {
@@ -558,10 +559,11 @@ func (s *webapiServer) unsubscribeLogEndpoint(connuid, uid string) {
 	// return s.endpoints[rpcutil.LogEp].Unsubscribe()
 }
 
-func newCallResp(code int32, msg string) *rpcpb.CallResp {
+func newCallResp(code int32, msg string, output string) *rpcpb.CallResp {
 	return &rpcpb.CallResp{
 		Code:    code,
 		Message: msg,
+		Output:  output,
 	}
 }
 
@@ -569,9 +571,10 @@ func (s *webapiServer) DoCall(
 	ctx context.Context, req *rpcpb.CallReq,
 ) (resp *rpcpb.CallResp, err error) {
 
-	evm, output, _, _, _, _, err := s.callEvm(ctx, req)
+	output, _, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
+		req.GetHeight(), s.ChainBlockReader)
 	if err != nil {
-		return newCallResp(-1, err.Error()), nil
+		return newCallResp(-1, err.Error(), ""), nil
 	}
 
 	// Make sure we have a contract to operate on, and bail out otherwise.
@@ -579,52 +582,49 @@ func (s *webapiServer) DoCall(
 		contractAddr, _ := types.ParseAddress(req.To)
 		conHash := contractAddr.Hash160()
 		// Make sure we have a contract to operate on, and bail out otherwise.
-		if code := evm.StateDB.GetCode(*conHash); len(code) == 0 {
-			return newCallResp(-1, core.ErrContractNotFound.Error()), nil
+		statedb, err := s.ChainBlockReader.GetStateDbByHeight(req.GetHeight())
+		if err != nil {
+			return newCallResp(-1, err.Error(), ""), nil
+		}
+		if !statedb.Exist(*conHash) {
+			return newCallResp(-1, core.ErrContractNotFound.Error(), ""), nil
 		}
 	}
 
-	resp = newCallResp(0, "")
-	resp.Output = hex.EncodeToString(output)
-	return resp, nil
+	return newCallResp(0, "ok", hex.EncodeToString(output)), nil
 }
 
-func (s *webapiServer) callEvm(ctx context.Context, req *rpcpb.CallReq) (evm *vm.EVM, ret []byte, usedGas, gasRemaining uint64, failed bool, gasRefundTx *types.Transaction, err error) {
-	from, to := req.GetFrom(), req.GetTo()
+func callContract(
+	from, to, data string, height uint32, chainReader ChainBlockReader,
+) (ret []byte, usedGas uint64, err error) {
+
 	fromHash, err := types.ParseAddress(from)
 	if err != nil || !strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
-		err = fmt.Errorf("invalid from address")
-		return
+		return nil, 0, errors.New("invalid from address")
 	}
 	contractAddr, err := types.ParseAddress(to)
 	if err != nil || !strings.HasPrefix(to, types.AddrTypeContractPrefix) {
-		err = fmt.Errorf("invalid contract address")
-		return
-	}
+		return nil, 0, errors.New("invalid contract address")
 
-	data, err := hex.DecodeString(req.GetData())
-	if err != nil {
-		err = fmt.Errorf("invalid contract data")
-		return
+	}
+	input, err := hex.DecodeString(data)
+	if err != nil || len(data) == 0 {
+		return nil, 0, errors.New("invalid contract data")
 	}
 
 	msg := types.NewVMTransaction(new(big.Int), math.MaxUint64/2, 0, 0, nil,
-		types.ContractCallType, data).WithFrom(fromHash.Hash160()).WithTo(contractAddr.Hash160())
+		types.ContractCallType, input).
+		WithFrom(fromHash.Hash160()).WithTo(contractAddr.Hash160())
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
-	var cancel context.CancelFunc
-	if req.Timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(req.Timeout))
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	// Make sure the context is cancelled when the call has completed
 	// this makes sure resources are cleaned up.
 	defer cancel()
 
 	// Get a new instance of the EVM.
-	evm, vmErr, err := s.NewEvmContextForLocalCallByHeight(msg, req.Height)
+	evm, dbErr, err := chainReader.NewEvmContextForLocalCallByHeight(msg, height)
 	if err != nil {
 		return
 	}
@@ -637,13 +637,20 @@ func (s *webapiServer) callEvm(ctx context.Context, req *rpcpb.CallReq) (evm *vm
 
 	// Setup the gas pool (also for unmetered requests)
 	// and apply the message.
-	ret, usedGas, gasRemaining, failed, gasRefundTx, err = chain.ApplyMessage(evm, msg)
-
-	if err = vmErr(); err != nil {
-		return
+	failed := false
+	ret, usedGas, _, failed, _, err = chain.ApplyMessage(evm, msg)
+	if err != nil {
+		return nil, 0, err
 	}
-	return
+	if dbErr() != nil {
+		return nil, 0, dbErr()
+	}
+	if failed {
+		return nil, usedGas, fmt.Errorf("contract execution failed, db error: %v", dbErr())
+	}
+	return ret, usedGas, nil
 }
+
 func newNonceResp(code int32, msg string, nonce uint64) *rpcpb.NonceResp {
 	return &rpcpb.NonceResp{
 		Code:    code,
@@ -976,8 +983,9 @@ func detailTxOut(
 		if content != nil { // not an internal contract tx
 			receipt, err := br.GetTxReceipt(txHash)
 			if err != nil {
-				logger.Warn(err)
-				return nil, err
+				logger.Warn("get receipt for %s error: %s", txHash, err)
+				// not to return error to make the status of contract transactions
+				// that is in txpool is pending value
 			}
 			// receipt may be nil if the contract tx is not brought on chain
 			if receipt != nil {
@@ -1145,7 +1153,8 @@ func (s *webapiServer) EstimateGas(
 	ctx context.Context, req *rpcpb.CallReq,
 ) (*rpcpb.EstimateGasResp, error) {
 
-	_, _, gas, _, _, _, err := s.callEvm(ctx, req)
+	_, gas, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
+		req.GetHeight(), s.ChainBlockReader)
 	if err != nil {
 		return &rpcpb.EstimateGasResp{
 			Code:    -1,
@@ -1156,7 +1165,7 @@ func (s *webapiServer) EstimateGas(
 
 	return &rpcpb.EstimateGasResp{
 		Code:    0,
-		Message: "",
+		Message: "ok",
 		Gas:     int32(gas),
 	}, nil
 }
