@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	"github.com/BOXFoundation/boxd/util"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 
 	"google.golang.org/grpc/metadata"
@@ -45,7 +46,7 @@ func registerFaucet(s *Server) {
 	}
 	amountPerSec := s.cfg.Faucet.AmountPerSec
 	if amountPerSec == 0 {
-		amountPerSec = 10000
+		amountPerSec = 1000000000000
 	}
 	f := newFaucet(s.cfg.Faucet.WhiteList, s.GetTxHandler(), s.GetWalletAgent(),
 		account, amountPerSec)
@@ -96,18 +97,20 @@ func (f *faucet) Claim(
 		}
 	}()
 
-	inWhiteList := false
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return newClaimResp(-1, "unable to parse ip from context"), err
 	}
 	cliIPs := md["x-forwarded-for"]
-Loop:
-	for _, cliIP := range cliIPs {
-		for _, v := range f.whiteList {
-			if cliIP == v {
+
+	inWhiteList := false
+	if util.InStrings("*", f.whiteList) {
+		inWhiteList = true
+	} else {
+		for _, ip := range cliIPs {
+			if util.InStrings(ip, f.whiteList) {
 				inWhiteList = true
-				break Loop
+				break
 			}
 		}
 	}
