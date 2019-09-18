@@ -27,6 +27,7 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	uuid "github.com/satori/go.uuid"
+	"golang.org/x/net/context"
 )
 
 func init() {
@@ -1096,7 +1097,9 @@ func (s *webapiServer) Table(
 func (s *webapiServer) PeerID(
 	ctx context.Context, req *rpcpb.PeerIDReq,
 ) (*rpcpb.PeerIDResp, error) {
-
+	if !IsLocalAddr(ctx) {
+		return &rpcpb.PeerIDResp{Code: -1, Message: "Allow only local users!"}, nil
+	}
 	return &rpcpb.PeerIDResp{
 		Code:    0,
 		Message: "",

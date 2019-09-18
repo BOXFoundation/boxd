@@ -138,8 +138,10 @@ message GetNetworkIDRequest {
 }
 
 message GetNetworkIDResponse {
-    uint32 id = 1;
-    string literal = 2;
+    int32 code = 1;
+    string message = 2;
+    uint32 id = 3;
+    string literal = 4;
 }
 
 message AddNodeRequest {
@@ -202,7 +204,9 @@ message GetNodeInfoRequest {
 }
 
 message GetNodeInfoResponse {
-    repeated Node nodes = 1;
+    int32 code = 1;
+    string message = 2;
+    repeated Node nodes = 3;
 }
 
 message GetBlockByHeightReq {
