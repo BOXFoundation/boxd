@@ -83,6 +83,17 @@ func validateBlock(block *types.Block) error {
 			}
 			existingOutPoints[txIn.PrevOutPoint] = struct{}{}
 		}
+		// Check for only and at most one OPRETURN vout in a transaction
+		opReturns := 0
+		for _, txOut := range tx.Vout {
+			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+			if sc.IsOpReturnScript() {
+				opReturns++
+				if opReturns > 1 {
+					return core.ErrMultipleOpReturnOuts
+				}
+			}
+		}
 	}
 
 	// Calculate merkle tree root and ensure it matches with the block header.

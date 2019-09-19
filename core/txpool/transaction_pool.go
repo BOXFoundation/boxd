@@ -369,10 +369,17 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 }
 
 func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
+	opReturns := 0
 	for _, txOut := range tx.Vout {
-		sc := *script.NewScriptFromBytes(txOut.ScriptPubKey)
+		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		if !sc.IsStandard() {
 			return false
+		}
+		if sc.IsOpReturnScript() {
+			opReturns++
+			if opReturns > 1 {
+				return false
+			}
 		}
 	}
 	return true
