@@ -121,7 +121,7 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	atomic.AddUint64(&t.txCnt, 1)
 	curTimes := utils.ContractRepeatTxTimes()
 	if utils.ContractRepeatRandom() {
-		curTimes = 2 + rand.Intn(utils.ContractRepeatTxTimes())
+		curTimes = 1 + rand.Intn(utils.ContractRepeatTxTimes())
 	}
 	contractRepeatTest(owner, spender, receivers[0], curTimes, &t.txCnt, conn)
 	//

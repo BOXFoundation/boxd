@@ -72,7 +72,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	//
 	curTimes := utils.TokenRepeatTxTimes()
 	if utils.TokenRepeatRandom() {
-		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
+		curTimes = 1 + rand.Intn(utils.TokenRepeatTxTimes())
 	}
 	//
 	totalFee := uint64(curTimes+1) * core.TransferFee
