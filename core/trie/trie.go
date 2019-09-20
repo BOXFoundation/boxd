@@ -337,7 +337,7 @@ func (t *Trie) updateBranchNode(root *Node, rootHash *crypto.HashType, key, valu
 }
 
 func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, error) {
-	if hash == nil || len(key) == 0 {
+	if hash == nil {
 		return nil, core.ErrNodeNotFound
 	}
 	root, err := t.getNode(hash)
@@ -352,7 +352,7 @@ func (t *Trie) delete(hash *crypto.HashType, key []byte) (*crypto.HashType, erro
 	if root.Type() != branch {
 		prefixs, err = commonPrefixes(root.Value[0], key)
 		prefixsLen = len(prefixs)
-		if err != nil || prefixsLen == 0 {
+		if err != nil {
 			return nil, core.ErrNodeNotFound
 		}
 	}
