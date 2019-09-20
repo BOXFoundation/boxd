@@ -69,7 +69,8 @@ func ParseUtxoAmount(utxo *rpcpb.Utxo) (uint64, *types.TokenID, error) {
 	if s.IsPayToPubKeyHash() ||
 		s.IsPayToPubKeyHashCLTVScript() ||
 		s.IsContractPubkey() ||
-		s.IsPayToScriptHash() {
+		s.IsPayToScriptHash() ||
+		s.IsOpReturnScript() {
 		return utxo.TxOut.GetValue(), nil, nil
 	} else if s.IsTokenIssue() {
 		tid := (*types.TokenID)(ConvPbOutPoint(utxo.OutPoint))
