@@ -38,6 +38,29 @@
 	},
 	{
 		"constant": true,
+		"inputs": [
+			{
+				"name": "delegateAddr",
+				"type": "address"
+			}
+		],
+		"name": "myRedeemVote",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
 		"inputs": [],
 		"name": "newAdmin",
 		"outputs": [

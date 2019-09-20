@@ -183,7 +183,7 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 			}
 		}
 		if delegate == nil {
-			return ErrIllegalMsg
+			return ErrNotBookkeeperPeer
 		}
 
 		if msg, ok := bft.blockPrepareMsgCache.Load(key); ok {
@@ -238,7 +238,7 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 			}
 		}
 		if delegate == nil {
-			return ErrIllegalMsg
+			return ErrNotBookkeeperPeer
 		}
 
 		if msg, ok := bft.blockCommitMsgCache.Load(key); ok {
