@@ -220,11 +220,11 @@ contract Bonus is Permission{
         deletePledgeAddrList(idx);
 
         for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
-                if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
-                    voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
-                    add(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
-                }
+            if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
+                voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
+                add(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
             }
+        }
         delete delegateToVoters[msg.sender];
     }
 
@@ -235,13 +235,6 @@ contract Bonus is Permission{
             FrozenDelegate memory fd = frozenDelegate[msg.sender];
             delete frozenDelegate[msg.sender];
             msg.sender.transfer(fd.pledgeAmount);
-            // for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
-            //     if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
-            //         voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
-            //         add(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
-            //     }
-            // }
-            // delete delegateToVoters[msg.sender];
         }
     }
 
@@ -427,6 +420,15 @@ contract Bonus is Permission{
         Delegate storage delegate = addrToDelegates[delegateAddr];
         delegate.votes = delegate.votes.sub(count);
         // delegate.score = calcScore(delegate);
+    }
+
+    function myRedeemVote(address delegateAddr) public view returns (uint, uint) {
+        if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
+            block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
+            return (0, frozenVotes[delegateAddr][msg.sender].votes);
+        } else {
+            return (frozenVotes[delegateAddr][msg.sender].votes, 0);
+        }
     }
 
     function pickRedeemVote(address delegateAddr) public {
