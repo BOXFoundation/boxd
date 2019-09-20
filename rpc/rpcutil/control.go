@@ -85,20 +85,3 @@ func GetBlockHeader(conn *grpc.ClientConn, hash string) (*types.BlockHeader, err
 	err = header.FromProtoMessage(r.Header)
 	return header, err
 }
-
-// GetBlock returns block info of a block hash
-func GetBlock(conn *grpc.ClientConn, hash string) (*types.Block, error) {
-	c := pb.NewContorlCommandClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	logger.Infof("Query block info of a hash :%s", hash)
-	r, err := c.GetBlock(ctx, &pb.GetBlockRequest{BlockHash: hash})
-	if err != nil {
-		return nil, err
-	}
-
-	block := &types.Block{}
-	err = block.FromProtoMessage(r.Block)
-	return block, err
-}

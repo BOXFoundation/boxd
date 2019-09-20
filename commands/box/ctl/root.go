@@ -9,6 +9,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -18,7 +19,6 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -140,14 +140,14 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		level = args[0]
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get RPC conn failed:", err)
 		return
 	}
 	defer conn.Close()
 	rpcutil.SetDebugLevel(conn, level)
-	fmt.Println("success")
+	fmt.Println("Success")
 }
 
 // NOTE: should be remove in product env
@@ -161,9 +161,9 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 		}
 		id = uint32(n)
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get RPC Conn failed:", err)
 		return
 	}
 	defer conn.Close()
@@ -171,132 +171,141 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 }
 
 func getBlockCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getblock called")
 	if len(args) == 0 {
 		fmt.Println("Parameter block hash required")
 		return
 	}
 	hash := args[0]
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlock",
+		&rpcpb.GetBlockRequest{BlockHash: hash}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC called failed:", err)
 		return
 	}
-	defer conn.Close()
-	block, err := rpcutil.GetBlock(conn, hash)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Printf("Block info of hash %s is\n%s\n", hash, format.PrettyPrint(block))
+	resp, ok := respRPC.(*rpcpb.GetBlockResponse)
+	if !ok {
+		fmt.Println("Conversion rpcpb.GetBlockResponse failed")
+		return
 	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println(format.PrettyPrint(resp.Block))
 }
 
 func getBLockByHeight(cmd *cobra.Command, args []string) {
-	fmt.Println("getblockbyheight called")
 	if len(args) == 0 {
 		fmt.Println("Parameter block height required")
 		return
 	}
 	height, err := strconv.ParseUint(args[0], 10, 32)
 	if err != nil {
-		fmt.Println("getblockbyheight failed: ", err)
+		fmt.Println("Getblockbyheight failed:", err)
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockByHeight",
-		&rpcpb.GetBlockByHeightReq{Height: uint32(height)}, getRPCAddr())
+		&rpcpb.GetBlockByHeightReq{Height: uint32(height)}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC call failed:", err)
 		return
 	}
-	resp := respRPC.(*rpcpb.GetBlockResponse)
-	block := &types.Block{}
+	resp, ok := respRPC.(*rpcpb.GetBlockResponse)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.GetBlockResponse failed")
+		return
+	}
+	block := new(types.Block)
 	err = block.FromProtoMessage(resp.Block)
 	if err != nil {
-		fmt.Println("the format of block conversion failed: ", err)
+		fmt.Println("The format of block conversion failed:", err)
+		return
 	}
-	fmt.Printf("Block Information \n%s\n", format.PrettyPrint(block))
+	fmt.Printf("%s\n", format.PrettyPrint(block))
 }
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getblockcount called")
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetCurrentBlockHeight",
-		&rpcpb.GetCurrentBlockHeightRequest{}, getRPCAddr())
+		&rpcpb.GetCurrentBlockHeightRequest{}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC called failed:", err)
 		return
 	}
-	resp := respRPC.(*rpcpb.GetCurrentBlockHeightResponse)
+	resp, ok := respRPC.(*rpcpb.GetCurrentBlockHeightResponse)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.GetCurrentBlockHeightResponse failed")
+		return
+	}
 	fmt.Println("Current Block Height:", resp.Height)
 }
 
 func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getblockhash called")
 	if len(args) == 0 {
 		fmt.Println("Parameter block height required")
 		return
 	}
 	height64, err := strconv.ParseUint(args[0], 10, 32)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("The type of the height conversion failed:", err)
 		return
 	}
 	height := uint32(height64)
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get RPC Conn failed:", err)
 		return
 	}
 	defer conn.Close()
 	hash, err := rpcutil.GetBlockHash(conn, height)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get block hash failed:", err)
 	} else {
 		fmt.Printf("Block hash of height %d is %s\n", height, hash)
 	}
 }
 
 func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getblockheader called")
 	if len(args) == 0 {
 		fmt.Println("Parameter block hash required")
 		return
 	}
 	hash := args[0]
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get RPC conn failed:", err)
 		return
 	}
 	defer conn.Close()
 	header, err := rpcutil.GetBlockHeader(conn, hash)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get block headede failed:", err)
 	} else {
 		fmt.Printf("Block Header of hash %s is\n%s\n", hash, format.PrettyPrint(header))
 	}
 }
 
 func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getBlockDetail called")
 	if len(args) < 1 {
 		fmt.Println("Param txhash required")
 		return
 	}
 	hash := args[0]
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlock",
+		&rpcpb.GetBlockRequest{BlockHash: hash}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC called failed:", err)
 		return
 	}
-	defer conn.Close()
-	//
-	block, err := rpcutil.GetBlock(conn, hash)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(format.PrettyPrint(block))
+	resp, ok := respRPC.(*rpcpb.GetBlockResponse)
+	if !ok {
+		fmt.Println("Conversion rpcpb.GetBlockResponse failed")
+		return
 	}
-
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println(format.PrettyPrint(resp.Block))
 }
 
 func versionCmdFunc(cmd *cobra.Command, args []string) {
@@ -312,12 +321,16 @@ func getInfoCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetNodeInfo",
-		&rpcpb.GetNodeInfoRequest{}, getRPCAddr())
+		&rpcpb.GetNodeInfoRequest{}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC called failed:", err)
 		return
 	}
-	resp := respRPC.(*rpcpb.GetNodeInfoResponse)
+	resp, ok := respRPC.(*rpcpb.GetNodeInfoResponse)
+	if !ok {
+		fmt.Println("Conversion rpcpb.GetNodeInfoResponse failed")
+		return
+	}
 	if resp.Code != 0 {
 		fmt.Println(resp.Message)
 		return
@@ -330,17 +343,21 @@ func getPeerIDCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "PeerID",
-		&rpcpb.PeerIDReq{}, getRPCAddr())
+		&rpcpb.PeerIDReq{}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC called failed:", err)
 		return
 	}
-	resp := respRPC.(*rpcpb.PeerIDResp)
+	resp, ok := respRPC.(*rpcpb.PeerIDResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.PeerIDResp failed")
+		return
+	}
 	if resp.Code != 0 {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Peer ID: ", format.PrettyPrint(resp.Peerid))
+	fmt.Println("Peer ID:", format.PrettyPrint(resp.Peerid))
 }
 
 func getNetWorkID(cmd *cobra.Command, args []string) {
@@ -349,21 +366,19 @@ func getNetWorkID(cmd *cobra.Command, args []string) {
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetNetworkID",
-		&rpcpb.GetNetworkIDRequest{}, getRPCAddr())
+		&rpcpb.GetNetworkIDRequest{}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC call failed:", err)
 		return
 	}
-	resp := respRPC.(*rpcpb.GetNetworkIDResponse)
+	resp, ok := respRPC.(*rpcpb.GetNetworkIDResponse)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.GetNetworkIDResponse failed")
+		return
+	}
 	if resp.Code != 0 {
 		fmt.Println(resp.Message)
 		return
 	}
 	fmt.Printf("network id: %d\nnetwork literal: %s\n", resp.Id, resp.Literal)
-}
-
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

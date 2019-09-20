@@ -11,7 +11,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-func getRPCAddr() string {
+//GetRPCAddr get RPC address and port
+func GetRPCAddr() string {
 	var cfg config.Config
 	viper.Unmarshal(&cfg)
 	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)

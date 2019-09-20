@@ -11,8 +11,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/commands/box/root"
-	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
@@ -20,7 +20,6 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var cfgFile string
@@ -167,7 +166,6 @@ func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func listAccountCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("listaccounts called")
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
 		fmt.Println(err)
@@ -179,7 +177,6 @@ func listAccountCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func getwalletinfo(cmd *cobra.Command, args []string) {
-	fmt.Println("getwalletinfo called")
 	if len(args) < 1 {
 		fmt.Println("address needed")
 		return
@@ -200,7 +197,6 @@ func getwalletinfo(cmd *cobra.Command, args []string) {
 }
 
 func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("dumprivkey called")
 	if len(args) < 1 {
 		fmt.Println("address needed")
 		return
@@ -225,7 +221,6 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func dumpwallet(cmd *cobra.Command, args []string) {
-	fmt.Println("dumpwallet called")
 	if len(args) < 1 {
 		fmt.Println("file name needed")
 		return
@@ -304,6 +299,9 @@ func decodeAddress(cmd *cobra.Command, args []string) {
 }
 
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println("Invalid argument number")
+	}
 	addrs := make([]string, 0)
 	if len(args) < 1 {
 		wltMgr, err := wallet.NewWalletManager(walletDir)
@@ -318,16 +316,20 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		addrs = args
 	}
 	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println(err)
+		fmt.Println("Verification address failed:", err)
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetBalance",
-		&rpcpb.GetBalanceReq{Addrs: addrs}, getRPCAddr())
+		&rpcpb.GetBalanceReq{Addrs: addrs}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	resp := respRPC.(*rpcpb.GetBalanceResp)
+	resp, ok := respRPC.(*rpcpb.GetBalanceResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.GetBalanceResp failed")
+		return
+	}
 	if resp.Code != 0 {
 		fmt.Println(resp.Message)
 		return
@@ -338,7 +340,6 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 }
 
 func signMessageCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("signmessage called")
 	if len(args) < 2 {
 		fmt.Println("Please input the hex format of signature and publickey hash")
 		return
@@ -367,7 +368,7 @@ func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Signature: ", hex.EncodeToString(sig))
+	fmt.Println("Signature:", hex.EncodeToString(sig))
 }
 
 func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
@@ -381,10 +382,4 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println(args[0], " is a valid address")
 	}
-}
-
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

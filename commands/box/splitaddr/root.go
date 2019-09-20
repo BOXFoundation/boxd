@@ -10,15 +10,14 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	root "github.com/BOXFoundation/boxd/commands/box/root"
-	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -58,7 +57,6 @@ func init() {
 }
 
 func createCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("splitaddr create called")
 	if len(args) < 3 || len(args)%2 == 0 {
 		fmt.Println("Invalid argument number: expect odd number larger than or equal to 3")
 		return
@@ -104,29 +102,23 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		addrHashes = append(addrHashes, address.Hash160())
 	}
 	// conn
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Get Rpc conn failed:", err)
 		return
 	}
 	defer conn.Close()
 	// send tx
 	tx, _, err := rpcutil.NewSplitAddrTx(account, addrHashes, weights, conn)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("NewSplitAddrTx call failed:", err)
 		return
 	}
 	hashStr, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("send transaction failed:", err)
 		return
 	}
 	fmt.Println("Tx Hash: ", hashStr)
 	fmt.Println(format.PrettyPrint(tx))
-}
-
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

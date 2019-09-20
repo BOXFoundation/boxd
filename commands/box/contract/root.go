@@ -16,8 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/commands/box/root"
-	"github.com/BOXFoundation/boxd/config"
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -27,7 +28,6 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -94,9 +94,9 @@ Successful call will return a transaction hash value`,
 			Run:   getCode,
 		},
 		&cobra.Command{
-			Use:   "estimategas [from] [to] [data] [height] [timeout]",
+			Use:   "estimategas [from] [to] [data] [height]",
 			Short: "Get estimategas about contract_transaction",
-			Run:   getEstimateGas,
+			Run:   estimateGas,
 		},
 		&cobra.Command{
 			Use:   "getstorage [address] [position] [height]",
@@ -201,7 +201,7 @@ func docall(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 
 	abifile := to + ".abi"
 	if _, err := os.Stat(abifile); os.IsNotExist(err) {
@@ -329,14 +329,8 @@ func callcontract(cmd *cobra.Command, args []string) {
 	fmt.Println("Successful call,transaction hash: ", resp.Hash)
 }
 
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
-}
-
 func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransactionResp, error) {
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("get gRPC connection error: ", err)
 		return "", nil, err
@@ -401,7 +395,6 @@ func signAndSendTx(req *rpcpb.MakeContractTxReq) (string, *rpcpb.SendTransaction
 }
 
 func getLogs(cmd *cobra.Command, args []string) {
-	fmt.Println("getLogs called")
 	//arg[0]represents block hash , arg[1] "from"andarg[2"to " represent log between from and to
 	//arg[3]reprensents address arg[4]represents topics
 	if len(args) != 5 {
@@ -430,12 +423,7 @@ func getLogs(cmd *cobra.Command, args []string) {
 		Addresses: address,
 		Topics:    topics,
 	}
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetLogs",
-		req, getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetLogs", req, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -445,7 +433,9 @@ func getLogs(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Successful, log information: ", resp.Logs)
+	for _, log := range resp.Logs {
+		fmt.Println(log)
+	}
 }
 
 func getNonce(cmd *cobra.Command, args []string) {
@@ -460,7 +450,7 @@ func getNonce(cmd *cobra.Command, args []string) {
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "Nonce",
-		&rpcpb.NonceReq{Addr: addr}, getRPCAddr())
+		&rpcpb.NonceReq{Addr: addr}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -474,13 +464,17 @@ func getNonce(cmd *cobra.Command, args []string) {
 }
 
 func getCode(cmd *cobra.Command, args []string) {
-	fmt.Println("get code called")
 	if len(args) != 1 {
 		fmt.Println("Invalid argument number")
 		return
 	}
+	//validate address
+	if err := types.ValidateAddr(args[0]); err != nil {
+		fmt.Println("address is Invalid: ", err)
+		return
+	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetCode",
-		&rpcpb.GetCodeReq{Address: args[0]}, getRPCAddr())
+		&rpcpb.GetCodeReq{Address: args[0]}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -490,50 +484,63 @@ func getCode(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Code: ", resp.Data)
+	fmt.Println(resp.Data)
 }
 
-func getEstimateGas(cmd *cobra.Command, args []string) {
-	fmt.Println("get estimate gas called")
-	if len(args) != 5 {
+func estimateGas(cmd *cobra.Command, args []string) {
+	if len(args) < 3 {
 		fmt.Println("Invalid argument number")
 		return
 	}
-	height, err := strconv.ParseUint(args[3], 10, 64)
-	if err != nil {
-		fmt.Println(err)
+	from := args[0]
+	toAddr := args[1]
+	if err := types.ValidateAddr(toAddr, from); err != nil {
+		fmt.Println("Verification Addr failed:", err)
 		return
 	}
-	timeout, err := strconv.ParseUint(args[4], 10, 64)
-	if err != nil {
-		fmt.Println(err)
-		return
+	var height uint64
+	if len(args) == 3 {
+		height = 0
+	} else {
+		var err error
+		height, err = strconv.ParseUint(args[3], 10, 64)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 	req := &rpcpb.CallReq{
-		From:    args[0],
-		To:      args[1],
+		From:    from,
+		To:      toAddr,
 		Data:    args[2],
 		Height:  uint32(height),
-		Timeout: uint32(timeout),
+		Timeout: 0,
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "EstimateGas",
-		req, getRPCAddr())
+		req, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	resp := respRPC.(*rpcpb.EstimateGasResp)
+	resp, ok := respRPC.(*rpcpb.EstimateGasResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.EstimateGasResp failed")
+		return
+	}
 	if resp.Code != 0 {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Estimate Gas: ", resp.Gas)
+	fmt.Println("Estimate box:", uint64(resp.Gas)*core.FixedGasPrice/core.DuPerBox)
 }
 
 func getStorageAt(cmd *cobra.Command, args []string) {
-	fmt.Println("get storage called")
 	if len(args) != 3 {
 		fmt.Println("Invalid argument number")
+		return
+	}
+	if err := types.ValidateAddr(args[0]); err != nil {
+		fmt.Println("Verification Addr failed:", err)
 		return
 	}
 	height, err := strconv.ParseUint(args[2], 10, 64)
@@ -546,16 +553,19 @@ func getStorageAt(cmd *cobra.Command, args []string) {
 		Position: args[1],
 		Height:   uint32(height),
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetStorageAt",
-		req, getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetStorageAt", req, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("RPC call failed:", err)
 		return
 	}
-	resp := respRPC.(*rpcpb.StorageResp)
+	resp, ok := respRPC.(*rpcpb.StorageResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.StorageResp failed")
+		return
+	}
 	if resp.Code != 0 {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("position: ", resp.Data)
+	fmt.Println(resp.Data)
 }
