@@ -144,7 +144,7 @@ func encode(cmd *cobra.Command, args []string) {
 		}
 		fmt.Println(err)
 	} else {
-		fmt.Println("encode information :", hex.EncodeToString(data))
+		fmt.Println("encode information:", hex.EncodeToString(data))
 	}
 }
 
