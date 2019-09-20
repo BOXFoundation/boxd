@@ -530,7 +530,8 @@ func heightLocator(height uint32) []uint32 {
 // rmOverlap remove overlapped headers between locateHashes and local chain
 func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) []*crypto.HashType {
 	for i, h := range locateHashes {
-		if block, _ := chain.LoadBlockByHash(*h, sm.chain.DB()); block == nil {
+		if block, _ := chain.LoadBlockByHash(*h, sm.chain.DB()); block == nil ||
+			block.Header.Height > sm.chain.LongestChainHeight {
 			return locateHashes[i:]
 		}
 	}
