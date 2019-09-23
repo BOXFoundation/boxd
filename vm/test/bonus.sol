@@ -262,14 +262,14 @@ contract Bonus is Permission{
             }
             delete dynastyToBonus[dynasty[i].addr];
         }
-        // current = next;
+        current = next;
         if (pledgeAddrList.length >= DYNASTY_SIZE) {
             updateDynasty();
             updateNetParams();
         }
     }
 
-    function calcScore(uint[] scores) public onlyAdmin {
+    function calcScore(uint[] scores) public  {
         for(uint i = 0; i < scores.length; i++) {
             Delegate storage delegate = addrToDelegates[pledgeAddrList[i]];
             delegate.score = scores[i];
@@ -280,11 +280,15 @@ contract Bonus is Permission{
                 next.push(addrToDelegates[pledgeAddrList[i]]);
             }
         }
-        quickSort(next, 0, next.length);
+        quickSort(next, 0, next.length-1);
     }
 
     function getDynasty() public view returns (Delegate[] memory) {
         return dynasty;
+    }
+
+    function getNext() public view returns (Delegate[] memory) {
+        return next;
     }
 
     function getCurrentDelegates() public view returns (Delegate[] memory) {
@@ -361,13 +365,13 @@ contract Bonus is Permission{
         return false;
     }
 
-    function quickSort(Delegate[] storage arr, uint left, uint right) internal {
+    function quickSort(Delegate[] storage arr, uint left, uint right) internal returns(Delegate[] memory){
         uint i = left;
         uint j = right;
         uint pivot = arr[left + (right - left) / 2].score;
         while (i <= j) {
-            while (arr[i].score < pivot) i++;
-            while (pivot < arr[j].score) j--;
+            while (arr[i].score > pivot) i++;
+            while (pivot > arr[j].score) j--;
             if (i <= j) {
                 // (arr[i], arr[j]) = (arr[j], arr[i]);
                 Delegate memory temp = arr[i];
@@ -381,6 +385,7 @@ contract Bonus is Permission{
             quickSort(arr, left, j);
         if (i < right)
             quickSort(arr, i, right);
+        return arr;
     }
 
     function vote(address delegateAddr) public payable {
