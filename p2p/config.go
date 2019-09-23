@@ -39,5 +39,5 @@ func (cfg *Config) exist(pid string, slice []string) bool {
 			pids = append(pids, s)
 		}
 	}
-	return util.InArray(pid, pids)
+	return util.InStrings(pid, pids)
 }

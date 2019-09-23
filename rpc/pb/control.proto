@@ -117,9 +117,16 @@ service ContorlCommand {
         };
     }
 
-    rpc CurrentBookkeepers (CurrentBookkeepersReq) returns (CurrentBookkeepersResp) {
+    rpc Bookkeepers (BookkeepersReq) returns (BookkeepersResp) {
         option (google.api.http) = {
             post: "/v1/ctl/bookkeepers"
+            body: "*"
+        };
+    }
+
+    rpc Candidates (CandidatesReq) returns (CandidatesResp) {
+        option (google.api.http) = {
+            post: "/v1/ctl/candidates"
             body: "*"
         };
     }
@@ -244,19 +251,28 @@ message GetTxResp {
     corepb.Transaction Tx = 3;
 }
 
-message CurrentBookkeepersReq {
-}
-
-message CurrentBookkeepersResp {
-    int32 code = 1;
-    string message = 2;
-    repeated Bookkeeper bookkeepers = 3;
-}
-
-message Bookkeeper {
+message Delegate {
     string addr = 1;
     uint64 votes = 2;
     uint64 pledge_amount = 3;
     uint64 score = 4;
     uint32 continual_periods = 5;
+}
+
+message BookkeepersReq {
+}
+
+message BookkeepersResp {
+    int32 code = 1;
+    string message = 2;
+    repeated Delegate bookkeepers = 3;
+}
+
+message CandidatesReq {
+}
+
+message CandidatesResp {
+    int32 code = 1;
+    string message = 2;
+    repeated Delegate candidates = 3;
 }

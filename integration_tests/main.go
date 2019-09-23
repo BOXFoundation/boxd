@@ -32,7 +32,7 @@ const (
 	fullScope     scopeValue = "full"
 	continueScope scopeValue = "continue"
 
-	testCoins uint64 = 25 * core.DuPerBox
+	testCoins uint64 = 50 * core.DuPerBox
 )
 
 var logger = log.NewLogger("integration") // logger
@@ -208,14 +208,14 @@ func topupOrigAccs() {
 				logger.Errorf("fetch balance for pre addr %s error %s", preAddr, err)
 				continue
 			}
-			accI, accJ := origAccs[i%origAccCnt], origAccs[(i+3)%origAccCnt]
+			accI, accJ, accK := origAccs[i%origAccCnt], origAccs[(i+2)%origAccCnt], origAccs[(i+4)%origAccCnt]
 			i++
 			tx, _, err := rpcutil.NewTx(preAcc,
-				[]*types.AddressHash{accI.AddressHash(), accJ.AddressHash()},
-				[]uint64{testCoins, testCoins}, conn)
+				[]*types.AddressHash{accI.AddressHash(), accJ.AddressHash(), accK.AddressHash()},
+				[]uint64{testCoins, testCoins, testCoins}, conn)
 			if err != nil {
 				logger.Errorf("new tx for pre addr %s to origal account %s %s error %s",
-					preAddr, accI.Addr(), accJ.Addr(), err)
+					preAddr, accI.Addr(), accJ.Addr(), accK.Addr(), err)
 				continue
 			}
 			_, err = rpcutil.SendTransaction(conn, tx)
@@ -234,7 +234,7 @@ func topupOrigAccs() {
 			logger.Info("quit topupOrigAccs.")
 			return
 		}
-		_, err = utils.WaitBalanceEqual(preAddr, balance-2*testCoins-core.TransferFee,
+		_, err = utils.WaitBalanceEqual(preAddr, balance-3*testCoins-core.TransferFee,
 			conn, 10*time.Second)
 		if err != nil {
 			logger.Error(err)

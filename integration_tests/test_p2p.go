@@ -72,7 +72,7 @@ func testP2p(proc goprocess.Process) {
 
 			expectedConnSet := append(append(append(minerAddrs, seeds...), agents...), principals...)
 			for _, remoteID := range connectings {
-				if !util.InArray(remoteID, expectedConnSet) {
+				if !util.InStrings(remoteID, expectedConnSet) {
 					logger.Errorf("Miner: %s connected to node %s that were not expected to be connected", addr, remoteID)
 				}
 			}
@@ -92,7 +92,7 @@ func testP2p(proc goprocess.Process) {
 			connectings := utils.Table(conn)
 
 			for _, expectedConnID := range append(agents, principals...) {
-				if !util.InArray(expectedConnID, connectings) {
+				if !util.InStrings(expectedConnID, connectings) {
 					logger.Errorf("%s are not connected to the node %s it expect to connect to", addr, expectedConnID)
 				}
 			}

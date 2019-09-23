@@ -35,8 +35,8 @@ rpc:
         amount_per_sec: 1000000000000
         keyfile: ./.devconfig/keyfile/pre.keystore
         white_list:
-            - 161.117.80.37
-            - 127.0.0.1
+            - "*"
+            - "127.0.0.1"
     subscribe_blocks: true
     subscribe_logs: true
 

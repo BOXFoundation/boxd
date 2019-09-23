@@ -100,8 +100,11 @@ func (u *UtxoSet) AddUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight ui
 	txHash, _ := tx.TxHash()
 	vout := tx.Vout[txOutIdx]
 	sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+	if sc.IsOpReturnScript() {
+		return fmt.Errorf("tx %s incluces a op_return vout", txHash)
+	}
 	if sc.IsContractPubkey() { // smart contract utxo
-		return fmt.Errorf("UtxoSet AddUtxo: tx %s incluces a contract vout", txHash)
+		return fmt.Errorf("tx %s incluces a contract vout", txHash)
 	}
 
 	// common tx
@@ -240,7 +243,10 @@ func (u *UtxoSet) applyUtxo(tx *types.Transaction, txOutIdx uint32, blockHeight 
 // applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
 func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Add new utxos
-	for txOutIdx := range tx.Vout {
+	for txOutIdx, txOut := range tx.Vout {
+		if sc := script.NewScriptFromBytes(txOut.ScriptPubKey); sc.IsOpReturnScript() {
+			continue
+		}
 		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				// This can occur when a tx spends from another tx in front of it in the same block
@@ -251,7 +257,7 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
 	}
 
 	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) || IsDynastySwitch(tx) {
+	if IsCoinBase(tx) || IsInternalContract(tx) {
 		return nil
 	}
 
@@ -307,14 +313,14 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 	// Remove added utxos
 	for i, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
-		if sc.IsContractPubkey() {
+		if sc.IsOpReturnScript() || sc.IsContractPubkey() {
 			continue
 		}
 		u.SpendUtxo(*types.NewOutPoint(txHash, uint32(i)))
 	}
 
 	// Coinbase transaction doesn't spend any utxo.
-	if IsCoinBase(tx) || IsDynastySwitch(tx) {
+	if IsCoinBase(tx) || IsInternalContract(tx) {
 		return nil
 	}
 
@@ -337,6 +343,9 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		}
 		// prevTx := block.Txs[txIdx]
 		prevOut := prevTx.Vout[txIn.PrevOutPoint.Index]
+		if script.NewScriptFromBytes(prevOut.ScriptPubKey).IsOpReturnScript() {
+			continue
+		}
 		utxoWrap = types.NewUtxoWrap(prevOut.Value, prevOut.ScriptPubKey, block.Header.Height)
 		// if IsCoinBase(prevTx) {
 		// 	utxoWrap.SetCoinBase()
@@ -473,6 +482,9 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 			}
 		} else {
 			sc := script.NewScriptFromBytes(utxoWrap.Script())
+			if sc.IsOpReturnScript() {
+				return fmt.Errorf("utxo set contains a op_return script vout %s", string(*sc))
+			}
 			addr, err := sc.ExtractAddress()
 			if err != nil {
 				logger.Warnf("Failed to extract address. utxoWrap: %+v, sc disasm: %s, hex: %x, Err: %s",
@@ -528,7 +540,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 // LoadTxUtxos loads the unspent transaction outputs related to tx
 func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
 
-	if IsCoinBase(tx) || IsDynastySwitch(tx) {
+	if IsCoinBase(tx) || IsInternalContract(tx) {
 		return nil
 	}
 
@@ -617,6 +629,9 @@ func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, needContract bool, db st
 		outPoint := types.OutPoint{Hash: *hash}
 		for idx, out := range tx.Vout {
 			sc := script.NewScriptFromBytes(out.ScriptPubKey)
+			if sc.IsOpReturnScript() {
+				continue
+			}
 			if !needContract && sc.IsContractPubkey() {
 				continue
 			}

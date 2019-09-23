@@ -73,7 +73,7 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	//
 	curTimes := utils.SplitAddrRepeatTxTimes()
 	if utils.SplitAddrRepeatRandom() {
-		curTimes = 2 + rand.Intn(utils.SplitAddrRepeatTxTimes())
+		curTimes = 1 + rand.Intn(utils.SplitAddrRepeatTxTimes())
 	}
 	//
 	totalFee := uint64(curTimes+1) * core.TransferFee

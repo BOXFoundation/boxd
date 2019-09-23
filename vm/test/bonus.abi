@@ -3,6 +3,20 @@
 		"constant": false,
 		"inputs": [
 			{
+				"name": "scores",
+				"type": "uint256[]"
+			}
+		],
+		"name": "calcScore",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
 				"name": "_admin",
 				"type": "address"
 			}
@@ -20,6 +34,29 @@
 		"outputs": [],
 		"payable": false,
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [
+			{
+				"name": "delegateAddr",
+				"type": "address"
+			}
+		],
+		"name": "myRedeemVote",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -142,6 +179,50 @@
 		"type": "function"
 	},
 	{
+		"constant": true,
+		"inputs": [],
+		"name": "getCurrentDelegates",
+		"outputs": [
+			{
+				"components": [
+					{
+						"name": "addr",
+						"type": "address"
+					},
+					{
+						"name": "peerID",
+						"type": "string"
+					},
+					{
+						"name": "votes",
+						"type": "uint256"
+					},
+					{
+						"name": "pledgeAmount",
+						"type": "uint256"
+					},
+					{
+						"name": "score",
+						"type": "uint256"
+					},
+					{
+						"name": "continualPeriod",
+						"type": "uint256"
+					},
+					{
+						"name": "isExist",
+						"type": "bool"
+					}
+				],
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"constant": false,
 		"inputs": [
 			{
@@ -186,6 +267,50 @@
 			{
 				"name": "",
 				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "getNextDelegates",
+		"outputs": [
+			{
+				"components": [
+					{
+						"name": "addr",
+						"type": "address"
+					},
+					{
+						"name": "peerID",
+						"type": "string"
+					},
+					{
+						"name": "votes",
+						"type": "uint256"
+					},
+					{
+						"name": "pledgeAmount",
+						"type": "uint256"
+					},
+					{
+						"name": "score",
+						"type": "uint256"
+					},
+					{
+						"name": "continualPeriod",
+						"type": "uint256"
+					},
+					{
+						"name": "isExist",
+						"type": "bool"
+					}
+				],
+				"name": "",
+				"type": "tuple[]"
 			}
 		],
 		"payable": false,
@@ -254,50 +379,6 @@
 			{
 				"name": "",
 				"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "getDelegates",
-		"outputs": [
-			{
-				"components": [
-					{
-						"name": "addr",
-						"type": "address"
-					},
-					{
-						"name": "peerID",
-						"type": "string"
-					},
-					{
-						"name": "votes",
-						"type": "uint256"
-					},
-					{
-						"name": "pledgeAmount",
-						"type": "uint256"
-					},
-					{
-						"name": "score",
-						"type": "uint256"
-					},
-					{
-						"name": "continualPeriod",
-						"type": "uint256"
-					},
-					{
-						"name": "isExist",
-						"type": "bool"
-					}
-				],
-				"name": "",
-				"type": "tuple[]"
 			}
 		],
 		"payable": false,

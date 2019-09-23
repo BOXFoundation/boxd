@@ -27,6 +27,8 @@ const (
 	p2PKHScriptLen = 25
 	p2SHScriptLen  = 23
 
+	MaxOpReturnSize = 512
+
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
 )
 
@@ -637,15 +639,36 @@ func (s *Script) IsContractPubkey() bool {
 	return true
 }
 
+// IsOpReturnScript returns true if the script is of op return
+func (s *Script) IsOpReturnScript() bool {
+	if len(*s) < 2 {
+		return false
+	}
+	if (*s)[0] != byte(OPRETURN) {
+		return false
+	}
+	_, oprand, newPc, err := s.parseNextOp(1)
+	if err != nil {
+		return false
+	}
+	if len(oprand) > MaxOpReturnSize {
+		return false
+	}
+	if len(*s) != newPc {
+		return false
+	}
+	return true
+}
+
 // IsStandard returns if a script is standard
 // Only certain types of transactions are allowed, i.e., regarded as standard
 func (s *Script) IsStandard() bool {
 	_, err := s.ExtractAddress()
-	if err != nil {
-		logger.Errorf("Failed to extract address. script: %s, Err: %v", s.Disasm(), err)
-		return false
+	if err == nil {
+		return true
 	}
-	return true
+	// check OP_RETURN
+	return s.IsOpReturnScript()
 }
 
 // GetSplitAddrScriptPrefix returns prefix of split addr script without and list of addresses and weights

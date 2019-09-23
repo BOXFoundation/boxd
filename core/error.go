@@ -101,6 +101,7 @@ var (
 	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
 	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
 	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
+	ErrMultipleOpReturnOuts = errors.New("Transaction must not contain multiple OPRETURN tx outs")
 
 	//utxoset.go
 	ErrTxOutIndexOob               = errors.New("Transaction output index out of bound")
@@ -116,5 +117,13 @@ var (
 	ErrBloomBitOutOfBounds = errors.New("Bloom bit out of bounds")
 	ErrInvalidBounds       = errors.New("Invalid section bounds")
 
-	EvilBehavior = []interface{}{ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig, ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot, ErrDuplicateTx, ErrTooManySigOps, ErrBadFees, ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight, ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx, ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction, ErrDoubleSpendTx}
+	EvilBehavior = []error{
+		ErrInvalidTime, ErrNoTransactions, ErrBlockTooBig,
+		ErrFirstTxNotCoinbase, ErrMultipleCoinbases, ErrBadMerkleRoot,
+		ErrDuplicateTx, ErrTooManySigOps, ErrBadFees,
+		ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight,
+		ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx,
+		ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction,
+		ErrDoubleSpendTx,
+	}
 )

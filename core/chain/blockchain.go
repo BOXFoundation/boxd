@@ -436,9 +436,13 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 	}
 
 	// process block
-	if err := chain.ProcessBlock(block, core.RelayMode, msg.From()); err != nil && util.InArray(err, core.EvilBehavior) {
-		chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
-		return err
+	if err := chain.ProcessBlock(block, core.RelayMode, msg.From()); err != nil {
+		for _, e := range core.EvilBehavior {
+			if err.Error() == e.Error() {
+				chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadBlockEvent)
+				return err
+			}
+		}
 	}
 	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil
@@ -740,7 +744,7 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 	var totalFees uint64
 	for _, tx := range txs {
 		// skip coinbase tx
-		if IsCoinBase(tx) || IsDynastySwitch(tx) {
+		if IsCoinBase(tx) || IsInternalContract(tx) {
 			continue
 		}
 		txFee, err := ValidateTxInputs(utxoSet, tx)
@@ -2300,10 +2304,10 @@ func (chain *BlockChain) MakeInternalContractTx(
 	switch method {
 	case CalcBonus:
 		index = sysmath.MaxUint32
-	case ExecBonus:
+	case ExecBonus, CalcScore:
 		index = sysmath.MaxUint32 - 1
-	case CalcScore:
-		index = sysmath.MaxUint32 - 2
+		// case CalcScore:
+		// 	index = sysmath.MaxUint32 - 2
 	}
 
 	tx := &types.Transaction{

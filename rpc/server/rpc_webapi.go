@@ -1074,6 +1074,9 @@ func ParseAddrFrom(
 		}
 		address = txlogic.MakeSplitAddress(txHash, idx, addrs, weights)
 	default:
+		if sc.IsOpReturnScript() {
+			return "", nil
+		}
 		address, err = sc.ExtractAddress()
 	}
 	if err != nil {
