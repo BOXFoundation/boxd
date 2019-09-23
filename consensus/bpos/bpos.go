@@ -671,6 +671,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if utxoRoot != nil {
 		block.Header.UtxoRoot = *utxoRoot
 	}
+	block.Header.Bloom = types.CreateReceiptsBloom(receipts)
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
 		bpos.chain.ReceiptsCache()[block.Header.Height] = receipts
