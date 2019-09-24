@@ -1151,7 +1151,7 @@ func (s *webapiServer) GetCode(
 
 	addr := contractAddress.Hash160()
 	code := state.GetCode(*addr)
-	return newGetCodeResp(0, "", hex.EncodeToString(code)), nil
+	return newGetCodeResp(0, "ok", hex.EncodeToString(code)), nil
 }
 
 func (s *webapiServer) EstimateGas(
