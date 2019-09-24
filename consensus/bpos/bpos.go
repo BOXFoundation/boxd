@@ -565,18 +565,17 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			return err
 		}
 		block.Txs = append(block.Txs, dynastySwitchTx)
+	} else if uint64(block.Header.Height)%bpos.context.calcScoreThreshold.Uint64() == 0 { // calc score
+		scores, err := bpos.calcScores()
+		if err != nil {
+			return err
+		}
+		calcScoreTx, err := bpos.chain.MakeInternalContractTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.CalcScore, scores)
+		if err != nil {
+			return err
+		}
+		block.Txs = append(block.Txs, calcScoreTx)
 	}
-	// else if uint64(block.Header.Height)%bpos.context.calcScoreThreshold.Uint64() == 0 { // calc score
-	// 	scores, err := bpos.calcScores()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	calcScoreTx, err := bpos.chain.MakeInternalContractTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.CalcScore, scores)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	block.Txs = append(block.Txs, calcScoreTx)
-	// }
 
 	block.Txs = append(block.Txs, packedTxs...)
 

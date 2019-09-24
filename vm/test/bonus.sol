@@ -49,7 +49,7 @@ contract Permission {
 contract Bonus is Permission{
     using SafeMath for uint;
 
-    uint constant DYNASTY_SIZE = 15;
+    uint constant DYNASTY_SIZE = 6;
 
     uint constant PLEDGE_THRESHOLD = 1;
     uint constant DYNASTY_CHANGE_THRESHOLD = 2;
