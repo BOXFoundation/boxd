@@ -796,6 +796,7 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 
 	bpos.context.verifyDynasty = dynasty
 	bpos.context.verifyDynastySwitchThreshold = netParams.DynastySwitchThreshold
+	bpos.context.verifyCalcScoreThreshold = netParams.CalcScoreThreshold
 	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, dynasty.delegates)
 	if err != nil {
 		return false, err
@@ -819,7 +820,7 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 
 func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
 
-	if (uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0) || (uint64((block.Header.Height))%bpos.context.calcScoreThreshold.Uint64() == 0) { // dynasty switch
+	if (uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0) || (uint64((block.Header.Height))%bpos.context.verifyCalcScoreThreshold.Uint64() == 0) { // dynasty switch
 		if !chain.IsInternalContract(block.Txs[1]) {
 			return ErrInvalidDynastySwitchTx
 		}
