@@ -570,7 +570,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		if err != nil {
 			return err
 		}
-		calcScoreTx, err := bpos.chain.MakeInternalContractTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.CalcScore, scores)
+		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.CalcScore, scores)
 		if err != nil {
 			return err
 		}
