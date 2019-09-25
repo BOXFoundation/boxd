@@ -7,7 +7,6 @@ package tokencmd
 import (
 	"fmt"
 	"math"
-	"path"
 	"strconv"
 	"strings"
 
@@ -18,16 +17,14 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 )
 
 var (
-	cfgFile          string
-	walletDir        string
-	defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+	cfgFile   string
+	walletDir string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -48,7 +45,7 @@ to quickly create a Cobra application.`,
 // Init adds the sub command to the root command.
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
-	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "issue [issuer] [owner] [name] [symbol] [supply] [decimal]",

@@ -38,8 +38,8 @@ func isNullOutPoint(outPoint *types.OutPoint) bool {
 	return outPoint.Index == math.MaxUint32 && outPoint.Hash == zeroHash
 }
 
-// IsDynastySwitch determines whether or not a transaction is a dynasty switch tx.
-func IsDynastySwitch(tx *types.Transaction) bool {
+// IsInternalContract determines whether or not a transaction is a internal contract tx.
+func IsInternalContract(tx *types.Transaction) bool {
 	if len(tx.Vin) != 1 {
 		return false
 	}

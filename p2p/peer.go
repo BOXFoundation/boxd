@@ -388,11 +388,14 @@ func (p *BoxPeer) Conns() *sync.Map {
 func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 	var pid peer.ID
 	p.conns.Range(func(k, v interface{}) bool {
-		if !util.InArray(k, peersExclusive) {
-			pid = k.(peer.ID)
-			return false
+		for _, p := range peersExclusive {
+			if k.(peer.ID) == p {
+				return true
+			}
 		}
-		return true
+		pid = k.(peer.ID)
+		return false
+
 	})
 	return pid
 }
@@ -411,8 +414,10 @@ func (p *BoxPeer) SetMinerReader(mr service.MinerReader) {
 // Type return returns the type corresponding to the peer id.
 // The second return value indicates skepticism about the result.
 func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
-	if util.InArray(pid, agents) {
-		return pstore.ServerPeer, true
+	for _, p := range agents {
+		if pid == p {
+			return pstore.ServerPeer, true
+		}
 	}
 	// Need to init minerreader.
 	if p.minerreader == nil {
@@ -421,12 +426,12 @@ func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
 	miners, canmint := p.minerreader.Miners()
 
 	pretty := pid.Pretty()
-	if util.InArray(pretty, miners) {
+	if util.InStrings(pretty, miners) {
 		return pstore.MinerPeer, true
 	}
 
 	candidates, _ := p.minerreader.Candidates()
-	if util.InArray(pretty, candidates) {
+	if util.InStrings(pretty, candidates) {
 		return pstore.CandidatePeer, true
 	}
 

@@ -265,8 +265,6 @@ func NewTxs(
 		err = fmt.Errorf("no utxos")
 		return
 	}
-	// NOTE: for test only
-	//checkDuplicateUtxos(utxos)
 	// gen txs
 	txss = make([][]*types.Transaction, 0)
 	n := (count + len(utxos) - 1) / len(utxos)
@@ -275,7 +273,8 @@ func NewTxs(
 		change := u
 		value := change.GetTxOut().GetValue()
 		aveAmt := value / uint64(n)
-		if aveAmt == 0 {
+		if aveAmt <= core.TransferFee {
+			err = fmt.Errorf("newtxs average amount is %d, continue with next utxo", aveAmt)
 			continue
 		}
 		changeAmt := value

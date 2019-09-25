@@ -220,12 +220,17 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.bookKeeperReward = netParams.BookKeeperReward
 	bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
 
-	delegates, err := bpos.fetchDelegatesByHeight(bpos.chain.LongestChainHeight)
+	current, err := bpos.fetchCurrentDelegatesByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return err
 	}
-	bpos.context.delegates = delegates
-	bpos.context.candidates = bpos.filterCandidates(delegates, dynasty.delegates)
+	next, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
+	if err != nil {
+		return err
+	}
+	bpos.context.currentDelegates = current
+	bpos.context.nextDelegates = next
+	bpos.context.candidates = bpos.filterCandidates(current, dynasty.delegates)
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err
@@ -286,7 +291,7 @@ func (bpos *Bpos) IsBookkeeper() bool {
 	if err != nil {
 		return false
 	}
-	if !util.InArray(*addr.Hash160(), dynasty.addrs) {
+	if !types.InAddresses(*addr.Hash160(), dynasty.addrs) {
 		return false
 	}
 	if err := bpos.bookkeeper.UnlockWithPassphrase(bpos.cfg.Passphrase); err != nil {
@@ -560,18 +565,17 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			return err
 		}
 		block.Txs = append(block.Txs, dynastySwitchTx)
+	} else if uint64(block.Header.Height)%bpos.context.calcScoreThreshold.Uint64() == 0 { // calc score
+		scores, err := bpos.calcScores()
+		if err != nil {
+			return err
+		}
+		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.CalcScore, scores)
+		if err != nil {
+			return err
+		}
+		block.Txs = append(block.Txs, calcScoreTx)
 	}
-	// else if uint64(block.Header.Height)%bpos.context.calcScoreThreshold.Uint64() == 0 { // calc score
-	// 	scores, err := bpos.calcScores()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	calcScoreTx, err := bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, 0, nonce+1, block.Header.Height, chain.CalcScore, scores)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	block.Txs = append(block.Txs, calcScoreTx)
-	// }
 
 	block.Txs = append(block.Txs, packedTxs...)
 
@@ -666,6 +670,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if utxoRoot != nil {
 		block.Header.UtxoRoot = *utxoRoot
 	}
+	block.Header.Bloom = types.CreateReceiptsBloom(receipts)
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
 		bpos.chain.ReceiptsCache()[block.Header.Height] = receipts
@@ -730,7 +735,6 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 		// }
 		//TODO: period switching requires extra processing
 
-		addrs := dynasty.addrs
 		remains := []types.AddressHash{}
 		for _, v := range irreversibleInfo.Signatures {
 			if pubkey, ok := crypto.RecoverCompact(irreversibleInfo.Hash[:], v); ok {
@@ -739,8 +743,8 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 					return err
 				}
 				addr := *addrPubKeyHash.Hash160()
-				if util.InArray(addr, addrs) {
-					if !util.InArray(addr, remains) {
+				if types.InAddresses(addr, dynasty.addrs) {
+					if !types.InAddresses(addr, remains) {
 						remains = append(remains, addr)
 					} else {
 						logger.Errorf("Duplicated irreversible signature %v in block. Hash: %s, Height: %d",
@@ -792,6 +796,7 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 
 	bpos.context.verifyDynasty = dynasty
 	bpos.context.verifyDynastySwitchThreshold = netParams.DynastySwitchThreshold
+	bpos.context.verifyCalcScoreThreshold = netParams.CalcScoreThreshold
 	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, dynasty.delegates)
 	if err != nil {
 		return false, err
@@ -815,19 +820,19 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 
 func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
 
-	if uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0 { // dynasty switch
-		if !chain.IsDynastySwitch(block.Txs[1]) {
+	if (uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0) || (uint64((block.Header.Height))%bpos.context.verifyCalcScoreThreshold.Uint64() == 0) { // dynasty switch
+		if !chain.IsInternalContract(block.Txs[1]) {
 			return ErrInvalidDynastySwitchTx
 		}
 		for i, tx := range block.Txs[2:] {
-			if chain.IsDynastySwitch(tx) {
+			if chain.IsInternalContract(tx) {
 				logger.Errorf("block contains second dynasty switch tx at index %d", i+2)
 				return ErrMultipleDynastySwitchTx
 			}
 		}
 	} else {
 		for _, tx := range block.Txs {
-			if chain.IsDynastySwitch(tx) {
+			if chain.IsInternalContract(tx) {
 				return ErrDynastySwitchIsNotAllowed
 			}
 		}

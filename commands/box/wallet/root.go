@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path"
 	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/common"
@@ -17,14 +16,12 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 )
 
 var cfgFile string
 var walletDir string
-var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -44,7 +41,7 @@ to quickly create a Cobra application.`,
 // Init adds the sub command to the root command.
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
-	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "newaccount [account]",

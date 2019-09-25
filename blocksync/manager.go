@@ -530,7 +530,8 @@ func heightLocator(height uint32) []uint32 {
 // rmOverlap remove overlapped headers between locateHashes and local chain
 func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) []*crypto.HashType {
 	for i, h := range locateHashes {
-		if block, _ := chain.LoadBlockByHash(*h, sm.chain.DB()); block == nil {
+		if block, _ := chain.LoadBlockByHash(*h, sm.chain.DB()); block == nil ||
+			block.Header.Height > sm.chain.LongestChainHeight {
 			return locateHashes[i:]
 		}
 	}
@@ -558,7 +559,7 @@ func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 		return preferedID, nil
 	}
 	var pid peer.ID
-	var syncIds []peer.ID
+	var syncIds []string
 	for {
 		pid = sm.p2pNet.PickOnePeer(ids...)
 		if pid == peer.ID("") {
@@ -568,14 +569,14 @@ func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 		if synced {
 			return pid, nil
 		}
-		syncIds = append(syncIds, pid)
+		syncIds = append(syncIds, string(pid))
 		ids = append(ids, pid)
 	}
 	// select a peer that have sync with this peer when no other peers to sync
 	ids = make([]peer.ID, 0)
 	sm.stalePeers.Range(func(k, v interface{}) bool {
 		if (v != nil && v.(peerStatus) == errPeerStatus) ||
-			util.InArray(k.(peer.ID), syncIds) {
+			util.InStrings(string(k.(peer.ID)), syncIds) {
 			ids = append(ids, k.(peer.ID))
 		}
 		return true

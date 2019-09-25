@@ -6,7 +6,6 @@ package ctl
 
 import (
 	"fmt"
-	"path"
 	"strconv"
 
 	"github.com/BOXFoundation/boxd/commands/box/common"
@@ -16,15 +15,12 @@ import (
 	"github.com/BOXFoundation/boxd/p2p"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/spf13/cobra"
 )
 
 var (
 	walletDir string
-
-	defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -46,7 +42,7 @@ func init() {
 	root.RootCmd.AddCommand(versionCmd)
 	//
 	root.RootCmd.AddCommand(rootCmd)
-	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "addnode [netaddr] add|remove",

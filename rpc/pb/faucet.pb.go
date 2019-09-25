@@ -9,11 +9,8 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -46,7 +43,7 @@ func (m *ClaimReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_ClaimReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -99,7 +96,7 @@ func (m *ClaimResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_ClaimResp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -203,14 +200,6 @@ type FaucetServer interface {
 	Claim(context.Context, *ClaimReq) (*ClaimResp, error)
 }
 
-// UnimplementedFaucetServer can be embedded to have forward compatible implementations.
-type UnimplementedFaucetServer struct {
-}
-
-func (*UnimplementedFaucetServer) Claim(ctx context.Context, req *ClaimReq) (*ClaimResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Claim not implemented")
-}
-
 func RegisterFaucetServer(s *grpc.Server, srv FaucetServer) {
 	s.RegisterService(&_Faucet_serviceDesc, srv)
 }
@@ -249,7 +238,7 @@ var _Faucet_serviceDesc = grpc.ServiceDesc{
 func (m *ClaimReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -257,34 +246,28 @@ func (m *ClaimReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ClaimReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ClaimReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.Amount != 0 {
-		i = encodeVarintFaucet(dAtA, i, uint64(m.Amount))
-		i--
-		dAtA[i] = 0x10
-	}
 	if len(m.Addr) > 0 {
-		i -= len(m.Addr)
-		copy(dAtA[i:], m.Addr)
-		i = encodeVarintFaucet(dAtA, i, uint64(len(m.Addr)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintFaucet(dAtA, i, uint64(len(m.Addr)))
+		i += copy(dAtA[i:], m.Addr)
 	}
-	return len(dAtA) - i, nil
+	if m.Amount != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintFaucet(dAtA, i, uint64(m.Amount))
+	}
+	return i, nil
 }
 
 func (m *ClaimResp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -292,47 +275,38 @@ func (m *ClaimResp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ClaimResp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ClaimResp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.Hash) > 0 {
-		i -= len(m.Hash)
-		copy(dAtA[i:], m.Hash)
-		i = encodeVarintFaucet(dAtA, i, uint64(len(m.Hash)))
-		i--
-		dAtA[i] = 0x1a
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintFaucet(dAtA, i, uint64(m.Code))
 	}
 	if len(m.Message) > 0 {
-		i -= len(m.Message)
-		copy(dAtA[i:], m.Message)
-		i = encodeVarintFaucet(dAtA, i, uint64(len(m.Message)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintFaucet(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
 	}
-	if m.Code != 0 {
-		i = encodeVarintFaucet(dAtA, i, uint64(m.Code))
-		i--
-		dAtA[i] = 0x8
+	if len(m.Hash) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintFaucet(dAtA, i, uint64(len(m.Hash)))
+		i += copy(dAtA[i:], m.Hash)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func encodeVarintFaucet(dAtA []byte, offset int, v uint64) int {
-	offset -= sovFaucet(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func (m *ClaimReq) Size() (n int) {
 	if m == nil {
@@ -371,7 +345,14 @@ func (m *ClaimResp) Size() (n int) {
 }
 
 func sovFaucet(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozFaucet(x uint64) (n int) {
 	return sovFaucet(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -391,7 +372,7 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -419,7 +400,7 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -429,9 +410,6 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthFaucet
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthFaucet
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -451,7 +429,7 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Amount |= uint64(b&0x7F) << shift
+				m.Amount |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -463,9 +441,6 @@ func (m *ClaimReq) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthFaucet
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthFaucet
 			}
 			if (iNdEx + skippy) > l {
@@ -495,7 +470,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= uint64(b&0x7F) << shift
+			wire |= (uint64(b) & 0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -523,7 +498,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Code |= int32(b&0x7F) << shift
+				m.Code |= (int32(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -542,7 +517,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -552,9 +527,6 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthFaucet
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthFaucet
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -574,7 +546,7 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				stringLen |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -584,9 +556,6 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthFaucet
 			}
 			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthFaucet
-			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -599,9 +568,6 @@ func (m *ClaimResp) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
-				return ErrInvalidLengthFaucet
-			}
-			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthFaucet
 			}
 			if (iNdEx + skippy) > l {
@@ -670,11 +636,8 @@ func skipFaucet(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			if length < 0 {
-				return 0, ErrInvalidLengthFaucet
-			}
 			iNdEx += length
-			if iNdEx < 0 {
+			if length < 0 {
 				return 0, ErrInvalidLengthFaucet
 			}
 			return iNdEx, nil
@@ -705,9 +668,6 @@ func skipFaucet(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthFaucet
-				}
 			}
 			return iNdEx, nil
 		case 4:

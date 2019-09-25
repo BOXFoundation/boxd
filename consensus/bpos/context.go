@@ -23,10 +23,12 @@ type ConsensusContext struct {
 	dynasty                      *Dynasty
 	verifyDynasty                *Dynasty
 	candidates                   []Delegate
-	delegates                    []Delegate
+	currentDelegates             []Delegate
+	nextDelegates                []Delegate
 	dynastySwitchThreshold       *big.Int
 	calcScoreThreshold           *big.Int
 	verifyDynastySwitchThreshold *big.Int
+	verifyCalcScoreThreshold     *big.Int
 	bookKeeperReward             *big.Int
 }
 
@@ -171,13 +173,26 @@ func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegat
 	return bookkeeper, nil
 }
 
-func (bpos *Bpos) fetchDelegatesByHeight(height uint32) ([]Delegate, error) {
-	output, err := bpos.chain.CallGenesisContract(height, "getDelegates")
+func (bpos *Bpos) fetchCurrentDelegatesByHeight(height uint32) ([]Delegate, error) {
+	output, err := bpos.chain.CallGenesisContract(height, "getCurrentDelegates")
 	if err != nil {
 		return nil, err
 	}
 	var delegates []Delegate
-	if err := chain.ContractAbi.Unpack(&delegates, "getDelegates", output); err != nil {
+	if err := chain.ContractAbi.Unpack(&delegates, "getCurrentDelegates", output); err != nil {
+		logger.Errorf("Failed to unpack the result of call getCandidates. Err: %v", err)
+		return nil, err
+	}
+	return delegates, nil
+}
+
+func (bpos *Bpos) fetchNextDelegatesByHeight(height uint32) ([]Delegate, error) {
+	output, err := bpos.chain.CallGenesisContract(height, "getNextDelegates")
+	if err != nil {
+		return nil, err
+	}
+	var delegates []Delegate
+	if err := chain.ContractAbi.Unpack(&delegates, "getNextDelegates", output); err != nil {
 		logger.Errorf("Failed to unpack the result of call getCandidates. Err: %v", err)
 		return nil, err
 	}
@@ -211,11 +226,11 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 
 func (bpos *Bpos) calcScores() ([]*big.Int, error) {
 	var totalVote int64
-	for _, v := range bpos.context.delegates {
+	for _, v := range bpos.context.nextDelegates {
 		totalVote += v.Votes.Int64()
 	}
 	var scores []*big.Int
-	for _, v := range bpos.context.delegates {
+	for _, v := range bpos.context.nextDelegates {
 		score, err := bpos.calcScore(totalVote, v)
 		if err != nil {
 			return nil, err
@@ -227,9 +242,11 @@ func (bpos *Bpos) calcScores() ([]*big.Int, error) {
 
 func (bpos *Bpos) calcScore(totalVote int64, delegate Delegate) (*big.Int, error) {
 	currentDynasty := (int64(bpos.chain.LongestChainHeight) / bpos.context.dynastySwitchThreshold.Int64()) + 1
-	pledgeScore := float64((int64(len(bpos.context.dynasty.delegates)) * delegate.PledgeAmount.Int64() / int64(len(bpos.context.delegates)))) / math.Pow(float64(currentDynasty), 1.5)
-	voteScore := delegate.Votes.Int64() * delegate.Votes.Int64() / totalVote
-	score := math.Trunc(math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (pledgeScore + float64(voteScore)))
+	pledgeScore := float64((float64(len(bpos.context.dynasty.delegates)) * float64(delegate.PledgeAmount.Int64()) / float64(len(bpos.context.nextDelegates)))) / math.Pow(float64(currentDynasty), 1.5)
+	voteScore := float64(delegate.Votes.Int64()*delegate.Votes.Int64()) / float64(totalVote)
+	// score := math.Trunc(math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (pledgeScore + voteScore))
+	periodScore := math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (float64(delegate.PledgeAmount.Int64()) + float64(delegate.Votes.Int64()))
+	score := math.Trunc(periodScore + pledgeScore + voteScore)
 	return big.NewInt(int64(score)), nil
 }
 

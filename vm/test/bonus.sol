@@ -49,7 +49,7 @@ contract Permission {
 contract Bonus is Permission{
     using SafeMath for uint;
 
-    uint constant DYNASTY_SIZE = 15;
+    uint constant DYNASTY_SIZE = 6;
 
     uint constant PLEDGE_THRESHOLD = 1;
     uint constant DYNASTY_CHANGE_THRESHOLD = 2;
@@ -93,7 +93,7 @@ contract Bonus is Permission{
     }
 
     Delegate[] dynasty;
-    Delegate[] delegates;
+    // Delegate[] delegates;
     address[] pledgeAddrList;
     mapping(address => Delegate) addrToDelegates;
 
@@ -114,6 +114,9 @@ contract Bonus is Permission{
     uint[] changedProposalIDs;
     mapping(uint => uint) changedProposals;
 
+    Delegate[] current;
+    Delegate[] next;
+
 
     uint pledgePool;
     // uint dynastyBonusPool;
@@ -125,7 +128,7 @@ contract Bonus is Permission{
     event CalcBonus(address _coinbase, uint value);
 
     constructor() public {
-        _global_open_pledge_limit = 10000;
+        _global_open_pledge_limit = 100;
         initNetParams();
         initDynasty();
         admin = msg.sender;
@@ -148,49 +151,55 @@ contract Bonus is Permission{
 
     function initNetParams() internal {
         netParams[PLEDGE_THRESHOLD] = 1800000 * 10**8;
-        netParams[DYNASTY_CHANGE_THRESHOLD] = 10000;
+        netParams[DYNASTY_CHANGE_THRESHOLD] = 600;
         netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK] = 1 * 10**8;
-        netParams[VOTE_FROZEN_BLOCK_NUMBER] = 2000;
+        netParams[VOTE_FROZEN_BLOCK_NUMBER] = 50;
         netParams[VOTE_THRESHOLD] = 1 * 10**8;
         netParams[MIN_PROPOSAL_THRESHOLD] = 100 * 10**8;
-        netParams[PLEDGE_OPEN_LIMIT] = 8000;
+        netParams[PLEDGE_OPEN_LIMIT] = 250;
         netParams[PROPOSAL_EXPIRATION_TIME] = 3 * 24 * 3600;
         netParams[BOOK_KEEPER_REWARD] = 50 * 10**8;
         netParams[BONUS_TO_VOTERS] = 50;
-        netParams[CALC_SCORE_THRESHOLD] = 8000;
+        netParams[CALC_SCORE_THRESHOLD] = 500;
     }
 
     function initDynasty() internal {
         dynasty.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
-         0, 0, 0, 0, true));
-        delegates.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
-         0, 0, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, true));
+        current.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
+         0, 1800000 * 10**8, 0, 0, true));
         dynasty.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
-         0, 0, 0, 0, true));
-        delegates.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
-         0, 0, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, true));
+        current.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
+         0, 1800000 * 10**8, 0, 0, true));
         dynasty.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
-         0, 0, 0, 0, true));
-        delegates.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
-         0, 0, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, true));
+        current.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
+         0, 1800000 * 10**8, 0, 0, true));
         dynasty.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
-         0, 0, 0, 0, true));
-        delegates.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
-         0, 0, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, true));
+        current.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
+         0, 1800000 * 10**8, 0, 0, true));
         dynasty.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
-         0, 0, 0, 0, true));
-        delegates.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
-         0, 0, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, true));
+        current.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
+         0, 1800000 * 10**8, 0, 0, true));
         dynasty.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
-         0, 0, 0, 0, true));
-        delegates.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
-         0, 0, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, true));
+        current.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
+         0, 1800000 * 10**8, 0, 0, true));
+
+        for(uint i = 0; i < current.length; i++) {
+            pledgeAddrList.push(current[i].addr);
+            addrToDelegates[current[i].addr] = current[i];
+        }
     }
 
     function  pledge() public payable onlyPledgeIsOpen{
         require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] <= netParams[PLEDGE_OPEN_LIMIT], "pledge is not open.");
         require(msg.value >= netParams[PLEDGE_THRESHOLD], "pledge amount is not correct.");
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
+        require(frozenDelegate[msg.sender].pledgeAmount == 0, "can not repeat the mortgage");
 
         Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, 0, true);
         addrToDelegates[msg.sender] = delegate;
@@ -202,13 +211,21 @@ contract Bonus is Permission{
     }
 
     function redeemPledgeApply() public {
-        require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] > netParams[PLEDGE_OPEN_LIMIT], "redeem pledge apply is not allowed.");
+        require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] <= netParams[PLEDGE_OPEN_LIMIT], "redeem pledge apply is not allowed.");
         require(addrToDelegates[msg.sender].isExist == true, "not delegate node.");
         FrozenDelegate memory fd = FrozenDelegate(msg.sender, block.number, addrToDelegates[msg.sender].pledgeAmount);
         frozenDelegate[msg.sender] = fd;
         delete addrToDelegates[msg.sender];
         uint idx = getIdxInPledgeAddrList(msg.sender);
         deletePledgeAddrList(idx);
+
+        for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
+            if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
+                voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
+                add(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
+            }
+        }
+        delete delegateToVoters[msg.sender];
     }
 
     function pickRedeemPledge() public {
@@ -218,35 +235,6 @@ contract Bonus is Permission{
             FrozenDelegate memory fd = frozenDelegate[msg.sender];
             delete frozenDelegate[msg.sender];
             msg.sender.transfer(fd.pledgeAmount);
-            for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
-                if (delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]] > 0) {
-                    voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
-                    add(delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]]);
-                }
-            }
-            delete delegateToVoters[msg.sender];
-        }
-    }
-
-    function redeemVoteApply(address delegateAddr, uint count) public {
-        require(count <= delegateVotesDetail[delegateAddr][msg.sender], "the vote count is not enough.");
-        require(count <= votes[msg.sender][delegateAddr], "the vote count is not enough.");
-        frozenVotes[delegateAddr][msg.sender].votes = frozenVotes[delegateAddr][msg.sender].votes.add(count);
-        frozenVotes[delegateAddr][msg.sender].timestamp = block.number;
-
-        delegateVotesDetail[delegateAddr][msg.sender] = delegateVotesDetail[delegateAddr][msg.sender].sub(count);
-        votes[msg.sender][delegateAddr] = votes[msg.sender][delegateAddr].sub(count);
-        Delegate storage delegate = addrToDelegates[delegateAddr];
-        delegate.votes = delegate.votes.sub(count);
-        // delegate.score = calcScore(delegate);
-    }
-
-    function pickRedeemVote(address delegateAddr) public {
-        if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
-            block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
-            uint vote = frozenVotes[delegateAddr][msg.sender].votes;
-            delete frozenVotes[delegateAddr][msg.sender];
-            msg.sender.transfer(vote);
         }
     }
 
@@ -274,34 +262,52 @@ contract Bonus is Permission{
             }
             delete dynastyToBonus[dynasty[i].addr];
         }
-
+        current = next;
         if (pledgeAddrList.length >= DYNASTY_SIZE) {
             updateDynasty();
             updateNetParams();
         }
     }
 
+    function calcScore(uint[] scores) public  {
+        for(uint i = 0; i < scores.length; i++) {
+            Delegate storage delegate = addrToDelegates[pledgeAddrList[i]];
+            delegate.score = scores[i];
+        }
+        delete next;
+        for(i = 0; i < pledgeAddrList.length; i++) {
+            if (addrToDelegates[pledgeAddrList[i]].isExist) {
+                next.push(addrToDelegates[pledgeAddrList[i]]);
+            }
+        }
+        quickSort(next, 0, next.length-1);
+    }
+
     function getDynasty() public view returns (Delegate[] memory) {
         return dynasty;
     }
 
-    function getDelegates() public view returns (Delegate[] memory) {
-        return delegates;
+    function getNext() public view returns (Delegate[] memory) {
+        return next;
+    }
+
+    function getCurrentDelegates() public view returns (Delegate[] memory) {
+        return current;
+    }
+
+    function getNextDelegates() public view returns (Delegate[] memory) {
+        Delegate[] memory res = new Delegate[](pledgeAddrList.length);
+        for(uint i = 0; i < pledgeAddrList.length; i++) {
+            if (addrToDelegates[pledgeAddrList[i]].isExist) {
+                res[i] = addrToDelegates[pledgeAddrList[i]];
+            }
+        }
+        return res;
     }
 
     function updateDynasty() internal {
-        require(pledgeAddrList.length >= DYNASTY_SIZE, "");
-        delete delegates;
-        delete dynasty;
-
-        for(uint i = 0; i < pledgeAddrList.length; i++) {
-            if (addrToDelegates[pledgeAddrList[i]].isExist) {
-                delegates.push(addrToDelegates[pledgeAddrList[i]]);
-            }
-        }
-        quickSort(delegates, 0, delegates.length);
         for (uint j = 0; j < dynasty.length; j++) {
-            dynasty[j] = delegates[j];
+            dynasty[j] = next[j];
         }
     }
 
@@ -359,13 +365,13 @@ contract Bonus is Permission{
         return false;
     }
 
-    function quickSort(Delegate[] storage arr, uint left, uint right) internal {
+    function quickSort(Delegate[] storage arr, uint left, uint right) internal returns(Delegate[] memory){
         uint i = left;
         uint j = right;
         uint pivot = arr[left + (right - left) / 2].score;
         while (i <= j) {
-            while (arr[i].score < pivot) i++;
-            while (pivot < arr[j].score) j--;
+            while (arr[i].score > pivot) i++;
+            while (pivot > arr[j].score) j--;
             if (i <= j) {
                 // (arr[i], arr[j]) = (arr[j], arr[i]);
                 Delegate memory temp = arr[i];
@@ -379,10 +385,14 @@ contract Bonus is Permission{
             quickSort(arr, left, j);
         if (i < right)
             quickSort(arr, i, right);
+        return arr;
     }
 
     function vote(address delegateAddr) public payable {
         require(msg.value > netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "vote amount is not correct.");
+        require(addrToDelegates[delegateAddr].pledgeAmount >= netParams[PLEDGE_THRESHOLD], "delegate is not exist.");
+        require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] > netParams[PLEDGE_OPEN_LIMIT] &&
+         block.number % netParams[DYNASTY_CHANGE_THRESHOLD] < netParams[CALC_SCORE_THRESHOLD], "Out of voting hours");
 
         if (votes[msg.sender][delegateAddr] > 0) {
             votes[msg.sender][delegateAddr] = votes[msg.sender][delegateAddr].add(msg.value);
@@ -398,6 +408,40 @@ contract Bonus is Permission{
         } else {
             delegateVotesDetail[delegateAddr][msg.sender] = msg.value;
             delegateToVoters[delegateAddr].push(msg.sender);
+        }
+    }
+
+    function redeemVoteApply(address delegateAddr, uint count) public {
+        require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] > netParams[PLEDGE_OPEN_LIMIT] &&
+         block.number % netParams[DYNASTY_CHANGE_THRESHOLD] < netParams[CALC_SCORE_THRESHOLD], "Out of voting hours");
+
+        require(count <= delegateVotesDetail[delegateAddr][msg.sender], "the vote count is not enough.");
+        require(count <= votes[msg.sender][delegateAddr], "the vote count is not enough.");
+        frozenVotes[delegateAddr][msg.sender].votes = frozenVotes[delegateAddr][msg.sender].votes.add(count);
+        frozenVotes[delegateAddr][msg.sender].timestamp = block.number;
+
+        delegateVotesDetail[delegateAddr][msg.sender] = delegateVotesDetail[delegateAddr][msg.sender].sub(count);
+        votes[msg.sender][delegateAddr] = votes[msg.sender][delegateAddr].sub(count);
+        Delegate storage delegate = addrToDelegates[delegateAddr];
+        delegate.votes = delegate.votes.sub(count);
+        // delegate.score = calcScore(delegate);
+    }
+
+    function myRedeemVote(address delegateAddr) public view returns (uint, uint) {
+        if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
+            block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
+            return (0, frozenVotes[delegateAddr][msg.sender].votes);
+        } else {
+            return (frozenVotes[delegateAddr][msg.sender].votes, 0);
+        }
+    }
+
+    function pickRedeemVote(address delegateAddr) public {
+        if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
+            block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
+            uint voteNumber = frozenVotes[delegateAddr][msg.sender].votes;
+            delete frozenVotes[delegateAddr][msg.sender];
+            msg.sender.transfer(voteNumber);
         }
     }
 
