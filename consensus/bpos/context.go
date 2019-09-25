@@ -28,6 +28,7 @@ type ConsensusContext struct {
 	dynastySwitchThreshold       *big.Int
 	calcScoreThreshold           *big.Int
 	verifyDynastySwitchThreshold *big.Int
+	verifyCalcScoreThreshold     *big.Int
 	bookKeeperReward             *big.Int
 }
 

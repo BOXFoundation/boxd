@@ -253,9 +253,12 @@ func TestAddressValidate(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		_, err := ParseAddress(tc.addr)
+		address, err := ParseAddress(tc.addr)
 		if err != nil && tc.valid {
 			t.Error(err)
+		}
+		if err == nil {
+			t.Logf("addr: %s, hash: %x", tc.addr, address.Hash())
 		}
 	}
 }

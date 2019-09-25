@@ -5,8 +5,11 @@
 package abi
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
+	"math/big"
 	"reflect"
 	"strings"
 	"testing"
@@ -177,4 +180,30 @@ func TestStruct(t *testing.T) {
 	res, _ := abi.Methods["aaa"].Outputs.UnpackValues(data)
 	a := fmt.Sprint(res)
 	fmt.Println(a)
+}
+
+func TestPack2(t *testing.T) {
+	//data, err := ioutil.ReadFile("../../.cmd/contract/test/erc20_simple.abi")
+	data, err := ioutil.ReadFile("../../.cmd/contract/test/bank.abi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	abiObj, err := JSON(bytes.NewBuffer(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	//output, err := abiObj.Pack("approve", "5623d8b0dd0136197531fd86110d509ce0030d9e", "20000")
+	a1, _ := hex.DecodeString("5623d8b0dd0136197531fd86110d509ce0030d9e")
+	a2, _ := hex.DecodeString("5623d8b0dd0136197531fd86110d509ce0030d9e")
+	aa1 := [32]byte{}
+	aa2 := [32]byte{}
+	copy(aa1[:], a1)
+	copy(aa2[:], a2)
+	a := []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(3)}
+	b := [2][32]byte{aa1, aa2}
+	output, err := abiObj.Pack("make", a, b, big.NewInt(123), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%x", output)
 }

@@ -2272,21 +2272,59 @@ func (chain *BlockChain) calcScores() ([]*big.Int, error) {
 	return nil, nil
 }
 
-// MakeInternalContractTx creates a coinbase give bookkeeper address and block height
-func (chain *BlockChain) MakeInternalContractTx(
+// MakeCalcScoreTx creates calcScore tx
+func (chain *BlockChain) MakeCalcScoreTx(
 	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
-	method string, params ...interface{},
+	method string, scores []*big.Int,
 ) (*types.Transaction, error) {
 	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
 	if err != nil {
 		return nil, err
 	}
-	var code []byte
-	if len(params) == 0 {
-		code, err = abiObj.Pack(method)
-	} else {
-		code, err = abiObj.Pack(method, params)
+	code, err := abiObj.Pack(method, scores)
+	if err != nil {
+		return nil, err
 	}
+
+	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
+	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
+	if err != nil {
+		return nil, err
+	}
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	tx := &types.Transaction{
+		Version: 1,
+		Vin: []*types.TxIn{
+			{
+				PrevOutPoint: types.OutPoint{
+					Hash:  zeroHash,
+					Index: sysmath.MaxUint32 - 1,
+				},
+				ScriptSig: *coinbaseScriptSig,
+				Sequence:  sysmath.MaxUint32,
+			},
+		},
+		Vout: []*types.TxOut{vout},
+	}
+	tx.WithData(types.ContractDataType, code)
+	logger.Infof("CalcScoreTx from: %s nonce: %d to %s scores: %v", from, nonce, contractAddr, scores)
+	return tx, nil
+}
+
+// MakeInternalContractTx creates a coinbase give bookkeeper address and block height
+func (chain *BlockChain) MakeInternalContractTx(
+	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
+	method string,
+) (*types.Transaction, error) {
+	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
+	if err != nil {
+		return nil, err
+	}
+	code, err := abiObj.Pack(method)
 	if err != nil {
 		return nil, err
 	}
@@ -2304,10 +2342,8 @@ func (chain *BlockChain) MakeInternalContractTx(
 	switch method {
 	case CalcBonus:
 		index = sysmath.MaxUint32
-	case ExecBonus, CalcScore:
+	case ExecBonus:
 		index = sysmath.MaxUint32 - 1
-		// case CalcScore:
-		// 	index = sysmath.MaxUint32 - 2
 	}
 
 	tx := &types.Transaction{
