@@ -2277,11 +2277,7 @@ func (chain *BlockChain) MakeCalcScoreTx(
 	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
 	method string, scores []*big.Int,
 ) (*types.Transaction, error) {
-	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
-	if err != nil {
-		return nil, err
-	}
-	code, err := abiObj.Pack(method, scores)
+	code, err := ContractAbi.Pack(method, scores)
 	if err != nil {
 		return nil, err
 	}
@@ -2320,11 +2316,7 @@ func (chain *BlockChain) MakeInternalContractTx(
 	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
 	method string,
 ) (*types.Transaction, error) {
-	abiObj, err := ReadAbi(chain.cfg.ContractABIPath)
-	if err != nil {
-		return nil, err
-	}
-	code, err := abiObj.Pack(method)
+	code, err := ContractAbi.Pack(method)
 	if err != nil {
 		return nil, err
 	}
