@@ -5,11 +5,8 @@
 package abi
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
-	"math/big"
 	"reflect"
 	"strings"
 	"testing"
