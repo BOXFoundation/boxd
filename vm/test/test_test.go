@@ -131,7 +131,7 @@ func TestGenesisContract(t *testing.T) {
 	ensure.Nil(t, abiObj.Unpack(&result, "myPledge", output))
 	ensure.DeepEqual(t, result, big.NewInt(1800000*1e8))
 
-	input, err = abiObj.Pack("calcScore", []*big.Int{big.NewInt(100), big.NewInt(200), big.NewInt(300)})
+	input, err = abiObj.Pack("calcScore", []*big.Int{big.NewInt(100), big.NewInt(200), big.NewInt(300), big.NewInt(500), big.NewInt(800), big.NewInt(999)})
 	must(err)
 	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	ensure.Nil(t, vmerr)
@@ -142,8 +142,12 @@ func TestGenesisContract(t *testing.T) {
 	ensure.Nil(t, vmerr)
 	var delegates []bpos.Delegate
 	ensure.Nil(t, abiObj.Unpack(&delegates, "getNext", output))
-	t.Logf("delegates: %v", delegates)
-	t.Fatalf("haha")
+	var res []uint64
+	for _, v := range delegates {
+		res = append(res, v.Score.Uint64())
+	}
+	expect := []uint64{999, 800, 500, 300, 200, 100, 0}
+	ensure.DeepEqual(t, res, expect)
 
 }
 

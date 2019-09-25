@@ -7,14 +7,13 @@ package splitaddrcmd
 import (
 	"fmt"
 	"math"
-	"path"
 	"strconv"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
@@ -27,7 +26,6 @@ const (
 
 var cfgFile string
 var walletDir string
-var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -47,7 +45,7 @@ to quickly create a Cobra application.`,
 // Init adds the sub command to the root command.
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
-	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "create fromaddr [(addr1, weight1), (addr2, weight2), (addr3, weight3), ...]",
