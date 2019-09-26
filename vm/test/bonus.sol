@@ -365,26 +365,34 @@ contract Bonus is Permission{
         return false;
     }
 
-    function quickSort(Delegate[] storage arr, uint left, uint right) internal returns(Delegate[] memory){
+    function quickSort(Delegate[] storage arr, uint left, uint right) internal returns(Delegate[] memory) {
+        if (right <= left)
+            return;
         uint i = left;
-        uint j = right;
-        uint pivot = arr[left + (right - left) / 2].score;
-        while (i <= j) {
-            while (arr[i].score > pivot) i++;
-            while (pivot > arr[j].score) j--;
-            if (i <= j) {
-                // (arr[i], arr[j]) = (arr[j], arr[i]);
-                Delegate memory temp = arr[i];
-                arr[i] = arr[j];
-                arr[j] = temp;
-                i++;
-                j--;
+        uint j = right + 1;
+        uint v = arr[left].score;
+        
+        while (true) {
+            while (arr[++i].score < v) {
+                if (i == right)
+                    break;
             }
+            while (arr[--j].score > v) {
+                if (j == left)
+                    break;
+            }
+            if (i >= j)
+                break;
+            Delegate memory temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
         }
-        if (left < j)
-            quickSort(arr, left, j);
-        if (i < right)
-            quickSort(arr, i, right);
+        Delegate memory temp2 = arr[left];
+        arr[left] = arr[j];
+        arr[j] = temp2;
+        
+        quickSort(arr, left, j - 1);
+        quickSort(arr, j + 1, right);
         return arr;
     }
 
