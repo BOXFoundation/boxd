@@ -483,11 +483,16 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	continueCh := make(chan bool, 1)
 
 	go func() {
+		packedTxsRoughSize := 0
 		for txIdx, txWrap := range sortedTxs {
 			if stopPack {
 				continueCh <- true
 				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(packedTxs), len(sortedTxs))
 				return
+			}
+			if packedTxsRoughSize+txWrap.Tx.RoughSize() > core.MaxTxsRoughSize {
+				logger.Infof("txs size reach %d KB, stop packing", packedTxsRoughSize/1024)
+				break
 			}
 
 			txHash, _ := txWrap.Tx.TxHash()
