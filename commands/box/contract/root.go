@@ -442,24 +442,26 @@ func deploy(cmd *cobra.Command, args []string) {
 	}
 	// params
 	var indexArg string
-	if len(args) >= 4 {
+	if len(args) > 2 {
 		index, err := strconv.Atoi(args[2])
 		if err != nil {
 			fmt.Println("invalid index:", err)
 			return
 		}
 		indexArg = args[2]
-		abiObj, err := newAbiObj(index)
-		if err != nil {
-			fmt.Println(err)
-			return
+		if len(args) > 3 {
+			abiObj, err := newAbiObj(index)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			data, err := encodeInput(abiObj, "", args[3:]...)
+			if err != nil {
+				fmt.Println("encode error:", err)
+				return
+			}
+			bytecode += data
 		}
-		data, err := encodeInput(abiObj, "", args[3:]...)
-		if err != nil {
-			fmt.Println("encode error:", err)
-			return
-		}
-		bytecode += data
 	}
 	// sender info
 	sender, keyFile, bal, nonce, err := fetchSenderInfo()
@@ -495,7 +497,9 @@ func deploy(cmd *cobra.Command, args []string) {
 	fmt.Println("tx hash:", hash)
 
 	// if the index is given, attach it to the contract
-	attach(&cobra.Command{Run: attach}, []string{indexArg, contractAddr})
+	if indexArg != "" {
+		attach(&cobra.Command{Use: ""}, []string{indexArg, contractAddr})
+	}
 }
 
 func send(cmd *cobra.Command, args []string) {
