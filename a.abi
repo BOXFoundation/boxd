@@ -1,0 +1,48 @@
+[
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_greeting",
+				"type": "string[]"
+			},
+			{
+				"name": "a",
+				"type": "address[]"
+			},
+			{
+				"name": "b",
+				"type": "int256[]"
+			},
+			{
+				"name": "c",
+				"type": "bool"
+			}
+		],
+		"name": "setGreeting",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "greeting",
+		"outputs": [
+			{
+				"name": "",
+				"type": "string"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	}
+]
