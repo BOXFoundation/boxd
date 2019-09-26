@@ -250,6 +250,10 @@ func TestAddressValidate(t *testing.T) {
 			"b5KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twq0",
 			false,
 		},
+		{
+			"b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m",
+			true,
+		},
 	}
 
 	for _, tc := range tests {

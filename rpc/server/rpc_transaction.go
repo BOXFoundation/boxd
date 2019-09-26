@@ -51,6 +51,9 @@ func newGetBalanceResp(code int32, msg string, balances ...uint64) *rpcpb.GetBal
 func (s *txServer) GetBalance(
 	ctx context.Context, req *rpcpb.GetBalanceReq,
 ) (*rpcpb.GetBalanceResp, error) {
+	if len(req.Addrs) > 10 {
+		return newGetBalanceResp(-1, "the count of address must be less than 10"), nil
+	}
 	balances := make([]uint64, len(req.GetAddrs()))
 	statedb := s.server.GetChainReader().TailState()
 	for i, addr := range req.Addrs {
@@ -73,6 +76,9 @@ func (s *txServer) GetBalance(
 func (s *txServer) GetTokenBalance(
 	ctx context.Context, req *rpcpb.GetTokenBalanceReq,
 ) (*rpcpb.GetBalanceResp, error) {
+	if len(req.Addrs) > 10 {
+		return newGetBalanceResp(-1, "the count of address must be less than 10"), nil
+	}
 	walletAgent := s.server.GetWalletAgent()
 	if walletAgent == nil {
 		logger.Warn("get token balance error ", ErrAPINotSupported)

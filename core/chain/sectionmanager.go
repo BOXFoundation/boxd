@@ -190,40 +190,39 @@ func (sm *SectionManager) GetLogs(from, to uint32, topicslist [][][]byte) ([]*ty
 			f = from
 		}
 		h, err := sm.unIndexed(f, to, topicslist)
-		logger.Debugf("get2 heights: %v", h)
 		if err != nil {
 			return nil, err
 		}
 		heights = append(heights, h...)
 	}
-	logger.Debugf("HEIGHT: %d", heights)
+	logger.Debugf("INDEXED HEIGHT: %d", heights)
 
 	return sm.getLogs(heights, topicslist)
 }
 
 func (sm *SectionManager) indexed(section uint32, topicslist [][][]byte) ([]uint32, error) {
 	/*
-		创建一个[]byte result保存最终的结果
-		创建bloom filter
-		for 一个地址内的所有的topics list {
-			创建一个[]byte matcher保存每个位置的匹配结果
-			if 不是第一二个位置(因为是合约地址s和topic ids) && len==0 {
-				continue (因为空集合匹配所有indexes)
+		Create a []byte(result) to hold the final result
+		Create a bloom filter
+		for (all topics list within one address) {
+			Create a []byte(matcher) to hold the matching results for each location
+			if Not the first or second position(They are contract addresses and topic ids) && len==0 {
+				continue (The empty collection matches all indexes)
 			}
-			for 一个topic位置的所有可能 {
+			for (All possibilities of a topic position) {
 				bloom.Reset()
 				bloom.Add(topic)
-				获得bloom的三个下标
-				创建一个[]byte tmp保存bitset的最终结果
+				Obtain three subscripts of bloom
+				Create a []byte(tmp) to hold the final result of the bitset
 				for indexes {
-					在section里找到对应的bitset
+					Find the bitset in section
 					tmp &= bitset
 				}
 				matcher |= tmp
 			}
 			result &= matcher
 		}
-		result一共65536位, 取对应为1的位置获得高度
+		Result has a total of 65536 digits. Take the position corresponding to 1 to get the height
 	*/
 
 	heightMask := [SectionBloomByteLength]byte{}
