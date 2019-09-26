@@ -478,6 +478,22 @@ func (tx *Transaction) Copy() *Transaction {
 	}
 }
 
+// RoughSize return size of transaction in memory
+// NOTE: it only denote a rough transaction size to limit block size on packing block
+func (tx *Transaction) RoughSize() int {
+	n := 16
+	for _, in := range tx.Vin {
+		n += crypto.HashSize + 4 + 4 + len(in.ScriptSig)
+	}
+	for _, out := range tx.Vout {
+		n += 8 + len(out.ScriptPubKey)
+	}
+	if tx.Data != nil {
+		n += 4 + len(tx.Data.Content)
+	}
+	return n
+}
+
 // calcProtoMsgDoubleHash calculates double hash of proto msg
 func calcProtoMsgDoubleHash(pb proto.Message) (*crypto.HashType, error) {
 	data, err := proto.Marshal(pb)
