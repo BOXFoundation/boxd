@@ -56,11 +56,13 @@ var rootCmd = &cobra.Command{
   3. set sender
     ./box contract setsender b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m
   4. deploy contract
-    ./box contract deploy .cmd/contract/test/erc20_simple.bin --rpc-port=19111
+    ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19111
   5. attach index to an contract address
     ./box contract attach 1 b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19111
   6. send a contract call transaction
     ./box contract send 1 0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19111
+  7. get a return value for DoCall a contract
+    ./box contract get 1 allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
 `,
 }
 
@@ -534,7 +536,7 @@ func get(cmd *cobra.Command, args []string) {
 	index, err = strconv.Atoi(args[0])
 	if err != nil {
 		fmt.Println("invalid index:", err)
-		fmt.Printf("select an index in list via \"./box contract list\"\n")
+		fmt.Println("select an index in list via \"./box contract list\"")
 		return
 	}
 	// height
@@ -581,16 +583,26 @@ func get(cmd *cobra.Command, args []string) {
 	}
 	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "DoCall", callReq, common.GetRPCAddr())
 	if err != nil {
-		err = fmt.Errorf("rpc DoCall request %v error: %s", callReq, err)
+		fmt.Printf("rpc DoCall request %v error: %s\n", callReq, err)
 		return
 	}
 	callResp := resp.(*rpcpb.CallResp)
 	if callResp.Code != 0 {
-		err = fmt.Errorf("rpc DoCall request %v error: %s", callReq, callResp.Message)
+		fmt.Printf("rpc DoCall request %v error: %s\n", callReq, callResp.Message)
 		return
 	}
 	// decode output
-	fmt.Println(callResp.GetOutput())
+	outputS, err := hex.DecodeString(callResp.GetOutput())
+	if err != nil {
+		fmt.Println("decode output to hex error:", err)
+		return
+	}
+	output, err := abiObj.Methods[method].Outputs.UnpackValues(outputS)
+	if err != nil {
+		fmt.Println("decode output to values error:", err)
+		return
+	}
+	fmt.Println("output:", output)
 }
 
 func signAndSendContractTx(
@@ -1016,7 +1028,7 @@ func parseAbiArg(typ abi.Type, arg string) (interface{}, error) {
 		val = new(big.Int).SetUint64(i)
 	case abi.AddressTy:
 		if len(arg) != ripemd160.Size*2 {
-			return nil, fmt.Errorf("encode abi: cannot use string as address as argument, %s", err)
+			return nil, fmt.Errorf("encode abi: cannot use string as address as argument")
 		}
 		bytes, err := hex.DecodeString(arg)
 		if err != nil {
