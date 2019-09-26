@@ -53,18 +53,35 @@ var rootCmd = &cobra.Command{
 	Example: `
   1. import abi file
     ./box contract importabi .cmd/contract/test/erc20_simple.abi "simple erc20 abi"
+
   2. list abi index and select one to continue:
     ./box contract list
+
+    output e.g.:
+      abi list:
+        1: simple erc20 abi Sep 24 13:15:49
+        2: bonus abi Sep 26 11:15:19
+      contract attached list:
+        1 > b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz
+        2 > b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz
+
+    index is the number "1, 2, ...", that is relevant to one abi from the last step
+
   3. set sender
     ./box contract setsender b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m
+		NOTE: account sender must be imported and unlocked to local wallet
+
   4. deploy contract
-    ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19111
+    ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19191
+
   5. attach index to an contract address
-    ./box contract attach 1 b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19111
+    ./box contract attach 1 b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19191
+
   6. send a contract call transaction
-    ./box contract send 1 0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19111
-  7. get a return value for DoCall a contract
-    ./box contract get 1 allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
+    ./box contract send 1 0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19191
+
+  7. call a contract to get state value revalent to method via DoCall a contract
+    ./box contract call 1 allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
 `,
 }
 
@@ -73,12 +90,12 @@ func init() {
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "importabi [abi_file_name] [description]",
-			Short: "Import abi for a contract.",
+			Short: "import abi for a contract.",
 			Run:   importAbi,
 		},
 		&cobra.Command{
 			Use:   "list",
-			Short: "list imported abi files and attached contracts",
+			Short: "list all index revelant to imported abi files and attached contracts",
 			Run:   list,
 		},
 		&cobra.Command{
@@ -99,14 +116,14 @@ func init() {
 		},
 		&cobra.Command{
 			Use:   "send [index] [amount] [method] [args...]",
-			Short: "Calling a contract",
+			Short: "calling a contract",
 			Long:  "Successful call will return a transaction hash value",
 			Run:   send,
 		},
 		&cobra.Command{
-			Use:   "get [index] [optional|block_height] [method] [args...]",
-			Short: "get contract value via docall.",
-			Run:   get,
+			Use:   "call [index] [optional|block_height] [method] [args...]",
+			Short: "call contract value via docall.",
+			Run:   call,
 		},
 		&cobra.Command{
 			Use:   "encode [index] [method] [args...]",
@@ -424,12 +441,14 @@ func deploy(cmd *cobra.Command, args []string) {
 		}
 	}
 	// params
+	var indexArg string
 	if len(args) >= 4 {
 		index, err := strconv.Atoi(args[2])
 		if err != nil {
 			fmt.Println("invalid index:", err)
 			return
 		}
+		indexArg = args[2]
 		abiObj, err := newAbiObj(index)
 		if err != nil {
 			fmt.Println(err)
@@ -446,6 +465,10 @@ func deploy(cmd *cobra.Command, args []string) {
 	sender, keyFile, bal, nonce, err := fetchSenderInfo()
 	if err != nil {
 		fmt.Println(err)
+		return
+	}
+	if bal <= amount {
+		fmt.Printf("balance of sender %s is 0\n", sender)
 		return
 	}
 	// do request
@@ -470,6 +493,9 @@ func deploy(cmd *cobra.Command, args []string) {
 	fmt.Println("contract deployed successfully")
 	fmt.Println("contract address:", contractAddr)
 	fmt.Println("tx hash:", hash)
+
+	// if the index is given, attach it to the contract
+	attach(&cobra.Command{Run: attach}, []string{indexArg, contractAddr})
 }
 
 func send(cmd *cobra.Command, args []string) {
@@ -519,6 +545,10 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
+	if bal <= amount {
+		fmt.Printf("balance of sender %s is 0\n", sender)
+		return
+	}
 	// call
 	req := &rpcpb.MakeContractTxReq{
 		From:     sender,
@@ -541,7 +571,7 @@ func send(cmd *cobra.Command, args []string) {
 	fmt.Println("send contract call successfully, transaction hash:", hash)
 }
 
-func get(cmd *cobra.Command, args []string) {
+func call(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
 		fmt.Println(cmd.Use)
 		return
@@ -1078,7 +1108,7 @@ func parseAbiArg(typ abi.Type, arg string) (interface{}, error) {
 			}
 			vals = append(vals, v)
 		}
-		val = vals
+		val = convertArrayType(typ.Elem.T, vals)
 	}
 	return val, nil
 }
@@ -1088,9 +1118,49 @@ func parseArrayArg(arg string) ([]string, error) {
 	if !strings.HasPrefix(arg, "[") || !strings.HasSuffix(arg, "]") {
 		return nil, errors.New("invalid array format")
 	}
+	arg = arg[1 : len(arg)-1]
 	args := strings.Split(arg, ",")
 	for i := 0; i < len(args); i++ {
 		args[i] = strings.TrimSpace(args[i])
 	}
 	return args, nil
+}
+
+func convertArrayType(typ byte, vals []interface{}) interface{} {
+	switch typ {
+	case abi.BoolTy:
+		var val []bool
+		for _, v := range vals {
+			val = append(val, v.(bool))
+		}
+		return val
+	case abi.IntTy, abi.UintTy:
+		var val []*big.Int
+		for _, v := range vals {
+			val = append(val, v.(*big.Int))
+		}
+		return val
+	case abi.AddressTy:
+		var val [][ripemd160.Size]byte
+		for _, v := range vals {
+			val = append(val, v.([ripemd160.Size]byte))
+		}
+		return val
+	case abi.StringTy:
+		var val []string
+		for _, v := range vals {
+			val = append(val, v.(string))
+		}
+		return val
+	case abi.BytesTy:
+		var val [][]byte
+		for _, v := range vals {
+			val = append(val, v.([]byte))
+		}
+		return val
+	case abi.SliceTy, abi.ArrayTy:
+		panic(fmt.Errorf("convert array argument %+v type: %d error: "+
+			"include multiple nested array", vals, typ))
+	}
+	panic(fmt.Errorf("parameters include unsupported type %d", typ))
 }
