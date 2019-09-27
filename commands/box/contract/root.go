@@ -72,6 +72,7 @@ var rootCmd = &cobra.Command{
 
   4. deploy contract
     ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19191
+    NOTE: if add index argument after amount argument, attach index to the deployed contract
 
   5. attach index to an contract address
     ./box contract attach 1 b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19191
@@ -100,7 +101,7 @@ func init() {
 		&cobra.Command{
 			Use:   "attach [index] [contract_address]",
 			Short: "attach contract abi to a real contract on chain",
-			Run:   attach,
+			RunE:  attach,
 		},
 		&cobra.Command{
 			Use:   "setsender [wallet_dir] [address]",
@@ -315,23 +316,23 @@ func list(cmd *cobra.Command, args []string) {
 	}
 }
 
-func attach(cmd *cobra.Command, args []string) {
+func attach(cmd *cobra.Command, args []string) error {
 	if len(args) != 2 {
 		fmt.Println(cmd.Use)
-		return
+		return nil
 	}
 	// index
 	index, err := strconv.Atoi(args[0])
 	if err != nil {
 		fmt.Println("parse index error:", err)
 		fmt.Println(cmd.Use)
-		return
+		return nil
 	}
 	// contract address
 	address, err := types.NewContractAddress(args[1])
 	if err != nil {
 		fmt.Println("invalid contract address")
-		return
+		return nil
 	}
 	// check whether index is record file
 	abiInfos, _, err := restoreRecord(recordFile)
@@ -347,23 +348,23 @@ func attach(cmd *cobra.Command, args []string) {
 	}
 	if abiInfo == nil {
 		fmt.Println("invalid index argument")
-		return
+		return nil
 	}
 	// check contract existed
 	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetCode",
 		&rpcpb.GetCodeReq{Address: address.String()}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Printf("get code of contract %s error: %s\n", address, err)
-		return
+		return err
 	}
 	getcodeResp := resp.(*rpcpb.GetCodeResp)
 	if getcodeResp.Code != 0 {
 		fmt.Printf("get code of contract %s error: %s\n", address, getcodeResp.Message)
-		return
+		return errors.New(getcodeResp.Message)
 	}
 	if len(getcodeResp.Data) == 0 {
 		fmt.Printf("get code of contract %s error: code is empty\n", address)
-		return
+		return errors.New("contract code is empty")
 	}
 	// write record to file
 	f, err := os.OpenFile(recordFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -376,6 +377,7 @@ func attach(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 	fmt.Printf("{%d \"%s\" %s} > %s\n", abiInfo.index, abiInfo.note, abiInfo.filepath, address)
+	return nil
 }
 
 func deploy(cmd *cobra.Command, args []string) {
@@ -458,7 +460,20 @@ func deploy(cmd *cobra.Command, args []string) {
 
 	// if the index is given, attach it to the contract
 	if indexArg != "" {
-		attach(&cobra.Command{Use: ""}, []string{indexArg, contractAddr})
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for i := 0; i < 10; i++ {
+			select {
+			case <-t.C:
+				err := attach(&cobra.Command{}, []string{indexArg, contractAddr})
+				if err == nil {
+					return
+				}
+				fmt.Printf("attach %s to contract %s error: %s, try again[%d]\n",
+					indexArg, contractAddr, err, i)
+			}
+		}
+		fmt.Printf("attach %s to contract %s failed\n", indexArg, contractAddr)
 	}
 }
 
