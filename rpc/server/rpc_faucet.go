@@ -140,8 +140,8 @@ func (f *faucet) Claim(
 	if err != nil {
 		return newClaimResp(-1, "invalid receiver address"), err
 	}
-	tx, utxos, err := rpcutil.MakeUnsignedTx(f.WalletAgent,
-		from, []*types.AddressHash{toAddress.Hash160()}, []uint64{amount}, core.TransferFee)
+	tx, utxos, err := rpcutil.MakeUnsignedTx(f.WalletAgent, from,
+		[]*types.AddressHash{toAddress.Hash160()}, []uint64{amount})
 	if err != nil {
 		return newClaimResp(-1, err.Error()), err
 	}

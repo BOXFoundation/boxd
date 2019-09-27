@@ -449,8 +449,10 @@ func NewSplitAddrTx(
 // MakeUnsignedTx make a tx without signature
 func MakeUnsignedTx(
 	wa service.WalletAgent, from *types.AddressHash, to []*types.AddressHash,
-	amounts []uint64, gasUsed uint64,
+	amounts []uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
+	// add an extra TransferFee to avoid change amount is zero
+	gasUsed := (uint64(len(to))/core.InOutNumPerExtraFee + 2) * core.TransferFee
 	total := gasUsed
 	for _, a := range amounts {
 		total += a
@@ -459,6 +461,7 @@ func MakeUnsignedTx(
 	if err != nil {
 		return nil, nil, err
 	}
+	gasUsed = (uint64(len(to)+len(utxos)+1)/core.InOutNumPerExtraFee + 1) * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -469,7 +472,7 @@ func MakeUnsignedTx(
 
 // MakeUnsignedCombineTx make a combine tx without signature
 func MakeUnsignedCombineTx(
-	wa service.WalletAgent, from *types.AddressHash, gasUsed uint64,
+	wa service.WalletAgent, from *types.AddressHash,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 
 	utxos, err := wa.Utxos(from, nil, 0)
@@ -485,6 +488,10 @@ func MakeUnsignedCombineTx(
 		}
 		utxosAmt += amount
 	}
+	gasUsed := (uint64(1+len(utxos))/core.InOutNumPerExtraFee + 1) * core.TransferFee
+	if utxosAmt <= gasUsed {
+		return nil, nil, errors.New("insufficient balance")
+	}
 	tx, err := txlogic.MakeUnsignedTx(from, []*types.AddressHash{from}, []uint64{utxosAmt - gasUsed},
 		0, utxos...)
 	return tx, utxos, err
@@ -492,11 +499,12 @@ func MakeUnsignedCombineTx(
 
 // MakeUnsignedCombineTokenTx make a combine tx without signature
 func MakeUnsignedCombineTokenTx(
-	wa service.WalletAgent, from *types.AddressHash, tid *types.TokenID, gasUsed uint64,
+	wa service.WalletAgent, from *types.AddressHash, tid *types.TokenID,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 
 	// fetch box utxos
-	utxos, err := wa.Utxos(from, nil, gasUsed)
+	// add an extra TransferFee to avoid change amount is zero
+	utxos, err := wa.Utxos(from, nil, 2*core.TransferFee)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -526,6 +534,7 @@ func MakeUnsignedCombineTokenTx(
 	}
 	totalUtxos = append(totalUtxos, utxos...)
 	// make tx
+	gasUsed := (uint64(2+len(utxos))/core.InOutNumPerExtraFee + 1) * core.TransferFee
 	tx, _, err := txlogic.MakeUnsignedTokenTransferTx(from, []*types.AddressHash{from},
 		[]uint64{utxosAmtT}, tid, utxosAmt-gasUsed, totalUtxos...)
 	return tx, utxos, err
@@ -536,13 +545,15 @@ func MakeUnsignedContractDeployTx(
 	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, nonce uint64,
 	byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
-	gasUsed := gasLimit * core.FixedGasPrice
+	// add an extra TransferFee to avoid change amount is zero
+	gasUsed := gasLimit*core.FixedGasPrice + core.TransferFee
 	total := gasUsed + amount
 	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
 		return nil, nil, err
 	}
 	amounts := []uint64{amount}
+	gasUsed = gasLimit*core.FixedGasPrice + uint64(len(utxos)+2)/core.InOutNumPerExtraFee*core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -560,13 +571,15 @@ func MakeUnsignedContractCallTx(
 	wa service.WalletAgent, from *types.AddressHash, amount, gasLimit, nonce uint64,
 	contractAddr *types.AddressHash, byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
-	gasUsed := gasLimit * core.FixedGasPrice
+	// add an extra TransferFees to avoid change amount is zero
+	gasUsed := gasLimit*core.FixedGasPrice + core.TransferFee
 	total := gasUsed + amount
 	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
 		return nil, nil, err
 	}
 	amounts := []uint64{amount}
+	gasUsed = gasLimit*core.FixedGasPrice + uint64(len(utxos)+2)/core.InOutNumPerExtraFee*core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -583,25 +596,27 @@ func MakeUnsignedContractCallTx(
 // it returns a tx, split addr, a change
 func MakeUnsignedSplitAddrTx(
 	wa service.WalletAgent, from *types.AddressHash, addrs []*types.AddressHash,
-	weights []uint32, gasUsed uint64,
+	weights []uint32,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
+
+	// add an extra TransferFee to avoid change amount is zero
+	gasUsed := 2 * core.TransferFee
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
 		return nil, nil, err
 	}
+	gasUsed = uint64(len(utxos)+2) / core.InOutNumPerExtraFee * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
 	}
-	tx, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights,
-		changeAmt, utxos...)
+	tx, err := txlogic.MakeUnsignedSplitAddrTx(from, addrs, weights, changeAmt, utxos...)
 	return tx, utxos, err
 }
 
 // MakeUnsignedTokenIssueTx news tx to issue token without signature
 func MakeUnsignedTokenIssueTx(
 	wa service.WalletAgent, issuer, owner *types.AddressHash, tag *rpcpb.TokenTag,
-	gasUsed uint64,
 ) (*types.Transaction, uint32, []*rpcpb.Utxo, error) {
 	if tag.GetDecimal() > maxDecimal {
 		return nil, 0, nil, fmt.Errorf("Decimal[%d] is bigger than max Decimal[%d]", tag.GetDecimal(), maxDecimal)
@@ -609,10 +624,13 @@ func MakeUnsignedTokenIssueTx(
 	if tag.GetSupply() > math.MaxUint64/uint64(math.Pow10(int(tag.GetDecimal()))) {
 		return nil, 0, nil, fmt.Errorf("supply is too bigger")
 	}
+	// add an extra TransferFee to avoid change amount is zero
+	gasUsed := 2 * core.TransferFee
 	utxos, err := wa.Utxos(issuer, nil, gasUsed)
 	if err != nil {
 		return nil, 0, nil, err
 	}
+	gasUsed = uint64(len(utxos)+2) / core.InOutNumPerExtraFee * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
@@ -625,8 +643,10 @@ func MakeUnsignedTokenIssueTx(
 // MakeUnsignedTokenTransferTx news tx to transfer token without signature
 func MakeUnsignedTokenTransferTx(
 	wa service.WalletAgent, from *types.AddressHash, to []*types.AddressHash,
-	amounts []uint64, tid *types.TokenID, gasUsed uint64,
+	amounts []uint64, tid *types.TokenID,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
+	// add an extra TransferFee to avoid change amount is zero
+	gasUsed := 2 * core.TransferFee
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
 		return nil, nil, err
@@ -639,6 +659,7 @@ func MakeUnsignedTokenTransferTx(
 	if err != nil {
 		return nil, nil, err
 	}
+	gasUsed = uint64(len(utxos)+len(tokenUtxos)+len(to)+1) / core.InOutNumPerExtraFee * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance

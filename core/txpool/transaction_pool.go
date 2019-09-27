@@ -699,7 +699,7 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 		return err
 	}
 	if contractVout == nil {
-		if txFee != core.TransferFee {
+		if txFee != core.TransferFee+tx.ExtraFee() {
 			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee, core.TransferFee)
 		}
 		return nil
@@ -718,7 +718,7 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 	if err != nil {
 		return err
 	}
-	if txFee != param.GasLimit*core.FixedGasPrice {
+	if txFee != param.GasLimit*core.FixedGasPrice+tx.ExtraFee() {
 		return core.ErrInvalidFee
 	}
 	contractCreation := ty == types.ContractCreationType

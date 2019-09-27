@@ -126,8 +126,8 @@ func fetchModerateUtxos(
 	// utxos fetch logic
 	result := make([]*rpcpb.Utxo, 0)
 	remain := amountToFetch
-	// here "remain <= amountToFetch", because remain and amountToFetch is uint64
-	for start := 0; start < len(keys) && remain <= amountToFetch; start += utxoSelUnitCnt {
+	extraFee := uint64(0)
+	for start := 0; start < len(keys); start += utxoSelUnitCnt {
 		// calc start and end keys
 		end := start + utxoSelUnitCnt
 		if end > len(keys) {
@@ -148,7 +148,7 @@ func fetchModerateUtxos(
 			utxos = append(utxos, u)
 		}
 		// select utxos
-		selUtxos, amount := selectUtxos(utxos, tid, remain)
+		selUtxos, amount := selectUtxos(utxos, tid, remain+extraFee+core.TransferFee)
 		// add utxos to LiveUtxoCache
 		for _, u := range utxos {
 			utxoLiveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
@@ -157,12 +157,17 @@ func fetchModerateUtxos(
 
 		remain -= amount
 		result = append(result, selUtxos...)
+		extraFee = uint64(len(result)) / core.InOutNumPerExtraFee * core.TransferFee
 		// check utxos bound
 		if len(result) >= core.MaxUtxosInTx {
-			if amountToFetch-remain >= total {
+			if amountToFetch-remain >= total+extraFee {
 				return result[:core.MaxUtxosInTx], nil
 			}
 			return nil, core.ErrUtxosOob
+		}
+		// here "remain > amountToFetch", because remain and amountToFetch is uint64
+		if amountToFetch != math.MaxUint64 && remain > amountToFetch+extraFee {
+			break
 		}
 	}
 	if amountToFetch != math.MaxUint64 && remain > 0 && remain <= amountToFetch {

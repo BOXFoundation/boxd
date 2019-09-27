@@ -478,6 +478,11 @@ func (tx *Transaction) Copy() *Transaction {
 	}
 }
 
+// ExtraFee return extra fee
+func (tx *Transaction) ExtraFee() uint64 {
+	return uint64(len(tx.Vin)+len(tx.Vout)) / core.InOutNumPerExtraFee * core.TransferFee
+}
+
 // RoughSize return size of transaction in memory
 // NOTE: it only denote a rough transaction size to limit block size on packing block
 func (tx *Transaction) RoughSize() int {
