@@ -195,50 +195,50 @@ func TestCalcScore(t *testing.T) {
 		{
 			"test1",
 			args{
-				10000000,
+				10000000 * 1e8,
 				Delegate{
 					*types.NewAddressHash([]byte{0x1}),
 					"a13wr23d42e3e3ti",
-					big.NewInt(1800000),
-					big.NewInt(1800000),
+					big.NewInt(1800000 * 1e8),
+					big.NewInt(1800000 * 1e8),
 					big.NewInt(0),
 					big.NewInt(1),
 					true,
 				},
 			},
-			4,
+			4337414,
 		},
 		{
 			"test2",
 			args{
-				10000000,
+				10000000 * 1e8,
 				Delegate{
 					*types.NewAddressHash([]byte{0x2}),
 					"a13wr23d42eed43ew",
-					big.NewInt(180000),
-					big.NewInt(1800000),
+					big.NewInt(180000 * 1e8),
+					big.NewInt(1800000 * 1e8),
 					big.NewInt(0),
 					big.NewInt(1),
 					true,
 				},
 			},
-			2,
+			2871578,
 		},
 		{
 			"test3",
 			args{
-				10000000,
+				10000000 * 1e8,
 				Delegate{
 					*types.NewAddressHash([]byte{0x2}),
 					"a13wr23d42eed43ew",
-					big.NewInt(18000000),
-					big.NewInt(1800000),
+					big.NewInt(18000000 * 1e8),
+					big.NewInt(1800000 * 1e8),
 					big.NewInt(0),
 					big.NewInt(10),
 					true,
 				},
 			},
-			40,
+			8364012,
 		},
 	}
 
