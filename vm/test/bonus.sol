@@ -365,13 +365,12 @@ contract Bonus is Permission{
         return false;
     }
 
-    function quickSort(Delegate[] storage arr, uint left, uint right) internal returns(Delegate[] memory) {
+    function quickSort(Delegate[] storage arr, uint left, uint right) internal {
         if (right <= left)
             return;
         uint i = left;
         uint j = right + 1;
         uint v = arr[left].score;
-        
         while (true) {
             while (arr[++i].score > v) {
                 if (i == right)
@@ -390,10 +389,9 @@ contract Bonus is Permission{
         Delegate memory temp2 = arr[left];
         arr[left] = arr[j];
         arr[j] = temp2;
-        
-        quickSort(arr, left, j - 1);
+        if (j != 0)
+            quickSort(arr, left, j - 1);
         quickSort(arr, j + 1, right);
-        return arr;
     }
 
     function vote(address delegateAddr) public payable {
