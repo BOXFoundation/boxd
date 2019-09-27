@@ -373,11 +373,11 @@ contract Bonus is Permission{
         uint v = arr[left].score;
         
         while (true) {
-            while (arr[++i].score < v) {
+            while (arr[++i].score > v) {
                 if (i == right)
                     break;
             }
-            while (arr[--j].score > v) {
+            while (arr[--j].score < v) {
                 if (j == left)
                     break;
             }
