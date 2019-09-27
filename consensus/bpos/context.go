@@ -246,8 +246,8 @@ func (bpos *Bpos) calcScore(totalVote int64, delegate Delegate) (*big.Int, error
 	voteScore := float64(delegate.Votes.Int64()*delegate.Votes.Int64()) / float64(totalVote)
 	// score := math.Trunc(math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (pledgeScore + voteScore))
 	periodScore := math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (float64(delegate.PledgeAmount.Int64()) + float64(delegate.Votes.Int64()))
-	score := math.Trunc(periodScore + pledgeScore + voteScore)
-	score = score / 1e6
+	score := math.Trunc((periodScore + pledgeScore + voteScore) / 1e8)
+
 	logger.Infof("delegate %+v score: %f (periodScore: %f, pledgeScore: %f, voteScore: %f)",
 		delegate, score, periodScore, pledgeScore, voteScore)
 	return big.NewInt(int64(score)), nil
