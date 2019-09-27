@@ -51,9 +51,14 @@ func TestTxConvertWithProtoMessage(t *testing.T) {
 func TestTxMashal(t *testing.T) {
 	hash, idx, value := crypto.DoubleHashH([]byte{12, 23, 45}), uint32(2), uint64(100)
 	codeStr := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565" + "b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
+	spk, _ := hex.DecodeString("76a9147612d02534bbd20bf32c414858b5fc190924c8a388ac")
+	ssg, err := hex.DecodeString("473045022100fdd77e7a42cf037162482317cc577eb1fe7157709857e683e6efde34894a45c702200518543955a224b8a9b8a9ab9d7a501fbca2f92f8ec65a4c3c0d4fa155a705702102735de561cf489c82efb2ad27aae2011bb55b44f4b49b831397d3c100fe41429f")
+	if err != nil {
+		t.Fatal(err)
+	}
 	tx := NewTx(0, 0x5544, 0).
-		AppendVin(NewTxIn(NewOutPoint(&hash, idx), []byte{1, 2, 3, 4, 5, 6}, 100)).
-		AppendVout(NewTxOut(value, []byte{6, 5, 4, 3, 2, 1}))
+		AppendVin(NewTxIn(NewOutPoint(&hash, idx), ssg, 100)).
+		AppendVout(NewTxOut(value, spk))
 	content, _ := hex.DecodeString(codeStr)
 	tx.Data = NewData(ContractDataType, content)
 	bytes, err := json.MarshalIndent(tx, "", "  ")
@@ -74,7 +79,7 @@ func TestTxMashal(t *testing.T) {
   "Vout": [
     {
       "Value": 100,
-      "ScriptPubKey": "060504030201"
+      "ScriptPubKey": "76a9147612d02534bbd20bf32c414858b5fc190924c8a388ac"
     }
   ],
   "Data": {
@@ -87,4 +92,22 @@ func TestTxMashal(t *testing.T) {
 	if want != string(bytes) {
 		t.Fatalf("want: %s, got: %s", want, string(bytes))
 	}
+	mdata, err := tx.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("marshal size: %d, rough size: %d", len(mdata), tx.RoughSize())
+	// marshal size: 271, rough size: 278
+
+	// common pay to pubkey tx
+	tx = NewTx(0, 0x5544, 0).
+		AppendVin(NewTxIn(NewOutPoint(&hash, idx), ssg, 0)).
+		AppendVout(NewTxOut(5599558, spk)).
+		AppendVout(NewTxOut(100, spk))
+	mdata, err = tx.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("marshal size: %d, rough size: %d", len(mdata), tx.RoughSize())
+	// marshal size: 218, rough size: 228
 }

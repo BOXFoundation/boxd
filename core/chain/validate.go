@@ -66,7 +66,11 @@ func validateBlock(block *types.Block) error {
 	// checks each transaction.
 	blockTime := block.Header.TimeStamp
 	existingOutPoints := make(map[types.OutPoint]struct{})
+	txsRoughSize := 0
 	for _, tx := range transactions {
+		if txsRoughSize+tx.RoughSize() > core.MaxTxsRoughSize {
+			return core.ErrMaxTxsSizeExceeded
+		}
 		if !IsTxFinalized(tx, block.Header.Height, blockTime) {
 			txHash, _ := tx.TxHash()
 			logger.Errorf("block contains unfinalized transaction %v", txHash)

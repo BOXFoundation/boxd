@@ -41,6 +41,7 @@ var (
 	ErrInvalidInternalTxs           = errors.New("Invalid internal txs")
 	ErrInvalidMessageSender         = errors.New("Invalid message sender")
 	ErrContractNotFound             = errors.New("Contract not found")
+	ErrMaxTxsSizeExceeded           = errors.New("Max txs size exceeded")
 	ErrMaxCodeSizeExceeded          = errors.New("Max contract code size exceeded")
 	ErrNonceTooLow                  = errors.New("Nonce is too low")
 

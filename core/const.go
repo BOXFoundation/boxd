@@ -28,7 +28,8 @@ const (
 
 	TransferGasLimit = 21000
 
-	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
+	MaxCodeSize     = 24576 // Maximum bytecode to permit for a contract
+	MaxTxsRoughSize = 4 * 1024 * 1024
 
 	FixedGasPrice = uint64(50)
 
