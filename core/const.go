@@ -33,7 +33,8 @@ const (
 
 	FixedGasPrice = uint64(50)
 
-	TransferFee = FixedGasPrice * TransferGasLimit
+	TransferFee         = FixedGasPrice * TransferGasLimit
+	InOutNumPerExtraFee = uint64(16)
 
 	SyncFlag = "sync"
 )

@@ -582,7 +582,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Header.Height != parentBlock.Header.Height+1 {
-		logger.Errorf("Block %v's height is %d, but its parent's height is %d", blockHash.String(), block.Header.Height, parentBlock.Header.Height)
+		logger.Errorf("Block %v's height is %d, but its parent's height is %d",
+			blockHash.String(), block.Header.Height, parentBlock.Header.Height)
 		return core.ErrWrongBlockHeight
 	}
 
@@ -759,9 +760,10 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 		txHash, _ := tx.TxHash()
 		if contractVout == nil {
 			// check whether gas price is equal to TransferFee
-			if txFee != core.TransferFee {
+			if txFee != core.TransferFee+tx.ExtraFee() {
 				bytes, _ := json.Marshal(tx)
-				logger.Warnf("non-contract tx %s %s have wrong fee %d", txHash, string(bytes), txFee)
+				logger.Warnf("non-contract tx %s %s have wrong fee %d, need %d",
+					txHash, string(bytes), txFee, core.TransferFee+tx.ExtraFee())
 				return 0, core.ErrInvalidFee
 			}
 			// Check for overflow.
@@ -787,7 +789,7 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 				return 0, core.ErrInvalidFee
 			}
 		} else {
-			if txFee != param.GasLimit*core.FixedGasPrice {
+			if txFee != param.GasLimit*core.FixedGasPrice+tx.ExtraFee() {
 				logger.Warnf("contract tx %s have wrong fee %d gas limit %d", txHash, txFee, param.GasLimit)
 				return 0, core.ErrInvalidFee
 			}

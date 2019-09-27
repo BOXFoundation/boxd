@@ -292,7 +292,7 @@ func (s *txServer) MakeUnsignedTx(
 		toHashes = append(toHashes, address.Hash160())
 	}
 	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, fromAddress.Hash160(), toHashes,
-		amounts, core.TransferFee)
+		amounts)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -337,7 +337,7 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 	// make tx without sign
 	fromAddress, _ := types.NewAddress(from)
 	tx, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, fromAddress.Hash160(),
-		toHashes, weights, core.TransferFee)
+		toHashes, weights)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -389,7 +389,7 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 	issuerHash, _ := types.NewAddress(issuer)
 	ownerHash, _ := types.NewAddress(owner)
 	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa,
-		issuerHash.Hash160(), ownerHash.Hash160(), tag, core.TransferFee)
+		issuerHash.Hash160(), ownerHash.Hash160(), tag)
 	if err != nil {
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
@@ -444,7 +444,7 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	op := types.NewOutPoint(tHash, tIdx)
 	//
 	tx, utxos, err := rpcutil.MakeUnsignedTokenTransferTx(wa, fromAddress.Hash160(),
-		toHashes, amounts, (*types.TokenID)(op), core.TransferFee)
+		toHashes, amounts, (*types.TokenID)(op))
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -577,11 +577,9 @@ func (s *txServer) MakeUnsignedCombineTx(
 			return newMakeTxResp(-1, "invalid token hash", nil, nil), nil
 		}
 		tid := (*types.TokenID)(types.NewOutPoint(tokenHash, tokenIdx))
-		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, fromAddress.Hash160(),
-			tid, core.TransferFee)
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTokenTx(wa, fromAddress.Hash160(), tid)
 	} else {
-		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, fromAddress.Hash160(),
-			core.TransferFee)
+		tx, utxos, err = rpcutil.MakeUnsignedCombineTx(wa, fromAddress.Hash160())
 	}
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil

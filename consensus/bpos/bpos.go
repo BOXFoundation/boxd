@@ -477,7 +477,8 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	spendableTxs := new(sync.Map)
 
 	// Total fees of all packed txs
-	totalTxFee := uint64(0)
+	totalTransferFee, totalExtraFee := uint64(0), uint64(0)
+
 	stopPack := false
 	stopPackCh := make(chan bool, 1)
 	continueCh := make(chan bool, 1)
@@ -494,6 +495,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				logger.Infof("txs size reach %d KB, stop packing", packedTxsRoughSize/1024)
 				break
 			}
+			totalExtraFee += txWrap.Tx.ExtraFee()
 
 			txHash, _ := txWrap.Tx.TxHash()
 			if txWrap.IsContract {
@@ -515,7 +517,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				continue
 			}
 			totalOutputAmount := txWrap.Tx.OutputAmount()
-			if totalInputAmount < totalOutputAmount {
+			if totalInputAmount != totalOutputAmount+core.TransferFee+txWrap.Tx.ExtraFee() {
 				// This must not happen since the tx already passed the check when admitted into mempool
 				logger.Warnf("total value of all transaction outputs for "+
 					"transaction %v is %v, which exceeds the input amount "+
@@ -523,8 +525,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				// TODO: abandon the error tx from pool.
 				continue
 			}
-			txFee := totalInputAmount - totalOutputAmount
-			totalTxFee += txFee
+			totalTransferFee += core.TransferFee
 
 			spendableTxs.Store(*txHash, txWrap)
 			packedTxs = append(packedTxs, txWrap.Tx)
@@ -554,7 +555,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 	nonce := statedb.GetNonce(block.Header.BookKeeper) + 1
-	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTxFee, nonce)
+	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTransferFee+totalExtraFee, nonce)
 	if err != nil {
 		return err
 	}
