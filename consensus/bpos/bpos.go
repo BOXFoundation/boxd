@@ -287,11 +287,15 @@ func (bpos *Bpos) IsBookkeeper() bool {
 	if err != nil {
 		return false
 	}
-	dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
+	delegates, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return false
 	}
-	if !types.InAddresses(*addr.Hash160(), dynasty.addrs) {
+	var addrs []types.AddressHash
+	for _, v := range delegates {
+		addrs = append(addrs, v.Addr)
+	}
+	if !types.InAddresses(*addr.Hash160(), addrs) {
 		return false
 	}
 	if err := bpos.bookkeeper.UnlockWithPassphrase(bpos.cfg.Passphrase); err != nil {
