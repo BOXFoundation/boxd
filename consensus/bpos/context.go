@@ -243,8 +243,10 @@ func (bpos *Bpos) calcScores() ([]*big.Int, error) {
 func (bpos *Bpos) calcScore(totalVote int64, delegate Delegate) (*big.Int, error) {
 	currentDynasty := (int64(bpos.chain.LongestChainHeight) / bpos.context.dynastySwitchThreshold.Int64()) + 1
 	pledgeScore := float64((float64(len(bpos.context.dynasty.delegates)) * float64(delegate.PledgeAmount.Int64()) / float64(len(bpos.context.nextDelegates)))) / math.Pow(float64(currentDynasty), 1.5)
-	voteScore := float64(delegate.Votes.Int64()*delegate.Votes.Int64()) / float64(totalVote)
-	// score := math.Trunc(math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (pledgeScore + voteScore))
+	voteScore := float64(0)
+	if totalVote > 0 {
+		voteScore = float64(delegate.Votes.Int64()) / float64(totalVote) * float64(delegate.Votes.Int64())
+	}
 	periodScore := math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (float64(delegate.PledgeAmount.Int64()) + float64(delegate.Votes.Int64()))
 	score := math.Trunc((periodScore + pledgeScore + voteScore) / 1e8)
 
