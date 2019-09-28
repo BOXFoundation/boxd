@@ -111,11 +111,10 @@ var _ service.Server = (*Bpos)(nil)
 // Run start bpos
 func (bpos *Bpos) Run() error {
 	logger.Info("Bpos run")
-	if !bpos.IsBookkeeper() {
-		logger.Warn("You have no authority to produce block")
-		return ErrNoLegalPowerToProduce
-	}
-
+	//if !bpos.IsBookkeeper() {
+	//	logger.Warn("You have no authority to produce block")
+	//	return ErrNoLegalPowerToProduce
+	//}
 	bpos.subscribe()
 	bpos.bftservice.Run()
 	bpos.proc.Go(bpos.loop)
