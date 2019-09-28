@@ -170,8 +170,8 @@ func fetchModerateUtxos(
 			break
 		}
 	}
-	if amountToFetch != math.MaxUint64 && remain > 0 && remain <= amountToFetch {
-		return nil, fmt.Errorf("amount for %d utxo %d is less than total %d wanted",
+	if amountToFetch != math.MaxUint64 && remain > 0 && remain <= amountToFetch+extraFee {
+		return nil, fmt.Errorf("amount for %d utxos %d is less than total %d wanted",
 			len(result), amountToFetch-remain, total)
 	}
 
