@@ -437,9 +437,10 @@ func deploy(cmd *cobra.Command, args []string) {
 	}
 	// do request
 	req := &rpcpb.MakeContractTxReq{
-		From:     sender,
-		Amount:   amount,
-		GasLimit: (bal - amount) / core.FixedGasPrice,
+		From:   sender,
+		Amount: amount,
+		// preserve extra fee for this tx
+		GasLimit: (bal - amount - core.TransferFee) / core.FixedGasPrice,
 		Nonce:    nonce + 1,
 		IsDeploy: true,
 		Data:     bytecode,
@@ -530,10 +531,11 @@ func send(cmd *cobra.Command, args []string) {
 	}
 	// call
 	req := &rpcpb.MakeContractTxReq{
-		From:     sender,
-		To:       contractAddr,
-		Amount:   amount,
-		GasLimit: (bal - amount) / core.FixedGasPrice,
+		From:   sender,
+		To:     contractAddr,
+		Amount: amount,
+		// preserve extra fee for this tx
+		GasLimit: (bal - amount - core.TransferFee) / core.FixedGasPrice,
 		Nonce:    nonce + 1,
 		Data:     data,
 	}

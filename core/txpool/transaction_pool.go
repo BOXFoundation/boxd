@@ -750,6 +750,9 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 		dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
 		for i := 0; i < len(dsTxs); i++ {
 			contractVout, _ := txlogic.CheckAndGetContractVout(dsTxs[i])
+			if contractVout == nil {
+				continue
+			}
 			sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
 			p, _, _ := sc.ParseContractParams()
 			if param.Nonce < p.Nonce {
