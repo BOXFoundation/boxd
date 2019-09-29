@@ -111,10 +111,10 @@ var _ service.Server = (*Bpos)(nil)
 // Run start bpos
 func (bpos *Bpos) Run() error {
 	logger.Info("Bpos run")
-	//if !bpos.IsBookkeeper() {
-	//	logger.Warn("You have no authority to produce block")
-	//	return ErrNoLegalPowerToProduce
-	//}
+	if !bpos.IsBookkeeper() {
+		logger.Warn("You have no authority to produce block")
+		return ErrNoLegalPowerToProduce
+	}
 	bpos.subscribe()
 	bpos.bftservice.Run()
 	bpos.proc.Go(bpos.loop)
@@ -282,21 +282,21 @@ func (bpos *Bpos) IsBookkeeper() bool {
 		return true
 	}
 
-	addr, err := types.NewAddress(bpos.bookkeeper.Addr())
-	if err != nil {
-		return false
-	}
-	delegates, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
-	if err != nil {
-		return false
-	}
-	var addrs []types.AddressHash
-	for _, v := range delegates {
-		addrs = append(addrs, v.Addr)
-	}
-	if !types.InAddresses(*addr.Hash160(), addrs) {
-		return false
-	}
+	//addr, err := types.NewAddress(bpos.bookkeeper.Addr())
+	//if err != nil {
+	//	return false
+	//}
+	//delegates, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
+	//if err != nil {
+	//	return false
+	//}
+	//var addrs []types.AddressHash
+	//for _, v := range delegates {
+	//	addrs = append(addrs, v.Addr)
+	//}
+	//if !types.InAddresses(*addr.Hash160(), addrs) {
+	//	return false
+	//}
 	if err := bpos.bookkeeper.UnlockWithPassphrase(bpos.cfg.Passphrase); err != nil {
 		logger.Error(err)
 		return false
