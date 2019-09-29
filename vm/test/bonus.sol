@@ -275,12 +275,13 @@ contract Bonus is Permission{
             delegate.score = scores[i];
         }
         delete next;
+        Delegate[] memory sortAux = new Delegate[](pledgeAddrList.length);
         for(i = 0; i < pledgeAddrList.length; i++) {
             if (addrToDelegates[pledgeAddrList[i]].isExist) {
                 next.push(addrToDelegates[pledgeAddrList[i]]);
             }
         }
-        quickSort(next, 0, next.length-1);
+        sort(next, sortAux, 0, next.length-1);
     }
 
     function getDynasty() public view returns (Delegate[] memory) {
@@ -365,33 +366,25 @@ contract Bonus is Permission{
         return false;
     }
 
-    function quickSort(Delegate[] storage arr, uint left, uint right) internal {
-        if (right <= left)
-            return;
-        uint i = left;
-        uint j = right + 1;
-        uint v = arr[left].score;
-        while (true) {
-            while (arr[++i].score > v) {
-                if (i == right)
-                    break;
-            }
-            while (arr[--j].score < v) {
-                if (j == left)
-                    break;
-            }
-            if (i >= j)
-                break;
-            Delegate memory temp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = temp;
+    function sort(Delegate[] storage arr, Delegate[] aux, uint lo, uint hi) internal {
+        if (lo == hi || lo == hi+1)
+          return;
+        // top-down sort
+        uint mid = lo + (hi - lo) / 2;
+        sort(arr, aux, lo, mid);
+        sort(arr, aux, mid+1, hi);
+        // merge
+        for (uint k = lo; k <= hi; k++) {
+          aux[k] = arr[k];
         }
-        Delegate memory temp2 = arr[left];
-        arr[left] = arr[j];
-        arr[j] = temp2;
-        if (j != 0)
-            quickSort(arr, left, j - 1);
-        quickSort(arr, j + 1, right);
+        uint i = lo;
+        uint j = mid + 1;
+        for (k = lo; k <= hi; k++) {
+            if      (i > mid)                     arr[k] = aux[j++];
+            else if (j > hi)                      arr[k] = aux[i++];
+            else if (aux[j].score > aux[i].score) arr[k] = aux[j++];
+            else                                  arr[k] = aux[i++];
+        }
     }
 
     function vote(address delegateAddr) public payable {
