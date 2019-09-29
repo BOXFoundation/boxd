@@ -201,7 +201,7 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 }
 
 // GetRawTransaction get the transaction info of given hash
-func GetRawTransaction(conn *grpc.ClientConn, hash []byte) (*types.Transaction, error) {
+func GetRawTransaction(conn *grpc.ClientConn, hash string) (*types.Transaction, error) {
 	c := rpcpb.NewTransactionCommandClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
 	defer cancel()

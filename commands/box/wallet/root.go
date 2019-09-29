@@ -7,7 +7,9 @@ package walletcmd
 import (
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/common"
@@ -16,8 +18,11 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
+	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var cfgFile string
@@ -43,6 +48,30 @@ func init() {
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
+		// &cobra.Command{
+		// 	Use:   "encryptwallet [passphrase]",
+		// 	Short: "Encrypt a wallet with a passphrase",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("encryptwallet called")
+		// 	},
+		// },
+		// &cobra.Command{
+		// 	Use:   "encryptwallet [passphrase]",
+		// 	Short: "Encrypt a wallet with a passphrase",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("encryptwallet called")
+		// 	},
+		// },
+		// &cobra.Command{
+		// 	Use:   "lock [address]",
+		// 	Short: "Lock a account",
+		// 	Run:   lock,
+		// },
+		// &cobra.Command{
+		// 	Use:   "unlock [address]",
+		// 	Short: "unlock account",
+		// 	Run:   unlock,
+		// },
 		&cobra.Command{
 			Use:   "newaccount [account]",
 			Short: "Create a new account",
@@ -59,28 +88,9 @@ func init() {
 			Run:   dumpwallet,
 		},
 		&cobra.Command{
-			Use:   "encryptwallet [passphrase]",
-			Short: "Encrypt a wallet with a passphrase",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("encryptwallet called")
-			},
-		},
-		&cobra.Command{
 			Use:   "getwalletinfo [address]",
 			Short: "Get the basic informatio for a wallet",
 			Run:   getwalletinfo,
-		},
-		&cobra.Command{
-			Use:   "importprivkey [privatekey]",
-			Short: "Import a private key from other wallets",
-			Run:   importPrivateKeyCmdFunc,
-		},
-		&cobra.Command{
-			Use:   "importwallet [filename]",
-			Short: "Import a wallet from a file",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("importwallet called")
-			},
 		},
 		&cobra.Command{
 			Use:   "listaccounts",
@@ -107,6 +117,11 @@ func init() {
 			Short: "Check if an address is valid",
 			Run:   validateMessageCmdFunc,
 		},
+		&cobra.Command{
+			Use:   "import [option|path_keytore]",
+			Short: "Import a wallet from a file",
+			Run:   importwallet,
+		},
 	)
 }
 
@@ -122,39 +137,6 @@ func newAccountCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	addr, err := wltMgr.NewAccount(passphrase)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("Created new account. Address:%s\n", addr)
-}
-
-func importPrivateKeyCmdFunc(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		fmt.Println("Missing param private key")
-		return
-	}
-	privKeyBytes, err := hex.DecodeString(args[0])
-	if err != nil {
-		fmt.Println("Invalid private key", err)
-		return
-	}
-	wltMgr, err := wallet.NewWalletManager(walletDir)
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	privKey, _, err := crypto.KeyPairFromBytes(privKeyBytes)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	passphrase, err := wallet.ReadPassphraseStdin()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	addr, err := wltMgr.NewAccountWithPrivKey(privKey, passphrase)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -379,4 +361,109 @@ func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println(args[0], " is a valid address")
 	}
+}
+
+func importwallet(cmd *cobra.Command, args []string) {
+	if len(args) > 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	if len(args) == 0 {
+		addr, err := importPrivateKey()
+		if err != nil {
+			fmt.Println("import private key failed:", err)
+			return
+		}
+		fmt.Println("create new account. Address:%s\n", addr)
+	} else {
+		// Verify that the file exists
+		keyFile := args[0]
+		err := importKeyStore(keyFile)
+		if err != nil {
+			fmt.Println("import key store failed:", err)
+			return
+		}
+	}
+}
+
+func readPrivateStdin() (string, error) {
+	fmt.Println("Please Input Your PrivateKey:")
+	input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	privKeyString := string(input)
+	return privKeyString, nil
+}
+
+func importPrivateKey() (string, error) {
+	privKeyString, err := readPrivateStdin()
+	if err != nil {
+		fmt.Println("Read privkey failed:", err)
+		return "", err
+	}
+	privKeyBytes, err := hex.DecodeString(privKeyString)
+	if err != nil {
+		fmt.Println("Invalid private key", err)
+		return "", err
+	}
+	wltMgr, err := wallet.NewWalletManager(walletDir)
+	if err != nil {
+		fmt.Println(err.Error())
+		return "", err
+	}
+	privKey, _, err := crypto.KeyPairFromBytes(privKeyBytes)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	addr, err := wltMgr.NewAccountWithPrivKey(privKey, passphrase)
+	if err != nil {
+		return "", err
+	}
+	return addr, nil
+}
+
+func importKeyStore(keyFile string) error {
+	if _, err := os.Stat(keyFile); err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("abi file is not exists")
+		} else {
+			fmt.Println("abi file status error:", err)
+		}
+		return err
+	}
+	keyStAdd, err := account.GetKeystoreAddress(keyFile)
+	if err != nil {
+		fmt.Println("get address in keystore failed:", err)
+	}
+	accI, err := account.NewAccountFromFile(keyFile)
+	if err != nil {
+		fmt.Printf("account for %s not initialled\n", keyStAdd)
+		return err
+	}
+	passphrase, err := wallet.ReadPassphraseStdin()
+	if err := accI.UnlockWithPassphrase(passphrase); err != nil {
+		fmt.Println("Fail to unlock account", err)
+		return err
+	}
+	if err := util.MkDir(walletDir); err != nil {
+		panic(err)
+	}
+
+	newFile := walletDir + "/" + filepath.Base(keyFile)
+	data, err := ioutil.ReadFile(keyFile)
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile(newFile, data, 0644)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }

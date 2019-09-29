@@ -51,13 +51,13 @@ func init() {
 			Short: "Send coins from an account to an address",
 			Run:   sendFromCmdFunc,
 		},
-		&cobra.Command{
-			Use:   "sendtoaddress [address]",
-			Short: "Send coins to an address",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("sendtoaddress called")
-			},
-		},
+		// &cobra.Command{
+		// 	Use:   "sendtoaddress [address]",
+		// 	Short: "Send coins to an address",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("sendtoaddress called")
+		// 	},
+		// },
 		&cobra.Command{
 			Use:   "createtx [from] [to1,to2...] [amounts1,amounts2...]",
 			Short: "create an unsigned transaction,",
@@ -225,15 +225,13 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Param txhash required")
 		return
 	}
-	hash := crypto.HashType{}
-	hash.SetString(args[0])
 	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("Get RPC conn failed:", err)
 		return
 	}
 	defer conn.Close()
-	tx, err := rpcutil.GetRawTransaction(conn, hash.GetBytes())
+	tx, err := rpcutil.GetRawTransaction(conn, args[0])
 	if err != nil {
 		fmt.Println("Get raw transaction failed:", err)
 		return

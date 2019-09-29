@@ -13,6 +13,8 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -117,7 +119,7 @@ func init() {
 			Run:   getLogs,
 		},
 		&cobra.Command{
-			Use:   "nonce [addr]",
+			Use:   "getnonce [addr]",
 			Short: "Get the nonce of address ",
 			Run:   getNonce,
 		},
@@ -225,7 +227,6 @@ func importAbi(cmd *cobra.Command, args []string) {
 	if err != nil {
 		panic(err)
 	}
-	//
 	f, err := os.OpenFile(recordFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
@@ -281,7 +282,7 @@ func setsender(cmd *cobra.Command, args []string) {
 		}
 	}
 	if !unlocked {
-		fmt.Println("accound is unlocked, you need to import your account to this wallet!")
+		fmt.Println("account is unlocked, you need to import your account to this wallet!")
 		return
 	}
 	// write address to file
@@ -304,6 +305,12 @@ func list(cmd *cobra.Command, args []string) {
 		fmt.Println("record is empty")
 		return
 	}
+	sender, _, err := currentSender(senderFile)
+	if err != nil {
+		fmt.Println("get current sender address:", err)
+		return
+	}
+	fmt.Printf("sender: %s\n", sender)
 	fmt.Println("abi list:")
 	for _, i := range abiInfo {
 		fmt.Printf("\t%d: %s\n", i.index, i.note)
@@ -385,22 +392,36 @@ func deploy(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
+
 	amount, err := strconv.ParseUint(args[1], 10, 64)
 	if err != nil {
 		fmt.Println("invalid amount: ", err)
 		return
 	}
-	data := args[0]
 	var bytecode string
-	if _, err := os.Stat(data); err == nil {
-		bytes, err := ioutil.ReadFile(data)
+	data := args[0]
+	suffix := path.Ext(data)
+	if suffix == ".sol" {
+		cmd := exec.Command("solc", args[0], "--bin")
+		output, err := cmd.Output()
 		if err != nil {
-			fmt.Println("read contract file error:", err)
+			fmt.Println("output failed:", err)
 			return
 		}
-		bytecode = strings.TrimSpace(string(bytes))
+		outputString := strings.TrimSpace(string(output))
+		binSlice := strings.Split(outputString, ":")
+		bytecode = binSlice[2]
 	} else {
-		bytecode = data
+		if _, err := os.Stat(data); err == nil {
+			bytes, err := ioutil.ReadFile(data)
+			if err != nil {
+				fmt.Println("read contract file error:", err)
+				return
+			}
+			bytecode = strings.TrimSpace(string(bytes))
+		} else {
+			bytecode = data
+		}
 	}
 	// params
 	if len(args) >= 4 {

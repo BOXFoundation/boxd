@@ -38,6 +38,7 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	Example: `./box create fromaddr [(addr1, weight1), (addr2, weight2), (addr3, weight3), ...]`,
 }
 
 // Init adds the sub command to the root command.
