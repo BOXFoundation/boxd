@@ -39,6 +39,20 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	Example: `
+	1.view transaction detail by transaction_hash
+	  ./box tx viewtxdetail 7a13a3fcfc74f2cc92339f68ed3d71b93c15dff3e0faf39bcb78918dca49d9c2
+	2.get transaction by block_height and index_tx 
+	  ./box tx gettxbyhash a49f9608b69b22c6ee2e3717364beb3d4848f236b7b51b0e3ba654f41649ab4c 0
+	3.make unsigned transaction
+	  ./box tx createtx b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m b1dZ8aPQ2UPeYHfGV5hshyswbxRBZQjuz2L,b1gFAdBjy8gu3vFRbg1qJEXtiV9xZTVTKx1 10,20
+	4.sign transaction 
+	  ./box --wallet_dir keyfile tx signrawtx b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m 12240a220a20206029513377e45fed5cf8486b76664864a8138d1cc5248c84202eab2c803b541a1d080a121976a9146aeacee33019c341b1700de7a0485ce13f3d02b988ac1a1d0814121976a914886d68724989517491e92c420a820a9e9d5b41d688ac1a2408d2f499ecb3aacf3a121976a914816666b318349468f8146e76e4e3751d937c14cb88ac
+	5.send raw transaction
+	  ./box tx sendrawtx 1290010a220a20206029513377e45fed5cf8486b76664864a8138d1cc5248c84202eab2c803b54126a473045022100dc42cfb8348bb10d91278069912351e7271c4e4744fd0f91de6451c6c227a6f602200ebf1c3fcfd47e609a539e59769b77e83690dc628bf246b9cfe49ca2154648bb2103ac5906f34b6f12150d49942dcd3df4b30716cb78abc9e3f6e488e2c1f28ab8bd1a1d080a121976a9146aeacee33019c341b1700de7a0485ce13f3d02b988ac1a1d0814121976a914886d68724989517491e92c420a820a9e9d5b41d688ac1a24089297cdecb3aacf3a121976a914816666b318349468f8146e76e4e3751d937c14cb88ac
+	6.Sendfrom command sends an amount of box from a managed account to another account
+	  ./box tx sendfrom b1YLUNwJD124sv9piRvkqcmfcujTZtHhHSz b1UJRzHvXoHA8DGGGGZaCSQBkVyoPEqmQUN 50000
+	`,
 }
 
 // Init adds the sub command to the root command.
@@ -131,7 +145,7 @@ to quickly create a Cobra  application.`,
 
 func maketx(cmd *cobra.Command, args []string) {
 	if len(args) != 3 {
-		fmt.Println("Invalide argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 
@@ -193,7 +207,7 @@ func maketx(cmd *cobra.Command, args []string) {
 
 func sendrawtx(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("Can only enter one string for a transaction")
+		fmt.Println(cmd.Use)
 		return
 	}
 	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
@@ -222,26 +236,37 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		fmt.Println("Param txhash required")
+		fmt.Println(cmd.Use)
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetRawTransaction",
+		&rpcpb.GetRawTransactionRequest{Hash: args[0]}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println("Get RPC conn failed:", err)
+		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	tx, err := rpcutil.GetRawTransaction(conn, args[0])
+	resp, ok := respRPC.(*rpcpb.GetRawTransactionResponse)
+	if !ok {
+		fmt.Println("Convertion to rpcpb.GetRawTransactionResponse failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	tx := new(types.Transaction)
+	err = tx.FromProtoMessage(resp.Tx)
 	if err != nil {
-		fmt.Println("Get raw transaction failed:", err)
+		fmt.Println(err)
 		return
 	}
 	fmt.Println(format.PrettyPrint(tx))
+
 }
 
 func getTxCountByHash(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockTransactionCountByHash",
@@ -264,7 +289,7 @@ func getTxCountByHash(cmd *cobra.Command, args []string) {
 
 func getTxCountByHeight(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	height, err := strconv.ParseUint(args[0], 10, 64)
@@ -292,7 +317,7 @@ func getTxCountByHeight(cmd *cobra.Command, args []string) {
 
 func getTxByHash(cmd *cobra.Command, args []string) {
 	if len(args) != 2 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	index, err := strconv.ParseUint(args[1], 10, 64)
@@ -326,7 +351,7 @@ func getTxByHash(cmd *cobra.Command, args []string) {
 
 func getTxByHeight(cmd *cobra.Command, args []string) {
 	if len(args) != 2 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	height, err := strconv.ParseUint(args[0], 10, 64)
@@ -361,7 +386,7 @@ func getTxByHeight(cmd *cobra.Command, args []string) {
 
 func decoderawtx(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	txByte, err := hex.DecodeString(args[0])
@@ -381,7 +406,7 @@ func signrawtx(cmd *cobra.Command, args []string) {
 	//arg[0] represents 'from address'
 	//arg[1] represents 'rawtx'
 	if len(args) < 2 {
-		fmt.Println("Invalide argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	txBytes, err := hex.DecodeString(args[1])
@@ -461,7 +486,7 @@ func signrawtx(cmd *cobra.Command, args []string) {
 
 func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) < 3 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	// account

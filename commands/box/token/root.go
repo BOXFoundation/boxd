@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
@@ -225,7 +226,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 2 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	// hash
@@ -243,19 +244,22 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("Veri", err)
 		return
 	}
-	// call rpc
-	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetTokenBalance",
+		&rpcpb.GetTokenBalanceReq{Addrs: addrs, TokenHash: tokenHash.String(), TokenIndex: tokenIndex}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	balances, err := rpcutil.GetTokenBalance(conn, addrs, tokenHash.String(), tokenIndex)
-	if err != nil {
-		fmt.Println("Get token balance failed:", err)
+	resp, ok := respRPC.(*rpcpb.GetBalanceResp)
+	if !ok {
+		fmt.Println("Convertion to rpcpb.GetBalanceRespfailed")
 		return
 	}
-	for i, b := range balances {
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	for i, b := range resp.Balances {
 		fmt.Printf("%s: %d\n", addrs[i], b)
 	}
 }

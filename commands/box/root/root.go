@@ -34,9 +34,16 @@ var RootCmd = &cobra.Command{
 	Long: `BOX Payout, a lightweight blockchain built for processing
 			multi-party payments on digital content apps.`,
 	Example: `
-	
+	1.commands about wallet
+	  ./box wallet [command]
+	2. commands about contract
+	  ./box contract [command]
+	3.commands about transaction
+	  ./box tx [command]
+	4. commands about net and block_info
+	  ./box block information
 	`,
-	Version: fmt.Sprintf("%s-r%s (%s branch)", config.Version, config.GitCommit, config.GitBranch),
+	Version: fmt.Sprintf("%s %s(%s) %s\n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion),
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },

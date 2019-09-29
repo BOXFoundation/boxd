@@ -41,6 +41,20 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	Example: `
+	1.new account
+	  ./box wallet newaccount
+	2.list account in your wallet
+	  ./box wallet listaccounts
+	3.validate address
+	  ./box wallet validateaddress  b1fBA6qDFe3oZKkuiVpdv77oSXNQocBJL3p
+	4.sign transaction 
+	  ./box --wallet_dir keyfile tx signrawtx b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m 12240a220a20206029513377e45fed5cf8486b76664864a8138d1cc5248c84202eab2c803b541a1d080a121976a9146aeacee33019c341b1700de7a0485ce13f3d02b988ac1a1d0814121976a914886d68724989517491e92c420a820a9e9d5b41d688ac1a2408d2f499ecb3aacf3a121976a914816666b318349468f8146e76e4e3751d937c14cb88ac
+	5.get balance
+	  ./box wallet getbalance b1YLUNwJD124sv9piRvkqcmfcujTZtHhHSz
+	6.import [option|path_keystore]
+	   ./box wallet integration_tests/.devconfig/keyfile/key3.keystore
+	`,
 }
 
 // Init adds the sub command to the root command.
@@ -157,7 +171,7 @@ func listAccountCmdFunc(cmd *cobra.Command, args []string) {
 
 func getwalletinfo(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		fmt.Println("address needed")
+		fmt.Println(cmd.Use)
 		return
 	}
 	addr := args[0]
@@ -177,7 +191,7 @@ func getwalletinfo(cmd *cobra.Command, args []string) {
 
 func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		fmt.Println("address needed")
+		fmt.Println(cmd.Use)
 		return
 	}
 	addr := args[0]
@@ -201,7 +215,7 @@ func dumpPrivKeyCmdFunc(cmd *cobra.Command, args []string) {
 
 func dumpwallet(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		fmt.Println("file name needed")
+		fmt.Println(cmd.Use)
 		return
 	}
 
@@ -279,7 +293,7 @@ func decodeAddress(cmd *cobra.Command, args []string) {
 
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 	}
 	addrs := make([]string, 0)
 	if len(args) < 1 {
@@ -320,7 +334,7 @@ func getBalanceCmdFunc(cmd *cobra.Command, args []string) {
 
 func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
-		fmt.Println("Please input the hex format of signature and publickey hash")
+		fmt.Println(cmd.Use)
 		return
 	}
 	msg, err := hex.DecodeString(args[0])
@@ -352,7 +366,7 @@ func signMessageCmdFunc(cmd *cobra.Command, args []string) {
 
 func validateMessageCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		fmt.Println("Please specify the address to validate")
+		fmt.Println(cmd.Use)
 		return
 	}
 	addr := new(types.AddressPubKeyHash)

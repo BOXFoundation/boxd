@@ -10,8 +10,11 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/BOXFoundation/boxd/log"
 	"google.golang.org/grpc"
 )
+
+var logger = log.NewLogger("rpcclient") // logger for client package
 
 // RPCCall calls a rpc api
 func RPCCall(

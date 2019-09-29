@@ -27,20 +27,6 @@ const (
 	maxDecimal  = 8
 )
 
-// GetBalance returns total amount of an address
-func GetBalance(conn *grpc.ClientConn, addresses []string) ([]uint64, error) {
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
-	resp, err := c.GetBalance(ctx, &rpcpb.GetBalanceReq{Addrs: addresses})
-	if err != nil {
-		return nil, err
-	} else if resp.Code != 0 {
-		return nil, errors.New(resp.Message)
-	}
-	return resp.GetBalances(), nil
-}
-
 // GetTokenBalance returns total amount of an address with specified token id
 func GetTokenBalance(
 	conn *grpc.ClientConn, addresses []string, tokenHash string, tokenIndex uint32,
@@ -198,22 +184,6 @@ func SendTransaction(conn *grpc.ClientConn, tx *types.Transaction) (string, erro
 		return "", errors.New(resp.GetMessage())
 	}
 	return resp.Hash, nil
-}
-
-// GetRawTransaction get the transaction info of given hash
-func GetRawTransaction(conn *grpc.ClientConn, hash string) (*types.Transaction, error) {
-	c := rpcpb.NewTransactionCommandClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), connTimeout*time.Second)
-	defer cancel()
-	logger.Debugf("Get transaction of hash: %x", hash)
-
-	r, err := c.GetRawTransaction(ctx, &rpcpb.GetRawTransactionRequest{Hash: hash})
-	if err != nil {
-		return nil, err
-	}
-	tx := &types.Transaction{}
-	err = tx.FromProtoMessage(r.Tx)
-	return tx, err
 }
 
 // NewTx new a tx and return change utxo

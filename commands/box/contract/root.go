@@ -32,6 +32,7 @@ import (
 	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -71,7 +72,7 @@ var rootCmd = &cobra.Command{
     ./box contract setsender b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m
 		NOTE: account sender must be imported and unlocked to local wallet
 
-  4. deploy contract
+  4. deploy contract. 
     ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19191
     NOTE: if add index argument after amount argument, attach index to the deployed contract
 
@@ -421,6 +422,13 @@ func deploy(cmd *cobra.Command, args []string) {
 	data := args[0]
 	suffix := path.Ext(data)
 	if suffix == ".sol" {
+		fmt.Println("Have you installed the solidity editor for the version corresponding to the contract?y/n")
+		input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		if string(input) != "y" {
+			fmt.Println("Please install and contract the corresponding version of solidity editor")
+			fmt.Println("安装教程：https://goethereumbook.org/en/smart-contract-compile/")
+			return
+		}
 		cmd := exec.Command("solc", args[0], "--bin")
 		output, err := cmd.Output()
 		if err != nil {
@@ -704,7 +712,7 @@ func getLogs(cmd *cobra.Command, args []string) {
 	//arg[0]represents block hash , arg[1] "from"andarg[2"to " represent log between from and to
 	//arg[3]reprensents address arg[4]represents topics
 	if len(args) != 5 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	hash := args[0]
@@ -747,7 +755,7 @@ func getLogs(cmd *cobra.Command, args []string) {
 
 func getNonce(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	addr := args[0]
@@ -772,7 +780,7 @@ func getNonce(cmd *cobra.Command, args []string) {
 
 func getCode(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	//validate address
@@ -796,7 +804,7 @@ func getCode(cmd *cobra.Command, args []string) {
 
 func estimateGas(cmd *cobra.Command, args []string) {
 	if len(args) < 3 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	from := args[0]
@@ -843,7 +851,7 @@ func estimateGas(cmd *cobra.Command, args []string) {
 
 func getStorageAt(cmd *cobra.Command, args []string) {
 	if len(args) != 3 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	if err := types.ValidateAddr(args[0]); err != nil {
