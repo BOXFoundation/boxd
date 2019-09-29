@@ -374,7 +374,7 @@ func importwallet(cmd *cobra.Command, args []string) {
 			fmt.Println("import private key failed:", err)
 			return
 		}
-		fmt.Println("create new account. Address:%s\n", addr)
+		fmt.Printf("create new account. Address:%s\n", addr)
 	} else {
 		// Verify that the file exists
 		keyFile := args[0]
