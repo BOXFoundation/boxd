@@ -17,6 +17,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -32,6 +33,8 @@ var logger = log.NewLogger("rpc")
 const (
 	DefaultGrpcLimits = 128
 	DefaultHTTPLimits = 128
+
+	DefaultVHosts = "*"
 )
 
 //
@@ -48,6 +51,7 @@ type Config struct {
 	GrpcLimits      int          `mapstructure:"grpc_limits"`
 	HTTPLimits      int          `mapstructure:"http_limits"`
 	HTTPCors        []string     `mapstructure:"http_cors"`
+	VHosts          []string     `mapstructure:"vhosts"`
 	Faucet          FaucetConfig `mapstructure:"faucet"`
 	SubScribeBlocks bool         `mapstructure:"subscribe_blocks"`
 	SubScribeLogs   bool         `mapstructure:"subscribe_logs"`
@@ -133,7 +137,9 @@ func NewServer(parent goprocess.Process, cfg *Config,
 		WalletAgent: wa,
 		gRPCProc:    goprocess.WithParent(parent),
 	}
-
+	if len(server.cfg.VHosts) == 0 {
+		server.cfg.VHosts = append(server.cfg.VHosts, DefaultVHosts)
+	}
 	return server
 }
 
@@ -305,6 +311,9 @@ func (s *Server) withHTTPLimits(h http.Handler) http.Handler {
 	})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.withVHosts(w, r) {
+			return
+		}
 		select {
 		case httpCh <- true:
 			defer func() { <-httpCh }()
@@ -313,6 +322,35 @@ func (s *Server) withHTTPLimits(h http.Handler) http.Handler {
 			serviceUnavailableHandler(w, r)
 		}
 	})
+}
+
+// withVHosts is a handler which validates the Host-header of incoming requests.
+// The withVHosts can prevent DNS rebinding attacks, which do not utilize CORS-headers,
+// since they do in-domain requests against the RPC api. Instead, we can see on the Host-header
+// which domain was used, and validate that against a whitelist.
+func (s *Server) withVHosts(w http.ResponseWriter, r *http.Request) bool {
+	// if r.Host is not set, we can continue serving since a browser would set the Host header
+	if r.Host == "" {
+		return true
+	}
+	host, _, err := net.SplitHostPort(r.Host)
+	if err != nil {
+		// Either invalid (too many colons) or no port specified
+		host = r.Host
+	}
+	if ipAddr := net.ParseIP(host); ipAddr != nil {
+		// It's an IP address, we can serve that
+		return true
+	}
+	// Not an ip address, but a hostname. Need to validate
+	if util.InArray("*", s.cfg.VHosts) {
+		return true
+	}
+	if util.InArray(host, s.cfg.VHosts) {
+		return true
+	}
+	http.Error(w, "invalid host specified", http.StatusForbidden)
+	return false
 }
 
 func serviceUnavailableHandler(w http.ResponseWriter, r *http.Request) {
