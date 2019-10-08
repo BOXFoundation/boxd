@@ -4,7 +4,7 @@
 package test
 
 import (
-	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -24,12 +24,19 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil" // "github.com/BOXFoundation/boxd/vm/core"
 	"github.com/facebookgo/ensure"
+	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 	"github.com/jbenet/goprocess"
 )
 
 var (
 	testHash    = corecrypto.BytesToHash([]byte("xujingshi"))
 	fromAddress = coretypes.BytesToAddressHash([]byte("xujingshi"))
+	pledge1     = vm.AccountRef(coretypes.BytesToAddressHash([]byte("pledge1")))
+	pledge2     = vm.AccountRef(coretypes.BytesToAddressHash([]byte("pledge2")))
+	pledge3     = vm.AccountRef(coretypes.BytesToAddressHash([]byte("pledge3")))
+	pledge4     = vm.AccountRef(coretypes.BytesToAddressHash([]byte("pledge4")))
+	pledge5     = vm.AccountRef(coretypes.BytesToAddressHash([]byte("pledge5")))
+	pledge6     = vm.AccountRef(coretypes.BytesToAddressHash([]byte("pledge6")))
 	toAddress   = coretypes.BytesToAddressHash([]byte("andone"))
 	amount      = big.NewInt(0)
 	nonce       = uint64(0)
@@ -151,20 +158,45 @@ func TestGenesisContract(t *testing.T) {
 
 }
 
-func _TestEVM(t *testing.T) {
-	abiFileName := "./coin_sol_Coin.abi"
-	binFileName := "./coin_sol_Coin.bin"
-	data := loadBin(binFileName)
+// Delegate is a bookkeeper node.
+type Delegate struct {
+	Addr            coretypes.AddressHash
+	PeerID          string
+	Votes           *big.Int
+	PledgeAmount    *big.Int
+	Score           *big.Int
+	ContinualPeriod *big.Int
+	IsExist         bool
+}
+
+func TestEVM(t *testing.T) {
+	adminAddr, err := coretypes.NewAddress("b1na9uCQXA26d94w1tWrttnnsfjKNz9M2EF")
+	adminAddr2 := adminAddr.Hash160()
+
+	addrCon, err := coretypes.NewContractAddress("b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz")
+	contractAddr2 := addrCon.Hash160()
+	contractAddr := *contractAddr2
+
+	blockchain := chain.NewTestBlockChain()
+
+	abiFileName := "./bonus.abi"
 
 	// init db
-	stateDb, err := state.New(nil, nil, initDB())
+	stateDb := blockchain.TailState()
 
 	msg := NewMessage(&fromAddress, big.NewInt(0))
 	cc := ChainContext{}
-	ctx := chain.NewEVMContext(msg, cc.GetHeader(0), blockChain)
+	ctx := chain.NewEVMContext(msg, cc.GetHeader(101), blockChain)
 
 	stateDb.SetBalance(fromAddress, big.NewInt(1e18))
 	fmt.Println("init balance =", stateDb.GetBalance(fromAddress))
+
+	stateDb.SetBalance(pledge1.Address(), big.NewInt(1e18))
+	stateDb.SetBalance(pledge2.Address(), big.NewInt(1e18))
+	stateDb.SetBalance(pledge3.Address(), big.NewInt(1e18))
+	stateDb.SetBalance(pledge4.Address(), big.NewInt(1e18))
+	stateDb.SetBalance(pledge5.Address(), big.NewInt(1e18))
+	stateDb.SetBalance(pledge6.Address(), big.NewInt(1e18))
 
 	// log config
 	logConfig := vm.LogConfig{}
@@ -176,100 +208,187 @@ func _TestEVM(t *testing.T) {
 	evm := vm.NewEVM(ctx, stateDb, vmConfig)
 	// caller
 	contractRef := vm.AccountRef(fromAddress)
-	// all balance used to create contract as contract.gas
-	contractCode, contractAddr, balance, vmerr := evm.Create(contractRef, data, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
-	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	adminContractRef := vm.AccountRef(*adminAddr2)
+	// // all balance used to create contract as contract.gas
+	// contractCode, contractAddr, balance, vmerr := evm.Create(contractRef, data, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	// stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
 
-	must(vmerr)
-	//fmt.Printf("getcode:%x\n%x\n", contractCode, statedb.GetCode(contractAddr))
-	fmt.Println("contractCode length = ", len(contractCode))
+	// must(vmerr)
+	// //fmt.Printf("getcode:%x\n%x\n", contractCode, statedb.GetCode(contractAddr))
+	// fmt.Println("contractCode length = ", len(contractCode))
 
-	fmt.Println("after create contract, balance =", balance)
+	// fmt.Println("after create contract, balance =", balance)
 
 	abiObj := loadAbi(abiFileName)
 
+	// 1、质押
+	input, err := abiObj.Pack("pledge")
+	must(err)
+	outputs, balance, vmerr := evm.Call(contractRef, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e15), false)
+	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+
+	fmt.Println(hex.EncodeToString(outputs))
+	must(vmerr)
+
+	outputs, balance, vmerr = evm.Call(pledge1, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e15), false)
+	outputs, balance, vmerr = evm.Call(pledge2, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e15), false)
+	outputs, balance, vmerr = evm.Call(pledge3, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e15), false)
+	outputs, balance, vmerr = evm.Call(pledge4, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e15), false)
+	outputs, balance, vmerr = evm.Call(pledge5, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e15), false)
+	outputs, balance, vmerr = evm.Call(pledge6, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e15), false)
+
+	// 2、投票
+	evm = vm.NewEVM(ctx, stateDb, vmConfig)
+
+	evm.Context.BlockNumber = big.NewInt(300)
+	input, err = abiObj.Pack("vote", fromAddress)
+	must(err)
+	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(2e10), false)
+	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+
+	fmt.Println(hex.EncodeToString(outputs))
+	must(vmerr)
+
+	// 3、计算分数
+	scores := []*big.Int{}
+	scores = append(scores, big.NewInt(1))
+	scores = append(scores, big.NewInt(2))
+	scores = append(scores, big.NewInt(3))
+	scores = append(scores, big.NewInt(4))
+	scores = append(scores, big.NewInt(5))
+	scores = append(scores, big.NewInt(6))
+	scores = append(scores, big.NewInt(7))
+	input, err = abiObj.Pack("calcScore", scores)
+	must(err)
+
+	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(0), false)
+	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	must(vmerr)
+
+	// 4、读当前投票数
+	input, err = abiObj.Pack("getNext")
+	must(err)
+
+	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(0), false)
+	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	must(vmerr)
+
+	var dynasty []Delegate
+	if err := chain.ContractAbi.Unpack(&dynasty, "getNext", outputs); err != nil {
+		logger.Errorf("Failed to unpack the result of call getDynasty. Err: %v", err)
+	}
+	fmt.Println(dynasty)
+
+	// 5、executeBonus
+	evm.Context.BlockNumber = big.NewInt(599)
+
+	input, err = abiObj.Pack("execBonus")
+	must(err)
+
+	stateDb.SetBalance(*adminAddr2, big.NewInt(1e18))
+	outputs, balance, vmerr = evm.Call(adminContractRef, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(0), false)
+	stateDb.SetBalance(*adminAddr2, big.NewInt(int64(balance)))
+	must(vmerr)
+
+	// 6、读下一个朝代
+	evm.Context.BlockNumber = big.NewInt(601)
+
+	input, err = abiObj.Pack("getDynasty")
+	must(err)
+	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, big.NewInt(3e13).Uint64(), big.NewInt(0), false)
+	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+
+	fmt.Println(hex.EncodeToString(outputs))
+	must(vmerr)
+
+	var dynasty2 []Delegate
+	if err := chain.ContractAbi.Unpack(&dynasty2, "getDynasty", outputs); err != nil {
+		logger.Errorf("Failed to unpack the result of call getDynasty. Err: %v", err)
+	}
+	fmt.Println(dynasty2)
+
 	// method_id(4B) + args0(32B) + args1(32B) + ...
-	input, err := abiObj.Pack("minter")
-	must(err)
-	outputs, balance, vmerr := evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
-	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
-	must(vmerr)
+	// input, err := abiObj.Pack("minter")
+	// must(err)
+	// outputs, balance, vmerr := evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	// stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	// must(vmerr)
 
-	// fmt.Printf("minter is %x\n", common.BytesToAddress(outputs))
-	// fmt.Printf("call address %x\n", contractRef)
+	// // fmt.Printf("minter is %x\n", common.BytesToAddress(outputs))
+	// // fmt.Printf("call address %x\n", contractRef)
 
-	sender := coretypes.BytesToAddressHash(outputs)
+	// sender := coretypes.BytesToAddressHash(outputs)
 
-	if !bytes.Equal(sender.Bytes(), fromAddress.Bytes()) {
-		fmt.Println("caller are not equal to minter!!")
-		os.Exit(-1)
-	}
-
-	senderAcc := vm.AccountRef(sender)
-
-	// mint
-	input, err = abiObj.Pack("mint", sender, big.NewInt(1000000))
-	must(err)
-	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
-	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
-	must(vmerr)
-	fmt.Println("after mint, balance =", balance)
-
-	//send
-	input, err = abiObj.Pack("send", toAddress, big.NewInt(11))
-	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
-	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
-	must(vmerr)
-	fmt.Println("after send 11, balance =", balance)
-
-	type RecEvent struct {
-		From   coretypes.AddressHash
-		To     coretypes.AddressHash
-		Amount *big.Int
-	}
-
-	var eve RecEvent
-	err = abiObj.Unpack(&eve, "Sent", stateDb.Logs()[0].Data)
-
-	fmt.Println(eve)
-	must(err)
-
-	//send
-	input, err = abiObj.Pack("send", toAddress, big.NewInt(19))
-	must(err)
-	outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
-	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
-	must(vmerr)
-	fmt.Println("after send 19, balance =", balance)
-
-	// for _, v := range stateDb.Logs() {
-	// 	fmt.Printf("%v\n", v.Data)
+	// if !bytes.Equal(sender.Bytes(), fromAddress.Bytes()) {
+	// 	fmt.Println("caller are not equal to minter!!")
+	// 	os.Exit(-1)
 	// }
 
-	_, _, err = stateDb.Commit(false)
-	must(err)
-	err = stateDb.Reset()
-	must(err)
+	// senderAcc := vm.AccountRef(sender)
 
-	// get receiver balance
-	input, err = abiObj.Pack("balances", toAddress)
-	must(err)
-	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
-	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
-	must(vmerr)
-	Print(outputs, "balances")
-	fmt.Println("after get receiver balance, balance =", balance)
+	// // mint
+	// input, err = abiObj.Pack("mint", sender, big.NewInt(1000000))
+	// must(err)
+	// outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	// stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	// must(vmerr)
+	// fmt.Println("after mint, balance =", balance)
 
-	// get sender balance
-	input, err = abiObj.Pack("balances", sender)
-	must(err)
-	outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
-	stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
-	must(vmerr)
-	Print(outputs, "balances")
-	fmt.Println("after get sender balance, balance =", balance)
+	// //send
+	// input, err = abiObj.Pack("send", toAddress, big.NewInt(11))
+	// outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	// stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	// must(vmerr)
+	// fmt.Println("after send 11, balance =", balance)
 
-	stateDb.Commit(true)
+	// type RecEvent struct {
+	// 	From   coretypes.AddressHash
+	// 	To     coretypes.AddressHash
+	// 	Amount *big.Int
+	// }
+
+	// var eve RecEvent
+	// err = abiObj.Unpack(&eve, "Sent", stateDb.Logs()[0].Data)
+
+	// fmt.Println(eve)
+	// must(err)
+
+	// //send
+	// input, err = abiObj.Pack("send", toAddress, big.NewInt(19))
+	// must(err)
+	// outputs, balance, vmerr = evm.Call(senderAcc, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	// stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	// must(vmerr)
+	// fmt.Println("after send 19, balance =", balance)
+
+	// // for _, v := range stateDb.Logs() {
+	// // 	fmt.Printf("%v\n", v.Data)
+	// // }
+
+	// _, _, err = stateDb.Commit(false)
+	// must(err)
+	// err = stateDb.Reset()
+	// must(err)
+
+	// // get receiver balance
+	// input, err = abiObj.Pack("balances", toAddress)
+	// must(err)
+	// outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	// stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	// must(vmerr)
+	// Print(outputs, "balances")
+	// fmt.Println("after get receiver balance, balance =", balance)
+
+	// // get sender balance
+	// input, err = abiObj.Pack("balances", sender)
+	// must(err)
+	// outputs, balance, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	// stateDb.SetBalance(fromAddress, big.NewInt(int64(balance)))
+	// must(vmerr)
+	// Print(outputs, "balances")
+	// fmt.Println("after get sender balance, balance =", balance)
+
+	// stateDb.Commit(true)
 	// for _, log := range structLogger.StructLogs() {
 	// 	fmt.Println(log)
 	// }
