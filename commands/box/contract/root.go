@@ -432,7 +432,8 @@ func deploy(cmd *cobra.Command, args []string) {
 		return
 	}
 	if bal <= amount {
-		fmt.Printf("balance of sender %s is 0\n", sender)
+		fmt.Printf("balance of sender %s is %d that less than amount %d\n",
+			sender, bal, amount)
 		return
 	}
 	// do request
@@ -440,7 +441,7 @@ func deploy(cmd *cobra.Command, args []string) {
 		From:   sender,
 		Amount: amount,
 		// preserve extra fee for this tx
-		GasLimit: (bal - amount - core.TransferFee) / core.FixedGasPrice,
+		GasLimit: calcGasLimit(bal, amount),
 		Nonce:    nonce + 1,
 		IsDeploy: true,
 		Data:     bytecode,
@@ -526,7 +527,8 @@ func send(cmd *cobra.Command, args []string) {
 		return
 	}
 	if bal <= amount {
-		fmt.Printf("balance of sender %s is 0\n", sender)
+		fmt.Printf("balance of sender %s is %d that less than amount %d\n",
+			sender, bal, amount)
 		return
 	}
 	// call
@@ -535,7 +537,7 @@ func send(cmd *cobra.Command, args []string) {
 		To:     contractAddr,
 		Amount: amount,
 		// preserve extra fee for this tx
-		GasLimit: (bal - amount - core.TransferFee) / core.FixedGasPrice,
+		GasLimit: calcGasLimit(bal, amount),
 		Nonce:    nonce + 1,
 		Data:     data,
 	}
@@ -1015,4 +1017,12 @@ func convertArrayType(typ byte, vals []interface{}) interface{} {
 			"include multiple nested array", vals, typ))
 	}
 	panic(fmt.Errorf("parameters include unsupported type %d", typ))
+}
+
+func calcGasLimit(bal, amount uint64) uint64 {
+	limit := (bal - amount - core.TransferFee) / core.FixedGasPrice
+	if limit > 10000000 {
+		limit = 10000000
+	}
+	return limit
 }

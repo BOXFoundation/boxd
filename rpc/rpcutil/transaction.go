@@ -227,7 +227,8 @@ func NewTx(
 		amount += a
 	}
 	// get utxos
-	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+core.TransferFee, "", 0)
+	initialGasUsed := (uint64(len(toAddrs))/core.InOutNumPerExtraFee + 2) * core.TransferFee
+	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+initialGasUsed, "", 0)
 	if err != nil {
 		err = fmt.Errorf("fetchUtxos error for %s amount %d: %s",
 			fromAcc.Addr(), amount+core.TransferFee, err)
