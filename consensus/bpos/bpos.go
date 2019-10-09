@@ -167,7 +167,11 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 func (bpos *Bpos) Finalize(tail *types.Block) error {
 	parent := bpos.chain.GetParentBlock(tail)
 	if bpos.IsBookkeeper() && time.Now().Unix()-parent.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
-		go bpos.BroadcastBFTMsgToBookkeepers(parent, p2p.BlockPrepareMsg)
+		go func() {
+			if err := bpos.BroadcastBFTMsgToBookkeepers(parent, p2p.BlockPrepareMsg); err != nil {
+				logger.Errorf("Failed to broadcast bft message to bookkeepers. Err: %v", err)
+			}
+		}()
 	}
 	go bpos.TryToUpdateEternalBlock(parent)
 	return nil
@@ -184,7 +188,7 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 				go func() {
 					if err := bpos.run(time.Now().Unix()); err != nil {
 						if err != ErrNotMyTurnToProduce {
-							logger.Error("Bpos run err. Err: ", err.Error())
+							logger.Errorf("Bpos run err. Err: %v", err.Error())
 						}
 					}
 				}()
@@ -703,6 +707,7 @@ func (bpos *Bpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uin
 	prepareBlockMsg.Signature = signature
 	prepareBlockMsg.Timestamp = block.Header.TimeStamp
 	bookkeepers := bpos.context.verifyDynasty.peers
+	logger.Debugf("BroadcastBFTMsgToBookkeepers peers: %v", bookkeepers)
 
 	return bpos.net.BroadcastToBookkeepers(messageID, prepareBlockMsg, bookkeepers)
 }
