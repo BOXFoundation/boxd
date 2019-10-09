@@ -276,7 +276,7 @@ func (bft *BftService) preCheck(msg p2p.Message) (*EternalBlockMsg, *types.Block
 	}
 	// block height is lower than current eternal block.
 	if block.Header.Height < bft.chain.EternalBlock().Header.Height {
-		return nil, nil, nil
+		return nil, nil, ErrNoNeedToUpdateEternalBlock
 	}
 
 	dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
