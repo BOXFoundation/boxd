@@ -115,10 +115,10 @@ func (f *faucet) Claim(
 		}
 	}
 	if !inWhiteList {
-		return newClaimResp(-1, "unauthorized IP!"), err
+		return newClaimResp(-1, "unauthorized IP!"), nil
 	}
 	if req.Amount == 0 {
-		return newClaimResp(-1, "Amount must be more than 0 "), err
+		return newClaimResp(-1, "Amount must be more than 0 "), nil
 	}
 
 	select {
@@ -128,7 +128,7 @@ func (f *faucet) Claim(
 	}
 	remain := atomic.LoadUint64(&f.remainBalance)
 	if remain-req.Amount > remain {
-		return newClaimResp(-1, "exceed max amount this second"), err
+		return newClaimResp(-1, "exceed max amount this second"), nil
 	}
 	atomic.AddUint64(&f.remainBalance, ^uint64(req.Amount-1))
 	addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
@@ -138,18 +138,18 @@ func (f *faucet) Claim(
 	from, toAddr, amount := addrPubHash.Hash160(), req.Addr, req.Amount
 	toAddress, err := types.NewAddress(toAddr)
 	if err != nil {
-		return newClaimResp(-1, "invalid receiver address"), err
+		return newClaimResp(-1, "invalid receiver address"), nil
 	}
 	tx, utxos, err := rpcutil.MakeUnsignedTx(f.WalletAgent, from,
 		[]*types.AddressHash{toAddress.Hash160()}, []uint64{amount})
 	if err != nil {
-		return newClaimResp(-1, err.Error()), err
+		return newClaimResp(-1, err.Error()), nil
 	}
 	if err := txlogic.SignTxWithUtxos(tx, utxos, f.account); err != nil {
-		return newClaimResp(-1, err.Error()), err
+		return newClaimResp(-1, err.Error()), nil
 	}
 	if err := f.ProcessTx(tx, core.BroadcastMode); err != nil {
-		return newClaimResp(-1, err.Error()), err
+		return newClaimResp(-1, err.Error()), nil
 	}
 	resp = newClaimResp(0, "success")
 	hash, _ := tx.TxHash()
