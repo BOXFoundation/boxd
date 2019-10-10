@@ -132,7 +132,7 @@ func maketx(cmd *cobra.Command, args []string) {
 	for _, x := range amountStr {
 		tmp, err := strconv.ParseUint(x, 10, 64)
 		if err != nil {
-			fmt.Println("Conversion failed: ", err)
+			fmt.Println("Conversion failed:", err)
 			return
 		}
 		amounts = append(amounts, uint64(tmp))
@@ -154,7 +154,7 @@ func maketx(cmd *cobra.Command, args []string) {
 	client := rpcpb.NewTransactionCommandClient(conn)
 	resp, err := client.MakeUnsignedTx(ctx, req)
 	if err != nil {
-		fmt.Println("make transaction failed: ", err)
+		fmt.Println("make transaction failed:", err)
 		return
 	}
 	tx := resp.Tx
@@ -165,19 +165,15 @@ func maketx(cmd *cobra.Command, args []string) {
 		fmt.Println("Inconsistent parameter numbers")
 		return
 	}
-	fmt.Println("transaction: ", format.PrettyPrint(tx))
+	fmt.Println("transaction:", format.PrettyPrint(tx))
 	rawTxBytes, err := tx.Marshal()
 	if err != nil {
-		fmt.Println("transaction marshal failed: ", err)
+		fmt.Println("transaction marshal failed:", err)
 		return
 	}
 	rawTx := hex.EncodeToString(rawTxBytes)
-	fmt.Println("raw transaction: ", rawTx)
-	rawMsgStr := make([]string, 0)
-	for _, x := range rawMsgs {
-		rawMsgStr = append(rawMsgStr, hex.EncodeToString(x))
-	}
-	fmt.Println("rawMsgs: ", format.PrettyPrint(rawMsgStr))
+	fmt.Println("raw transaction:", rawTx)
+	fmt.Println("rawMsgs:", rawMsgs)
 }
 
 func sendrawtx(cmd *cobra.Command, args []string) {
@@ -252,7 +248,6 @@ func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println(format.PrettyPrint(block))
 	}
-
 }
 
 func decoderawtx(cmd *cobra.Command, args []string) {

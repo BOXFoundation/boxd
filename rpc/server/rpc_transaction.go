@@ -246,11 +246,14 @@ func (s *txServer) GetRawTransaction(
 	if err != nil {
 		return &rpcpb.GetRawTransactionResponse{Code: -1, Message: err.Error()}, nil
 	}
-	return &rpcpb.GetRawTransactionResponse{Code: 0, Message: "success", Tx: rpcTx.(*corepb.Transaction)}, nil
+	return &rpcpb.GetRawTransactionResponse{
+		Code:    0,
+		Message: "success",
+		Tx:      rpcTx.(*corepb.Transaction)}, nil
 }
 
 func newMakeTxResp(
-	code int32, msg string, tx *corepb.Transaction, rawMsgs [][]byte,
+	code int32, msg string, tx *corepb.Transaction, rawMsgs []string,
 ) *rpcpb.MakeTxResp {
 	return &rpcpb.MakeTxResp{
 		Code:    code,
@@ -269,7 +272,8 @@ func (s *txServer) MakeUnsignedTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
+			logger.Infof("make unsigned tx: %s succeeded, response: %s",
+				tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -529,7 +533,7 @@ func (s *txServer) MakeUnsignedContractTx(
 }
 
 func newMakeContractTxResp(
-	code int32, msg string, tx *corepb.Transaction, rawMsgs [][]byte, contractAddr string,
+	code int32, msg string, tx *corepb.Transaction, rawMsgs []string, contractAddr string,
 ) *rpcpb.MakeContractTxResp {
 	return &rpcpb.MakeContractTxResp{
 		Code:         code,
@@ -595,11 +599,11 @@ func (s *txServer) MakeUnsignedCombineTx(
 }
 
 // MakeTxRawMsgsForSign make tx raw msg for sign
-func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte, error) {
+func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([]string, error) {
 	if len(tx.Vin) != len(utxos) {
 		return nil, errors.New("invalid param")
 	}
-	msgs := make([][]byte, 0, len(tx.Vin))
+	msgs := make([]string, 0, len(tx.Vin))
 	for i, u := range utxos {
 		spk := u.GetTxOut().GetScriptPubKey()
 		newTx := tx.Copy()
@@ -614,7 +618,8 @@ func MakeTxRawMsgsForSign(tx *types.Transaction, utxos ...*rpcpb.Utxo) ([][]byte
 		if err != nil {
 			return nil, err
 		}
-		msgs = append(msgs, data)
+		msgHash := crypto.DoubleHashH(data)
+		msgs = append(msgs, hex.EncodeToString(msgHash[:]))
 	}
 	return msgs, nil
 }
