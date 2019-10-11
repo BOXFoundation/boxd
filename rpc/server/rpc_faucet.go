@@ -16,10 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/core/types"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
-
-	"google.golang.org/grpc/metadata"
 )
 
 func init() {
@@ -97,26 +94,10 @@ func (f *faucet) Claim(
 		}
 	}()
 
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return newClaimResp(-1, "unable to parse ip from context"), err
-	}
-	cliIPs := md["x-forwarded-for"]
-
-	inWhiteList := false
-	if util.InStrings("*", f.whiteList) {
-		inWhiteList = true
-	} else {
-		for _, ip := range cliIPs {
-			if util.InStrings(ip, f.whiteList) {
-				inWhiteList = true
-				break
-			}
-		}
-	}
-	if !inWhiteList {
+	if !isInIPs(ctx, f.whiteList) {
 		return newClaimResp(-1, "unauthorized IP!"), err
 	}
+
 	if req.Amount == 0 {
 		return newClaimResp(-1, "Amount must be more than 0 "), err
 	}

@@ -1504,6 +1504,258 @@ func (m *CandidatesResp) GetCandidates() []*Delegate {
 	return nil
 }
 
+type PeerIDReq struct {
+}
+
+func (m *PeerIDReq) Reset()         { *m = PeerIDReq{} }
+func (m *PeerIDReq) String() string { return proto.CompactTextString(m) }
+func (*PeerIDReq) ProtoMessage()    {}
+func (*PeerIDReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{29}
+}
+func (m *PeerIDReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PeerIDReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PeerIDReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PeerIDReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PeerIDReq.Merge(m, src)
+}
+func (m *PeerIDReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *PeerIDReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_PeerIDReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PeerIDReq proto.InternalMessageInfo
+
+type PeerIDResp struct {
+	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Peerid  string `protobuf:"bytes,3,opt,name=peerid,proto3" json:"peerid,omitempty"`
+}
+
+func (m *PeerIDResp) Reset()         { *m = PeerIDResp{} }
+func (m *PeerIDResp) String() string { return proto.CompactTextString(m) }
+func (*PeerIDResp) ProtoMessage()    {}
+func (*PeerIDResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{30}
+}
+func (m *PeerIDResp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PeerIDResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PeerIDResp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PeerIDResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PeerIDResp.Merge(m, src)
+}
+func (m *PeerIDResp) XXX_Size() int {
+	return m.Size()
+}
+func (m *PeerIDResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_PeerIDResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PeerIDResp proto.InternalMessageInfo
+
+func (m *PeerIDResp) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *PeerIDResp) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *PeerIDResp) GetPeerid() string {
+	if m != nil {
+		return m.Peerid
+	}
+	return ""
+}
+
+type MinersReq struct {
+}
+
+func (m *MinersReq) Reset()         { *m = MinersReq{} }
+func (m *MinersReq) String() string { return proto.CompactTextString(m) }
+func (*MinersReq) ProtoMessage()    {}
+func (*MinersReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{31}
+}
+func (m *MinersReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MinersReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MinersReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MinersReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MinersReq.Merge(m, src)
+}
+func (m *MinersReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *MinersReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_MinersReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MinersReq proto.InternalMessageInfo
+
+type MinersResp struct {
+	Code    int32          `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string         `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Miners  []*MinerDetail `protobuf:"bytes,3,rep,name=miners,proto3" json:"miners,omitempty"`
+}
+
+func (m *MinersResp) Reset()         { *m = MinersResp{} }
+func (m *MinersResp) String() string { return proto.CompactTextString(m) }
+func (*MinersResp) ProtoMessage()    {}
+func (*MinersResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{32}
+}
+func (m *MinersResp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MinersResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MinersResp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MinersResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MinersResp.Merge(m, src)
+}
+func (m *MinersResp) XXX_Size() int {
+	return m.Size()
+}
+func (m *MinersResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_MinersResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MinersResp proto.InternalMessageInfo
+
+func (m *MinersResp) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *MinersResp) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *MinersResp) GetMiners() []*MinerDetail {
+	if m != nil {
+		return m.Miners
+	}
+	return nil
+}
+
+type MinerDetail struct {
+	Id      string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Address string   `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	Iplist  []string `protobuf:"bytes,3,rep,name=iplist,proto3" json:"iplist,omitempty"`
+}
+
+func (m *MinerDetail) Reset()         { *m = MinerDetail{} }
+func (m *MinerDetail) String() string { return proto.CompactTextString(m) }
+func (*MinerDetail) ProtoMessage()    {}
+func (*MinerDetail) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{33}
+}
+func (m *MinerDetail) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MinerDetail) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MinerDetail.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MinerDetail) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MinerDetail.Merge(m, src)
+}
+func (m *MinerDetail) XXX_Size() int {
+	return m.Size()
+}
+func (m *MinerDetail) XXX_DiscardUnknown() {
+	xxx_messageInfo_MinerDetail.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MinerDetail proto.InternalMessageInfo
+
+func (m *MinerDetail) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *MinerDetail) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
+func (m *MinerDetail) GetIplist() []string {
+	if m != nil {
+		return m.Iplist
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*DebugLevelRequest)(nil), "rpcpb.DebugLevelRequest")
 	proto.RegisterType((*UpdateNetworkIDRequest)(nil), "rpcpb.UpdateNetworkIDRequest")
@@ -1534,95 +1786,109 @@ func init() {
 	proto.RegisterType((*BookkeepersResp)(nil), "rpcpb.BookkeepersResp")
 	proto.RegisterType((*CandidatesReq)(nil), "rpcpb.CandidatesReq")
 	proto.RegisterType((*CandidatesResp)(nil), "rpcpb.CandidatesResp")
+	proto.RegisterType((*PeerIDReq)(nil), "rpcpb.PeerIDReq")
+	proto.RegisterType((*PeerIDResp)(nil), "rpcpb.PeerIDResp")
+	proto.RegisterType((*MinersReq)(nil), "rpcpb.MinersReq")
+	proto.RegisterType((*MinersResp)(nil), "rpcpb.MinersResp")
+	proto.RegisterType((*MinerDetail)(nil), "rpcpb.MinerDetail")
 }
 
 func init() { proto.RegisterFile("control.proto", fileDescriptor_0c5120591600887d) }
 
 var fileDescriptor_0c5120591600887d = []byte{
-	// 1313 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xcf, 0x6f, 0x1b, 0x45,
-	0x14, 0xee, 0x3a, 0x76, 0xdb, 0xbc, 0xd4, 0x71, 0x3a, 0x71, 0x5c, 0x77, 0x13, 0x9b, 0x64, 0x52,
-	0x55, 0xa1, 0x55, 0x63, 0x5a, 0x6e, 0x95, 0x40, 0xaa, 0x53, 0x51, 0x2a, 0xa1, 0x02, 0x4b, 0x40,
-	0x45, 0xfc, 0x88, 0xd6, 0x3b, 0x13, 0x7b, 0xc9, 0x7a, 0xc7, 0xdd, 0x5d, 0x17, 0xf7, 0x5a, 0x71,
-	0xe0, 0x80, 0x10, 0x12, 0x5c, 0x90, 0xf8, 0x83, 0x38, 0x56, 0xe2, 0xc2, 0x11, 0xb5, 0xfc, 0x21,
-	0x68, 0xde, 0xce, 0xda, 0xe3, 0xf5, 0xae, 0xad, 0x58, 0xe2, 0xe6, 0x99, 0x79, 0xf3, 0x7d, 0xdf,
-	0xbc, 0x7d, 0x6f, 0xe6, 0x33, 0x94, 0x1d, 0xe1, 0x47, 0x81, 0xf0, 0x0e, 0x07, 0x81, 0x88, 0x04,
-	0x29, 0x05, 0x03, 0x67, 0xd0, 0x31, 0xef, 0x76, 0xdd, 0xa8, 0x37, 0xec, 0x1c, 0x3a, 0xa2, 0xdf,
-	0x6a, 0x7f, 0xfc, 0xf4, 0x03, 0x31, 0xf4, 0x99, 0x1d, 0xb9, 0xc2, 0x6f, 0x75, 0xc4, 0x88, 0xb5,
-	0x1c, 0x11, 0xf0, 0xd6, 0xa0, 0xd3, 0xea, 0x78, 0xc2, 0x39, 0x8b, 0x77, 0x9a, 0x57, 0x1c, 0xd1,
-	0xef, 0x0b, 0x5f, 0x8d, 0x76, 0xba, 0x42, 0x74, 0x3d, 0xde, 0xb2, 0x07, 0x6e, 0xcb, 0xf6, 0x7d,
-	0x11, 0xe1, 0xee, 0x30, 0x5e, 0xa5, 0x6f, 0xc3, 0xd5, 0x87, 0xbc, 0x33, 0xec, 0x7e, 0xc4, 0x9f,
-	0x73, 0xcf, 0xe2, 0xcf, 0x86, 0x3c, 0x8c, 0x48, 0x15, 0x4a, 0x9e, 0x1c, 0xd7, 0x8d, 0x5d, 0xe3,
-	0x60, 0xd5, 0x8a, 0x07, 0xf4, 0x00, 0x6a, 0x9f, 0x0f, 0x98, 0x1d, 0xf1, 0x27, 0x3c, 0xfa, 0x5e,
-	0x04, 0x67, 0x8f, 0x1f, 0x26, 0xf1, 0xeb, 0x50, 0x70, 0x19, 0x06, 0x97, 0xad, 0x82, 0xcb, 0xe8,
-	0x16, 0x6c, 0x3e, 0xe2, 0x51, 0x3a, 0x8c, 0xfa, 0x50, 0x9d, 0x9e, 0x0e, 0x07, 0xc2, 0x0f, 0x39,
-	0x21, 0x50, 0x74, 0x04, 0xe3, 0x08, 0x50, 0xb2, 0xf0, 0x37, 0xa9, 0xc3, 0xa5, 0x3e, 0x0f, 0x43,
-	0xbb, 0xcb, 0xeb, 0x05, 0x14, 0x91, 0x0c, 0x15, 0xd9, 0x4a, 0x42, 0x26, 0x23, 0x3d, 0x37, 0xe2,
-	0x81, 0xed, 0xd5, 0x8b, 0x71, 0xa4, 0x1a, 0xd2, 0x1b, 0xb0, 0xfe, 0x80, 0xb1, 0x27, 0x82, 0xf1,
-	0x44, 0x28, 0x81, 0xa2, 0x9f, 0x30, 0xad, 0x5a, 0xf8, 0x9b, 0x36, 0x61, 0xe7, 0x11, 0x8f, 0x8e,
-	0x86, 0x41, 0xc0, 0xfd, 0xa8, 0x2d, 0xd3, 0xf8, 0x21, 0x77, 0xbb, 0xbd, 0x28, 0x51, 0xcd, 0xa1,
-	0x91, 0xb3, 0xbe, 0x94, 0xfc, 0x1a, 0x5c, 0xec, 0xe1, 0x7e, 0x75, 0x04, 0x35, 0xa2, 0x3b, 0x60,
-	0xa6, 0x69, 0xec, 0xb0, 0x97, 0x88, 0x38, 0x81, 0xed, 0xcc, 0xd5, 0xa5, 0x24, 0x10, 0x28, 0xf6,
-	0xec, 0xb0, 0x87, 0x02, 0x56, 0x2d, 0xfc, 0x4d, 0xef, 0xe0, 0x27, 0x4b, 0xf3, 0x6a, 0x6a, 0x8d,
-	0x29, 0xb5, 0x4f, 0xf1, 0x53, 0xfe, 0x1f, 0x42, 0xde, 0x81, 0x4a, 0x82, 0x9c, 0x88, 0x68, 0x00,
-	0x60, 0x79, 0x9f, 0x60, 0x70, 0xfc, 0xed, 0x56, 0x3b, 0x09, 0x37, 0x0d, 0xa1, 0x36, 0xd6, 0xc2,
-	0x6d, 0xc6, 0x83, 0x25, 0xd5, 0xdc, 0x96, 0x67, 0x95, 0xfb, 0x51, 0xcf, 0xda, 0xbd, 0xcd, 0x43,
-	0xd9, 0x5c, 0x83, 0xce, 0xa1, 0x0e, 0xad, 0x42, 0x28, 0x87, 0x8d, 0x89, 0xcc, 0xa5, 0xe8, 0xf6,
-	0xa1, 0x84, 0x67, 0x50, 0x6c, 0xe5, 0x29, 0x36, 0x2b, 0x5e, 0xa3, 0xef, 0x43, 0x51, 0xd6, 0xaf,
-	0xd6, 0x61, 0xab, 0x58, 0xf4, 0x55, 0x28, 0xd9, 0x8c, 0x05, 0x61, 0xbd, 0xb0, 0xbb, 0x22, 0x3b,
-	0x14, 0x07, 0x64, 0x03, 0x56, 0xa2, 0xc8, 0x53, 0xe9, 0x94, 0x3f, 0x69, 0x15, 0x88, 0x6c, 0x39,
-	0xc1, 0xf8, 0x63, 0xff, 0x54, 0x24, 0xd5, 0x74, 0x1a, 0xf7, 0xe7, 0x78, 0x76, 0x29, 0xfd, 0x7b,
-	0x50, 0x92, 0xfd, 0x13, 0xd6, 0x57, 0x76, 0x57, 0x0e, 0xd6, 0xee, 0xad, 0x1d, 0xe2, 0x7d, 0x75,
-	0x88, 0xed, 0x16, 0xaf, 0xe8, 0x45, 0xd5, 0x7e, 0x31, 0xee, 0xaa, 0xdc, 0xa2, 0x6a, 0xc3, 0x5e,
-	0x12, 0x7e, 0x1c, 0xd8, 0x7e, 0x68, 0x3b, 0xf2, 0xa6, 0x3a, 0x12, 0x43, 0x3f, 0x6a, 0xbf, 0x50,
-	0x55, 0xb9, 0xa8, 0x18, 0xde, 0x83, 0xfd, 0x39, 0x18, 0x0b, 0x25, 0x7c, 0x39, 0x51, 0x7c, 0x3c,
-	0xc2, 0x5d, 0x32, 0x3b, 0xe7, 0xcc, 0x4c, 0x15, 0x4a, 0x8e, 0xdc, 0xaa, 0x3a, 0x3c, 0x1e, 0xd0,
-	0xaf, 0xe0, 0xc6, 0x23, 0x1e, 0x69, 0xa2, 0xda, 0x2f, 0xc6, 0xfd, 0xf3, 0xc0, 0x67, 0x8f, 0x7d,
-	0xc6, 0x47, 0x8b, 0x0f, 0x28, 0xc1, 0x5d, 0x19, 0x8a, 0xa4, 0x65, 0x2b, 0x1e, 0xd0, 0x2f, 0xe0,
-	0x66, 0x36, 0x38, 0x1e, 0x4b, 0x87, 0xcf, 0x39, 0x79, 0x0e, 0xee, 0xb7, 0xb0, 0x2a, 0x71, 0x47,
-	0x4b, 0x64, 0x61, 0x1f, 0x0a, 0xc7, 0xa3, 0x74, 0x2b, 0x69, 0x0a, 0xad, 0xc2, 0xf1, 0x88, 0xfe,
-	0x61, 0xc0, 0xe5, 0x87, 0xdc, 0xe3, 0x5d, 0x3b, 0xc2, 0xfa, 0x93, 0x75, 0x9c, 0xdc, 0xce, 0xf2,
-	0xb7, 0x94, 0xf5, 0x5c, 0x44, 0x3c, 0x44, 0xf4, 0xa2, 0x15, 0x0f, 0xc8, 0x3e, 0x94, 0x07, 0x1e,
-	0x67, 0x5d, 0x7e, 0x62, 0xf7, 0xc7, 0x99, 0x2e, 0x5a, 0x57, 0xe2, 0xc9, 0x07, 0x38, 0x27, 0xb7,
-	0x86, 0x92, 0x16, 0x9f, 0x85, 0xa2, 0x15, 0x0f, 0xc8, 0x6d, 0xb8, 0x2a, 0xdf, 0x59, 0xd7, 0x1f,
-	0xda, 0xde, 0xc9, 0x80, 0x07, 0xae, 0x60, 0x61, 0xbd, 0x84, 0x67, 0xde, 0x18, 0x2f, 0x7c, 0x12,
-	0xcf, 0xd3, 0x0d, 0x58, 0x6f, 0x0b, 0x71, 0x76, 0xc6, 0xf9, 0x80, 0x07, 0xa1, 0xc5, 0x9f, 0xd1,
-	0x00, 0x2a, 0x53, 0x33, 0xe7, 0x4e, 0xcb, 0x5d, 0x58, 0xeb, 0x4c, 0x00, 0x54, 0xf3, 0x54, 0x54,
-	0xf3, 0x24, 0xa9, 0xb0, 0xf4, 0x18, 0x5a, 0x81, 0xf2, 0x91, 0xed, 0x33, 0x57, 0xbe, 0xbd, 0x28,
-	0x42, 0xc0, 0xba, 0x3e, 0x71, 0x6e, 0x0d, 0x2d, 0x00, 0x67, 0xbc, 0x3f, 0x4f, 0x82, 0x16, 0x72,
-	0xef, 0xf7, 0x0a, 0xac, 0x1f, 0x09, 0x3f, 0x12, 0x81, 0x77, 0x24, 0xfa, 0x7d, 0xdb, 0x67, 0xe4,
-	0x1b, 0x28, 0x7f, 0xc6, 0xa3, 0x89, 0x77, 0x20, 0xf5, 0x31, 0x40, 0xca, 0x4e, 0x98, 0x9b, 0x6a,
-	0xa5, 0x6d, 0x87, 0x3c, 0xb9, 0x6c, 0x68, 0xe3, 0xe5, 0x5f, 0xff, 0xfe, 0x5a, 0xb8, 0x46, 0x49,
-	0xeb, 0xf9, 0xdd, 0x96, 0x13, 0x79, 0x2d, 0x26, 0xf7, 0xa1, 0xd3, 0xb8, 0x6f, 0xdc, 0x22, 0x0e,
-	0x54, 0x52, 0x66, 0x83, 0x34, 0x14, 0x4c, 0xb6, 0x09, 0xc9, 0x66, 0xd9, 0x41, 0x96, 0x1a, 0xbd,
-	0x9a, 0xb0, 0xf8, 0xf1, 0x36, 0x97, 0x49, 0x92, 0x53, 0xb8, 0xa2, 0x1b, 0x12, 0x62, 0x2a, 0x88,
-	0x0c, 0xf3, 0x62, 0x6e, 0x67, 0xae, 0xe5, 0x1d, 0xa6, 0xcb, 0x23, 0xc5, 0x24, 0x79, 0x3e, 0x85,
-	0x4b, 0xca, 0x88, 0x90, 0x2d, 0x05, 0x33, 0x6d, 0x4c, 0xb2, 0xc5, 0x9b, 0x88, 0x5a, 0xa5, 0x95,
-	0x04, 0xd5, 0x66, 0x4c, 0x5e, 0xac, 0x12, 0xf2, 0x27, 0x03, 0xb6, 0x32, 0x6d, 0x09, 0xd9, 0x9f,
-	0x08, 0xcd, 0x35, 0x35, 0xe6, 0x8d, 0xf9, 0x41, 0x4a, 0xc0, 0x01, 0x0a, 0xa0, 0xb4, 0xa1, 0x1d,
-	0xcb, 0x89, 0xc3, 0xf1, 0x42, 0x8a, 0xaf, 0x0e, 0x29, 0xe7, 0x07, 0x03, 0x2f, 0xce, 0xb4, 0x41,
-	0x21, 0x7b, 0x39, 0x3c, 0x13, 0x8b, 0x61, 0xd2, 0x79, 0x21, 0x4a, 0xc8, 0x4d, 0x14, 0xb2, 0x4b,
-	0xb7, 0xf3, 0x84, 0xd8, 0x61, 0x4f, 0xca, 0xe8, 0xe1, 0x07, 0x9d, 0xd0, 0x6b, 0x1f, 0x74, 0x86,
-	0x77, 0x3b, 0x73, 0x4d, 0x11, 0xbe, 0x85, 0x84, 0xd7, 0x69, 0x55, 0x23, 0x9c, 0x62, 0xfa, 0x0e,
-	0xd6, 0xa7, 0x4d, 0x07, 0xa9, 0xa5, 0xf0, 0x12, 0x9e, 0x46, 0x9a, 0x67, 0xca, 0xa3, 0xd0, 0x3d,
-	0x64, 0xda, 0xa6, 0xb5, 0x19, 0x26, 0x8c, 0x93, 0x5c, 0x4f, 0xe1, 0x72, 0xb2, 0x39, 0x97, 0xe5,
-	0xda, 0xcc, 0xbc, 0xc2, 0xdf, 0x46, 0xfc, 0x2d, 0xba, 0x91, 0xc6, 0x97, 0xc8, 0x0c, 0xd6, 0x34,
-	0x23, 0x40, 0xae, 0x6b, 0x35, 0x3e, 0x6d, 0x19, 0x4c, 0x33, 0x6b, 0x49, 0x51, 0x34, 0x91, 0xa2,
-	0x4e, 0x37, 0xf5, 0xea, 0x17, 0x8c, 0xbb, 0xfe, 0xa9, 0x90, 0x2c, 0xde, 0xc4, 0x2b, 0x25, 0x6f,
-	0xf0, 0xcc, 0x97, 0xd1, 0x1e, 0xe7, 0xfc, 0xb3, 0xec, 0x23, 0x51, 0x83, 0xd6, 0x35, 0xa2, 0xa9,
-	0xdd, 0x92, 0xed, 0x67, 0x03, 0x9a, 0xf3, 0x6d, 0x04, 0x39, 0x48, 0x11, 0xe4, 0xba, 0x0d, 0x33,
-	0x2d, 0x53, 0x33, 0x05, 0xb3, 0x45, 0x89, 0x69, 0x6d, 0x45, 0x23, 0x0d, 0x43, 0x0a, 0xfa, 0xcd,
-	0x80, 0xdd, 0x45, 0x9e, 0x84, 0xdc, 0x5a, 0x2c, 0x69, 0x9c, 0x9f, 0x79, 0xa2, 0x66, 0x5a, 0x36,
-	0x2d, 0x6a, 0x9c, 0xa7, 0x97, 0x06, 0xda, 0xad, 0xf9, 0x86, 0x84, 0xdc, 0x9e, 0x70, 0x2d, 0xb4,
-	0x2e, 0xe6, 0x86, 0x16, 0x8c, 0x96, 0x21, 0xb3, 0x34, 0x8e, 0x47, 0x93, 0xdc, 0xfc, 0x68, 0xa0,
-	0x5f, 0x5b, 0x64, 0x5c, 0xc8, 0x9d, 0xb9, 0x32, 0xd2, 0x26, 0x27, 0x43, 0xc8, 0x2e, 0x0a, 0x31,
-	0xe9, 0x56, 0x5a, 0xc8, 0x38, 0x1f, 0x5f, 0xc3, 0x9a, 0xf6, 0xb2, 0x8f, 0x2f, 0xea, 0xe9, 0xf7,
-	0xdf, 0xac, 0x65, 0x4d, 0x67, 0x1d, 0x54, 0x7b, 0xc0, 0xe3, 0x1e, 0x86, 0xc9, 0x93, 0x4d, 0xaa,
-	0x0a, 0x65, 0xea, 0x59, 0x37, 0xb7, 0x32, 0x66, 0xc3, 0xc1, 0xec, 0xe3, 0x32, 0x79, 0x98, 0xef,
-	0x1b, 0xb7, 0xda, 0xf5, 0x3f, 0x5f, 0x37, 0x8d, 0x57, 0xaf, 0x9b, 0xc6, 0x3f, 0xaf, 0x9b, 0xc6,
-	0x2f, 0x6f, 0x9a, 0x17, 0x5e, 0xbd, 0x69, 0x5e, 0xf8, 0xfb, 0x4d, 0xf3, 0x42, 0xe7, 0x22, 0xfe,
-	0xc5, 0x7f, 0xf7, 0xbf, 0x00, 0x00, 0x00, 0xff, 0xff, 0x18, 0x76, 0xac, 0xa4, 0x59, 0x10, 0x00,
-	0x00,
+	// 1458 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x58, 0xcf, 0x6f, 0x1b, 0x45,
+	0x14, 0xee, 0x3a, 0x76, 0x5a, 0x3f, 0xc7, 0xb1, 0x33, 0xb1, 0x5d, 0x77, 0x13, 0x9b, 0x64, 0x52,
+	0x55, 0x21, 0x55, 0x63, 0x1a, 0x6e, 0x95, 0x40, 0x8a, 0x13, 0x51, 0x2a, 0x41, 0x5b, 0x96, 0x80,
+	0x8a, 0xf8, 0x11, 0xad, 0xbd, 0x13, 0x7b, 0xc9, 0x7a, 0x67, 0xbb, 0xbb, 0x2e, 0xee, 0xb5, 0xe2,
+	0xc0, 0x01, 0x21, 0x24, 0x38, 0xf2, 0x67, 0xf0, 0x47, 0x70, 0xac, 0xc4, 0x85, 0x23, 0x6a, 0xf8,
+	0x3f, 0x40, 0xf3, 0x76, 0x76, 0xbd, 0x5e, 0xaf, 0x6d, 0x25, 0x12, 0x37, 0xcf, 0xcc, 0x9b, 0xef,
+	0xfb, 0xde, 0xcb, 0x7b, 0x3b, 0x9f, 0x02, 0xc5, 0x2e, 0xb7, 0x7d, 0x97, 0x5b, 0xfb, 0x8e, 0xcb,
+	0x7d, 0x4e, 0x72, 0xae, 0xd3, 0x75, 0x3a, 0xea, 0xfd, 0x9e, 0xe9, 0xf7, 0x87, 0x9d, 0xfd, 0x2e,
+	0x1f, 0xb4, 0xda, 0x4f, 0x9e, 0x7d, 0xc0, 0x87, 0xb6, 0xa1, 0xfb, 0x26, 0xb7, 0x5b, 0x1d, 0x3e,
+	0x32, 0x5a, 0x5d, 0xee, 0xb2, 0x96, 0xd3, 0x69, 0x75, 0x2c, 0xde, 0x3d, 0x0f, 0x6e, 0xaa, 0x2b,
+	0x5d, 0x3e, 0x18, 0x70, 0x5b, 0xae, 0x36, 0x7b, 0x9c, 0xf7, 0x2c, 0xd6, 0xd2, 0x1d, 0xb3, 0xa5,
+	0xdb, 0x36, 0xf7, 0xf1, 0xb6, 0x17, 0x9c, 0xd2, 0xb7, 0x61, 0xed, 0x98, 0x75, 0x86, 0xbd, 0x8f,
+	0xd8, 0x0b, 0x66, 0x69, 0xec, 0xf9, 0x90, 0x79, 0x3e, 0xa9, 0x40, 0xce, 0x12, 0xeb, 0xba, 0xb2,
+	0xa5, 0xec, 0xe6, 0xb5, 0x60, 0x41, 0x77, 0xa1, 0xf6, 0x99, 0x63, 0xe8, 0x3e, 0x7b, 0xcc, 0xfc,
+	0xef, 0xb8, 0x7b, 0xfe, 0xe8, 0x38, 0x8c, 0x5f, 0x85, 0x8c, 0x69, 0x60, 0x70, 0x51, 0xcb, 0x98,
+	0x06, 0xad, 0xc2, 0xfa, 0x43, 0xe6, 0x27, 0xc3, 0xa8, 0x0d, 0x95, 0xc9, 0x6d, 0xcf, 0xe1, 0xb6,
+	0xc7, 0x08, 0x81, 0x6c, 0x97, 0x1b, 0x0c, 0x01, 0x72, 0x1a, 0xfe, 0x26, 0x75, 0xb8, 0x3e, 0x60,
+	0x9e, 0xa7, 0xf7, 0x58, 0x3d, 0x83, 0x22, 0xc2, 0xa5, 0x24, 0x5b, 0x0a, 0xc9, 0x44, 0xa4, 0x65,
+	0xfa, 0xcc, 0xd5, 0xad, 0x7a, 0x36, 0x88, 0x94, 0x4b, 0x7a, 0x1b, 0x56, 0x0f, 0x0d, 0xe3, 0x31,
+	0x37, 0x58, 0x28, 0x94, 0x40, 0xd6, 0x0e, 0x99, 0xf2, 0x1a, 0xfe, 0xa6, 0x4d, 0xd8, 0x7c, 0xc8,
+	0xfc, 0xa3, 0xa1, 0xeb, 0x32, 0xdb, 0x6f, 0x8b, 0x32, 0x7e, 0xc8, 0xcc, 0x5e, 0xdf, 0x0f, 0x55,
+	0x33, 0x68, 0xcc, 0x38, 0xbf, 0x92, 0xfc, 0x1a, 0x2c, 0xf7, 0xf1, 0xbe, 0x4c, 0x41, 0xae, 0xe8,
+	0x26, 0xa8, 0x49, 0x1a, 0xdd, 0xeb, 0x87, 0x22, 0x4e, 0x61, 0x23, 0xf5, 0xf4, 0x4a, 0x12, 0x08,
+	0x64, 0xfb, 0xba, 0xd7, 0x47, 0x01, 0x79, 0x0d, 0x7f, 0xd3, 0x7b, 0xf8, 0x27, 0x4b, 0xf2, 0xc6,
+	0xd4, 0x2a, 0x13, 0x6a, 0x9f, 0xe1, 0x9f, 0xf2, 0xff, 0x10, 0xf2, 0x0e, 0x94, 0x42, 0xe4, 0x50,
+	0x44, 0x03, 0x00, 0xdb, 0xfb, 0x14, 0x83, 0x83, 0xbf, 0x5d, 0xbe, 0x13, 0x72, 0x53, 0x0f, 0x6a,
+	0x91, 0x16, 0xa6, 0x1b, 0xcc, 0xbd, 0xa2, 0x9a, 0xbb, 0x22, 0x57, 0x71, 0x1f, 0xf5, 0x14, 0x0e,
+	0xd6, 0xf7, 0xc5, 0x70, 0x39, 0x9d, 0xfd, 0x38, 0xb4, 0x0c, 0xa1, 0x0c, 0xca, 0x63, 0x99, 0x57,
+	0xa2, 0xdb, 0x81, 0x1c, 0xe6, 0x20, 0xd9, 0x8a, 0x13, 0x6c, 0x5a, 0x70, 0x46, 0xdf, 0x87, 0xac,
+	0xe8, 0xdf, 0xd8, 0x84, 0xe5, 0xb1, 0xe9, 0x2b, 0x90, 0xd3, 0x0d, 0xc3, 0xf5, 0xea, 0x99, 0xad,
+	0x25, 0x31, 0xa1, 0xb8, 0x20, 0x65, 0x58, 0xf2, 0x7d, 0x4b, 0x96, 0x53, 0xfc, 0xa4, 0x15, 0x20,
+	0x62, 0xe4, 0xb8, 0xc1, 0x1e, 0xd9, 0x67, 0x3c, 0xec, 0xa6, 0xb3, 0x60, 0x3e, 0xa3, 0xdd, 0x2b,
+	0xe9, 0xdf, 0x86, 0x9c, 0x98, 0x1f, 0xaf, 0xbe, 0xb4, 0xb5, 0xb4, 0x5b, 0x38, 0x28, 0xec, 0xe3,
+	0xf7, 0x6a, 0x1f, 0xc7, 0x2d, 0x38, 0x89, 0x37, 0x55, 0xfb, 0x65, 0x34, 0x55, 0x33, 0x9b, 0xaa,
+	0x0d, 0xdb, 0x61, 0xf8, 0x89, 0xab, 0xdb, 0x9e, 0xde, 0x15, 0x5f, 0xaa, 0x23, 0x3e, 0xb4, 0xfd,
+	0xf6, 0x4b, 0xd9, 0x95, 0x8b, 0x9a, 0xe1, 0x3d, 0xd8, 0x99, 0x83, 0xb1, 0x50, 0xc2, 0x17, 0x63,
+	0xc5, 0x27, 0x23, 0xbc, 0x25, 0xaa, 0x73, 0xc9, 0xca, 0x54, 0x20, 0xd7, 0x15, 0x57, 0xe5, 0x84,
+	0x07, 0x0b, 0xfa, 0x25, 0xdc, 0x7e, 0xc8, 0xfc, 0x98, 0xa8, 0xf6, 0xcb, 0x68, 0x7e, 0x0e, 0x6d,
+	0xe3, 0x91, 0x6d, 0xb0, 0xd1, 0xe2, 0x04, 0x05, 0xb8, 0x29, 0x42, 0x91, 0xb4, 0xa8, 0x05, 0x0b,
+	0xfa, 0x39, 0xdc, 0x49, 0x07, 0xc7, 0xb4, 0xe2, 0xf0, 0x33, 0x32, 0x9f, 0x81, 0xfb, 0x0d, 0xe4,
+	0x05, 0xee, 0xe8, 0x0a, 0x55, 0xd8, 0x81, 0xcc, 0xc9, 0x28, 0x39, 0x4a, 0x31, 0x85, 0x5a, 0xe6,
+	0x64, 0x44, 0x7f, 0x53, 0xe0, 0xc6, 0x31, 0xb3, 0x58, 0x4f, 0xf7, 0xb1, 0xff, 0x44, 0x1f, 0x87,
+	0x5f, 0x67, 0xf1, 0x5b, 0xc8, 0x7a, 0xc1, 0x7d, 0xe6, 0x21, 0x7a, 0x56, 0x0b, 0x16, 0x64, 0x07,
+	0x8a, 0x8e, 0xc5, 0x8c, 0x1e, 0x3b, 0xd5, 0x07, 0x51, 0xa5, 0xb3, 0xda, 0x4a, 0xb0, 0x79, 0x88,
+	0x7b, 0xe2, 0xaa, 0x27, 0x68, 0xf1, 0x59, 0xc8, 0x6a, 0xc1, 0x82, 0xdc, 0x85, 0x35, 0xf1, 0xce,
+	0x9a, 0xf6, 0x50, 0xb7, 0x4e, 0x1d, 0xe6, 0x9a, 0xdc, 0xf0, 0xea, 0x39, 0xcc, 0xb9, 0x1c, 0x1d,
+	0x3c, 0x0d, 0xf6, 0x69, 0x19, 0x56, 0xdb, 0x9c, 0x9f, 0x9f, 0x33, 0xe6, 0x30, 0xd7, 0xd3, 0xd8,
+	0x73, 0xea, 0x42, 0x69, 0x62, 0xe7, 0xd2, 0x65, 0xb9, 0x0f, 0x85, 0xce, 0x18, 0x40, 0x0e, 0x4f,
+	0x49, 0x0e, 0x4f, 0x58, 0x0a, 0x2d, 0x1e, 0x43, 0x4b, 0x50, 0x3c, 0xd2, 0x6d, 0xc3, 0x14, 0x6f,
+	0x2f, 0x8a, 0xe0, 0xb0, 0x1a, 0xdf, 0xb8, 0xb4, 0x86, 0x16, 0x40, 0x37, 0xba, 0x3f, 0x4b, 0x42,
+	0x2c, 0x84, 0x16, 0x20, 0xff, 0x94, 0x31, 0x17, 0x9f, 0x72, 0xaa, 0x01, 0x84, 0x8b, 0x4b, 0x33,
+	0xd7, 0x60, 0xd9, 0x61, 0xcc, 0x95, 0x0f, 0x78, 0x5e, 0x93, 0x2b, 0x41, 0xf0, 0xb1, 0x69, 0xcb,
+	0x1a, 0x9f, 0x01, 0x84, 0x8b, 0x4b, 0x13, 0xec, 0xc1, 0xf2, 0x00, 0xef, 0xca, 0xb4, 0x88, 0x4c,
+	0x0b, 0x01, 0x8f, 0x99, 0xaf, 0x9b, 0x96, 0x26, 0x23, 0xe8, 0x13, 0x28, 0xc4, 0xb6, 0xa7, 0xbe,
+	0xb1, 0x75, 0xb8, 0x2e, 0x5a, 0x90, 0x79, 0x5e, 0x48, 0x22, 0x97, 0x22, 0x0b, 0xd3, 0xb1, 0x4c,
+	0xcf, 0x47, 0x92, 0xbc, 0x26, 0x57, 0x07, 0xff, 0x66, 0x61, 0xe5, 0xd0, 0x18, 0x98, 0xf6, 0x51,
+	0xe0, 0xe4, 0xc8, 0xd7, 0x50, 0xfc, 0x94, 0xf9, 0x63, 0x83, 0x45, 0xea, 0x51, 0x95, 0x13, 0x9e,
+	0x4b, 0x5d, 0x97, 0x27, 0x6d, 0xdd, 0x63, 0xe1, 0x17, 0x99, 0x36, 0x5e, 0xfd, 0xf9, 0xcf, 0x2f,
+	0x99, 0x9b, 0x94, 0xb4, 0x5e, 0xdc, 0x6f, 0x75, 0x7d, 0xab, 0x65, 0x88, 0x7b, 0x68, 0xc7, 0x1e,
+	0x28, 0x7b, 0xe4, 0x0c, 0x56, 0xe2, 0x86, 0x8a, 0xa8, 0x12, 0x23, 0xc5, 0x7c, 0xa9, 0x1b, 0xa9,
+	0x67, 0xb3, 0x78, 0x7a, 0xcc, 0xb7, 0x83, 0x28, 0xc1, 0xd3, 0x85, 0x52, 0xc2, 0xf9, 0x91, 0x86,
+	0x84, 0x4b, 0x77, 0x84, 0xe9, 0xd9, 0x6c, 0x22, 0x4b, 0x8d, 0xae, 0x85, 0x2c, 0x92, 0xc2, 0x34,
+	0x04, 0xc9, 0x27, 0x70, 0x5d, 0xba, 0x35, 0x52, 0x95, 0xb7, 0x27, 0xdd, 0x5b, 0x3a, 0xa8, 0x8a,
+	0xa0, 0x15, 0x5a, 0x0a, 0x41, 0x75, 0xc3, 0x10, 0xaf, 0x8f, 0x80, 0x34, 0xa0, 0x10, 0x7b, 0xe7,
+	0xc8, 0xad, 0x58, 0x09, 0x26, 0x5f, 0x44, 0x55, 0x4d, 0x3b, 0x92, 0x0c, 0x4d, 0x64, 0xa8, 0xd3,
+	0xf5, 0x78, 0x71, 0xb8, 0xc1, 0x4c, 0xfb, 0x8c, 0x0b, 0x96, 0x63, 0x58, 0x0e, 0xe6, 0x81, 0x94,
+	0x25, 0x4a, 0x34, 0x2b, 0xea, 0x5a, 0x62, 0xc7, 0x73, 0x68, 0x15, 0xe1, 0x4a, 0x14, 0x04, 0x9c,
+	0x73, 0xe0, 0xb4, 0x82, 0xf4, 0x8f, 0x61, 0x39, 0x68, 0xfa, 0x08, 0x25, 0x1a, 0x88, 0x08, 0x65,
+	0x3c, 0x15, 0x93, 0x28, 0x41, 0x3f, 0x3f, 0x50, 0xf6, 0x0e, 0x7e, 0x2f, 0xc0, 0xaa, 0x68, 0x3e,
+	0xee, 0x5a, 0x47, 0x7c, 0x30, 0xd0, 0x6d, 0x83, 0xfc, 0xa8, 0x40, 0x35, 0xd5, 0xc0, 0x92, 0x9d,
+	0x71, 0xd2, 0x33, 0xed, 0xaf, 0x7a, 0x7b, 0x7e, 0x90, 0xac, 0xd1, 0x2e, 0xca, 0xa1, 0xb4, 0x11,
+	0xab, 0x51, 0x37, 0x08, 0xc7, 0xa7, 0x2b, 0x78, 0x64, 0x44, 0x9e, 0xdf, 0x2b, 0xf8, 0xc4, 0x26,
+	0xad, 0x2c, 0xd9, 0x9e, 0xc1, 0x33, 0x36, 0xa3, 0x2a, 0x9d, 0x17, 0x22, 0x85, 0xdc, 0x41, 0x21,
+	0x5b, 0x74, 0x63, 0x96, 0x10, 0xdd, 0xeb, 0x0b, 0x19, 0x7d, 0x1c, 0x9d, 0x31, 0x7d, 0xac, 0x01,
+	0xa6, 0x78, 0x37, 0x52, 0xcf, 0x24, 0xe1, 0x5b, 0x48, 0x78, 0x8b, 0x56, 0x62, 0x84, 0x13, 0x4c,
+	0xdf, 0xc2, 0xea, 0xa4, 0x3d, 0x25, 0xb5, 0x04, 0x5e, 0xc8, 0xd3, 0x48, 0xf2, 0x4c, 0xb8, 0x59,
+	0xba, 0x8d, 0x4c, 0x1b, 0xb4, 0x36, 0xc5, 0x84, 0x71, 0x82, 0xeb, 0x19, 0xdc, 0x08, 0x2f, 0xcf,
+	0x64, 0xb9, 0x39, 0xb5, 0x2f, 0xf1, 0x37, 0x10, 0xbf, 0x4a, 0xcb, 0x49, 0x7c, 0x81, 0x6c, 0x8d,
+	0xfd, 0x6e, 0xe8, 0xa3, 0xa6, 0x6a, 0x16, 0x33, 0x58, 0xb3, 0x59, 0x76, 0x90, 0xa5, 0x41, 0xeb,
+	0x31, 0x96, 0x89, 0xdb, 0x82, 0xed, 0x27, 0x05, 0x9a, 0xf3, 0xad, 0x20, 0xd9, 0x4d, 0x10, 0xcc,
+	0x74, 0x8c, 0x6a, 0x52, 0x66, 0xcc, 0xd8, 0x4d, 0xb7, 0x0b, 0x26, 0xdc, 0xf2, 0x47, 0x31, 0x0c,
+	0x21, 0xe8, 0x57, 0x05, 0xb6, 0x16, 0xf9, 0x4a, 0xb2, 0xb7, 0x58, 0x52, 0x54, 0x9f, 0x79, 0xa2,
+	0xa6, 0x86, 0x29, 0x29, 0x2a, 0xaa, 0xd3, 0x2b, 0x05, 0x2d, 0xf3, 0x7c, 0x53, 0x49, 0xee, 0x8e,
+	0xb9, 0x16, 0xda, 0x4f, 0xb5, 0x1c, 0x0b, 0x46, 0xdb, 0x97, 0xfa, 0xfd, 0x3b, 0x19, 0x8d, 0x6b,
+	0xf3, 0x83, 0x82, 0x9e, 0x7b, 0x91, 0xf9, 0x24, 0xf7, 0xe6, 0xca, 0x48, 0x1a, 0xd5, 0x14, 0x21,
+	0x5b, 0x28, 0x44, 0xa5, 0xd5, 0xa4, 0x90, 0xa8, 0x1e, 0x5f, 0x41, 0x21, 0xe6, 0xce, 0xa2, 0x77,
+	0x64, 0xd2, 0xc3, 0xa9, 0xb5, 0xb4, 0xed, 0xb4, 0x44, 0x63, 0x26, 0x2c, 0x98, 0x2e, 0x18, 0xdb,
+	0x2e, 0x52, 0x91, 0x28, 0x13, 0xd6, 0x4c, 0xad, 0xa6, 0xec, 0x7a, 0xce, 0xf4, 0x03, 0x3b, 0x36,
+	0x57, 0x0f, 0x94, 0xbd, 0x76, 0xfd, 0x8f, 0x37, 0x4d, 0xe5, 0xf5, 0x9b, 0xa6, 0xf2, 0xf7, 0x9b,
+	0xa6, 0xf2, 0xf3, 0x45, 0xf3, 0xda, 0xeb, 0x8b, 0xe6, 0xb5, 0xbf, 0x2e, 0x9a, 0xd7, 0x3a, 0xcb,
+	0xf8, 0x6f, 0x9a, 0x77, 0xff, 0x0b, 0x00, 0x00, 0xff, 0xff, 0xac, 0xe2, 0x3e, 0xb1, 0x1d, 0x12,
+	0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1633,21 +1899,279 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
+// AdminControlClient is the client API for AdminControl service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type AdminControlClient interface {
+	// set boxd debug level
+	SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error)
+	UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error)
+	PeerID(ctx context.Context, in *PeerIDReq, opts ...grpc.CallOption) (*PeerIDResp, error)
+	Miners(ctx context.Context, in *MinersReq, opts ...grpc.CallOption) (*MinersResp, error)
+}
+
+type adminControlClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewAdminControlClient(cc *grpc.ClientConn) AdminControlClient {
+	return &adminControlClient{cc}
+}
+
+func (c *adminControlClient) SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/SetDebugLevel", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error) {
+	out := new(GetNetworkIDResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/GetNetworkID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/UpdateNetworkID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/AddNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error) {
+	out := new(GetNodeInfoResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/GetNodeInfo", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) PeerID(ctx context.Context, in *PeerIDReq, opts ...grpc.CallOption) (*PeerIDResp, error) {
+	out := new(PeerIDResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/PeerID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) Miners(ctx context.Context, in *MinersReq, opts ...grpc.CallOption) (*MinersResp, error) {
+	out := new(MinersResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/Miners", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AdminControlServer is the server API for AdminControl service.
+type AdminControlServer interface {
+	// set boxd debug level
+	SetDebugLevel(context.Context, *DebugLevelRequest) (*BaseResponse, error)
+	GetNetworkID(context.Context, *GetNetworkIDRequest) (*GetNetworkIDResponse, error)
+	UpdateNetworkID(context.Context, *UpdateNetworkIDRequest) (*BaseResponse, error)
+	AddNode(context.Context, *AddNodeRequest) (*BaseResponse, error)
+	GetNodeInfo(context.Context, *GetNodeInfoRequest) (*GetNodeInfoResponse, error)
+	PeerID(context.Context, *PeerIDReq) (*PeerIDResp, error)
+	Miners(context.Context, *MinersReq) (*MinersResp, error)
+}
+
+func RegisterAdminControlServer(s *grpc.Server, srv AdminControlServer) {
+	s.RegisterService(&_AdminControl_serviceDesc, srv)
+}
+
+func _AdminControl_SetDebugLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DebugLevelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).SetDebugLevel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/SetDebugLevel",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).SetDebugLevel(ctx, req.(*DebugLevelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_GetNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNetworkIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).GetNetworkID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/GetNetworkID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).GetNetworkID(ctx, req.(*GetNetworkIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_UpdateNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateNetworkIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).UpdateNetworkID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/UpdateNetworkID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).UpdateNetworkID(ctx, req.(*UpdateNetworkIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_AddNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).AddNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/AddNode",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).AddNode(ctx, req.(*AddNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_GetNodeInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).GetNodeInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/GetNodeInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).GetNodeInfo(ctx, req.(*GetNodeInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_PeerID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerIDReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).PeerID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/PeerID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).PeerID(ctx, req.(*PeerIDReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_Miners_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MinersReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).Miners(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/Miners",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).Miners(ctx, req.(*MinersReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _AdminControl_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "rpcpb.AdminControl",
+	HandlerType: (*AdminControlServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SetDebugLevel",
+			Handler:    _AdminControl_SetDebugLevel_Handler,
+		},
+		{
+			MethodName: "GetNetworkID",
+			Handler:    _AdminControl_GetNetworkID_Handler,
+		},
+		{
+			MethodName: "UpdateNetworkID",
+			Handler:    _AdminControl_UpdateNetworkID_Handler,
+		},
+		{
+			MethodName: "AddNode",
+			Handler:    _AdminControl_AddNode_Handler,
+		},
+		{
+			MethodName: "GetNodeInfo",
+			Handler:    _AdminControl_GetNodeInfo_Handler,
+		},
+		{
+			MethodName: "PeerID",
+			Handler:    _AdminControl_PeerID_Handler,
+		},
+		{
+			MethodName: "Miners",
+			Handler:    _AdminControl_Miners_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "control.proto",
+}
+
 // ContorlCommandClient is the client API for ContorlCommand service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ContorlCommandClient interface {
-	// set boxd debug level
-	SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error)
-	UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error)
-	GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error)
-	AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error)
 	GetCurrentBlockHeight(ctx context.Context, in *GetCurrentBlockHeightRequest, opts ...grpc.CallOption) (*GetCurrentBlockHeightResponse, error)
 	GetCurrentBlockHash(ctx context.Context, in *GetCurrentBlockHashRequest, opts ...grpc.CallOption) (*GetCurrentBlockHashResponse, error)
 	GetBlockHash(ctx context.Context, in *GetBlockHashRequest, opts ...grpc.CallOption) (*GetBlockHashResponse, error)
 	GetBlockHeader(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockHeaderResponse, error)
 	GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
-	GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error)
 	GetBlockByHeight(ctx context.Context, in *GetBlockByHeightReq, opts ...grpc.CallOption) (*GetBlockResponse, error)
 	GetBlockTransactionCountByHash(ctx context.Context, in *GetBlockTransactionCountByHashReq, opts ...grpc.CallOption) (*GetBlockTxCountResp, error)
 	GetBlockTransactionCountByHeight(ctx context.Context, in *GetBlockTransactionCountByHeightReq, opts ...grpc.CallOption) (*GetBlockTxCountResp, error)
@@ -1663,42 +2187,6 @@ type contorlCommandClient struct {
 
 func NewContorlCommandClient(cc *grpc.ClientConn) ContorlCommandClient {
 	return &contorlCommandClient{cc}
-}
-
-func (c *contorlCommandClient) SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/SetDebugLevel", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *contorlCommandClient) UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/UpdateNetworkID", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *contorlCommandClient) GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error) {
-	out := new(GetNetworkIDResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetNetworkID", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *contorlCommandClient) AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/AddNode", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *contorlCommandClient) GetCurrentBlockHeight(ctx context.Context, in *GetCurrentBlockHeightRequest, opts ...grpc.CallOption) (*GetCurrentBlockHeightResponse, error) {
@@ -1740,15 +2228,6 @@ func (c *contorlCommandClient) GetBlockHeader(ctx context.Context, in *GetBlockR
 func (c *contorlCommandClient) GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error) {
 	out := new(GetBlockResponse)
 	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetBlock", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *contorlCommandClient) GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error) {
-	out := new(GetNodeInfoResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetNodeInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1820,17 +2299,11 @@ func (c *contorlCommandClient) Candidates(ctx context.Context, in *CandidatesReq
 
 // ContorlCommandServer is the server API for ContorlCommand service.
 type ContorlCommandServer interface {
-	// set boxd debug level
-	SetDebugLevel(context.Context, *DebugLevelRequest) (*BaseResponse, error)
-	UpdateNetworkID(context.Context, *UpdateNetworkIDRequest) (*BaseResponse, error)
-	GetNetworkID(context.Context, *GetNetworkIDRequest) (*GetNetworkIDResponse, error)
-	AddNode(context.Context, *AddNodeRequest) (*BaseResponse, error)
 	GetCurrentBlockHeight(context.Context, *GetCurrentBlockHeightRequest) (*GetCurrentBlockHeightResponse, error)
 	GetCurrentBlockHash(context.Context, *GetCurrentBlockHashRequest) (*GetCurrentBlockHashResponse, error)
 	GetBlockHash(context.Context, *GetBlockHashRequest) (*GetBlockHashResponse, error)
 	GetBlockHeader(context.Context, *GetBlockRequest) (*GetBlockHeaderResponse, error)
 	GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error)
-	GetNodeInfo(context.Context, *GetNodeInfoRequest) (*GetNodeInfoResponse, error)
 	GetBlockByHeight(context.Context, *GetBlockByHeightReq) (*GetBlockResponse, error)
 	GetBlockTransactionCountByHash(context.Context, *GetBlockTransactionCountByHashReq) (*GetBlockTxCountResp, error)
 	GetBlockTransactionCountByHeight(context.Context, *GetBlockTransactionCountByHeightReq) (*GetBlockTxCountResp, error)
@@ -1842,78 +2315,6 @@ type ContorlCommandServer interface {
 
 func RegisterContorlCommandServer(s *grpc.Server, srv ContorlCommandServer) {
 	s.RegisterService(&_ContorlCommand_serviceDesc, srv)
-}
-
-func _ContorlCommand_SetDebugLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DebugLevelRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContorlCommandServer).SetDebugLevel(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/SetDebugLevel",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).SetDebugLevel(ctx, req.(*DebugLevelRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ContorlCommand_UpdateNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateNetworkIDRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContorlCommandServer).UpdateNetworkID(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/UpdateNetworkID",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).UpdateNetworkID(ctx, req.(*UpdateNetworkIDRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ContorlCommand_GetNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNetworkIDRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContorlCommandServer).GetNetworkID(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/GetNetworkID",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).GetNetworkID(ctx, req.(*GetNetworkIDRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ContorlCommand_AddNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddNodeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContorlCommandServer).AddNode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/AddNode",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).AddNode(ctx, req.(*AddNodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _ContorlCommand_GetCurrentBlockHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -2002,24 +2403,6 @@ func _ContorlCommand_GetBlock_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContorlCommandServer).GetBlock(ctx, req.(*GetBlockRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ContorlCommand_GetNodeInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNodeInfoRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContorlCommandServer).GetNodeInfo(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/GetNodeInfo",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).GetNodeInfo(ctx, req.(*GetNodeInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2155,22 +2538,6 @@ var _ContorlCommand_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*ContorlCommandServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SetDebugLevel",
-			Handler:    _ContorlCommand_SetDebugLevel_Handler,
-		},
-		{
-			MethodName: "UpdateNetworkID",
-			Handler:    _ContorlCommand_UpdateNetworkID_Handler,
-		},
-		{
-			MethodName: "GetNetworkID",
-			Handler:    _ContorlCommand_GetNetworkID_Handler,
-		},
-		{
-			MethodName: "AddNode",
-			Handler:    _ContorlCommand_AddNode_Handler,
-		},
-		{
 			MethodName: "GetCurrentBlockHeight",
 			Handler:    _ContorlCommand_GetCurrentBlockHeight_Handler,
 		},
@@ -2189,10 +2556,6 @@ var _ContorlCommand_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBlock",
 			Handler:    _ContorlCommand_GetBlock_Handler,
-		},
-		{
-			MethodName: "GetNodeInfo",
-			Handler:    _ContorlCommand_GetNodeInfo_Handler,
 		},
 		{
 			MethodName: "GetBlockByHeight",
@@ -3087,6 +3450,163 @@ func (m *CandidatesResp) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *PeerIDReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PeerIDReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *PeerIDResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PeerIDResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if len(m.Peerid) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Peerid)))
+		i += copy(dAtA[i:], m.Peerid)
+	}
+	return i, nil
+}
+
+func (m *MinersReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MinersReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *MinersResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MinersResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if len(m.Miners) > 0 {
+		for _, msg := range m.Miners {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintControl(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *MinerDetail) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MinerDetail) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Id) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Id)))
+		i += copy(dAtA[i:], m.Id)
+	}
+	if len(m.Address) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Address)))
+		i += copy(dAtA[i:], m.Address)
+	}
+	if len(m.Iplist) > 0 {
+		for _, s := range m.Iplist {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	return i, nil
+}
+
 func encodeVarintControl(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -3550,6 +4070,89 @@ func (m *CandidatesResp) Size() (n int) {
 	if len(m.Candidates) > 0 {
 		for _, e := range m.Candidates {
 			l = e.Size()
+			n += 1 + l + sovControl(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *PeerIDReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *PeerIDResp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	l = len(m.Peerid)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	return n
+}
+
+func (m *MinersReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *MinersResp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if len(m.Miners) > 0 {
+		for _, e := range m.Miners {
+			l = e.Size()
+			n += 1 + l + sovControl(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *MinerDetail) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Id)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	l = len(m.Address)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if len(m.Iplist) > 0 {
+		for _, s := range m.Iplist {
+			l = len(s)
 			n += 1 + l + sovControl(uint64(l))
 		}
 	}
@@ -6331,6 +6934,499 @@ func (m *CandidatesResp) Unmarshal(dAtA []byte) error {
 			if err := m.Candidates[len(m.Candidates)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PeerIDReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PeerIDReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PeerIDReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PeerIDResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PeerIDResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PeerIDResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Peerid", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Peerid = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MinersReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MinersReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MinersReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MinersResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MinersResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MinersResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Miners", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Miners = append(m.Miners, &MinerDetail{})
+			if err := m.Miners[len(m.Miners)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MinerDetail) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MinerDetail: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MinerDetail: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Id = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Address", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Address = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Iplist", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Iplist = append(m.Iplist, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

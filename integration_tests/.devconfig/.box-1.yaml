@@ -28,8 +28,11 @@ p2p:
     conn_load_factor: 0.8
     relay_size: 32
 rpc:
+    enabled: false
+    address: 0.0.0.0
     port: 19111
     http:
+        address: 0.0.0.0
         port: 19110
     faucet:
         amount_per_sec: 1000000000000
@@ -39,6 +42,8 @@ rpc:
             - "127.0.0.1"
     subscribe_blocks: true
     subscribe_logs: true
+    admin_ips:
+      - "127.0.0.1"
 
 bpos:
     keypath: key.keystore

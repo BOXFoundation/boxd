@@ -19,27 +19,23 @@ import (
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 )
 
-func registerControl(s *Server) {
-	rpcpb.RegisterContorlCommandServer(s.server, &ctlserver{server: s})
-}
-
-func init() {
-	RegisterServiceWithGatewayHandler(
-		"control",
-		registerControl,
-		rpcpb.RegisterContorlCommandHandlerFromEndpoint,
-	)
+type adminControl struct {
+	server    GRPCServer
+	whiteList []string
+	TableReader
 }
 
 type ctlserver struct {
 	server GRPCServer
 }
 
-func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
-	if !IsLocalAddr(ctx) {
-		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "Allow only local users!"}, nil
+func (ac *adminControl) GetNodeInfo(
+	ctx context.Context, req *rpcpb.GetNodeInfoRequest,
+) (*rpcpb.GetNodeInfoResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "allowed only users in white list!"}, nil
 	}
-	bus := s.server.GetEventBus()
+	bus := ac.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
 	bus.Send(eventbus.TopicGetAddressBook, ch)
 	defer close(ch)
@@ -58,38 +54,49 @@ func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoReque
 	return resp, nil
 }
 
-func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rpcpb.BaseResponse, error) {
-	out := make(chan error)
-	s.server.GetEventBus().Send(eventbus.TopicP2PAddPeer, req.Node, out)
-	if err := <-out; err != nil {
-		return &rpcpb.BaseResponse{Code: -1, Message: err.Error()}, nil
+func newBaseResp(code int, msg string) *rpcpb.BaseResponse {
+	return &rpcpb.BaseResponse{Code: int32(code), Message: msg}
+}
+
+func (ac *adminControl) AddNode(
+	ctx context.Context, req *rpcpb.AddNodeRequest,
+) (*rpcpb.BaseResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return newBaseResp(-1, ErrIPNotAllowed.Error()), nil
 	}
-	return &rpcpb.BaseResponse{Code: 0, Message: "ok"}, nil
+	out := make(chan error)
+	ac.server.GetEventBus().Send(eventbus.TopicP2PAddPeer, req.Node, out)
+	if err := <-out; err != nil {
+		return newBaseResp(-1, err.Error()), nil
+	}
+	return newBaseResp(0, "ok"), nil
 }
 
 // SetDebugLevel implements SetDebugLevel
-func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
-	if !IsLocalAddr(ctx) {
-		return &rpcpb.BaseResponse{Code: -1, Message: "Allow only local users!"}, nil
+func (ac *adminControl) SetDebugLevel(
+	ctx context.Context, in *rpcpb.DebugLevelRequest,
+) (*rpcpb.BaseResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return newBaseResp(-1, ErrIPNotAllowed.Error()), nil
 	}
-	bus := s.server.GetEventBus()
+	bus := ac.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicSetDebugLevel, in.Level, ch)
 	if <-ch {
-		var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
-		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
+		return newBaseResp(0, "ok"), nil
 	}
-	var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
-	return &rpcpb.BaseResponse{Code: -1, Message: info}, nil
+	return newBaseResp(-1, "wrong debug level"), nil
 }
 
 // GetNetworkID returns
-func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
-	if !IsLocalAddr(ctx) {
-		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: "Allow only local users!"}, nil
+func (ac *adminControl) GetNetworkID(
+	ctx context.Context, req *rpcpb.GetNetworkIDRequest,
+) (*rpcpb.GetNetworkIDResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: ErrIPNotAllowed.Error()}, nil
 	}
 	ch := make(chan uint32)
-	s.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
+	ac.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
 	current := <-ch
 	var literal string
 	if current == p2p.Mainnet {
@@ -104,19 +111,58 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 
 // UpdateNetworkID implements UpdateNetworkID
 // NOTE: should be remove in product env
-func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
-	if !IsLocalAddr(ctx) {
-		return &rpcpb.BaseResponse{Code: -1, Message: "Allow only local users!"}, nil
+func (ac *adminControl) UpdateNetworkID(
+	ctx context.Context, in *rpcpb.UpdateNetworkIDRequest,
+) (*rpcpb.BaseResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return newBaseResp(-1, ErrIPNotAllowed.Error()), nil
 	}
-	bus := s.server.GetEventBus()
+	bus := ac.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicUpdateNetworkID, in.Id, ch)
 	if <-ch {
-		var info = fmt.Sprintf("Update NetworkID: %d", in.Id)
-		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
+		return newBaseResp(0, "ok"), nil
 	}
-	var info = fmt.Sprintf("Wrong NetworkID: %d", in.Id)
-	return &rpcpb.BaseResponse{Code: -1, Message: info}, nil
+	return newBaseResp(-1, fmt.Sprintf("Wrong NetworkID: %d", in.Id)), nil
+}
+
+func (ac *adminControl) PeerID(
+	ctx context.Context, req *rpcpb.PeerIDReq,
+) (*rpcpb.PeerIDResp, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.PeerIDResp{Code: -1, Message: ErrIPNotAllowed.Error()}, nil
+	}
+	return &rpcpb.PeerIDResp{
+		Code:    0,
+		Message: "",
+		Peerid:  ac.TableReader.PeerID(),
+	}, nil
+}
+
+func (ac *adminControl) Miners(
+	ctx context.Context, req *rpcpb.MinersReq,
+) (*rpcpb.MinersResp, error) {
+
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.MinersResp{Code: -1, Message: ErrIPNotAllowed.Error()}, nil
+	}
+
+	infos := ac.TableReader.Miners()
+	miners := make([]*rpcpb.MinerDetail, len(infos))
+
+	for i, info := range infos {
+		miners[i] = &rpcpb.MinerDetail{
+			Id:      info.ID,
+			Address: info.Addr,
+			Iplist:  info.Iplist,
+		}
+	}
+
+	return &rpcpb.MinersResp{
+		Code:    0,
+		Message: "",
+		Miners:  miners,
+	}, nil
 }
 
 func (s *ctlserver) GetCurrentBlockHeight(ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest) (*rpcpb.GetCurrentBlockHeightResponse, error) {
