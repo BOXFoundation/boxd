@@ -132,18 +132,18 @@ func init() {
 			Run:   encode,
 		},
 		&cobra.Command{
-			Use:   "decode [index] [topic|methodname] [data|hexdata]",
+			Use:   "decode [index] [option|topic|methodname] [option|data|hexdata]",
 			Short: "decode",
 			Run:   decode,
 			Example: `
 			./box contract index encodeMethod
+			./box contract index topic
 			./box contract index method_name output_data
 			./box contract index topics[0] data
 			Because the	coding of index_arg can't to find , you'b better input topics[0] to obtain event
 			topics[0]:First place in the tuple
 			`,
 		},
-
 		&cobra.Command{
 			Use:   "getlogs [hash] [from] [to] [address] [topics]",
 			Short: "Get returns logs matching the given argument that are stored within the state",
@@ -199,8 +199,20 @@ func decode(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	//decode method
+	//decode method input
 	if len(args) == 2 {
+		hash := &crypto.HashType{}
+		err = hash.SetString(args[1])
+		if err == nil {
+			for _, event := range abiObj.Events {
+				eventHash := event.ID()
+				eventString := eventHash.String()
+				if eventString == args[1] {
+					fmt.Println("Event name :", event.Name)
+					return
+				}
+			}
+		}
 		data, err := hex.DecodeString(args[1])
 		method, err := abiObj.MethodByID(data)
 		if err != nil {
@@ -208,15 +220,21 @@ func decode(cmd *cobra.Command, args []string) {
 			return
 		}
 		fmt.Println("method name:", method.Name)
-		argument, err := method.Inputs.UnpackValues(data)
+		argument, err := method.Inputs.UnpackValues(data[4:])
 		if err != nil {
 			fmt.Println("input failed:", err)
 			return
 		}
-		fmt.Println("argument:", argument)
+		for _, value := range argument {
+			if addTy, ok := value.(types.AddressHash); ok {
+				fmt.Println(hex.EncodeToString(addTy.Bytes()))
+			} else {
+				fmt.Println(value)
+			}
+		}
 	}
 	if len(args) == 3 {
-		//contract log
+		//decode cotract log_topics and log_data
 		var eventName string
 		data, err := hex.DecodeString(args[2])
 		if err != nil {
@@ -224,6 +242,7 @@ func decode(cmd *cobra.Command, args []string) {
 		}
 		topicHash := &crypto.HashType{}
 		err = topicHash.SetString(args[1])
+		//if args[1] is the type of hash, decode log_topics
 		if err == nil {
 			for _, event := range abiObj.Events {
 				eventHash := event.ID()
@@ -233,6 +252,7 @@ func decode(cmd *cobra.Command, args []string) {
 					break
 				}
 			}
+			// decode log_data
 			dataValue, err := abiObj.Events[eventName].Inputs.UnpackValues(data)
 			if err != nil {
 				fmt.Println("get data failed:", err)
@@ -242,7 +262,7 @@ func decode(cmd *cobra.Command, args []string) {
 			fmt.Println("event data:", dataValue)
 			return
 		}
-		//output
+		//decode method output
 		method, ok := abiObj.Methods[args[1]]
 		if !ok {
 			fmt.Println("can't find method")

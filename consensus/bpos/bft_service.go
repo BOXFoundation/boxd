@@ -193,7 +193,7 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 			}
 			value = append(value, signature)
 			bft.blockPrepareMsgCache.Store(key, value)
-			if len(value) > 2*len(dynasty.delegates)/3 {
+			if len(value) >= 2*len(dynasty.delegates)/3 {
 				bft.blockPrepareMsgKey.Add(key, key)
 				bft.consensus.BroadcastBFTMsgToBookkeepers(block, p2p.BlockCommitMsg)
 				bft.blockPrepareMsgCache.Delete(key)
@@ -248,7 +248,7 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 			}
 			value = append(value, signature)
 			bft.blockCommitMsgCache.Store(key, value)
-			if len(value) > 2*len(dynasty.delegates)/3 {
+			if len(value) >= 2*len(dynasty.delegates)/3 {
 				bft.blockCommitMsgKey.Add(key, key)
 				// receive more than 2/3 block commit msg. update local eternal block.
 				bft.updateEternal(block)
