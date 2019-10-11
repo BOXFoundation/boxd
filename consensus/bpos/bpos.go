@@ -111,10 +111,10 @@ var _ service.Server = (*Bpos)(nil)
 // Run start bpos
 func (bpos *Bpos) Run() error {
 	logger.Info("Bpos run")
-	//if !bpos.IsBookkeeper() {
-	//	logger.Warn("You have no authority to produce block")
-	//	return ErrNoLegalPowerToProduce
-	//}
+	if !bpos.IsBookkeeper() {
+		logger.Warn("You have no authority to produce block")
+		return ErrNoLegalPowerToProduce
+	}
 	bpos.subscribe()
 	bpos.bftservice.Run()
 	bpos.proc.Go(bpos.loop)
@@ -167,7 +167,11 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 func (bpos *Bpos) Finalize(tail *types.Block) error {
 	parent := bpos.chain.GetParentBlock(tail)
 	if bpos.IsBookkeeper() && time.Now().Unix()-parent.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
-		go bpos.BroadcastBFTMsgToBookkeepers(parent, p2p.BlockPrepareMsg)
+		go func() {
+			if err := bpos.BroadcastBFTMsgToBookkeepers(parent, p2p.BlockPrepareMsg); err != nil {
+				logger.Errorf("Failed to broadcast bft message to bookkeepers. Err: %v", err)
+			}
+		}()
 	}
 	go bpos.TryToUpdateEternalBlock(parent)
 	return nil
@@ -184,7 +188,7 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 				go func() {
 					if err := bpos.run(time.Now().Unix()); err != nil {
 						if err != ErrNotMyTurnToProduce {
-							logger.Error("Bpos run err. Err: ", err.Error())
+							logger.Errorf("Bpos run err. Err: %v", err.Error())
 						}
 					}
 				}()
@@ -282,21 +286,21 @@ func (bpos *Bpos) IsBookkeeper() bool {
 		return true
 	}
 
-	addr, err := types.NewAddress(bpos.bookkeeper.Addr())
-	if err != nil {
-		return false
-	}
-	delegates, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
-	if err != nil {
-		return false
-	}
-	var addrs []types.AddressHash
-	for _, v := range delegates {
-		addrs = append(addrs, v.Addr)
-	}
-	if !types.InAddresses(*addr.Hash160(), addrs) {
-		return false
-	}
+	//addr, err := types.NewAddress(bpos.bookkeeper.Addr())
+	//if err != nil {
+	//	return false
+	//}
+	//delegates, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
+	//if err != nil {
+	//	return false
+	//}
+	//var addrs []types.AddressHash
+	//for _, v := range delegates {
+	//	addrs = append(addrs, v.Addr)
+	//}
+	//if !types.InAddresses(*addr.Hash160(), addrs) {
+	//	return false
+	//}
 	if err := bpos.bookkeeper.UnlockWithPassphrase(bpos.cfg.Passphrase); err != nil {
 		logger.Error(err)
 		return false
@@ -703,6 +707,7 @@ func (bpos *Bpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uin
 	prepareBlockMsg.Signature = signature
 	prepareBlockMsg.Timestamp = block.Header.TimeStamp
 	bookkeepers := bpos.context.verifyDynasty.peers
+	logger.Debugf("BroadcastBFTMsgToBookkeepers peers: %v", bookkeepers)
 
 	return bpos.net.BroadcastToBookkeepers(messageID, prepareBlockMsg, bookkeepers)
 }

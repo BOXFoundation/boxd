@@ -44,7 +44,7 @@ func initPreAcc() {
 }
 
 type makeTxResp interface {
-	GetRawMsgs() [][]byte
+	GetRawMsgs() []string
 	GetTx() *corepb.Transaction
 }
 
@@ -70,8 +70,9 @@ func flow(t *testing.T, respFunc makeTxRespFunc) string {
 	rawMsgs := resp.GetRawMsgs()
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
 	for _, msg := range rawMsgs {
-		hash := crypto.DoubleHashH(msg)
-		sigHashes = append(sigHashes, &hash)
+		hash := new(crypto.HashType)
+		hash.SetString(msg)
+		sigHashes = append(sigHashes, hash)
 	}
 	// sign msg
 	accI, ok := AddrToAcc.Load(from)
@@ -153,14 +154,16 @@ func _TestNormalTx(t *testing.T) {
 		Amounts: amounts,
 	}
 	//
-	flow(t, func(ctx context.Context,
-		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedTx(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return from, resp
-	})
+	flow(
+		t,
+		func(ctx context.Context, client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+			resp, err := client.MakeUnsignedTx(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return from, resp
+		},
+	)
 }
 
 // NOTE: to run this test case needs to start a node
@@ -181,14 +184,16 @@ func _TestSplitAddrTx(t *testing.T) {
 		Weights: weights,
 	}
 	//
-	flow(t, func(ctx context.Context,
-		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedSplitAddrTx(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return from, resp
-	})
+	flow(
+		t,
+		func(ctx context.Context, client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+			resp, err := client.MakeUnsignedSplitAddrTx(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return from, resp
+		},
+	)
 }
 
 // NOTE: to run this test case needs to start a node
@@ -207,14 +212,16 @@ func _TestTokenTx(t *testing.T) {
 	bytes, _ := json.MarshalIndent(req, "", "  ")
 	logger.Infof("make unsigned token issue tx: %s", string(bytes))
 	//
-	hashStr := flow(t, func(ctx context.Context,
-		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedTokenIssueTx(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return issuer, resp
-	})
+	hashStr := flow(
+		t,
+		func(ctx context.Context, client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+			resp, err := client.MakeUnsignedTokenIssueTx(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return issuer, resp
+		},
+	)
 
 	// token transfer
 	from := preAddrT
@@ -232,14 +239,15 @@ func _TestTokenTx(t *testing.T) {
 		TokenIndex: 0,
 	}
 	//
-	flow(t, func(ctx context.Context,
-		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedTokenTransferTx(ctx, reqT)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return from, resp
-	})
+	flow(t,
+		func(ctx context.Context, client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+			resp, err := client.MakeUnsignedTokenTransferTx(ctx, reqT)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return from, resp
+		},
+	)
 }
 
 // NOTE: to run this test case needs to start a node
@@ -273,14 +281,16 @@ func _TestContractTx(t *testing.T) {
 	bytes, _ := json.MarshalIndent(req, "", "  ")
 	logger.Infof("make contract tx request: %s", string(bytes))
 	//
-	hashStr := flow(t, func(ctx context.Context,
-		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedContractTx(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return from, resp
-	})
+	hashStr := flow(
+		t,
+		func(ctx context.Context, client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+			resp, err := client.MakeUnsignedContractTx(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return from, resp
+		},
+	)
 	logger.Infof("contract deploy tx hash: %s", hashStr)
 
 	// contract call
@@ -295,14 +305,16 @@ func _TestContractTx(t *testing.T) {
 		Data:     testFaucetCall,
 	}
 	//
-	flow(t, func(ctx context.Context,
-		client rpcpb.TransactionCommandClient) (string, makeTxResp) {
-		resp, err := client.MakeUnsignedContractTx(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return from, resp
-	})
+	flow(
+		t,
+		func(ctx context.Context, client rpcpb.TransactionCommandClient) (string, makeTxResp) {
+			resp, err := client.MakeUnsignedContractTx(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return from, resp
+		},
+	)
 
 	//callData, _ := hex.DecodeString(testDoCall)
 	//ret := utils.CallContract(from, contractAddr.String(), callData, conn)

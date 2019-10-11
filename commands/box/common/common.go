@@ -34,12 +34,15 @@ func GetRPCAddr() string {
 
 // SignAndSendTx sign tx and then send this tx to a server node
 func SignAndSendTx(
-	tx *corepb.Transaction, rawMsgs [][]byte, acc *account.Account,
+	tx *corepb.Transaction, rawMsgs []string, acc *account.Account,
 ) (hash string, err error) {
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
 	for _, msg := range rawMsgs {
-		hash := crypto.DoubleHashH(msg)
-		sigHashes = append(sigHashes, &hash)
+		msgHash := new(crypto.HashType)
+		if err = msgHash.SetString(msg); err != nil {
+			return
+		}
+		sigHashes = append(sigHashes, msgHash)
 	}
 	// sign msg
 	passphrase, err := wallet.ReadPassphraseStdin()

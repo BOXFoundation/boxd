@@ -700,7 +700,7 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 	}
 	if contractVout == nil {
 		if txFee != core.TransferFee+tx.ExtraFee() {
-			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee, core.TransferFee)
+			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee, core.TransferFee+tx.ExtraFee())
 		}
 		return nil
 	}

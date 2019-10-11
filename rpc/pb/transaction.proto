@@ -159,7 +159,7 @@ message MakeTxResp {
     int32 code = 1;
     string message = 2;
     corepb.Transaction tx = 3;
-    repeated bytes rawMsgs = 4;
+    repeated string rawMsgs = 4;
 }
 
 message MakeSplitAddrTxReq {
@@ -179,7 +179,7 @@ message MakeTokenIssueTxResp {
     string message = 2;
     uint32 issue_out_index = 3;
     corepb.Transaction tx = 4;
-    repeated bytes rawMsgs = 5;
+    repeated string rawMsgs = 5;
 }
 
 message MakeTokenTransferTxReq {
@@ -211,7 +211,7 @@ message MakeContractTxResp {
     int32 code = 1;
     string message = 2;
     corepb.Transaction tx = 3;
-    repeated bytes rawMsgs = 4;
+    repeated string rawMsgs = 4;
     string contract_addr = 5;
 }
 

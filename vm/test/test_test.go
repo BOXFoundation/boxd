@@ -118,7 +118,7 @@ func TestGenesisContract(t *testing.T) {
 	ctx = chain.NewEVMContext(msg, cc.GetHeader(15000), blockChain)
 	evm = vm.NewEVM(ctx, stateDb, vmConfig)
 	abiObj := loadAbi(abiFileName)
-	input, err := abiObj.Pack("pledge")
+	input, err := abiObj.Pack("pledge", "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cob")
 	must(err)
 	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(1800000*1e8), false)
 	ensure.Nil(t, vmerr)

@@ -195,13 +195,13 @@ contract Bonus is Permission{
         }
     }
 
-    function  pledge() public payable onlyPledgeIsOpen{
+    function  pledge(string peerID) public payable onlyPledgeIsOpen{
         require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] <= netParams[PLEDGE_OPEN_LIMIT], "pledge is not open.");
         require(msg.value >= netParams[PLEDGE_THRESHOLD], "pledge amount is not correct.");
         require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
         require(frozenDelegate[msg.sender].pledgeAmount == 0, "can not repeat the mortgage");
 
-        Delegate memory delegate = Delegate(msg.sender, "", 0, msg.value, 0, 0, true);
+        Delegate memory delegate = Delegate(msg.sender, peerID, 0, msg.value, 0, 0, true);
         addrToDelegates[msg.sender] = delegate;
         pledgeAddrList.push(msg.sender);
     }
