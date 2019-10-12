@@ -49,7 +49,7 @@ func init() {
 	viper.BindPFlag("p2p.port", startCmd.Flags().Lookup("listen-port"))
 
 	startCmd.Flags().Bool("rpc", true, "start rpc server (default true).")
-	viper.BindPFlag("rpc.enabled", startCmd.Flags().Lookup("rpc"))
+	viper.BindPFlag("rpc.enable", startCmd.Flags().Lookup("rpc"))
 
 	startCmd.Flags().String("database", "rocksdb", "database name [rocksdb|mem]")
 	viper.BindPFlag("database.name", startCmd.Flags().Lookup("database"))

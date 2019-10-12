@@ -212,6 +212,7 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 	s.server = grpc.NewServer(opts...)
 
 	// regist all gRPC services for the server
+	s.registerSerivices()
 	for name, service := range services {
 		logger.Debugf("register gRPC service: %s", name)
 		service(s)
