@@ -14,8 +14,8 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -32,7 +32,6 @@ import (
 	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ripemd160"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -420,35 +419,59 @@ func deploy(cmd *cobra.Command, args []string) {
 	}
 	var bytecode string
 	data := args[0]
-	suffix := path.Ext(data)
-	if suffix == ".sol" {
-		fmt.Println("Have you installed the solidity editor for the version corresponding to the contract?y/n")
-		input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-		if string(input) != "y" {
-			fmt.Println("Please install and contract the corresponding version of solidity editor")
-			fmt.Println("安装教程：https://goethereumbook.org/en/smart-contract-compile/")
-			return
-		}
-		cmd := exec.Command("solc", args[0], "--bin")
-		output, err := cmd.Output()
+	//get data
+	if _, err := os.Stat(data); err == nil {
+		bytes, err := ioutil.ReadFile(data)
 		if err != nil {
-			fmt.Println("output failed:", err)
+			fmt.Println("read contract file error:", err)
 			return
 		}
-		outputString := strings.TrimSpace(string(output))
-		binSlice := strings.Split(outputString, ":")
-		bytecode = binSlice[2]
-	} else {
-		if _, err := os.Stat(data); err == nil {
-			bytes, err := ioutil.ReadFile(data)
+		bytecode = strings.TrimSpace(string(bytes))
+		if !isHexData(bytecode) {
+			cmd := exec.Command("solc", args[0], "--bin")
+			stdout, err := cmd.StdoutPipe()
 			if err != nil {
-				fmt.Println("read contract file error:", err)
+				fmt.Println(err)
 				return
 			}
-			bytecode = strings.TrimSpace(string(bytes))
-		} else {
-			bytecode = data
+			defer stdout.Close()
+			if err := cmd.Start(); err != nil {
+				fmt.Println(err)
+				return
+			}
+			opBytes, err := ioutil.ReadAll(stdout)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			if string(opBytes) != "" {
+				reg := regexp.MustCompile(`(\n)(.*\n){2}(.*)(\n)`)
+				regCode := reg.ReplaceAllString(string(opBytes), "$3")
+				bytecode = regCode
+			} else {
+				cmd := exec.Command("solc", "--version")
+				output, err := cmd.Output()
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+				fmt.Println(strings.TrimSpace(string(output)))
+				reg := regexp.MustCompile(`(\w+\.){2}\w+`)
+				regCode := reg.FindAllString(bytecode, -1)
+				fmt.Println("Your solidity file version :", regCode)
+				fmt.Println("solidity version incompatibility")
+				fmt.Println("If you want to compile solidity file to bin, you should install solidity version:",
+					strings.TrimSpace(string(output)))
+				fmt.Println("Official installation tutorial: https://goethereumbook.org/en/smart-contract-compile/")
+				return
+			}
 		}
+	} else {
+		if !isHexData(data) {
+			fmt.Println("the type of data mistake")
+			return
+		}
+		bytecode = data
 	}
 	// params
 	var indexArg string
@@ -1202,4 +1225,12 @@ func calcGasLimit(bal, amount uint64) uint64 {
 		limit = 10000000
 	}
 	return limit
+}
+
+func isHexData(str string) bool {
+	_, err := hex.DecodeString(str)
+	if err != nil {
+		return false
+	}
+	return true
 }

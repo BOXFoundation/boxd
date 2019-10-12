@@ -46,34 +46,6 @@ func init() {
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
-		// &cobra.Command{
-		// 	Use:   "addnode [netaddr] add|remove",
-		// 	Short: "Add or remove a peer node",
-		// 	Run: func(cmd *cobra.Command, args []string) {
-		// 		fmt.Println("addnode called")
-		// 	},
-		// },
-		// &cobra.Command{
-		// 	Use:   "searchrawtxs [address]",
-		// 	Short: "Search transactions for a given address",
-		// 	Run: func(cmd *cobra.Command, args []string) {
-		// 		fmt.Println("searchrawtx called")
-		// 	},
-		// },
-		// &cobra.Command{
-		// 	Use:   "verifychain",
-		// 	Short: "Verify the local chain",
-		// 	Run: func(cmd *cobra.Command, args []string) {
-		// 		fmt.Println("verifychain called")
-		// 	},
-		// },
-		// &cobra.Command{
-		// 	Use:   "verifymessage [message] [publickey]",
-		// 	Short: "Verify a message with a public key",
-		// 	Run: func(cmd *cobra.Command, args []string) {
-		// 		fmt.Println("verifymessage called")
-		// 	},
-		// },
 		&cobra.Command{
 			Use:   "debuglevel [debug|info|warning|error|fatal]",
 			Short: "Set the debug level of boxd",
@@ -130,6 +102,34 @@ func init() {
 			Short: "Get the basic info and performance metrics of a network",
 			Run:   getNetWorkID,
 		},
+		// &cobra.Command{
+		// 	Use:   "addnode [netaddr] add|remove",
+		// 	Short: "Add or remove a peer node",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("addnode called")
+		// 	},
+		// },
+		// &cobra.Command{
+		// 	Use:   "searchrawtxs [address]",
+		// 	Short: "Search transactions for a given address",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("searchrawtx called")
+		// 	},
+		// },
+		// &cobra.Command{
+		// 	Use:   "verifychain",
+		// 	Short: "Verify the local chain",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("verifychain called")
+		// 	},
+		// },
+		// &cobra.Command{
+		// 	Use:   "verifymessage [message] [publickey]",
+		// 	Short: "Verify a message with a public key",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("verifymessage called")
+		// 	},
+		// },
 	)
 }
 
