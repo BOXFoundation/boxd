@@ -128,12 +128,12 @@ to quickly create a Cobra  application.`,
 		&cobra.Command{
 			Use:   "gettxbyhash [blockhash] [tx_index]",
 			Short: "Get the transaction by block_hash and block_index",
-			Run:   getTxByHash,
+			Run:   getTxByHashAndIndex,
 		},
 		&cobra.Command{
 			Use:   "gettxbyheight [blockheight] [tx_index]",
 			Short: "Get the transaction  by height and tx_index",
-			Run:   getTxByHeight,
+			Run:   getTxByHeightAndIndex,
 		},
 		&cobra.Command{
 			Use:   "fetchutxo [addr] [amount] [token_hash] [token_index]",
@@ -222,12 +222,12 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 		fmt.Println("unmarshal error: ", err)
 		return
 	}
-	resp, err := rpcutil.SendTransaction(conn, tx)
+	hash, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil {
 		fmt.Println("Send Transaction failed:", err)
 		return
 	}
-	fmt.Println(format.PrettyPrint(resp))
+	fmt.Println(format.PrettyPrint(hash))
 }
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
@@ -235,8 +235,13 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid hash")
+		return
+	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetRawTransaction",
-		&rpcpb.GetRawTransactionRequest{Hash: args[0]}, common.GetRPCAddr())
+		&rpcpb.GetRawTransactionRequest{Hash: hash.String()}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -280,7 +285,7 @@ func getTxCountByHash(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("transaction amount:", resp.Count)
+	fmt.Println(resp.Count)
 }
 
 func getTxCountByHeight(cmd *cobra.Command, args []string) {
@@ -311,7 +316,7 @@ func getTxCountByHeight(cmd *cobra.Command, args []string) {
 	fmt.Println("transaction amount:", resp.Count)
 }
 
-func getTxByHash(cmd *cobra.Command, args []string) {
+func getTxByHashAndIndex(cmd *cobra.Command, args []string) {
 	if len(args) != 2 {
 		fmt.Println(cmd.Use)
 		return
@@ -345,7 +350,7 @@ func getTxByHash(cmd *cobra.Command, args []string) {
 	fmt.Println("Transaction:", format.PrettyPrint(tx))
 }
 
-func getTxByHeight(cmd *cobra.Command, args []string) {
+func getTxByHeightAndIndex(cmd *cobra.Command, args []string) {
 	if len(args) != 2 {
 		fmt.Println(cmd.Use)
 		return
@@ -371,7 +376,7 @@ func getTxByHeight(cmd *cobra.Command, args []string) {
 		fmt.Println("Conversion to rpcpb.GetTxResp failed")
 		return
 	}
-	tx := &types.Transaction{}
+	tx := new(types.Transaction)
 	err = tx.FromProtoMessage(resp.Tx)
 	if err != nil {
 		fmt.Println(err)
@@ -561,15 +566,14 @@ func parseSendParams(args []string) (addrs []string, amounts []uint64, err error
 }
 
 func fetchUtxo(cmd *cobra.Command, args []string) {
-	if err := types.ValidateAddr(args[0]); err != nil {
+	if len(args) != 4 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	if _, err := types.NewAddress(args[0]); err != nil {
 		fmt.Println("verification address failed:", err)
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
-	if err != nil {
-		fmt.Println("Get RPC conn failed:", err)
-	}
-	defer conn.Close()
 	amount, err := strconv.ParseUint(args[1], 10, 64)
 	if err != nil {
 		fmt.Println("the type of amount conversion failed:", err)

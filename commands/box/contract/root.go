@@ -25,6 +25,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
@@ -740,7 +741,11 @@ func getLogs(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	hash := args[0]
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid hash")
+		return
+	}
 	from, err := strconv.ParseUint(args[1], 10, 32)
 	if err != nil {
 		fmt.Println(err)
@@ -757,7 +762,7 @@ func getLogs(cmd *cobra.Command, args []string) {
 
 	req := &rpcpb.LogsReq{
 		Uid:       "",
-		Hash:      hash,
+		Hash:      hash.String(),
 		From:      uint32(from),
 		To:        uint32(to),
 		Addresses: address,
@@ -786,7 +791,7 @@ func getNonce(cmd *cobra.Command, args []string) {
 	addr := args[0]
 	//validate address
 	if err := types.ValidateAddr(addr); err != nil {
-		fmt.Println("address is Invalid: ", err)
+		fmt.Println("address is Invalid:", err)
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "Nonce",
@@ -800,7 +805,7 @@ func getNonce(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Nonce: ", resp.Nonce)
+	fmt.Println("Nonce:", resp.Nonce)
 }
 
 func getCode(cmd *cobra.Command, args []string) {
@@ -809,8 +814,9 @@ func getCode(cmd *cobra.Command, args []string) {
 		return
 	}
 	//validate address
-	if err := types.ValidateAddr(args[0]); err != nil {
-		fmt.Println("address is Invalid: ", err)
+	_, err := types.NewContractAddress(args[0])
+	if err != nil {
+		fmt.Println("invalid contract address")
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetCode",
@@ -834,8 +840,14 @@ func estimateGas(cmd *cobra.Command, args []string) {
 	}
 	from := args[0]
 	toAddr := args[1]
-	if err := types.ValidateAddr(toAddr, from); err != nil {
-		fmt.Println("Verification Addr failed:", err)
+	//check address
+	if err := types.ValidateAddr(from); err != nil {
+		fmt.Println("invalid address:")
+		return
+	}
+	_, err := types.NewContractAddress(args[0])
+	if err != nil {
+		fmt.Println("invalid contract address")
 		return
 	}
 	var height uint64
@@ -879,13 +891,14 @@ func getStorageAt(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	if err := types.ValidateAddr(args[0]); err != nil {
-		fmt.Println("Verification Addr failed:", err)
+	_, err := types.NewContractAddress(args[0])
+	if err != nil {
+		fmt.Println("invalid contract address")
 		return
 	}
 	height, err := strconv.ParseUint(args[2], 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Conversion the type of height failed:", err)
 		return
 	}
 	req := &rpcpb.StorageReq{

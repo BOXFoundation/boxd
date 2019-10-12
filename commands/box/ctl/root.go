@@ -11,6 +11,7 @@ import (
 	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -188,9 +189,13 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	hash := args[0]
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid block hash")
+		return
+	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlock",
-		&rpcpb.GetBlockRequest{BlockHash: hash}, common.GetRPCAddr())
+		&rpcpb.GetBlockRequest{BlockHash: hash.String()}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("RPC called failed:", err)
 		return
@@ -214,7 +219,7 @@ func getBLockByHeight(cmd *cobra.Command, args []string) {
 	}
 	height, err := strconv.ParseUint(args[0], 10, 32)
 	if err != nil {
-		fmt.Println("Getblockbyheight failed:", err)
+		fmt.Println("Conversion the type of height failed:", err)
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockByHeight",
@@ -234,7 +239,7 @@ func getBLockByHeight(cmd *cobra.Command, args []string) {
 		fmt.Println("The format of block conversion failed:", err)
 		return
 	}
-	fmt.Printf("%s\n", format.PrettyPrint(block))
+	fmt.Println(format.PrettyPrint(block))
 }
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
@@ -243,7 +248,7 @@ func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetCurrentBlockHeight",
-		&rpcpb.GetCurrentBlockHeightRequest{}, common.GetRPCAddr())
+		new(rpcpb.GetCurrentBlockHeightRequest), common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("RPC called failed:", err)
 		return
@@ -285,7 +290,7 @@ func getBlockHashCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("Current Block Height:", resp.Hash)
+	fmt.Println(resp.Hash)
 }
 
 func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
@@ -293,8 +298,13 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid block hash")
+		return
+	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockHeader",
-		&rpcpb.GetBlockRequest{BlockHash: args[0]}, common.GetRPCAddr())
+		&rpcpb.GetBlockRequest{BlockHash: hash.String()}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("RPC called failed:", err)
 		return
@@ -314,7 +324,7 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("The format of block_header conversion failed:", err)
 		return
 	}
-	fmt.Printf("Block Header of hash %s is\n%s\n", args[0], format.PrettyPrint(header))
+	fmt.Printf(format.PrettyPrint(header))
 }
 
 func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
@@ -322,8 +332,13 @@ func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlock",
-		&rpcpb.GetBlockRequest{BlockHash: args[0]}, common.GetRPCAddr())
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid block hash")
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail",
+		&rpcpb.ViewBlockDetailReq{Hash: hash.String()}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("RPC called failed:", err)
 		return
@@ -362,6 +377,7 @@ func getInfoCmdFunc(cmd *cobra.Command, args []string) {
 	}
 	fmt.Println(format.PrettyPrint(resp))
 }
+
 func getPeerIDCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
 		fmt.Println(cmd.Use)

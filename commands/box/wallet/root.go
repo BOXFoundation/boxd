@@ -62,30 +62,6 @@ func init() {
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
-		// &cobra.Command{
-		// 	Use:   "encryptwallet [passphrase]",
-		// 	Short: "Encrypt a wallet with a passphrase",
-		// 	Run: func(cmd *cobra.Command, args []string) {
-		// 		fmt.Println("encryptwallet called")
-		// 	},
-		// },
-		// &cobra.Command{
-		// 	Use:   "encryptwallet [passphrase]",
-		// 	Short: "Encrypt a wallet with a passphrase",
-		// 	Run: func(cmd *cobra.Command, args []string) {
-		// 		fmt.Println("encryptwallet called")
-		// 	},
-		// },
-		// &cobra.Command{
-		// 	Use:   "lock [address]",
-		// 	Short: "Lock a account",
-		// 	Run:   lock,
-		// },
-		// &cobra.Command{
-		// 	Use:   "unlock [address]",
-		// 	Short: "unlock account",
-		// 	Run:   unlock,
-		// },
 		&cobra.Command{
 			Use:   "newaccount [account]",
 			Short: "Create a new account",
@@ -136,6 +112,30 @@ func init() {
 			Short: "Import a wallet from a file",
 			Run:   importwallet,
 		},
+		// &cobra.Command{
+		// 	Use:   "encryptwallet [passphrase]",
+		// 	Short: "Encrypt a wallet with a passphrase",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("encryptwallet called")
+		// 	},
+		// },
+		// &cobra.Command{
+		// 	Use:   "encryptwallet [passphrase]",
+		// 	Short: "Encrypt a wallet with a passphrase",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("encryptwallet called")
+		// 	},
+		// },
+		// &cobra.Command{
+		// 	Use:   "lock [address]",
+		// 	Short: "Lock a account",
+		// 	Run:   lock,
+		// },
+		// &cobra.Command{
+		// 	Use:   "unlock [address]",
+		// 	Short: "unlock account",
+		// 	Run:   unlock,
+		// },
 	)
 }
 
@@ -446,9 +446,9 @@ func importPrivateKey() (string, error) {
 func importKeyStore(keyFile string) error {
 	if _, err := os.Stat(keyFile); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Println("abi file is not exists")
+			fmt.Println("keyFile is not exists")
 		} else {
-			fmt.Println("abi file status error:", err)
+			fmt.Println("keyFile status error:", err)
 		}
 		return err
 	}
@@ -466,10 +466,18 @@ func importKeyStore(keyFile string) error {
 		fmt.Println("Fail to unlock account", err)
 		return err
 	}
+	// validate wallet dir
+	if _, err := os.Stat(walletDir); err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("wallet directory is not exists")
+		} else {
+			fmt.Println("wallet directory status error:", err)
+		}
+		return err
+	}
 	if err := util.MkDir(walletDir); err != nil {
 		panic(err)
 	}
-
 	newFile := walletDir + "/" + filepath.Base(keyFile)
 	data, err := ioutil.ReadFile(keyFile)
 	if err != nil {

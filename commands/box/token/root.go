@@ -173,7 +173,7 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	// token id
 	tokenID, err := txlogic.DecodeOutPoint(args[1])
 	if err != nil {
-		fmt.Println("DecodeOutPoint failed:", err)
+		fmt.Println("DecodeOutPoint string token id to TokenID failed:", err)
 		return
 	}
 	tokenHash := new(crypto.HashType)
@@ -236,13 +236,18 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	tokenHash := new(crypto.HashType)
-	tokenHash.SetBytes(tokenID.Hash)
+	if err := tokenHash.SetBytes(tokenID.Hash); err != nil {
+		fmt.Println("Conversion the type of tokenHash failed:", err)
+		return
+	}
 	tokenIndex := tokenID.Index
 	// address
 	addrs := strings.Split(args[1], ",")
-	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println("Veri", err)
-		return
+	for _, addr := range addrs {
+		if _, err := types.NewAddress(addr); err != nil {
+			fmt.Println("invalid address")
+			return
+		}
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetTokenBalance",
 		&rpcpb.GetTokenBalanceReq{Addrs: addrs, TokenHash: tokenHash.String(), TokenIndex: tokenIndex}, common.GetRPCAddr())
