@@ -135,16 +135,9 @@ service ContorlCommand {
         };
     }
 
-    rpc Bookkeepers (BookkeepersReq) returns (BookkeepersResp) {
+    rpc Delegates (DelegatesReq) returns (DelegatesResp) {
         option (google.api.http) = {
-            post: "/v1/ctl/bookkeepers"
-            body: "*"
-        };
-    }
-
-    rpc Candidates (CandidatesReq) returns (CandidatesResp) {
-        option (google.api.http) = {
-            post: "/v1/ctl/candidates"
+            post: "/v1/ctl/delegates"
             body: "*"
         };
     }
@@ -277,24 +270,6 @@ message Delegate {
     uint32 continual_periods = 5;
 }
 
-message BookkeepersReq {
-}
-
-message BookkeepersResp {
-    int32 code = 1;
-    string message = 2;
-    repeated Delegate bookkeepers = 3;
-}
-
-message CandidatesReq {
-}
-
-message CandidatesResp {
-    int32 code = 1;
-    string message = 2;
-    repeated Delegate candidates = 3;
-}
-
 message PeerIDReq {
 }
 
@@ -317,4 +292,19 @@ message MinerDetail {
     string id = 1;
     string address = 2;
     repeated string iplist = 3;
+}
+
+message DelegatesReq {
+    enum Type {
+        BOOKKEEPERS = 0;
+        DELEGATES = 1;
+        CANDIDATES = 2;
+    }
+    Type type = 1;
+}
+
+message DelegatesResp {
+    int32 code = 1;
+    string message = 2;
+    repeated Delegate delegates = 3;
 }

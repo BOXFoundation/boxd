@@ -836,14 +836,13 @@ func detailTxIn(
 ) (*rpcpb.TxInDetail, error) {
 
 	detail := new(rpcpb.TxInDetail)
+	detail.ScriptSig = hex.EncodeToString(txIn.ScriptSig)
+	detail.Sequence = txIn.Sequence
+	detail.PrevOutPoint = txlogic.EncodeOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
 	// if tx in is coin base
 	if txIn.PrevOutPoint.Hash == crypto.ZeroHash {
 		return detail, nil
 	}
-	//
-	detail.ScriptSig = hex.EncodeToString(txIn.ScriptSig)
-	detail.Sequence = txIn.Sequence
-	detail.PrevOutPoint = txlogic.EncodeOutPoint(txlogic.ConvOutPoint(&txIn.PrevOutPoint))
 
 	if detailVin {
 		hash := &txIn.PrevOutPoint.Hash
@@ -970,7 +969,7 @@ func detailTxOut(
 		if content != nil { // not an internal contract tx
 			receipt, err := br.GetTxReceipt(txHash)
 			if err != nil {
-				logger.Warn("get receipt for %s error: %s", txHash, err)
+				logger.Warnf("get receipt for %s error: %s", txHash, err)
 				// not to return error to make the status of contract transactions
 				// that is in txpool is pending value
 			}
