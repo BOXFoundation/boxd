@@ -29,19 +29,6 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-func init() {
-	RegisterServiceWithGatewayHandler(
-		"web",
-		registerWebapi,
-		rpcpb.RegisterWebApiHandlerFromEndpoint,
-	)
-}
-
-func registerWebapi(s *Server) {
-	was := newWebAPIServer(s)
-	rpcpb.RegisterWebApiServer(s.server, was)
-}
-
 type webapiServer struct {
 	ChainBlockReader
 	TxPoolReader
@@ -1093,41 +1080,6 @@ func (s *webapiServer) Table(
 		Code:    0,
 		Message: "",
 		Table:   s.TableReader.ConnectingPeers(),
-	}, nil
-}
-
-func (s *webapiServer) PeerID(
-	ctx context.Context, req *rpcpb.PeerIDReq,
-) (*rpcpb.PeerIDResp, error) {
-	if !IsLocalAddr(ctx) {
-		return &rpcpb.PeerIDResp{Code: -1, Message: "Allow only local users!"}, nil
-	}
-	return &rpcpb.PeerIDResp{
-		Code:    0,
-		Message: "",
-		Peerid:  s.TableReader.PeerID(),
-	}, nil
-}
-
-func (s *webapiServer) Miners(
-	ctx context.Context, req *rpcpb.MinersReq,
-) (*rpcpb.MinersResp, error) {
-
-	infos := s.TableReader.Miners()
-	miners := make([]*rpcpb.MinerDetail, len(infos))
-
-	for i, info := range infos {
-		miners[i] = &rpcpb.MinerDetail{
-			Id:      info.ID,
-			Address: info.Addr,
-			Iplist:  info.Iplist,
-		}
-	}
-
-	return &rpcpb.MinersResp{
-		Code:    0,
-		Message: "",
-		Miners:  miners,
 	}, nil
 }
 

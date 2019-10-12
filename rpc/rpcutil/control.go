@@ -16,44 +16,6 @@ import (
 
 var logger = log.NewLogger("rpcclient") // logger for client package
 
-// SetDebugLevel calls the DebugLevel gRPC methods.
-func SetDebugLevel(conn *grpc.ClientConn, level string) error {
-
-	c := pb.NewContorlCommandClient(conn)
-
-	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	logger.Infof("Set debug level %s", level)
-	r, err := c.SetDebugLevel(ctx, &pb.DebugLevelRequest{Level: level})
-	if err != nil {
-		return err
-	}
-	logger.Infof("Result: %d, Message: %s", r.Code, r.Message)
-
-	return nil
-}
-
-// UpdateNetworkID calls the UpdateNetworkID gRPC methods.
-func UpdateNetworkID(conn *grpc.ClientConn, id uint32) error {
-
-	c := pb.NewContorlCommandClient(conn)
-
-	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	logger.Infof("update network id %d", id)
-	r, err := c.UpdateNetworkID(ctx, &pb.UpdateNetworkIDRequest{Id: id})
-	if err != nil {
-		return err
-	}
-	logger.Infof("Result: %d, Message: %s", r.Code, r.Message)
-
-	return nil
-}
-
 // GetBlockHash returns block hash of a height
 func GetBlockHash(conn *grpc.ClientConn, height uint32) (string, error) {
 	c := pb.NewContorlCommandClient(conn)

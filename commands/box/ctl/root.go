@@ -144,14 +144,17 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		level = args[0]
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	resp, err := rpcutil.RPCCall(rpcpb.NewAdminControlClient, "SetDebugLevel",
+		&rpcpb.DebugLevelRequest{Level: level}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("set debug level to %s error: %s\n", level, err)
 		return
 	}
-	defer conn.Close()
-	rpcutil.SetDebugLevel(conn, level)
-	fmt.Println("success")
+	response := resp.(*rpcpb.BaseResponse)
+	if response.Code != 0 {
+		fmt.Printf("set debug level to %s error: %s\n", level, err)
+		return
+	}
 }
 
 // NOTE: should be remove in product env
@@ -165,13 +168,17 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 		}
 		id = uint32(n)
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	resp, err := rpcutil.RPCCall(rpcpb.NewAdminControlClient, "UpdateNetworkID",
+		&rpcpb.UpdateNetworkIDRequest{Id: id}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("update network id %d error: %s\n", id, err)
 		return
 	}
-	defer conn.Close()
-	rpcutil.UpdateNetworkID(conn, id)
+	response := resp.(*rpcpb.BaseResponse)
+	if response.Code != 0 {
+		fmt.Printf("update network id %d error: %s\n", id, err)
+		return
+	}
 }
 
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {

@@ -8,20 +8,8 @@ import (
 	"context"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 )
-
-func registerDatabase(s *Server) {
-	rpcpb.RegisterDatabaseCommandServer(s.server, &dbserver{server: s})
-}
-
-func init() {
-	RegisterServiceWithGatewayHandler(
-		"database",
-		registerDatabase,
-		rpcpb.RegisterDatabaseCommandHandlerFromEndpoint,
-	)
-}
 
 type dbserver struct {
 	server GRPCServer

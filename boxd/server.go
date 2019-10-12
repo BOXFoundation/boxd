@@ -203,7 +203,7 @@ func (server *Server) Run() error {
 		server.syncManager.StartSync()
 	}
 
-	if cfg.RPC.Enabled {
+	if cfg.RPC.Enable || len(cfg.RPC.AdminIPs) > 0 {
 		var walletAgent service.WalletAgent
 		if cfg.Wallet.Enable {
 			walletAgent = wallet.NewWalletAgent(server.blockChain.DB(), cfg.Wallet.UtxoCacheTime)
