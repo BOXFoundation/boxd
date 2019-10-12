@@ -388,7 +388,7 @@ contract Bonus is Permission{
     }
 
     function vote(address delegateAddr) public payable {
-        require(msg.value > netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "vote amount is not correct.");
+        require(msg.value >= netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "vote amount is not correct.");
         require(addrToDelegates[delegateAddr].pledgeAmount >= netParams[PLEDGE_THRESHOLD], "delegate is not exist.");
         require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] > netParams[PLEDGE_OPEN_LIMIT] &&
          block.number % netParams[DYNASTY_CHANGE_THRESHOLD] < netParams[CALC_SCORE_THRESHOLD], "Out of voting hours");

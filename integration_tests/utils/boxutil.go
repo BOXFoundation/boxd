@@ -293,7 +293,7 @@ func Table(conn *grpc.ClientConn) []string {
 
 // PeerID get peer's id
 func PeerID(conn *grpc.ClientConn) string {
-	client := rpcpb.NewWebApiClient(conn)
+	client := rpcpb.NewAdminControlClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	req := &rpcpb.PeerIDReq{}

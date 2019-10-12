@@ -139,19 +139,15 @@ func debugLevelCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		level = args[0]
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "SetDebugLevel",
+	resp, err := rpcutil.RPCCall(rpcpb.NewAdminControlClient, "SetDebugLevel",
 		&rpcpb.DebugLevelRequest{Level: level}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println("RPC called failed:", err)
+		fmt.Printf("set debug level to %s error: %s\n", level, err)
 		return
 	}
-	resp, ok := respRPC.(*rpcpb.BaseResponse)
-	if !ok {
-		fmt.Println("Conversion rpcpb.BaseResponse failed")
-		return
-	}
-	if resp.Code != 0 {
-		fmt.Println(resp.Message)
+	response := resp.(*rpcpb.BaseResponse)
+	if response.Code != 0 {
+		fmt.Printf("set debug level to %s error: %s\n", level, err)
 		return
 	}
 }
@@ -167,19 +163,15 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 		}
 		id = uint32(n)
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "UpdateNetworkID",
+	resp, err := rpcutil.RPCCall(rpcpb.NewAdminControlClient, "UpdateNetworkID",
 		&rpcpb.UpdateNetworkIDRequest{Id: id}, common.GetRPCAddr())
 	if err != nil {
-		fmt.Println("RPC called failed:", err)
+		fmt.Printf("update network id %d error: %s\n", id, err)
 		return
 	}
-	resp, ok := respRPC.(*rpcpb.BaseResponse)
-	if !ok {
-		fmt.Println("Conversion rpcpb.BaseResponse failed")
-		return
-	}
-	if resp.Code != 0 {
-		fmt.Println(resp.Message)
+	response := resp.(*rpcpb.BaseResponse)
+	if response.Code != 0 {
+		fmt.Printf("update network id %d error: %s\n", id, err)
 		return
 	}
 }

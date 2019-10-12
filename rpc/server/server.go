@@ -17,6 +17,8 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -37,11 +39,12 @@ const (
 //
 var (
 	ErrAPINotSupported = errors.New("api not supported")
+	ErrIPNotAllowed    = errors.New("allowed only users in white list")
 )
 
 // Config defines the configurations of rpc server
 type Config struct {
-	Enabled         bool         `mapstructure:"enabled"`
+	Enable          bool         `mapstructure:"enable"`
 	Address         string       `mapstructure:"address"`
 	Port            int          `mapstructure:"port"`
 	HTTP            HTTPConfig   `mapstructure:"http"`
@@ -51,6 +54,7 @@ type Config struct {
 	Faucet          FaucetConfig `mapstructure:"faucet"`
 	SubScribeBlocks bool         `mapstructure:"subscribe_blocks"`
 	SubScribeLogs   bool         `mapstructure:"subscribe_logs"`
+	AdminIPs        []string     `mapstructure:"admin_ips"`
 }
 
 //FaucetConfig  defines the faucet config
@@ -121,9 +125,11 @@ type GRPCServer interface {
 }
 
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config,
-	cr service.ChainReader, txh service.TxHandler,
-	wa service.WalletAgent, peer *p2p.BoxPeer, bus eventbus.Bus) *Server {
+func NewServer(
+	parent goprocess.Process, cfg *Config, cr service.ChainReader,
+	txh service.TxHandler, wa service.WalletAgent, peer *p2p.BoxPeer,
+	bus eventbus.Bus,
+) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
@@ -143,7 +149,6 @@ var _ service.Server = (*Server)(nil)
 // Run gRPC service
 func (s *Server) Run() error {
 	s.gRPCProc.Go(s.servegRPC)
-
 	return nil
 }
 
@@ -192,7 +197,10 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 
 	var opts []grpc.ServerOption
 	var interceptor grpc.UnaryServerInterceptor
-	interceptor = func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	interceptor = func(
+		ctx context.Context, req interface{}, info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
 		//start := time.Now()
 		//uid := uuid.NewV4()
 		resp, err := handler(ctx, req)
@@ -204,6 +212,7 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 	s.server = grpc.NewServer(opts...)
 
 	// regist all gRPC services for the server
+	s.registerSerivices()
 	for name, service := range services {
 		logger.Debugf("register gRPC service: %s", name)
 		service(s)
@@ -321,17 +330,70 @@ func serviceUnavailableHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("{\"Err:\",\"Sorry, the server is busy due to too many requests.\nPlease try again later.\"}"))
 }
 
-//IsLocalAddr verify that the address is a local address
-func IsLocalAddr(ctx context.Context) bool {
+func (s *Server) registerSerivices() {
+	if len(s.cfg.AdminIPs) > 0 {
+		RegisterServiceWithGatewayHandler(
+			"admincontrol",
+			func(s *Server) {
+				rpcpb.RegisterAdminControlServer(
+					s.server,
+					&adminControl{
+						server:      s,
+						whiteList:   s.cfg.AdminIPs,
+						TableReader: s.GetTableReader(),
+					},
+				)
+			},
+			rpcpb.RegisterAdminControlHandlerFromEndpoint,
+		)
+	}
+	if !s.cfg.Enable {
+		return
+	}
+	RegisterServiceWithGatewayHandler(
+		"control",
+		func(s *Server) {
+			rpcpb.RegisterContorlCommandServer(s.server, &ctlserver{server: s})
+		},
+		rpcpb.RegisterContorlCommandHandlerFromEndpoint,
+	)
+	RegisterServiceWithGatewayHandler(
+		"database",
+		func(s *Server) {
+			rpcpb.RegisterDatabaseCommandServer(s.server, &dbserver{server: s})
+		},
+		rpcpb.RegisterDatabaseCommandHandlerFromEndpoint,
+	)
+	RegisterServiceWithGatewayHandler(
+		"tx",
+		func(s *Server) {
+			rpcpb.RegisterTransactionCommandServer(s.server, &txServer{server: s})
+		},
+		rpcpb.RegisterTransactionCommandHandlerFromEndpoint,
+	)
+	RegisterServiceWithGatewayHandler(
+		"webapi",
+		func(s *Server) {
+			was := newWebAPIServer(s)
+			rpcpb.RegisterWebApiServer(s.server, was)
+		},
+		rpcpb.RegisterWebApiHandlerFromEndpoint,
+	)
+}
+
+func isInIPs(ctx context.Context, ips []string) bool {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return false
 	}
-	clienIPs := md["x-forwarded-for"]
-	for _, v := range clienIPs {
-		if v != "127.0.0.1" {
-			return false
+	cliIPs := md["x-forwarded-for"]
+	if util.InStrings("*", ips) {
+		return true
+	}
+	for _, ip := range cliIPs {
+		if util.InStrings(ip, ips) {
+			return true
 		}
 	}
-	return true
+	return false
 }

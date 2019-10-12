@@ -24,18 +24,6 @@ import (
 
 const maxDecimal = 8
 
-func registerTransaction(s *Server) {
-	rpcpb.RegisterTransactionCommandServer(s.server, &txServer{server: s})
-}
-
-func init() {
-	RegisterServiceWithGatewayHandler(
-		"tx",
-		registerTransaction,
-		rpcpb.RegisterTransactionCommandHandlerFromEndpoint,
-	)
-}
-
 type txServer struct {
 	server GRPCServer
 }
