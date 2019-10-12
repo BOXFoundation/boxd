@@ -412,44 +412,34 @@ func (s *ctlserver) getDelegates(methodName string) ([]*rpcpb.Delegate, error) {
 	return delegatesR, nil
 }
 
-func newBookkeepersResp(
-	code int32, msg string, keepers []*rpcpb.Delegate,
-) *rpcpb.BookkeepersResp {
-	return &rpcpb.BookkeepersResp{
-		Code:        code,
-		Message:     msg,
-		Bookkeepers: keepers,
+func newDelegateResp(
+	code int32, msg string, delegates []*rpcpb.Delegate,
+) *rpcpb.DelegatesResp {
+	return &rpcpb.DelegatesResp{
+		Code:      code,
+		Message:   msg,
+		Delegates: delegates,
 	}
 }
 
-func (s *ctlserver) Bookkeepers(
-	ctx context.Context, req *rpcpb.BookkeepersReq,
-) (*rpcpb.BookkeepersResp, error) {
+func (s *ctlserver) Delegates(
+	ctx context.Context, req *rpcpb.DelegatesReq,
+) (*rpcpb.DelegatesResp, error) {
 
-	delegates, err := s.getDelegates("getDynasty")
+	method := "getDynasty"
+	switch req.Type {
+	case rpcpb.DelegatesReq_BOOKKEEPERS:
+		method = "getDynasty"
+	case rpcpb.DelegatesReq_DELEGATES:
+		method = "getCurrentDelegates"
+	case rpcpb.DelegatesReq_CANDIDATES:
+		method = "getNextDelegates"
+	default:
+		return newDelegateResp(-1, "invalid type", nil), nil
+	}
+	delegates, err := s.getDelegates(method)
 	if err != nil {
-		return newBookkeepersResp(-1, err.Error(), nil), nil
+		return newDelegateResp(-1, err.Error(), nil), nil
 	}
-	return newBookkeepersResp(0, "ok", delegates), nil
-}
-
-func newCandidatesResp(
-	code int32, msg string, candidates []*rpcpb.Delegate,
-) *rpcpb.CandidatesResp {
-	return &rpcpb.CandidatesResp{
-		Code:       code,
-		Message:    msg,
-		Candidates: candidates,
-	}
-}
-
-func (s *ctlserver) Candidates(
-	ctx context.Context, req *rpcpb.CandidatesReq,
-) (*rpcpb.CandidatesResp, error) {
-
-	delegates, err := s.getDelegates("getNextDelegates")
-	if err != nil {
-		return newCandidatesResp(-1, err.Error(), nil), nil
-	}
-	return newCandidatesResp(0, "ok", delegates), nil
+	return newDelegateResp(0, "ok", delegates), nil
 }

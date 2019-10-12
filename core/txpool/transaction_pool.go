@@ -386,10 +386,12 @@ func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
 }
 
 func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
+	txHash, _ := tx.TxHash()
 	if dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx); len(dsTxs) > 0 {
 		for i := 0; i < len(dsTxs); i++ {
-			txHash, _ := dsTxs[i].TxHash()
-			logger.Debugf("Double spend prev hash: %v, first tx hash: %v", dsOps[i].Hash, txHash)
+			dsTxHash, _ := dsTxs[i].TxHash()
+			logger.Errorf("tx %s has a double spend outpoint: %s, revelant tx hash: %v",
+				txHash, dsOps[i], dsTxHash)
 		}
 		return core.ErrOutPutAlreadySpent
 	}
