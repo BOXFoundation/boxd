@@ -420,59 +420,13 @@ func deploy(cmd *cobra.Command, args []string) {
 	}
 	var bytecode string
 	data := args[0]
-	//get data
-	if _, err := os.Stat(data); err == nil {
-		bytes, err := ioutil.ReadFile(data)
-		if err != nil {
-			fmt.Println("read contract file error:", err)
-			return
-		}
-		bytecode = strings.TrimSpace(string(bytes))
-		if !isHexData(bytecode) {
-			cmd := exec.Command("solc", args[0], "--bin")
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			defer stdout.Close()
-			if err := cmd.Start(); err != nil {
-				fmt.Println(err)
-				return
-			}
-			opBytes, err := ioutil.ReadAll(stdout)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			if string(opBytes) != "" {
-				reg := regexp.MustCompile(`(\n)(.*\n){2}(.*)(\n)`)
-				regCode := reg.ReplaceAllString(string(opBytes), "$3")
-				bytecode = regCode
-			} else {
-				cmd := exec.Command("solc", "--version")
-				output, err := cmd.Output()
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-				fmt.Println(strings.TrimSpace(string(output)))
-				reg := regexp.MustCompile(`(\w+\.){2}\w+`)
-				regCode := reg.FindAllString(bytecode, -1)
-				fmt.Println("Your solidity file version :", regCode)
-				fmt.Println("solidity version incompatibility")
-				fmt.Println("If you want to compile solidity file to bin, you should install solidity version:",
-					strings.TrimSpace(string(output)))
-				fmt.Println("Official installation tutorial: https://goethereumbook.org/en/smart-contract-compile/")
-				return
-			}
-		}
-	} else {
-		if !isHexData(data) {
-			fmt.Println("the type of data mistake")
-			return
-		}
-		bytecode = data
+	//parase contract data
+	bytecode, err = parseContractData(bytecode, data)
+	if err != nil {
+		fmt.Println("parase contract faile:", err)
+		return
+	} else if bytecode == "" {
+		return
 	}
 	// params
 	var indexArg string
@@ -790,8 +744,8 @@ func getNonce(cmd *cobra.Command, args []string) {
 	}
 	addr := args[0]
 	//validate address
-	if err := types.ValidateAddr(addr); err != nil {
-		fmt.Println("address is Invalid:", err)
+	if _, err := types.NewAddress(addr); err != nil {
+		fmt.Println("address is Invalid:")
 		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "Nonce",
@@ -814,8 +768,7 @@ func getCode(cmd *cobra.Command, args []string) {
 		return
 	}
 	//validate address
-	_, err := types.NewContractAddress(args[0])
-	if err != nil {
+	if _, err := types.NewContractAddress(args[0]); err != nil {
 		fmt.Println("invalid contract address")
 		return
 	}
@@ -841,12 +794,11 @@ func estimateGas(cmd *cobra.Command, args []string) {
 	from := args[0]
 	toAddr := args[1]
 	//check address
-	if err := types.ValidateAddr(from); err != nil {
-		fmt.Println("invalid address:")
+	if _, err := types.NewAddress(args[0]); err != nil {
+		fmt.Println("invalid address")
 		return
 	}
-	_, err := types.NewContractAddress(args[0])
-	if err != nil {
+	if _, err := types.NewContractAddress(args[1]); err != nil {
 		fmt.Println("invalid contract address")
 		return
 	}
@@ -1240,10 +1192,77 @@ func calcGasLimit(bal, amount uint64) uint64 {
 	return limit
 }
 
-func isHexData(str string) bool {
-	_, err := hex.DecodeString(str)
-	if err != nil {
+func isHexFormat(str string) bool {
+	if len(str) == 0 {
+		return false
+	}
+	if _, err := hex.DecodeString(str); err != nil {
 		return false
 	}
 	return true
 }
+
+func parseContractData(bytecode string, data string) (string, error) {
+	//parase data
+	if _, err := os.Stat(data); err == nil {
+		bytes, err := ioutil.ReadFile(data)
+		if err != nil {
+			fmt.Println("read contract file error:")
+			return "read contract file error", err
+		}
+		bytecode = strings.TrimSpace(string(bytes))
+		if !isHexFormat(bytecode) {
+			cmd := exec.Command("solc", data, "--bin")
+			//a pipe that will be connected to the command's standard output when the command starts.
+			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				return "", err
+			}
+			defer stdout.Close()
+			//Start starts the specified command but does not wait for it to complete.
+			if err := cmd.Start(); err != nil {
+				return "", err
+			}
+			opBytes, err := ioutil.ReadAll(stdout)
+			if err != nil {
+				return "", err
+			}
+			//If the command failed to run, the variable of opBytes is ""
+			if string(opBytes) != "" {
+				reg := regexp.MustCompile(`(\n)(.*\n){2}(.*)(\n)`)
+				regCode := reg.ReplaceAllString(string(opBytes), "$3")
+				bytecode = regCode
+			} else {
+				tips(bytecode)
+				return "", err
+			}
+		}
+	} else {
+		if !isHexFormat(data) {
+			return "invalid data", err
+		}
+		bytecode = data
+	}
+	return bytecode, nil
+}
+
+func tips(bytecode string) {
+	cmd := exec.Command("solc", "--version")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	fmt.Println(strings.TrimSpace(string(output)))
+	reg := regexp.MustCompile(`(\w+\.){2}\w+`)
+	regCode := reg.FindAllString(bytecode, -1)
+	fmt.Println("Your solidity file version :", regCode)
+	fmt.Println("solidity version incompatibility")
+	fmt.Println("If you want to compile solidity file to bin, you should install solidity version:",
+		strings.TrimSpace(string(output)))
+	fmt.Println("Official installation tutorial: https://goethereumbook.org/en/smart-contract-compile/")
+}
+
+// func (parasmeter string, ) (data string, ) {
+
+// }

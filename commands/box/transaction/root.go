@@ -421,8 +421,8 @@ func signrawtx(cmd *cobra.Command, args []string) {
 		return
 	}
 	// get wallet manager
-	if err := types.ValidateAddr(args[0]); err != nil {
-		fmt.Println("Verification address failed", err)
+	if _, err := types.NewAddress(args[0]); err != nil {
+		fmt.Println("invalid address")
 		return
 	}
 	wltMgr, err := wallet.NewWalletManager(walletDir)
