@@ -202,7 +202,7 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 	// when we're in homestead this also counts for code storage gas errors.
 	if err != nil {
 		data, _ := json.Marshal(evm.StateDB.GetLogs(evm.StateDB.THash()))
-		logger.Debugf("Reverted logs: %s", string(data))
+		logger.Warnf("Reverted logs: %s", string(data))
 		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)

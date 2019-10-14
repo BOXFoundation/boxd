@@ -151,16 +151,16 @@ contract Bonus is Permission{
 
     function initNetParams() internal {
         netParams[PLEDGE_THRESHOLD] = 1800000 * 10**8;
-        netParams[DYNASTY_CHANGE_THRESHOLD] = 600;
+        netParams[DYNASTY_CHANGE_THRESHOLD] = 250;
         netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK] = 1 * 10**8;
         netParams[VOTE_FROZEN_BLOCK_NUMBER] = 50;
         netParams[VOTE_THRESHOLD] = 1 * 10**8;
         netParams[MIN_PROPOSAL_THRESHOLD] = 100 * 10**8;
-        netParams[PLEDGE_OPEN_LIMIT] = 250;
+        netParams[PLEDGE_OPEN_LIMIT] = 100;
         netParams[PROPOSAL_EXPIRATION_TIME] = 3 * 24 * 3600;
         netParams[BOOK_KEEPER_REWARD] = 50 * 10**8;
         netParams[BONUS_TO_VOTERS] = 50;
-        netParams[CALC_SCORE_THRESHOLD] = 500;
+        netParams[CALC_SCORE_THRESHOLD] = 200;
     }
 
     function initDynasty() internal {
