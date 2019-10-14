@@ -133,10 +133,9 @@ message ContractInfo {
     bool failed = 2;
     uint64 gas_limit = 3;
     uint64 gas_used = 4;
-    uint64 gas_price = 5;
-    uint64 nonce = 6;
-    string data = 7;
-    repeated LogDetail logs = 8;
+    uint64 nonce = 5;
+    string data = 6;
+    repeated LogDetail logs = 7;
 }
 
 message ListenBlocksReq {

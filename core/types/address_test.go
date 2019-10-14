@@ -18,6 +18,13 @@ import (
 
 func TestNewAddressPubKeyHash(t *testing.T) {
 
+	bytes, _ := hex.DecodeString("67384ad1ca69f03f290a91f95e468e228fd0f82b")
+	addr, err := NewAddressPubKeyHash(bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("addr: %s", addr)
+
 	tests := []struct {
 		name   string
 		pkHash []byte
