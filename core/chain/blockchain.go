@@ -1431,6 +1431,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 		}
 
 		ContractAddr = *types.CreateAddress(*adminAddr.Hash160(), 1)
+		logger.Errorf("contract addr::::: %v", hex.EncodeToString(ContractAddr.Bytes()))
 
 		return genesis, nil
 	}

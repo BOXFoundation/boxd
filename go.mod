@@ -37,6 +37,7 @@ require (
 	github.com/libp2p/go-libp2p-net v0.0.1
 	github.com/libp2p/go-libp2p-peer v0.0.1
 	github.com/libp2p/go-libp2p-peerstore v0.0.1
+	github.com/libp2p/go-libp2p-swarm v0.0.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mr-tron/base58 v1.1.1
 	github.com/multiformats/go-multiaddr v0.0.2

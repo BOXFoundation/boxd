@@ -1,5 +1,5 @@
-network: mainnet
-workspace: .devconfig/ws1
+network: testnet
+workspace: ./
 database:
     name: rocksdb
 log:
@@ -20,8 +20,9 @@ log:
 p2p:
     key_path: peer.key
     port: 19199
-    agents:
-        - "/ip4/127.0.0.1/tcp/19189/p2p/12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA"
+    seeds:
+        - "/ip4/39.97.168.26/tcp/19179/p2p/12D3KooWLqU1eDZZUKjpFD9gEsVg28bhphFRgmccD8VSk5H5krbk"
+        - "/ip4/39.97.168.26/tcp/19119/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
@@ -40,12 +41,12 @@ rpc:
     subscribe_blocks: true
     subscribe_logs: true
 bpos:
-    keypath: key.keystore
+    keypath: keyfile/b1dcS3wYLNfx4Szn2t6nJYf28FYQfgWg1GM.keystore
     enable_mint: true
     passphrase: 1
 pprof: "0.0.0.0:8888"
 metrics:
-    enable: false
+    enable: true
     host: http://localhost:8086
     db: box
     user: 
