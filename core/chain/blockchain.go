@@ -522,6 +522,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	}
 
 	chain.BroadcastOrRelayBlock(block, transferMode)
+	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
 	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Header.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
@@ -1350,7 +1351,6 @@ func (chain *BlockChain) SetEternal(block *types.Block) error {
 			if err := chain.sectionMgr.AddBloom(eternal.Header.Height, eternal.Header.Bloom); err != nil {
 				logger.Error(err)
 			}
-			chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, eternal)
 		}()
 		return nil
 	}
