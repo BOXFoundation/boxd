@@ -96,10 +96,14 @@ contract Bonus is Permission{
     // Delegate[] delegates;
     address[] pledgeAddrList;
     mapping(address => Delegate) addrToDelegates;
+    mapping(address => Delegate) addrToDynasty;
 
     mapping(address => mapping(address => uint)) votes;
     mapping(address => mapping(address => uint)) delegateVotesDetail;
     mapping(address => address[]) delegateToVoters;
+
+    mapping(address => mapping(address => uint)) currentDelegateVotesDetail;
+    mapping(address => address[]) currentDelegateToVoters;
 
     mapping(address => mapping(address => FrozenVote)) frozenVotes;
 
@@ -192,6 +196,7 @@ contract Bonus is Permission{
         for(uint i = 0; i < current.length; i++) {
             pledgeAddrList.push(current[i].addr);
             addrToDelegates[current[i].addr] = current[i];
+            addrToDynasty[dynasty[i].addr] = dynasty[i];
         }
     }
 
@@ -245,10 +250,10 @@ contract Bonus is Permission{
         // voteBonusPool = voteBonusPool.add(msg.value/2);
         dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(msg.value * (100 - netParams[BONUS_TO_VOTERS])/100);
 
-        for (uint i = 0; i < delegateToVoters[msg.sender].length; i++) {
-            uint vote = delegateVotesDetail[msg.sender][delegateToVoters[msg.sender][i]];
-            voteBonus[delegateToVoters[msg.sender][i]] = voteBonus[delegateToVoters[msg.sender][i]].
-            add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * vote/addrToDelegates[msg.sender].votes);
+        for (uint i = 0; i < currentDelegateToVoters[msg.sender].length; i++) {
+            uint vote = currentDelegateVotesDetail[msg.sender][currentDelegateToVoters[msg.sender][i]];
+            voteBonus[currentDelegateToVoters[msg.sender][i]] = voteBonus[currentDelegateToVoters[msg.sender][i]].
+            add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * vote/addrToDynasty[msg.sender].votes);
         }
         emit CalcBonus(msg.sender, msg.value);
     }
@@ -263,6 +268,17 @@ contract Bonus is Permission{
             delete dynastyToBonus[dynasty[i].addr];
         }
         current = next;
+
+        for(i = 0; i < pledgeAddrList.length; i++) {
+            address pledgeAddr = pledgeAddrList[i];
+            address[] memory voters = delegateToVoters[pledgeAddr];
+            if(voters.length > 0) {
+                currentDelegateToVoters[pledgeAddr] = voters;
+                for(uint j = 0; j < voters.length; j++) {
+                    currentDelegateVotesDetail[pledgeAddr][voters[j]] = delegateVotesDetail[pledgeAddr][voters[j]];
+                }
+            }
+        }
         if (pledgeAddrList.length >= DYNASTY_SIZE) {
             updateDynasty();
             updateNetParams();
@@ -309,6 +325,7 @@ contract Bonus is Permission{
     function updateDynasty() internal {
         for (uint j = 0; j < dynasty.length; j++) {
             dynasty[j] = next[j];
+            addrToDynasty[next[j].addr] = next[j];
         }
     }
 
