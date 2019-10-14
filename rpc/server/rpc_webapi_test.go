@@ -22,7 +22,6 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
-	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/jbenet/goprocess"
 	"google.golang.org/grpc"
@@ -57,10 +56,10 @@ func setupWebAPIMockSvr() {
 	was := &webapiServer{
 		ChainBlockReader: br,
 		proc:             goprocess.WithSignals(os.Interrupt),
-		endpoints:        make(map[uint32]rpcutil.Endpoint),
+		endpoints:        make(map[uint32]Endpoint),
 	}
-	was.endpoints[rpcutil.BlockEp] = rpcutil.NewBlockEndpoint(testWebAPIBus)
-	was.endpoints[rpcutil.LogEp] = rpcutil.NewLogEndpoint(testWebAPIBus)
+	was.endpoints[BlockEp] = NewBlockEndpoint(testWebAPIBus, br, nil)
+	was.endpoints[LogEp] = NewLogEndpoint(testWebAPIBus)
 
 	grpcSvr := grpc.NewServer()
 	rpcpb.RegisterWebApiServer(grpcSvr, was)
