@@ -496,7 +496,7 @@ func (p *BoxPeer) Miners() []*types.PeerInfo {
 // ReorgConns reorg conns by pids.
 func (p *BoxPeer) ReorgConns() uint8 {
 	peertype, nodoubt := p.Type(p.id)
-	if !nodoubt || util.InArray(peertype, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer}) {
+	if !nodoubt || !util.InArray(peertype, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer}) {
 		return 0
 	}
 	close := uint8(0)
