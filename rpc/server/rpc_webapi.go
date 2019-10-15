@@ -502,8 +502,7 @@ func detailBlock(
 		return nil, err
 	}
 	detail.CoinBase = coinBase.String()
-	detail.ConfirmedHeight = r.EternalBlock().Header.Height
-	detail.Confirmed = detail.ConfirmedHeight >= block.Header.Height
+	detail.Confirmed = r.EternalBlock().Header.Height >= block.Header.Height
 	detail.Signature = hex.EncodeToString(block.Signature)
 	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r, tr, false, detailVin)
