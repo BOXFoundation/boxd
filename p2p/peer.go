@@ -496,13 +496,14 @@ func (p *BoxPeer) Miners() []*types.PeerInfo {
 // ReorgConns reorg conns by pids.
 func (p *BoxPeer) ReorgConns() uint8 {
 	peertype, nodoubt := p.Type(p.id)
-	if !nodoubt || !util.InArray(peertype, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer}) {
+	if !nodoubt || (peertype != pstore.MinerPeer && peertype != pstore.CandidatePeer) {
 		return 0
 	}
 	close := uint8(0)
 	p.conns.Range(func(k, v interface{}) bool {
 		conn := v.(*Conn)
-		if !util.InArray(peertype, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer, pstore.ServerPeer}) {
+		remotetype, _ := p.Type(conn.remotePeer)
+		if !util.InArray(remotetype, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer, pstore.ServerPeer}) {
 			if err := conn.Close(); err != nil {
 				logger.Errorf("Conn close failed. Err: %v", err)
 			} else {
