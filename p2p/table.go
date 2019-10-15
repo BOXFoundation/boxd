@@ -156,8 +156,9 @@ func (t *Table) peerDiscover() {
 		peerIDs = t.candidateDiscover(all)
 	case pstore.ServerPeer:
 		peerIDs = t.serverDiscover(all)
-	case pstore.UnknownPeer:
-		peerIDs = t.unknownDiscover(all)
+	// Even miners that are accidentally connected to normal nodes are immediately disconnected when sync is complete.
+	// case pstore.UnknownPeer:
+	// 	peerIDs = t.unknownDiscover(all)
 	default:
 		peerIDs = t.defaultDiscover(all)
 	}
