@@ -482,18 +482,18 @@ func checkLockTime(lockTime, txLockTime int64) bool {
 func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *types.Transaction, txInIdx int) bool {
 	sig, err := crypto.SigFromBytes(sigStr)
 	if err != nil {
-		logger.Debugf("Deserialize signature failed")
+		logger.Errorf("Deserialize signature failed. Err: %v", err)
 		return false
 	}
 	publicKey, err := crypto.PublicKeyFromBytes(publicKeyStr)
 	if err != nil {
-		logger.Debugf("Deserialize public key failed")
+		logger.Errorf("Deserialize public key failed. Err: %v", err)
 		return false
 	}
 
 	sigHash, err := CalcTxHashForSig(scriptPubKey, tx, txInIdx)
 	if err != nil {
-		logger.Debugf("Calculate signature hash failed")
+		logger.Errorf("Calculate signature hash failed. Err: %v", err)
 		return false
 	}
 

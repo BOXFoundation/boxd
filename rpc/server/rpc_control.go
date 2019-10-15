@@ -165,9 +165,18 @@ func (ac *adminControl) Miners(
 	}, nil
 }
 
-func (s *ctlserver) GetCurrentBlockHeight(ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest) (*rpcpb.GetCurrentBlockHeightResponse, error) {
+func (s *ctlserver) GetCurrentBlockHeight(
+	ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest,
+) (*rpcpb.GetCurrentBlockHeightResponse, error) {
 	height := s.server.GetChainReader().TailBlock().Header.Height
 	return &rpcpb.GetCurrentBlockHeightResponse{Code: 0, Message: "ok", Height: height}, nil
+}
+
+func (s *ctlserver) LatestConfirmedHeight(
+	ctx context.Context, req *rpcpb.LatestConfirmedHeightReq,
+) (*rpcpb.LatestConfirmedHeightResp, error) {
+	height := s.server.GetChainReader().EternalBlock().Header.Height
+	return &rpcpb.LatestConfirmedHeightResp{Code: 0, Message: "ok", Height: height}, nil
 }
 
 func (s *ctlserver) GetCurrentBlockHash(ctx context.Context, req *rpcpb.GetCurrentBlockHashRequest) (*rpcpb.GetCurrentBlockHashResponse, error) {

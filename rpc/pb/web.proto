@@ -223,7 +223,6 @@ message BlockDetail {
     string prev_block_hash = 6;
     string coin_base = 7;
     bool confirmed = 8;
-    uint32 confirmed_height = 9;
     string signature = 10;
     repeated TxDetail txs = 11;
     repeated TxDetail internal_txs = 12;

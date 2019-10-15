@@ -135,17 +135,14 @@ func init() {
 			Use:   "decode [index] [topic/method] [optional|data]",
 			Short: "decode",
 			Run:   decode,
-			Example: `
-			1 ./box contract decode index Method
-			./box contract decode 7 6dd7d8ea000000000000000000000000ce86056786e3415530f8cc739fb414a87435b4b6(data from method and args encode)
-			2 ./box contract decode index topic
-			./box contract decode 7 2207c1818549bfd6420c96be05b47e8fbdd336a22cd20f069ecba206e474aa7a
-			3 ./box contract decode index method return_value
-			./box contract decode 6 allowance 0000000000000000000000000000000000000000000000000000000000004e20
-			4 ./box contract decode index topics data
-			currently only support topics of event name, not to support args indexed topic.
-			./box contract decode 2207c1818549bfd6420c96be05b47e8fbdd336a22cd20f069ecba206e474aa7a 000000000000000000000000ae3e96d008658db64dd4f8df2d736edbc6be1c31000000000000000000000000000000000000000000000000000000012a15f790
-			`,
+			Example: `  1 ./box contract decode index Method
+    ./box contract decode 7 6dd7d8ea000000000000000000000000ce86056786e3415530f8cc739fb414a87435b4b6(data from method and args encode)
+  2 ./box contract decode index topic
+    ./box contract decode 7 2207c1818549bfd6420c96be05b47e8fbdd336a22cd20f069ecba206e474aa7a
+  3 ./box contract decode index method return_value
+    ./box contract decode 6 allowance 0000000000000000000000000000000000000000000000000000000000004e20
+  4 ./box contract decode index topics data (currently only support topics of event name, not to support args indexed topic.)
+    ./box contract decode 2207c1818549bfd6420c96be05b47e8fbdd336a22cd20f069ecba206e474aa7a 000000000000000000000000ae3e96d008658db64dd4f8df2d736edbc6be1c31000000000000000000000000000000000000000000000000000000012a15f790`,
 		},
 		&cobra.Command{
 			Use:   "getlogs [hash] [from] [to] [address] [topics]",

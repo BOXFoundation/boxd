@@ -235,12 +235,11 @@ contract Bonus is Permission{
 
     function pickRedeemPledge() public {
         require(frozenDelegate[msg.sender].blockNumber > 0, "not frozen delegate node.");
-        if (block.number > ((frozenDelegate[msg.sender].blockNumber / netParams
-        [DYNASTY_CHANGE_THRESHOLD]) + 1) * netParams[DYNASTY_CHANGE_THRESHOLD]) {
-            FrozenDelegate memory fd = frozenDelegate[msg.sender];
-            delete frozenDelegate[msg.sender];
-            msg.sender.transfer(fd.pledgeAmount);
-        }
+        require(block.number > ((frozenDelegate[msg.sender].blockNumber / netParams
+        [DYNASTY_CHANGE_THRESHOLD]) + 1) * netParams[DYNASTY_CHANGE_THRESHOLD], "no time to pick redeem pledge.");
+        FrozenDelegate memory fd = frozenDelegate[msg.sender];
+        delete frozenDelegate[msg.sender];
+        msg.sender.transfer(fd.pledgeAmount);
     }
 
     function calcBonus() public payable {
@@ -433,6 +432,7 @@ contract Bonus is Permission{
 
         require(count <= delegateVotesDetail[delegateAddr][msg.sender], "the vote count is not enough.");
         require(count <= votes[msg.sender][delegateAddr], "the vote count is not enough.");
+        require(count >= netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "the redeem vote is too small.");
         frozenVotes[delegateAddr][msg.sender].votes = frozenVotes[delegateAddr][msg.sender].votes.add(count);
         frozenVotes[delegateAddr][msg.sender].timestamp = block.number;
 
@@ -453,12 +453,11 @@ contract Bonus is Permission{
     }
 
     function pickRedeemVote(address delegateAddr) public {
-        if (frozenVotes[delegateAddr][msg.sender].votes > 0 &&
-            block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
-            uint voteNumber = frozenVotes[delegateAddr][msg.sender].votes;
-            delete frozenVotes[delegateAddr][msg.sender];
-            msg.sender.transfer(voteNumber);
-        }
+        require(frozenVotes[delegateAddr][msg.sender].votes > netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK] &&
+            block.number > (frozenVotes[delegateAddr][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER]), "");
+        uint voteNumber = frozenVotes[delegateAddr][msg.sender].votes;
+        delete frozenVotes[delegateAddr][msg.sender];
+        msg.sender.transfer(voteNumber);
     }
 
     function myVoteBonus() public view returns (uint) {

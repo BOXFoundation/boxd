@@ -28,7 +28,7 @@ p2p:
     conn_load_factor: 0.8
     relay_size: 32
 rpc:
-    enabled: false
+    enable: true
     address: 0.0.0.0
     port: 19111
     http:
@@ -53,7 +53,7 @@ bpos:
 pprof: "0.0.0.0:8888"
 
 metrics:
-    enable: true
+    enable: false
     host: http://localhost:8086
     db: box
     user: 
