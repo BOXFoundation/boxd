@@ -27,4 +27,5 @@ type Net interface {
 	PickOnePeer(peersExclusive ...peer.ID) peer.ID
 	BroadcastToBookkeepers(uint32, conv.Convertible, []string) error
 	PeerSynced(peers peer.ID) (bool, bool)
+	ReorgConns(pids []string, defaultStrategy bool) uint8
 }

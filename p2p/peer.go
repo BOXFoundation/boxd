@@ -493,6 +493,26 @@ func (p *BoxPeer) Miners() []*types.PeerInfo {
 	return infos
 }
 
+// ReorgConns reorg conns by pids.
+func (p *BoxPeer) ReorgConns(pids []string, defaultStrategy bool) uint8 {
+	if defaultStrategy && !util.InStrings(p.PeerID(), pids) {
+		return 0
+	}
+	close := uint8(0)
+	p.conns.Range(func(k, v interface{}) bool {
+		conn := v.(*Conn)
+		if !util.InStrings(conn.remotePeer.Pretty(), pids) {
+			if err := conn.Close(); err != nil {
+				logger.Errorf("Conn close failed. Err: %v", err)
+			} else {
+				close++
+			}
+		}
+		return true
+	})
+	return close
+}
+
 // UpdateSynced update peers' isSynced
 func UpdateSynced(synced bool) {
 	isSynced = synced

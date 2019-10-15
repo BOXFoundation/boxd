@@ -201,6 +201,17 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 	}
 }
 
+func (bpos *Bpos) reorgConns(current, next []Delegate) {
+	pids := []string{}
+	for _, del := range current {
+		pids = append(pids, del.PeerID)
+	}
+	for _, del := range next {
+		pids = append(pids, del.PeerID)
+	}
+	bpos.net.ReorgConns(pids, true)
+}
+
 func (bpos *Bpos) run(timestamp int64) error {
 
 	atomic.StoreInt32(&bpos.status, busy)
@@ -234,6 +245,7 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.currentDelegates = current
 	bpos.context.nextDelegates = next
 	bpos.context.candidates = bpos.filterCandidates(current, dynasty.delegates)
+	bpos.reorgConns(current, next)
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err
@@ -878,9 +890,12 @@ func (bpos *Bpos) Miners() ([]string, bool) {
 
 // Candidates return miners.
 func (bpos *Bpos) Candidates() ([]string, bool) {
-	candidates := make([]string, len(bpos.context.candidates))
-	for i, c := range bpos.context.candidates {
-		candidates[i] = c.PeerID
+	candidates := []string{}
+	for _, c := range bpos.context.candidates {
+		candidates = append(candidates, c.PeerID)
+	}
+	for _, c := range bpos.context.nextDelegates {
+		candidates = append(candidates, c.PeerID)
 	}
 	return candidates, bpos.cfg.EnableMint
 }
