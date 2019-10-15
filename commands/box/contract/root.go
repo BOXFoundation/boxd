@@ -1218,7 +1218,6 @@ func parseContractData(data string) (string, error) {
 			// }
 		}
 	} else {
-		//case 3 data
 		if !common.IsHexFormat(data) {
 			return "", err
 		}
@@ -1254,7 +1253,7 @@ func compileSourseFile(data string, argument string, bytesStr string) (string, e
 		}
 		return matches[1], nil
 	}
-	show(bytesStr)
+	showHint(bytesStr)
 	//The Wait method will return the exit code and release associated resources once the command exits.
 	if err = cmd.Wait(); err != nil {
 		return "", err
@@ -1262,7 +1261,7 @@ func compileSourseFile(data string, argument string, bytesStr string) (string, e
 	return "", err
 }
 
-func show(bytesStr string) {
+func showHint(bytesStr string) {
 	cmd := exec.Command("solc", "--version")
 	output, err := cmd.Output()
 	if err != nil {
