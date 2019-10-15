@@ -30,7 +30,7 @@ var (
 
 	// BaseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
-	BaseSubsidy = (uint64)(50 * core.DuPerBox)
+	BaseSubsidy = (uint64)(2.85 * core.DuPerBox)
 )
 
 // isNullOutPoint determines whether or not a previous transaction output point is set.

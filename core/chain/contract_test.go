@@ -486,7 +486,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// b1 -> b2
 	// transfer some box to userAddr
 	// generate b2
-	userBalance = uint64(600000000)
+	userBalance = uint64(200000000)
 	prevHash, _ := mCoinbaseTx.TxHash()
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).

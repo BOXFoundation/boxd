@@ -200,10 +200,10 @@ func TestChainTx(t *testing.T) {
 	txs := make([]*types.Transaction, 0)
 	// tx1
 	prevHash, _ := b2.Txs[1].TxHash()
-	changeValue := userBalance - 100000000 - core.TransferFee
+	changeValue := userBalance - 10000000 - core.TransferFee
 	tx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 100000000)).
+		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 10000000)).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	err := txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
@@ -211,10 +211,10 @@ func TestChainTx(t *testing.T) {
 	// tx2
 	prevHash, _ = tx.TxHash()
 	t.Logf("tx1: %s", prevHash)
-	changeValue -= 200000000 + core.TransferFee
+	changeValue -= 20000000 + core.TransferFee
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 200000000)).
+		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 20000000)).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
@@ -222,10 +222,10 @@ func TestChainTx(t *testing.T) {
 	// tx3
 	prevHash, _ = tx.TxHash()
 	t.Logf("tx2: %s", prevHash)
-	changeValue -= 250000000 + core.TransferFee
+	changeValue -= 25000000 + core.TransferFee
 	tx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
-		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 250000000)).
+		AppendVout(txlogic.MakeVout(splitAddrA.Hash160(), 25000000)).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	err = txlogic.SignTx(tx, privKey, pubKey)
 	ensure.DeepEqual(t, err, nil)
@@ -251,7 +251,7 @@ func TestChainTx(t *testing.T) {
 	balance = getBalance(splitAddrA.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*splitAddrA.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, uint64(550000000))
+	ensure.DeepEqual(t, balance, uint64(55000000))
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 }
 
