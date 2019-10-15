@@ -228,11 +228,8 @@ func createGasRefundUtxoTx(addrHash *types.AddressHash, value, nonce uint64) *ty
 		ScriptPubKey: addrScript,
 	}
 	vin := &types.TxIn{
-		PrevOutPoint: types.OutPoint{
-			Hash:  zeroHash,
-			Index: math.MaxUint32,
-		},
-		ScriptSig: *script.GasRefundSignatureScript(nonce),
+		PrevOutPoint: *types.NewNullOutPoint(),
+		ScriptSig:    *script.MakeContractScriptSig(nonce),
 	}
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)

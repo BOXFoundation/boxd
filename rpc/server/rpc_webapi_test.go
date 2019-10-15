@@ -240,7 +240,7 @@ func newTestBlock(count int) []*types.Block {
 	coinBaseAmount := uint64(50000)
 	for i := 0; i < count; i++ {
 		coinBaseTx := types.NewTx(0, 4455, 100).
-			AppendVin(types.NewCoinBaseTxIn()).
+			AppendVin(types.NewTxIn(types.NewNullOutPoint(), nil, 0)).
 			AppendVout(txlogic.MakeVout(miner, coinBaseAmount))
 		b := types.NewBlock(prevBlock).AppendTx(coinBaseTx)
 		blocks = append(blocks, b)
@@ -415,7 +415,7 @@ func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.B
 	addrS, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	addr, amount := addrS.Hash160(), uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
-		AppendVin(types.NewCoinBaseTxIn()).
+		AppendVin(types.NewTxIn(types.NewNullOutPoint(), nil, 0)).
 		AppendVout(txlogic.MakeVout(addr, amount))
 	_, tx, _ := r.LoadBlockInfoByTxHash(crypto.HashType{})
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
@@ -497,7 +497,7 @@ func _TestDetailTxAndBlock(t *testing.T) {
 	// gen coinbase tx
 	coinBaseAmount := uint64(50000)
 	coinBaseTx := types.NewTx(0, 4455, 100).
-		AppendVin(types.NewCoinBaseTxIn()).
+		AppendVin(types.NewTxIn(types.NewNullOutPoint(), nil, 0)).
 		AppendVout(txlogic.MakeVout(from, coinBaseAmount))
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
 	blockDetail, err := detailBlock(block, blockReader, nil, true)
