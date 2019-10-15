@@ -144,13 +144,6 @@ func NewTxIn(prevOutPoint *OutPoint, scriptSig []byte, seq uint32) *TxIn {
 	}
 }
 
-// NewCoinBaseTxIn new a coinbase tx in
-func NewCoinBaseTxIn() *TxIn {
-	return &TxIn{
-		PrevOutPoint: OutPoint{Index: math.MaxUint32},
-	}
-}
-
 // AppendVin appends a tx in to tx
 func (tx *Transaction) AppendVin(in ...*TxIn) *Transaction {
 	tx.Vin = append(tx.Vin, in...)
@@ -191,6 +184,11 @@ func NewOutPoint(hash *crypto.HashType, index uint32) *OutPoint {
 		Hash:  *hash,
 		Index: index,
 	}
+}
+
+// NewNullOutPoint returns a null outpoint with zero hash and max uint32 index
+func NewNullOutPoint() *OutPoint {
+	return &OutPoint{Index: math.MaxUint32}
 }
 
 func (op OutPoint) String() string {

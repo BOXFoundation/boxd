@@ -7,7 +7,6 @@ package chain
 import (
 	"bytes"
 	"math"
-	sysmath "math"
 	"os"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -30,7 +29,7 @@ var (
 
 	// BaseSubsidy is the starting subsidy amount for mined blocks.
 	// This value is halved every SubsidyReductionInterval blocks.
-	BaseSubsidy = (uint64)(50 * core.DuPerBox)
+	BaseSubsidy = (uint64)(2.85 * core.DuPerBox)
 )
 
 // isNullOutPoint determines whether or not a previous transaction output point is set.
@@ -44,7 +43,7 @@ func IsInternalContract(tx *types.Transaction) bool {
 		return false
 	}
 	outPoint := &tx.Vin[0].PrevOutPoint
-	return outPoint.Index == sysmath.MaxUint32-1 && outPoint.Hash == zeroHash
+	return outPoint.Index == math.MaxUint32-1 && outPoint.Hash == zeroHash
 }
 
 // IsCoinBase determines whether or not a transaction is a coinbase.
@@ -54,7 +53,7 @@ func IsCoinBase(tx *types.Transaction) bool {
 		return false
 	}
 	outPoint := &tx.Vin[0].PrevOutPoint
-	return outPoint.Index == sysmath.MaxUint32 && outPoint.Hash == zeroHash
+	return outPoint.Index == math.MaxUint32 && outPoint.Hash == zeroHash
 
 	// The previous output of a coin base must have a max value index and a zero hash.
 	// return isNullOutPoint(&tx.Vin[0].PrevOutPoint)
@@ -88,12 +87,9 @@ func CreateCoinbaseTx(addr []byte, blockHeight uint32) (*types.Transaction, erro
 		Version: 1,
 		Vin: []*types.TxIn{
 			{
-				PrevOutPoint: types.OutPoint{
-					Hash:  zeroHash,
-					Index: sysmath.MaxUint32,
-				},
-				ScriptSig: *coinbaseScriptSig,
-				Sequence:  math.MaxUint32,
+				PrevOutPoint: *types.NewNullOutPoint(),
+				ScriptSig:    *coinbaseScriptSig,
+				Sequence:     math.MaxUint32,
 			},
 		},
 		Vout: []*types.TxOut{
@@ -120,76 +116,6 @@ func ReadAbi(filename string) (*abi.ABI, error) {
 	}
 	return &abiObj, err
 }
-
-// return the number of signature operations for all transaction
-// input and output scripts in the provided transaction.
-//func countSigOps(tx *types.Transaction) int {
-//	// Accumulate the number of signature operations in all transaction inputs.
-//	totalSigOps := 0
-//	for _, txIn := range tx.Vin {
-//		numSigOps := script.NewScriptFromBytes(txIn.ScriptSig).GetSigOpCount()
-//		totalSigOps += numSigOps
-//	}
-//
-//	// Accumulate the number of signature operations in all transaction outputs.
-//	for _, txOut := range tx.Vout {
-//		numSigOps := script.NewScriptFromBytes(txOut.ScriptPubKey).GetSigOpCount()
-//		totalSigOps += numSigOps
-//	}
-//
-//	return totalSigOps
-//}
-
-// // MakeCoinbaseTx creates a coinbase give bookkeeper address and block height
-// func MakeCoinbaseTx(amount uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
-// 	abiObj, err := readAbi()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	code, err := abiObj.Pack("calcBonus")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
-// 	vout, err := txlogic.MakeContractCallVout(ContractAddr.String(), amount, 1e9, 0, nonce, code)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	tx := &types.Transaction{
-// 		Version: 1,
-// 		Vin: []*types.TxIn{
-// 			{
-// 				PrevOutPoint: types.OutPoint{
-// 					Hash:  zeroHash,
-// 					Index: math.MaxUint32,
-// 				},
-// 				ScriptSig: *coinbaseScriptSig,
-// 				Sequence:  math.MaxUint32,
-// 			},
-// 		},
-// 		Vout: []*corepb.TxOut{vout},
-// 	}
-// 	return tx, nil
-// }
-
-// return the number of signature operations for all transaction
-// input and output scripts in the provided transaction.
-//func countSigOps(tx *types.Transaction) int {
-//	// Accumulate the number of signature operations in all transaction inputs.
-//	totalSigOps := 0
-//	for _, txIn := range tx.Vin {
-//		numSigOps := script.NewScriptFromBytes(txIn.ScriptSig).GetSigOpCount()
-//		totalSigOps += numSigOps
-//	}
-//
-//	// Accumulate the number of signature operations in all transaction outputs.
-//	for _, txOut := range tx.Vout {
-//		numSigOps := script.NewScriptFromBytes(txOut.ScriptPubKey).GetSigOpCount()
-//		totalSigOps += numSigOps
-//	}
-//
-//	return totalSigOps
-//}
 
 // MarshalTxIndex writes Tx height and index to bytes
 func MarshalTxIndex(height, index uint32) (data []byte, err error) {

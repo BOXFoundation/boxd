@@ -152,12 +152,9 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 			Version: 1,
 			Vin: []*types.TxIn{
 				{
-					PrevOutPoint: types.OutPoint{
-						Hash:  zeroHash,
-						Index: math.MaxUint32,
-					},
-					ScriptSig: *coinbaseScriptSig,
-					Sequence:  math.MaxUint32,
+					PrevOutPoint: *types.NewNullOutPoint(),
+					ScriptSig:    *coinbaseScriptSig,
+					Sequence:     math.MaxUint32,
 				},
 			},
 			Vout: []*types.TxOut{

@@ -162,7 +162,7 @@ contract Bonus is Permission{
         netParams[MIN_PROPOSAL_THRESHOLD] = 100 * 10**8;
         netParams[PLEDGE_OPEN_LIMIT] = 100;
         netParams[PROPOSAL_EXPIRATION_TIME] = 3 * 24 * 3600;
-        netParams[BOOK_KEEPER_REWARD] = 50 * 10**8;
+        netParams[BOOK_KEEPER_REWARD] = 2.85 * 10**8;
         netParams[BONUS_TO_VOTERS] = 50;
         netParams[CALC_SCORE_THRESHOLD] = 200;
     }

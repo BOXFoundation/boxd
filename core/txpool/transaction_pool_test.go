@@ -120,7 +120,7 @@ func TestProcessTx(t *testing.T) {
 
 	// tx0(m) <- tx1(m)
 	// tx1 is admitted into main pool since it spends from a valid UTXO, i.e., coinbaseTx
-	value := 50*core.DuPerBox - core.FixedGasPrice*core.TransferGasLimit
+	value := chain.BaseSubsidy - core.FixedGasPrice*core.TransferGasLimit
 	tx1 := createChildTx(tx0, value)
 	verifyProcessTx(t, tx1, nil, true, false)
 
