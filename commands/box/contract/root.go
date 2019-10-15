@@ -24,6 +24,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	"github.com/BOXFoundation/boxd/util"
@@ -131,6 +132,22 @@ func init() {
 			Run:   encode,
 		},
 		&cobra.Command{
+			Use:   "decode [index] [topic/method] [optional|data]",
+			Short: "decode",
+			Run:   decode,
+			Example: `
+			1 ./box contract decode index Method
+			./box contract decode 7 6dd7d8ea000000000000000000000000ce86056786e3415530f8cc739fb414a87435b4b6(data from method and args encode)
+			2 ./box contract decode index topic
+			./box contract decode 7 2207c1818549bfd6420c96be05b47e8fbdd336a22cd20f069ecba206e474aa7a
+			3 ./box contract decode index method return_value
+			./box contract decode 6 allowance 0000000000000000000000000000000000000000000000000000000000004e20
+			4 ./box contract decode index topics data
+			currently only support topics of event name, not to support args indexed topic.
+			./box contract decode 2207c1818549bfd6420c96be05b47e8fbdd336a22cd20f069ecba206e474aa7a 000000000000000000000000ae3e96d008658db64dd4f8df2d736edbc6be1c31000000000000000000000000000000000000000000000000000000012a15f790
+			`,
+		},
+		&cobra.Command{
 			Use:   "getlogs [hash] [from] [to] [address] [topics]",
 			Short: "Get returns logs matching the given argument that are stored within the state",
 			Run:   getLogs,
@@ -166,6 +183,118 @@ func encode(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println(data)
+}
+
+func decode(cmd *cobra.Command, args []string) {
+	if len(args) < 2 || len(args) > 3 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	// check abi index
+	index, err := strconv.Atoi(args[0])
+	if err != nil {
+		fmt.Printf("invalid index\n")
+		fmt.Printf("select an index in list via using \"./box contract list\"\n")
+		return
+	}
+	abiObj, err := newAbiObj(index)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// for cases: 1) method code as input, 2) topic code from event name
+	if len(args) == 2 {
+		hash := new(crypto.HashType)
+		if err = hash.SetString(args[1]); err == nil {
+			//topic code from event name
+			for _, event := range abiObj.Events {
+				if event.ID().String() == args[1] {
+					fmt.Println("event name:", event.Name)
+					return
+				}
+			}
+		} else {
+			//method code as input
+			if len(args[1]) < 4 {
+				fmt.Printf("%s must be more than 4 bytes\n", args[1])
+				return
+			}
+			data, err := hex.DecodeString(args[1])
+			if err != nil {
+				fmt.Printf("%s is not hex format data\n", args[1])
+				return
+			}
+			method, err := abiObj.MethodByID(data)
+			if err != nil {
+				fmt.Printf("%s may be method code, but the method cannot be found in %d abi file\n", args[1], index)
+				return
+			}
+			fmt.Println("method name:", method.Name)
+			arguments, err := method.Inputs.UnpackValues(data[4:])
+			if err != nil {
+				fmt.Printf("decode arguments of method %s failed: %s\n", data, err)
+				return
+			}
+			for _, value := range arguments {
+				if addTy, ok := value.(types.AddressHash); ok {
+					fmt.Println(hex.EncodeToString(addTy.Bytes()))
+				} else {
+					fmt.Println(value)
+				}
+			}
+		}
+	} else {
+		// for cases: 3) method name and return value, 4) topic code and event argument
+		data, err := hex.DecodeString(args[2])
+		if err != nil {
+			fmt.Printf("%s is not hex format data\n", args[2])
+			return
+		}
+		code := args[1]
+		hash := new(crypto.HashType)
+		//if args[1] is the type of hash, decode log_topics
+		if err = hash.SetString(code); err == nil {
+			var eventName string
+			//topic code and event argument
+			for _, event := range abiObj.Events {
+				if event.ID().String() == code {
+					eventName = event.Name
+					break
+				}
+			}
+			if len(eventName) == 0 {
+				fmt.Printf("%s may be topic hash, but the method cannot be found in %d abi file\n", args[1], index)
+				return
+			}
+			fmt.Println("event name:", eventName)
+			// decode log_data
+			arguments, err := abiObj.Events[eventName].Inputs.UnpackValues(data)
+			if err != nil {
+				fmt.Printf("decode arguments of event %s failed: %s\n", data, err)
+				return
+			}
+			for _, value := range arguments {
+				if addTy, ok := value.(types.AddressHash); ok {
+					fmt.Println(hex.EncodeToString(addTy.Bytes()))
+				} else {
+					fmt.Println(value)
+				}
+			}
+		} else {
+			//method name and return value
+			method, ok := abiObj.Methods[code]
+			if !ok {
+				fmt.Printf("%s: cannot be found in %d abi file\n", args[1], index)
+				return
+			}
+			output, err := method.Outputs.UnpackValues(data)
+			if err != nil {
+				fmt.Printf("decode return value of method %s failed: %s\n", data, err)
+				return
+			}
+			fmt.Println("return value:", output)
+		}
+	}
 }
 
 func importAbi(cmd *cobra.Command, args []string) {
