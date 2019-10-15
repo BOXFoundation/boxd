@@ -245,7 +245,7 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.currentDelegates = current
 	bpos.context.nextDelegates = next
 	bpos.context.candidates = bpos.filterCandidates(current, dynasty.delegates)
-	bpos.reorgConns(current, next)
+	go bpos.reorgConns(current, next)
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err
