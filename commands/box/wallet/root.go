@@ -18,7 +18,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
@@ -474,9 +473,6 @@ func importKeyStore(keyFile string) error {
 			fmt.Println("wallet directory status error:", err)
 		}
 		return err
-	}
-	if err := util.MkDir(walletDir); err != nil {
-		panic(err)
 	}
 	newFile := walletDir + "/" + filepath.Base(keyFile)
 	data, err := ioutil.ReadFile(keyFile)

@@ -5,6 +5,7 @@
 package common
 
 import (
+	"encoding/hex"
 	"fmt"
 	"path"
 
@@ -78,4 +79,15 @@ func SignAndSendTx(
 		return
 	}
 	return sendResp.GetHash(), nil
+}
+
+//IsHexFormat judge whether str is hex code
+func IsHexFormat(str string) bool {
+	if len(str) == 0 {
+		return false
+	}
+	if _, err := hex.DecodeString(str); err != nil {
+		return false
+	}
+	return true
 }
