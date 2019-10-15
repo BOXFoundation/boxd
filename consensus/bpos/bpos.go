@@ -201,17 +201,6 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 	}
 }
 
-func (bpos *Bpos) reorgConns(current, next []Delegate) {
-	pids := []string{}
-	for _, del := range current {
-		pids = append(pids, del.PeerID)
-	}
-	for _, del := range next {
-		pids = append(pids, del.PeerID)
-	}
-	bpos.net.ReorgConns(pids, true)
-}
-
 func (bpos *Bpos) run(timestamp int64) error {
 
 	atomic.StoreInt32(&bpos.status, busy)
@@ -245,7 +234,7 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.currentDelegates = current
 	bpos.context.nextDelegates = next
 	bpos.context.candidates = bpos.filterCandidates(current, dynasty.delegates)
-	go bpos.reorgConns(current, next)
+	go bpos.net.ReorgConns()
 
 	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
 		return err

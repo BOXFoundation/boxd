@@ -57,6 +57,6 @@ func (d *DummyPeer) PeerSynced(peers peer.ID) (bool, bool) {
 }
 
 // ReorgConns reorg conns by pids.
-func (d *DummyPeer) ReorgConns(pids []string, defaultStrategy bool) uint8 {
+func (d *DummyPeer) ReorgConns() uint8 {
 	return 0
 }
