@@ -193,7 +193,7 @@ func decode(cmd *cobra.Command, args []string) {
 	// check abi index
 	index, err := strconv.Atoi(args[0])
 	if err != nil {
-		fmt.Printf("invalid index")
+		fmt.Printf("invalid index\n")
 		fmt.Printf("select an index in list via using \"./box contract list\"\n")
 		return
 	}
@@ -216,23 +216,23 @@ func decode(cmd *cobra.Command, args []string) {
 		} else {
 			//method code as input
 			if len(args[1]) < 4 {
-				fmt.Printf("%s must be more than 4", args[1])
+				fmt.Printf("%s must be more than 4 bytes\n", args[1])
 				return
 			}
 			data, err := hex.DecodeString(args[1])
 			if err != nil {
-				fmt.Printf("%s is not hex format data", args[1])
+				fmt.Printf("%s is not hex format data\n", args[1])
 				return
 			}
 			method, err := abiObj.MethodByID(data)
 			if err != nil {
-				fmt.Printf("%s may be method code, but the method cannot be found in %d abi file", args[1], index)
+				fmt.Printf("%s may be method code, but the method cannot be found in %d abi file\n", args[1], index)
 				return
 			}
 			fmt.Println("method name:", method.Name)
 			arguments, err := method.Inputs.UnpackValues(data[4:])
 			if err != nil {
-				fmt.Println("unpack ABI-encoded hexdata failed:", err)
+				fmt.Printf("decode arguments of method %s failed: %s\n", data, err)
 				return
 			}
 			for _, value := range arguments {
@@ -244,10 +244,10 @@ func decode(cmd *cobra.Command, args []string) {
 			}
 		}
 	} else {
-		// for cases: 2) method name and return value, 2) topic code and event argument
+		// for cases: 3) method name and return value, 4) topic code and event argument
 		data, err := hex.DecodeString(args[2])
 		if err != nil {
-			fmt.Printf("%s is not hex format data", args[2])
+			fmt.Printf("%s is not hex format data\n", args[2])
 			return
 		}
 		code := args[1]
@@ -263,14 +263,14 @@ func decode(cmd *cobra.Command, args []string) {
 				}
 			}
 			if len(eventName) == 0 {
-				fmt.Printf("%s may be topic hash, but the method cannot be found in %d abi file", args[1], index)
+				fmt.Printf("%s may be topic hash, but the method cannot be found in %d abi file\n", args[1], index)
 				return
 			}
 			fmt.Println("event name:", eventName)
 			// decode log_data
 			arguments, err := abiObj.Events[eventName].Inputs.UnpackValues(data)
 			if err != nil {
-				fmt.Println("unpack ABI-encoded hexdata failed:", err)
+				fmt.Printf("decode arguments of event %s failed: %s\n", data, err)
 				return
 			}
 			for _, value := range arguments {
@@ -284,12 +284,12 @@ func decode(cmd *cobra.Command, args []string) {
 			//method name and return value
 			method, ok := abiObj.Methods[code]
 			if !ok {
-				fmt.Printf("%s: cannot be found in %d abi file", args[1], index)
+				fmt.Printf("%s: cannot be found in %d abi file\n", args[1], index)
 				return
 			}
 			output, err := method.Outputs.UnpackValues(data)
 			if err != nil {
-				fmt.Println("unpack ABI-encoded hexdata:", err)
+				fmt.Printf("decode return value of method %s failed: %s\n", data, err)
 				return
 			}
 			fmt.Println("return value:", output)
@@ -1154,31 +1154,4 @@ func calcGasLimit(bal, amount uint64) uint64 {
 		limit = 10000000
 	}
 	return limit
-}
-
-func paraseArguments(abiObj *abi.ABI, a interface{}, data []byte) {
-	var (
-		arguments []interface{}
-		err       error
-	)
-	if method, ok := a.(abi.Method); ok {
-		arguments, err = method.Inputs.UnpackValues(data[4:])
-		if err != nil {
-			fmt.Println("input failed")
-			return
-		}
-	} else if event, ok := a.(abi.Event); ok {
-		arguments, err = event.Inputs.UnpackValues(data)
-		if err != nil {
-			fmt.Println("get argument failed:", err)
-			return
-		}
-	}
-	for _, value := range arguments {
-		if addTy, ok := value.(types.AddressHash); ok {
-			fmt.Println(hex.EncodeToString(addTy.Bytes()))
-		} else {
-			fmt.Println(value)
-		}
-	}
 }
