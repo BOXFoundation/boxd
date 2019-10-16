@@ -147,7 +147,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 4 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	// from account
@@ -173,32 +173,31 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	// token id
 	tokenID, err := txlogic.DecodeOutPoint(args[1])
 	if err != nil {
-		fmt.Println("DecodeOutPoint string token id to TokenID failed:", err)
+		fmt.Printf("DecodeOutPoint string %s to TokenID failed: %s\n", args[1], err)
 		return
 	}
 	tokenHash := new(crypto.HashType)
-	err = tokenHash.SetBytes(tokenID.Hash)
-	if err != nil {
-		fmt.Println("TokenHash conversion to setBytes failed:", err)
+	if err = tokenHash.SetBytes(tokenID.Hash); err != nil {
+		fmt.Println("convert type []byte to HashType failed:", err)
 		return
 	}
 	// to address
 	to := strings.Split(args[2], ",")
 	toHashes := make([]*types.AddressHash, 0, len(to))
 	for _, addr := range to {
-		address, _ := types.ParseAddress(addr)
+		address, err := types.NewAddress(addr)
+		if err != nil {
+			fmt.Println("invalid address")
+			return
+		}
 		toHashes = append(toHashes, address.Hash160())
-	}
-	if err := types.ValidateAddr(to...); err != nil {
-		fmt.Println(err)
-		return
 	}
 	amountStr := strings.Split(args[3], ",")
 	amounts := make([]uint64, 0, len(amountStr))
 	for _, x := range amountStr {
 		tmp, err := strconv.ParseUint(x, 10, 64)
 		if err != nil {
-			fmt.Println("Conversion failed: ", err)
+			fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", x, err)
 			return
 		}
 		amounts = append(amounts, uint64(tmp))
@@ -215,12 +214,12 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	resp, err := rpcutil.SendTransaction(conn, tx)
+	hashStr, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx Hash:", resp)
+	fmt.Println("Tx Hash:", hashStr)
 	fmt.Println(format.PrettyPrint(tx))
 }
 

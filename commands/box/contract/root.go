@@ -76,7 +76,7 @@ var rootCmd = &cobra.Command{
     ./box contract setsender b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m
 		NOTE: account sender must be imported and unlocked to local wallet
 
-  4. deploy contract. 
+  4. deploy contract 
     ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19191
     NOTE: if add index argument after amount argument, attach index to the deployed contract
 
@@ -416,7 +416,6 @@ func deploy(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-
 	amount, err := strconv.ParseUint(args[1], 10, 64)
 	if err != nil {
 		fmt.Println("invalid amount: ", err)
@@ -424,11 +423,9 @@ func deploy(cmd *cobra.Command, args []string) {
 	}
 	data := args[0]
 	//parase contract data
-	bytecode, err := parseContractData(data)
+	bytecode, _, err := parseContractData(data)
 	if err != nil {
-		fmt.Println("parase contract data faile")
-		return
-	} else if bytecode == "" {
+		fmt.Println(err)
 		return
 	}
 	// params
@@ -1195,85 +1192,51 @@ func calcGasLimit(bal, amount uint64) uint64 {
 	return limit
 }
 
-func parseContractData(data string) (string, error) {
+func parseContractData(data string) (bytecode string, abi string, err error) {
 	//parase data
-	var bytecode string
 	if _, err := os.Stat(data); err == nil {
 		bytes, err := ioutil.ReadFile(data)
 		if err != nil {
-			fmt.Println("read contract file error:")
-			return "", err
+			return "", "", err
 		}
 		bytesStr := strings.TrimSpace(string(bytes))
 		if common.IsHexFormat(bytesStr) {
 			bytecode = bytesStr
 		} else {
-			bytecode, err = compileSourseFile(data, "--bin", bytesStr)
+			binData, abiData, err := compileSol(data)
 			if err != nil {
-				return "", err
+				return "", "", err
 			}
-			// abiCode, err := compileSourseFile(data, "--abi", bytesStr)
-			// if err != nil{
-			// 	return "", err
-			// }
+			if len(binData) > 0 {
+				bytecode = binData
+			} else if len(abiData) > 0 {
+				abi = abiData
+			}
 		}
 	} else {
 		if !common.IsHexFormat(data) {
-			return "", err
+			return "", "", err
 		}
 		bytecode = data
 	}
-	return bytecode, nil
+	return bytecode, abi, nil
 }
 
-func compileSourseFile(data string, argument string, bytesStr string) (string, error) {
-	cmd := exec.Command("solc", data, argument)
-	//a pipe that will be connected to the command's standard output when the command starts.
-	stdout, err := cmd.StdoutPipe()
+func compileSol(filepath string) (binData string, abiData string, err error) {
+	cmd := exec.Command("solc", filepath, "--bin", "--abi")
+	//CombinedOutput runs the command and returns its combined standard output and standard error.
+	output, err := cmd.CombinedOutput()
+	outputStr := string(output)
+	//an error is returned and the error message is the output.
 	if err != nil {
-		return "", err
+		return "", "", errors.New(outputStr)
 	}
-	defer stdout.Close()
-	//Start starts the specified command but does not wait for it to complete.
-	if err := cmd.Start(); err != nil {
-		return "", err
+	binMatches := solcBinReg.FindStringSubmatch(outputStr)
+	abiMathes := solcAbiReg.FindStringSubmatch(outputStr)
+	if len(abiMathes) > 0 {
+		binData = binMatches[1]
+	} else if len(abiMathes) > 0 {
+		abiData = abiMathes[1]
 	}
-	//ReadAll reads from stdout until an error or EOF and returns the data it read.
-	opBytes, err := ioutil.ReadAll(stdout)
-	if err != nil {
-		return "", err
-	}
-	output := string(opBytes)
-	if len(output) > 0 {
-		var matches []string
-		if argument == "--bin" {
-			matches = solcBinReg.FindStringSubmatch(output)
-		} else {
-			matches = solcAbiReg.FindStringSubmatch(output)
-		}
-		return matches[1], nil
-	}
-	showHint(bytesStr)
-	//The Wait method will return the exit code and release associated resources once the command exits.
-	if err = cmd.Wait(); err != nil {
-		return "", err
-	}
-	return "", err
-}
-
-func showHint(bytesStr string) {
-	cmd := exec.Command("solc", "--version")
-	output, err := cmd.Output()
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	outputStr := strings.TrimSpace(string(output))
-	fmt.Println(outputStr)
-	solVer := solcVerReg.FindStringSubmatch(bytesStr)
-	fmt.Println("Your solidity file version :", solVer[1])
-	fmt.Println("solidity version incompatibility")
-	fmt.Println("If you want to compile solidity file to bin, you should install solidity version:",
-		solVer[1])
-	fmt.Println("Official installation tutorial: https://goethereumbook.org/en/smart-contract-compile/")
+	return binData, abiData, nil
 }

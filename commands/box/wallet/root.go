@@ -399,40 +399,27 @@ func importwallet(cmd *cobra.Command, args []string) {
 	}
 }
 
-func readPrivateStdin() (string, error) {
-	fmt.Println("Please Input Your PrivateKey:")
-	input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		return "", err
-	}
-	privKeyString := string(input)
-	return privKeyString, nil
-}
-
 func importPrivateKey() (string, error) {
 	privKeyString, err := readPrivateStdin()
 	if err != nil {
-		fmt.Println("Read privkey failed:", err)
+		fmt.Println("Read privkey failed:")
 		return "", err
 	}
 	privKeyBytes, err := hex.DecodeString(privKeyString)
 	if err != nil {
-		fmt.Println("Invalid private key", err)
+		fmt.Println("Invalid private key")
 		return "", err
 	}
 	wltMgr, err := wallet.NewWalletManager(walletDir)
 	if err != nil {
-		fmt.Println(err.Error())
 		return "", err
 	}
 	privKey, _, err := crypto.KeyPairFromBytes(privKeyBytes)
 	if err != nil {
-		fmt.Println(err)
 		return "", err
 	}
 	passphrase, err := wallet.ReadPassphraseStdin()
 	if err != nil {
-		fmt.Println(err)
 		return "", err
 	}
 	addr, err := wltMgr.NewAccountWithPrivKey(privKey, passphrase)
@@ -484,4 +471,14 @@ func importKeyStore(keyFile string) error {
 		panic(err)
 	}
 	return nil
+}
+
+func readPrivateStdin() (string, error) {
+	fmt.Println("Please Input Your PrivateKey:")
+	input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	privKeyString := string(input)
+	return privKeyString, nil
 }

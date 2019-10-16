@@ -82,6 +82,10 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	// addrs and weights
 	addrs, weights := make([]string, 0), make([]uint32, 0)
 	for i := 1; i < len(args)-1; i += 2 {
+		if _, err := types.NewAddress(args[i]); err != nil {
+			fmt.Println(err)
+			return
+		}
 		addrs = append(addrs, args[i])
 		a, err := strconv.ParseUint(args[i+1], 10, 64)
 		if err != nil || a >= math.MaxUint32 {
@@ -89,10 +93,6 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 			return
 		}
 		weights = append(weights, uint32(a))
-	}
-	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println(err)
-		return
 	}
 	addrHashes := make([]*types.AddressHash, 0, len(addrs))
 	for _, addr := range addrs {
@@ -102,21 +102,21 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	// conn
 	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
-		fmt.Println("Get Rpc conn failed:", err)
+		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
 	// send tx
 	tx, _, err := rpcutil.NewSplitAddrTx(account, addrHashes, weights, conn)
 	if err != nil {
-		fmt.Println("NewSplitAddrTx call failed:", err)
+		fmt.Println(err)
 		return
 	}
 	hashStr, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil {
-		fmt.Println("send transaction failed:", err)
+		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx Hash: ", hashStr)
+	fmt.Println("Tx Hash:", hashStr)
 	fmt.Println(format.PrettyPrint(tx))
 }
