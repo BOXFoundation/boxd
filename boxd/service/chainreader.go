@@ -23,7 +23,7 @@ type ChainReader interface {
 
 	//
 	GetDataFromDB([]byte) ([]byte, error)
-	GetTxReceipt(*crypto.HashType) (*types.Receipt, error)
+	GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error)
 
 	//interface to reader block status
 	GetBlockHash(uint32) (*crypto.HashType, error)

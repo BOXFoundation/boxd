@@ -135,7 +135,8 @@ message ContractInfo {
     uint64 gas_used = 4;
     uint64 nonce = 5;
     string data = 6;
-    repeated LogDetail logs = 7;
+    repeated string internal_txs = 7;
+    repeated LogDetail logs = 8;
 }
 
 message ListenBlocksReq {

@@ -2061,29 +2061,33 @@ func (chain *BlockChain) splitTxOutput(txOut *types.TxOut) []*types.TxOut {
 }
 
 // GetTxReceipt returns a tx receipt by using given tx hash.
-func (chain *BlockChain) GetTxReceipt(txHash *crypto.HashType) (*types.Receipt, error) {
-	b, _, err := chain.LoadBlockInfoByTxHash(*txHash)
+func (chain *BlockChain) GetTxReceipt(
+	txHash *crypto.HashType,
+) (*types.Receipt, *types.Transaction, error) {
+
+	b, tx, err := chain.LoadBlockInfoByTxHash(*txHash)
 	if err != nil {
 		logger.Warn(err)
-		return nil, err
+		return nil, nil, err
 	}
 	value, err := chain.db.Get(ReceiptKey(b.BlockHash()))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(value) == 0 {
-		return nil, fmt.Errorf("receipt for block %s %d not found in db", b.BlockHash(), b.Header.Height)
+		return nil, nil, fmt.Errorf("receipt for block %s %d not found in db",
+			b.BlockHash(), b.Header.Height)
 	}
 	receipts := new(types.Receipts)
 	if err := receipts.Unmarshal(value); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, receipt := range *receipts {
 		for _, log := range receipt.Logs {
 			log.BlockHash.SetBytes(b.Hash.Bytes())
 		}
 	}
-	return receipts.GetTxReceipt(txHash), nil
+	return receipts.GetTxReceipt(txHash), tx, nil
 }
 
 type splitAddrInfo struct {
@@ -2299,7 +2303,6 @@ func (chain *BlockChain) MakeCalcScoreTx(
 		Vin: []*types.TxIn{
 			{
 				PrevOutPoint: types.OutPoint{
-					Hash:  zeroHash,
 					Index: sysmath.MaxUint32 - 1,
 				},
 				ScriptSig: *coinbaseScriptSig,
@@ -2345,7 +2348,6 @@ func (chain *BlockChain) MakeInternalContractTx(
 		Vin: []*types.TxIn{
 			{
 				PrevOutPoint: types.OutPoint{
-					Hash:  zeroHash,
 					Index: index,
 				},
 				ScriptSig: *coinbaseScriptSig,

@@ -41,7 +41,7 @@ type webapiServer struct {
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	GetDataFromDB([]byte) ([]byte, error)
-	GetTxReceipt(*crypto.HashType) (*types.Receipt, error)
+	GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error)
 }
 
 // ChainBlockReader defines chain block reader interface
@@ -582,7 +582,7 @@ func detailTxOut(
 	detail := new(rpcpb.TxOutDetail)
 	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 	// addr
-	addr, err := ParseAddrFrom(sc, txHash, index, br)
+	addr, err := ParseAddrFrom(sc, txHash, index)
 	if err != nil {
 		return nil, err
 	}
@@ -660,9 +660,10 @@ func detailTxOut(
 			return nil, err
 		}
 		fee, failed, gasUsed := uint32(0), false, uint64(0)
+		var internalTxs []string
 		var logs []*rpcpb.LogDetail
 		if content != nil { // not an internal contract tx
-			receipt, err := br.GetTxReceipt(txHash)
+			receipt, tx, err := br.GetTxReceipt(txHash)
 			if err != nil {
 				logger.Warnf("get receipt for %s error: %s", txHash, err)
 				// not to return error to make the status of contract transactions
@@ -672,18 +673,26 @@ func detailTxOut(
 			if receipt != nil {
 				fee, failed, gasUsed = uint32(receipt.GasUsed*core.FixedGasPrice),
 					receipt.Failed, receipt.GasUsed
+				if tx.Vin[0].PrevOutPoint.Hash == crypto.ZeroHash {
+					// this contraction is internal chain transaction without fee
+					fee = 0
+				}
+				for _, h := range receipt.InternalTxs {
+					internalTxs = append(internalTxs, h.String())
+				}
 				logs = ToPbLogs(receipt.Logs)
 			}
 		}
 		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
 			ContractInfo: &rpcpb.ContractInfo{
-				Fee:      fee,
-				Failed:   failed,
-				GasLimit: params.GasLimit,
-				GasUsed:  gasUsed,
-				Nonce:    params.Nonce,
-				Data:     hex.EncodeToString(content),
-				Logs:     logs,
+				Fee:         fee,
+				Failed:      failed,
+				GasLimit:    params.GasLimit,
+				GasUsed:     gasUsed,
+				Nonce:       params.Nonce,
+				Data:        hex.EncodeToString(content),
+				InternalTxs: internalTxs,
+				Logs:        logs,
 			},
 		}
 		if typ == types.ContractCreationType {
@@ -727,7 +736,7 @@ func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
 
 // ParseAddrFrom parse addr from scriptPubkey
 func ParseAddrFrom(
-	sc *script.Script, txHash *crypto.HashType, idx uint32, tr ChainTxReader,
+	sc *script.Script, txHash *crypto.HashType, idx uint32,
 ) (string, error) {
 	var (
 		address types.Address

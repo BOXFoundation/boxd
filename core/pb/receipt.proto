@@ -14,8 +14,9 @@ message Receipt {
   bool deployed = 3;
   bool failed = 4;
   uint64 gas_used = 5;
-  repeated Log logs = 6;
-  bytes bloom = 7;
+  repeated bytes internal_txs = 6;
+  repeated Log logs = 7;
+  bytes bloom = 8;
 }
 
 message Receipts {
@@ -28,8 +29,9 @@ message HashReceipt {
   bool deployed = 3;
   bool failed = 4;
   uint64 gas_used = 5;
-  repeated HashLog logs = 6;
-  bytes bloom = 7;
+  repeated bytes internal_txs = 6;
+  repeated HashLog logs = 7;
+  bytes bloom = 8;
 }
 
 message HashReceipts {

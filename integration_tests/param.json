@@ -14,7 +14,7 @@
     "collection_unit_accounts": 4,
     "circulation_accounts": 6,
     "circulation_unit_accounts": 3,
-    "circulation_repeat_times": 2000,
+    "circulation_repeat_times": 20,
     "enable_repeat_random": false
   },
   "token_test": {

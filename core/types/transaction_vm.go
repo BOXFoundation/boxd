@@ -164,6 +164,7 @@ type Receipt struct {
 	GasUsed         uint64
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
+	InternalTxs     []*crypto.HashType
 
 	Logs  []*Log
 	Bloom bloom.Filter
@@ -216,6 +217,11 @@ func (rc *Receipt) WithBlockHeight(h uint32) *Receipt {
 	return rc
 }
 
+// ApppendInternalTxs append internal txs to InternalTxs field
+func (rc *Receipt) ApppendInternalTxs(hashes ...*crypto.HashType) {
+	rc.InternalTxs = append(rc.InternalTxs, hashes...)
+}
+
 // CreateReceiptsBloom create a bloom filter matches Receipts.
 func CreateReceiptsBloom(rcs Receipts) bloom.Filter {
 	bloom := bloom.NewFilterWithMK(BloomBitLength, BloomHashNum)
@@ -256,14 +262,20 @@ func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	// internal txs
+	internalTxsBytes := make([][]byte, 0, len(rc.InternalTxs))
+	for _, v := range rc.InternalTxs {
+		internalTxsBytes = append(internalTxsBytes, v[:])
+	}
 
 	return &corepb.Receipt{
-		TxIndex:  rc.TxIndex,
-		Deployed: rc.Deployed,
-		Failed:   rc.Failed,
-		GasUsed:  rc.GasUsed,
-		Logs:     logs,
-		Bloom:    bloom,
+		TxIndex:     rc.TxIndex,
+		Deployed:    rc.Deployed,
+		Failed:      rc.Failed,
+		GasUsed:     rc.GasUsed,
+		InternalTxs: internalTxsBytes,
+		Logs:        logs,
+		Bloom:       bloom,
 	}, nil
 }
 
@@ -297,6 +309,15 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
 	rc.Logs = logs
+	// internal txs
+	rc.InternalTxs = make([]*crypto.HashType, 0, len(pbrc.InternalTxs))
+	for _, v := range pbrc.InternalTxs {
+		hash := new(crypto.HashType)
+		if err := hash.SetBytes(v); err != nil {
+			return err
+		}
+		rc.InternalTxs = append(rc.InternalTxs, hash)
+	}
 	return nil
 }
 
@@ -341,6 +362,7 @@ func (rcs *Receipts) toHashReceipts() (*HashReceipts, error) {
 			Deployed:    rc.Deployed,
 			Failed:      rc.Failed,
 			GasUsed:     rc.GasUsed,
+			InternalTxs: rc.InternalTxs,
 			BlockHeight: rc.BlockHeight,
 		}
 		hashrc.TxHash.SetBytes(rc.TxHash.Bytes())
@@ -396,20 +418,11 @@ func (rcs *Receipts) GetTxReceipt(hash *crypto.HashType) *Receipt {
 func (rcs *Receipts) ToProtoMessage() (proto.Message, error) {
 	pbrcs := new(corepb.Receipts)
 	for _, rc := range *rcs {
-		pbrc := &corepb.Receipt{
-			TxHash:   rc.TxHash[:],
-			TxIndex:  rc.TxIndex,
-			Deployed: rc.Deployed,
-			Failed:   rc.Failed,
-			GasUsed:  rc.GasUsed,
+		pbrc, err := rc.ToProtoMessage()
+		if err != nil {
+			return nil, err
 		}
-
-		for _, log := range rc.Logs {
-			l, _ := log.ToProtoMessage()
-			pbrc.Logs = append(pbrc.Logs, l.(*corepb.Log))
-		}
-
-		pbrcs.Receipts = append(pbrcs.Receipts, pbrc)
+		pbrcs.Receipts = append(pbrcs.Receipts, pbrc.(*corepb.Receipt))
 	}
 	return pbrcs, nil
 }
@@ -424,24 +437,9 @@ func (rcs *Receipts) FromProtoMessage(message proto.Message) error {
 		return core.ErrEmptyProtoMessage
 	}
 	for _, pbrc := range pbrcs.Receipts {
-		txHash := new(crypto.HashType)
-		err := txHash.SetBytes(pbrc.TxHash)
-		if err != nil {
-			return err
-		}
 		rc := new(Receipt)
-		rc.TxHash = *txHash
-		rc.TxIndex = pbrc.TxIndex
-		rc.Deployed = pbrc.Deployed
-		rc.Failed = pbrc.Failed
-		rc.GasUsed = pbrc.GasUsed
-
-		for _, log := range pbrc.Logs {
-			l := new(Log)
-			if err := l.FromProtoMessage(log); err != nil {
-				return err
-			}
-			rc.Logs = append(rc.Logs, l)
+		if err := rc.FromProtoMessage(pbrc); err != nil {
+			return err
 		}
 		*rcs = append(*rcs, rc)
 	}
@@ -470,6 +468,7 @@ type hashReceipt struct {
 	Deployed        bool
 	Failed          bool
 	GasUsed         uint64
+	InternalTxs     []*crypto.HashType
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
 
@@ -500,14 +499,20 @@ func (rc *hashReceipt) ToProtoMessage() (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	// internal txs
+	internalTxsBytes := make([][]byte, 0, len(rc.InternalTxs))
+	for _, v := range rc.InternalTxs {
+		internalTxsBytes = append(internalTxsBytes, v[:])
+	}
 
 	return &corepb.HashReceipt{
-		TxIndex:  rc.TxIndex,
-		Deployed: rc.Deployed,
-		Failed:   rc.Failed,
-		GasUsed:  rc.GasUsed,
-		Logs:     logs,
-		Bloom:    bloom,
+		TxIndex:     rc.TxIndex,
+		Deployed:    rc.Deployed,
+		Failed:      rc.Failed,
+		GasUsed:     rc.GasUsed,
+		InternalTxs: internalTxsBytes,
+		Logs:        logs,
+		Bloom:       bloom,
 	}, nil
 }
 
@@ -541,6 +546,15 @@ func (rc *hashReceipt) FromProtoMessage(message proto.Message) error {
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
 	rc.Logs = logs
+	// internal txs
+	rc.InternalTxs = make([]*crypto.HashType, 0, len(pbrc.InternalTxs))
+	for _, v := range pbrc.InternalTxs {
+		hash := new(crypto.HashType)
+		if err := hash.SetBytes(v); err != nil {
+			return err
+		}
+		rc.InternalTxs = append(rc.InternalTxs, hash)
+	}
 	return nil
 }
 
@@ -568,26 +582,18 @@ var _ conv.Serializable = (*HashReceipts)(nil)
 func (rcs *HashReceipts) ToProtoMessage() (proto.Message, error) {
 	pbrcs := new(corepb.HashReceipts)
 	for _, rc := range *rcs {
-		pbrc := &corepb.HashReceipt{
-			TxHash:   rc.TxHash[:],
-			TxIndex:  rc.TxIndex,
-			Deployed: rc.Deployed,
-			Failed:   rc.Failed,
-			GasUsed:  rc.GasUsed,
+		pbrc, err := rc.ToProtoMessage()
+		if err != nil {
+			return nil, err
 		}
-		for _, log := range rc.Logs {
-			l, _ := log.ToProtoMessage()
-			pbrc.Logs = append(pbrc.Logs, l.(*corepb.HashLog))
-		}
-
-		pbrcs.Receipts = append(pbrcs.Receipts, pbrc)
+		pbrcs.Receipts = append(pbrcs.Receipts, pbrc.(*corepb.HashReceipt))
 	}
 	return pbrcs, nil
 }
 
 // FromProtoMessage converts proto message to Receipt.
 func (rcs *HashReceipts) FromProtoMessage(message proto.Message) error {
-	pbrcs, ok := message.(*corepb.Receipts)
+	pbrcs, ok := message.(*corepb.HashReceipts)
 	if !ok {
 		return core.ErrInvalidReceiptProtoMessage
 	}
@@ -595,24 +601,9 @@ func (rcs *HashReceipts) FromProtoMessage(message proto.Message) error {
 		return core.ErrEmptyProtoMessage
 	}
 	for _, pbrc := range pbrcs.Receipts {
-		txHash := new(crypto.HashType)
-		err := txHash.SetBytes(pbrc.TxHash)
-		if err != nil {
-			return err
-		}
 		rc := new(hashReceipt)
-		rc.TxHash = *txHash
-		rc.TxIndex = pbrc.TxIndex
-		rc.Deployed = pbrc.Deployed
-		rc.Failed = pbrc.Failed
-		rc.GasUsed = pbrc.GasUsed
-
-		for _, log := range pbrc.Logs {
-			l := new(hashLog)
-			if err := l.FromProtoMessage(log); err != nil {
-				return err
-			}
-			rc.Logs = append(rc.Logs, l)
+		if err := rc.FromProtoMessage(pbrc); err != nil {
+			return err
 		}
 		*rcs = append(*rcs, rc)
 	}

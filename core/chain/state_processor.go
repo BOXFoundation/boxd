@@ -176,6 +176,13 @@ func ApplyTransaction(
 	logger.Infof("tx %s contract logs: %s", txhash, string(logsBytes))
 	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, deployed, fail,
 		gasUsed, statedb.GetLogs(*txhash))
+	// append internal txs hashes to receipt
+	internalHashes := make([]*crypto.HashType, 0, len(txs))
+	for _, tx := range txs {
+		hash, _ := tx.TxHash()
+		internalHashes = append(internalHashes, hash)
+	}
+	receipt.ApppendInternalTxs(internalHashes...)
 
 	return receipt, gasUsed, gasRemainingFee, txs, nil
 }
