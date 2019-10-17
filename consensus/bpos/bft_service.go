@@ -103,6 +103,7 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 	for offset >= 0 && height > 0 {
 		block, err := bft.chain.LoadBlockByHeight(height)
 		if err != nil {
+			logger.Errorf("Failed to fetch irreversibble info. Err: %v", err)
 			height--
 			offset--
 			continue
@@ -112,11 +113,12 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 			signatures := value.([][]byte)
 			dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
 			if err != nil {
+				logger.Errorf("Failed to fetch dynasty info. Err: %v", err)
 				height--
 				offset--
 				continue
 			}
-			if len(signatures) > 2*len(dynasty.delegates)/3 {
+			if len(signatures) >= 2*len(dynasty.delegates)/3 {
 				// go bft.updateEternal(block)
 				irreversibleInfo := new(types.IrreversibleInfo)
 				irreversibleInfo.Hash = blockHash

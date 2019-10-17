@@ -776,7 +776,7 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 				return errors.New("Invalid irreversible signature in block")
 			}
 		}
-		if len(remains) <= 2*len(dynasty.delegates)/3 {
+		if len(remains) < 2*len(dynasty.delegates)/3 {
 			logger.Errorf("Invalid irreversible info in block. Hash: %s, Height: %d, remains: %d", block.BlockHash().String(), block.Header.Height, len(remains))
 			return errors.New("Invalid irreversible info in block")
 		}
