@@ -156,8 +156,8 @@ func maketx(cmd *cobra.Command, args []string) {
 		return
 	}
 	for _, addr := range toAddr {
-		if _, err := types.NewAddress(addr); err != nil {
-			fmt.Println("invalid address")
+		if err := types.ValidateAddr(addr); err != nil {
+			fmt.Printf("invaild address for %s, err: %s\n", addr, err)
 			return
 		}
 	}
@@ -223,7 +223,7 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 	}
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(txByte); err != nil {
-		fmt.Printf("tx unmarshal %s error: %s", txByte, err)
+		fmt.Printf("tx unmarshal %s error: %s\n", txByte, err)
 		return
 	}
 	hash, err := rpcutil.SendTransaction(conn, tx)

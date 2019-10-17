@@ -82,9 +82,11 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	// addrs and weights
 	addrs, weights := make([]string, 0), make([]uint32, 0)
 	for i := 1; i < len(args)-1; i += 2 {
-		if _, err := types.NewAddress(args[i]); err != nil {
-			fmt.Println(err)
-			return
+		if address, err := types.ParseAddress(args[i]); err != nil {
+			if _, ok := address.(*types.AddressContract); ok {
+				fmt.Printf("invaild address for %s, err: %s\n", args[i], err)
+				return
+			}
 		}
 		addrs = append(addrs, args[i])
 		a, err := strconv.ParseUint(args[i+1], 10, 64)

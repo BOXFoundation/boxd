@@ -48,7 +48,6 @@ var (
 
 	solcBinReg = regexp.MustCompile("Binary:\\s?\n([0-9a-f]+)\n")
 	solcAbiReg = regexp.MustCompile("ABI\\s?\n([\\pP0-9a-zA-Z]+)\n")
-	solcVerReg = regexp.MustCompile("pragma\\s+solidity\\s+([\\s*\\.\\^0-9><=]+)\\s*;")
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -744,9 +743,11 @@ func getNonce(cmd *cobra.Command, args []string) {
 	}
 	addr := args[0]
 	//validate address
-	if _, err := types.NewAddress(addr); err != nil {
-		fmt.Println("address is Invalid:")
-		return
+	if address, err := types.ParseAddress(addr); err != nil {
+		if _, ok := address.(*types.AddressTypeSplit); ok {
+			fmt.Printf("invaild address for %s, err: %s\n", addr, err)
+			return
+		}
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "Nonce",
 		&rpcpb.NonceReq{Addr: addr}, common.GetRPCAddr())
@@ -1209,7 +1210,6 @@ func parseContractData(data string) (bytecode string, abi string, err error) {
 			}
 			if len(binData) > 0 {
 				bytecode = binData
-			} else if len(abiData) > 0 {
 				abi = abiData
 			}
 		}
@@ -1226,16 +1226,15 @@ func compileSol(filepath string) (binData string, abiData string, err error) {
 	cmd := exec.Command("solc", filepath, "--bin", "--abi")
 	//CombinedOutput runs the command and returns its combined standard output and standard error.
 	output, err := cmd.CombinedOutput()
-	outputStr := string(output)
-	//an error is returned and the error message is the output.
 	if err != nil {
-		return "", "", errors.New(outputStr)
+		//an error is returned and the error message is the output.
+		return "", "", errors.New(string(output))
 	}
+	outputStr := string(output)
 	binMatches := solcBinReg.FindStringSubmatch(outputStr)
 	abiMathes := solcAbiReg.FindStringSubmatch(outputStr)
 	if len(abiMathes) > 0 {
 		binData = binMatches[1]
-	} else if len(abiMathes) > 0 {
 		abiData = abiMathes[1]
 	}
 	return binData, abiData, nil

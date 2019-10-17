@@ -18,7 +18,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
 )
@@ -220,7 +219,6 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println("Tx Hash:", hashStr)
-	fmt.Println(format.PrettyPrint(tx))
 }
 
 func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
