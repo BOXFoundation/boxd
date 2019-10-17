@@ -739,7 +739,8 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 	irreversibleInfo := block.IrreversibleInfo
 	if irreversibleInfo != nil {
 		dynasty := bpos.context.verifyDynasty
-		if len(irreversibleInfo.Signatures) <= 2*len(dynasty.delegates)/3 {
+		if len(irreversibleInfo.Signatures) < 2*len(dynasty.delegates)/3 {
+			logger.Errorf("the number of irreversibleInfo signatures is not enough. signatures len: %d dynasty len: %d", len(irreversibleInfo.Signatures), len(dynasty.delegates))
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
 		// check hash is exist
