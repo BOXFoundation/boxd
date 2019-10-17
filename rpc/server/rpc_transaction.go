@@ -225,7 +225,7 @@ func (s *txServer) GetRawTransaction(
 	if err := hash.SetBytes(req.Hash); err != nil {
 		return &rpcpb.GetRawTransactionResponse{Code: -1, Message: err.Error()}, nil
 	}
-	_, tx, err := s.server.GetChainReader().LoadBlockInfoByTxHash(hash)
+	_, tx, _, err := s.server.GetChainReader().LoadBlockInfoByTxHash(hash)
 	if err != nil {
 		logger.Debug(err)
 		return &rpcpb.GetRawTransactionResponse{Code: -1, Message: err.Error()}, nil

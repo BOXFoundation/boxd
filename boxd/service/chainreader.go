@@ -14,7 +14,7 @@ import (
 // ChainReader defines basic operations blockchain exposes
 type ChainReader interface {
 	// interface to read transactions
-	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, types.TxType, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
 	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 	GetStateDbByHeight(height uint32) (*state.StateDB, error)

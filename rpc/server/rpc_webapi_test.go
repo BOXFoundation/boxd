@@ -255,7 +255,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut := txlogic.MakeVout(testAddr, testAmount)
 	tx := types.NewTx(0, 4455, 1000).AppendVout(txOut)
 	txHash, _ := tx.TxHash()
-	detail, err := detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
+	detail, _, err := detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut, _ = txlogic.MakeIssueTokenVout(testAddr, tag)
 	tx = types.NewTx(0, 4455, 1000).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
-	detail, err = detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
+	detail, _, err = detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestDetailTxOut(t *testing.T) {
 	txOut, _ = txlogic.MakeTokenVout(testAddr, tid, testAmount)
 	tx = types.NewTx(0, 4455, 100).AppendVout(txOut)
 	txHash, _ = tx.TxHash()
-	detail, err = detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
+	detail, _, err = detailTxOut(txHash, tx.Vout[0], 0, nil, testDetailReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +417,7 @@ func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.B
 	coinBaseTx := types.NewTx(0, 4455, 100).
 		AppendVin(types.NewTxIn(types.NewNullOutPoint(), nil, 0)).
 		AppendVout(txlogic.MakeVout(addr, amount))
-	_, tx, _ := r.LoadBlockInfoByTxHash(crypto.HashType{})
+	_, tx, _, _ := r.LoadBlockInfoByTxHash(crypto.HashType{})
 	block := types.NewBlock(&chain.GenesisBlock).AppendTx(coinBaseTx, tx)
 	block.Header.Height = 10
 	return block, 10240, nil
@@ -425,8 +425,8 @@ func (r *TestDetailBlockChainReader) ReadBlockFromDB(*crypto.HashType) (*types.B
 
 func (r *TestDetailBlockChainReader) LoadBlockInfoByTxHash(
 	hash crypto.HashType,
-) (*types.Block, *types.Transaction, error) {
-	return nil, nil, nil
+) (*types.Block, *types.Transaction, types.TxType, error) {
+	return nil, nil, 0, nil
 }
 
 func (r *TestDetailBlockChainReader) EternalBlock() *types.Block {

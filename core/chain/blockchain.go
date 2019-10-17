@@ -1750,50 +1750,57 @@ func (chain *BlockChain) StoreReceipts(hash *crypto.HashType, receipts types.Rec
 }
 
 // LoadBlockInfoByTxHash returns block and txIndex of transaction with the input param hash
-func (chain *BlockChain) LoadBlockInfoByTxHash(hash crypto.HashType) (*types.Block, *types.Transaction, error) {
+func (chain *BlockChain) LoadBlockInfoByTxHash(
+	hash crypto.HashType,
+) (block *types.Block, tx *types.Transaction, txType types.TxType, err error) {
 	txIndex, err := chain.db.Get(TxIndexKey(&hash))
 	if err != nil || len(txIndex) == 0 {
-		return nil, nil, fmt.Errorf("db get txIndex with tx hash %s error %v", hash, err)
+		err = fmt.Errorf("db get txIndex with tx hash %s error %v", hash, err)
+		return
 	}
 	height, index, err := UnmarshalTxIndex(txIndex)
 	if err != nil {
-		logger.Errorf("load block info by tx %s unmarshal tx index %x error %s", hash, txIndex, err)
-		return nil, nil, err
+		err = fmt.Errorf("load block info by tx %s unmarshal tx index %x error %s", hash, txIndex, err)
+		return
 	}
-	block, err := chain.LoadBlockByHeight(height)
+	block, err = chain.LoadBlockByHeight(height)
 	if err != nil {
 		logger.Warn(err)
-		return nil, nil, err
+		return
 	}
 
 	idx := int(index)
-	var tx *types.Transaction
 	if idx < len(block.Txs) {
 		tx = block.Txs[idx]
+		txType = types.NormalTxType
 	} else if idx < len(block.Txs)+len(block.InternalTxs) {
 		tx = block.InternalTxs[idx-len(block.Txs)]
+		txType = types.InternalTxType
 	} else {
-		txBin, err := chain.db.Get(TxKey(&hash))
-		if err != nil {
-			return nil, nil, fmt.Errorf("db get tx with hash %s error %s", hash, err)
+		txBin, err1 := chain.db.Get(TxKey(&hash))
+		if err1 != nil {
+			err = fmt.Errorf("db get tx with hash %s error %s", hash, err1)
+			return
 		}
 		if txBin == nil {
-			return nil, nil, errors.New("failed to load split tx with hash")
+			err = errors.New("failed to load split tx with hash")
+			return
 		}
 		tx = new(types.Transaction)
-		if err := tx.Unmarshal(txBin); err != nil {
-			return nil, nil, err
+		if err = tx.Unmarshal(txBin); err != nil {
+			return
 		}
+		txType = types.SplitTxType
 	}
 	target, err := tx.TxHash()
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 	if *target == hash {
-		return block, tx, nil
+		return
 	}
-	logger.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
-	return nil, nil, errors.New("failed to load tx with hash")
+	err = fmt.Errorf("Error reading tx hash, expect: %s got: %s", hash.String(), target.String())
+	return
 }
 
 // WriteTxIndex builds tx index in block
@@ -2065,7 +2072,7 @@ func (chain *BlockChain) GetTxReceipt(
 	txHash *crypto.HashType,
 ) (*types.Receipt, *types.Transaction, error) {
 
-	b, tx, err := chain.LoadBlockInfoByTxHash(*txHash)
+	b, tx, _, err := chain.LoadBlockInfoByTxHash(*txHash)
 	if err != nil {
 		logger.Warn(err)
 		return nil, nil, err

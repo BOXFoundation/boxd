@@ -129,7 +129,6 @@ message ViewBlockDetailResp {
 }
 
 message ContractInfo {
-    uint32 fee = 1;
     bool failed = 2;
     uint64 gas_limit = 3;
     uint64 gas_used = 4;
@@ -179,8 +178,9 @@ message LogDetail {
 
 message TxDetail {
     string hash = 1;
-    repeated TxInDetail vin = 2;
-    repeated TxOutDetail vout = 3;
+    uint64 fee = 2;
+    repeated TxInDetail vin = 3;
+    repeated TxOutDetail vout = 4;
 }
 
 message TxInDetail {

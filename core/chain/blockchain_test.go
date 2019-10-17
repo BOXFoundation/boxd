@@ -319,7 +319,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	txs := []*types.Transaction{b2.Txs[0], tx, vmTx, gasRefundTx, contractTx, splitTx1, splitTx2}
 
 	for i, hash := range hashes {
-		_, tx, err := blockChain.LoadBlockInfoByTxHash(*hash)
+		_, tx, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
 		ensure.Nil(t, err)
 		ensure.DeepEqual(t, txs[i], tx)
 	}
@@ -327,7 +327,7 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 	ensure.Nil(t, blockChain.DelSplitTxs(splitTxs, batch))
 	batch.Write()
 	for _, hash := range hashes {
-		_, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
+		_, _, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
 		ensure.NotNil(t, err)
 	}
 }

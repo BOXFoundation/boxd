@@ -25,6 +25,19 @@ const (
 	VoteTx
 )
 
+// TxType defines tx's type
+type TxType int
+
+// pay to pubkey tx set 1 at most right bit
+// contract tx set 1 at second right bit
+const (
+	NormalTxType   TxType = 0x01
+	InternalTxType TxType = 0x0101
+	SplitTxType    TxType = 0x010101
+	ContractTxType TxType = 0x02
+	TokenTxType    TxType = 0x04
+)
+
 // TokenID defines token id
 type TokenID OutPoint
 

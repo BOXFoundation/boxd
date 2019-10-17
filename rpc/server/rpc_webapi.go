@@ -39,7 +39,7 @@ type webapiServer struct {
 
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
-	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, types.TxType, error)
 	GetDataFromDB([]byte) ([]byte, error)
 	GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error)
 }
@@ -169,11 +169,9 @@ func (s *webapiServer) ViewTxDetail(
 	// new resp
 	resp := new(rpcpb.ViewTxDetailResp)
 	// fetch tx from chain and set status
-	var tx *types.Transaction
-	var block *types.Block
-	var err error
 	br, tr := s.ChainBlockReader, s.TxPoolReader
-	if block, tx, err = br.LoadBlockInfoByTxHash(*hash); err == nil {
+	block, tx, txType, err := br.LoadBlockInfoByTxHash(*hash)
+	if err == nil {
 		// calc tx status
 		if blockConfirmed(block, br) {
 			resp.Status = rpcpb.TxStatus_confirmed
@@ -200,6 +198,9 @@ func (s *webapiServer) ViewTxDetail(
 	if err != nil {
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
+	}
+	if txType == types.InternalTxType {
+		detail.Fee = 0
 	}
 	//
 	resp.Detail = detail
@@ -430,8 +431,9 @@ func detailTx(
 	needSpread := false
 	// parse vout
 	txHash, _ := tx.TxHash()
+	var totalFee uint64
 	for i := range tx.Vout {
-		outDetail, err := detailTxOut(txHash, tx.Vout[i], uint32(i), tx.Data, br)
+		outDetail, fee, err := detailTxOut(txHash, tx.Vout[i], uint32(i), tx.Data, br)
 		if err != nil {
 			logger.Warnf("detail tx vout for %s %d %+v error: %s", txHash, i, tx.Vout[i], err)
 			return nil, err
@@ -443,6 +445,7 @@ func detailTx(
 				break
 			}
 		}
+		totalFee += fee
 		detail.Vout = append(detail.Vout, outDetail)
 	}
 	if spread && needSpread {
@@ -462,7 +465,7 @@ func detailTx(
 		hash, _ := tx.TxHash()
 		logger.Infof("spread split addr tx: %s", hash)
 		for i := range tx.Vout {
-			outDetail, err := detailTxOut(hash, tx.Vout[i], uint32(i), tx.Data, br)
+			outDetail, _, err := detailTxOut(hash, tx.Vout[i], uint32(i), tx.Data, br)
 			if err != nil {
 				logger.Warnf("detail split tx vout for %s %d %+v error: %s", hash, i, tx.Vout[i], err)
 				return nil, err
@@ -481,6 +484,12 @@ func detailTx(
 		}
 		detail.Vin = append(detail.Vin, inDetail)
 	}
+	// calc fee
+	if totalFee == 0 && tx.Vin[0].PrevOutPoint.Hash != crypto.ZeroHash {
+		// non-contract tx
+		totalFee = core.TransferFee
+	}
+	detail.Fee = totalFee + tx.ExtraFee()
 	return detail, nil
 }
 
@@ -521,6 +530,7 @@ func detailBlock(
 			logger.Warnf("detail tx %s error: %s", hash, err)
 			return nil, err
 		}
+		txDetail.Fee = 0 // fee is 0 in internal txs
 		detail.InternalTxs = append(detail.InternalTxs, txDetail)
 	}
 	return detail, nil
@@ -541,7 +551,7 @@ func detailTxIn(
 
 	if detailVin {
 		hash := &txIn.PrevOutPoint.Hash
-		_, prevTx, err := r.LoadBlockInfoByTxHash(*hash)
+		_, prevTx, _, err := r.LoadBlockInfoByTxHash(*hash)
 		if err != nil {
 			logger.Infof("load tx by hash %s from chain error: %s, try tx pool", hash, err)
 			txWrap, _ := tr.GetTxByHash(hash)
@@ -552,7 +562,7 @@ func detailTxIn(
 		}
 		index := txIn.PrevOutPoint.Index
 		prevTxHash, _ := prevTx.TxHash()
-		detail.PrevOutDetail, err = detailTxOut(prevTxHash, prevTx.Vout[index],
+		detail.PrevOutDetail, _, err = detailTxOut(prevTxHash, prevTx.Vout[index],
 			index, prevTx.Data, r)
 		if err != nil {
 			logger.Warnf("detail prev tx vout for %s %d %+v error: %s", prevTxHash,
@@ -577,14 +587,14 @@ func detailTxIn(
 func detailTxOut(
 	txHash *crypto.HashType, txOut *types.TxOut, index uint32, data *types.Data,
 	br ChainTxReader,
-) (*rpcpb.TxOutDetail, error) {
+) (*rpcpb.TxOutDetail, uint64, error) {
 
 	detail := new(rpcpb.TxOutDetail)
 	sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 	// addr
 	addr, err := ParseAddrFrom(sc, txHash, index)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	detail.Addr = addr
 	// value
@@ -594,7 +604,7 @@ func detailTxOut(
 	utxo := txlogic.MakePbUtxo(op, wrap)
 	amount, _, err := txlogic.ParseUtxoAmount(utxo)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	detail.Value = amount
 	// script pubic key
@@ -603,13 +613,14 @@ func detailTxOut(
 	detail.ScriptDisasm = sc.Disasm()
 	// type
 	detail.Type = parseVoutType(txOut)
+	var fee uint64
 	//  appendix
 	switch detail.Type {
 	default:
 	case rpcpb.TxOutDetail_token_issue:
 		param, err := sc.GetIssueParams()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		issueInfo := &rpcpb.TxOutDetail_TokenIssueInfo{
 			TokenIssueInfo: &rpcpb.TokenIssueInfo{
@@ -625,7 +636,7 @@ func detailTxOut(
 	case rpcpb.TxOutDetail_token_transfer:
 		param, err := sc.GetTransferParams()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		transferInfo := &rpcpb.TxOutDetail_TokenTransferInfo{
 			TokenTransferInfo: &rpcpb.TokenTransferInfo{
@@ -636,7 +647,7 @@ func detailTxOut(
 	case rpcpb.TxOutDetail_new_split_addr:
 		addresses, weights, err := sc.ParseSplitAddrScript()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		addrs := make([]string, 0, len(addresses))
 		for _, a := range addresses {
@@ -657,9 +668,9 @@ func detailTxOut(
 		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		params, typ, err := sc.ParseContractParams()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		fee, failed, gasUsed := uint32(0), false, uint64(0)
+		failed, gasUsed := false, uint64(0)
 		var internalTxs []string
 		var logs []*rpcpb.LogDetail
 		if content != nil { // not an internal contract tx
@@ -671,7 +682,7 @@ func detailTxOut(
 			}
 			// receipt may be nil if the contract tx is not brought on chain
 			if receipt != nil {
-				fee, failed, gasUsed = uint32(receipt.GasUsed*core.FixedGasPrice),
+				fee, failed, gasUsed = receipt.GasUsed*core.FixedGasPrice,
 					receipt.Failed, receipt.GasUsed
 				if tx.Vin[0].PrevOutPoint.Hash == crypto.ZeroHash {
 					// this contraction is internal chain transaction without fee
@@ -685,7 +696,6 @@ func detailTxOut(
 		}
 		contractInfo := &rpcpb.TxOutDetail_ContractInfo{
 			ContractInfo: &rpcpb.ContractInfo{
-				Fee:         fee,
 				Failed:      failed,
 				GasLimit:    params.GasLimit,
 				GasUsed:     gasUsed,
@@ -701,7 +711,7 @@ func detailTxOut(
 		detail.Appendix = contractInfo
 	}
 	//
-	return detail, nil
+	return detail, fee, nil
 }
 
 func parseVoutType(txOut *types.TxOut) rpcpb.TxOutDetail_TxOutType {
