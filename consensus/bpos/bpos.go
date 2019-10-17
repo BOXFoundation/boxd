@@ -859,6 +859,7 @@ func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
 func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
 	dynasty := bpos.context.verifyDynasty
+	logger.Debugf("TryToUpdateEternalBlock received number of signatures: %d", len(irreversibleInfo.Signatures))
 	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > 2*len(dynasty.delegates)/3 {
 		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, bpos.chain.DB())
 		if err != nil {
