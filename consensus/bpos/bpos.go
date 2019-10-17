@@ -863,7 +863,7 @@ func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	if irreversibleInfo != nil {
 		logger.Debugf("TryToUpdateEternalBlock received number of signatures: %d", len(irreversibleInfo.Signatures))
 	}
-	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) > 2*len(dynasty.delegates)/3 {
+	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) >= 2*len(dynasty.delegates)/3 {
 		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, bpos.chain.DB())
 		if err != nil {
 			logger.Warnf("Failed to update eternal block. Err: %s", err.Error())
