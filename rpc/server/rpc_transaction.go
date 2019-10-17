@@ -260,8 +260,8 @@ func (s *txServer) MakeUnsignedTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned tx: %s succeeded, response: %s",
-				tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
+			logger.Infof("make unsigned tx: %s, raw hash: %v, succeeded, response: %s",
+				tolog(req), tolog(resp.GetRawMsgs()), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -457,8 +457,9 @@ func (s *txServer) MakeUnsignedContractTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned contract tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Debugf("make unsigned contract tx: %s succeeded, response: %s, contract addr: %s",
-				tolog(req), tolog(types.ConvPbTx(resp.GetTx())), resp.ContractAddr)
+			logger.Debugf("make unsigned contract tx: %s succeeded, response: %s, "+
+				"raw hash: %v, contract addr: %s", tolog(req), tolog(resp.GetRawMsgs()),
+				tolog(types.ConvPbTx(resp.GetTx())), resp.ContractAddr)
 		}
 	}()
 	wa := s.server.GetWalletAgent()

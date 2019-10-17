@@ -395,8 +395,8 @@ func (r *TestDetailBlockChainReader) GetStateDbByHeight(height uint32) (*state.S
 	return nil, nil
 }
 
-func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, error) {
-	return nil, nil
+func (r *TestDetailBlockChainReader) GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error) {
+	return nil, nil, nil
 }
 
 func (r *TestDetailBlockChainReader) GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error) {

@@ -475,24 +475,37 @@ func checkLockTime(lockTime, txLockTime int64) bool {
 // verify if signature is right
 // scriptPubKey is the locking script of the utxo tx input tx.Vin[txInIdx] references
 func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *types.Transaction, txInIdx int) bool {
+	txHash, _ := tx.TxHash()
 	sig, err := crypto.SigFromBytes(sigStr)
 	if err != nil {
-		logger.Errorf("Deserialize signature failed. Err: %v", err)
+		logger.Errorf("Deserialize signature failed. Err: %v(sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, txhash: %s, txInIdx: %d)", err, sigStr, publicKeyStr,
+			scriptPubKey, txHash, txInIdx)
 		return false
 	}
 	publicKey, err := crypto.PublicKeyFromBytes(publicKeyStr)
 	if err != nil {
-		logger.Errorf("Deserialize public key failed. Err: %v", err)
+		logger.Errorf("Deserialize public key failed. Err: %v(sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, txhash: %s, txInIdx: %d)", err, sigStr, publicKeyStr,
+			scriptPubKey, txHash, txInIdx)
 		return false
 	}
 
 	sigHash, err := CalcTxHashForSig(scriptPubKey, tx, txInIdx)
 	if err != nil {
-		logger.Errorf("Calculate signature hash failed. Err: %v", err)
+		logger.Errorf("Calculate signature hash failed. Err: %v(sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, txhash: %s, txInIdx: %d)", err, sigStr, publicKeyStr,
+			scriptPubKey, txHash, txInIdx)
 		return false
 	}
 
-	return sig.VerifySignature(publicKey, sigHash)
+	if ok := sig.VerifySignature(publicKey, sigHash); !ok {
+		logger.Errorf("verify signatrure failed.(sig: %x, raw sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, sigHash: %x, txhash: %s, txInIdx: %d)", sig.Serialize(),
+			sigStr, publicKeyStr, scriptPubKey, sigHash[:], txHash, txInIdx)
+		return false
+	}
+	return true
 }
 
 // CalcTxHashForSig calculates the hash of a tx input, used for signature
