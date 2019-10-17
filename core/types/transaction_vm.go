@@ -269,6 +269,7 @@ func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
 	}
 
 	return &corepb.Receipt{
+		TxHash:      rc.TxHash[:],
 		TxIndex:     rc.TxIndex,
 		Deployed:    rc.Deployed,
 		Failed:      rc.Failed,
@@ -281,12 +282,12 @@ func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
 
 // FromProtoMessage converts proto message to Receipt.
 func (rc *Receipt) FromProtoMessage(message proto.Message) error {
+	if message == nil {
+		return core.ErrEmptyProtoMessage
+	}
 	pbrc, ok := message.(*corepb.Receipt)
 	if !ok {
 		return core.ErrInvalidReceiptProtoMessage
-	}
-	if message == nil {
-		return core.ErrEmptyProtoMessage
 	}
 
 	var logs []*Log
@@ -302,6 +303,9 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 	}
 	err := rc.Bloom.Unmarshal(pbrc.Bloom)
 	if err != nil {
+		return err
+	}
+	if err := rc.TxHash.SetBytes(pbrc.TxHash); err != nil {
 		return err
 	}
 	rc.TxIndex = pbrc.TxIndex
@@ -365,7 +369,7 @@ func (rcs *Receipts) toHashReceipts() (*HashReceipts, error) {
 			InternalTxs: rc.InternalTxs,
 			BlockHeight: rc.BlockHeight,
 		}
-		hashrc.TxHash.SetBytes(rc.TxHash.Bytes())
+		hashrc.TxHash.SetBytes(rc.TxHash[:])
 		hashrc.ContractAddress.SetBytes(rc.ContractAddress.Bytes())
 
 		hashrc.Logs = []*hashLog{}
@@ -506,6 +510,7 @@ func (rc *hashReceipt) ToProtoMessage() (proto.Message, error) {
 	}
 
 	return &corepb.HashReceipt{
+		TxHash:      rc.TxHash[:],
 		TxIndex:     rc.TxIndex,
 		Deployed:    rc.Deployed,
 		Failed:      rc.Failed,
@@ -518,12 +523,12 @@ func (rc *hashReceipt) ToProtoMessage() (proto.Message, error) {
 
 // FromProtoMessage converts proto message to Receipt.
 func (rc *hashReceipt) FromProtoMessage(message proto.Message) error {
+	if message == nil {
+		return core.ErrEmptyProtoMessage
+	}
 	pbrc, ok := message.(*corepb.Receipt)
 	if !ok {
 		return core.ErrInvalidReceiptProtoMessage
-	}
-	if message == nil {
-		return core.ErrEmptyProtoMessage
 	}
 
 	var logs []*hashLog
@@ -539,6 +544,9 @@ func (rc *hashReceipt) FromProtoMessage(message proto.Message) error {
 	}
 	err := rc.Bloom.Unmarshal(pbrc.Bloom)
 	if err != nil {
+		return err
+	}
+	if err := rc.TxHash.SetBytes(pbrc.TxHash); err != nil {
 		return err
 	}
 	rc.TxIndex = pbrc.TxIndex

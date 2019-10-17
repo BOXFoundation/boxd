@@ -1707,4 +1707,14 @@ func TestCallBetweenContracts(t *testing.T) {
 	checkTestAddrBalance(t, blockChain, bankAddr, bankBalance)
 	userBalance -= b3.Header.GasUsed
 	checkTestAddrBalance(t, blockChain, userAddr, userBalance)
+
+	// check receipt
+	vmTx4Hash, _ := vmTx4.TxHash()
+	rc, _, err := blockChain.GetTxReceipt(vmTx4Hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *vmTx4Hash != rc.TxHash {
+		t.Fatalf("receipt hash mismatch, want: %s, got: %s", vmTx4Hash, rc.TxHash)
+	}
 }
