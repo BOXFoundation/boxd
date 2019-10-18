@@ -33,7 +33,17 @@ var RootCmd = &cobra.Command{
 	Short: "BOX Payout command-line interface",
 	Long: `BOX Payout, a lightweight blockchain built for processing
 			multi-party payments on digital content apps.`,
-	Version: fmt.Sprintf("%s-r%s (%s branch)", config.Version, config.GitCommit, config.GitBranch),
+	Example: `
+	1.commands about wallet
+	  ./box wallet [command]
+	2. commands about contract
+	  ./box contract [command]
+	3.commands about transaction
+	  ./box tx [command]
+	4. commands about net and block_info
+	  ./box block information
+	`,
+	Version: fmt.Sprintf("%s %s(%s) %s\n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion),
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
@@ -67,11 +77,11 @@ func init() {
 	RootCmd.PersistentFlags().Uint("rpc-port", DefaultGRPCPort, "gRPC listen port.")
 	viper.BindPFlag("rpc.port", RootCmd.PersistentFlags().Lookup("rpc-port"))
 
-	RootCmd.PersistentFlags().IP("rpc-http-addr", net.ParseIP("127.0.0.1"), "rpc http listen address.")
-	viper.BindPFlag("rpc.http.address", RootCmd.PersistentFlags().Lookup("rpc-http-addr"))
+	RootCmd.PersistentFlags().IP("http-addr", net.ParseIP("127.0.0.1"), "rpc http listen address.")
+	viper.BindPFlag("http.address", RootCmd.PersistentFlags().Lookup("http-addr"))
 
-	RootCmd.PersistentFlags().Uint("rpc-http-port", DefaultRPCHTTPPort, "rpc http listen port.")
-	viper.BindPFlag("rpc.http.port", RootCmd.PersistentFlags().Lookup("rpc-http-port"))
+	RootCmd.PersistentFlags().Uint("http-port", DefaultRPCHTTPPort, "rpc http listen port.")
+	viper.BindPFlag("http.port", RootCmd.PersistentFlags().Lookup("http-port"))
 }
 
 // initConfig reads in config file and ENV variables if set.

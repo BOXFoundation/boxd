@@ -130,7 +130,7 @@ message FetchUtxosResp {
 }
 
 message GetRawTransactionRequest {
-    bytes hash = 1;
+    string hash = 1;
 }
 
 message GetRawTransactionResponse {

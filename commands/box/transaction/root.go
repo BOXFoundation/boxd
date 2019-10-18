@@ -5,16 +5,13 @@
 package transactioncmd
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/commands/box/root"
-	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -24,7 +21,6 @@ import (
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var cfgFile string
@@ -43,6 +39,20 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	Example: `
+	1.view transaction detail by transaction_hash
+	  ./box tx viewtxdetail 7a13a3fcfc74f2cc92339f68ed3d71b93c15dff3e0faf39bcb78918dca49d9c2
+	2.get transaction by block_height and index_tx 
+	  ./box tx gettxbyhash a49f9608b69b22c6ee2e3717364beb3d4848f236b7b51b0e3ba654f41649ab4c 0
+	3.make unsigned transaction
+	  ./box tx createtx b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m b1dZ8aPQ2UPeYHfGV5hshyswbxRBZQjuz2L,b1gFAdBjy8gu3vFRbg1qJEXtiV9xZTVTKx1 10,20
+	4.sign transaction 
+	  ./box --wallet_dir keyfile tx signrawtx b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m 12240a220a20206029513377e45fed5cf8486b76664864a8138d1cc5248c84202eab2c803b541a1d080a121976a9146aeacee33019c341b1700de7a0485ce13f3d02b988ac1a1d0814121976a914886d68724989517491e92c420a820a9e9d5b41d688ac1a2408d2f499ecb3aacf3a121976a914816666b318349468f8146e76e4e3751d937c14cb88ac
+	5.send raw transaction
+	  ./box tx sendrawtx 1290010a220a20206029513377e45fed5cf8486b76664864a8138d1cc5248c84202eab2c803b54126a473045022100dc42cfb8348bb10d91278069912351e7271c4e4744fd0f91de6451c6c227a6f602200ebf1c3fcfd47e609a539e59769b77e83690dc628bf246b9cfe49ca2154648bb2103ac5906f34b6f12150d49942dcd3df4b30716cb78abc9e3f6e488e2c1f28ab8bd1a1d080a121976a9146aeacee33019c341b1700de7a0485ce13f3d02b988ac1a1d0814121976a914886d68724989517491e92c420a820a9e9d5b41d688ac1a24089297cdecb3aacf3a121976a914816666b318349468f8146e76e4e3751d937c14cb88ac
+	6.Sendfrom command sends an amount of box from a managed account to another account
+	  ./box tx sendfrom b1YLUNwJD124sv9piRvkqcmfcujTZtHhHSz b1UJRzHvXoHA8DGGGGZaCSQBkVyoPEqmQUN 50000
+	`,
 }
 
 // Init adds the sub command to the root command.
@@ -54,13 +64,6 @@ func init() {
 			Use:   "sendfrom [fromaccount] [toaddress] [amount]",
 			Short: "Send coins from an account to an address",
 			Run:   sendFromCmdFunc,
-		},
-		&cobra.Command{
-			Use:   "sendtoaddress [address]",
-			Short: "Send coins to an address",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("sendtoaddress called")
-			},
 		},
 		&cobra.Command{
 			Use:   "createtx [from] [to1,to2...] [amounts1,amounts2...]",
@@ -85,11 +88,6 @@ func init() {
 			Run:   getRawTxCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "viewblockdetail [blockhash]",
-			Short: "Get the raw blockInformation for a block hash",
-			Run:   getBlockDetailCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
 			Run:   sendrawtx,
@@ -110,51 +108,82 @@ to quickly create a Cobra  application.`,
 			Short: "Get the raw transaction for a txid",
 			Run:   getRawTxCmdFunc,
 		},
+		&cobra.Command{
+			Use:   "gettxcountbyhash [blockhash]",
+			Short: "Get the transaction amount by hash",
+			Run:   getTxCountByHash,
+		},
+		&cobra.Command{
+			Use:   "gettxcountbyheight [blockheight]",
+			Short: "Get the transaction amount by height",
+			Run:   getTxCountByHeight,
+		},
+		&cobra.Command{
+			Use:   "gettxbyhash [blockhash] [tx_index]",
+			Short: "Get the transaction by block_hash and block_index",
+			Run:   getTxByHashAndIndex,
+		},
+		&cobra.Command{
+			Use:   "gettxbyheight [blockheight] [tx_index]",
+			Short: "Get the transaction  by height and tx_index",
+			Run:   getTxByHeightAndIndex,
+		},
+		&cobra.Command{
+			Use:   "fetchutxo [addr] [amount] [token_hash] [token_index]",
+			Short: "Fetch Utxos",
+			Run:   fetchUtxo,
+		},
+		// &cobra.Command{
+		// 	Use:   "sendtoaddress [address]",
+		// 	Short: "Send coins to an address",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		fmt.Println("sendtoaddress called")
+		// 	},
+		// },
 	)
 }
 
 func maketx(cmd *cobra.Command, args []string) {
 	if len(args) != 3 {
-		fmt.Println("Invalide argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
-
 	from := args[0]
 	toAddr := strings.Split(args[1], ",")
-
 	// check address
-	if err := types.ValidateAddr(append(toAddr, from)...); err != nil {
-		fmt.Println(err)
+	if _, err := types.NewAddress(from); err != nil {
+		fmt.Println("invalid address")
 		return
+	}
+	for _, addr := range toAddr {
+		if err := types.ValidateAddr(addr); err != nil {
+			fmt.Printf("invaild address for %s, err: %s\n", addr, err)
+			return
+		}
 	}
 	amountStr := strings.Split(args[2], ",")
 	amounts := make([]uint64, 0, len(amountStr))
 	for _, x := range amountStr {
 		tmp, err := strconv.ParseUint(x, 10, 64)
 		if err != nil {
-			fmt.Println("Conversion failed:", err)
+			fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", x, err)
 			return
 		}
 		amounts = append(amounts, uint64(tmp))
 	}
-
 	req := &rpcpb.MakeTxReq{
 		From:    from,
 		To:      toAddr,
 		Amounts: amounts,
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "MakeUnsignedTx", req, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	client := rpcpb.NewTransactionCommandClient(conn)
-	resp, err := client.MakeUnsignedTx(ctx, req)
-	if err != nil {
-		fmt.Println("make transaction failed:", err)
+	resp, ok := respRPC.(*rpcpb.MakeTxResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.MakeTxResp failed")
 		return
 	}
 	tx := resp.Tx
@@ -177,12 +206,11 @@ func maketx(cmd *cobra.Command, args []string) {
 }
 
 func sendrawtx(cmd *cobra.Command, args []string) {
-	fmt.Println("sendrawtx called")
 	if len(args) != 1 {
-		fmt.Println("Can only enter one string for a transaction")
+		fmt.Println(cmd.Use)
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -190,70 +218,178 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 	defer conn.Close()
 	txByte, err := hex.DecodeString(args[0])
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("DecodeString %s failed:%s\n", args[0], err)
 		return
 	}
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(txByte); err != nil {
-		fmt.Println("unmarshal error: ", err)
+		fmt.Printf("tx unmarshal %s error: %s\n", txByte, err)
 		return
 	}
-	resp, err := rpcutil.SendTransaction(conn, tx)
+	hash, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(format.PrettyPrint(resp))
+	fmt.Println(format.PrettyPrint(hash))
 }
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getrawtx called")
 	if len(args) < 1 {
-		fmt.Println("Param txhash required")
+		fmt.Println(cmd.Use)
 		return
 	}
-	hash := crypto.HashType{}
-	hash.SetString(args[0])
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid hash")
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetRawTransaction",
+		&rpcpb.GetRawTransactionRequest{Hash: hash.String()}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	tx, err := rpcutil.GetRawTransaction(conn, hash.GetBytes())
-	if err != nil {
+	resp, ok := respRPC.(*rpcpb.GetRawTransactionResponse)
+	if !ok {
+		fmt.Println("Convertion to rpcpb.GetRawTransactionResponse failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	tx := new(types.Transaction)
+	if err = tx.FromProtoMessage(resp.Tx); err != nil {
 		fmt.Println(err)
 		return
 	}
 	fmt.Println(format.PrettyPrint(tx))
+
 }
 
-func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getBlockDetail called")
-	if len(args) < 1 {
-		fmt.Println("Param txhash required")
+func getTxCountByHash(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println(cmd.Use)
 		return
 	}
-	hash := args[0]
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockTransactionCountByHash",
+		&rpcpb.GetBlockTransactionCountByHashReq{BlockHash: args[0]}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	//
-	block, err := rpcutil.GetBlock(conn, hash)
+	resp, ok := respRPC.(*rpcpb.GetBlockTxCountResp)
+	if !ok {
+		fmt.Println("Convertion to rpcpb.GetBlockTxCountResp failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println(resp.Count)
+}
+
+func getTxCountByHeight(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	height, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
+		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[0], err)
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockTransactionCountByHeight",
+		&rpcpb.GetBlockTransactionCountByHeightReq{Height: uint32(height)}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		fmt.Println(format.PrettyPrint(block))
+		return
 	}
+	resp, ok := respRPC.(*rpcpb.GetBlockTxCountResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.GetBlockTxCountResp failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println("transaction amount:", resp.Count)
+}
+
+func getTxByHashAndIndex(cmd *cobra.Command, args []string) {
+	if len(args) != 2 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	index, err := strconv.ParseUint(args[1], 10, 64)
+	if err != nil {
+		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTransactionByBlockHashAndIndexReq",
+		&rpcpb.GetTransactionByBlockHashAndIndexReq{BlockHash: args[0], Index: uint32(index)}, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	resp, ok := respRPC.(*rpcpb.GetTxResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.GetTxResp failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	tx := new(types.Transaction)
+	if err = tx.FromProtoMessage(resp.Tx); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Transaction:", format.PrettyPrint(tx))
+}
+
+func getTxByHeightAndIndex(cmd *cobra.Command, args []string) {
+	if len(args) != 2 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	height, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
+		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[0], err)
+		return
+	}
+	index, err := strconv.ParseUint(args[1], 10, 64)
+	if err != nil {
+		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTransactionByBlockHeightAndIndex",
+		&rpcpb.GetTransactionByBlockHeightAndIndexReq{Height: uint32(height), Index: uint32(index)}, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	resp, ok := respRPC.(*rpcpb.GetTxResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.GetTxResp failed")
+		return
+	}
+	tx := new(types.Transaction)
+	err = tx.FromProtoMessage(resp.Tx)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Transaction:", format.PrettyPrint(tx))
 }
 
 func decoderawtx(cmd *cobra.Command, args []string) {
-	fmt.Println("decoderawtx called")
 	if len(args) != 1 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
 	txByte, err := hex.DecodeString(args[0])
@@ -270,11 +406,14 @@ func decoderawtx(cmd *cobra.Command, args []string) {
 }
 
 func signrawtx(cmd *cobra.Command, args []string) {
-	fmt.Println("signrawtx called")
 	//arg[0] represents 'from address'
 	//arg[1] represents 'rawtx'
 	if len(args) < 2 {
-		fmt.Println("Invalide argument number")
+		fmt.Println(cmd.Use)
+		return
+	}
+	if _, err := types.NewAddress(args[0]); err != nil {
+		fmt.Println("invalid address")
 		return
 	}
 	txBytes, err := hex.DecodeString(args[1])
@@ -345,12 +484,16 @@ func signrawtx(cmd *cobra.Command, args []string) {
 		return
 	}
 	strTx := hex.EncodeToString(mashalTx)
-	fmt.Println("rawtx: ", strTx)
+	fmt.Println("rawtx:", strTx)
 }
 
 func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) < 3 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
+		return
+	}
+	if _, err := types.NewAddress(args[0]); err != nil {
+		fmt.Println("invalid address")
 		return
 	}
 	// account
@@ -393,14 +536,14 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		}
 		toHashes = append(toHashes, address.Hash160())
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer conn.Close()
 	tx, _, err := rpcutil.NewTx(account, toHashes, amounts, conn)
 	if err != nil {
-		fmt.Println("new tx error: ", err)
+		fmt.Println("new tx error:", err)
 		return
 	}
 	hash, err := rpcutil.SendTransaction(conn, tx)
@@ -408,7 +551,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx Hash: ", hash)
+	fmt.Println("Tx Hash:", hash)
 	fmt.Println(format.PrettyPrint(tx))
 }
 
@@ -428,8 +571,44 @@ func parseSendParams(args []string) (addrs []string, amounts []uint64, err error
 	return addrs, amounts, nil
 }
 
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
+func fetchUtxo(cmd *cobra.Command, args []string) {
+	if len(args) != 4 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	if _, err := types.NewAddress(args[0]); err != nil {
+		fmt.Println("invalid address")
+		return
+	}
+	amount, err := strconv.ParseUint(args[1], 10, 64)
+	if err != nil {
+		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
+		return
+	}
+	index, err := strconv.ParseUint(args[3], 10, 64)
+	if err != nil {
+		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[3], err)
+		return
+	}
+	req := &rpcpb.FetchUtxosReq{
+		Addr:       args[0],
+		Amount:     amount,
+		TokenHash:  args[2],
+		TokenIndex: uint32(index),
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "FetchUtxos", req, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	resp, ok := respRPC.(*rpcpb.FetchUtxosResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.FetchUtxosResp failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println("utxos:", resp.Utxos)
 }

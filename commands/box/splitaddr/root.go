@@ -11,13 +11,11 @@ import (
 
 	"github.com/BOXFoundation/boxd/commands/box/common"
 	root "github.com/BOXFoundation/boxd/commands/box/root"
-	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -40,6 +38,7 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	Example: `./box create fromaddr [(addr1, weight1), (addr2, weight2), (addr3, weight3), ...]`,
 }
 
 // Init adds the sub command to the root command.
@@ -56,7 +55,6 @@ func init() {
 }
 
 func createCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("splitaddr create called")
 	if len(args) < 3 || len(args)%2 == 0 {
 		fmt.Println("Invalid argument number: expect odd number larger than or equal to 3")
 		return
@@ -84,6 +82,14 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 	// addrs and weights
 	addrs, weights := make([]string, 0), make([]uint32, 0)
 	for i := 1; i < len(args)-1; i += 2 {
+		if address, err := types.ParseAddress(args[i]); err != nil {
+			_, ok1 := address.(*types.AddressPubKeyHash)
+			_, ok2 := address.(*types.AddressTypeSplit)
+			if !ok1 && !ok2 {
+				fmt.Printf("invaild address for %s, err: %s\n", args[i], err)
+				return
+			}
+		}
 		addrs = append(addrs, args[i])
 		a, err := strconv.ParseUint(args[i+1], 10, 64)
 		if err != nil || a >= math.MaxUint32 {
@@ -92,17 +98,13 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		}
 		weights = append(weights, uint32(a))
 	}
-	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println(err)
-		return
-	}
 	addrHashes := make([]*types.AddressHash, 0, len(addrs))
 	for _, addr := range addrs {
 		address, _ := types.ParseAddress(addr)
 		addrHashes = append(addrHashes, address.Hash160())
 	}
 	// conn
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -119,12 +121,6 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx Hash: ", hashStr)
+	fmt.Println("Tx Hash:", hashStr)
 	fmt.Println(format.PrettyPrint(tx))
-}
-
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

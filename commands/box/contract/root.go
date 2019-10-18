@@ -7,14 +7,15 @@ package ctl
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +45,9 @@ const (
 
 var (
 	walletDir string
+
+	solcBinReg = regexp.MustCompile("Binary:\\s?\n([0-9a-f]+)\n")
+	solcAbiReg = regexp.MustCompile("ABI\\s?\n([\\pP0-9a-zA-Z]+)\n")
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -71,7 +75,7 @@ var rootCmd = &cobra.Command{
     ./box contract setsender b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m
 		NOTE: account sender must be imported and unlocked to local wallet
 
-  4. deploy contract
+  4. deploy contract 
     ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19191
     NOTE: if add index argument after amount argument, attach index to the deployed contract
 
@@ -148,6 +152,26 @@ func init() {
 			Use:   "getlogs [hash] [from] [to] [address] [topics]",
 			Short: "Get returns logs matching the given argument that are stored within the state",
 			Run:   getLogs,
+		},
+		&cobra.Command{
+			Use:   "getnonce [addr]",
+			Short: "Get the nonce of address ",
+			Run:   getNonce,
+		},
+		&cobra.Command{
+			Use:   "getcode [contractaddress]",
+			Short: "Get the code of contract_address",
+			Run:   getCode,
+		},
+		&cobra.Command{
+			Use:   "estimategas [from] [to] [data] [height]",
+			Short: "Get estimategas about contract_transaction",
+			Run:   estimateGas,
+		},
+		&cobra.Command{
+			Use:   "getstorage [address] [position] [height]",
+			Short: "Get the position of variable in storsge",
+			Run:   getStorageAt,
 		},
 		&cobra.Command{
 			Use:   "reset",
@@ -350,7 +374,6 @@ func importAbi(cmd *cobra.Command, args []string) {
 	if err != nil {
 		panic(err)
 	}
-	//
 	f, err := os.OpenFile(recordFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
@@ -406,7 +429,7 @@ func setsender(cmd *cobra.Command, args []string) {
 		}
 	}
 	if !unlocked {
-		fmt.Println("accound is unlocked, you need to import your account to this wallet!")
+		fmt.Println("account is unlocked, you need to import your account to this wallet!")
 		return
 	}
 	// write address to file
@@ -429,6 +452,12 @@ func list(cmd *cobra.Command, args []string) {
 		fmt.Println("record is empty")
 		return
 	}
+	sender, _, err := currentSender(senderFile)
+	if err != nil {
+		fmt.Println("get current sender address:", err)
+		return
+	}
+	fmt.Printf("sender: %s\n", sender)
 	fmt.Println("abi list:")
 	for _, i := range abiInfo {
 		fmt.Printf("\t%d: %s\n", i.index, i.note)
@@ -517,16 +546,11 @@ func deploy(cmd *cobra.Command, args []string) {
 		return
 	}
 	data := args[0]
-	var bytecode string
-	if _, err := os.Stat(data); err == nil {
-		bytes, err := ioutil.ReadFile(data)
-		if err != nil {
-			fmt.Println("read contract file error:", err)
-			return
-		}
-		bytecode = strings.TrimSpace(string(bytes))
-	} else {
-		bytecode = data
+	//parase contract data
+	bytecode, _, err := parseContractData(data)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 	// params
 	var indexArg string
@@ -789,14 +813,17 @@ func signAndSendContractTx(
 }
 
 func getLogs(cmd *cobra.Command, args []string) {
-	fmt.Println("getLogs called")
 	//arg[0]represents block hash , arg[1] "from"andarg[2"to " represent log between from and to
 	//arg[3]reprensents address arg[4]represents topics
 	if len(args) != 5 {
-		fmt.Println("Invalid argument number")
+		fmt.Println(cmd.Use)
 		return
 	}
-	hash := args[0]
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid hash")
+		return
+	}
 	from, err := strconv.ParseUint(args[1], 10, 32)
 	if err != nil {
 		fmt.Println(err)
@@ -811,29 +838,169 @@ func getLogs(cmd *cobra.Command, args []string) {
 	topicsStr := strings.Split(args[4], ",")
 	topics := []*rpcpb.LogsReqTopiclist{&rpcpb.LogsReqTopiclist{Topics: topicsStr}}
 
-	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 	req := &rpcpb.LogsReq{
 		Uid:       "",
-		Hash:      hash,
+		Hash:      hash.String(),
 		From:      uint32(from),
 		To:        uint32(to),
 		Addresses: address,
 		Topics:    topics,
 	}
-	client := rpcpb.NewWebApiClient(conn)
-	resp, err := client.GetLogs(ctx, req)
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetLogs", req, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(resp.Logs)
+	resp := respRPC.(*rpcpb.Logs)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	for _, log := range resp.Logs {
+		fmt.Println(log)
+	}
+}
+
+func getNonce(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	addr := args[0]
+	//validate address
+	if address, err := types.ParseAddress(addr); err != nil {
+		_, ok1 := address.(*types.AddressPubKeyHash)
+		_, ok2 := address.(*types.AddressContract)
+		if !ok1 && !ok2 {
+			fmt.Printf("invaild address for %s, err: %s\n", args[0], err)
+			return
+		}
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "Nonce",
+		&rpcpb.NonceReq{Addr: addr}, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	resp := respRPC.(*rpcpb.NonceResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println("Nonce:", resp.Nonce)
+}
+
+func getCode(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	//validate address
+	if _, err := types.NewContractAddress(args[0]); err != nil {
+		fmt.Println("invalid contract address")
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetCode",
+		&rpcpb.GetCodeReq{Address: args[0]}, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	resp := respRPC.(*rpcpb.GetCodeResp)
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println(resp.Data)
+}
+
+func estimateGas(cmd *cobra.Command, args []string) {
+	if len(args) < 3 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	from := args[0]
+	toAddr := args[1]
+	//check address
+	if _, err := types.NewAddress(args[0]); err != nil {
+		fmt.Println("invalid address")
+		return
+	}
+	if _, err := types.NewContractAddress(args[1]); err != nil {
+		fmt.Println("invalid contract address")
+		return
+	}
+	var height uint64
+	if len(args) == 3 {
+		height = 0
+	} else {
+		var err error
+		height, err = strconv.ParseUint(args[3], 10, 64)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+	req := &rpcpb.CallReq{
+		From:    from,
+		To:      toAddr,
+		Data:    args[2],
+		Height:  uint32(height),
+		Timeout: 0,
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "EstimateGas",
+		req, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	resp, ok := respRPC.(*rpcpb.EstimateGasResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.EstimateGasResp failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println("Estimate box:", uint64(resp.Gas)*core.FixedGasPrice/core.DuPerBox)
+}
+
+func getStorageAt(cmd *cobra.Command, args []string) {
+	if len(args) != 3 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	_, err := types.NewContractAddress(args[0])
+	if err != nil {
+		fmt.Println("invalid contract address")
+		return
+	}
+	height, err := strconv.ParseUint(args[2], 10, 64)
+	if err != nil {
+		fmt.Println("Conversion the type of height failed:", err)
+		return
+	}
+	req := &rpcpb.StorageReq{
+		Address:  args[0],
+		Position: args[1],
+		Height:   uint32(height),
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "GetStorageAt", req, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println("RPC call failed:", err)
+		return
+	}
+	resp, ok := respRPC.(*rpcpb.StorageResp)
+	if !ok {
+		fmt.Println("Conversion to rpcpb.StorageResp failed")
+		return
+	}
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	fmt.Println(resp.Data)
 }
 
 func reset(cmd *cobra.Command, args []string) {
@@ -1151,4 +1318,51 @@ func calcGasLimit(bal, amount uint64) uint64 {
 		limit = 10000000
 	}
 	return limit
+}
+
+func parseContractData(data string) (bytecode string, abi string, err error) {
+	//parase data
+	if _, err := os.Stat(data); err == nil {
+		bytes, err := ioutil.ReadFile(data)
+		if err != nil {
+			return "", "", err
+		}
+		bytesStr := strings.TrimSpace(string(bytes))
+		if common.IsHexFormat(bytesStr) {
+			bytecode = bytesStr
+		} else {
+			binData, abiData, err := compileSol(data)
+			if err != nil {
+				return "", "", err
+			}
+			if len(binData) > 0 {
+				bytecode = binData
+				abi = abiData
+			}
+		}
+	} else {
+		if !common.IsHexFormat(data) {
+			return "", "", err
+		}
+		bytecode = data
+	}
+	return bytecode, abi, nil
+}
+
+func compileSol(filepath string) (binData string, abiData string, err error) {
+	cmd := exec.Command("solc", filepath, "--bin", "--abi")
+	//CombinedOutput runs the command and returns its combined standard output and standard error.
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		//an error is returned and the error message is the output.
+		return "", "", errors.New(string(output))
+	}
+	outputStr := string(output)
+	binMatches := solcBinReg.FindStringSubmatch(outputStr)
+	abiMathes := solcAbiReg.FindStringSubmatch(outputStr)
+	if len(abiMathes) == 2 && len(binMatches) == 2 {
+		binData = binMatches[1]
+		abiData = abiMathes[1]
+	}
+	return binData, abiData, nil
 }
