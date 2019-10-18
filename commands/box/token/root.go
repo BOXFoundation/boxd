@@ -184,10 +184,14 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 	to := strings.Split(args[2], ",")
 	toHashes := make([]*types.AddressHash, 0, len(to))
 	for _, addr := range to {
-		address, err := types.NewAddress(addr)
+		address, err := types.ParseAddress(addr)
 		if err != nil {
-			fmt.Println("invalid address")
-			return
+			_, ok1 := address.(*types.AddressPubKeyHash)
+			_, ok2 := address.(*types.AddressTypeSplit)
+			if !ok1 && !ok2 {
+				fmt.Printf("invaild address for %s, err: %s\n", addr, err)
+				return
+			}
 		}
 		toHashes = append(toHashes, address.Hash160())
 	}
@@ -241,7 +245,7 @@ func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
 	// address
 	addrs := strings.Split(args[1], ",")
 	for _, addr := range addrs {
-		if _, err := types.NewAddress(addr); err != nil {
+		if _, err := types.ParseAddress(addr); err != nil {
 			fmt.Println("invalid address")
 			return
 		}

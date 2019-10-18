@@ -744,8 +744,10 @@ func getNonce(cmd *cobra.Command, args []string) {
 	addr := args[0]
 	//validate address
 	if address, err := types.ParseAddress(addr); err != nil {
-		if _, ok := address.(*types.AddressTypeSplit); ok {
-			fmt.Printf("invaild address for %s, err: %s\n", addr, err)
+		_, ok1 := address.(*types.AddressPubKeyHash)
+		_, ok2 := address.(*types.AddressContract)
+		if !ok1 && !ok2 {
+			fmt.Printf("invaild address for %s, err: %s\n", args[0], err)
 			return
 		}
 	}
@@ -1233,7 +1235,7 @@ func compileSol(filepath string) (binData string, abiData string, err error) {
 	outputStr := string(output)
 	binMatches := solcBinReg.FindStringSubmatch(outputStr)
 	abiMathes := solcAbiReg.FindStringSubmatch(outputStr)
-	if len(abiMathes) > 0 {
+	if len(abiMathes) == 2 && len(binMatches) == 2 {
 		binData = binMatches[1]
 		abiData = abiMathes[1]
 	}
