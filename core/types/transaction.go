@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
+	"golang.org/x/crypto/ripemd160"
 )
 
 // Define const
@@ -224,6 +225,21 @@ var _ conv.Convertible = (*OutPoint)(nil)
 var _ conv.Serializable = (*OutPoint)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// AddressHash returns the owner of this txin
+// TODO: the method have not been tested and verified
+func (txin *TxIn) AddressHash() *AddressHash {
+	if txin.PrevOutPoint.Hash == crypto.ZeroHash {
+		return nil
+	}
+	if len(txin.ScriptSig) <= ripemd160.Size {
+		return nil
+	}
+	addrBytes := crypto.Hash160(txin.ScriptSig[len(txin.ScriptSig)-ripemd160.Size:])
+	addrHash := new(AddressHash)
+	addrHash.SetBytes(addrBytes)
+	return addrHash
+}
 
 func (txin *TxIn) String() string {
 	return fmt.Sprintf("{PrevOutPoint: %s, ScriptSig: %x, Sequence: %d}",

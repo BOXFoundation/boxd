@@ -399,7 +399,7 @@ func (s *StateDB) updateStateObject(stateObject *stateObject) {
 	addr := stateObject.Address()
 	data, err := rlp.EncodeToBytes(stateObject)
 	if err != nil {
-		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
+		panic(fmt.Errorf("can't encode object %+v at %x: %s", stateObject, addr[:], err))
 	}
 	//logger.Debugf("DEBUG: statedb update state object addr: %x", addr[:])
 	s.setError(s.trie.Update(addr[:], data))

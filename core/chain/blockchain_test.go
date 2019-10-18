@@ -5,8 +5,10 @@
 package chain
 
 import (
+	"bytes"
 	"encoding/hex"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +101,19 @@ func createSplitTx(
 func getBalance(address *types.AddressHash, db storage.Table) uint64 {
 	utxoKey := AddrAllUtxoKey(address)
 	keys := db.KeysWithPrefix(utxoKey)
+	// because contract address' utxoes may have many AddrUtxoKey,
+	// only to leave contract type utxo and to skip others
+	for _, k := range keys {
+		ks := bytes.Split(k, []byte("/"))
+		k3, k4 := ks[3], ks[4]
+		if string(k4) != "0" {
+			continue
+		}
+		if strings.HasSuffix(string(k3), "000000000000000000000000") {
+			keys = [][]byte{k}
+			break
+		}
+	}
 	values, err := db.MultiGet(keys...)
 	if err != nil {
 		logger.Fatalf("failed to multget from db. Err: %+v", err)
@@ -366,9 +381,11 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.
 	block.Txs[0].ResetTxHash()
 	blockCopy := block.Copy()
 	chain.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
 		return err
 	}
+	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
+
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
 	receipts, gasUsed, utxoTxs, err :=
 		chain.StateProcessor().Process(block, statedb, utxoSet)
@@ -376,7 +393,6 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.
 		return err
 	}
 
-	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 	// update genesis contract utxo in utxoSet
 	op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
 	genesisUtxoWrap := utxoSet.GetUtxo(op)

@@ -279,6 +279,10 @@ func (s *txServer) MakeUnsignedTx(
 	toHashes := make([]*types.AddressHash, 0, len(to))
 	for _, addr := range to {
 		address, _ := types.ParseAddress(addr)
+		if _, ok := address.(*types.AddressContract); ok &&
+			!s.server.GetChainReader().TailState().Exist(*address.Hash160()) {
+			return newMakeTxResp(-1, "contract address for to address is not exist", nil, nil), nil
+		}
 		toHashes = append(toHashes, address.Hash160())
 	}
 	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, fromAddress.Hash160(), toHashes,
@@ -502,6 +506,9 @@ func (s *txServer) MakeUnsignedContractTx(
 		contractAddress, err := types.NewContractAddress(contractAddr)
 		if err != nil {
 			return newMakeContractTxResp(-1, "invalid contract address", nil, nil, ""), nil
+		}
+		if !s.server.GetChainReader().TailState().Exist(*contractAddress.Hash160()) {
+			return newMakeContractTxResp(-1, "contract does not exist", nil, nil, ""), nil
 		}
 		tx, utxos, err = rpcutil.MakeUnsignedContractCallTx(wa, fromAddress.Hash160(),
 			amount, gasLimit, req.GetNonce(), contractAddress.Hash160(), byteCode)

@@ -625,7 +625,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	}
 	blockCopy := block.Copy()
 	bpos.chain.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy, bpos.chain.IsContractAddr2); err != nil {
 		return err
 	}
 
