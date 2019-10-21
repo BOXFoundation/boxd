@@ -178,6 +178,11 @@ func init() {
 			Short: "reset abi setting",
 			Run:   reset,
 		},
+		&cobra.Command{
+			Use:   "contractdetails [index/file_path/nil]",
+			Short: "view contract details",
+			Run:   contractdetails,
+		},
 	)
 }
 
@@ -1009,6 +1014,39 @@ func reset(cmd *cobra.Command, args []string) {
 	}
 }
 
+func contractdetails(cmd *cobra.Command, args []string) {
+	if len(args) > 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	abi := new(abi.ABI)
+	index, err := strconv.Atoi(args[0])
+	if err != nil {
+		abi, err = newAbi(args[0])
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	} else {
+		abi, err = newAbiObj(index)
+	}
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("method name and method ID:")
+	for name, method := range abi.Methods {
+		fmt.Println("method name:", name)
+		fmt.Println("method ID:", hex.EncodeToString(method.ID()))
+	}
+	fmt.Println("event name and event ID:")
+	for name, event := range abi.Events {
+		fmt.Println("event name:", name)
+		fmt.Println("event ID:", hex.EncodeToString(event.ID().Bytes()))
+	}
+
+}
+
 type abiDesc struct {
 	index    int
 	note     string
@@ -1365,4 +1403,22 @@ func compileSol(filepath string) (binData string, abiData string, err error) {
 		abiData = abiMathes[1]
 	}
 	return binData, abiData, nil
+}
+
+func newAbi(filePath string) (*abi.ABI, error) {
+	if _, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s directory is not exists", filePath)
+		}
+		return nil, fmt.Errorf("%s directory status error: %s", filePath, err)
+	}
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read file : %s, err: %s", filePath, err)
+	}
+	abi, err := abi.JSON(bytes.NewBuffer(data))
+	if err != nil {
+		return nil, fmt.Errorf("illegal abi file, error: %s", err)
+	}
+	return &abi, nil
 }
