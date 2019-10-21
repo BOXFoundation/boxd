@@ -70,7 +70,7 @@ func (sp *StateProcessor) Process(
 			break
 		}
 		if vmTx == nil {
-			sumGas += core.TransferFee
+			sumGas += core.TransferFee + tx.ExtraFee()
 			continue
 		}
 		if vmTx.Nonce() != stateDB.GetNonce(*vmTx.From())+1 {
@@ -100,7 +100,7 @@ func (sp *StateProcessor) Process(
 		if len(txs) > 0 {
 			utxoTxs = append(utxoTxs, txs...)
 		}
-		gasThisTx := vmTx.GasPrice().Uint64() * gasUsedPerTx
+		gasThisTx := vmTx.GasPrice().Uint64()*gasUsedPerTx + tx.ExtraFee()
 		usedGas += gasThisTx
 		sumGas += gasThisTx
 		receipt.WithTxIndex(uint32(i)).WithBlockHash(block.BlockHash()).
@@ -151,6 +151,14 @@ func ApplyTransaction(
 	deployed := tx.Type() == types.ContractCreationType
 	if deployed {
 		contractAddr = types.CreateAddress(*tx.From(), tx.Nonce())
+		if !fail {
+			// if contract address had some boxes in normal utxo, cp the value to contract utxo
+			origBal := statedb.GetBalance(*contractAddr).Uint64() - tx.Value().Uint64()
+			outPoint := types.NewOutPoint(types.NormalizeAddressHash(contractAddr), 0)
+			utxoSet.utxoMap[*outPoint].AddValue(origBal)
+			logger.Infof("contract %x origBal: %d, new utxo wrap value: %d",
+				contractAddr[:], origBal, utxoSet.utxoMap[*outPoint].Value())
+		}
 	} else {
 		contractAddr = tx.To()
 	}
@@ -311,13 +319,9 @@ func makeTx(
 		}
 		fromUtxoWrap.SetValue(fromValue)
 	}
-	vin := &types.TxIn{
-		PrevOutPoint: *inOp,
-		ScriptSig:    *script.MakeContractScriptSig(senderNonce),
-	}
-	tx := new(types.Transaction)
-	tx.Vin = append(tx.Vin, vin)
-	tx.Vout = append(tx.Vout, vouts...)
+	tx := types.NewTx(0, 0, 0).
+		AppendVin(types.NewTxIn(inOp, *script.MakeContractScriptSig(senderNonce), 0)).
+		AppendVout(vouts...)
 	return tx, nil
 }
 

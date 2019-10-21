@@ -63,6 +63,8 @@ contract Bonus is Permission{
     uint constant BONUS_TO_VOTERS = 10;
     uint constant CALC_SCORE_THRESHOLD = 11;
 
+    uint constant BOX = 10 ** 8;
+
     struct Delegate {
         address addr;
         string peerID;
@@ -252,7 +254,7 @@ contract Bonus is Permission{
         for (uint i = 0; i < currentDelegateToVoters[msg.sender].length; i++) {
             uint vote = currentDelegateVotesDetail[msg.sender][currentDelegateToVoters[msg.sender][i]];
             voteBonus[currentDelegateToVoters[msg.sender][i]] = voteBonus[currentDelegateToVoters[msg.sender][i]].
-            add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * vote/addrToDynasty[msg.sender].votes);
+            add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * (vote/BOX)/(addrToDynasty[msg.sender].votes/BOX));
         }
         emit CalcBonus(msg.sender, msg.value);
     }

@@ -103,6 +103,12 @@ func (utxoWrap *UtxoWrap) SetValue(value uint64) {
 	utxoWrap.Modified()
 }
 
+// AddValue set utxoWrap value.
+func (utxoWrap *UtxoWrap) AddValue(value uint64) {
+	utxoWrap.value += value
+	utxoWrap.Modified()
+}
+
 // Script returns the pubkey script of the output.
 func (utxoWrap *UtxoWrap) Script() []byte {
 	return utxoWrap.script

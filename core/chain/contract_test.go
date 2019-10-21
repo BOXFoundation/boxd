@@ -584,8 +584,8 @@ const (
 		"82041951f9857bb67cda6bccbb59f6fdbf38eeddc244530e577d8cad6194941d38c0029"
 	// withdraw 2000
 	testFaucetCall = "2e1a7d4d00000000000000000000000000000000000000000000000000000000000007d0"
-	// withdraw 9000
-	testFaucetCall2 = "2e1a7d4d0000000000000000000000000000000000000000000000000000000000002328"
+	// withdraw 20000
+	testFaucetCall2 = "2e1a7d4d0000000000000000000000000000000000000000000000000000000000004e20"
 )
 
 func TestFaucetContract(t *testing.T) {
@@ -596,14 +596,42 @@ func TestFaucetContract(t *testing.T) {
 	// contract blocks test
 	b2 := genTestChain(t, blockChain)
 
+	// b2 -> b21
+	// normal transfer to a contract address that have not been created
+	contractAddr, _ := types.MakeContractAddress(userAddr, 1)
+	prevHash, _ := b2.Txs[1].TxHash()
+	toContractAmount := uint64(1000)
+	changeValue2 := userBalance - toContractAmount - core.TransferFee
+	toContractTx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(txlogic.MakeVout(contractAddr.Hash160(), toContractAmount)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue2))
+	txlogic.SignTx(toContractTx, privKey, pubKey)
+	userBalance = changeValue2
+	b21 := nextBlockWithTxsV2(b2, blockChain, toContractTx)
+	if err := calcRootHash(b2, b21, blockChain); err != nil {
+		t.Fatal(err)
+	}
+	verifyProcessBlock(t, blockChain, b21, nil, 3, b21)
+	t.Logf("b2 -> b21 passed, now tail height: %d", blockChain.LongestChainHeight)
+
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
-	// b2 -> b3
-	// make creation contract tx
+	// b21 -> b3
+	// normal transfer to a contract address that have not been created
+	prevHash, _ = b21.Txs[1].TxHash()
+	changeValue2 -= toContractAmount + core.TransferFee
+	toContractTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(txlogic.MakeVout(contractAddr.Hash160(), toContractAmount)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue2))
+	txlogic.SignTx(toContractTx, privKey, pubKey)
+	userBalance = changeValue2
+
 	vmValue, gasLimit := uint64(10000), uint64(200000)
 	vmParam := &testContractParam{
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
-		vmValue, gasLimit, vmValue, 0, nil,
+		vmValue, gasLimit, vmValue + 2*toContractAmount, 0, nil,
 	}
 
 	byteCode, _ := hex.DecodeString(testFaucetContract)
@@ -611,37 +639,35 @@ func TestFaucetContract(t *testing.T) {
 	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(),
 		vmValue, gasLimit, nonce)
 	ensure.Nil(t, err)
-	prevHash, _ := b2.Txs[1].TxHash()
-	changeValue2 := userBalance - vmValue - gasPrice*gasLimit
+	prevHash, _ = toContractTx.TxHash()
+	changeValue2 = changeValue2 - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
-		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue2)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	stateDB, err := state.New(&b2.Header.RootHash, nil, blockChain.db)
-	ensure.Nil(t, err)
-	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
+	contractAddr, _ = types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
 
-	b3 := nextBlockWithTxs(b2, blockChain, vmTx)
-	if err := calcRootHash(b2, b3, blockChain); err != nil {
+	b3 := nextBlockWithTxs(b21, blockChain, toContractTx, vmTx)
+	if err := calcRootHash(b21, b3, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b3, b3, vmParam, nil)
-	stateDB, err = state.New(&b3.Header.RootHash, &b3.Header.UtxoRoot, blockChain.db)
+	stateDB, err := state.New(&b3.Header.RootHash, &b3.Header.UtxoRoot, blockChain.db)
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
 
 	gasRefundValue := gasPrice*vmParam.gasLimit - b3.Header.GasUsed
-	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
+	t.Logf("b21 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b3 -> b4
 	// make call contract tx
 	vmValue, gasLimit = uint64(0), uint64(20000)
-	contractBalance := uint64(10000 - 2000) // withdraw 2000, construct contract with 10000
+	contractBalance -= 2000 // withdraw 2000, construct contract with 10000
 	vmParam = &testContractParam{
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, contractBalance, 2000, contractAddr,
@@ -685,7 +711,7 @@ func TestFaucetContract(t *testing.T) {
 	contractVout, err = txlogic.MakeContractCreationVout(userAddr.Hash160(),
 		vmValue, gasLimit, nonce)
 	ensure.Nil(t, err)
-	prevHash, _ = b3.Txs[1].TxHash()
+	prevHash, _ = b3.Txs[2].TxHash()
 	changeValue4 := changeValue2 - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
@@ -736,17 +762,15 @@ func TestFaucetContract(t *testing.T) {
 	// b5 -> b6
 	// make call contract tx with insufficient contract balance
 	vmValue, gasLimit = uint64(0), uint64(20000)
-	contractBalance = uint64(0) // withdraw 2000+9000, construct contract with 10000
 	vmParam = &testContractParam{
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
-		vmValue, gasLimit, 8000, 0, contractAddr,
+		vmValue, gasLimit, contractBalance, 0, contractAddr,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
 	ensure.Nil(t, err)
-	// use internal tx vout
 	prevHash, _ = b5.Txs[1].TxHash()
 	changeValue6 := changeValue4 - vmValue - gasPrice*gasLimit
 	logger.Warnf("utxo value: %d, gas: %d", changeValue4, gasPrice*gasLimit)
@@ -757,7 +781,6 @@ func TestFaucetContract(t *testing.T) {
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	b6 = nextBlockWithTxs(b5, blockChain, vmTx)
-
 	if err := calcRootHash(b5, b6, blockChain); err != nil {
 		t.Fatal(err)
 	}
@@ -766,6 +789,24 @@ func TestFaucetContract(t *testing.T) {
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, stateDB.GetNonce(*userAddr.Hash160()), nonce)
 	t.Logf("b5 -> b6 passed, now tail height: %d", blockChain.LongestChainHeight)
+
+	// b6 - b7
+	// normal transfer to a contract address that have not been created
+	prevHash, _ = b6.Txs[1].TxHash()
+	changeValue6 -= toContractAmount + core.TransferFee
+	toContractTx = types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(txlogic.MakeVout(contractAddr.Hash160(), toContractAmount)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue6))
+	txlogic.SignTx(toContractTx, privKey, pubKey)
+	userBalance -= toContractAmount + core.TransferFee
+	vmParam.contractBalance += toContractAmount
+	b7 := nextBlockWithTxs(b6, blockChain, toContractTx)
+	if err := calcRootHash(b6, b7, blockChain); err != nil {
+		t.Fatal(err)
+	}
+	contractBlockHandle(t, blockChain, b7, b7, vmParam, nil)
+	t.Logf("b6 -> b7 passed, now tail height: %d", blockChain.LongestChainHeight)
 }
 
 const (

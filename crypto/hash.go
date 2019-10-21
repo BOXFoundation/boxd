@@ -28,6 +28,13 @@ var (
 // HashType is renamed hash type
 type HashType [HashSize]byte
 
+// NewHashType returns a hash instance with bytes
+func NewHashType(bytes []byte) *HashType {
+	hash := new(HashType)
+	copy(hash[:], bytes)
+	return hash
+}
+
 // String returns the Hash as the hexadecimal string of the byte-reversed
 // hash.
 func (hash HashType) String() string {

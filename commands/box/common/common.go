@@ -43,7 +43,7 @@ func SignAndSendTx(
 		if err = msgHash.SetString(msg); err != nil {
 			return
 		}
-		for i, j := 0, 0; i < j; i, j = i+1, j-1 {
+		for i, j := 0, len(msgHash)-1; i < j; i, j = i+1, j-1 {
 			msgHash[i], msgHash[j] = msgHash[j], msgHash[i]
 		}
 		sigHashes = append(sigHashes, msgHash)

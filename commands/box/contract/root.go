@@ -38,6 +38,7 @@ import (
 const (
 	baseDir    = ".cmd/contract/"
 	senderFile = baseDir + "sender"
+	abiIdxFile = baseDir + "idx"
 	abiDir     = baseDir + "abi/"
 	recordFile = abiDir + "record"
 	abiSep     = ""
@@ -55,10 +56,14 @@ var rootCmd = &cobra.Command{
 	Use:   "contract [command]",
 	Short: "The contract command line interface",
 	Example: `
-  1. import abi file
+  1. set sender
+    ./box contract setsender b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m
+    NOTE: account sender must be imported and unlocked to local wallet
+
+  2. import abi file
     ./box contract importabi .cmd/contract/test/erc20_simple.abi "simple erc20 abi"
 
-  2. list abi index and select one to continue:
+  3. list abi index and select one to continue:
     ./box contract list
 
     output e.g.:
@@ -71,22 +76,25 @@ var rootCmd = &cobra.Command{
 
     index is the number "1, 2, ...", that is relevant to one abi from the last step
 
-  3. set sender
-    ./box contract setsender b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m
-		NOTE: account sender must be imported and unlocked to local wallet
+  4. set abi
+    ./box contract setabi 1
+    NOTE: 1 is the abi index in list from output of "./box contract list"
 
-  4. deploy contract 
+  5. deploy contract 
     ./box contract deploy .cmd/contract/test/erc20_simple.bin 0 --rpc-port=19191
     NOTE: if add index argument after amount argument, attach index to the deployed contract
 
-  5. attach index to an contract address
+  6. attach index to an contract address
     ./box contract attach 1 b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19191
 
-  6. send a contract call transaction
+  7. send a contract call transaction
     ./box contract send 1 0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19191
 
-  7. call a contract to get state value revalent to method via DoCall a contract
+  8. call a contract to get state value revalent to method via DoCall a contract
     ./box contract call 1 allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
+
+  9. decode output
+    ./box contract decode allowance 0000000000000000000000000000000000000000000000000000000000004e20
 `,
 }
 
@@ -99,44 +107,50 @@ func init() {
 			Run:   importAbi,
 		},
 		&cobra.Command{
-			Use:   "list",
-			Short: "list all index revelant to imported abi files and attached contracts",
-			Run:   list,
+			Use: "list",
+			Short: "list current sender, current abi,  all index revelant to imported" +
+				" abi files and attached contracts",
+			Run: list,
 		},
 		&cobra.Command{
-			Use:   "attach [index] [contract_address]",
-			Short: "attach contract abi to a real contract on chain",
-			RunE:  attach,
+			Use:   "setabi [index]",
+			Short: "set abi index as default abi, index must be in abi list. relevant command: importabi, list",
+			Run:   setabi,
 		},
 		&cobra.Command{
-			Use:   "setsender [wallet_dir] [address]",
+			Use:   "setsender [optinal|wallet_dir] [address]",
 			Short: "set sender address to deploy or send contract",
 			Run:   setsender,
 		},
 		&cobra.Command{
-			Use:   "deploy [contract] [amount] [optional|index] [args...]",
-			Short: "Deploy a contract, contract can be a file or a hex string",
+			Use:   "attach [contract_address]",
+			Short: "attach contract abi to a live contract on chain",
+			RunE:  attach,
+		},
+		&cobra.Command{
+			Use:   "deploy [contract] [amount] [optional|index] [optional|args...]",
+			Short: "Deploy a contract, contract can be a binary file, a solidity file or a hex string",
 			Long:  "The return value is a hex-encoded transaction sequence and a contract address",
 			Run:   deploy,
 		},
 		&cobra.Command{
-			Use:   "send [index] [amount] [method] [args...]",
+			Use:   "send [amount] [method] [args...]",
 			Short: "calling a contract",
 			Long:  "Successful call will return a transaction hash value",
 			Run:   send,
 		},
 		&cobra.Command{
-			Use:   "call [index] [optional|block_height] [method] [args...]",
+			Use:   "call [optional|block_height] [method] [args...]",
 			Short: "call contract value via docall.",
 			Run:   call,
 		},
 		&cobra.Command{
-			Use:   "encode [index] [method] [args...]",
+			Use:   "encode [optional|index] [method] [args...]",
 			Short: "Get an input string to send or call",
 			Run:   encode,
 		},
 		&cobra.Command{
-			Use:   "decode [index] [topic/method] [optional|data]",
+			Use:   "decode [optional|index] [topic/method] [optional|data]",
 			Short: "decode",
 			Run:   decode,
 			Example: `  1 ./box contract decode index Method
@@ -164,12 +178,12 @@ func init() {
 			Run:   getCode,
 		},
 		&cobra.Command{
-			Use:   "estimategas [from] [to] [data] [height]",
+			Use:   "estimategas [from] [to] [data] [optinal|height]",
 			Short: "Get estimategas about contract_transaction",
 			Run:   estimateGas,
 		},
 		&cobra.Command{
-			Use:   "getstorage [address] [position] [height]",
+			Use:   "getstorage [address] [position] [optinal|height]",
 			Short: "Get the position of variable in storsge",
 			Run:   getStorageAt,
 		},
@@ -187,23 +201,34 @@ func init() {
 }
 
 func encode(cmd *cobra.Command, args []string) {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		fmt.Println(cmd.Use)
 		return
 	}
+	var (
+		method    string
+		arguments []string
+	)
 	// check abi index
 	index, err := strconv.Atoi(args[0])
 	if err != nil {
-		fmt.Printf("invalid index")
-		fmt.Printf("select an index in list via using \"./box contract list\"\n")
-		return
+		index, err = currentAbi()
+		if err != nil {
+			fmt.Printf("abi index is not passed as argument or set before correctly(%s)\n", err)
+			return
+		}
+		method = args[0]
+		arguments = args[1:]
+	} else {
+		method = args[1]
+		arguments = args[2:]
 	}
 	abiObj, err := newAbiObj(index)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	data, err := encodeInput(abiObj, args[1], args[2:]...)
+	data, err := encodeInput(abiObj, method, arguments...)
 	if err != nil {
 		fmt.Println("encode error:", err)
 		return
@@ -212,16 +237,28 @@ func encode(cmd *cobra.Command, args []string) {
 }
 
 func decode(cmd *cobra.Command, args []string) {
-	if len(args) < 2 || len(args) > 3 {
+	if len(args) == 0 || len(args) > 3 {
 		fmt.Println(cmd.Use)
 		return
 	}
+	var priArg, subArg string
 	// check abi index
 	index, err := strconv.Atoi(args[0])
 	if err != nil {
-		fmt.Printf("invalid index\n")
-		fmt.Printf("select an index in list via using \"./box contract list\"\n")
-		return
+		index, err = currentAbi()
+		if err != nil {
+			fmt.Printf("abi index is not passed as argument or set before correctly(%s)\n", err)
+			return
+		}
+		priArg = args[0]
+		if len(args) == 2 {
+			subArg = args[1]
+		}
+	} else {
+		priArg = args[1]
+		if len(args) == 3 {
+			subArg = args[2]
+		}
 	}
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -229,54 +266,58 @@ func decode(cmd *cobra.Command, args []string) {
 		return
 	}
 	// for cases: 1) method code as input, 2) topic code from event name
-	if len(args) == 2 {
+	if subArg == "" {
 		hash := new(crypto.HashType)
-		if err = hash.SetString(args[1]); err == nil {
+		if err = hash.SetString(priArg); err == nil {
 			//topic code from event name
 			for _, event := range abiObj.Events {
-				if event.ID().String() == args[1] {
+				if event.ID().String() == priArg {
 					fmt.Println("event name:", event.Name)
 					return
 				}
 			}
 		} else {
 			//method code as input
-			if len(args[1]) < 4 {
-				fmt.Printf("%s must be more than 4 bytes\n", args[1])
+			if len(priArg) < 4 {
+				fmt.Printf("method code %s must be not less than 4 bytes\n", priArg)
 				return
 			}
-			data, err := hex.DecodeString(args[1])
+			data, err := hex.DecodeString(priArg)
 			if err != nil {
-				fmt.Printf("%s is not hex format data\n", args[1])
+				fmt.Println("hex format data is needed for method code", priArg)
 				return
 			}
 			method, err := abiObj.MethodByID(data)
 			if err != nil {
-				fmt.Printf("%s may be method code, but the method cannot be found in %d abi file\n", args[1], index)
+				fmt.Printf("%s may be method code, but the method cannot be found in "+
+					"%d abi file\n", priArg, index)
 				return
 			}
-			fmt.Println("method name:", method.Name)
+			fmt.Printf("method name: \"%s\"\n", method.Name)
 			arguments, err := method.Inputs.UnpackValues(data[4:])
 			if err != nil {
 				fmt.Printf("decode arguments of method %s failed: %s\n", data, err)
 				return
 			}
-			for _, value := range arguments {
-				if addTy, ok := value.(types.AddressHash); ok {
-					fmt.Println(hex.EncodeToString(addTy.Bytes()))
+			for i, value := range arguments {
+				input := method.Inputs[i]
+				if addr, ok := value.(types.AddressHash); ok {
+					fmt.Printf("argument: \"%s\", type: \"%s\", value: \"%x\"\n",
+						input.Name, input.Type, addr[:])
 				} else {
-					fmt.Println(value)
+					fmt.Printf("argument: \"%s\", type: \"%s\", value: \"%v\"\n",
+						input.Name, input.Type, value)
 				}
 			}
 		}
 	} else {
 		// for cases: 3) method name and return value, 4) topic code and event argument
-		data, err := hex.DecodeString(args[2])
+		data, err := hex.DecodeString(subArg)
 		if err != nil {
-			fmt.Printf("%s is not hex format data\n", args[2])
+			fmt.Println("hex format data is needed for argument", subArg)
 			return
 		}
-		code := args[1]
+		code := priArg
 		hash := new(crypto.HashType)
 		//if args[1] is the type of hash, decode log_topics
 		if err = hash.SetString(code); err == nil {
@@ -289,7 +330,8 @@ func decode(cmd *cobra.Command, args []string) {
 				}
 			}
 			if len(eventName) == 0 {
-				fmt.Printf("%s may be topic hash, but the method cannot be found in %d abi file\n", args[1], index)
+				fmt.Printf("%s may be topic hash, but the method cannot be found in %d"+
+					" abi file\n", args[1], index)
 				return
 			}
 			fmt.Println("event name:", eventName)
@@ -310,7 +352,7 @@ func decode(cmd *cobra.Command, args []string) {
 			//method name and return value
 			method, ok := abiObj.Methods[code]
 			if !ok {
-				fmt.Printf("%s: cannot be found in %d abi file\n", args[1], index)
+				fmt.Printf("%s: cannot be found in %d abi file\n", priArg, index)
 				return
 			}
 			output, err := method.Outputs.UnpackValues(data)
@@ -384,7 +426,7 @@ func importAbi(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 	defer f.Close()
-	note := fmt.Sprintf("%d%s%s %s%s%s\n", max+1, abiSep, args[1],
+	note := fmt.Sprintf("%d%s%s, %s%s%s\n", max+1, abiSep, args[1],
 		time.Now().Format(time.Stamp), abiSep, newFile)
 	if _, err := f.WriteString(note); err != nil {
 		panic(err)
@@ -415,7 +457,7 @@ func setsender(cmd *cobra.Command, args []string) {
 		return
 	}
 	//validate address
-	if err := types.ValidateAddr(sender); err != nil {
+	if _, err := types.NewAddress(sender); err != nil {
 		fmt.Println("sender address is Invalid: ", err)
 		return
 	}
@@ -434,7 +476,8 @@ func setsender(cmd *cobra.Command, args []string) {
 		}
 	}
 	if !unlocked {
-		fmt.Println("account is unlocked, you need to import your account to this wallet!")
+		fmt.Printf("accound is unlocked, you need to import your account to the "+
+			"wallet %s\n", walletDir)
 		return
 	}
 	// write address to file
@@ -443,11 +486,46 @@ func setsender(cmd *cobra.Command, args []string) {
 	}
 }
 
+func setabi(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println(cmd.Use)
+	}
+	index, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
+		fmt.Println("invalid index: ", err)
+		return
+	}
+	abiInfo, _, err := restoreRecord(recordFile)
+	if err != nil {
+		fmt.Println("restore record error:", err)
+	}
+	abiDesc := abiInfo.getItem(int(index))
+	if abiDesc == nil {
+		fmt.Printf("index %d is not in abi list\n", index)
+		return
+	}
+	// write index to file
+	if err := ioutil.WriteFile(abiIdxFile, []byte(args[0]), 0644); err != nil {
+		panic(err)
+	}
+}
+
 func list(cmd *cobra.Command, args []string) {
-	if len(args) != 0 {
+	if len(args) > 0 {
 		fmt.Println(cmd.Use)
 		return
 	}
+	// show sender
+	sender, _, _ := currentSender()
+	fmt.Println("current sender:", sender)
+	// show current index
+	fmt.Printf("current index: ")
+	index, err := currentAbi()
+	if err == nil {
+		fmt.Printf("%d", index)
+	}
+	fmt.Println()
+	// show abi list
 	abiInfo, attachedInfo, err := restoreRecord(recordFile)
 	if err != nil {
 		fmt.Println("restore record error:", err)
@@ -457,16 +535,11 @@ func list(cmd *cobra.Command, args []string) {
 		fmt.Println("record is empty")
 		return
 	}
-	sender, _, err := currentSender(senderFile)
-	if err != nil {
-		fmt.Println("get current sender address:", err)
-		return
-	}
-	fmt.Printf("sender: %s\n", sender)
 	fmt.Println("abi list:")
 	for _, i := range abiInfo {
 		fmt.Printf("\t%d: %s\n", i.index, i.note)
 	}
+	// show attached list
 	if len(attachedInfo) == 0 {
 		return
 	}
@@ -477,19 +550,18 @@ func list(cmd *cobra.Command, args []string) {
 }
 
 func attach(cmd *cobra.Command, args []string) error {
-	if len(args) != 2 {
+	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 		return nil
 	}
 	// index
-	index, err := strconv.Atoi(args[0])
+	index, err := currentAbi()
 	if err != nil {
-		fmt.Println("parse index error:", err)
-		fmt.Println(cmd.Use)
+		fmt.Println(err)
 		return nil
 	}
 	// contract address
-	address, err := types.NewContractAddress(args[1])
+	address, err := types.NewContractAddress(args[0])
 	if err != nil {
 		fmt.Println("invalid contract address")
 		return nil
@@ -499,13 +571,7 @@ func attach(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		panic(err)
 	}
-	var abiInfo *abiDesc
-	for _, i := range abiInfos {
-		if i.index == index {
-			abiInfo = i
-			break
-		}
-	}
+	abiInfo := abiInfos.getItem(index)
 	if abiInfo == nil {
 		fmt.Println("invalid index argument")
 		return nil
@@ -635,21 +701,21 @@ func deploy(cmd *cobra.Command, args []string) {
 }
 
 func send(cmd *cobra.Command, args []string) {
-	if len(args) < 3 {
+	if len(args) < 2 {
 		fmt.Println(cmd.Use)
 		return
 	}
 	// amount
-	amount, err := strconv.ParseUint(args[1], 10, 64)
+	amount, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
 		fmt.Println("invalid amount: ", err)
 		return
 	}
-	// parse contract address
-	index, err := strconv.Atoi(args[0])
+	// index
+	index, err := currentAbi()
 	if err != nil {
-		fmt.Println("invalid index:", err)
-		fmt.Printf("select an index in list via \"./box contract list\"\n")
+		fmt.Println(err)
+		fmt.Println("select an index in list via \"./box contract list\"")
 		return
 	}
 	_, attachedInfo, err := restoreRecord(recordFile)
@@ -670,7 +736,7 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	data, err := encodeInput(abiObj, args[2], args[3:]...)
+	data, err := encodeInput(abiObj, args[1], args[2:]...)
 	if err != nil {
 		fmt.Println("encode error:", err)
 		return
@@ -722,20 +788,20 @@ func call(cmd *cobra.Command, args []string) {
 		err    error
 	)
 	// index
-	index, err = strconv.Atoi(args[0])
+	index, err = currentAbi()
 	if err != nil {
-		fmt.Println("invalid index:", err)
+		fmt.Println(err)
 		fmt.Println("select an index in list via \"./box contract list\"")
 		return
 	}
 	// height
-	height, err = strconv.ParseUint(args[1], 10, 64)
+	height, err = strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
+		method = args[0]
+		params = args[1:]
+	} else {
 		method = args[1]
 		params = args[2:]
-	} else {
-		method = args[2]
-		params = args[3:]
 	}
 	// contract address
 	_, attachedInfo, err := restoreRecord(recordFile)
@@ -762,7 +828,7 @@ func call(cmd *cobra.Command, args []string) {
 		return
 	}
 	// sender
-	sender, _, err := currentSender(senderFile)
+	sender, _, err := currentSender()
 	if err != nil {
 		fmt.Println("get current sender error:", err)
 		return
@@ -1012,6 +1078,7 @@ func reset(cmd *cobra.Command, args []string) {
 	if err := os.RemoveAll(abiDir); err != nil {
 		panic(err)
 	}
+	os.Remove(abiIdxFile)
 }
 
 func contractdetails(cmd *cobra.Command, args []string) {
@@ -1138,7 +1205,11 @@ func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error)
 	} else {
 		abiMethod, exist := abiObj.Methods[method]
 		if !exist {
-			return "", fmt.Errorf("method %s is not found in abi file", method)
+			// may method is an event name
+			if event, exist := abiObj.Events[method]; exist {
+				return event.ID().String(), nil
+			}
+			return "", fmt.Errorf("method or event %s is not found in abi file", method)
 		}
 		inputs = abiMethod.Inputs
 	}
@@ -1187,7 +1258,7 @@ func newAbiObj(index int) (*abi.ABI, error) {
 
 func fetchSenderInfo() (sender, keyFile string, bal, nonce uint64, err error) {
 	// sender
-	sender, keyFile, err = currentSender(senderFile)
+	sender, keyFile, err = currentSender()
 	if err != nil {
 		return
 	}
@@ -1221,7 +1292,7 @@ func fetchSenderInfo() (sender, keyFile string, bal, nonce uint64, err error) {
 	return
 }
 
-func currentSender(senderFile string) (sender, keyFile string, err error) {
+func currentSender() (sender, keyFile string, err error) {
 	bytes, err := ioutil.ReadFile(senderFile)
 	if err != nil {
 		return "", "", errors.New("sender is not initialized, use \"setsender\" command to set")
@@ -1237,6 +1308,26 @@ func currentSender(senderFile string) (sender, keyFile string, err error) {
 	}
 	keyFile, sender = strings.TrimSpace(fields[0]), strings.TrimSpace(fields[1])
 	return
+}
+
+func currentAbi() (int, error) {
+	data, err := ioutil.ReadFile(abiIdxFile)
+	if err != nil {
+		return 0, errors.New("abi index is not set, use \"setabi\" command to set")
+	}
+	index, err := strconv.Atoi(string(bytes.TrimSpace(data)))
+	if err != nil {
+		return 0, errors.New("get current abi error: " + err.Error())
+	}
+	abiInfo, _, err := restoreRecord(recordFile)
+	if err != nil {
+		return 0, errors.New("get current abi error: " + err.Error())
+	}
+	abiDesc := abiInfo.getItem(index)
+	if abiDesc == nil {
+		return 0, fmt.Errorf("current index %d set is not in abi list", index)
+	}
+	return index, nil
 }
 
 func parseAbiArg(typ abi.Type, arg string) (interface{}, error) {
@@ -1352,8 +1443,8 @@ func convertArrayType(typ byte, vals []interface{}) interface{} {
 
 func calcGasLimit(bal, amount uint64) uint64 {
 	limit := (bal - amount - core.TransferFee) / core.FixedGasPrice
-	if limit > 10000000 {
-		limit = 10000000
+	if limit > 100000000 {
+		limit = 100000000
 	}
 	return limit
 }

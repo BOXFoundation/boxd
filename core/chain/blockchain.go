@@ -918,7 +918,7 @@ func (chain *BlockChain) executeBlock(
 		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-		if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+		if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
 			return err
 		}
 
@@ -2235,7 +2235,6 @@ func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub Balan
 				address, _ := sc.ExtractAddress()
 				addr := address.Hash160()
 				add[*addr] += vout.Value
-				//logger.Warnf("add addr: %s, value: %d", addr, vout.Value)
 			}
 		}
 	}
@@ -2368,7 +2367,28 @@ func (chain *BlockChain) MakeInternalContractTx(
 	return tx, nil
 }
 
-// IsContractAddr check addr whether is contract address
+// IsContractAddr2 checks addr whether is contract address
+func (chain *BlockChain) IsContractAddr2(addr *types.AddressHash) (bool, *types.UtxoWrap) {
+	if addr == nil {
+		return false, nil
+	}
+	exists := chain.tailState.GetCode(*addr) != nil
+	if exists {
+		outPoint := types.NewOutPoint(types.NormalizeAddressHash(addr), 0)
+		utxoWrap, err := fetchUtxoWrapFromDB(chain.db, outPoint)
+		if err != nil {
+			logger.Errorf("contract %x exists in statedb, but no utxo in db", addr[:])
+			return false, nil
+		}
+		if utxoWrap != nil {
+			return true, utxoWrap
+		}
+		logger.Errorf("contract %x exists in statedb, but no utxo in db", addr[:])
+	}
+	return false, nil
+}
+
+// IsContractAddr checks addr whether is contract address
 func IsContractAddr(
 	addr *types.AddressHash, filter bloom.Filter, db storage.Reader, utxoSet *UtxoSet,
 ) bool {
