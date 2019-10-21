@@ -70,7 +70,7 @@ func (sp *StateProcessor) Process(
 			break
 		}
 		if vmTx == nil {
-			sumGas += core.TransferFee
+			sumGas += core.TransferFee + tx.ExtraFee()
 			continue
 		}
 		if vmTx.Nonce() != stateDB.GetNonce(*vmTx.From())+1 {
@@ -100,7 +100,7 @@ func (sp *StateProcessor) Process(
 		if len(txs) > 0 {
 			utxoTxs = append(utxoTxs, txs...)
 		}
-		gasThisTx := vmTx.GasPrice().Uint64() * gasUsedPerTx
+		gasThisTx := vmTx.GasPrice().Uint64()*gasUsedPerTx + tx.ExtraFee()
 		usedGas += gasThisTx
 		sumGas += gasThisTx
 		receipt.WithTxIndex(uint32(i)).WithBlockHash(block.BlockHash()).

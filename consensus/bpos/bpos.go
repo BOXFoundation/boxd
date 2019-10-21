@@ -485,7 +485,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	spendableTxs := new(sync.Map)
 
 	// Total fees of all packed txs
-	totalTransferFee, totalExtraFee := uint64(0), uint64(0)
+	totalTransferFee := uint64(0)
 
 	stopPack := false
 	stopPackCh := make(chan bool, 1)
@@ -503,7 +503,6 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				logger.Infof("txs size reach %d KB, stop packing", packedTxsRoughSize/1024)
 				break
 			}
-			totalExtraFee += txWrap.Tx.ExtraFee()
 
 			txHash, _ := txWrap.Tx.TxHash()
 			if txWrap.IsContract {
@@ -533,7 +532,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				// TODO: abandon the error tx from pool.
 				continue
 			}
-			totalTransferFee += core.TransferFee
+			totalTransferFee += core.TransferFee + txWrap.Tx.ExtraFee()
 
 			spendableTxs.Store(*txHash, txWrap)
 			packedTxs = append(packedTxs, txWrap.Tx)
@@ -563,7 +562,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 	nonce := statedb.GetNonce(block.Header.BookKeeper) + 1
-	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTransferFee+totalExtraFee, nonce)
+	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTransferFee, nonce)
 	if err != nil {
 		return err
 	}

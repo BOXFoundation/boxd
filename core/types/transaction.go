@@ -505,7 +505,7 @@ func (tx *Transaction) Copy() *Transaction {
 	}
 }
 
-// ExtraFee return extra fee
+// ExtraFee returns extra fee
 func (tx *Transaction) ExtraFee() uint64 {
 	return uint64(len(tx.Vin)+len(tx.Vout)) / core.InOutNumPerExtraFee * core.TransferFee
 }
