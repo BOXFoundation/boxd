@@ -1167,7 +1167,11 @@ func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error)
 	} else {
 		abiMethod, exist := abiObj.Methods[method]
 		if !exist {
-			return "", fmt.Errorf("method %s is not found in abi file", method)
+			// may method is an event name
+			if event, exist := abiObj.Events[method]; exist {
+				return event.ID().String(), nil
+			}
+			return "", fmt.Errorf("method or event %s is not found in abi file", method)
 		}
 		inputs = abiMethod.Inputs
 	}
