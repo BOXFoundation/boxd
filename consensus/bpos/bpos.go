@@ -835,7 +835,7 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 
 func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
 
-	if (uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0) || (uint64((block.Header.Height))%bpos.context.verifyCalcScoreThreshold.Uint64() == 0) { // dynasty switch
+	if (uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0) || (uint64((block.Header.Height))%bpos.context.verifyDynastySwitchThreshold.Uint64() == bpos.context.verifyCalcScoreThreshold.Uint64()) { // dynasty switch
 		if !chain.IsInternalContract(block.Txs[1]) {
 			return ErrInvalidDynastySwitchTx
 		}
