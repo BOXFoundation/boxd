@@ -38,7 +38,7 @@ As a node OS we will use:
 		brew install go
 		```
 	
-	2. Install rocksdb:
+	2. Install rocksdb(version: 5.xx.x):
 	
 		```
 		brew install rocksdb
@@ -54,7 +54,7 @@ As a node OS we will use:
 
 	Click [here](https://golang.org/doc/install) to install Go.
 	
-	1. Install rocksdb:
+	1. Install rocksdb(version: 5.xx.x):
 		#### Ubuntu
 			apt-get update
 			apt-get -y install build-essential libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
