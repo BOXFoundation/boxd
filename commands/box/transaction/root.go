@@ -231,7 +231,7 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(format.PrettyPrint(hash))
+	fmt.Println("Tx %s has been sent to remote successfully", hash)
 }
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
@@ -551,8 +551,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx Hash:", hash)
-	fmt.Println(format.PrettyPrint(tx))
+	fmt.Println("Tx %s has been sent to remote successfully", hash)
 }
 
 func parseSendParams(args []string) (addrs []string, amounts []uint64, err error) {

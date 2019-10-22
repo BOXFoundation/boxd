@@ -545,18 +545,31 @@ func list(cmd *cobra.Command, args []string) {
 }
 
 func attach(cmd *cobra.Command, args []string) error {
-	if len(args) != 1 {
+	// index
+	var (
+		contractAddr string
+		index        int
+		err          error
+	)
+	if len(args) == 1 {
+		index, err = currentAbi()
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
+		contractAddr = args[0]
+	} else if len(args) == 2 {
+		index, err = strconv.Atoi(args[0])
+		if err != nil {
+			fmt.Println("invalid index:", err)
+		}
+		contractAddr = args[1]
+	} else {
 		fmt.Println(cmd.Use)
 		return nil
 	}
-	// index
-	index, err := currentAbi()
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
 	// contract address
-	address, err := types.NewContractAddress(args[0])
+	address, err := types.NewContractAddress(contractAddr)
 	if err != nil {
 		fmt.Println("invalid contract address")
 		return nil
@@ -672,13 +685,12 @@ func deploy(cmd *cobra.Command, args []string) {
 		fmt.Println("sign and send transaction error:", err)
 		return
 	}
-	fmt.Println("contract deployed successfully")
 	fmt.Println("contract address:", contractAddr)
-	fmt.Println("tx hash:", hash)
+	fmt.Println("transaction hash:", hash)
 
 	// if the index is given, attach it to the contract
 	if indexArg != "" {
-		t := time.NewTicker(time.Second)
+		t := time.NewTicker(500 * time.Millisecond)
 		defer t.Stop()
 		for i := 0; i < 10; i++ {
 			select {
