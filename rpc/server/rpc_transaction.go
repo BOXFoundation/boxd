@@ -361,7 +361,8 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned token issue tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned token issue tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
+			logger.Infof("make unsigned token issue tx: %s succeeded, response: %s",
+				tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	if req.GetTag().GetDecimal() > maxDecimal {
@@ -409,7 +410,8 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned token transfer tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned token transfer tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
+			logger.Infof("make unsigned token transfer tx: %s succeeded, response: %s",
+				tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()
@@ -548,7 +550,8 @@ func (s *txServer) MakeUnsignedCombineTx(
 		if resp.Code != 0 {
 			logger.Warnf("make unsigned combine tx: %s error: %s", tolog(req), resp.Message)
 		} else {
-			logger.Infof("make unsigned combine tx: %s succeeded, response: %s", tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
+			logger.Infof("make unsigned combine tx: %s succeeded, response: %s",
+				tolog(req), tolog(types.ConvPbTx(resp.GetTx())))
 		}
 	}()
 	wa := s.server.GetWalletAgent()

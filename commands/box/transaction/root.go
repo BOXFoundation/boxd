@@ -6,6 +6,7 @@ package transactioncmd
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -30,12 +31,6 @@ var walletDir string
 var rootCmd = &cobra.Command{
 	Use:   "tx",
 	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
@@ -218,12 +213,12 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 	defer conn.Close()
 	txByte, err := hex.DecodeString(args[0])
 	if err != nil {
-		fmt.Printf("DecodeString %s failed:%s\n", args[0], err)
+		fmt.Printf("DecodeString %s failed:%v\n", args[0], err)
 		return
 	}
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(txByte); err != nil {
-		fmt.Printf("tx unmarshal %s error: %s\n", txByte, err)
+		fmt.Printf("tx unmarshal %s error: %v\n", txByte, err)
 		return
 	}
 	hash, err := rpcutil.SendTransaction(conn, tx)
@@ -231,7 +226,7 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(format.PrettyPrint(hash))
+	fmt.Printf("Tx %s has been sent to remote successfully\n", hash)
 }
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
@@ -551,8 +546,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx Hash:", hash)
-	fmt.Println(format.PrettyPrint(tx))
+	fmt.Printf("Tx %s has been sent to remote successfully\n", hash)
 }
 
 func parseSendParams(args []string) (addrs []string, amounts []uint64, err error) {
@@ -572,7 +566,7 @@ func parseSendParams(args []string) (addrs []string, amounts []uint64, err error
 }
 
 func fetchUtxo(cmd *cobra.Command, args []string) {
-	if len(args) != 4 {
+	if len(args) != 2 && len(args) != 4 {
 		fmt.Println(cmd.Use)
 		return
 	}
@@ -585,16 +579,28 @@ func fetchUtxo(cmd *cobra.Command, args []string) {
 		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
 		return
 	}
-	index, err := strconv.ParseUint(args[3], 10, 64)
-	if err != nil {
-		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[3], err)
-		return
+	var (
+		tHashStr string
+		tIdx     uint64
+	)
+	if len(args) == 4 {
+		tHash := new(crypto.HashType)
+		if err := tHash.SetString(args[2]); err != nil {
+			fmt.Println("invalid token hash, error:", err)
+			return
+		}
+		tHashStr = tHash.String()
+		tIdx, err = strconv.ParseUint(args[3], 10, 64)
+		if err != nil {
+			fmt.Println("invalid token index, error:", err)
+			return
+		}
 	}
 	req := &rpcpb.FetchUtxosReq{
 		Addr:       args[0],
 		Amount:     amount,
-		TokenHash:  args[2],
-		TokenIndex: uint32(index),
+		TokenHash:  tHashStr,
+		TokenIndex: uint32(tIdx),
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "FetchUtxos", req, common.GetRPCAddr())
 	if err != nil {
@@ -610,5 +616,6 @@ func fetchUtxo(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("utxos:", resp.Utxos)
+	utxoBytes, _ := json.MarshalIndent(resp.Utxos, "", "  ")
+	fmt.Println(string(utxoBytes))
 }

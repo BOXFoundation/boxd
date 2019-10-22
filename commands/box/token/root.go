@@ -31,12 +31,6 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "token",
 	Short: "Token subcommand",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
@@ -127,21 +121,19 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 	tag := txlogic.NewTokenTag(tokenName, tokenSymbol, uint32(tokenDecimals),
 		uint64(tokenTotalSupply))
-	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.Hash160(), tag, conn)
+	tx, tid, _, err := rpcutil.NewIssueTokenTx(account, toAddr.Hash160(), tag, conn)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	hashStr, err := rpcutil.SendTransaction(conn, tx)
+	_, err = rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		fmt.Println(err)
 		return
 	}
-	hash := new(crypto.HashType)
-	hash.SetString(hashStr)
 
-	tid := txlogic.NewPbOutPoint(hash, 0)
-	fmt.Println("Created Token Address: ", txlogic.EncodeOutPoint(tid))
+	fmt.Println("Created Token Address:", txlogic.EncodeOutPoint(
+		txlogic.NewPbOutPoint(&tid.Hash, tid.Index)))
 }
 
 func transferTokenCmdFunc(cmd *cobra.Command, args []string) {

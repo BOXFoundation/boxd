@@ -321,31 +321,34 @@ func decode(cmd *cobra.Command, args []string) {
 		hash := new(crypto.HashType)
 		//if args[1] is the type of hash, decode log_topics
 		if err = hash.SetString(code); err == nil {
-			var eventName string
+			var event *abi.Event
 			//topic code and event argument
-			for _, event := range abiObj.Events {
-				if event.ID().String() == code {
-					eventName = event.Name
+			for _, e := range abiObj.Events {
+				if e.ID().String() == code {
+					event = &e
 					break
 				}
 			}
-			if len(eventName) == 0 {
+			if event == nil {
 				fmt.Printf("%s may be topic hash, but the method cannot be found in %d"+
-					" abi file\n", args[1], index)
+					" abi file\n", code, index)
 				return
 			}
-			fmt.Println("event name:", eventName)
+			fmt.Println("event name:", event.Name)
 			// decode log_data
-			arguments, err := abiObj.Events[eventName].Inputs.UnpackValues(data)
+			arguments, err := abiObj.Events[event.Name].Inputs.UnpackValues(data)
 			if err != nil {
 				fmt.Printf("decode arguments of event %s failed: %s\n", data, err)
 				return
 			}
-			for _, value := range arguments {
-				if addTy, ok := value.(types.AddressHash); ok {
-					fmt.Println(hex.EncodeToString(addTy.Bytes()))
+			for i, value := range arguments {
+				input := event.Inputs[i]
+				if addr, ok := value.(types.AddressHash); ok {
+					fmt.Printf("argument: \"%s\", type: \"%s\", value: \"%x\"\n",
+						input.Name, input.Type, addr[:])
 				} else {
-					fmt.Println(value)
+					fmt.Printf("argument: \"%s\", type: \"%s\", value: \"%v\"\n",
+						input.Name, input.Type, value)
 				}
 			}
 		} else {
@@ -550,18 +553,31 @@ func list(cmd *cobra.Command, args []string) {
 }
 
 func attach(cmd *cobra.Command, args []string) error {
-	if len(args) != 1 {
+	// index
+	var (
+		contractAddr string
+		index        int
+		err          error
+	)
+	if len(args) == 1 {
+		index, err = currentAbi()
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
+		contractAddr = args[0]
+	} else if len(args) == 2 {
+		index, err = strconv.Atoi(args[0])
+		if err != nil {
+			fmt.Println("invalid index:", err)
+		}
+		contractAddr = args[1]
+	} else {
 		fmt.Println(cmd.Use)
 		return nil
 	}
-	// index
-	index, err := currentAbi()
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
 	// contract address
-	address, err := types.NewContractAddress(args[0])
+	address, err := types.NewContractAddress(contractAddr)
 	if err != nil {
 		fmt.Println("invalid contract address")
 		return nil
@@ -677,13 +693,12 @@ func deploy(cmd *cobra.Command, args []string) {
 		fmt.Println("sign and send transaction error:", err)
 		return
 	}
-	fmt.Println("contract deployed successfully")
 	fmt.Println("contract address:", contractAddr)
-	fmt.Println("tx hash:", hash)
+	fmt.Println("transaction hash:", hash)
 
 	// if the index is given, attach it to the contract
 	if indexArg != "" {
-		t := time.NewTicker(time.Second)
+		t := time.NewTicker(500 * time.Millisecond)
 		defer t.Stop()
 		for i := 0; i < 10; i++ {
 			select {

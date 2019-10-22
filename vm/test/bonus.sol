@@ -63,7 +63,7 @@ contract Bonus is Permission{
     uint constant BONUS_TO_VOTERS = 10;
     uint constant CALC_SCORE_THRESHOLD = 11;
 
-    uint constant BOX = 10 ** 8;
+    uint constant BOX = 1 * 10 ** 8;
 
     struct Delegate {
         address addr;
@@ -132,6 +132,7 @@ contract Bonus is Permission{
 
     event ExecBonus();
     event CalcBonus(address _coinbase, uint value);
+    event CalcVote(address voter, uint vote, uint totalVote);
 
     constructor() public {
         _global_open_pledge_limit = 100;
@@ -255,6 +256,7 @@ contract Bonus is Permission{
             uint vote = currentDelegateVotesDetail[msg.sender][currentDelegateToVoters[msg.sender][i]];
             voteBonus[currentDelegateToVoters[msg.sender][i]] = voteBonus[currentDelegateToVoters[msg.sender][i]].
             add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * (vote/BOX)/(addrToDynasty[msg.sender].votes/BOX));
+            emit CalcVote(currentDelegateToVoters[msg.sender][i], (vote/BOX), (addrToDynasty[msg.sender].votes/BOX));
         }
         emit CalcBonus(msg.sender, msg.value);
     }
