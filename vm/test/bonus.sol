@@ -50,6 +50,7 @@ contract Bonus is Permission{
     using SafeMath for uint;
 
     uint constant DYNASTY_SIZE = 6;
+    uint constant NET_PARAMS_LENGTH = 11;
 
     uint constant PLEDGE_THRESHOLD = 1;
     uint constant DYNASTY_CHANGE_THRESHOLD = 2;
@@ -115,7 +116,8 @@ contract Bonus is Permission{
     mapping(address => FrozenDelegate) frozenDelegate;
 
     mapping(uint => Proposal) proposals;
-    Proposal[] proposalList;
+    Proposal[] proposalHistory;
+    Proposal[] currentProposals;
     mapping(uint => uint) netParams;
     uint[] changedProposalIDs;
     mapping(uint => uint) changedProposals;
@@ -123,16 +125,12 @@ contract Bonus is Permission{
     Delegate[] current;
     Delegate[] next;
 
-
     uint pledgePool;
-    // uint dynastyBonusPool;
-    // uint voteBonusPool;
 
     uint _global_open_pledge_limit;
 
-    event ExecBonus();
-    event CalcBonus(address _coinbase, uint value);
-    event CalcVote(address voter, uint vote, uint totalVote);
+    event ExecBonus(uint bonus, uint balance);
+    event CalcBonus(address _coinbase, uint value, uint bonus);
 
     constructor() public {
         _global_open_pledge_limit = 100;
@@ -247,26 +245,35 @@ contract Bonus is Permission{
 
     function calcBonus() public payable {
         require(msg.sender == block.coinbase, "only coinbase can do it.");
-
-        // dynastyBonusPool = dynastyBonusPool.add(msg.value/2);
-        // voteBonusPool = voteBonusPool.add(msg.value/2);
         dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(msg.value * (100 - netParams[BONUS_TO_VOTERS])/100);
-
         for (uint i = 0; i < currentDelegateToVoters[msg.sender].length; i++) {
             uint vote = currentDelegateVotesDetail[msg.sender][currentDelegateToVoters[msg.sender][i]];
             voteBonus[currentDelegateToVoters[msg.sender][i]] = voteBonus[currentDelegateToVoters[msg.sender][i]].
             add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * (vote/BOX)/(addrToDynasty[msg.sender].votes/BOX));
-            emit CalcVote(currentDelegateToVoters[msg.sender][i], (vote/BOX), (addrToDynasty[msg.sender].votes/BOX));
         }
-        emit CalcBonus(msg.sender, msg.value);
+        emit CalcBonus(msg.sender, msg.value, dynastyToBonus[msg.sender]);
+
+        delete currentProposals;
+        for (i = 1; i <= NET_PARAMS_LENGTH; i++) {
+            if (proposals[i].id > 0) {
+                if (block.number - proposals[i].createtime > netParams[PROPOSAL_EXPIRATION_TIME]) {
+                    proposalHistory.push(proposals[i]);
+                    delete proposals[i];
+                } else {
+                    currentProposals.push(proposals[i]);
+                }
+            }
+        }
     }
 
     function execBonus() public onlyAdmin {
 
         require((block.number+1) % netParams[DYNASTY_CHANGE_THRESHOLD] == 0, "Not the time to switch dynasties");
+        uint totalBonusToBookkeeper;
         for(uint i = 0; i < dynasty.length; i++) {
             if (dynastyToBonus[dynasty[i].addr] > 0) {
                 dynasty[i].addr.transfer(dynastyToBonus[dynasty[i].addr]);
+                totalBonusToBookkeeper += dynastyToBonus[dynasty[i].addr];
             }
             delete dynastyToBonus[dynasty[i].addr];
         }
@@ -286,6 +293,7 @@ contract Bonus is Permission{
             updateDynasty();
             updateNetParams();
         }
+        emit ExecBonus(totalBonusToBookkeeper, address(this).balance);
     }
 
     function calcScore(uint[] scores) public  {
@@ -421,7 +429,6 @@ contract Bonus is Permission{
 
         Delegate storage delegate = addrToDelegates[delegateAddr];
         delegate.votes = delegate.votes.add(msg.value);
-        // delegate.score = calcScore(delegate);
         if (delegateVotesDetail[delegateAddr][msg.sender] > 0) {
             delegateVotesDetail[delegateAddr][msg.sender] = delegateVotesDetail[delegateAddr][msg.sender].add(msg.value);
         } else {
@@ -483,9 +490,9 @@ contract Bonus is Permission{
         require(msg.value >= netParams[MIN_PROPOSAL_THRESHOLD] && proposalID > 0, "Insufficient minimum fee for give proposal.");
         require(proposals[proposalID].id == 0 ||
          (block.number - proposals[proposalID].createtime > netParams[PROPOSAL_EXPIRATION_TIME]), "the proposal is exist.");
+
         Proposal memory proposal = Proposal(proposalID, value, block.number, new address[](0), false);
         proposals[proposalID] = proposal;
-        proposalList.push(proposal);
     }
 
     function voteProposal(uint proposalID) public onlyDynasty{
@@ -499,12 +506,19 @@ contract Bonus is Permission{
             proposal.result = true;
             changedProposals[proposalID] = proposal.value;
             changedProposalIDs.push(proposalID);
+            proposalHistory.push(proposal);
+            delete proposals[proposalID];
         }
     }
 
-    function getProposal() public view returns (Proposal[] memory) {
-        return proposalList;
+    function getProposalHistory() public view returns (Proposal[] memory) {
+        return proposalHistory;
     }
+
+    function getCurrentProposals() public view returns (Proposal[] memory) {
+        return currentProposals;
+    }
+
 
     function setGlobalOpenPledgeLimit(uint value) public onlyAdmin {
         _global_open_pledge_limit = value;

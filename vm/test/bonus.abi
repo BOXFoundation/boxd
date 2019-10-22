@@ -161,6 +161,42 @@
 		"type": "function"
 	},
 	{
+		"constant": true,
+		"inputs": [],
+		"name": "getProposalHistory",
+		"outputs": [
+			{
+				"components": [
+					{
+						"name": "id",
+						"type": "uint256"
+					},
+					{
+						"name": "value",
+						"type": "uint256"
+					},
+					{
+						"name": "createtime",
+						"type": "uint256"
+					},
+					{
+						"name": "voters",
+						"type": "address[]"
+					},
+					{
+						"name": "result",
+						"type": "bool"
+					}
+				],
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"constant": false,
 		"inputs": [
 			{
@@ -267,6 +303,42 @@
 	{
 		"constant": true,
 		"inputs": [],
+		"name": "getCurrentProposals",
+		"outputs": [
+			{
+				"components": [
+					{
+						"name": "id",
+						"type": "uint256"
+					},
+					{
+						"name": "value",
+						"type": "uint256"
+					},
+					{
+						"name": "createtime",
+						"type": "uint256"
+					},
+					{
+						"name": "voters",
+						"type": "address[]"
+					},
+					{
+						"name": "result",
+						"type": "bool"
+					}
+				],
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [],
 		"name": "myVoteBonus",
 		"outputs": [
 			{
@@ -329,42 +401,6 @@
 		"outputs": [],
 		"payable": false,
 		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "getProposal",
-		"outputs": [
-			{
-				"components": [
-					{
-						"name": "id",
-						"type": "uint256"
-					},
-					{
-						"name": "value",
-						"type": "uint256"
-					},
-					{
-						"name": "createtime",
-						"type": "uint256"
-					},
-					{
-						"name": "voters",
-						"type": "address[]"
-					},
-					{
-						"name": "result",
-						"type": "bool"
-					}
-				],
-				"name": "",
-				"type": "tuple[]"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -541,7 +577,18 @@
 	},
 	{
 		"anonymous": false,
-		"inputs": [],
+		"inputs": [
+			{
+				"indexed": false,
+				"name": "bonus",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"name": "balance",
+				"type": "uint256"
+			}
+		],
 		"name": "ExecBonus",
 		"type": "event"
 	},
@@ -557,31 +604,14 @@
 				"indexed": false,
 				"name": "value",
 				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"name": "bonus",
+				"type": "uint256"
 			}
 		],
 		"name": "CalcBonus",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"name": "voter",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"name": "vote",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"name": "totalVote",
-				"type": "uint256"
-			}
-		],
-		"name": "CalcVote",
 		"type": "event"
 	},
 	{
