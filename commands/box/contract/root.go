@@ -786,7 +786,7 @@ func send(cmd *cobra.Command, args []string) {
 }
 
 func call(cmd *cobra.Command, args []string) {
-	if len(args) < 2 {
+	if len(args) == 0 {
 		fmt.Println(cmd.Use)
 		return
 	}
