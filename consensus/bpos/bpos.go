@@ -578,7 +578,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			return err
 		}
 		block.Txs = append(block.Txs, dynastySwitchTx)
-	} else if uint64(block.Header.Height)%bpos.context.calcScoreThreshold.Uint64() == 0 { // calc score
+	} else if uint64(block.Header.Height)%bpos.context.dynastySwitchThreshold.Uint64() == bpos.context.calcScoreThreshold.Uint64() { // calc score
 		scores, err := bpos.calcScores()
 		if err != nil {
 			return err

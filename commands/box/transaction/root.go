@@ -218,12 +218,12 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 	defer conn.Close()
 	txByte, err := hex.DecodeString(args[0])
 	if err != nil {
-		fmt.Printf("DecodeString %s failed:%s\n", args[0], err)
+		fmt.Printf("DecodeString %s failed:%v\n", args[0], err)
 		return
 	}
 	tx := new(types.Transaction)
 	if err := tx.Unmarshal(txByte); err != nil {
-		fmt.Printf("tx unmarshal %s error: %s\n", txByte, err)
+		fmt.Printf("tx unmarshal %s error: %v\n", txByte, err)
 		return
 	}
 	hash, err := rpcutil.SendTransaction(conn, tx)
@@ -231,7 +231,7 @@ func sendrawtx(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx %s has been sent to remote successfully", hash)
+	fmt.Printf("Tx %s has been sent to remote successfully", hash)
 }
 
 func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
@@ -551,7 +551,7 @@ func sendFromCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx %s has been sent to remote successfully", hash)
+	fmt.Printf("Tx %s has been sent to remote successfully", hash)
 }
 
 func parseSendParams(args []string) (addrs []string, amounts []uint64, err error) {

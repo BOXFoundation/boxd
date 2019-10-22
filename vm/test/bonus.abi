@@ -566,6 +566,28 @@
 		"anonymous": false,
 		"inputs": [
 			{
+				"indexed": false,
+				"name": "voter",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"name": "vote",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"name": "totalVote",
+				"type": "uint256"
+			}
+		],
+		"name": "CalcVote",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
 				"indexed": true,
 				"name": "_from",
 				"type": "address"
