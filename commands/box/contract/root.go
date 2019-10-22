@@ -316,31 +316,34 @@ func decode(cmd *cobra.Command, args []string) {
 		hash := new(crypto.HashType)
 		//if args[1] is the type of hash, decode log_topics
 		if err = hash.SetString(code); err == nil {
-			var eventName string
+			var event *abi.Event
 			//topic code and event argument
-			for _, event := range abiObj.Events {
-				if event.ID().String() == code {
-					eventName = event.Name
+			for _, e := range abiObj.Events {
+				if e.ID().String() == code {
+					event = &e
 					break
 				}
 			}
-			if len(eventName) == 0 {
+			if event == nil {
 				fmt.Printf("%s may be topic hash, but the method cannot be found in %d"+
-					" abi file\n", args[1], index)
+					" abi file\n", code, index)
 				return
 			}
-			fmt.Println("event name:", eventName)
+			fmt.Println("event name:", event.Name)
 			// decode log_data
-			arguments, err := abiObj.Events[eventName].Inputs.UnpackValues(data)
+			arguments, err := abiObj.Events[event.Name].Inputs.UnpackValues(data)
 			if err != nil {
 				fmt.Printf("decode arguments of event %s failed: %s\n", data, err)
 				return
 			}
-			for _, value := range arguments {
-				if addTy, ok := value.(types.AddressHash); ok {
-					fmt.Println(hex.EncodeToString(addTy.Bytes()))
+			for i, value := range arguments {
+				input := event.Inputs[i]
+				if addr, ok := value.(types.AddressHash); ok {
+					fmt.Printf("argument: \"%s\", type: \"%s\", value: \"%x\"\n",
+						input.Name, input.Type, addr[:])
 				} else {
-					fmt.Println(value)
+					fmt.Printf("argument: \"%s\", type: \"%s\", value: \"%v\"\n",
+						input.Name, input.Type, value)
 				}
 			}
 		} else {
