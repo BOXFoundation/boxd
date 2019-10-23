@@ -640,8 +640,6 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	genesisUtxoWrap := utxoSet.GetUtxo(op)
 	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
-	// block.Txs[0].Vout[0].Value -= gasRemainingFee
-
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
 	if len(utxoTxs) > 0 {

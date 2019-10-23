@@ -193,8 +193,7 @@ message TxInDetail {
 message TxOutDetail {
     string addr = 1;
     uint64 value = 2;
-    string script_pub_key = 3;
-    string script_disasm = 4;
+    string script_disasm = 3;
     enum TxOutType {
         unknown = 0;
         pay_to_pubkey_hash = 1;
@@ -206,12 +205,12 @@ message TxOutDetail {
         contract_create = 7;
         contract_call = 8;
     }
-    TxOutType type = 5; 
+    TxOutType type = 4;
     oneof appendix {
-        TokenIssueInfo token_issue_info = 6; 
-        TokenTransferInfo token_transfer_info = 7;
-        SplitContractInfo split_contract_info = 8;
-        ContractInfo contract_info = 9;
+        TokenIssueInfo token_issue_info = 5;
+        TokenTransferInfo token_transfer_info = 6;
+        SplitContractInfo split_contract_info = 7;
+        ContractInfo contract_info = 8;
     }
 }
 
