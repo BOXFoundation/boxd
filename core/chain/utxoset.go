@@ -712,10 +712,12 @@ func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*type
 
 // MakeRollbackContractUtxos makes finally contract utxos from block
 func MakeRollbackContractUtxos(
-	block *types.Block, stateDB *state.StateDB, db storage.Table,
+	block *types.Block, db storage.Table,
 ) (types.UtxoMap, error) {
+	header := block.Header
+	stateDB, _ := state.New(&header.RootHash, &header.UtxoRoot, db)
 	// prevStateDB
-	prevBlock, err := LoadBlockByHash(block.Header.PrevBlockHash, db)
+	prevBlock, err := LoadBlockByHash(header.PrevBlockHash, db)
 	if err != nil {
 		return nil, err
 	}
@@ -725,14 +727,14 @@ func MakeRollbackContractUtxos(
 		return nil, err
 	}
 	// balances added and subtracted
-	bAdd, bSub, err := calcContractAddrBalanceChanges(block)
+	bAdd, bSub, err := calcContractAddrBalanceChanges(block, stateDB)
 	if err != nil {
 		logger.Errorf("calc contract addr balance changes error: %s", err)
 		return nil, err
 	}
 	balances := make(map[types.AddressHash]uint64, len(bAdd)+len(bSub))
 	um := make(types.UtxoMap)
-	height := block.Header.Height
+	height := header.Height
 	tempLimit := uint64(core.TransferGasLimit)
 	for a, v := range bAdd {
 		ah := types.NormalizeAddressHash(&a)
@@ -769,12 +771,12 @@ func MakeRollbackContractUtxos(
 		b := prevStateDB.GetBalance(*ah)
 		checkBalance := u.Value()
 		if *ah == ContractAddr {
-			checkBalance -= block.Header.GasUsed
+			checkBalance -= header.GasUsed
 		}
 		if b.Uint64() != checkBalance {
 			addr, _ := types.NewContractAddressFromHash(ah[:])
-			return nil, fmt.Errorf("block %s: contract addr %s rollback to incorrect "+
-				"balance: %d, need: %d", block.BlockHash(), addr, u.Value(), b)
+			return nil, fmt.Errorf("block %s:%d contract addr %s rollback to incorrect "+
+				"balance: %d, need: %d", block.BlockHash(), header.Height, addr, checkBalance, b)
 		}
 		utxoBytes, err := prevStateDB.GetUtxo(*ah)
 		if err != nil {
@@ -793,17 +795,25 @@ func MakeRollbackContractUtxos(
 	return um, nil
 }
 
-func calcContractAddrBalanceChanges(block *types.Block) (add, sub BalanceChangeMap, err error) {
+func calcContractAddrBalanceChanges(
+	block *types.Block, stateDB *state.StateDB,
+) (add, sub BalanceChangeMap, err error) {
 
 	add = make(BalanceChangeMap)
 	sub = make(BalanceChangeMap)
 	for _, v := range block.Txs {
-		if !txlogic.HasContractVout(v) {
-			continue
-		}
+		// calc contract transaction vout value
 		for _, vout := range v.Vout {
 			sc := script.NewScriptFromBytes(vout.ScriptPubKey)
 			if !sc.IsContractPubkey() {
+				// calc pay2pubkey with contract address vout value
+				if !sc.IsPayToPubKeyHash() {
+					continue
+				}
+				addr, _ := sc.ExtractAddress()
+				if stateDB.GetCode(*addr.Hash160()) != nil {
+					add[*addr.Hash160()] += vout.Value
+				}
 				continue
 			}
 			param, t, err := sc.ParseContractParams()

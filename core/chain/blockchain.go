@@ -1236,9 +1236,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		return err
 	}
 	// calc contract utxos, then check contract addr balance
-	header := block.Header
-	stateDB, _ := state.New(&header.RootHash, &header.UtxoRoot, chain.db)
-	contractUtxos, err := MakeRollbackContractUtxos(block, stateDB, chain.db)
+	contractUtxos, err := MakeRollbackContractUtxos(block, chain.db)
 	if err != nil {
 		logger.Error(err)
 		return err

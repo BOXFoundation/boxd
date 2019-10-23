@@ -597,8 +597,9 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b4 block hash: %s", b4.BlockHash())
 	t.Logf("b3 -> b4 failed, now tail height: %d", blockChain.LongestChainHeight)
 	// process b5
+	toContractAmount := uint64(1000)
 	vmValue, gasLimit = uint64(0), uint64(20000)
-	contractBalance := uint64(10000 - 2000) // withdraw 2000, construct contract with 10000
+	contractBalance := uint64(10000-2000) + toContractAmount // withdraw 2000, construct with 10000
 	vmParam = &testContractParam{
 		vmValue, gasLimit, contractBalance, 2000, contractAddrFaucet,
 	}
@@ -615,8 +616,17 @@ func TestBlockProcessing(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue5)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b5 := nextBlockWithTxsV2(b4, blockChain, vmTx)
-	userBalance = bUserBalance
+	// send box to genesis contract address
+	prevHash, _ = b3.Txs[1].TxHash()
+	changeValue -= toContractAmount + core.TransferFee
+	toContractTx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(txlogic.MakeVout(contractAddrFaucet.Hash160(), toContractAmount)).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
+	txlogic.SignTx(toContractTx, privKey, pubKey)
+	//
+	b5 := nextBlockWithTxsV2(b4, blockChain, vmTx, toContractTx)
+	userBalance = bUserBalance - toContractAmount - core.TransferFee
 	//
 	if err := calcRootHash(b4, b5, blockChainI); err != nil {
 		t.Fatal(err)
@@ -639,7 +649,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2  -> b3  -> b4  -> b5
 	//							 \ -> b3A -> b4A -> b5A -> b6A
 	b5A := nextBlockV2(b4A, blockChain)
-	vmParam = &testContractParam{contractAddr: contractAddrCoin, contractBalance: 8000}
+	vmParam = &testContractParam{contractAddr: contractAddrCoin, contractBalance: contractBalance}
 	//
 	if err := calcRootHash(b4A, b5A, blockChainA); err != nil {
 		t.Fatal(err)
@@ -810,7 +820,7 @@ func TestBlockProcessing(t *testing.T) {
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// force reorg split tx
 	// b0 -> b1 -> b2  -> b3  -> b4  -> b5  -> b6  -> b7  -> b8  -> b9
-	// 		           -> b3A -> b4A -> b5A -> b6A -> b7A
+	//  		           -> b3A -> b4A -> b5A -> b6A -> b7A
 	//                                             -> b7B -> b8B
 	b6 := nextBlockV2(b5, blockChain)
 	//
@@ -852,13 +862,13 @@ func TestBlockProcessing(t *testing.T) {
 	//contractBalance = uint64(0) // withdraw 2000+9000, construct contract with 10000
 	vmParam = &testContractParam{
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
-		vmValue, gasLimit, 8000, 0, contractAddrFaucet,
+		vmValue, gasLimit, contractBalance, 0, contractAddrFaucet,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
 	nonce = 3
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddrFaucet.Hash160(), vmValue, gasLimit, nonce)
-	prevHash, _ = b3.Txs[1].TxHash()
+	prevHash, _ = b5.Txs[2].TxHash()
 	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
