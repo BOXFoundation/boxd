@@ -770,9 +770,9 @@ func MakeRollbackContractUtxos(
 		ah.SetBytes(op.Hash[:])
 		b := prevStateDB.GetBalance(*ah)
 		checkBalance := u.Value()
-		if *ah == ContractAddr {
-			checkBalance -= header.GasUsed
-		}
+		// if *ah == ContractAddr {
+		// 	checkBalance -= block.Header.GasUsed
+		// }
 		if b.Uint64() != checkBalance {
 			addr, _ := types.NewContractAddressFromHash(ah[:])
 			return nil, fmt.Errorf("block %s:%d contract addr %s rollback to incorrect "+

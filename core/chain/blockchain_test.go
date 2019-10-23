@@ -143,7 +143,7 @@ func makeCoinbaseTx(
 	nonce := statedb.GetNonce(block.Header.BookKeeper)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
 
-	return chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce+1, block.Header.Height, "calcBonus")
+	return chain.MakeCoinBaseContractTx(block.Header.BookKeeper, amount, 0, nonce+1, block.Header.Height)
 }
 
 func makeCoinbaseTxV2(
@@ -151,8 +151,8 @@ func makeCoinbaseTxV2(
 ) (*types.Transaction, error) {
 
 	amount := CalcBlockSubsidy(block.Header.Height)
-	return chain.MakeInternalContractTx(block.Header.BookKeeper, amount,
-		uint64(parent.Header.Height+1), block.Header.Height, "calcBonus")
+	return chain.MakeCoinBaseContractTx(block.Header.BookKeeper, amount, 0,
+		uint64(parent.Header.Height+1), block.Header.Height)
 }
 
 // generate a child block with contract tx
@@ -394,9 +394,9 @@ func calcRootHash(parent, block *types.Block, chain *BlockChain, stdb ...*state.
 	}
 
 	// update genesis contract utxo in utxoSet
-	op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
-	genesisUtxoWrap := utxoSet.GetUtxo(op)
-	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
+	// op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
+	// genesisUtxoWrap := utxoSet.GetUtxo(op)
+	// genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
 	if len(utxoTxs) > 0 {
 		block.InternalTxs = utxoTxs

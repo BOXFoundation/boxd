@@ -42,9 +42,6 @@ const (
 	BlockNumPerPeiod          = 5
 )
 
-// TODO: add for check bookkeeper reward. This will be removed later.
-var reward uint64
-
 // Config defines the configurations of bpos
 type Config struct {
 	Keypath    string `mapstructure:"keypath"`
@@ -573,7 +570,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	}
 	nonce = statedb.GetNonce(*adminAddr.Hash160()) + 1
 	if uint64((block.Header.Height+1))%bpos.context.dynastySwitchThreshold.Uint64() == 0 { // dynasty switch
-		dynastySwitchTx, err := bpos.chain.MakeInternalContractTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.ExecBonus)
+		dynastySwitchTx, err := bpos.chain.MakeDynastySwitchTx(*adminAddr.Hash160(), nonce, block.Header.Height)
 		if err != nil {
 			return err
 		}
@@ -583,7 +580,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		if err != nil {
 			return err
 		}
-		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), 0, nonce, block.Header.Height, chain.CalcScore, scores)
+		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), nonce, block.Header.Height, scores)
 		if err != nil {
 			return err
 		}
@@ -609,7 +606,8 @@ func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txF
 	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
 		block.BlockHash(), block.Header.Height, amount, txFee)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce, block.Header.Height, chain.CalcBonus)
+	// return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce, block.Header.Height, chain.CalcBonus)
+	return bpos.chain.MakeCoinBaseContractTx(block.Header.BookKeeper, bpos.context.bookKeeperReward.Uint64(), txFee, nonce, block.Header.Height)
 }
 
 func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
@@ -636,9 +634,21 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		return err
 	}
 	// update genesis contract utxo in utxoSet
-	op := types.NewOutPoint(types.NormalizeAddressHash(&chain.ContractAddr), 0)
-	genesisUtxoWrap := utxoSet.GetUtxo(op)
-	genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
+	// op := types.NewOutPoint(types.NormalizeAddressHash(&chain.ContractAddr), 0)
+	// genesisUtxoWrap := utxoSet.GetUtxo(op)
+	// genesisUtxoWrap.SetValue(genesisUtxoWrap.Value())
+
+	coinbaseHash, err := block.Txs[0].TxHash()
+	if err != nil {
+		return err
+	}
+	opCoinbase := types.NewOutPoint(coinbaseHash, 1)
+	// coinbaseUtxoWrap := utxoSet.GetUtxo(opCoinbase)
+	// coinbaseUtxoWrap.SetValue(coinbaseUtxoWrap.Value() + gasUsed)
+	utxoSet.SpendUtxo(*opCoinbase)
+	statedb.AddBalance(*bpos.bookkeeper.AddressHash(), big.NewInt(int64(gasUsed)))
+	block.Txs[0].Vout[1].Value += gasUsed
+	utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
@@ -654,11 +664,6 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	root, utxoRoot, err := statedb.Commit(false)
 	if err != nil {
 		return err
-	}
-
-	reward += block.Txs[0].Vout[0].Value + gasUsed
-	if uint64(block.Header.Height)%bpos.context.dynastySwitchThreshold.Uint64() == 0 {
-		logger.Infof("Before dynasty switch the bookkeeper total reward: %d", reward)
 	}
 
 	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
