@@ -300,7 +300,8 @@ func (p *BoxPeer) BroadcastToBookkeepers(code uint32, msg conv.Convertible, book
 		}
 		pid, err := peer.IDB58Decode(v)
 		if err != nil {
-			return err
+			logger.Errorf("Failed to decode bookkeeper id. Err: %v", err)
+			continue
 		}
 		if c, ok := p.conns.Load(pid); ok {
 			conn := c.(*Conn)
