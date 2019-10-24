@@ -32,6 +32,7 @@ import (
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -49,6 +50,7 @@ var (
 
 	solcBinReg = regexp.MustCompile("Binary:\\s?\n([0-9a-f]+)\n")
 	solcAbiReg = regexp.MustCompile("ABI\\s?\n([\\pP0-9a-zA-Z]+)\n")
+	stringReg  = regexp.MustCompile("\\[([\\w,\\s]+)\\]")
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -85,13 +87,13 @@ var rootCmd = &cobra.Command{
     NOTE: if add index argument after amount argument, attach index to the deployed contract
 
   6. attach index to an contract address
-    ./box contract attach 1 b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19191
+    ./box contract attach  b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19191
 
   7. send a contract call transaction
-    ./box contract send 1 0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19191
+    ./box contract send  0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19191
 
   8. call a contract to get state value revalent to method via DoCall a contract
-    ./box contract call 1 allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
+    ./box contract call  allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
 
   9. decode output
     ./box contract decode allowance 0000000000000000000000000000000000000000000000000000000000004e20
@@ -193,9 +195,9 @@ func init() {
 			Run:   reset,
 		},
 		&cobra.Command{
-			Use:   "contractdetails [index/file_path/nil]",
+			Use:   "detailabi [optional|index/filename]",
 			Short: "view contract details",
-			Run:   contractdetails,
+			Run:   detailabi,
 		},
 	)
 }
@@ -614,11 +616,11 @@ func attach(cmd *cobra.Command, args []string) error {
 		panic(err)
 	}
 	defer f.Close()
-	note := fmt.Sprintf("%d> %s\n", index, address)
+	note := fmt.Sprintf("%d> %s@%s\n", index, address, common.GetRPCAddr())
 	if _, err := f.WriteString(note); err != nil {
 		panic(err)
 	}
-	fmt.Printf("{%d \"%s\" %s} > %s\n", abiInfo.index, abiInfo.note, abiInfo.filepath, address)
+	fmt.Printf("{%d \"%s\" %s} > %s@%s\n", abiInfo.index, abiInfo.note, abiInfo.filepath, address, common.GetRPCAddr())
 	return nil
 }
 
@@ -738,11 +740,16 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Println("restore record error:", err)
 		return
 	}
-	contractAddr, ok := attachedInfo[index]
+	contractaddressInfo, ok := attachedInfo[index]
 	if !ok {
 		fmt.Println("index is not attached to contract address")
 		fmt.Println("attach abi to a contract via " +
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
+		return
+	}
+	contractAddr, err := parsecontractaddressInfo(contractaddressInfo)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	// code
@@ -824,11 +831,16 @@ func call(cmd *cobra.Command, args []string) {
 		fmt.Println("restore record error:", err)
 		return
 	}
-	contractAddr, ok := attachedInfo[index]
+	contractaddressInfo, ok := attachedInfo[index]
 	if !ok {
 		fmt.Println("index is not attached to contract address")
 		fmt.Println("attach abi to a contract via " +
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
+		return
+	}
+	contractAddr, err := parsecontractaddressInfo(contractaddressInfo)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	// code
@@ -1096,37 +1108,134 @@ func reset(cmd *cobra.Command, args []string) {
 	os.Remove(abiIdxFile)
 }
 
-func contractdetails(cmd *cobra.Command, args []string) {
+func detailabi(cmd *cobra.Command, args []string) {
 	if len(args) > 1 {
 		fmt.Println(cmd.Use)
 		return
 	}
-	abi := new(abi.ABI)
-	index, err := strconv.Atoi(args[0])
-	if err != nil {
-		abi, err = newAbi(args[0])
-		if err != nil {
-			fmt.Println(err)
+	var (
+		abiObj *abi.ABI
+		err    error
+	)
+	if len(args) == 0 {
+		if index, err := currentAbi(); err == nil {
+			abiObj, err = newAbiObj(index)
+			if err != nil {
+				fmt.Println("get new abi object from index error:", err)
+				return
+			}
+		} else {
+			fmt.Println("abi index is not set, use \"setabi\" command to set")
 			return
 		}
-	} else {
-		abi, err = newAbiObj(index)
 	}
-	if err != nil {
-		fmt.Println(err)
-		return
+	if len(args) == 1 {
+		if util.FileExists(args[0]) {
+			abiObj, err = newAbiObjFromFile(args[0])
+			if err != nil {
+				fmt.Println("get new abi object from file error:", err)
+				return
+			}
+		} else {
+			index, err := strconv.Atoi(args[0])
+			if err != nil {
+				fmt.Println("invaild index:", err)
+				return
+			}
+			abiObj, err = newAbiObj(index)
+			if err != nil {
+				fmt.Println("get new abi object from index error:", err)
+				return
+			}
+		}
 	}
 	fmt.Println("method name and method ID:")
-	for name, method := range abi.Methods {
-		fmt.Println("method name:", name)
-		fmt.Println("method ID:", hex.EncodeToString(method.ID()))
+	for name, method := range abiObj.Methods {
+		var inputs []string
+		for i, input := range method.Inputs {
+			var inputInfo string
+			if len(input.Name) == 0 {
+				inputInfo = fmt.Sprintf("%s,", input.Type)
+			} else {
+				inputInfo = fmt.Sprintf("%s %s,", input.Name, input.Type)
+			}
+			if i == len(method.Inputs)-1 {
+				if len(input.Name) == 0 {
+					inputInfo = fmt.Sprintf("%s", input.Type)
+				} else {
+					inputInfo = fmt.Sprintf("%s %s", input.Name, input.Type)
+				}
+			}
+			inputs = append(inputs, inputInfo)
+		}
+		var outputs []string
+		for i, output := range method.Outputs {
+			var outputInfo string
+			if len(output.Name) == 0 {
+				outputInfo = fmt.Sprintf("%s,", output.Type)
+			} else {
+				outputInfo = fmt.Sprintf("%s %s,", output.Name, output.Type)
+			}
+			if i == len(method.Outputs)-1 {
+				if len(output.Name) == 0 {
+					outputInfo = fmt.Sprintf("%s", output.Type)
+				} else {
+					outputInfo = fmt.Sprintf("%s %s", output.Name, output.Type)
+				}
+			}
+
+			outputs = append(outputs, outputInfo)
+		}
+		if method.Const {
+			if len(findArrayCentent(outputs)) == 0 {
+				fmt.Printf("%s:  %s(%s) view\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs))
+			} else if !strings.Contains(findArrayCentent(outputs), ",") {
+				fmt.Printf("%s:  %s(%s) view returns %s\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
+			} else {
+				fmt.Printf("%s:  %s(%s) view returns (%s)\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
+			}
+		} else {
+			if len(findArrayCentent(outputs)) == 0 {
+				fmt.Printf("%s:  %s(%s)\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs))
+			} else if !strings.Contains(findArrayCentent(outputs), ",") {
+				fmt.Printf("%s:  %s(%s) returns %s\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
+			} else {
+				fmt.Printf("%s:  %s(%s) returns (%s)\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
+			}
+		}
+
 	}
 	fmt.Println("event name and event ID:")
-	for name, event := range abi.Events {
-		fmt.Println("event name:", name)
-		fmt.Println("event ID:", hex.EncodeToString(event.ID().Bytes()))
+	for name, event := range abiObj.Events {
+		var inputs []string
+		for i, input := range event.Inputs {
+			var inputInfo string
+			if len(input.Name) == 0 {
+				inputInfo = fmt.Sprintf("%s", input.Type)
+			} else {
+				inputInfo = fmt.Sprintf("%s %s,", input.Name, input.Type)
+			}
+			if i == len(event.Inputs)-1 {
+				if len(input.Name) == 0 {
+					inputInfo = fmt.Sprintf("%s", input.Type)
+				} else {
+					inputInfo = fmt.Sprintf("%s %s,", input.Name, input.Type)
+				}
+			}
+			inputs = append(inputs, inputInfo)
+		}
+		fmt.Printf("%s:  %s(%s)\n", event.ID().String(), name, findArrayCentent(inputs))
 	}
+}
 
+func findArrayCentent(str []string) string {
+	centent := fmt.Sprintf("%s", str)
+	contentStrMatch := stringReg.FindStringSubmatch(centent)
+	if len(contentStrMatch) == 0 {
+		return ""
+	}
+	return contentStrMatch[1]
+	//binMatches := solcBinReg.FindStringSubmatch(outputStr)
 }
 
 type abiDesc struct {
@@ -1201,15 +1310,34 @@ func restoreRecord(filepath string) (abiDesces, map[int]string, error) {
 				fmt.Printf("parse line %d attach num error: %s", i, err)
 				continue
 			}
-			contractAddr := strings.TrimSpace(fields[1])
-			if _, err := types.NewContractAddress(contractAddr); err != nil {
-				fmt.Printf("parse line %d, parce contract address error: %s", i, err)
-				continue
-			}
-			attachedInfo[index] = contractAddr
+			contractaddressInfo := strings.TrimSpace(fields[1])
+			attachedInfo[index] = contractaddressInfo
 		}
 	}
+
 	return abiInfo, attachedInfo, nil
+}
+
+func parsecontractaddressInfo(contractaddressInfo string) (contract string, err error) {
+	strArrays := strings.FieldsFunc(contractaddressInfo, func(c rune) bool {
+		if c == 64 { // 64 is the value of "@" in ascii
+			return true
+		}
+		return false
+	})
+	contractAddr := strArrays[0]
+	if _, err := types.NewContractAddress(contractAddr); err != nil {
+		return "", fmt.Errorf("parce contract address error: %s", err)
+
+	}
+	rpcInfo := strings.Split(strArrays[1], ":")
+	port64, err := strconv.ParseInt(rpcInfo[1], 10, 64)
+	if err != nil {
+		return "", errors.New("get port error: " + err.Error())
+	}
+	viper.Set("rpc.address", rpcInfo[0])
+	viper.Set("rpc.port", int(port64))
+	return contractAddr, nil
 }
 
 func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error) {
@@ -1260,15 +1388,12 @@ func newAbiObj(index int) (*abi.ABI, error) {
 		return nil, errors.New("index not found in abi record")
 	}
 	// new abi object
-	data, err := ioutil.ReadFile(abiInfo.filepath)
+	abiObj, err := newAbiObjFromFile(abiInfo.filepath)
 	if err != nil {
 		return nil, err
 	}
-	abiObj, err := abi.JSON(bytes.NewBuffer(data))
-	if err != nil {
-		return nil, fmt.Errorf("illegal abi file, error: %s", err)
-	}
-	return &abiObj, nil
+
+	return abiObj, nil
 }
 
 func fetchSenderInfo() (sender, keyFile string, bal, nonce uint64, err error) {
@@ -1511,13 +1636,7 @@ func compileSol(filepath string) (binData string, abiData string, err error) {
 	return binData, abiData, nil
 }
 
-func newAbi(filePath string) (*abi.ABI, error) {
-	if _, err := os.Stat(filePath); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s directory is not exists", filePath)
-		}
-		return nil, fmt.Errorf("%s directory status error: %s", filePath, err)
-	}
+func newAbiObjFromFile(filePath string) (*abi.ABI, error) {
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("read file : %s, err: %s", filePath, err)
