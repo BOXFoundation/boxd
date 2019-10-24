@@ -433,7 +433,9 @@ contract Bonus is Permission{
             delegateVotesDetail[delegateAddr][msg.sender] = delegateVotesDetail[delegateAddr][msg.sender].add(msg.value);
         } else {
             delegateVotesDetail[delegateAddr][msg.sender] = msg.value;
-            delegateToVoters[delegateAddr].push(msg.sender);
+            if (addressIsExist(msg.sender, delegateToVoters[delegateAddr]) == false) {
+                delegateToVoters[delegateAddr].push(msg.sender);
+            }
         }
     }
 
