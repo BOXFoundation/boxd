@@ -41,24 +41,24 @@ func (method Method) Sig() string {
 	return fmt.Sprintf("%v(%v)", method.Name, strings.Join(types, ","))
 }
 
-// func (method Method) String() string {
-// 	inputs := make([]string, len(method.Inputs))
-// 	for i, input := range method.Inputs {
-// 		inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
-// 	}
-// 	outputs := make([]string, len(method.Outputs))
-// 	for i, output := range method.Outputs {
-// 		outputs[i] = output.Type.String()
-// 		if len(output.Name) > 0 {
-// 			outputs[i] += fmt.Sprintf(" %v", output.Name)
-// 		}
-// 	}
-// 	constant := ""
-// 	if method.Const {
-// 		constant = "constant "
-// 	}
-// 	return fmt.Sprintf("function %v(%v) %sreturns(%v)", method.Name, strings.Join(inputs, ", "), constant, strings.Join(outputs, ", "))
-// }
+func (method Method) String() string {
+	inputs := make([]string, len(method.Inputs))
+	for i, input := range method.Inputs {
+		inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
+	}
+	outputs := make([]string, len(method.Outputs))
+	for i, output := range method.Outputs {
+		outputs[i] = output.Type.String()
+		if len(output.Name) > 0 {
+			outputs[i] += fmt.Sprintf(" %v", output.Name)
+		}
+	}
+	constant := ""
+	if method.Const {
+		constant = "constant "
+	}
+	return fmt.Sprintf("function %v(%v) %sreturns(%v)", method.Name, strings.Join(inputs, ", "), constant, strings.Join(outputs, ", "))
+}
 
 // ID get method id.
 func (method Method) ID() []byte {

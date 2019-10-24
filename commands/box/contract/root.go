@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -50,7 +51,6 @@ var (
 
 	solcBinReg = regexp.MustCompile("Binary:\\s?\n([0-9a-f]+)\n")
 	solcAbiReg = regexp.MustCompile("ABI\\s?\n([\\pP0-9a-zA-Z]+)\n")
-	stringReg  = regexp.MustCompile("\\[([\\w,\\s]+)\\]")
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -197,7 +197,7 @@ func init() {
 		&cobra.Command{
 			Use:   "detailabi [optional|index/filename]",
 			Short: "view contract details",
-			Run:   detailabi,
+			Run:   detailAbi,
 		},
 	)
 }
@@ -1108,17 +1108,19 @@ func reset(cmd *cobra.Command, args []string) {
 	os.Remove(abiIdxFile)
 }
 
-func detailabi(cmd *cobra.Command, args []string) {
+func detailAbi(cmd *cobra.Command, args []string) {
 	if len(args) > 1 {
 		fmt.Println(cmd.Use)
 		return
 	}
 	var (
-		abiObj *abi.ABI
-		err    error
+		abiObj  *abi.ABI
+		abiFile string
+		index   int = -1
+		err     error
 	)
 	if len(args) == 0 {
-		if index, err := currentAbi(); err == nil {
+		if index, err = currentAbi(); err == nil {
 			abiObj, err = newAbiObj(index)
 			if err != nil {
 				fmt.Println("get new abi object from index error:", err)
@@ -1130,14 +1132,15 @@ func detailabi(cmd *cobra.Command, args []string) {
 		}
 	}
 	if len(args) == 1 {
-		if util.FileExists(args[0]) {
-			abiObj, err = newAbiObjFromFile(args[0])
+		if fileName := args[0]; util.FileExists(fileName) {
+			abiObj, err = newAbiObjFromFile(fileName)
 			if err != nil {
-				fmt.Println("get new abi object from file error:", err)
+				fmt.Printf("new abi object from file %s error:%s\n", fileName, err)
 				return
 			}
+			abiFile = fileName
 		} else {
-			index, err := strconv.Atoi(args[0])
+			index, err = strconv.Atoi(args[0])
 			if err != nil {
 				fmt.Println("invaild index:", err)
 				return
@@ -1149,93 +1152,58 @@ func detailabi(cmd *cobra.Command, args []string) {
 			}
 		}
 	}
-	fmt.Println("method name and method ID:")
-	for name, method := range abiObj.Methods {
-		var inputs []string
+	if index >= 0 {
+		abiInfo, _, _ := restoreRecord(recordFile)
+		abiDesc := abiInfo.getItem(index)
+		abiFile = abiDesc.filepath
+	}
+	payableMap, err := parseAbiPayable(abiFile)
+	if err != nil {
+		fmt.Println("parse payable info error:", err)
+		return
+	}
+	fmt.Println("methods:")
+	for _, method := range abiObj.Methods {
+		inputs := make([]string, len(method.Inputs))
 		for i, input := range method.Inputs {
-			var inputInfo string
-			if len(input.Name) == 0 {
-				inputInfo = fmt.Sprintf("%s,", input.Type)
-			} else {
-				inputInfo = fmt.Sprintf("%s %s,", input.Name, input.Type)
-			}
-			if i == len(method.Inputs)-1 {
-				if len(input.Name) == 0 {
-					inputInfo = fmt.Sprintf("%s", input.Type)
-				} else {
-					inputInfo = fmt.Sprintf("%s %s", input.Name, input.Type)
-				}
-			}
-			inputs = append(inputs, inputInfo)
+			inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
 		}
-		var outputs []string
+		outputs := make([]string, len(method.Outputs))
 		for i, output := range method.Outputs {
-			var outputInfo string
-			if len(output.Name) == 0 {
-				outputInfo = fmt.Sprintf("%s,", output.Type)
-			} else {
-				outputInfo = fmt.Sprintf("%s %s,", output.Name, output.Type)
+			outputs[i] = output.Type.String()
+			if len(output.Name) > 0 {
+				outputs[i] += fmt.Sprintf(" %v", output.Name)
 			}
-			if i == len(method.Outputs)-1 {
-				if len(output.Name) == 0 {
-					outputInfo = fmt.Sprintf("%s", output.Type)
-				} else {
-					outputInfo = fmt.Sprintf("%s %s", output.Name, output.Type)
-				}
-			}
-
-			outputs = append(outputs, outputInfo)
 		}
+		constant := ""
 		if method.Const {
-			if len(findArrayCentent(outputs)) == 0 {
-				fmt.Printf("%s:  %s(%s) view\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs))
-			} else if !strings.Contains(findArrayCentent(outputs), ",") {
-				fmt.Printf("%s:  %s(%s) view returns %s\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
-			} else {
-				fmt.Printf("%s:  %s(%s) view returns (%s)\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
-			}
-		} else {
-			if len(findArrayCentent(outputs)) == 0 {
-				fmt.Printf("%s:  %s(%s)\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs))
-			} else if !strings.Contains(findArrayCentent(outputs), ",") {
-				fmt.Printf("%s:  %s(%s) returns %s\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
-			} else {
-				fmt.Printf("%s:  %s(%s) returns (%s)\n", hex.EncodeToString(method.ID()), name, findArrayCentent(inputs), findArrayCentent(outputs))
-			}
+			constant = " constant"
+		}
+		payable := ""
+		if payableMap[method.Name] {
+			payable = " payable"
 		}
 
-	}
-	fmt.Println("event name and event ID:")
-	for name, event := range abiObj.Events {
-		var inputs []string
-		for i, input := range event.Inputs {
-			var inputInfo string
-			if len(input.Name) == 0 {
-				inputInfo = fmt.Sprintf("%s", input.Type)
-			} else {
-				inputInfo = fmt.Sprintf("%s %s,", input.Name, input.Type)
-			}
-			if i == len(event.Inputs)-1 {
-				if len(input.Name) == 0 {
-					inputInfo = fmt.Sprintf("%s", input.Type)
-				} else {
-					inputInfo = fmt.Sprintf("%s %s,", input.Name, input.Type)
-				}
-			}
-			inputs = append(inputs, inputInfo)
+		fmt.Printf("  %x:  %v(%v)%s%s", method.ID(), method.Name,
+			strings.Join(inputs, ", "), constant, payable)
+		if len(outputs) > 0 {
+			fmt.Printf(" returns (%v)", strings.Join(outputs, ", "))
 		}
-		fmt.Printf("%s:  %s(%s)\n", event.ID().String(), name, findArrayCentent(inputs))
+		fmt.Printf("\n")
 	}
-}
 
-func findArrayCentent(str []string) string {
-	centent := fmt.Sprintf("%s", str)
-	contentStrMatch := stringReg.FindStringSubmatch(centent)
-	if len(contentStrMatch) == 0 {
-		return ""
+	fmt.Println()
+	fmt.Println("events:")
+	for _, e := range abiObj.Events {
+		inputs := make([]string, len(e.Inputs))
+		for i, input := range e.Inputs {
+			inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
+			if input.Indexed {
+				inputs[i] = fmt.Sprintf("%v indexed %v", input.Type, input.Name)
+			}
+		}
+		fmt.Printf("  %s:  %v(%v)\n", e.ID(), e.Name, strings.Join(inputs, ", "))
 	}
-	return contentStrMatch[1]
-	//binMatches := solcBinReg.FindStringSubmatch(outputStr)
 }
 
 type abiDesc struct {
@@ -1646,4 +1614,26 @@ func newAbiObjFromFile(filePath string) (*abi.ABI, error) {
 		return nil, fmt.Errorf("illegal abi file, error: %s", err)
 	}
 	return &abi, nil
+}
+
+func parseAbiPayable(file string) (map[string]bool, error) {
+	var payableInfo []struct {
+		Name    string `json:"name"`
+		Type    string `json:"type"`
+		Payable bool   `json:"payable"`
+	}
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &payableInfo); err != nil {
+		return nil, err
+	}
+	m := make(map[string]bool)
+	for _, v := range payableInfo {
+		if v.Type == "function" {
+			m[v.Name] = v.Payable
+		}
+	}
+	return m, nil
 }
