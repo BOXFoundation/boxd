@@ -1128,7 +1128,7 @@ func (chain *BlockChain) ValidateExecuteResult(
 		return err
 	}
 
-	expectedCoinbaseOutput := netParams.BookKeeperReward.Uint64() + totalTxsFee
+	expectedCoinbaseOutput := netParams.BookKeeperReward.Uint64() + totalTxsFee + usedGas
 	// expectedCoinbaseOutput := CalcBlockSubsidy(block.Header.Height)
 	if totalCoinbaseOutput != expectedCoinbaseOutput {
 		logger.Errorf("coinbase transaction for block pays %d which is not equal to"+
