@@ -607,8 +607,6 @@ func detailTxOut(
 		return nil, 0, err
 	}
 	detail.Value = amount
-	// script pubic key
-	detail.ScriptPubKey = hex.EncodeToString(txOut.ScriptPubKey)
 	// script disasm
 	detail.ScriptDisasm = sc.Disasm()
 	// type

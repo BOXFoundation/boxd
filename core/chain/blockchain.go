@@ -915,7 +915,7 @@ func (chain *BlockChain) executeBlock(
 		}
 		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
 			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
-		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
+		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value+block.Txs[0].Vout[1].Value))
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
@@ -934,9 +934,9 @@ func (chain *BlockChain) executeBlock(
 		}
 
 		// update genesis contract utxo in utxoSet
-		op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
-		genesisUtxoWrap := utxoSet.GetUtxo(op)
-		genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
+		// op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
+		// genesisUtxoWrap := utxoSet.GetUtxo(op)
+		// genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
@@ -1236,9 +1236,7 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 		return err
 	}
 	// calc contract utxos, then check contract addr balance
-	header := block.Header
-	stateDB, _ := state.New(&header.RootHash, &header.UtxoRoot, chain.db)
-	contractUtxos, err := MakeRollbackContractUtxos(block, stateDB, chain.db)
+	contractUtxos, err := MakeRollbackContractUtxos(block, chain.db)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -2284,12 +2282,10 @@ func (chain *BlockChain) calcScores() ([]*big.Int, error) {
 	return nil, nil
 }
 
-// MakeCalcScoreTx creates calcScore tx
-func (chain *BlockChain) MakeCalcScoreTx(
-	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
-	method string, scores []*big.Int,
-) (*types.Transaction, error) {
-	code, err := ContractAbi.Pack(method, scores)
+// MakeCoinBaseContractTx creates a coinbase give bookkeeper address and block height
+func (chain *BlockChain) MakeCoinBaseContractTx(
+	from types.AddressHash, reward uint64, txFee uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+	code, err := ContractAbi.Pack(CalcBonus)
 	if err != nil {
 		return nil, err
 	}
@@ -2299,7 +2295,48 @@ func (chain *BlockChain) MakeCalcScoreTx(
 	if err != nil {
 		return nil, err
 	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, nonce)
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), reward, 1e9, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	voutFee := &types.TxOut{
+		Value:        txFee,
+		ScriptPubKey: *script.PayToPubKeyHashScript(from[:]),
+	}
+
+	tx := &types.Transaction{
+		Version: 1,
+		Vin: []*types.TxIn{
+			{
+				PrevOutPoint: types.OutPoint{
+					Index: sysmath.MaxUint32,
+				},
+				ScriptSig: *coinbaseScriptSig,
+				Sequence:  sysmath.MaxUint32,
+			},
+		},
+		Vout: []*types.TxOut{vout, voutFee},
+	}
+	tx.WithData(types.ContractDataType, code)
+	return tx, nil
+}
+
+// MakeCalcScoreTx creates calcScore tx
+func (chain *BlockChain) MakeCalcScoreTx(
+	from types.AddressHash, nonce uint64, blockHeight uint32, scores []*big.Int,
+) (*types.Transaction, error) {
+	code, err := ContractAbi.Pack(CalcScore, scores)
+	if err != nil {
+		return nil, err
+	}
+
+	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
+	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
+	if err != nil {
+		return nil, err
+	}
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), 0, 1e9, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -2322,12 +2359,9 @@ func (chain *BlockChain) MakeCalcScoreTx(
 	return tx, nil
 }
 
-// MakeInternalContractTx creates a coinbase give bookkeeper address and block height
-func (chain *BlockChain) MakeInternalContractTx(
-	from types.AddressHash, amount uint64, nonce uint64, blockHeight uint32,
-	method string,
-) (*types.Transaction, error) {
-	code, err := ContractAbi.Pack(method)
+// MakeDynastySwitchTx creates dynasty switch tx.
+func (chain *BlockChain) MakeDynastySwitchTx(from types.AddressHash, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+	code, err := ContractAbi.Pack(ExecBonus)
 	if err != nil {
 		return nil, err
 	}
@@ -2337,16 +2371,9 @@ func (chain *BlockChain) MakeInternalContractTx(
 	if err != nil {
 		return nil, err
 	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), amount, 1e9, nonce)
+	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), 0, 1e9, nonce)
 	if err != nil {
 		return nil, err
-	}
-	var index uint32
-	switch method {
-	case CalcBonus:
-		index = sysmath.MaxUint32
-	case ExecBonus:
-		index = sysmath.MaxUint32 - 1
 	}
 
 	tx := &types.Transaction{
@@ -2354,7 +2381,7 @@ func (chain *BlockChain) MakeInternalContractTx(
 		Vin: []*types.TxIn{
 			{
 				PrevOutPoint: types.OutPoint{
-					Index: index,
+					Index: sysmath.MaxUint32 - 1,
 				},
 				ScriptSig: *coinbaseScriptSig,
 				Sequence:  sysmath.MaxUint32,
@@ -2363,7 +2390,6 @@ func (chain *BlockChain) MakeInternalContractTx(
 		Vout: []*types.TxOut{vout},
 	}
 	tx.WithData(types.ContractDataType, code)
-	logger.Infof("InternalContractTx from: %s nonce: %d to %s amount: %d", from, nonce, contractAddr, amount)
 	return tx, nil
 }
 
