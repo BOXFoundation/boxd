@@ -196,6 +196,12 @@ func NewReceipt(
 	return rc
 }
 
+// WithTxHash sets txHash field
+func (rc *Receipt) WithTxHash(hash *crypto.HashType) *Receipt {
+	rc.TxHash = *hash
+	return rc
+}
+
 // WithTxIndex sets TxIndex field
 func (rc *Receipt) WithTxIndex(i uint32) *Receipt {
 	rc.TxIndex = i

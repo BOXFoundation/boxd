@@ -783,17 +783,19 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 		if err != nil {
 			return 0, err
 		}
-		if IsCoinBase(tx) {
-			if txFee != 0 {
-				logger.Warnf("coinbase tx %s have wrong fee %d", txHash, txFee)
-				return 0, core.ErrInvalidFee
-			}
-		} else {
-			if txFee != param.GasLimit*core.FixedGasPrice+tx.ExtraFee() {
-				logger.Warnf("contract tx %s have wrong fee %d gas limit %d", txHash, txFee, param.GasLimit)
-				return 0, core.ErrInvalidFee
-			}
+		// if IsCoinBase(tx) || IsInternalContract(tx) {
+		// 	if txFee != 0 {
+		// 		logger.Warnf("coinbase tx %s have wrong fee %d", txHash, txFee)
+		// 		return 0, core.ErrInvalidFee
+		// 	}
+		// } else {
+
+		// }
+		if txFee != param.GasLimit*core.FixedGasPrice+tx.ExtraFee() {
+			logger.Warnf("contract tx %s have wrong fee %d gas limit %d", txHash, txFee, param.GasLimit)
+			return 0, core.ErrInvalidFee
 		}
+
 		if addr, err := FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
 			*addr.Hash160() != *param.From {
 			return 0, fmt.Errorf("contract tx from address mismatched")

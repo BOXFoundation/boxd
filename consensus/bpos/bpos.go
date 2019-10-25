@@ -637,7 +637,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		return err
 	}
 	opCoinbase := types.NewOutPoint(coinbaseHash, 1)
-	utxoSet.SpendUtxo(*opCoinbase)
+
 	bookkeeper := bpos.bookkeeper.AddressHash()
 	statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
 	if gasUsed > 0 {
@@ -646,11 +646,12 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		} else {
 			block.Txs[0].AppendVout(txlogic.MakeVout(bookkeeper, gasUsed))
 		}
-	}
-	if len(block.Txs[0].Vout) == 2 {
+		utxoSet.SpendUtxo(*opCoinbase)
+		block.Txs[0].ResetTxHash()
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
+		newHash, _ := block.Txs[0].TxHash()
+		receipts[0].WithTxHash(newHash)
 	}
-	block.Txs[0].ResetTxHash()
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
