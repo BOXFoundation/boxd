@@ -648,7 +648,9 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	utxoSet.SpendUtxo(*opCoinbase)
 	statedb.AddBalance(*bpos.bookkeeper.AddressHash(), big.NewInt(int64(gasUsed)))
 	block.Txs[0].Vout[1].Value += gasUsed
-	utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
+	if block.Txs[0].Vout[1].Value > 0 {
+		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
+	}
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs

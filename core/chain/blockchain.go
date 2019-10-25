@@ -915,7 +915,7 @@ func (chain *BlockChain) executeBlock(
 		}
 		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
 			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
-		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
+		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value+block.Txs[0].Vout[1].Value))
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
