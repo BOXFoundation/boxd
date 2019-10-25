@@ -650,6 +650,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if len(block.Txs[0].Vout) == 2 {
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
 	}
+	block.Txs[0].ResetTxHash()
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
