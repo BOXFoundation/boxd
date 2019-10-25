@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -599,15 +600,15 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	return nil
 }
 
-func (bpos *Bpos) makeCoinbaseTx(block *types.Block, statedb *state.StateDB, txFee uint64, nonce uint64) (*types.Transaction, error) {
-
-	// amount := chain.CalcBlockSubsidy(block.Header.Height) + txFee
+func (bpos *Bpos) makeCoinbaseTx(
+	block *types.Block, statedb *state.StateDB, txFee uint64, nonce uint64,
+) (*types.Transaction, error) {
 	amount := bpos.context.bookKeeperReward.Uint64() + txFee
 	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
 		block.BlockHash(), block.Header.Height, amount, txFee)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	// return bpos.chain.MakeInternalContractTx(block.Header.BookKeeper, amount, nonce, block.Header.Height, chain.CalcBonus)
-	return bpos.chain.MakeCoinBaseContractTx(block.Header.BookKeeper, bpos.context.bookKeeperReward.Uint64(), txFee, nonce, block.Header.Height)
+	return bpos.chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
+		bpos.context.bookKeeperReward.Uint64(), txFee, nonce, block.Header.Height)
 }
 
 func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error {
@@ -625,30 +626,28 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err := utxoSet.ApplyBlock(blockCopy, bpos.chain.IsContractAddr2); err != nil {
 		return err
 	}
-
 	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
-
 	receipts, gasUsed, utxoTxs, err :=
 		bpos.chain.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
-	// update genesis contract utxo in utxoSet
-	// op := types.NewOutPoint(types.NormalizeAddressHash(&chain.ContractAddr), 0)
-	// genesisUtxoWrap := utxoSet.GetUtxo(op)
-	// genesisUtxoWrap.SetValue(genesisUtxoWrap.Value())
-
 	coinbaseHash, err := block.Txs[0].TxHash()
 	if err != nil {
 		return err
 	}
 	opCoinbase := types.NewOutPoint(coinbaseHash, 1)
-	// coinbaseUtxoWrap := utxoSet.GetUtxo(opCoinbase)
-	// coinbaseUtxoWrap.SetValue(coinbaseUtxoWrap.Value() + gasUsed)
 	utxoSet.SpendUtxo(*opCoinbase)
-	statedb.AddBalance(*bpos.bookkeeper.AddressHash(), big.NewInt(int64(gasUsed)))
-	block.Txs[0].Vout[1].Value += gasUsed
-	if block.Txs[0].Vout[1].Value > 0 {
+	bookkeeper := bpos.bookkeeper.AddressHash()
+	statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
+	if gasUsed > 0 {
+		if len(block.Txs[0].Vout) == 2 {
+			block.Txs[0].Vout[1].Value += gasUsed
+		} else {
+			block.Txs[0].AppendVout(txlogic.MakeVout(bookkeeper, gasUsed))
+		}
+	}
+	if len(block.Txs[0].Vout) == 2 {
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
 	}
 

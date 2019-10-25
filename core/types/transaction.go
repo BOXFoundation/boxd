@@ -194,10 +194,10 @@ type OutPoint struct {
 
 // NewOutPoint constructs a OutPoint
 func NewOutPoint(hash *crypto.HashType, index uint32) *OutPoint {
-	return &OutPoint{
-		Hash:  *hash,
-		Index: index,
+	if hash == nil {
+		return &OutPoint{Index: index}
 	}
+	return &OutPoint{Hash: *hash, Index: index}
 }
 
 // NewNullOutPoint returns a null outpoint with zero hash and max uint32 index

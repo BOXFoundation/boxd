@@ -915,7 +915,11 @@ func (chain *BlockChain) executeBlock(
 		}
 		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
 			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
-		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(block.Txs[0].Vout[0].Value+block.Txs[0].Vout[1].Value))
+		reward := block.Txs[0].Vout[0].Value
+		if len(block.Txs[0].Vout) == 2 {
+			reward += block.Txs[0].Vout[1].Value
+		}
+		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(reward))
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
@@ -2299,24 +2303,16 @@ func (chain *BlockChain) MakeCoinBaseContractTx(
 	if err != nil {
 		return nil, err
 	}
-
-	voutFee := &types.TxOut{
-		Value:        txFee,
-		ScriptPubKey: *script.PayToPubKeyHashScript(from[:]),
+	var feeVout *types.TxOut
+	if txFee > 0 {
+		feeVout = txlogic.MakeVout(&from, txFee)
 	}
-
-	tx := &types.Transaction{
-		Version: 1,
-		Vin: []*types.TxIn{
-			{
-				PrevOutPoint: types.OutPoint{
-					Index: sysmath.MaxUint32,
-				},
-				ScriptSig: *coinbaseScriptSig,
-				Sequence:  sysmath.MaxUint32,
-			},
-		},
-		Vout: []*types.TxOut{vout, voutFee},
+	tx := types.NewTx(1, 0, 0).
+		AppendVin(types.NewTxIn(types.NewOutPoint(nil, sysmath.MaxUint32),
+			*coinbaseScriptSig, sysmath.MaxUint32)).
+		AppendVout(vout)
+	if feeVout != nil {
+		tx.AppendVout(feeVout)
 	}
 	tx.WithData(types.ContractDataType, code)
 	return tx, nil
@@ -2330,66 +2326,21 @@ func (chain *BlockChain) MakeCalcScoreTx(
 	if err != nil {
 		return nil, err
 	}
-
-	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
-	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
-	if err != nil {
-		return nil, err
-	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), 0, 1e9, nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	tx := &types.Transaction{
-		Version: 1,
-		Vin: []*types.TxIn{
-			{
-				PrevOutPoint: types.OutPoint{
-					Index: sysmath.MaxUint32 - 1,
-				},
-				ScriptSig: *coinbaseScriptSig,
-				Sequence:  sysmath.MaxUint32,
-			},
-		},
-		Vout: []*types.TxOut{vout},
-	}
-	tx.WithData(types.ContractDataType, code)
-	logger.Infof("CalcScoreTx from: %s nonce: %d to %s scores: %v", from, nonce, contractAddr, scores)
+	tx := txlogic.MakeCoinBaseTx(blockHeight, sysmath.MaxUint32-1, &from, &ContractAddr, nonce, code)
+	logger.Infof("CalcScoreTx from: %x nonce: %d to %x scores: %v",
+		from[:], nonce, ContractAddr[:], scores)
 	return tx, nil
 }
 
 // MakeDynastySwitchTx creates dynasty switch tx.
-func (chain *BlockChain) MakeDynastySwitchTx(from types.AddressHash, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+func (chain *BlockChain) MakeDynastySwitchTx(
+	from types.AddressHash, nonce uint64, blockHeight uint32,
+) (*types.Transaction, error) {
 	code, err := ContractAbi.Pack(ExecBonus)
 	if err != nil {
 		return nil, err
 	}
-
-	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
-	contractAddr, err := types.NewContractAddressFromHash(ContractAddr[:])
-	if err != nil {
-		return nil, err
-	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), 0, 1e9, nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	tx := &types.Transaction{
-		Version: 1,
-		Vin: []*types.TxIn{
-			{
-				PrevOutPoint: types.OutPoint{
-					Index: sysmath.MaxUint32 - 1,
-				},
-				ScriptSig: *coinbaseScriptSig,
-				Sequence:  sysmath.MaxUint32,
-			},
-		},
-		Vout: []*types.TxOut{vout},
-	}
-	tx.WithData(types.ContractDataType, code)
+	tx := txlogic.MakeCoinBaseTx(blockHeight, sysmath.MaxUint32-1, &from, &ContractAddr, nonce, code)
 	return tx, nil
 }
 

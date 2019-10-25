@@ -113,8 +113,7 @@ func ParseTokenAmount(spk []byte) (uint64, error) {
 
 // MakeVout makes txOut
 func MakeVout(addrHash *types.AddressHash, amount uint64) *types.TxOut {
-	addrPkh, _ := types.NewAddressPubKeyHash(addrHash[:])
-	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
+	addrScript := *script.PayToPubKeyHashScript(addrHash[:])
 	return &types.TxOut{
 		Value:        amount,
 		ScriptPubKey: addrScript,
@@ -455,4 +454,18 @@ func HasContractVout(tx *types.Transaction) bool {
 		}
 	}
 	return false
+}
+
+// MakeCoinBaseTx makes a coinbase tx
+func MakeCoinBaseTx(
+	blockHeight, txIdx uint32, bookkeeper, genesisAddr *types.AddressHash,
+	nonce uint64, code []byte,
+) *types.Transaction {
+	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
+	vout, _ := MakeContractCallVout(bookkeeper, genesisAddr, 0, 1e9, nonce)
+	tx := types.NewTx(1, 0, 0).
+		AppendVin(types.NewTxIn(types.NewOutPoint(nil, txIdx), *coinbaseScriptSig, math.MaxUint32)).
+		AppendVout(vout)
+	tx.WithData(types.ContractDataType, code)
+	return tx
 }

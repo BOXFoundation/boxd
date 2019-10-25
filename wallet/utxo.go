@@ -96,18 +96,10 @@ func FetchUtxosOf(
 	}
 	// fetch all utxos if total equals to 0
 	if forBalance {
-		utxos, err := makeUtxosFromDB(keys, tid, db)
-		if err != nil {
-			return nil, err
-		}
-		return utxos, nil
+		return makeUtxosFromDB(keys, tid, db)
 	}
 	// fetch moderate utxos by adjustint to total
-	utxos, err := fetchModerateUtxos(keys, tid, total, db)
-	if err != nil {
-		return nil, err
-	}
-	return utxos, nil
+	return fetchModerateUtxos(keys, tid, total, db)
 }
 
 func fetchModerateUtxos(
