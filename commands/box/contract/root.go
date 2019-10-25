@@ -747,11 +747,13 @@ func send(cmd *cobra.Command, args []string) {
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
 		return
 	}
-	contractAddr, err := parsecontractaddressInfo(contractaddressInfo)
+	contractAddr, port, addresss, err := parseAttachedInfo(contractaddressInfo)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	viper.Set("rpc.address", addresss)
+	viper.Set("rpc.port", port)
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -838,11 +840,13 @@ func call(cmd *cobra.Command, args []string) {
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
 		return
 	}
-	contractAddr, err := parsecontractaddressInfo(contractaddressInfo)
+	contractAddr, port, addresss, err := parseAttachedInfo(contractaddressInfo)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	viper.Set("rpc.address", addresss)
+	viper.Set("rpc.port", port)
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -1116,7 +1120,7 @@ func detailAbi(cmd *cobra.Command, args []string) {
 	var (
 		abiObj  *abi.ABI
 		abiFile string
-		index   int = -1
+		index   = -1
 		err     error
 	)
 	if len(args) == 0 {
@@ -1279,6 +1283,17 @@ func restoreRecord(filepath string) (abiDesces, map[int]string, error) {
 				continue
 			}
 			contractaddressInfo := strings.TrimSpace(fields[1])
+			strArrays := strings.FieldsFunc(contractaddressInfo, func(c rune) bool {
+				if c == 64 { // 64 is the value of "@" in ascii
+					return true
+				}
+				return false
+			})
+			contractAddr := strArrays[0]
+			if _, err := types.NewContractAddress(contractAddr); err != nil {
+				fmt.Printf("parse line %d, parce contract address error: %s", i, err)
+				continue
+			}
 			attachedInfo[index] = contractaddressInfo
 		}
 	}
@@ -1286,7 +1301,7 @@ func restoreRecord(filepath string) (abiDesces, map[int]string, error) {
 	return abiInfo, attachedInfo, nil
 }
 
-func parsecontractaddressInfo(contractaddressInfo string) (contract string, err error) {
+func parseAttachedInfo(contractaddressInfo string) (contract string, port int, address string, err error) {
 	strArrays := strings.FieldsFunc(contractaddressInfo, func(c rune) bool {
 		if c == 64 { // 64 is the value of "@" in ascii
 			return true
@@ -1294,18 +1309,12 @@ func parsecontractaddressInfo(contractaddressInfo string) (contract string, err 
 		return false
 	})
 	contractAddr := strArrays[0]
-	if _, err := types.NewContractAddress(contractAddr); err != nil {
-		return "", fmt.Errorf("parce contract address error: %s", err)
-
-	}
 	rpcInfo := strings.Split(strArrays[1], ":")
 	port64, err := strconv.ParseInt(rpcInfo[1], 10, 64)
 	if err != nil {
-		return "", errors.New("get port error: " + err.Error())
+		return "", -1, "", errors.New("get port error: " + err.Error())
 	}
-	viper.Set("rpc.address", rpcInfo[0])
-	viper.Set("rpc.port", int(port64))
-	return contractAddr, nil
+	return contractAddr, int(port64), rpcInfo[0], nil
 }
 
 func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error) {

@@ -46,29 +46,33 @@ func init() {
 		&cobra.Command{
 			Use:   "convertaddress [address]",
 			Short: "convert address to a special format",
-			Run:   convertaddress,
+			Run:   convertAddress,
 		},
 		&cobra.Command{
-			Use:   "makesplitaddress [tx_hash] [(addr1, weight1), (addr2, weight2), (addr3, weight3), ...]",
+			Use:   "makesplitaddress [tx_hash] [preOutPoint_index] [(addr1, weight1), (addr2, weight2), (addr3, weight3), ...]",
 			Short: "creat split address",
-			Run:   makesplitaddress,
+			Run:   makeSplitAddress,
 		},
 		&cobra.Command{
-			Use:   "makeContractAddr [fromaddress] [nonce]",
+			Use:   "makeContractAddress [fromaddress] [nonce]",
 			Short: "creat contract address",
-			Run:   makeContractAddr,
+			Run:   makeContractAddress,
 		},
 		&cobra.Command{
 			Use:   "makep2pKHAddr [pubkey]",
 			Short: "creat p2pKH address",
-			Run:   makep2pKHAddr,
+			Run:   makeP2PKHAddress,
 		},
 	)
 }
 
 func encode(cmd *cobra.Command, args []string) {
-	if len(args) == 0 || len(args) > 2 {
+	if len(args) != 2 {
 		fmt.Println(cmd.Use)
+		return
+	}
+	if args[0] != "base58" && args[0] != "base64" {
+		fmt.Printf("%s is illegal, just accepting base58 or base64", args[0])
 		return
 	}
 	dataBytes, err := hex.DecodeString(args[1])
@@ -79,21 +83,27 @@ func encode(cmd *cobra.Command, args []string) {
 	if args[0] == "base58" {
 		data58 := base58.Encode(dataBytes)
 		fmt.Println(data58)
-	} else if args[0] == "base64" {
+	}
+	if args[0] == "base64" {
 		data64 := base64.StdEncoding.EncodeToString(dataBytes)
 		fmt.Println(data64)
 	}
 }
 
 func decode(cmd *cobra.Command, args []string) {
-	if len(args) == 0 || len(args) > 2 {
+	if len(args) != 2 {
 		fmt.Println(cmd.Use)
+		return
+	}
+	if args[0] != "base58" && args[0] != "base64" {
+		fmt.Printf("%s is illegal, just accepting base58 or base64", args[0])
 		return
 	}
 	if args[0] == "base58" {
 		data58 := base58.Decode(args[1])
 		fmt.Println(hex.EncodeToString(data58))
-	} else if args[0] == "base64" {
+	}
+	if args[0] == "base64" {
 		data64, err := base64.StdEncoding.DecodeString(args[1])
 		if err != nil {
 			fmt.Printf("decode %s error: %s\n", args[1], err)
@@ -103,7 +113,7 @@ func decode(cmd *cobra.Command, args []string) {
 	}
 }
 
-func convertaddress(cmd *cobra.Command, args []string) {
+func convertAddress(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 		return
@@ -116,31 +126,32 @@ func convertaddress(cmd *cobra.Command, args []string) {
 			return
 		}
 		fmt.Printf("address hash: %x\n", address.Hash160()[:])
-	} else {
-		fmt.Println("the address hash could be generated to one of three addresses user friendly:")
-		pubkeyAddr, err := types.NewAddressPubKeyHash(dataBytes)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println("P2PKH address:", pubkeyAddr)
-		splitAddr, err := types.NewSplitAddressFromHash(dataBytes)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println("split address:", splitAddr)
-		contractAddr, err := types.NewContractAddressFromHash(dataBytes)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		fmt.Println("contract address:", contractAddr)
+		return
 	}
+	fmt.Println("the address hash could be generated to one of three addresses user friendly:")
+	pubkeyAddr, err := types.NewAddressPubKeyHash(dataBytes)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("P2PKH address:", pubkeyAddr)
+	splitAddr, err := types.NewSplitAddressFromHash(dataBytes)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("split address:", splitAddr)
+	contractAddr, err := types.NewContractAddressFromHash(dataBytes)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("contract address:", contractAddr)
+
 }
 
-func makesplitaddress(cmd *cobra.Command, args []string) {
-	if len(args) < 3 {
+func makeSplitAddress(cmd *cobra.Command, args []string) {
+	if len(args) < 4 {
 		fmt.Println(cmd.Use)
 		return
 	}
@@ -149,8 +160,14 @@ func makesplitaddress(cmd *cobra.Command, args []string) {
 		fmt.Printf("%s is invaild hash", args[0])
 		return
 	}
-	addrs, weights := make([]string, 0), make([]uint32, 0)
-	for i := 1; i < len(args)-1; i += 2 {
+	index, err := strconv.ParseUint(args[1], 20, 64)
+	if err != nil || index >= math.MaxUint32 {
+		fmt.Printf("Invalid amount %s\n", args[1])
+		return
+	}
+	weights := make([]uint32, 0)
+	addrHashes := make([]*types.AddressHash, 0)
+	for i := 2; i < len(args)-1; i += 2 {
 		if address, err := types.ParseAddress(args[i]); err == nil {
 			_, ok1 := address.(*types.AddressPubKeyHash)
 			_, ok2 := address.(*types.AddressTypeSplit)
@@ -158,32 +175,27 @@ func makesplitaddress(cmd *cobra.Command, args []string) {
 				fmt.Printf("invaild address for %s, err: %s\n", args[i], err)
 				return
 			}
+			addrHashes = append(addrHashes, address.Hash160())
 		} else {
 			fmt.Println(err)
 			return
 		}
-		addrs = append(addrs, args[i])
 		a, err := strconv.ParseUint(args[i+1], 10, 64)
 		if err != nil || a >= math.MaxUint32 {
-			fmt.Printf("Invalid amount %s\n", args[i+1])
+			fmt.Printf("get index %s, err: %s\n", args[i+1], err.Error())
 			return
 		}
 		weights = append(weights, uint32(a))
-		if len(addrs) != len(weights) {
-			fmt.Println("the length of addresses must be equal to the length of weights")
-			return
-		}
 	}
-	addrHashes := make([]*types.AddressHash, 0, len(addrs))
-	for _, addr := range addrs {
-		address, _ := types.ParseAddress(addr)
-		addrHashes = append(addrHashes, address.Hash160())
+	if len(addrHashes) != len(weights) {
+		fmt.Println("the length of addresses must be equal to the length of weights")
+		return
 	}
-	splitadd := txlogic.MakeSplitAddress(txHash, 0, addrHashes, weights)
-	fmt.Println(splitadd)
+	splitadd := txlogic.MakeSplitAddress(txHash, uint32(index), addrHashes, weights)
+	fmt.Printf("address: %s, address hash: %x\n", splitadd, splitadd.Hash160()[:])
 }
 
-func makeContractAddr(cmd *cobra.Command, args []string) {
+func makeContractAddress(cmd *cobra.Command, args []string) {
 	if len(args) != 2 {
 		fmt.Println(cmd.Use)
 		return
@@ -203,10 +215,10 @@ func makeContractAddr(cmd *cobra.Command, args []string) {
 		fmt.Println("fail to make contract address:", err)
 		return
 	}
-	fmt.Println(contractAddress)
+	fmt.Printf("address: %s, address hash: %x\n", contractAddress, contractAddress.Hash160()[:])
 }
 
-func makep2pKHAddr(cmd *cobra.Command, args []string) {
+func makeP2PKHAddress(cmd *cobra.Command, args []string) {
 	data, err := hex.DecodeString(args[0])
 	if err != nil {
 		fmt.Println("hex format data is needed:", args[0])
@@ -214,7 +226,7 @@ func makep2pKHAddr(cmd *cobra.Command, args []string) {
 	}
 	pubkey, err := crypto.PublicKeyFromBytes(data)
 	if err != nil {
-		fmt.Printf("%s generate public key failed: %s", args[0], err)
+		fmt.Printf("%s generate public key failed: %s\n", args[0], err)
 		return
 	}
 	addr, err := types.NewAddressFromPubKey(pubkey)
@@ -222,5 +234,5 @@ func makep2pKHAddr(cmd *cobra.Command, args []string) {
 		fmt.Println("fail to generate a new p2pKHAddress:", err)
 		return
 	}
-	fmt.Println(addr)
+	fmt.Printf("address: %s, address hash: %x\n", addr, addr.Hash160()[:])
 }
