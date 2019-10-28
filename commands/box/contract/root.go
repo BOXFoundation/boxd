@@ -748,7 +748,7 @@ func send(cmd *cobra.Command, args []string) {
 		return
 	}
 	items := strings.Split(field, "@")
-	contractAddr, RPCInfo := items[0], items[1]
+	contractAddr, connAddr := items[0], items[1]
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -786,7 +786,7 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Printf("unlock account: %s error: %s", sender, err)
 		return
 	}
-	_, hash, err := signAndSendContractTx(req, acc, RPCInfo)
+	_, hash, err := signAndSendContractTx(req, acc, connAddr)
 	if err != nil {
 		fmt.Println("sign and send transaction error:", err)
 		return
@@ -836,7 +836,7 @@ func call(cmd *cobra.Command, args []string) {
 		return
 	}
 	items := strings.Split(field, "@")
-	contractAddr, RPCInfo := items[0], items[1]
+	contractAddr, connAddr := items[0], items[1]
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -857,7 +857,7 @@ func call(cmd *cobra.Command, args []string) {
 	callReq := &rpcpb.CallReq{
 		From: sender, To: contractAddr, Data: data, Height: uint32(height), Timeout: 2,
 	}
-	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "DoCall", callReq, RPCInfo)
+	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "DoCall", callReq, connAddr)
 	if err != nil {
 		fmt.Printf("rpc DoCall request %v error: %s\n", callReq, err)
 		return
@@ -882,12 +882,12 @@ func call(cmd *cobra.Command, args []string) {
 }
 
 func signAndSendContractTx(
-	req *rpcpb.MakeContractTxReq, acc *account.Account, RPCInfo string,
+	req *rpcpb.MakeContractTxReq, acc *account.Account, connAddr string,
 ) (contractAddr, hash string, err error) {
 	// make unsigned tx
 	var resp interface{}
 	resp, err = rpcutil.RPCCall(rpcpb.NewTransactionCommandClient,
-		"MakeUnsignedContractTx", req, RPCInfo)
+		"MakeUnsignedContractTx", req, connAddr)
 	if err != nil {
 		err = fmt.Errorf("make unsigned contract tx req %+v error: %s", req, err)
 		return
@@ -897,7 +897,7 @@ func signAndSendContractTx(
 		err = fmt.Errorf("make unsigned contract tx req %+v error: %s", req, txResp.Message)
 		return
 	}
-	hash, err = common.SignAndSendTx(txResp.GetTx(), txResp.GetRawMsgs(), acc, RPCInfo)
+	hash, err = common.SignAndSendTx(txResp.GetTx(), txResp.GetRawMsgs(), acc, connAddr)
 	if err != nil {
 		return
 	}
@@ -1126,7 +1126,8 @@ func detailAbi(cmd *cobra.Command, args []string) {
 		}
 	}
 	if len(args) == 1 {
-		if fileName := args[0]; util.FileExists(fileName) {
+		fileName := args[0]
+		if err := util.FileExists(fileName); err == nil {
 			abiObj, err = newAbiObjFromFile(fileName)
 			if err != nil {
 				fmt.Printf("new abi object from file %s error:%s\n", fileName, err)
@@ -1274,6 +1275,9 @@ func restoreRecord(filepath string) (abiDesces, map[int]string, error) {
 			}
 
 			field2 := strings.TrimSpace(fields[1])
+			if !strings.Contains(field2, "@") {
+				return nil, nil, fmt.Errorf("%s must attach RPC conn address", field2)
+			}
 			items := strings.Split(field2, "@")
 			contractAddr := items[0]
 			if _, err := types.NewContractAddress(contractAddr); err != nil {
@@ -1337,13 +1341,7 @@ func newAbiObj(index int) (*abi.ABI, error) {
 	if abiInfo == nil {
 		return nil, errors.New("index not found in abi record")
 	}
-	// new abi object
-	abiObj, err := newAbiObjFromFile(abiInfo.filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	return abiObj, nil
+	return newAbiObjFromFile(abiInfo.filepath)
 }
 
 func fetchSenderInfo() (sender, keyFile string, bal, nonce uint64, err error) {

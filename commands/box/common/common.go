@@ -35,7 +35,7 @@ func GetRPCAddr() string {
 
 // SignAndSendTx sign tx and then send this tx to a server node
 func SignAndSendTx(
-	tx *corepb.Transaction, rawMsgs []string, acc *account.Account, RPCInfo string,
+	tx *corepb.Transaction, rawMsgs []string, acc *account.Account, connAddr string,
 ) (hash string, err error) {
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
 	for _, msg := range rawMsgs {
@@ -71,7 +71,7 @@ func SignAndSendTx(
 	}
 	// send tx
 	resp, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient,
-		"SendTransaction", &rpcpb.SendTransactionReq{Tx: tx}, RPCInfo)
+		"SendTransaction", &rpcpb.SendTransactionReq{Tx: tx}, connAddr)
 	if err != nil {
 		err = fmt.Errorf("send tx %+v error: %s", tx, err)
 		return
