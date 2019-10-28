@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -257,7 +258,11 @@ func (s *webapiServer) DoCall(
 	output, _, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
 		req.GetHeight(), s.ChainBlockReader)
 	if err != nil {
-		return newCallResp(-1, err.Error(), ""), nil
+		vmerrmsg, err2 := abi.UnpackErrMsg(output)
+		if err2 != nil {
+			logger.Debugf("UnpackErrMsg failed. Err: %v", err2)
+		}
+		return newCallResp(-1, err.Error(), vmerrmsg), nil
 	}
 
 	// Make sure we have a contract to operate on, and bail out otherwise.
@@ -325,11 +330,11 @@ func callContract(
 	if err != nil {
 		return nil, 0, err
 	}
+	if failed {
+		return ret, usedGas, fmt.Errorf("contract execution failed, db error: %v", dbErr())
+	}
 	if dbErr() != nil {
 		return nil, 0, dbErr()
-	}
-	if failed {
-		return nil, usedGas, fmt.Errorf("contract execution failed, db error: %v", dbErr())
 	}
 	return ret, usedGas, nil
 }
@@ -671,6 +676,7 @@ func detailTxOut(
 		failed, gasUsed := false, uint64(0)
 		var internalTxs []string
 		var logs []*rpcpb.LogDetail
+		var errMsg string
 		if content != nil { // not an internal contract tx
 			receipt, tx, err := br.GetTxReceipt(txHash)
 			if err != nil {
@@ -680,8 +686,8 @@ func detailTxOut(
 			}
 			// receipt may be nil if the contract tx is not brought on chain
 			if receipt != nil {
-				fee, failed, gasUsed = receipt.GasUsed*core.FixedGasPrice,
-					receipt.Failed, receipt.GasUsed
+				fee, failed, gasUsed, errMsg = receipt.GasUsed*core.FixedGasPrice,
+					receipt.Failed, receipt.GasUsed, hex.EncodeToString(receipt.ErrMsg)
 				if tx.Vin[0].PrevOutPoint.Hash == crypto.ZeroHash {
 					// this contraction is internal chain transaction without fee
 					fee = 0
@@ -701,6 +707,7 @@ func detailTxOut(
 				Data:        hex.EncodeToString(content),
 				InternalTxs: internalTxs,
 				Logs:        logs,
+				ErrMsg:      errMsg,
 			},
 		}
 		if typ == types.ContractCreationType {

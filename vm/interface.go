@@ -27,6 +27,9 @@ type StateDB interface {
 	SetCode(types.AddressHash, []byte)
 	GetCodeSize(types.AddressHash) int
 
+	SetError(error)
+	Error() error
+
 	AddRefund(uint64)
 	SubRefund(uint64)
 	GetRefund() uint64

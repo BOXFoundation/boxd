@@ -67,9 +67,9 @@ const (
 
 	// ReceiptPrefix is the key prefix of database key to store block receipts
 	// of specified block hash
-	// /br/{hex encoded block hash}
+	// /rc/{hex encoded block hash}
 	// e.g.
-	// key: /bk/005973c44c4879b137c3723c96d2e341eeaf83fe58845b2975556c9f3bd640bb
+	// key: /rc/005973c44c4879b137c3723c96d2e341eeaf83fe58845b2975556c9f3bd640bb
 	// value: receipts binary
 	ReceiptPrefix = "/rc"
 

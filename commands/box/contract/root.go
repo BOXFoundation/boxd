@@ -853,7 +853,12 @@ func call(cmd *cobra.Command, args []string) {
 	}
 	callResp := resp.(*rpcpb.CallResp)
 	if callResp.Code != 0 {
-		fmt.Printf("rpc DoCall request %v error: %s\n", callReq, callResp.Message)
+		msg := fmt.Sprintf("rpc DoCall request %v error: %s", callReq, callResp.Message)
+		output := resp.(*rpcpb.CallResp).GetOutput()
+		if len(output) != 0 {
+			msg += ", " + output
+		}
+		fmt.Println(msg)
 		return
 	}
 	// decode output

@@ -8,6 +8,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -46,7 +47,7 @@ func (m *Log) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Log.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +142,7 @@ func (m *HashLog) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_HashLog.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -211,7 +212,7 @@ var fileDescriptor_a153da538f858886 = []byte{
 func (m *Log) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -219,68 +220,77 @@ func (m *Log) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Log) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Log) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Address) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(len(m.Address)))
-		i += copy(dAtA[i:], m.Address)
-	}
-	if len(m.Topics) > 0 {
-		for _, b := range m.Topics {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintLog(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
-	}
-	if len(m.Data) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
-	}
-	if m.BlockNumber != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(m.BlockNumber))
-	}
-	if len(m.TxHash) > 0 {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(len(m.TxHash)))
-		i += copy(dAtA[i:], m.TxHash)
-	}
-	if m.TxIndex != 0 {
-		dAtA[i] = 0x30
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(m.TxIndex))
-	}
-	if m.Index != 0 {
-		dAtA[i] = 0x40
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(m.Index))
-	}
 	if m.Removed {
-		dAtA[i] = 0x48
-		i++
+		i--
 		if m.Removed {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x48
 	}
-	return i, nil
+	if m.Index != 0 {
+		i = encodeVarintLog(dAtA, i, uint64(m.Index))
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.TxIndex != 0 {
+		i = encodeVarintLog(dAtA, i, uint64(m.TxIndex))
+		i--
+		dAtA[i] = 0x30
+	}
+	if len(m.TxHash) > 0 {
+		i -= len(m.TxHash)
+		copy(dAtA[i:], m.TxHash)
+		i = encodeVarintLog(dAtA, i, uint64(len(m.TxHash)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.BlockNumber != 0 {
+		i = encodeVarintLog(dAtA, i, uint64(m.BlockNumber))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintLog(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Topics) > 0 {
+		for iNdEx := len(m.Topics) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Topics[iNdEx])
+			copy(dAtA[i:], m.Topics[iNdEx])
+			i = encodeVarintLog(dAtA, i, uint64(len(m.Topics[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Address) > 0 {
+		i -= len(m.Address)
+		copy(dAtA[i:], m.Address)
+		i = encodeVarintLog(dAtA, i, uint64(len(m.Address)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *HashLog) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -288,41 +298,51 @@ func (m *HashLog) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *HashLog) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HashLog) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Address) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(len(m.Address)))
-		i += copy(dAtA[i:], m.Address)
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintLog(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if len(m.Topics) > 0 {
-		for _, b := range m.Topics {
+		for iNdEx := len(m.Topics) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Topics[iNdEx])
+			copy(dAtA[i:], m.Topics[iNdEx])
+			i = encodeVarintLog(dAtA, i, uint64(len(m.Topics[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintLog(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
 		}
 	}
-	if len(m.Data) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintLog(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
+	if len(m.Address) > 0 {
+		i -= len(m.Address)
+		copy(dAtA[i:], m.Address)
+		i = encodeVarintLog(dAtA, i, uint64(len(m.Address)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintLog(dAtA []byte, offset int, v uint64) int {
+	offset -= sovLog(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Log) Size() (n int) {
 	if m == nil {
@@ -387,14 +407,7 @@ func (m *HashLog) Size() (n int) {
 }
 
 func sovLog(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozLog(x uint64) (n int) {
 	return sovLog(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -414,7 +427,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -442,7 +455,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -451,6 +464,9 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthLog
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLog
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -473,7 +489,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -482,6 +498,9 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthLog
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLog
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -502,7 +521,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -511,6 +530,9 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthLog
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLog
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -533,7 +555,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.BlockNumber |= (uint64(b) & 0x7F) << shift
+				m.BlockNumber |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -552,7 +574,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -561,6 +583,9 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthLog
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLog
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -583,7 +608,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TxIndex |= (uint32(b) & 0x7F) << shift
+				m.TxIndex |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -602,7 +627,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Index |= (uint32(b) & 0x7F) << shift
+				m.Index |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -621,7 +646,7 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= (int(b) & 0x7F) << shift
+				v |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -634,6 +659,9 @@ func (m *Log) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthLog
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthLog
 			}
 			if (iNdEx + skippy) > l {
@@ -663,7 +691,7 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -691,7 +719,7 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -700,6 +728,9 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthLog
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLog
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -722,7 +753,7 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -731,6 +762,9 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthLog
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLog
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -751,7 +785,7 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -760,6 +794,9 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthLog
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLog
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -775,6 +812,9 @@ func (m *HashLog) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthLog
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthLog
 			}
 			if (iNdEx + skippy) > l {
@@ -843,8 +883,11 @@ func skipLog(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			iNdEx += length
 			if length < 0 {
+				return 0, ErrInvalidLengthLog
+			}
+			iNdEx += length
+			if iNdEx < 0 {
 				return 0, ErrInvalidLengthLog
 			}
 			return iNdEx, nil
@@ -875,6 +918,9 @@ func skipLog(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthLog
+				}
 			}
 			return iNdEx, nil
 		case 4:

@@ -17,6 +17,7 @@ message Receipt {
   repeated bytes internal_txs = 6;
   repeated Log logs = 7;
   bytes bloom = 8;
+  bytes err_msg = 9;
 }
 
 message Receipts {
@@ -32,6 +33,7 @@ message HashReceipt {
   repeated bytes internal_txs = 6;
   repeated HashLog logs = 7;
   bytes bloom = 8;
+  bytes err_msg = 9;
 }
 
 message HashReceipts {

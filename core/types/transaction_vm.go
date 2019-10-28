@@ -165,6 +165,7 @@ type Receipt struct {
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
 	InternalTxs     []*crypto.HashType
+	ErrMsg          []byte
 
 	Logs  []*Log
 	Bloom bloom.Filter
@@ -176,7 +177,7 @@ var _ conv.Serializable = (*Receipt)(nil)
 // NewReceipt news a Receipt
 func NewReceipt(
 	txHash *crypto.HashType, contractAddr *AddressHash, deployed, failed bool,
-	gasUsed uint64, logs []*Log,
+	gasUsed uint64, errMsg []byte, logs []*Log,
 ) *Receipt {
 	if txHash == nil {
 		txHash = new(crypto.HashType)
@@ -190,6 +191,7 @@ func NewReceipt(
 		Deployed:        deployed,
 		Failed:          failed,
 		GasUsed:         gasUsed,
+		ErrMsg:          errMsg,
 		Logs:            logs,
 	}
 	rc.Bloom = createLogBloom(rc.Logs)
@@ -281,6 +283,7 @@ func (rc *Receipt) ToProtoMessage() (proto.Message, error) {
 		Failed:      rc.Failed,
 		GasUsed:     rc.GasUsed,
 		InternalTxs: internalTxsBytes,
+		ErrMsg:      rc.ErrMsg[:],
 		Logs:        logs,
 		Bloom:       bloom,
 	}, nil
@@ -318,6 +321,8 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 	rc.Deployed = pbrc.Deployed
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
+	rc.ErrMsg = make([]byte, len(pbrc.ErrMsg))
+	copy(rc.ErrMsg, pbrc.ErrMsg[:])
 	rc.Logs = logs
 	// internal txs
 	rc.InternalTxs = make([]*crypto.HashType, 0, len(pbrc.InternalTxs))
@@ -374,6 +379,7 @@ func (rcs *Receipts) toHashReceipts() (*HashReceipts, error) {
 			GasUsed:     rc.GasUsed,
 			InternalTxs: rc.InternalTxs,
 			BlockHeight: rc.BlockHeight,
+			ErrMsg:      rc.ErrMsg[:],
 		}
 		hashrc.TxHash.SetBytes(rc.TxHash[:])
 		hashrc.ContractAddress.SetBytes(rc.ContractAddress.Bytes())
@@ -481,6 +487,7 @@ type hashReceipt struct {
 	InternalTxs     []*crypto.HashType
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
+	ErrMsg          []byte
 
 	Logs  []*hashLog
 	Bloom bloom.Filter
@@ -522,6 +529,7 @@ func (rc *hashReceipt) ToProtoMessage() (proto.Message, error) {
 		Failed:      rc.Failed,
 		GasUsed:     rc.GasUsed,
 		InternalTxs: internalTxsBytes,
+		ErrMsg:      rc.ErrMsg[:],
 		Logs:        logs,
 		Bloom:       bloom,
 	}, nil
@@ -559,6 +567,8 @@ func (rc *hashReceipt) FromProtoMessage(message proto.Message) error {
 	rc.Deployed = pbrc.Deployed
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
+	rc.ErrMsg = make([]byte, len(pbrc.ErrMsg))
+	copy(rc.ErrMsg, pbrc.ErrMsg[:])
 	rc.Logs = logs
 	// internal txs
 	rc.InternalTxs = make([]*crypto.HashType, 0, len(pbrc.InternalTxs))

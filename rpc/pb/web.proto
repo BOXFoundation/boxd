@@ -136,6 +136,7 @@ message ContractInfo {
     string data = 6;
     repeated string internal_txs = 7;
     repeated LogDetail logs = 8;
+    string err_msg = 9;
 }
 
 message ListenBlocksReq {

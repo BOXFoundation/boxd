@@ -8,6 +8,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -39,7 +40,7 @@ func (m *Node) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Node.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +86,7 @@ var fileDescriptor_4a69962149106130 = []byte{
 func (m *Node) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -93,29 +94,37 @@ func (m *Node) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Node) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Value) > 0 {
-		for _, b := range m.Value {
+		for iNdEx := len(m.Value) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Value[iNdEx])
+			copy(dAtA[i:], m.Value[iNdEx])
+			i = encodeVarintTrie(dAtA, i, uint64(len(m.Value[iNdEx])))
+			i--
 			dAtA[i] = 0xa
-			i++
-			i = encodeVarintTrie(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintTrie(dAtA []byte, offset int, v uint64) int {
+	offset -= sovTrie(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Node) Size() (n int) {
 	if m == nil {
@@ -133,14 +142,7 @@ func (m *Node) Size() (n int) {
 }
 
 func sovTrie(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozTrie(x uint64) (n int) {
 	return sovTrie(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -160,7 +162,7 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -188,7 +190,7 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -197,6 +199,9 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthTrie
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTrie
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -210,6 +215,9 @@ func (m *Node) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthTrie
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthTrie
 			}
 			if (iNdEx + skippy) > l {
@@ -278,8 +286,11 @@ func skipTrie(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			iNdEx += length
 			if length < 0 {
+				return 0, ErrInvalidLengthTrie
+			}
+			iNdEx += length
+			if iNdEx < 0 {
 				return 0, ErrInvalidLengthTrie
 			}
 			return iNdEx, nil
@@ -310,6 +321,9 @@ func skipTrie(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthTrie
+				}
 			}
 			return iNdEx, nil
 		case 4:

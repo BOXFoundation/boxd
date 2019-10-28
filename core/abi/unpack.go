@@ -5,6 +5,7 @@
 package abi
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -22,6 +23,7 @@ var (
 	maxInt256 = big.NewInt(0).Add(
 		big.NewInt(0).Exp(big.NewInt(2), big.NewInt(255), nil),
 		big.NewInt(-1))
+	errMsgPrefix = []byte{0x8, 0xc3, 0x79, 0xa0}
 )
 
 // reads the integer based on its kind
@@ -281,4 +283,19 @@ func tuplePointsTo(index int, output []byte) (start int, err error) {
 		return 0, fmt.Errorf("abi offset larger than int64: %v", offset)
 	}
 	return int(offset.Uint64()), nil
+}
+
+// UnpackErrMsg decode err message from vm.
+func UnpackErrMsg(data []byte) (string, error) {
+	data = bytes.TrimPrefix(data, errMsgPrefix)
+
+	typ, err := NewType("string", []ArgumentMarshaling{})
+	if err != nil {
+		return "", err
+	}
+	msg, err := toGoType(0, typ, data)
+	if err != nil {
+		return "", err
+	}
+	return msg.(string), nil
 }

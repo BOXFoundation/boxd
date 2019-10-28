@@ -135,7 +135,7 @@ func ApplyTransaction(
 	vmenv := vm.NewEVM(context, statedb, cfg)
 	//logger.Infof("ApplyMessage tx: %+v, header: %+v", tx, header)
 	ret, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
-	if err != nil {
+	if !fail && err != nil {
 		logger.Warn(err)
 		return nil, 0, 0, nil, err
 	}
@@ -182,8 +182,12 @@ func ApplyTransaction(
 	logs := statedb.GetLogs(*txhash)
 	logsBytes, _ := json.Marshal(logs)
 	logger.Infof("tx %s contract logs: %s", txhash, string(logsBytes))
+	errMsg := make([]byte, len(ret))
+	if fail && len(ret) != 0 {
+		copy(errMsg, ret)
+	}
 	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, deployed, fail,
-		gasUsed, statedb.GetLogs(*txhash))
+		gasUsed, errMsg, statedb.GetLogs(*txhash))
 	// append internal txs hashes to receipt
 	internalHashes := make([]*crypto.HashType, 0, len(txs))
 	for _, tx := range txs {

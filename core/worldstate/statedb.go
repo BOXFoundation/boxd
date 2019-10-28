@@ -121,6 +121,11 @@ func (s *StateDB) setError(err error) {
 	}
 }
 
+// SetError set error.
+func (s *StateDB) SetError(err error) {
+	s.setError(err)
+}
+
 func (s *StateDB) Error() error {
 	return s.dbErr
 }

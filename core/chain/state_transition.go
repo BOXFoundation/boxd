@@ -201,6 +201,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	// gasUsed := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
 	// st.state.AddBalance(ContractAddr, gasUsed)
 
+	st.state.SetError(vmerr)
 	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, nil
 }
 
