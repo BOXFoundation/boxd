@@ -41,7 +41,6 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	//
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(

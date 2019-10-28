@@ -81,11 +81,6 @@ func init() {
 			Run:   listAccountCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "decodeaddress [address]",
-			Short: "decode address from base58 format to hash160",
-			Run:   decodeAddress,
-		},
-		&cobra.Command{
 			Use:   "getbalance [address]",
 			Short: "Get the balance for any given address",
 			Run:   getBalanceCmdFunc,
@@ -268,20 +263,6 @@ func dumpwallet(cmd *cobra.Command, args []string) {
 		fmt.Println()
 	}
 	fmt.Printf("All wallets are dumped. %d successful %d failed\n", success, len(addrs)-success)
-}
-
-func decodeAddress(cmd *cobra.Command, args []string) {
-	if len(args) != 1 && len(args[0]) == 0 {
-		fmt.Println("invalid args")
-		fmt.Println(cmd.UsageString())
-		return
-	}
-	address, err := types.ParseAddress(args[0])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("address hash: %x\n", address.Hash160()[:])
 }
 
 func getBalanceCmdFunc(cmd *cobra.Command, args []string) {

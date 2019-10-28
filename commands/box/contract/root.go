@@ -8,10 +8,12 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,13 +87,13 @@ var rootCmd = &cobra.Command{
     NOTE: if add index argument after amount argument, attach index to the deployed contract
 
   6. attach index to an contract address
-    ./box contract attach 1 b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19191
+    ./box contract attach  b5kcrqGMZZ8yrxYs8TcGuv9wqvBFYHBmDTd --rpc-port=19191
 
   7. send a contract call transaction
-    ./box contract send 1 0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19191
+    ./box contract send  0 approve 5623d8b0dd0136197531fd86110d509ce0030d9e 20000 --rpc-port=19191
 
   8. call a contract to get state value revalent to method via DoCall a contract
-    ./box contract call 1 allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
+    ./box contract call  allowance 816666b318349468f8146e76e4e3751d937c14cb 5623d8b0dd0136197531fd86110d509ce0030d9e --rpc-port=19111
 
   9. decode output
     ./box contract decode allowance 0000000000000000000000000000000000000000000000000000000000004e20
@@ -191,6 +193,11 @@ func init() {
 			Use:   "reset",
 			Short: "reset abi setting",
 			Run:   reset,
+		},
+		&cobra.Command{
+			Use:   "detailabi [optional|index/filename]",
+			Short: "view contract details",
+			Run:   detailAbi,
 		},
 	)
 }
@@ -609,11 +616,11 @@ func attach(cmd *cobra.Command, args []string) error {
 		panic(err)
 	}
 	defer f.Close()
-	note := fmt.Sprintf("%d> %s\n", index, address)
+	note := fmt.Sprintf("%d> %s@%s\n", index, address, common.GetRPCAddr())
 	if _, err := f.WriteString(note); err != nil {
 		panic(err)
 	}
-	fmt.Printf("{%d \"%s\" %s} > %s\n", abiInfo.index, abiInfo.note, abiInfo.filepath, address)
+	fmt.Printf("{%d \"%s\" %s} > %s@%s\n", abiInfo.index, abiInfo.note, abiInfo.filepath, address, common.GetRPCAddr())
 	return nil
 }
 
@@ -683,7 +690,7 @@ func deploy(cmd *cobra.Command, args []string) {
 		fmt.Printf("unlock account: %s error: %s", sender, err)
 		return
 	}
-	contractAddr, hash, err := signAndSendContractTx(req, acc)
+	contractAddr, hash, err := signAndSendContractTx(req, acc, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("sign and send transaction error:", err)
 		return
@@ -733,13 +740,15 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Println("restore record error:", err)
 		return
 	}
-	contractAddr, ok := attachedInfo[index]
+	field, ok := attachedInfo[index]
 	if !ok {
 		fmt.Println("index is not attached to contract address")
 		fmt.Println("attach abi to a contract via " +
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
 		return
 	}
+	items := strings.Split(field, "@")
+	contractAddr, connAddr := items[0], items[1]
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -777,7 +786,7 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Printf("unlock account: %s error: %s", sender, err)
 		return
 	}
-	_, hash, err := signAndSendContractTx(req, acc)
+	_, hash, err := signAndSendContractTx(req, acc, connAddr)
 	if err != nil {
 		fmt.Println("sign and send transaction error:", err)
 		return
@@ -819,13 +828,15 @@ func call(cmd *cobra.Command, args []string) {
 		fmt.Println("restore record error:", err)
 		return
 	}
-	contractAddr, ok := attachedInfo[index]
+	field, ok := attachedInfo[index]
 	if !ok {
 		fmt.Println("index is not attached to contract address")
 		fmt.Println("attach abi to a contract via " +
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
 		return
 	}
+	items := strings.Split(field, "@")
+	contractAddr, connAddr := items[0], items[1]
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -846,7 +857,7 @@ func call(cmd *cobra.Command, args []string) {
 	callReq := &rpcpb.CallReq{
 		From: sender, To: contractAddr, Data: data, Height: uint32(height), Timeout: 2,
 	}
-	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "DoCall", callReq, common.GetRPCAddr())
+	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "DoCall", callReq, connAddr)
 	if err != nil {
 		fmt.Printf("rpc DoCall request %v error: %s\n", callReq, err)
 		return
@@ -871,12 +882,12 @@ func call(cmd *cobra.Command, args []string) {
 }
 
 func signAndSendContractTx(
-	req *rpcpb.MakeContractTxReq, acc *account.Account,
+	req *rpcpb.MakeContractTxReq, acc *account.Account, connAddr string,
 ) (contractAddr, hash string, err error) {
 	// make unsigned tx
 	var resp interface{}
 	resp, err = rpcutil.RPCCall(rpcpb.NewTransactionCommandClient,
-		"MakeUnsignedContractTx", req, common.GetRPCAddr())
+		"MakeUnsignedContractTx", req, connAddr)
 	if err != nil {
 		err = fmt.Errorf("make unsigned contract tx req %+v error: %s", req, err)
 		return
@@ -886,7 +897,7 @@ func signAndSendContractTx(
 		err = fmt.Errorf("make unsigned contract tx req %+v error: %s", req, txResp.Message)
 		return
 	}
-	hash, err = common.SignAndSendTx(txResp.GetTx(), txResp.GetRawMsgs(), acc)
+	hash, err = common.SignAndSendTx(txResp.GetTx(), txResp.GetRawMsgs(), acc, connAddr)
 	if err != nil {
 		return
 	}
@@ -1091,6 +1102,105 @@ func reset(cmd *cobra.Command, args []string) {
 	os.Remove(abiIdxFile)
 }
 
+func detailAbi(cmd *cobra.Command, args []string) {
+	if len(args) > 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	var (
+		abiObj  *abi.ABI
+		abiFile string
+		index   = -1
+		err     error
+	)
+	if len(args) == 0 {
+		if index, err = currentAbi(); err == nil {
+			abiObj, err = newAbiObj(index)
+			if err != nil {
+				fmt.Println("get new abi object from index error:", err)
+				return
+			}
+		} else {
+			fmt.Println("abi index is not set, use \"setabi\" command to set")
+			return
+		}
+	}
+	if len(args) == 1 {
+		fileName := args[0]
+		if err := util.FileExists(fileName); err == nil {
+			abiObj, err = newAbiObjFromFile(fileName)
+			if err != nil {
+				fmt.Printf("new abi object from file %s error:%s\n", fileName, err)
+				return
+			}
+			abiFile = fileName
+		} else {
+			index, err = strconv.Atoi(args[0])
+			if err != nil {
+				fmt.Println("invaild index:", err)
+				return
+			}
+			abiObj, err = newAbiObj(index)
+			if err != nil {
+				fmt.Println("get new abi object from index error:", err)
+				return
+			}
+		}
+	}
+	if index >= 0 {
+		abiInfo, _, _ := restoreRecord(recordFile)
+		abiDesc := abiInfo.getItem(index)
+		abiFile = abiDesc.filepath
+	}
+	payableMap, err := parseAbiPayable(abiFile)
+	if err != nil {
+		fmt.Println("parse payable info error:", err)
+		return
+	}
+	fmt.Println("methods:")
+	for _, method := range abiObj.Methods {
+		inputs := make([]string, len(method.Inputs))
+		for i, input := range method.Inputs {
+			inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
+		}
+		outputs := make([]string, len(method.Outputs))
+		for i, output := range method.Outputs {
+			outputs[i] = output.Type.String()
+			if len(output.Name) > 0 {
+				outputs[i] += fmt.Sprintf(" %v", output.Name)
+			}
+		}
+		constant := ""
+		if method.Const {
+			constant = " constant"
+		}
+		payable := ""
+		if _, ok := payableMap[method.Name]; ok {
+			payable = " payable"
+		}
+
+		fmt.Printf("  %x:  %v(%v)%s%s", method.ID(), method.Name,
+			strings.Join(inputs, ", "), constant, payable)
+		if len(outputs) > 0 {
+			fmt.Printf(" returns (%v)", strings.Join(outputs, ", "))
+		}
+		fmt.Printf("\n")
+	}
+
+	fmt.Println()
+	fmt.Println("events:")
+	for _, e := range abiObj.Events {
+		inputs := make([]string, len(e.Inputs))
+		for i, input := range e.Inputs {
+			inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
+			if input.Indexed {
+				inputs[i] = fmt.Sprintf("%v indexed %v", input.Type, input.Name)
+			}
+		}
+		fmt.Printf("  %s:  %v(%v)\n", e.ID(), e.Name, strings.Join(inputs, ", "))
+	}
+}
+
 type abiDesc struct {
 	index    int
 	note     string
@@ -1163,19 +1273,29 @@ func restoreRecord(filepath string) (abiDesces, map[int]string, error) {
 				fmt.Printf("parse line %d attach num error: %s", i, err)
 				continue
 			}
-			contractAddr := strings.TrimSpace(fields[1])
+
+			field2 := strings.TrimSpace(fields[1])
+			if !strings.Contains(field2, "@") {
+				return nil, nil, fmt.Errorf("%s must attach RPC conn address", field2)
+			}
+			items := strings.Split(field2, "@")
+			contractAddr := items[0]
 			if _, err := types.NewContractAddress(contractAddr); err != nil {
 				fmt.Printf("parse line %d, parce contract address error: %s", i, err)
 				continue
 			}
-			attachedInfo[index] = contractAddr
+			_, _, err = net.SplitHostPort(items[1])
+			if err != nil {
+				fmt.Printf("split %s error: %s", items[1], err)
+			}
+			attachedInfo[index] = field2
 		}
 	}
+
 	return abiInfo, attachedInfo, nil
 }
 
 func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error) {
-
 	var inputs abi.Arguments
 	if method == "" {
 		inputs = abiObj.Constructor.Inputs
@@ -1221,16 +1341,7 @@ func newAbiObj(index int) (*abi.ABI, error) {
 	if abiInfo == nil {
 		return nil, errors.New("index not found in abi record")
 	}
-	// new abi object
-	data, err := ioutil.ReadFile(abiInfo.filepath)
-	if err != nil {
-		return nil, err
-	}
-	abiObj, err := abi.JSON(bytes.NewBuffer(data))
-	if err != nil {
-		return nil, fmt.Errorf("illegal abi file, error: %s", err)
-	}
-	return &abiObj, nil
+	return newAbiObjFromFile(abiInfo.filepath)
 }
 
 func fetchSenderInfo() (sender, keyFile string, bal, nonce uint64, err error) {
@@ -1471,4 +1582,38 @@ func compileSol(filepath string) (binData string, abiData string, err error) {
 		abiData = abiMathes[1]
 	}
 	return binData, abiData, nil
+}
+
+func newAbiObjFromFile(filePath string) (*abi.ABI, error) {
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read file : %s, err: %s", filePath, err)
+	}
+	abi, err := abi.JSON(bytes.NewBuffer(data))
+	if err != nil {
+		return nil, fmt.Errorf("illegal abi file, error: %s", err)
+	}
+	return &abi, nil
+}
+
+func parseAbiPayable(file string) (map[string]bool, error) {
+	var payableInfo []struct {
+		Name    string `json:"name"`
+		Type    string `json:"type"`
+		Payable bool   `json:"payable"`
+	}
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &payableInfo); err != nil {
+		return nil, err
+	}
+	m := make(map[string]bool)
+	for _, v := range payableInfo {
+		if v.Type == "function" {
+			m[v.Name] = v.Payable
+		}
+	}
+	return m, nil
 }
