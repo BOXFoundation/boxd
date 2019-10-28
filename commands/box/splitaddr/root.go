@@ -74,28 +74,31 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	// addrs and weights
-	addrs, weights := make([]string, 0), make([]uint32, 0)
+	weights := make([]uint32, 0)
+	addrHashes := make([]*types.AddressHash, 0)
 	for i := 1; i < len(args)-1; i += 2 {
-		if address, err := types.ParseAddress(args[i]); err != nil {
+		if address, err := types.ParseAddress(args[i]); err == nil {
 			_, ok1 := address.(*types.AddressPubKeyHash)
 			_, ok2 := address.(*types.AddressTypeSplit)
 			if !ok1 && !ok2 {
 				fmt.Printf("invaild address for %s, err: %s\n", args[i], err)
 				return
 			}
+			addrHashes = append(addrHashes, address.Hash160())
+		} else {
+			fmt.Println(err)
+			return
 		}
-		addrs = append(addrs, args[i])
 		a, err := strconv.ParseUint(args[i+1], 10, 64)
 		if err != nil || a >= math.MaxUint32 {
-			fmt.Printf("Invalid amount %s\n", args[i+1])
+			fmt.Printf("get index %s, err: %s\n", args[i+1], err.Error())
 			return
 		}
 		weights = append(weights, uint32(a))
 	}
-	addrHashes := make([]*types.AddressHash, 0, len(addrs))
-	for _, addr := range addrs {
-		address, _ := types.ParseAddress(addr)
-		addrHashes = append(addrHashes, address.Hash160())
+	if len(addrHashes) != len(weights) {
+		fmt.Println("the length of addresses must be equal to the length of weights")
+		return
 	}
 	// conn
 	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
