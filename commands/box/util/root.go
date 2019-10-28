@@ -71,22 +71,20 @@ func encode(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	if args[0] != "base58" && args[0] != "base64" {
-		fmt.Printf("%s is illegal, just accepting base58 or base64", args[0])
-		return
-	}
 	dataBytes, err := hex.DecodeString(args[1])
 	if err != nil {
 		fmt.Println("hex format data is needed:", args[1])
 		return
 	}
-	if args[0] == "base58" {
+	switch args[0] {
+	case "base58":
 		data58 := base58.Encode(dataBytes)
 		fmt.Println(data58)
-	}
-	if args[0] == "base64" {
+	case "base64":
 		data64 := base64.StdEncoding.EncodeToString(dataBytes)
 		fmt.Println(data64)
+	default:
+		fmt.Println(cmd.Use)
 	}
 }
 
@@ -95,22 +93,21 @@ func decode(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	if args[0] != "base58" && args[0] != "base64" {
-		fmt.Printf("%s is illegal, just accepting base58 or base64", args[0])
-		return
-	}
-	if args[0] == "base58" {
+	switch args[0] {
+	case "base58":
 		data58 := base58.Decode(args[1])
 		fmt.Println(hex.EncodeToString(data58))
-	}
-	if args[0] == "base64" {
+	case "base64":
 		data64, err := base64.StdEncoding.DecodeString(args[1])
 		if err != nil {
 			fmt.Printf("decode %s error: %s\n", args[1], err)
 			return
 		}
 		fmt.Println(hex.EncodeToString(data64))
+	default:
+		fmt.Println(cmd.Use)
 	}
+
 }
 
 func convertAddress(cmd *cobra.Command, args []string) {
@@ -191,8 +188,8 @@ func makeSplitAddress(cmd *cobra.Command, args []string) {
 		fmt.Println("the length of addresses must be equal to the length of weights")
 		return
 	}
-	splitadd := txlogic.MakeSplitAddress(txHash, uint32(index), addrHashes, weights)
-	fmt.Printf("address: %s, address hash: %x\n", splitadd, splitadd.Hash160()[:])
+	splitAdd := txlogic.MakeSplitAddress(txHash, uint32(index), addrHashes, weights)
+	fmt.Printf("address: %s, address hash: %x\n", splitAdd, splitAdd.Hash160()[:])
 }
 
 func makeContractAddress(cmd *cobra.Command, args []string) {

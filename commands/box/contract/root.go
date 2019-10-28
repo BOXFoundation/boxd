@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +34,6 @@ import (
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -690,7 +690,7 @@ func deploy(cmd *cobra.Command, args []string) {
 		fmt.Printf("unlock account: %s error: %s", sender, err)
 		return
 	}
-	contractAddr, hash, err := signAndSendContractTx(req, acc)
+	contractAddr, hash, err := signAndSendContractTx(req, acc, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println("sign and send transaction error:", err)
 		return
@@ -740,20 +740,15 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Println("restore record error:", err)
 		return
 	}
-	contractaddressInfo, ok := attachedInfo[index]
+	field, ok := attachedInfo[index]
 	if !ok {
 		fmt.Println("index is not attached to contract address")
 		fmt.Println("attach abi to a contract via " +
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
 		return
 	}
-	contractAddr, port, addresss, err := parseAttachedInfo(contractaddressInfo)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	viper.Set("rpc.address", addresss)
-	viper.Set("rpc.port", port)
+	items := strings.Split(field, "@")
+	contractAddr, RPCInfo := items[0], items[1]
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -791,7 +786,7 @@ func send(cmd *cobra.Command, args []string) {
 		fmt.Printf("unlock account: %s error: %s", sender, err)
 		return
 	}
-	_, hash, err := signAndSendContractTx(req, acc)
+	_, hash, err := signAndSendContractTx(req, acc, RPCInfo)
 	if err != nil {
 		fmt.Println("sign and send transaction error:", err)
 		return
@@ -833,20 +828,15 @@ func call(cmd *cobra.Command, args []string) {
 		fmt.Println("restore record error:", err)
 		return
 	}
-	contractaddressInfo, ok := attachedInfo[index]
+	field, ok := attachedInfo[index]
 	if !ok {
 		fmt.Println("index is not attached to contract address")
 		fmt.Println("attach abi to a contract via " +
 			"(eg.) \"./box contract attach index contract_address --rpc-port 19111\"")
 		return
 	}
-	contractAddr, port, addresss, err := parseAttachedInfo(contractaddressInfo)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	viper.Set("rpc.address", addresss)
-	viper.Set("rpc.port", port)
+	items := strings.Split(field, "@")
+	contractAddr, RPCInfo := items[0], items[1]
 	// code
 	abiObj, err := newAbiObj(index)
 	if err != nil {
@@ -867,7 +857,7 @@ func call(cmd *cobra.Command, args []string) {
 	callReq := &rpcpb.CallReq{
 		From: sender, To: contractAddr, Data: data, Height: uint32(height), Timeout: 2,
 	}
-	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "DoCall", callReq, common.GetRPCAddr())
+	resp, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "DoCall", callReq, RPCInfo)
 	if err != nil {
 		fmt.Printf("rpc DoCall request %v error: %s\n", callReq, err)
 		return
@@ -892,12 +882,12 @@ func call(cmd *cobra.Command, args []string) {
 }
 
 func signAndSendContractTx(
-	req *rpcpb.MakeContractTxReq, acc *account.Account,
+	req *rpcpb.MakeContractTxReq, acc *account.Account, RPCInfo string,
 ) (contractAddr, hash string, err error) {
 	// make unsigned tx
 	var resp interface{}
 	resp, err = rpcutil.RPCCall(rpcpb.NewTransactionCommandClient,
-		"MakeUnsignedContractTx", req, common.GetRPCAddr())
+		"MakeUnsignedContractTx", req, RPCInfo)
 	if err != nil {
 		err = fmt.Errorf("make unsigned contract tx req %+v error: %s", req, err)
 		return
@@ -907,7 +897,7 @@ func signAndSendContractTx(
 		err = fmt.Errorf("make unsigned contract tx req %+v error: %s", req, txResp.Message)
 		return
 	}
-	hash, err = common.SignAndSendTx(txResp.GetTx(), txResp.GetRawMsgs(), acc)
+	hash, err = common.SignAndSendTx(txResp.GetTx(), txResp.GetRawMsgs(), acc, RPCInfo)
 	if err != nil {
 		return
 	}
@@ -1184,7 +1174,7 @@ func detailAbi(cmd *cobra.Command, args []string) {
 			constant = " constant"
 		}
 		payable := ""
-		if payableMap[method.Name] {
+		if _, ok := payableMap[method.Name]; ok {
 			payable = " payable"
 		}
 
@@ -1282,43 +1272,26 @@ func restoreRecord(filepath string) (abiDesces, map[int]string, error) {
 				fmt.Printf("parse line %d attach num error: %s", i, err)
 				continue
 			}
-			contractaddressInfo := strings.TrimSpace(fields[1])
-			strArrays := strings.FieldsFunc(contractaddressInfo, func(c rune) bool {
-				if c == 64 { // 64 is the value of "@" in ascii
-					return true
-				}
-				return false
-			})
-			contractAddr := strArrays[0]
+
+			field2 := strings.TrimSpace(fields[1])
+			items := strings.Split(field2, "@")
+			contractAddr := items[0]
 			if _, err := types.NewContractAddress(contractAddr); err != nil {
 				fmt.Printf("parse line %d, parce contract address error: %s", i, err)
 				continue
 			}
-			attachedInfo[index] = contractaddressInfo
+			_, _, err = net.SplitHostPort(items[1])
+			if err != nil {
+				fmt.Printf("split %s error: %s", items[1], err)
+			}
+			attachedInfo[index] = field2
 		}
 	}
 
 	return abiInfo, attachedInfo, nil
 }
 
-func parseAttachedInfo(contractaddressInfo string) (contract string, port int, address string, err error) {
-	strArrays := strings.FieldsFunc(contractaddressInfo, func(c rune) bool {
-		if c == 64 { // 64 is the value of "@" in ascii
-			return true
-		}
-		return false
-	})
-	contractAddr := strArrays[0]
-	rpcInfo := strings.Split(strArrays[1], ":")
-	port64, err := strconv.ParseInt(rpcInfo[1], 10, 64)
-	if err != nil {
-		return "", -1, "", errors.New("get port error: " + err.Error())
-	}
-	return contractAddr, int(port64), rpcInfo[0], nil
-}
-
 func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error) {
-
 	var inputs abi.Arguments
 	if method == "" {
 		inputs = abiObj.Constructor.Inputs
