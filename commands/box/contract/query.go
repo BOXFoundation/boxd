@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package contractcmd
+package contract
 
 import (
 	"encoding/hex"
@@ -19,18 +19,11 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	rootCmd.AddCommand(
-		&cobra.Command{
-			Use: "list",
-			Short: "list current sender, current abi,  all index revelant to imported" +
-				" abi files and attached contracts",
-			Run: list,
-		},
 		&cobra.Command{
 			Use:   "encode [optional|index] [method] [args...]",
 			Short: "Get an input string to send or call",
@@ -73,11 +66,6 @@ func init() {
 			Use:   "getstorage [address] [position] [optinal|height]",
 			Short: "Get the position of variable in storsge",
 			Run:   getStorageAt,
-		},
-		&cobra.Command{
-			Use:   "detailabi [optional|index/filename]",
-			Short: "view contract details",
-			Run:   detailAbi,
 		},
 	)
 }
@@ -247,45 +235,6 @@ func decode(cmd *cobra.Command, args []string) {
 			}
 			fmt.Println("return value:", output)
 		}
-	}
-}
-
-func list(cmd *cobra.Command, args []string) {
-	if len(args) > 0 {
-		fmt.Println(cmd.Use)
-		return
-	}
-	// show sender
-	sender, _, _ := currentSender()
-	fmt.Println("current sender:", sender)
-	// show current index
-	fmt.Printf("current index: ")
-	index, err := currentAbi()
-	if err == nil {
-		fmt.Printf("%d", index)
-	}
-	fmt.Println()
-	// show abi list
-	abiInfo, attachedInfo, err := restoreRecord(recordFile)
-	if err != nil {
-		fmt.Println("restore record error:", err)
-		return
-	}
-	if len(abiInfo) == 0 {
-		fmt.Println("record is empty")
-		return
-	}
-	fmt.Println("abi list:")
-	for _, i := range abiInfo {
-		fmt.Printf("\t%d: %s\n", i.index, i.note)
-	}
-	// show attached list
-	if len(attachedInfo) == 0 {
-		return
-	}
-	fmt.Println("contract attached list:")
-	for i, c := range attachedInfo {
-		fmt.Printf("\t%d > %s\n", i, c)
 	}
 }
 
@@ -478,105 +427,6 @@ func getStorageAt(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println(resp.Data)
-}
-
-func detailAbi(cmd *cobra.Command, args []string) {
-	if len(args) > 1 {
-		fmt.Println(cmd.Use)
-		return
-	}
-	var (
-		abiObj  *abi.ABI
-		abiFile string
-		index   = -1
-		err     error
-	)
-	if len(args) == 0 {
-		if index, err = currentAbi(); err == nil {
-			abiObj, err = newAbiObj(index)
-			if err != nil {
-				fmt.Println("get new abi object from index error:", err)
-				return
-			}
-		} else {
-			fmt.Println("abi index is not set, use \"setabi\" command to set")
-			return
-		}
-	}
-	if len(args) == 1 {
-		fileName := args[0]
-		if err := util.FileExists(fileName); err == nil {
-			abiObj, err = newAbiObjFromFile(fileName)
-			if err != nil {
-				fmt.Printf("new abi object from file %s error:%s\n", fileName, err)
-				return
-			}
-			abiFile = fileName
-		} else {
-			index, err = strconv.Atoi(args[0])
-			if err != nil {
-				fmt.Println("invaild index:", err)
-				return
-			}
-			abiObj, err = newAbiObj(index)
-			if err != nil {
-				fmt.Println("get new abi object from index error:", err)
-				return
-			}
-		}
-	}
-	if index >= 0 {
-		abiInfo, _, _ := restoreRecord(recordFile)
-		abiDesc := abiInfo.getItem(index)
-		abiFile = abiDesc.filepath
-	}
-	payableMap, err := parseAbiPayable(abiFile)
-	if err != nil {
-		fmt.Println("parse payable info error:", err)
-		return
-	}
-	fmt.Println("methods:")
-	for _, method := range abiObj.Methods {
-		inputs := make([]string, len(method.Inputs))
-		for i, input := range method.Inputs {
-			inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
-		}
-		outputs := make([]string, len(method.Outputs))
-		for i, output := range method.Outputs {
-			outputs[i] = output.Type.String()
-			if len(output.Name) > 0 {
-				outputs[i] += fmt.Sprintf(" %v", output.Name)
-			}
-		}
-		constant := ""
-		if method.Const {
-			constant = " constant"
-		}
-		payable := ""
-		if _, ok := payableMap[method.Name]; ok {
-			payable = " payable"
-		}
-
-		fmt.Printf("  %x:  %v(%v)%s%s", method.ID(), method.Name,
-			strings.Join(inputs, ", "), constant, payable)
-		if len(outputs) > 0 {
-			fmt.Printf(" returns (%v)", strings.Join(outputs, ", "))
-		}
-		fmt.Printf("\n")
-	}
-
-	fmt.Println()
-	fmt.Println("events:")
-	for _, e := range abiObj.Events {
-		inputs := make([]string, len(e.Inputs))
-		for i, input := range e.Inputs {
-			inputs[i] = fmt.Sprintf("%v %v", input.Type, input.Name)
-			if input.Indexed {
-				inputs[i] = fmt.Sprintf("%v indexed %v", input.Type, input.Name)
-			}
-		}
-		fmt.Printf("  %s:  %v(%v)\n", e.ID(), e.Name, strings.Join(inputs, ", "))
-	}
 }
 
 func parseAbiPayable(file string) (map[string]bool, error) {
