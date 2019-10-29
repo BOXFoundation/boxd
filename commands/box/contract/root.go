@@ -436,6 +436,7 @@ func importAbi(cmd *cobra.Command, args []string) {
 	if _, err := f.WriteString(note); err != nil {
 		panic(err)
 	}
+	fmt.Println("the index of the abi file:", max+1)
 }
 
 func setsender(cmd *cobra.Command, args []string) {
