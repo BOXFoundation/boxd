@@ -22,7 +22,7 @@ var (
 	ErrDuplicateTx                  = errors.New("Duplicate transactions in a block")
 	ErrTooManySigOps                = errors.New("Too many signature operations in a block")
 	ErrBadFees                      = errors.New("total fees for block overflows accumulator")
-	ErrBadCoinbaseValue             = errors.New("Coinbase pays more than expected value")
+	ErrBadCoinbaseValue             = errors.New("Coinbase pays not equal to expected value")
 	ErrUnfinalizedTx                = errors.New("Transaction has not been finalized")
 	ErrWrongBlockHeight             = errors.New("Wrong block height")
 	ErrFailedToVerifyWithConsensus  = errors.New("Failed to verify block with consensus")

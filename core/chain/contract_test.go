@@ -6,7 +6,6 @@ package chain
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -20,347 +19,7 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/facebookgo/ensure"
-)
-
-var unmarshalLogTests = map[string]struct {
-	input     string
-	want      *types.Log
-	wantError error
-}{
-	"ok": {
-		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x000000000000000000000000000000000000000000000001a055690d9db80000","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
-		want: &types.Log{
-			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
-			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
-			BlockNumber: 2019236,
-			Data:        hexutil.MustDecode("0x000000000000000000000000000000000000000000000001a055690d9db80000"),
-			Index:       2,
-			TxIndex:     3,
-			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
-			Topics: []crypto.HashType{
-				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
-			},
-		},
-	},
-	"empty data": {
-		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
-		want: &types.Log{
-			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
-			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
-			BlockNumber: 2019236,
-			Data:        []byte{},
-			Index:       2,
-			TxIndex:     3,
-			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
-			Topics: []crypto.HashType{
-				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
-				crypto.BytesToHash([]byte("0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615")),
-			},
-		},
-	},
-	"missing block fields (pending logs)": {
-		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","data":"0x","logIndex":"0x0","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
-		want: &types.Log{
-			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
-			BlockHash:   crypto.HashType{},
-			BlockNumber: 0,
-			Data:        []byte{},
-			Index:       0,
-			TxIndex:     3,
-			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
-			Topics: []crypto.HashType{
-				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
-			},
-		},
-	},
-	"Removed: true": {
-		input: `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","data":"0x","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3","removed":true}`,
-		want: &types.Log{
-			Address:     types.HexToAddressHash("0xecf8f87f810ecf450940c9f60066b4a7a501d6a7"),
-			BlockHash:   crypto.BytesToHash([]byte("0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056")),
-			BlockNumber: 2019236,
-			Data:        []byte{},
-			Index:       2,
-			TxIndex:     3,
-			TxHash:      crypto.BytesToHash([]byte("0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e")),
-			Topics: []crypto.HashType{
-				crypto.BytesToHash([]byte("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")),
-			},
-			Removed: true,
-		},
-	},
-	"missing data": {
-		input:     `{"address":"0xecf8f87f810ecf450940c9f60066b4a7a501d6a7","blockHash":"0x656c34545f90a730a19008c0e7a7cd4fb3895064b48d6d69761bd5abad681056","blockNumber":"0x1ecfa4","logIndex":"0x2","topics":["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0x00000000000000000000000080b2c9d7cbbf30a1b0fc8983c647d754c6525615","0x000000000000000000000000f9dff387dcb5cc4cca5b91adb07a95f54e9f1bb6"],"transactionHash":"0x3b198bfd5d2907285af009e9ae84a0ecd63677110d89d7e030251acb87f6487e","transactionIndex":"0x3"}`,
-		wantError: fmt.Errorf("missing required field 'data' for Log"),
-	},
-}
-
-const (
-	testERC20Contract = "60806040523480156200001157600080fd5b5060408051908101604052806" +
-		"00b81526020017f53696d706c65546f6b656e0000000000000000000000000000000000000000008" +
-		"152506040805190810160405280600381526020017f53494d0000000000000000000000000000000" +
-		"00000000000000000000000000081525060088260039080519060200190620000989291906200036" +
-		"5565b508160049080519060200190620000b192919062000365565b5080600560006101000a81548" +
-		"160ff021916908360ff160217905550505050620000f633600860ff16600a0a61271002620000fc6" +
-		"40100000000026401000000009004565b62000414565b600073fffffffffffffffffffffffffffff" +
-		"fffffffffff168273ffffffffffffffffffffffffffffffffffffffff1614151515620001a257604" +
-		"0517f08c379a00000000000000000000000000000000000000000000000000000000081526004018" +
-		"0806020018281038252601f8152602001807f45524332303a206d696e7420746f20746865207a657" +
-		"26f20616464726573730081525060200191505060405180910390fd5b620001c781600254620002d" +
-		"a6401000000000262001002179091906401000000009004565b6002819055506200022e816000808" +
-		"573ffffffffffffffffffffffffffffffffffffffff1673fffffffffffffffffffffffffffffffff" +
-		"fffffff16815260200190815260200160002054620002da640100000000026200100217909190640" +
-		"1000000009004565b6000808473ffffffffffffffffffffffffffffffffffffffff1673fffffffff" +
-		"fffffffffffffffffffffffffffffff168152602001908152602001600020819055508173fffffff" +
-		"fffffffffffffffffffffffffffffffff16600073fffffffffffffffffffffffffffffffffffffff" +
-		"f167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef83604051808" +
-		"2815260200191505060405180910390a35050565b60008082840190508381101515156200035b576" +
-		"040517f08c379a000000000000000000000000000000000000000000000000000000000815260040" +
-		"180806020018281038252601b8152602001807f536166654d6174683a206164646974696f6e206f7" +
-		"66572666c6f77000000000081525060200191505060405180910390fd5b8091505092915050565b8" +
-		"28054600181600116156101000203166002900490600052602060002090601f01602090048101928" +
-		"2601f10620003a857805160ff1916838001178555620003d9565b82800160010185558215620003d" +
-		"9579182015b82811115620003d8578251825591602001919060010190620003bb565b5b509050620" +
-		"003e89190620003ec565b5090565b6200041191905b808211156200040d576000816000905550600" +
-		"101620003f3565b5090565b90565b6110b880620004246000396000f3fe608060405260043610610" +
-		"0c5576000357c0100000000000000000000000000000000000000000000000000000000900463fff" +
-		"fffff16806306fdde03146100ca578063095ea7b31461015a57806318160ddd146101cd57806323b" +
-		"872dd146101f85780632e0f26251461028b5780632ff2e9dc146102bc578063313ce567146102e75" +
-		"78063395093511461031857806370a082311461038b57806395d89b41146103f0578063a457c2d71" +
-		"4610480578063a9059cbb146104f3578063dd62ed3e14610566575b600080fd5b3480156100d6576" +
-		"00080fd5b506100df6105eb565b60405180806020018281038252838181518152602001915080519" +
-		"06020019080838360005b8381101561011f578082015181840152602081019050610104565b50505" +
-		"050905090810190601f16801561014c5780820380516001836020036101000a03191681526020019" +
-		"1505b509250505060405180910390f35b34801561016657600080fd5b506101b3600480360360408" +
-		"1101561017d57600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff169" +
-		"0602001909291908035906020019092919050505061068d565b60405180821515151581526020019" +
-		"1505060405180910390f35b3480156101d957600080fd5b506101e26106a4565b604051808281526" +
-		"0200191505060405180910390f35b34801561020457600080fd5b506102716004803603606081101" +
-		"561021b57600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1690602" +
-		"00190929190803573ffffffffffffffffffffffffffffffffffffffff16906020019092919080359" +
-		"0602001909291905050506106ae565b604051808215151515815260200191505060405180910390f" +
-		"35b34801561029757600080fd5b506102a061075f565b604051808260ff1660ff168152602001915" +
-		"05060405180910390f35b3480156102c857600080fd5b506102d1610764565b60405180828152602" +
-		"00191505060405180910390f35b3480156102f357600080fd5b506102fc610773565b60405180826" +
-		"0ff1660ff16815260200191505060405180910390f35b34801561032457600080fd5b50610371600" +
-		"4803603604081101561033b57600080fd5b81019080803573fffffffffffffffffffffffffffffff" +
-		"fffffffff1690602001909291908035906020019092919050505061078a565b60405180821515151" +
-		"5815260200191505060405180910390f35b34801561039757600080fd5b506103da6004803603602" +
-		"08110156103ae57600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1" +
-		"6906020019092919050505061082f565b6040518082815260200191505060405180910390f35b348" +
-		"0156103fc57600080fd5b50610405610877565b60405180806020018281038252838181518152602" +
-		"00191508051906020019080838360005b83811015610445578082015181840152602081019050610" +
-		"42a565b50505050905090810190601f1680156104725780820380516001836020036101000a03191" +
-		"6815260200191505b509250505060405180910390f35b34801561048c57600080fd5b506104d9600" +
-		"480360360408110156104a357600080fd5b81019080803573fffffffffffffffffffffffffffffff" +
-		"fffffffff16906020019092919080359060200190929190505050610919565b60405180821515151" +
-		"5815260200191505060405180910390f35b3480156104ff57600080fd5b5061054c6004803603604" +
-		"081101561051657600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1" +
-		"69060200190929190803590602001909291905050506109be565b604051808215151515815260200" +
-		"191505060405180910390f35b34801561057257600080fd5b506105d560048036036040811015610" +
-		"58957600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019" +
-		"0929190803573ffffffffffffffffffffffffffffffffffffffff169060200190929190505050610" +
-		"9d5565b6040518082815260200191505060405180910390f35b60606003805460018160011615610" +
-		"1000203166002900480601f016020809104026020016040519081016040528092919081815260200" +
-		"1828054600181600116156101000203166002900480156106835780601f106106585761010080835" +
-		"4040283529160200191610683565b820191906000526020600020905b81548152906001019060200" +
-		"180831161066657829003601f168201915b5050505050905090565b600061069a338484610a5c565" +
-		"b6001905092915050565b6000600254905090565b60006106bb848484610cdd565b6107548433610" +
-		"74f85600160008a73ffffffffffffffffffffffffffffffffffffffff1673fffffffffffffffffff" +
-		"fffffffffffffffffffff16815260200190815260200160002060003373fffffffffffffffffffff" +
-		"fffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815" +
-		"260200160002054610f7790919063ffffffff16565b610a5c565b600190509392505050565b60088" +
-		"1565b600860ff16600a0a6127100281565b6000600560009054906101000a900460ff16905090565" +
-		"b6000610825338461082085600160003373ffffffffffffffffffffffffffffffffffffffff1673f" +
-		"fffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008973fff" +
-		"fffffffffffffffffffffffffffffffffffff1673fffffffffffffffffffffffffffffffffffffff" +
-		"f1681526020019081526020016000205461100290919063ffffffff16565b610a5c565b600190509" +
-		"2915050565b60008060008373ffffffffffffffffffffffffffffffffffffffff1673fffffffffff" +
-		"fffffffffffffffffffffffffffff168152602001908152602001600020549050919050565b60606" +
-		"0048054600181600116156101000203166002900480601f016020809104026020016040519081016" +
-		"04052809291908181526020018280546001816001161561010002031660029004801561090f57806" +
-		"01f106108e45761010080835404028352916020019161090f565b820191906000526020600020905" +
-		"b8154815290600101906020018083116108f257829003601f168201915b5050505050905090565b6" +
-		"0006109b433846109af85600160003373ffffffffffffffffffffffffffffffffffffffff1673fff" +
-		"fffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008973fffff" +
-		"fffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1" +
-		"6815260200190815260200160002054610f7790919063ffffffff16565b610a5c565b60019050929" +
-		"15050565b60006109cb338484610cdd565b6001905092915050565b6000600160008473fffffffff" +
-		"fffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815" +
-		"260200190815260200160002060008373ffffffffffffffffffffffffffffffffffffffff1673fff" +
-		"fffffffffffffffffffffffffffffffffffff1681526020019081526020016000205490509291505" +
-		"0565b600073ffffffffffffffffffffffffffffffffffffffff168373fffffffffffffffffffffff" +
-		"fffffffffffffffff1614151515610b27576040517f08c379a000000000000000000000000000000" +
-		"00000000000000000000000000081526004018080602001828103825260248152602001807f45524" +
-		"332303a20617070726f76652066726f6d20746865207a65726f2061646481526020017f726573730" +
-		"00000000000000000000000000000000000000000000000000000008152506040019150506040518" +
-		"0910390fd5b600073ffffffffffffffffffffffffffffffffffffffff168273fffffffffffffffff" +
-		"fffffffffffffffffffffff1614151515610bf2576040517f08c379a000000000000000000000000" +
-		"00000000000000000000000000000000081526004018080602001828103825260228152602001807" +
-		"f45524332303a20617070726f766520746f20746865207a65726f20616464726581526020017f737" +
-		"300000000000000000000000000000000000000000000000000000000000081525060400191505060" +
-		"405180910390fd5b80600160008573ffffffffffffffffffffffffffffffffffffffff1673ffffff" +
-		"ffffffffffffffffffffffffffffffffff16815260200190815260200160002060008473ffffffff" +
-		"ffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681" +
-		"52602001908152602001600020819055508173ffffffffffffffffffffffffffffffffffffffff16" +
-		"8373ffffffffffffffffffffffffffffffffffffffff167f8c5be1e5ebec7d5bd14f71427d1e84f3" +
-		"dd0314c0f7b2291e5b200ac8c7c3b925836040518082815260200191505060405180910390a35050" +
-		"50565b600073ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffff" +
-		"ffffffffffffffffff1614151515610da8576040517f08c379a00000000000000000000000000000" +
-		"000000000000000000000000000081526004018080602001828103825260238152602001807f4552" +
-		"4332303a207472616e7366657220746f20746865207a65726f206164647281526020017f65737300" +
-		"00000000000000000000000000000000000000000000000000000000815250604001915050604051" +
-		"80910390fd5b7fa9a26360ded17bbe6528a5ec42df34cc22964927204d7a69575e12c6839d426c81" +
-		"82604051808381526020018281526020019250505060405180910390a1610e38816000808673ffff" +
-		"ffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff" +
-		"16815260200190815260200160002054610f7790919063ffffffff16565b6000808573ffffffffff" +
-		"ffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152" +
-		"60200190815260200160002081905550610ecb816000808573ffffffffffffffffffffffffffffff" +
-		"ffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160" +
-		"00205461100290919063ffffffff16565b6000808473ffffffffffffffffffffffffffffffffffff" +
-		"ffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002081" +
-		"9055508173ffffffffffffffffffffffffffffffffffffffff168373ffffffffffffffffffffffff" +
-		"ffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523" +
-		"b3ef836040518082815260200191505060405180910390a3505050565b6000828211151515610ff1" +
-		"576040517f08c379a000000000000000000000000000000000000000000000000000000000815260" +
-		"040180806020018281038252601e8152602001807f536166654d6174683a20737562747261637469" +
-		"6f6e206f766572666c6f77000081525060200191505060405180910390fd5b600082840390508091" +
-		"505092915050565b6000808284019050838110151515611082576040517f08c379a0000000000000" +
-		"00000000000000000000000000000000000000000000815260040180806020018281038252601b81" +
-		"52602001807f536166654d6174683a206164646974696f6e206f766572666c6f7700000000008152" +
-		"5060200191505060405180910390fd5b809150509291505056fea165627a7a7230582006ba3acd85" +
-		"76f5234662cdfb3fa7d6ab075457ed18279e2402485a6a20b8ed060029"
-
-	testERC20Abi = `[
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "name",
-		"outputs": [ { "name": "", "type": "string" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"constant": false,
-		"inputs": [ { "name": "spender", "type": "address" }, { "name": "value", "type": "uint256" } ],
-		"name": "approve",
-		"outputs": [ { "name": "", "type": "bool" } ],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	}, {
-		"constant": true,
-		"inputs": [],
-		"name": "totalSupply",
-		"outputs": [ { "name": "", "type": "uint256" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"constant": false,
-		"inputs": [ { "name": "from", "type": "address" },
-			{ "name": "to", "type": "address" }, { "name": "value", "type": "uint256" } ],
-		"name": "transferFrom",
-		"outputs": [ { "name": "", "type": "bool" } ],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	}, {
-		"constant": true,
-		"inputs": [],
-		"name": "DECIMALS",
-		"outputs": [ { "name": "", "type": "uint8" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"constant": true,
-		"inputs": [],
-		"name": "INITIAL_SUPPLY",
-		"outputs": [ { "name": "", "type": "uint256" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"constant": true,
-		"inputs": [],
-		"name": "decimals",
-		"outputs": [ { "name": "", "type": "uint8" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"constant": false,
-		"inputs": [ { "name": "spender", "type": "address" }, { "name": "addedValue", "type": "uint256" } ],
-		"name": "increaseAllowance",
-		"outputs": [ { "name": "", "type": "bool" } ],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	}, {
-		"constant": true,
-		"inputs": [ { "name": "owner", "type": "address" } ],
-		"name": "balanceOf",
-		"outputs": [ { "name": "", "type": "uint256" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"constant": true,
-		"inputs": [],
-		"name": "symbol",
-		"outputs": [ { "name": "", "type": "string" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"constant": false,
-		"inputs": [
-			{ "name": "spender", "type": "address" }, { "name": "subtractedValue", "type": "uint256" } ],
-		"name": "decreaseAllowance",
-		"outputs": [ { "name": "", "type": "bool" } ],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	}, {
-		"constant": false,
-		"inputs": [ { "name": "to", "type": "address" }, { "name": "value", "type": "uint256" } ],
-		"name": "transfer",
-		"outputs": [ { "name": "", "type": "bool" } ],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	}, {
-		"constant": true,
-		"inputs": [ { "name": "owner", "type": "address" }, { "name": "spender", "type": "address" } ],
-		"name": "allowance",
-		"outputs": [ { "name": "", "type": "uint256" } ],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}, {
-		"inputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "constructor"
-	}, {
-		"anonymous": false,
-		"inputs": [ { "indexed": true, "name": "from", "type": "address" },
-			{ "indexed": true, "name": "to", "type": "address" },
-			{ "indexed": false, "name": "value", "type": "uint256" } ],
-		"name": "Transfer",
-		"type": "event"
-	}, {
-		"anonymous": false,
-		"inputs": [ { "indexed": true, "name": "owner", "type": "address" },
-			{ "indexed": true, "name": "spender", "type": "address" },
-			{ "indexed": false, "name": "value", "type": "uint256" } ],
-		"name": "Approval",
-		"type": "event"
-	}
-]`
 )
 
 func TestExtractBoxTx(t *testing.T) {
@@ -446,33 +105,14 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b0 -> b1
-	statedb, err := state.New(&b0.Header.RootHash, &b0.Header.UtxoRoot, blockChain.DB())
-	if err != nil {
-		t.Fatal(err)
-	}
 	timestamp = startTime
-	b1 := nextBlockV2(b0, blockChain)
-	if err := calcRootHash(b0, b1, blockChain, statedb); err != nil {
+	b1 := nextBlockV3(b0, blockChain, 0)
+	if err := connectBlock(b0, b1, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	verifyProcessBlock(t, blockChain, b1, nil, 1, b1)
 
-	statedb, err = state.New(&b1.Header.RootHash, &b1.Header.UtxoRoot, blockChain.DB())
-	if err != nil {
-		t.Fatal(err)
-	}
-	// add some box to miner
-	mCoinbaseTx, _ := CreateCoinbaseTx(minerAddr.Hash(), b1.Header.Height)
-	utxoSet := NewUtxoSet()
-	utxoSet.AddUtxo(mCoinbaseTx, uint32(0), b1.Header.Height)
-	utxoSet.WriteUtxoSetToDB(blockChain.db)
-	statedb.AddBalance(*minerAddr.Hash160(), new(big.Int).SetUint64(BaseSubsidy))
-	root, _, err := statedb.Commit(false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b1.Header.RootHash = *root
-
+	// check balance
 	contractKey, _ := types.NewContractAddressFromHash(ContractAddr.Bytes())
 	balance := getBalance(contractKey.Hash160(), blockChain.db)
 	addr, _ := types.NewAddress(ContractAddr.String())
@@ -484,18 +124,28 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	// extend main chain
 	// b1 -> b2
-	// transfer some box to userAddr
+	// transfer some box to minerAddr and userAddr
 	// generate b2
-	userBalance = uint64(200000000)
-	prevHash, _ := mCoinbaseTx.TxHash()
-	tx := types.NewTx(0, 4455, 0).
+	minerBalance = uint64(1000000000)
+	prevHash := new(crypto.HashType)
+	prevHash.SetString("543b802cab2e20848c24c51c8d13a8644866766b48f85ced5fe4773351296020")
+	toMinerTx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), minerBalance)).
+		AppendVout(txlogic.MakeVout(preAddr.Hash160(), 33000000000000000-minerBalance-core.TransferFee))
+	err = txlogic.SignTx(toMinerTx, privKeyPre, pubKeyPre)
+	ensure.DeepEqual(t, err, nil)
+
+	userBalance = uint64(300000000)
+	prevHash, _ = toMinerTx.TxHash()
+	toUserTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), userBalance)).
-		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), BaseSubsidy-userBalance-core.TransferFee))
-	err = txlogic.SignTx(tx, privKeyMiner, pubKeyMiner)
+		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), minerBalance-userBalance-core.TransferFee))
+	err = txlogic.SignTx(toUserTx, privKeyMiner, pubKeyMiner)
 	ensure.DeepEqual(t, err, nil)
-	b2 := nextBlockWithTxs(b1, blockChain, tx)
-	if err := calcRootHash(b1, b2, blockChain); err != nil {
+	b2 := nextBlockV3(b1, blockChain, 0, toMinerTx, toUserTx)
+	if err := connectBlock(b1, b2, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
@@ -510,8 +160,8 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	balance = getBalance(minerAddr.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
-	ensure.DeepEqual(t, balance, BaseSubsidy-userBalance-core.TransferFee)
-	minerBalance = balance
+	minerBalance = minerBalance - userBalance - core.TransferFee + 2*core.TransferFee
+	ensure.DeepEqual(t, balance, minerBalance)
 	t.Logf("b1 -> b2 passed, now tail height: %d", blockChain.LongestChainHeight)
 	return b2
 }
@@ -526,11 +176,9 @@ func contractBlockHandle(
 	expectUserBalance := userBalance - param.vmValue - block.Header.GasUsed + param.userRecv
 	expectMinerBalance := minerBalance
 	if err != nil {
-		if err == errInsufficientBalanceForGas {
-			expectUserBalance, expectMinerBalance = userBalance, minerBalance
-		} else {
-			expectUserBalance, expectMinerBalance = userBalance, minerBalance
-		}
+		expectUserBalance, expectMinerBalance = userBalance, minerBalance
+	} else if len(block.Txs[0].Vout) == 2 {
+		expectMinerBalance += block.Txs[0].Vout[1].Value
 	}
 	// for userAddr
 	checkTestAddrBalance(t, blockChain, userAddr, expectUserBalance)
@@ -599,7 +247,7 @@ func TestFaucetContract(t *testing.T) {
 	// b2 -> b21
 	// normal transfer to a contract address that have not been created
 	contractAddr, _ := types.MakeContractAddress(userAddr, 1)
-	prevHash, _ := b2.Txs[1].TxHash()
+	prevHash, _ := b2.Txs[2].TxHash()
 	toContractAmount := uint64(1000)
 	changeValue2 := userBalance - toContractAmount - core.TransferFee
 	toContractTx := types.NewTx(0, 4455, 0).
@@ -608,11 +256,12 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue2))
 	txlogic.SignTx(toContractTx, privKey, pubKey)
 	userBalance = changeValue2
-	b21 := nextBlockWithTxsV2(b2, blockChain, toContractTx)
-	if err := calcRootHash(b2, b21, blockChain); err != nil {
+	b21 := nextBlockV3(b2, blockChain, 0, toContractTx)
+	if err := connectBlock(b2, b21, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	verifyProcessBlock(t, blockChain, b21, nil, 3, b21)
+	minerBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
 	t.Logf("b2 -> b21 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -649,9 +298,8 @@ func TestFaucetContract(t *testing.T) {
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddr, _ = types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
-
-	b3 := nextBlockWithTxs(b21, blockChain, toContractTx, vmTx)
-	if err := calcRootHash(b21, b3, blockChain); err != nil {
+	b3 := nextBlockV3(b21, blockChain, 0, toContractTx, vmTx)
+	if err := connectBlock(b21, b3, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b3, b3, vmParam, nil)
@@ -687,8 +335,8 @@ func TestFaucetContract(t *testing.T) {
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 
-	b4 := nextBlockWithTxs(b3, blockChain, vmTx)
-	if err := calcRootHash(b3, b4, blockChain); err != nil {
+	b4 := nextBlockV3(b3, blockChain, 0, vmTx)
+	if err := connectBlock(b3, b4, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b4, b4, vmParam, nil)
@@ -720,8 +368,8 @@ func TestFaucetContract(t *testing.T) {
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 
-	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
-	if err := calcRootHash(b4, b5, blockChain); err != nil {
+	b5 := nextBlockV3(b4, blockChain, 0, vmTx)
+	if err := connectBlock(b4, b5, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b5, b5, vmParam, nil)
@@ -750,9 +398,10 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(contractVout).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
-	b6.Header.RootHash.SetString("")
-	b6.Header.UtxoRoot.SetString("")
+	b6 := nextBlockV3(b5, blockChain, 0, vmTx)
+	if err := connectBlock(b5, b6, blockChain); err != nil {
+		t.Fatal(err)
+	}
 	contractBlockHandle(t, blockChain, b6, b5, vmParam, core.ErrInvalidFee)
 	nonce--
 	t.Logf("b5 -> b6 failed, now tail height: %d", blockChain.LongestChainHeight)
@@ -780,8 +429,8 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue6)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b6 = nextBlockWithTxs(b5, blockChain, vmTx)
-	if err := calcRootHash(b5, b6, blockChain); err != nil {
+	b6 = nextBlockV3(b5, blockChain, 0, vmTx)
+	if err := connectBlock(b5, b6, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b6, b6, vmParam, nil)
@@ -801,8 +450,8 @@ func TestFaucetContract(t *testing.T) {
 	txlogic.SignTx(toContractTx, privKey, pubKey)
 	userBalance -= toContractAmount + core.TransferFee
 	vmParam.contractBalance += toContractAmount
-	b7 := nextBlockWithTxs(b6, blockChain, toContractTx)
-	if err := calcRootHash(b6, b7, blockChain); err != nil {
+	b7 := nextBlockV3(b6, blockChain, 0, toContractTx)
+	if err := connectBlock(b6, b7, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b7, b7, vmParam, nil)
@@ -950,7 +599,7 @@ func TestCoinContract(t *testing.T) {
 	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(),
 		vmValue, gasLimit, nonce)
 	ensure.Nil(t, err)
-	prevHash, _ := b2.Txs[1].TxHash()
+	prevHash, _ := b2.Txs[2].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
@@ -961,9 +610,8 @@ func TestCoinContract(t *testing.T) {
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
-	b3 := nextBlockWithTxs(b2, blockChain, vmTx)
-
-	if err := calcRootHash(b2, b3, blockChain); err != nil {
+	b3 := nextBlockV3(b2, blockChain, 0, vmTx)
+	if err := connectBlock(b2, b3, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b3, b3, vmParam, nil)
@@ -994,9 +642,9 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b4 := nextBlockWithTxs(b3, blockChain, vmTx)
+	b4 := nextBlockV3(b3, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b3, b4, blockChain); err != nil {
+	if err := connectBlock(b3, b4, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b4, b4, vmParam, nil)
@@ -1028,9 +676,9 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
+	b5 := nextBlockV3(b4, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b4, b5, blockChain); err != nil {
+	if err := connectBlock(b4, b5, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b5, b5, vmParam, nil)
@@ -1062,9 +710,9 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
+	b6 := nextBlockV3(b5, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b5, b6, blockChain); err != nil {
+	if err := connectBlock(b5, b6, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b6, b6, vmParam, nil)
@@ -1098,9 +746,9 @@ func TestCoinContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
 		WithData(types.ContractDataType, byteCode)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b7 := nextBlockWithTxs(b6, blockChain, vmTx)
+	b7 := nextBlockV3(b6, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b6, b7, blockChain); err != nil {
+	if err := connectBlock(b6, b7, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b7, b7, vmParam, nil)
@@ -1114,70 +762,63 @@ func TestCoinContract(t *testing.T) {
 
 func TestERC20Contract(t *testing.T) {
 
-	var (
-		transferCall, balanceOfUserCall, balanceOfReceiverCall string
-		transferFromCall, approveCall, increaseAllowanceCall   string
-		allowanceCall                                          string
-	)
+	path := "./contracts/"
+	binFile, abiFile := path+"erc20.bin", path+"erc20.abi"
+	code, err := ioutil.ReadFile(binFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	erc20Code, _ := hex.DecodeString(string(bytes.TrimSpace(code)))
+	abiObj, err := ReadAbi(abiFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// balances
 	userA, _ := types.NewAddress("b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98")
-	//userB, _ := types.NewAddress("b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD")
-	func() {
-		abiObj, err := abi.JSON(strings.NewReader(testERC20Abi))
-		if err != nil {
-			t.Fatal(err)
-		}
-		// transfer 2000000
-		input, err := abiObj.Pack("transfer", *userA.Hash160(), big.NewInt(2000000))
-		if err != nil {
-			t.Fatal(err)
-		}
-		transferCall = hex.EncodeToString(input)
-		t.Logf("transfer 2000000: %s", transferCall)
-		// balances user addr
-		input, err = abiObj.Pack("balanceOf", *userAddr.Hash160())
-		if err != nil {
-			t.Fatal(err)
-		}
-		balanceOfUserCall = hex.EncodeToString(input)
-		t.Logf("balanceUser: %s", balanceOfUserCall)
-		// balances test Addr
-		input, err = abiObj.Pack("balanceOf", userA.Hash160())
-		if err != nil {
-			t.Fatal(err)
-		}
-		balanceOfReceiverCall = hex.EncodeToString(input)
-		t.Logf("balance of %s: %s", userA, balanceOfReceiverCall)
-		// transferFrom, sender miner, from userAddr, to userA
-		input, err = abiObj.Pack("transferFrom", *userAddr.Hash160(), *userA.Hash160(), big.NewInt(50000))
-		if err != nil {
-			t.Fatal(err)
-		}
-		transferFromCall = hex.EncodeToString(input)
-		t.Logf("transferFrom %s to %s 50000: %s", userAddr, userA, transferFromCall)
-		// aprove 40000 for miner, sender userAddr, spender miner
-		input, err = abiObj.Pack("approve", *minerAddr.Hash160(), big.NewInt(40000))
-		if err != nil {
-			t.Fatal(err)
-		}
-		approveCall = hex.EncodeToString(input)
-		t.Logf("approve miner %s can spend %s 40000: %s", minerAddr, userAddr, approveCall)
-		// increaseAllowance 20000 for miner, sender userAddr, spender miner
-		input, err = abiObj.Pack("increaseAllowance", *minerAddr.Hash160(), big.NewInt(20000))
-		if err != nil {
-			t.Fatal(err)
-		}
-		increaseAllowanceCall = hex.EncodeToString(input)
-		t.Logf("increase %s's allowance 20000: %s", minerAddr, increaseAllowanceCall)
-		// allowance owner user for spender miner
-		input, err = abiObj.Pack("allowance", *userAddr.Hash160(), *minerAddr.Hash160())
-		if err != nil {
-			t.Fatal(err)
-		}
-		allowanceCall = hex.EncodeToString(input)
-		t.Logf("allowance user %s miner %s: %s", userAddr, minerAddr, allowanceCall)
-	}()
-
+	// inputs
+	// transfer 2000000
+	transferCall, err := abiObj.Pack("transfer", *userA.Hash160(), big.NewInt(2000000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("transfer 2000000: %x", transferCall)
+	// balances user addr
+	balanceOfUserCall, err := abiObj.Pack("balanceOf", *userAddr.Hash160())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("balanceUser: %x", balanceOfUserCall)
+	// balances test Addr
+	balanceOfReceiverCall, err := abiObj.Pack("balanceOf", userA.Hash160())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("balance of %s: %x", userA, balanceOfReceiverCall)
+	// transferFrom, sender miner, from userAddr, to userA
+	transferFromCall, err := abiObj.Pack("transferFrom", *userAddr.Hash160(), *userA.Hash160(), big.NewInt(50000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("transferFrom %s to %s 50000: %x", userAddr, userA, transferFromCall)
+	// aprove 40000 for miner, sender userAddr, spender miner
+	approveCall, err := abiObj.Pack("approve", *minerAddr.Hash160(), big.NewInt(40000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("approve miner %s can spend %s 40000: %x", minerAddr, userAddr, approveCall)
+	// increaseAllowance 20000 for miner, sender userAddr, spender miner
+	increaseAllowanceCall, err := abiObj.Pack("increaseAllowance", *minerAddr.Hash160(), big.NewInt(20000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("increase %s's allowance 20000: %x", minerAddr, increaseAllowanceCall)
+	// allowance owner user for spender miner
+	allowanceCall, err := abiObj.Pack("allowance", *userAddr.Hash160(), *minerAddr.Hash160())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("allowance user %s miner %s: %x", userAddr, minerAddr, allowanceCall)
+	//
 	blockChain := NewTestBlockChain()
 	// blockchain
 	ensure.NotNil(t, blockChain)
@@ -1193,26 +834,25 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, vmValue, 0, nil,
 	}
-	byteCode, _ := hex.DecodeString(testERC20Contract)
 	nonce := uint64(1)
 	contractVout, err := txlogic.MakeContractCreationVout(userAddr.Hash160(),
 		vmValue, gasLimit, nonce)
 	ensure.Nil(t, err)
-	prevHash, _ := b2.Txs[1].TxHash()
+	prevHash, _ := b2.Txs[2].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, erc20Code)
 	txlogic.SignTx(vmTx, privKey, pubKey)
 	contractAddr, _ := types.MakeContractAddress(userAddr, nonce)
 	vmParam.contractAddr = contractAddr
 	t.Logf("contract address: %s", contractAddr)
 	t.Logf("user addr: %s", hex.EncodeToString(userAddr.Hash160()[:]))
-	b3 := nextBlockWithTxs(b2, blockChain, vmTx)
+	b3 := nextBlockV3(b2, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b2, b3, blockChain); err != nil {
+	if err := connectBlock(b2, b3, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b3, b3, vmParam, nil)
@@ -1230,7 +870,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1242,11 +881,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, balanceOfUserCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b3A := nextBlockWithTxs(b3, blockChain, vmTx)
+	b3A := nextBlockV3(b3, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b3, b3A, blockChain); err != nil {
+	if err := connectBlock(b3, b3A, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b3A, b3A, vmParam, nil)
@@ -1272,7 +911,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(transferCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1284,11 +922,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, transferCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b4 := nextBlockWithTxs(b3A, blockChain, vmTx)
+	b4 := nextBlockV3(b3A, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b3A, b4, blockChain); err != nil {
+	if err := connectBlock(b3A, b4, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b4, b4, vmParam, nil)
@@ -1308,7 +946,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1320,11 +957,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, balanceOfUserCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b5 := nextBlockWithTxs(b4, blockChain, vmTx)
+	b5 := nextBlockV3(b4, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b4, b5, blockChain); err != nil {
+	if err := connectBlock(b4, b5, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b5, b5, vmParam, nil)
@@ -1350,7 +987,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1362,11 +998,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, balanceOfReceiverCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b6 := nextBlockWithTxs(b5, blockChain, vmTx)
+	b6 := nextBlockV3(b5, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b5, b6, blockChain); err != nil {
+	if err := connectBlock(b5, b6, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b6, b6, vmParam, nil)
@@ -1387,24 +1023,22 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(transferFromCall)
 	// minerNonce := uint64(9)
 	minerNonce := stateDB.GetNonce(*minerAddr.Hash160()) + 2 // note: coinbase tx has already add 1.
 	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, minerNonce)
 	ensure.Nil(t, err)
 	// use internal tx vout
-	prevHash, _ = b2.Txs[1].TxHash()
-	minerChangeValue := b2.Txs[1].Vout[1].Value - vmValue - gasPrice*gasLimit
+	prevHash, _ = b2.Txs[2].TxHash()
+	minerChangeValue := b2.Txs[2].Vout[1].Value - vmValue - gasPrice*gasLimit
 	vmTx = types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), minerChangeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, transferFromCall)
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
-	b7 := nextBlockWithTxs(b6, blockChain, vmTx)
-
-	if err := calcRootHash(b6, b7, blockChain); err != nil {
+	b7 := nextBlockV3(b6, blockChain, 0, vmTx)
+	if err := connectBlock(b6, b7, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	userBalance += b7.Header.GasUsed
@@ -1426,7 +1060,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(approveCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1438,11 +1071,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, approveCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b8 := nextBlockWithTxs(b7, blockChain, vmTx)
-
-	if err := calcRootHash(b7, b8, blockChain); err != nil {
+	b8 := nextBlockV3(b7, blockChain, 0, vmTx)
+	if err := connectBlock(b7, b8, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b8, b8, vmParam, nil)
@@ -1462,7 +1094,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(increaseAllowanceCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1474,10 +1105,10 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, increaseAllowanceCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b9 := nextBlockWithTxs(b8, blockChain, vmTx)
-	if err := calcRootHash(b8, b9, blockChain); err != nil {
+	b9 := nextBlockV3(b8, blockChain, 0, vmTx)
+	if err := connectBlock(b8, b9, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b9, b9, vmParam, nil)
@@ -1495,7 +1126,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(allowanceCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1507,11 +1137,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, allowanceCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b10 := nextBlockWithTxs(b9, blockChain, vmTx)
+	b10 := nextBlockV3(b9, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b9, b10, blockChain); err != nil {
+	if err := connectBlock(b9, b10, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b10, b10, vmParam, nil)
@@ -1530,7 +1160,6 @@ func TestERC20Contract(t *testing.T) {
 	vmParam = &testContractParam{
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(transferFromCall)
 	minerNonce = stateDB.GetNonce(*minerAddr.Hash160()) + 2 // note: coinbase tx has already add 1.
 	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, minerNonce)
@@ -1542,11 +1171,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(minerAddr.Hash160(), minerChangeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, transferFromCall)
 	txlogic.SignTx(vmTx, privKeyMiner, pubKeyMiner)
-	b11 := nextBlockWithTxs(b10, blockChain, vmTx)
+	b11 := nextBlockV3(b10, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b10, b11, blockChain); err != nil {
+	if err := connectBlock(b10, b11, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	userBalance += b11.Header.GasUsed
@@ -1566,7 +1195,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(balanceOfUserCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1578,11 +1206,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, balanceOfUserCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b12 := nextBlockWithTxs(b11, blockChain, vmTx)
+	b12 := nextBlockV3(b11, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b11, b12, blockChain); err != nil {
+	if err := connectBlock(b11, b12, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b12, b12, vmParam, nil)
@@ -1608,7 +1236,6 @@ func TestERC20Contract(t *testing.T) {
 		// vmValue, gasLimit, contractBalance, userRecv, contractAddr
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	byteCode, _ = hex.DecodeString(balanceOfReceiverCall)
 	nonce++
 	contractVout, err = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, nonce)
@@ -1620,11 +1247,11 @@ func TestERC20Contract(t *testing.T) {
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
-		WithData(types.ContractDataType, byteCode)
+		WithData(types.ContractDataType, balanceOfReceiverCall)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	b13 := nextBlockWithTxs(b12, blockChain, vmTx)
+	b13 := nextBlockV3(b12, blockChain, 0, vmTx)
 
-	if err := calcRootHash(b12, b13, blockChain); err != nil {
+	if err := connectBlock(b12, b13, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	contractBlockHandle(t, blockChain, b13, b13, vmParam, nil)
@@ -1658,7 +1285,6 @@ func TestCallBetweenContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	bankCode, _ := hex.DecodeString(string(bytes.TrimSpace(code)))
-	//t.Logf("bank code: %s", string(bankCode))
 	bankAbi, err := ReadAbi(bankAbiFile)
 	if err != nil {
 		t.Fatal(err)
@@ -1676,7 +1302,7 @@ func TestCallBetweenContracts(t *testing.T) {
 	nonce := uint64(1)
 	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(),
 		vmValue, gasLimit, nonce)
-	prevHash, _ := b2.Txs[1].TxHash()
+	prevHash, _ := b2.Txs[2].TxHash()
 	changeValue := userBalance - vmValue - gasPrice*gasLimit
 	vmTx1 := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
@@ -1735,8 +1361,8 @@ func TestCallBetweenContracts(t *testing.T) {
 	userBalance -= vmValue
 
 	// bring them on chain
-	b3 := nextBlockWithTxs(b2, blockChain, vmTx1, vmTx2, vmTx3, vmTx4)
-	if err := calcRootHash(b2, b3, blockChain); err != nil {
+	b3 := nextBlockV3(b2, blockChain, 0, vmTx1, vmTx2, vmTx3, vmTx4)
+	if err := connectBlock(b2, b3, blockChain); err != nil {
 		t.Fatal(err)
 	}
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)

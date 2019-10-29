@@ -39,6 +39,8 @@ func (*dummyStatedb) AddLog(log *types.Log)                                     
 func (*dummyStatedb) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error { return nil }
 func (*dummyStatedb) THash() crypto.HashType                                    { return crypto.HashType{} }
 func (*dummyStatedb) GetLogs(hash crypto.HashType) []*types.Log                 { return nil }
+func (*dummyStatedb) Error() error                                              { return nil }
+func (*dummyStatedb) SetError(error)                                            {}
 
 func TestStoreCapture(t *testing.T) {
 	var (
