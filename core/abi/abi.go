@@ -6,9 +6,12 @@ package abi
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/BOXFoundation/boxd/crypto"
 )
 
 // The ABI holds information about a contract's context and available
@@ -60,19 +63,20 @@ func (abi ABI) Pack(name string, args ...interface{}) ([]byte, error) {
 }
 
 // Unpack output in v according to the abi specification
-func (abi ABI) Unpack(v interface{}, name string, output []byte) (err error) {
-	if len(output) == 0 {
+func (abi ABI) Unpack(v interface{}, name string, data []byte) (err error) {
+	if len(data) == 0 {
 		return fmt.Errorf("abi: unmarshalling empty output")
 	}
 	// since there can't be naming collisions with contracts and events,
 	// we need to decide whether we're calling a method or an event
 	if method, ok := abi.Methods[name]; ok {
-		if len(output)%32 != 0 {
-			return fmt.Errorf("abi: improperly formatted output: %s - Bytes: [%+v]", string(output), output)
+		if len(data)%32 != 0 {
+			return fmt.Errorf("abi: improperly formatted output: %s - Bytes: [%+v]", string(data), data)
 		}
-		return method.Outputs.Unpack(v, output)
-	} else if event, ok := abi.Events[name]; ok {
-		return event.Inputs.Unpack(v, output)
+		return method.Outputs.Unpack(v, data)
+	}
+	if event, ok := abi.Events[name]; ok {
+		return event.Inputs.Unpack(v, data)
 	}
 	return fmt.Errorf("abi: could not locate named method or event")
 }
@@ -87,11 +91,9 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 		Inputs    []Argument
 		Outputs   []Argument
 	}
-
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-
 	abi.Methods = make(map[string]Method)
 	abi.Events = make(map[string]Event)
 	for _, field := range fields {
@@ -102,15 +104,29 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 			}
 		// empty defaults to function according to the abi spec
 		case "function", "":
-			abi.Methods[field.Name] = Method{
-				Name:    field.Name,
+			name := field.Name
+			_, ok := abi.Methods[name]
+			for idx := 0; ok; idx++ {
+				name = fmt.Sprintf("%s%d", field.Name, idx)
+				_, ok = abi.Methods[name]
+			}
+			abi.Methods[name] = Method{
+				Name:    name,
+				RawName: field.Name,
 				Const:   field.Constant,
 				Inputs:  field.Inputs,
 				Outputs: field.Outputs,
 			}
 		case "event":
-			abi.Events[field.Name] = Event{
-				Name:      field.Name,
+			name := field.Name
+			_, ok := abi.Events[name]
+			for idx := 0; ok; idx++ {
+				name = fmt.Sprintf("%s%d", field.Name, idx)
+				_, ok = abi.Events[name]
+			}
+			abi.Events[name] = Event{
+				Name:      name,
+				RawName:   field.Name,
 				Anonymous: field.Anonymous,
 				Inputs:    field.Inputs,
 			}
@@ -122,9 +138,9 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 
 // MethodByID looks up a method by the 4-byte id
 // returns nil if none found
-func (abi ABI) MethodByID(sigdata []byte) (*Method, error) {
+func (abi *ABI) MethodByID(sigdata []byte) (*Method, error) {
 	if len(sigdata) < 4 {
-		return nil, fmt.Errorf("data too short (% bytes) for abi method lookup", len(sigdata))
+		return nil, fmt.Errorf("data too short (%d bytes) for abi method lookup", len(sigdata))
 	}
 	for _, method := range abi.Methods {
 		if bytes.Equal(method.ID(), sigdata[:4]) {
@@ -132,4 +148,15 @@ func (abi ABI) MethodByID(sigdata []byte) (*Method, error) {
 		}
 	}
 	return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
+}
+
+// EventByID looks an event up by its topic hash in the
+// ABI and returns nil if none found.
+func (abi *ABI) EventByID(topic crypto.HashType) (*Event, error) {
+	for _, event := range abi.Events {
+		if bytes.Equal(event.ID().Bytes(), topic.Bytes()) {
+			return &event, nil
+		}
+	}
+	return nil, fmt.Errorf("no event with id: %#x", hex.EncodeToString(topic.Bytes()))
 }

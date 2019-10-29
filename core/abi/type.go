@@ -56,7 +56,6 @@ func NewType(t string, components []ArgumentMarshaling) (typ Type, err error) {
 	if strings.Count(t, "[") != strings.Count(t, "]") {
 		return Type{}, fmt.Errorf("invalid arg type in abi")
 	}
-
 	typ.stringKind = t
 
 	// if there are brackets, get ready to go into slice/array mode and
@@ -80,9 +79,7 @@ func NewType(t string, components []ArgumentMarshaling) (typ Type, err error) {
 			typ.Kind = reflect.Slice
 			typ.Elem = &embeddedType
 			typ.Type = reflect.SliceOf(embeddedType.Type)
-			if embeddedType.T == TupleTy {
-				typ.stringKind = embeddedType.stringKind + sliced
-			}
+			typ.stringKind = embeddedType.stringKind + sliced
 		} else if len(intz) == 1 {
 			// is a array
 			typ.T = ArrayTy
@@ -93,9 +90,7 @@ func NewType(t string, components []ArgumentMarshaling) (typ Type, err error) {
 				return Type{}, fmt.Errorf("abi: error parsing variable size: %v", err)
 			}
 			typ.Type = reflect.ArrayOf(typ.Size, embeddedType.Type)
-			if embeddedType.T == TupleTy {
-				typ.stringKind = embeddedType.stringKind + sliced
-			}
+			typ.stringKind = embeddedType.stringKind + sliced
 		} else {
 			return Type{}, fmt.Errorf("invalid formatting of array type")
 		}
@@ -176,6 +171,7 @@ func NewType(t string, components []ArgumentMarshaling) (typ Type, err error) {
 			fields = append(fields, reflect.StructField{
 				Name: ToCamelCase(c.Name), // reflect.StructOf will panic for any exported field.
 				Type: cType.Type,
+				Tag:  reflect.StructTag("json:\"" + c.Name + "\""),
 			})
 			elems = append(elems, &cType)
 			names = append(names, c.Name)
