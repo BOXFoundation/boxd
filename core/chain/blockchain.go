@@ -522,7 +522,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 	}
 
 	chain.BroadcastOrRelayBlock(block, transferMode)
-	go chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
 
 	logger.Debugf("Accepted New Block. Hash: %v Height: %d TxsNum: %d", blockHash.String(), block.Header.Height, len(block.Txs))
 	t3 := time.Now().UnixNano()
@@ -935,6 +934,8 @@ func (chain *BlockChain) executeBlock(
 			logger.Error(err)
 			return err
 		}
+		logger.Infof("gas used for block %s:%d: %d, bookkeeper %s reward: %d",
+			block.BlockHash(), block.Header.Height, gasUsed, block.Header.BookKeeper, reward)
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee, rcps); err != nil {
 			return err
 		}
@@ -996,17 +997,19 @@ func (chain *BlockChain) executeBlock(
 		return err
 	}
 
-	go chain.notifyRPCLogs(receipts)
-
 	chain.tryToClearCache([]*types.Block{block}, nil)
-
-	// notify mem_pool when chain update
-	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
 
 	// This block is now the end of the best chain.
 	chain.ChangeNewTail(block)
 	// set tail state
-	return chain.SetTailState(&block.Header.RootHash, &block.Header.UtxoRoot)
+	chain.tailState = stateDB
+	// notify mem_pool when chain update
+	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
+	go func() {
+		chain.notifyRPCLogs(receipts)
+		chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
+	}()
+	return nil
 }
 
 func (chain *BlockChain) notifyRPCLogs(receipts types.Receipts) {
@@ -2289,8 +2292,10 @@ func (chain *BlockChain) calcScores() ([]*big.Int, error) {
 }
 
 // MakeCoinBaseContractTx creates a coinbase give bookkeeper address and block height
-func (chain *BlockChain) MakeCoinBaseContractTx(
-	from types.AddressHash, reward uint64, txFee uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
+func MakeCoinBaseContractTx(
+	from types.AddressHash, reward uint64, txFee uint64, nonce uint64,
+	blockHeight uint32,
+) (*types.Transaction, error) {
 	code, err := ContractAbi.Pack(CalcBonus)
 	if err != nil {
 		return nil, err

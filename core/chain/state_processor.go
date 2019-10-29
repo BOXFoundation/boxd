@@ -74,8 +74,8 @@ func (sp *StateProcessor) Process(
 			continue
 		}
 		if vmTx.Nonce() != stateDB.GetNonce(*vmTx.From())+1 {
-			err = fmt.Errorf("incorrect nonce(%d, %d in statedb) in tx: %s",
-				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.OriginTxHash())
+			err = fmt.Errorf("incorrect nonce(%d, %d in statedb) for %s in tx: %s",
+				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.From(), vmTx.OriginTxHash())
 			invalidTx = tx
 			break
 		}

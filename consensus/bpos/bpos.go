@@ -607,7 +607,7 @@ func (bpos *Bpos) makeCoinbaseTx(
 	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
 		block.BlockHash(), block.Header.Height, amount, txFee)
 	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	return bpos.chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
+	return chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
 		bpos.context.bookKeeperReward.Uint64(), txFee, nonce, block.Header.Height)
 }
 
@@ -638,14 +638,17 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	}
 	opCoinbase := types.NewOutPoint(coinbaseHash, 1)
 
-	bookkeeper := bpos.bookkeeper.AddressHash()
-	statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
 	if gasUsed > 0 {
+		bookkeeper := bpos.bookkeeper.AddressHash()
+		statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
 		if len(block.Txs[0].Vout) == 2 {
 			block.Txs[0].Vout[1].Value += gasUsed
 		} else {
 			block.Txs[0].AppendVout(txlogic.MakeVout(bookkeeper, gasUsed))
 		}
+		reward := block.Txs[0].Vout[0].Value + block.Txs[0].Vout[1].Value
+		logger.Infof("gas used for block %d: %d, bookkeeper %s reward: %d",
+			block.Header.Height, gasUsed, reward)
 		utxoSet.SpendUtxo(*opCoinbase)
 		block.Txs[0].ResetTxHash()
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
