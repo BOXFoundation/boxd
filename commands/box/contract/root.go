@@ -389,14 +389,13 @@ func importAbi(cmd *cobra.Command, args []string) {
 	if err := util.MkDir(abiDir); err != nil {
 		panic(err)
 	}
-
 	var iFiles []int
 	err := filepath.Walk(abiDir, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
 		s := strings.TrimPrefix(path, abiDir)
-		if i, err := strconv.Atoi(s); err == nil && i > 0 {
+		if i, err := strconv.Atoi(s); err == nil && i >= 0 {
 			iFiles = append(iFiles, i)
 		}
 		return nil
@@ -404,15 +403,19 @@ func importAbi(cmd *cobra.Command, args []string) {
 	if err != nil {
 		panic(err)
 	}
-	max := 0
+	var (
+		max      int
+		newIndex int
+	)
 	if len(iFiles) > 0 {
 		for _, v := range iFiles {
 			if max < v {
 				max = v
 			}
 		}
+		newIndex = max + 1
 	}
-	newFile := abiDir + strconv.Itoa(max+1)
+	newFile := abiDir + strconv.Itoa(newIndex)
 	data, err := ioutil.ReadFile(srcFile)
 	if err != nil {
 		panic(err)
@@ -431,7 +434,7 @@ func importAbi(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 	defer f.Close()
-	note := fmt.Sprintf("%d%s%s, %s%s%s\n", max+1, abiSep, args[1],
+	note := fmt.Sprintf("%d%s%s, %s%s%s\n", newIndex, abiSep, args[1],
 		time.Now().Format(time.Stamp), abiSep, newFile)
 	if _, err := f.WriteString(note); err != nil {
 		panic(err)
@@ -1105,6 +1108,7 @@ func reset(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 	os.Remove(abiIdxFile)
+	importAbi(&cobra.Command{}, []string{"contracts/bonus.abi", "default the file of abi: bonus.abi"})
 }
 
 func detailAbi(cmd *cobra.Command, args []string) {
