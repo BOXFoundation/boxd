@@ -50,7 +50,7 @@ contract Bonus is Permission{
     using SafeMath for uint;
 
     uint constant DYNASTY_SIZE = 6;
-    uint constant NET_PARAMS_LENGTH = 11;
+    uint constant NET_PARAMS_LENGTH = 12;
 
     uint constant PLEDGE_THRESHOLD = 1;
     uint constant DYNASTY_CHANGE_THRESHOLD = 2;
@@ -63,6 +63,7 @@ contract Bonus is Permission{
     uint constant BOOK_KEEPER_REWARD = 9;
     uint constant BONUS_TO_VOTERS = 10;
     uint constant CALC_SCORE_THRESHOLD = 11;
+    uint constant BLOCK_REWARD = 12;
 
     uint constant BOX = 1 * 10 ** 8;
 
@@ -112,6 +113,7 @@ contract Bonus is Permission{
 
     mapping(address => uint) voteBonus;
     mapping(address => uint) dynastyToBonus;
+    mapping(address => uint) delegateToBonus;
 
     mapping(address => FrozenDelegate) frozenDelegate;
 
@@ -126,6 +128,7 @@ contract Bonus is Permission{
     Delegate[] next;
 
     uint pledgePool;
+    uint delegateRewardTotal;
 
     uint _global_open_pledge_limit;
 
@@ -163,9 +166,10 @@ contract Bonus is Permission{
         netParams[MIN_PROPOSAL_THRESHOLD] = 100 * 10**8;
         netParams[PLEDGE_OPEN_LIMIT] = 100;
         netParams[PROPOSAL_EXPIRATION_TIME] = 3 * 24 * 3600;
-        netParams[BOOK_KEEPER_REWARD] = 2.85 * 10**8;
+        netParams[BOOK_KEEPER_REWARD] = 2.852 * 10**8;
         netParams[BONUS_TO_VOTERS] = 50;
         netParams[CALC_SCORE_THRESHOLD] = 200;
+        netParams[BLOCK_REWARD] = 3.17 * 10**8;
     }
 
     function initDynasty() internal {
@@ -245,13 +249,17 @@ contract Bonus is Permission{
 
     function calcBonus() public payable {
         require(msg.sender == block.coinbase, "only coinbase can do it.");
-        dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(msg.value * (100 - netParams[BONUS_TO_VOTERS])/100);
+        require(msg.value == netParams[BLOCK_REWARD], "block reward is error.");
+        uint bookKeeperReward = netParams[BOOK_KEEPER_REWARD];
+        require(bookKeeperReward < netParams[BLOCK_REWARD], "bookKeeperReward is bigger than block reward.");
+        dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(bookKeeperReward * (100 - netParams[BONUS_TO_VOTERS])/100);
         for (uint i = 0; i < currentDelegateToVoters[msg.sender].length; i++) {
             uint vote = currentDelegateVotesDetail[msg.sender][currentDelegateToVoters[msg.sender][i]];
             voteBonus[currentDelegateToVoters[msg.sender][i]] = voteBonus[currentDelegateToVoters[msg.sender][i]].
-            add((msg.value * netParams[BONUS_TO_VOTERS] / 100) * (vote/BOX)/(addrToDynasty[msg.sender].votes/BOX));
+            add((bookKeeperReward * netParams[BONUS_TO_VOTERS] / 100) * (vote/BOX)/(addrToDynasty[msg.sender].votes/BOX));
         }
-        emit CalcBonus(msg.sender, msg.value, dynastyToBonus[msg.sender]);
+        emit CalcBonus(msg.sender, bookKeeperReward, dynastyToBonus[msg.sender]);
+        delegateRewardTotal = delegateRewardTotal.add(msg.value-bookKeeperReward);
 
         delete currentProposals;
         for (i = 1; i <= NET_PARAMS_LENGTH; i++) {
@@ -270,6 +278,8 @@ contract Bonus is Permission{
 
         require((block.number+1) % netParams[DYNASTY_CHANGE_THRESHOLD] == 0, "Not the time to switch dynasties");
         uint totalBonusToBookkeeper;
+        uint pledgeLength = pledgeAddrList.length;
+        uint delegateReward = delegateRewardTotal.div(pledgeLength);
         for(uint i = 0; i < dynasty.length; i++) {
             if (dynastyToBonus[dynasty[i].addr] > 0) {
                 dynasty[i].addr.transfer(dynastyToBonus[dynasty[i].addr]);
@@ -281,6 +291,7 @@ contract Bonus is Permission{
 
         for(i = 0; i < pledgeAddrList.length; i++) {
             address pledgeAddr = pledgeAddrList[i];
+            delegateToBonus[pledgeAddr] = delegateToBonus[pledgeAddr].add(delegateReward);
             address[] memory voters = delegateToVoters[pledgeAddr];
             if(voters.length > 0) {
                 currentDelegateToVoters[pledgeAddr] = voters;
@@ -289,6 +300,7 @@ contract Bonus is Permission{
                 }
             }
         }
+        delegateRewardTotal = 0;
         if (pledgeAddrList.length >= DYNASTY_SIZE) {
             updateDynasty();
             updateNetParams();
@@ -478,9 +490,20 @@ contract Bonus is Permission{
     }
 
     function pickVoteBonus() public {
-        require(voteBonus[msg.sender] > netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "you don`t have enough vote bonus.");
+        require(voteBonus[msg.sender] >= netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "you don`t have enough vote bonus.");
         uint bonus = voteBonus[msg.sender];
         delete voteBonus[msg.sender];
+        msg.sender.transfer(bonus);
+    }
+
+    function myDelegateReward() public view returns (uint) {
+        return delegateToBonus[msg.sender];
+    }
+
+    function pickDelegateReward() public {
+        require(delegateToBonus[msg.sender] >= netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK], "you don`t have enough delegate reward.");
+        uint bonus = delegateToBonus[msg.sender];
+        delete delegateToBonus[msg.sender];
         msg.sender.transfer(bonus);
     }
 
@@ -527,6 +550,6 @@ contract Bonus is Permission{
     }
 
     function getNetParams() public view returns (uint,uint,uint) {
-        return (netParams[DYNASTY_CHANGE_THRESHOLD], netParams[BOOK_KEEPER_REWARD], netParams[CALC_SCORE_THRESHOLD]);
+        return (netParams[DYNASTY_CHANGE_THRESHOLD], netParams[BLOCK_REWARD], netParams[CALC_SCORE_THRESHOLD]);
     }
 }
