@@ -57,7 +57,7 @@ contract Bonus is Permission{
     uint constant MIN_VOTE_BONUS_LIMIT_TO_PICK = 3;
     uint constant VOTE_FROZEN_BLOCK_NUMBER = 4;
     uint constant VOTE_THRESHOLD = 5;
-    uint constant MIN_PROPOSAL_THRESHOLD = 6;
+    uint constant PROPOSAL_EXPENDITURE = 6;
     uint constant PLEDGE_OPEN_LIMIT = 7;
     uint constant PROPOSAL_EXPIRATION_TIME = 8;
     uint constant BOOK_KEEPER_REWARD = 9;
@@ -163,7 +163,7 @@ contract Bonus is Permission{
         netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK] = 1 * 10**8;
         netParams[VOTE_FROZEN_BLOCK_NUMBER] = 50;
         netParams[VOTE_THRESHOLD] = 1 * 10**8;
-        netParams[MIN_PROPOSAL_THRESHOLD] = 100 * 10**8;
+        netParams[PROPOSAL_EXPENDITURE] = 100 * 10**8;
         netParams[PLEDGE_OPEN_LIMIT] = 100;
         netParams[PROPOSAL_EXPIRATION_TIME] = 3 * 24 * 3600;
         netParams[BOOK_KEEPER_REWARD] = 2.852 * 10**8;
@@ -218,6 +218,15 @@ contract Bonus is Permission{
 
     function myPledge() public view returns (uint) {
         return addrToDelegates[msg.sender].pledgeAmount;
+    }
+
+    function myFrozenDelegate() public view returns (uint,uint) {
+        if(block.number > ((frozenDelegate[msg.sender].blockNumber / netParams
+        [DYNASTY_CHANGE_THRESHOLD]) + 1) * netParams[DYNASTY_CHANGE_THRESHOLD]) {
+            return (0, frozenDelegate[msg.sender].pledgeAmount);
+        } else {
+            return (frozenDelegate[msg.sender].pledgeAmount, 0);
+        }
     }
 
     function redeemPledgeApply() public {
@@ -511,8 +520,17 @@ contract Bonus is Permission{
         return votes[msg.sender][delegate];
     }
 
+    function myVoteDetail(address delegate) public view returns (uint, uint, uint) {
+        if (frozenVotes[delegate][msg.sender].votes > 0 &&
+            block.number > (frozenVotes[delegate][msg.sender].timestamp + netParams[VOTE_FROZEN_BLOCK_NUMBER])) {
+            return (votes[msg.sender][delegate], 0, frozenVotes[delegate][msg.sender].votes);
+        } else {
+            return (votes[msg.sender][delegate], frozenVotes[delegate][msg.sender].votes, 0);
+        }
+    }
+
     function giveProposal(uint proposalID, uint value) public onlyDynasty payable{
-        require(msg.value >= netParams[MIN_PROPOSAL_THRESHOLD] && proposalID > 0, "Insufficient minimum fee for give proposal.");
+        require(msg.value >= netParams[PROPOSAL_EXPENDITURE] && proposalID > 0, "Insufficient minimum fee for give proposal.");
         require(proposals[proposalID].id == 0 ||
          (block.number - proposals[proposalID].createtime > netParams[PROPOSAL_EXPIRATION_TIME]), "the proposal is exist.");
 
@@ -549,7 +567,19 @@ contract Bonus is Permission{
         _global_open_pledge_limit = value;
     }
 
-    function getNetParams() public view returns (uint,uint,uint) {
-        return (netParams[DYNASTY_CHANGE_THRESHOLD], netParams[BLOCK_REWARD], netParams[CALC_SCORE_THRESHOLD]);
+
+    function getNetParams() public view returns (uint,uint,uint,uint,uint,uint,uint,uint,uint,uint,uint,uint) {
+        return (netParams[PLEDGE_THRESHOLD],
+        netParams[DYNASTY_CHANGE_THRESHOLD],
+        netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK],
+        netParams[VOTE_FROZEN_BLOCK_NUMBER],
+        netParams[VOTE_THRESHOLD],
+        netParams[PROPOSAL_EXPENDITURE],
+        netParams[PLEDGE_OPEN_LIMIT],
+        netParams[PROPOSAL_EXPIRATION_TIME],
+        netParams[BOOK_KEEPER_REWARD],
+        netParams[BONUS_TO_VOTERS],
+        netParams[CALC_SCORE_THRESHOLD],
+        netParams[BLOCK_REWARD]);
     }
 }

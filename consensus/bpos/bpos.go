@@ -218,7 +218,7 @@ func (bpos *Bpos) run(timestamp int64) error {
 	}
 	bpos.context.dynasty = dynasty
 	bpos.context.dynastySwitchThreshold = netParams.DynastySwitchThreshold
-	bpos.context.bookKeeperReward = netParams.BookKeeperReward
+	bpos.context.bookKeeperReward = netParams.BlockReward
 	bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
 
 	current, err := bpos.fetchCurrentDelegatesByHeight(bpos.chain.LongestChainHeight)

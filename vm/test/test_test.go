@@ -153,10 +153,10 @@ func TestGenesisContract(t *testing.T) {
 	must(err)
 	output, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
 	ensure.Nil(t, vmerr)
-	var resParams [3]*big.Int
+	var resParams [12]*big.Int
 	ensure.Nil(t, abiObj.Unpack(&resParams, "getNetParams", output))
-	ensure.DeepEqual(t, resParams[0].Int64(), int64(250))
-	ensure.DeepEqual(t, resParams[2].Int64(), int64(200))
+	ensure.DeepEqual(t, resParams[1].Int64(), int64(250))
+	ensure.DeepEqual(t, resParams[10].Int64(), int64(200))
 
 }
 

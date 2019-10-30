@@ -14,7 +14,7 @@ import (
 // NetParams Represents current network parameters
 type NetParams struct {
 	DynastySwitchThreshold *big.Int
-	BookKeeperReward       *big.Int
+	BlockReward            *big.Int
 	CalcScoreThreshold     *big.Int
 }
 
@@ -25,15 +25,15 @@ func (chain *BlockChain) FetchNetParamsByHeight(height uint32) (*NetParams, erro
 	if err != nil {
 		return nil, err
 	}
-	var res [3]*big.Int
+	var res [12]*big.Int
 	if err := ContractAbi.Unpack(&res, "getNetParams", output); err != nil {
 		logger.Errorf("Failed to unpack the result of call getNetParams. Err: %v", err)
 		return nil, err
 	}
 	return &NetParams{
-		DynastySwitchThreshold: res[0],
-		BookKeeperReward:       res[1],
-		CalcScoreThreshold:     res[2],
+		DynastySwitchThreshold: res[1],
+		BlockReward:            res[11],
+		CalcScoreThreshold:     res[10],
 	}, nil
 }
 
