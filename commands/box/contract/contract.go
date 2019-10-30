@@ -33,6 +33,7 @@ import (
 	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -162,68 +163,21 @@ func importAbi(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-
-	srcFile := args[0]
-	if _, err := os.Stat(srcFile); err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("abi file is not exists")
-		} else {
-			fmt.Println("abi file status error:", err)
-		}
+	//args[0]: the file of abi args[1]: the description
+	newIndex, err := attainIndexFromFile(args[0], args[1], false)
+	fmt.Println("Do you want to change current index? [Y/n] ")
+	input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		fmt.Println()
 		return
 	}
-
-	if err := util.MkDir(abiDir); err != nil {
-		panic(err)
+	switch string(input) {
+	case "n":
+	case "N":
+	default:
+		setabi(&cobra.Command{}, []string{strconv.Itoa(newIndex)})
 	}
-
-	var iFiles []int
-	err := filepath.Walk(abiDir, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-		s := strings.TrimPrefix(path, abiDir)
-		if i, err := strconv.Atoi(s); err == nil && i > 0 {
-			iFiles = append(iFiles, i)
-		}
-		return nil
-	})
-	if err != nil {
-		panic(err)
-	}
-	max := 0
-	if len(iFiles) > 0 {
-		for _, v := range iFiles {
-			if max < v {
-				max = v
-			}
-		}
-	}
-	newFile := abiDir + strconv.Itoa(max+1)
-	data, err := ioutil.ReadFile(srcFile)
-	if err != nil {
-		panic(err)
-	}
-	if _, err := abi.JSON(bytes.NewBuffer(data)); err != nil {
-		fmt.Println("illegal abi file, error:", err)
-		return
-	}
-	// Write data to desc
-	err = ioutil.WriteFile(newFile, data, 0644)
-	if err != nil {
-		panic(err)
-	}
-	f, err := os.OpenFile(recordFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	note := fmt.Sprintf("%d%s%s, %s%s%s\n", max+1, abiSep, args[1],
-		time.Now().Format(time.Stamp), abiSep, newFile)
-	if _, err := f.WriteString(note); err != nil {
-		panic(err)
-	}
-	fmt.Println("index:", max+1)
+	fmt.Println("index:", newIndex)
 }
 
 func list(cmd *cobra.Command, args []string) {
@@ -509,6 +463,36 @@ func send(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
 		fmt.Println(cmd.Use)
 		return
+	}
+	//default abi
+	_, err := ioutil.ReadFile(abiIdxFile)
+	if err != nil {
+		fmt.Println("Do you want to use official contract? [Y/n] ")
+		input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		switch string(input) {
+		case "n":
+		case "N":
+		default:
+			index, err := attainIndexFromFile("contracts/bonus.abi", "the file of default abi", true)
+			if err != nil {
+				index, err = attainIndexFromFile(".cmd/contract/test", "the file of default abi", true)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+			}
+			indexStr := strconv.Itoa(index)
+			setabi(&cobra.Command{}, []string{indexStr})
+			err = attach(&cobra.Command{}, []string{indexStr, "b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz"})
+			if err != nil {
+				fmt.Printf("attach %s to official contract error: %s\n", indexStr, err)
+				return
+			}
+		}
 	}
 	// amount
 	amount, err := strconv.ParseUint(args[0], 10, 64)
@@ -1246,4 +1230,74 @@ func detailAbi(cmd *cobra.Command, args []string) {
 		}
 		fmt.Printf("  %s:  %v(%v)\n", e.ID(), e.Name, strings.Join(inputs, ", "))
 	}
+}
+
+func attainIndexFromFile(srcFile string, description string, officialContract bool) (int, error) {
+	if err := util.MkDir(abiDir); err != nil {
+		panic(err)
+	}
+	var (
+		max      int
+		newIndex int
+		iFiles   []int
+	)
+	if officialContract {
+		err := util.FileExists(srcFile)
+		if err != nil {
+			return -1, errors.New("Copy offical contract to .cmd/contract/test or contracts/bonus.abi")
+		}
+		newIndex = 0
+	} else {
+		err := util.FileExists(srcFile)
+		if err != nil {
+			return -1, err
+		}
+		err = filepath.Walk(abiDir, func(path string, info os.FileInfo, err error) error {
+			if info.IsDir() {
+				return nil
+			}
+			s := strings.TrimPrefix(path, abiDir)
+			if i, err := strconv.Atoi(s); err == nil && i >= 0 {
+				iFiles = append(iFiles, i)
+			}
+			return nil
+		})
+		if err != nil {
+			panic(err)
+		}
+		if len(iFiles) > 0 {
+			for _, v := range iFiles {
+				if max < v {
+					max = v
+				}
+			}
+		}
+		newIndex = max + 1
+	}
+
+	newFile := abiDir + strconv.Itoa(newIndex)
+	data, err := ioutil.ReadFile(srcFile)
+	if err != nil {
+		panic(err)
+	}
+	if _, err := abi.JSON(bytes.NewBuffer(data)); err != nil {
+		fmt.Println("illegal abi file, error:", err)
+		return -1, err
+	}
+	// Write data to desc
+	err = ioutil.WriteFile(newFile, data, 0644)
+	if err != nil {
+		panic(err)
+	}
+	f, err := os.OpenFile(recordFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	note := fmt.Sprintf("%d%s%s, %s%s%s\n", newIndex, abiSep, description,
+		time.Now().Format(time.Stamp), abiSep, newFile)
+	if _, err := f.WriteString(note); err != nil {
+		panic(err)
+	}
+	return newIndex, nil
 }
