@@ -762,7 +762,7 @@ func TestCoinContract(t *testing.T) {
 
 func TestERC20Contract(t *testing.T) {
 
-	path := "./contracts/"
+	path := "./test_contracts/"
 	binFile, abiFile := path+"erc20.bin", path+"erc20.abi"
 	code, err := ioutil.ReadFile(binFile)
 	if err != nil {
@@ -1262,7 +1262,7 @@ func TestERC20Contract(t *testing.T) {
 }
 
 func TestCallBetweenContracts(t *testing.T) {
-	path := "./contracts/"
+	path := "./test_contracts/"
 	// token
 	tokenBinFile, tokenAbiFile := path+"token.bin", path+"token.abi"
 	code, err := ioutil.ReadFile(tokenBinFile)
