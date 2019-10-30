@@ -1302,18 +1302,46 @@ func restoreRecord(filepath string) (abiDesces, map[int]string, error) {
 
 func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error) {
 	var inputs abi.Arguments
+	var m *abi.Method
 	if method == "" {
 		inputs = abiObj.Constructor.Inputs
 	} else {
-		abiMethod, exist := abiObj.Methods[method]
-		if !exist {
+		methods := abiObj.MethodByName(method)
+		// filter out functions with different number of args
+		if len(methods) > 1 {
+			i := 0
+			for exit := false; !exit; {
+				for ; ; i++ {
+					m := methods[i]
+					if len(m.Inputs) != len(args) {
+						if i >= len(methods)-1 {
+							exit = true
+						}
+						methods = append(methods[:i], methods[i+1:]...)
+						break
+					} else if i >= len(methods)-1 {
+						exit = true
+						break
+					}
+				}
+			}
+		}
+
+		if len(methods) == 0 {
 			// may method is an event name
 			if event, exist := abiObj.Events[method]; exist {
 				return event.ID().String(), nil
 			}
 			return "", fmt.Errorf("method or event %s is not found in abi file", method)
+		} else if len(methods) == 1 {
+			inputs = methods[0].Inputs
+			m = methods[0]
+		} else {
+			m = chooseMethod(methods)
+			if m != nil {
+				inputs = m.Inputs
+			}
 		}
-		inputs = abiMethod.Inputs
 	}
 	if len(inputs) != len(args) {
 		return "", fmt.Errorf("argument count mismatch: %d for %d", len(args), len(inputs))
@@ -1326,7 +1354,7 @@ func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error)
 		}
 		params = append(params, arg)
 	}
-	data, err := abiObj.Pack(method, params...)
+	data, err := abiObj.Pack(m.Name, params...)
 	if err == nil {
 		return hex.EncodeToString(data), nil
 	}
@@ -1335,6 +1363,28 @@ func encodeInput(abiObj *abi.ABI, method string, args ...string) (string, error)
 		return hex.EncodeToString(event.ID().Bytes()), nil
 	}
 	return "", err
+}
+
+func chooseMethod(methods []*abi.Method) *abi.Method {
+
+	if len(methods) == 0 {
+		return nil
+	}
+	note := fmt.Sprintf("There are %d functions that you can use:\n", len(methods))
+	for i, method := range methods {
+		note += fmt.Sprintf("    %d. %s\n", i+1, method.String())
+	}
+	fmt.Print(note)
+
+	fmt.Print("Input your choice:")
+	for idx := -1; ; {
+		fmt.Scanln(&idx)
+		if idx < 1 || idx > len(methods) {
+			fmt.Print("Please input the correct index: ")
+		} else {
+			return methods[idx-1]
+		}
+	}
 }
 
 func newAbiObj(index int) (*abi.ABI, error) {

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/BOXFoundation/boxd/crypto"
 )
@@ -107,7 +108,7 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 			name := field.Name
 			_, ok := abi.Methods[name]
 			for idx := 0; ok; idx++ {
-				name = fmt.Sprintf("%s%d", field.Name, idx)
+				name = fmt.Sprintf("%s@%d", field.Name, idx)
 				_, ok = abi.Methods[name]
 			}
 			abi.Methods[name] = Method{
@@ -121,7 +122,7 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 			name := field.Name
 			_, ok := abi.Events[name]
 			for idx := 0; ok; idx++ {
-				name = fmt.Sprintf("%s%d", field.Name, idx)
+				name = fmt.Sprintf("%s@%d", field.Name, idx)
 				_, ok = abi.Events[name]
 			}
 			abi.Events[name] = Event{
@@ -159,4 +160,18 @@ func (abi *ABI) EventByID(topic crypto.HashType) (*Event, error) {
 		}
 	}
 	return nil, fmt.Errorf("no event with id: %#x", hex.EncodeToString(topic.Bytes()))
+}
+
+// MethodByName get method by name.
+// If overloaded, multiple objects will be returned.
+func (abi *ABI) MethodByName(name string) []*Method {
+
+	methods := []*Method{}
+	for k, v := range abi.Methods {
+		ptr := v
+		if k == name || strings.HasPrefix(v.Name, name+"@") {
+			methods = append(methods, &ptr)
+		}
+	}
+	return methods
 }
