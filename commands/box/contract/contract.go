@@ -33,7 +33,6 @@ import (
 	"github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ripemd160"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -116,7 +115,7 @@ func init() {
 		&cobra.Command{
 			Use:   "setabi [index]",
 			Short: "set abi index as default abi, index must be in abi list. relevant command: importabi, list",
-			Run:   setabi,
+			RunE:  setabi,
 		},
 		&cobra.Command{
 			Use:   "setsender [optinal|wallet_dir] [address]",
@@ -163,21 +162,28 @@ func importAbi(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	//args[0]: the file of abi args[1]: the description
-	newIndex, err := attainIndexFromFile(args[0], args[1], false)
-	fmt.Println("Do you want to change current index? [Y/n] ")
-	input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	//args[0]: the file of abi, args[1]: the descriptions
+	index, err := getIndex(args[0])
 	if err != nil {
-		fmt.Println()
+		fmt.Println("get index error:", err)
 		return
 	}
-	switch string(input) {
-	case "n":
-	case "N":
-	default:
-		setabi(&cobra.Command{}, []string{strconv.Itoa(newIndex)})
+	if err := writeAbi(args[0], args[1], index); err != nil {
+		fmt.Println("write the data of abi file error:", err)
+		return
 	}
-	fmt.Println("index:", newIndex)
+	fmt.Println("Do you want to change current index? [Y/n] ")
+	var input string
+	fmt.Scanf("%s", &input)
+	switch input {
+	case "n", "N":
+	default:
+		if err := setabi(&cobra.Command{}, []string{strconv.Itoa(index)}); err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+	fmt.Println("index:", index)
 }
 
 func list(cmd *cobra.Command, args []string) {
@@ -272,28 +278,27 @@ func setsender(cmd *cobra.Command, args []string) {
 	}
 }
 
-func setabi(cmd *cobra.Command, args []string) {
+func setabi(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		fmt.Println(cmd.Use)
+		return fmt.Errorf("%s", cmd.Use)
 	}
 	index, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		fmt.Println("invalid index: ", err)
-		return
+		return fmt.Errorf("invalid index: %s", err)
 	}
 	abiInfo, _, err := restoreRecord(recordFile)
 	if err != nil {
-		fmt.Println("restore record error:", err)
+		return fmt.Errorf("restore record error: %s", err)
 	}
 	abiDesc := abiInfo.getItem(int(index))
 	if abiDesc == nil {
-		fmt.Printf("index %d is not in abi list\n", index)
-		return
+		return fmt.Errorf("index %d is not in abi list", index)
 	}
 	// write index to file
 	if err := ioutil.WriteFile(abiIdxFile, []byte(args[0]), 0644); err != nil {
 		panic(err)
 	}
+	return nil
 }
 
 func attach(cmd *cobra.Command, args []string) error {
@@ -465,31 +470,38 @@ func send(cmd *cobra.Command, args []string) {
 		return
 	}
 	//default abi
-	_, err := ioutil.ReadFile(abiIdxFile)
-	if err != nil {
-		fmt.Println("Do you want to use official contract? [Y/n] ")
-		input, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		switch string(input) {
-		case "n":
-		case "N":
+	if err := util.FileExists(abiIdxFile); err != nil {
+		var (
+			input            string
+			originalContract = true
+		)
+		fmt.Println("current abi index no setting, do you mean to operate original bonus contract? [Y/n]")
+		fmt.Scanf("%s", &input)
+		switch input {
+		case "n", "N":
 		default:
-			index, err := attainIndexFromFile("contracts/bonus.abi", "the file of default abi", true)
+			srcFile, err := findOriginalContract()
 			if err != nil {
-				index, err = attainIndexFromFile(".cmd/contract/test", "the file of default abi", true)
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
+				fmt.Println(err)
+				fmt.Println("Copy offical contract to .cmd/contract/test or contracts/bonus.abi")
+				return
+			}
+			index, err := getIndex(originalContract)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			if err := writeAbi(srcFile, "the file of default abi", index); err != nil {
+				fmt.Println("write the data of original contract to file error:", err)
+				return
 			}
 			indexStr := strconv.Itoa(index)
-			setabi(&cobra.Command{}, []string{indexStr})
-			err = attach(&cobra.Command{}, []string{indexStr, "b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz"})
-			if err != nil {
-				fmt.Printf("attach %s to official contract error: %s\n", indexStr, err)
+			if err = setabi(&cobra.Command{}, []string{indexStr}); err != nil {
+				fmt.Printf("setabi %d error: %s", index, err)
+				return
+			}
+			if err = attach(&cobra.Command{}, []string{indexStr, "b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz"}); err != nil {
+				fmt.Printf("attach %s to original contract error: %s\n", indexStr, err)
 				return
 			}
 		}
@@ -578,6 +590,43 @@ func call(cmd *cobra.Command, args []string) {
 		params []string
 		err    error
 	)
+	//default abi
+	if err := util.FileExists(abiIdxFile); err != nil {
+		var (
+			input            string
+			originalContract = true
+		)
+		fmt.Println("current abi index no setting, do you mean to operate original bonus contract? [Y/n]")
+		fmt.Scanf("%s", &input)
+		switch input {
+		case "n", "N":
+		default:
+			srcFile, err := findOriginalContract()
+			if err != nil {
+				fmt.Println(err)
+				fmt.Println("Copy offical contract to .cmd/contract/test or contracts/bonus.abi")
+				return
+			}
+			index, err := getIndex(originalContract)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			if err := writeAbi(srcFile, "the file of default abi", index); err != nil {
+				fmt.Println("write the data of original contract to file error:", err)
+				return
+			}
+			indexStr := strconv.Itoa(index)
+			if err = setabi(&cobra.Command{}, []string{indexStr}); err != nil {
+				fmt.Printf("setabi %d error: %s", index, err)
+				return
+			}
+			if err = attach(&cobra.Command{}, []string{indexStr, "b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz"}); err != nil {
+				fmt.Printf("attach %s to original contract error: %s\n", indexStr, err)
+				return
+			}
+		}
+	}
 	// index
 	index, err = currentAbi()
 	if err != nil {
@@ -1232,27 +1281,37 @@ func detailAbi(cmd *cobra.Command, args []string) {
 	}
 }
 
-func attainIndexFromFile(srcFile string, description string, officialContract bool) (int, error) {
+func getIndex(v interface{}) (int, error) {
+	var (
+		max              int
+		index            int
+		iFiles           []int
+		srcFile          string
+		originalContract bool
+	)
+	srcFile, ok := v.(string)
+	if ok {
+		originalContract = false
+	} else {
+		originalContract, ok = v.(bool)
+		if !ok {
+			return -1, errors.New("please check your parameter")
+		}
+	}
 	if err := util.MkDir(abiDir); err != nil {
 		panic(err)
 	}
-	var (
-		max      int
-		newIndex int
-		iFiles   []int
-	)
-	if officialContract {
-		err := util.FileExists(srcFile)
-		if err != nil {
-			return -1, errors.New("Copy offical contract to .cmd/contract/test or contracts/bonus.abi")
-		}
-		newIndex = 0
-	} else {
-		err := util.FileExists(srcFile)
-		if err != nil {
+	if originalContract {
+		if _, err := findOriginalContract(); err != nil {
+			fmt.Println()
 			return -1, err
 		}
-		err = filepath.Walk(abiDir, func(path string, info os.FileInfo, err error) error {
+		index = 0
+	} else {
+		if err := util.FileExists(srcFile); err != nil {
+			return -1, err
+		}
+		err := filepath.Walk(abiDir, func(path string, info os.FileInfo, err error) error {
 			if info.IsDir() {
 				return nil
 			}
@@ -1272,17 +1331,19 @@ func attainIndexFromFile(srcFile string, description string, officialContract bo
 				}
 			}
 		}
-		newIndex = max + 1
+		index = max + 1
 	}
+	return index, nil
+}
 
-	newFile := abiDir + strconv.Itoa(newIndex)
+func writeAbi(srcFile string, description string, index int) error {
+	newFile := abiDir + strconv.Itoa(index)
 	data, err := ioutil.ReadFile(srcFile)
 	if err != nil {
 		panic(err)
 	}
 	if _, err := abi.JSON(bytes.NewBuffer(data)); err != nil {
-		fmt.Println("illegal abi file, error:", err)
-		return -1, err
+		return errors.New("illegal abi file")
 	}
 	// Write data to desc
 	err = ioutil.WriteFile(newFile, data, 0644)
@@ -1294,10 +1355,20 @@ func attainIndexFromFile(srcFile string, description string, officialContract bo
 		panic(err)
 	}
 	defer f.Close()
-	note := fmt.Sprintf("%d%s%s, %s%s%s\n", newIndex, abiSep, description,
+	note := fmt.Sprintf("%d%s%s, %s%s%s\n", index, abiSep, description,
 		time.Now().Format(time.Stamp), abiSep, newFile)
 	if _, err := f.WriteString(note); err != nil {
 		panic(err)
 	}
-	return newIndex, nil
+	return nil
+}
+
+func findOriginalContract() (string, error) {
+	if err := util.FileExists("contracts/bonus.abi"); err != nil {
+		if err := util.FileExists(".cmd/contract/test/bonus.abi"); err != nil {
+			return "", errors.New("original contract cant't find")
+		}
+		return ".cmd/contract/test/bonus.abi", nil
+	}
+	return "contracts/bonus.abi", nil
 }
