@@ -101,6 +101,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	defaultabi()
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.AddCommand(
 		&cobra.Command{
@@ -200,6 +201,43 @@ func init() {
 			Run:   detailAbi,
 		},
 	)
+}
+
+func defaultabi() {
+	_, err := ioutil.ReadFile(abiIdxFile)
+	if err != nil {
+		srcFile := "contracts/bonus.abi"
+		if _, err := os.Stat(srcFile); err != nil {
+			if os.IsNotExist(err) {
+				fmt.Println("abi file is not exists")
+			} else {
+				fmt.Println("abi file status error:", err)
+			}
+			return
+		}
+		data, err := ioutil.ReadFile(srcFile)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := abi.JSON(bytes.NewBuffer(data)); err != nil {
+			fmt.Println("illegal abi file, error:", err)
+			return
+		}
+		// Write data to desc
+		err = ioutil.WriteFile(abiDir+"0", data, 0644)
+		if err != nil {
+			panic(err)
+		}
+		if err := ioutil.WriteFile(abiIdxFile, []byte("0"), 0644); err != nil {
+			panic(err)
+		}
+		note := fmt.Sprintf("%d%s%s, %s%s%s\n", 0, abiSep, "the file of default abi",
+			time.Now().Format(time.Stamp), abiSep, ".cmd/contract/abi/0")
+		if err := ioutil.WriteFile(recordFile, []byte(note), 0644); err != nil {
+			panic(err)
+		}
+	}
+	return
 }
 
 func encode(cmd *cobra.Command, args []string) {
@@ -1104,11 +1142,34 @@ func getStorageAt(cmd *cobra.Command, args []string) {
 }
 
 func reset(cmd *cobra.Command, args []string) {
-	if err := os.RemoveAll(abiDir); err != nil {
+	if err := ioutil.WriteFile(abiIdxFile, []byte("0"), 0644); err != nil {
 		panic(err)
 	}
-	os.Remove(abiIdxFile)
-	importAbi(&cobra.Command{}, []string{"contracts/bonus.abi", "default the file of abi: bonus.abi"})
+	note := fmt.Sprintf("%d%s%s, %s%s%s\n", 0, abiSep, "the file of default abi",
+		time.Now().Format(time.Stamp), abiSep, ".cmd/contract/abi/0")
+	if err := ioutil.WriteFile(recordFile, []byte(note), 0644); err != nil {
+		panic(err)
+	}
+	if err := util.MkDir(abiDir); err != nil {
+		panic(err)
+	}
+	err := filepath.Walk(abiDir, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		s := strings.TrimPrefix(path, abiDir)
+		if i, err := strconv.Atoi(s); err == nil && i >= 0 {
+			if i != 0 {
+				if err := os.Remove(path); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
 }
 
 func detailAbi(cmd *cobra.Command, args []string) {
