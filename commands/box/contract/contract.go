@@ -471,39 +471,9 @@ func send(cmd *cobra.Command, args []string) {
 	}
 	//default abi
 	if err := util.FileExists(abiIdxFile); err != nil {
-		var (
-			input            string
-			originalContract = true
-		)
-		fmt.Println("current abi index no setting, do you mean to operate original bonus contract? [Y/n]")
-		fmt.Scanf("%s", &input)
-		switch input {
-		case "n", "N":
-		default:
-			srcFile, err := findOriginalContract()
-			if err != nil {
-				fmt.Println(err)
-				fmt.Println("Copy offical contract to .cmd/contract/test or contracts/bonus.abi")
-				return
-			}
-			index, err := getIndex(originalContract)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			if err := writeAbi(srcFile, "the file of default abi", index); err != nil {
-				fmt.Println("write the data of original contract to file error:", err)
-				return
-			}
-			indexStr := strconv.Itoa(index)
-			if err = setabi(&cobra.Command{}, []string{indexStr}); err != nil {
-				fmt.Printf("setabi %d error: %s", index, err)
-				return
-			}
-			if err = attach(&cobra.Command{}, []string{indexStr, "b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz"}); err != nil {
-				fmt.Printf("attach %s to original contract error: %s\n", indexStr, err)
-				return
-			}
+		if err := setDefaultAbi(); err != nil {
+			fmt.Println(err)
+			return
 		}
 	}
 	// amount
@@ -592,39 +562,9 @@ func call(cmd *cobra.Command, args []string) {
 	)
 	//default abi
 	if err := util.FileExists(abiIdxFile); err != nil {
-		var (
-			input            string
-			originalContract = true
-		)
-		fmt.Println("current abi index no setting, do you mean to operate original bonus contract? [Y/n]")
-		fmt.Scanf("%s", &input)
-		switch input {
-		case "n", "N":
-		default:
-			srcFile, err := findOriginalContract()
-			if err != nil {
-				fmt.Println(err)
-				fmt.Println("Copy offical contract to .cmd/contract/test or contracts/bonus.abi")
-				return
-			}
-			index, err := getIndex(originalContract)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			if err := writeAbi(srcFile, "the file of default abi", index); err != nil {
-				fmt.Println("write the data of original contract to file error:", err)
-				return
-			}
-			indexStr := strconv.Itoa(index)
-			if err = setabi(&cobra.Command{}, []string{indexStr}); err != nil {
-				fmt.Printf("setabi %d error: %s", index, err)
-				return
-			}
-			if err = attach(&cobra.Command{}, []string{indexStr, "b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz"}); err != nil {
-				fmt.Printf("attach %s to original contract error: %s\n", indexStr, err)
-				return
-			}
+		if err := setDefaultAbi(); err != nil {
+			fmt.Println(err)
+			return
 		}
 	}
 	// index
@@ -1371,4 +1311,37 @@ func findOriginalContract() (string, error) {
 		return ".cmd/contract/test/bonus.abi", nil
 	}
 	return "contracts/bonus.abi", nil
+}
+
+func setDefaultAbi() error {
+	var (
+		input            string
+		originalContract = true
+	)
+	fmt.Println("current abi index no setting, do you mean to operate original bonus contract? [Y/n]")
+	fmt.Scanf("%s", &input)
+	switch input {
+	case "n", "N":
+		return errors.New("abi index is not set, use \"setabi\" command to set")
+	default:
+		srcFile, err := findOriginalContract()
+		if err != nil {
+			return errors.New("Copy offical contract to .cmd/contract/test or contracts/bonus.abi")
+		}
+		index, err := getIndex(originalContract)
+		if err != nil {
+			return err
+		}
+		if err := writeAbi(srcFile, "the file of default abi", index); err != nil {
+			return fmt.Errorf("write the data of original contract to file error: %s", err)
+		}
+		indexStr := strconv.Itoa(index)
+		if err = setabi(&cobra.Command{}, []string{indexStr}); err != nil {
+			return fmt.Errorf("setabi %d error: %s", index, err)
+		}
+		if err = attach(&cobra.Command{}, []string{indexStr, "b5rEkkMtdp2LVNPyFem7w9sJthTuYvDFbiz"}); err != nil {
+			return fmt.Errorf("attach %s to original contract error: %s", indexStr, err)
+		}
+		return nil
+	}
 }
