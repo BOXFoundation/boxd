@@ -128,17 +128,18 @@ func main() {
 		go CountGlobalTxs()
 		fallthrough
 	default:
-		go topupOrigAccs()
+		go func() {
+			// wait 10 seconds for nodes connects each other and run steadily
+			time.Sleep(10 * time.Second)
+			topupOrigAccs()
+		}()
 	}
 
+	errChans := make(chan error, len(testItems()))
 	var wg sync.WaitGroup
-	testCnt := 3
-	errChans := make(chan error, testCnt)
-
 	for _, f := range testItems() {
 		runItem(&wg, errChans, f)
 	}
-
 	wg.Wait()
 	for len(errChans) > 0 {
 		utils.TryRecordError(<-errChans)
@@ -208,7 +209,8 @@ func topupOrigAccs() {
 				logger.Errorf("fetch balance for pre addr %s error %s", preAddr, err)
 				continue
 			}
-			accI, accJ, accK := origAccs[i%origAccCnt], origAccs[(i+2)%origAccCnt], origAccs[(i+4)%origAccCnt]
+			accI, accJ, accK := origAccs[i%origAccCnt], origAccs[(i+2)%origAccCnt],
+				origAccs[(i+4)%origAccCnt]
 			i++
 			tx, _, err := rpcutil.NewTx(preAcc,
 				[]*types.AddressHash{accI.AddressHash(), accJ.AddressHash(), accK.AddressHash()},
