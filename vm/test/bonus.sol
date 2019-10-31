@@ -84,6 +84,7 @@ contract Bonus is Permission{
 
     struct Proposal {
         uint id;
+        address proposer;
         uint value;
         uint createtime;
         address[] voters;
@@ -220,7 +221,7 @@ contract Bonus is Permission{
         return addrToDelegates[msg.sender].pledgeAmount;
     }
 
-    function myFrozenDelegate() public view returns (uint,uint) {
+    function myFrozenDelegate() public view returns (uint, uint) {
         if(block.number > ((frozenDelegate[msg.sender].blockNumber / netParams
         [DYNASTY_CHANGE_THRESHOLD]) + 1) * netParams[DYNASTY_CHANGE_THRESHOLD]) {
             return (0, frozenDelegate[msg.sender].pledgeAmount);
@@ -534,7 +535,7 @@ contract Bonus is Permission{
         require(proposals[proposalID].id == 0 ||
          (block.number - proposals[proposalID].createtime > netParams[PROPOSAL_EXPIRATION_TIME]), "the proposal is exist.");
 
-        Proposal memory proposal = Proposal(proposalID, value, block.number, new address[](0), false);
+        Proposal memory proposal = Proposal(proposalID, msg.sender, value, block.number, new address[](0), false);
         proposals[proposalID] = proposal;
     }
 
