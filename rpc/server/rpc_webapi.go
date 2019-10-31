@@ -243,11 +243,12 @@ func (s *webapiServer) ViewBlockDetail(
 	return resp, nil
 }
 
-func newCallResp(code int32, msg string, output string) *rpcpb.CallResp {
+func newCallResp(code int32, msg string, output string, height uint64) *rpcpb.CallResp {
 	return &rpcpb.CallResp{
 		Code:    code,
 		Message: msg,
 		Output:  output,
+		Height:  int32(height),
 	}
 }
 
@@ -255,14 +256,14 @@ func (s *webapiServer) DoCall(
 	ctx context.Context, req *rpcpb.CallReq,
 ) (resp *rpcpb.CallResp, err error) {
 
-	output, _, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
+	output, _, height, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
 		req.GetHeight(), s.ChainBlockReader)
 	if err != nil {
 		vmerrmsg, err2 := abi.UnpackErrMsg(output)
 		if err2 != nil {
 			logger.Debugf("UnpackErrMsg failed. Err: %v", err2)
 		}
-		return newCallResp(-1, err.Error(), vmerrmsg), nil
+		return newCallResp(-1, err.Error(), vmerrmsg, height), nil
 	}
 
 	// Make sure we have a contract to operate on, and bail out otherwise.
@@ -272,32 +273,32 @@ func (s *webapiServer) DoCall(
 		// Make sure we have a contract to operate on, and bail out otherwise.
 		statedb, err := s.ChainBlockReader.GetStateDbByHeight(req.GetHeight())
 		if err != nil {
-			return newCallResp(-1, err.Error(), ""), nil
+			return newCallResp(-1, err.Error(), "", height), nil
 		}
 		if !statedb.Exist(*conHash) {
-			return newCallResp(-1, core.ErrContractNotFound.Error(), ""), nil
+			return newCallResp(-1, core.ErrContractNotFound.Error(), "", height), nil
 		}
 	}
 
-	return newCallResp(0, "ok", hex.EncodeToString(output)), nil
+	return newCallResp(0, "ok", hex.EncodeToString(output), height), nil
 }
 
 func callContract(
 	from, to, data string, height uint32, chainReader ChainBlockReader,
-) (ret []byte, usedGas uint64, err error) {
+) (ret []byte, usedGas uint64, h uint64, err error) {
 
 	fromHash, err := types.ParseAddress(from)
 	if err != nil || !strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
-		return nil, 0, errors.New("invalid from address")
+		return nil, 0, 0, errors.New("invalid from address")
 	}
 	contractAddr, err := types.ParseAddress(to)
 	if err != nil || !strings.HasPrefix(to, types.AddrTypeContractPrefix) {
-		return nil, 0, errors.New("invalid contract address")
+		return nil, 0, 0, errors.New("invalid contract address")
 
 	}
 	input, err := hex.DecodeString(data)
 	if err != nil || len(data) == 0 {
-		return nil, 0, errors.New("invalid contract data")
+		return nil, 0, 0, errors.New("invalid contract data")
 	}
 
 	msg := types.NewVMTransaction(new(big.Int), math.MaxUint64/2, 0, 0, nil,
@@ -328,15 +329,15 @@ func callContract(
 	failed := false
 	ret, usedGas, _, failed, _, err = chain.ApplyMessage(evm, msg)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, evm.Context.BlockNumber.Uint64(), err
 	}
 	if failed {
-		return ret, usedGas, fmt.Errorf("contract execution failed, db error: %v", dbErr())
+		return ret, usedGas, evm.Context.BlockNumber.Uint64(), fmt.Errorf("contract execution failed, db error: %v", dbErr())
 	}
 	if dbErr() != nil {
-		return nil, 0, dbErr()
+		return nil, 0, evm.Context.BlockNumber.Uint64(), dbErr()
 	}
-	return ret, usedGas, nil
+	return ret, usedGas, evm.Context.BlockNumber.Uint64(), nil
 }
 
 func newNonceResp(code int32, msg string, nonce uint64) *rpcpb.NonceResp {
@@ -828,7 +829,7 @@ func (s *webapiServer) EstimateGas(
 	ctx context.Context, req *rpcpb.CallReq,
 ) (*rpcpb.EstimateGasResp, error) {
 
-	_, gas, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
+	_, gas, _, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
 		req.GetHeight(), s.ChainBlockReader)
 	if err != nil {
 		return &rpcpb.EstimateGasResp{

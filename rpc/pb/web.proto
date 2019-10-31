@@ -254,6 +254,7 @@ message CallResp {
     int32 code = 1;
     string message = 2;
     string output = 3;
+    int32 height = 4;
 }
 
 message EstimateGasResp {
