@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -28,15 +29,32 @@ import (
 	"github.com/BOXFoundation/boxd/storage/rocksdb"
 )
 
-type testFlag string
+func init() {
+	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+}
 
 const (
 	boxTest   testFlag = "boxTest"
 	tokenTest testFlag = "tokenTest"
 )
 
-func init() {
-	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+var (
+	testTxPool = new(testTxPoolAPI)
+)
+
+type testFlag string
+
+type testTxPoolAPI struct {
+}
+
+func (tp *testTxPoolAPI) GetAllTxs() []*types.TxWrap {
+	return nil
+}
+
+func (tp *testTxPoolAPI) FindTransaction(
+	outpoint *types.OutPoint,
+) *types.Transaction {
+	return nil
 }
 
 func TestSaveUtxos(t *testing.T) {
@@ -81,19 +99,23 @@ func TestSelectUtxos(t *testing.T) {
 
 	utxos := make([]*rpcpb.Utxo, 0)
 	values := []uint64{1, 2, 3, 4, 5, 10, 9, 8, 7, 6, 6, 7, 8, 9, 10, 5, 4, 3, 2, 1}
+	for i := 0; i < len(values); i++ {
+		values[i] *= 100000
+	}
 	address, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	for _, v := range values {
 		utxos = append(utxos, &rpcpb.Utxo{TxOut: (*corepb.TxOut)(txlogic.MakeVout(address.Hash160(), v))})
 	}
-	t.Run("t1", selUtxosTest(utxos, 10, []uint64{1, 1, 2, 2, 3, 3}))
-	t.Run("t2", selUtxosTest(utxos, 0, []uint64{}))
-	t.Run("t3", selUtxosTest(utxos, 1000, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
+	t.Run("t1", selUtxosTest(utxos, 1000000, []uint64{1, 1, 2, 2, 3, 3}))
+	t.Run("t2", selUtxosTest(utxos, 0, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
 		6, 6, 7, 7, 8, 8, 9, 9, 10, 10}))
-	t.Run("t4", selUtxosTest(utxos, 110, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
+	t.Run("t3", selUtxosTest(utxos, 1e10, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
 		6, 6, 7, 7, 8, 8, 9, 9, 10, 10}))
-	t.Run("t5", selUtxosTest(utxos, 60, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5, 5,
-		6, 6, 7, 7, 8}))
-
+	t.Run("t4", selUtxosTest(utxos, 110e5-core.TransferFee, []uint64{1, 1, 2, 2,
+		3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10}))
+	t.Run("t5", selUtxosTest(utxos, 110e5-core.TransferFee-29e5, []uint64{1, 1, 2,
+		2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9}))
+	t.Run("t6", selUtxosTest(utxos, 25e5, []uint64{1, 1, 2, 2, 3, 3, 4, 4, 5}))
 }
 
 func getDatabase() (string, storage.Storage, error) {
@@ -133,7 +155,7 @@ func newTestUtxoSet(
 		outpoint := types.NewOutPoint(&hash, h%10)
 		// utxo wrap
 		addr := addrHashes[int(h)%len(addrs)]
-		value := 1 + uint64(rand.Intn(10000))
+		value := core.TransferFee/8 + uint64(rand.Intn(int(core.TransferFee)))
 		utxoWrap := txlogic.NewUtxoWrap(addr, h, value)
 		utxoMap[*outpoint] = utxoWrap
 		// update balance
@@ -181,7 +203,7 @@ func newTestTokenUtxoSet(
 		outpoint := types.NewOutPoint(&hash, h%10)
 		// utxo wrap
 		addr := addrHashes[int(h)%len(addrs)]
-		value := 1 + uint64(rand.Intn(10000))
+		value := core.TransferFee/8 + uint64(rand.Intn(int(core.TransferFee)))
 		utxoWrap, _ := txlogic.NewTokenUtxoWrap(addr, tid, h, value)
 		utxoMap[*outpoint] = utxoWrap
 		// update balance
@@ -235,7 +257,7 @@ func walletUtxosSaveGetTest(
 		// check balance and utxos
 		for _, addr := range addrHashes {
 			// check balance
-			balanceGot, err := BalanceFor(addr, tid, db)
+			balanceGot, err := BalanceFor(addr, tid, db, testTxPool)
 			if err != nil {
 				t.Error(err)
 			}
@@ -244,7 +266,7 @@ func walletUtxosSaveGetTest(
 					balanceGot)
 			}
 			// check utxos
-			utxosGot, err := FetchUtxosOf(addr, tid, 0, true, db)
+			utxosGot, err := FetchUtxosOf(addr, tid, 0, true, db, testTxPool)
 			if err != nil {
 				t.Error(err)
 			}
@@ -256,7 +278,7 @@ func walletUtxosSaveGetTest(
 			}
 			// check fetching partial utxos
 			t.Logf("fetch utxos for %d", balanceGot/2)
-			utxosGot, err = FetchUtxosOf(addr, tid, balanceGot/2, false, db)
+			utxosGot, err = FetchUtxosOf(addr, tid, balanceGot/2, false, db, testTxPool)
 			if err != nil {
 				t.Error(err)
 			}
@@ -282,12 +304,15 @@ func walletUtxosSaveGetTest(
 func selUtxosTest(
 	utxos []*rpcpb.Utxo, amount uint64, wantUtxos []uint64,
 ) func(*testing.T) {
+	for i := 0; i < len(wantUtxos); i++ {
+		wantUtxos[i] *= 100000
+	}
 	return func(t *testing.T) {
 		wantAmount := uint64(0)
 		for _, u := range wantUtxos {
 			wantAmount += u
 		}
-		selUtxos, gotAmount := selectUtxos(utxos, nil, amount)
+		selUtxos, gotAmount := selectUtxos(utxos, nil, amount, 0)
 		gotUtxos := make([]uint64, 0)
 		gotCalcAmount := uint64(0)
 		for _, u := range selUtxos {

@@ -206,7 +206,7 @@ func (server *Server) Run() error {
 	if cfg.RPC.Enable || len(cfg.RPC.AdminIPs) > 0 {
 		var walletAgent service.WalletAgent
 		if cfg.Wallet.Enable {
-			walletAgent = wallet.NewWalletAgent(server.blockChain.DB(), cfg.Wallet.UtxoCacheTime)
+			walletAgent = wallet.NewWalletAgent(server.blockChain.DB(), server.txPool, cfg.Wallet.UtxoCacheTime)
 		}
 		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC,
 			server.blockChain, server.txPool, walletAgent, server.peer, server.bus)

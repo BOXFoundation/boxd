@@ -201,8 +201,8 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 			outPoint := types.OutPoint{Hash: *removedTxHash}
 			for txOutIdx := range tx.Vout {
 				outPoint.Index = uint32(txOutIdx)
-				childTx, exists := tx_pool.findTransaction(outPoint)
-				if !exists {
+				childTx := tx_pool.FindTransaction(&outPoint)
+				if childTx == nil {
 					continue
 				}
 				hash, _ := childTx.TxHash()
@@ -356,11 +356,12 @@ func (tx_pool *TransactionPool) isTransactionInPool(txHash *crypto.HashType) boo
 	return exists
 }
 
-func (tx_pool *TransactionPool) findTransaction(outpoint types.OutPoint) (*types.Transaction, bool) {
-	if tx, exists := tx_pool.outPointToTx.Load(outpoint); exists {
-		return tx.(*types.Transaction), true
+// FindTransaction returns tx with given outpoint
+func (tx_pool *TransactionPool) FindTransaction(outpoint *types.OutPoint) *types.Transaction {
+	if tx, exists := tx_pool.outPointToTx.Load(*outpoint); exists {
+		return tx.(*types.Transaction)
 	}
-	return nil, false
+	return nil
 }
 
 func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
@@ -406,7 +407,7 @@ func (tx_pool *TransactionPool) getPoolDoubleSpendTxs(
 		txs []*types.Transaction
 	)
 	for _, txIn := range tx.Vin {
-		if tx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+		if tx := tx_pool.FindTransaction(&txIn.PrevOutPoint); tx != nil {
 			ops = append(ops, &txIn.PrevOutPoint)
 			txs = append(txs, tx)
 		}
@@ -480,9 +481,9 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
-		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+		if dsTx := tx_pool.FindTransaction(&txIn.PrevOutPoint); dsTx != nil {
 			tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
-			doubleSpentTxHash, _ := doubleSpentTx.TxHash()
+			doubleSpentTxHash, _ := dsTx.TxHash()
 			if !doubleSpentTxHash.IsEqual(txHash) {
 				logger.Warnf("Remove double spend tx when main chain update. TxHash: %v", doubleSpentTxHash)
 				tx_pool.hashToTx.Delete(*doubleSpentTxHash)
@@ -504,8 +505,8 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 		for txOutIdx := range removedTx.Vout {
 			outPoint.Index = uint32(txOutIdx)
 
-			childTx, exists := tx_pool.findTransaction(outPoint)
-			if !exists {
+			childTx := tx_pool.FindTransaction(&outPoint)
+			if childTx == nil {
 				continue
 			}
 
@@ -522,8 +523,8 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 // removeDoubleSpendTxs removes all txs from the main pool, which double spend the passed transaction.
 func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 	for _, txIn := range tx.Vin {
-		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
-			tx_pool.removeTx(doubleSpentTx, true /* recursive */)
+		if dsTx := tx_pool.FindTransaction(&txIn.PrevOutPoint); dsTx != nil {
+			tx_pool.removeTx(dsTx, true /* recursive */)
 		}
 	}
 }
