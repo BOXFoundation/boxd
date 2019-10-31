@@ -18,8 +18,14 @@ var (
 	utxoLiveCache = NewLiveUtxoCache()
 )
 
+type txPoolAPI interface {
+	GetAllTxs() []*types.TxWrap
+	FindTransaction(outpoint *types.OutPoint) *types.Transaction
+}
+
 type walletAgent struct {
-	table storage.Table
+	table  storage.Table
+	txpool txPoolAPI
 }
 
 // Config contains config information for wallet server
@@ -29,16 +35,19 @@ type Config struct {
 }
 
 // NewWalletAgent news a wallet agent instance
-func NewWalletAgent(table storage.Table, cacheTime int) service.WalletAgent {
+func NewWalletAgent(
+	table storage.Table, txpool txPoolAPI, cacheTime int,
+) service.WalletAgent {
 	utxoLiveCache.SetLiveDuration(cacheTime)
 	return &walletAgent{
-		table: table,
+		table:  table,
+		txpool: txpool,
 	}
 }
 
 // Balance returns the total balance of an address
 func (w *walletAgent) Balance(addrHash *types.AddressHash, tokenID *types.TokenID) (uint64, error) {
-	return BalanceFor(addrHash, tokenID, w.table)
+	return BalanceFor(addrHash, tokenID, w.table, w.txpool)
 }
 
 // Utxos returns all utxos of an address
@@ -46,5 +55,5 @@ func (w *walletAgent) Balance(addrHash *types.AddressHash, tokenID *types.TokenI
 func (w *walletAgent) Utxos(
 	addrHash *types.AddressHash, tokenID *types.TokenID, amount uint64,
 ) ([]*rpcpb.Utxo, error) {
-	return FetchUtxosOf(addrHash, tokenID, amount, false, w.table)
+	return FetchUtxosOf(addrHash, tokenID, amount, false, w.table, w.txpool)
 }

@@ -197,7 +197,7 @@ func NewTx(
 		amount += a
 	}
 	// get utxos
-	initialGasUsed := (uint64(len(toAddrs))/core.InOutNumPerExtraFee + 2) * core.TransferFee
+	initialGasUsed := uint64(len(toAddrs)/core.InOutNumPerExtraFee+2) * core.TransferFee
 	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+initialGasUsed, "", 0)
 	if err != nil {
 		err = fmt.Errorf("fetchUtxos error for %s amount %d: %s",
@@ -423,7 +423,7 @@ func MakeUnsignedTx(
 	amounts []uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	// add an extra TransferFee to avoid change amount is zero
-	gasUsed := (uint64(len(to))/core.InOutNumPerExtraFee + 2) * core.TransferFee
+	gasUsed := uint64(len(to)/core.InOutNumPerExtraFee+2) * core.TransferFee
 	total := gasUsed
 	for _, a := range amounts {
 		total += a
@@ -432,7 +432,7 @@ func MakeUnsignedTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	gasUsed = (uint64(len(to)+len(utxos)+1)/core.InOutNumPerExtraFee + 1) * core.TransferFee
+	gasUsed = uint64((len(to)+len(utxos)+1)/core.InOutNumPerExtraFee+1) * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -459,7 +459,7 @@ func MakeUnsignedCombineTx(
 		}
 		utxosAmt += amount
 	}
-	gasUsed := (uint64(1+len(utxos))/core.InOutNumPerExtraFee + 1) * core.TransferFee
+	gasUsed := uint64((1+len(utxos))/core.InOutNumPerExtraFee+1) * core.TransferFee
 	if utxosAmt <= gasUsed {
 		return nil, nil, errors.New("insufficient balance")
 	}
@@ -505,7 +505,7 @@ func MakeUnsignedCombineTokenTx(
 	}
 	totalUtxos = append(totalUtxos, utxos...)
 	// make tx
-	gasUsed := (uint64(2+len(utxos))/core.InOutNumPerExtraFee + 1) * core.TransferFee
+	gasUsed := uint64((2+len(utxos))/core.InOutNumPerExtraFee+1) * core.TransferFee
 	tx, _, err := txlogic.MakeUnsignedTokenTransferTx(from, []*types.AddressHash{from},
 		[]uint64{utxosAmtT}, tid, utxosAmt-gasUsed, totalUtxos...)
 	return tx, utxos, err
@@ -524,7 +524,8 @@ func MakeUnsignedContractDeployTx(
 		return nil, nil, err
 	}
 	amounts := []uint64{amount}
-	gasUsed = gasLimit*core.FixedGasPrice + uint64(len(utxos)+2)/core.InOutNumPerExtraFee*core.TransferFee
+	gasUsed = gasLimit*core.FixedGasPrice +
+		uint64((len(utxos)+2)/core.InOutNumPerExtraFee)*core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -550,7 +551,8 @@ func MakeUnsignedContractCallTx(
 		return nil, nil, err
 	}
 	amounts := []uint64{amount}
-	gasUsed = gasLimit*core.FixedGasPrice + uint64(len(utxos)+2)/core.InOutNumPerExtraFee*core.TransferFee
+	gasUsed = gasLimit*core.FixedGasPrice +
+		uint64((len(utxos)+2)/core.InOutNumPerExtraFee)*core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(amounts, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -576,7 +578,7 @@ func MakeUnsignedSplitAddrTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	gasUsed = uint64(len(utxos)+2) / core.InOutNumPerExtraFee * core.TransferFee
+	gasUsed = uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -601,7 +603,7 @@ func MakeUnsignedTokenIssueTx(
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	gasUsed = uint64(len(utxos)+2) / core.InOutNumPerExtraFee * core.TransferFee
+	gasUsed = uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
@@ -630,7 +632,8 @@ func MakeUnsignedTokenTransferTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	gasUsed = uint64(len(utxos)+len(tokenUtxos)+len(to)+1) / core.InOutNumPerExtraFee * core.TransferFee
+	gasUsed = uint64((len(utxos)+len(tokenUtxos)+len(to)+1)/core.InOutNumPerExtraFee) *
+		core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance

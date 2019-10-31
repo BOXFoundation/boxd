@@ -507,7 +507,7 @@ func (tx *Transaction) Copy() *Transaction {
 
 // ExtraFee returns extra fee
 func (tx *Transaction) ExtraFee() uint64 {
-	return uint64(len(tx.Vin)+len(tx.Vout)) / core.InOutNumPerExtraFee * core.TransferFee
+	return uint64((len(tx.Vin)+len(tx.Vout))/core.InOutNumPerExtraFee) * core.TransferFee
 }
 
 // RoughSize return size of transaction in memory
