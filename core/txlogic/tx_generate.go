@@ -61,7 +61,8 @@ func NewSplitAddrTxWithUtxos(
 	for _, u := range utxos {
 		utxoValue += u.GetTxOut().GetValue()
 	}
-	changeAmt := utxoValue - core.TransferFee
+	extraFee := uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
+	changeAmt := utxoValue - core.TransferFee - extraFee
 	// make unsigned split addr tx
 	tx, err = MakeUnsignedSplitAddrTx(acc.AddressHash(), addrs, weights,
 		changeAmt, utxos...)
@@ -337,8 +338,7 @@ func MakeUnsignedTokenIssueTx(
 // MakeUnsignedTokenTransferTx make unsigned token transfer tx
 func MakeUnsignedTokenTransferTx(
 	from *types.AddressHash, to []*types.AddressHash, amounts []uint64,
-	tid *types.TokenID, changeAmt uint64,
-	utxos ...*rpcpb.Utxo,
+	tid *types.TokenID, changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint64, error) {
 
 	if len(to) != len(amounts) {

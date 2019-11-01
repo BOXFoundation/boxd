@@ -90,12 +90,13 @@ func NewIssueTokenTx(
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	//
+	extraFee := uint64(len(utxos)+2) / core.InOutNumPerExtraFee * core.TransferFee
 	tx, tid, change, err := txlogic.NewTokenIssueTxWithUtxos(acc, to, tag,
-		inputAmt-core.TransferFee, utxos...)
+		inputAmt-core.TransferFee-extraFee, utxos...)
 	if err != nil {
 		logger.Warnf("new issue token tx with utxos from %s to %s tag %+v "+
 			"supply %d change %d with utxos: %+v error: %s", acc.Addr(), to, tag,
-			tag.Supply, inputAmt-core.TransferFee, utxos, err)
+			tag.Supply, inputAmt-core.TransferFee-extraFee, utxos, err)
 		return nil, nil, nil, err
 	}
 	return tx, tid, change, nil
@@ -197,21 +198,20 @@ func NewTx(
 		amount += a
 	}
 	// get utxos
-	initialGasUsed := uint64(len(toAddrs)/core.InOutNumPerExtraFee+2) * core.TransferFee
+	initialGasUsed := uint64((len(toAddrs)+1)/core.InOutNumPerExtraFee+1) * core.TransferFee
 	utxos, err := fetchUtxos(conn, fromAcc.Addr(), amount+initialGasUsed, "", 0)
 	if err != nil {
 		err = fmt.Errorf("fetchUtxos error for %s amount %d: %s",
-			fromAcc.Addr(), amount+core.TransferFee, err)
+			fromAcc.Addr(), amount+initialGasUsed, err)
 		return
 	}
-	// NOTE: for test only
-	//checkDuplicateUtxos(utxos)
 	// calc change amount
 	total := uint64(0)
 	for _, u := range utxos {
 		total += u.GetTxOut().GetValue()
 	}
-	changeAmt := total - amount - core.TransferFee
+	extraFee := uint64((len(toAddrs)+len(utxos)+1)/core.InOutNumPerExtraFee) * core.TransferFee
+	changeAmt := total - amount - core.TransferFee - extraFee
 	if changeAmt >= total {
 		err = fmt.Errorf("invalid arguments, addr %s utxo total=%d, amount=%d, "+
 			"changeAmt=%d", fromAcc.Addr(), total, amount, changeAmt)
@@ -302,8 +302,7 @@ func NewTokenTx(
 	acc *acc.Account, toAddrs []*types.AddressHash, amounts []uint64, tHashStr string,
 	tIdx uint32, conn *grpc.ClientConn,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
-
-	amount := core.TransferFee
+	amount := core.TransferFee + uint64((len(toAddrs)+1)/core.InOutNumPerExtraFee)*core.TransferFee
 	amountT := uint64(0)
 	for _, a := range amounts {
 		amountT += a
@@ -311,6 +310,10 @@ func NewTokenTx(
 	boxUtxos, err := fetchUtxos(conn, acc.Addr(), amount, "", 0)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	total := uint64(0)
+	for _, u := range boxUtxos {
+		total += u.GetTxOut().GetValue()
 	}
 	tokenUtxos, err := fetchUtxos(conn, acc.Addr(), amountT, tHashStr, tIdx)
 	if err != nil {
@@ -321,14 +324,16 @@ func NewTokenTx(
 	if err := tHash.SetString(tHashStr); err != nil {
 		return nil, nil, nil, err
 	}
+	extraFee := uint64((len(utxos)+len(toAddrs)+2)/core.InOutNumPerExtraFee) * core.TransferFee
 	tid := (*types.TokenID)(types.NewOutPoint(tHash, tIdx))
-	return txlogic.NewTokenTransferTxWithUtxos(acc, toAddrs, amounts, tid, 0, utxos...)
+	return txlogic.NewTokenTransferTxWithUtxos(acc, toAddrs, amounts, tid,
+		total-core.TransferFee-extraFee, utxos...)
 }
 
 // NewTokenTxs new a token tx
 func NewTokenTxs(
-	acc *acc.Account, toAddr *types.AddressHash, amountT uint64, count int, tHashStr string,
-	tIdx uint32, conn *grpc.ClientConn,
+	acc *acc.Account, toAddr *types.AddressHash, amountT uint64, count int,
+	tHashStr string, tIdx uint32, conn *grpc.ClientConn,
 ) ([]*types.Transaction, error) {
 	// get utxos
 	amount := core.TransferFee * uint64(count)
@@ -423,7 +428,7 @@ func MakeUnsignedTx(
 	amounts []uint64,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	// add an extra TransferFee to avoid change amount is zero
-	gasUsed := uint64(len(to)/core.InOutNumPerExtraFee+2) * core.TransferFee
+	gasUsed := uint64(len(to)/core.InOutNumPerExtraFee+1) * core.TransferFee
 	total := gasUsed
 	for _, a := range amounts {
 		total += a
@@ -475,7 +480,7 @@ func MakeUnsignedCombineTokenTx(
 
 	// fetch box utxos
 	// add an extra TransferFee to avoid change amount is zero
-	utxos, err := wa.Utxos(from, nil, 2*core.TransferFee)
+	utxos, err := wa.Utxos(from, nil, core.TransferFee)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -505,7 +510,7 @@ func MakeUnsignedCombineTokenTx(
 	}
 	totalUtxos = append(totalUtxos, utxos...)
 	// make tx
-	gasUsed := uint64((2+len(utxos))/core.InOutNumPerExtraFee+1) * core.TransferFee
+	gasUsed := uint64((1+len(utxos))/core.InOutNumPerExtraFee+1) * core.TransferFee
 	tx, _, err := txlogic.MakeUnsignedTokenTransferTx(from, []*types.AddressHash{from},
 		[]uint64{utxosAmtT}, tid, utxosAmt-gasUsed, totalUtxos...)
 	return tx, utxos, err
@@ -517,7 +522,7 @@ func MakeUnsignedContractDeployTx(
 	byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	// add an extra TransferFee to avoid change amount is zero
-	gasUsed := gasLimit*core.FixedGasPrice + core.TransferFee
+	gasUsed := gasLimit * core.FixedGasPrice
 	total := gasUsed + amount
 	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
@@ -544,7 +549,7 @@ func MakeUnsignedContractCallTx(
 	contractAddr *types.AddressHash, byteCode []byte,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	// add an extra TransferFees to avoid change amount is zero
-	gasUsed := gasLimit*core.FixedGasPrice + core.TransferFee
+	gasUsed := gasLimit * core.FixedGasPrice
 	total := gasUsed + amount
 	utxos, err := wa.Utxos(from, nil, total)
 	if err != nil {
@@ -573,12 +578,12 @@ func MakeUnsignedSplitAddrTx(
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 
 	// add an extra TransferFee to avoid change amount is zero
-	gasUsed := 2 * core.TransferFee
+	gasUsed := core.TransferFee
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
 		return nil, nil, err
 	}
-	gasUsed = uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
+	gasUsed = uint64((len(utxos)+2)/core.InOutNumPerExtraFee+1) * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, nil, txlogic.ErrInsufficientBalance
@@ -598,12 +603,12 @@ func MakeUnsignedTokenIssueTx(
 		return nil, 0, nil, fmt.Errorf("supply is too bigger")
 	}
 	// add an extra TransferFee to avoid change amount is zero
-	gasUsed := 2 * core.TransferFee
+	gasUsed := core.TransferFee
 	utxos, err := wa.Utxos(issuer, nil, gasUsed)
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	gasUsed = uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
+	gasUsed = uint64((len(utxos)+2)/core.InOutNumPerExtraFee+1) * core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
 		return nil, 0, nil, txlogic.ErrInsufficientBalance
@@ -619,7 +624,7 @@ func MakeUnsignedTokenTransferTx(
 	amounts []uint64, tid *types.TokenID,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	// add an extra TransferFee to avoid change amount is zero
-	gasUsed := 2 * core.TransferFee
+	gasUsed := core.TransferFee
 	utxos, err := wa.Utxos(from, nil, gasUsed)
 	if err != nil {
 		return nil, nil, err
@@ -632,7 +637,7 @@ func MakeUnsignedTokenTransferTx(
 	if err != nil {
 		return nil, nil, err
 	}
-	gasUsed = uint64((len(utxos)+len(tokenUtxos)+len(to)+1)/core.InOutNumPerExtraFee) *
+	gasUsed = uint64((len(utxos)+len(tokenUtxos)+len(to)+1)/core.InOutNumPerExtraFee+1) *
 		core.TransferFee
 	changeAmt, _, overflowed := calcChangeAmount(nil, gasUsed, utxos...)
 	if overflowed {
