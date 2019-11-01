@@ -267,6 +267,10 @@
 						"type": "uint256"
 					},
 					{
+						"name": "proposer",
+						"type": "address"
+					},
+					{
 						"name": "value",
 						"type": "uint256"
 					},
@@ -414,6 +418,10 @@
 					{
 						"name": "id",
 						"type": "uint256"
+					},
+					{
+						"name": "proposer",
+						"type": "address"
 					},
 					{
 						"name": "value",
