@@ -169,11 +169,11 @@ func fetchModerateUtxos(
 		}
 		utxoCacheMtx.Unlock()
 		// check utxos oob
-		if len(result)+len(selUtxos) >= core.MaxUtxosInTx {
+		if len(result)+len(selUtxos) >= core.MaxVinInTx {
 			if origTotal == 0 {
-				return append(result, selUtxos[:core.MaxUtxosInTx-len(result)]...), 0, nil
+				return append(result, selUtxos[:core.MaxVinInTx-len(result)]...), 0, nil
 			}
-			extraFee = uint64(core.MaxUtxosInTx/core.InOutNumPerExtraFee) * core.TransferFee
+			extraFee = uint64(core.MaxVinInTx/core.InOutNumPerExtraFee) * core.TransferFee
 			if now+amount < origTotal+extraFee {
 				return nil, 0, core.ErrUtxosOob
 			}
@@ -181,7 +181,7 @@ func fetchModerateUtxos(
 			for i, u := range selUtxos {
 				bit += u.TxOut.Value
 				extraFee = uint64((len(result)+i+1)/core.InOutNumPerExtraFee) * core.TransferFee
-				if len(result)+i+1 <= core.MaxUtxosInTx && now+bit >= origTotal+extraFee {
+				if len(result)+i+1 <= core.MaxVinInTx && now+bit >= origTotal+extraFee {
 					return append(result, selUtxos[:i+1]...), now + bit, nil
 				}
 			}
@@ -398,7 +398,7 @@ func fetchUtxoFromTxPool(
 				return utxos, total, nil
 			}
 			preUtxoCnt++
-			if preUtxoCnt >= core.MaxUtxosInTx {
+			if preUtxoCnt >= core.MaxVinInTx {
 				return nil, 0, core.ErrUtxosOob
 			}
 		}

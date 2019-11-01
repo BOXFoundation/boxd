@@ -20,8 +20,8 @@ const (
 	// MaxCoinbaseScriptLen is the maximum length a coinbase script can be.
 	MaxCoinbaseScriptLen = 1000
 
-	MaxUtxosInTx = 1024
-	MaxVoutInTx  = 1024
+	MaxVinInTx  = 256
+	MaxVoutInTx = 256
 
 	MaxBlockTimeOut  = 1
 	MaxBlockGasLimit = 10000 * TransferFee

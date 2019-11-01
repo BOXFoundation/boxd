@@ -392,7 +392,7 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 	}
 
 	// A transaction must have no more than MaxVins vins
-	if len(tx.Vin) > core.MaxUtxosInTx {
+	if len(tx.Vin) > core.MaxVinInTx {
 		return core.ErrUtxosOob
 	}
 
