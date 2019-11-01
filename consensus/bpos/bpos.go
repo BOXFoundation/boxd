@@ -285,21 +285,6 @@ func (bpos *Bpos) IsBookkeeper() bool {
 		return true
 	}
 
-	//addr, err := types.NewAddress(bpos.bookkeeper.Addr())
-	//if err != nil {
-	//	return false
-	//}
-	//delegates, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
-	//if err != nil {
-	//	return false
-	//}
-	//var addrs []types.AddressHash
-	//for _, v := range delegates {
-	//	addrs = append(addrs, v.Addr)
-	//}
-	//if !types.InAddresses(*addr.Hash160(), addrs) {
-	//	return false
-	//}
 	if err := bpos.bookkeeper.UnlockWithPassphrase(bpos.cfg.Passphrase); err != nil {
 		logger.Error(err)
 		return false
@@ -724,10 +709,6 @@ func (bpos *Bpos) BroadcastBFTMsgToBookkeepers(block *types.Block, messageID uin
 // verifyCandidates vefiry if the block candidates hash is right.
 func (bpos *Bpos) verifyDynasty(block *types.Block) error {
 	if block.Header.Height > 0 {
-		// dynasty, err := bpos.fetchDynastyByHeight(block.Header.Height - 1)
-		// if err != nil {
-		// 	return err
-		// }
 		dynastyBytes, err := bpos.context.verifyDynasty.Marshal()
 		if err != nil {
 			return err
@@ -748,16 +729,11 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 	if irreversibleInfo != nil {
 		dynasty := bpos.context.verifyDynasty
 		if len(irreversibleInfo.Signatures) < 2*len(dynasty.delegates)/3 {
-			logger.Errorf("the number of irreversibleInfo signatures is not enough. signatures len: %d dynasty len: %d", len(irreversibleInfo.Signatures), len(dynasty.delegates))
+			logger.Errorf("the number of irreversibleInfo signatures is not enough. "+
+				"signatures len: %d dynasty len: %d", len(irreversibleInfo.Signatures),
+				len(dynasty.delegates))
 			return errors.New("the number of irreversibleInfo signatures is not enough")
 		}
-		// check hash is exist
-		// block, _ := bpos.chain.LoadBlockByHash(irreversibleInfo.Hash)
-		// if block == nil {
-		// 	logger.Warnf("Invalid irreversible info. The block hash %s is not exist.", irreversibleInfo.Hash.String())
-		// 	return ErrInvalidHashInIrreversibleInfo
-		// }
-		//TODO: period switching requires extra processing
 
 		remains := []types.AddressHash{}
 		for _, v := range irreversibleInfo.Signatures {
@@ -785,7 +761,8 @@ func (bpos *Bpos) verifyIrreversibleInfo(block *types.Block) error {
 			}
 		}
 		if len(remains) < 2*len(dynasty.delegates)/3 {
-			logger.Errorf("Invalid irreversible info in block. Hash: %s, Height: %d, remains: %d", block.BlockHash().String(), block.Header.Height, len(remains))
+			logger.Errorf("Invalid irreversible info in block. Hash: %s, Height: %d,"+
+				" remains: %d", block.BlockHash().String(), block.Header.Height, len(remains))
 			return errors.New("Invalid irreversible info in block")
 		}
 	}
@@ -844,7 +821,10 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 
 func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
 
-	if (uint64((block.Header.Height+1))%bpos.context.verifyDynastySwitchThreshold.Uint64() == 0) || (uint64((block.Header.Height))%bpos.context.verifyDynastySwitchThreshold.Uint64() == bpos.context.verifyCalcScoreThreshold.Uint64()) { // dynasty switch
+	height := block.Header.Height
+	switchHeight := bpos.context.verifyDynastySwitchThreshold.Uint64()
+	scoreHeight := bpos.context.verifyCalcScoreThreshold.Uint64()
+	if uint64(height+1)%switchHeight == 0 || uint64(height)%switchHeight == scoreHeight {
 		if !chain.IsInternalContract(block.Txs[1]) {
 			return ErrInvalidDynastySwitchTx
 		}
@@ -869,7 +849,8 @@ func (bpos *Bpos) TryToUpdateEternalBlock(src *types.Block) {
 	irreversibleInfo := src.IrreversibleInfo
 	dynasty := bpos.context.verifyDynasty
 	if irreversibleInfo != nil {
-		logger.Debugf("TryToUpdateEternalBlock received number of signatures: %d", len(irreversibleInfo.Signatures))
+		logger.Debugf("TryToUpdateEternalBlock received number of signatures: %d",
+			len(irreversibleInfo.Signatures))
 	}
 	if irreversibleInfo != nil && len(irreversibleInfo.Signatures) >= 2*len(dynasty.delegates)/3 {
 		block, err := chain.LoadBlockByHash(irreversibleInfo.Hash, bpos.chain.DB())

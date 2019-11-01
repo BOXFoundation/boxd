@@ -379,9 +379,6 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 			continue
 		}
 		utxoWrap = types.NewUtxoWrap(prevOut.Value, prevOut.ScriptPubKey, block.Header.Height)
-		// if IsCoinBase(prevTx) {
-		// 	utxoWrap.SetCoinBase()
-		// }
 		u.utxoMap[txIn.PrevOutPoint] = utxoWrap
 	}
 	return nil
@@ -438,9 +435,6 @@ func utxoWrapHeaderCode(utxoWrap *types.UtxoWrap) (uint64, error) {
 	// encodes the height shifted over one bit and the coinbase flag in the
 	// lowest bit.
 	headerCode := uint64(utxoWrap.Height()) << 1
-	// if utxoWrap.IsCoinBase() {
-	// 	headerCode |= 0x01
-	// }
 
 	return headerCode, nil
 }
@@ -490,9 +484,6 @@ func DeserializeUtxoWrap(serialized []byte) (*types.UtxoWrap, error) {
 	}
 
 	utxoWrap := types.NewUtxoWrap(value, pkScript, blockHeight)
-	// if isCoinBase {
-	// 	utxoWrap.SetCoinBase()
-	// }
 
 	return utxoWrap, nil
 }
@@ -770,9 +761,6 @@ func MakeRollbackContractUtxos(
 		ah.SetBytes(op.Hash[:])
 		b := prevStateDB.GetBalance(*ah)
 		checkBalance := u.Value()
-		// if *ah == ContractAddr {
-		// 	checkBalance -= block.Header.GasUsed
-		// }
 		if b.Uint64() != checkBalance {
 			addr, _ := types.NewContractAddressFromHash(ah[:])
 			return nil, fmt.Errorf("block %s:%d contract addr %s rollback to incorrect "+

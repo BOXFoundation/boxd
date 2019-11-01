@@ -472,14 +472,6 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return core.ErrRepeatedMintAtSameTime
 	}
 
-	// if messageFrom != "" { // local block does not require validation
-	// 	if err := chain.consensus.Verify(block); err != nil {
-	// 		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
-	// 			block.BlockHash(), block.Header.Height, err)
-	// 		return err
-	// 	}
-	// }
-
 	if err := validateBlock(block); err != nil {
 		logger.Errorf("Failed to validate block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash(), block.Header.Height, err)
@@ -571,13 +563,11 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 		return core.ErrParentBlockNotExist
 	}
 
-	// if messageFrom != "" { // local block does not require validation
 	if err := chain.consensus.Verify(block); err != nil {
 		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash(), block.Header.Height, err)
 		return err
 	}
-	// }
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Header.Height != parentBlock.Header.Height+1 {
@@ -585,8 +575,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 			blockHash.String(), block.Header.Height, parentBlock.Header.Height)
 		return core.ErrWrongBlockHeight
 	}
-
-	// chain.blockcache.Add(*blockHash, block)
 
 	// Connect the passed block to the main or side chain.
 	// There are 3 cases.
@@ -782,14 +770,6 @@ func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, er
 		if err != nil {
 			return 0, err
 		}
-		// if IsCoinBase(tx) || IsInternalContract(tx) {
-		// 	if txFee != 0 {
-		// 		logger.Warnf("coinbase tx %s have wrong fee %d", txHash, txFee)
-		// 		return 0, core.ErrInvalidFee
-		// 	}
-		// } else {
-
-		// }
 		if txFee != param.GasLimit*core.FixedGasPrice+tx.ExtraFee() {
 			logger.Warnf("contract tx %s have wrong fee %d gas limit %d", txHash, txFee, param.GasLimit)
 			return 0, core.ErrInvalidFee
@@ -939,11 +919,6 @@ func (chain *BlockChain) executeBlock(
 		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee, rcps); err != nil {
 			return err
 		}
-
-		// update genesis contract utxo in utxoSet
-		// op := types.NewOutPoint(types.NormalizeAddressHash(&ContractAddr), 0)
-		// genesisUtxoWrap := utxoSet.GetUtxo(op)
-		// genesisUtxoWrap.SetValue(genesisUtxoWrap.Value() + gasUsed)
 
 		// apply internal txs.
 		if len(block.InternalTxs) > 0 {
@@ -1255,8 +1230,6 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	}
 	utxoSet.ImportUtxoMap(contractUtxos)
 
-	// chain.db.EnableBatch()
-	// defer chain.db.DisableBatch()
 	batch := chain.db.NewBatch()
 	defer batch.Close()
 
@@ -1639,21 +1612,6 @@ func (chain *BlockChain) GetLogs(from, to uint32, topicslist [][][]byte) ([]*typ
 
 // FilterLogs filter logs by addrs and topicslist.
 func (chain *BlockChain) FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error) {
-
-	// topicslist = [][][]byte{}
-	// var data []byte
-
-	// topicslist[0] = make([][]byte, len(addrs))
-	// for i, addr := range addrs {
-	// 	topicslist[0][i] = addr
-	// }
-
-	// for i, topics := range topicslist {
-	// 	for j, topic := range topics {
-	// 		copy(topicslist[i+1][j], topic)
-	// 	}
-	// }
-
 	return chain.sectionMgr.filterLogs(logs, topicslist)
 }
 
