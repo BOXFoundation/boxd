@@ -98,7 +98,10 @@ message RegisterDetails {
     
 message ViewTxDetailReq {
     string hash = 1;
-    bool spread_split = 2;
+    string block_hash = 2;
+    uint32 block_height = 3;
+    uint32 index = 4;
+    bool spread_split = 5;
 }
 
 enum TxStatus {
@@ -120,6 +123,7 @@ message ViewTxDetailResp {
 
 message ViewBlockDetailReq {
     string hash = 1;
+    uint32 height = 2;
 }
 
 message ViewBlockDetailResp {

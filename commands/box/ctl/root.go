@@ -55,16 +55,6 @@ func init() {
 			Run:   updateNetworkID,
 		},
 		&cobra.Command{
-			Use:   "getblock [hash]",
-			Short: "Get the block with a specific hash",
-			Run:   getBlockCmdFunc,
-		},
-		&cobra.Command{
-			Use:   "getblockbyheight [height]",
-			Short: "Get the block with a specific height",
-			Run:   getBLockByHeight,
-		},
-		&cobra.Command{
 			Use:   "getblockcount",
 			Short: "Get the total block count",
 			Run:   getBlockCountCmdFunc,
@@ -81,9 +71,9 @@ func init() {
 		},
 
 		&cobra.Command{
-			Use:   "viewblockdetail [blockhash]",
-			Short: "Get the raw blockInformation for a block hash",
-			Run:   getBlockDetailCmdFunc,
+			Use:   "viewblockdetail [optional|blockhash,blockheight]",
+			Short: "Get the raw blockInformation",
+			Run:   getBlockCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "getinfo",
@@ -178,18 +168,30 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	hash := new(crypto.HashType)
+	var (
+		hash    = new(crypto.HashType)
+		height  uint64
+		respRPC interface{}
+	)
 	if err := hash.SetString(args[0]); err != nil {
-		fmt.Println("invalid block hash")
-		return
+		height, err = strconv.ParseUint(args[0], 10, 32)
+		if err != nil {
+			fmt.Println("invalid argument:", args[0])
+			return
+		}
+		respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Height: uint32(height)}, common.GetRPCAddr())
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	} else {
+		respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Hash: hash.String()}, common.GetRPCAddr())
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlock",
-		&rpcpb.GetBlockRequest{BlockHash: hash.String()}, common.GetRPCAddr())
-	if err != nil {
-		fmt.Println("RPC called failed:", err)
-		return
-	}
-	resp, ok := respRPC.(*rpcpb.GetBlockResponse)
+	resp, ok := respRPC.(*rpcpb.ViewBlockDetailResp)
 	if !ok {
 		fmt.Println("Conversion rpcpb.GetBlockResponse failed")
 		return
@@ -198,37 +200,7 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println(format.PrettyPrint(resp.Block))
-}
-
-func getBLockByHeight(cmd *cobra.Command, args []string) {
-	if len(args) == 0 {
-		fmt.Println(cmd.Use)
-		return
-	}
-	height, err := strconv.ParseUint(args[0], 10, 32)
-	if err != nil {
-		fmt.Println("Conversion the type of height failed:", err)
-		return
-	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockByHeight",
-		&rpcpb.GetBlockByHeightReq{Height: uint32(height)}, common.GetRPCAddr())
-	if err != nil {
-		fmt.Println("RPC call failed:", err)
-		return
-	}
-	resp, ok := respRPC.(*rpcpb.GetBlockResponse)
-	if !ok {
-		fmt.Println("Conversion to rpcpb.GetBlockResponse failed")
-		return
-	}
-	block := new(types.Block)
-	err = block.FromProtoMessage(resp.Block)
-	if err != nil {
-		fmt.Println("The format of block conversion failed:", err)
-		return
-	}
-	fmt.Println(format.PrettyPrint(block))
+	fmt.Println(format.PrettyPrint(resp.Detail))
 }
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {
@@ -314,34 +286,6 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf(format.PrettyPrint(header))
-}
-
-func getBlockDetailCmdFunc(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		fmt.Println(cmd.Use)
-		return
-	}
-	hash := new(crypto.HashType)
-	if err := hash.SetString(args[0]); err != nil {
-		fmt.Println("invalid block hash")
-		return
-	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail",
-		&rpcpb.ViewBlockDetailReq{Hash: hash.String()}, common.GetRPCAddr())
-	if err != nil {
-		fmt.Println("RPC called failed:", err)
-		return
-	}
-	resp, ok := respRPC.(*rpcpb.GetBlockResponse)
-	if !ok {
-		fmt.Println("Conversion rpcpb.GetBlockResponse failed")
-		return
-	}
-	if resp.Code != 0 {
-		fmt.Println(resp.Message)
-		return
-	}
-	fmt.Println(format.PrettyPrint(resp.Block))
 }
 
 func getInfoCmdFunc(cmd *cobra.Command, args []string) {

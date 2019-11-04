@@ -220,167 +220,43 @@ func (s *ctlserver) GetBlockHeader(ctx context.Context, req *rpcpb.GetBlockReque
 	return newGetBlockHeaderResponse(-1, "Internal Error", nil), nil
 }
 
-func newGetBlockResponse(code int32, msg string, block *corepb.Block) *rpcpb.GetBlockResponse {
-	return &rpcpb.GetBlockResponse{
-		Code:    code,
-		Message: msg,
-		Block:   block,
-	}
-}
-
-func (s *ctlserver) GetBlock(ctx context.Context, req *rpcpb.GetBlockRequest) (*rpcpb.GetBlockResponse, error) {
-	hash := &crypto.HashType{}
-	err := hash.SetString(req.BlockHash)
-	if err != nil {
-		return newGetBlockResponse(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), nil), nil
-	}
-	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
-	if err != nil {
-		return newGetBlockResponse(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), nil), nil
-	}
-	msg, err := block.ToProtoMessage()
-	if err != nil {
-		return newGetBlockResponse(-1, err.Error(), nil), nil
-	}
-	if blockPb, ok := msg.(*corepb.Block); ok {
-		return newGetBlockResponse(0, "ok", blockPb), nil
-	}
-	return newGetBlockResponse(-1, "Internal Error", nil), nil
-}
-
-func (s *ctlserver) GetBlockByHeight(ctx context.Context, req *rpcpb.GetBlockByHeightReq) (*rpcpb.GetBlockResponse, error) {
-	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
-	if err != nil {
-		return newGetBlockResponse(-1, err.Error(), nil), nil
-	}
-	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
-	if err != nil {
-		return newGetBlockResponse(-1, "Invalid hash", nil), nil
-	}
-	msg, err := block.ToProtoMessage()
-	if err != nil {
-		return newGetBlockResponse(-1, err.Error(), nil), nil
-	}
-	if blockPb, ok := msg.(*corepb.Block); ok {
-		return newGetBlockResponse(0, "ok", blockPb), nil
-	}
-	return newGetBlockResponse(-1, "Internal Error", nil), nil
-
-}
-
-func newGetBlockTxCountResp(code int32, message string, count uint32) *rpcpb.GetBlockTxCountResp {
-	return &rpcpb.GetBlockTxCountResp{
+func newGetTxCountResp(code int32, message string, count uint32) *rpcpb.GetTxCountResp {
+	return &rpcpb.GetTxCountResp{
 		Code:    code,
 		Message: message,
 		Count:   count,
 	}
 }
 
-func (s *ctlserver) GetBlockTransactionCountByHash(ctx context.Context,
-	req *rpcpb.GetBlockTransactionCountByHashReq) (*rpcpb.GetBlockTxCountResp, error) {
-	hash := &crypto.HashType{}
-	err := hash.SetString(req.BlockHash)
-	if err != nil {
-		return newGetBlockTxCountResp(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), 0), nil
+func (s *ctlserver) GetTxCount(ctx context.Context,
+	req *rpcpb.GetTxCountReq) (*rpcpb.GetTxCountResp, error) {
+	hash := new(crypto.HashType)
+	var err error
+	if len(req.BlockHash) == 0 {
+		hash, err = s.server.GetChainReader().GetBlockHash(req.BlockHeight)
+		if err != nil {
+			return newGetTxCountResp(-1, err.Error(), 0), nil
+		}
+	} else {
+		if err := hash.SetString(req.BlockHash); err != nil {
+			return newGetTxCountResp(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), 0), nil
+		}
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return newGetBlockTxCountResp(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), 0), nil
+		return newGetTxCountResp(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), 0), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return newGetBlockTxCountResp(-1, err.Error(), 0), nil
+		return newGetTxCountResp(-1, err.Error(), 0), nil
 	}
 	blockPb, ok := msg.(*corepb.Block)
 
 	if !ok {
-		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), nil
+		return newGetTxCountResp(-1, "can't convert proto message", 0), nil
 	}
 	count := len(blockPb.Txs)
-	return newGetBlockTxCountResp(0, "ok", uint32(count)), nil
-}
-func (s *ctlserver) GetBlockTransactionCountByHeight(ctx context.Context,
-	req *rpcpb.GetBlockTransactionCountByHeightReq) (*rpcpb.GetBlockTxCountResp, error) {
-	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
-	if err != nil {
-		return newGetBlockTxCountResp(-1, err.Error(), 0), nil
-	}
-	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
-	if err != nil {
-		return newGetBlockTxCountResp(-1, "Invalid hash", 0), nil
-	}
-	msg, err := block.ToProtoMessage()
-	if err != nil {
-		return newGetBlockTxCountResp(-1, err.Error(), 0), nil
-	}
-	blockPb, ok := msg.(*corepb.Block)
-
-	if !ok {
-		return newGetBlockTxCountResp(-1, "can't convert proto message", 0), nil
-	}
-	count := len(blockPb.Txs)
-	return newGetBlockTxCountResp(0, "ok", uint32(count)), nil
-}
-
-func newGetTxResp(code int32, message string, tx *corepb.Transaction) *rpcpb.GetTxResp {
-	return &rpcpb.GetTxResp{
-		Code:    code,
-		Message: message,
-		Tx:      tx,
-	}
-}
-
-func (s *ctlserver) GetTransactionByBlockHashAndIndex(ctx context.Context,
-	req *rpcpb.GetTransactionByBlockHashAndIndexReq) (*rpcpb.GetTxResp, error) {
-	hash := &crypto.HashType{}
-	err := hash.SetString(req.BlockHash)
-	if err != nil {
-		return newGetTxResp(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), nil), nil
-	}
-	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
-	if err != nil {
-		return newGetTxResp(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), nil), nil
-	}
-	msg, err := block.ToProtoMessage()
-	if err != nil {
-		return newGetTxResp(-1, err.Error(), nil), nil
-	}
-	blockPb, ok := msg.(*corepb.Block)
-
-	if !ok {
-		return newGetTxResp(-1, "can't convert proto message", nil), nil
-	}
-	if req.Index > uint32(len(blockPb.Txs)-1) {
-		return newGetTxResp(-1, "can't find Tx", nil), nil
-	}
-	tx := blockPb.Txs[req.Index]
-	return newGetTxResp(0, "ok", tx), nil
-}
-
-func (s *ctlserver) GetTransactionByBlockHeightAndIndex(ctx context.Context,
-	req *rpcpb.GetTransactionByBlockHeightAndIndexReq) (*rpcpb.GetTxResp, error) {
-	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
-	if err != nil {
-		return newGetTxResp(-1, err.Error(), nil), nil
-	}
-	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
-	if err != nil {
-		return newGetTxResp(-1, "Invalid hash", nil), nil
-	}
-	msg, err := block.ToProtoMessage()
-	if err != nil {
-		return newGetTxResp(-1, err.Error(), nil), nil
-	}
-	blockPb, ok := msg.(*corepb.Block)
-
-	if !ok {
-		return newGetTxResp(-1, "can't convert proto message", nil), nil
-	}
-	if req.Index > uint32(len(blockPb.Txs)-1) {
-		return newGetTxResp(-1, "can't find Tx", nil), nil
-	}
-	tx := blockPb.Txs[req.Index]
-	return newGetTxResp(0, "ok", tx), nil
+	return newGetTxCountResp(0, "ok", uint32(count)), nil
 }
 
 // Delegate is an account to run for bookkeepers.

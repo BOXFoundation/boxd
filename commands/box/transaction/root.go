@@ -78,25 +78,9 @@ func init() {
 			Run:   decoderawtx,
 		},
 		&cobra.Command{
-			Use:   "viewtxdetail [txhash]",
-			Short: "Get the raw transaction for a transaction hash",
-			Run:   getRawTxCmdFunc,
-		},
-		&cobra.Command{
 			Use:   "sendrawtx [rawtx]",
 			Short: "Send a raw transaction to the network",
 			Run:   sendrawtx,
-		},
-		&cobra.Command{
-			Use:   "decoderawtx",
-			Short: "A brief description of your command",
-			Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra  application.`,
-			Run: decoderawtx,
 		},
 		&cobra.Command{
 			Use:   "getrawtx [txhash]",
@@ -104,24 +88,14 @@ to quickly create a Cobra  application.`,
 			Run:   getRawTxCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "gettxcountbyhash [blockhash]",
-			Short: "Get the transaction amount by hash",
-			Run:   getTxCountByHash,
+			Use:   "gettxcount[optional|blockheight,blockhash]",
+			Short: "Get the transaction amount",
+			Run:   getTxCount,
 		},
 		&cobra.Command{
-			Use:   "gettxcountbyheight [blockheight]",
-			Short: "Get the transaction amount by height",
-			Run:   getTxCountByHeight,
-		},
-		&cobra.Command{
-			Use:   "gettxbyhash [blockhash] [tx_index]",
-			Short: "Get the transaction by block_hash and block_index",
-			Run:   getTxByHashAndIndex,
-		},
-		&cobra.Command{
-			Use:   "gettxbyheight [blockheight] [tx_index]",
-			Short: "Get the transaction  by height and tx_index",
-			Run:   getTxByHeightAndIndex,
+			Use:   "viewtxdetail [option|tx_hash, blockheight, blockhash] [tx_index]",
+			Short: "view the details of the transaction",
+			Run:   viewTxDetail,
 		},
 		&cobra.Command{
 			Use:   "fetchutxo [addr] [amount] [token_hash] [token_index]",
@@ -263,20 +237,37 @@ func getRawTxCmdFunc(cmd *cobra.Command, args []string) {
 
 }
 
-func getTxCountByHash(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
+func getTxCount(cmd *cobra.Command, args []string) {
+	if len(args) == 0 {
 		fmt.Println(cmd.Use)
 		return
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockTransactionCountByHash",
-		&rpcpb.GetBlockTransactionCountByHashReq{BlockHash: args[0]}, common.GetRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
+	var (
+		hash    = new(crypto.HashType)
+		height  uint64
+		respRPC interface{}
+	)
+	if err := hash.SetString(args[0]); err != nil {
+		height, err = strconv.ParseUint(args[0], 10, 32)
+		if err != nil {
+			fmt.Println("invalid argument:", args[0])
+			return
+		}
+		respRPC, err = rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTxCount", &rpcpb.GetTxCountReq{BlockHeight: uint32(height)}, common.GetRPCAddr())
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	} else {
+		respRPC, err = rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTxCount", &rpcpb.GetTxCountReq{BlockHash: hash.String()}, common.GetRPCAddr())
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
-	resp, ok := respRPC.(*rpcpb.GetBlockTxCountResp)
+	resp, ok := respRPC.(*rpcpb.GetTxCountResp)
 	if !ok {
-		fmt.Println("Convertion to rpcpb.GetBlockTxCountResp failed")
+		fmt.Println("Conversion rpcpb.GetBlockResponse failed")
 		return
 	}
 	if resp.Code != 0 {
@@ -286,100 +277,66 @@ func getTxCountByHash(cmd *cobra.Command, args []string) {
 	fmt.Println(resp.Count)
 }
 
-func getTxCountByHeight(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
+func viewTxDetail(cmd *cobra.Command, args []string) {
+	if len(args) == 0 || len(args) > 2 {
 		fmt.Println(cmd.Use)
 		return
 	}
-	height, err := strconv.ParseUint(args[0], 10, 64)
-	if err != nil {
-		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[0], err)
-		return
+	var (
+		respRPC interface{}
+		err     error
+	)
+	if len(args) == 1 {
+		hash := new(crypto.HashType)
+		if err := hash.SetString(args[0]); err != nil {
+			fmt.Println("invalid hash")
+			return
+		}
+		respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
+			&rpcpb.ViewTxDetailReq{Hash: hash.String()}, common.GetRPCAddr())
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockTransactionCountByHeight",
-		&rpcpb.GetBlockTransactionCountByHeightReq{Height: uint32(height)}, common.GetRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
+	if len(args) == 2 {
+		index, err := strconv.ParseUint(args[1], 10, 64)
+		if err != nil {
+			fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
+			return
+		}
+		hash := new(crypto.HashType)
+		if err := hash.SetString(args[0]); err != nil {
+			height, err := strconv.ParseUint(args[0], 10, 64)
+			if err != nil {
+				fmt.Println("invalid argument:", args[0])
+				return
+			}
+			respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
+				&rpcpb.ViewTxDetailReq{BlockHeight: uint32(height), Index: uint32(index)}, common.GetRPCAddr())
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		} else {
+			respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
+				&rpcpb.ViewTxDetailReq{BlockHash: hash.String(), Index: uint32(index)}, common.GetRPCAddr())
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		}
 	}
-	resp, ok := respRPC.(*rpcpb.GetBlockTxCountResp)
+	resp, ok := respRPC.(*rpcpb.ViewTxDetailResp)
 	if !ok {
-		fmt.Println("Conversion to rpcpb.GetBlockTxCountResp failed")
+		fmt.Println("Convertion to rpcpb.GetRawTransactionResponse failed")
 		return
 	}
 	if resp.Code != 0 {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println("transaction amount:", resp.Count)
-}
-
-func getTxByHashAndIndex(cmd *cobra.Command, args []string) {
-	if len(args) != 2 {
-		fmt.Println(cmd.Use)
-		return
-	}
-	index, err := strconv.ParseUint(args[1], 10, 64)
-	if err != nil {
-		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
-		return
-	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTransactionByBlockHashAndIndexReq",
-		&rpcpb.GetTransactionByBlockHashAndIndexReq{BlockHash: args[0], Index: uint32(index)}, common.GetRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	resp, ok := respRPC.(*rpcpb.GetTxResp)
-	if !ok {
-		fmt.Println("Conversion to rpcpb.GetTxResp failed")
-		return
-	}
-	if resp.Code != 0 {
-		fmt.Println(resp.Message)
-		return
-	}
-	tx := new(types.Transaction)
-	if err = tx.FromProtoMessage(resp.Tx); err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Transaction:", format.PrettyPrint(tx))
-}
-
-func getTxByHeightAndIndex(cmd *cobra.Command, args []string) {
-	if len(args) != 2 {
-		fmt.Println(cmd.Use)
-		return
-	}
-	height, err := strconv.ParseUint(args[0], 10, 64)
-	if err != nil {
-		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[0], err)
-		return
-	}
-	index, err := strconv.ParseUint(args[1], 10, 64)
-	if err != nil {
-		fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
-		return
-	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTransactionByBlockHeightAndIndex",
-		&rpcpb.GetTransactionByBlockHeightAndIndexReq{Height: uint32(height), Index: uint32(index)}, common.GetRPCAddr())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	resp, ok := respRPC.(*rpcpb.GetTxResp)
-	if !ok {
-		fmt.Println("Conversion to rpcpb.GetTxResp failed")
-		return
-	}
-	tx := new(types.Transaction)
-	err = tx.FromProtoMessage(resp.Tx)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Transaction:", format.PrettyPrint(tx))
+	fmt.Println(format.PrettyPrint(resp))
 }
 
 func decoderawtx(cmd *cobra.Command, args []string) {

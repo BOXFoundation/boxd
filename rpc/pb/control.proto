@@ -100,44 +100,9 @@ service ContorlCommand {
       };
     }
 
-    rpc GetBlock (GetBlockRequest) returns (GetBlockResponse) {
+    rpc GetTxCount (GetTxCountReq) returns (GetTxCountResp){
         option (google.api.http) = {
-            post: "/v1/ctl/getblock"
-            body: "*"
-      };
-    }
-
-    rpc GetBlockByHeight (GetBlockByHeightReq) returns (GetBlockResponse) {
-        option (google.api.http) = {
-            post: "/v1/ctl/getBlockByHeight"
-            body: "*"
-        };
-    }
-
-    rpc GetBlockTransactionCountByHash (GetBlockTransactionCountByHashReq) returns (GetBlockTxCountResp) {
-        option (google.api.http) = {
-            post: "/v1/ctl/block/txCountByHash"
-            body: "*"
-        };
-    }
-
-    rpc GetBlockTransactionCountByHeight (GetBlockTransactionCountByHeightReq) returns (GetBlockTxCountResp) {
-        option (google.api.http) = {
-            post: "/v1/ctl/block/txCountByHeight"
-            body: "*"
-        };
-    }
-
-    rpc GetTransactionByBlockHashAndIndex (GetTransactionByBlockHashAndIndexReq) returns (GetTxResp) {
-        option (google.api.http) = {
-            post: "/v1/ctl/getTxByHash"
-            body: "*"
-        };
-    }
-
-    rpc GetTransactionByBlockHeightAndIndex (GetTransactionByBlockHeightAndIndexReq) returns (GetTxResp) {
-        option (google.api.http) = {
-            post: "/v1/ctl/getTxByHeight"
+            post: "/v1/ctl/block/txCount"
             body: "*"
         };
     }
@@ -212,12 +177,6 @@ message GetBlockHeaderResponse {
     corepb.BlockHeader header = 3;
 }
 
-message GetBlockResponse {
-    int32 code = 1;
-    string message = 2;
-    corepb.Block block = 3;
-}
-
 message Node {
     string id = 1;
     repeated string addrs = 2;
@@ -234,39 +193,15 @@ message GetNodeInfoResponse {
     repeated Node nodes = 3;
 }
 
-message GetBlockByHeightReq {
-    uint32 height = 1;
+message GetTxCountReq{
+    uint32 block_height = 1;
+    string block_hash = 2;
 }
 
-message GetBlockTransactionCountByHashReq {
-    string block_hash = 1;
-}
-
-message GetBlockTransactionCountByHeightReq {
-    uint32 height = 1;
-}
-
-message GetBlockTxCountResp {
+message GetTxCountResp{
     int32 code = 1;
     string message = 2;
     uint32 count = 3;
-}
-
-message GetTransactionByBlockHashAndIndexReq {
-    string block_hash = 1;
-    uint32 index = 2;
-
-}
-message GetTransactionByBlockHeightAndIndexReq {
-    uint32 height = 1;
-    uint32 index = 2;
-
-}
-
-message GetTxResp {
-    int32 code = 1;
-    string message = 2;
-    corepb.Transaction Tx = 3;
 }
 
 message Delegate {
