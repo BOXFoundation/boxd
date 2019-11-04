@@ -80,13 +80,11 @@ func (s *txServer) GetTokenBalance(
 		return newGetBalanceResp(-1, "invalid token hash"), nil
 	}
 	tid := txlogic.NewTokenID(thash, req.GetTokenIndex())
-	// valide addrs
-	if err := types.ValidateAddr(req.Addrs...); err != nil {
-		logger.Warn(err)
-		return newGetBalanceResp(-1, err.Error()), nil
-	}
 	for i, addr := range req.Addrs {
-		address, _ := types.NewAddress(addr)
+		address, err := types.NewAddress(addr)
+		if err != nil {
+			return newGetBalanceResp(-1, err.Error()), nil
+		}
 		amount, err := walletAgent.Balance(address.Hash160(), tid)
 		if err != nil {
 			logger.Warnf("get token balance for %s token id: %+v error: %s", addr, tid, err)
@@ -143,10 +141,10 @@ func (s *txServer) FetchUtxos(
 		tid = txlogic.NewTokenID(tHash, tIdx)
 	}
 	addr := req.GetAddr()
-	if err := types.ValidateAddr(addr); err != nil {
+	address, err := types.NewAddress(addr)
+	if err != nil {
 		return newFetchUtxosResp(-1, err.Error()), nil
 	}
-	address, _ := types.NewAddress(addr)
 	utxos, err := walletAgent.Utxos(address.Hash160(), tid, req.GetAmount())
 	if err != nil {
 		return newFetchUtxosResp(-1, err.Error()), nil
@@ -275,18 +273,23 @@ func (s *txServer) MakeUnsignedTx(
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
 	amounts := req.GetAmounts()
-	fromAddress, _ := types.NewAddress(from)
+	fromAddress, err := types.NewAddress(from)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
 	toHashes := make([]*types.AddressHash, 0, len(to))
 	for _, addr := range to {
-		address, _ := types.ParseAddress(addr)
+		address, err := types.ParseAddress(addr)
+		if err != nil {
+			return newMakeTxResp(-1, err.Error(), nil, nil), nil
+		}
 		if _, ok := address.(*types.AddressContract); ok &&
 			!s.server.GetChainReader().TailState().Exist(*address.Hash160()) {
 			return newMakeTxResp(-1, "contract address for to address is not exist", nil, nil), nil
 		}
 		toHashes = append(toHashes, address.Hash160())
 	}
-	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, fromAddress.Hash160(), toHashes,
-		amounts)
+	tx, utxos, err := rpcutil.MakeUnsignedTx(wa, fromAddress.Hash160(), toHashes, amounts)
 	if err != nil {
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
@@ -318,18 +321,24 @@ func (s *txServer) MakeUnsignedSplitAddrTx(
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
 	from, addrs := req.GetFrom(), req.GetAddrs()
-	if err := types.ValidateAddr(append(addrs, from)...); err != nil {
-		logger.Warn(err)
-		return newMakeTxResp(-1, err.Error(), nil, nil), nil
-	}
 	toHashes := make([]*types.AddressHash, 0, len(addrs))
 	for _, addr := range addrs {
-		address, _ := types.ParseAddress(addr)
+		if !strings.HasPrefix(addr, types.AddrTypeP2PKHPrefix) &&
+			!strings.HasPrefix(addr, types.AddrTypeSplitAddrPrefix) {
+			return newMakeTxResp(-1, "invalid address type", nil, nil), nil
+		}
+		address, err := types.ParseAddress(addr)
+		if err != nil {
+			return newMakeTxResp(-1, err.Error(), nil, nil), nil
+		}
 		toHashes = append(toHashes, address.Hash160())
 	}
 	weights := req.GetWeights()
 	// make tx without sign
-	fromAddress, _ := types.NewAddress(from)
+	fromAddress, err := types.NewAddress(from)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
 	tx, utxos, err := rpcutil.MakeUnsignedSplitAddrTx(wa, fromAddress.Hash160(),
 		toHashes, weights)
 	if err != nil {
@@ -376,13 +385,15 @@ func (s *txServer) MakeUnsignedTokenIssueTx(
 		return newMakeTokenIssueTxResp(-1, ErrAPINotSupported.Error()), nil
 	}
 	issuer, owner, tag := req.GetIssuer(), req.GetOwner(), req.GetTag()
-	if err := types.ValidateAddr(issuer, owner); err != nil {
-		logger.Warn(err)
+	// make tx without sign
+	issuerHash, err := types.NewAddress(issuer)
+	if err != nil {
 		return newMakeTokenIssueTxResp(-1, err.Error()), nil
 	}
-	// make tx without sign
-	issuerHash, _ := types.NewAddress(issuer)
-	ownerHash, _ := types.NewAddress(owner)
+	ownerHash, err := types.NewAddress(owner)
+	if err != nil {
+		return newMakeTokenIssueTxResp(-1, err.Error()), nil
+	}
 	tx, issueOutIndex, utxos, err := rpcutil.MakeUnsignedTokenIssueTx(wa,
 		issuerHash.Hash160(), ownerHash.Hash160(), tag)
 	if err != nil {
@@ -418,16 +429,25 @@ func (s *txServer) MakeUnsignedTokenTransferTx(
 	if wa == nil {
 		return newMakeTxResp(-1, ErrAPINotSupported.Error(), nil, nil), nil
 	}
-	from := req.GetFrom()
-	to, amounts := req.GetTo(), req.GetAmounts()
+	from, to, amounts := req.GetFrom(), req.GetTo(), req.GetAmounts()
 	if err := types.ValidateAddr(append(to, from)...); err != nil {
 		logger.Warn(err)
 		return newMakeTxResp(-1, err.Error(), nil, nil), nil
 	}
-	fromAddress, _ := types.NewAddress(from)
+	fromAddress, err := types.NewAddress(from)
+	if err != nil {
+		return newMakeTxResp(-1, err.Error(), nil, nil), nil
+	}
 	toHashes := make([]*types.AddressHash, 0, len(to))
 	for _, addr := range to {
-		address, _ := types.ParseAddress(addr)
+		if !strings.HasPrefix(addr, types.AddrTypeP2PKHPrefix) &&
+			!strings.HasPrefix(addr, types.AddrTypeSplitAddrPrefix) {
+			return newMakeTxResp(-1, "invalid address type", nil, nil), nil
+		}
+		address, err := types.ParseAddress(addr)
+		if err != nil {
+			return newMakeTxResp(-1, err.Error(), nil, nil), nil
+		}
 		toHashes = append(toHashes, address.Hash160())
 	}
 	// parse token id
@@ -478,10 +498,6 @@ func (s *txServer) MakeUnsignedContractTx(
 	tx := new(types.Transaction)
 	utxos := make([]*rpcpb.Utxo, 0)
 
-	if err := types.ValidateAddr(from); err != nil ||
-		!strings.HasPrefix(from, types.AddrTypeP2PKHPrefix) {
-		return newMakeContractTxResp(-1, "invalid from address", nil, nil, ""), nil
-	}
 	fromAddress, err := types.NewAddress(from)
 	if err != nil {
 		return newMakeContractTxResp(-1, err.Error(), nil, nil, ""), nil

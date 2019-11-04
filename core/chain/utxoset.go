@@ -172,7 +172,7 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 
 func (u *UtxoSet) applyUtxo(
 	tx *types.Transaction, txOutIdx uint32, blockHeight uint32,
-	isContractAddr func(addrHash *types.AddressHash) (bool, *types.UtxoWrap),
+	isContractAddr func(*types.AddressHash) (bool, *types.UtxoWrap),
 ) error {
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
@@ -264,7 +264,7 @@ func (u *UtxoSet) applyUtxo(
 // applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
 func (u *UtxoSet) applyTx(
 	tx *types.Transaction, blockHeight uint32,
-	isContractAddr func(addrHash *types.AddressHash) (bool, *types.UtxoWrap),
+	isContractAddr func(*types.AddressHash) (bool, *types.UtxoWrap),
 ) error {
 	// Add new utxos
 	for txOutIdx, txOut := range tx.Vout {
@@ -296,7 +296,7 @@ func (u *UtxoSet) applyTx(
 }
 
 func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32) error {
-	isContractAddr := func(addrHash *types.AddressHash) (bool, *types.UtxoWrap) {
+	isContractAddr := func(*types.AddressHash) (bool, *types.UtxoWrap) {
 		// only EOA account with non-contract script pubkey or contract account with
 		// contract script pubkey in internal txs
 		return false, nil
@@ -325,7 +325,7 @@ func (u *UtxoSet) ApplyInternalTxs(block *types.Block) error {
 // ApplyBlock updates utxos with all transactions in the passed block
 func (u *UtxoSet) ApplyBlock(
 	block *types.Block,
-	isContractAddr func(addrHash *types.AddressHash) (bool, *types.UtxoWrap),
+	isContractAddr func(*types.AddressHash) (bool, *types.UtxoWrap),
 ) error {
 	txs := block.Txs
 	for _, tx := range txs {
