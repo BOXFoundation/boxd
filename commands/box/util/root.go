@@ -54,12 +54,12 @@ func init() {
 			Run:   makeSplitAddress,
 		},
 		&cobra.Command{
-			Use:   "makeContractAddress [fromaddress] [nonce]",
+			Use:   "makecontractaddress [fromaddress] [nonce]",
 			Short: "creat contract address",
 			Run:   makeContractAddress,
 		},
 		&cobra.Command{
-			Use:   "makep2pKHAddr [pubkey]",
+			Use:   "makep2pkhaddr [pubkey]",
 			Short: "creat p2pKH address",
 			Run:   makeP2PKHAddress,
 		},

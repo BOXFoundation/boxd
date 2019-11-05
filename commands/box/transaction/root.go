@@ -295,41 +295,6 @@ func detailTx(cmd *cobra.Command, args []string) {
 				return
 			}
 		}
-	case 3:
-		height, err = strconv.ParseUint(args[1], 10, 64)
-		if err != nil {
-			fmt.Println("invalid argument:", args[0])
-			return
-		}
-		respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockHash",
-			&rpcpb.GetBlockHashRequest{Height: uint32(height)}, common.GetRPCAddr())
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		resp, ok := respRPC.(*rpcpb.GetBlockHashResponse)
-		if !ok {
-			fmt.Println("Convertion to rpcpb.GetRawTransactionResponse failed")
-			return
-		}
-		if resp.Code != 0 {
-			fmt.Println(resp.Message)
-			return
-		}
-		blockHashByHeight := resp.GetHash()
-		if blockHashByHeight != args[0] {
-			fmt.Printf("the hash of block: %s dont't match the height of block: %s", args[0], args[1])
-			return
-		}
-		if err := hash.SetString(args[0]); err != nil {
-			fmt.Println("invalid hash")
-			return
-		}
-	case 4:
-		if err := hash.SetString(args[0]); err != nil {
-			fmt.Println("invalid hash")
-			return
-		}
 	default:
 		fmt.Println(cmd.Use)
 		return
