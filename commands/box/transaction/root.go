@@ -35,18 +35,16 @@ var rootCmd = &cobra.Command{
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
 	Example: `
-	1.view transaction detail by transaction_hash
-	  ./box tx viewtxdetail 7a13a3fcfc74f2cc92339f68ed3d71b93c15dff3e0faf39bcb78918dca49d9c2
-	2.get transaction by block_height and index_tx 
-	  ./box tx gettxbyhash a49f9608b69b22c6ee2e3717364beb3d4848f236b7b51b0e3ba654f41649ab4c 0
-	3.make unsigned transaction
+	1.make unsigned transaction
 	  ./box tx createtx b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m b1dZ8aPQ2UPeYHfGV5hshyswbxRBZQjuz2L,b1gFAdBjy8gu3vFRbg1qJEXtiV9xZTVTKx1 10,20
-	4.sign transaction 
+	2.sign transaction 
 	  ./box --wallet_dir keyfile tx signrawtx b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m 12240a220a20206029513377e45fed5cf8486b76664864a8138d1cc5248c84202eab2c803b541a1d080a121976a9146aeacee33019c341b1700de7a0485ce13f3d02b988ac1a1d0814121976a914886d68724989517491e92c420a820a9e9d5b41d688ac1a2408d2f499ecb3aacf3a121976a914816666b318349468f8146e76e4e3751d937c14cb88ac
-	5.send raw transaction
+	3.send raw transaction
 	  ./box tx sendrawtx 1290010a220a20206029513377e45fed5cf8486b76664864a8138d1cc5248c84202eab2c803b54126a473045022100dc42cfb8348bb10d91278069912351e7271c4e4744fd0f91de6451c6c227a6f602200ebf1c3fcfd47e609a539e59769b77e83690dc628bf246b9cfe49ca2154648bb2103ac5906f34b6f12150d49942dcd3df4b30716cb78abc9e3f6e488e2c1f28ab8bd1a1d080a121976a9146aeacee33019c341b1700de7a0485ce13f3d02b988ac1a1d0814121976a914886d68724989517491e92c420a820a9e9d5b41d688ac1a24089297cdecb3aacf3a121976a914816666b318349468f8146e76e4e3751d937c14cb88ac
-	6.Sendfrom command sends an amount of box from a managed account to another account
+	4.Sendfrom command sends an amount of box from a managed account to another account
 	  ./box tx sendfrom b1YLUNwJD124sv9piRvkqcmfcujTZtHhHSz b1UJRzHvXoHA8DGGGGZaCSQBkVyoPEqmQUN 50000
+	5.view the details of transaction
+	  ./box tx detailtx a22fc0cc4754ee179071afe28f676526c00a6dc0ba963e6d7695f6cdcc91e045
 	`,
 }
 
@@ -93,9 +91,9 @@ func init() {
 			Run:   getTxCount,
 		},
 		&cobra.Command{
-			Use:   "viewtxdetail [option|tx_hash, blockheight, blockhash] [tx_index]",
+			Use:   "detailtx [option|tx_hash, blockheight, blockhash] [tx_index]",
 			Short: "view the details of the transaction",
-			Run:   viewTxDetail,
+			Run:   detailTx,
 		},
 		&cobra.Command{
 			Use:   "fetchutxo [addr] [amount] [token_hash] [token_index]",
@@ -243,9 +241,8 @@ func getTxCount(cmd *cobra.Command, args []string) {
 		return
 	}
 	var (
-		hash    = new(crypto.HashType)
-		height  uint64
-		respRPC interface{}
+		hash   = new(crypto.HashType)
+		height uint64
 	)
 	if err := hash.SetString(args[0]); err != nil {
 		height, err = strconv.ParseUint(args[0], 10, 32)
@@ -253,17 +250,11 @@ func getTxCount(cmd *cobra.Command, args []string) {
 			fmt.Println("invalid argument:", args[0])
 			return
 		}
-		respRPC, err = rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTxCount", &rpcpb.GetTxCountReq{BlockHeight: uint32(height)}, common.GetRPCAddr())
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	} else {
-		respRPC, err = rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTxCount", &rpcpb.GetTxCountReq{BlockHash: hash.String()}, common.GetRPCAddr())
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetTxCount", &rpcpb.GetTxCountReq{BlockHeight: uint32(height), BlockHash: hash.String()}, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 	resp, ok := respRPC.(*rpcpb.GetTxCountResp)
 	if !ok {
@@ -277,55 +268,77 @@ func getTxCount(cmd *cobra.Command, args []string) {
 	fmt.Println(resp.Count)
 }
 
-func viewTxDetail(cmd *cobra.Command, args []string) {
-	if len(args) == 0 || len(args) > 2 {
-		fmt.Println(cmd.Use)
-		return
-	}
+func detailTx(cmd *cobra.Command, args []string) {
 	var (
-		respRPC interface{}
-		err     error
+		err       error
+		hash      = new(crypto.HashType)
+		blockHash = new(crypto.HashType)
+		height    uint64
+		index     uint64
 	)
-	if len(args) == 1 {
-		hash := new(crypto.HashType)
+	switch len(args) {
+	case 1:
 		if err := hash.SetString(args[0]); err != nil {
 			fmt.Println("invalid hash")
 			return
 		}
-		respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
-			&rpcpb.ViewTxDetailReq{Hash: hash.String()}, common.GetRPCAddr())
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	}
-	if len(args) == 2 {
-		index, err := strconv.ParseUint(args[1], 10, 64)
+	case 2:
+		index, err = strconv.ParseUint(args[1], 10, 64)
 		if err != nil {
 			fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
 			return
 		}
-		hash := new(crypto.HashType)
-		if err := hash.SetString(args[0]); err != nil {
-			height, err := strconv.ParseUint(args[0], 10, 64)
+		if err := blockHash.SetString(args[0]); err != nil {
+			height, err = strconv.ParseUint(args[0], 10, 64)
 			if err != nil {
 				fmt.Println("invalid argument:", args[0])
 				return
 			}
-			respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
-				&rpcpb.ViewTxDetailReq{BlockHeight: uint32(height), Index: uint32(index)}, common.GetRPCAddr())
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-		} else {
-			respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
-				&rpcpb.ViewTxDetailReq{BlockHash: hash.String(), Index: uint32(index)}, common.GetRPCAddr())
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
 		}
+	case 3:
+		height, err = strconv.ParseUint(args[1], 10, 64)
+		if err != nil {
+			fmt.Println("invalid argument:", args[0])
+			return
+		}
+		respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetBlockHash",
+			&rpcpb.GetBlockHashRequest{Height: uint32(height)}, common.GetRPCAddr())
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		resp, ok := respRPC.(*rpcpb.GetBlockHashResponse)
+		if !ok {
+			fmt.Println("Convertion to rpcpb.GetRawTransactionResponse failed")
+			return
+		}
+		if resp.Code != 0 {
+			fmt.Println(resp.Message)
+			return
+		}
+		blockHashByHeight := resp.GetHash()
+		if blockHashByHeight != args[0] {
+			fmt.Printf("the hash of block: %s dont't match the height of block: %s", args[0], args[1])
+			return
+		}
+		if err := hash.SetString(args[0]); err != nil {
+			fmt.Println("invalid hash")
+			return
+		}
+	case 4:
+		if err := hash.SetString(args[0]); err != nil {
+			fmt.Println("invalid hash")
+			return
+		}
+	default:
+		fmt.Println(cmd.Use)
+		return
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
+		&rpcpb.ViewTxDetailReq{Hash: hash.String(), BlockHash: blockHash.String(), BlockHeight: uint32(height), Index: uint32(index)}, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 	resp, ok := respRPC.(*rpcpb.ViewTxDetailResp)
 	if !ok {

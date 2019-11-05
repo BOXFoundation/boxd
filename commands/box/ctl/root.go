@@ -30,13 +30,10 @@ var rootCmd = &cobra.Command{
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
-	Example: `  1.get block by hash
-    ./box ctl getblock 922a2f19046db2c30eeecaa0d88557f49238441337003e4462e268bb848bd22a
-  2.view block detail
-    ./box ctl viewblockdetail cdf0f9edc9f71480ef88b5031127d8344d160da45016a85adaad9210ff27cd14
-  3.get block_hash by block_height
-    ./box ctl getblockhash 134
-  4.get current the height of block
+	Example: `
+  1.view block detail
+    ./box ctl detailblock cdf0f9edc9f71480ef88b5031127d8344d160da45016a85adaad9210ff27cd14
+  2.get current the height of block
     ./box ctl getblockcount`,
 }
 
@@ -71,14 +68,14 @@ func init() {
 		},
 
 		&cobra.Command{
-			Use:   "viewblockdetail [optional|blockhash,blockheight]",
-			Short: "Get the raw blockInformation",
-			Run:   getBlockCmdFunc,
+			Use:   "detailblock [optional|blockhash,blockheight]",
+			Short: "get block detail via height, hash",
+			Run:   detailBlock,
 		},
 		&cobra.Command{
-			Use:   "getinfo",
+			Use:   "getnodeinfo",
 			Short: "Get info about the local node",
-			Run:   getInfoCmdFunc,
+			Run:   getNodeInfoCmdFunc,
 		},
 		&cobra.Command{
 			Use:   "peerid",
@@ -163,7 +160,7 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 	}
 }
 
-func getBlockCmdFunc(cmd *cobra.Command, args []string) {
+func detailBlock(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
 		fmt.Println(cmd.Use)
 		return
@@ -179,17 +176,11 @@ func getBlockCmdFunc(cmd *cobra.Command, args []string) {
 			fmt.Println("invalid argument:", args[0])
 			return
 		}
-		respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Height: uint32(height)}, common.GetRPCAddr())
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	} else {
-		respRPC, err = rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Hash: hash.String()}, common.GetRPCAddr())
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+	}
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Hash: hash.String(), Height: uint32(height)}, common.GetRPCAddr())
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 	resp, ok := respRPC.(*rpcpb.ViewBlockDetailResp)
 	if !ok {
@@ -288,7 +279,7 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 	fmt.Printf(format.PrettyPrint(header))
 }
 
-func getInfoCmdFunc(cmd *cobra.Command, args []string) {
+func getNodeInfoCmdFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
 		fmt.Println(cmd.Use)
 		return

@@ -17,7 +17,6 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/chain"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
@@ -42,7 +41,6 @@ type webapiServer struct {
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, types.TxType, error)
-	GetDataFromDB([]byte) ([]byte, error)
 	GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error)
 }
 
@@ -51,6 +49,7 @@ type ChainBlockReader interface {
 	ChainTxReader
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
+
 	EternalBlock() *types.Block
 	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 	GetStateDbByHeight(height uint32) (*state.StateDB, error)
@@ -58,7 +57,9 @@ type ChainBlockReader interface {
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 	TailState() *state.StateDB
+	GetDataFromDB([]byte) ([]byte, error)
 	GetBlockHash(uint32) (*crypto.HashType, error)
+	LoadBlockByHeight(height uint32) (*types.Block, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -164,31 +165,40 @@ func (s *webapiServer) ViewTxDetail(
 
 	logger.Infof("view tx detail req: %+v", req)
 	// fetch hash from request
-	hash := new(crypto.HashType)
-	var err error
-	if len(req.Hash) == 0 {
-		blockHash := new(crypto.HashType)
-		if len(req.BlockHash) == 0 {
-			if blockHash, err = s.ChainBlockReader.GetBlockHash(req.BlockHeight); err != nil {
-				return newViewTxDetailResp(-1, err.Error()), nil
-			}
-		} else {
+	var (
+		err  error
+		hash = new(crypto.HashType)
+	)
+	if req.Hash != "" {
+		if err := hash.SetString(req.Hash); err != nil {
+			logger.Warn("view tx detail error: ", err)
+			return newViewTxDetailResp(-1, err.Error()), nil
+		}
+	} else {
+		var (
+			blockHash = new(crypto.HashType)
+			block     = new(types.Block)
+		)
+		if req.BlockHash != "" {
 			if err := blockHash.SetString(req.BlockHash); err != nil {
 				logger.Warn("get the hash of block error: ", err)
 				return newViewTxDetailResp(-1, err.Error()), nil
 			}
+			block, _, err = s.ChainBlockReader.ReadBlockFromDB(blockHash)
+			if err != nil {
+				return newViewTxDetailResp(-1, err.Error()), err
+			}
+		} else {
+			block, err = s.ChainBlockReader.LoadBlockByHeight(req.BlockHeight)
+			if err != nil {
+				return newViewTxDetailResp(-1, err.Error()), nil
+			}
 		}
-		block, _, err := s.ChainBlockReader.ReadBlockFromDB(blockHash)
-		if err != nil {
-			return newViewTxDetailResp(-1, err.Error()), err
-		}
-		hash, err = getTxHashByBlock(block, req.Index)
-		if err != nil {
+		if req.Index > uint32(len(block.Txs)-1) {
 			return newViewTxDetailResp(-1, err.Error()), nil
 		}
-	} else {
-		if err := hash.SetString(req.Hash); err != nil {
-			logger.Warn("view tx detail error: ", err)
+		tx := block.Txs[req.Index]
+		if hash, err = tx.TxHash(); err != nil {
 			return newViewTxDetailResp(-1, err.Error()), nil
 		}
 	}
@@ -246,14 +256,14 @@ func (s *webapiServer) ViewBlockDetail(
 	logger.Infof("view block detail req: %+v", req)
 	var err error
 	hash := new(crypto.HashType)
-	if len(req.Hash) == 0 {
-		hash, err = s.ChainBlockReader.GetBlockHash(req.Height)
-		if err != nil {
+	if req.Hash != "" {
+		if err := hash.SetString(req.Hash); err != nil {
+			logger.Warn("view block detail error: ", err)
 			return newViewBlockDetailResp(-1, err.Error()), nil
 		}
 	} else {
-		if err := hash.SetString(req.Hash); err != nil {
-			logger.Warn("view block detail error: ", err)
+		hash, err = s.ChainBlockReader.GetBlockHash(req.Height)
+		if err != nil {
 			return newViewBlockDetailResp(-1, err.Error()), nil
 		}
 	}
@@ -460,7 +470,7 @@ func (s *webapiServer) GetLogs(ctx context.Context, req *rpcpb.LogsReq) (logs *r
 }
 
 func detailTx(
-	tx *types.Transaction, br ChainTxReader, tr TxPoolReader, spread bool, detailVin bool,
+	tx *types.Transaction, br ChainBlockReader, tr TxPoolReader, spread bool, detailVin bool,
 ) (*rpcpb.TxDetail, error) {
 
 	detail := new(rpcpb.TxDetail)
@@ -909,24 +919,4 @@ func (s *webapiServer) GetStorageAt(
 		return newStorageAtResp(-1, err.Error(), ""), nil
 	}
 	return newStorageAtResp(0, "", val.String()), nil
-}
-
-func getTxHashByBlock(block *types.Block, index uint32) (*crypto.HashType, error) {
-	msg, err := block.ToProtoMessage()
-	if err != nil {
-		return nil, err
-	}
-	blockPb, ok := msg.(*corepb.Block)
-	if !ok {
-		return nil, err
-	}
-	if index > uint32(len(blockPb.Txs)-1) {
-		return nil, err
-	}
-	tx := types.ConvPbTx(blockPb.Txs[index])
-	hash, err := tx.TxHash()
-	if err != nil {
-		return nil, err
-	}
-	return hash, nil
 }
