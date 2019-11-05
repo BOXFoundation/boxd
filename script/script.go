@@ -27,6 +27,7 @@ const (
 	p2PKHScriptLen = 25
 	p2SHScriptLen  = 23
 
+	MaxSplitAddrs   = 32
 	MaxOpReturnSize = 512
 
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
@@ -39,32 +40,38 @@ var (
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
-	return NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	// 25 = 1+1+21+1+1
+	return NewScriptWithCap(25).AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 }
 
 // PayToPubKeyHashCLTVScript creates a script to lock a transaction output to the specified address till a specific time or block height.
 func PayToPubKeyHashCLTVScript(pubKeyHash []byte, blockTimeOrHeight int64) *Script {
-	return NewScript().AddOperand(big.NewInt(blockTimeOrHeight).Bytes()).AddOpCode(OPCHECKLOCKTIMEVERIFY).AddOpCode(OPDUP).AddOpCode(OPHASH160).
+	// 31 = 5+1+1+1+21+1+1
+	return NewScriptWithCap(31).AddOperand(big.NewInt(blockTimeOrHeight).Bytes()).AddOpCode(OPCHECKLOCKTIMEVERIFY).AddOpCode(OPDUP).AddOpCode(OPHASH160).
 		AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 }
 
 // SignatureScript creates a script to unlock a utxo.
 func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
-	return NewScript().AddOperand(sig.Serialize()).AddOperand(pubKey)
+	sigBytes := sig.Serialize()
+	return NewScriptWithCap(len(sigBytes) + len(pubKey) + 4).
+		AddOperand(sigBytes).AddOperand(pubKey)
 }
 
 // StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
 func StandardCoinbaseSignatureScript(height uint32) *Script {
-	return NewScript().AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
+	// 7=5+2
+	return NewScriptWithCap(7).
+		AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
 }
 
 // SplitAddrScript returns a script to store a split address output
 func SplitAddrScript(addrs []*types.AddressHash, weights []uint32) *Script {
-	if len(addrs) == 0 || len(addrs) != len(weights) {
+	if len(addrs) == 0 || len(addrs) != len(weights) || len(addrs) > MaxSplitAddrs {
 		return nil
 	}
-	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
-	s := NewScript()
+	// OP_RETURN OP0 <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+	s := NewScriptWithCap(len(addrs) * 26)
 	// use as many address/weight pairs as possbile
 	for i := 0; i < len(addrs); i++ {
 		w := make([]byte, 4)
@@ -73,7 +80,8 @@ func SplitAddrScript(addrs []*types.AddressHash, weights []uint32) *Script {
 	}
 	// Hash acts as address, like in p2sh
 	scriptHash := crypto.Hash160(*s)
-	return NewScript().AddOpCode(OPRETURN).AddOperand(scriptHash).AddScript(s)
+	return NewScriptWithCap(23 + len(*s)).
+		AddOpCode(OPRETURN).AddOpCode(OP0).AddOperand(scriptHash).AddScript(s)
 }
 
 // Script represents scripts
@@ -137,7 +145,8 @@ func (s *Script) AddScript(script *Script) *Script {
 // Validate verifies the script
 func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx int) error {
 	// concatenate unlocking & locking scripts
-	catScript := NewScript().AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
+	catScript := NewScriptWithCap(len(*scriptSig) + 1 + len(*scriptPubKey)).
+		AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
 	if err := catScript.evaluate(tx, txInIdx); err != nil {
 		return err
 	}
@@ -152,14 +161,15 @@ func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx in
 
 	// First operand is signature
 	_, sig, newPc, _ := scriptSig.parseNextOp(0)
-	newScriptSig := NewScript().AddOperand(sig)
+	newScriptSig := NewScriptWithCap(len(sig) + 2).AddOperand(sig)
 
 	// Second operand is serialized redeem script
 	_, redeemScriptBytes, _, _ := scriptSig.parseNextOp(newPc)
 	redeemScript := NewScriptFromBytes(redeemScriptBytes)
 
 	// signature becomes the new scriptSig, redeemScript becomes the new scriptPubKey
-	catScript = NewScript().AddScript(newScriptSig).AddOpCode(OPCODESEPARATOR).AddScript(redeemScript)
+	catScript = NewScriptWithCap(len(*newScriptSig) + 1 + len(*redeemScript)).
+		AddScript(newScriptSig).AddOpCode(OPCODESEPARATOR).AddScript(redeemScript)
 	return catScript.evaluate(tx, txInIdx)
 }
 
@@ -609,15 +619,21 @@ func (s *Script) IsPayToScriptHash() bool {
 func (s *Script) IsSplitAddrScript() bool {
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
 	ss := *s
-	// 1 len(op) + 1 (addr size) + 20 (addr len) + 1 (addr size) +
-	//			20 (addr len) + 1 (weight size) + 1 (weight len) + ...
-	// 22 = len(op) + 1(addr size) + 20(addr len)
-	// 26 = 1(addr size) + 20(addr len) + 1(weight size) + 4(weight len)
-	if (len(ss)-22)%26 != 0 || ss[0] != byte(OPRETURN) {
+	if len(ss) < 49 { // 49 = 23+26
 		return false
 	}
-	for i := 22; i < len(ss); i += 26 {
+	// 1 (op) +1 (op) + 1 (addr size) + 20 (addr len) + 1 (addr size) +
+	//			20 (addr len) + 1 (weight size) + 4 (weight len) + ...
+	// 23 = 1(op) + 1(op) + 1(addr size) + 20(addr len)
+	// 26 = 1(addr size) + 20(addr len) + 1(weight size) + 4(weight len)
+	if (len(ss)-23)%26 != 0 || ss[0] != byte(OPRETURN) || ss[1] != byte(OP0) {
+		return false
+	}
+	for i := 23; i < len(ss); i += 26 {
 		if ss[i] != ripemd160.Size || ss[i+21] != 4 {
+			return false
+		}
+		if (i+26)/26 == MaxSplitAddrs {
 			return false
 		}
 	}
@@ -649,10 +665,13 @@ func (s *Script) IsContractPubkey() bool {
 
 // IsOpReturnScript returns true if the script is of op return
 func (s *Script) IsOpReturnScript() bool {
-	if len(*s) < 2 {
+	if len(*s) < 3 {
 		return false
 	}
 	if (*s)[0] != byte(OPRETURN) {
+		return false
+	}
+	if (*s)[1] == byte(OP0) {
 		return false
 	}
 	_, oprand, newPc, err := s.parseNextOp(1)
@@ -683,14 +702,10 @@ func (s *Script) IsStandard() bool {
 // only called on split address script, so no need to check error
 func (s *Script) GetSplitAddrScriptPrefix() *Script {
 	opCode, _, pc, _ := s.getNthOp(0, 0)
+	opCode2, _, pc, _ := s.getNthOp(1, 0)
 	_, operandHash, _, _ := s.getNthOp(pc, 0)
-
-	return NewScript().AddOpCode(opCode).AddOperand(operandHash)
-}
-
-// CreateSplitAddrScriptPrefix creates a script prefix for split address with a hashed address
-func CreateSplitAddrScriptPrefix(addr types.Address) *Script {
-	return NewScript().AddOpCode(OPRETURN).AddOperand(addr.Hash())
+	// 34=1+33
+	return NewScriptWithCap(24).AddOpCode(opCode).AddOpCode(opCode2).AddOperand(operandHash)
 }
 
 // is i of type Operand and of specified length
@@ -730,7 +745,7 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 	case s.IsContractPubkey():
 		return s.ParseContractAddr()
 	case s.IsSplitAddrScript():
-		_, pubKeyHash, _, err := s.getNthOp(1, 0)
+		_, pubKeyHash, _, err := s.getNthOp(2, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -754,10 +769,14 @@ func (s *Script) ExtractAddress() (types.Address, error) {
 }
 
 // ParseSplitAddrScript returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]
-// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+// OP_RETURN OP0 <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
 func (s *Script) ParseSplitAddrScript() ([]*types.AddressHash, []uint32, error) {
 	opCode, _, pc, err := s.getNthOp(0, 0)
 	if err != nil || opCode != OPRETURN {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+	opCode, _, pc, err = s.getNthOp(pc, 0)
+	if err != nil || opCode != OP0 {
 		return nil, nil, ErrInvalidSplitAddrScript
 	}
 
@@ -795,6 +814,9 @@ func (s *Script) ParseSplitAddrScript() ([]*types.AddressHash, []uint32, error) 
 		}
 	}
 
+	if len(addrs) > MaxSplitAddrs {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
 	script := NewScript()
 	for i := 0; i < len(addrs); i++ {
 		w := make([]byte, 4)
@@ -846,7 +868,8 @@ func MakeContractScriptPubkey(
 		return nil, ErrInvalidContractParams
 	}
 	// set params
-	s := NewScriptWithCap(75)
+	// 66 = 1(opcode)+21(from)+21(to)+9(nonce)+9(gas limit)+5(version)
+	s := NewScriptWithCap(66).AddOpCode(OPCONTRACT)
 	toHash := ZeroContractAddress
 	if to != nil {
 		toHash = *to
@@ -861,7 +884,7 @@ func MakeContractScriptPubkey(
 	binary.LittleEndian.PutUint32(buf, uint32(version))
 	s.AddOperand(buf)
 
-	return NewScript().AddOpCode(OPCONTRACT).AddScript(s), nil
+	return s, nil
 }
 
 // MakeContractScriptSig makes a script sig for contract vin
