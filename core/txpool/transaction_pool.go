@@ -294,14 +294,6 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 		return core.ErrCoinbaseTx
 	}
 
-	// A standard transaction must not include a contract vin
-	for i, txin := range tx.Vin {
-		if txin.PrevOutPoint.IsContractType() {
-			logger.Debugf("Tx %v %d Vin is contract input", txHash, i)
-			return core.ErrContractInputTx
-		}
-	}
-
 	// ensure it is a standard transaction
 	if !tx_pool.isStandardTx(tx) {
 		logger.Errorf("Tx %v is not standard", txHash.String())
@@ -329,7 +321,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 	// Quickly detects if the tx double spends with any transaction in the pool.
 	// Double spending with the main chain txs will be checked in ValidateTxInputs.
-	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
+	if err := tx_pool.checkDoubleSpend(tx); err != nil {
 		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
 		return err
 	}
@@ -386,8 +378,9 @@ func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
 	return true
 }
 
-func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
+func (tx_pool *TransactionPool) checkDoubleSpend(tx *types.Transaction) error {
 	txHash, _ := tx.TxHash()
+	// check double spend txs
 	if dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx); len(dsTxs) > 0 {
 		for i := 0; i < len(dsTxs); i++ {
 			dsTxHash, _ := dsTxs[i].TxHash()
@@ -395,6 +388,24 @@ func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) erro
 				txHash, dsOps[i], dsTxHash)
 		}
 		return core.ErrOutPutAlreadySpent
+	}
+	// check double spend inside tx
+	switch len(tx.Vin) {
+	case 1:
+	case 2:
+		if tx.Vin[0].PrevOutPoint == tx.Vin[1].PrevOutPoint {
+			logger.Warnf("tx %s has the same vin, %+v", txHash, tx)
+			return core.ErrDoubleSpendTx
+		}
+	default:
+		opSet := make(map[types.OutPoint]struct{})
+		for _, txIn := range tx.Vin {
+			if _, exists := opSet[txIn.PrevOutPoint]; exists {
+				logger.Errorf("tx %s have the same vin: %+v", txHash, tx)
+				return core.ErrDoubleSpendTx
+			}
+			opSet[txIn.PrevOutPoint] = struct{}{}
+		}
 	}
 	return nil
 }

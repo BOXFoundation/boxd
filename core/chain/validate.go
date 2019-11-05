@@ -6,7 +6,6 @@ package chain
 
 import (
 	"math"
-	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -51,14 +50,14 @@ func validateBlock(block *types.Block) error {
 	// First tx must be coinbase.
 	transactions := block.Txs
 	if !IsCoinBase(transactions[0]) {
-		logger.Errorf("first transaction in block is not a coinbase")
+		logger.Errorf("coinbase tx: %+v error: %s", transactions[0], core.ErrFirstTxNotCoinbase)
 		return core.ErrFirstTxNotCoinbase
 	}
 
 	// There should be only one coinbase.
 	for i, tx := range transactions[1:] {
 		if IsCoinBase(tx) {
-			logger.Errorf("block contains second coinbase at index %d", i+1)
+			logger.Errorf("block contains second coinbase at index %d, tx: %s", i+1, tx)
 			return core.ErrMultipleCoinbases
 		}
 	}
@@ -67,13 +66,16 @@ func validateBlock(block *types.Block) error {
 	blockTime := block.Header.TimeStamp
 	existingOutPoints := make(map[types.OutPoint]struct{})
 	txsRoughSize := 0
-	for _, tx := range transactions {
-		if txsRoughSize+tx.RoughSize() > core.MaxTxsRoughSize {
+	for i, tx := range transactions {
+		txsRoughSize += tx.RoughSize()
+		if txsRoughSize > core.MaxTxsRoughSize {
+			logger.Errorf("txs rough size have reached %d on %d txs, total: %d",
+				txsRoughSize, i, len(transactions))
 			return core.ErrMaxTxsSizeExceeded
 		}
+		txHash, _ := tx.TxHash()
 		if !IsTxFinalized(tx, block.Header.Height, blockTime) {
-			txHash, _ := tx.TxHash()
-			logger.Errorf("block contains unfinalized transaction %v", txHash)
+			logger.Errorf("block contains unfinalized transaction %v: %+v", txHash, tx)
 			return core.ErrUnfinalizedTx
 		}
 		if err := ValidateTransactionPreliminary(tx); err != nil {
@@ -83,6 +85,8 @@ func validateBlock(block *types.Block) error {
 		// Check for double spent in transactions in the same block.
 		for _, txIn := range tx.Vin {
 			if _, exists := existingOutPoints[txIn.PrevOutPoint]; exists {
+				logger.Errorf("tx %s: %+v have spend double same outpoint: %+v",
+					txHash, tx, txIn.PrevOutPoint)
 				return core.ErrDoubleSpendTx
 			}
 			existingOutPoints[txIn.PrevOutPoint] = struct{}{}
@@ -94,6 +98,7 @@ func validateBlock(block *types.Block) error {
 			if sc.IsOpReturnScript() {
 				opReturns++
 				if opReturns > 1 {
+					logger.Errorf("tx %s have an second OpReturn vout %+v", txHash, txOut)
 					return core.ErrMultipleOpReturnOuts
 				}
 			}
@@ -115,7 +120,7 @@ func validateBlock(block *types.Block) error {
 	for _, tx := range transactions {
 		txHash, _ := tx.TxHash()
 		if _, exists := existingTxHashes[txHash]; exists {
-			logger.Errorf("block contains duplicate transaction %v", txHash)
+			logger.Errorf("block contains duplicate transaction %s", txHash)
 			return core.ErrDuplicateTx
 		}
 		existingTxHashes[txHash] = struct{}{}
@@ -304,9 +309,14 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction) (uint64, error) {
 	txHash, _ := tx.TxHash()
 	var totalInputAmount uint64
 	tokenInputAmounts := make(map[script.TokenID]uint64)
-	for _, txIn := range tx.Vin {
+	for i, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
+		if utxo == nil || utxo.IsSpent() {
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
+				"has already been spent", txIn.PrevOutPoint, txHash, i)
+			return 0, core.ErrMissingTxOut
+		}
 		// Tx amount must be in range.
 		utxoAmount := utxo.Value()
 		if utxoAmount > TotalSupply {
@@ -367,11 +377,17 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction) (uint64, error) {
 		return 0, core.ErrSpendTooHigh
 	}
 
-	if !reflect.DeepEqual(tokenOutputAmounts, tokenInputAmounts) {
-		logger.Errorf("total value of all token outputs for "+
-			"transaction %v is %v, differs from the input amount "+
-			"of %v", txHash, tokenOutputAmounts, tokenInputAmounts)
+	// check token output amount
+	if len(tokenOutputAmounts) != len(tokenInputAmounts) {
 		return 0, core.ErrTokenInputsOutputNotEqual
+	}
+	for k, v := range tokenOutputAmounts {
+		if u, ok := tokenInputAmounts[k]; !ok || v != u {
+			logger.Errorf("total value of all token outputs for "+
+				"transaction %v is %v, differs from the input amount "+
+				"of %v", txHash, tokenOutputAmounts, tokenInputAmounts)
+			return 0, core.ErrTokenInputsOutputNotEqual
+		}
 	}
 
 	txFee := totalInputAmount - totalOutputAmount

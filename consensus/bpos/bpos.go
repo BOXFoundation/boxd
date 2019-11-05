@@ -479,7 +479,8 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		for txIdx, txWrap := range sortedTxs {
 			if stopPack {
 				continueCh <- true
-				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(packedTxs), len(sortedTxs))
+				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx,
+					len(packedTxs), len(sortedTxs))
 				return
 			}
 			if packedTxsRoughSize+txWrap.Tx.RoughSize() > core.MaxTxsRoughSize {
@@ -579,9 +580,9 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 	block.IrreversibleInfo = bpos.bftservice.FetchIrreversibleInfo()
-	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
-		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),
-		block.Header.Height, len(block.Txs), len(block.InternalTxs), len(sortedTxs))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d, internal"+
+		" TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height,
+		len(block.Txs), len(block.InternalTxs), len(sortedTxs))
 	return nil
 }
 
@@ -633,7 +634,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		}
 		reward := block.Txs[0].Vout[0].Value + block.Txs[0].Vout[1].Value
 		logger.Infof("gas used for block %d: %d, bookkeeper %s reward: %d",
-			block.Header.Height, gasUsed, reward)
+			block.Header.Height, gasUsed, bookkeeper, reward)
 		utxoSet.SpendUtxo(*opCoinbase)
 		block.Txs[0].ResetTxHash()
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)

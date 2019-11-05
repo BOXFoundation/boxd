@@ -109,7 +109,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 	}
 	txHash, _ := tx.TxHash()
 	splitAddr := MakeSplitAddress(txHash, 0, to, weights)
-	wantSplitAddr := "b2aHFbpWrqpdso3GU5aEgGbHJ6WuwtbUZqf"
+	wantSplitAddr := "b2NZVEAZuT6maygpyNs9BfTS7GTr9oRgvBE"
 	if splitAddr.String() != wantSplitAddr {
 		t.Fatalf("aplit addr want: %s, got: %s", wantSplitAddr, splitAddr)
 	}
@@ -135,7 +135,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
   "Vout": [
     {
       "Value": 0,
-      "ScriptPubKey": "6a14ac8d67f0c8ed88f2d85e99009b1ab521cfc0f9551450570cc73bb18a51fc4153eec68d21d1105d326e040300000014ae3e96d008658db64dd4f8df2d736edbc6be1c310407000000"
+      "ScriptPubKey": "6a0014ac8d67f0c8ed88f2d85e99009b1ab521cfc0f9551450570cc73bb18a51fc4153eec68d21d1105d326e040300000014ae3e96d008658db64dd4f8df2d736edbc6be1c310407000000"
     },
     {
       "Value": 200,
