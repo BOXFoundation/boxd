@@ -855,7 +855,7 @@ func (bpos *Bpos) verifyCoinbaseTx(block *types.Block) error {
 	}
 
 	// coinbaseTx, err := bpos.makeCoinbaseTx(from, block, statedb, totalTransferFee, adminNonce)
-	coinbaseTx, err := chain.MakeCoinBaseContractTx(from,
+	coinbaseTx, err := chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
 		block.Txs[0].Vout[0].Value, totalTransferFee, adminNonce, block.Header.Height)
 	expect, err := coinbaseTx.Marshal()
 	if err != nil {
