@@ -8,6 +8,7 @@ import (
 	"errors"
 	"hash/crc64"
 	"io"
+	"regexp"
 	"sync"
 	"time"
 
@@ -79,7 +80,8 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 			} else {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}
-			// logger.Warnf("pq data: %v, err: %v", crc32.ChecksumIEEE(data), err)
+			_, pids, _ := conn.getFromIPRepo()
+			pids.Store(conn.remotePeer.Pretty(), nil)
 		})
 	}
 	conn.mutex.Unlock()
@@ -395,6 +397,18 @@ func (conn *Conn) Close() error {
 		conn.peer.conns.Delete(pid)
 	}
 	conn.pq.Close()
+
+	ip, pids, _ := conn.getFromIPRepo()
+	pids.Delete(conn.remotePeer.Pretty())
+	num := 0
+	pids.Range(func(k, v interface{}) bool {
+		num++
+		return true
+	})
+	if num == 0 {
+		conn.peer.connmgr.ipRepo.Delete(ip)
+	}
+
 	if conn.stream != nil {
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
 		addrs := conn.peer.table.peerStore.Addrs(pid)
@@ -444,6 +458,9 @@ func (conn *Conn) checkMessage(msg *message) error {
 
 // KeepConn decides if the connection needs to be maintained.
 func (conn *Conn) KeepConn() bool {
+	if !conn.availableIP() {
+		return false
+	}
 
 	// If I don't know who you are and I have an agent, then connections are not allowed.
 	remoteType, _ := conn.peer.Type(conn.remotePeer)
@@ -467,4 +484,53 @@ func (conn *Conn) KeepConn() bool {
 		return true
 	}
 	return true
+}
+
+func (conn *Conn) getFromIPRepo() (string, *sync.Map, bool) {
+	multiAddr := conn.stream.Conn().RemoteMultiaddr().String()
+	re, _ := regexp.Compile(ipRegex)
+	ip := re.Find([]byte(multiAddr))
+	if len(ip) == 0 {
+		logger.Warnf("No ip was found in multiAddr %s", multiAddr)
+		return "", nil, false
+	}
+	// If it's not public ip
+	if !isPublicIP(string(ip)) {
+		return string(ip), nil, false
+	}
+
+	// If this ip is not connected
+	val, ok := conn.peer.connmgr.ipRepo.Load(ip)
+	if !ok {
+		newMap := new(sync.Map)
+		conn.peer.connmgr.ipRepo.Store(ip, newMap)
+		return string(ip), newMap, false
+	}
+	return string(ip), val.(*sync.Map), true
+}
+
+func (conn *Conn) availableIP() bool {
+	if conn.peer.config.MaxConnPerIP == 0 {
+		return true
+	}
+	ip, pids, continu := conn.getFromIPRepo()
+	if !continu {
+		return true
+	}
+	// If the number of connections to this IP is idle
+	num := uint32(0)
+	exist := false
+	pids.Range(func(k, v interface{}) bool {
+		num++
+		if v.(string) == conn.remotePeer.Pretty() {
+			exist = true
+		}
+		return true
+	})
+	if exist || num < conn.peer.config.MaxConnPerIP {
+		return true
+	}
+	logger.Infof("The number(%d) of conns to %s has reached the maximum number %d",
+		num, ip, conn.peer.config.MaxConnPerIP)
+	return false
 }

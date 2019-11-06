@@ -27,6 +27,7 @@ type Config struct {
 	ConnMaxCapacity uint32        `mapstructure:"conn_max_capacity"`
 	ConnLoadFactor  float32       `mapstructure:"conn_load_factor"`
 	RelaySize       uint32        `mapstructure:"relay_size"`
+	MaxConnPerIP    uint32        `mapstructure:"max_conn_per_ip"`
 }
 
 func (cfg *Config) exist(pid string, slice []string) bool {
