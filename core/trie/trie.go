@@ -47,7 +47,7 @@ func New(rootHash *crypto.HashType, db storage.Table) (*Trie, error) {
 	}
 
 	if v, err := trie.db.Get(rootHash[:]); err != nil || v == nil {
-		err := fmt.Errorf("Failed to build a new trie with root %s", rootHash)
+		err := fmt.Errorf("Failed to build a new trie with root %s, err: %v", rootHash, err)
 		return nil, err
 	}
 	return trie, nil

@@ -874,10 +874,7 @@ func (bpos *Bpos) verifyCoinbaseTx(block *types.Block) error {
 
 func (bpos *Bpos) verifyImmutableTx(block *types.Block, ty string) error {
 
-	parent, err := chain.LoadBlockByHash(block.Header.PrevBlockHash, bpos.chain.DB())
-	if err != nil {
-		return err
-	}
+	parent := bpos.chain.GetParentBlock(block)
 	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bpos.chain.DB())
 	if err != nil {
 		return err
