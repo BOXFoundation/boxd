@@ -117,7 +117,7 @@ func (sp *StateProcessor) Process(
 }
 
 func (sp *StateProcessor) notifyInvalidTx(tx *types.Transaction) {
-	sp.bc.bus.Publish(eventbus.TopicInvalidTx, tx)
+	sp.bc.bus.Publish(eventbus.TopicInvalidTx, tx, true)
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database

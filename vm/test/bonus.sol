@@ -257,18 +257,19 @@ contract Bonus is Permission{
         msg.sender.transfer(fd.pledgeAmount);
     }
 
-    function calcBonus() public payable {
-        require(msg.sender == block.coinbase, "only coinbase can do it.");
+    function calcBonus() public payable onlyAdmin {
+        // require(msg.sender == block.coinbase, "only coinbase can do it.");
         require(msg.value == netParams[BLOCK_REWARD], "block reward is error.");
+        address coinbase = block.coinbase;
         uint bookKeeperReward = netParams[BOOK_KEEPER_REWARD];
         require(bookKeeperReward < netParams[BLOCK_REWARD], "bookKeeperReward is bigger than block reward.");
-        dynastyToBonus[msg.sender] = dynastyToBonus[msg.sender].add(bookKeeperReward * (100 - netParams[BONUS_TO_VOTERS])/100);
-        for (uint i = 0; i < currentDelegateToVoters[msg.sender].length; i++) {
-            uint vote = currentDelegateVotesDetail[msg.sender][currentDelegateToVoters[msg.sender][i]];
-            voteBonus[currentDelegateToVoters[msg.sender][i]] = voteBonus[currentDelegateToVoters[msg.sender][i]].
-            add((bookKeeperReward * netParams[BONUS_TO_VOTERS] / 100) * (vote/BOX)/(addrToDynasty[msg.sender].votes/BOX));
+        dynastyToBonus[coinbase] = dynastyToBonus[coinbase].add(bookKeeperReward * (100 - netParams[BONUS_TO_VOTERS])/100);
+        for (uint i = 0; i < currentDelegateToVoters[coinbase].length; i++) {
+            uint vote = currentDelegateVotesDetail[coinbase][currentDelegateToVoters[coinbase][i]];
+            voteBonus[currentDelegateToVoters[coinbase][i]] = voteBonus[currentDelegateToVoters[coinbase][i]].
+            add((bookKeeperReward * netParams[BONUS_TO_VOTERS] / 100) * (vote/BOX)/(addrToDynasty[coinbase].votes/BOX));
         }
-        emit CalcBonus(msg.sender, bookKeeperReward, dynastyToBonus[msg.sender]);
+        emit CalcBonus(coinbase, bookKeeperReward, dynastyToBonus[coinbase]);
         delegateRewardTotal = delegateRewardTotal.add(msg.value-bookKeeperReward);
 
         delete currentProposals;
@@ -318,7 +319,7 @@ contract Bonus is Permission{
         emit ExecBonus(totalBonusToBookkeeper, address(this).balance);
     }
 
-    function calcScore(uint[] scores) public  {
+    function calcScore(uint[] scores) public onlyAdmin {
         for(uint i = 0; i < scores.length; i++) {
             Delegate storage delegate = addrToDelegates[pledgeAddrList[i]];
             delegate.score = scores[i];
