@@ -929,11 +929,12 @@ func (bpos *Bpos) verifyInternalContractTx(block *types.Block) error {
 		if err := bpos.verifyImmutableTx(block, chain.ExecBonus); err != nil {
 			return err
 		}
-	} else if uint64(height)%switchHeight == scoreHeight { // calc score
-		if err := bpos.verifyImmutableTx(block, chain.CalcScore); err != nil {
-			return err
-		}
 	}
+	// else if uint64(height)%switchHeight == scoreHeight { // calc score
+	// 	if err := bpos.verifyImmutableTx(block, chain.CalcScore); err != nil {
+	// 		return err
+	// 	}
+	// }
 	if uint64(height+1)%switchHeight == 0 || uint64(height)%switchHeight == scoreHeight {
 		for i, tx := range block.Txs[2:] {
 			if chain.IsInternalContract(tx) {
