@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"container/heap"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -671,13 +672,12 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		return err
 	}
 
-	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
-		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr))
+	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis "+
+		"contract balance: %d", block.Header.Height, statedb.RootHash(),
+		statedb.UtxoRoot(), statedb.GetBalance(chain.ContractAddr))
 	logger.Infof("genesis contract balance change, previous %d, coinbase value: "+
 		"%d, gas used %d, now %d in statedb", genesisContractBalanceOld,
 		block.Txs[0].Vout[0].Value, gasUsed, statedb.GetBalance(chain.ContractAddr))
-
-	bpos.chain.UtxoSetCache()[block.Header.Height] = utxoSet
 
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
@@ -694,7 +694,20 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	block.Header.Bloom = types.CreateReceiptsBloom(receipts)
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
-		bpos.chain.ReceiptsCache()[block.Header.Height] = receipts
+	}
+	// check whether contract balance is identical in utxo and statedb
+	for o, u := range utxoSet.ContractUtxos() {
+		contractAddr := types.NewAddressHash(o.Hash[:])
+		if u.Value() != statedb.GetBalance(*contractAddr).Uint64() {
+			address, _ := types.NewContractAddressFromHash(contractAddr[:])
+			return fmt.Errorf("contract %s have ambiguous balance(%d in utxo and %d"+
+				" in statedb)", address, u.Value(), statedb.GetBalance(*contractAddr))
+		}
+	}
+	bpos.chain.BlockExecuteResults()[block.Header.Height] = &chain.BlockExecuteResult{
+		StateDB:  statedb,
+		Receipts: receipts,
+		UtxoSet:  utxoSet,
 	}
 	block.Hash = nil
 	logger.Infof("block %s height: %d have state root %s utxo root %s",
