@@ -157,8 +157,9 @@ func nextBlockV3(
 	}
 	// coinbase tx
 	height := newBlock.Header.Height
+	adminAddr, _ := types.NewAddress(Admin)
 	if nonce == 0 {
-		nonce = chain.tailState.GetNonce(*minerAddr.Hash160())
+		nonce = chain.tailState.GetNonce(*adminAddr.Hash160())
 	}
 	coinbaseTx, _ := MakeCoinBaseContractTx(newBlock.Header.BookKeeper,
 		CalcBlockSubsidy(height), txFee, nonce+1, height)
@@ -353,10 +354,15 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	bc.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
 	//
 	reward := block.Txs[0].Vout[0].Value
-	if len(block.Txs[0].Vout) == 2 {
-		reward += block.Txs[0].Vout[1].Value
+
+	adminAddr, err := types.NewAddress(Admin)
+	if err != nil {
+		return err
 	}
-	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(reward))
+	statedb.AddBalance(*adminAddr.Hash160(), new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
+	if len(block.Txs[0].Vout) == 2 {
+		statedb.AddBalance(*bookkeeper, new(big.Int).SetUint64(block.Txs[0].Vout[1].Value))
+	}
 	//
 	receipts, gasUsed, utxoTxs, err := bc.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
@@ -370,8 +376,8 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	}
 	opCoinbase := types.NewOutPoint(coinbaseHash, 1)
 
-	statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
 	if gasUsed > 0 {
+		statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
 		if len(block.Txs[0].Vout) == 2 {
 			block.Txs[0].Vout[1].Value += gasUsed
 		} else {
@@ -522,7 +528,7 @@ func TestBlockProcessing(t *testing.T) {
 	splitAddr := txlogic.MakeSplitAddress(prevHash, 0, addrs, weights)
 	logger.Infof("create a split tx. addr: %s", splitAddr)
 	// b3A
-	minerNonce := uint64(2)
+	minerNonce := uint64(3)
 	b3A := nextBlockV3(b2, blockChain, minerNonce, vmTx, splitTx)
 	if err := connectBlock(b2, b3A, blockChainA); err != nil {
 		t.Fatal(err)
@@ -585,7 +591,7 @@ func TestBlockProcessing(t *testing.T) {
 	// Extend b3 fork twice to make first chain longer and force reorg
 	// b0 -> b1 -> b2  -> b3  -> b4 -> b5
 	// 		            \-> b3A -> b4A
-	minerNonce = uint64(3)
+	minerNonce++
 	b4 := nextBlockV3(b3, blockChain, minerNonce)
 	vmParam = &testContractParam{contractAddr: contractAddrFaucet}
 	//
@@ -653,7 +659,7 @@ func TestBlockProcessing(t *testing.T) {
 
 	// b0 -> b1 -> b2  -> b3  -> b4  -> b5
 	//							 \ -> b3A -> b4A -> b5A -> b6A
-	minerNonce = uint64(4)
+	minerNonce++
 	b5A := nextBlockV3(b4A, blockChain, minerNonce)
 	vmParam = &testContractParam{contractAddr: contractAddrCoin, contractBalance: contractBalance}
 	//
@@ -791,7 +797,7 @@ func TestBlockProcessing(t *testing.T) {
 		WithData(types.ContractDataType, byteCode)
 	t.Logf("b7b change value: %d", changeValueA)
 	txlogic.SignTx(vmTx, privKey, pubKey)
-	minerNonce = uint64(6)
+	minerNonce = uint64(7)
 	b7B := nextBlockV3(b6A, blockChain, minerNonce, vmTx)
 	//
 	if err := connectBlock(b6A, b7B, blockChainB); err != nil {
@@ -834,7 +840,7 @@ func TestBlockProcessing(t *testing.T) {
 	// b0 -> b1 -> b2  -> b3  -> b4  -> b5  -> b6  -> b7  -> b8  -> b9
 	//  		           -> b3A -> b4A -> b5A -> b6A -> b7A
 	//                                             -> b7B -> b8B
-	minerNonce = uint64(5)
+	minerNonce = uint64(6)
 	b6 := nextBlockV3(b5, blockChain, minerNonce)
 	//
 	if err := connectBlock(b5, b6, blockChainI); err != nil {
@@ -847,7 +853,7 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b6 block hash: %s", b6.BlockHash())
 	verifyProcessBlock(t, blockChain, b6, core.ErrBlockInSideChain, 8, b8B)
 
-	minerNonce = uint64(6)
+	minerNonce++
 	b7 := nextBlockV3(b6, blockChain, minerNonce)
 	//
 	if err := connectBlock(b6, b7, blockChainI); err != nil {
@@ -860,7 +866,7 @@ func TestBlockProcessing(t *testing.T) {
 	t.Logf("b7 block hash: %s", b7.BlockHash())
 	verifyProcessBlock(t, blockChain, b7, core.ErrBlockInSideChain, 8, b8B)
 
-	minerNonce = uint64(7)
+	minerNonce++
 	b8 := nextBlockV3(b7, blockChain, minerNonce)
 	//
 	if err := connectBlock(b7, b8, blockChainI); err != nil {

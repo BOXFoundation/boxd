@@ -1024,7 +1024,7 @@ func TestERC20Contract(t *testing.T) {
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
 	// minerNonce := uint64(9)
-	minerNonce := stateDB.GetNonce(*minerAddr.Hash160()) + 2 // note: coinbase tx has already add 1.
+	minerNonce := stateDB.GetNonce(*minerAddr.Hash160()) + 1 // note: coinbase tx has already add 1.
 	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, minerNonce)
 	ensure.Nil(t, err)
@@ -1160,7 +1160,7 @@ func TestERC20Contract(t *testing.T) {
 	vmParam = &testContractParam{
 		vmValue, gasLimit, 0, 0, contractAddr,
 	}
-	minerNonce = stateDB.GetNonce(*minerAddr.Hash160()) + 2 // note: coinbase tx has already add 1.
+	minerNonce = stateDB.GetNonce(*minerAddr.Hash160()) + 1 // note: coinbase tx has already add 1.
 	contractVout, err = txlogic.MakeContractCallVout(minerAddr.Hash160(),
 		contractAddr.Hash160(), vmValue, gasLimit, minerNonce)
 	ensure.Nil(t, err)

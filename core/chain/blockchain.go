@@ -900,7 +900,14 @@ func (chain *BlockChain) executeBlock(
 		if len(block.Txs[0].Vout) == 2 {
 			reward += block.Txs[0].Vout[1].Value
 		}
-		stateDB.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(reward))
+		adminAddr, err := types.NewAddress(Admin)
+		if err != nil {
+			return err
+		}
+		stateDB.AddBalance(*adminAddr.Hash160(), new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
+		if len(block.Txs[0].Vout) == 2 {
+			stateDB.AddBalance(block.Header.BookKeeper, big.NewInt(int64(block.Txs[0].Vout[1].Value)))
+		}
 
 		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
 		if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
@@ -2250,10 +2257,8 @@ func (chain *BlockChain) calcScores() ([]*big.Int, error) {
 }
 
 // MakeCoinBaseContractTx creates a coinbase give bookkeeper address and block height
-func MakeCoinBaseContractTx(
-	from types.AddressHash, reward uint64, txFee uint64, nonce uint64,
-	blockHeight uint32,
-) (*types.Transaction, error) {
+func MakeCoinBaseContractTx(bookKeeper types.AddressHash, reward uint64,
+	txFee uint64, nonce uint64, blockHeight uint32) (*types.Transaction, error) {
 	code, err := ContractAbi.Pack(CalcBonus)
 	if err != nil {
 		return nil, err
@@ -2264,13 +2269,17 @@ func MakeCoinBaseContractTx(
 	if err != nil {
 		return nil, err
 	}
-	vout, err := txlogic.MakeContractCallVout(&from, contractAddr.Hash160(), reward, 1e9, nonce)
+	adminAddr, err := types.NewAddress(Admin)
+	if err != nil {
+		return nil, err
+	}
+	vout, err := txlogic.MakeContractCallVout(adminAddr.Hash160(), contractAddr.Hash160(), reward, 1e9, nonce)
 	if err != nil {
 		return nil, err
 	}
 	var feeVout *types.TxOut
 	if txFee > 0 {
-		feeVout = txlogic.MakeVout(&from, txFee)
+		feeVout = txlogic.MakeVout(&bookKeeper, txFee)
 	}
 	tx := types.NewTx(1, 0, 0).
 		AppendVin(types.NewTxIn(types.NewOutPoint(nil, sysmath.MaxUint32),
@@ -2291,7 +2300,7 @@ func (chain *BlockChain) MakeCalcScoreTx(
 	if err != nil {
 		return nil, err
 	}
-	tx := txlogic.MakeCoinBaseTx(blockHeight, sysmath.MaxUint32-1, &from, &ContractAddr, nonce, code)
+	tx := txlogic.MakeGenesisContractTx(blockHeight, sysmath.MaxUint32-1, &from, &ContractAddr, nonce, code)
 	logger.Infof("CalcScoreTx from: %x nonce: %d to %x scores: %v",
 		from[:], nonce, ContractAddr[:], scores)
 	return tx, nil
@@ -2305,7 +2314,7 @@ func (chain *BlockChain) MakeDynastySwitchTx(
 	if err != nil {
 		return nil, err
 	}
-	tx := txlogic.MakeCoinBaseTx(blockHeight, sysmath.MaxUint32-1, &from, &ContractAddr, nonce, code)
+	tx := txlogic.MakeGenesisContractTx(blockHeight, sysmath.MaxUint32-1, &from, &ContractAddr, nonce, code)
 	return tx, nil
 }
 

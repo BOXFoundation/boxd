@@ -456,13 +456,13 @@ func HasContractVout(tx *types.Transaction) bool {
 	return false
 }
 
-// MakeCoinBaseTx makes a coinbase tx
-func MakeCoinBaseTx(
-	blockHeight, txIdx uint32, bookkeeper, genesisAddr *types.AddressHash,
+// MakeGenesisContractTx makes a genesis contract tx
+func MakeGenesisContractTx(
+	blockHeight, txIdx uint32, from, genesisAddr *types.AddressHash,
 	nonce uint64, code []byte,
 ) *types.Transaction {
 	coinbaseScriptSig := script.StandardCoinbaseSignatureScript(blockHeight)
-	vout, _ := MakeContractCallVout(bookkeeper, genesisAddr, 0, 1e9, nonce)
+	vout, _ := MakeContractCallVout(from, genesisAddr, 0, 1e9, nonce)
 	tx := types.NewTx(1, 0, 0).
 		AppendVin(types.NewTxIn(types.NewOutPoint(nil, txIdx), *coinbaseScriptSig, math.MaxUint32)).
 		AppendVout(vout)

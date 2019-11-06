@@ -5,6 +5,7 @@
 package bpos
 
 import (
+	"bytes"
 	"container/heap"
 	"errors"
 	"math/big"
@@ -149,8 +150,11 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 	if !ok {
 		return ErrFailedToVerifySign
 	}
+	if err := bpos.verifyCoinbaseTx(block); err != nil {
+		return err
+	}
 
-	if err := bpos.verifyDynastySwitch(block); err != nil {
+	if err := bpos.verifyInternalContractTx(block); err != nil {
 		return err
 	}
 
@@ -381,18 +385,18 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 
 	for from, v := range addressToTxs {
 		var vmtxs []*types.VMTransaction
-		var currentNonce uint64
-		if from == *bpos.bookkeeper.AddressHash() {
-			currentNonce = statedb.GetNonce(from) + 1
-		} else {
-			currentNonce = statedb.GetNonce(from)
-		}
+		currentNonce := statedb.GetNonce(from)
 
 		for v.Len() > 0 {
 			vmTx := heap.Pop(v).(*types.VMTransaction)
 			hash := vmTx.OriginTxHash()
 			if vmTx.Nonce() != currentNonce+1 {
-				logger.Warnf("vm tx %+v has a wrong nonce(now %d), remove it", vmTx, currentNonce)
+				// remove from mem_pool if vmTx nonce is smaller than current nonce
+				if vmTx.Nonce() < currentNonce+1 {
+					logger.Warnf("vm tx %+v has a wrong nonce, expect nonce: %d, remove it from mem_pool.", vmTx, currentNonce+1)
+					bpos.chain.Bus().Publish(eventbus.TopicInvalidTx, hashToTx[*hash].Tx, true)
+				}
+				logger.Warnf("vm tx %+v has a bigger nonce, expect nonce: %d", vmTx, currentNonce+1)
 				delete(hashToTx, *hash)
 				continue
 			}
@@ -479,7 +483,8 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		for txIdx, txWrap := range sortedTxs {
 			if stopPack {
 				continueCh <- true
-				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx, len(packedTxs), len(sortedTxs))
+				logger.Debugf("stops at %d-th tx: packed %d txs out of %d", txIdx,
+					len(packedTxs), len(sortedTxs))
 				return
 			}
 			if packedTxsRoughSize+txWrap.Tx.RoughSize() > core.MaxTxsRoughSize {
@@ -544,29 +549,39 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	nonce := statedb.GetNonce(block.Header.BookKeeper) + 1
-	coinbaseTx, err := bpos.makeCoinbaseTx(block, statedb, totalTransferFee, nonce)
-	if err != nil {
-		return err
-	}
-	block.Txs = append(block.Txs, coinbaseTx)
 	adminAddr, err := types.NewAddress(chain.Admin)
 	if err != nil {
 		return err
 	}
-	nonce = statedb.GetNonce(*adminAddr.Hash160()) + 1
+	from := *adminAddr.Hash160()
+	adminNonce := statedb.GetNonce(from) + 1
+	statedb.AddBalance(from, new(big.Int).SetUint64(bpos.context.bookKeeperReward.Uint64()))
+	if totalTransferFee > 0 {
+		statedb.AddBalance(block.Header.BookKeeper, big.NewInt(int64(totalTransferFee)))
+	}
+
+	// coinbaseTx, err := bpos.makeCoinbaseTx(from, block, statedb, totalTransferFee, adminNonce)
+	coinbaseTx, err := chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
+		bpos.context.bookKeeperReward.Uint64(), totalTransferFee, adminNonce, block.Header.Height)
+	if err != nil {
+		return err
+	}
+	block.Txs = append(block.Txs, coinbaseTx)
+
 	if uint64((block.Header.Height+1))%bpos.context.dynastySwitchThreshold.Uint64() == 0 { // dynasty switch
-		dynastySwitchTx, err := bpos.chain.MakeDynastySwitchTx(*adminAddr.Hash160(), nonce, block.Header.Height)
+		adminNonce++
+		dynastySwitchTx, err := bpos.chain.MakeDynastySwitchTx(*adminAddr.Hash160(), adminNonce, block.Header.Height)
 		if err != nil {
 			return err
 		}
 		block.Txs = append(block.Txs, dynastySwitchTx)
 	} else if uint64(block.Header.Height)%bpos.context.dynastySwitchThreshold.Uint64() == bpos.context.calcScoreThreshold.Uint64() { // calc score
+		adminNonce++
 		scores, err := bpos.calcScores()
 		if err != nil {
 			return err
 		}
-		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), nonce, block.Header.Height, scores)
+		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), adminNonce, block.Header.Height, scores)
 		if err != nil {
 			return err
 		}
@@ -579,20 +594,19 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 		return err
 	}
 	block.IrreversibleInfo = bpos.bftservice.FetchIrreversibleInfo()
-	logger.Infof("Finish packing txs. Hash: %v, Height: %d, Block TxsNum: %d, "+
-		"internal TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(),
-		block.Header.Height, len(block.Txs), len(block.InternalTxs), len(sortedTxs))
+	logger.Infof("Finish packing txs. Hash: %v, Height: %d, TxsNum: %d, internal"+
+		" TxsNum: %d, Mempool TxsNum: %d", block.BlockHash(), block.Header.Height,
+		len(block.Txs), len(block.InternalTxs), len(sortedTxs))
 	return nil
 }
 
-func (bpos *Bpos) makeCoinbaseTx(
-	block *types.Block, statedb *state.StateDB, txFee uint64, nonce uint64,
-) (*types.Transaction, error) {
+func (bpos *Bpos) makeCoinbaseTx(from types.AddressHash, block *types.Block,
+	statedb *state.StateDB, txFee uint64, nonce uint64) (*types.Transaction, error) {
 	amount := bpos.context.bookKeeperReward.Uint64() + txFee
 	logger.Infof("make coinbaseTx %s:%d amount: %d txFee: %d",
 		block.BlockHash(), block.Header.Height, amount, txFee)
-	statedb.AddBalance(block.Header.BookKeeper, new(big.Int).SetUint64(amount))
-	return chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
+	statedb.AddBalance(from, new(big.Int).SetUint64(amount))
+	return chain.MakeCoinBaseContractTx(from,
 		bpos.context.bookKeeperReward.Uint64(), txFee, nonce, block.Header.Height)
 }
 
@@ -633,7 +647,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		}
 		reward := block.Txs[0].Vout[0].Value + block.Txs[0].Vout[1].Value
 		logger.Infof("gas used for block %d: %d, bookkeeper %s reward: %d",
-			block.Header.Height, gasUsed, reward)
+			block.Header.Height, gasUsed, bookkeeper, reward)
 		utxoSet.SpendUtxo(*opCoinbase)
 		block.Txs[0].ResetTxHash()
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
@@ -819,18 +833,109 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 	return false, nil
 }
 
-func (bpos *Bpos) verifyDynastySwitch(block *types.Block) error {
+func (bpos *Bpos) verifyCoinbaseTx(block *types.Block) error {
+
+	parent, err := chain.LoadBlockByHash(block.Header.PrevBlockHash, bpos.chain.DB())
+	if err != nil {
+		return err
+	}
+	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bpos.chain.DB())
+	if err != nil {
+		return err
+	}
+	adminAddr, err := types.NewAddress(chain.Admin)
+	if err != nil {
+		return err
+	}
+	from := *adminAddr.Hash160()
+	adminNonce := statedb.GetNonce(from) + 1
+	var totalTransferFee uint64
+	if len(block.Txs[0].Vout) > 1 {
+		totalTransferFee = block.Txs[0].Vout[1].Value
+	}
+
+	// coinbaseTx, err := bpos.makeCoinbaseTx(from, block, statedb, totalTransferFee, adminNonce)
+	coinbaseTx, err := chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
+		block.Txs[0].Vout[0].Value, totalTransferFee, adminNonce, block.Header.Height)
+	expect, err := coinbaseTx.Marshal()
+	if err != nil {
+		return err
+	}
+	current, err := block.Txs[0].Marshal()
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(expect, current) {
+		return ErrInvalidCoinbaseTx
+	}
+	return nil
+}
+
+func (bpos *Bpos) verifyImmutableTx(block *types.Block, ty string) error {
+
+	parent := bpos.chain.GetParentBlock(block)
+	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bpos.chain.DB())
+	if err != nil {
+		return err
+	}
+	adminAddr, err := types.NewAddress(chain.Admin)
+	if err != nil {
+		return err
+	}
+	adminNonce := statedb.GetNonce(*adminAddr.Hash160()) + 2
+	var internalContractTx *types.Transaction
+	switch ty {
+	case chain.ExecBonus:
+		internalContractTx, err = bpos.chain.MakeDynastySwitchTx(*adminAddr.Hash160(), adminNonce, block.Header.Height)
+		if err != nil {
+			return err
+		}
+	case chain.CalcScore:
+		scores, err := bpos.calcScores()
+		if err != nil {
+			return err
+		}
+		internalContractTx, err = bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), adminNonce, block.Header.Height, scores)
+		if err != nil {
+			return err
+		}
+	}
+
+	expect, err := internalContractTx.Marshal()
+	if err != nil {
+		return err
+	}
+	current, err := block.Txs[1].Marshal()
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(expect, current) {
+		return ErrInvalidInternalContractTx
+	}
+	return nil
+}
+
+func (bpos *Bpos) verifyInternalContractTx(block *types.Block) error {
 
 	height := block.Header.Height
 	switchHeight := bpos.context.verifyDynastySwitchThreshold.Uint64()
 	scoreHeight := bpos.context.verifyCalcScoreThreshold.Uint64()
-	if uint64(height+1)%switchHeight == 0 || uint64(height)%switchHeight == scoreHeight {
-		if !chain.IsInternalContract(block.Txs[1]) {
-			return ErrInvalidDynastySwitchTx
+	if uint64(height+1)%switchHeight == 0 { // dynasty switch
+		if err := bpos.verifyImmutableTx(block, chain.ExecBonus); err != nil {
+			return err
 		}
+	}
+	// else if uint64(height)%switchHeight == scoreHeight { // calc score
+	// 	if err := bpos.verifyImmutableTx(block, chain.CalcScore); err != nil {
+	// 		return err
+	// 	}
+	// }
+	if uint64(height+1)%switchHeight == 0 || uint64(height)%switchHeight == scoreHeight {
 		for i, tx := range block.Txs[2:] {
 			if chain.IsInternalContract(tx) {
-				logger.Errorf("block contains second dynasty switch tx at index %d", i+2)
+				logger.Errorf("block contains second internal contract tx at index %d", i+2)
 				return ErrMultipleDynastySwitchTx
 			}
 		}

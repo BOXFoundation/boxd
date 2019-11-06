@@ -98,7 +98,6 @@ var (
 	ErrDoubleSpendTx        = errors.New("Transaction must not use any of the same outputs as other transactions")
 	ErrBadCoinbaseScriptLen = errors.New("Coinbase scriptSig out of range")
 	ErrBadTxInput           = errors.New("Transaction input refers to null out point")
-	ErrContractInputTx      = errors.New("Transaction must not use contract input")
 	ErrMissingTxOut         = errors.New("Referenced utxo does not exist")
 	ErrImmatureSpend        = errors.New("Attempting to spend an immature coinbase")
 	ErrSpendTooHigh         = errors.New("Transaction is attempting to spend more value than the sum of all of its inputs")
