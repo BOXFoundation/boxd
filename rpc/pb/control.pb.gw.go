@@ -671,7 +671,7 @@ var (
 
 	pattern_ContorlCommand_GetBlockHeader_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "getblockheader"}, ""))
 
-	pattern_ContorlCommand_GetTxCount_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "ctl", "block", "txCount"}, ""))
+	pattern_ContorlCommand_GetTxCount_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "ctl", "block", "txcount"}, ""))
 
 	pattern_ContorlCommand_Delegates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "ctl", "delegates"}, ""))
 )

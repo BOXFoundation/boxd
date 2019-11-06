@@ -102,7 +102,7 @@ service ContorlCommand {
 
     rpc GetTxCount (GetTxCountReq) returns (GetTxCountResp){
         option (google.api.http) = {
-            post: "/v1/ctl/block/txCount"
+            post: "/v1/ctl/block/txcount"
             body: "*"
         };
     }

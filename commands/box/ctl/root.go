@@ -5,6 +5,7 @@
 package ctl
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -161,23 +162,24 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 }
 
 func detailBlock(cmd *cobra.Command, args []string) {
-	if len(args) == 0 {
+	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 		return
 	}
 	var (
 		hash    = new(crypto.HashType)
+		hashStr string
 		height  uint64
-		respRPC interface{}
+		err     error
 	)
-	if err := hash.SetString(args[0]); err != nil {
-		height, err = strconv.ParseUint(args[0], 10, 32)
-		if err != nil {
+	if height, err = strconv.ParseUint(args[0], 10, 64); err != nil {
+		if err = hash.SetString(args[0]); err != nil {
 			fmt.Println("invalid argument:", args[0])
 			return
 		}
+		hashStr = hash.String()
 	}
-	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Hash: hash.String(), Height: uint32(height)}, common.GetRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Hash: hashStr, Height: uint32(height)}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -191,7 +193,12 @@ func detailBlock(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println(format.PrettyPrint(resp.Detail))
+	blockDetail, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		fmt.Println("format the details of block error:", err)
+		return
+	}
+	fmt.Println(string(blockDetail))
 }
 
 func getBlockCountCmdFunc(cmd *cobra.Command, args []string) {

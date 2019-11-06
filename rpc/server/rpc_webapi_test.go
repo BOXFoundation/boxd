@@ -437,10 +437,6 @@ func (r *TestDetailBlockChainReader) TailBlock() *types.Block {
 	return nil
 }
 
-func (r *TestDetailBlockChainReader) LoadBlockByHeight(height uint32) (*types.Block, error) {
-	return nil, nil
-}
-
 func (r *TestDetailBlockChainReader) GetBlockHash(uint32) (*crypto.HashType, error) {
 	return nil, nil
 }

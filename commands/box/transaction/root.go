@@ -91,8 +91,8 @@ func init() {
 			Run:   getTxCount,
 		},
 		&cobra.Command{
-			Use:   "detailtx [option|tx_hash, blockheight, blockhash] [tx_index]",
-			Short: "view the details of the transaction",
+			Use:   "detailtx [tx_hash]",
+			Short: "view the details of the transaction by tx_hash",
 			Run:   detailTx,
 		},
 		&cobra.Command{
@@ -269,38 +269,17 @@ func getTxCount(cmd *cobra.Command, args []string) {
 }
 
 func detailTx(cmd *cobra.Command, args []string) {
-	var (
-		err       error
-		hash      = new(crypto.HashType)
-		blockHash = new(crypto.HashType)
-		height    uint64
-		index     uint64
-	)
-	switch len(args) {
-	case 1:
-		if err := hash.SetString(args[0]); err != nil {
-			fmt.Println("invalid hash")
-			return
-		}
-	case 2:
-		index, err = strconv.ParseUint(args[1], 10, 64)
-		if err != nil {
-			fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", args[1], err)
-			return
-		}
-		if err := blockHash.SetString(args[0]); err != nil {
-			height, err = strconv.ParseUint(args[0], 10, 64)
-			if err != nil {
-				fmt.Println("invalid argument:", args[0])
-				return
-			}
-		}
-	default:
+	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 		return
 	}
+	hash := new(crypto.HashType)
+	if err := hash.SetString(args[0]); err != nil {
+		fmt.Println("invalid hash")
+		return
+	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewTxDetail",
-		&rpcpb.ViewTxDetailReq{Hash: hash.String(), BlockHash: blockHash.String(), BlockHeight: uint32(height), Index: uint32(index)}, common.GetRPCAddr())
+		&rpcpb.ViewTxDetailReq{Hash: hash.String()}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -314,7 +293,12 @@ func detailTx(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	fmt.Println(format.PrettyPrint(resp))
+	txDetail, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		fmt.Println("format the details of tx error:", err)
+		return
+	}
+	fmt.Println(string(txDetail))
 }
 
 func decoderawtx(cmd *cobra.Command, args []string) {

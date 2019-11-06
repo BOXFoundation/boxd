@@ -59,7 +59,6 @@ type ChainBlockReader interface {
 	TailState() *state.StateDB
 	GetDataFromDB([]byte) ([]byte, error)
 	GetBlockHash(uint32) (*crypto.HashType, error)
-	LoadBlockByHeight(height uint32) (*types.Block, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -165,42 +164,10 @@ func (s *webapiServer) ViewTxDetail(
 
 	logger.Infof("view tx detail req: %+v", req)
 	// fetch hash from request
-	var (
-		err  error
-		hash = new(crypto.HashType)
-	)
-	if req.Hash != "" {
-		if err := hash.SetString(req.Hash); err != nil {
-			logger.Warn("view tx detail error: ", err)
-			return newViewTxDetailResp(-1, err.Error()), nil
-		}
-	} else {
-		var (
-			blockHash = new(crypto.HashType)
-			block     = new(types.Block)
-		)
-		if req.BlockHash != "" {
-			if err := blockHash.SetString(req.BlockHash); err != nil {
-				logger.Warn("get the hash of block error: ", err)
-				return newViewTxDetailResp(-1, err.Error()), nil
-			}
-			block, _, err = s.ChainBlockReader.ReadBlockFromDB(blockHash)
-			if err != nil {
-				return newViewTxDetailResp(-1, err.Error()), err
-			}
-		} else {
-			block, err = s.ChainBlockReader.LoadBlockByHeight(req.BlockHeight)
-			if err != nil {
-				return newViewTxDetailResp(-1, err.Error()), nil
-			}
-		}
-		if req.Index > uint32(len(block.Txs)-1) {
-			return newViewTxDetailResp(-1, err.Error()), nil
-		}
-		tx := block.Txs[req.Index]
-		if hash, err = tx.TxHash(); err != nil {
-			return newViewTxDetailResp(-1, err.Error()), nil
-		}
+	hash := new(crypto.HashType)
+	if err := hash.SetString(req.Hash); err != nil {
+		logger.Warn("view tx detail error: ", err)
+		return newViewTxDetailResp(-1, err.Error()), nil
 	}
 	// new resp
 	resp := new(rpcpb.ViewTxDetailResp)
