@@ -5,10 +5,13 @@
 package common
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"path"
 
+	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -28,14 +31,21 @@ var (
 
 // GetRPCAddr gets rpc addr
 func GetRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
+	if err := util.FileExists(root.ConnAddrFile); err != nil {
+		var cfg config.Config
+		viper.Unmarshal(&cfg)
+		return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
+	}
+	data, err := ioutil.ReadFile(root.ConnAddrFile)
+	if err != nil {
+		return ""
+	}
+	return string(bytes.TrimSpace(data))
 }
 
 // SignAndSendTx sign tx and then send this tx to a server node
 func SignAndSendTx(
-	tx *corepb.Transaction, rawMsgs []string, acc *account.Account, connAddr string,
+	tx *corepb.Transaction, rawMsgs []string, acc *account.Account,
 ) (hash string, err error) {
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
 	for _, msg := range rawMsgs {
@@ -71,7 +81,7 @@ func SignAndSendTx(
 	}
 	// send tx
 	resp, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient,
-		"SendTransaction", &rpcpb.SendTransactionReq{Tx: tx}, connAddr)
+		"SendTransaction", &rpcpb.SendTransactionReq{Tx: tx}, GetRPCAddr())
 	if err != nil {
 		err = fmt.Errorf("send tx %+v error: %s", tx, err)
 		return
