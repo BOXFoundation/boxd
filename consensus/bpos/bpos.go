@@ -391,9 +391,13 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			vmTx := heap.Pop(v).(*types.VMTransaction)
 			hash := vmTx.OriginTxHash()
 			if vmTx.Nonce() != currentNonce+1 {
-				logger.Warnf("vm tx %+v has a wrong nonce(now %d), remove it", vmTx, currentNonce)
+				// remove from mem_pool if vmTx nonce is smaller than current nonce
+				if vmTx.Nonce() < currentNonce+1 {
+					logger.Warnf("vm tx %+v has a wrong nonce, expect nonce: %d, remove it from mem_pool.", vmTx, currentNonce+1)
+					bpos.chain.Bus().Publish(eventbus.TopicInvalidTx, hashToTx[*hash].Tx, true)
+				}
+				logger.Warnf("vm tx %+v has a bigger nonce, expect nonce: %d", vmTx, currentNonce+1)
 				delete(hashToTx, *hash)
-				// TODO: remove from mem_pool if vmTx nonce is smaller than current nonce
 				continue
 			}
 			currentNonce++
