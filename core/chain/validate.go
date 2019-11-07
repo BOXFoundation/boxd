@@ -309,14 +309,14 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction) (uint64, error) {
 	txHash, _ := tx.TxHash()
 	var totalInputAmount uint64
 	tokenInputAmounts := make(map[script.TokenID]uint64)
-	for _, txIn := range tx.Vin {
+	for i, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		// if utxo == nil || utxo.IsSpent() {
-		// 	logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
-		// 		"has already been spent", txIn.PrevOutPoint, txHash, i)
-		// 	return 0, core.ErrMissingTxOut
-		// }
+		if utxo == nil || utxo.IsSpent() {
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
+				"has already been spent", txIn.PrevOutPoint, txHash, i)
+			return 0, core.ErrMissingTxOut
+		}
 		// Tx amount must be in range.
 		utxoAmount := utxo.Value()
 		if utxoAmount > TotalSupply {

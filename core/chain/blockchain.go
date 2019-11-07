@@ -79,6 +79,13 @@ type Config struct {
 	ContractABIPath string `mapstructure:"contract_abi_path"`
 }
 
+// BlockExecuteResult defines the result of processing block
+type BlockExecuteResult struct {
+	UtxoSet  *UtxoSet
+	Receipts types.Receipts
+	StateDB  *state.StateDB
+}
+
 // BlockChain define chain struct
 type BlockChain struct {
 	cfg           *Config
@@ -105,8 +112,7 @@ type BlockChain struct {
 	syncManager               SyncManager
 	stateProcessor            *StateProcessor
 	vmConfig                  vm.Config
-	utxoSetCache              map[uint32]*UtxoSet
-	receiptsCache             map[uint32]types.Receipts
+	blockExecuteResults       map[uint32]*BlockExecuteResult
 	sectionMgr                *SectionManager
 	status                    int32
 }
@@ -128,8 +134,7 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 		proc:                      goprocess.WithParent(parent),
 		hashToOrphanBlock:         make(map[crypto.HashType]*types.Block),
 		orphanBlockHashToChildren: make(map[crypto.HashType][]*types.Block),
-		utxoSetCache:              make(map[uint32]*UtxoSet),
-		receiptsCache:             make(map[uint32]types.Receipts),
+		blockExecuteResults:       make(map[uint32]*BlockExecuteResult),
 		bus:                       eventbus.Default(),
 		status:                    free,
 	}
@@ -228,14 +233,9 @@ func (chain *BlockChain) StateProcessor() *StateProcessor {
 	return chain.stateProcessor
 }
 
-// UtxoSetCache returns chain utxoSet cache.
-func (chain *BlockChain) UtxoSetCache() map[uint32]*UtxoSet {
-	return chain.utxoSetCache
-}
-
-// ReceiptsCache returns chain receipts cache.
-func (chain *BlockChain) ReceiptsCache() map[uint32]types.Receipts {
-	return chain.receiptsCache
+// BlockExecuteResults returns result of processing block
+func (chain *BlockChain) BlockExecuteResults() map[uint32]*BlockExecuteResult {
+	return chain.blockExecuteResults
 }
 
 // Proc returns the goprocess of the BlockChain
@@ -695,37 +695,53 @@ func (chain *BlockChain) GetParentBlock(block *types.Block) *types.Block {
 // tryConnectBlockToMainChain tries to append the passed block to the main chain.
 // It enforces multiple rules such as double spends and script verification.
 func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageFrom peer.ID) error {
-
+	var (
+		res *BlockExecuteResult
+		err error
+	)
 	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d",
 		block.BlockHash(), block.Header.Height)
-
-	var utxoSet *UtxoSet
+	blockCopy := block.Copy()
+	splitTxs := chain.SplitBlockOutputs(blockCopy)
 	if messageFrom == "" { // locally generated block
-		us, ok := chain.utxoSetCache[block.Header.Height]
+		ok := false
+		res, ok = chain.blockExecuteResults[block.Header.Height]
 		if !ok {
-			return errors.New("utxoSet does not exist in cache")
+			return errors.New("block execute result does not exist in cache")
 		}
-		delete(chain.utxoSetCache, block.Header.Height)
-		utxoSet = us
+		delete(chain.blockExecuteResults, block.Header.Height)
 	} else {
-		utxoSet = NewUtxoSet()
-		if err := utxoSet.LoadBlockUtxos(block, true, chain.db); err != nil {
-			return err
-		}
-		// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
-		if err := validateBlockScripts(utxoSet, block); err != nil {
+		if res, err = chain.adjustAndValidateState(block, blockCopy); err != nil {
 			return err
 		}
 	}
-
-	// Perform several checks on the inputs for each transaction.
-	// Also accumulate the total fees.
-	totalFees, err := validateBlockInputs(block.Txs, utxoSet)
-	if err != nil {
+	// Split tx outputs if any
+	if err := chain.sealBlock(block, splitTxs, res); err != nil {
 		return err
 	}
+	chain.tryToClearCache([]*types.Block{block}, nil)
+	// notify mem_pool when chain update
+	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
+	// send receipts and block to remote in an go-routine
+	go func() {
+		chain.notifyRPCLogs(res.Receipts)
+		chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
+	}()
 
-	return chain.executeBlock(block, utxoSet, totalFees, messageFrom)
+	return nil
+}
+
+func (chain *BlockChain) sealBlock(
+	block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, res *BlockExecuteResult,
+) error {
+	if err := chain.writeBlockToDB(block, splitTxs, res.UtxoSet, res.Receipts); err != nil {
+		return err
+	}
+	// This block is now the end of the best chain.
+	chain.ChangeNewTail(block)
+	// set tail state
+	chain.tailState = res.StateDB
+	return nil
 }
 
 func validateBlockInputs(txs []*types.Transaction, utxoSet *UtxoSet) (uint64, error) {
@@ -872,126 +888,103 @@ func (chain *BlockChain) UpdateContractUtxoState(statedb *state.StateDB, utxoSet
 	return nil
 }
 
-func (chain *BlockChain) executeBlock(
-	block *types.Block, utxoSet *UtxoSet, totalTxsFee uint64, messageFrom peer.ID,
-) error {
-
-	var (
-		stateDB  *state.StateDB
-		receipts types.Receipts
-		err      error
-	)
-
-	blockCopy := block.Copy()
-	// Split tx outputs if any
-	splitTxs := chain.SplitBlockOutputs(blockCopy)
-
+func (chain *BlockChain) adjustAndValidateState(
+	block, blockCopy *types.Block,
+) (*BlockExecuteResult, error) {
+	utxoSet := NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, true, chain.db); err != nil {
+		return nil, err
+	}
+	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
+	if err := validateBlockScripts(utxoSet, block); err != nil {
+		return nil, err
+	}
+	totalTxsFee, err := validateBlockInputs(block.Txs, utxoSet)
+	if err != nil {
+		return nil, err
+	}
 	// execute contract tx and update statedb for blocks from remote peers
-	if messageFrom != "" {
-		parent := chain.GetParentBlock(block)
-		stateDB, err = state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.db)
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-		logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
-			parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
-		reward := block.Txs[0].Vout[0].Value
-		if len(block.Txs[0].Vout) == 2 {
-			reward += block.Txs[0].Vout[1].Value
-		}
-		adminAddr, err := types.NewAddress(Admin)
-		if err != nil {
-			return err
-		}
-		stateDB.AddBalance(*adminAddr.Hash160(), new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
-		if len(block.Txs[0].Vout) == 2 {
-			stateDB.AddBalance(block.Header.BookKeeper, big.NewInt(int64(block.Txs[0].Vout[1].Value)))
-		}
-
-		// Save a deep copy before we potentially split the block's txs' outputs and mutate it
-		if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
-			return err
-		}
-
-		chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
-
-		rcps, gasUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-		logger.Infof("gas used for block %s:%d: %d, bookkeeper %s reward: %d",
-			block.BlockHash(), block.Header.Height, gasUsed, block.Header.BookKeeper, reward)
-		if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee, rcps); err != nil {
-			return err
-		}
-
-		// apply internal txs.
-		if len(block.InternalTxs) > 0 {
-			if err := utxoSet.ApplyInternalTxs(block); err != nil {
-				return err
-			}
-		}
-		if err := chain.UpdateContractUtxoState(stateDB, utxoSet); err != nil {
-			logger.Errorf("chain update utxo state error: %s", err)
-			return err
-		}
-
-		root, utxoRoot, err := stateDB.Commit(false)
-		if err != nil {
-			logger.Errorf("stateDB commit failed: %s", err)
-			return err
-		}
-		logger.Infof("statedb commit with root: %s, utxo root: %s block: %s:%d",
-			root, utxoRoot, block.BlockHash(), block.Header.Height)
-		if !root.IsEqual(&block.Header.RootHash) {
-			return fmt.Errorf("Invalid state root in block header, have %s, got: %s, "+
-				"block hash: %s height: %d", block.Header.RootHash, root, block.BlockHash(),
-				block.Header.Height)
-		}
-		if (utxoRoot != nil && !utxoRoot.IsEqual(&block.Header.UtxoRoot)) &&
-			!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {
-			return fmt.Errorf("Invalid utxo state root in block header, have %s, got: %s, "+
-				"block hash: %s height: %d", block.Header.UtxoRoot, utxoRoot, block.BlockHash(),
-				block.Header.Height)
-		}
-		if len(rcps) > 0 {
-			receipts = rcps
-		}
-	} else {
-		stateDB, _ = state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
-		receipts = chain.receiptsCache[block.Header.Height]
-		delete(chain.receiptsCache, block.Header.Height)
+	parent := chain.GetParentBlock(block)
+	stateDB, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, chain.db)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	logger.Infof("new statedb with root: %s utxo root: %s block %s:%d",
+		parent.Header.RootHash, parent.Header.UtxoRoot, block.BlockHash(), block.Header.Height)
+	reward := block.Txs[0].Vout[0].Value
+	if len(block.Txs[0].Vout) == 2 {
+		reward += block.Txs[0].Vout[1].Value
+	}
+	adminAddr, err := types.NewAddress(Admin)
+	if err != nil {
+		return nil, err
+	}
+	stateDB.AddBalance(*adminAddr.Hash160(), new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
+	if len(block.Txs[0].Vout) == 2 {
+		stateDB.AddBalance(block.Header.BookKeeper, big.NewInt(int64(block.Txs[0].Vout[1].Value)))
 	}
 
+	// Save a deep copy before we potentially split the block's txs' outputs and mutate it
+	if err := utxoSet.ApplyBlock(blockCopy, chain.IsContractAddr2); err != nil {
+		return nil, err
+	}
+	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
+	receipts, gasUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	logger.Infof("gas used for block %s:%d: %d, bookkeeper %s reward: %d",
+		block.BlockHash(), block.Header.Height, gasUsed, block.Header.BookKeeper, reward)
+	if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee, receipts); err != nil {
+		return nil, err
+	}
+
+	// apply internal txs.
+	if len(block.InternalTxs) > 0 {
+		if err := utxoSet.ApplyInternalTxs(block); err != nil {
+			return nil, err
+		}
+	}
+	if err := chain.UpdateContractUtxoState(stateDB, utxoSet); err != nil {
+		logger.Errorf("chain update utxo state error: %s", err)
+		return nil, err
+	}
+
+	root, utxoRoot, err := stateDB.Commit(false)
+	if err != nil {
+		logger.Errorf("stateDB commit failed: %s", err)
+		return nil, err
+	}
+	logger.Infof("statedb commit with root: %s, utxo root: %s block: %s:%d",
+		root, utxoRoot, block.BlockHash(), block.Header.Height)
+	if !root.IsEqual(&block.Header.RootHash) {
+		return nil, fmt.Errorf("Invalid state root in block header, "+
+			"have %s, got: %s, block hash: %s height: %d", block.Header.RootHash, root,
+			block.BlockHash(), block.Header.Height)
+	}
+	if (utxoRoot != nil && !utxoRoot.IsEqual(&block.Header.UtxoRoot)) &&
+		!(utxoRoot == nil && block.Header.UtxoRoot == zeroHash) {
+		return nil, fmt.Errorf("Invalid utxo state root in block header,"+
+			" have %s, got: %s, block hash: %s height: %d", block.Header.UtxoRoot,
+			utxoRoot, block.BlockHash(), block.Header.Height)
+	}
 	// check whether contract balance is identical in utxo and statedb
 	for o, u := range utxoSet.ContractUtxos() {
 		contractAddr := types.NewAddressHash(o.Hash[:])
 		if u.Value() != stateDB.GetBalance(*contractAddr).Uint64() {
 			address, _ := types.NewContractAddressFromHash(contractAddr[:])
-			return fmt.Errorf("contract %s have ambiguous balance(%d in utxo and %d"+
+			return nil, fmt.Errorf("contract %s have ambiguous balance(%d in utxo and %d"+
 				" in statedb)", address, u.Value(), stateDB.GetBalance(*contractAddr))
 		}
 	}
-
-	if err := chain.writeBlockToDB(block, splitTxs, utxoSet, receipts); err != nil {
-		return err
+	res := &BlockExecuteResult{
+		UtxoSet:  utxoSet,
+		Receipts: receipts,
+		StateDB:  stateDB,
 	}
-
-	chain.tryToClearCache([]*types.Block{block}, nil)
-
-	// This block is now the end of the best chain.
-	chain.ChangeNewTail(block)
-	// set tail state
-	chain.tailState = stateDB
-	// notify mem_pool when chain update
-	chain.notifyBlockConnectionUpdate([]*types.Block{block}, nil)
-	go func() {
-		chain.notifyRPCLogs(receipts)
-		chain.Bus().Publish(eventbus.TopicRPCSendNewBlock, block)
-	}()
-	return nil
+	return res, nil
 }
 
 func (chain *BlockChain) notifyRPCLogs(receipts types.Receipts) {

@@ -412,8 +412,6 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 		"%d, gas used %d, now %d in statedb", genesisContractBalanceOld,
 		block.Txs[0].Vout[0].Value, gasUsed, statedb.GetBalance(ContractAddr))
 
-	bc.UtxoSetCache()[block.Header.Height] = utxoSet
-
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
 
@@ -429,11 +427,15 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	block.Header.Bloom = types.CreateReceiptsBloom(receipts)
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
-		bc.ReceiptsCache()[block.Header.Height] = receipts
 	}
 	block.Hash = nil
 	logger.Infof("block %s height: %d have state root %s utxo root %s",
 		block.BlockHash(), block.Header.Height, root, utxoRoot)
+	bc.blockExecuteResults[block.Header.Height] = &BlockExecuteResult{
+		UtxoSet:  utxoSet,
+		Receipts: receipts,
+		StateDB:  statedb,
+	}
 	return nil
 }
 
