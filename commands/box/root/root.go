@@ -12,6 +12,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/util"
@@ -19,15 +20,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-//ConnAddrFile is the default address of conn
-const ConnAddrFile = ".cmd/connAddr"
-
-// DefaultGRPCPort is the default listen port for box gRPC service.
-const DefaultGRPCPort = 19191
-
-// DefaultRPCHTTPPort is the default listen port for box RPC http service.
-const DefaultRPCHTTPPort = 19190
 
 // root command
 var cfgFile string
@@ -47,6 +39,10 @@ var RootCmd = &cobra.Command{
   ./box tx [command]
 4. commands about net and block_info
   ./box block information
+5. set default conn address(ip and port are optional, which you can choose one or both of them)
+  ./box setconn 19181
+6. reset default conn address
+  ./box resetconn
 	`,
 	Version: fmt.Sprintf("%s %s(%s) %s\n", config.Version, config.GitCommit, config.GitBranch, config.GoVersion),
 	// Uncomment the following line if your bare application
@@ -63,7 +59,7 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.box.yaml)")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is nil)")
 
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 
@@ -76,16 +72,16 @@ func init() {
 	RootCmd.PersistentFlags().String("log-level", "error", "log level [debug|info|warn|error|fatal]")
 	viper.BindPFlag("log.level", RootCmd.PersistentFlags().Lookup("log-level"))
 
-	RootCmd.PersistentFlags().IP("rpc-addr", net.ParseIP("127.0.0.1"), "gRPC listen address.")
+	RootCmd.PersistentFlags().IP("rpc-addr", net.ParseIP("0.0.0.0"), "gRPC listen address.")
 	viper.BindPFlag("rpc.address", RootCmd.PersistentFlags().Lookup("rpc-addr"))
 
-	RootCmd.PersistentFlags().Uint("rpc-port", DefaultGRPCPort, "gRPC listen port.")
+	RootCmd.PersistentFlags().Uint("rpc-port", 0, "gRPC listen port.")
 	viper.BindPFlag("rpc.port", RootCmd.PersistentFlags().Lookup("rpc-port"))
 
 	RootCmd.PersistentFlags().IP("http-addr", net.ParseIP("127.0.0.1"), "rpc http listen address.")
 	viper.BindPFlag("http.address", RootCmd.PersistentFlags().Lookup("http-addr"))
 
-	RootCmd.PersistentFlags().Uint("http-port", DefaultRPCHTTPPort, "rpc http listen port.")
+	RootCmd.PersistentFlags().Uint("http-port", common.DefaultRPCHTTPPort, "rpc http listen port.")
 	viper.BindPFlag("http.port", RootCmd.PersistentFlags().Lookup("http-port"))
 }
 
@@ -103,12 +99,12 @@ func initConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
-	} else {
-		// Search config in home directory or current directory with name ".box" (without extension).
-		viper.AddConfigPath(home)
-		viper.AddConfigPath(".")
-		viper.SetConfigName(".box")
-	}
+	} // else {
+	// 	// Search config in home directory or current directory with name ".box" (without extension).
+	// 	viper.AddConfigPath(home)
+	// 	viper.AddConfigPath(".")
+	// 	viper.SetConfigName(".box")
+	// }
 
 	viper.SetEnvPrefix("box")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("_", "."))
@@ -125,42 +121,59 @@ func initConfig() {
 func init() {
 	RootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "setconnaddr [connAddr]",
+			Use:   "setconn [optional|ip] [optional|port]",
 			Short: "set default connAddr",
-			Run:   setConnAddr,
+			Run:   setConn,
 		},
 		&cobra.Command{
-			Use:   "reset ",
+			Use:   "resetconn ",
 			Short: "reset default connAddr",
-			Run:   reset,
+			Run:   resetConn,
 		},
 	)
 }
 
-func setConnAddr(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
+func setConn(cmd *cobra.Command, args []string) {
+	var connAddr string
+	switch len(args) {
+	case 1:
+		if args[0] == "localhost" {
+			connAddr = "127.0.0.1:19191"
+		} else if ip := net.ParseIP(args[0]); ip == nil {
+			connAddr = "127.0.0.1:" + args[0]
+		} else {
+			connAddr = args[0] + ":19191"
+		}
+	case 2:
+		if args[0] == "localhost" {
+			connAddr = "127.0.0.1:" + args[1]
+		} else {
+			connAddr = args[0] + ":" + args[1]
+		}
+	default:
 		fmt.Println(cmd.Use)
 		return
 	}
-	_, _, err := net.SplitHostPort(args[0])
+	_, _, err := net.SplitHostPort(connAddr)
 	if err != nil {
-		fmt.Printf("split %s error: %s", args[0], err)
+		fmt.Printf("%s is an illegal address: %s", connAddr, err)
+		return
 	}
 	// write the conn address to file
-	if err := ioutil.WriteFile(ConnAddrFile, []byte(args[0]), 0644); err != nil {
+	if err := ioutil.WriteFile(common.ConnAddrFile, []byte(connAddr), 0644); err != nil {
 		panic(err)
 	}
 }
 
-func reset(cmd *cobra.Command, args []string) {
+func resetConn(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
 		fmt.Println(cmd.Use)
 		return
 	}
-	if err := util.FileExists(ConnAddrFile); err != nil {
+	if err := util.FileExists(common.ConnAddrFile); err != nil {
 		return
 	}
-	if err := os.Remove(ConnAddrFile); err != nil {
+	if err := os.Remove(common.ConnAddrFile); err != nil {
 		panic(err)
 	}
 }

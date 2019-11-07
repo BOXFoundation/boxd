@@ -9,9 +9,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"path"
+	"strconv"
 
-	"github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/config"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -24,6 +25,15 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+
+	// DefaultRPCHTTPPort is the default listen port for box RPC http service.
+	DefaultRPCHTTPPort = 19190
+
+	// ConnAddrFile is the default conn address
+	ConnAddrFile = ".cmd/connAddr"
+)
+
 //
 var (
 	DefaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
@@ -31,16 +41,39 @@ var (
 
 // GetRPCAddr gets rpc addr
 func GetRPCAddr() string {
-	if err := util.FileExists(root.ConnAddrFile); err != nil {
-		var cfg config.Config
-		viper.Unmarshal(&cfg)
-		return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
+	var cfg config.Config
+	viper.Unmarshal(&cfg)
+	var (
+		rpcAddr     = cfg.RPC.Address
+		rpcPort     = cfg.RPC.Port
+		nilIP       = "0.0.0.0"
+		nilGRPCPort = 0
+		connAddr    string
+	)
+	switch {
+	case rpcAddr == nilIP && rpcPort == nilGRPCPort:
+		if err := util.FileExists(ConnAddrFile); err != nil {
+			connAddr = "127.0.0.1:19191"
+			return connAddr
+		}
+		data, err := ioutil.ReadFile(ConnAddrFile)
+		if err != nil {
+			return ""
+		}
+		connAddr = string(bytes.TrimSpace(data))
+	case rpcAddr != nilIP && rpcPort == nilGRPCPort:
+		connAddr = rpcAddr + ":19191"
+	case rpcAddr == nilIP && rpcPort != nilGRPCPort:
+		connAddr = "127.0.0.1:" + strconv.Itoa(rpcPort)
+	case rpcAddr != nilIP && rpcPort != nilGRPCPort:
+		connAddr = rpcAddr + ":" + strconv.Itoa(rpcPort)
 	}
-	data, err := ioutil.ReadFile(root.ConnAddrFile)
+	_, _, err := net.SplitHostPort(connAddr)
 	if err != nil {
+		fmt.Printf("%s is an illegal address: %s", connAddr, err)
 		return ""
 	}
-	return string(bytes.TrimSpace(data))
+	return connAddr
 }
 
 // SignAndSendTx sign tx and then send this tx to a server node
