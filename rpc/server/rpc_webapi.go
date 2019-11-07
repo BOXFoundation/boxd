@@ -41,8 +41,8 @@ type webapiServer struct {
 // ChainTxReader defines chain tx reader interface
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, types.TxType, error)
-	GetDataFromDB([]byte) ([]byte, error)
 	GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error)
+	GetDataFromDB([]byte) ([]byte, error)
 }
 
 // ChainBlockReader defines chain block reader interface
@@ -50,6 +50,7 @@ type ChainBlockReader interface {
 	ChainTxReader
 	// LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
+
 	EternalBlock() *types.Block
 	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
 	GetStateDbByHeight(height uint32) (*state.StateDB, error)
@@ -57,6 +58,7 @@ type ChainBlockReader interface {
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 	TailState() *state.StateDB
+	GetBlockHash(uint32) (*crypto.HashType, error)
 }
 
 // TxPoolReader defines tx pool reader interface
@@ -218,14 +220,20 @@ func newViewBlockDetailResp(code int32, msg string) *rpcpb.ViewBlockDetailResp {
 func (s *webapiServer) ViewBlockDetail(
 	ctx context.Context, req *rpcpb.ViewBlockDetailReq,
 ) (*rpcpb.ViewBlockDetailResp, error) {
-
 	logger.Infof("view block detail req: %+v", req)
+	var err error
 	hash := new(crypto.HashType)
-	if err := hash.SetString(req.Hash); err != nil {
-		logger.Warn("view block detail error: ", err)
-		return newViewBlockDetailResp(-1, err.Error()), nil
+	if req.Hash != "" {
+		if err := hash.SetString(req.Hash); err != nil {
+			logger.Warn("view block detail error: ", err)
+			return newViewBlockDetailResp(-1, err.Error()), nil
+		}
+	} else {
+		hash, err = s.ChainBlockReader.GetBlockHash(req.Height)
+		if err != nil {
+			return newViewBlockDetailResp(-1, err.Error()), nil
+		}
 	}
-
 	br, tr := s.ChainBlockReader, s.TxPoolReader
 	block, n, err := br.ReadBlockFromDB(hash)
 	if err != nil {

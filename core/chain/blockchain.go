@@ -1351,11 +1351,19 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 
 // GetBlockHash finds the block in target height of main chain and returns it's hash
 func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, error) {
-	block, err := chain.LoadBlockByHeight(blockHeight)
-	if err != nil {
-		return nil, err
+	if blockHeight == 0 {
+		return chain.genesis.BlockHash(), nil
 	}
-	return block.BlockHash(), nil
+	bytes, err := chain.db.Get(BlockHashKey(blockHeight))
+	if err != nil {
+		return nil, fmt.Errorf("db get with block height %d error %s", blockHeight, err)
+	}
+	if bytes == nil {
+		return nil, core.ErrBlockIsNil
+	}
+	hash := new(crypto.HashType)
+	copy(hash[:], bytes)
+	return hash, nil
 }
 
 // ChangeNewTail change chain tail block.
@@ -1731,7 +1739,6 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(
 		logger.Warn(err)
 		return
 	}
-
 	idx := int(index)
 	if idx < len(block.Txs) {
 		tx = block.Txs[idx]

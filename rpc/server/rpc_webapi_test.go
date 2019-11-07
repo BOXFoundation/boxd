@@ -437,6 +437,10 @@ func (r *TestDetailBlockChainReader) TailBlock() *types.Block {
 	return nil
 }
 
+func (r *TestDetailBlockChainReader) GetBlockHash(uint32) (*crypto.HashType, error) {
+	return nil, nil
+}
+
 func genTestTx(to *types.AddressHash, amount uint64, prevHash *crypto.HashType) *types.Transaction {
 	// make tx
 	tx := types.NewTx(0, 4455, 1000)

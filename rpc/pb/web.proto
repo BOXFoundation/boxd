@@ -120,6 +120,7 @@ message ViewTxDetailResp {
 
 message ViewBlockDetailReq {
     string hash = 1;
+    uint32 height = 2;
 }
 
 message ViewBlockDetailResp {
