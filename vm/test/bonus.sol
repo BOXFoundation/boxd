@@ -248,6 +248,15 @@ contract Bonus is Permission{
         delete delegateToVoters[msg.sender];
     }
 
+    function myPledgeDetail() public view returns (uint, uint, uint) {
+        if (block.number > ((frozenDelegate[msg.sender].blockNumber/
+        netParams[DYNASTY_CHANGE_THRESHOLD]) + 1) * netParams[DYNASTY_CHANGE_THRESHOLD]) {
+            return (addrToDelegates[msg.sender].pledgeAmount, 0, frozenDelegate[msg.sender].pledgeAmount);
+        } else {
+            return (addrToDelegates[msg.sender].pledgeAmount, frozenDelegate[msg.sender].pledgeAmount, 0);
+        }
+    }
+
     function pickRedeemPledge() public {
         require(frozenDelegate[msg.sender].blockNumber > 0, "not frozen delegate node.");
         require(block.number > ((frozenDelegate[msg.sender].blockNumber / netParams
