@@ -398,18 +398,18 @@ func (conn *Conn) Close() error {
 	}
 	conn.pq.Close()
 
-	ip, pids, _ := conn.getFromIPRepo()
-	pids.Delete(conn.remotePeer.Pretty())
-	num := 0
-	pids.Range(func(k, v interface{}) bool {
-		num++
-		return true
-	})
-	if num == 0 {
-		conn.peer.connmgr.ipRepo.Delete(ip)
-	}
-
 	if conn.stream != nil {
+		ip, pids, _ := conn.getFromIPRepo()
+		pids.Delete(conn.remotePeer.Pretty())
+		num := 0
+		pids.Range(func(k, v interface{}) bool {
+			num++
+			return true
+		})
+		if num == 0 {
+			conn.peer.connmgr.ipRepo.Delete(ip)
+		}
+
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
 		addrs := conn.peer.table.peerStore.Addrs(pid)
 		conn.peer.table.peerStore.SetAddrs(pid, addrs, peerstore.RecentlyConnectedAddrTTL)
