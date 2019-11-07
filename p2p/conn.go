@@ -81,7 +81,9 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}
 			_, pids, _ := conn.getFromIPRepo()
-			pids.Store(conn.remotePeer.Pretty(), nil)
+			if pids != nil {
+				pids.Store(conn.remotePeer.Pretty(), nil)
+			}
 		})
 	}
 	conn.mutex.Unlock()
@@ -400,14 +402,16 @@ func (conn *Conn) Close() error {
 
 	if conn.stream != nil {
 		ip, pids, _ := conn.getFromIPRepo()
-		pids.Delete(conn.remotePeer.Pretty())
-		num := 0
-		pids.Range(func(k, v interface{}) bool {
-			num++
-			return true
-		})
-		if num == 0 {
-			conn.peer.connmgr.ipRepo.Delete(ip)
+		if pids != nil {
+			pids.Delete(conn.remotePeer.Pretty())
+			num := 0
+			pids.Range(func(k, v interface{}) bool {
+				num++
+				return true
+			})
+			if num == 0 {
+				conn.peer.connmgr.ipRepo.Delete(ip)
+			}
 		}
 
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
@@ -520,13 +524,15 @@ func (conn *Conn) availableIP() bool {
 	// If the number of connections to this IP is idle
 	num := uint32(0)
 	exist := false
-	pids.Range(func(k, v interface{}) bool {
-		num++
-		if v.(string) == conn.remotePeer.Pretty() {
-			exist = true
-		}
-		return true
-	})
+	if pids != nil {
+		pids.Range(func(k, v interface{}) bool {
+			num++
+			if v.(string) == conn.remotePeer.Pretty() {
+				exist = true
+			}
+			return true
+		})
+	}
 	if exist || num < conn.peer.config.MaxConnPerIP {
 		return true
 	}
