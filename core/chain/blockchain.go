@@ -563,12 +563,6 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 		return core.ErrParentBlockNotExist
 	}
 
-	if err := chain.consensus.Verify(block); err != nil {
-		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
-			block.BlockHash(), block.Header.Height, err)
-		return err
-	}
-
 	// The height of this block must be one more than the referenced parent block.
 	if block.Header.Height != parentBlock.Header.Height+1 {
 		logger.Errorf("Block %v's height is %d, but its parent's height is %d",
@@ -699,8 +693,12 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		res *BlockExecuteResult
 		err error
 	)
-	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d",
-		block.BlockHash(), block.Header.Height)
+	logger.Infof("Try to connect block to main chain. Hash: %s, Height: %d", block.BlockHash(), block.Header.Height)
+	if err := chain.consensus.Verify(block); err != nil {
+		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+			block.BlockHash(), block.Header.Height, err)
+		return err
+	}
 	blockCopy := block.Copy()
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 	if messageFrom == "" { // locally generated block

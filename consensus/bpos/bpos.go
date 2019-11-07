@@ -151,9 +151,6 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 	if !ok {
 		return ErrFailedToVerifySign
 	}
-	if err := bpos.verifyCoinbaseTx(block); err != nil {
-		return err
-	}
 
 	if err := bpos.verifyInternalContractTx(block); err != nil {
 		return err
@@ -846,45 +843,6 @@ func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
 	return false, nil
 }
 
-func (bpos *Bpos) verifyCoinbaseTx(block *types.Block) error {
-
-	parent, err := chain.LoadBlockByHash(block.Header.PrevBlockHash, bpos.chain.DB())
-	if err != nil {
-		return err
-	}
-	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bpos.chain.DB())
-	if err != nil {
-		return err
-	}
-	adminAddr, err := types.NewAddress(chain.Admin)
-	if err != nil {
-		return err
-	}
-	from := *adminAddr.Hash160()
-	adminNonce := statedb.GetNonce(from) + 1
-	var totalTransferFee uint64
-	if len(block.Txs[0].Vout) > 1 {
-		totalTransferFee = block.Txs[0].Vout[1].Value
-	}
-
-	// coinbaseTx, err := bpos.makeCoinbaseTx(from, block, statedb, totalTransferFee, adminNonce)
-	coinbaseTx, err := chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
-		block.Txs[0].Vout[0].Value, totalTransferFee, adminNonce, block.Header.Height)
-	expect, err := coinbaseTx.Marshal()
-	if err != nil {
-		return err
-	}
-	current, err := block.Txs[0].Marshal()
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(expect, current) {
-		return ErrInvalidCoinbaseTx
-	}
-	return nil
-}
-
 func (bpos *Bpos) verifyImmutableTx(block *types.Block, ty string) error {
 
 	parent := bpos.chain.GetParentBlock(block)
@@ -896,15 +854,51 @@ func (bpos *Bpos) verifyImmutableTx(block *types.Block, ty string) error {
 	if err != nil {
 		return err
 	}
-	adminNonce := statedb.GetNonce(*adminAddr.Hash160()) + 2
+	// adminNonce := statedb.GetNonce(*adminAddr.Hash160()) + 2
+	from := *adminAddr.Hash160()
 	var internalContractTx *types.Transaction
 	switch ty {
+	case chain.CalcBonus:
+		adminNonce := statedb.GetNonce(from) + 1
+		var totalTransferFee uint64
+		if len(block.Txs[0].Vout) > 1 {
+			totalTransferFee = block.Txs[0].Vout[1].Value
+		}
+		internalContractTx, err = chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
+			block.Txs[0].Vout[0].Value, totalTransferFee, adminNonce, block.Header.Height)
+		if err != nil {
+			return err
+		}
+		expect, err := internalContractTx.Marshal()
+		if err != nil {
+			return err
+		}
+		current, err := block.Txs[0].Marshal()
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(expect, current) {
+			return ErrInvalidCoinbaseTx
+		}
 	case chain.ExecBonus:
+		adminNonce := statedb.GetNonce(from) + 2
 		internalContractTx, err = bpos.chain.MakeDynastySwitchTx(*adminAddr.Hash160(), adminNonce, block.Header.Height)
 		if err != nil {
 			return err
 		}
+		expect, err := internalContractTx.Marshal()
+		if err != nil {
+			return err
+		}
+		current, err := block.Txs[1].Marshal()
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(expect, current) {
+			return ErrInvalidDynastySwitchTx
+		}
 	case chain.CalcScore:
+		adminNonce := statedb.GetNonce(from) + 2
 		scores, err := bpos.calcScores()
 		if err != nil {
 			return err
@@ -913,24 +907,27 @@ func (bpos *Bpos) verifyImmutableTx(block *types.Block, ty string) error {
 		if err != nil {
 			return err
 		}
+		expect, err := internalContractTx.Marshal()
+		if err != nil {
+			return err
+		}
+		current, err := block.Txs[1].Marshal()
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(expect, current) {
+			return ErrInvalidCalcScoreTx
+		}
 	}
 
-	expect, err := internalContractTx.Marshal()
-	if err != nil {
-		return err
-	}
-	current, err := block.Txs[1].Marshal()
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(expect, current) {
-		return ErrInvalidInternalContractTx
-	}
 	return nil
 }
 
 func (bpos *Bpos) verifyInternalContractTx(block *types.Block) error {
+
+	if err := bpos.verifyImmutableTx(block, chain.CalcBonus); err != nil { // verify coinbase tx
+		return err
+	}
 
 	height := block.Header.Height
 	switchHeight := bpos.context.verifyDynastySwitchThreshold.Uint64()

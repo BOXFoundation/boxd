@@ -20,7 +20,7 @@ var (
 	ErrDynastySwitchIsNotAllowed = errors.New("Dynasty switching is not allowed in the current block")
 	ErrFailedToVerifySign        = errors.New("Failed to verify sign block")
 	ErrInvalidCoinbaseTx         = errors.New("Invalid coinbase tx")
-	ErrInvalidInternalContractTx = errors.New("Invalid internal contract tx")
+	ErrInvalidCalcScoreTx        = errors.New("Invalid calc score tx")
 
 	// context
 	ErrInvalidEternalBlockMsgProtoMessage = errors.New("Invalid eternalBlockMsg proto message")
