@@ -109,11 +109,18 @@ func FetchUtxosOf(
 	if err == nil {
 		return utxos, nil
 	}
+	if tid != nil {
+		return nil, err
+	}
 	if strings.HasPrefix(err.Error(), errInsufficientUtxos.Error()) {
-		utxosInTxPool, _, err1 := fetchUtxoFromTxPool(txpool, addrHash, amount, len(utxos))
+		extraFee := uint64(len(utxos)/core.InOutNumPerExtraFee) * core.TransferFee
+		amountP := total + extraFee - amount
+		utxosInTxPool, got, err1 := fetchUtxoFromTxPool(txpool, addrHash, amountP, len(utxos))
 		if err1 != nil {
 			return nil, fmt.Errorf("%s, %s", err, err1)
 		}
+		logger.Infof("got utxo for %s amount %d from db and %d from txpool",
+			addrHash, amount, got)
 		return append(utxos, utxosInTxPool...), nil
 	}
 	return nil, err
@@ -377,9 +384,9 @@ func fetchUtxoFromTxPool(
 	total, extraFee := uint64(0), uint64(0)
 	preUtxoRemain := preUtxoCnt % core.InOutNumPerExtraFee
 	for _, wrap := range txpool.GetAllTxs() {
-		if !wrap.IsScriptValid {
-			continue
-		}
+		//if !wrap.IsScriptValid {
+		//	continue
+		//}
 		txHash, _ := wrap.Tx.TxHash()
 		for i, txOut := range wrap.Tx.Vout {
 			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
