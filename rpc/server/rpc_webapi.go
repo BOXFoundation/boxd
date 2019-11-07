@@ -42,6 +42,7 @@ type webapiServer struct {
 type ChainTxReader interface {
 	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, types.TxType, error)
 	GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error)
+	GetDataFromDB([]byte) ([]byte, error)
 }
 
 // ChainBlockReader defines chain block reader interface
@@ -57,7 +58,6 @@ type ChainBlockReader interface {
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 	TailState() *state.StateDB
-	GetDataFromDB([]byte) ([]byte, error)
 	GetBlockHash(uint32) (*crypto.HashType, error)
 }
 
@@ -437,7 +437,7 @@ func (s *webapiServer) GetLogs(ctx context.Context, req *rpcpb.LogsReq) (logs *r
 }
 
 func detailTx(
-	tx *types.Transaction, br ChainBlockReader, tr TxPoolReader, spread bool, detailVin bool,
+	tx *types.Transaction, br ChainTxReader, tr TxPoolReader, spread bool, detailVin bool,
 ) (*rpcpb.TxDetail, error) {
 
 	detail := new(rpcpb.TxDetail)

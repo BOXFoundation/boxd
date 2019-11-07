@@ -162,22 +162,41 @@ func updateNetworkID(cmd *cobra.Command, args []string) {
 }
 
 func detailBlock(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
-		fmt.Println(cmd.Use)
-		return
-	}
 	var (
 		hash    = new(crypto.HashType)
 		hashStr string
 		height  uint64
 		err     error
 	)
-	if height, err = strconv.ParseUint(args[0], 10, 64); err != nil {
-		if err = hash.SetString(args[0]); err != nil {
-			fmt.Println("invalid argument:", args[0])
+	switch len(args) {
+	case 0:
+		respRPC, err := rpcutil.RPCCall(rpcpb.NewContorlCommandClient, "GetCurrentBlockHeight",
+			new(rpcpb.GetCurrentBlockHeightRequest), common.GetRPCAddr())
+		if err != nil {
+			fmt.Println(err)
 			return
 		}
-		hashStr = hash.String()
+		resp, ok := respRPC.(*rpcpb.GetCurrentBlockHeightResponse)
+		if !ok {
+			fmt.Println("Conversion to rpcpb.GetCurrentBlockHeightResponse failed")
+			return
+		}
+		if resp.Code != 0 {
+			fmt.Println(resp.Message)
+			return
+		}
+		height = uint64(resp.Height)
+	case 1:
+		if height, err = strconv.ParseUint(args[0], 10, 64); err != nil {
+			if err = hash.SetString(args[0]); err != nil {
+				fmt.Println("invalid argument:", args[0])
+				return
+			}
+			hashStr = hash.String()
+		}
+	default:
+		fmt.Println(cmd.Use)
+		return
 	}
 	respRPC, err := rpcutil.RPCCall(rpcpb.NewWebApiClient, "ViewBlockDetail", &rpcpb.ViewBlockDetailReq{Hash: hashStr, Height: uint32(height)}, common.GetRPCAddr())
 	if err != nil {
@@ -193,9 +212,9 @@ func detailBlock(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	blockDetail, err := json.MarshalIndent(resp, "", "  ")
+	blockDetail, err := json.MarshalIndent(resp.Detail, "", "  ")
 	if err != nil {
-		fmt.Println("format the details of block error:", err)
+		fmt.Println("format the detail of block from remote error:", err)
 		return
 	}
 	fmt.Println(string(blockDetail))

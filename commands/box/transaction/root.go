@@ -293,9 +293,9 @@ func detailTx(cmd *cobra.Command, args []string) {
 		fmt.Println(resp.Message)
 		return
 	}
-	txDetail, err := json.MarshalIndent(resp, "", "  ")
+	txDetail, err := json.MarshalIndent(resp.Detail, "", "  ")
 	if err != nil {
-		fmt.Println("format the details of tx error:", err)
+		fmt.Println("format the detail of tx from remote error:", err)
 		return
 	}
 	fmt.Println(string(txDetail))

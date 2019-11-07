@@ -1381,7 +1381,7 @@ func (chain *BlockChain) EternalBlock() *types.Block {
 // GetBlockHash finds the block in target height of main chain and returns it's hash
 func (chain *BlockChain) GetBlockHash(blockHeight uint32) (*crypto.HashType, error) {
 	if blockHeight == 0 {
-		return chain.genesis.Hash, nil
+		return chain.genesis.BlockHash(), nil
 	}
 	bytes, err := chain.db.Get(BlockHashKey(blockHeight))
 	if err != nil {
