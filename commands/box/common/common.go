@@ -5,9 +5,13 @@
 package common
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"path"
+	"strconv"
 
 	"github.com/BOXFoundation/boxd/config"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
@@ -21,6 +25,15 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+
+	// DefaultRPCHTTPPort is the default listen port for box RPC http service.
+	DefaultRPCHTTPPort = 19190
+
+	// ConnAddrFile is the default conn address
+	ConnAddrFile = ".cmd/connAddr"
+)
+
 //
 var (
 	DefaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
@@ -30,12 +43,42 @@ var (
 func GetRPCAddr() string {
 	var cfg config.Config
 	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
+	var (
+		rpcAddr     = cfg.RPC.Address
+		rpcPort     = cfg.RPC.Port
+		nilIP       = "0.0.0.0"
+		nilGRPCPort = 0
+		connAddr    string
+	)
+	switch {
+	case rpcAddr == nilIP && rpcPort == nilGRPCPort:
+		if err := util.FileExists(ConnAddrFile); err != nil {
+			connAddr = "127.0.0.1:19191"
+			return connAddr
+		}
+		data, err := ioutil.ReadFile(ConnAddrFile)
+		if err != nil {
+			return ""
+		}
+		connAddr = string(bytes.TrimSpace(data))
+	case rpcAddr != nilIP && rpcPort == nilGRPCPort:
+		connAddr = rpcAddr + ":19191"
+	case rpcAddr == nilIP && rpcPort != nilGRPCPort:
+		connAddr = "127.0.0.1:" + strconv.Itoa(rpcPort)
+	case rpcAddr != nilIP && rpcPort != nilGRPCPort:
+		connAddr = rpcAddr + ":" + strconv.Itoa(rpcPort)
+	}
+	_, _, err := net.SplitHostPort(connAddr)
+	if err != nil {
+		fmt.Printf("%s is an illegal address: %s", connAddr, err)
+		return ""
+	}
+	return connAddr
 }
 
 // SignAndSendTx sign tx and then send this tx to a server node
 func SignAndSendTx(
-	tx *corepb.Transaction, rawMsgs []string, acc *account.Account, connAddr string,
+	tx *corepb.Transaction, rawMsgs []string, acc *account.Account,
 ) (hash string, err error) {
 	sigHashes := make([]*crypto.HashType, 0, len(rawMsgs))
 	for _, msg := range rawMsgs {
@@ -71,7 +114,7 @@ func SignAndSendTx(
 	}
 	// send tx
 	resp, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient,
-		"SendTransaction", &rpcpb.SendTransactionReq{Tx: tx}, connAddr)
+		"SendTransaction", &rpcpb.SendTransactionReq{Tx: tx}, GetRPCAddr())
 	if err != nil {
 		err = fmt.Errorf("send tx %+v error: %s", tx, err)
 		return
