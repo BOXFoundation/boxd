@@ -247,6 +247,9 @@ func (bpos *Bpos) run(timestamp int64) error {
 }
 
 func (bpos *Bpos) filterCandidates(delegates []Delegate, miners []Delegate) []Delegate {
+	if len(delegates) < len(miners) {
+		return make([]Delegate, 0)
+	}
 	candidates := make([]Delegate, len(delegates)-len(miners))
 	minerPid := make(map[string]interface{}, len(miners))
 	for _, miner := range miners {
