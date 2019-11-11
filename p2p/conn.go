@@ -410,7 +410,7 @@ func (conn *Conn) Close() error {
 				return true
 			})
 			if num == 0 {
-				conn.peer.connmgr.ipRepo.Delete(ip)
+				conn.peer.connmgr.ipRepo.Delete(string(ip))
 			}
 		}
 
@@ -504,10 +504,10 @@ func (conn *Conn) getFromIPRepo() (string, *sync.Map, bool) {
 	}
 
 	// If this ip is not connected
-	val, ok := conn.peer.connmgr.ipRepo.Load(ip)
+	val, ok := conn.peer.connmgr.ipRepo.Load(string(ip))
 	if !ok {
 		newMap := new(sync.Map)
-		conn.peer.connmgr.ipRepo.Store(ip, newMap)
+		conn.peer.connmgr.ipRepo.Store(string(ip), newMap)
 		return string(ip), newMap, false
 	}
 	return string(ip), val.(*sync.Map), true
