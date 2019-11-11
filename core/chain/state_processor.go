@@ -182,9 +182,9 @@ func ApplyTransaction(
 	logs := statedb.GetLogs(*txhash)
 	logsBytes, _ := json.Marshal(logs)
 	logger.Infof("tx %s contract logs: %s", txhash, string(logsBytes))
-	errMsg := make([]byte, len(ret))
+	var errMsg string
 	if fail && len(ret) != 0 {
-		copy(errMsg, ret)
+		errMsg = string(ret)
 	}
 	receipt := types.NewReceipt(tx.OriginTxHash(), contractAddr, deployed, fail,
 		gasUsed, errMsg, statedb.GetLogs(*txhash))

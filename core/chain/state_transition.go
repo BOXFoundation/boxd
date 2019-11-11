@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/big"
 
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
@@ -202,6 +203,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	// st.state.AddBalance(ContractAddr, gasUsed)
 
 	st.state.SetError(vmerr)
+	if vmerr != nil && len(ret) != 0 {
+		if errmsg, err := abi.UnpackErrMsg(ret); err != nil {
+			logger.Errorf("UnpackErrMsg failed. Err: %v", err)
+		} else {
+			ret = []byte(errmsg)
+		}
+	}
 	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, nil
 }
 

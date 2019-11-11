@@ -165,7 +165,7 @@ type Receipt struct {
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
 	InternalTxs     []*crypto.HashType
-	ErrMsg          []byte
+	ErrMsg          string
 
 	Logs  []*Log
 	Bloom bloom.Filter
@@ -177,7 +177,7 @@ var _ conv.Serializable = (*Receipt)(nil)
 // NewReceipt news a Receipt
 func NewReceipt(
 	txHash *crypto.HashType, contractAddr *AddressHash, deployed, failed bool,
-	gasUsed uint64, errMsg []byte, logs []*Log,
+	gasUsed uint64, errMsg string, logs []*Log,
 ) *Receipt {
 	if txHash == nil {
 		txHash = new(crypto.HashType)
@@ -321,8 +321,7 @@ func (rc *Receipt) FromProtoMessage(message proto.Message) error {
 	rc.Deployed = pbrc.Deployed
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
-	rc.ErrMsg = make([]byte, len(pbrc.ErrMsg))
-	copy(rc.ErrMsg, pbrc.ErrMsg[:])
+	rc.ErrMsg = pbrc.ErrMsg
 	rc.Logs = logs
 	// internal txs
 	rc.InternalTxs = make([]*crypto.HashType, 0, len(pbrc.InternalTxs))
@@ -379,7 +378,7 @@ func (rcs *Receipts) toHashReceipts() (*HashReceipts, error) {
 			GasUsed:     rc.GasUsed,
 			InternalTxs: rc.InternalTxs,
 			BlockHeight: rc.BlockHeight,
-			ErrMsg:      rc.ErrMsg[:],
+			ErrMsg:      rc.ErrMsg,
 		}
 		hashrc.TxHash.SetBytes(rc.TxHash[:])
 		hashrc.ContractAddress.SetBytes(rc.ContractAddress.Bytes())
@@ -487,7 +486,7 @@ type hashReceipt struct {
 	InternalTxs     []*crypto.HashType
 	BlockHash       crypto.HashType
 	BlockHeight     uint32
-	ErrMsg          []byte
+	ErrMsg          string
 
 	Logs  []*hashLog
 	Bloom bloom.Filter
@@ -567,8 +566,7 @@ func (rc *hashReceipt) FromProtoMessage(message proto.Message) error {
 	rc.Deployed = pbrc.Deployed
 	rc.Failed = pbrc.Failed
 	rc.GasUsed = pbrc.GasUsed
-	rc.ErrMsg = make([]byte, len(pbrc.ErrMsg))
-	copy(rc.ErrMsg, pbrc.ErrMsg[:])
+	rc.ErrMsg = pbrc.ErrMsg
 	rc.Logs = logs
 	// internal txs
 	rc.InternalTxs = make([]*crypto.HashType, 0, len(pbrc.InternalTxs))

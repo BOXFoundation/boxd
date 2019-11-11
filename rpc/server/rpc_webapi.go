@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -267,11 +266,7 @@ func (s *webapiServer) DoCall(
 	output, _, height, err := callContract(req.GetFrom(), req.GetTo(), req.GetData(),
 		req.GetHeight(), s.ChainBlockReader)
 	if err != nil {
-		vmerrmsg, err2 := abi.UnpackErrMsg(output)
-		if err2 != nil {
-			logger.Debugf("UnpackErrMsg failed. Err: %v", err2)
-		}
-		return newCallResp(-1, err.Error(), vmerrmsg, height), nil
+		return newCallResp(-1, err.Error(), string(output), height), nil
 	}
 
 	// Make sure we have a contract to operate on, and bail out otherwise.
@@ -696,7 +691,7 @@ func detailTxOut(
 			// receipt may be nil if the contract tx is not brought on chain
 			if receipt != nil {
 				fee, failed, gasUsed, errMsg = receipt.GasUsed*core.FixedGasPrice,
-					receipt.Failed, receipt.GasUsed, hex.EncodeToString(receipt.ErrMsg)
+					receipt.Failed, receipt.GasUsed, receipt.ErrMsg
 				if tx.Vin[0].PrevOutPoint.Hash == crypto.ZeroHash {
 					// this contraction is internal chain transaction without fee
 					fee = 0

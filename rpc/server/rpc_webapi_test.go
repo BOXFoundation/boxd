@@ -6,7 +6,9 @@ package rpc
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -106,6 +109,14 @@ func sendWebAPITestBlocks() {
 // 		logger.Infof("block hegiht: %d, size: %d", block.Height, block.Size_)
 // 	}
 // }
+
+func TestConnect2(t *testing.T) {
+	a := "08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000021796f7520646f6e6074206861766520656e6f75676820766f746520626f6e75732e00000000000000000000000000000000000000000000000000000000000000"
+	c, _ := hex.DecodeString(a)
+	b, err := abi.UnpackErrMsg(c)
+	fmt.Println(b)
+	fmt.Println(err)
+}
 
 func _TestConnect(t *testing.T) {
 	rpcAddr := "127.0.0.1:19111"
