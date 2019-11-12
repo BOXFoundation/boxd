@@ -7,10 +7,28 @@
 package crypto
 
 import (
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"crypto/ecdsa"
+
+	"github.com/btcsuite/btcd/btcec"
 )
 
 // Ecrecover returns the uncompressed public key that created the given signature.
 func Ecrecover(hash, sig []byte) ([]byte, error) {
-	return secp256k1.RecoverPubkey(hash, sig)
+	pub, err := SigToPub(hash, sig)
+	if err != nil {
+		return nil, err
+	}
+	bytes := (*btcec.PublicKey)(pub).SerializeUncompressed()
+	return bytes, err
+}
+
+// SigToPub returns the public key that created the given signature.
+func SigToPub(hash, sig []byte) (*ecdsa.PublicKey, error) {
+	// Convert to btcec input format with 'recovery id' v at the beginning.
+	btcsig := make([]byte, SignatureLength)
+	btcsig[0] = sig[64] + 27
+	copy(btcsig[1:], sig)
+
+	pub, _, err := btcec.RecoverCompact(btcec.S256(), btcsig, hash)
+	return (*ecdsa.PublicKey)(pub), err
 }
