@@ -128,11 +128,8 @@ func ApplyTransaction(
 ) (*types.Receipt, uint64, uint64, []*types.Transaction, error) {
 
 	var txs []*types.Transaction
-	defer func() {
-		Transfers = make(map[types.AddressHash][]*TransferInfo)
-	}()
-	context := NewEVMContext(tx, header, bc)
-	vmenv := vm.NewEVM(context, statedb, cfg)
+	ctx := NewEVMContext(tx, header, bc)
+	vmenv := vm.NewEVM(ctx, statedb, cfg)
 	//logger.Infof("ApplyMessage tx: %+v, header: %+v", tx, header)
 	ret, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if !fail && err != nil {
@@ -163,8 +160,9 @@ func ApplyTransaction(
 		contractAddr = tx.To()
 	}
 	senderNonce := statedb.GetNonce(*tx.From())
-	if !fail && len(Transfers) > 0 {
-		internalTxs, err := createUtxoTx(senderNonce, utxoSet, bc.contractAddrFilter, bc.db)
+	if !fail && len(vmenv.Transfers) > 0 {
+		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet,
+			bc.contractAddrFilter, bc.db)
 		if err != nil {
 			logger.Warn(err)
 			return nil, 0, 0, nil, err
@@ -200,12 +198,13 @@ func ApplyTransaction(
 }
 
 func createUtxoTx(
+	transfers map[types.AddressHash][]*vm.TransferInfo,
 	senderNonce uint64, utxoSet *UtxoSet, contractAddrFilter bloom.Filter,
 	db storage.Reader,
 ) ([]*types.Transaction, error) {
 
 	var txs []*types.Transaction
-	for _, v := range Transfers {
+	for _, v := range transfers {
 		if len(v) > VoutLimit {
 			txNumber := len(v)/VoutLimit + 1
 			for i := 0; i < txNumber; i++ {
@@ -271,11 +270,11 @@ func createRefundTx(
 }
 
 func makeTx(
-	transferInfos []*TransferInfo, senderNonce uint64, voutBegin int, voutEnd int,
+	transferInfos []*vm.TransferInfo, senderNonce uint64, voutBegin int, voutEnd int,
 	utxoSet *UtxoSet, contractAddrFilter bloom.Filter, db storage.Reader,
 ) (*types.Transaction, error) {
 
-	from := &transferInfos[0].from
+	from := &transferInfos[0].From
 	hash := types.NormalizeAddressHash(from)
 	if hash.IsEqual(&zeroHash) {
 		return nil, errors.New("makeTx] Invalid contract address for from")
@@ -293,7 +292,7 @@ func makeTx(
 	}
 	var vouts []*types.TxOut
 	for i := voutBegin; i < voutEnd; i++ {
-		to := &transferInfos[i].to
+		to := &transferInfos[i].To
 		if *to == types.ZeroAddressHash {
 			return nil, fmt.Errorf("makeTx] to contract is zero address")
 		}
@@ -313,7 +312,7 @@ func makeTx(
 		} else {
 			spk = script.PayToPubKeyHashScript(to.Bytes())
 		}
-		toValue := transferInfos[i].value
+		toValue := transferInfos[i].Value
 		vout := types.NewTxOut(toValue, *spk)
 		vouts = append(vouts, vout)
 		fromValue := fromUtxoWrap.Value() - toValue

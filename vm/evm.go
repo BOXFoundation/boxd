@@ -27,11 +27,27 @@ type (
 	// CanTransferFunc is the signature of a transfer guard function
 	CanTransferFunc func(StateDB, coretypes.AddressHash, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
-	TransferFunc func(StateDB, coretypes.AddressHash, coretypes.AddressHash, *big.Int, bool)
+	TransferFunc func(*Context, StateDB, coretypes.AddressHash, coretypes.AddressHash, *big.Int, bool)
 	// GetHashFunc returns the nth block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) *corecrypto.HashType
 )
+
+// TransferInfo defines a box transfer struct in vm excution
+type TransferInfo struct {
+	From  coretypes.AddressHash
+	To    coretypes.AddressHash
+	Value uint64
+}
+
+// NewTransferInfo creates a new transferInfo.
+func NewTransferInfo(from, to coretypes.AddressHash, value uint64) *TransferInfo {
+	return &TransferInfo{
+		From:  from,
+		To:    to,
+		Value: value,
+	}
+}
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
 func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, error) {
@@ -62,9 +78,9 @@ func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, err
 // it shouldn't be modified.
 type Context struct {
 	// CanTransfer returns whether the account contains
-	// sufficient ether to transfer the value
+	// sufficient box to transfer the value
 	CanTransfer CanTransferFunc
-	// Transfer transfers ether from one account to the other
+	// Transfer transfers box from one account to the other
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
@@ -79,7 +95,8 @@ type Context struct {
 	GasLimit    uint64                // Provides information for GASLIMIT
 	BlockNumber *big.Int              // Provides information for NUMBER
 	Time        *big.Int              // Provides information for TIME
-	// Difficulty  *big.Int              // Provides information for DIFFICULTY
+
+	Transfers map[coretypes.AddressHash][]*TransferInfo // transfer information in vm execution
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -178,7 +195,7 @@ func (evm *EVM) Call(caller ContractRef, addr coretypes.AddressHash, input []byt
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
-	evm.Transfer(evm.StateDB, caller.Address(), to.Address(), value, interpreterInvoke)
+	evm.Transfer(&evm.Context, evm.StateDB, caller.Address(), to.Address(), value, interpreterInvoke)
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
@@ -364,7 +381,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	evm.StateDB.SetNonce(address, 1)
 
 	// modify account state in stateDB
-	evm.Transfer(evm.StateDB, caller.Address(), address, value, false)
+	evm.Transfer(&evm.Context, evm.StateDB, caller.Address(), address, value, false)
 
 	// initialise a new contract and set the code that is to be used by the
 	// EVM. The contract is a scoped environment for this execution context
@@ -419,7 +436,9 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 }
 
 // Create creates a new contract using code as deployment code.
-func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.Int, interpreterInvoke bool) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
+func (evm *EVM) Create(
+	caller ContractRef, code []byte, gas uint64, value *big.Int, interpreterInvoke bool,
+) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
 	contractAddr = *coretypes.CreateAddress(caller.Address(), evm.Context.Nonce)
 	return evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr, interpreterInvoke)
 }
@@ -428,7 +447,9 @@ func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.I
 //
 // The different between Create2 with Create is Create2 uses sha3(0xff ++ msg.sender ++ salt ++ sha3(init_code))[12:]
 // instead of the usual sender-and-nonce-hash as the address where the contract is initialized at.
-func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *big.Int, salt *big.Int) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
+func (evm *EVM) Create2(
+	caller ContractRef, code []byte, gas uint64, endowment *big.Int, salt *big.Int,
+) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
 	codeAndHash := &codeAndHash{code: code}
 	contractAddr = *coretypes.CreateAddress2(caller.Address(), corecrypto.BigToHash(salt), codeAndHash.Hash().Bytes())
 	return evm.create(caller, codeAndHash, gas, endowment, contractAddr, false)
