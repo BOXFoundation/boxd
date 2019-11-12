@@ -309,19 +309,19 @@ contract Bonus is Permission{
         }
         current = next;
 
-        for(i = 0; i < pledgeAddrList.length; i++) {
-            address pledgeAddr = pledgeAddrList[i];
-            delegateToBonus[pledgeAddr] = delegateToBonus[pledgeAddr].add(delegateReward);
-            address[] memory voters = delegateToVoters[pledgeAddr];
-            if(voters.length > 0) {
-                currentDelegateToVoters[pledgeAddr] = voters;
-                for(uint j = 0; j < voters.length; j++) {
-                    currentDelegateVotesDetail[pledgeAddr][voters[j]] = delegateVotesDetail[pledgeAddr][voters[j]];
-                }
-            }
-        }
         delegateRewardTotal = 0;
         if (pledgeAddrList.length >= DYNASTY_SIZE) {
+            for(i = 0; i < pledgeAddrList.length; i++) {
+                address pledgeAddr = pledgeAddrList[i];
+                delegateToBonus[pledgeAddr] = delegateToBonus[pledgeAddr].add(delegateReward);
+                address[] memory voters = delegateToVoters[pledgeAddr];
+                if(voters.length > 0) {
+                    currentDelegateToVoters[pledgeAddr] = voters;
+                    for(uint j = 0; j < voters.length; j++) {
+                        currentDelegateVotesDetail[pledgeAddr][voters[j]] = delegateVotesDetail[pledgeAddr][voters[j]];
+                    }
+                }
+            }
             updateDynasty();
             updateNetParams();
         }
