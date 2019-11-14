@@ -19,7 +19,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
-	"github.com/BOXFoundation/boxd/util/bloom"
 	"github.com/BOXFoundation/boxd/vm"
 )
 
@@ -163,8 +162,7 @@ func ApplyTransaction(
 	}
 	senderNonce := statedb.GetNonce(*tx.From())
 	if !fail && len(vmenv.Transfers) > 0 {
-		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet,
-			bc.contractAddrFilter, bc.db)
+		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet, bc.db)
 		if err != nil {
 			logger.Warn(err)
 			return nil, 0, 0, nil, err
@@ -200,9 +198,8 @@ func ApplyTransaction(
 }
 
 func createUtxoTx(
-	transfers map[types.AddressHash][]*vm.TransferInfo,
-	senderNonce uint64, utxoSet *UtxoSet, contractAddrFilter bloom.Filter,
-	db storage.Reader,
+	transfers map[types.AddressHash][]*vm.TransferInfo, senderNonce uint64,
+	utxoSet *UtxoSet, db storage.Reader,
 ) ([]*types.Transaction, error) {
 
 	var txs []*types.Transaction
@@ -217,7 +214,7 @@ func createUtxoTx(
 				} else {
 					end = len(v) - begin
 				}
-				tx, err := makeTx(v, senderNonce, begin, end, utxoSet, contractAddrFilter, db)
+				tx, err := makeTx(v, senderNonce, begin, end, utxoSet, db)
 				if err != nil {
 					logger.Error("create utxo tx error: ", err)
 					return nil, err
@@ -225,7 +222,7 @@ func createUtxoTx(
 				txs = append(txs, tx)
 			}
 		} else {
-			tx, err := makeTx(v, senderNonce, 0, len(v), utxoSet, contractAddrFilter, db)
+			tx, err := makeTx(v, senderNonce, 0, len(v), utxoSet, db)
 			if err != nil {
 				logger.Error("create utxo tx error: ", err)
 				return nil, err
@@ -273,7 +270,7 @@ func createRefundTx(
 
 func makeTx(
 	transferInfos []*vm.TransferInfo, senderNonce uint64, voutBegin int, voutEnd int,
-	utxoSet *UtxoSet, contractAddrFilter bloom.Filter, db storage.Reader,
+	utxoSet *UtxoSet, db storage.Reader,
 ) (*types.Transaction, error) {
 
 	from := &transferInfos[0].From
@@ -294,27 +291,28 @@ func makeTx(
 	}
 	var vouts []*types.TxOut
 	for i := voutBegin; i < voutEnd; i++ {
-		to := &transferInfos[i].To
+		info := transferInfos[i]
+		to := &info.To
 		if *to == types.ZeroAddressHash {
 			return nil, fmt.Errorf("makeTx] to contract is zero address")
 		}
 		var spk *script.Script
-		if IsContractAddr(to, contractAddrFilter, db, utxoSet) {
+		if utxoSet.isContractAddr(to) {
 			spk, _ = script.MakeContractScriptPubkey(from, to, 1, 0, 0)
 			outOp := types.NewOutPoint(types.NormalizeAddressHash(to), 0)
 			utxoSet.contractUtxos[*outOp] = struct{}{}
 			// update contract utxowrap in utxoSet
 			if _, ok := utxoSet.utxoMap[*outOp]; !ok {
-				wrap, err := fetchUtxoWrapFromDB(db, outOp)
-				if err != nil || wrap == nil {
-					return nil, fmt.Errorf("makeTx] fetch to contract %x utxo error: %v or nil", to, err)
+				wrap := utxoSet.fetchContractUtxo(to)
+				if wrap == nil {
+					return nil, fmt.Errorf("makeTx] fetch to contract %x return nil", to)
 				}
 				utxoSet.utxoMap[*outOp] = wrap
 			}
 		} else {
 			spk = script.PayToPubKeyHashScript(to.Bytes())
 		}
-		toValue := transferInfos[i].Value
+		toValue := info.Value
 		vout := types.NewTxOut(toValue, *spk)
 		vouts = append(vouts, vout)
 		fromValue := fromUtxoWrap.Value() - toValue

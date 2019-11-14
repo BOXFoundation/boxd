@@ -103,7 +103,6 @@ type BlockChain struct {
 	repeatedMintCache         *lru.Cache
 	heightToBlock             *lru.Cache
 	splitAddrFilter           bloom.Filter
-	contractAddrFilter        bloom.Filter
 	bus                       eventbus.Bus
 	chainLock                 sync.RWMutex
 	hashToOrphanBlock         map[crypto.HashType]*types.Block
@@ -190,8 +189,6 @@ func NewBlockChain(parent goprocess.Process, notifiee p2p.Net, db storage.Storag
 	b.LongestChainHeight = b.tail.Header.Height
 	b.splitAddrFilter = loadAddrFilter(b.db, splitAddrBase.Bytes())
 	logger.Infof("load split address bloom filter finished")
-	b.contractAddrFilter = loadAddrFilter(b.db, contractAddrBase.Bytes())
-	logger.Infof("load contract address bloom filter finished")
 
 	return b, nil
 }
@@ -1020,13 +1017,6 @@ func (chain *BlockChain) writeBlockToDB(
 	if len(receipts) > 0 {
 		if err := chain.StoreReceipts(block.BlockHash(), receipts, batch); err != nil {
 			return err
-		}
-		// write contract address to db
-		for _, receipt := range receipts {
-			if receipt.Deployed && !receipt.Failed {
-				batch.Put(ContractAddrKey(receipt.ContractAddress[:]), nil)
-				chain.contractAddrFilter.Add(receipt.ContractAddress[:])
-			}
 		}
 	}
 
@@ -2323,29 +2313,4 @@ func FetchContractUtxoFn(stateDB *state.StateDB) FetchContractUtxoFunc {
 		}
 		return utxoWrap
 	}
-}
-
-// IsContractAddr checks addr whether is contract address
-func IsContractAddr(
-	addr *types.AddressHash, filter bloom.Filter, db storage.Reader, utxoSet *UtxoSet,
-) bool {
-	if addr == nil {
-		return false
-	}
-	// may be the contract address is generated in this block
-	for op := range utxoSet.contractUtxos {
-		if *types.NormalizeAddressHash(addr) == op.Hash {
-			return true
-		}
-	}
-	// check in bloom filter
-	if !filter.Matches(addr[:]) {
-		// Definitely not a contract address
-		return false
-	}
-	// May be a contract address, query db to find out
-	if ok, err := db.Has(ContractAddrKey(addr[:])); err != nil || !ok {
-		return false
-	}
-	return true
 }

@@ -353,7 +353,7 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	logger.Infof("Before execute block %d statedb root: %s utxo root: %s admin bal: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), adminBal)
 
-	utxoSet := NewUtxoSet(bc.IsContractAddrFn(), bc.FetchContractUtxoFn())
+	utxoSet := NewUtxoSet(IsContractAddrFn(statedb), FetchContractUtxoFn(statedb))
 	if err := utxoSet.LoadBlockUtxos(block, true, bc.DB()); err != nil {
 		return err
 	}

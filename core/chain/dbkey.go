@@ -100,9 +100,6 @@ const (
 	// SplitAddressPrefix is the key prefix of split address
 	SplitAddressPrefix = "/sap"
 
-	// ContractAddressPrefix is the key prefix of contract address
-	ContractAddressPrefix = "/cap"
-
 	// AddressUtxoPrefix is the key prefix of database key to store address related utxo
 	AddressUtxoPrefix = "/aut"
 
@@ -119,7 +116,6 @@ var utxoBase = key.NewKey(UtxoPrefix)
 var receiptBase = key.NewKey(ReceiptPrefix)
 var candidatesBase = key.NewKey(CandidatesPrefix)
 var splitAddrBase = key.NewKey(SplitAddressPrefix)
-var contractAddrBase = key.NewKey(ContractAddressPrefix)
 var addrUtxoBase = key.NewKey(AddressUtxoPrefix)
 var addrTokenUtxoBase = key.NewKey(AddressTokenUtxoPrefix)
 var secBloomBitSetBase = key.NewKey(SecBloomBitSetPrefix)
@@ -180,11 +176,6 @@ func CandidatesKey(h *crypto.HashType) []byte {
 // SplitAddrKey returns the db key to store split address
 func SplitAddrKey(hash []byte) []byte {
 	return splitAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
-}
-
-// ContractAddrKey returns the db key to store contract address
-func ContractAddrKey(hash []byte) []byte {
-	return contractAddrBase.ChildString(fmt.Sprintf("%x", hash)).Bytes()
 }
 
 // AddrUtxoKey is the key to store an utxo which belongs to the input param address
