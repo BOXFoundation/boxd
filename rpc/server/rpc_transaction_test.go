@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -62,9 +63,11 @@ func TestMakeUnsignedTx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	txlogic.GetTxType(tx, chain.IsContractAddrFn(nil))
 	txBytes, _ := json.MarshalIndent(tx, "", "  ")
 
 	wantTxStr := `{
+  "Type": 1,
   "Version": 0,
   "Vin": [
     {
@@ -135,9 +138,11 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	txlogic.GetTxType(tx, chain.IsContractAddrFn(nil))
 	txBytes, _ := json.MarshalIndent(tx, "", "  ")
 
 	wantTxStr := `{
+  "Type": 1,
   "Version": 0,
   "Vin": [
     {

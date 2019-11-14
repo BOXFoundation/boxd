@@ -190,7 +190,7 @@ func newTestTokenUtxoSet(
 	tid := txlogic.NewTokenID(&hash, 0)
 	addr, supply := addrHashes[0], uint64(1000000)
 	tag := txlogic.NewTokenTag("box token", "BOX", 8, supply)
-	issueUtxo, _ := txlogic.NewIssueTokenUtxoWrap(addr, tag, 0)
+	issueUtxo := txlogic.NewIssueTokenUtxoWrap(addr, tag, 0)
 	outpoint := types.NewOutPoint(&hash, 0)
 
 	utxoMap[*outpoint] = issueUtxo

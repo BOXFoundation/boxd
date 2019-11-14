@@ -201,7 +201,7 @@ func (s *webapiServer) ViewTxDetail(
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
 	}
-	if txType == types.InternalTxType {
+	if txType == types.InternalTx {
 		detail.Fee = 0
 	}
 	//

@@ -7,6 +7,7 @@ package chain
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -150,7 +151,7 @@ func nextBlockV3(
 	// tx fee
 	txFee := uint64(0)
 	for _, tx := range txs {
-		if o, _ := txlogic.CheckAndGetContractVout(tx); o != nil {
+		if txlogic.GetTxType(tx, chain.IsContractAddrFn()) == types.ContractTx {
 			continue
 		}
 		txFee += core.TransferFee + tx.ExtraFee()
@@ -307,6 +308,8 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	for i, hash := range hashes {
 		_, tx, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
+		txlogic.GetTxType(txs[i], blockChain.IsContractAddrFn())
+		txlogic.GetTxType(tx, blockChain.IsContractAddrFn())
 		ensure.Nil(t, err)
 		ensure.DeepEqual(t, txs[i], tx)
 	}
@@ -330,52 +333,40 @@ func verifyProcessBlock(
 }
 
 func connectBlock(parent, block *types.Block, bc *BlockChain) error {
-	logger.Info("================ start calc root hash ================")
-	defer logger.Info("---------------- end calc root hash ----------------")
+	logger.Infof("================ start to connect block %s ================", block.BlockHash())
+	defer logger.Infof("---------------- end to connect block %s ----------------", block.BlockHash())
 
-	bookkeeper := minerAddr.Hash160()
 	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bc.DB())
 	if err != nil {
 		return err
 	}
-	genesisContractBalanceOld := statedb.GetBalance(ContractAddr).Uint64()
-	logger.Infof("Before execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
-		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld)
+	//
+	bkReward := block.Txs[0].Vout[0].Value
+	adminAddr, _ := types.NewAddress(Admin)
+	statedb.AddBalance(*adminAddr.Hash160(), new(big.Int).SetUint64(bkReward))
+	bookkeeper := minerAddr.Hash160()
+	if len(block.Txs[0].Vout) == 2 {
+		statedb.AddBalance(*bookkeeper, new(big.Int).SetUint64(block.Txs[0].Vout[1].Value))
+	}
+	//
+	adminBal := statedb.GetBalance(ContractAddr).Uint64()
+	logger.Infof("Before execute block %d statedb root: %s utxo root: %s admin bal: %d",
+		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), adminBal)
 
-	utxoSet := NewUtxoSet()
+	utxoSet := NewUtxoSet(bc.IsContractAddrFn(), bc.FetchContractUtxoFn())
 	if err := utxoSet.LoadBlockUtxos(block, true, bc.DB()); err != nil {
 		return err
 	}
 	blockCopy := block.Copy()
 	bc.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy, bc.IsContractAddr2); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
 		return err
 	}
 	bc.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
-	//
-	reward := block.Txs[0].Vout[0].Value
-
-	adminAddr, err := types.NewAddress(Admin)
-	if err != nil {
-		return err
-	}
-	statedb.AddBalance(*adminAddr.Hash160(), new(big.Int).SetUint64(block.Txs[0].Vout[0].Value))
-	if len(block.Txs[0].Vout) == 2 {
-		statedb.AddBalance(*bookkeeper, new(big.Int).SetUint64(block.Txs[0].Vout[1].Value))
-	}
-	//
 	receipts, gasUsed, utxoTxs, err := bc.StateProcessor().Process(block, statedb, utxoSet)
 	if err != nil {
 		return err
 	}
-	logger.Infof("gas used for block %d: %d, bookkeeper %s reward: %d",
-		block.Header.Height, gasUsed, block.Header.BookKeeper, reward+gasUsed)
-	coinbaseHash, err := block.Txs[0].TxHash()
-	if err != nil {
-		return err
-	}
-	opCoinbase := types.NewOutPoint(coinbaseHash, 1)
-
 	if gasUsed > 0 {
 		statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
 		if len(block.Txs[0].Vout) == 2 {
@@ -383,13 +374,14 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 		} else {
 			block.Txs[0].AppendVout(txlogic.MakeVout(bookkeeper, gasUsed))
 		}
+		coinbaseHash, _ := block.Txs[0].TxHash()
+		opCoinbase := types.NewOutPoint(coinbaseHash, 1)
 		utxoSet.SpendUtxo(*opCoinbase)
 		block.Txs[0].ResetTxHash()
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
 		newHash, _ := block.Txs[0].TxHash()
 		receipts[0].WithTxHash(newHash)
 	}
-
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
 	if len(utxoTxs) > 0 {
@@ -406,11 +398,11 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 		return err
 	}
 
-	logger.Infof("After execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
+	logger.Infof("After execute block %d statedb root: %s utxo root: %s admin bal: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), statedb.GetBalance(ContractAddr))
-	logger.Infof("genesis contract balance change, previous %d, coinbase value: "+
-		"%d, gas used %d, now %d in statedb", genesisContractBalanceOld,
-		block.Txs[0].Vout[0].Value, gasUsed, statedb.GetBalance(ContractAddr))
+	logger.Infof("admin balance change, previous %d, coinbase value: %d, gas used"+
+		" %d, now %d in statedb", adminBal, block.Txs[0].Vout[0].Value, gasUsed,
+		statedb.GetBalance(ContractAddr))
 
 	block.Header.GasUsed = gasUsed
 	block.Header.RootHash = *root
@@ -428,14 +420,23 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
 	}
+	// check whether contract balance is identical in utxo and statedb
+	for o, u := range utxoSet.ContractUtxos() {
+		contractAddr := types.NewAddressHash(o.Hash[:])
+		if u.Value() != statedb.GetBalance(*contractAddr).Uint64() {
+			address, _ := types.NewContractAddressFromHash(contractAddr[:])
+			return fmt.Errorf("contract %s have ambiguous balance(%d in utxo and %d"+
+				" in statedb)", address, u.Value(), statedb.GetBalance(*contractAddr))
+		}
+	}
+	bc.BlockExecuteResults()[block.Header.Height] = &BlockExecuteResult{
+		StateDB:  statedb,
+		Receipts: receipts,
+		UtxoSet:  utxoSet,
+	}
 	block.Hash = nil
 	logger.Infof("block %s height: %d have state root %s utxo root %s",
 		block.BlockHash(), block.Header.Height, root, utxoRoot)
-	bc.blockExecuteResults[block.Header.Height] = &BlockExecuteResult{
-		UtxoSet:  utxoSet,
-		Receipts: receipts,
-		StateDB:  statedb,
-	}
 	return nil
 }
 
@@ -531,7 +532,7 @@ func TestBlockProcessing(t *testing.T) {
 	logger.Infof("create a split tx. addr: %s", splitAddr)
 	// b3A
 	minerNonce := uint64(3)
-	b3A := nextBlockV3(b2, blockChain, minerNonce, vmTx, splitTx)
+	b3A := nextBlockV3(b2, blockChainA, minerNonce, vmTx, splitTx)
 	if err := connectBlock(b2, b3A, blockChainA); err != nil {
 		t.Fatal(err)
 	}
@@ -562,30 +563,28 @@ func TestBlockProcessing(t *testing.T) {
 	txlogic.SignTx(toSplitTx, privKey, pubKey)
 	toSplitTxHash, _ := toSplitTx.TxHash()
 	t.Logf("toSplitTxHash: %s", toSplitTxHash)
-	b4A := nextBlockV3(b3A, blockChain, 0, toSplitTx)
-	//
+	b4A := nextBlockV3(b3A, blockChainA, 0, toSplitTx)
 	if err := connectBlock(b3A, b4A, blockChainA); err != nil {
 		t.Fatal(err)
 	}
-	if err := blockChainA.ProcessBlock(b4A, core.DefaultMode, "peer1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := blockChainB.ProcessBlock(b4A, core.DefaultMode, "peer1"); err != nil {
-		t.Fatal(err)
-	}
-	//
 	vmParam = &testContractParam{contractAddr: vmParam.contractAddr}
 	userBalance = changeValueA + gasRefundA
 	contractBlockHandle(t, blockChain, b4A, b4A, vmParam, nil)
 	bAUserBalance = userBalance
 	t.Logf("b4A block hash: %s", b4A.BlockHash())
 	t.Logf("b3A -> b4A passed, now tail height: %d", blockChain.LongestChainHeight)
-
 	// check split address balance
 	blanceSplitA := getBalance(splitAddrA.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitA, toSplitAmount/2)
 	blanceSplitB := getBalance(splitAddrB.Hash160(), blockChain.db)
 	ensure.DeepEqual(t, blanceSplitB, toSplitAmount/2)
+	//
+	if err := blockChainA.ProcessBlock(b4A, core.DefaultMode, "peer1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := blockChainB.ProcessBlock(b4A, core.DefaultMode, "peer1"); err != nil {
+		t.Fatal(err)
+	}
 
 	//TODO: add insuffient balance check
 
@@ -638,8 +637,9 @@ func TestBlockProcessing(t *testing.T) {
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue))
 	txlogic.SignTx(toContractTx, privKey, pubKey)
 	//
-	b5 := nextBlockV3(b4, blockChain, 0, vmTx, toContractTx)
-	userBalance = bUserBalance - toContractAmount - core.TransferFee
+	b5 := nextBlockV3(b4, blockChainI, 0, vmTx, toContractTx)
+	// since toContractTx is a contract tx, so not to subtract TransferFee
+	userBalance = bUserBalance - toContractAmount /* -core.TransferFee */
 	//
 	if err := connectBlock(b4, b5, blockChainI); err != nil {
 		t.Fatal(err)
@@ -889,7 +889,7 @@ func TestBlockProcessing(t *testing.T) {
 		vmValue, gasLimit, contractBalance, 0, contractAddrFaucet,
 	}
 	byteCode, _ = hex.DecodeString(testFaucetCall2)
-	nonce = 3
+	nonce = 4
 	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
 		contractAddrFaucet.Hash160(), vmValue, gasLimit, nonce)
 	prevHash, _ = b5.Txs[2].TxHash()

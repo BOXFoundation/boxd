@@ -17,10 +17,7 @@ func TestNewIssueTokenUtxoWrap(t *testing.T) {
 	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	name, sym, deci := "box token", "BOX", uint32(8)
 	tag := NewTokenTag(name, sym, deci, 10000)
-	uw, err := NewIssueTokenUtxoWrap(fromAddr.Hash160(), tag, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	uw := NewIssueTokenUtxoWrap(fromAddr.Hash160(), tag, 1)
 	sc := script.NewScriptFromBytes(uw.Script())
 	if !sc.IsTokenIssue() {
 		t.Fatal("expect token issue script")

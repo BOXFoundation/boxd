@@ -7,6 +7,7 @@ package types
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/BOXFoundation/boxd/crypto"
@@ -66,11 +67,13 @@ func TestTxMashal(t *testing.T) {
 		AppendVout(NewTxOut(value, spk))
 	content, _ := hex.DecodeString(codeStr)
 	tx.Data = NewData(ContractDataType, content)
+	tx.Type = PayToPubkTx
 	bytes, err := json.MarshalIndent(tx, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := `{
+  "Type": 1,
   "Version": 0,
   "Vin": [
     {
@@ -115,4 +118,15 @@ func TestTxMashal(t *testing.T) {
 	}
 	t.Logf("marshal size: %d, rough size: %d", len(mdata), tx.RoughSize())
 	// marshal size: 218, rough size: 228
+}
+
+func TestGetTxInAddress(t *testing.T) {
+	privBytes := []byte{47, 138, 4, 60, 198, 78, 145, 178, 51, 44, 53, 59, 152, 242, 42, 236, 191, 97, 22, 123, 216, 55, 219, 63, 163, 53, 11, 254, 170, 53, 137, 14}
+	_, pubKey, _ := crypto.KeyPairFromBytes(privBytes)
+	pkHash := crypto.Hash160(pubKey.Serialize())
+	addrHash := new(AddressHash)
+	addrHash.SetBytes(pkHash)
+	if fmt.Sprintf("%x", addrHash[:]) != "f15dee94f6317f6f3b60d3e81e91df2ebd3e9ff7" {
+		t.Fatalf("address hash want: f15dee94f6317f6f3b60d3e81e91df2ebd3e9ff7, got: %x", addrHash[:])
+	}
 }

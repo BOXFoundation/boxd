@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -37,9 +38,8 @@ func VerifyBlockTimeOut(block *types.Block) error {
 	return nil
 }
 
-func validateBlock(block *types.Block) error {
+func validateBlock(block *types.Block, isContractAddrFunc txlogic.IsContractAddrFunc) error {
 	header := block.Header
-
 	// Can't have no tx
 	numTx := len(block.Txs)
 	if numTx == 0 {
@@ -91,17 +91,9 @@ func validateBlock(block *types.Block) error {
 			}
 			existingOutPoints[txIn.PrevOutPoint] = struct{}{}
 		}
-		// Check for only and at most one OPRETURN vout in a transaction
-		opReturns := 0
-		for _, txOut := range tx.Vout {
-			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-			if sc.IsOpReturnScript() {
-				opReturns++
-				if opReturns > 1 {
-					logger.Errorf("tx %s have an second OpReturn vout %+v", txHash, txOut)
-					return core.ErrMultipleOpReturnOuts
-				}
-			}
+		// Check for whether tx script pubkey is standard
+		if !txlogic.IsStandardTx(tx, isContractAddrFunc) {
+			return core.ErrNonStandardTransaction
 		}
 	}
 

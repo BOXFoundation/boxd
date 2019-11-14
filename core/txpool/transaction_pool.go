@@ -295,7 +295,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 
 	// ensure it is a standard transaction
-	if !tx_pool.isStandardTx(tx) {
+	if !txlogic.IsStandardTx(tx, tx_pool.chain.IsContractAddrFn()) {
 		logger.Errorf("Tx %v is not standard", txHash.String())
 		return core.ErrNonStandardTransaction
 	}
@@ -324,6 +324,11 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	if err := tx_pool.checkDoubleSpend(tx); err != nil {
 		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
 		return err
+	}
+	if tx.Type == types.PayToPubkTx {
+		// this tx may be a contract tx that transfer box to a contract address
+		// so reset tx type and parse tx type when this tx is packed in bpos
+		tx.Type = types.UnknownTx
 	}
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
@@ -359,23 +364,6 @@ func (tx_pool *TransactionPool) FindTransaction(outpoint *types.OutPoint) *types
 func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 	_, exists := tx_pool.hashToOrphanTx.Load(*txHash)
 	return exists
-}
-
-func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
-	opReturns := 0
-	for _, txOut := range tx.Vout {
-		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-		if !sc.IsStandard() {
-			return false
-		}
-		if sc.IsOpReturnScript() {
-			opReturns++
-			if opReturns > 1 {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func (tx_pool *TransactionPool) checkDoubleSpend(tx *types.Transaction) error {
@@ -472,9 +460,6 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32) {
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
 		IsScriptValid:  false,
-	}
-	if o, _ := txlogic.CheckAndGetContractVout(tx); o != nil {
-		txWrap.IsContract = true
 	}
 	tx_pool.hashToTx.Store(*txHash, txWrap)
 	// outputs spent by this new tx
@@ -708,23 +693,15 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 	if err != nil {
 		return err
 	}
-	contractVout, err := txlogic.CheckAndGetContractVout(tx)
-	if err != nil {
-		return err
-	}
-	if contractVout == nil {
+	if txlogic.GetTxType(tx, tx_pool.chain.IsContractAddrFn()) != types.ContractTx {
 		if txFee != core.TransferFee+tx.ExtraFee() {
 			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee, core.TransferFee+tx.ExtraFee())
 		}
 		return nil
 	}
-
 	// smart contract tx.
-	if tx.Data == nil || tx.Data.Type != int32(types.ContractDataType) ||
-		len(tx.Data.Content) == 0 {
-		return core.ErrContractDataNotFound
-	}
-	if len(tx.Data.Content) > core.MaxCodeSize {
+	contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
+	if tx.Data != nil && len(tx.Data.Content) > core.MaxCodeSize {
 		return core.ErrMaxCodeSizeExceeded
 	}
 	sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
@@ -763,12 +740,16 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 		// check whether a tx is in pool that have a bigger nonce and remove it if it exists
 		dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
 		for i := 0; i < len(dsTxs); i++ {
-			contractVout, _ := txlogic.CheckAndGetContractVout(dsTxs[i])
-			if contractVout == nil {
+			if txlogic.GetTxType(dsTxs[i], tx_pool.chain.IsContractAddrFn()) != types.ContractTx {
 				continue
 			}
+			contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
 			sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
-			p, _, _ := sc.ParseContractParams()
+			p, _, err := sc.ParseContractParams()
+			if err != nil {
+				// contract vout that pay to contract address
+				continue
+			}
 			if param.Nonce < p.Nonce {
 				txHash, _ := tx.TxHash()
 				dsHash, _ := dsTxs[i].TxHash()

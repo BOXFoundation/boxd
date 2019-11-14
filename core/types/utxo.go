@@ -4,6 +4,8 @@
 
 package types
 
+import "fmt"
+
 type utxoFlags uint8
 
 const (
@@ -42,6 +44,11 @@ func NewUtxoWrap(value uint64, script []byte, height uint32) *UtxoWrap {
 		height: height,
 		flags:  modified,
 	}
+}
+
+func (utxoWrap *UtxoWrap) String() string {
+	return fmt.Sprintf("{Value: %d, Script: %x, Height: %d, Flags: %d}",
+		utxoWrap.value, utxoWrap.script, utxoWrap.height, utxoWrap.flags)
 }
 
 // IsModified returns whether or not the output ismodified.

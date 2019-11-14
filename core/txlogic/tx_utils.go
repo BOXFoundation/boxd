@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
@@ -23,20 +24,8 @@ import (
 
 var logger = log.NewLogger("txlogic") // logger
 
-// NewTokenTag news a TokenTag
-func NewTokenTag(name, sym string, decimal uint32, supply uint64) *rpcpb.TokenTag {
-	return &rpcpb.TokenTag{
-		Name:    name,
-		Symbol:  sym,
-		Decimal: decimal,
-		Supply:  supply,
-	}
-}
-
-// NewTokenID constructs a token id
-func NewTokenID(hash *crypto.HashType, index uint32) *types.TokenID {
-	return (*types.TokenID)(types.NewOutPoint(hash, index))
-}
+// IsContractAddrFunc is the signature of checking whether a address is contract address
+type IsContractAddrFunc func(addr *types.AddressHash) bool
 
 // SortByUTXOValue defines a type suited for sort
 type SortByUTXOValue []*rpcpb.Utxo
@@ -60,6 +49,21 @@ func (x SortByTokenUTXOValue) Less(i, j int) bool {
 		logger.Warn(err)
 	}
 	return vi < vj
+}
+
+// NewTokenTag news a TokenTag
+func NewTokenTag(name, sym string, decimal uint32, supply uint64) *rpcpb.TokenTag {
+	return &rpcpb.TokenTag{
+		Name:    name,
+		Symbol:  sym,
+		Decimal: decimal,
+		Supply:  supply,
+	}
+}
+
+// NewTokenID constructs a token id
+func NewTokenID(hash *crypto.HashType, index uint32) *types.TokenID {
+	return (*types.TokenID)(types.NewOutPoint(hash, index))
 }
 
 // ParseUtxoAmount parse amount from utxo and return amount, is token
@@ -187,22 +191,20 @@ func MakePbVin(op *corepb.OutPoint, seq uint32) *corepb.TxIn {
 }
 
 // NewUtxoWrap makes a UtxoWrap
-func NewUtxoWrap(addrHash *types.AddressHash, height uint32, value uint64) *types.UtxoWrap {
+func NewUtxoWrap(
+	addrHash *types.AddressHash, height uint32, value uint64,
+) *types.UtxoWrap {
 	addrPkh, _ := types.NewAddressPubKeyHash(addrHash[:])
 	addrScript := *script.PayToPubKeyHashScript(addrPkh.Hash())
-
 	return types.NewUtxoWrap(value, addrScript, height)
 }
 
 // NewIssueTokenUtxoWrap makes a UtxoWrap
 func NewIssueTokenUtxoWrap(
 	addrHash *types.AddressHash, tag *rpcpb.TokenTag, height uint32,
-) (*types.UtxoWrap, error) {
-	vout, err := MakeIssueTokenVout(addrHash, tag)
-	if err != nil {
-		return nil, err
-	}
-	return types.NewUtxoWrap(0, vout.ScriptPubKey, height), nil
+) *types.UtxoWrap {
+	vout := MakeIssueTokenVout(addrHash, tag)
+	return types.NewUtxoWrap(0, vout.ScriptPubKey, height)
 }
 
 // NewTokenUtxoWrap makes a UtxoWrap
@@ -285,23 +287,19 @@ func SignTxWithUtxos(
 }
 
 // MakeIssueTokenScript make issue token script for addr with supply and tokent ag
-func MakeIssueTokenScript(addrHash *types.AddressHash, tag *rpcpb.TokenTag) ([]byte, error) {
+func MakeIssueTokenScript(addrHash *types.AddressHash, tag *rpcpb.TokenTag) []byte {
 	issueParams := &script.IssueParams{
 		Name:        tag.Name,
 		Symbol:      tag.Symbol,
 		Decimals:    uint8(tag.Decimal),
 		TotalSupply: tag.Supply,
 	}
-	return *script.IssueTokenScript(addrHash, issueParams), nil
+	return *script.IssueTokenScript(addrHash, issueParams)
 }
 
 // MakeIssueTokenVout make issue token vout
-func MakeIssueTokenVout(addrHash *types.AddressHash, tag *rpcpb.TokenTag) (*types.TxOut, error) {
-	spk, err := MakeIssueTokenScript(addrHash, tag)
-	if err != nil {
-		return nil, err
-	}
-	return &types.TxOut{Value: 0, ScriptPubKey: spk}, nil
+func MakeIssueTokenVout(addrHash *types.AddressHash, tag *rpcpb.TokenTag) *types.TxOut {
+	return &types.TxOut{Value: 0, ScriptPubKey: MakeIssueTokenScript(addrHash, tag)}
 }
 
 // MakeTokenVout make token tx vout
@@ -430,30 +428,115 @@ func SignTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.Pu
 	return nil
 }
 
-// CheckAndGetContractVout return true if tx has a vout with contract creation or call
-func CheckAndGetContractVout(tx *types.Transaction) (*types.TxOut, error) {
-	var out *types.TxOut
-	for _, o := range tx.Vout {
-		sc := script.NewScriptFromBytes(o.ScriptPubKey)
-		if sc.IsContractPubkey() {
-			if out != nil {
-				return nil, core.ErrMultipleContractVouts
-			}
-			out = o
-		}
+// IsStandardTx returns whether tx is a legal transaction
+func IsStandardTx(tx *types.Transaction, isContractAddrFunc IsContractAddrFunc) bool {
+	if tx.Type != types.UnknownTx {
+		return tx.Type != types.ErrorTx
 	}
-	return out, nil
+	txType, _ := ParseTxType(tx, isContractAddrFunc)
+	return txType != types.ErrorTx
 }
 
-// HasContractVout return true if tx has a vout with contract creation or call
-func HasContractVout(tx *types.Transaction) bool {
+// GetTxType returns which type transaction is
+func GetTxType(tx *types.Transaction, isContractAddrFunc IsContractAddrFunc) types.TxType {
+	if tx.Type != types.UnknownTx {
+		return tx.Type
+	}
+	txType, _ := ParseTxType(tx, isContractAddrFunc)
+	return txType
+}
+
+// ParseTxType returns tx type and  feature index that indicates which tx type
+func ParseTxType(
+	tx *types.Transaction, isContractAddrFunc IsContractAddrFunc,
+) (types.TxType, int) {
+	idx, opReturns := 0, 0
+	for i, txOut := range tx.Vout {
+		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+		if tx.Type != types.UnknownTx {
+			switch sc.PubkType() {
+			default:
+				tx.Type = types.ErrorTx
+				return types.ErrorTx, 0
+			case script.TokenTransferPubk:
+				if tx.Type != types.TokenTransferTx {
+					return types.ErrorTx, 0
+				}
+			case script.PayToPubk:
+				addr, err := sc.ExtractAddress()
+				if err != nil {
+					tx.Type = types.ErrorTx
+					return types.ErrorTx, 0
+				}
+				if isContractAddrFunc(addr.Hash160()) {
+					return types.ErrorTx, 0
+				}
+			case script.PayToPubkCLTV, script.PayToScriptPubk:
+			case script.OpReturnPubk:
+				opReturns++
+				if opReturns > 1 {
+					tx.Type = types.ErrorTx
+					return types.ErrorTx, 0
+				}
+			}
+			continue
+		}
+		switch sc.PubkType() {
+		case script.PayToPubkCLTV, script.PayToScriptPubk:
+		case script.PayToPubk:
+			addr, err := sc.ExtractAddress()
+			if err != nil {
+				tx.Type = types.ErrorTx
+				return types.ErrorTx, 0
+			}
+			if isContractAddrFunc(addr.Hash160()) {
+				idx, tx.Type = i, types.ContractTx
+			}
+		case script.UnknownPubk:
+			tx.Type = types.ErrorTx
+			return types.ErrorTx, 0
+		case script.TokenTransferPubk:
+			idx, tx.Type = i, types.TokenTransferTx
+		case script.TokenIssuePubk:
+			idx, tx.Type = i, types.TokenIssueTx
+		case script.ContractPubk:
+			idx, tx.Type = i, types.ContractTx
+		case script.SplitAddrPubk:
+			idx, tx.Type = i, types.SplitTx
+		case script.OpReturnPubk:
+			opReturns++
+			if opReturns > 1 {
+				tx.Type = types.ErrorTx
+				return types.ErrorTx, 0
+			}
+		}
+	}
+	if tx.Type == types.UnknownTx {
+		idx, tx.Type = 0, types.PayToPubkTx
+	}
+	return tx.Type, idx
+}
+
+// GetContractVout return contract vout if tx has a vout with contract creation or call
+func GetContractVout(tx *types.Transaction, stateDB *state.StateDB) *types.TxOut {
 	for _, o := range tx.Vout {
 		sc := script.NewScriptFromBytes(o.ScriptPubKey)
 		if sc.IsContractPubkey() {
-			return true
+			return o
+		} else if sc.IsPayToPubKeyHash() {
+			addr, _ := sc.ExtractAddress()
+			if code := stateDB.GetCode(*addr.Hash160()); len(code) == 0 {
+				continue
+			}
+			// handle pay box to contract address, to call fallback function in vm in this case
+			from := tx.Vin[0].AddressHash()
+			nonce := stateDB.GetNonce(*from) + 1
+			csc, _ := script.MakeContractScriptPubkey(from, addr.Hash160(),
+				core.TransferGasLimit, nonce, 0)
+			return types.NewTxOut(o.Value, *csc)
 		}
 	}
-	return false
+	return nil
 }
 
 // MakeGenesisContractTx makes a genesis contract tx
@@ -467,5 +550,6 @@ func MakeGenesisContractTx(
 		AppendVin(types.NewTxIn(types.NewOutPoint(nil, txIdx), *coinbaseScriptSig, math.MaxUint32)).
 		AppendVout(vout)
 	tx.WithData(types.ContractDataType, code)
+	tx.Type = types.ContractTx
 	return tx
 }

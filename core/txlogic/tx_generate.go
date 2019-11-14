@@ -117,7 +117,6 @@ func NewTokenTransferTxWithUtxos(
 	fromAcc *acc.Account, to []*types.AddressHash, amounts []uint64, tid *types.TokenID,
 	changeAmt uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
-
 	if len(to) != len(amounts) {
 		return nil, nil, nil, ErrInvalidArguments
 	}
@@ -319,10 +318,7 @@ func MakeUnsignedTokenIssueTx(
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
 	// vout for toAddrs
-	issueOut, err := MakeIssueTokenVout(owner, tag)
-	if err != nil {
-		return nil, 0, err
-	}
+	issueOut := MakeIssueTokenVout(owner, tag)
 	// construct transaction
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vins...)
@@ -332,7 +328,7 @@ func MakeUnsignedTokenIssueTx(
 		tx.Vout = append(tx.Vout, MakeVout(issuer, changeAmt))
 	}
 	// issue token vout is set to 0 defaultly
-	return tx, 0, err
+	return tx, 0, nil
 }
 
 // MakeUnsignedTokenTransferTx make unsigned token transfer tx

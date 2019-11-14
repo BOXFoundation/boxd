@@ -18,23 +18,55 @@ import (
 	"github.com/BOXFoundation/boxd/storage"
 )
 
+// BalanceChangeMap defines the balance changes of accounts (add or subtract)
+type BalanceChangeMap map[types.AddressHash]uint64
+
+// FetchContractUtxoFunc is the signature of fetch utxo for a contract address
+type FetchContractUtxoFunc func(addr *types.AddressHash) *types.UtxoWrap
+
 // UtxoSet contains all utxos
 type UtxoSet struct {
 	utxoMap         types.UtxoMap
 	normalTxUtxoSet map[types.OutPoint]struct{}
 	contractUtxos   map[types.OutPoint]struct{}
+
+	isContractAddr    txlogic.IsContractAddrFunc
+	fetchContractUtxo FetchContractUtxoFunc
 }
 
-// BalanceChangeMap defines the balance changes of accounts (add or subtract)
-type BalanceChangeMap map[types.AddressHash]uint64
-
 // NewUtxoSet new utxo set
-func NewUtxoSet() *UtxoSet {
+func NewUtxoSet(
+	isContractAddr txlogic.IsContractAddrFunc, fetchContractUtxo FetchContractUtxoFunc,
+) *UtxoSet {
 	return &UtxoSet{
-		utxoMap:         make(types.UtxoMap),
-		normalTxUtxoSet: make(map[types.OutPoint]struct{}),
-		contractUtxos:   make(map[types.OutPoint]struct{}),
+		utxoMap:           make(types.UtxoMap),
+		normalTxUtxoSet:   make(map[types.OutPoint]struct{}),
+		contractUtxos:     make(map[types.OutPoint]struct{}),
+		isContractAddr:    isContractAddr,
+		fetchContractUtxo: fetchContractUtxo,
 	}
+}
+
+func (u *UtxoSet) String() string {
+	s, sep := "{utxoMap: [", ""
+	for k, v := range u.utxoMap {
+		s += fmt.Sprintf("%s%s: %s", sep, k, v)
+		sep = ", "
+	}
+	s += "], normal outpoint: ["
+	sep = ""
+	for k := range u.normalTxUtxoSet {
+		s += sep + k.String()
+		sep = ", "
+	}
+	s += "], contract outpoint: ["
+	sep = ""
+	for k := range u.contractUtxos {
+		s += sep + k.String()
+		sep = ", "
+	}
+	s += "]}"
+	return s
 }
 
 // NewUtxoSetFromMap returns the underlying utxos as a map
@@ -145,10 +177,11 @@ func (u *UtxoSet) TxInputAmount(tx *types.Transaction) uint64 {
 }
 
 // GetExtendedTxUtxoSet returns tx's utxo set from both db & txs in spendableTxs
-func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
-	spendableTxs *sync.Map) (*UtxoSet, error) {
+func GetExtendedTxUtxoSet(
+	tx *types.Transaction, db storage.Reader, spendableTxs *sync.Map,
+) (*UtxoSet, error) {
 
-	utxoSet := NewUtxoSet()
+	utxoSet := NewUtxoSet(IsContractAddrFn(nil), FetchContractUtxoFn(nil))
 	if err := utxoSet.LoadTxUtxos(tx, db); err != nil {
 		return nil, err
 	}
@@ -172,7 +205,6 @@ func GetExtendedTxUtxoSet(tx *types.Transaction, db storage.Table,
 
 func (u *UtxoSet) applyUtxo(
 	tx *types.Transaction, txOutIdx uint32, blockHeight uint32,
-	isContractAddr func(*types.AddressHash) (bool, *types.UtxoWrap),
 ) error {
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
@@ -187,8 +219,7 @@ func (u *UtxoSet) applyUtxo(
 		if err != nil {
 			return fmt.Errorf("apply utxo with error: %s", err)
 		}
-		ok, contractUtxoWrap := isContractAddr(address.Hash160())
-		if !ok {
+		if !u.isContractAddr(address.Hash160()) {
 			outPoint := types.NewOutPoint(txHash, txOutIdx)
 			utxoWrap, exists := u.utxoMap[*outPoint]
 			if exists {
@@ -196,7 +227,7 @@ func (u *UtxoSet) applyUtxo(
 			}
 			utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
 			u.utxoMap[*outPoint] = utxoWrap
-			if !txlogic.HasContractVout(tx) {
+			if txlogic.GetTxType(tx, u.isContractAddr) != types.ContractTx {
 				u.normalTxUtxoSet[*outPoint] = struct{}{}
 			}
 		} else {
@@ -209,7 +240,11 @@ func (u *UtxoSet) applyUtxo(
 			var exists bool
 			utxoWrap, exists := u.utxoMap[*outPoint]
 			if !exists {
-				utxoWrap = contractUtxoWrap
+				utxoWrap = u.fetchContractUtxo(address.Hash160())
+				if utxoWrap == nil {
+					return fmt.Errorf("%s for contract address: %x",
+						core.ErrUtxoNotFound, address.Hash160()[:])
+				}
 			}
 			value := utxoWrap.Value() + vout.Value
 			logger.Infof("modify contract utxo in normal tx, outpoint: %+v, value: %d,"+
@@ -262,16 +297,13 @@ func (u *UtxoSet) applyUtxo(
 }
 
 // applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) applyTx(
-	tx *types.Transaction, blockHeight uint32,
-	isContractAddr func(*types.AddressHash) (bool, *types.UtxoWrap),
-) error {
+func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Add new utxos
 	for txOutIdx, txOut := range tx.Vout {
 		if sc := script.NewScriptFromBytes(txOut.ScriptPubKey); sc.IsOpReturnScript() {
 			continue
 		}
-		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, isContractAddr); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				// This can occur when a tx spends from another tx in front of it in the same block
 				continue
@@ -288,7 +320,7 @@ func (u *UtxoSet) applyTx(
 	// Spend the referenced utxos
 	for _, txIn := range tx.Vin {
 		u.SpendUtxo(txIn.PrevOutPoint)
-		if !txlogic.HasContractVout(tx) {
+		if txlogic.GetTxType(tx, u.isContractAddr) != types.ContractTx {
 			u.normalTxUtxoSet[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
@@ -296,13 +328,8 @@ func (u *UtxoSet) applyTx(
 }
 
 func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32) error {
-	isContractAddr := func(*types.AddressHash) (bool, *types.UtxoWrap) {
-		// only EOA account with non-contract script pubkey or contract account with
-		// contract script pubkey in internal txs
-		return false, nil
-	}
 	for txOutIdx := range tx.Vout {
-		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, isContractAddr); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				continue
 			}
@@ -323,13 +350,10 @@ func (u *UtxoSet) ApplyInternalTxs(block *types.Block) error {
 }
 
 // ApplyBlock updates utxos with all transactions in the passed block
-func (u *UtxoSet) ApplyBlock(
-	block *types.Block,
-	isContractAddr func(*types.AddressHash) (bool, *types.UtxoWrap),
-) error {
+func (u *UtxoSet) ApplyBlock(block *types.Block) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.applyTx(tx, block.Header.Height, isContractAddr); err != nil {
+		if err := u.applyTx(tx, block.Header.Height); err != nil {
 			return err
 		}
 	}
@@ -561,7 +585,7 @@ func (u *UtxoSet) WriteUtxoSetToDB(db storage.Writer) error {
 }
 
 // LoadTxUtxos loads the unspent transaction outputs related to tx
-func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Table) error {
+func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Reader) error {
 
 	if IsCoinBase(tx) || IsInternalContract(tx) {
 		return nil
@@ -613,16 +637,22 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db stora
 		// add utxo for contract vout script pubkey
 		for _, txOut := range tx.Vout {
 			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+			var addr *types.AddressHash
 			if sc.IsContractPubkey() {
 				contractAddr, err := sc.ParseContractAddr()
 				if err != nil {
 					logger.Warn(err)
 					return err
 				}
-				if contractAddr == nil {
-					continue
+				addr = contractAddr.Hash160()
+			} else if sc.IsPayToPubKeyHash() {
+				addrPkh, _ := sc.ExtractAddress()
+				if u.isContractAddr(addrPkh.Hash160()) {
+					addr = addrPkh.Hash160()
 				}
-				hash := types.NormalizeAddressHash(contractAddr.Hash160())
+			}
+			if addr != nil {
+				hash := types.NormalizeAddressHash(addr)
 				outPoint := types.NewOutPoint(hash, 0)
 				outPointsToFetch[*outPoint] = struct{}{}
 			}
@@ -671,7 +701,9 @@ func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, needContract bool, db st
 	return nil
 }
 
-func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{}, db storage.Table) error {
+func (u *UtxoSet) fetchUtxosFromOutPointSet(
+	outPoints map[types.OutPoint]struct{}, db storage.Reader,
+) error {
 	for outPoint := range outPoints {
 		entry, err := fetchUtxoWrapFromDB(db, &outPoint)
 		if err != nil {
@@ -682,6 +714,46 @@ func (u *UtxoSet) fetchUtxosFromOutPointSet(outPoints map[types.OutPoint]struct{
 		}
 	}
 	return nil
+}
+
+func (u *UtxoSet) calcNormalTxBalanceChanges(block *types.Block) (add, sub BalanceChangeMap) {
+	add = make(BalanceChangeMap)
+	sub = make(BalanceChangeMap)
+	for _, tx := range block.Txs {
+		if tx.Type == types.ContractTx {
+			continue
+		}
+		for _, vout := range tx.Vout {
+			sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+			// calc balance for account state, here only EOA (external owned account)
+			// have balance state
+			if !sc.IsPayToPubKeyHash() {
+				continue
+			}
+			address, _ := sc.ExtractAddress()
+			addr := address.Hash160()
+			add[*addr] += vout.Value
+		}
+	}
+
+	for o, w := range u.utxoMap {
+		_, exists := u.normalTxUtxoSet[o]
+		if !exists {
+			continue
+		}
+		sc := script.NewScriptFromBytes(w.Script())
+		// calc balance for account state, here only EOA (external owned account)
+		// have balance state
+		if !sc.IsPayToPubKeyHash() {
+			continue
+		}
+		address, _ := sc.ExtractAddress()
+		addr := address.Hash160()
+		if w.IsSpent() {
+			sub[*addr] += w.Value()
+		}
+	}
+	return
 }
 
 func fetchUtxoWrapFromDB(reader storage.Reader, outpoint *types.OutPoint) (*types.UtxoWrap, error) {

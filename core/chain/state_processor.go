@@ -63,7 +63,7 @@ func (sp *StateProcessor) Process(
 				block.BlockHash(), block.Header.Height, sumGas, i, len(block.Txs))
 			return nil, 0, nil, core.ErrOutOfBlockGasLimit
 		}
-		vmTx, err1 := ExtractVMTransaction(tx)
+		vmTx, err1 := ExtractVMTransaction(tx, stateDB)
 		if err1 != nil {
 			err = err1
 			invalidTx = tx
@@ -74,8 +74,8 @@ func (sp *StateProcessor) Process(
 			continue
 		}
 		if vmTx.Nonce() != stateDB.GetNonce(*vmTx.From())+1 {
-			err = fmt.Errorf("incorrect nonce(%d, %d in statedb) for %s in tx: %s",
-				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.From(), vmTx.OriginTxHash())
+			err = fmt.Errorf("incorrect nonce(%d, %d in statedb) for %x in tx: %s",
+				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.From()[:], vmTx.OriginTxHash())
 			invalidTx = tx
 			break
 		}
@@ -113,6 +113,8 @@ func (sp *StateProcessor) Process(
 		return nil, 0, nil, err
 	}
 
+	logger.Infof("block %s used gas %d in state process, total gas: %d",
+		block.BlockHash(), usedGas, sumGas)
 	return receipts, usedGas, utxoTxs, nil
 }
 
@@ -330,31 +332,29 @@ func makeTx(
 
 // ExtractVMTransaction extract Transaction to VMTransaction
 func ExtractVMTransaction(
-	tx *types.Transaction, ownerTxs ...*types.Transaction,
+	tx *types.Transaction, stateDB *state.StateDB, ownerTxs ...*types.Transaction,
 ) (*types.VMTransaction, error) {
+	txHash, _ := tx.TxHash()
 	// check
-	contractVout, err := txlogic.CheckAndGetContractVout(tx)
-	if err != nil {
-		return nil, err
-	}
-	if contractVout == nil { // non-contract tx
+	if txlogic.GetTxType(tx, IsContractAddrFn(stateDB)) != types.ContractTx {
 		return nil, nil
 	}
-	txHash, _ := tx.TxHash()
 	// take only one contract vout in a transaction
+	contractVout := txlogic.GetContractVout(tx, stateDB)
 	p, t, e := script.NewScriptFromBytes(contractVout.ScriptPubKey).ParseContractParams()
 	if e != nil {
 		return nil, e
 	}
-	if tx.Data == nil || len(tx.Data.Content) == 0 {
-		return nil, core.ErrContractDataNotFound
+	var input []byte
+	if tx.Data != nil && len(tx.Data.Content) != 0 {
+		input = tx.Data.Content
 	}
 	gasPrice := core.FixedGasPrice
 	if IsCoinBase(tx) || IsInternalContract(tx) {
 		gasPrice = 0
 	}
 	vmTx := types.NewVMTransaction(big.NewInt(int64(contractVout.Value)),
-		p.GasLimit, gasPrice, p.Nonce, txHash, t, tx.Data.Content).WithFrom(p.From)
+		p.GasLimit, gasPrice, p.Nonce, txHash, t, input).WithFrom(p.From)
 	if t == types.ContractCallType {
 		vmTx.WithTo(p.To)
 	}

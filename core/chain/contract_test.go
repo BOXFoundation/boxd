@@ -19,6 +19,7 @@ import (
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
+	"github.com/BOXFoundation/boxd/storage/memdb"
 	"github.com/facebookgo/ensure"
 )
 
@@ -42,6 +43,8 @@ func TestExtractBoxTx(t *testing.T) {
 			testVMScriptCode, 20000, 1, 0, nil},
 		{0, "b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", testVMScriptCode, 20000, 2, 0, nil},
 	}
+	db, _ := memdb.NewMemoryDB("", nil)
+	stateDB, _ := state.New(nil, nil, db)
 	for _, tc := range tests {
 		var (
 			from, to      types.Address
@@ -71,7 +74,7 @@ func TestExtractBoxTx(t *testing.T) {
 		txout := types.NewTxOut(tc.value, *cs)
 		tx := types.NewTx(0, 4455, 100).AppendVin(txin).AppendVout(txout).
 			WithData(types.ContractDataType, code)
-		btx, err := ExtractVMTransaction(tx)
+		btx, err := ExtractVMTransaction(tx, stateDB)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -151,6 +154,7 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	verifyProcessBlock(t, blockChain, b2, nil, 2, b2)
 	// check balance
 	// for userAddr
+	t.Logf("miner address: %x", minerAddr.Hash160()[:])
 	balance = getBalance(userAddr.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*userAddr.Hash160()).Uint64()
 	ensure.DeepEqual(t, balance, stateBalance)
@@ -159,8 +163,9 @@ func genTestChain(t *testing.T, blockChain *BlockChain) *types.Block {
 	// for miner
 	balance = getBalance(minerAddr.Hash160(), blockChain.db)
 	stateBalance = blockChain.tailState.GetBalance(*minerAddr.Hash160()).Uint64()
-	ensure.DeepEqual(t, balance, stateBalance)
 	minerBalance = minerBalance - userBalance - core.TransferFee + 2*core.TransferFee
+	t.Logf("expect miner balance: %d", minerBalance)
+	ensure.DeepEqual(t, balance, stateBalance)
 	ensure.DeepEqual(t, balance, minerBalance)
 	t.Logf("b1 -> b2 passed, now tail height: %d", blockChain.LongestChainHeight)
 	return b2
@@ -201,7 +206,8 @@ func contractBlockHandle(
 func checkTestAddrBalance(t *testing.T, bc *BlockChain, addr types.Address, expect uint64) {
 	utxoBalance := getBalance(addr.Hash160(), bc.db)
 	stateBalance := bc.tailState.GetBalance(*addr.Hash160()).Uint64()
-	t.Logf("%s utxo balance: %d state balance: %d", addr, utxoBalance, stateBalance)
+	t.Logf("%s utxo balance: %d state balance: %d, expect: %d", addr, utxoBalance,
+		stateBalance, expect)
 	ensure.DeepEqual(t, utxoBalance, expect, "incorrect utxo balance for "+addr.String())
 	ensure.DeepEqual(t, stateBalance, expect, "incorrect state balance for "+addr.String())
 }
@@ -265,7 +271,7 @@ func TestFaucetContract(t *testing.T) {
 	t.Logf("b2 -> b21 passed, now tail height: %d", blockChain.LongestChainHeight)
 
 	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-	// extend main chain
+	// extend main chain, with pay to contract address tx and contract creation tx
 	// b21 -> b3
 	// normal transfer to a contract address that have not been created
 	prevHash, _ = b21.Txs[1].TxHash()
@@ -448,7 +454,9 @@ func TestFaucetContract(t *testing.T) {
 		AppendVout(txlogic.MakeVout(contractAddr.Hash160(), toContractAmount)).
 		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue6))
 	txlogic.SignTx(toContractTx, privKey, pubKey)
-	userBalance -= toContractAmount + core.TransferFee
+	toContractTxHash, _ := toContractTx.TxHash()
+	t.Logf("to contract tx hash: %s", toContractTxHash)
+	userBalance -= toContractAmount
 	vmParam.contractBalance += toContractAmount
 	b7 := nextBlockV3(b6, blockChain, 0, toContractTx)
 	if err := connectBlock(b6, b7, blockChain); err != nil {
