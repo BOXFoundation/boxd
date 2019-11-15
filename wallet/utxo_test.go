@@ -85,13 +85,13 @@ func TestTokenSaveUtxos(t *testing.T) {
 	defer releaseDatabase(dbpath, db)
 	//
 	addr1 := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
-	addr2 := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ"
+	//addr2 := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ"
 	addrs1 := []string{
 		"b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7",
 		"b1UP5pbfJgZrF1ezoSHLdvkxvgF2BYLtGva",
 	}
 	t.Run("t1", walletUtxosSaveGetTest(db, tokenTest, 1, addr1))
-	t.Run("t2", walletUtxosSaveGetTest(db, tokenTest, 300, addr2))
+	//t.Run("t2", walletUtxosSaveGetTest(db, tokenTest, 300, addr2))
 	t.Run("t3", walletUtxosSaveGetTest(db, tokenTest, 400, addrs1...))
 }
 

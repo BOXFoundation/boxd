@@ -1768,8 +1768,10 @@ func (chain *BlockChain) LoadBlockInfoByTxHash(
 // WriteTxIndex builds tx index in block
 // Save split transaction copies before and after split. The latter is needed when reverting a transaction during reorg,
 // spending from utxo/coin received at a split address
-func (chain *BlockChain) WriteTxIndex(block *types.Block, splitTxs map[crypto.HashType]*types.Transaction, db storage.Writer) error {
-
+func (chain *BlockChain) WriteTxIndex(
+	block *types.Block, splitTxs map[crypto.HashType]*types.Transaction,
+	db storage.Writer,
+) error {
 	allTxs := block.Txs
 	if len(block.InternalTxs) > 0 {
 		allTxs = append(allTxs, block.InternalTxs...)
