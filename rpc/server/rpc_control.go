@@ -172,19 +172,26 @@ func (s *ctlserver) GetCurrentBlockHeight(
 	return &rpcpb.GetCurrentBlockHeightResponse{Code: 0, Message: "ok", Height: height}, nil
 }
 
-func (s *ctlserver) LatestConfirmedHeight(
-	ctx context.Context, req *rpcpb.LatestConfirmedHeightReq,
-) (*rpcpb.LatestConfirmedHeightResp, error) {
-	height := s.server.GetChainReader().EternalBlock().Header.Height
-	return &rpcpb.LatestConfirmedHeightResp{Code: 0, Message: "ok", Height: height}, nil
+func (s *ctlserver) LatestConfirmedBlock(
+	ctx context.Context, req *rpcpb.LatestConfirmedBlockReq,
+) (*rpcpb.LatestConfirmedBlockResp, error) {
+	eternal := s.server.GetChainReader().EternalBlock()
+	height := eternal.Header.Height
+	hash := eternal.BlockHash()
+	return &rpcpb.LatestConfirmedBlockResp{Code: 0, Message: "ok", Height: height,
+		Hash: hash.String()}, nil
 }
 
-func (s *ctlserver) GetCurrentBlockHash(ctx context.Context, req *rpcpb.GetCurrentBlockHashRequest) (*rpcpb.GetCurrentBlockHashResponse, error) {
+func (s *ctlserver) GetCurrentBlockHash(
+	ctx context.Context, req *rpcpb.GetCurrentBlockHashRequest,
+) (*rpcpb.GetCurrentBlockHashResponse, error) {
 	hash := s.server.GetChainReader().TailBlock().Hash
 	return &rpcpb.GetCurrentBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
 }
 
-func (s *ctlserver) GetBlockHash(ctx context.Context, req *rpcpb.GetBlockHashRequest) (*rpcpb.GetBlockHashResponse, error) {
+func (s *ctlserver) GetBlockHash(
+	ctx context.Context, req *rpcpb.GetBlockHashRequest,
+) (*rpcpb.GetBlockHashResponse, error) {
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
 		return &rpcpb.GetBlockHashResponse{Code: -1, Message: err.Error()}, nil
@@ -192,7 +199,9 @@ func (s *ctlserver) GetBlockHash(ctx context.Context, req *rpcpb.GetBlockHashReq
 	return &rpcpb.GetBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
 }
 
-func newGetBlockHeaderResponse(code int32, msg string, header *corepb.BlockHeader) *rpcpb.GetBlockHeaderResponse {
+func newGetBlockHeaderResponse(
+	code int32, msg string, header *corepb.BlockHeader,
+) *rpcpb.GetBlockHeaderResponse {
 	return &rpcpb.GetBlockHeaderResponse{
 		Code:    code,
 		Message: msg,
@@ -200,7 +209,9 @@ func newGetBlockHeaderResponse(code int32, msg string, header *corepb.BlockHeade
 	}
 }
 
-func (s *ctlserver) GetBlockHeader(ctx context.Context, req *rpcpb.GetBlockRequest) (*rpcpb.GetBlockHeaderResponse, error) {
+func (s *ctlserver) GetBlockHeader(
+	ctx context.Context, req *rpcpb.GetBlockRequest,
+) (*rpcpb.GetBlockHeaderResponse, error) {
 	hash := &crypto.HashType{}
 	err := hash.SetString(req.BlockHash)
 	if err != nil {

@@ -175,7 +175,7 @@ func (s *webapiServer) ViewTxDetail(
 	block, tx, txType, err := br.LoadBlockInfoByTxHash(*hash)
 	if err == nil {
 		// calc tx status
-		if blockConfirmed(block, br) {
+		if blockConfirmed(br, block.Header.Height) {
 			resp.Status = rpcpb.TxStatus_confirmed
 		} else {
 			resp.Status = rpcpb.TxStatus_onchain
@@ -520,7 +520,7 @@ func detailBlock(
 		return nil, err
 	}
 	detail.CoinBase = coinBase.String()
-	detail.Confirmed = r.EternalBlock().Header.Height >= block.Header.Height
+	detail.Confirmed = blockConfirmed(r, block.Header.Height)
 	detail.Signature = hex.EncodeToString(block.Signature)
 	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r, tr, false, detailVin)
@@ -745,12 +745,11 @@ func parseVoutType(txOut *types.TxOut) rpcpb.TxOutDetail_TxOutType {
 	return rpcpb.TxOutDetail_unknown
 }
 
-func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
-	if b == nil {
+func blockConfirmed(r ChainBlockReader, height uint32) bool {
+	if _, err := r.GetBlockHash(height); err != nil {
 		return false
 	}
-	eternalHeight := r.EternalBlock().Header.Height
-	return eternalHeight >= b.Header.Height
+	return r.EternalBlock().Header.Height >= height
 }
 
 // ParseAddrFrom parse addr from scriptPubkey
