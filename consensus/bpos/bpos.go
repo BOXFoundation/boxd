@@ -359,7 +359,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
 			hashToTx[*txHash] = pendingTx
-			if txlogic.GetTxType(pendingTx.Tx, bpos.chain.IsContractAddrFn()) == types.ContractTx {
+			if txlogic.GetTxType(pendingTx.Tx, bpos.chain.TailState()) == types.ContractTx {
 				// from is in txpool if the contract tx used a vout in txpool
 				op := pendingTx.Tx.Vin[0].PrevOutPoint
 				ownerTx, ok := bpos.txpool.GetTxByHash(&op.Hash)
@@ -415,7 +415,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			continue
 		}
 		dag.AddNode(*txHash, int(txWrap.AddedTimestamp))
-		if txlogic.GetTxType(txWrap.Tx, bpos.chain.IsContractAddrFn()) == types.ContractTx {
+		if txlogic.GetTxType(txWrap.Tx, bpos.chain.TailState()) == types.ContractTx {
 			from := hashToAddress[*txHash]
 			sortedNonceTxs := addressToNonceSortedTxs[from]
 			handleVMTx(dag, sortedNonceTxs, hashToTx)
@@ -491,7 +491,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			}
 
 			txHash, _ := txWrap.Tx.TxHash()
-			if txlogic.GetTxType(txWrap.Tx, bpos.chain.IsContractAddrFn()) == types.ContractTx {
+			if txlogic.GetTxType(txWrap.Tx, bpos.chain.TailState()) == types.ContractTx {
 				spendableTxs.Store(*txHash, txWrap)
 				packedTxs = append(packedTxs, txWrap.Tx)
 				continue
@@ -621,13 +621,13 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	logger.Infof("Before execute block %d statedb root: %s utxo root: %s genesis contract balance: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld)
 
-	utxoSet := chain.NewUtxoSet(bpos.chain.IsContractAddrFn(), bpos.chain.FetchContractUtxoFn())
-	if err := utxoSet.LoadBlockUtxos(block, true, bpos.chain.DB()); err != nil {
+	utxoSet := chain.NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, true, bpos.chain.DB(), statedb); err != nil {
 		return err
 	}
 	blockCopy := block.Copy()
 	bpos.chain.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy, statedb); err != nil {
 		return err
 	}
 	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
@@ -656,7 +656,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
 	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block); err != nil {
+		if err := utxoSet.ApplyInternalTxs(block, statedb); err != nil {
 			return err
 		}
 	}

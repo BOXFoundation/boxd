@@ -162,7 +162,7 @@ func ApplyTransaction(
 	}
 	senderNonce := statedb.GetNonce(*tx.From())
 	if !fail && len(vmenv.Transfers) > 0 {
-		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet, bc.db)
+		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet, bc.db, statedb)
 		if err != nil {
 			logger.Warn(err)
 			return nil, 0, 0, nil, err
@@ -199,7 +199,7 @@ func ApplyTransaction(
 
 func createUtxoTx(
 	transfers map[types.AddressHash][]*vm.TransferInfo, senderNonce uint64,
-	utxoSet *UtxoSet, db storage.Reader,
+	utxoSet *UtxoSet, db storage.Reader, statedb *state.StateDB,
 ) ([]*types.Transaction, error) {
 
 	var txs []*types.Transaction
@@ -214,7 +214,7 @@ func createUtxoTx(
 				} else {
 					end = len(v) - begin
 				}
-				tx, err := makeTx(v, senderNonce, begin, end, utxoSet, db)
+				tx, err := makeTx(v, senderNonce, begin, end, utxoSet, db, statedb)
 				if err != nil {
 					logger.Error("create utxo tx error: ", err)
 					return nil, err
@@ -222,7 +222,7 @@ func createUtxoTx(
 				txs = append(txs, tx)
 			}
 		} else {
-			tx, err := makeTx(v, senderNonce, 0, len(v), utxoSet, db)
+			tx, err := makeTx(v, senderNonce, 0, len(v), utxoSet, db, statedb)
 			if err != nil {
 				logger.Error("create utxo tx error: ", err)
 				return nil, err
@@ -270,7 +270,7 @@ func createRefundTx(
 
 func makeTx(
 	transferInfos []*vm.TransferInfo, senderNonce uint64, voutBegin int, voutEnd int,
-	utxoSet *UtxoSet, db storage.Reader,
+	utxoSet *UtxoSet, db storage.Reader, statedb *state.StateDB,
 ) (*types.Transaction, error) {
 
 	from := &transferInfos[0].From
@@ -297,13 +297,13 @@ func makeTx(
 			return nil, fmt.Errorf("makeTx] to contract is zero address")
 		}
 		var spk *script.Script
-		if utxoSet.isContractAddr(to) {
+		if statedb.IsContractAddr(*to) {
 			spk, _ = script.MakeContractScriptPubkey(from, to, 1, 0, 0)
 			outOp := types.NewOutPoint(types.NormalizeAddressHash(to), 0)
 			utxoSet.contractUtxos[*outOp] = struct{}{}
 			// update contract utxowrap in utxoSet
 			if _, ok := utxoSet.utxoMap[*outOp]; !ok {
-				wrap := utxoSet.fetchContractUtxo(to)
+				wrap := GetContractUtxoFromStateDB(statedb, to)
 				if wrap == nil {
 					return nil, fmt.Errorf("makeTx] fetch to contract %x return nil", to)
 				}
@@ -334,7 +334,7 @@ func ExtractVMTransaction(
 ) (*types.VMTransaction, error) {
 	txHash, _ := tx.TxHash()
 	// check
-	if txlogic.GetTxType(tx, IsContractAddrFn(stateDB)) != types.ContractTx {
+	if txlogic.GetTxType(tx, stateDB) != types.ContractTx {
 		return nil, nil
 	}
 	// take only one contract vout in a transaction

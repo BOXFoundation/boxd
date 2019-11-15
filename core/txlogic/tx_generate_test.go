@@ -17,10 +17,6 @@ import (
 	"github.com/BOXFoundation/boxd/script"
 )
 
-var (
-	isContractAddrFunc = func(addr *types.AddressHash) bool { return false }
-)
-
 func TestMakeUnsignedTx(t *testing.T) {
 
 	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
@@ -81,7 +77,7 @@ func TestMakeUnsignedTx(t *testing.T) {
   "LockTime": 0
 }`
 
-	txType := GetTxType(tx, isContractAddrFunc)
+	txType := GetTxType(tx, nil)
 	if txType != types.PayToPubkTx {
 		t.Fatalf("want tx type is %d, got: %d", types.PayToPubkTx, txType)
 	}
@@ -158,7 +154,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
   "LockTime": 0
 }`
 
-	txType := GetTxType(tx, isContractAddrFunc)
+	txType := GetTxType(tx, nil)
 	if txType != types.SplitTx {
 		t.Fatalf("want tx type is %d, got: %d", types.SplitTx, txType)
 	}
@@ -184,7 +180,7 @@ func TestMakeContractTx(t *testing.T) {
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout).
 		WithData(types.ContractDataType, code)
-	GetTxType(tx, isContractAddrFunc)
+	GetTxType(tx, nil)
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||
@@ -204,7 +200,7 @@ func TestMakeContractTx(t *testing.T) {
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout).
 		WithData(types.ContractDataType, code)
-	GetTxType(tx, isContractAddrFunc)
+	GetTxType(tx, nil)
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||
@@ -247,7 +243,7 @@ func TestMakeUnsignedTokenTx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	GetTxType(tx, isContractAddrFunc)
+	GetTxType(tx, nil)
 	sc := script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
 	param, err := sc.GetIssueParams()
 	if err != nil {
@@ -314,7 +310,7 @@ func TestMakeUnsignedTokenTx(t *testing.T) {
 		t.Fatalf("change amount want: %d, got: %d", changeAmt, tx.Vout[2].Value)
 	}
 	// tx type
-	GetTxType(tx, isContractAddrFunc)
+	GetTxType(tx, nil)
 	if tx.Type != types.TokenTransferTx {
 		t.Fatalf("tx type want: %d, got: %d", types.TokenTransferTx, tx.Type)
 	}

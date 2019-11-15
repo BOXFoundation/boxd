@@ -21,29 +21,19 @@ import (
 // BalanceChangeMap defines the balance changes of accounts (add or subtract)
 type BalanceChangeMap map[types.AddressHash]uint64
 
-// FetchContractUtxoFunc is the signature of fetch utxo for a contract address
-type FetchContractUtxoFunc func(addr *types.AddressHash) *types.UtxoWrap
-
 // UtxoSet contains all utxos
 type UtxoSet struct {
 	utxoMap         types.UtxoMap
 	normalTxUtxoSet map[types.OutPoint]struct{}
 	contractUtxos   map[types.OutPoint]struct{}
-
-	isContractAddr    txlogic.IsContractAddrFunc
-	fetchContractUtxo FetchContractUtxoFunc
 }
 
 // NewUtxoSet new utxo set
-func NewUtxoSet(
-	isContractAddr txlogic.IsContractAddrFunc, fetchContractUtxo FetchContractUtxoFunc,
-) *UtxoSet {
+func NewUtxoSet() *UtxoSet {
 	return &UtxoSet{
-		utxoMap:           make(types.UtxoMap),
-		normalTxUtxoSet:   make(map[types.OutPoint]struct{}),
-		contractUtxos:     make(map[types.OutPoint]struct{}),
-		isContractAddr:    isContractAddr,
-		fetchContractUtxo: fetchContractUtxo,
+		utxoMap:         make(types.UtxoMap),
+		normalTxUtxoSet: make(map[types.OutPoint]struct{}),
+		contractUtxos:   make(map[types.OutPoint]struct{}),
 	}
 }
 
@@ -181,7 +171,7 @@ func GetExtendedTxUtxoSet(
 	tx *types.Transaction, db storage.Reader, spendableTxs *sync.Map,
 ) (*UtxoSet, error) {
 
-	utxoSet := NewUtxoSet(IsContractAddrFn(nil), FetchContractUtxoFn(nil))
+	utxoSet := NewUtxoSet()
 	if err := utxoSet.LoadTxUtxos(tx, db); err != nil {
 		return nil, err
 	}
@@ -204,7 +194,7 @@ func GetExtendedTxUtxoSet(
 }
 
 func (u *UtxoSet) applyUtxo(
-	tx *types.Transaction, txOutIdx uint32, blockHeight uint32,
+	tx *types.Transaction, txOutIdx uint32, blockHeight uint32, statedb *state.StateDB,
 ) error {
 	if txOutIdx >= uint32(len(tx.Vout)) {
 		return core.ErrTxOutIndexOob
@@ -219,7 +209,7 @@ func (u *UtxoSet) applyUtxo(
 		if err != nil {
 			return fmt.Errorf("apply utxo with error: %s", err)
 		}
-		if !u.isContractAddr(address.Hash160()) {
+		if !statedb.IsContractAddr(*address.Hash160()) {
 			outPoint := types.NewOutPoint(txHash, txOutIdx)
 			utxoWrap, exists := u.utxoMap[*outPoint]
 			if exists {
@@ -227,7 +217,7 @@ func (u *UtxoSet) applyUtxo(
 			}
 			utxoWrap = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, blockHeight)
 			u.utxoMap[*outPoint] = utxoWrap
-			if txlogic.GetTxType(tx, u.isContractAddr) != types.ContractTx {
+			if txlogic.GetTxType(tx, statedb) != types.ContractTx {
 				u.normalTxUtxoSet[*outPoint] = struct{}{}
 			}
 		} else {
@@ -240,7 +230,7 @@ func (u *UtxoSet) applyUtxo(
 			var exists bool
 			utxoWrap, exists := u.utxoMap[*outPoint]
 			if !exists {
-				utxoWrap = u.fetchContractUtxo(address.Hash160())
+				utxoWrap = GetContractUtxoFromStateDB(statedb, address.Hash160())
 				if utxoWrap == nil {
 					return fmt.Errorf("%s for contract address: %x",
 						core.ErrUtxoNotFound, address.Hash160()[:])
@@ -297,13 +287,13 @@ func (u *UtxoSet) applyUtxo(
 }
 
 // applyTx updates utxos with the passed tx: adds all utxos in outputs and delete all utxos in inputs.
-func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
+func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, statedb *state.StateDB) error {
 	// Add new utxos
 	for txOutIdx, txOut := range tx.Vout {
 		if sc := script.NewScriptFromBytes(txOut.ScriptPubKey); sc.IsOpReturnScript() {
 			continue
 		}
-		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, statedb); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				// This can occur when a tx spends from another tx in front of it in the same block
 				continue
@@ -320,16 +310,16 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32) error {
 	// Spend the referenced utxos
 	for _, txIn := range tx.Vin {
 		u.SpendUtxo(txIn.PrevOutPoint)
-		if txlogic.GetTxType(tx, u.isContractAddr) != types.ContractTx {
+		if txlogic.GetTxType(tx, statedb) != types.ContractTx {
 			u.normalTxUtxoSet[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
 	return nil
 }
 
-func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32) error {
+func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, statedb *state.StateDB) error {
 	for txOutIdx := range tx.Vout {
-		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight); err != nil {
+		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, statedb); err != nil {
 			if err == core.ErrAddExistingUtxo {
 				continue
 			}
@@ -340,9 +330,9 @@ func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32) err
 }
 
 // ApplyInternalTxs applies internal txs in block
-func (u *UtxoSet) ApplyInternalTxs(block *types.Block) error {
+func (u *UtxoSet) ApplyInternalTxs(block *types.Block, statedb *state.StateDB) error {
 	for _, tx := range block.InternalTxs {
-		if err := u.applyInternalTx(tx, block.Header.Height); err != nil {
+		if err := u.applyInternalTx(tx, block.Header.Height, statedb); err != nil {
 			return err
 		}
 	}
@@ -350,10 +340,10 @@ func (u *UtxoSet) ApplyInternalTxs(block *types.Block) error {
 }
 
 // ApplyBlock updates utxos with all transactions in the passed block
-func (u *UtxoSet) ApplyBlock(block *types.Block) error {
+func (u *UtxoSet) ApplyBlock(block *types.Block, statedb *state.StateDB) error {
 	txs := block.Txs
 	for _, tx := range txs {
-		if err := u.applyTx(tx, block.Header.Height); err != nil {
+		if err := u.applyTx(tx, block.Header.Height, statedb); err != nil {
 			return err
 		}
 	}
@@ -600,7 +590,7 @@ func (u *UtxoSet) LoadTxUtxos(tx *types.Transaction, db storage.Reader) error {
 }
 
 // LoadBlockUtxos loads UTXOs txs in the block spend
-func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db storage.Table) error {
+func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db storage.Table, statedb *state.StateDB) error {
 	outPointsToFetch := make(map[types.OutPoint]struct{})
 	txs := map[crypto.HashType]int{}
 	for index, tx := range block.Txs {
@@ -647,7 +637,7 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db stora
 				addr = contractAddr.Hash160()
 			} else if sc.IsPayToPubKeyHash() {
 				addrPkh, _ := sc.ExtractAddress()
-				if u.isContractAddr(addrPkh.Hash160()) {
+				if statedb.IsContractAddr(*addrPkh.Hash160()) {
 					addr = addrPkh.Hash160()
 				}
 			}
@@ -668,9 +658,9 @@ func (u *UtxoSet) LoadBlockUtxos(block *types.Block, needContract bool, db stora
 }
 
 // LoadBlockAllUtxos loads all UTXOs txs in the block
-func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, needContract bool, db storage.Table) error {
+func (u *UtxoSet) LoadBlockAllUtxos(block *types.Block, needContract bool, db storage.Table, statedb *state.StateDB) error {
 	// for vin
-	u.LoadBlockUtxos(block, needContract, db)
+	u.LoadBlockUtxos(block, needContract, db, statedb)
 
 	// for vout
 	outPointsToFetch := make(map[types.OutPoint]struct{})

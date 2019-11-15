@@ -93,6 +93,14 @@ func (mock *Mockdb) GetCodeSize(address types.AddressHash) int {
 	return len(code)
 }
 
+// IsContractAddr return if a address is a contract address.
+func (mock *Mockdb) IsContractAddr(addr types.AddressHash) bool {
+	if mock.GetCodeSize(addr) > 0 {
+		return true
+	}
+	return false
+}
+
 // AddRefund add refund.
 func (mock *Mockdb) AddRefund(refund uint64) {
 }

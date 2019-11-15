@@ -13,6 +13,7 @@ import (
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 )
@@ -38,7 +39,7 @@ func VerifyBlockTimeOut(block *types.Block) error {
 	return nil
 }
 
-func validateBlock(block *types.Block, isContractAddrFunc txlogic.IsContractAddrFunc) error {
+func validateBlock(block *types.Block, statedb *state.StateDB) error {
 	header := block.Header
 	// Can't have no tx
 	numTx := len(block.Txs)
@@ -92,7 +93,7 @@ func validateBlock(block *types.Block, isContractAddrFunc txlogic.IsContractAddr
 			existingOutPoints[txIn.PrevOutPoint] = struct{}{}
 		}
 		// Check for whether tx script pubkey is standard
-		if !txlogic.IsStandardTx(tx, isContractAddrFunc) {
+		if !txlogic.IsStandardTx(tx, statedb) {
 			return core.ErrNonStandardTransaction
 		}
 	}

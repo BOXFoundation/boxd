@@ -83,7 +83,7 @@ func TestUtxoSet_FindUtxo(t *testing.T) {
 	// non-existing utxoSet for this outpoint
 	outPointErr := createOutPoint(crypto.HashType{0x0050})
 
-	utxoSet := NewUtxoSet(IsContractAddrFn(nil), FetchContractUtxoFn(nil))
+	utxoSet := NewUtxoSet()
 
 	err := utxoSet.AddUtxo(tx, txOutIdx, blockHeight)
 	ensure.Nil(t, err)

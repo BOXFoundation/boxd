@@ -295,7 +295,7 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 
 	// ensure it is a standard transaction
-	if !txlogic.IsStandardTx(tx, tx_pool.chain.IsContractAddrFn()) {
+	if !txlogic.IsStandardTx(tx, tx_pool.chain.TailState()) {
 		logger.Errorf("Tx %v is not standard", txHash.String())
 		return core.ErrNonStandardTransaction
 	}
@@ -693,7 +693,7 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 	if err != nil {
 		return err
 	}
-	if txlogic.GetTxType(tx, tx_pool.chain.IsContractAddrFn()) != types.ContractTx {
+	if txlogic.GetTxType(tx, tx_pool.chain.TailState()) != types.ContractTx {
 		if txFee != core.TransferFee+tx.ExtraFee() {
 			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee, core.TransferFee+tx.ExtraFee())
 		}
@@ -740,7 +740,7 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 		// check whether a tx is in pool that have a bigger nonce and remove it if it exists
 		dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
 		for i := 0; i < len(dsTxs); i++ {
-			if txlogic.GetTxType(dsTxs[i], tx_pool.chain.IsContractAddrFn()) != types.ContractTx {
+			if txlogic.GetTxType(dsTxs[i], tx_pool.chain.TailState()) != types.ContractTx {
 				continue
 			}
 			contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())

@@ -428,95 +428,6 @@ func SignTx(tx *types.Transaction, privKey *crypto.PrivateKey, pubKey *crypto.Pu
 	return nil
 }
 
-// IsStandardTx returns whether tx is a legal transaction
-func IsStandardTx(tx *types.Transaction, isContractAddrFunc IsContractAddrFunc) bool {
-	if tx.Type != types.UnknownTx {
-		return tx.Type != types.ErrorTx
-	}
-	txType, _ := ParseTxType(tx, isContractAddrFunc)
-	return txType != types.ErrorTx
-}
-
-// GetTxType returns which type transaction is
-func GetTxType(tx *types.Transaction, isContractAddrFunc IsContractAddrFunc) types.TxType {
-	if tx.Type != types.UnknownTx {
-		return tx.Type
-	}
-	txType, _ := ParseTxType(tx, isContractAddrFunc)
-	return txType
-}
-
-// ParseTxType returns tx type and  feature index that indicates which tx type
-func ParseTxType(
-	tx *types.Transaction, isContractAddrFunc IsContractAddrFunc,
-) (types.TxType, int) {
-	idx, opReturns := 0, 0
-	for i, txOut := range tx.Vout {
-		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
-		if tx.Type != types.UnknownTx {
-			switch sc.PubkType() {
-			default:
-				tx.Type = types.ErrorTx
-				return types.ErrorTx, 0
-			case script.TokenTransferPubk:
-				if tx.Type != types.TokenTransferTx {
-					return types.ErrorTx, 0
-				}
-			case script.PayToPubk:
-				addr, err := sc.ExtractAddress()
-				if err != nil {
-					tx.Type = types.ErrorTx
-					return types.ErrorTx, 0
-				}
-				if isContractAddrFunc(addr.Hash160()) {
-					return types.ErrorTx, 0
-				}
-			case script.PayToPubkCLTV, script.PayToScriptPubk:
-			case script.OpReturnPubk:
-				opReturns++
-				if opReturns > 1 {
-					tx.Type = types.ErrorTx
-					return types.ErrorTx, 0
-				}
-			}
-			continue
-		}
-		switch sc.PubkType() {
-		case script.PayToPubkCLTV, script.PayToScriptPubk:
-		case script.PayToPubk:
-			addr, err := sc.ExtractAddress()
-			if err != nil {
-				tx.Type = types.ErrorTx
-				return types.ErrorTx, 0
-			}
-			if isContractAddrFunc(addr.Hash160()) {
-				idx, tx.Type = i, types.ContractTx
-			}
-		case script.UnknownPubk:
-			tx.Type = types.ErrorTx
-			return types.ErrorTx, 0
-		case script.TokenTransferPubk:
-			idx, tx.Type = i, types.TokenTransferTx
-		case script.TokenIssuePubk:
-			idx, tx.Type = i, types.TokenIssueTx
-		case script.ContractPubk:
-			idx, tx.Type = i, types.ContractTx
-		case script.SplitAddrPubk:
-			idx, tx.Type = i, types.SplitTx
-		case script.OpReturnPubk:
-			opReturns++
-			if opReturns > 1 {
-				tx.Type = types.ErrorTx
-				return types.ErrorTx, 0
-			}
-		}
-	}
-	if tx.Type == types.UnknownTx {
-		idx, tx.Type = 0, types.PayToPubkTx
-	}
-	return tx.Type, idx
-}
-
 // GetContractVout return contract vout if tx has a vout with contract creation or call
 func GetContractVout(tx *types.Transaction, stateDB *state.StateDB) *types.TxOut {
 	for _, o := range tx.Vout {
@@ -552,4 +463,91 @@ func MakeGenesisContractTx(
 	tx.WithData(types.ContractDataType, code)
 	tx.Type = types.ContractTx
 	return tx
+}
+
+// IsStandardTx returns whether tx is a legal transaction
+func IsStandardTx(tx *types.Transaction, statedb *state.StateDB) bool {
+	if tx.Type != types.UnknownTx {
+		return tx.Type != types.ErrorTx
+	}
+	txType, _ := ParseTxType(tx, statedb)
+	return txType != types.ErrorTx
+}
+
+// GetTxType returns which type transaction is
+func GetTxType(tx *types.Transaction, statedb *state.StateDB) types.TxType {
+	if tx.Type != types.UnknownTx {
+		return tx.Type
+	}
+	txType, _ := ParseTxType(tx, statedb)
+	return txType
+}
+
+// ParseTxType returns tx type and  feature index that indicates which tx type
+func ParseTxType(tx *types.Transaction, statedb *state.StateDB) (types.TxType, int) {
+	idx, opReturns := 0, 0
+	for i, txOut := range tx.Vout {
+		sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+		if tx.Type != types.UnknownTx {
+			switch sc.PubkType() {
+			default:
+				tx.Type = types.ErrorTx
+				return types.ErrorTx, 0
+			case script.TokenTransferPubk:
+				if tx.Type != types.TokenTransferTx {
+					return types.ErrorTx, 0
+				}
+			case script.PayToPubk:
+				addr, err := sc.ExtractAddress()
+				if err != nil {
+					tx.Type = types.ErrorTx
+					return types.ErrorTx, 0
+				}
+				if statedb != nil && statedb.IsContractAddr(*addr.Hash160()) {
+					return types.ErrorTx, 0
+				}
+			case script.PayToPubkCLTV, script.PayToScriptPubk:
+			case script.OpReturnPubk:
+				opReturns++
+				if opReturns > 1 {
+					tx.Type = types.ErrorTx
+					return types.ErrorTx, 0
+				}
+			}
+			continue
+		}
+		switch sc.PubkType() {
+		case script.PayToPubkCLTV, script.PayToScriptPubk:
+		case script.PayToPubk:
+			addr, err := sc.ExtractAddress()
+			if err != nil {
+				tx.Type = types.ErrorTx
+				return types.ErrorTx, 0
+			}
+			if statedb != nil && statedb.IsContractAddr(*addr.Hash160()) {
+				idx, tx.Type = i, types.ContractTx
+			}
+		case script.UnknownPubk:
+			tx.Type = types.ErrorTx
+			return types.ErrorTx, 0
+		case script.TokenTransferPubk:
+			idx, tx.Type = i, types.TokenTransferTx
+		case script.TokenIssuePubk:
+			idx, tx.Type = i, types.TokenIssueTx
+		case script.ContractPubk:
+			idx, tx.Type = i, types.ContractTx
+		case script.SplitAddrPubk:
+			idx, tx.Type = i, types.SplitTx
+		case script.OpReturnPubk:
+			opReturns++
+			if opReturns > 1 {
+				tx.Type = types.ErrorTx
+				return types.ErrorTx, 0
+			}
+		}
+	}
+	if tx.Type == types.UnknownTx {
+		idx, tx.Type = 0, types.PayToPubkTx
+	}
+	return tx.Type, idx
 }

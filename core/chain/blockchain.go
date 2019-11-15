@@ -469,7 +469,7 @@ func (chain *BlockChain) ProcessBlock(block *types.Block, transferMode core.Tran
 		return core.ErrRepeatedMintAtSameTime
 	}
 
-	if err := validateBlock(block, chain.IsContractAddrFn()); err != nil {
+	if err := validateBlock(block, chain.tailState); err != nil {
 		logger.Errorf("Failed to validate block. Hash: %s, Height: %d, Err: %s",
 			block.BlockHash(), block.Header.Height, err)
 		return err
@@ -746,7 +746,7 @@ func validateBlockInputs(
 	var totalFees uint64
 	for _, tx := range txs {
 		// cache tx type in memory
-		txType := txlogic.GetTxType(tx, IsContractAddrFn(stateDB))
+		txType := txlogic.GetTxType(tx, stateDB)
 		// skip coinbase tx
 		if IsCoinBase(tx) || IsInternalContract(tx) {
 			continue
@@ -893,8 +893,8 @@ func (chain *BlockChain) adjustAndValidateState(
 		logger.Error(err)
 		return nil, err
 	}
-	utxoSet := NewUtxoSet(IsContractAddrFn(stateDB), FetchContractUtxoFn(stateDB))
-	if err := utxoSet.LoadBlockUtxos(block, true, chain.db); err != nil {
+	utxoSet := NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, true, chain.db, stateDB); err != nil {
 		return nil, err
 	}
 	// Validate scripts here before utxoSet is updated; otherwise it may fail mistakenly
@@ -920,7 +920,7 @@ func (chain *BlockChain) adjustAndValidateState(
 
 	// Save a deep copy before we potentially split the block's txs' outputs and
 	// mutate it
-	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy, stateDB); err != nil {
 		return nil, err
 	}
 	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
@@ -936,7 +936,7 @@ func (chain *BlockChain) adjustAndValidateState(
 
 	// apply internal txs.
 	if len(block.InternalTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block); err != nil {
+		if err := utxoSet.ApplyInternalTxs(block, stateDB); err != nil {
 			return nil, err
 		}
 	}
@@ -1202,8 +1202,12 @@ func (chain *BlockChain) tryDisConnectBlockFromMainChain(block *types.Block) err
 	// Split tx outputs if any
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 	dtt1 := time.Now().UnixNano()
-	utxoSet := NewUtxoSet(chain.IsContractAddrFn(), chain.FetchContractUtxoFn())
-	if err := utxoSet.LoadBlockAllUtxos(blockCopy, false, chain.db); err != nil {
+	stateDB, err := state.New(&block.Header.RootHash, &block.Header.UtxoRoot, chain.db)
+	if err != nil {
+		return err
+	}
+	utxoSet := NewUtxoSet()
+	if err := utxoSet.LoadBlockAllUtxos(blockCopy, false, chain.db, stateDB); err != nil {
 		return err
 	}
 	if err := utxoSet.RevertBlock(blockCopy, chain); err != nil {
@@ -1421,7 +1425,7 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	genesis.Txs = genesisTxs
 	genesis.Header.TxsRoot = *CalcTxsHash(genesisTxs)
 
-	utxoSet := NewUtxoSet(nil, nil)
+	utxoSet := NewUtxoSet()
 	for _, v := range genesis.Txs {
 		for idx := range v.Vout {
 			utxoSet.AddUtxo(v, uint32(idx), genesis.Header.Height)
@@ -2275,44 +2279,20 @@ func (chain *BlockChain) MakeDynastySwitchTx(
 	return tx, nil
 }
 
-// IsContractAddrFn returns a function that checks addr whether is contract address
-func (chain *BlockChain) IsContractAddrFn() txlogic.IsContractAddrFunc {
-	return IsContractAddrFn(chain.TailState())
+// IsContractAddr returns a function that checks addr whether is contract address
+func (chain *BlockChain) IsContractAddr(addr *types.AddressHash) bool {
+	return chain.tailState.IsContractAddr(*addr)
 }
 
-// FetchContractUtxoFn returns a function that fetch utxo with given contract address
-func (chain *BlockChain) FetchContractUtxoFn() FetchContractUtxoFunc {
-	return FetchContractUtxoFn(chain.TailState())
-}
-
-// IsContractAddrFn returns a function that checks addr whether is contract address
-func IsContractAddrFn(stateDB *state.StateDB) txlogic.IsContractAddrFunc {
-	if stateDB == nil {
-		return func(addr *types.AddressHash) bool {
-			return false
-		}
+// GetContractUtxoFromStateDB get contract utxo from statedb.
+func GetContractUtxoFromStateDB(stateDB *state.StateDB, addr *types.AddressHash) *types.UtxoWrap {
+	bytes, err := stateDB.GetUtxo(*addr)
+	if err != nil {
+		return nil
 	}
-	return func(addr *types.AddressHash) bool {
-		return len(stateDB.GetCode(*addr)) > 0
+	var utxoWrap *types.UtxoWrap
+	if utxoWrap, err = DeserializeUtxoWrap(bytes); err != nil {
+		return nil
 	}
-}
-
-// FetchContractUtxoFn returns a function that fetch utxo with given contract address
-func FetchContractUtxoFn(stateDB *state.StateDB) FetchContractUtxoFunc {
-	if stateDB == nil {
-		return func(addr *types.AddressHash) *types.UtxoWrap {
-			return nil
-		}
-	}
-	return func(addr *types.AddressHash) *types.UtxoWrap {
-		bytes, err := stateDB.GetUtxo(*addr)
-		if err != nil {
-			return nil
-		}
-		var utxoWrap *types.UtxoWrap
-		if utxoWrap, err = DeserializeUtxoWrap(bytes); err != nil {
-			return nil
-		}
-		return utxoWrap
-	}
+	return utxoWrap
 }

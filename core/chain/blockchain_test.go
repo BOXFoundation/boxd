@@ -151,7 +151,7 @@ func nextBlockV3(
 	// tx fee
 	txFee := uint64(0)
 	for _, tx := range txs {
-		if txlogic.GetTxType(tx, chain.IsContractAddrFn()) == types.ContractTx {
+		if txlogic.GetTxType(tx, chain.tailState) == types.ContractTx {
 			continue
 		}
 		txFee += core.TransferFee + tx.ExtraFee()
@@ -308,8 +308,8 @@ func TestBlockChain_WriteDelTxIndex(t *testing.T) {
 
 	for i, hash := range hashes {
 		_, tx, _, err := blockChain.LoadBlockInfoByTxHash(*hash)
-		txlogic.GetTxType(txs[i], blockChain.IsContractAddrFn())
-		txlogic.GetTxType(tx, blockChain.IsContractAddrFn())
+		txlogic.GetTxType(txs[i], blockChain.tailState)
+		txlogic.GetTxType(tx, blockChain.tailState)
 		ensure.Nil(t, err)
 		ensure.DeepEqual(t, txs[i], tx)
 	}
@@ -353,13 +353,13 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	logger.Infof("Before execute block %d statedb root: %s utxo root: %s admin bal: %d",
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), adminBal)
 
-	utxoSet := NewUtxoSet(IsContractAddrFn(statedb), FetchContractUtxoFn(statedb))
-	if err := utxoSet.LoadBlockUtxos(block, true, bc.DB()); err != nil {
+	utxoSet := NewUtxoSet()
+	if err := utxoSet.LoadBlockUtxos(block, true, bc.DB(), statedb); err != nil {
 		return err
 	}
 	blockCopy := block.Copy()
 	bc.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy, statedb); err != nil {
 		return err
 	}
 	bc.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
@@ -385,7 +385,7 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
 	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block); err != nil {
+		if err := utxoSet.ApplyInternalTxs(block, statedb); err != nil {
 			return err
 		}
 	}
