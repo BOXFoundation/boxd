@@ -287,15 +287,24 @@ func tuplePointsTo(index int, output []byte) (start int, err error) {
 
 // UnpackErrMsg decode err message from vm.
 func UnpackErrMsg(data []byte) (string, error) {
-	data = bytes.TrimPrefix(data, errMsgPrefix)
-
-	typ, err := NewType("string", []ArgumentMarshaling{})
-	if err != nil {
-		return "", err
-	}
-	msg, err := toGoType(0, typ, data)
+	msg, err := UnpackByTypeName("string", data)
 	if err != nil {
 		return "", err
 	}
 	return msg.(string), nil
+}
+
+// UnpackByTypeName unpack bytes to Basic types.
+func UnpackByTypeName(typname string, data []byte) (interface{}, error) {
+	data = bytes.TrimPrefix(data, errMsgPrefix)
+
+	typ, err := NewType(typname, []ArgumentMarshaling{})
+	if err != nil {
+		return nil, err
+	}
+	msg, err := toGoType(0, typ, data)
+	if err != nil {
+		return nil, err
+	}
+	return msg, err
 }
