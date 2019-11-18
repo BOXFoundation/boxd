@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/spf13/cobra"
 )
 
@@ -66,6 +69,11 @@ func init() {
 			Use:   "getstorage [address] [position] [optinal|height]",
 			Short: "Get the position of variable in storsge",
 			Run:   getStorageAt,
+		},
+		&cobra.Command{
+			Use:   "compilesol [sol_file_path] [optional|bin,abi] [optional|ouput_file_path]",
+			Short: "Compile contract source file",
+			Run:   compileSoureFile,
 		},
 	)
 }
@@ -449,4 +457,96 @@ func parseAbiPayable(file string) (map[string]bool, error) {
 		}
 	}
 	return m, nil
+}
+
+func compileSoureFile(cmd *cobra.Command, args []string) {
+	var (
+		filepath        = args[0]
+		outputFile      string
+		currentFilePath string
+		cmdExe          *exec.Cmd
+		err             error
+	)
+	if err := util.FileExists(filepath); err != nil {
+		fmt.Println(err)
+		return
+	}
+	switch len(args) {
+	//case 1: compilesol [filePath] [optional|bin,abi]
+	case 2:
+		if args[1] == "bin" {
+			cmdExe = exec.Command("solc", filepath, "--bin")
+		} else if args[1] == "abi" {
+			cmdExe = exec.Command("solc", filepath, "--abi")
+		} else {
+			fmt.Printf("%s is not found, please use \"bin\" or \"abi\".\n", args[1])
+			return
+		}
+		if currentFilePath, err = os.Getwd(); err != nil {
+			fmt.Println(err)
+			return
+		}
+		outputFile = currentFilePath + "/" + util.GetFileName(args[0])
+	//case 2: compilesol [filePath] [bin] [abi] , case 3: compilesol [filePath] [optional|bin,abi] [outputFilePath]
+	case 3:
+		if args[2] == "bin" || args[2] == "abi" {
+			cmdExe = exec.Command("solc", filepath, "--bin", "--abi")
+			if currentFilePath, err = os.Getwd(); err != nil {
+				fmt.Println(err)
+				return
+			}
+			outputFile = currentFilePath + "/" + util.GetFileName(args[0])
+		} else if args[1] == "bin" || args[1] == "abi" {
+			if args[1] == "bin" {
+				cmdExe = exec.Command("solc", filepath, "--bin")
+			} else {
+				cmdExe = exec.Command("solc", filepath, "--abi")
+			}
+			outputFile = args[2] + util.GetFileName(args[0])
+		} else {
+			fmt.Println("invalid arguments, please use \"bin\" or \"abi\".")
+			return
+		}
+	//case 4: compilesol [filePath] [bin] [abi] [outputFilePath]
+	case 4:
+		if (args[1] == "bin" && args[2] == "abi") || (args[1] == "abi" && args[2] == "bin") {
+			cmdExe = exec.Command("solc", filepath, "--bin", "--abi")
+			outputFile = args[3] + util.GetFileName(args[0])
+		} else {
+			fmt.Printf("%s, %s is not found, please use \"bin\" or \"abi\".\n", args[1], args[2])
+			return
+		}
+	default:
+		fmt.Println(cmd.Use)
+		return
+	}
+	//CombinedOutput runs the command and returns its combined standard output and standard error.
+	output, err := cmdExe.CombinedOutput()
+	if err != nil {
+		//an error is returned and the error message is the output.
+		fmt.Println(string(output))
+		return
+	}
+	outputStr := string(output)
+	binMatches := solcBinReg.FindStringSubmatch(outputStr)
+	abiMathes := solcAbiReg.FindStringSubmatch(outputStr)
+	var compileFlie string
+	if len(abiMathes) == 2 {
+		abiData := abiMathes[1]
+		compileFlie = outputFile + ".abi"
+		// write abi data to file
+		if err := ioutil.WriteFile(compileFlie, []byte(abiData), 0644); err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+	if len(binMatches) == 2 {
+		binData := binMatches[1]
+		compileFlie = outputFile + ".bin"
+		// write bin data to file
+		if err := ioutil.WriteFile(compileFlie, []byte(binData), 0644); err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
 }
