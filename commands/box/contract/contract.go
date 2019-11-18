@@ -114,7 +114,7 @@ func init() {
 		&cobra.Command{
 			Use:   "setabi [index]",
 			Short: "set abi index as default abi, index must be in abi list. relevant command: importabi, list",
-			Run:   setabi,
+			RunE:  setabi,
 		},
 		&cobra.Command{
 			Use:   "setsender [optinal|wallet_dir] [address]",
@@ -223,6 +223,25 @@ func importAbi(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 	fmt.Println("index:", max+1)
+	index, err := currentAbi()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("Current index: %d\n", index)
+	fmt.Printf("Would you want to change current index into %d. [Y/n]\n", max+1)
+	var input string
+	fmt.Scanf("%s", &input)
+	switch {
+	case input == "n" || input == "N":
+		return
+	default:
+		err := setabi(&cobra.Command{}, []string{strconv.Itoa(max + 1)})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
 }
 
 func list(cmd *cobra.Command, args []string) {
@@ -317,28 +336,27 @@ func setsender(cmd *cobra.Command, args []string) {
 	}
 }
 
-func setabi(cmd *cobra.Command, args []string) {
+func setabi(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 	}
 	index, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		fmt.Println("invalid index: ", err)
-		return
+		return fmt.Errorf("invalid index: %s", err)
 	}
 	abiInfo, _, err := restoreRecord(recordFile)
 	if err != nil {
-		fmt.Println("restore record error:", err)
+		return fmt.Errorf("restore record error: %s", err)
 	}
 	abiDesc := abiInfo.getItem(int(index))
 	if abiDesc == nil {
-		fmt.Printf("index %d is not in abi list\n", index)
-		return
+		return fmt.Errorf("index %d is not in abi list", index)
 	}
 	// write index to file
 	if err := ioutil.WriteFile(abiIdxFile, []byte(args[0]), 0644); err != nil {
 		panic(err)
 	}
+	return nil
 }
 
 func attach(cmd *cobra.Command, args []string) error {
