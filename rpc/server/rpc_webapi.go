@@ -498,7 +498,7 @@ func detailTx(
 		totalFee = core.TransferFee
 	}
 	detail.Fee = totalFee + tx.ExtraFee()
-	detail.Type = rpcpb.TxDetail_TxType(txlogic.GetTxType(tx, chain.IsContractAddrFn(nil)))
+	detail.Type = rpcpb.TxDetail_TxType(txlogic.GetTxType(tx, nil))
 	return detail, nil
 }
 
