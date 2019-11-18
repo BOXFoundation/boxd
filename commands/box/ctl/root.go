@@ -302,7 +302,7 @@ func getBlockHeaderCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println("The format of block_header conversion failed:", err)
 		return
 	}
-	fmt.Printf(format.PrettyPrint(header))
+	fmt.Println(format.PrettyPrint(header))
 }
 
 func getNodeInfoCmdFunc(cmd *cobra.Command, args []string) {

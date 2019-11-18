@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path"
 	"reflect"
 	"runtime"
+	"strings"
 
 	"github.com/BOXFoundation/boxd/log"
 )
@@ -99,4 +101,12 @@ func FileExists(filename string) error {
 		return fmt.Errorf("file status error: %s", err)
 	}
 	return nil
+}
+
+//GetFileName get file name
+func GetFileName(filePath string) string {
+	file := path.Base(filePath)
+	fileSuffix := path.Ext(file)
+	fileName := strings.TrimSuffix(file, fileSuffix)
+	return fileName
 }
