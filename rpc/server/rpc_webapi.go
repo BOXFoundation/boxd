@@ -160,7 +160,6 @@ func newViewTxDetailResp(code int32, msg string) *rpcpb.ViewTxDetailResp {
 func (s *webapiServer) ViewTxDetail(
 	ctx context.Context, req *rpcpb.ViewTxDetailReq,
 ) (*rpcpb.ViewTxDetailResp, error) {
-
 	logger.Infof("view tx detail req: %+v", req)
 	// fetch hash from request
 	hash := new(crypto.HashType)
@@ -175,7 +174,7 @@ func (s *webapiServer) ViewTxDetail(
 	block, tx, txType, err := br.LoadBlockInfoByTxHash(*hash)
 	if err == nil {
 		// calc tx status
-		if blockConfirmed(block, br) {
+		if blockConfirmed(br, block.Header.Height, block.BlockHash()) {
 			resp.Status = rpcpb.TxStatus_confirmed
 		} else {
 			resp.Status = rpcpb.TxStatus_onchain
@@ -201,7 +200,7 @@ func (s *webapiServer) ViewTxDetail(
 		logger.Warn("view tx detail error: ", err)
 		return newViewTxDetailResp(-1, err.Error()), nil
 	}
-	if txType == types.InternalTxType {
+	if txType == types.InternalTx {
 		detail.Fee = 0
 	}
 	//
@@ -499,6 +498,7 @@ func detailTx(
 		totalFee = core.TransferFee
 	}
 	detail.Fee = totalFee + tx.ExtraFee()
+	detail.Type = rpcpb.TxDetail_TxType(txlogic.GetTxType(tx, nil))
 	return detail, nil
 }
 
@@ -520,7 +520,7 @@ func detailBlock(
 		return nil, err
 	}
 	detail.CoinBase = coinBase.String()
-	detail.Confirmed = r.EternalBlock().Header.Height >= block.Header.Height
+	detail.Confirmed = blockConfirmed(r, block.Header.Height, block.BlockHash())
 	detail.Signature = hex.EncodeToString(block.Signature)
 	for _, tx := range block.Txs {
 		txDetail, err := detailTx(tx, r, tr, false, detailVin)
@@ -745,12 +745,15 @@ func parseVoutType(txOut *types.TxOut) rpcpb.TxOutDetail_TxOutType {
 	return rpcpb.TxOutDetail_unknown
 }
 
-func blockConfirmed(b *types.Block, r ChainBlockReader) bool {
-	if b == nil {
+func blockConfirmed(r ChainBlockReader, height uint32, checkHash *crypto.HashType) bool {
+	hash, err := r.GetBlockHash(height)
+	if err != nil {
 		return false
 	}
-	eternalHeight := r.EternalBlock().Header.Height
-	return eternalHeight >= b.Header.Height
+	if *hash != *checkHash {
+		return false
+	}
+	return r.EternalBlock().Header.Height >= height
 }
 
 // ParseAddrFrom parse addr from scriptPubkey

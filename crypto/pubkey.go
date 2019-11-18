@@ -11,6 +11,9 @@ import (
 // PublicKey is a btcec.PublicKey wrapper
 type PublicKey btcec.PublicKey
 
+// PublicKeySize defines length of public serialize
+const PublicKeySize = btcec.PubKeyBytesLenCompressed
+
 // Serialize get the serialized format of public key
 func (p *PublicKey) Serialize() []byte {
 	return (*btcec.PublicKey)(p).SerializeCompressed()

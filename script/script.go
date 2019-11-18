@@ -22,6 +22,9 @@ import (
 
 var logger = log.NewLogger("script") // logger
 
+// PubkType defines script public key type
+type PubkType int
+
 // constants
 const (
 	p2PKHScriptLen = 25
@@ -31,6 +34,16 @@ const (
 	MaxOpReturnSize = 512
 
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
+
+	UnknownPubk PubkType = iota
+	PayToPubk
+	TokenTransferPubk
+	TokenIssuePubk
+	ContractPubk
+	SplitAddrPubk
+	PayToPubkCLTV
+	PayToScriptPubk
+	OpReturnPubk
 )
 
 // variables
@@ -730,41 +743,60 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
-
-	switch {
-	case s.IsPayToPubKeyHash():
-		fallthrough
-	case s.IsTokenTransfer():
-		fallthrough
-	case s.IsTokenIssue():
+	switch s.PubkType() {
+	default:
+		return nil, ErrAddressNotApplicable
+	case PayToPubk, TokenTransferPubk, TokenIssuePubk:
 		_, pubKeyHash, _, err := s.getNthOp(2, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
-	case s.IsContractPubkey():
+	case ContractPubk:
 		return s.ParseContractAddr()
-	case s.IsSplitAddrScript():
+	case SplitAddrPubk:
 		_, pubKeyHash, _, err := s.getNthOp(2, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewSplitAddressFromHash(pubKeyHash)
-	case s.IsPayToPubKeyHashCLTVScript():
+	case PayToPubkCLTV:
 		l := len(*s)
 		_, pubKeyHash, _, err := s.getNthOp(l-23, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
-	case s.IsPayToScriptHash():
+	case PayToScriptPubk:
 		_, pubKeyHash, _, err := s.getNthOp(1, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
+	}
+}
+
+// PubkType returns pubkey type
+func (s *Script) PubkType() PubkType {
+	switch {
 	default:
-		return nil, ErrAddressNotApplicable
+		return UnknownPubk
+	case s.IsPayToPubKeyHash():
+		return PayToPubk
+	case s.IsTokenTransfer():
+		return TokenTransferPubk
+	case s.IsTokenIssue():
+		return TokenIssuePubk
+	case s.IsContractPubkey():
+		return ContractPubk
+	case s.IsSplitAddrScript():
+		return SplitAddrPubk
+	case s.IsPayToPubKeyHashCLTVScript():
+		return PayToPubkCLTV
+	case s.IsPayToScriptHash():
+		return PayToScriptPubk
+	case s.IsOpReturnScript():
+		return OpReturnPubk
 	}
 }
 

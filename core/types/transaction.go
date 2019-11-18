@@ -16,7 +16,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	proto "github.com/gogo/protobuf/proto"
-	"golang.org/x/crypto/ripemd160"
 )
 
 // Define const
@@ -32,11 +31,15 @@ type TxType int
 // pay to pubkey tx set 1 at most right bit
 // contract tx set 1 at second right bit
 const (
-	NormalTxType   TxType = 0x01
-	InternalTxType TxType = 0x0101
-	SplitTxType    TxType = 0x010101
-	ContractTxType TxType = 0x02
-	TokenTxType    TxType = 0x04
+	UnknownTx       TxType = 0x0
+	PayToPubkTx     TxType = 0x01
+	ContractTx      TxType = 0x02
+	TokenIssueTx    TxType = 0x04
+	TokenTransferTx TxType = 0x05
+	NormalTx        TxType = (PayToPubkTx | ContractTx | TokenIssueTx | TokenTransferTx)
+	SplitTx         TxType = 0x08
+	InternalTx      TxType = 0x10
+	ErrorTx         TxType = math.MaxUint32
 )
 
 // TokenID defines token id
@@ -97,6 +100,7 @@ func (data *Data) MarshalJSON() ([]byte, error) {
 // Transaction defines a transaction.
 type Transaction struct {
 	hash     *crypto.HashType
+	Type     TxType
 	Version  int32
 	Vin      []*TxIn
 	Vout     []*TxOut
@@ -110,7 +114,6 @@ type TxWrap struct {
 	Tx             *Transaction
 	AddedTimestamp int64
 	Height         uint32
-	IsContract     bool
 	IsScriptValid  bool
 }
 
@@ -232,10 +235,10 @@ func (txin *TxIn) AddressHash() *AddressHash {
 	if txin.PrevOutPoint.Hash == crypto.ZeroHash {
 		return nil
 	}
-	if len(txin.ScriptSig) <= ripemd160.Size {
+	if len(txin.ScriptSig) <= crypto.PublicKeySize {
 		return nil
 	}
-	addrBytes := crypto.Hash160(txin.ScriptSig[len(txin.ScriptSig)-ripemd160.Size:])
+	addrBytes := crypto.Hash160(txin.ScriptSig[len(txin.ScriptSig)-crypto.PublicKeySize:])
 	addrHash := new(AddressHash)
 	addrHash.SetBytes(addrBytes)
 	return addrHash
@@ -365,7 +368,7 @@ func (tx *Transaction) CalcTxHash() (*crypto.HashType, error) {
 	if err != nil {
 		return nil, err
 	}
-	return calcDoubleHash(data)
+	return calcDoubleHash(data), nil
 }
 
 // ResetTxHash reset txhash
@@ -497,6 +500,7 @@ func (tx *Transaction) Copy() *Transaction {
 
 	return &Transaction{
 		Version:  tx.Version,
+		Type:     tx.Type,
 		Vin:      vin,
 		Vout:     vout,
 		Data:     tx.Data,
@@ -532,13 +536,13 @@ func calcProtoMsgDoubleHash(pb proto.Message) (*crypto.HashType, error) {
 	if err != nil {
 		return nil, err
 	}
-	return calcDoubleHash(data)
+	return calcDoubleHash(data), nil
 }
 
 // calcDoubleHash calculates double hash of bytes
-func calcDoubleHash(data []byte) (*crypto.HashType, error) {
+func calcDoubleHash(data []byte) *crypto.HashType {
 	hash := crypto.DoubleHashH(data)
-	return &hash, nil
+	return &hash
 }
 
 // OutputAmount returns total amount from tx's outputs

@@ -26,6 +26,7 @@ type StateDB interface {
 	GetCode(types.AddressHash) []byte
 	SetCode(types.AddressHash, []byte)
 	GetCodeSize(types.AddressHash) int
+	IsContractAddr(addr types.AddressHash) bool
 
 	SetError(error)
 	Error() error

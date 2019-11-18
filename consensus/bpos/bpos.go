@@ -359,7 +359,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
 			hashToTx[*txHash] = pendingTx
-			if pendingTx.IsContract {
+			if txlogic.GetTxType(pendingTx.Tx, bpos.chain.TailState()) == types.ContractTx {
 				// from is in txpool if the contract tx used a vout in txpool
 				op := pendingTx.Tx.Vin[0].PrevOutPoint
 				ownerTx, ok := bpos.txpool.GetTxByHash(&op.Hash)
@@ -367,7 +367,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 					ownerTx = nil
 				}
 				// extract contract tx
-				vmTx, err := chain.ExtractVMTransaction(pendingTx.Tx, ownerTx.GetTx())
+				vmTx, err := chain.ExtractVMTransaction(pendingTx.Tx, statedb, ownerTx.GetTx())
 				if err != nil {
 					return nil, err
 				}
@@ -415,7 +415,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			continue
 		}
 		dag.AddNode(*txHash, int(txWrap.AddedTimestamp))
-		if txWrap.IsContract {
+		if txlogic.GetTxType(txWrap.Tx, bpos.chain.TailState()) == types.ContractTx {
 			from := hashToAddress[*txHash]
 			sortedNonceTxs := addressToNonceSortedTxs[from]
 			handleVMTx(dag, sortedNonceTxs, hashToTx)
@@ -459,22 +459,19 @@ func handleVMTx(
 
 // PackTxs packed txs and add them to block.
 func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
-
-	// We sort txs in mempool by fees when packing while ensuring child tx is not packed before parent tx.
-	// otherwise the former's utxo is missing
+	// We sort txs in mempool by fees when packing while ensuring child tx is not
+	// packed before parent tx.  otherwise the former's utxo is missing
 	pendingTxs := bpos.txpool.GetAllTxs()
 	sortedTxs, err := bpos.sortPendingTxs(pendingTxs)
 	if err != nil {
 		return err
 	}
-
 	var packedTxs []*types.Transaction
-	remainTimeInMs := bpos.context.timestamp*SecondInMs + MaxPackedTxTime - time.Now().Unix()*SecondInMs
+	remainTimeInMs := bpos.context.timestamp*SecondInMs + MaxPackedTxTime -
+		time.Now().Unix()*SecondInMs
 	spendableTxs := new(sync.Map)
-
 	// Total fees of all packed txs
 	totalTransferFee := uint64(0)
-
 	stopPack := false
 	stopPackCh := make(chan bool, 1)
 	continueCh := make(chan bool, 1)
@@ -494,7 +491,7 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			}
 
 			txHash, _ := txWrap.Tx.TxHash()
-			if txWrap.IsContract {
+			if txlogic.GetTxType(txWrap.Tx, bpos.chain.TailState()) == types.ContractTx {
 				spendableTxs.Store(*txHash, txWrap)
 				packedTxs = append(packedTxs, txWrap.Tx)
 				continue
@@ -508,13 +505,15 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 
 			totalInputAmount := utxoSet.TxInputAmount(txWrap.Tx)
 			if totalInputAmount == 0 {
-				// This can only occur when a tx's parent is removed from mempool but not written to utxo db yet
+				// This can only occur when a tx's parent is removed from mempool but
+				// not written to utxo db yet
 				logger.Errorf("This can not occur totalInputAmount == 0, tx hash: %v", txHash)
 				continue
 			}
 			totalOutputAmount := txWrap.Tx.OutputAmount()
 			if totalInputAmount != totalOutputAmount+core.TransferFee+txWrap.Tx.ExtraFee() {
-				// This must not happen since the tx already passed the check when admitted into mempool
+				// This must not happen since the tx already passed the check when
+				//	admitted into mempool
 				logger.Warnf("total value of all transaction outputs for "+
 					"transaction %v is %v, which exceeds the input amount "+
 					"of %v", txHash, totalOutputAmount, totalInputAmount)
@@ -554,35 +553,40 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 	if err != nil {
 		return err
 	}
-	from := *adminAddr.Hash160()
-	adminNonce := statedb.GetNonce(from) + 1
-	statedb.AddBalance(from, new(big.Int).SetUint64(bpos.context.bookKeeperReward.Uint64()))
+	adminAddrHash := *adminAddr.Hash160()
+	adminNonce := statedb.GetNonce(adminAddrHash) + 1
+	bkReward := bpos.context.bookKeeperReward.Uint64()
+	statedb.AddBalance(adminAddrHash, new(big.Int).SetUint64(bkReward))
 	if totalTransferFee > 0 {
 		statedb.AddBalance(block.Header.BookKeeper, big.NewInt(int64(totalTransferFee)))
 	}
 
-	// coinbaseTx, err := bpos.makeCoinbaseTx(from, block, statedb, totalTransferFee, adminNonce)
 	coinbaseTx, err := chain.MakeCoinBaseContractTx(block.Header.BookKeeper,
-		bpos.context.bookKeeperReward.Uint64(), totalTransferFee, adminNonce, block.Header.Height)
+		bkReward, totalTransferFee, adminNonce, block.Header.Height)
 	if err != nil {
 		return err
 	}
 	block.Txs = append(block.Txs, coinbaseTx)
 
-	if uint64((block.Header.Height+1))%bpos.context.dynastySwitchThreshold.Uint64() == 0 { // dynasty switch
+	blockHeight := uint64(block.Header.Height)
+	switchHeight := bpos.context.dynastySwitchThreshold.Uint64()
+	scoreHeight := bpos.context.calcScoreThreshold.Uint64()
+	if (blockHeight+1)%switchHeight == 0 { // dynasty switch
 		adminNonce++
-		dynastySwitchTx, err := bpos.chain.MakeDynastySwitchTx(*adminAddr.Hash160(), adminNonce, block.Header.Height)
+		dynastySwitchTx, err := bpos.chain.MakeDynastySwitchTx(*adminAddr.Hash160(),
+			adminNonce, block.Header.Height)
 		if err != nil {
 			return err
 		}
 		block.Txs = append(block.Txs, dynastySwitchTx)
-	} else if uint64(block.Header.Height)%bpos.context.dynastySwitchThreshold.Uint64() == bpos.context.calcScoreThreshold.Uint64() { // calc score
+	} else if blockHeight%switchHeight == scoreHeight { // calc score
 		adminNonce++
 		scores, err := bpos.calcScores()
 		if err != nil {
 			return err
 		}
-		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(), adminNonce, block.Header.Height, scores)
+		calcScoreTx, err := bpos.chain.MakeCalcScoreTx(*adminAddr.Hash160(),
+			adminNonce, block.Header.Height, scores)
 		if err != nil {
 			return err
 		}
@@ -618,12 +622,12 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		block.Header.Height, statedb.RootHash(), statedb.UtxoRoot(), genesisContractBalanceOld)
 
 	utxoSet := chain.NewUtxoSet()
-	if err := utxoSet.LoadBlockUtxos(block, true, bpos.chain.DB()); err != nil {
+	if err := utxoSet.LoadBlockUtxos(block, true, bpos.chain.DB(), statedb); err != nil {
 		return err
 	}
 	blockCopy := block.Copy()
 	bpos.chain.SplitBlockOutputs(blockCopy)
-	if err := utxoSet.ApplyBlock(blockCopy, bpos.chain.IsContractAddr2); err != nil {
+	if err := utxoSet.ApplyBlock(blockCopy, statedb); err != nil {
 		return err
 	}
 	bpos.chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, statedb)
@@ -632,12 +636,6 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	if err != nil {
 		return err
 	}
-	coinbaseHash, err := block.Txs[0].TxHash()
-	if err != nil {
-		return err
-	}
-	opCoinbase := types.NewOutPoint(coinbaseHash, 1)
-
 	if gasUsed > 0 {
 		bookkeeper := bpos.bookkeeper.AddressHash()
 		statedb.AddBalance(*bookkeeper, big.NewInt(int64(gasUsed)))
@@ -646,9 +644,8 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 		} else {
 			block.Txs[0].AppendVout(txlogic.MakeVout(bookkeeper, gasUsed))
 		}
-		reward := block.Txs[0].Vout[0].Value + block.Txs[0].Vout[1].Value
-		logger.Infof("gas used for block %d: %d, bookkeeper %s reward: %d",
-			block.Header.Height, gasUsed, bookkeeper, reward)
+		coinbaseHash, _ := block.Txs[0].TxHash()
+		opCoinbase := types.NewOutPoint(coinbaseHash, 1)
 		utxoSet.SpendUtxo(*opCoinbase)
 		block.Txs[0].ResetTxHash()
 		utxoSet.AddUtxo(block.Txs[0], 1, block.Header.Height)
@@ -659,7 +656,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
 	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block); err != nil {
+		if err := utxoSet.ApplyInternalTxs(block, statedb); err != nil {
 			return err
 		}
 	}

@@ -270,6 +270,14 @@ func (s *StateDB) GetCodeSize(addr types.AddressHash) int {
 	return 0
 }
 
+// IsContractAddr return if a address is a contract address.
+func (s *StateDB) IsContractAddr(addr types.AddressHash) bool {
+	if s.GetCodeSize(addr) > 0 {
+		return true
+	}
+	return false
+}
+
 // GetCodeHash get code hash.
 func (s *StateDB) GetCodeHash(addr types.AddressHash) corecrypto.HashType {
 	stateObject := s.getStateObject(addr)

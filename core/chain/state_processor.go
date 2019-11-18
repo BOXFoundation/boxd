@@ -19,7 +19,6 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/storage"
-	"github.com/BOXFoundation/boxd/util/bloom"
 	"github.com/BOXFoundation/boxd/vm"
 )
 
@@ -63,7 +62,7 @@ func (sp *StateProcessor) Process(
 				block.BlockHash(), block.Header.Height, sumGas, i, len(block.Txs))
 			return nil, 0, nil, core.ErrOutOfBlockGasLimit
 		}
-		vmTx, err1 := ExtractVMTransaction(tx)
+		vmTx, err1 := ExtractVMTransaction(tx, stateDB)
 		if err1 != nil {
 			err = err1
 			invalidTx = tx
@@ -74,8 +73,8 @@ func (sp *StateProcessor) Process(
 			continue
 		}
 		if vmTx.Nonce() != stateDB.GetNonce(*vmTx.From())+1 {
-			err = fmt.Errorf("incorrect nonce(%d, %d in statedb) for %s in tx: %s",
-				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.From(), vmTx.OriginTxHash())
+			err = fmt.Errorf("incorrect nonce(%d, %d in statedb) for %x in tx: %s",
+				vmTx.Nonce(), stateDB.GetNonce(*vmTx.From()), vmTx.From()[:], vmTx.OriginTxHash())
 			invalidTx = tx
 			break
 		}
@@ -113,6 +112,8 @@ func (sp *StateProcessor) Process(
 		return nil, 0, nil, err
 	}
 
+	logger.Infof("block %s used gas %d in state process, total gas: %d",
+		block.BlockHash(), usedGas, sumGas)
 	return receipts, usedGas, utxoTxs, nil
 }
 
@@ -161,8 +162,7 @@ func ApplyTransaction(
 	}
 	senderNonce := statedb.GetNonce(*tx.From())
 	if !fail && len(vmenv.Transfers) > 0 {
-		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet,
-			bc.contractAddrFilter, bc.db)
+		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet, bc.db, statedb)
 		if err != nil {
 			logger.Warn(err)
 			return nil, 0, 0, nil, err
@@ -198,9 +198,8 @@ func ApplyTransaction(
 }
 
 func createUtxoTx(
-	transfers map[types.AddressHash][]*vm.TransferInfo,
-	senderNonce uint64, utxoSet *UtxoSet, contractAddrFilter bloom.Filter,
-	db storage.Reader,
+	transfers map[types.AddressHash][]*vm.TransferInfo, senderNonce uint64,
+	utxoSet *UtxoSet, db storage.Reader, statedb *state.StateDB,
 ) ([]*types.Transaction, error) {
 
 	var txs []*types.Transaction
@@ -215,7 +214,7 @@ func createUtxoTx(
 				} else {
 					end = len(v) - begin
 				}
-				tx, err := makeTx(v, senderNonce, begin, end, utxoSet, contractAddrFilter, db)
+				tx, err := makeTx(v, senderNonce, begin, end, utxoSet, db, statedb)
 				if err != nil {
 					logger.Error("create utxo tx error: ", err)
 					return nil, err
@@ -223,7 +222,7 @@ func createUtxoTx(
 				txs = append(txs, tx)
 			}
 		} else {
-			tx, err := makeTx(v, senderNonce, 0, len(v), utxoSet, contractAddrFilter, db)
+			tx, err := makeTx(v, senderNonce, 0, len(v), utxoSet, db, statedb)
 			if err != nil {
 				logger.Error("create utxo tx error: ", err)
 				return nil, err
@@ -271,7 +270,7 @@ func createRefundTx(
 
 func makeTx(
 	transferInfos []*vm.TransferInfo, senderNonce uint64, voutBegin int, voutEnd int,
-	utxoSet *UtxoSet, contractAddrFilter bloom.Filter, db storage.Reader,
+	utxoSet *UtxoSet, db storage.Reader, statedb *state.StateDB,
 ) (*types.Transaction, error) {
 
 	from := &transferInfos[0].From
@@ -292,27 +291,28 @@ func makeTx(
 	}
 	var vouts []*types.TxOut
 	for i := voutBegin; i < voutEnd; i++ {
-		to := &transferInfos[i].To
+		info := transferInfos[i]
+		to := &info.To
 		if *to == types.ZeroAddressHash {
 			return nil, fmt.Errorf("makeTx] to contract is zero address")
 		}
 		var spk *script.Script
-		if IsContractAddr(to, contractAddrFilter, db, utxoSet) {
+		if statedb.IsContractAddr(*to) {
 			spk, _ = script.MakeContractScriptPubkey(from, to, 1, 0, 0)
 			outOp := types.NewOutPoint(types.NormalizeAddressHash(to), 0)
 			utxoSet.contractUtxos[*outOp] = struct{}{}
 			// update contract utxowrap in utxoSet
 			if _, ok := utxoSet.utxoMap[*outOp]; !ok {
-				wrap, err := fetchUtxoWrapFromDB(db, outOp)
-				if err != nil || wrap == nil {
-					return nil, fmt.Errorf("makeTx] fetch to contract %x utxo error: %v or nil", to, err)
+				wrap := GetContractUtxoFromStateDB(statedb, to)
+				if wrap == nil {
+					return nil, fmt.Errorf("makeTx] fetch to contract %x return nil", to)
 				}
 				utxoSet.utxoMap[*outOp] = wrap
 			}
 		} else {
 			spk = script.PayToPubKeyHashScript(to.Bytes())
 		}
-		toValue := transferInfos[i].Value
+		toValue := info.Value
 		vout := types.NewTxOut(toValue, *spk)
 		vouts = append(vouts, vout)
 		fromValue := fromUtxoWrap.Value() - toValue
@@ -330,31 +330,29 @@ func makeTx(
 
 // ExtractVMTransaction extract Transaction to VMTransaction
 func ExtractVMTransaction(
-	tx *types.Transaction, ownerTxs ...*types.Transaction,
+	tx *types.Transaction, stateDB *state.StateDB, ownerTxs ...*types.Transaction,
 ) (*types.VMTransaction, error) {
+	txHash, _ := tx.TxHash()
 	// check
-	contractVout, err := txlogic.CheckAndGetContractVout(tx)
-	if err != nil {
-		return nil, err
-	}
-	if contractVout == nil { // non-contract tx
+	if txlogic.GetTxType(tx, stateDB) != types.ContractTx {
 		return nil, nil
 	}
-	txHash, _ := tx.TxHash()
 	// take only one contract vout in a transaction
+	contractVout := txlogic.GetContractVout(tx, stateDB)
 	p, t, e := script.NewScriptFromBytes(contractVout.ScriptPubKey).ParseContractParams()
 	if e != nil {
 		return nil, e
 	}
-	if tx.Data == nil || len(tx.Data.Content) == 0 {
-		return nil, core.ErrContractDataNotFound
+	var input []byte
+	if tx.Data != nil && len(tx.Data.Content) != 0 {
+		input = tx.Data.Content
 	}
 	gasPrice := core.FixedGasPrice
 	if IsCoinBase(tx) || IsInternalContract(tx) {
 		gasPrice = 0
 	}
 	vmTx := types.NewVMTransaction(big.NewInt(int64(contractVout.Value)),
-		p.GasLimit, gasPrice, p.Nonce, txHash, t, tx.Data.Content).WithFrom(p.From)
+		p.GasLimit, gasPrice, p.Nonce, txHash, t, input).WithFrom(p.From)
 	if t == types.ContractCallType {
 		vmTx.WithTo(p.To)
 	}

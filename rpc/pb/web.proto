@@ -181,8 +181,17 @@ message LogDetail {
 message TxDetail {
     string hash = 1;
     uint64 fee = 2;
-    repeated TxInDetail vin = 3;
-    repeated TxOutDetail vout = 4;
+    enum TxType {
+      unknown = 0;
+      pay_to_pubk = 1;
+	    contract = 2;
+	    token_issue = 4;
+	    token_transfer = 5;
+	    split_addr = 8;
+    }
+    TxType type = 3;
+    repeated TxInDetail vin = 4;
+    repeated TxOutDetail vout = 5;
 }
 
 message TxInDetail {

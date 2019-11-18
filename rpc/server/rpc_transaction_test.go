@@ -62,9 +62,11 @@ func TestMakeUnsignedTx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	txlogic.GetTxType(tx, nil)
 	txBytes, _ := json.MarshalIndent(tx, "", "  ")
 
 	wantTxStr := `{
+  "Type": 1,
   "Version": 0,
   "Vin": [
     {
@@ -135,9 +137,11 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	txlogic.GetTxType(tx, nil)
 	txBytes, _ := json.MarshalIndent(tx, "", "  ")
 
 	wantTxStr := `{
+  "Type": 1,
   "Version": 0,
   "Vin": [
     {

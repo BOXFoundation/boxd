@@ -8,8 +8,10 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"math"
 	"testing"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
@@ -38,6 +40,7 @@ func TestMakeUnsignedTx(t *testing.T) {
 	}
 
 	txStr := `{
+  "Type": 1,
   "Version": 0,
   "Vin": [
     {
@@ -74,6 +77,10 @@ func TestMakeUnsignedTx(t *testing.T) {
   "LockTime": 0
 }`
 
+	txType := GetTxType(tx, nil)
+	if txType != types.PayToPubkTx {
+		t.Fatalf("want tx type is %d, got: %d", types.PayToPubkTx, txType)
+	}
 	bytes, _ := json.MarshalIndent(tx, "", "  ")
 	if string(bytes) != txStr {
 		t.Fatalf("want: %s, got: %s", txStr, string(bytes))
@@ -87,7 +94,6 @@ func hashFromUint64(n uint64) crypto.HashType {
 }
 
 func TestMakeUnsignedSplitAddrTx(t *testing.T) {
-
 	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	from := fromAddr.Hash160()
 	toAddr1, _ := types.ParseAddress("b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ")
@@ -115,6 +121,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 	}
 
 	txStr := `{
+  "Type": 8,
   "Version": 0,
   "Vin": [
     {
@@ -147,6 +154,10 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
   "LockTime": 0
 }`
 
+	txType := GetTxType(tx, nil)
+	if txType != types.SplitTx {
+		t.Fatalf("want tx type is %d, got: %d", types.SplitTx, txType)
+	}
 	bytes, _ := json.MarshalIndent(tx, "", "  ")
 	if string(bytes) != txStr {
 		t.Fatalf("want: %s, got: %s", txStr, string(bytes))
@@ -169,10 +180,12 @@ func TestMakeContractTx(t *testing.T) {
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout).
 		WithData(types.ContractDataType, code)
+	GetTxType(tx, nil)
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||
-		tx.Vout[0].Value != value {
+		tx.Vout[0].Value != value ||
+		tx.Type != types.ContractTx {
 		t.Fatalf("contract vout tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",
 			tx.Vin[0].ScriptSig, tx.Vin[0].PrevOutPoint, value, tx)
 	}
@@ -187,10 +200,12 @@ func TestMakeContractTx(t *testing.T) {
 		AppendVin(MakeVin(types.NewOutPoint(&hash, idx), 0)).
 		AppendVout(cvout).
 		WithData(types.ContractDataType, code)
+	GetTxType(tx, nil)
 	if len(tx.Vin[0].ScriptSig) != 0 ||
 		tx.Vin[0].PrevOutPoint.Hash != hash ||
 		tx.Vin[0].PrevOutPoint.Index != idx ||
-		tx.Vout[0].Value != value {
+		tx.Vout[0].Value != value ||
+		tx.Type != types.ContractTx {
 		t.Fatalf("contract vout tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",
 			tx.Vin[0].ScriptSig, tx.Vin[0].PrevOutPoint, value, tx)
 	}
@@ -199,10 +214,104 @@ func TestMakeContractTx(t *testing.T) {
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 1, 0)).
 		AppendVout(MakeVout(from.Hash160(), value))
-	if len(tx.Vin[0].ScriptSig) != 10 || tx.Vin[0].ScriptSig[0] != byte(script.OPCONTRACT) ||
-		tx.Vin[0].PrevOutPoint.Hash != hash || tx.Vin[0].PrevOutPoint.Index != idx ||
+	if len(tx.Vin[0].ScriptSig) != 10 ||
+		tx.Vin[0].ScriptSig[0] != byte(script.OPCONTRACT) ||
+		tx.Vin[0].PrevOutPoint.Hash != hash ||
+		tx.Vin[0].PrevOutPoint.Index != idx ||
 		tx.Vout[0].Value != value {
 		t.Fatalf("contract vin tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",
 			tx.Vin[0].ScriptSig, tx.Vin[0].PrevOutPoint, value, tx)
+	}
+}
+
+func TestMakeUnsignedTokenTx(t *testing.T) {
+	issuer := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+	issuerAddr, _ := types.NewAddress(issuer)
+	owner := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ"
+	ownerAddr, _ := types.NewAddress(owner)
+	tag := NewTokenTag("abc token", "ABC", 6, 10000)
+	changeAmt := uint64(123000)
+	// gen utxo
+	prevHash := hashFromUint64(1)
+	op := types.NewOutPoint(&prevHash, 0)
+	utxoValue := core.TransferFee + changeAmt
+	uw := NewUtxoWrap(issuerAddr.Hash160(), 2, utxoValue)
+	utxo := MakePbUtxo(op, uw)
+	// token issue
+	tx, index, err := MakeUnsignedTokenIssueTx(issuerAddr.Hash160(),
+		ownerAddr.Hash160(), tag, changeAmt, utxo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	GetTxType(tx, nil)
+	sc := script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
+	param, err := sc.GetIssueParams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if param.Name != "abc token" || param.Symbol != "ABC" ||
+		param.Decimals != 6 || param.TotalSupply != 10000 {
+		t.Fatalf("issue token info: abc token, ABC, 6, 1000, got info: %v", param)
+	}
+	sc = script.NewScriptFromBytes(tx.Vout[1].ScriptPubKey)
+	addr, err := sc.ExtractAddress()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if addr.String() != issuer {
+		t.Fatalf("change owner want: %s, got: %s", addr, issuer)
+	}
+	if index != 0 ||
+		tx.Type != types.TokenIssueTx ||
+		tx.Vout[1].Value != changeAmt {
+		t.Fatalf("want tx type: %d, vout[1] value: %d, got: %d, %d",
+			types.TokenIssueTx, changeAmt, tx.Type, tx.Vout[1].Value)
+	}
+	// token transfer
+	issueTxHash, _ := tx.TxHash()
+	to := "b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x"
+	toAddr, _ := types.NewAddress(to)
+	toAmt := []uint64{80000}
+	tid := NewTokenID(issueTxHash, index)
+	// gen token utxo
+	op = types.NewOutPoint(issueTxHash, 0)
+	uw = NewIssueTokenUtxoWrap(ownerAddr.Hash160(), tag, 2)
+	tokenUtxo := MakePbUtxo(op, uw)
+	tx, tokenRemain, err := MakeUnsignedTokenTransferTx(ownerAddr.Hash160(),
+		[]*types.AddressHash{toAddr.Hash160()}, toAmt, tid, changeAmt, utxo, tokenUtxo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectRemain := tag.Supply*uint64(math.Pow10(int(tag.Decimal))) - toAmt[0]
+	if tokenRemain != expectRemain {
+		t.Fatalf("token remain want: %d, got: %d", expectRemain, tokenRemain)
+	}
+	// vout 0
+	sc = script.NewScriptFromBytes(tx.Vout[0].ScriptPubKey)
+	transferParam, _ := sc.GetTransferParams()
+	if transferParam.TokenID.OutPoint != types.OutPoint(*tid) ||
+		transferParam.Amount != toAmt[0] {
+		t.Fatalf("token transfer param want: %v, %d, got: %v, %d",
+			tid, tokenRemain, transferParam.TokenID, transferParam.Amount)
+	}
+	// vout 1
+	sc = script.NewScriptFromBytes(tx.Vout[1].ScriptPubKey)
+	transferParam, err = sc.GetTransferParams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transferParam.TokenID.OutPoint != types.OutPoint(*tid) ||
+		transferParam.Amount != tokenRemain {
+		t.Fatalf("token transfer param want: %v, %d, got: %v, %d",
+			tid, tokenRemain, transferParam.TokenID, transferParam.Amount)
+	}
+	// vout 2
+	if tx.Vout[2].Value != changeAmt {
+		t.Fatalf("change amount want: %d, got: %d", changeAmt, tx.Vout[2].Value)
+	}
+	// tx type
+	GetTxType(tx, nil)
+	if tx.Type != types.TokenTransferTx {
+		t.Fatalf("tx type want: %d, got: %d", types.TokenTransferTx, tx.Type)
 	}
 }

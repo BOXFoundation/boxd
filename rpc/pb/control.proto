@@ -72,9 +72,9 @@ service ContorlCommand {
       };
     }
 
-    rpc LatestConfirmedHeight (LatestConfirmedHeightReq) returns (LatestConfirmedHeightResp) {
+    rpc LatestConfirmedBlock (LatestConfirmedBlockReq) returns (LatestConfirmedBlockResp) {
         option (google.api.http) = {
-            post: "/v1/ctl/latestconfirmedheight"
+            post: "/v1/ctl/latestconfirmedblock"
             body: "*"
         };
     }
@@ -251,11 +251,12 @@ message DelegatesResp {
     repeated Delegate delegates = 3;
 }
 
-message LatestConfirmedHeightReq {
+message LatestConfirmedBlockReq {
 }
 
-message LatestConfirmedHeightResp {
+message LatestConfirmedBlockResp {
     int32 code = 1;
     string message = 2;
     uint32 height = 3;
+    string hash = 4;
 }
