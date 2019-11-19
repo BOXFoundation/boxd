@@ -23,6 +23,10 @@ import (
 	"github.com/facebookgo/ensure"
 )
 
+const (
+	testContractDir = "./test_contracts/"
+)
+
 func TestExtractBoxTx(t *testing.T) {
 	// contract Temp {
 	//     function () payable {}
@@ -770,8 +774,8 @@ func TestCoinContract(t *testing.T) {
 
 func TestERC20Contract(t *testing.T) {
 
-	path := "./test_contracts/"
-	binFile, abiFile := path+"erc20.bin", path+"erc20.abi"
+	testContractDir := "./test_contracts/"
+	binFile, abiFile := testContractDir+"erc20.bin", testContractDir+"erc20.abi"
 	code, err := ioutil.ReadFile(binFile)
 	if err != nil {
 		t.Fatal(err)
@@ -1270,37 +1274,21 @@ func TestERC20Contract(t *testing.T) {
 }
 
 func TestCallBetweenContracts(t *testing.T) {
-	path := "./test_contracts/"
 	// token
-	tokenBinFile, tokenAbiFile := path+"token.bin", path+"token.abi"
-	code, err := ioutil.ReadFile(tokenBinFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tokenBinFile, tokenAbiFile := testContractDir+"token.bin", testContractDir+"token.abi"
+	code, _ := ioutil.ReadFile(tokenBinFile)
 	tokenCode, _ := hex.DecodeString(string(bytes.TrimSpace(code)))
-	tokenAbi, err := ReadAbi(tokenAbiFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tokenAbi, _ := ReadAbi(tokenAbiFile)
 	transferCall := func(addr *types.AddressHash, amount uint64) []byte {
 		input, _ := tokenAbi.Pack("transfer", *addr, big.NewInt(int64(amount)))
 		return input
 	}
 	// bank
-	bankBinFile, bankAbiFile := path+"bank.bin", path+"bank.abi"
-	code, err = ioutil.ReadFile(bankBinFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	bankBinFile, bankAbiFile := testContractDir+"bank.bin", testContractDir+"bank.abi"
+	code, _ = ioutil.ReadFile(bankBinFile)
 	bankCode, _ := hex.DecodeString(string(bytes.TrimSpace(code)))
-	bankAbi, err := ReadAbi(bankAbiFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rechargeCall, err := bankAbi.Pack("recharge")
-	if err != nil {
-		t.Fatal(err)
-	}
+	bankAbi, _ := ReadAbi(bankAbiFile)
+	rechargeCall, _ := bankAbi.Pack("recharge")
 	t.Logf("user address: %x", userAddr.Hash160()[:])
 
 	// deploy token contract
@@ -1392,4 +1380,73 @@ func TestCallBetweenContracts(t *testing.T) {
 	if *vmTx4Hash != rc.TxHash {
 		t.Fatalf("receipt hash mismatch, want: %s, got: %s", vmTx4Hash, rc.TxHash)
 	}
+}
+
+func TestNewContractInContract(t *testing.T) {
+	// code and abi
+	tokenCreatorBinFile := testContractDir + "token_creator.bin"
+	tokenCreatorAbiFile := testContractDir + "token_creator.abi"
+	//tokenCreatorOwnedAbiFile := testContractDir + "token_creator_owned.abi"
+	//tokenCreatorTagAbiFile := testContractDir + "token_creator_tag.abi"
+	code, _ := ioutil.ReadFile(tokenCreatorBinFile)
+	tokenCreatorCode, _ := hex.DecodeString(string(bytes.TrimSpace(code)))
+	tokenCreatorAbi, _ := ReadAbi(tokenCreatorAbiFile)
+	//tokenCreatorOwnedAbi, _ := ReadAbi(tokenCreatorOwnedAbiFile)
+	//tokenCreatorTagAbi, _ := ReadAbi(tokenCreatorTagAbiFile)
+	createTokenCall := func(name string) []byte {
+		input, _ := tokenCreatorAbi.Pack("createToken", name)
+		return input
+	}
+	//ownedTokenGetTagCall, _ := tokenAbi.Pack("getTag")
+	//tagGetSymCall, _ := tokenAbi.Pack("getSym")
+
+	// deploy contract
+	blockChain := NewTestBlockChain()
+	b2 := genTestChain(t, blockChain)
+	vmValue, gasLimit := uint64(2000000), uint64(1000000)
+	nonce := uint64(1)
+	contractVout, _ := txlogic.MakeContractCreationVout(userAddr.Hash160(),
+		vmValue, gasLimit, nonce)
+	prevHash, _ := b2.Txs[2].TxHash()
+	changeValue := userBalance - vmValue - gasPrice*gasLimit
+	vmTx := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 0), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
+		WithData(types.ContractDataType, tokenCreatorCode)
+	txlogic.SignTx(vmTx, privKey, pubKey)
+	tokenCreatorAddr, _ := types.MakeContractAddress(userAddr, nonce)
+	t.Logf("token creator contract address: %x", tokenCreatorAddr.Hash160()[:])
+	//
+	b3 := nextBlockV3(b2, blockChain, 0, vmTx)
+	if err := connectBlock(b2, b3, blockChain); err != nil {
+		t.Fatal(err)
+	}
+	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
+	t.Logf("b3 block hash: %s", b3.BlockHash())
+	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
+
+	// first send createToken call to create token owned contract and tag contract
+	// then check token owned contract balance whether it equals to 1000
+	// and check tag contract whether it's sym is "ABC"
+	nonce++
+	vmValue, gasLimit = uint64(0), uint64(400000)
+	contractVout, _ = txlogic.MakeContractCreationVout(userAddr.Hash160(),
+		vmValue, gasLimit, nonce)
+	prevHash, _ = b3.Txs[1].TxHash()
+	changeValue = userBalance - vmValue - gasPrice*gasLimit
+	vmTx1 := types.NewTx(0, 4455, 0).
+		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
+		AppendVout(contractVout).
+		AppendVout(txlogic.MakeVout(userAddr.Hash160(), changeValue)).
+		WithData(types.ContractDataType, createTokenCall("test owned token"))
+	txlogic.SignTx(vmTx1, privKey, pubKey)
+	//
+	b4 := nextBlockV3(b3, blockChain, 0, vmTx1)
+	if err := connectBlock(b3, b4, blockChain); err != nil {
+		t.Fatal(err)
+	}
+	verifyProcessBlock(t, blockChain, b4, nil, 4, b4)
+	t.Logf("b4 block hash: %s", b4.BlockHash())
+	t.Logf("b3 -> b4 passed, now tail height: %d", blockChain.LongestChainHeight)
 }

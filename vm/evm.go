@@ -357,8 +357,10 @@ func (c *codeAndHash) Hash() corecrypto.HashType {
 }
 
 // create creates a new contract using code as deployment code.
-func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int,
-	address coretypes.AddressHash, interpreterInvoke bool) ([]byte, coretypes.AddressHash, uint64, error) {
+func (evm *EVM) create(
+	caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int,
+	address coretypes.AddressHash, interpreterInvoke bool,
+) ([]byte, coretypes.AddressHash, uint64, error) {
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(types.CallCreateDepth) {
@@ -372,7 +374,8 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 
 	// Ensure there's no existing contract already at the designated address
 	contractHash := evm.StateDB.GetCodeHash(address)
-	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (corecrypto.HashType{}) && contractHash != emptyCodeHash) {
+	if evm.StateDB.GetNonce(address) != 0 ||
+		(contractHash != corecrypto.ZeroHash && contractHash != emptyCodeHash) {
 		return nil, coretypes.AddressHash{}, 0, ErrContractAddressCollision
 	}
 	// Create a new account on the state
@@ -381,7 +384,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	evm.StateDB.SetNonce(address, 1)
 
 	// modify account state in stateDB
-	evm.Transfer(&evm.Context, evm.StateDB, caller.Address(), address, value, false)
+	evm.Transfer(&evm.Context, evm.StateDB, caller.Address(), address, value, interpreterInvoke)
 
 	// initialise a new contract and set the code that is to be used by the
 	// EVM. The contract is a scoped environment for this execution context

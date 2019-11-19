@@ -175,33 +175,25 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 		ret, addr, st.gas, vmerr = evm.Create(from, st.data, st.gas, st.value, false)
 		// ret is contract code, so replace it with contract address hash
 		ret = addr[:]
+		if vmerr == nil {
+			contractAddr, _ := types.NewContractAddressFromHash(addr[:])
+			logger.Infof("contract address %s created", contractAddr)
+		}
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(*msg.From(), st.state.GetNonce(from.Address())+1)
 		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value, false)
 	}
 	if vmerr != nil {
-		// log.Debug("VM returned with error", "err", vmerr)
-		// The only possible consensus-error would be if there wasn't
-		// sufficient balance to make the transfer happen. The first
-		// balance transfer may never fail.
+		// The only possible consensus-error would be if there wasn't sufficient balance
+		// to make the transfer happen. The first balance transfer may never fail.
 		logger.Warnf("vm execute failed, msg: %s, gasUsed: %d, remaining: %d, error: %s",
 			st.msg, st.gasUsed(), st.gas, vmerr)
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, 0, false, nil, vmerr
 		}
 	}
-	if contractCreation {
-		contractAddr, err := types.NewContractAddressFromHash(addr[:])
-		if err != nil {
-			logger.Error(err)
-		}
-		logger.Infof("contract address %s created", contractAddr)
-	}
 	st.refundGas()
-	// gasUsed := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
-	// st.state.AddBalance(ContractAddr, gasUsed)
-
 	st.state.SetError(vmerr)
 	if vmerr != nil && len(ret) != 0 {
 		if errmsg, err := abi.UnpackErrMsg(ret); err != nil {
