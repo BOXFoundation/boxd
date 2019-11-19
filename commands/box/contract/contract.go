@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -114,7 +115,7 @@ func init() {
 		&cobra.Command{
 			Use:   "setabi [index]",
 			Short: "set abi index as default abi, index must be in abi list. relevant command: importabi, list",
-			RunE:  setabi,
+			Run:   setabi,
 		},
 		&cobra.Command{
 			Use:   "setsender [optinal|wallet_dir] [address]",
@@ -152,6 +153,11 @@ func init() {
 			Use:   "detailabi [optional|index/filename]",
 			Short: "view contract details",
 			Run:   detailAbi,
+		},
+		&cobra.Command{
+			Use:   "compile [sol_file_path] [optional|ouput_file_path]",
+			Short: "Compile contract source file",
+			Run:   compile,
 		},
 	)
 }
@@ -234,13 +240,8 @@ func importAbi(cmd *cobra.Command, args []string) {
 	fmt.Scanf("%s", &input)
 	switch {
 	case input == "n" || input == "N":
-		return
 	default:
-		err := setabi(&cobra.Command{}, []string{strconv.Itoa(max + 1)})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+		setabi(&cobra.Command{}, []string{strconv.Itoa(max + 1)})
 	}
 }
 
@@ -336,27 +337,28 @@ func setsender(cmd *cobra.Command, args []string) {
 	}
 }
 
-func setabi(cmd *cobra.Command, args []string) error {
+func setabi(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 	}
 	index, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid index: %s", err)
+		fmt.Println("invalid index: ", err)
+		return
 	}
 	abiInfo, _, err := restoreRecord(recordFile)
 	if err != nil {
-		return fmt.Errorf("restore record error: %s", err)
+		fmt.Println("restore record error:", err)
 	}
 	abiDesc := abiInfo.getItem(int(index))
 	if abiDesc == nil {
-		return fmt.Errorf("index %d is not in abi list", index)
+		fmt.Printf("index %d is not in abi list\n", index)
+		return
 	}
 	// write index to file
 	if err := ioutil.WriteFile(abiIdxFile, []byte(args[0]), 0644); err != nil {
 		panic(err)
 	}
-	return nil
 }
 
 func attach(cmd *cobra.Command, args []string) error {
@@ -1251,4 +1253,53 @@ func detailAbi(cmd *cobra.Command, args []string) {
 		}
 		fmt.Printf("  %s:  %v(%v)\n", e.ID(), e.Name, strings.Join(inputs, ", "))
 	}
+}
+
+func compile(cmd *cobra.Command, args []string) {
+	if len(args) == 0 || len(args) > 2 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	filepath := args[0]
+	if err := util.FileExists(filepath); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fileBase := path.Base(filepath)
+	fileSuffix := path.Ext(fileBase)
+	fileName := strings.TrimSuffix(fileBase, fileSuffix)
+	var outputDir string
+	if len(args) == 1 {
+		currentFilePath, err := os.Getwd()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		outputDir = currentFilePath + "/"
+	} else if len(args) == 2 {
+		outputDir = args[1] + "/"
+		if _, err := os.Stat(outputDir); err != nil {
+			fmt.Printf("output dir %s error: %s\n", outputDir, err)
+			return
+		}
+	}
+	binData, abiData, err := compileSol(filepath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	binFile := outputDir + fileName + ".bin"
+	// write bin data to file
+	if err := ioutil.WriteFile(binFile, []byte(binData), 0644); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("generate bin file:", binFile)
+	abiFile := outputDir + fileName + ".abi"
+	// write abi data to file
+	if err := ioutil.WriteFile(abiFile, []byte(abiData), 0644); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("generate abi file:", abiFile)
 }
