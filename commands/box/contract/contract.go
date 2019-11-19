@@ -115,7 +115,7 @@ func init() {
 		&cobra.Command{
 			Use:   "setabi [index]",
 			Short: "set abi index as default abi, index must be in abi list. relevant command: importabi, list",
-			RunE:  setabi,
+			Run:   setabi,
 		},
 		&cobra.Command{
 			Use:   "setsender [optinal|wallet_dir] [address]",
@@ -337,27 +337,28 @@ func setsender(cmd *cobra.Command, args []string) {
 	}
 }
 
-func setabi(cmd *cobra.Command, args []string) error {
+func setabi(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 	}
 	index, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid index: %s", err)
+		fmt.Println("invalid index: ", err)
+		return
 	}
 	abiInfo, _, err := restoreRecord(recordFile)
 	if err != nil {
-		return fmt.Errorf("restore record error: %s", err)
+		fmt.Println("restore record error:", err)
 	}
 	abiDesc := abiInfo.getItem(int(index))
 	if abiDesc == nil {
-		return fmt.Errorf("index %d is not in abi list", index)
+		fmt.Printf("index %d is not in abi list\n", index)
+		return
 	}
 	// write index to file
 	if err := ioutil.WriteFile(abiIdxFile, []byte(args[0]), 0644); err != nil {
 		panic(err)
 	}
-	return nil
 }
 
 func attach(cmd *cobra.Command, args []string) error {
