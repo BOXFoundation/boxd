@@ -26,6 +26,9 @@ import (
 )
 
 const (
+	// DefaultRPCHTTPPort is the default listen port for box RPC http service.
+	DefaultRPCHTTPPort = 19190
+
 	// ConnAddrFile is the default conn address
 	ConnAddrFile = ".cmd/connAddr"
 )
@@ -42,32 +45,21 @@ func GetRPCAddr() string {
 	var (
 		rpcAddr     = cfg.RPC.Address
 		rpcPort     = cfg.RPC.Port
-		httpAddr    = cfg.RPC.HTTP.Address
-		httpPort    = cfg.RPC.HTTP.Port
 		nilIP       = "0.0.0.0"
 		nilGRPCPort = 0
 		connAddr    string
 	)
 	switch {
 	case rpcAddr == nilIP && rpcPort == nilGRPCPort:
-		switch {
-		case httpAddr == nilIP && httpPort == nilGRPCPort:
-			if err := util.FileExists(ConnAddrFile); err != nil {
-				connAddr = "127.0.0.1:19191"
-				return connAddr
-			}
-			data, err := ioutil.ReadFile(ConnAddrFile)
-			if err != nil {
-				return ""
-			}
-			connAddr = string(bytes.TrimSpace(data))
-		case httpAddr != nilIP && httpPort == nilGRPCPort:
-			connAddr = httpAddr + ":19190"
-		case httpAddr == nilIP && httpPort != nilGRPCPort:
-			connAddr = "127.0.0.1:" + strconv.Itoa(httpPort)
-		case httpAddr != nilIP && httpPort != nilGRPCPort:
-			connAddr = httpAddr + ":" + strconv.Itoa(httpPort)
+		if err := util.FileExists(ConnAddrFile); err != nil {
+			connAddr = "127.0.0.1:19191"
+			return connAddr
 		}
+		data, err := ioutil.ReadFile(ConnAddrFile)
+		if err != nil {
+			return ""
+		}
+		connAddr = string(bytes.TrimSpace(data))
 	case rpcAddr != nilIP && rpcPort == nilGRPCPort:
 		connAddr = rpcAddr + ":19191"
 	case rpcAddr == nilIP && rpcPort != nilGRPCPort:
