@@ -439,7 +439,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 func (evm *EVM) Create(
 	caller ContractRef, code []byte, gas uint64, value *big.Int, interpreterInvoke bool,
 ) (ret []byte, contractAddr coretypes.AddressHash, leftOverGas uint64, err error) {
-	contractAddr = *coretypes.CreateAddress(caller.Address(), evm.StateDB.GetNonce(caller.Address()))
+	contractAddr = *coretypes.CreateAddress(caller.Address(), evm.StateDB.GetNonce(caller.Address())+1)
 	return evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr, interpreterInvoke)
 }
 
