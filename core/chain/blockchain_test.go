@@ -333,8 +333,10 @@ func verifyProcessBlock(
 }
 
 func connectBlock(parent, block *types.Block, bc *BlockChain) error {
-	logger.Infof("================ start to connect block %s ================", block.BlockHash())
-	defer logger.Infof("---------------- end to connect block %s ----------------", block.BlockHash())
+	logger.Infof("================ start to connect block %s: %d ================",
+		block.BlockHash(), block.Header.Height)
+	defer logger.Infof("---------------- end to connect block %s: %d ----------------",
+		block.BlockHash(), block.Header.Height)
 
 	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bc.DB())
 	if err != nil {

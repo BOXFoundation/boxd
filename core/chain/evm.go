@@ -56,7 +56,8 @@ func Transfer(
 		logger.Debugf("new transfer info: sender: %x, recipient: %x, amount: %d",
 			sender[:], recipient[:], amount)
 		if v, ok := ctx.Transfers[sender]; ok {
-			// if sender and recipient already exists in Transfers, update it instead of append to it
+			// if sender and recipient already exists in Transfers, update it instead
+			// of append to it
 			for _, w := range v {
 				if w.To == recipient {
 					// NOTE: cannot miss 'w.value = '

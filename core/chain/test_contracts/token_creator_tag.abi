@@ -1,0 +1,34 @@
+[
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "getSym",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_sym",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "_decimal",
+				"type": "uint32"
+			}
+		],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	}
+]
