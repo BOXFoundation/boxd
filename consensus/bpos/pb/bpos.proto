@@ -18,7 +18,8 @@ message Delegate {
     int64 Votes = 3;
     int64 PledgeAmount = 4;
     int64 Score = 5;
-    bool IsExist = 6;
+    int64 CurDynastyOutputNumber = 6;
+    int64 TotalOutputNumber = 7;
 }
 
 message EternalBlockMsg {

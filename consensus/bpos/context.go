@@ -34,13 +34,14 @@ type ConsensusContext struct {
 
 // Delegate is a bookkeeper node.
 type Delegate struct {
-	Addr            types.AddressHash
-	PeerID          string
-	Votes           *big.Int
-	PledgeAmount    *big.Int
-	Score           *big.Int
-	ContinualPeriod *big.Int
-	IsExist         bool
+	Addr                   types.AddressHash
+	PeerID                 string
+	Votes                  *big.Int
+	PledgeAmount           *big.Int
+	Score                  *big.Int
+	ContinualPeriod        *big.Int
+	CurDynastyOutputNumber *big.Int
+	TotalOutputNumber      *big.Int
 }
 
 var _ conv.Convertible = (*Delegate)(nil)
@@ -49,12 +50,13 @@ var _ conv.Serializable = (*Delegate)(nil)
 // ToProtoMessage converts Delegate to proto message.
 func (delegate *Delegate) ToProtoMessage() (proto.Message, error) {
 	return &bpospb.Delegate{
-		Addr:         delegate.Addr[:],
-		PeerID:       delegate.PeerID,
-		Votes:        delegate.Votes.Int64(),
-		PledgeAmount: delegate.PledgeAmount.Int64(),
-		Score:        delegate.Score.Int64(),
-		IsExist:      delegate.IsExist,
+		Addr:                   delegate.Addr[:],
+		PeerID:                 delegate.PeerID,
+		Votes:                  delegate.Votes.Int64(),
+		PledgeAmount:           delegate.PledgeAmount.Int64(),
+		Score:                  delegate.Score.Int64(),
+		CurDynastyOutputNumber: delegate.CurDynastyOutputNumber.Int64(),
+		TotalOutputNumber:      delegate.TotalOutputNumber.Int64(),
 	}, nil
 }
 
@@ -68,7 +70,8 @@ func (delegate *Delegate) FromProtoMessage(message proto.Message) error {
 			delegate.Votes = big.NewInt(message.Votes)
 			delegate.PledgeAmount = big.NewInt(message.PledgeAmount)
 			delegate.Score = big.NewInt(message.Score)
-			delegate.IsExist = message.IsExist
+			delegate.CurDynastyOutputNumber = big.NewInt(message.CurDynastyOutputNumber)
+			delegate.TotalOutputNumber = big.NewInt(message.TotalOutputNumber)
 			return nil
 		}
 		return core.ErrEmptyProtoMessage
@@ -242,17 +245,20 @@ func (bpos *Bpos) calcScores() ([]*big.Int, error) {
 
 func (bpos *Bpos) calcScore(totalVote int64, delegate Delegate) (*big.Int, error) {
 	currentDynasty := (int64(bpos.chain.LongestChainHeight) / bpos.context.dynastySwitchThreshold.Int64()) + 1
-	pledgeScore := float64((float64(len(bpos.context.dynasty.delegates)) * float64(delegate.PledgeAmount.Int64()) / float64(len(bpos.context.nextDelegates)))) / math.Pow(float64(currentDynasty), 1.5)
-	voteScore := float64(0)
-	if totalVote > 0 {
-		voteScore = float64(delegate.Votes.Int64()) / float64(totalVote) * float64(delegate.Votes.Int64())
-	}
-	periodScore := math.Exp(-0.1*float64(delegate.ContinualPeriod.Int64())) * (float64(delegate.PledgeAmount.Int64()) + float64(delegate.Votes.Int64()))
-	score := math.Trunc((periodScore + pledgeScore + voteScore) / 1e8)
+	pledgeScore := float64((float64(len(bpos.context.dynasty.delegates)) * float64(delegate.PledgeAmount.Int64()/1e8) / float64(len(bpos.context.nextDelegates)))) / math.Pow(float64(currentDynasty), 1.5)
+	voteScore := float64(delegate.Votes.Int64() / 1e8)
+	// if totalVote > 0 {
+	// 	voteScore = float64(delegate.Votes.Int64()/1e8) / float64(totalVote/1e8) * float64(delegate.Votes.Int64()/1e8)
+	// }
+	score := math.Exp(-0.15*float64(delegate.ContinualPeriod.Int64())) * (pledgeScore + voteScore)
+	// score := math.Trunc((periodScore + pledgeScore + voteScore))
 
-	logger.Infof("delegate %+v score: %f (periodScore: %f, pledgeScore: %f, voteScore: %f)",
-		delegate, score, periodScore, pledgeScore, voteScore)
-	return big.NewInt(int64(score)), nil
+	logger.Infof("delegate %+v score: %f (pledgeScore: %f, voteScore: %f)",
+		delegate, score, pledgeScore, voteScore)
+	if score > 0 {
+		return big.NewInt(int64(score)), nil
+	}
+	return big.NewInt(0), nil
 }
 
 // ///////////////////////////////////////////////////////////////////////////////////

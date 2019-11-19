@@ -190,51 +190,7 @@
 		"outputs": [
 			{
 				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
+				"type": "uint256[14]"
 			}
 		],
 		"payable": false,
@@ -368,8 +324,12 @@
 						"type": "uint256"
 					},
 					{
-						"name": "isExist",
-						"type": "bool"
+						"name": "curDynastyOutputNumber",
+						"type": "uint256"
+					},
+					{
+						"name": "totalOutputNumber",
+						"type": "uint256"
 					}
 				],
 				"name": "",
@@ -494,8 +454,12 @@
 						"type": "uint256"
 					},
 					{
-						"name": "isExist",
-						"type": "bool"
+						"name": "curDynastyOutputNumber",
+						"type": "uint256"
+					},
+					{
+						"name": "totalOutputNumber",
+						"type": "uint256"
 					}
 				],
 				"name": "",
@@ -570,8 +534,12 @@
 						"type": "uint256"
 					},
 					{
-						"name": "isExist",
-						"type": "bool"
+						"name": "curDynastyOutputNumber",
+						"type": "uint256"
+					},
+					{
+						"name": "totalOutputNumber",
+						"type": "uint256"
 					}
 				],
 				"name": "",
@@ -580,6 +548,20 @@
 		],
 		"payable": false,
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "devil",
+				"type": "address"
+			}
+		],
+		"name": "report",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -668,8 +650,12 @@
 						"type": "uint256"
 					},
 					{
-						"name": "isExist",
-						"type": "bool"
+						"name": "curDynastyOutputNumber",
+						"type": "uint256"
+					},
+					{
+						"name": "totalOutputNumber",
+						"type": "uint256"
 					}
 				],
 				"name": "",

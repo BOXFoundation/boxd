@@ -25,7 +25,7 @@ func (chain *BlockChain) FetchNetParamsByHeight(height uint32) (*NetParams, erro
 	if err != nil {
 		return nil, err
 	}
-	var res [12]*big.Int
+	var res [14]*big.Int
 	if err := ContractAbi.Unpack(&res, "getNetParams", output); err != nil {
 		logger.Errorf("Failed to unpack the result of call getNetParams. Err: %v", err)
 		return nil, err

@@ -179,7 +179,7 @@ func TestSortPendingTxs(t *testing.T) {
 
 func TestCalcScore(t *testing.T) {
 	bpos.bpos.chain.LongestChainHeight = 1000
-	bpos.bpos.context.dynastySwitchThreshold = big.NewInt(10000)
+	bpos.bpos.context.dynastySwitchThreshold = big.NewInt(1000)
 	bpos.bpos.context.dynasty = &Dynasty{}
 	bpos.bpos.context.dynasty.delegates = []Delegate{Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}}
 	bpos.bpos.context.nextDelegates = []Delegate{Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}}
@@ -199,14 +199,15 @@ func TestCalcScore(t *testing.T) {
 				Delegate{
 					*types.NewAddressHash([]byte{0x1}),
 					"a13wr23d42e3e3ti",
-					big.NewInt(1800000 * 1e8),
+					big.NewInt(1 * 1e8),
 					big.NewInt(1800000 * 1e8),
 					big.NewInt(0),
 					big.NewInt(1),
-					true,
+					big.NewInt(0),
+					big.NewInt(0),
 				},
 			},
-			4661414.000000,
+			328651.000000,
 		},
 		{
 			"test2",
@@ -215,14 +216,15 @@ func TestCalcScore(t *testing.T) {
 				Delegate{
 					*types.NewAddressHash([]byte{0x2}),
 					"a13wr23d42eed43ew",
-					big.NewInt(180000 * 1e8),
+					big.NewInt(2 * 1e8),
 					big.NewInt(1800000 * 1e8),
 					big.NewInt(0),
 					big.NewInt(1),
-					true,
+					big.NewInt(0),
+					big.NewInt(0),
 				},
 			},
-			2874818.000000,
+			328652.000000,
 		},
 		{
 			"test3",
@@ -231,14 +233,15 @@ func TestCalcScore(t *testing.T) {
 				Delegate{
 					*types.NewAddressHash([]byte{0x2}),
 					"a13wr23d42eed43ew",
-					big.NewInt(18000000 * 1e8),
+					big.NewInt(1800000 * 1e8),
 					big.NewInt(1800000 * 1e8),
 					big.NewInt(0),
 					big.NewInt(10),
-					true,
+					big.NewInt(0),
+					big.NewInt(0),
 				},
 			},
-			40764012.000000,
+			486833.000000,
 		},
 	}
 
