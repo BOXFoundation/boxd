@@ -50,7 +50,7 @@ contract Bonus is Permission{
     using SafeMath for uint;
 
     uint constant DYNASTY_SIZE = 6;
-    uint constant NET_PARAMS_LENGTH = 12;
+    uint constant NET_PARAMS_LENGTH = 14;
 
     uint constant PLEDGE_THRESHOLD = 1;
     uint constant DYNASTY_CHANGE_THRESHOLD = 2;
@@ -64,6 +64,8 @@ contract Bonus is Permission{
     uint constant BONUS_TO_VOTERS = 10;
     uint constant CALC_SCORE_THRESHOLD = 11;
     uint constant BLOCK_REWARD = 12;
+    uint constant FREE_TO_REPORT_EVIL = 13;
+    uint constant THE_MINIMUM_OUTPUT_OVER_EVIL = 14;
 
     uint constant BOX = 1 * 10 ** 8;
 
@@ -74,7 +76,8 @@ contract Bonus is Permission{
         uint pledgeAmount;
         uint score;
         uint continualPeriod;
-        bool isExist;
+        uint curDynastyOutputNumber;
+        uint totalOutputNumber;
     }
 
     struct FrozenVote {
@@ -102,6 +105,8 @@ contract Bonus is Permission{
     address[] pledgeAddrList;
     mapping(address => Delegate) addrToDelegates;
     mapping(address => Delegate) addrToDynasty;
+    // mapping(address => uint) curDynastyOutputNumber;
+    mapping(address => uint) OutputNumberHistory;
 
     mapping(address => mapping(address => uint)) votes;
     mapping(address => mapping(address => uint)) delegateVotesDetail;
@@ -128,10 +133,11 @@ contract Bonus is Permission{
     Delegate[] current;
     Delegate[] next;
 
-    uint pledgePool;
+    // uint pledgePool;
     uint delegateRewardTotal;
 
     uint _global_open_pledge_limit;
+    uint _dynasty_switch_height;
 
     event ExecBonus(uint bonus, uint balance);
     event CalcBonus(address _coinbase, uint value, uint bonus);
@@ -153,6 +159,11 @@ contract Bonus is Permission{
         _;
     }
 
+    modifier onlyDelegate {
+        require(addressIsExist(msg.sender, pledgeAddrList), "only delegate can do it.");
+        _;
+    }
+
     function initAdmin(address _admin) public {
         require(block.number == 0, "init admin out of genesis block");
         admin = _admin;
@@ -171,33 +182,35 @@ contract Bonus is Permission{
         netParams[BONUS_TO_VOTERS] = 50;
         netParams[CALC_SCORE_THRESHOLD] = 200;
         netParams[BLOCK_REWARD] = 3.17 * 10**8;
+        netParams[FREE_TO_REPORT_EVIL] = 100;
+        netParams[THE_MINIMUM_OUTPUT_OVER_EVIL] = 100;
     }
 
     function initDynasty() internal {
         dynasty.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         current.push(Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6, "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         dynasty.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         current.push(Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e, "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         dynasty.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         current.push(Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31, "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         dynasty.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         current.push(Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f, "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         dynasty.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         current.push(Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         dynasty.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
         current.push(Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b, "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu",
-         0, 1800000 * 10**8, 0, 0, true));
+         0, 1800000 * 10**8, 0, 0, 0, 0));
 
         for(uint i = 0; i < current.length; i++) {
             pledgeAddrList.push(current[i].addr);
@@ -209,10 +222,9 @@ contract Bonus is Permission{
     function  pledge(string peerID) public payable onlyPledgeIsOpen{
         require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] <= netParams[PLEDGE_OPEN_LIMIT], "pledge is not open.");
         require(msg.value >= netParams[PLEDGE_THRESHOLD], "pledge amount is not correct.");
-        require(addrToDelegates[msg.sender].isExist == false, "can not repeat the mortgage");
         require(frozenDelegate[msg.sender].pledgeAmount == 0, "can not repeat the mortgage");
 
-        Delegate memory delegate = Delegate(msg.sender, peerID, 0, msg.value, 0, 0, true);
+        Delegate memory delegate = Delegate(msg.sender, peerID, 0, msg.value, 0, 0, 0, OutputNumberHistory[msg.sender]);
         addrToDelegates[msg.sender] = delegate;
         pledgeAddrList.push(msg.sender);
     }
@@ -232,7 +244,7 @@ contract Bonus is Permission{
 
     function redeemPledgeApply() public {
         require(block.number % netParams[DYNASTY_CHANGE_THRESHOLD] <= netParams[PLEDGE_OPEN_LIMIT], "redeem pledge apply is not allowed.");
-        require(addrToDelegates[msg.sender].isExist == true, "not delegate node.");
+        require(addrToDelegates[msg.sender].pledgeAmount >= netParams[PLEDGE_THRESHOLD], "not delegate node.");
         FrozenDelegate memory fd = FrozenDelegate(msg.sender, block.number, addrToDelegates[msg.sender].pledgeAmount);
         frozenDelegate[msg.sender] = fd;
         delete addrToDelegates[msg.sender];
@@ -266,12 +278,59 @@ contract Bonus is Permission{
         msg.sender.transfer(fd.pledgeAmount);
     }
 
+    function report(address devil) public onlyDelegate{
+
+        require(addrToDynasty[devil].pledgeAmount > 0, "the devil is not exist.");
+        require(block.number > _dynasty_switch_height, "system error.");
+        require(block.number - _dynasty_switch_height > netParams[FREE_TO_REPORT_EVIL], "not time to report the devil.");
+        uint curDynastyOutputNumber = addrToDynasty[devil].curDynastyOutputNumber;
+        uint total;
+        for (uint i = 0; i < dynasty.length; i++) {
+            if(dynasty[i].addr != devil) {
+                total += dynasty[i].curDynastyOutputNumber;
+            }
+        }
+
+        require(curDynastyOutputNumber < total/(dynasty.length - 1), "the node is not the devil.");
+        require(total/(dynasty.length - 1) - curDynastyOutputNumber >
+         netParams[THE_MINIMUM_OUTPUT_OVER_EVIL], "the node is not the devil.");
+        uint idx = getIdxInPledgeAddrList(devil);
+        deletePledgeAddrList(idx);
+        for (i = 0; i < delegateToVoters[devil].length; i++) {
+            if (delegateVotesDetail[devil][delegateToVoters[devil][i]] > 0) {
+                voteBonus[delegateToVoters[devil][i]] = voteBonus[delegateToVoters[devil][i]].
+                add(delegateVotesDetail[devil][delegateToVoters[devil][i]]);
+            }
+        }
+        for (i = 0; i < dynasty.length; i++) {
+            if (devil == dynasty[i].addr) {
+                deleteDynasty(i);
+            }
+        }
+        for (i = DYNASTY_SIZE; i < current.length; i++) {
+            if (!IsInDynasty(current[i].addr)) {
+                dynasty.push(current[i]);
+            }
+        }
+        // reset all dynasty output number.
+        for (i = 0; i < dynasty.length; i++) {
+            dynasty[i].curDynastyOutputNumber = 0;
+        }
+        delegateRewardTotal = delegateRewardTotal.add(addrToDynasty[devil].pledgeAmount);
+        _dynasty_switch_height = block.number;
+        delete addrToDynasty[devil];
+        delete addrToDelegates[devil];
+    }
+
     function calcBonus() public payable onlyAdmin {
         // require(msg.sender == block.coinbase, "only coinbase can do it.");
         require(msg.value == netParams[BLOCK_REWARD], "block reward is error.");
         address coinbase = block.coinbase;
         uint bookKeeperReward = netParams[BOOK_KEEPER_REWARD];
         require(bookKeeperReward < netParams[BLOCK_REWARD], "bookKeeperReward is bigger than block reward.");
+        addrToDynasty[coinbase].curDynastyOutputNumber++;
+        addrToDynasty[coinbase].totalOutputNumber++;
+        OutputNumberHistory[coinbase]++;
         dynastyToBonus[coinbase] = dynastyToBonus[coinbase].add(bookKeeperReward * (100 - netParams[BONUS_TO_VOTERS])/100);
         for (uint i = 0; i < currentDelegateToVoters[coinbase].length; i++) {
             uint vote = currentDelegateVotesDetail[coinbase][currentDelegateToVoters[coinbase][i]];
@@ -325,6 +384,7 @@ contract Bonus is Permission{
             updateDynasty();
             updateNetParams();
         }
+        _dynasty_switch_height = block.number;
         emit ExecBonus(totalBonusToBookkeeper, address(this).balance);
     }
 
@@ -336,7 +396,7 @@ contract Bonus is Permission{
         delete next;
         Delegate[] memory sortAux = new Delegate[](pledgeAddrList.length);
         for(i = 0; i < pledgeAddrList.length; i++) {
-            if (addrToDelegates[pledgeAddrList[i]].isExist) {
+            if (addrToDelegates[pledgeAddrList[i]].pledgeAmount > 0) {
                 next.push(addrToDelegates[pledgeAddrList[i]]);
             }
         }
@@ -358,7 +418,7 @@ contract Bonus is Permission{
     function getNextDelegates() public view returns (Delegate[] memory) {
         Delegate[] memory res = new Delegate[](pledgeAddrList.length);
         for(uint i = 0; i < pledgeAddrList.length; i++) {
-            if (addrToDelegates[pledgeAddrList[i]].isExist) {
+            if (addrToDelegates[pledgeAddrList[i]].pledgeAmount > 0) {
                 res[i] = addrToDelegates[pledgeAddrList[i]];
             }
         }
@@ -369,6 +429,7 @@ contract Bonus is Permission{
         for (uint j = 0; j < dynasty.length; j++) {
             dynasty[j] = next[j];
             addrToDynasty[next[j].addr] = next[j];
+            dynasty[j].curDynastyOutputNumber = 0;
         }
     }
 
@@ -396,6 +457,16 @@ contract Bonus is Permission{
                 return i;
             }
         }
+    }
+
+    function deleteDynasty(uint index) internal {
+        uint len = dynasty.length;
+        if (index >= len) return;
+        for (uint i = index; i<len-1; i++) {
+            dynasty[i] = dynasty[i+1];
+        }
+        delete dynasty[len-1];
+        dynasty.length--;
     }
 
     function deletePledgeAddrList(uint index) internal{
@@ -579,8 +650,8 @@ contract Bonus is Permission{
     }
 
 
-    function getNetParams() public view returns (uint,uint,uint,uint,uint,uint,uint,uint,uint,uint,uint,uint) {
-        return (netParams[PLEDGE_THRESHOLD],
+    function getNetParams() public view returns (uint[14]) {
+        return [netParams[PLEDGE_THRESHOLD],
         netParams[DYNASTY_CHANGE_THRESHOLD],
         netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK],
         netParams[VOTE_FROZEN_BLOCK_NUMBER],
@@ -591,6 +662,8 @@ contract Bonus is Permission{
         netParams[BOOK_KEEPER_REWARD],
         netParams[BONUS_TO_VOTERS],
         netParams[CALC_SCORE_THRESHOLD],
-        netParams[BLOCK_REWARD]);
+        netParams[BLOCK_REWARD],
+        netParams[FREE_TO_REPORT_EVIL],
+        netParams[THE_MINIMUM_OUTPUT_OVER_EVIL]];
     }
 }
