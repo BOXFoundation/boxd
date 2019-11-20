@@ -112,7 +112,10 @@ type SyncManager struct {
 	// contain begin hash and length indicate the check hashes
 	checkHash *CheckHash
 	// peers who local peer has checked to or synchronized to
-	stalePeers   *sync.Map
+	stalePeers *sync.Map
+	// malicious peers, which persist in memory
+	maliciousPeers *sync.Map
+	// blocks synced
 	blocksSynced int32
 	// server started only once
 	svrStarted int32
@@ -155,18 +158,19 @@ func (sm *SyncManager) resetAll() {
 func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
 	consensus consensus.Consensus, parent goprocess.Process) *SyncManager {
 	return &SyncManager{
-		status:       freeStatus,
-		chain:        blockChain,
-		consensus:    consensus,
-		p2pNet:       p2pNet,
-		proc:         goprocess.WithParent(parent),
-		stalePeers:   new(sync.Map),
-		messageCh:    make(chan p2p.Message, 512),
-		locateErrCh:  make(chan errFlag),
-		locateDoneCh: make(chan struct{}),
-		checkErrCh:   make(chan errFlag),
-		checkOkCh:    make(chan struct{}, maxCheckPeers),
-		syncErrCh:    make(chan struct{}),
+		status:         freeStatus,
+		chain:          blockChain,
+		consensus:      consensus,
+		p2pNet:         p2pNet,
+		proc:           goprocess.WithParent(parent),
+		stalePeers:     new(sync.Map),
+		maliciousPeers: new(sync.Map),
+		messageCh:      make(chan p2p.Message, 512),
+		locateErrCh:    make(chan errFlag),
+		locateDoneCh:   make(chan struct{}),
+		checkErrCh:     make(chan errFlag),
+		checkOkCh:      make(chan struct{}, maxCheckPeers),
+		syncErrCh:      make(chan struct{}),
 		blocksDoneCh: make(chan struct{},
 			chain.MaxBlocksPerSync/syncBlockChunkSize),
 		blocksErrCh: make(chan FetchBlockHeaders,
@@ -340,7 +344,8 @@ out_sync:
 					}
 				}
 			case <-sm.syncErrCh:
-				logger.Infof("sync blocks error")
+				logger.Infof("sync blocks error, exit sync!")
+				return
 			case fbh := <-sm.blocksErrCh:
 				logger.Warnf("fetch blocks error, retry for %+v", fbh)
 				cleanStopTimer(timer)
@@ -541,6 +546,10 @@ func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) []*crypto.Hash
 func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 	ids := make([]peer.ID, 0)
 	var preferedID peer.ID
+	sm.maliciousPeers.Range(func(k, v interface{}) bool {
+		ids = append(ids, k.(peer.ID))
+		return true
+	})
 	sm.stalePeers.Range(func(k, v interface{}) bool {
 		// if now is in syncStatus, prefer to select locate or check peers
 		if syncStatus == blocksStatus &&
@@ -548,6 +557,9 @@ func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 				v.(peerStatus) == checkedDonePeerStatus) {
 			synced, existed := sm.p2pNet.PeerSynced(k.(peer.ID))
 			if existed && synced {
+				if _, ok := sm.maliciousPeers.Load(k); ok {
+					return true
+				}
 				preferedID = k.(peer.ID)
 				return false
 			}
@@ -574,6 +586,10 @@ func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 	}
 	// select a peer that have sync with this peer when no other peers to sync
 	ids = make([]peer.ID, 0)
+	sm.maliciousPeers.Range(func(k, v interface{}) bool {
+		ids = append(ids, k.(peer.ID))
+		return true
+	})
 	sm.stalePeers.Range(func(k, v interface{}) bool {
 		if (v != nil && v.(peerStatus) == errPeerStatus) ||
 			util.InStrings(string(k.(peer.ID)), syncIds) {
@@ -709,6 +725,7 @@ func (sm *SyncManager) drainBlocksChan() {
 			break
 		}
 	}
+	tryPopEmptyChan(sm.syncErrCh)
 }
 
 func tryPopEmptyChan(ch <-chan struct{}) bool {
