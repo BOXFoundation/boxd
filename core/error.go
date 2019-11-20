@@ -125,6 +125,6 @@ var (
 		ErrBadCoinbaseValue, ErrUnfinalizedTx, ErrWrongBlockHeight,
 		ErrDuplicateTxInPool, ErrDuplicateTxInOrphanPool, ErrCoinbaseTx,
 		ErrNonStandardTransaction, ErrOutPutAlreadySpent, ErrOrphanTransaction,
-		ErrDoubleSpendTx,
+		ErrDoubleSpendTx, ErrRepeatedMintAtSameTime,
 	}
 )
