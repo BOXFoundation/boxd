@@ -273,7 +273,6 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	if !sm.verifyPeerStatus(blocksPeerStatus, pid) &&
 		!sm.verifyPeerStatus(blocksDonePeerStatus, pid) {
 		sm.stalePeers.Store(pid, errPeerStatus)
-		tryPushEmptyChan(sm.syncErrCh)
 		return fmt.Errorf("receive BlockChunkResponse from non-sync peer[%s]",
 			pid.Pretty())
 	}
@@ -281,7 +280,6 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 	sb := new(SyncBlocks)
 	if err := sb.Unmarshal(msg.Body()); err != nil || sb.Idx == math.MaxUint32 {
 		sm.stalePeers.Store(pid, errPeerStatus)
-		tryPushEmptyChan(sm.syncErrCh)
 		return fmt.Errorf("Failed to unmarshal syncblocks. Err: %v or msg.From is "+
 			"in wrong status(Idx: %d)", err, sb.Idx)
 	}
@@ -322,7 +320,10 @@ func (sm *SyncManager) onBlocksResponse(msg p2p.Message) error {
 					logger.Warnf("Failed to process block. Err: %v", err)
 					continue
 				} else {
-					panic(err)
+					sm.maliciousPeers.Store(pid, struct{}{})
+					logger.Warnf("sync blocks error: %s", err)
+					tryPushEmptyChan(sm.syncErrCh)
+					return
 				}
 			}
 		}
@@ -363,6 +364,11 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 	if err := sb.Unmarshal(msg.Body()); err != nil {
 		return err
 	}
+	defer func() {
+		if sm.getStatus() == freeStatus {
+			sm.consensus.RecoverMint()
+		}
+	}()
 	for _, b := range sb.Blocks {
 		if err := sm.chain.ProcessBlock(b, core.DefaultMode, core.SyncFlag); err != nil {
 			if err == core.ErrBlockExists ||
@@ -371,12 +377,10 @@ func (sm *SyncManager) onLightSyncResponse(msg p2p.Message) error {
 				err == core.ErrBlockInSideChain {
 				continue
 			}
-			logger.Errorf("Failed to process block while handling LightSyncResponse message. Err: %s", err.Error())
+			logger.Errorf("Failed to process block from light sync. Err: %s", err)
+			sm.maliciousPeers.Store(msg.From(), struct{}{})
 			return err
 		}
-	}
-	if sm.getStatus() == freeStatus {
-		sm.consensus.RecoverMint()
 	}
 	logger.Info("Light sync completed and exit!")
 	return nil
