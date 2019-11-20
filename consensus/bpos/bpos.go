@@ -342,6 +342,7 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 
 	pool := util.NewPriorityQueue(lessFunc)
 	hashToTx := make(map[crypto.HashType]*types.TxWrap)
+	outPointToTx := make(map[types.OutPoint]*types.Transaction)
 	addressToTxs := make(map[types.AddressHash]*util.PriorityQueue)
 	addressToNonceSortedTxs := make(map[types.AddressHash][]*types.VMTransaction)
 	hashToAddress := make(map[crypto.HashType]types.AddressHash)
@@ -359,6 +360,9 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		if pendingTx.IsScriptValid {
 			heap.Push(pool, pendingTx)
 			hashToTx[*txHash] = pendingTx
+			for _, txIn := range pendingTx.Tx.Vin {
+				outPointToTx[txIn.PrevOutPoint] = pendingTx.Tx
+			}
 			if txlogic.GetTxType(pendingTx.Tx, bpos.chain.TailState()) == types.ContractTx {
 				// from is in txpool if the contract tx used a vout in txpool
 				op := pendingTx.Tx.Vin[0].PrevOutPoint
@@ -391,13 +395,34 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 		for v.Len() > 0 {
 			vmTx := heap.Pop(v).(*types.VMTransaction)
 			hash := vmTx.OriginTxHash()
+			if _, ok := hashToTx[*hash]; !ok {
+				continue
+			}
 			if vmTx.Nonce() != currentNonce+1 {
 				// remove from mem_pool if vmTx nonce is smaller than current nonce
 				if vmTx.Nonce() < currentNonce+1 {
 					logger.Warnf("vm tx %+v has a wrong nonce, expect nonce: %d, remove it from mem_pool.", vmTx, currentNonce+1)
 					bpos.chain.Bus().Publish(eventbus.TopicInvalidTx, hashToTx[*hash].Tx, true)
+				} else {
+					logger.Warnf("vm tx %+v has a bigger nonce, expect nonce: %d", vmTx, currentNonce+1)
 				}
-				logger.Warnf("vm tx %+v has a bigger nonce, expect nonce: %d", vmTx, currentNonce+1)
+				// Recursively delete all child txs.
+				removedTxs := []*types.Transaction{hashToTx[*hash].Tx}
+				for i := 0; i < len(removedTxs); i++ {
+					removedTx := removedTxs[i]
+					removedTxHash, _ := removedTx.TxHash()
+					outPoint := types.OutPoint{Hash: *removedTxHash}
+					for txOutIdx := range removedTx.Vout {
+						outPoint.Index = uint32(txOutIdx)
+						childTx := outPointToTx[outPoint]
+						if childTx == nil {
+							continue
+						}
+						childHash, _ := childTx.TxHash()
+						delete(hashToTx, *childHash)
+						removedTxs = append(removedTxs, childTx)
+					}
+				}
 				delete(hashToTx, *hash)
 				continue
 			}

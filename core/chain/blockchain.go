@@ -439,6 +439,7 @@ func (chain *BlockChain) processBlockMsg(msg p2p.Message) error {
 				return err
 			}
 		}
+		return err
 	}
 	chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewBlockEvent)
 	return nil

@@ -509,7 +509,7 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 			// Move the child tx from main pool to orphan pool
 			// The outer loop is already a recursion, so no more recursion within
 			tx_pool.removeTx(childTx, false /* non-recursive */)
-			tx_pool.addOrphan(childTx)
+			// tx_pool.addOrphan(childTx)
 
 			removedTxs = append(removedTxs, childTx)
 		}
