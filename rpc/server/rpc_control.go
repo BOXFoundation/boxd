@@ -7,9 +7,9 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"math/big"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
+	"github.com/BOXFoundation/boxd/consensus/bpos"
 	"github.com/BOXFoundation/boxd/core/chain"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -270,23 +270,12 @@ func (s *ctlserver) GetTxCount(ctx context.Context,
 	return newGetTxCountResp(0, "ok", uint32(count)), nil
 }
 
-// Delegate is an account to run for bookkeepers.
-type Delegate struct {
-	Addr            types.AddressHash
-	PeerID          string
-	Votes           *big.Int
-	PledgeAmount    *big.Int
-	Score           *big.Int
-	ContinualPeriod *big.Int
-	IsExist         bool
-}
-
 func (s *ctlserver) getDelegates(methodName string) ([]*rpcpb.Delegate, error) {
 	output, err := s.server.GetChainReader().CallGenesisContract(0, methodName)
 	if err != nil {
 		return nil, err
 	}
-	var delegates []Delegate
+	var delegates []bpos.Delegate
 	if err := chain.ContractAbi.Unpack(&delegates, methodName, output); err != nil {
 		return nil, err
 	}
@@ -297,11 +286,13 @@ func (s *ctlserver) getDelegates(methodName string) ([]*rpcpb.Delegate, error) {
 			return nil, err
 		}
 		dl := &rpcpb.Delegate{
-			Addr:             addr.String(),
-			Votes:            d.Votes.Uint64(),
-			PledgeAmount:     d.PledgeAmount.Uint64(),
-			Score:            d.Score.Uint64(),
-			ContinualPeriods: uint32(d.ContinualPeriod.Uint64()),
+			Addr:              addr.String(),
+			Votes:             d.Votes.Uint64(),
+			PledgeAmount:      d.PledgeAmount.Uint64(),
+			Score:             d.Score.Uint64(),
+			ContinualPeriods:  uint32(d.ContinualPeriod.Uint64()),
+			BlocksThisDynasty: uint32(d.CurDynastyOutputNumber.Uint64()),
+			BlocksTotal:       uint32(d.TotalOutputNumber.Uint64()),
 		}
 		delegatesR = append(delegatesR, dl)
 	}
