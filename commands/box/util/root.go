@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"strconv"
 
@@ -15,7 +16,10 @@ import (
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/btcsuite/btcutil/base58"
+	cry "github.com/libp2p/go-libp2p-crypto"
+	peer "github.com/libp2p/go-libp2p-peer"
 	"github.com/spf13/cobra"
 )
 
@@ -62,6 +66,11 @@ func init() {
 			Use:   "makep2pkhaddr [pubkey]",
 			Short: "creat p2pKH address",
 			Run:   makeP2PKHAddress,
+		},
+		&cobra.Command{
+			Use:   "convpeerkey [peerkey_path]",
+			Short: "conversion peer key to peer ID",
+			Run:   convPeerKey,
 		},
 	)
 }
@@ -232,4 +241,37 @@ func makeP2PKHAddress(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf("address: %s, address hash: %x\n", addr, addr.Hash160()[:])
+}
+
+func convPeerKey(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	peerKeyFile := args[0]
+	if err := util.FileExists(peerKeyFile); err != nil {
+		fmt.Println(err)
+		return
+	}
+	data, err := ioutil.ReadFile(peerKeyFile)
+	if err != nil {
+		fmt.Printf("read data from %s error: %s\n", peerKeyFile, err)
+		return
+	}
+	decodeData, err := base64.StdEncoding.DecodeString(string(data))
+	if err != nil {
+		fmt.Printf("decode the string in %s error: %s\n", peerKeyFile, err)
+		return
+	}
+	key, err := cry.UnmarshalPrivateKey(decodeData)
+	if err != nil {
+		fmt.Println("conversion to private key error:", err)
+		return
+	}
+	peerID, err := peer.IDFromPublicKey(key.GetPublic())
+	if err != nil {
+		fmt.Println("get peer ID from public key error:", err)
+		return
+	}
+	fmt.Println("peer ID:", peerID.Pretty())
 }
