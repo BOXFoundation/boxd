@@ -936,11 +936,7 @@ func (chain *BlockChain) adjustAndValidateState(
 	}
 
 	// apply internal txs.
-	if len(block.InternalTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, stateDB); err != nil {
-			return nil, err
-		}
-	}
+	utxoSet.ApplyInternalTxs(block, stateDB)
 	if err := chain.UpdateContractUtxoState(stateDB, utxoSet); err != nil {
 		logger.Errorf("chain update utxo state error: %s", err)
 		return nil, err
@@ -1451,7 +1447,8 @@ func (chain *BlockChain) loadGenesis() (*types.Block, error) {
 	vmConfig := vm.Config{Debug: true, Tracer: structLogger /*, JumpTable: vm.NewByzantiumInstructionSet()*/}
 
 	evm := vm.NewEVM(ctx, stateDB, vmConfig)
-	_, contractAddr, _, vmerr := evm.Create(vm.AccountRef(*vmTx.From()), vmTx.Data(), vmTx.Gas(), big.NewInt(0), false)
+	_, contractAddr, _, vmerr := evm.Create(vm.AccountRef(*vmTx.From()),
+		vmTx.Data(), vmTx.Gas(), big.NewInt(0))
 	if vmerr != nil {
 		return nil, vmerr
 	}

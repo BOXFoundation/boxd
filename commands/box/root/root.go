@@ -75,13 +75,13 @@ func init() {
 	RootCmd.PersistentFlags().IP("rpc-addr", net.ParseIP("0.0.0.0"), "gRPC listen address.")
 	viper.BindPFlag("rpc.address", RootCmd.PersistentFlags().Lookup("rpc-addr"))
 
-	RootCmd.PersistentFlags().Uint("rpc-port", 0, "gRPC listen port.")
+	RootCmd.PersistentFlags().Uint("rpc-port", 19191, "gRPC listen port.")
 	viper.BindPFlag("rpc.port", RootCmd.PersistentFlags().Lookup("rpc-port"))
 
 	RootCmd.PersistentFlags().IP("http-addr", net.ParseIP("127.0.0.1"), "rpc http listen address.")
 	viper.BindPFlag("rpc.http.address", RootCmd.PersistentFlags().Lookup("http-addr"))
 
-	RootCmd.PersistentFlags().Uint("http-port", common.DefaultRPCHTTPPort, "rpc http listen port.")
+	RootCmd.PersistentFlags().Uint("http-port", 19190, "rpc http listen port.")
 	viper.BindPFlag("rpc.http.port", RootCmd.PersistentFlags().Lookup("http-port"))
 }
 

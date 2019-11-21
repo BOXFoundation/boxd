@@ -223,11 +223,11 @@ func (bpos *Bpos) run(timestamp int64) error {
 	bpos.context.bookKeeperReward = netParams.BlockReward
 	bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
 
-	current, err := bpos.fetchCurrentDelegatesByHeight(bpos.chain.LongestChainHeight)
+	current, err := bpos.getLastEpochByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return err
 	}
-	next, err := bpos.fetchNextDelegatesByHeight(bpos.chain.LongestChainHeight)
+	next, err := bpos.getCurrentEpochByHeight(bpos.chain.LongestChainHeight)
 	if err != nil {
 		return err
 	}
@@ -680,11 +680,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
-	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, statedb); err != nil {
-			return err
-		}
-	}
+	utxoSet.ApplyInternalTxs(block, statedb)
 	if err := bpos.chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}

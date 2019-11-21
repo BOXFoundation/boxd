@@ -144,8 +144,14 @@ func (bft *BftService) updateEternal(block *types.Block) {
 			"than current eternal block height")
 		return
 	}
+	// Check if the block is on the main chain
+	b, _ := bft.chain.LoadBlockByHeight(block.Header.Height)
+	if !b.BlockHash().IsEqual(block.BlockHash()) {
+		logger.Warnf("Failed to update eternal block. The block is not on the main chain.")
+		return
+	}
 	if err := bft.chain.SetEternal(block); err != nil {
-		logger.Info("Failed to update eternal block.Hash: %s, Height: %d, Err: %s",
+		logger.Warnf("Failed to update eternal block.Hash: %s, Height: %d, Err: %s",
 			block.BlockHash().String(), block.Header.Height, err.Error())
 		return
 	}

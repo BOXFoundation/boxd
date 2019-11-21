@@ -52,7 +52,7 @@ func TestSelfdestruct(t *testing.T) {
 	input, err := abiObj.Pack("kill", userZhangfei)
 	ensure.Nil(t, err)
 
-	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 
 	ensure.Nil(t, err)
 	ensure.SameElements(t, ret, []byte{})
@@ -80,7 +80,7 @@ func TestPrecompiledContract(t *testing.T) {
 	input, err := abiObj.Pack("testSha256", data)
 	ensure.Nil(t, err)
 
-	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 
 	ensure.Nil(t, err)
 	ensure.SameElements(t, ret, crypto.Sha256([]byte(data)))
@@ -113,7 +113,7 @@ func TestFallback(t *testing.T) {
 	input, err := abiObj.Pack("callNonExistFunc")
 	ensure.Nil(t, err)
 
-	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 	ensure.Nil(t, err)
 
 	rett, err := abi.UnpackByTypeName("bool", ret)
@@ -162,7 +162,7 @@ func TestInternalDeploy(t *testing.T) {
 	input, err := abiObj.Pack("createChild", big.NewInt(2), big.NewInt(int64(1e9)))
 	ensure.Nil(t, err)
 
-	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err := evm.Call(caller, contractAddr, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 	ensure.Nil(t, err)
 	ensure.DeepEqual(t, len(stateDb.Logs()), 3)
 	ensure.SameElements(t, ret, []byte{})
@@ -265,7 +265,7 @@ func TestInternalDeploy2(t *testing.T) {
 	input, err := abiObj.Pack("createToken", "BOX")
 	ensure.Nil(t, err)
 
-	ret, _, err := evm.Call(caller, addrTokenCreator, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err := evm.Call(caller, addrTokenCreator, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 	ensure.Nil(t, err)
 
 	// OwnedToken
@@ -281,14 +281,14 @@ func TestInternalDeploy2(t *testing.T) {
 	input, err = abiObj.Pack("getTag")
 	ensure.Nil(t, err)
 
-	ret, _, err = evm.Call(caller, *addrOwnedToken, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err = evm.Call(caller, *addrOwnedToken, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 	ensure.Nil(t, err)
 	addrTag := coretypes.NewAddressHash(ret)
 
 	input, err = abiObj.Pack("getOwner")
 	ensure.Nil(t, err)
 
-	ret, _, err = evm.Call(caller, *addrOwnedToken, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err = evm.Call(caller, *addrOwnedToken, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 	ensure.SameElements(t, coretypes.NewAddressHash(ret).Bytes(), addrTokenCreator.Bytes())
 
 	// Tag
@@ -300,7 +300,7 @@ func TestInternalDeploy2(t *testing.T) {
 	input, err = abiObj.Pack("getSym")
 	ensure.Nil(t, err)
 
-	ret, _, err = evm.Call(caller, *addrTag, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0), false)
+	ret, _, err = evm.Call(caller, *addrTag, input, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(0))
 	ensure.Nil(t, err)
 	rett, err := abi.UnpackByTypeName("string", ret)
 	ensure.Nil(t, err)
@@ -325,7 +325,7 @@ func deploy(t *testing.T, bindata, jsondata string, value int64) (
 	stateDb.SetBalance(userLiubei, big.NewInt(senderbalance))
 	evm := vm.NewEVM(ctx, stateDb, vmConfig)
 	contractRef := vm.AccountRef(userLiubei)
-	_, contractAddr, balance, vmerr := evm.Create(contractRef, data, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(value), false)
+	_, contractAddr, balance, vmerr := evm.Create(contractRef, data, stateDb.GetBalance(userLiubei).Uint64(), big.NewInt(value))
 
 	stateDb.SetBalance(userLiubei, big.NewInt(int64(balance)))
 	ensure.Nil(t, vmerr)

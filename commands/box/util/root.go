@@ -5,11 +5,13 @@
 package utilcmd
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"math"
+	"os"
 	"strconv"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
@@ -18,7 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/btcsuite/btcutil/base58"
-	cry "github.com/libp2p/go-libp2p-crypto"
+	libcrypto "github.com/libp2p/go-libp2p-crypto"
 	peer "github.com/libp2p/go-libp2p-peer"
 	"github.com/spf13/cobra"
 )
@@ -68,9 +70,14 @@ func init() {
 			Run:   makeP2PKHAddress,
 		},
 		&cobra.Command{
-			Use:   "convpeerkey [peerkey_path]",
+			Use:   "peerid [optional|peerkey_path, peerkey]",
 			Short: "conversion peer key to peer ID",
-			Run:   convPeerKey,
+			Run:   peerID,
+		},
+		&cobra.Command{
+			Use:   "createpeerid [optional|peerkey_path]",
+			Short: "create peer key",
+			Run:   createPeerID,
 		},
 	)
 }
@@ -243,27 +250,35 @@ func makeP2PKHAddress(cmd *cobra.Command, args []string) {
 	fmt.Printf("address: %s, address hash: %x\n", addr, addr.Hash160()[:])
 }
 
-func convPeerKey(cmd *cobra.Command, args []string) {
+func peerID(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
 		fmt.Println(cmd.Use)
 		return
 	}
-	peerKeyFile := args[0]
-	if err := util.FileExists(peerKeyFile); err != nil {
-		fmt.Println(err)
+	var (
+		data     string
+		err      error
+		dataByte []byte
+	)
+	if err := util.FileExists(args[0]); err == nil {
+		dataByte, err = ioutil.ReadFile(args[0])
+		if err != nil {
+			fmt.Printf("read data from %s error: %s\n", args[0], err)
+			return
+		}
+		data = string(dataByte)
+	} else if _, err := libcrypto.ConfigDecodeKey(args[0]); err == nil {
+		data = args[0]
+	} else {
+		fmt.Println("invailb argument:", args[0])
 		return
 	}
-	data, err := ioutil.ReadFile(peerKeyFile)
+	decodeData, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
-		fmt.Printf("read data from %s error: %s\n", peerKeyFile, err)
+		fmt.Printf("decode the string in %s error: %s\n", args[0], err)
 		return
 	}
-	decodeData, err := base64.StdEncoding.DecodeString(string(data))
-	if err != nil {
-		fmt.Printf("decode the string in %s error: %s\n", peerKeyFile, err)
-		return
-	}
-	key, err := cry.UnmarshalPrivateKey(decodeData)
+	key, err := libcrypto.UnmarshalPrivateKey(decodeData)
 	if err != nil {
 		fmt.Println("conversion to private key error:", err)
 		return
@@ -274,4 +289,46 @@ func convPeerKey(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println("peer ID:", peerID.Pretty())
+}
+
+func createPeerID(cmd *cobra.Command, args []string) {
+	if len(args) > 1 {
+		fmt.Println(cmd.Use)
+		return
+	}
+	var (
+		peerKeyPath string
+		err         error
+	)
+	if len(args) == 0 {
+		peerKeyPath, err = os.Getwd()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		peerKeyPath += "/peer.key"
+	} else if len(args) == 1 {
+		if err = util.FileExists(args[0]); err != nil {
+			fmt.Println(err)
+			return
+		}
+		peerKeyPath = args[0] + "/peer.key"
+	}
+	key, _, err := libcrypto.GenerateEd25519Key(rand.Reader)
+	if err != nil {
+		fmt.Println("generate private key error:", err)
+		return
+	}
+	data, err := libcrypto.MarshalPrivateKey(key)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	b64data := base64.StdEncoding.EncodeToString(data)
+	err = ioutil.WriteFile(peerKeyPath, []byte(b64data), 0400)
+	if err != nil {
+		fmt.Println("write data to file error:", err)
+		return
+	}
+	fmt.Println("generate peer key:", peerKeyPath)
 }

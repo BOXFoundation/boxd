@@ -333,8 +333,10 @@ func verifyProcessBlock(
 }
 
 func connectBlock(parent, block *types.Block, bc *BlockChain) error {
-	logger.Infof("================ start to connect block %s ================", block.BlockHash())
-	defer logger.Infof("---------------- end to connect block %s ----------------", block.BlockHash())
+	logger.Infof("================ start to connect block %s: %d ================",
+		block.BlockHash(), block.Header.Height)
+	defer logger.Infof("---------------- end to connect block %s: %d ----------------",
+		block.BlockHash(), block.Header.Height)
 
 	statedb, err := state.New(&parent.Header.RootHash, &parent.Header.UtxoRoot, bc.DB())
 	if err != nil {
@@ -384,11 +386,7 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	}
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
-	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, statedb); err != nil {
-			return err
-		}
-	}
+	utxoSet.ApplyInternalTxs(block, statedb)
 	if err := bc.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}
