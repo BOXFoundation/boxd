@@ -680,11 +680,7 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
-	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, statedb); err != nil {
-			return err
-		}
-	}
+	utxoSet.ApplyInternalTxs(block, statedb)
 	if err := bpos.chain.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}

@@ -246,16 +246,12 @@ func (u *UtxoSet) applyUtxo(
 	}
 
 	// smart contract vout
-	var (
-		outPoint *types.OutPoint
-		utxoWrap *types.UtxoWrap
-	)
-
 	contractAddr, err := sc.ParseContractAddr()
 	if err != nil {
 		return err
 	}
 	deploy := contractAddr == nil
+	var outPoint *types.OutPoint
 	if deploy {
 		// deploy smart contract
 		from, _ := sc.ParseContractFrom()
@@ -263,25 +259,23 @@ func (u *UtxoSet) applyUtxo(
 		contractAddr, _ := types.MakeContractAddress(from, nonce)
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint = types.NewOutPoint(addressHash, 0)
-		utxoWrap = types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)
+		// value is set in ContractCreated function
+		utxoWrap := types.NewUtxoWrap(0, vout.ScriptPubKey, blockHeight)
+		u.utxoMap[*outPoint] = utxoWrap
 	} else {
 		// call smart contract
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint = types.NewOutPoint(addressHash, 0)
 		var exists bool
-		utxoWrap, exists = u.utxoMap[*outPoint]
+		_, exists = u.utxoMap[*outPoint]
 		if !exists {
 			return fmt.Errorf("contract utxo[%v] not found in utxoset", outPoint)
 		}
-	}
-	if deploy || vout.Value > 0 {
-		value := utxoWrap.Value() + vout.Value
 		logger.Infof("modify contract utxo, outpoint: %+v, value: %d, previous value: %d",
-			outPoint, value, utxoWrap.Value())
-		utxoWrap.SetValue(value)
-		u.utxoMap[*outPoint] = utxoWrap
-		u.contractUtxos[*outPoint] = struct{}{}
+			outPoint, vout.Value, u.utxoMap[*outPoint].Value())
+		u.utxoMap[*outPoint].AddValue(vout.Value)
 	}
+	u.contractUtxos[*outPoint] = struct{}{}
 
 	return nil
 }
@@ -317,26 +311,25 @@ func (u *UtxoSet) applyTx(tx *types.Transaction, blockHeight uint32, statedb *st
 	return nil
 }
 
-func (u *UtxoSet) applyInternalTx(tx *types.Transaction, blockHeight uint32, statedb *state.StateDB) error {
-	for txOutIdx := range tx.Vout {
-		if err := u.applyUtxo(tx, (uint32)(txOutIdx), blockHeight, statedb); err != nil {
-			if err == core.ErrAddExistingUtxo {
-				continue
-			}
-			return err
+func (u *UtxoSet) applyInternalTx(
+	tx *types.Transaction, height uint32, statedb *state.StateDB,
+) {
+	txHash, _ := tx.TxHash()
+	for idx, vout := range tx.Vout {
+		sc := script.NewScriptFromBytes(vout.ScriptPubKey)
+		if !sc.IsPayToPubKeyHash() {
+			continue
 		}
+		outPoint := types.NewOutPoint(txHash, uint32(idx))
+		u.utxoMap[*outPoint] = types.NewUtxoWrap(vout.Value, vout.ScriptPubKey, height)
 	}
-	return nil
 }
 
 // ApplyInternalTxs applies internal txs in block
-func (u *UtxoSet) ApplyInternalTxs(block *types.Block, statedb *state.StateDB) error {
+func (u *UtxoSet) ApplyInternalTxs(block *types.Block, statedb *state.StateDB) {
 	for _, tx := range block.InternalTxs {
-		if err := u.applyInternalTx(tx, block.Header.Height, statedb); err != nil {
-			return err
-		}
+		u.applyInternalTx(tx, block.Header.Height, statedb)
 	}
-	return nil
 }
 
 // ApplyBlock updates utxos with all transactions in the passed block

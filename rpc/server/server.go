@@ -379,6 +379,11 @@ func (s *Server) registerSerivices() {
 		},
 		rpcpb.RegisterWebApiHandlerFromEndpoint,
 	)
+	RegisterServiceWithGatewayHandler(
+		"faucet",
+		registerFaucet,
+		rpcpb.RegisterFaucetHandlerFromEndpoint,
+	)
 }
 
 func isInIPs(ctx context.Context, ips []string) bool {

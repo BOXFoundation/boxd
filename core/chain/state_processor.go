@@ -147,10 +147,14 @@ func ApplyTransaction(
 
 	var contractAddr *types.AddressHash
 	deployed := tx.Type() == types.ContractCreationType
+	if !fail {
+		addNewContractUtxos(vmenv.ContractCreatedItems, utxoSet, statedb, header.Height)
+	}
 	if deployed {
 		contractAddr = types.CreateAddress(*tx.From(), tx.Nonce())
+		// if contract address had some boxes in normal utxo in pay2pubk txs,
+		// move the value to contract utxo
 		if !fail {
-			// if contract address had some boxes in normal utxo, cp the value to contract utxo
 			origBal := statedb.GetBalance(*contractAddr).Uint64() - tx.Value().Uint64()
 			outPoint := types.NewOutPoint(types.NormalizeAddressHash(contractAddr), 0)
 			utxoSet.utxoMap[*outPoint].AddValue(origBal)
@@ -161,7 +165,9 @@ func ApplyTransaction(
 		contractAddr = tx.To()
 	}
 	senderNonce := statedb.GetNonce(*tx.From())
+	// handle utxo of contract created newly
 	if !fail && len(vmenv.Transfers) > 0 {
+		// create internal txs
 		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet, bc.db, statedb)
 		if err != nil {
 			logger.Warn(err)
@@ -240,20 +246,23 @@ func createRefundTx(
 
 	hash := types.NormalizeAddressHash(contractAddr)
 	outPoint := *types.NewOutPoint(hash, 0)
-	utxoWrap, ok := utxoSet.utxoMap[outPoint]
-	if !ok {
-		return nil, errors.New("contract utxo does not exist")
+	// subtract value from contract
+	deploy := vmtx.Type() == types.ContractCreationType
+	if !deploy {
+		utxoWrap, ok := utxoSet.utxoMap[outPoint]
+		if !ok {
+			return nil, fmt.Errorf("make refund tx error: contract %x utxo does not exist",
+				contractAddr[:])
+		}
+		if utxoWrap.Value() < vmtx.Value().Uint64() {
+			return nil, fmt.Errorf("make refund tx error: %x balance: %d, need refund: %d",
+				contractAddr[:], utxoWrap.Value(), vmtx.Value().Uint64())
+		}
+		value := utxoWrap.Value() - vmtx.Value().Uint64()
+		utxoWrap.SetValue(value)
+		utxoSet.utxoMap[outPoint] = utxoWrap
 	}
-	if utxoWrap.Value() < vmtx.Value().Uint64() {
-		contractAddrB, _ := types.NewContractAddressFromHash(contractAddr[:])
-		logger.Errorf("contractAddr %s balance: %d, vmtx value: %d",
-			contractAddrB, utxoWrap.Value(), vmtx.Value().Uint64())
-		return nil, errors.New("Insufficient balance of smart contract")
-	}
-	value := utxoWrap.Value() - vmtx.Value().Uint64()
-	utxoWrap.SetValue(value)
-	utxoSet.utxoMap[outPoint] = utxoWrap
-
+	// make tx
 	vin := &types.TxIn{
 		PrevOutPoint: outPoint,
 		ScriptSig:    *script.MakeContractScriptSig(senderNonce),
@@ -284,7 +293,7 @@ func makeTx(
 	if !ok {
 		wrap, err := fetchUtxoWrapFromDB(db, inOp)
 		if err != nil || wrap == nil {
-			return nil, fmt.Errorf("makeTx] fetch from contract %x utxo error: %v or nil", from, err)
+			return nil, fmt.Errorf("makeTx] fetch from contract %x utxo error: %v or nil", from[:], err)
 		}
 		utxoSet.utxoMap[*inOp] = wrap
 		fromUtxoWrap = wrap
@@ -305,10 +314,11 @@ func makeTx(
 			if _, ok := utxoSet.utxoMap[*outOp]; !ok {
 				wrap := GetContractUtxoFromStateDB(statedb, to)
 				if wrap == nil {
-					return nil, fmt.Errorf("makeTx] fetch to contract %x return nil", to)
+					return nil, fmt.Errorf("makeTx] fetch utxo of contract to %x return nil", to[:])
 				}
 				utxoSet.utxoMap[*outOp] = wrap
 			}
+			utxoSet.utxoMap[*outOp].AddValue(info.Value)
 		} else {
 			spk = script.PayToPubKeyHashScript(to.Bytes())
 		}
@@ -326,6 +336,32 @@ func makeTx(
 		AppendVin(types.NewTxIn(inOp, *script.MakeContractScriptSig(senderNonce), 0)).
 		AppendVout(vouts...)
 	return tx, nil
+}
+
+func addNewContractUtxos(
+	items []*vm.ContractCreatedItem, utxoSet *UtxoSet, statedb *state.StateDB, height uint32,
+) {
+	for _, item := range items {
+		op := types.NewOutPoint(types.NormalizeAddressHash(&item.Address), 0)
+		utxoSet.contractUtxos[*op] = struct{}{}
+		if utxoWrap, ok := utxoSet.utxoMap[*op]; ok {
+			// maybe utxo exist already in utxo because other tx that refer to this contract in the same block
+			logger.Infof("create contract utxo %v: %s added", op, utxoWrap)
+			utxoWrap.AddValue(item.Value)
+			continue
+		}
+		// new contract in contract
+		scriptPubk, _ := script.MakeContractScriptPubkey(&item.Caller, &item.Address,
+			1, item.Nonce, 0)
+		value := item.Value
+		if statedb.IsContractAddr(item.Caller) {
+			// value is set when creating internal txs: createUtxoTxs
+			value = 0
+		}
+		utxoWrap := types.NewUtxoWrap(value, *scriptPubk, height)
+		utxoSet.utxoMap[*op] = utxoWrap
+		logger.Infof("create contract utxo %v: %s", op, utxoWrap)
+	}
 }
 
 // ExtractVMTransaction extract Transaction to VMTransaction

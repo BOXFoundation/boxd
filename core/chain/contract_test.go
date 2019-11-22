@@ -1430,11 +1430,11 @@ func TestNewContractInContract(t *testing.T) {
 	// then check token owned contract balance whether it equals to 1000
 	// and check tag contract whether it's sym is "ABC"
 	nonce++
-	vmValue, gasLimit = uint64(0), uint64(400000)
-	contractVout, _ = txlogic.MakeContractCreationVout(userAddr.Hash160(),
-		vmValue, gasLimit, nonce)
+	vmValue, gasLimit = uint64(0), uint64(600000)
+	contractVout, _ = txlogic.MakeContractCallVout(userAddr.Hash160(),
+		tokenCreatorAddr.Hash160(), vmValue, gasLimit, nonce)
 	prevHash, _ = b3.Txs[1].TxHash()
-	changeValue = userBalance - vmValue - gasPrice*gasLimit
+	changeValue = changeValue - vmValue - gasPrice*gasLimit
 	vmTx1 := types.NewTx(0, 4455, 0).
 		AppendVin(txlogic.MakeVin(types.NewOutPoint(prevHash, 1), 0)).
 		AppendVout(contractVout).
