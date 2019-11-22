@@ -172,7 +172,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	)
 	if contractCreation {
 		//
-		ret, addr, st.gas, vmerr = evm.Create(from, st.data, st.gas, st.value, false)
+		ret, addr, st.gas, vmerr = evm.Create(from, st.data, st.gas, st.value)
 		// ret is contract code, so replace it with contract address hash
 		ret = addr[:]
 		if vmerr == nil {
@@ -182,7 +182,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(*msg.From(), st.state.GetNonce(from.Address())+1)
-		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value, false)
+		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value)
 	}
 	if vmerr != nil {
 		// The only possible consensus-error would be if there wasn't sufficient balance

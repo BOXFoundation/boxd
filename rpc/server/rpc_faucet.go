@@ -19,14 +19,6 @@ import (
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
-func init() {
-	RegisterServiceWithGatewayHandler(
-		"faucet",
-		registerFaucet,
-		rpcpb.RegisterFaucetHandlerFromEndpoint,
-	)
-}
-
 func registerFaucet(s *Server) {
 	keyFile := s.cfg.Faucet.Keyfile
 	if _, err := os.Stat(keyFile); os.IsNotExist(err) {

@@ -386,11 +386,7 @@ func connectBlock(parent, block *types.Block, bc *BlockChain) error {
 	}
 	// apply internal txs.
 	block.InternalTxs = utxoTxs
-	if len(utxoTxs) > 0 {
-		if err := utxoSet.ApplyInternalTxs(block, statedb); err != nil {
-			return err
-		}
-	}
+	utxoSet.ApplyInternalTxs(block, statedb)
 	if err := bc.UpdateContractUtxoState(statedb, utxoSet); err != nil {
 		return err
 	}
