@@ -16,6 +16,7 @@ import (
 	"github.com/BOXFoundation/boxd/consensus/bpos"
 	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/chain"
+	"github.com/BOXFoundation/boxd/core/types"
 	coretypes "github.com/BOXFoundation/boxd/core/types"
 	state "github.com/BOXFoundation/boxd/core/worldstate"
 	corecrypto "github.com/BOXFoundation/boxd/crypto"
@@ -28,14 +29,15 @@ import (
 )
 
 var (
-	testHash    = corecrypto.BytesToHash([]byte("xujingshi"))
-	fromAddress = coretypes.BytesToAddressHash([]byte("xujingshi"))
-	toAddress   = coretypes.BytesToAddressHash([]byte("andone"))
-	amount      = big.NewInt(0)
-	nonce       = uint64(0)
-	gasLimit    = uint64(100000)
-	coinbase    = fromAddress
-	blockChain  = chain.NewTestBlockChain()
+	testHash     = corecrypto.BytesToHash([]byte("xujingshi"))
+	fromAddress  = coretypes.BytesToAddressHash([]byte("xujingshi"))
+	toAddress    = coretypes.BytesToAddressHash([]byte("andone"))
+	amount       = big.NewInt(0)
+	nonce        = uint64(0)
+	gasLimit     = uint64(100000)
+	coinbase     = fromAddress
+	blockChain   = chain.NewTestBlockChain()
+	adminAddr, _ = types.NewAddress("b1na9uCQXA26d94w1tWrttnnsfjKNz9M2EF")
 )
 
 func must(err error) {
@@ -136,12 +138,19 @@ func TestGenesisContract(t *testing.T) {
 	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0))
 	ensure.Nil(t, vmerr)
 
-	input, err = abiObj.Pack("getNext")
+	ctx = chain.NewEVMContext(msg, cc.GetHeader(15249), blockChain)
+	evm = vm.NewEVM(ctx, stateDb, vmConfig)
+	input, err = abiObj.Pack("execBonus")
+	must(err)
+	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	ensure.Nil(t, vmerr)
+
+	input, err = abiObj.Pack("getLastEpoch")
 	must(err)
 	output, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0))
 	ensure.Nil(t, vmerr)
 	var delegates []bpos.Delegate
-	ensure.Nil(t, abiObj.Unpack(&delegates, "getNext", output))
+	ensure.Nil(t, abiObj.Unpack(&delegates, "getLastEpoch", output))
 	var res []uint64
 	for _, v := range delegates {
 		res = append(res, v.Score.Uint64())
