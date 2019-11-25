@@ -14,7 +14,6 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -45,10 +44,11 @@ const (
 )
 
 var (
-	walletDir string
-
-	solcBinReg = regexp.MustCompile("Binary:\\s?\n([0-9a-f]+)\n")
-	solcAbiReg = regexp.MustCompile("ABI\\s?\n([\\pP0-9a-zA-Z]+)\n")
+	walletDir   string
+	solFilePath string
+	solcBinReg  = regexp.MustCompile("Binary:\\s?\n([0-9a-f]+)\\s")
+	solcAbiReg  = regexp.MustCompile("ABI\\s?\n([\\pP0-9a-zA-Z]+)\\s")
+	solNameReg  = regexp.MustCompile(solFilePath + ":([0-9a-zA-Z_]+)\\s")
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -1108,13 +1108,27 @@ func parseContractData(data string) (bytecode string, abi string, err error) {
 		if common.IsHexFormat(bytesStr) {
 			bytecode = bytesStr
 		} else {
-			binData, abiData, err := compileSol(data)
+			binData, abiData, solName, err := compileSol(data)
 			if err != nil {
 				return "", "", err
 			}
-			if len(binData) > 0 {
-				bytecode = binData
-				abi = abiData
+			if len(binData) == 1 {
+				bytecode = binData[0]
+				abi = abiData[0]
+			} else if len(binData) > 1 {
+				fmt.Printf("%v\n", solName)
+				fmt.Println("Which one do you want to deploy?")
+				var input string
+				fmt.Scanf("%s", &input)
+				for i, v := range solName {
+					if input == v {
+						bytecode = binData[i]
+						abi = abiData[i]
+					}
+				}
+				if len(bytecode) == 0 {
+					return "", "", errors.New("Please make sure your input is correct")
+				}
 			}
 		}
 	} else {
@@ -1126,22 +1140,43 @@ func parseContractData(data string) (bytecode string, abi string, err error) {
 	return bytecode, abi, nil
 }
 
-func compileSol(filepath string) (binData string, abiData string, err error) {
+func compileSol(filepath string) (binData []string, abiData []string, solName []string, err error) {
 	cmd := exec.Command("solc", filepath, "--bin", "--abi")
 	//CombinedOutput runs the command and returns its combined standard output and standard error.
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		//an error is returned and the error message is the output.
-		return "", "", errors.New(string(output))
+		return nil, nil, nil, errors.New(string(output))
 	}
-	outputStr := string(output)
-	binMatches := solcBinReg.FindStringSubmatch(outputStr)
-	abiMathes := solcAbiReg.FindStringSubmatch(outputStr)
-	if len(abiMathes) == 2 && len(binMatches) == 2 {
-		binData = binMatches[1]
-		abiData = abiMathes[1]
+	binMatches := solcBinReg.FindAllSubmatch(output, -1)
+	for _, v := range binMatches {
+		for i, k := range v {
+			if (i+1)%2 == 0 {
+				binData = append(binData, string(k))
+			}
+		}
 	}
-	return binData, abiData, nil
+	abiMathes := solcAbiReg.FindAllSubmatch(output, -1)
+	for _, v := range abiMathes {
+		for i, k := range v {
+			if (i+1)%2 == 0 {
+				abiData = append(abiData, string(k))
+			}
+		}
+	}
+	solFilePath = filepath
+	nameMatches := solNameReg.FindAllSubmatch(output, -1)
+	for _, v := range nameMatches {
+		for i, k := range v {
+			if (i+1)%2 == 0 {
+				solName = append(solName, string(k))
+			}
+		}
+	}
+	if len(abiData) == 0 && len(binData) == 0 && len(solName) == 0 {
+		return nil, nil, nil, errors.New("no matche in sol file")
+	}
+	return binData, abiData, solName, nil
 }
 
 func newAbiObjFromFile(filePath string) (*abi.ABI, error) {
@@ -1265,9 +1300,6 @@ func compile(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fileBase := path.Base(filepath)
-	fileSuffix := path.Ext(fileBase)
-	fileName := strings.TrimSuffix(fileBase, fileSuffix)
 	var outputDir string
 	if len(args) == 1 {
 		currentFilePath, err := os.Getwd()
@@ -1283,23 +1315,25 @@ func compile(cmd *cobra.Command, args []string) {
 			return
 		}
 	}
-	binData, abiData, err := compileSol(filepath)
+	binData, abiData, solName, err := compileSol(filepath)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	binFile := outputDir + fileName + ".bin"
-	// write bin data to file
-	if err := ioutil.WriteFile(binFile, []byte(binData), 0644); err != nil {
-		fmt.Println(err)
-		return
+	for i := 0; i < len(binData); i++ {
+		binFile := outputDir + solName[i] + ".bin"
+		// write bin data to file
+		if err := ioutil.WriteFile(binFile, []byte(binData[i]), 0644); err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("generate bin file:", binFile)
+		abiFile := outputDir + solName[i] + ".abi"
+		// write abi data to file
+		if err := ioutil.WriteFile(abiFile, []byte(abiData[i]), 0644); err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("generate abi file:", abiFile)
 	}
-	fmt.Println("generate bin file:", binFile)
-	abiFile := outputDir + fileName + ".abi"
-	// write abi data to file
-	if err := ioutil.WriteFile(abiFile, []byte(abiData), 0644); err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("generate abi file:", abiFile)
 }
