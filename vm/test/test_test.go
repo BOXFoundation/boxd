@@ -142,7 +142,7 @@ func TestGenesisContract(t *testing.T) {
 	evm = vm.NewEVM(ctx, stateDb, vmConfig)
 	input, err = abiObj.Pack("execBonus")
 	must(err)
-	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0), false)
+	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0))
 	ensure.Nil(t, vmerr)
 
 	input, err = abiObj.Pack("getLastEpoch")

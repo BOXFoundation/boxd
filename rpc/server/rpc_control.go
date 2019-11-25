@@ -318,9 +318,9 @@ func (s *ctlserver) Delegates(
 	case rpcpb.DelegatesReq_BOOKKEEPERS:
 		method = "getDynasty"
 	case rpcpb.DelegatesReq_DELEGATES:
-		method = "getCurrentDelegates"
+		method = "getLastEpoch"
 	case rpcpb.DelegatesReq_CANDIDATES:
-		method = "getNextDelegates"
+		method = "getCurrentEpoch"
 	default:
 		return newDelegateResp(-1, "invalid type", nil), nil
 	}

@@ -176,27 +176,27 @@ func (bpos *Bpos) FindProposerWithTimeStamp(timestamp int64, delegates []Delegat
 	return bookkeeper, nil
 }
 
-func (bpos *Bpos) fetchCurrentDelegatesByHeight(height uint32) ([]Delegate, error) {
-	output, err := bpos.chain.CallGenesisContract(height, "getCurrentDelegates")
+func (bpos *Bpos) getLastEpochByHeight(height uint32) ([]Delegate, error) {
+	output, err := bpos.chain.CallGenesisContract(height, "getLastEpoch")
 	if err != nil {
 		return nil, err
 	}
 	var delegates []Delegate
-	if err := chain.ContractAbi.Unpack(&delegates, "getCurrentDelegates", output); err != nil {
-		logger.Errorf("Failed to unpack the result of call getCandidates. Err: %v", err)
+	if err := chain.ContractAbi.Unpack(&delegates, "getLastEpoch", output); err != nil {
+		logger.Errorf("Failed to unpack the result of call getLastEpochs. Err: %v", err)
 		return nil, err
 	}
 	return delegates, nil
 }
 
-func (bpos *Bpos) fetchNextDelegatesByHeight(height uint32) ([]Delegate, error) {
-	output, err := bpos.chain.CallGenesisContract(height, "getNextDelegates")
+func (bpos *Bpos) getCurrentEpochByHeight(height uint32) ([]Delegate, error) {
+	output, err := bpos.chain.CallGenesisContract(height, "getCurrentEpoch")
 	if err != nil {
 		return nil, err
 	}
 	var delegates []Delegate
-	if err := chain.ContractAbi.Unpack(&delegates, "getNextDelegates", output); err != nil {
-		logger.Errorf("Failed to unpack the result of call getCandidates. Err: %v", err)
+	if err := chain.ContractAbi.Unpack(&delegates, "getCurrentEpoch", output); err != nil {
+		logger.Errorf("Failed to unpack the result of call getCurrentEpoch. Err: %v", err)
 		return nil, err
 	}
 	return delegates, nil
