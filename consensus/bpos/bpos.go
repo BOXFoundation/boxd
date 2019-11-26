@@ -187,6 +187,7 @@ func (bpos *Bpos) loop(p goprocess.Process) {
 			if atomic.LoadInt32(&bpos.status) == free && !bpos.chain.IsBusy() {
 				go func() {
 					if err := bpos.run(time.Now().Unix()); err != nil {
+						logger.Warnf("Bpos run err. Err: %v", err.Error())
 						if err != ErrNotMyTurnToProduce {
 							logger.Errorf("Bpos run err. Err: %v", err.Error())
 						}
