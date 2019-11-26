@@ -992,6 +992,24 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	return
 }
 
+// ParseContractInfo parse contract info.
+func (s *Script) ParseContractInfo() (*types.AddressPubKeyHash, *types.AddressContract, uint64, error) {
+	from, err := s.ParseContractFrom()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	contractAddress, err := s.ParseContractAddr()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	nonce, err := s.ParseContractNonce()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	return from, contractAddress, nonce, nil
+
+}
+
 // ParseContractFrom returns contract address within the script
 func (s *Script) ParseContractFrom() (*types.AddressPubKeyHash, error) {
 	_, operand, _, err := s.getNthOp(1, 0) // 1, 22

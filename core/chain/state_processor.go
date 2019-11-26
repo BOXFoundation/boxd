@@ -350,10 +350,11 @@ func addNewContractUtxos(
 			utxoWrap.AddValue(item.Value)
 			continue
 		}
-		// new contract in contract
+
 		scriptPubk, _ := script.MakeContractScriptPubkey(&item.Caller, &item.Address,
 			1, item.Nonce, 0)
 		value := item.Value
+		// new contract in contract
 		if statedb.IsContractAddr(item.Caller) {
 			// value is set when creating internal txs: createUtxoTxs
 			value = 0

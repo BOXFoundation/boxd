@@ -246,7 +246,7 @@ func (u *UtxoSet) applyUtxo(
 	}
 
 	// smart contract vout
-	contractAddr, err := sc.ParseContractAddr()
+	from, contractAddr, nonce, err := sc.ParseContractInfo()
 	if err != nil {
 		return err
 	}
@@ -254,8 +254,6 @@ func (u *UtxoSet) applyUtxo(
 	var outPoint *types.OutPoint
 	if deploy {
 		// deploy smart contract
-		from, _ := sc.ParseContractFrom()
-		nonce, _ := sc.ParseContractNonce()
 		contractAddr, _ := types.MakeContractAddress(from, nonce)
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint = types.NewOutPoint(addressHash, 0)
