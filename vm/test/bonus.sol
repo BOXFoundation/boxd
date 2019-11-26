@@ -49,7 +49,7 @@ contract Permission {
 contract Bonus is Permission{
     using SafeMath for uint;
 
-    uint constant DYNASTY_SIZE = 6;
+    uint constant DYNASTY_SIZE = 15;
     uint constant NET_PARAMS_LENGTH = 14;
 
     uint constant PLEDGE_THRESHOLD = 1;
@@ -167,16 +167,16 @@ contract Bonus is Permission{
 
     function initNetParams() internal {
         netParams[PLEDGE_THRESHOLD] = 1800000 * 10**8;
-        netParams[DYNASTY_CHANGE_THRESHOLD] = 250;
+        netParams[DYNASTY_CHANGE_THRESHOLD] = 750;
         netParams[MIN_VOTE_BONUS_LIMIT_TO_PICK] = 1 * 10**8;
-        netParams[VOTE_FROZEN_BLOCK_NUMBER] = 50;
+        netParams[VOTE_FROZEN_BLOCK_NUMBER] = 250;
         netParams[VOTE_THRESHOLD] = 1 * 10**8;
         netParams[PROPOSAL_EXPENDITURE] = 100 * 10**8;
-        netParams[PLEDGE_OPEN_LIMIT] = 100;
+        netParams[PLEDGE_OPEN_LIMIT] = 250;
         netParams[PROPOSAL_EXPIRATION_TIME] = 100;
         netParams[BOOK_KEEPER_REWARD] = 2.852 * 10**8;
         netParams[BONUS_TO_VOTERS] = 50;
-        netParams[CALC_SCORE_THRESHOLD] = 200;
+        netParams[CALC_SCORE_THRESHOLD] = 500;
         netParams[BLOCK_REWARD] = 3.17 * 10**8;
         netParams[FREE_TO_REPORT_EVIL] = 100;
         netParams[THE_MINIMUM_OUTPUT_OVER_EVIL] = 100;
@@ -184,22 +184,47 @@ contract Bonus is Permission{
 
     function initDynasty() internal {
 
-        addrToEpoch[0xce86056786e3415530f8cc739fb414a87435b4b6] = Delegate(0xce86056786e3415530f8cc739fb414a87435b4b6,
-         "12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza", 0, 1800000 * 10**8, 0, 0, 0, 0);
-        addrToEpoch[0x50570cc73bb18a51fc4153eec68d21d1105d326e] = Delegate(0x50570cc73bb18a51fc4153eec68d21d1105d326e,
-         "12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA", 0, 1800000 * 10**8, 0, 0, 0, 0);
-        addrToEpoch[0xae3e96d008658db64dd4f8df2d736edbc6be1c31] = Delegate(0xae3e96d008658db64dd4f8df2d736edbc6be1c31,
-         "12D3KooWSdXLNeoRQQ2a7yiS6xLpTn3LdCr8B8fqPz94Bbi7itsi", 0, 1800000 * 10**8, 0, 0, 0, 0);
-        addrToEpoch[0x064b377c9555b83a43d05c773cef7c3a6209154f] = Delegate(0x064b377c9555b83a43d05c773cef7c3a6209154f,
-         "12D3KooWRHVAwymCVcA8jqyjpP3r3HBkCW2q5AZRTBvtaungzFSJ", 0, 1800000 * 10**8, 0, 0, 0, 0);
-        addrToEpoch[0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258] = Delegate(0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258,
-         "12D3KooWQSaxCgbWakLcU69f4gmNFMszwhyHbwx4xPAhV7erDC2P", 0, 1800000 * 10**8, 0, 0, 0, 0);
-        addrToEpoch[0x7f7c5668923236d74334651f731aac5dbc69421b] = Delegate(0x7f7c5668923236d74334651f731aac5dbc69421b,
-         "12D3KooWNcJQzHaNpW5vZDQbTcoLXVCyGS755hTpendGzb5Hqtcu", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x6c3ef46511e9d90605eef21a1ae36d3cf5a4b568] = Delegate(0x6c3ef46511e9d90605eef21a1ae36d3cf5a4b568,
+         "12D3KooWCUtmtvVRagU3TQVau8tFpBBdwX7dAQazZmXzCxDCHpBC", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x53f91a5c5fdd50e2c83408ad63848a7252232917] = Delegate(0x53f91a5c5fdd50e2c83408ad63848a7252232917,
+         "12D3KooWBTzdAUEuQUb4c5EKXxF1Q13GLmBEFv6qaWpQGGC4jBoU", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x426e8ee34e438610dead11081da11369245921a9] = Delegate(0x426e8ee34e438610dead11081da11369245921a9,
+         "12D3KooWS9MjDVTfUZdVvTF36e4YtqcsoGsefdMARhjmaDRLia6p", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x990db265684e6ef492dd21c1aaf15a18d1f2b741] = Delegate(0x990db265684e6ef492dd21c1aaf15a18d1f2b741,
+         "12D3KooWSazVn8mnTY8uzrYuYg28VrBg7Qq2qQcWW2LA2byvqJSD", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x52a1558105f0f61a397c63fcfe8adf1197295a3a] = Delegate(0x52a1558105f0f61a397c63fcfe8adf1197295a3a,
+         "12D3KooWCJDwfodZs2AhpbqTRwfXkndsd96oSo7BSM1JRXvuYdQP", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0xf00f7f77206632e3d7ae08736786666c2600097d] = Delegate(0xf00f7f77206632e3d7ae08736786666c2600097d,
+         "12D3KooWD7cXyPoxGHnX1k44NB5bMTpYGXGSzfKoaGte6cxZjMWN", 0, 1800000 * 10**8, 0, 0, 0, 0);
 
-        epochAddrs = [0xce86056786e3415530f8cc739fb414a87435b4b6, 0x50570cc73bb18a51fc4153eec68d21d1105d326e,
-         0xae3e96d008658db64dd4f8df2d736edbc6be1c31, 0x064b377c9555b83a43d05c773cef7c3a6209154f,
-          0x3e8821fa1b0f9fef5aaf3e1bb5879bf36772c258, 0x7f7c5668923236d74334651f731aac5dbc69421b];
+        addrToEpoch[0xaa4aa079becf3cc1370d2890463a0ce5400d1fe3] = Delegate(0xaa4aa079becf3cc1370d2890463a0ce5400d1fe3,
+         "12D3KooWN53d5N5Aea3uAsQb9rH7TQhcGbw2efCqUtyvvQH8AM48", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0xd29e397615c4ca98299202d1c3c0ed561d30d40e] = Delegate(0xd29e397615c4ca98299202d1c3c0ed561d30d40e,
+         "12D3KooWL6rRvYBwYzK4SGognePEJCKWMPFMKjz18yd6kKfNJtBo", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x250d3faf1bdcddfd36796020c9ae16da3023788b] = Delegate(0x250d3faf1bdcddfd36796020c9ae16da3023788b,
+         "12D3KooWH6ujHWPTiA6dDbN4xjtB4EaHLUQ5xRmtPhmuSakB5P1h", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0xdb39b7ff87f0bfea70668295e849929675095a12] = Delegate(0xdb39b7ff87f0bfea70668295e849929675095a12,
+         "12D3KooWNHCVMgSiLuifJRCKFMaAfmLGiCyJBGCvNyWSyqgcFn88", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0xf7639efcc26f4760e8db8d714634f30edf961340] = Delegate(0xf7639efcc26f4760e8db8d714634f30edf961340,
+         "12D3KooWRu4RzgZb22o8vqGm2xDnPfiwZQdjtGscvFd3dvQdrzas", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x87886c24656ad62d355d248fd6acb4a8ec72f1ce] = Delegate(0x87886c24656ad62d355d248fd6acb4a8ec72f1ce,
+         "12D3KooWGmosk64ctzoU8zxrVfWjEKF9rFTZJQtNfjZAMMtqRmA9", 0, 1800000 * 10**8, 0, 0, 0, 0);
+
+        addrToEpoch[0x8403857db5a89c7b7bd867e71a136cea03cc6bf9] = Delegate(0x8403857db5a89c7b7bd867e71a136cea03cc6bf9,
+         "12D3KooWSAwQYekY6udpRT5WG8fzo8qv2aGhyiamEL3RTXtrrPa8", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x669b58e9f281004a9bc84819591fa1f1e6c32b78] = Delegate(0x669b58e9f281004a9bc84819591fa1f1e6c32b78,
+         "12D3KooWFJ9uydD4L4PT9m5EJ1vcHSp2BEK548hDdk2LGruiEihV", 0, 1800000 * 10**8, 0, 0, 0, 0);
+        addrToEpoch[0x3933e339c98f8101256d276693ec5c89b601594c] = Delegate(0x3933e339c98f8101256d276693ec5c89b601594c,
+         "12D3KooWPNazssGPp8Nk4dT4Sc2GVDrVcfoVNoqojH3t8svycm5R", 0, 1800000 * 10**8, 0, 0, 0, 0);
+
+        epochAddrs = [0x6c3ef46511e9d90605eef21a1ae36d3cf5a4b568, 0x53f91a5c5fdd50e2c83408ad63848a7252232917,
+         0x426e8ee34e438610dead11081da11369245921a9, 0x990db265684e6ef492dd21c1aaf15a18d1f2b741,
+          0x52a1558105f0f61a397c63fcfe8adf1197295a3a, 0xf00f7f77206632e3d7ae08736786666c2600097d,
+          0xaa4aa079becf3cc1370d2890463a0ce5400d1fe3, 0xd29e397615c4ca98299202d1c3c0ed561d30d40e,
+          0x250d3faf1bdcddfd36796020c9ae16da3023788b, 0xdb39b7ff87f0bfea70668295e849929675095a12,
+          0xf7639efcc26f4760e8db8d714634f30edf961340, 0x87886c24656ad62d355d248fd6acb4a8ec72f1ce,
+          0x8403857db5a89c7b7bd867e71a136cea03cc6bf9, 0x669b58e9f281004a9bc84819591fa1f1e6c32b78,
+          0x3933e339c98f8101256d276693ec5c89b601594c];
         lastEpochAddrs = epochAddrs;
         dynasty = epochAddrs;
 

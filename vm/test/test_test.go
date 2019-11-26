@@ -138,7 +138,7 @@ func TestGenesisContract(t *testing.T) {
 	_, _, vmerr = evm.Call(contractRef, contractAddr, input, stateDb.GetBalance(fromAddress).Uint64(), big.NewInt(0))
 	ensure.Nil(t, vmerr)
 
-	ctx = chain.NewEVMContext(msg, cc.GetHeader(15249), blockChain)
+	ctx = chain.NewEVMContext(msg, cc.GetHeader(15749), blockChain)
 	evm = vm.NewEVM(ctx, stateDb, vmConfig)
 	input, err = abiObj.Pack("execBonus")
 	must(err)
@@ -155,7 +155,7 @@ func TestGenesisContract(t *testing.T) {
 	for _, v := range delegates {
 		res = append(res, v.Score.Uint64())
 	}
-	expect := []uint64{999, 800, 500, 300, 200, 100, 0}
+	expect := []uint64{999, 800, 500, 300, 200, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	ensure.DeepEqual(t, res, expect)
 
 	input, err = abiObj.Pack("getNetParams")
@@ -164,8 +164,8 @@ func TestGenesisContract(t *testing.T) {
 	ensure.Nil(t, vmerr)
 	var resParams [14]*big.Int
 	ensure.Nil(t, abiObj.Unpack(&resParams, "getNetParams", output))
-	ensure.DeepEqual(t, resParams[1].Int64(), int64(250))
-	ensure.DeepEqual(t, resParams[10].Int64(), int64(200))
+	ensure.DeepEqual(t, resParams[1].Int64(), int64(750))
+	ensure.DeepEqual(t, resParams[10].Int64(), int64(500))
 
 }
 
