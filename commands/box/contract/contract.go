@@ -1113,19 +1113,22 @@ func parseContractData(data string) (bytecode string, abi string, err error) {
 				return "", "", err
 			}
 			if len(binData) == 1 {
-				bytecode = binData[0]
-				abi = abiData[0]
+				bytecode = string(binData[0])
+				abi = string(abiData[0])
 			} else if len(binData) > 1 {
-				fmt.Printf("%v\n", solName)
+				for i, v := range solName {
+					fmt.Printf("%d:%s\n", i, v)
+				}
 				fmt.Println("Which one do you want to deploy?")
 				var input string
 				fmt.Scanf("%s", &input)
 				for i, v := range solName {
-					if input == v {
-						bytecode = binData[i]
-						abi = abiData[i]
+					if input == v || input == strconv.Itoa(i) {
+						bytecode = string(binData[i])
+						abi = string(abiData[i])
 					}
 				}
+				//if len(bytecode) == 0, there is no match in compiling sol file
 				if len(bytecode) == 0 {
 					return "", "", errors.New("Please make sure your input is correct")
 				}
@@ -1140,7 +1143,7 @@ func parseContractData(data string) (bytecode string, abi string, err error) {
 	return bytecode, abi, nil
 }
 
-func compileSol(filepath string) (binData []string, abiData []string, solName []string, err error) {
+func compileSol(filepath string) (binData [][]byte, abiData [][]byte, solName []string, err error) {
 	cmd := exec.Command("solc", filepath, "--bin", "--abi")
 	//CombinedOutput runs the command and returns its combined standard output and standard error.
 	output, err := cmd.CombinedOutput()
@@ -1150,30 +1153,18 @@ func compileSol(filepath string) (binData []string, abiData []string, solName []
 	}
 	binMatches := solcBinReg.FindAllSubmatch(output, -1)
 	for _, v := range binMatches {
-		for i, k := range v {
-			if (i+1)%2 == 0 {
-				binData = append(binData, string(k))
-			}
-		}
+		binData = append(binData, v[1])
 	}
 	abiMathes := solcAbiReg.FindAllSubmatch(output, -1)
 	for _, v := range abiMathes {
-		for i, k := range v {
-			if (i+1)%2 == 0 {
-				abiData = append(abiData, string(k))
-			}
-		}
+		abiData = append(abiData, v[1])
 	}
 	solFilePath = filepath
 	nameMatches := solNameReg.FindAllSubmatch(output, -1)
 	for _, v := range nameMatches {
-		for i, k := range v {
-			if (i+1)%2 == 0 {
-				solName = append(solName, string(k))
-			}
-		}
+		solName = append(solName, string(v[1]))
 	}
-	if len(abiData) == 0 && len(binData) == 0 && len(solName) == 0 {
+	if len(abiData) == 0 || len(binData) == 0 || len(solName) == 0 {
 		return nil, nil, nil, errors.New("no matche in sol file")
 	}
 	return binData, abiData, solName, nil
@@ -1323,14 +1314,14 @@ func compile(cmd *cobra.Command, args []string) {
 	for i := 0; i < len(binData); i++ {
 		binFile := outputDir + solName[i] + ".bin"
 		// write bin data to file
-		if err := ioutil.WriteFile(binFile, []byte(binData[i]), 0644); err != nil {
+		if err := ioutil.WriteFile(binFile, binData[i], 0644); err != nil {
 			fmt.Println(err)
 			return
 		}
 		fmt.Println("generate bin file:", binFile)
 		abiFile := outputDir + solName[i] + ".abi"
 		// write abi data to file
-		if err := ioutil.WriteFile(abiFile, []byte(abiData[i]), 0644); err != nil {
+		if err := ioutil.WriteFile(abiFile, abiData[i], 0644); err != nil {
 			fmt.Println(err)
 			return
 		}

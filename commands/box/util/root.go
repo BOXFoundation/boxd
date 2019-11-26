@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
@@ -267,6 +268,10 @@ func peerID(cmd *cobra.Command, args []string) {
 			return
 		}
 		data = string(dataByte)
+		if _, err := libcrypto.ConfigDecodeKey(data); err != nil {
+			fmt.Printf("read data from %s, error: %s", args[0], err)
+			return
+		}
 	} else if _, err := libcrypto.ConfigDecodeKey(args[0]); err == nil {
 		data = args[0]
 	} else {
@@ -308,11 +313,21 @@ func createPeerID(cmd *cobra.Command, args []string) {
 		}
 		peerKeyPath += "/peer.key"
 	} else if len(args) == 1 {
-		if err = util.FileExists(args[0]); err != nil {
-			fmt.Println(err)
-			return
+		if fileInfo, err := os.Stat(args[0]); err == nil {
+			if fileInfo.IsDir() {
+				peerKeyPath = args[0] + "/peer.key"
+			} else {
+				fmt.Printf("%s has already existed.\n", args[0])
+				return
+			}
+		} else {
+			if _, err := os.Stat(filepath.Dir(args[0])); err == nil {
+				peerKeyPath = args[0]
+			} else {
+				fmt.Println(err)
+				return
+			}
 		}
-		peerKeyPath = args[0] + "/peer.key"
 	}
 	key, _, err := libcrypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
@@ -331,4 +346,10 @@ func createPeerID(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println("generate peer key:", peerKeyPath)
+	peerID, err := peer.IDFromPublicKey(key.GetPublic())
+	if err != nil {
+		fmt.Println("get peer ID from public key error:", err)
+		return
+	}
+	fmt.Println("peer ID:", peerID.Pretty())
 }
