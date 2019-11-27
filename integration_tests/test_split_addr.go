@@ -183,6 +183,7 @@ func splitAddrRepeatTest(
 				logger.Panic(err)
 			}
 			atomic.AddUint64(txCnt, 1)
+			//time.Sleep(2 * time.Millisecond)
 		}
 	}
 	logger.Infof("%s sent %d transactions total %d to split address %s",

@@ -16,17 +16,16 @@ import (
 
 //
 var (
-	ErrInsufficientBalance      = errors.New("insufficient balance")
-	ErrInsufficientTokenBalance = errors.New("insufficient token balance")
-	ErrInvalidArguments         = errors.New("invalid arguments")
+	ErrInsufficientInput      = errors.New("insufficient input amount")
+	ErrInsufficientTokenInput = errors.New("insufficient input token amount")
+	ErrInvalidArguments       = errors.New("invalid arguments")
 )
 
 // NewTxWithUtxos new a transaction
 func NewTxWithUtxos(
 	fromAcc *acc.Account, toAddrs []*types.AddressHash, utxos []*rpcpb.Utxo, amounts []uint64,
-	changeAmt uint64,
 ) (*types.Transaction, *rpcpb.Utxo, error) {
-	tx, err := MakeUnsignedTx(fromAcc.AddressHash(), toAddrs, amounts, changeAmt, utxos...)
+	tx, err := MakeUnsignedTx(fromAcc.AddressHash(), toAddrs, amounts, utxos...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -36,6 +35,7 @@ func NewTxWithUtxos(
 	}
 	// change
 	var change *rpcpb.Utxo
+	changeAmt, _ := calcChangeAmount(amounts, utxos...)
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
@@ -56,16 +56,8 @@ func NewSplitAddrTxWithUtxos(
 		err = ErrInvalidArguments
 		return
 	}
-	// calc change amount
-	utxoValue := uint64(0)
-	for _, u := range utxos {
-		utxoValue += u.GetTxOut().GetValue()
-	}
-	extraFee := uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
-	changeAmt := utxoValue - core.TransferFee - extraFee
 	// make unsigned split addr tx
-	tx, err = MakeUnsignedSplitAddrTx(acc.AddressHash(), addrs, weights,
-		changeAmt, utxos...)
+	tx, err = MakeUnsignedSplitAddrTx(acc.AddressHash(), addrs, weights, utxos...)
 	if err != nil {
 		return
 	}
@@ -74,6 +66,7 @@ func NewSplitAddrTxWithUtxos(
 		return
 	}
 	// create change utxo
+	changeAmt, _ := calcChangeAmount(nil, utxos...)
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
@@ -85,12 +78,12 @@ func NewSplitAddrTxWithUtxos(
 
 // NewTokenIssueTxWithUtxos new token issue tx with utxos
 func NewTokenIssueTxWithUtxos(
-	fromAcc *acc.Account, to *types.AddressHash, tag *rpcpb.TokenTag, changeAmt uint64,
+	fromAcc *acc.Account, to *types.AddressHash, tag *rpcpb.TokenTag,
 	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *types.TokenID, *rpcpb.Utxo, error) {
 
 	tx, issueOutIndex, err := MakeUnsignedTokenIssueTx(fromAcc.AddressHash(), to,
-		tag, changeAmt, utxos...)
+		tag, utxos...)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -101,6 +94,7 @@ func NewTokenIssueTxWithUtxos(
 	// create change utxo
 	txHash, _ := tx.TxHash()
 	var change *rpcpb.Utxo
+	changeAmt, _ := calcChangeAmount(nil, utxos...)
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
@@ -115,14 +109,14 @@ func NewTokenIssueTxWithUtxos(
 // it returns tx, box change and token change
 func NewTokenTransferTxWithUtxos(
 	fromAcc *acc.Account, to []*types.AddressHash, amounts []uint64, tid *types.TokenID,
-	changeAmt uint64, utxos ...*rpcpb.Utxo,
+	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, *rpcpb.Utxo, error) {
 	if len(to) != len(amounts) {
 		return nil, nil, nil, ErrInvalidArguments
 	}
 	// unsigned tx
-	tx, tokenRemain, err := MakeUnsignedTokenTransferTx(fromAcc.AddressHash(), to,
-		amounts, tid, changeAmt, utxos...)
+	tx, err := MakeUnsignedTokenTransferTx(fromAcc.AddressHash(), to,
+		amounts, tid, utxos...)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -136,6 +130,8 @@ func NewTokenTransferTxWithUtxos(
 		tokenChange *rpcpb.Utxo
 		txHash      *crypto.HashType
 	)
+	changeAmt, _ := calcChangeAmount(nil, utxos...)
+	tokenRemain, _ := calcTokenChangeAmount(tid, amounts, utxos...)
 	if changeAmt > 0 || tokenRemain > 0 {
 		txHash, _ = tx.TxHash()
 	}
@@ -163,24 +159,21 @@ func NewTokenTransferTxWithUtxos(
 
 // MakeUnsignedTx make a tx without signature
 func MakeUnsignedTx(
-	from *types.AddressHash, to []*types.AddressHash, amounts []uint64,
-	changeAmt uint64, utxos ...*rpcpb.Utxo,
+	from *types.AddressHash, to []*types.AddressHash, amounts []uint64, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-
 	if len(to) != len(amounts) {
 		return nil, ErrInvalidArguments
 	}
-
-	if !checkAmount(amounts, changeAmt, utxos...) {
-		return nil, ErrInsufficientBalance
+	// calc change amount
+	changeAmt, err := calcChangeAmount(amounts, utxos...)
+	if err != nil {
+		return nil, err
 	}
-
 	// vin
 	vins := make([]*types.TxIn, 0, len(utxos))
 	for _, utxo := range utxos {
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
 	}
-
 	// vout for toAddrs
 	vouts := make([]*types.TxOut, 0, len(to))
 	for i, addr := range to {
@@ -199,15 +192,15 @@ func MakeUnsignedTx(
 }
 
 func makeUnsignedContractTx(
-	addr *types.AddressHash, amount, changeAmt uint64, contractVout *types.TxOut,
+	addr *types.AddressHash, amount, gasLimit uint64, contractVout *types.TxOut,
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-
-	amounts := []uint64{amount}
-	if !checkAmount(amounts, changeAmt, utxos...) {
-		return nil, ErrInsufficientBalance
+	// calc change amount
+	changeAmt, err := calcContractChangeAmount(gasLimit, utxos...)
+	if err != nil {
+		return nil, err
 	}
-
+	// create tx
 	vins := make([]*types.TxIn, 0, len(utxos))
 	for _, utxo := range utxos {
 		vins = append(vins, MakeVin(ConvPbOutPoint(utxo.OutPoint), 0))
@@ -222,36 +215,35 @@ func makeUnsignedContractTx(
 
 //MakeUnsignedContractDeployTx make a contract tx without signature
 func MakeUnsignedContractDeployTx(
-	from *types.AddressHash, amount, changeAmt, gasLimit, nonce uint64,
-	byteCode []byte, utxos ...*rpcpb.Utxo,
+	from *types.AddressHash, amount, gasLimit, nonce uint64, byteCode []byte,
+	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-
 	contractVout, err := MakeContractCreationVout(from, amount, gasLimit, nonce)
 	if err != nil {
 		return nil, err
 	}
-	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, byteCode, utxos...)
+	return makeUnsignedContractTx(from, amount, gasLimit, contractVout, byteCode, utxos...)
 }
 
 //MakeUnsignedContractCallTx call a contract tx without signature
 func MakeUnsignedContractCallTx(
-	from, to *types.AddressHash, amount, changeAmt, gasLimit, nonce uint64,
-	byteCode []byte, utxos ...*rpcpb.Utxo,
+	from, to *types.AddressHash, amount, gasLimit, nonce uint64, byteCode []byte,
+	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 	contractVout, err := MakeContractCallVout(from, to, amount, gasLimit, nonce)
 	if err != nil {
 		return nil, err
 	}
-	return makeUnsignedContractTx(from, amount, changeAmt, contractVout, byteCode, utxos...)
+	return makeUnsignedContractTx(from, amount, gasLimit, contractVout, byteCode, utxos...)
 }
 
 // NewContractTxWithUtxos new a contract transaction
 func NewContractTxWithUtxos(
-	fromAcc *acc.Account, contractAddr *types.AddressHash, amount, changeAmt,
-	gasLimit, nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
+	fromAcc *acc.Account, contractAddr *types.AddressHash, amount, gasLimit,
+	nonce uint64, byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, *rpcpb.Utxo, error) {
 	tx, err := MakeUnsignedContractCallTx(fromAcc.AddressHash(), contractAddr,
-		amount, changeAmt, gasLimit, nonce, byteCode, utxos...)
+		amount, gasLimit, nonce, byteCode, utxos...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -261,6 +253,7 @@ func NewContractTxWithUtxos(
 	}
 	// change
 	var change *rpcpb.Utxo
+	changeAmt, _ := calcContractChangeAmount(gasLimit, utxos...)
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
@@ -275,14 +268,16 @@ func NewContractTxWithUtxos(
 // MakeUnsignedSplitAddrTx make unsigned split addr tx
 func MakeUnsignedSplitAddrTx(
 	from *types.AddressHash, addrs []*types.AddressHash, weights []uint32,
-	changeAmt uint64, utxos ...*rpcpb.Utxo,
+	utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
-
+	// check
 	if len(addrs) != len(weights) {
 		return nil, ErrInvalidArguments
 	}
-	if !checkAmount(nil, changeAmt, utxos...) {
-		return nil, ErrInsufficientBalance
+	// calc change amount
+	changeAmt, err := calcChangeAmount(nil, utxos...)
+	if err != nil {
+		return nil, err
 	}
 	// vin
 	vins := make([]*types.TxIn, 0)
@@ -305,12 +300,13 @@ func MakeUnsignedSplitAddrTx(
 
 // MakeUnsignedTokenIssueTx make unsigned token issue tx
 func MakeUnsignedTokenIssueTx(
-	issuer, owner *types.AddressHash, tag *rpcpb.TokenTag, changeAmt uint64,
-	utxos ...*rpcpb.Utxo,
+	issuer, owner *types.AddressHash, tag *rpcpb.TokenTag, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, uint32, error) {
 
-	if !checkAmount(nil, changeAmt, utxos...) {
-		return nil, 0, ErrInsufficientBalance
+	// calc change amount
+	changeAmt, err := calcChangeAmount(nil, utxos...)
+	if err != nil {
+		return nil, 0, err
 	}
 	// vin
 	vins := make([]*types.TxIn, 0)
@@ -334,15 +330,20 @@ func MakeUnsignedTokenIssueTx(
 // MakeUnsignedTokenTransferTx make unsigned token transfer tx
 func MakeUnsignedTokenTransferTx(
 	from *types.AddressHash, to []*types.AddressHash, amounts []uint64,
-	tid *types.TokenID, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (*types.Transaction, uint64, error) {
-
+	tid *types.TokenID, utxos ...*rpcpb.Utxo,
+) (*types.Transaction, error) {
+	// check
 	if len(to) != len(amounts) {
-		return nil, 0, ErrInvalidArguments
+		return nil, ErrInvalidArguments
 	}
-	ok, tokenRemain := checkTokenAmount(tid, amounts, changeAmt, utxos...)
-	if !ok {
-		return nil, 0, ErrInsufficientTokenBalance
+	// calc change amount
+	changeAmt, err := calcChangeAmount(nil, utxos...)
+	if err != nil {
+		return nil, err
+	}
+	tokenRemain, err := calcTokenChangeAmount(tid, amounts, utxos...)
+	if err != nil {
+		return nil, err
 	}
 	// vin
 	vins := make([]*types.TxIn, 0)
@@ -354,7 +355,7 @@ func MakeUnsignedTokenTransferTx(
 	for i, addr := range to {
 		o, err := MakeTokenVout(addr, tid, amounts[i])
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		vouts = append(vouts, o)
 	}
@@ -362,7 +363,7 @@ func MakeUnsignedTokenTransferTx(
 	if tokenRemain > 0 {
 		o, err := MakeTokenVout(from, tid, tokenRemain)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		vouts = append(vouts, o)
 	}
@@ -375,50 +376,61 @@ func MakeUnsignedTokenTransferTx(
 	tx.Vin = append(tx.Vin, vins...)
 	tx.Vout = append(tx.Vout, vouts...)
 
-	return tx, tokenRemain, nil
+	return tx, nil
 }
 
-func checkAmount(amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo) bool {
-	utxoValue := uint64(0)
+func calcChangeAmount(toAmounts []uint64, utxos ...*rpcpb.Utxo) (uint64, error) {
+	inputAmt := uint64(0)
 	for _, u := range utxos {
-		amount, tid, err := ParseUtxoAmount(u)
-		if err != nil {
-			logger.Warn(err)
-			continue
-		}
-		if tid != nil {
-			logger.Warnf("have fetched un-relevant utxo: %+v, wanted non-token utxo", u)
-		}
-		utxoValue += amount
+		inputAmt += u.GetTxOut().GetValue()
 	}
-	amount := uint64(0)
-	for _, a := range amounts {
-		amount += a
+	toAmount := uint64(0)
+	for _, v := range toAmounts {
+		toAmount += v
 	}
-	return utxoValue >= amount+changeAmt
+	fee := uint64((len(utxos)+len(toAmounts)+1)/core.InOutNumPerExtraFee+1) * core.TransferFee
+	changeAmt := inputAmt - toAmount - fee
+	if changeAmt > inputAmt {
+		return 0, ErrInsufficientInput
+	}
+	return changeAmt, nil
 }
 
-func checkTokenAmount(
-	tid *types.TokenID, amounts []uint64, changeAmt uint64, utxos ...*rpcpb.Utxo,
-) (ok bool, tokenRemain uint64) {
-	amt, tAmt := uint64(0), uint64(0)
+func calcContractChangeAmount(gasLimit uint64, utxos ...*rpcpb.Utxo) (uint64, error) {
+	inputAmt := uint64(0)
+	for _, u := range utxos {
+		inputAmt += u.GetTxOut().GetValue()
+	}
+	// 2 stands for contract vout and change vout
+	extraFee := uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
+	changeAmt := inputAmt - gasLimit*core.FixedGasPrice - extraFee
+	if changeAmt > inputAmt {
+		return 0, ErrInsufficientInput
+	}
+	return changeAmt, nil
+}
+
+func calcTokenChangeAmount(
+	tid *types.TokenID, toAmounts []uint64, utxos ...*rpcpb.Utxo,
+) (uint64, error) {
+	inputAmt := uint64(0)
 	for _, u := range utxos {
 		v, id, err := ParseUtxoAmount(u)
 		if err != nil {
-			logger.Warn(err)
+			return 0, err
+		}
+		if id == nil || *id != *tid {
 			continue
 		}
-		if tid != nil && id != nil && *id == *tid {
-			tAmt += v
-		} else if id == nil {
-			amt += v
-		} else {
-			logger.Warnf("have fetched un-relevant utxo: %+v, wanted token id: %+v", u, tid)
-		}
+		inputAmt += v
 	}
-	amount := uint64(0)
-	for _, a := range amounts {
-		amount += a
+	toAmount := uint64(0)
+	for _, v := range toAmounts {
+		toAmount += v
 	}
-	return (amt >= changeAmt && tAmt >= amount), tAmt - amount
+	changeAmt := inputAmt - toAmount
+	if changeAmt > inputAmt {
+		return 0, ErrInsufficientTokenInput
+	}
+	return changeAmt, nil
 }
