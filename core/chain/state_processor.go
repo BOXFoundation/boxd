@@ -134,7 +134,7 @@ func ApplyTransaction(
 	//logger.Infof("ApplyMessage tx: %+v, header: %+v", tx, header)
 	ret, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if !fail && err != nil {
-		logger.Warn(err)
+		logger.Errorf("Failed to apply message with tx: %+v", tx)
 		return nil, 0, 0, nil, err
 	}
 	logger.Infof("result for ApplyMessage msg %s, gasUsed: %d, gasRemainingFee:"+
@@ -170,14 +170,14 @@ func ApplyTransaction(
 		// create internal txs
 		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet, bc.db, statedb)
 		if err != nil {
-			logger.Warn(err)
+			logger.Error(err)
 			return nil, 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs...)
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
 		internalTxs, err := createRefundTx(tx, senderNonce, utxoSet, contractAddr)
 		if err != nil {
-			logger.Warn(err)
+			logger.Error(err)
 			return nil, 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs)
