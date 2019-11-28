@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
@@ -75,7 +74,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		curTimes = 1 + rand.Intn(utils.TokenRepeatTxTimes())
 	}
 	//
-	totalFee := uint64(curTimes+1) * core.TransferFee
+	totalFee := uint64(curTimes+2) * 2 * core.TransferFee
 	logger.Infof("waiting for minersAddr %s has %d at least for token test",
 		loaner, totalFee)
 	_, err = utils.WaitBalanceEnough(loaner, totalFee, conn, timeoutToChain)
@@ -93,7 +92,7 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	minerAcc, _ := AddrToAcc.Load(loaner)
 	tx, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
 		[]*types.AddressHash{issuerAddress.Hash160(), senderAddress.Hash160()},
-		[]uint64{core.TransferFee, totalFee - core.TransferFee}, conn)
+		[]uint64{2 * core.TransferFee, totalFee - 2*core.TransferFee}, conn)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -172,7 +171,7 @@ func tokenRepeatTest(issuer, sender, receiver string,
 			logger.Panic(err)
 		}
 		atomic.AddUint64(txCnt, 1)
-		time.Sleep(2 * time.Millisecond)
+		//time.Sleep(2 * time.Millisecond)
 	}
 	logger.Infof("%s sent %d times total %d token tx to %s", sender, times,
 		txTotalAmount, receiver)

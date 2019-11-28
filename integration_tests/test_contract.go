@@ -11,7 +11,6 @@ import (
 	"math/rand"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/abi"
@@ -24,7 +23,7 @@ import (
 )
 
 const (
-	sendGas = uint64(40000) * 500 * core.FixedGasPrice
+	sendGas = uint64(40000+core.TransferGasLimit) * 500 * core.FixedGasPrice
 )
 
 // ContractTest manage circulation of ERC20 contract
@@ -76,7 +75,7 @@ func (t *ContractTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	defer UnpickMiner(miner)
 	//
-	createGas := uint64(1040000) * core.FixedGasPrice
+	createGas := uint64(1300000) * core.FixedGasPrice
 	logger.Infof("waiting for minersAddr %s has %d at least for contract test",
 		miner, createGas+sendGas)
 	_, err = utils.WaitBalanceEnough(miner, createGas+sendGas, conn, timeoutToChain)
@@ -142,7 +141,7 @@ func contractRepeatTest(
 	erc20Bytes, _ := hex.DecodeString(testERC20Contract)
 	gasLimit, nonce := uint64(1000000), utils.NonceFor(owner, conn)+1
 	tx, contractAddr, err := rpcutil.NewContractDeployTx(ownerAcc.(*acc.Account),
-		gasLimit, nonce, erc20Bytes, conn)
+		0, gasLimit, nonce, erc20Bytes, conn)
 	issueHash, _ := tx.TxHash()
 	if err != nil {
 		logger.Panic(err)
@@ -164,7 +163,6 @@ func contractRepeatTest(
 	if err != nil {
 		logger.Panic(err)
 	}
-
 	// approve spender 10000*10^8
 	logger.Infof("%s approve spender %s 10000*10^8 token", owner, spender)
 	gasLimit = 40000
@@ -172,7 +170,7 @@ func contractRepeatTest(
 	code = erc20ApproveCall(spender, totalAmount)
 	contractAddress, _ := types.NewContractAddress(contractAddr)
 	tx, err = rpcutil.NewContractCallTx(ownerAcc.(*acc.Account),
-		contractAddress.Hash160(), gasLimit, nonce, code, conn)
+		contractAddress.Hash160(), 0, gasLimit, nonce, code, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -214,7 +212,7 @@ func contractRepeatTest(
 		hash, _ := tx.TxHash()
 		transferHashes = append(transferHashes, hash)
 		atomic.AddUint64(txCnt, 1)
-		time.Sleep(50 * time.Millisecond)
+		//time.Sleep(2 * time.Millisecond)
 	}
 	logger.Infof("%s has transfered %d times total %d contract transferFrom tx to %s",
 		spender, times, totalAmount, receiver)

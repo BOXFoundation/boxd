@@ -134,7 +134,7 @@ func txRepeatTest(fromAddr, toAddr string, conn *grpc.ClientConn, times int, txC
 					logger.Panic(err)
 				}
 				atomic.AddUint64(txCnt, 1)
-				time.Sleep(2 * time.Millisecond)
+				//time.Sleep(1 * time.Millisecond)
 			}
 		}(txs)
 	}

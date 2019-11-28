@@ -693,11 +693,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 	)
 	blockHeight := block.Header.Height
 	logger.Infof("Try to connect block %s:%d to main chain. ", block.BlockHash(), blockHeight)
-	if err := chain.consensus.Verify(block); err != nil {
-		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
-			block.BlockHash(), blockHeight, err)
-		return err
-	}
 	blockCopy := block.Copy()
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 	if messageFrom == "" { // locally generated block
@@ -708,6 +703,11 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 		delete(chain.blockExecuteResults, blockHeight)
 	} else {
+		if err := chain.consensus.Verify(block); err != nil {
+			logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+				block.BlockHash(), blockHeight, err)
+			return err
+		}
 		if res, err = chain.adjustAndValidateState(block, blockCopy); err != nil {
 			return err
 		}
@@ -927,7 +927,7 @@ func (chain *BlockChain) adjustAndValidateState(
 	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
 	receipts, gasUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("block state processor occurs error. Err: %v", err)
 		return nil, err
 	}
 	if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee,

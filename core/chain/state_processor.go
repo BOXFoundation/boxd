@@ -134,7 +134,7 @@ func ApplyTransaction(
 	//logger.Infof("ApplyMessage tx: %+v, header: %+v", tx, header)
 	ret, gasUsed, gasRemainingFee, fail, gasRefundTx, err := ApplyMessage(vmenv, tx)
 	if !fail && err != nil {
-		logger.Warn(err)
+		logger.Errorf("Failed to apply message with tx: %+v", tx)
 		return nil, 0, 0, nil, err
 	}
 	logger.Infof("result for ApplyMessage msg %s, gasUsed: %d, gasRemainingFee:"+
@@ -170,14 +170,14 @@ func ApplyTransaction(
 		// create internal txs
 		internalTxs, err := createUtxoTx(vmenv.Transfers, senderNonce, utxoSet, bc.db, statedb)
 		if err != nil {
-			logger.Warn(err)
+			logger.Error(err)
 			return nil, 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs...)
 	} else if fail && tx.Value().Uint64() > 0 { // tx failed
 		internalTxs, err := createRefundTx(tx, senderNonce, utxoSet, contractAddr)
 		if err != nil {
-			logger.Warn(err)
+			logger.Error(err)
 			return nil, 0, 0, nil, err
 		}
 		txs = append(txs, internalTxs)
@@ -350,10 +350,11 @@ func addNewContractUtxos(
 			utxoWrap.AddValue(item.Value)
 			continue
 		}
-		// new contract in contract
+
 		scriptPubk, _ := script.MakeContractScriptPubkey(&item.Caller, &item.Address,
 			1, item.Nonce, 0)
 		value := item.Value
+		// new contract in contract
 		if statedb.IsContractAddr(item.Caller) {
 			// value is set when creating internal txs: createUtxoTxs
 			value = 0
