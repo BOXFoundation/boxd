@@ -92,7 +92,6 @@ func (s *txServer) GetTokenBalance(
 		}
 		balances[i] = amount
 	}
-	logger.Infof("get token balance for %v %+v result: %v", req.Addrs, tid, balances)
 	return newGetBalanceResp(0, "ok", balances...), nil
 }
 

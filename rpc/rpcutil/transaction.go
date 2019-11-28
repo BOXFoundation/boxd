@@ -523,7 +523,8 @@ func MakeUnsignedTokenTransferTx(
 	amounts []uint64, tid *types.TokenID,
 ) (*types.Transaction, []*rpcpb.Utxo, error) {
 	// add an extra TransferFee to avoid change amount is zero
-	utxos, err := wa.Utxos(from, nil, 2*core.TransferFee)
+	fee := uint64((len(to)+15)/core.InOutNumPerExtraFee+1) * core.TransferFee
+	utxos, err := wa.Utxos(from, nil, fee)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -70,6 +70,9 @@ type TransactionPool struct {
 	// types.OutPoint -> (crypto.HashType -> *types.Transaction)
 	outPointToOrphan *sync.Map
 	txcache          *lru.Cache
+	// nonces map is used to check and remove txs that have the same nonce already
+	// in map
+	nonceMap map[types.AddressHash]map[uint64]struct{}
 }
 
 // NewTransactionPool new a transaction pool.
@@ -88,6 +91,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		outPointToOrphan:    new(sync.Map),
 		outPointToTx:        new(sync.Map),
 		txcache:             txcache,
+		nonceMap:            make(map[types.AddressHash]map[uint64]struct{}),
 	}
 }
 
@@ -206,7 +210,8 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 					continue
 				}
 				hash, _ := childTx.TxHash()
-				logger.Debugf("Remove related child tx %s when block %v disconnects from main chain", hash, v.BlockHash())
+				logger.Debugf("Remove related child tx %s when block %v disconnects "+
+					"from main chain", hash, v.BlockHash())
 				tx_pool.removeTx(childTx, true)
 			}
 		}
@@ -223,7 +228,8 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
 		txHash, _ := tx.TxHash()
 		tx_pool.txcache.Add(*txHash, true)
-		// Since the passed tx is confirmed in a new block, all its childrent remain valid, thus no recursive removal.
+		// Since the passed tx is confirmed in a new block, all its childrent remain
+		// valid, thus no recursive removal.
 		tx_pool.removeTx(tx, false /* non-recursive */)
 		// tx_pool.removeDoubleSpendTxs(tx)
 		tx_pool.removeOrphan(tx)
@@ -322,7 +328,8 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	// Quickly detects if the tx double spends with any transaction in the pool.
 	// Double spending with the main chain txs will be checked in ValidateTxInputs.
 	if err := tx_pool.checkDoubleSpend(tx); err != nil {
-		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
+		logger.Errorf("Tx %s double spends outputs spent by other pending txs: %s",
+			txHash, err)
 		return err
 	}
 	if tx.Type == types.PayToPubkTx {
@@ -474,7 +481,6 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32) {
 func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) {
 	txHash, _ := tx.TxHash()
 	tx_pool.hashToTx.Delete(*txHash)
-
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
 		if dsTx := tx_pool.FindTransaction(&txIn.PrevOutPoint); dsTx != nil {
@@ -484,6 +490,16 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 				logger.Warnf("Remove double spend tx when main chain update. TxHash: %v", doubleSpentTxHash)
 				tx_pool.hashToTx.Delete(*doubleSpentTxHash)
 			}
+		}
+	}
+	// delete nonce key in nonce map for contract tx
+	if txlogic.GetTxType(tx, tx_pool.chain.TailState()) == types.ContractTx {
+		contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
+		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+		param, _, _ := sc.ParseContractParams()
+		delete(tx_pool.nonceMap[*param.From], param.Nonce)
+		if len(tx_pool.nonceMap[*param.From]) == 0 {
+			delete(tx_pool.nonceMap, *param.From)
 		}
 	}
 
@@ -687,15 +703,17 @@ func lengthOfSyncMap(target *sync.Map) int {
 }
 
 // CheckGasAndNonce checks whether gas price of tx is valid
-func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet *chain.UtxoSet) error {
-
+func (tx_pool *TransactionPool) CheckGasAndNonce(
+	tx *types.Transaction, utxoSet *chain.UtxoSet,
+) error {
 	txFee, err := chain.ValidateTxInputs(utxoSet, tx)
 	if err != nil {
 		return err
 	}
 	if txlogic.GetTxType(tx, tx_pool.chain.TailState()) != types.ContractTx {
 		if txFee != core.TransferFee+tx.ExtraFee() {
-			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee, core.TransferFee+tx.ExtraFee())
+			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee,
+				core.TransferFee+tx.ExtraFee())
 		}
 		return nil
 	}
@@ -734,32 +752,48 @@ func (tx_pool *TransactionPool) CheckGasAndNonce(tx *types.Transaction, utxoSet 
 	// check sender nonce
 	nonceOnChain := tx_pool.chain.TailState().GetNonce(*param.From)
 	if param.Nonce < nonceOnChain+1 {
-		return fmt.Errorf("%s(%d, %d on chain), block height: %d",
-			core.ErrNonceTooLow, param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
-	} else if param.Nonce >= nonceOnChain+1 {
-		// check whether a tx is in pool that have a bigger nonce and remove it if it exists
-		dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
-		for i := 0; i < len(dsTxs); i++ {
-			if txlogic.GetTxType(dsTxs[i], tx_pool.chain.TailState()) != types.ContractTx {
-				continue
-			}
-			contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
-			sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
-			p, _, err := sc.ParseContractParams()
-			if err != nil {
-				// contract vout that pay to contract address
-				continue
-			}
-			if param.Nonce < p.Nonce {
-				txHash, _ := tx.TxHash()
-				dsHash, _ := dsTxs[i].TxHash()
-				logger.Warnf("remove tx %s(nonce %d) from pool since tx %s have a "+
-					"lower nonce(%d)", dsHash, p.Nonce, txHash, param.Nonce)
-				tx_pool.outPointToTx.Delete(*dsOps[i])
-				tx_pool.hashToTx.Delete(*dsHash)
+		return fmt.Errorf("%s(%d, %d on chain), block height: %d", core.ErrNonceTooLow,
+			param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
+	}
+	if param.Nonce > nonceOnChain+200 {
+		return fmt.Errorf("%s(%d, %d on chain), block height: %d", core.ErrNonceTooBig,
+			param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
+	}
+	// check whether nonce is duplicate
+	if _, ok := tx_pool.nonceMap[*param.From]; ok {
+		if _, exists := tx_pool.nonceMap[*param.From][param.Nonce]; exists {
+			return fmt.Errorf("%s(%d)", core.ErrNonceExists, param.Nonce)
+		}
+	} else {
+		tx_pool.nonceMap[*param.From] = make(map[uint64]struct{})
+	}
+	// check whether a tx is in pool that have a bigger nonce and remove it if it exists
+	dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
+	for i := 0; i < len(dsTxs); i++ {
+		if txlogic.GetTxType(dsTxs[i], tx_pool.chain.TailState()) != types.ContractTx {
+			continue
+		}
+		contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
+		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+		p, _, err := sc.ParseContractParams()
+		if err != nil {
+			// contract vout that pay to contract address
+			continue
+		}
+		if param.Nonce < p.Nonce {
+			txHash, _ := tx.TxHash()
+			dsHash, _ := dsTxs[i].TxHash()
+			logger.Warnf("remove tx %s(nonce %d) from pool since tx %s have a "+
+				"lower nonce(%d)", dsHash, p.Nonce, txHash, param.Nonce)
+			tx_pool.outPointToTx.Delete(*dsOps[i])
+			tx_pool.hashToTx.Delete(*dsHash)
+			delete(tx_pool.nonceMap[*param.From], p.Nonce)
+			if len(tx_pool.nonceMap[*param.From]) == 0 {
+				delete(tx_pool.nonceMap, *param.From)
 			}
 		}
 	}
+	tx_pool.nonceMap[*param.From][param.Nonce] = struct{}{}
 
 	return nil
 }

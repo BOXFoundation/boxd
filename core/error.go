@@ -44,6 +44,8 @@ var (
 	ErrMaxTxsSizeExceeded           = errors.New("Max txs size exceeded")
 	ErrMaxCodeSizeExceeded          = errors.New("Max contract code size exceeded")
 	ErrNonceTooLow                  = errors.New("Nonce is too low")
+	ErrNonceTooBig                  = errors.New("Nonce is too big")
+	ErrNonceExists                  = errors.New("Nonce already exists")
 	ErrMixedVoutTx                  = errors.New("mixed vout transaction")
 
 	//transaciton_pool.go

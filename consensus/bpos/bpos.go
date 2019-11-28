@@ -409,7 +409,8 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			if vmTx.Nonce() != currentNonce+1 {
 				// remove from mem_pool if vmTx nonce is smaller than current nonce
 				if vmTx.Nonce() < currentNonce+1 {
-					logger.Warnf("vm tx %+v has a wrong nonce, expect nonce: %d, remove it from mem_pool.", vmTx, currentNonce+1)
+					logger.Warnf("vm tx %+v has a wrong nonce, expect nonce: %d, remove "+
+						"it from mem_pool.", vmTx, currentNonce+1)
 					bpos.chain.Bus().Publish(eventbus.TopicInvalidTx, hashToTx[*hash].Tx, true)
 				} else {
 					logger.Warnf("vm tx %+v has a bigger nonce, expect nonce: %d", vmTx, currentNonce+1)
