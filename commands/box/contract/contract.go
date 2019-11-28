@@ -98,6 +98,14 @@ var rootCmd = &cobra.Command{
 `,
 }
 
+var (
+	compileCmd = &cobra.Command{
+		Use:   "compile",
+		Short: "Compile contract source file",
+		Run:   compile,
+	}
+)
+
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
 	rootCmd.AddCommand(
@@ -154,12 +162,9 @@ func init() {
 			Short: "view contract details",
 			Run:   detailAbi,
 		},
-		&cobra.Command{
-			Use:   "compile [sol_file_path] [optional|ouput_file_path]",
-			Short: "Compile contract source file",
-			Run:   compile,
-		},
+		compileCmd,
 	)
+	common.SetFlag(compileCmd)
 }
 
 func importAbi(cmd *cobra.Command, args []string) {
@@ -238,9 +243,7 @@ func importAbi(cmd *cobra.Command, args []string) {
 	fmt.Printf("Would you want to change current index into %d. [Y/n]\n", max+1)
 	var input string
 	fmt.Scanf("%s", &input)
-	switch {
-	case input == "n" || input == "N":
-	default:
+	if input != "n" && input != "N" {
 		setabi(&cobra.Command{}, []string{strconv.Itoa(max + 1)})
 	}
 }
@@ -1282,25 +1285,26 @@ func detailAbi(cmd *cobra.Command, args []string) {
 }
 
 func compile(cmd *cobra.Command, args []string) {
-	if len(args) == 0 || len(args) > 2 {
+	if len(args) != 0 {
 		fmt.Println(cmd.Use)
 		return
 	}
-	filepath := args[0]
-	if err := util.FileExists(filepath); err != nil {
+	if len(common.InFilePath) == 0 {
+		fmt.Println("please input the path of peer.key")
+		return
+	}
+	if err := util.FileExists(common.InFilePath); err != nil {
 		fmt.Println(err)
 		return
 	}
-	var outputDir string
-	if len(args) == 1 {
-		currentFilePath, err := os.Getwd()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		outputDir = currentFilePath + "/"
-	} else if len(args) == 2 {
-		outputDir = args[1] + "/"
+	var (
+		outputDir string
+		filepath  = common.InFilePath
+	)
+	if common.OutFilePath == common.GetCurrentFilePath() {
+		outputDir = common.GetCurrentFilePath() + "/"
+	} else {
+		outputDir = common.OutFilePath + "/"
 		if _, err := os.Stat(outputDir); err != nil {
 			fmt.Printf("output dir %s error: %s\n", outputDir, err)
 			return
