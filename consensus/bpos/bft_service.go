@@ -36,6 +36,7 @@ type BftService struct {
 	blockCommitMsgCache  *sync.Map
 	blockPrepareMsgKey   *lru.Cache
 	blockCommitMsgKey    *lru.Cache
+	blockDynastyCache    *lru.Cache
 	proc                 goprocess.Process
 }
 
@@ -55,6 +56,7 @@ func NewBftService(consensus *Bpos) (*BftService, error) {
 
 	bft.blockPrepareMsgKey, _ = lru.New(64)
 	bft.blockCommitMsgKey, _ = lru.New(64)
+	bft.blockDynastyCache, _ = lru.New(64)
 	return bft, nil
 }
 
@@ -111,12 +113,18 @@ func (bft *BftService) FetchIrreversibleInfo() *types.IrreversibleInfo {
 		blockHash := *block.BlockHash()
 		if value, ok := bft.blockCommitMsgCache.Load(blockHash); ok {
 			signatures := value.([][]byte)
-			dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
-			if err != nil {
-				logger.Errorf("Failed to fetch dynasty info. Err: %v", err)
-				height--
-				offset--
-				continue
+			var dynasty *Dynasty
+			res, ok := bft.blockDynastyCache.Get(height)
+			if ok {
+				dynasty = res.(*Dynasty)
+			} else {
+				dynasty, err = bft.consensus.fetchDynastyByHeight(height)
+				if err != nil {
+					height--
+					offset--
+					continue
+				}
+				bft.blockDynastyCache.Add(block.Header.Height, dynasty)
 			}
 			if len(signatures) >= 2*len(dynasty.delegates)/3 {
 				// go bft.updateEternal(block)
@@ -179,10 +187,18 @@ func (bft *BftService) handleBlockPrepareMsg(msg p2p.Message) error {
 		if err != nil {
 			return err
 		}
-		dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
-		if err != nil {
-			return err
+		var dynasty *Dynasty
+		res, ok := bft.blockDynastyCache.Get(block.Header.Height)
+		if ok {
+			dynasty = res.(*Dynasty)
+		} else {
+			dynasty, err = bft.consensus.fetchDynastyByHeight(block.Header.Height)
+			if err != nil {
+				return err
+			}
+			bft.blockDynastyCache.Add(block.Header.Height, dynasty)
 		}
+
 		addr := *addrPubKeyHash.Hash160()
 		var delegate *Delegate
 		for _, v := range dynasty.delegates {
@@ -235,9 +251,16 @@ func (bft *BftService) handleBlockCommitMsg(msg p2p.Message) error {
 			return err
 		}
 		addr := *addrPubKeyHash.Hash160()
-		dynasty, err := bft.consensus.fetchDynastyByHeight(block.Header.Height)
-		if err != nil {
-			return err
+		var dynasty *Dynasty
+		res, ok := bft.blockDynastyCache.Get(block.Header.Height)
+		if ok {
+			dynasty = res.(*Dynasty)
+		} else {
+			dynasty, err = bft.consensus.fetchDynastyByHeight(block.Header.Height)
+			if err != nil {
+				return err
+			}
+			bft.blockDynastyCache.Add(block.Header.Height, dynasty)
 		}
 		var delegate *Delegate
 		for _, v := range dynasty.delegates {

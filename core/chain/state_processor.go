@@ -366,9 +366,7 @@ func addNewContractUtxos(
 }
 
 // ExtractVMTransaction extract Transaction to VMTransaction
-func ExtractVMTransaction(
-	tx *types.Transaction, stateDB *state.StateDB, ownerTxs ...*types.Transaction,
-) (*types.VMTransaction, error) {
+func ExtractVMTransaction(tx *types.Transaction, stateDB *state.StateDB) (*types.VMTransaction, error) {
 	txHash, _ := tx.TxHash()
 	// check
 	if txlogic.GetTxType(tx, stateDB) != types.ContractTx {

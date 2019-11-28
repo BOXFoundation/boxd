@@ -44,10 +44,12 @@ const (
 	// TopicRPCSendNewLog is topic for sending new log to explorer
 	TopicRPCSendNewLog = "rpc:newlog:send"
 
-	////////////////////////////// dpos /////////////////////////////
+	////////////////////////////// bpos /////////////////////////////
 
 	// TopicMiners is topic for replying current miners
-	TopicMiners = "dpos:miners"
+	TopicMiners = "bpos:miners"
 	// TopicCheckMiner is topic for checking ts with miner
-	TopicCheckMiner = "dpos:checkminer"
+	TopicCheckMiner = "bpos:checkminer"
+	// TopicDynastyUpdate is topic for dynasty update
+	TopicDynastyUpdate = "bpos:dynastyupdate"
 )

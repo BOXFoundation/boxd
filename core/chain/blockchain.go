@@ -39,6 +39,7 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/BOXFoundation/boxd/vm/common/math"
+	vmcrypto "github.com/BOXFoundation/boxd/vm/crypto"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -933,6 +934,21 @@ func (chain *BlockChain) adjustAndValidateState(
 	if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee,
 		receipts); err != nil {
 		return nil, err
+	}
+
+	// check if the dynasty is update. notify the bpos if the dynasty is update.
+	for _, receipt := range receipts {
+		if receipt.ContractAddress == ContractAddr {
+			for _, log := range receipt.Logs {
+				for _, topic := range log.Topics {
+					hash := crypto.NewHashType(topic.GetBytes())
+					if *hash == vmcrypto.Keccak256Hash([]byte(DynastySwitch)) {
+						chain.bus.Send(eventbus.TopicDynastyUpdate, true)
+					}
+				}
+			}
+		}
+
 	}
 
 	// apply internal txs.

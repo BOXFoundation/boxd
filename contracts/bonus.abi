@@ -688,6 +688,12 @@
 	},
 	{
 		"anonymous": false,
+		"inputs": [],
+		"name": "DynastySwitch",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
 		"inputs": [
 			{
 				"indexed": true,

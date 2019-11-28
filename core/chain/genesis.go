@@ -30,9 +30,10 @@ var (
 	// ContractAbi genesis contract abi.
 	ContractAbi *abi.ABI
 
-	CalcBonus = "calcBonus"
-	ExecBonus = "execBonus"
-	CalcScore = "calcScore"
+	CalcBonus     = "calcBonus"
+	ExecBonus     = "execBonus"
+	CalcScore     = "calcScore"
+	DynastySwitch = "DynastySwitch()"
 )
 
 // GenesisBlock represents genesis block.

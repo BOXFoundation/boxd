@@ -137,6 +137,7 @@ contract Bonus is Permission{
 
     event ExecBonus(uint bonus, uint balance);
     event CalcBonus(address _coinbase, uint value, uint bonus);
+    event DynastySwitch();
 
     constructor() public {
         _global_open_pledge_limit = 100;
@@ -308,6 +309,7 @@ contract Bonus is Permission{
         delegateRewardTotal = delegateRewardTotal.add(addrToEpoch[devil].pledgeAmount);
         _dynasty_switch_height = block.number;
         delete addrToEpoch[devil];
+        emit DynastySwitch();
     }
 
     function calcBonus() public payable onlyAdmin {
@@ -373,6 +375,7 @@ contract Bonus is Permission{
         }
         _dynasty_switch_height = block.number;
         emit ExecBonus(totalBonusToBookkeeper, address(this).balance);
+        emit DynastySwitch();
     }
 
     function calcScore(uint[] scores) public onlyAdmin {
