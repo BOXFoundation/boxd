@@ -187,7 +187,6 @@ func TestMakeContractTx(t *testing.T) {
 		t.Fatalf("contract vout tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",
 			tx.Vin[0].ScriptSig, tx.Vin[0].PrevOutPoint, value, tx)
 	}
-
 	// normal vin, contract call vout
 	toAddr := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
 	to, _ := types.NewContractAddress(toAddr)
@@ -207,7 +206,11 @@ func TestMakeContractTx(t *testing.T) {
 		t.Fatalf("contract vout tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",
 			tx.Vin[0].ScriptSig, tx.Vin[0].PrevOutPoint, value, tx)
 	}
-
+	// check illegal contract tx
+	tx.AppendVout(cvout)
+	if typ, _ := ParseTxType(tx, nil); typ != types.ErrorTx {
+		t.Fatalf("tx type want %d, got: %d", typ, types.ErrorTx)
+	}
 	// contract vin, normal vout
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 1, 0)).
@@ -312,5 +315,13 @@ func TestMakeUnsignedTokenTx(t *testing.T) {
 	GetTxType(tx, nil)
 	if tx.Type != types.TokenTransferTx {
 		t.Fatalf("tx type want: %d, got: %d", types.TokenTransferTx, tx.Type)
+	}
+	// check illegal token tx mixed contract vout
+	codeStr := "60fe47b10000000000000000000000000000000000000000000000000000000000000006"
+	code, _ := hex.DecodeString(codeStr)
+	cvout, _ := MakeContractCallVout(issuerAddr.Hash160(), toAddr.Hash160(), 1000, 200, 1)
+	tx.AppendVout(cvout).WithData(types.ContractDataType, code)
+	if typ, _ := ParseTxType(tx, nil); typ != types.ErrorTx {
+		t.Fatalf("tx type want %d, got: %d", typ, types.ErrorTx)
 	}
 }
