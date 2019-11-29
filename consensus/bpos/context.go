@@ -50,13 +50,13 @@ var _ conv.Serializable = (*Delegate)(nil)
 // ToProtoMessage converts Delegate to proto message.
 func (delegate *Delegate) ToProtoMessage() (proto.Message, error) {
 	return &bpospb.Delegate{
-		Addr:                   delegate.Addr[:],
-		PeerID:                 delegate.PeerID,
-		Votes:                  delegate.Votes.Int64(),
-		PledgeAmount:           delegate.PledgeAmount.Int64(),
-		Score:                  delegate.Score.Int64(),
-		CurDynastyOutputNumber: delegate.CurDynastyOutputNumber.Int64(),
-		TotalOutputNumber:      delegate.TotalOutputNumber.Int64(),
+		Addr:   delegate.Addr[:],
+		PeerID: delegate.PeerID,
+		// Votes:                  delegate.Votes.Int64(),
+		// PledgeAmount:           delegate.PledgeAmount.Int64(),
+		// Score:                  delegate.Score.Int64(),
+		// CurDynastyOutputNumber: delegate.CurDynastyOutputNumber.Int64(),
+		// TotalOutputNumber:      delegate.TotalOutputNumber.Int64(),
 	}, nil
 }
 

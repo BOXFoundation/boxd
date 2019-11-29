@@ -1173,6 +1173,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		stt0 := time.Now().UnixNano()
 		attachBlock := attachBlocks[blockIdx]
+		chain.bus.Send(eventbus.TopicDynastyUpdate, true)
 		if err := chain.tryConnectBlockToMainChain(attachBlock, messageFrom); err != nil {
 			logger.Warnf("connect block %s to main chain in reorganize error: %s",
 				attachBlock.BlockHash(), err)
@@ -1187,6 +1188,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			}
 			for idx := len(detachBlocks) - 1; idx >= 0; idx-- {
 				block := detachBlocks[idx]
+				chain.bus.Send(eventbus.TopicDynastyUpdate, true)
 				if err := chain.tryConnectBlockToMainChain(block, messageFrom); err != nil {
 					logger.Errorf("RollBack: Failed to connect block to main chain. Err: %v", err)
 					panic("RollBack: Failed to connect block to main chain")
