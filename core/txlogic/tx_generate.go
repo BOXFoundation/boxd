@@ -196,7 +196,7 @@ func makeUnsignedContractTx(
 	byteCode []byte, utxos ...*rpcpb.Utxo,
 ) (*types.Transaction, error) {
 	// calc change amount
-	changeAmt, err := calcContractChangeAmount(gasLimit, utxos...)
+	changeAmt, err := calcContractChangeAmount(gasLimit, amount, utxos...)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,10 @@ func NewContractTxWithUtxos(
 	}
 	// change
 	var change *rpcpb.Utxo
-	changeAmt, _ := calcContractChangeAmount(gasLimit, utxos...)
+	changeAmt, err := calcContractChangeAmount(gasLimit, amount, utxos...)
+	if err != nil {
+		return nil, nil, err
+	}
 	if changeAmt > 0 {
 		txHash, _ := tx.TxHash()
 		idx := uint32(len(tx.Vout)) - 1
@@ -396,14 +399,16 @@ func calcChangeAmount(toAmounts []uint64, utxos ...*rpcpb.Utxo) (uint64, error) 
 	return changeAmt, nil
 }
 
-func calcContractChangeAmount(gasLimit uint64, utxos ...*rpcpb.Utxo) (uint64, error) {
+func calcContractChangeAmount(
+	gasLimit, amount uint64, utxos ...*rpcpb.Utxo,
+) (uint64, error) {
 	inputAmt := uint64(0)
 	for _, u := range utxos {
 		inputAmt += u.GetTxOut().GetValue()
 	}
 	// 2 stands for contract vout and change vout
 	extraFee := uint64((len(utxos)+2)/core.InOutNumPerExtraFee) * core.TransferFee
-	changeAmt := inputAmt - gasLimit*core.FixedGasPrice - extraFee
+	changeAmt := inputAmt - gasLimit*core.FixedGasPrice - amount - extraFee
 	if changeAmt > inputAmt {
 		return 0, ErrInsufficientInput
 	}
