@@ -6,7 +6,6 @@ package common
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -23,7 +22,6 @@ import (
 	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/BOXFoundation/boxd/wallet/account"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
@@ -38,8 +36,6 @@ const (
 //
 var (
 	DefaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
-	OutFilePath      string
-	InFilePath       string
 )
 
 // GetRPCAddr gets rpc addr
@@ -55,7 +51,7 @@ func GetRPCAddr() string {
 	)
 	switch {
 	case rpcAddr == nilIP && rpcPort == nilGRPCPort:
-		if err := util.FileExists(ConnAddrFile); err != nil {
+		if _, err := os.Stat(ConnAddrFile); err != nil {
 			connAddr = "127.0.0.1:19191"
 			return connAddr
 		}
@@ -128,30 +124,4 @@ func SignAndSendTx(
 		return
 	}
 	return sendResp.GetHash(), nil
-}
-
-//IsHexFormat judge whether str is hex code
-func IsHexFormat(str string) bool {
-	if len(str) == 0 {
-		return false
-	}
-	if _, err := hex.DecodeString(str); err != nil {
-		return false
-	}
-	return true
-}
-
-// GetCurrentFilePath returns a rooted path name corresponding to the current directory.
-func GetCurrentFilePath() string {
-	filePath, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	return filePath
-}
-
-//SetFlag set a flage to flag the file
-func SetFlag(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVar(&OutFilePath, "o", GetCurrentFilePath(), "output file path, default current directory")
-	cmd.PersistentFlags().StringVar(&InFilePath, "i", "", "input file path, default nil")
 }

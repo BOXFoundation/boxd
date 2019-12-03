@@ -46,6 +46,8 @@ const (
 var (
 	walletDir   string
 	solFilePath string
+	inFilePath  string
+	outFilePath string
 	solcBinReg  = regexp.MustCompile("Binary:\\s?\n([0-9a-f]+)\\s")
 	solcAbiReg  = regexp.MustCompile("ABI\\s?\n([\\pP0-9a-zA-Z]+)\\s")
 	solNameReg  = regexp.MustCompile(solFilePath + ":([0-9a-zA-Z_]+)\\s")
@@ -97,14 +99,6 @@ var rootCmd = &cobra.Command{
     ./box contract decode allowance 0000000000000000000000000000000000000000000000000000000000004e20
 `,
 }
-
-var (
-	compileCmd = &cobra.Command{
-		Use:   "compile",
-		Short: "Compile contract source file",
-		Run:   compile,
-	}
-)
 
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
@@ -162,9 +156,17 @@ func init() {
 			Short: "view contract details",
 			Run:   detailAbi,
 		},
-		compileCmd,
 	)
-	common.SetFlag(compileCmd)
+	var (
+		compileCmd = &cobra.Command{
+			Use:   "compile",
+			Short: "Compile contract source file",
+			Run:   compile,
+		}
+	)
+	rootCmd.AddCommand(compileCmd)
+	compileCmd.PersistentFlags().StringVar(&inFilePath, "i", "", "input file path, default nil")
+	compileCmd.PersistentFlags().StringVar(&outFilePath, "o", ".", "output file path, default current directory")
 }
 
 func importAbi(cmd *cobra.Command, args []string) {
@@ -1108,7 +1110,7 @@ func parseContractData(data string) (bytecode string, abi string, err error) {
 			return "", "", err
 		}
 		bytesStr := strings.TrimSpace(string(bytes))
-		if common.IsHexFormat(bytesStr) {
+		if _, err := hex.DecodeString(bytesStr); err == nil {
 			bytecode = bytesStr
 		} else {
 			binData, abiData, solName, err := compileSol(data)
@@ -1138,7 +1140,7 @@ func parseContractData(data string) (bytecode string, abi string, err error) {
 			}
 		}
 	} else {
-		if !common.IsHexFormat(data) {
+		if _, err := hex.DecodeString(data); err != nil {
 			return "", "", err
 		}
 		bytecode = data
@@ -1210,7 +1212,7 @@ func detailAbi(cmd *cobra.Command, args []string) {
 	}
 	if len(args) == 1 {
 		fileName := args[0]
-		if err := util.FileExists(fileName); err == nil {
+		if _, err := os.Stat(fileName); err == nil {
 			abiObj, err = newAbiObjFromFile(fileName)
 			if err != nil {
 				fmt.Printf("new abi object from file %s error:%s\n", fileName, err)
@@ -1289,22 +1291,27 @@ func compile(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	if len(common.InFilePath) == 0 {
+	if len(inFilePath) == 0 {
 		fmt.Println("please input the path of peer.key")
 		return
 	}
-	if err := util.FileExists(common.InFilePath); err != nil {
+	if _, err := os.Stat(inFilePath); err != nil {
 		fmt.Println(err)
 		return
 	}
 	var (
 		outputDir string
-		filepath  = common.InFilePath
+		filepath  = inFilePath
 	)
-	if common.OutFilePath == common.GetCurrentFilePath() {
-		outputDir = common.GetCurrentFilePath() + "/"
+	currentFilePath, err := os.Getwd()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if outFilePath == currentFilePath {
+		outputDir = currentFilePath + "/"
 	} else {
-		outputDir = common.OutFilePath + "/"
+		outputDir = outFilePath + "/"
 		if _, err := os.Stat(outputDir); err != nil {
 			fmt.Printf("output dir %s error: %s\n", outputDir, err)
 			return

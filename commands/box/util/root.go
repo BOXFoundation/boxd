@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/BOXFoundation/boxd/commands/box/common"
 	root "github.com/BOXFoundation/boxd/commands/box/root"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
@@ -38,16 +37,8 @@ var rootCmd = &cobra.Command{
 }
 
 var (
-	peerIDCmd = &cobra.Command{
-		Use:   "peerid [optional|peerkey]",
-		Short: "conversion peer key to peer ID",
-		Run:   peerID,
-	}
-	createPeerIDCmd = &cobra.Command{
-		Use:   "createpeerid ",
-		Short: "create peer key",
-		Run:   createPeerID,
-	}
+	inFilePath  string
+	outFilePath string
 )
 
 // Init adds the sub command to the root command.
@@ -84,11 +75,31 @@ func init() {
 			Short: "creat p2pKH address",
 			Run:   makeP2PKHAddress,
 		},
-		peerIDCmd,
-		createPeerIDCmd,
+		&cobra.Command{
+			Use:   "test [pubkey]",
+			Short: "test",
+			Run:   test,
+		},
 	)
-	common.SetFlag(peerIDCmd)
-	common.SetFlag(createPeerIDCmd)
+	var (
+		showPeerIDCmd = &cobra.Command{
+			Use:   "showpeerid [optional|peerkey]",
+			Short: "conversion peer key to peer ID",
+			Run:   showPeerID,
+		}
+		createPeerIDCmd = &cobra.Command{
+			Use:   "createpeerid ",
+			Short: "create peer key",
+			Run:   createPeerID,
+		}
+	)
+	rootCmd.AddCommand(showPeerIDCmd, createPeerIDCmd)
+	showPeerIDCmd.PersistentFlags().StringVar(&inFilePath, "i", "", "input file path, default nil")
+	createPeerIDCmd.PersistentFlags().StringVar(&outFilePath, "o", ".", "output file path, default current directory")
+}
+
+func test(cmd *cobra.Command, args []string) {
+	util.Isfile(args[0])
 }
 
 func encode(cmd *cobra.Command, args []string) {
@@ -259,19 +270,19 @@ func makeP2PKHAddress(cmd *cobra.Command, args []string) {
 	fmt.Printf("address: %s, address hash: %x\n", addr, addr.Hash160()[:])
 }
 
-func peerID(cmd *cobra.Command, args []string) {
+func showPeerID(cmd *cobra.Command, args []string) {
 	var data string
 	switch len(args) {
 	case 0:
-		if len(common.InFilePath) == 0 {
+		if len(inFilePath) == 0 {
 			fmt.Println("please input the path of peer.key")
 			return
 		}
-		if err := util.FileExists(common.InFilePath); err != nil {
+		if _, err := os.Stat(inFilePath); err != nil {
 			fmt.Println(err)
 			return
 		}
-		dataByte, err := ioutil.ReadFile(common.InFilePath)
+		dataByte, err := ioutil.ReadFile(inFilePath)
 		if err != nil {
 			fmt.Printf("read data from %s error: %s\n", args[0], err)
 			return
@@ -312,41 +323,27 @@ func createPeerID(cmd *cobra.Command, args []string) {
 	}
 	var (
 		peerKeyPath string
-		sameFile    = common.OutFilePath + "/peer.key"
+		defaultFile = outFilePath + "/peer.key"
 	)
-	//case 1: check whether peer.key exists. If it doesn't exist, it will generate peer.key. Otherwise, it will return
-	if common.OutFilePath == common.GetCurrentFilePath() {
-		if err := util.FileExists(sameFile); err == nil {
-			fmt.Printf("%s has already existed.\n", sameFile)
+	_, err := os.Stat(outFilePath)
+	if err != nil {
+		if _, err := os.Stat(filepath.Dir(outFilePath)); err == nil {
+			peerKeyPath = outFilePath
+		} else {
+			fmt.Printf("%s doesn't exist.\n", outFilePath)
 			return
 		}
-		peerKeyPath = common.OutFilePath + "/peer.key"
 	} else {
-		//case 2: setting the path of output file, the path has already existed.
-		//case 2.1:if you input a directory, it will check whether the peer.key exits.
-		//if it doesn't exit, it will generate. Otherwise, it will return
-		//case 2.2:if you input a file path, it will return. And tell you the file has already existed.
-		if fileInfo, err := os.Stat(common.OutFilePath); err == nil {
-			if fileInfo.IsDir() {
-				if err := util.FileExists(sameFile); err == nil {
-					fmt.Printf("%s has already existed.\n", sameFile)
-					return
-				}
-				peerKeyPath = common.OutFilePath + "/peer.key"
+		if !util.Isfile(outFilePath) {
+			if _, err := os.Stat(defaultFile); err != nil {
+				peerKeyPath = defaultFile
 			} else {
-				fmt.Printf("%s has already existed.\n", common.OutFilePath)
+				fmt.Printf("%s has already existed.\n", defaultFile)
 				return
 			}
 		} else {
-			//case 3: setting the path of output file, the path doesn't exist. Check the directory of the file whether it exists.
-			//case 3.1: If it doesnit exist, it will return
-			//case 3.2:If it exists, it will generate a file to save the peerID
-			if _, err := os.Stat(filepath.Dir(common.OutFilePath)); err == nil {
-				peerKeyPath = common.OutFilePath
-			} else {
-				fmt.Println(err)
-				return
-			}
+			fmt.Printf("%s has already existed.\n", outFilePath)
+			return
 		}
 	}
 	key, _, err := libcrypto.GenerateEd25519Key(rand.Reader)

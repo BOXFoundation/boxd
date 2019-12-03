@@ -6,8 +6,6 @@ package util
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
 	"os"
 	"os/user"
 	"reflect"
@@ -90,13 +88,11 @@ func MkDir(filename string) error {
 	}
 }
 
-//FileExists check whether a file exists
-func FileExists(filename string) error {
-	if _, err := os.Stat(filename); err != nil {
-		if os.IsNotExist(err) {
-			return errors.New("file is not exists")
-		}
-		return fmt.Errorf("file status error: %s", err)
+//Isfile check a path whether it is a file
+func Isfile(filePath string) bool {
+	fileInfo, _ := os.Stat(filePath)
+	if fileInfo.IsDir() {
+		return false
 	}
-	return nil
+	return true
 }

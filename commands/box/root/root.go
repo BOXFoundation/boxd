@@ -15,7 +15,6 @@ import (
 	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/BOXFoundation/boxd/util"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -170,7 +169,7 @@ func resetConn(cmd *cobra.Command, args []string) {
 		fmt.Println(cmd.Use)
 		return
 	}
-	if err := util.FileExists(common.ConnAddrFile); err != nil {
+	if _, err := os.Stat(common.ConnAddrFile); err != nil {
 		return
 	}
 	if err := os.Remove(common.ConnAddrFile); err != nil {
