@@ -182,7 +182,7 @@ func TestCalcScore(t *testing.T) {
 	bpos.bpos.context.dynastySwitchThreshold = big.NewInt(1000)
 	bpos.bpos.context.dynasty = &Dynasty{}
 	bpos.bpos.context.dynasty.delegates = []Delegate{Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}}
-	bpos.bpos.context.nextDelegates = []Delegate{Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}}
+	bpos.bpos.context.currentEpoch = []Delegate{Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}, Delegate{}}
 	type args struct {
 		totalVotes int64
 		delegate   Delegate

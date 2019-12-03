@@ -23,8 +23,8 @@ type ConsensusContext struct {
 	dynasty                      *Dynasty
 	verifyDynasty                *Dynasty
 	candidates                   []Delegate
-	currentDelegates             []Delegate
-	nextDelegates                []Delegate
+	LastEpoch                    []Delegate
+	currentEpoch                 []Delegate
 	dynastySwitchThreshold       *big.Int
 	calcScoreThreshold           *big.Int
 	verifyDynastySwitchThreshold *big.Int
@@ -50,13 +50,13 @@ var _ conv.Serializable = (*Delegate)(nil)
 // ToProtoMessage converts Delegate to proto message.
 func (delegate *Delegate) ToProtoMessage() (proto.Message, error) {
 	return &bpospb.Delegate{
-		Addr:                   delegate.Addr[:],
-		PeerID:                 delegate.PeerID,
-		Votes:                  delegate.Votes.Int64(),
-		PledgeAmount:           delegate.PledgeAmount.Int64(),
-		Score:                  delegate.Score.Int64(),
-		CurDynastyOutputNumber: delegate.CurDynastyOutputNumber.Int64(),
-		TotalOutputNumber:      delegate.TotalOutputNumber.Int64(),
+		Addr:   delegate.Addr[:],
+		PeerID: delegate.PeerID,
+		// Votes:                  delegate.Votes.Int64(),
+		// PledgeAmount:           delegate.PledgeAmount.Int64(),
+		// Score:                  delegate.Score.Int64(),
+		// CurDynastyOutputNumber: delegate.CurDynastyOutputNumber.Int64(),
+		// TotalOutputNumber:      delegate.TotalOutputNumber.Int64(),
 	}, nil
 }
 
@@ -229,11 +229,11 @@ func (bpos *Bpos) fetchDynastyByHeight(height uint32) (*Dynasty, error) {
 
 func (bpos *Bpos) calcScores() ([]*big.Int, error) {
 	var totalVote int64
-	for _, v := range bpos.context.nextDelegates {
+	for _, v := range bpos.context.currentEpoch {
 		totalVote += v.Votes.Int64()
 	}
 	var scores []*big.Int
-	for _, v := range bpos.context.nextDelegates {
+	for _, v := range bpos.context.currentEpoch {
 		score, err := bpos.calcScore(totalVote, v)
 		if err != nil {
 			return nil, err
@@ -245,7 +245,7 @@ func (bpos *Bpos) calcScores() ([]*big.Int, error) {
 
 func (bpos *Bpos) calcScore(totalVote int64, delegate Delegate) (*big.Int, error) {
 	currentDynasty := (int64(bpos.chain.LongestChainHeight) / bpos.context.dynastySwitchThreshold.Int64()) + 1
-	pledgeScore := float64((float64(len(bpos.context.dynasty.delegates)) * float64(delegate.PledgeAmount.Int64()/1e8) / float64(len(bpos.context.nextDelegates)))) / math.Pow(float64(currentDynasty), 1.5)
+	pledgeScore := float64((float64(len(bpos.context.dynasty.delegates)) * float64(delegate.PledgeAmount.Int64()/1e8) / float64(len(bpos.context.currentEpoch)))) / math.Pow(float64(currentDynasty), 1.5)
 	voteScore := float64(delegate.Votes.Int64() / 1e8)
 	// if totalVote > 0 {
 	// 	voteScore = float64(delegate.Votes.Int64()/1e8) / float64(totalVote/1e8) * float64(delegate.Votes.Int64()/1e8)

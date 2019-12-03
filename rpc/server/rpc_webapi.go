@@ -762,21 +762,15 @@ func ParseAddrFrom(
 ) (string, error) {
 	var (
 		address types.Address
+		from    *types.AddressPubKeyHash
+		nonce   uint64
 		err     error
 	)
 	switch {
 	case sc.IsContractPubkey():
-		address, err = sc.ParseContractAddr()
+		// address, err = sc.ParseContractAddr()
+		from, address, nonce, err = sc.ParseContractInfo()
 		if err == nil && (address == nil || len(address.Hash()) == 0) {
-			// smart contract deploy
-			from, err := sc.ParseContractFrom()
-			if err != nil {
-				return "", err
-			}
-			nonce, err := sc.ParseContractNonce()
-			if err != nil {
-				return "", err
-			}
 			address, _ = types.MakeContractAddress(from, nonce)
 		}
 	case sc.IsSplitAddrScript():

@@ -1425,7 +1425,6 @@ func TestNewContractInContract(t *testing.T) {
 	verifyProcessBlock(t, blockChain, b3, nil, 3, b3)
 	t.Logf("b3 block hash: %s", b3.BlockHash())
 	t.Logf("b2 -> b3 passed, now tail height: %d", blockChain.LongestChainHeight)
-
 	// first send createToken call to create token owned contract and tag contract
 	// then check token owned contract balance whether it equals to 1000
 	// and check tag contract whether it's sym is "ABC"
@@ -1449,4 +1448,5 @@ func TestNewContractInContract(t *testing.T) {
 	verifyProcessBlock(t, blockChain, b4, nil, 4, b4)
 	t.Logf("b4 block hash: %s", b4.BlockHash())
 	t.Logf("b3 -> b4 passed, now tail height: %d", blockChain.LongestChainHeight)
+	//
 }

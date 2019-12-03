@@ -246,7 +246,7 @@ func (u *UtxoSet) applyUtxo(
 	}
 
 	// smart contract vout
-	contractAddr, err := sc.ParseContractAddr()
+	from, contractAddr, nonce, err := sc.ParseContractInfo()
 	if err != nil {
 		return err
 	}
@@ -254,8 +254,6 @@ func (u *UtxoSet) applyUtxo(
 	var outPoint *types.OutPoint
 	if deploy {
 		// deploy smart contract
-		from, _ := sc.ParseContractFrom()
-		nonce, _ := sc.ParseContractNonce()
 		contractAddr, _ := types.MakeContractAddress(from, nonce)
 		addressHash := types.NormalizeAddressHash(contractAddr.Hash160())
 		outPoint = types.NewOutPoint(addressHash, 0)
@@ -377,8 +375,9 @@ func (u *UtxoSet) RevertTx(tx *types.Transaction, chain *BlockChain) error {
 		// The UTXO txIn spends have been deleted from UTXO set, so we load it from tx index
 		block, prevTx, _, err := chain.LoadBlockInfoByTxHash(txIn.PrevOutPoint.Hash)
 		if err != nil {
-			logger.Errorf("Failed to load block info by txhash. Err: %s", err)
-			logger.Panicf("Trying to unspend non-existing spent output %v", txIn.PrevOutPoint)
+			logger.Errorf("Failed to load block info by txhash %s: %+v. Err: %s",
+				txHash, tx, err)
+			logger.Panicf("Trying to unspend non-existing output %v", txIn.PrevOutPoint)
 		}
 		// prevTx := block.Txs[txIdx]
 		prevOut := prevTx.Vout[txIn.PrevOutPoint.Index]

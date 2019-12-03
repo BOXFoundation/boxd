@@ -79,7 +79,6 @@ func TestEncodeDecodeOutPoint(t *testing.T) {
 }
 
 func TestMakeSplitAddress(t *testing.T) {
-
 	var tests = []struct {
 		addrs     []string
 		weights   []uint32

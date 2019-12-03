@@ -115,7 +115,7 @@ func TestMakeUnsignedTx(t *testing.T) {
       "ScriptPubKey": "76a914064b377c9555b83a43d05c773cef7c3a6209154f88ac"
     },
     {
-      "Value": 278000,
+      "Value": 1590500,
       "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
@@ -182,7 +182,7 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
   ],
   "Vout": [
     {
-      "Value": 200000,
+      "Value": 1575000,
       "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
@@ -190,7 +190,6 @@ func TestMakeUnsignedCombineTx(t *testing.T) {
   "Magic": 0,
   "LockTime": 0
 }`
-	// 200000 = 1000000/2/2*5-20*21000
 	if string(txBytes) != wantTxStr {
 		t.Fatalf("want: %s, len: %d, got: %s, len: %d", wantTxStr, len(wantTxStr),
 			string(txBytes), len(string(txBytes)))

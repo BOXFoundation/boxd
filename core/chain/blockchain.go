@@ -39,6 +39,7 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 	"github.com/BOXFoundation/boxd/vm/common/hexutil"
 	"github.com/BOXFoundation/boxd/vm/common/math"
+	vmcrypto "github.com/BOXFoundation/boxd/vm/crypto"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -693,11 +694,6 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 	)
 	blockHeight := block.Header.Height
 	logger.Infof("Try to connect block %s:%d to main chain. ", block.BlockHash(), blockHeight)
-	if err := chain.consensus.Verify(block); err != nil {
-		logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
-			block.BlockHash(), blockHeight, err)
-		return err
-	}
 	blockCopy := block.Copy()
 	splitTxs := chain.SplitBlockOutputs(blockCopy)
 	if messageFrom == "" { // locally generated block
@@ -708,6 +704,11 @@ func (chain *BlockChain) tryConnectBlockToMainChain(block *types.Block, messageF
 		}
 		delete(chain.blockExecuteResults, blockHeight)
 	} else {
+		if err := chain.consensus.Verify(block); err != nil {
+			logger.Errorf("Failed to verify block. Hash: %s, Height: %d, Err: %s",
+				block.BlockHash(), blockHeight, err)
+			return err
+		}
 		if res, err = chain.adjustAndValidateState(block, blockCopy); err != nil {
 			return err
 		}
@@ -927,12 +928,27 @@ func (chain *BlockChain) adjustAndValidateState(
 	chain.UpdateNormalTxBalanceState(blockCopy, utxoSet, stateDB)
 	receipts, gasUsed, utxoTxs, err := chain.stateProcessor.Process(block, stateDB, utxoSet)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("block state processor occurs error. Err: %v", err)
 		return nil, err
 	}
 	if err := chain.ValidateExecuteResult(block, utxoTxs, gasUsed, totalTxsFee,
 		receipts); err != nil {
 		return nil, err
+	}
+
+	// check if the dynasty is update. notify the bpos if the dynasty is update.
+	for _, receipt := range receipts {
+		if receipt.ContractAddress == ContractAddr {
+			for _, log := range receipt.Logs {
+				for _, topic := range log.Topics {
+					hash := crypto.NewHashType(topic.GetBytes())
+					if *hash == vmcrypto.Keccak256Hash([]byte(DynastySwitch)) {
+						chain.bus.Send(eventbus.TopicDynastyUpdate, true)
+					}
+				}
+			}
+		}
+
 	}
 
 	// apply internal txs.
@@ -1157,6 +1173,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 	for blockIdx := len(attachBlocks) - 1; blockIdx >= 0; blockIdx-- {
 		stt0 := time.Now().UnixNano()
 		attachBlock := attachBlocks[blockIdx]
+		chain.bus.Send(eventbus.TopicDynastyUpdate, true)
 		if err := chain.tryConnectBlockToMainChain(attachBlock, messageFrom); err != nil {
 			logger.Warnf("connect block %s to main chain in reorganize error: %s",
 				attachBlock.BlockHash(), err)
@@ -1171,6 +1188,7 @@ func (chain *BlockChain) reorganize(block *types.Block, messageFrom peer.ID) err
 			}
 			for idx := len(detachBlocks) - 1; idx >= 0; idx-- {
 				block := detachBlocks[idx]
+				chain.bus.Send(eventbus.TopicDynastyUpdate, true)
 				if err := chain.tryConnectBlockToMainChain(block, messageFrom); err != nil {
 					logger.Errorf("RollBack: Failed to connect block to main chain. Err: %v", err)
 					panic("RollBack: Failed to connect block to main chain")

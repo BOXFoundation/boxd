@@ -25,16 +25,15 @@ func TestMakeUnsignedTx(t *testing.T) {
 	toAddr2, _ := types.NewAddress("b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7")
 	to := []*types.AddressHash{toAddr1.Hash160(), toAddr2.Hash160()}
 	amounts := []uint64{100, 200}
-	changeAmt := uint64(200)
 	prevHash1 := hashFromUint64(1)
-	utxoValue1, utxoValue2 := uint64(200), uint64(400)
+	utxoValue1, utxoValue2 := uint64(200), uint64(400)+core.TransferFee
 	op, uw := types.NewOutPoint(&prevHash1, 0), NewUtxoWrap(from, 2, utxoValue1)
 	utxo1 := MakePbUtxo(op, uw)
 	prevHash2 := hashFromUint64(2)
 	op, uw = types.NewOutPoint(&prevHash2, 0), NewUtxoWrap(from, 3, utxoValue2)
 	utxo2 := MakePbUtxo(op, uw)
 
-	tx, err := MakeUnsignedTx(from, to, amounts, changeAmt, utxo1, utxo2)
+	tx, err := MakeUnsignedTx(from, to, amounts, utxo1, utxo2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +67,7 @@ func TestMakeUnsignedTx(t *testing.T) {
       "ScriptPubKey": "76a914ae3e96d008658db64dd4f8df2d736edbc6be1c3188ac"
     },
     {
-      "Value": 200,
+      "Value": 300,
       "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
@@ -100,22 +99,21 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
 	toAddr2, _ := types.ParseAddress("b1jh8DSdB6kB7N7RanrudV1hzzMCCcoX6L7")
 	to := []*types.AddressHash{toAddr1.Hash160(), toAddr2.Hash160()}
 	weights := []uint32{3, 7}
-	changeAmt := uint64(200)
 	prevHash1 := hashFromUint64(1)
-	utxoValue1, utxoValue2 := uint64(200), uint64(400)
+	utxoValue1, utxoValue2 := uint64(200), uint64(400)+core.TransferFee
 	op, uw := types.NewOutPoint(&prevHash1, 0), NewUtxoWrap(from, 2, utxoValue1)
 	utxo1 := MakePbUtxo(op, uw)
 	prevHash2 := hashFromUint64(2)
 	op, uw = types.NewOutPoint(&prevHash2, 0), NewUtxoWrap(from, 3, utxoValue2)
 	utxo2 := MakePbUtxo(op, uw)
 
-	tx, err := MakeUnsignedSplitAddrTx(from, to, weights, changeAmt, utxo1, utxo2)
+	tx, err := MakeUnsignedSplitAddrTx(from, to, weights, utxo1, utxo2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	txHash, _ := tx.TxHash()
 	splitAddr := MakeSplitAddress(txHash, 0, to, weights)
-	wantSplitAddr := "b2NZVEAZuT6maygpyNs9BfTS7GTr9oRgvBE"
+	wantSplitAddr := "b2aGyFovV3SJEy7NBUt7Jvz9Harbo8YMqfy"
 	if splitAddr.String() != wantSplitAddr {
 		t.Fatalf("aplit addr want: %s, got: %s", wantSplitAddr, splitAddr)
 	}
@@ -145,7 +143,7 @@ func TestMakeUnsignedSplitAddrTx(t *testing.T) {
       "ScriptPubKey": "6a0014ac8d67f0c8ed88f2d85e99009b1ab521cfc0f9551450570cc73bb18a51fc4153eec68d21d1105d326e040300000014ae3e96d008658db64dd4f8df2d736edbc6be1c310407000000"
     },
     {
-      "Value": 200,
+      "Value": 600,
       "ScriptPubKey": "76a914ce86056786e3415530f8cc739fb414a87435b4b688ac"
     }
   ],
@@ -189,7 +187,6 @@ func TestMakeContractTx(t *testing.T) {
 		t.Fatalf("contract vout tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",
 			tx.Vin[0].ScriptSig, tx.Vin[0].PrevOutPoint, value, tx)
 	}
-
 	// normal vin, contract call vout
 	toAddr := "b5WYphc4yBPH18gyFthS1bHyRcEvM6xANuT"
 	to, _ := types.NewContractAddress(toAddr)
@@ -209,7 +206,11 @@ func TestMakeContractTx(t *testing.T) {
 		t.Fatalf("contract vout tx want sig: %v, prev outpoint: %v, value: %d, got: %+v",
 			tx.Vin[0].ScriptSig, tx.Vin[0].PrevOutPoint, value, tx)
 	}
-
+	// check illegal contract tx
+	tx.AppendVout(cvout)
+	if typ, _ := ParseTxType(tx, nil); typ != types.ErrorTx {
+		t.Fatalf("tx type want %d, got: %d", typ, types.ErrorTx)
+	}
 	// contract vin, normal vout
 	tx = types.NewTx(0, 0x5544, 0).
 		AppendVin(MakeContractVin(types.NewOutPoint(&hash, idx), 1, 0)).
@@ -230,16 +231,16 @@ func TestMakeUnsignedTokenTx(t *testing.T) {
 	owner := "b1b8bzyci5VYUJVKRU2HRMMQiUXnoULkKAJ"
 	ownerAddr, _ := types.NewAddress(owner)
 	tag := NewTokenTag("abc token", "ABC", 6, 10000)
-	changeAmt := uint64(123000)
 	// gen utxo
 	prevHash := hashFromUint64(1)
 	op := types.NewOutPoint(&prevHash, 0)
+	changeAmt := uint64(123000)
 	utxoValue := core.TransferFee + changeAmt
 	uw := NewUtxoWrap(issuerAddr.Hash160(), 2, utxoValue)
 	utxo := MakePbUtxo(op, uw)
 	// token issue
 	tx, index, err := MakeUnsignedTokenIssueTx(issuerAddr.Hash160(),
-		ownerAddr.Hash160(), tag, changeAmt, utxo)
+		ownerAddr.Hash160(), tag, utxo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,11 +278,12 @@ func TestMakeUnsignedTokenTx(t *testing.T) {
 	op = types.NewOutPoint(issueTxHash, 0)
 	uw = NewIssueTokenUtxoWrap(ownerAddr.Hash160(), tag, 2)
 	tokenUtxo := MakePbUtxo(op, uw)
-	tx, tokenRemain, err := MakeUnsignedTokenTransferTx(ownerAddr.Hash160(),
-		[]*types.AddressHash{toAddr.Hash160()}, toAmt, tid, changeAmt, utxo, tokenUtxo)
+	tx, err = MakeUnsignedTokenTransferTx(ownerAddr.Hash160(),
+		[]*types.AddressHash{toAddr.Hash160()}, toAmt, tid, utxo, tokenUtxo)
 	if err != nil {
 		t.Fatal(err)
 	}
+	tokenRemain, _ := calcTokenChangeAmount(tid, toAmt, utxo, tokenUtxo)
 	expectRemain := tag.Supply*uint64(math.Pow10(int(tag.Decimal))) - toAmt[0]
 	if tokenRemain != expectRemain {
 		t.Fatalf("token remain want: %d, got: %d", expectRemain, tokenRemain)
@@ -313,5 +315,13 @@ func TestMakeUnsignedTokenTx(t *testing.T) {
 	GetTxType(tx, nil)
 	if tx.Type != types.TokenTransferTx {
 		t.Fatalf("tx type want: %d, got: %d", types.TokenTransferTx, tx.Type)
+	}
+	// check illegal token tx mixed contract vout
+	codeStr := "60fe47b10000000000000000000000000000000000000000000000000000000000000006"
+	code, _ := hex.DecodeString(codeStr)
+	cvout, _ := MakeContractCallVout(issuerAddr.Hash160(), toAddr.Hash160(), 1000, 200, 1)
+	tx.AppendVout(cvout).WithData(types.ContractDataType, code)
+	if typ, _ := ParseTxType(tx, nil); typ != types.ErrorTx {
+		t.Fatalf("tx type want %d, got: %d", typ, types.ErrorTx)
 	}
 }

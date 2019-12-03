@@ -26,6 +26,7 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/util"
+	cryptovm "github.com/BOXFoundation/boxd/vm/crypto"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 	"github.com/jbenet/goprocess"
 )
@@ -43,6 +44,7 @@ const (
 	BookkeeperRefreshInterval = int64(5000)
 	MaxPackedTxTime           = int64(100)
 	BlockNumPerPeiod          = 5
+	DynastySwitch             = "DynastySwitch()"
 )
 
 // Config defines the configurations of bpos
@@ -54,31 +56,35 @@ type Config struct {
 
 // Bpos define bpos struct
 type Bpos struct {
-	chain       *chain.BlockChain
-	txpool      *txpool.TransactionPool
-	context     *ConsensusContext
-	net         p2p.Net
-	proc        goprocess.Process
-	cfg         *Config
-	bookkeeper  *acc.Account
-	canMint     bool
-	disableMint bool
-	bftservice  *BftService
-	status      int32
+	chain                    *chain.BlockChain
+	txpool                   *txpool.TransactionPool
+	context                  *ConsensusContext
+	net                      p2p.Net
+	proc                     goprocess.Process
+	cfg                      *Config
+	bookkeeper               *acc.Account
+	canMint                  bool
+	disableMint              bool
+	bftservice               *BftService
+	status                   int32
+	IsdynastyChange          bool
+	IsdynastyChangeForVerify bool
 }
 
 // NewBpos new a bpos implement.
 func NewBpos(parent goprocess.Process, chain *chain.BlockChain, txpool *txpool.TransactionPool, net p2p.Net, cfg *Config) (*Bpos, error) {
 
 	bpos := &Bpos{
-		chain:   chain,
-		txpool:  txpool,
-		net:     net,
-		proc:    goprocess.WithParent(parent),
-		cfg:     cfg,
-		canMint: false,
-		context: &ConsensusContext{},
-		status:  free,
+		chain:                    chain,
+		txpool:                   txpool,
+		net:                      net,
+		proc:                     goprocess.WithParent(parent),
+		cfg:                      cfg,
+		canMint:                  false,
+		context:                  &ConsensusContext{},
+		status:                   free,
+		IsdynastyChange:          true,
+		IsdynastyChangeForVerify: true,
 	}
 	// peer is bookkeeper, start bftService.
 	bftService, err := NewBftService(bpos)
@@ -164,8 +170,11 @@ func (bpos *Bpos) Verify(block *types.Block) error {
 }
 
 // Finalize notify consensus to finalize the parent block by bft service.
-func (bpos *Bpos) Finalize(tail *types.Block) error {
-	parent := bpos.chain.GetParentBlock(tail)
+func (bpos *Bpos) Finalize(block *types.Block) error {
+	if err := bpos.updateVerifyContext(block); err != nil {
+		return err
+	}
+	parent := bpos.chain.GetParentBlock(block)
 	if bpos.IsBookkeeper() && time.Now().Unix()-parent.Header.TimeStamp < MaxEternalBlockMsgCacheTime {
 		go func() {
 			if err := bpos.BroadcastBFTMsgToBookkeepers(parent, p2p.BlockPrepareMsg); err != nil {
@@ -210,33 +219,38 @@ func (bpos *Bpos) run(timestamp int64) error {
 		return ErrNoLegalPowerToProduce
 	}
 
-	dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
-	if err != nil {
-		return err
-	}
-	netParams, err := bpos.chain.FetchNetParamsByHeight(bpos.chain.LongestChainHeight)
-	if err != nil {
-		return err
-	}
-	bpos.context.dynasty = dynasty
-	bpos.context.dynastySwitchThreshold = netParams.DynastySwitchThreshold
-	bpos.context.bookKeeperReward = netParams.BlockReward
-	bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
+	if bpos.IsdynastyChange {
 
-	current, err := bpos.getLastEpochByHeight(bpos.chain.LongestChainHeight)
-	if err != nil {
-		return err
-	}
-	next, err := bpos.getCurrentEpochByHeight(bpos.chain.LongestChainHeight)
-	if err != nil {
-		return err
-	}
-	bpos.context.currentDelegates = current
-	bpos.context.nextDelegates = next
-	bpos.context.candidates = bpos.filterCandidates(current, dynasty.delegates)
-	go bpos.net.ReorgConns()
+		dynasty, err := bpos.fetchDynastyByHeight(bpos.chain.LongestChainHeight)
+		if err != nil {
+			return err
+		}
+		netParams, err := bpos.chain.FetchNetParamsByHeight(bpos.chain.LongestChainHeight)
+		if err != nil {
+			return err
+		}
+		bpos.context.dynasty = dynasty
+		bpos.context.dynastySwitchThreshold = netParams.DynastySwitchThreshold
+		bpos.context.bookKeeperReward = netParams.BlockReward
+		bpos.context.calcScoreThreshold = netParams.CalcScoreThreshold
 
-	if err := bpos.verifyBookkeeper(timestamp, dynasty.delegates); err != nil {
+		lastEpoch, err := bpos.getLastEpochByHeight(bpos.chain.LongestChainHeight)
+		if err != nil {
+			return err
+		}
+		bpos.context.LastEpoch = lastEpoch
+		bpos.context.candidates = bpos.filterCandidates(lastEpoch, dynasty.delegates)
+		go bpos.net.ReorgConns()
+		bpos.IsdynastyChange = false
+	}
+
+	currentEpoch, err := bpos.getCurrentEpochByHeight(bpos.chain.LongestChainHeight)
+	if err != nil {
+		return err
+	}
+	bpos.context.currentEpoch = currentEpoch
+
+	if err := bpos.verifyBookkeeper(timestamp, bpos.context.dynasty.delegates); err != nil {
 		return err
 	}
 	logger.Infof("My turn to produce a block, time: %d", timestamp)
@@ -364,14 +378,8 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 				outPointToTx[txIn.PrevOutPoint] = pendingTx.Tx
 			}
 			if txlogic.GetTxType(pendingTx.Tx, bpos.chain.TailState()) == types.ContractTx {
-				// from is in txpool if the contract tx used a vout in txpool
-				op := pendingTx.Tx.Vin[0].PrevOutPoint
-				ownerTx, ok := bpos.txpool.GetTxByHash(&op.Hash)
-				if !ok { // no need to find owner in orphan tx pool
-					ownerTx = nil
-				}
 				// extract contract tx
-				vmTx, err := chain.ExtractVMTransaction(pendingTx.Tx, statedb, ownerTx.GetTx())
+				vmTx, err := chain.ExtractVMTransaction(pendingTx.Tx, statedb)
 				if err != nil {
 					return nil, err
 				}
@@ -401,7 +409,8 @@ func (bpos *Bpos) sortPendingTxs(pendingTxs []*types.TxWrap) ([]*types.TxWrap, e
 			if vmTx.Nonce() != currentNonce+1 {
 				// remove from mem_pool if vmTx nonce is smaller than current nonce
 				if vmTx.Nonce() < currentNonce+1 {
-					logger.Warnf("vm tx %+v has a wrong nonce, expect nonce: %d, remove it from mem_pool.", vmTx, currentNonce+1)
+					logger.Warnf("vm tx %+v has a wrong nonce, expect nonce: %d, remove "+
+						"it from mem_pool.", vmTx, currentNonce+1)
 					bpos.chain.Bus().Publish(eventbus.TopicInvalidTx, hashToTx[*hash].Tx, true)
 				} else {
 					logger.Warnf("vm tx %+v has a bigger nonce, expect nonce: %d", vmTx, currentNonce+1)
@@ -516,11 +525,6 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 			}
 
 			txHash, _ := txWrap.Tx.TxHash()
-			if txlogic.GetTxType(txWrap.Tx, bpos.chain.TailState()) == types.ContractTx {
-				spendableTxs.Store(*txHash, txWrap)
-				packedTxs = append(packedTxs, txWrap.Tx)
-				continue
-			}
 
 			utxoSet, err := chain.GetExtendedTxUtxoSet(txWrap.Tx, bpos.chain.DB(), spendableTxs)
 			if err != nil {
@@ -536,16 +540,32 @@ func (bpos *Bpos) PackTxs(block *types.Block, scriptAddr []byte) error {
 				continue
 			}
 			totalOutputAmount := txWrap.Tx.OutputAmount()
-			if totalInputAmount != totalOutputAmount+core.TransferFee+txWrap.Tx.ExtraFee() {
-				// This must not happen since the tx already passed the check when
-				//	admitted into mempool
-				logger.Warnf("total value of all transaction outputs for "+
-					"transaction %v is %v, which exceeds the input amount "+
-					"of %v", txHash, totalOutputAmount, totalInputAmount)
-				// TODO: abandon the error tx from pool.
-				continue
+			if txlogic.GetTxType(txWrap.Tx, bpos.chain.TailState()) == types.ContractTx {
+				vmtx, err := chain.ExtractVMTransaction(txWrap.Tx, bpos.chain.TailState())
+				if err != nil {
+					logger.Errorf("Failed to extract vmtx, tx hash: %v", txHash)
+					continue
+				}
+				if totalInputAmount != totalOutputAmount+vmtx.Gas()*vmtx.GasPrice().Uint64()+txWrap.Tx.ExtraFee() {
+					logger.Warnf("total value of all transaction outputs for "+
+						"transaction %v is %v, which exceeds the input amount "+
+						"of %v", txHash, totalOutputAmount, totalInputAmount)
+					bpos.chain.Bus().Publish(eventbus.TopicInvalidTx, txWrap.Tx, true)
+					continue
+				}
+
+			} else {
+				if totalInputAmount != totalOutputAmount+core.TransferFee+txWrap.Tx.ExtraFee() {
+					// This must not happen since the tx already passed the check when
+					//	admitted into mempool
+					logger.Warnf("total value of all transaction outputs for "+
+						"transaction %v is %v, which exceeds the input amount "+
+						"of %v", txHash, totalOutputAmount, totalInputAmount)
+					bpos.chain.Bus().Publish(eventbus.TopicInvalidTx, txWrap.Tx, true)
+					continue
+				}
+				totalTransferFee += core.TransferFee + txWrap.Tx.ExtraFee()
 			}
-			totalTransferFee += core.TransferFee + txWrap.Tx.ExtraFee()
 
 			spendableTxs.Store(*txHash, txWrap)
 			packedTxs = append(packedTxs, txWrap.Tx)
@@ -712,6 +732,19 @@ func (bpos *Bpos) executeBlock(block *types.Block, statedb *state.StateDB) error
 	block.Header.Bloom = types.CreateReceiptsBloom(receipts)
 	if len(receipts) > 0 {
 		block.Header.ReceiptHash = *receipts.Hash()
+		for _, receipt := range receipts {
+			if receipt.ContractAddress == chain.ContractAddr {
+				for _, log := range receipt.Logs {
+					for _, topic := range log.Topics {
+						hash := crypto.NewHashType(topic.GetBytes())
+						if *hash == cryptovm.Keccak256Hash([]byte(DynastySwitch)) {
+							bpos.IsdynastyChange = true
+						}
+					}
+				}
+			}
+
+		}
 	}
 	// check whether contract balance is identical in utxo and statedb
 	for o, u := range utxoSet.ContractUtxos() {
@@ -825,25 +858,36 @@ func (bpos *Bpos) signBlock(block *types.Block) error {
 	return nil
 }
 
-// verifySign consensus verifies signature info.
-func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
+func (bpos *Bpos) updateVerifyContext(block *types.Block) error {
 	var height uint32
 	if block.Header.Height > 0 {
 		height = block.Header.Height - 1
 	}
-	dynasty, err := bpos.fetchDynastyByHeight(height)
-	if err != nil {
-		return false, err
-	}
-	netParams, err := bpos.chain.FetchNetParamsByHeight(height)
-	if err != nil {
-		return false, err
-	}
+	if bpos.IsdynastyChangeForVerify {
+		dynasty, err := bpos.fetchDynastyByHeight(height)
+		if err != nil {
+			return err
+		}
+		netParams, err := bpos.chain.FetchNetParamsByHeight(height)
+		if err != nil {
+			return err
+		}
 
-	bpos.context.verifyDynasty = dynasty
-	bpos.context.verifyDynastySwitchThreshold = netParams.DynastySwitchThreshold
-	bpos.context.verifyCalcScoreThreshold = netParams.CalcScoreThreshold
-	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, dynasty.delegates)
+		bpos.context.verifyDynasty = dynasty
+		bpos.context.verifyDynastySwitchThreshold = netParams.DynastySwitchThreshold
+		bpos.context.verifyCalcScoreThreshold = netParams.CalcScoreThreshold
+		bpos.IsdynastyChangeForVerify = false
+	}
+	return nil
+}
+
+// verifySign consensus verifies signature info.
+func (bpos *Bpos) verifySign(block *types.Block) (bool, error) {
+
+	if err := bpos.updateVerifyContext(block); err != nil {
+		return false, err
+	}
+	bookkeeper, err := bpos.FindProposerWithTimeStamp(block.Header.TimeStamp, bpos.context.verifyDynasty.delegates)
 	if err != nil {
 		return false, err
 	}
@@ -957,6 +1001,7 @@ func (bpos *Bpos) verifyInternalContractTx(block *types.Block) error {
 		if err := bpos.verifyImmutableTx(block, chain.ExecBonus); err != nil {
 			return err
 		}
+		bpos.IsdynastyChange = true
 	}
 	// else if uint64(height)%switchHeight == scoreHeight { // calc score
 	// 	if err := bpos.verifyImmutableTx(block, chain.CalcScore); err != nil {
@@ -1012,7 +1057,7 @@ func (bpos *Bpos) Candidates() ([]string, bool) {
 	for _, c := range bpos.context.candidates {
 		candidates = append(candidates, c.PeerID)
 	}
-	for _, c := range bpos.context.nextDelegates {
+	for _, c := range bpos.context.currentEpoch {
 		candidates = append(candidates, c.PeerID)
 	}
 	return candidates, bpos.cfg.EnableMint
@@ -1029,5 +1074,8 @@ func (bpos *Bpos) subscribe() {
 		} else {
 			out <- bpos.verifyBookkeeper(timestamp, dynasty.delegates)
 		}
+	}, false)
+	bpos.chain.Bus().Reply(eventbus.TopicDynastyUpdate, func(isDynastyChange bool) {
+		bpos.IsdynastyChangeForVerify = isDynastyChange
 	}, false)
 }
