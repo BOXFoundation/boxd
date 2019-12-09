@@ -5,7 +5,7 @@ RUN apk add --update --no-cache zlib-dev bzip2-dev snappy-dev lz4-dev zstd-dev
 
 # Install Rocksdb
 RUN cd /tmp && \
-    git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb --depth 1 --single-branch --branch v5.15.10 && \
+    git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb --depth 1 --single-branch --branch v6.1.2  && \
     cd rocksdb && \
     make shared_lib && make install-shared
 
@@ -39,4 +39,5 @@ WORKDIR /app/boxd/
 
 COPY --from=builder /app/boxd/box .
 COPY startnode .
-CMD ["/bin/bash", "startnode", "1"]
+
+CMD [ "/bin/bash" ]

@@ -1,4 +1,4 @@
-network: mainnet
+network: testnet
 workspace: ./.devconfig/ws1
 database:
     name: rocksdb
@@ -19,22 +19,25 @@ log:
               level:  5 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
     key_path: peer.key
-    address: "172.27.1.11"
     port: 19199
+    seeds:
+        - "/ip4/39.97.168.26/tcp/19179/p2p/12D3KooWLqU1eDZZUKjpFD9gEsVg28bhphFRgmccD8VSk5H5krbk"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
     conn_load_factor: 0.8
+    relay_size: 32
 rpc:
-    address: "172.27.1.11"
     port: 19111
     http:
-        address: "172.27.1.11"
         port: 19110
-dpos:
+    subscribe_blocks: true
+    subscribe_logs: true
+bpos:
     keypath: key.keystore
-    enable_mint: true
+    enable_mint: false
     passphrase: 1
+pprof: "0.0.0.0:8888"
 metrics:
     enable: false
     host: http://localhost:8086
@@ -42,3 +45,6 @@ metrics:
     user:
     password:
     tags: [region:us-west, host:box-1]
+wallet:
+    enable: true
+    utxo_cache_time: 1

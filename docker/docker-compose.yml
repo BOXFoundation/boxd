@@ -1,7 +1,7 @@
 version: "3"
 
 services:
-  p1:
+  box1:
     image: jerrypeen/boxd:latest
     environment:
       - "TZ=Asia/Shanghai"
@@ -18,106 +18,6 @@ services:
     networks:
       boxdnet:
         ipv4_address: 172.27.1.11
-
-  p2:
-    image: jerrypeen/boxd:latest
-    environment:
-      - "TZ=Asia/Shanghai"
-    command: >
-      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
-      echo $TZ > /etc/timezone &&
-      ./box start --config=./.devconfig/.box-2.yaml"
-    depends_on:
-      - p1
-    ports:
-      - "19189:19189"
-      - "19121:19121"
-      - "19120:19120"
-    volumes:
-      - ./.devconfig:/app/boxd/.devconfig
-    networks:
-      boxdnet:
-        ipv4_address: 172.27.1.12
-
-  p3:
-    image: jerrypeen/boxd:latest
-    environment:
-      - "TZ=Asia/Shanghai"
-    command: >
-      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
-      echo $TZ > /etc/timezone &&
-      ./box start --config=./.devconfig/.box-3.yaml"
-    depends_on:
-      - p1
-    ports:
-      - "19179:19179"
-      - "19131:19131"
-      - "19130:19130"
-    volumes:
-      - ./.devconfig:/app/boxd/.devconfig
-    networks:
-      boxdnet:
-        ipv4_address: 172.27.1.13
-
-  p4:
-    image: jerrypeen/boxd:latest
-    environment:
-      - "TZ=Asia/Shanghai"
-    command: >
-      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
-      echo $TZ > /etc/timezone &&
-      ./box start --config=./.devconfig/.box-4.yaml"
-    depends_on:
-      - p1
-    ports:
-      - "19169:19169"
-      - "19141:19141"
-      - "19140:19140"
-    volumes:
-      - ./.devconfig:/app/boxd/.devconfig
-    networks:
-      boxdnet:
-        ipv4_address: 172.27.1.14
-
-  p5:
-    image: jerrypeen/boxd:latest
-    environment:
-      - "TZ=Asia/Shanghai"
-    command: >
-      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
-      echo $TZ > /etc/timezone &&
-      ./box start --config=./.devconfig/.box-5.yaml"
-    depends_on:
-      - p1
-    ports:
-      - "19159:19159"
-      - "19151:19151"
-      - "19150:19150"
-    volumes:
-      - ./.devconfig:/app/boxd/.devconfig
-    networks:
-      boxdnet:
-        ipv4_address: 172.27.1.15
-
-  p6:
-    image: jerrypeen/boxd:latest
-    environment:
-      - "TZ=Asia/Shanghai"
-    command: >
-      sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime &&
-      echo $TZ > /etc/timezone &&
-      ./box start --config=./.devconfig/.box-6.yaml"
-    depends_on:
-      - p1
-    ports:
-      - "19149:19149"
-      - "19161:19161"
-      - "19160:19160"
-    volumes:
-      - ./.devconfig:/app/boxd/.devconfig
-    networks:
-      boxdnet:
-        ipv4_address: 172.27.1.16
 
 networks:
   boxdnet:

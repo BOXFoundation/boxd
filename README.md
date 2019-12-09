@@ -26,7 +26,7 @@ As a node OS we will use:
 |:---|:---:|:---:|
 |Golang| >= 1.11| -- |
 |Govendor| -| A dependency management tool for Go. |
-|Rocksdb| >= 5.0.1|  A high performance embedded database for key-value data. |
+|Rocksdb| == 6.1.2|  A high performance embedded database for key-value data. |
 
 ### Preparing environment
 

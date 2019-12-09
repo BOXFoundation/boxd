@@ -19,7 +19,6 @@ log:
               level:  5 # 0:panic, 1:fatal, 2:error, 3:warning, 4:info, 5:debug
 p2p:
     key_path: peer.key
-    address: "172.27.1.12"
     port: 19189
     seeds:
         - "/ip4/172.27.1.11/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
@@ -27,20 +26,25 @@ p2p:
     latency: 10
     conn_max_capacity: 200
     conn_load_factor: 0.8
+    relay_size: 32
 rpc:
-    address: "172.27.1.12"
     port: 19121
     http:
-        address: "172.27.1.12"
         port: 19120
-dpos:
+    subscribe_blocks: true
+    subscribe_logs: true
+bpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1
+pprof: "0.0.0.0:8888"
 metrics:
     enable: false
     host: http://localhost:8086
     db: box
     user:
     password:
-    tags: [region:us-west, host:box-2]
+    tags: [region:us-west, host:box-1]
+wallet:
+    enable: true
+    utxo_cache_time: 1
