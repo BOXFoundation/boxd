@@ -245,7 +245,7 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 	hash, _ := tx.TxHash()
-	logger.Debugf("Start to process tx from network. Hash: %v", hash)
+	logger.Debugf("Start to process tx %s from %s", hash, msg.From().Pretty())
 
 	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil {
 		for _, e := range core.EvilBehavior {

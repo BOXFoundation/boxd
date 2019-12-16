@@ -269,7 +269,8 @@ func (chain *BlockChain) loop(p goprocess.Process) {
 		select {
 		case msg := <-chain.newblockMsgCh:
 			if err := chain.processBlockMsg(msg); err != nil {
-				logger.Warnf("Failed to processBlockMsg. Err: %s", err.Error())
+				logger.Warnf("Failed to processBlockMsg. Err: %s from %s", err.Error(),
+					msg.From().Pretty())
 			}
 		case <-metricsTicker.C:
 			metrics.MetricsCachedBlockMsgGauge.Update(int64(len(chain.newblockMsgCh)))
@@ -564,8 +565,8 @@ func (chain *BlockChain) tryAcceptBlock(block *types.Block, messageFrom peer.ID)
 
 	// The height of this block must be one more than the referenced parent block.
 	if block.Header.Height != parentBlock.Header.Height+1 {
-		logger.Errorf("Block %v's height is %d, but its parent's height is %d",
-			blockHash.String(), block.Header.Height, parentBlock.Header.Height)
+		logger.Errorf("Block %s height is %d, but its parent's height is %d",
+			blockHash, block.Header.Height, parentBlock.Header.Height)
 		return core.ErrWrongBlockHeight
 	}
 
