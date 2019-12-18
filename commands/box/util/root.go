@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	root "github.com/BOXFoundation/boxd/commands/box/root"
@@ -34,6 +35,11 @@ var rootCmd = &cobra.Command{
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
 }
+
+var (
+	inFilePath  string
+	outFilePath string
+)
 
 // Init adds the sub command to the root command.
 func init() {
@@ -70,16 +76,30 @@ func init() {
 			Run:   makeP2PKHAddress,
 		},
 		&cobra.Command{
-			Use:   "peerid [optional|peerkey_path, peerkey]",
-			Short: "conversion peer key to peer ID",
-			Run:   peerID,
-		},
-		&cobra.Command{
-			Use:   "createpeerid [optional|peerkey_path]",
-			Short: "create peer key",
-			Run:   createPeerID,
+			Use:   "test [pubkey]",
+			Short: "test",
+			Run:   test,
 		},
 	)
+	var (
+		showPeerIDCmd = &cobra.Command{
+			Use:   "showpeerid [optional|peerkey]",
+			Short: "conversion peer key to peer ID",
+			Run:   showPeerID,
+		}
+		createPeerIDCmd = &cobra.Command{
+			Use:   "createpeerid ",
+			Short: "create peer key",
+			Run:   createPeerID,
+		}
+	)
+	rootCmd.AddCommand(showPeerIDCmd, createPeerIDCmd)
+	showPeerIDCmd.PersistentFlags().StringVar(&inFilePath, "i", "", "input file path, default nil")
+	createPeerIDCmd.PersistentFlags().StringVar(&outFilePath, "o", ".", "output file path, default current directory")
+}
+
+func test(cmd *cobra.Command, args []string) {
+	util.Isfile(args[0])
 }
 
 func encode(cmd *cobra.Command, args []string) {
@@ -250,27 +270,32 @@ func makeP2PKHAddress(cmd *cobra.Command, args []string) {
 	fmt.Printf("address: %s, address hash: %x\n", addr, addr.Hash160()[:])
 }
 
-func peerID(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
-		fmt.Println(cmd.Use)
-		return
-	}
-	var (
-		data     string
-		err      error
-		dataByte []byte
-	)
-	if err := util.FileExists(args[0]); err == nil {
-		dataByte, err = ioutil.ReadFile(args[0])
+func showPeerID(cmd *cobra.Command, args []string) {
+	var data string
+	switch len(args) {
+	case 0:
+		if len(inFilePath) == 0 {
+			fmt.Println("please input the path of peer.key")
+			return
+		}
+		if _, err := os.Stat(inFilePath); err != nil {
+			fmt.Println(err)
+			return
+		}
+		dataByte, err := ioutil.ReadFile(inFilePath)
 		if err != nil {
 			fmt.Printf("read data from %s error: %s\n", args[0], err)
 			return
 		}
 		data = string(dataByte)
-	} else if _, err := libcrypto.ConfigDecodeKey(args[0]); err == nil {
+	case 1:
+		if _, err := libcrypto.ConfigDecodeKey(args[0]); err != nil {
+			fmt.Printf("read data from %s, error: %s.", args[0], err)
+			return
+		}
 		data = args[0]
-	} else {
-		fmt.Println("invailb argument:", args[0])
+	default:
+		fmt.Println(cmd.Use)
 		return
 	}
 	decodeData, err := base64.StdEncoding.DecodeString(data)
@@ -292,27 +317,34 @@ func peerID(cmd *cobra.Command, args []string) {
 }
 
 func createPeerID(cmd *cobra.Command, args []string) {
-	if len(args) > 1 {
+	if len(args) != 0 {
 		fmt.Println(cmd.Use)
 		return
 	}
 	var (
 		peerKeyPath string
-		err         error
+		defaultFile = outFilePath + "/peer.key"
 	)
-	if len(args) == 0 {
-		peerKeyPath, err = os.Getwd()
-		if err != nil {
-			fmt.Println(err)
+	_, err := os.Stat(outFilePath)
+	if err != nil {
+		if _, err := os.Stat(filepath.Dir(outFilePath)); err == nil {
+			peerKeyPath = outFilePath
+		} else {
+			fmt.Printf("%s doesn't exist.\n", outFilePath)
 			return
 		}
-		peerKeyPath += "/peer.key"
-	} else if len(args) == 1 {
-		if err = util.FileExists(args[0]); err != nil {
-			fmt.Println(err)
+	} else {
+		if !util.Isfile(outFilePath) {
+			if _, err := os.Stat(defaultFile); err != nil {
+				peerKeyPath = defaultFile
+			} else {
+				fmt.Printf("%s has already existed.\n", defaultFile)
+				return
+			}
+		} else {
+			fmt.Printf("%s has already existed.\n", outFilePath)
 			return
 		}
-		peerKeyPath = args[0] + "/peer.key"
 	}
 	key, _, err := libcrypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
@@ -331,4 +363,10 @@ func createPeerID(cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Println("generate peer key:", peerKeyPath)
+	peerID, err := peer.IDFromPublicKey(key.GetPublic())
+	if err != nil {
+		fmt.Println("get peer ID from public key error:", err)
+		return
+	}
+	fmt.Println("peer ID:", peerID.Pretty())
 }
