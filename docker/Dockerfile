@@ -5,7 +5,7 @@ RUN apk add --update --no-cache zlib-dev bzip2-dev snappy-dev lz4-dev zstd-dev
 
 # Install Rocksdb
 RUN cd /tmp && \
-    git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb --depth 1 --single-branch --branch v5.15.10 && \
+    git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb --depth 1 --single-branch --branch v6.1.2  && \
     cd rocksdb && \
     make shared_lib && make install-shared
 
@@ -33,10 +33,13 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflag
 #############################
 FROM go-rocksdb
 
-RUN mkdir -p /app/boxd/.devconfig /app/boxd/keyfile
+RUN mkdir -p /app/boxd/.devconfig/ws1 
 WORKDIR /app/boxd/
 #RUN /sbin/ldconfig && mkdir .devconfig && mkdir keyfile
 
 COPY --from=builder /app/boxd/box .
 COPY startnode .
+COPY .devconfig/ws1 /app/boxd/.devconfig/ws1 
+COPY .devconfig/.box-1.yaml /app/boxd/.devconfig/
+COPY contracts /app/boxd/.devconfig/ws1/contracts
 CMD ["/bin/bash", "startnode", "1"]
