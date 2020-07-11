@@ -100,8 +100,9 @@ func txRepeatTest(fromAddr, toAddr string, conn *grpc.ClientConn, times int, txC
 	logger.Infof("start to construct txs from %s to %s %d times", fromAddr, toAddr, times)
 	start := time.Now()
 	fromAcc, _ := AddrToAcc.Load(fromAddr)
+	toAddress, _ := types.NewAddress(toAddr)
 	txss, transfer, fee, count, err := rpcutil.NewTxs(fromAcc.(*acc.Account),
-		toAddr, times, conn)
+		toAddress.Hash160(), times, conn)
 	eclipse := float64(time.Since(start).Nanoseconds()) / 1e6
 	logger.Infof("create %d txs cost: %6.3f ms", count, eclipse)
 	if err != nil {
@@ -133,7 +134,7 @@ func txRepeatTest(fromAddr, toAddr string, conn *grpc.ClientConn, times int, txC
 					logger.Panic(err)
 				}
 				atomic.AddUint64(txCnt, 1)
-				time.Sleep(4 * time.Millisecond)
+				//time.Sleep(1 * time.Millisecond)
 			}
 		}(txs)
 	}

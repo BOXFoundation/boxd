@@ -14,20 +14,22 @@ import (
 // ChainReader defines basic operations blockchain exposes
 type ChainReader interface {
 	// interface to read transactions
-	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, error)
+	LoadBlockInfoByTxHash(crypto.HashType) (*types.Block, *types.Transaction, types.TxType, error)
 	ReadBlockFromDB(*crypto.HashType) (*types.Block, int, error)
-	GetEvmByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
+	LoadBlockByHeight(height uint32) (*types.Block, error)
+	NewEvmContextForLocalCallByHeight(msg types.Message, height uint32) (*vm.EVM, func() error, error)
+	GetStateDbByHeight(height uint32) (*state.StateDB, error)
 	GetLogs(from, to uint32, topicslist [][][]byte) ([]*types.Log, error)
 	FilterLogs(logs []*types.Log, topicslist [][][]byte) ([]*types.Log, error)
 
 	//
 	GetDataFromDB([]byte) ([]byte, error)
-	GetTxReceipt(*crypto.HashType) (*types.Receipt, error)
+	GetTxReceipt(*crypto.HashType) (*types.Receipt, *types.Transaction, error)
 
 	//interface to reader block status
-	GetBlockHeight() uint32
 	GetBlockHash(uint32) (*crypto.HashType, error)
 	EternalBlock() *types.Block
 	TailBlock() *types.Block
 	TailState() *state.StateDB
+	CallGenesisContract(height uint32, method string) ([]byte, error)
 }

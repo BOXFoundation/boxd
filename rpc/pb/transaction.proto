@@ -53,13 +53,6 @@ service TransactionCommand {
         };
     }
 
-    rpc GetFeePrice (GetFeePriceRequest) returns (GetFeePriceResponse) {
-        option (google.api.http) = {
-            post: "/v1/tx/getfeeprice"
-            body: "*"
-        };
-    }
-
     rpc MakeUnsignedTx (MakeTxReq) returns (MakeTxResp) {
         option (google.api.http) = {
             post: "/v1/tx/makeunsignedtx"
@@ -137,11 +130,13 @@ message FetchUtxosResp {
 }
 
 message GetRawTransactionRequest {
-    bytes hash = 1;
+    string hash = 1;
 }
 
 message GetRawTransactionResponse {
-    corepb.Transaction tx = 1;
+    int32 code = 1;
+    string message = 2;
+    corepb.Transaction tx = 3;
 }
 
 message SendTransactionReq {
@@ -154,39 +149,29 @@ message SendTransactionResp {
     string hash = 3;
 }
 
-message GetFeePriceRequest {
-}
-
-message GetFeePriceResponse {
-    uint64 box_per_byte = 1;
-}
-
 message MakeTxReq {
     string from = 1;
     repeated string to = 2;
     repeated uint64 amounts = 3;
-    uint64 gas_price = 4;
 }
 
 message MakeTxResp {
     int32 code = 1;
     string message = 2;
     corepb.Transaction tx = 3;
-    repeated bytes rawMsgs = 4;
+    repeated string rawMsgs = 4;
 }
 
 message MakeSplitAddrTxReq {
     string from = 1;
     repeated string addrs = 2;
-    repeated uint64 weights = 3;
-    uint64 gas_price = 4;
+    repeated uint32 weights = 3;
 }
 
 message MakeTokenIssueTxReq {
     string issuer = 1;
     string owner = 2;
     TokenTag tag = 3;
-    uint64 gas_price = 4;
 } 
 
 message MakeTokenIssueTxResp {
@@ -194,7 +179,7 @@ message MakeTokenIssueTxResp {
     string message = 2;
     uint32 issue_out_index = 3;
     corepb.Transaction tx = 4;
-    repeated bytes rawMsgs = 5;
+    repeated string rawMsgs = 5;
 }
 
 message MakeTokenTransferTxReq {
@@ -203,7 +188,6 @@ message MakeTokenTransferTxReq {
     repeated uint64 amounts = 3;
     string token_hash = 4;
     uint32 token_index = 5;
-    uint64 gas_price = 6;
 }
 
 message TokenTag {
@@ -217,24 +201,22 @@ message MakeContractTxReq {
     string from = 1;
     string to = 2;
     uint64 amount = 3;
-    uint64 gas_price = 4;
-    uint64 gas_limit = 5;
-    uint64 nonce = 6;
-    bool is_deploy = 7;
-    string data = 8;
+    uint64 gas_limit = 4;
+    uint64 nonce = 5;
+    bool is_deploy = 6;
+    string data = 7;
 }
 
 message MakeContractTxResp {
     int32 code = 1;
     string message = 2;
     corepb.Transaction tx = 3;
-    repeated bytes rawMsgs = 4;
+    repeated string rawMsgs = 4;
     string contract_addr = 5;
 }
 
 message MakeCombineTx {
     string addr = 1;
-    uint64 gas_price = 2;
-    string token_hash = 3; // combine box if token_hash is set empty
-    uint32 token_index = 4;
+    string token_hash = 2; // combine box if token_hash is set empty
+    uint32 token_index = 3;
 }

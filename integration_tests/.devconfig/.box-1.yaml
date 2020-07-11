@@ -5,14 +5,14 @@ database:
 log:
     out:
         name: null # stdout|stderr|null
-    level: debug # debug|info|warning|error|fatal
+    level: warning # debug|info|warning|error|fatal
     formatter:
         name: text # json|text
     hooks:
         - name: filewithformatter
           options:
-              filename: box.log
-              maxlines: 100000
+              filename: box1.log
+              maxlines: 10000000
               # daily: true
               # maxsize: 10240000
               rotate: true
@@ -20,20 +20,32 @@ log:
 p2p:
     key_path: peer.key
     port: 19199
+    agents:
+        - "/ip4/127.0.0.1/tcp/19189/p2p/12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
     conn_load_factor: 0.8
     relay_size: 32
 rpc:
+    enable: true
+    address: 0.0.0.0
     port: 19111
     http:
+        address: 0.0.0.0
         port: 19110
-    faucet_keyfile: ./.devconfig/keyfile/pre.keystore
+    faucet:
+        amount_per_sec: 1000000000000
+        keyfile: ./.devconfig/keyfile/pre.keystore
+        white_list:
+            - "*"
+            - "127.0.0.1"
     subscribe_blocks: true
     subscribe_logs: true
+    admin_ips:
+      - "127.0.0.1"
 
-dpos:
+bpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1
@@ -49,5 +61,4 @@ metrics:
     tags: [region:us-west, host:box-1]
 wallet:
     enable: true
-    cache_size: 512
     utxo_cache_time: 1

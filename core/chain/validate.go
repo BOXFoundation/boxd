@@ -6,13 +6,14 @@ package chain
 
 import (
 	"math"
-	"reflect"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
+	state "github.com/BOXFoundation/boxd/core/worldstate"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
 )
@@ -38,9 +39,8 @@ func VerifyBlockTimeOut(block *types.Block) error {
 	return nil
 }
 
-func validateBlock(block *types.Block) error {
+func validateBlock(block *types.Block, statedb *state.StateDB) error {
 	header := block.Header
-
 	// Can't have no tx
 	numTx := len(block.Txs)
 	if numTx == 0 {
@@ -51,14 +51,14 @@ func validateBlock(block *types.Block) error {
 	// First tx must be coinbase.
 	transactions := block.Txs
 	if !IsCoinBase(transactions[0]) {
-		logger.Errorf("first transaction in block is not a coinbase")
+		logger.Errorf("coinbase tx: %+v error: %s", transactions[0], core.ErrFirstTxNotCoinbase)
 		return core.ErrFirstTxNotCoinbase
 	}
 
 	// There should be only one coinbase.
 	for i, tx := range transactions[1:] {
 		if IsCoinBase(tx) {
-			logger.Errorf("block contains second coinbase at index %d", i+1)
+			logger.Errorf("block contains second coinbase at index %d, tx: %s", i+1, tx)
 			return core.ErrMultipleCoinbases
 		}
 	}
@@ -66,10 +66,17 @@ func validateBlock(block *types.Block) error {
 	// checks each transaction.
 	blockTime := block.Header.TimeStamp
 	existingOutPoints := make(map[types.OutPoint]struct{})
-	for _, tx := range transactions {
+	txsRoughSize := 0
+	for i, tx := range transactions {
+		txsRoughSize += tx.RoughSize()
+		if txsRoughSize > core.MaxTxsRoughSize {
+			logger.Errorf("txs rough size have reached %d on %d txs, total: %d",
+				txsRoughSize, i, len(transactions))
+			return core.ErrMaxTxsSizeExceeded
+		}
+		txHash, _ := tx.TxHash()
 		if !IsTxFinalized(tx, block.Header.Height, blockTime) {
-			txHash, _ := tx.TxHash()
-			logger.Errorf("block contains unfinalized transaction %v", txHash)
+			logger.Errorf("block contains unfinalized transaction %v: %+v", txHash, tx)
 			return core.ErrUnfinalizedTx
 		}
 		if err := ValidateTransactionPreliminary(tx); err != nil {
@@ -79,9 +86,15 @@ func validateBlock(block *types.Block) error {
 		// Check for double spent in transactions in the same block.
 		for _, txIn := range tx.Vin {
 			if _, exists := existingOutPoints[txIn.PrevOutPoint]; exists {
+				logger.Errorf("tx %s: %+v have spend double same outpoint: %+v",
+					txHash, tx, txIn.PrevOutPoint)
 				return core.ErrDoubleSpendTx
 			}
 			existingOutPoints[txIn.PrevOutPoint] = struct{}{}
+		}
+		// Check for whether tx script pubkey is standard
+		if !txlogic.IsStandardTx(tx, statedb) {
+			return core.ErrNonStandardTransaction
 		}
 	}
 
@@ -100,7 +113,7 @@ func validateBlock(block *types.Block) error {
 	for _, tx := range transactions {
 		txHash, _ := tx.TxHash()
 		if _, exists := existingTxHashes[txHash]; exists {
-			logger.Errorf("block contains duplicate transaction %v", txHash)
+			logger.Errorf("block contains duplicate transaction %s", txHash)
 			return core.ErrDuplicateTx
 		}
 		existingTxHashes[txHash] = struct{}{}
@@ -153,8 +166,11 @@ func IsTxFinalized(tx *types.Transaction, blockHeight uint32, blockTime int64) b
 func validateBlockScripts(utxoSet *UtxoSet, block *types.Block) error {
 	var scriptItems []*ScriptItem
 
-	// Skip coinbases.
+	// Skip coinbases && dynasty switch tx
 	for _, tx := range block.Txs[1:] {
+		if IsInternalContract(tx) {
+			continue
+		}
 		txScriptItems, err := CheckTxScripts(utxoSet, tx, true /* do not validate script here */)
 		if err != nil {
 			return err
@@ -277,36 +293,23 @@ func CheckTxScripts(utxoSet *UtxoSet, tx *types.Transaction, skipValidation bool
 
 // ValidateTxInputs validates the inputs of a tx.
 // Returns the total tx fee.
-func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) (uint64, error) {
+func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction) (uint64, error) {
 	// Coinbase tx needs no inputs.
-	if IsCoinBase(tx) {
+	if IsCoinBase(tx) || IsInternalContract(tx) {
 		return 0, nil
 	}
 
 	txHash, _ := tx.TxHash()
 	var totalInputAmount uint64
 	tokenInputAmounts := make(map[script.TokenID]uint64)
-	for _, txIn := range tx.Vin {
+	for i, txIn := range tx.Vin {
 		// Ensure the referenced input transaction exists and is not spent.
 		utxo := utxoSet.FindUtxo(txIn.PrevOutPoint)
-		// if utxo == nil || utxo.IsSpent() {
-		// 	logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
-		// 		"has already been spent", txIn.PrevOutPoint, txHash, txInIndex)
-		// 	return 0, core.ErrMissingTxOut
-		// }
-
-		// Immature coinbase coins cannot be spent.
-		if utxo.IsCoinBase() {
-			originHeight := utxo.Height()
-			blocksSincePrev := txHeight - originHeight
-			if blocksSincePrev < CoinbaseMaturity {
-				logger.Errorf("tried to spend coinbase transaction output %v from height %v "+
-					"at height %v before required maturity of %v blocks", txIn.PrevOutPoint,
-					originHeight, txHeight, CoinbaseMaturity)
-				return 0, core.ErrImmatureSpend
-			}
+		if utxo == nil || utxo.IsSpent() {
+			logger.Errorf("output %v referenced from transaction %s:%d does not exist or "+
+				"has already been spent", txIn.PrevOutPoint, txHash, i)
+			return 0, core.ErrMissingTxOut
 		}
-
 		// Tx amount must be in range.
 		utxoAmount := utxo.Value()
 		if utxoAmount > TotalSupply {
@@ -349,7 +352,7 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 	for _, txOut := range tx.Vout {
 		totalOutputAmount += txOut.Value
 		// token tx output amount
-		scriptPubKey := script.NewScriptFromBytes(txOut.GetScriptPubKey())
+		scriptPubKey := script.NewScriptFromBytes(txOut.ScriptPubKey)
 		// do not count token issued
 		if scriptPubKey.IsTokenTransfer() {
 			// no need to check error since it will not err
@@ -367,11 +370,17 @@ func ValidateTxInputs(utxoSet *UtxoSet, tx *types.Transaction, txHeight uint32) 
 		return 0, core.ErrSpendTooHigh
 	}
 
-	if !reflect.DeepEqual(tokenOutputAmounts, tokenInputAmounts) {
-		logger.Errorf("total value of all token outputs for "+
-			"transaction %v is %v, differs from the input amount "+
-			"of %v", txHash, tokenOutputAmounts, tokenInputAmounts)
+	// check token output amount
+	if len(tokenOutputAmounts) != len(tokenInputAmounts) {
 		return 0, core.ErrTokenInputsOutputNotEqual
+	}
+	for k, v := range tokenOutputAmounts {
+		if u, ok := tokenInputAmounts[k]; !ok || v != u {
+			logger.Errorf("total value of all token outputs for "+
+				"transaction %v is %v, differs from the input amount "+
+				"of %v", txHash, tokenOutputAmounts, tokenInputAmounts)
+			return 0, core.ErrTokenInputsOutputNotEqual
+		}
 	}
 
 	txFee := totalInputAmount - totalOutputAmount
@@ -392,7 +401,7 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 	}
 
 	// A transaction must have no more than MaxVins vins
-	if len(tx.Vin) > core.MaxUtxosInTx {
+	if len(tx.Vin) > core.MaxVinInTx {
 		return core.ErrUtxosOob
 	}
 
@@ -437,7 +446,7 @@ func ValidateTransactionPreliminary(tx *types.Transaction) error {
 		}
 	}
 
-	if IsCoinBase(tx) {
+	if IsCoinBase(tx) || IsInternalContract(tx) {
 		// Coinbase script length must be between min and max length.
 		slen := len(tx.Vin[0].ScriptSig)
 		if slen < core.MinCoinbaseScriptLen || slen > core.MaxCoinbaseScriptLen {

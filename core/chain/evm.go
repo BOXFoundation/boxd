@@ -12,43 +12,21 @@ import (
 	"github.com/BOXFoundation/boxd/vm"
 )
 
-// Transfers used to record the transfer information
-var (
-	// Transfers          map[types.AddressHash][]*TransferInfo
-	// TransferToContract *types.Transaction
-	Transfers = make(map[types.AddressHash][]*TransferInfo)
-)
-
-// TransferInfo used to record the transfer information occurred during the execution of the contract
-type TransferInfo struct {
-	from  types.AddressHash
-	to    types.AddressHash
-	value *big.Int
-}
-
-// NewTransferInfo creates a new transferInfo.
-func NewTransferInfo(from, to types.AddressHash, value *big.Int) *TransferInfo {
-	return &TransferInfo{
-		from:  from,
-		to:    to,
-		value: value,
-	}
-}
-
 // NewEVMContext creates a new context for use in the EVM.
 func NewEVMContext(msg types.Message, header *types.BlockHeader, bc *BlockChain) vm.Context {
 	// If we don't have an explicit author (i.e. not mining), extract from the header
 	return vm.Context{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(bc),
-		Coinbase:    header.BookKeeper,
-		Origin:      *msg.From(),
-		BlockNumber: new(big.Int).Set(big.NewInt(int64(header.Height))),
-		Time:        new(big.Int).Set(big.NewInt(header.TimeStamp)),
-		// GasLimit:    header.GasLimit,
-		GasPrice: msg.GasPrice(),
-		Nonce:    msg.Nonce(),
+		CanTransfer:     CanTransfer,
+		Transfer:        Transfer,
+		ContractCreated: ContractCreated,
+		GetHash:         GetHashFn(bc),
+		Coinbase:        header.BookKeeper,
+		Origin:          *msg.From(),
+		BlockNumber:     new(big.Int).Set(big.NewInt(int64(header.Height))),
+		Time:            new(big.Int).Set(big.NewInt(header.TimeStamp)),
+		GasPrice:        msg.GasPrice(),
+		Nonce:           msg.Nonce(),
+		Transfers:       make(map[types.AddressHash][]*vm.TransferInfo),
 	}
 }
 
@@ -67,15 +45,38 @@ func CanTransfer(db vm.StateDB, addr types.AddressHash, amount *big.Int) bool {
 }
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
-func Transfer(db vm.StateDB, sender, recipient types.AddressHash, amount *big.Int, interpreterInvoke bool) {
+func Transfer(
+	ctx *vm.Context, db vm.StateDB, sender, recipient types.AddressHash, amount *big.Int,
+) {
+	// NOTE: amount is a re-used pointer varaible
 	db.SubBalance(sender, amount)
 	db.AddBalance(recipient, amount)
-	if interpreterInvoke && amount.Uint64() > 0 {
-		transferInfo := NewTransferInfo(sender, recipient, amount)
-		if v, ok := Transfers[sender]; ok {
-			v = append(v, transferInfo)
-		} else {
-			Transfers[sender] = []*TransferInfo{transferInfo}
+	if db.IsContractAddr(sender) && amount.Uint64() > 0 {
+		transferInfo := vm.NewTransferInfo(sender, recipient, amount.Uint64())
+		logger.Debugf("new transfer info: sender: %x, recipient: %x, amount: %d",
+			sender[:], recipient[:], amount)
+		if v, ok := ctx.Transfers[sender]; ok {
+			// if sender and recipient already exists in Transfers, update it instead
+			// of append to it
+			for _, w := range v {
+				if w.To == recipient {
+					// NOTE: cannot miss 'w.value = '
+					w.Value += amount.Uint64()
+					return
+				}
+			}
 		}
+		ctx.Transfers[sender] = append(ctx.Transfers[sender], transferInfo)
 	}
+}
+
+// ContractCreated handle things after contract created just in contract
+func ContractCreated(ctx *vm.Context, caller, addr types.AddressHash, value, nonce uint64) {
+	ctx.ContractCreatedItems = append(ctx.ContractCreatedItems,
+		&vm.ContractCreatedItem{
+			Caller:  caller,
+			Address: addr,
+			Value:   value,
+			Nonce:   nonce,
+		})
 }

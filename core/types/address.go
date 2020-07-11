@@ -5,6 +5,8 @@
 package types
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -61,6 +63,13 @@ type AddressType int
 // AddressHash Alias for address hash
 type AddressHash [ripemd160.Size]byte
 
+// NewAddressHash news a AddressHash
+func NewAddressHash(b []byte) *AddressHash {
+	a := new(AddressHash)
+	a.SetBytes(b)
+	return a
+}
+
 // SetBytes set bytes for a addressHash.
 func (a *AddressHash) SetBytes(b []byte) {
 	if len(b) > len(a) {
@@ -75,6 +84,12 @@ func (a *AddressHash) Bytes() []byte {
 		return nil
 	}
 	return a[:]
+}
+
+// MarshalJSON implements Log json marshaler interface
+func (a AddressHash) MarshalJSON() ([]byte, error) {
+	out := hex.EncodeToString(a[:])
+	return json.Marshal(out)
 }
 
 // BytesToAddressHash converts bytes to addressHash.
@@ -408,7 +423,7 @@ func MakeContractAddress(
 	return NewContractAddressFromHash(ah[:])
 }
 
-// CreateAddress creates an ethereum address given the bytes and the nonce
+// CreateAddress creates an address given the bytes and the nonce
 //
 //  e.g.
 //	b: [0,0,0,0,0,0,0,0,0,0,120,117,106,105,110,103,115,104,105]
@@ -423,9 +438,20 @@ func CreateAddress(b AddressHash, nonce uint64) *AddressHash {
 	return &addrHash
 }
 
-// CreateAddress2 creates an ethereum address given the address bytes, initial
+// CreateAddress2 creates an address given the address bytes, initial
 // contract code hash and a salt.
 func CreateAddress2(b AddressHash, salt [32]byte, inithash []byte) *AddressHash {
 	addrHash := BytesToAddressHash(vmcrypto.Keccak256([]byte{0xff}, b[:], salt[:], inithash)[12:])
 	return &addrHash
+}
+
+//
+// InAddresses return if there is an element in the address array
+func InAddresses(addr AddressHash, addrs []AddressHash) bool {
+	for _, a := range addrs {
+		if addr == a {
+			return true
+		}
+	}
+	return false
 }

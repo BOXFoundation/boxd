@@ -10,10 +10,30 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/core"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/script"
+)
+
+// genesis contract properties
+var (
+	// Admin represents admin address.
+	Admin = "b1na9uCQXA26d94w1tWrttnnsfjKNz9M2EF"
+
+	// ContractAddr genesis contract address.
+	ContractAddr types.AddressHash
+
+	// ContractBin genesis contract bin.
+	ContractBin []byte
+
+	// ContractAbi genesis contract abi.
+	ContractAbi *abi.ABI
+
+	CalcBonus     = "calcBonus"
+	ExecBonus     = "execBonus"
+	CalcScore     = "calcScore"
+	DynastySwitch = "DynastySwitch()"
 )
 
 // GenesisBlock represents genesis block.
@@ -59,21 +79,21 @@ var GenesisPeriod = []map[string]string{
 // 0.45 billion for team, unlocked in four years, 112.5 million per year.
 var tokenPreAllocation = []map[string]string{
 	{ // token for team
-		"addr":  "b1UTiZvrJMfUtcyW24viemR2dSYtkpZxouR",
+		"addr":  "b1aft2B3VdkLpfB8xjjcWKG5GJRm1ud3jGv",
 		"value": "112500000",
 	},
 	{ // token for team
-		"addr":     "b1jHVRpT8WTkn5RRQYKocjvf7u7tpfFbvRs",
+		"addr":     "b1ck4dcMF8GBCk1okTG4U41TCE2EnY3dG9X",
 		"value":    "112500000",
 		"locktime": "31536000",
 	},
 	{ // token for team
-		"addr":     "b1TpriWdFvGQ4qRSvUvWvT9Eqx7dxKeAyKq",
+		"addr":     "b1ck4dcMF8GBCk1okTG4U41TCE2EnY3dG9X",
 		"value":    "112500000",
 		"locktime": "63072000",
 	},
 	{ // token for team
-		"addr":     "b1ebddZsUpng3nCKFrjdu7vGDkpUgKqDU8c",
+		"addr":     "b1eFzqrMJ6HA1gLAQ4T7c9ZepnCxBPfza9y",
 		"value":    "112500000",
 		"locktime": "94608000",
 	},
@@ -82,19 +102,19 @@ var tokenPreAllocation = []map[string]string{
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1qgzftUmcsnj2cXJjELAoeMY6Mxd2izeiu",
+		"addr":  "b1fvVgBViefbz6JXtLjcrQZzY4qnMHCMwWy",
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1rXV1dcj7AnHhJCGEx7FdR5UTgPjcgAseS",
+		"addr":  "b1g9okr2zpfGUQU9peBvWb2tmHxMJGxnKiD",
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1fMbSSDHRLQszXucPYhNXKQ9EXScQVAdVH",
+		"addr":  "b1hoWW5VYorvjBchj95LbBjq2uqXrayVWiu",
 		"value": "330000000",
 	},
 	{
-		"addr":  "b1YSz8ciqPSpybTr19dnxEh7tHJLRU2z85t",
+		"addr":  "b1iKrYVfrFq1g6xyyG3vSgGaiBYyNJx4No8",
 		"value": "330000000",
 	},
 }
@@ -133,15 +153,12 @@ func TokenPreAllocation() ([]*types.Transaction, error) {
 			Version: 1,
 			Vin: []*types.TxIn{
 				{
-					PrevOutPoint: types.OutPoint{
-						Hash:  zeroHash,
-						Index: math.MaxUint32,
-					},
-					ScriptSig: *coinbaseScriptSig,
-					Sequence:  math.MaxUint32,
+					PrevOutPoint: *types.NewNullOutPoint(),
+					ScriptSig:    *coinbaseScriptSig,
+					Sequence:     math.MaxUint32,
 				},
 			},
-			Vout: []*corepb.TxOut{
+			Vout: []*types.TxOut{
 				{
 					Value:        value * core.DuPerBox,
 					ScriptPubKey: pkScript,

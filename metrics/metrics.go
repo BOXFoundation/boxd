@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/BOXFoundation/boxd/log"
-	"github.com/jbenet/goprocess"
 	metrics "github.com/rcrowley/go-metrics"
 	"github.com/rcrowley/go-metrics/exp"
 	influxdb "github.com/vrischmann/go-metrics-influxdb"
@@ -26,12 +25,12 @@ func init() {
 }
 
 // Run metrics monitor
-func Run(config *Config, parent goprocess.Process) {
+func Run(config *Config) {
 	if !config.Enable {
 		return
 	}
 	// insert metrics data to influxdb
-	parent.Go(func(p goprocess.Process) {
+	go func() {
 		tags := make(map[string]string)
 		for _, v := range config.Tags {
 			values := strings.Split(v, ":")
@@ -41,7 +40,7 @@ func Run(config *Config, parent goprocess.Process) {
 			tags[values[0]] = values[1]
 		}
 		influxdb.InfluxDBWithTags(metrics.DefaultRegistry, interval, config.Host, config.Db, config.User, config.Password, tags)
-	})
+	}()
 }
 
 // NewCounter create a new metrics Counter

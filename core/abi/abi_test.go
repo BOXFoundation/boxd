@@ -7,7 +7,6 @@ package abi
 import (
 	"encoding/hex"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -26,18 +25,6 @@ func TestPack(t *testing.T) {
 	ret := outputs[0]
 
 	fmt.Println("ret.Type.Type: ", ret.Type.Type)
-
-	// a := 100
-	// fmt.Println(reflect.TypeOf(a))
-	// fmt.Println(reflect.ValueOf(&a))
-	// fmt.Println(reflect.ValueOf(&a).Elem())
-
-	// fmt.Println("reflect b: ")
-	// b := reflect.Zero(reflect.TypeOf(a))
-	// b.Elem().Interface()
-	// fmt.Println(b)
-	// fmt.Println(b.Kind())
-
 }
 
 // TestUnpackEvent is based on this contract:
@@ -78,41 +65,6 @@ func TestUnpackEvent(t *testing.T) {
 	res, err := abi.Events["Sent2"].Inputs.UnpackValues(data)
 	fmt.Println(err)
 	fmt.Println(res)
-
-}
-
-func TestUnpack1(t *testing.T) {
-
-	var aaa string
-
-	fmt.Println(reflect.TypeOf(aaa).AssignableTo(reflect.TypeOf(aaa)))
-
-	fmt.Println(reflect.TypeOf(&aaa))
-	fmt.Println(reflect.ValueOf(&aaa))
-	fmt.Println(reflect.ValueOf(&aaa).Elem())
-	fmt.Println(reflect.ValueOf(&aaa).Elem().Addr())
-	c := reflect.ValueOf(&aaa).Elem().Addr().Interface()
-	fmt.Println(c)
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&aaa).Elem().Addr().Interface()))
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&aaa).Elem().Addr().Interface()).Elem())
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&aaa).Elem().Addr().Interface()).Elem().CanSet())
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&aaa).Elem().Addr().Interface()).Elem().Type())
-
-	fmt.Println("-----------------")
-
-	a := reflect.New(reflect.TypeOf(aaa))
-	b := a.Elem().Interface()
-
-	fmt.Println(reflect.TypeOf(&b))
-	fmt.Println(reflect.ValueOf(&b))
-	fmt.Println(reflect.ValueOf(&b).Elem())
-	fmt.Println(reflect.ValueOf(&b).Elem().Addr())
-	fmt.Println(reflect.ValueOf(&b).Elem().Addr().Interface())
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&b).Elem().Addr().Interface()))
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&b).Elem().Addr().Interface()).Elem())
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&b).Elem().Addr().Interface()).Elem().CanSet())
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&b).Elem().Addr().Interface()).Elem().Type())
-	fmt.Println(reflect.ValueOf(reflect.ValueOf(&b).Elem().Addr().Interface()).Elem().Elem().CanSet())
 
 }
 

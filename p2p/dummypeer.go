@@ -55,3 +55,8 @@ func (d *DummyPeer) BroadcastToBookkeepers(code uint32, msg conv.Convertible, bo
 func (d *DummyPeer) PeerSynced(peers peer.ID) (bool, bool) {
 	return false, false
 }
+
+// ReorgConns reorg conns by pids.
+func (d *DummyPeer) ReorgConns() uint8 {
+	return 0
+}

@@ -60,7 +60,7 @@ func TestReceiptsCodeDec(t *testing.T) {
 		Removed:     true,
 	}
 
-	rc := NewReceipt(txHash, contractAddr, tests[0].failed, tests[0].gasUsed, []*Log{log1}).
+	rc := NewReceipt(txHash, contractAddr, true, tests[0].failed, tests[0].gasUsed, "", []*Log{log1}).
 		WithTxIndex(tests[0].ti).
 		WithBlockHash(blockHash).
 		WithBlockHeight(tests[0].bh)
@@ -85,7 +85,7 @@ func TestReceiptsCodeDec(t *testing.T) {
 		blockHash.SetString(v.blockHashStr)
 		contractAddress, _ = NewContractAddress(v.contractAddrStr)
 		contractAddr = contractAddress.Hash160()
-		rc := NewReceipt(txHash, contractAddr, v.failed, v.gasUsed, nil).WithTxIndex(v.ti)
+		rc := NewReceipt(txHash, contractAddr, true, v.failed, v.gasUsed, "", nil).WithTxIndex(v.ti)
 		rcs.Append(rc)
 	}
 	data, err = rcs.Marshal()

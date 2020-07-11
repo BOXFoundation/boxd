@@ -9,36 +9,41 @@ import (
 	"fmt"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
-	"github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/consensus/bpos"
+	"github.com/BOXFoundation/boxd/core/chain"
+	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 )
 
-func registerControl(s *Server) {
-	rpcpb.RegisterContorlCommandServer(s.server, &ctlserver{server: s})
-}
-
-func init() {
-	RegisterServiceWithGatewayHandler(
-		"control",
-		registerControl,
-		rpcpb.RegisterContorlCommandHandlerFromEndpoint,
-	)
+type adminControl struct {
+	server    GRPCServer
+	whiteList []string
+	TableReader
 }
 
 type ctlserver struct {
 	server GRPCServer
 }
 
-func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoRequest) (*rpcpb.GetNodeInfoResponse, error) {
-	bus := s.server.GetEventBus()
+func (ac *adminControl) GetNodeInfo(
+	ctx context.Context, req *rpcpb.GetNodeInfoRequest,
+) (*rpcpb.GetNodeInfoResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.GetNodeInfoResponse{Code: -1, Message: "allowed only users in white list!"}, nil
+	}
+	bus := ac.server.GetEventBus()
 	ch := make(chan []pstore.NodeInfo)
 	bus.Send(eventbus.TopicGetAddressBook, ch)
 	defer close(ch)
 	nodes := <-ch
-	resp := &rpcpb.GetNodeInfoResponse{}
+	resp := &rpcpb.GetNodeInfoResponse{
+		Code:    0,
+		Message: "ok",
+	}
 	for _, n := range nodes {
 		resp.Nodes = append(resp.Nodes, &rpcpb.Node{
 			Id:    n.PeerID.Pretty(),
@@ -49,38 +54,49 @@ func (s *ctlserver) GetNodeInfo(ctx context.Context, req *rpcpb.GetNodeInfoReque
 	return resp, nil
 }
 
-func (s *ctlserver) AddNode(ctx context.Context, req *rpcpb.AddNodeRequest) (*rpcpb.BaseResponse, error) {
-	out := make(chan error)
-	s.server.GetEventBus().Send(eventbus.TopicP2PAddPeer, req.Node, out)
-	if err := <-out; err != nil {
-		return &rpcpb.BaseResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+func newBaseResp(code int, msg string) *rpcpb.BaseResponse {
+	return &rpcpb.BaseResponse{Code: int32(code), Message: msg}
+}
+
+func (ac *adminControl) AddNode(
+	ctx context.Context, req *rpcpb.AddNodeRequest,
+) (*rpcpb.BaseResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return newBaseResp(-1, ErrIPNotAllowed.Error()), nil
 	}
-	return &rpcpb.BaseResponse{
-		Code:    0,
-		Message: "ok",
-	}, nil
+	out := make(chan error)
+	ac.server.GetEventBus().Send(eventbus.TopicP2PAddPeer, req.Node, out)
+	if err := <-out; err != nil {
+		return newBaseResp(-1, err.Error()), nil
+	}
+	return newBaseResp(0, "ok"), nil
 }
 
 // SetDebugLevel implements SetDebugLevel
-func (s *ctlserver) SetDebugLevel(ctx context.Context, in *rpcpb.DebugLevelRequest) (*rpcpb.BaseResponse, error) {
-	bus := s.server.GetEventBus()
+func (ac *adminControl) SetDebugLevel(
+	ctx context.Context, in *rpcpb.DebugLevelRequest,
+) (*rpcpb.BaseResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return newBaseResp(-1, ErrIPNotAllowed.Error()), nil
+	}
+	bus := ac.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicSetDebugLevel, in.Level, ch)
 	if <-ch {
-		var info = fmt.Sprintf("Set debug level: %s", logger.LogLevel())
-		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
+		return newBaseResp(0, "ok"), nil
 	}
-	var info = fmt.Sprintf("Wrong debug level: %s", in.Level)
-	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+	return newBaseResp(-1, "wrong debug level"), nil
 }
 
 // GetNetworkID returns
-func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDRequest) (*rpcpb.GetNetworkIDResponse, error) {
+func (ac *adminControl) GetNetworkID(
+	ctx context.Context, req *rpcpb.GetNetworkIDRequest,
+) (*rpcpb.GetNetworkIDResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.GetNetworkIDResponse{Code: -1, Message: ErrIPNotAllowed.Error()}, nil
+	}
 	ch := make(chan uint32)
-	s.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
+	ac.server.GetEventBus().Send(eventbus.TopicGetNetworkID, ch)
 	current := <-ch
 	var literal string
 	if current == p2p.Mainnet {
@@ -90,118 +106,227 @@ func (s *ctlserver) GetNetworkID(ctx context.Context, req *rpcpb.GetNetworkIDReq
 	} else {
 		literal = "Unknown"
 	}
-	return &rpcpb.GetNetworkIDResponse{
-		Id:      current,
-		Literal: literal,
-	}, nil
+	return &rpcpb.GetNetworkIDResponse{Code: 0, Message: "ok", Id: current, Literal: literal}, nil
 }
 
 // UpdateNetworkID implements UpdateNetworkID
 // NOTE: should be remove in product env
-func (s *ctlserver) UpdateNetworkID(ctx context.Context, in *rpcpb.UpdateNetworkIDRequest) (*rpcpb.BaseResponse, error) {
-	bus := s.server.GetEventBus()
+func (ac *adminControl) UpdateNetworkID(
+	ctx context.Context, in *rpcpb.UpdateNetworkIDRequest,
+) (*rpcpb.BaseResponse, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return newBaseResp(-1, ErrIPNotAllowed.Error()), nil
+	}
+	bus := ac.server.GetEventBus()
 	ch := make(chan bool)
 	bus.Send(eventbus.TopicUpdateNetworkID, in.Id, ch)
 	if <-ch {
-		var info = fmt.Sprintf("Update NetworkID: %d", in.Id)
-		return &rpcpb.BaseResponse{Code: 0, Message: info}, nil
+		return newBaseResp(0, "ok"), nil
 	}
-	var info = fmt.Sprintf("Wrong NetworkID: %d", in.Id)
-	return &rpcpb.BaseResponse{Code: 1, Message: info}, nil
+	return newBaseResp(-1, fmt.Sprintf("Wrong NetworkID: %d", in.Id)), nil
 }
 
-func (s *ctlserver) GetBlockHeight(ctx context.Context, req *rpcpb.GetBlockHeightRequest) (*rpcpb.GetBlockHeightResponse, error) {
-	height := s.server.GetChainReader().GetBlockHeight()
-	return &rpcpb.GetBlockHeightResponse{
+func (ac *adminControl) PeerID(
+	ctx context.Context, req *rpcpb.PeerIDReq,
+) (*rpcpb.PeerIDResp, error) {
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.PeerIDResp{Code: -1, Message: ErrIPNotAllowed.Error()}, nil
+	}
+	return &rpcpb.PeerIDResp{
 		Code:    0,
-		Message: "ok",
-		Height:  height,
+		Message: "",
+		Peerid:  ac.TableReader.PeerID(),
 	}, nil
 }
 
-func (s *ctlserver) GetBlockHash(ctx context.Context, req *rpcpb.GetBlockHashRequest) (*rpcpb.GetBlockHashResponse, error) {
+func (ac *adminControl) Miners(
+	ctx context.Context, req *rpcpb.MinersReq,
+) (*rpcpb.MinersResp, error) {
+
+	if !isInIPs(ctx, ac.whiteList) {
+		return &rpcpb.MinersResp{Code: -1, Message: ErrIPNotAllowed.Error()}, nil
+	}
+
+	infos := ac.TableReader.Miners()
+	miners := make([]*rpcpb.MinerDetail, len(infos))
+
+	for i, info := range infos {
+		miners[i] = &rpcpb.MinerDetail{
+			Id:      info.ID,
+			Address: info.Addr,
+			Iplist:  info.Iplist,
+		}
+	}
+
+	return &rpcpb.MinersResp{
+		Code:    0,
+		Message: "",
+		Miners:  miners,
+	}, nil
+}
+
+func (s *ctlserver) GetCurrentBlockHeight(
+	ctx context.Context, req *rpcpb.GetCurrentBlockHeightRequest,
+) (*rpcpb.GetCurrentBlockHeightResponse, error) {
+	height := s.server.GetChainReader().TailBlock().Header.Height
+	return &rpcpb.GetCurrentBlockHeightResponse{Code: 0, Message: "ok", Height: height}, nil
+}
+
+func (s *ctlserver) LatestConfirmedBlock(
+	ctx context.Context, req *rpcpb.LatestConfirmedBlockReq,
+) (*rpcpb.LatestConfirmedBlockResp, error) {
+	eternal := s.server.GetChainReader().EternalBlock()
+	height := eternal.Header.Height
+	hash := eternal.BlockHash()
+	return &rpcpb.LatestConfirmedBlockResp{Code: 0, Message: "ok", Height: height,
+		Hash: hash.String()}, nil
+}
+
+func (s *ctlserver) GetCurrentBlockHash(
+	ctx context.Context, req *rpcpb.GetCurrentBlockHashRequest,
+) (*rpcpb.GetCurrentBlockHashResponse, error) {
+	hash := s.server.GetChainReader().TailBlock().Hash
+	return &rpcpb.GetCurrentBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
+}
+
+func (s *ctlserver) GetBlockHash(
+	ctx context.Context, req *rpcpb.GetBlockHashRequest,
+) (*rpcpb.GetBlockHashResponse, error) {
 	hash, err := s.server.GetChainReader().GetBlockHash(req.Height)
 	if err != nil {
-		return &rpcpb.GetBlockHashResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return &rpcpb.GetBlockHashResponse{Code: -1, Message: err.Error()}, nil
 	}
-	return &rpcpb.GetBlockHashResponse{
-		Code:    0,
-		Message: "ok",
-		Hash:    hash.String(),
-	}, nil
+	return &rpcpb.GetBlockHashResponse{Code: 0, Message: "ok", Hash: hash.String()}, nil
 }
 
-func (s *ctlserver) GetBlockHeader(ctx context.Context, req *rpcpb.GetBlockRequest) (*rpcpb.GetBlockHeaderResponse, error) {
+func newGetBlockHeaderResponse(
+	code int32, msg string, header *corepb.BlockHeader,
+) *rpcpb.GetBlockHeaderResponse {
+	return &rpcpb.GetBlockHeaderResponse{
+		Code:    code,
+		Message: msg,
+		Header:  header,
+	}
+}
+
+func (s *ctlserver) GetBlockHeader(
+	ctx context.Context, req *rpcpb.GetBlockRequest,
+) (*rpcpb.GetBlockHeaderResponse, error) {
 	hash := &crypto.HashType{}
 	err := hash.SetString(req.BlockHash)
 	if err != nil {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    -1,
-			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
-		}, err
+		return newGetBlockHeaderResponse(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), nil), nil
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockHeaderResponse(-1, err.Error(), nil), nil
 	}
 	msg, err := block.Header.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetBlockHeaderResponse(-1, err.Error(), nil), nil
 	}
 	if header, ok := msg.(*corepb.BlockHeader); ok {
-		return &rpcpb.GetBlockHeaderResponse{
-			Code:    0,
-			Message: "ok",
-			Header:  header,
-		}, nil
+		return newGetBlockHeaderResponse(0, "ok", header), nil
 	}
-	return &rpcpb.GetBlockHeaderResponse{
-		Code:    -1,
-		Message: "Internal Error",
-	}, fmt.Errorf("Error converting proto message")
+	return newGetBlockHeaderResponse(-1, "Internal Error", nil), nil
 }
 
-func (s *ctlserver) GetBlock(ctx context.Context, req *rpcpb.GetBlockRequest) (*rpcpb.GetBlockResponse, error) {
-	hash := &crypto.HashType{}
-	err := hash.SetString(req.BlockHash)
-	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: fmt.Sprintf("Invalid hash: %s", req.BlockHash),
-		}, err
+func newGetTxCountResp(code int32, message string, count uint32) *rpcpb.GetTxCountResp {
+	return &rpcpb.GetTxCountResp{
+		Code:    code,
+		Message: message,
+		Count:   count,
+	}
+}
+
+func (s *ctlserver) GetTxCount(ctx context.Context,
+	req *rpcpb.GetTxCountReq) (*rpcpb.GetTxCountResp, error) {
+	hash := new(crypto.HashType)
+	var err error
+	if len(req.BlockHash) == 0 {
+		hash, err = s.server.GetChainReader().GetBlockHash(req.BlockHeight)
+		if err != nil {
+			return newGetTxCountResp(-1, err.Error(), 0), nil
+		}
+	} else {
+		if err := hash.SetString(req.BlockHash); err != nil {
+			return newGetTxCountResp(-1, fmt.Sprintf("Invalid hash: %s", req.BlockHash), 0), nil
+		}
 	}
 	block, _, err := s.server.GetChainReader().ReadBlockFromDB(hash)
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: fmt.Sprintf("Error searching block: %s", req.BlockHash),
-		}, err
+		return newGetTxCountResp(-1, fmt.Sprintf("Error searching block: %s", req.BlockHash), 0), nil
 	}
 	msg, err := block.ToProtoMessage()
 	if err != nil {
-		return &rpcpb.GetBlockResponse{
-			Code:    -1,
-			Message: err.Error(),
-		}, err
+		return newGetTxCountResp(-1, err.Error(), 0), nil
 	}
-	if blockPb, ok := msg.(*corepb.Block); ok {
-		return &rpcpb.GetBlockResponse{
-			Code:    0,
-			Message: "ok",
-			Block:   blockPb,
-		}, nil
+	blockPb, ok := msg.(*corepb.Block)
+
+	if !ok {
+		return newGetTxCountResp(-1, "can't convert proto message", 0), nil
 	}
-	return &rpcpb.GetBlockResponse{
-		Code:    -1,
-		Message: "Internal Error",
-	}, fmt.Errorf("Error converting proto message")
+	count := len(blockPb.Txs)
+	return newGetTxCountResp(0, "ok", uint32(count)), nil
+}
+
+func (s *ctlserver) getDelegates(methodName string) ([]*rpcpb.Delegate, error) {
+	output, err := s.server.GetChainReader().CallGenesisContract(0, methodName)
+	if err != nil {
+		return nil, err
+	}
+	var delegates []bpos.Delegate
+	if err := chain.ContractAbi.Unpack(&delegates, methodName, output); err != nil {
+		return nil, err
+	}
+	delegatesR := make([]*rpcpb.Delegate, 0, len(delegates))
+	for _, d := range delegates {
+		addr, err := types.NewAddressPubKeyHash(d.Addr[:])
+		if err != nil {
+			return nil, err
+		}
+		dl := &rpcpb.Delegate{
+			Addr:              addr.String(),
+			Votes:             d.Votes.Uint64(),
+			PledgeAmount:      d.PledgeAmount.Uint64(),
+			Score:             d.Score.Uint64(),
+			ContinualPeriods:  uint32(d.ContinualPeriod.Uint64()),
+			BlocksThisDynasty: uint32(d.CurDynastyOutputNumber.Uint64()),
+			BlocksTotal:       uint32(d.TotalOutputNumber.Uint64()),
+		}
+		delegatesR = append(delegatesR, dl)
+	}
+	return delegatesR, nil
+}
+
+func newDelegateResp(
+	code int32, msg string, delegates []*rpcpb.Delegate,
+) *rpcpb.DelegatesResp {
+	return &rpcpb.DelegatesResp{
+		Code:      code,
+		Message:   msg,
+		Delegates: delegates,
+	}
+}
+
+func (s *ctlserver) Delegates(
+	ctx context.Context, req *rpcpb.DelegatesReq,
+) (*rpcpb.DelegatesResp, error) {
+
+	method := "getDynasty"
+	switch req.Type {
+	case rpcpb.DelegatesReq_BOOKKEEPERS:
+		method = "getDynasty"
+	case rpcpb.DelegatesReq_DELEGATES:
+		method = "getLastEpoch"
+	case rpcpb.DelegatesReq_CANDIDATES:
+		method = "getCurrentEpoch"
+	default:
+		return newDelegateResp(-1, "invalid type", nil), nil
+	}
+	delegates, err := s.getDelegates(method)
+	if err != nil {
+		return newDelegateResp(-1, err.Error(), nil), nil
+	}
+	return newDelegateResp(0, "ok", delegates), nil
 }

@@ -4,12 +4,12 @@
 
 package types
 
+import "fmt"
+
 type utxoFlags uint8
 
 const (
-	coinBase utxoFlags = 1 << iota
-
-	spent
+	spent utxoFlags = 1 << iota
 
 	modified
 )
@@ -46,6 +46,11 @@ func NewUtxoWrap(value uint64, script []byte, height uint32) *UtxoWrap {
 	}
 }
 
+func (utxoWrap *UtxoWrap) String() string {
+	return fmt.Sprintf("{Value: %d, Script: %x, Height: %d, Flags: %d}",
+		utxoWrap.value, utxoWrap.script, utxoWrap.height, utxoWrap.flags)
+}
+
 // IsModified returns whether or not the output ismodified.
 func (utxoWrap *UtxoWrap) IsModified() bool {
 	return utxoWrap.flags&modified == modified
@@ -58,14 +63,14 @@ func (utxoWrap *UtxoWrap) Modified() {
 
 // IsCoinBase returns whether or not the output was contained in a coinbase
 // transaction.
-func (utxoWrap *UtxoWrap) IsCoinBase() bool {
-	return utxoWrap.flags&coinBase == coinBase
-}
+// func (utxoWrap *UtxoWrap) IsCoinBase() bool {
+// 	return utxoWrap.flags&coinBase == coinBase
+// }
 
 // SetCoinBase marks the output as coinBase.
-func (utxoWrap *UtxoWrap) SetCoinBase() {
-	utxoWrap.flags |= coinBase
-}
+// func (utxoWrap *UtxoWrap) SetCoinBase() {
+// 	utxoWrap.flags |= coinBase
+// }
 
 // IsSpent returns whether or not the output has been spent.
 func (utxoWrap *UtxoWrap) IsSpent() bool {
@@ -89,9 +94,9 @@ func (utxoWrap *UtxoWrap) Spend() {
 // UnSpend marks the output as unspent.
 func (utxoWrap *UtxoWrap) UnSpend() {
 	utxoWrap.flags = modified
-	if utxoWrap.IsCoinBase() {
-		utxoWrap.SetCoinBase()
-	}
+	// if utxoWrap.IsCoinBase() {
+	// 	utxoWrap.SetCoinBase()
+	// }
 }
 
 // Value returns the value of the output.
@@ -102,6 +107,12 @@ func (utxoWrap *UtxoWrap) Value() uint64 {
 // SetValue set utxoWrap value.
 func (utxoWrap *UtxoWrap) SetValue(value uint64) {
 	utxoWrap.value = value
+	utxoWrap.Modified()
+}
+
+// AddValue set utxoWrap value.
+func (utxoWrap *UtxoWrap) AddValue(value uint64) {
+	utxoWrap.value += value
 	utxoWrap.Modified()
 }
 

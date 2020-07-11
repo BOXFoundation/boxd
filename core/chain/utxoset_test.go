@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/BOXFoundation/boxd/core"
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/facebookgo/ensure"
@@ -45,11 +44,11 @@ func createTx(outPointHash crypto.HashType, val uint64) *types.Transaction {
 	vIn := []*types.TxIn{
 		txIn,
 	}
-	txOut := &corepb.TxOut{
+	txOut := &types.TxOut{
 		Value:        val,
 		ScriptPubKey: []byte{},
 	}
-	vOut := []*corepb.TxOut{txOut}
+	vOut := []*types.TxOut{txOut}
 	tx := &types.Transaction{
 		Version:  1,
 		Vin:      vIn,

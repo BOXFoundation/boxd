@@ -7,10 +7,11 @@ package p2p
 import (
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
-	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
 	"github.com/jbenet/goprocess"
 	kbucket "github.com/libp2p/go-libp2p-kbucket"
 	peer "github.com/libp2p/go-libp2p-peer"
@@ -23,6 +24,13 @@ const (
 	PeerDiscoverLoopInterval        = 120 * 1000
 	MaxPeerCountToSyncRouteTable    = 16
 	MaxPeerCountToReplyPeerDiscover = 16
+	DefaultUnestablishRatio         = 0.25
+)
+
+var (
+	seeds      = []peer.ID{}
+	agents     = []peer.ID{}
+	principals = []peer.ID{}
 )
 
 // Table peer route table struct.
@@ -34,21 +42,51 @@ type Table struct {
 }
 
 // NewTable return a new route table.
-func NewTable(peer *BoxPeer) *Table {
+func NewTable(bp *BoxPeer) *Table {
 
 	table := &Table{
-		peerStore: peer.host.Peerstore(),
-		peer:      peer,
+		peerStore: bp.host.Peerstore(),
+		peer:      bp,
 	}
 	table.routeTable = kbucket.NewRoutingTable(
-		peer.config.Bucketsize,
-		kbucket.ConvertPeerID(peer.id),
-		peer.config.Latency,
+		bp.config.Bucketsize,
+		kbucket.ConvertPeerID(bp.id),
+		bp.config.Latency,
 		table.peerStore,
 	)
-	table.routeTable.Update(peer.id)
-	table.peerStore.AddPubKey(peer.id, peer.networkIdentity.GetPublic())
-	table.peerStore.AddPrivKey(peer.id, peer.networkIdentity)
+	table.routeTable.Update(bp.id)
+	table.peerStore.AddPubKey(bp.id, bp.networkIdentity.GetPublic())
+	table.peerStore.AddPrivKey(bp.id, bp.networkIdentity)
+
+	for _, seed := range table.peer.config.Seeds {
+		seedEle := strings.Split(seed, "/")
+		pid, err := peer.IDB58Decode(seedEle[len(seedEle)-1])
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v", err)
+			continue
+		}
+		seeds = append(seeds, pid)
+	}
+
+	for _, pri := range table.peer.config.Principals {
+		priEle := strings.Split(pri, "/")
+		pid, err := peer.IDB58Decode(priEle[len(priEle)-1])
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v", err)
+			continue
+		}
+		principals = append(principals, pid)
+	}
+
+	for _, agent := range table.peer.config.Agents {
+		agentEle := strings.Split(agent, "/")
+		pid, err := peer.IDB58Decode(agentEle[len(agentEle)-1])
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v, agent: %s", err, agent)
+			continue
+		}
+		agents = append(agents, pid)
+	}
 
 	return table
 }
@@ -94,45 +132,146 @@ func (t *Table) peerDiscover() {
 			all = append(all, p)
 		}
 	}
-	// TODO check peer score
-	if len(all) <= MaxPeerCountToSyncRouteTable {
-		// TODO sort by peer score
-		for _, v := range all {
-			go t.lookup(v)
+	// // TODO check peer score
+	// if len(all) <= MaxPeerCountToSyncRouteTable {
+	// 	// TODO sort by peer score
+	// 	for _, v := range all {
+	// 		go t.lookup(v)
+	// 	}
+	// 	return
+	// }
+
+	if t.peer.peertype == pstore.UnknownPeer {
+		pType, nodoubt := t.peer.Type(t.peer.id)
+		if pType != pstore.UnknownPeer && nodoubt {
+			t.peer.peertype = pType
 		}
-		return
 	}
 
+	var peerIDs []peer.ID
+	switch t.peer.peertype {
+	case pstore.MinerPeer:
+		peerIDs = t.minerDiscover(all)
+	case pstore.CandidatePeer:
+		peerIDs = t.candidateDiscover(all)
+	case pstore.ServerPeer:
+		peerIDs = t.serverDiscover(all)
+	// Even miners that are accidentally connected to normal nodes are immediately disconnected when sync is complete.
+	// case pstore.UnknownPeer:
+	// 	peerIDs = t.unknownDiscover(all)
+	default:
+		peerIDs = t.defaultDiscover(all)
+	}
+
+	for _, v := range peerIDs {
+		go t.lookup(v)
+	}
+}
+
+func (t *Table) selectTypedPeers(pt pstore.PeerType, num int) []peer.ID {
+	peerIDs, err := pstore.ListPeerIDByType(pt)
+	if err != nil {
+		logger.Errorf("selectTypedPeers failed, Err: %v", err)
+		return nil
+	}
+	peerIDs = shufflePeerID(peerIDs)
+	if len(peerIDs) > num {
+		return peerIDs[:num]
+	}
+	return peerIDs
+}
+
+// param: std standard deviation
+func (t *Table) selectRandomPeers(all peer.IDSlice, num uint32, std float32, layfolk bool) (peerIDs []peer.ID) {
 	// Randomly select some peer to do sync routes from the established and unconnected peers
-	// 3/4 from established peers, and 1/4 from unconnected peers
-	var establishedID []peer.ID
+	// 1-<std> from established peers, and <std> from unconnected peers
+	establishedID := []peer.ID{}
 	t.peer.conns.Range(func(k, v interface{}) bool {
 		establishedID = append(establishedID, k.(peer.ID))
 		return true
 	})
 
 	var unestablishedID []peer.ID
+out:
 	for _, v := range all {
-		if !util.InArray(v, establishedID) {
-			unestablishedID = append(unestablishedID, v)
+		for _, e := range establishedID {
+			if v == e {
+				continue out
+			}
 		}
+		unestablishedID = append(unestablishedID, v)
 	}
 
-	var peerIDs []peer.ID
-	if len(unestablishedID) < MaxPeerCountToSyncRouteTable/4 {
+	cap := int(num)
+	if len(unestablishedID) < int(float32(cap)*std) {
 		peerIDs = append(peerIDs, unestablishedID...)
-		peerIDs = append(peerIDs, establishedID[:MaxPeerCountToSyncRouteTable-len(unestablishedID)]...)
-	} else if len(establishedID) > MaxPeerCountToSyncRouteTable {
-		peerIDs = append(peerIDs, unestablishedID[:MaxPeerCountToSyncRouteTable/4]...)
-		peerIDs = append(peerIDs, establishedID[:MaxPeerCountToSyncRouteTable-len(peerIDs)]...)
+		if len(establishedID) < cap-len(unestablishedID) {
+			peerIDs = append(peerIDs, establishedID...)
+		} else {
+			peerIDs = append(peerIDs, establishedID[:cap-len(unestablishedID)]...)
+		}
+	} else if len(establishedID) > cap {
+		if len(unestablishedID) < int(float32(cap)*std) {
+			peerIDs = append(peerIDs, unestablishedID...)
+		} else {
+			peerIDs = append(peerIDs, unestablishedID[:int(float32(cap)*std)]...)
+		}
+		peerIDs = append(peerIDs, establishedID[:cap-len(peerIDs)]...)
 	} else {
 		peerIDs = append(peerIDs, establishedID...)
-		peerIDs = append(peerIDs, unestablishedID[:MaxPeerCountToSyncRouteTable-len(establishedID)]...)
+		if len(unestablishedID) < cap-len(establishedID) {
+			peerIDs = append(peerIDs, unestablishedID...)
+		} else {
+			peerIDs = append(peerIDs, unestablishedID[:cap-len(establishedID)]...)
+		}
 	}
+	return
+}
 
-	for _, v := range peerIDs {
-		go t.lookup(v)
+func (t *Table) minerDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	peerIDs = append(peerIDs, agents...)
+	peerIDs = append(peerIDs, seeds...)
+
+	candidates := t.selectTypedPeers(pstore.CandidatePeer, MaxPeerCountToSyncRouteTable/2)
+	peerIDs = append(peerIDs, candidates...)
+
+	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable-len(peerIDs))
+	peerIDs = append(peerIDs, miners...)
+	return
+}
+
+func (t *Table) candidateDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	peerIDs = append(peerIDs, agents...)
+	peerIDs = append(peerIDs, seeds...)
+
+	miners := t.selectTypedPeers(pstore.MinerPeer, MaxPeerCountToSyncRouteTable/2)
+	peerIDs = append(peerIDs, miners...)
+
+	candidates := t.selectTypedPeers(pstore.CandidatePeer, MaxPeerCountToSyncRouteTable-len(peerIDs))
+	peerIDs = append(peerIDs, candidates...)
+	return
+}
+
+func (t *Table) serverDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	peerIDs = append(peerIDs, principals...)
+	peerIDs = append(peerIDs, agents...)
+	peerIDs = append(peerIDs, seeds...)
+	peerIDs = append(peerIDs, t.selectRandomPeers(all, uint32(MaxPeerCountToSyncRouteTable-len(peerIDs)), DefaultUnestablishRatio, true)...)
+	return
+}
+
+func (t *Table) unknownDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	permitToConnect := append(append(t.peer.config.Seeds, t.peer.config.Principals...), t.peer.config.Agents...)
+	for _, pid := range all {
+		if t.peer.config.exist(pid.Pretty(), permitToConnect) {
+			peerIDs = append(peerIDs, pid)
+		}
 	}
+	return
+}
+
+func (t *Table) defaultDiscover(all peer.IDSlice) (peerIDs []peer.ID) {
+	return t.selectRandomPeers(all, MaxPeerCountToSyncRouteTable, DefaultUnestablishRatio, false)
 }
 
 func (t *Table) lookup(pid peer.ID) {
@@ -172,6 +311,8 @@ func (t *Table) GetRandomPeers(pid peer.ID) []peerstore.PeerInfo {
 func (t *Table) AddPeerToTable(conn *Conn) {
 
 	peerID := conn.stream.Conn().RemotePeer()
+	ptype, _ := t.peer.Type(peerID)
+	t.peerStore.Put(peerID, pstore.PTypeSuf, uint8(ptype))
 	t.peerStore.AddAddr(
 		peerID,
 		conn.stream.Conn().RemoteMultiaddr(),
@@ -187,21 +328,32 @@ func (t *Table) AddPeers(conn *Conn, peers *p2ppb.Peers) {
 		conn.Close()
 	}
 	for _, v := range peers.Peers {
-		t.addPeerInfo(v.Id, v.Addrs)
+		if v.Id == t.peer.id.Pretty() {
+			continue
+		}
+		pid, err := peer.IDB58Decode(v.Id)
+		if err != nil {
+			logger.Errorf("get pid failed. Err: %v", err)
+			continue
+		}
+		ptype, _ := t.peer.Type(pid)
+		t.peerStore.Put(pid, pstore.PTypeSuf, uint8(ptype))
+		err = pstore.UpdateType(pid, uint32(ptype))
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
+		t.addPeerInfo(pid, v.Addrs)
 	}
 }
 
-func (t *Table) addPeerInfo(prettyID string, addrStr []string) error {
-	pid, err := peer.IDB58Decode(prettyID)
-	if err != nil {
-		return nil
-	}
+func (t *Table) addPeerInfo(pid peer.ID, addrStr []string) (err error) {
 
 	addrs := make([]ma.Multiaddr, len(addrStr))
 	for i, v := range addrStr {
 		addrs[i], err = ma.NewMultiaddr(v)
 		if err != nil {
-			return err
+			return
 		}
 	}
 	if t.routeTable.Find(pid) != "" {

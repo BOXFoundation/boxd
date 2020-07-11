@@ -5,7 +5,6 @@
 package txpool
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -21,7 +20,7 @@ import (
 	"github.com/BOXFoundation/boxd/log"
 	"github.com/BOXFoundation/boxd/p2p"
 	"github.com/BOXFoundation/boxd/script"
-	"github.com/BOXFoundation/boxd/util"
+	"github.com/BOXFoundation/boxd/vm"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jbenet/goprocess"
 )
@@ -71,7 +70,9 @@ type TransactionPool struct {
 	// types.OutPoint -> (crypto.HashType -> *types.Transaction)
 	outPointToOrphan *sync.Map
 	txcache          *lru.Cache
-	legalTxs         *sync.Map
+	// nonces map is used to check and remove txs that have the same nonce already
+	// in map
+	nonceMap map[types.AddressHash]map[uint64]struct{}
 }
 
 // NewTransactionPool new a transaction pool.
@@ -90,7 +91,7 @@ func NewTransactionPool(parent goprocess.Process, notifiee p2p.Net, c *chain.Blo
 		outPointToOrphan:    new(sync.Map),
 		outPointToTx:        new(sync.Map),
 		txcache:             txcache,
-		legalTxs:            new(sync.Map),
+		nonceMap:            make(map[types.AddressHash]map[uint64]struct{}),
 	}
 }
 
@@ -105,6 +106,9 @@ func (tx_pool *TransactionPool) Run() error {
 
 	// chain update msg
 	tx_pool.bus.SubscribeAsync(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg, true)
+
+	// chain update msg
+	tx_pool.bus.SubscribeAsync(eventbus.TopicInvalidTx, tx_pool.removeTx, true)
 
 	tx_pool.proc.Go(tx_pool.loop)
 
@@ -161,6 +165,7 @@ func (tx_pool *TransactionPool) loop(p goprocess.Process) {
 			logger.Info("Quit transaction pool loop.")
 			tx_pool.notifiee.UnSubscribe(tx_pool.txNotifee)
 			tx_pool.bus.Unsubscribe(eventbus.TopicChainUpdate, tx_pool.receiveChainUpdateMsg)
+			tx_pool.bus.Unsubscribe(eventbus.TopicInvalidTx, tx_pool.removeTx)
 			return
 		}
 	}
@@ -200,12 +205,13 @@ func (tx_pool *TransactionPool) processChainUpdateMsg(msg *chain.UpdateMsg) {
 			outPoint := types.OutPoint{Hash: *removedTxHash}
 			for txOutIdx := range tx.Vout {
 				outPoint.Index = uint32(txOutIdx)
-				childTx, exists := tx_pool.findTransaction(outPoint)
-				if !exists {
+				childTx := tx_pool.FindTransaction(&outPoint)
+				if childTx == nil {
 					continue
 				}
 				hash, _ := childTx.TxHash()
-				logger.Debugf("Remove related child tx %s when block %v disconnects from main chain", hash, v.BlockHash())
+				logger.Debugf("Remove related child tx %s when block %v disconnects "+
+					"from main chain", hash, v.BlockHash())
 				tx_pool.removeTx(childTx, true)
 			}
 		}
@@ -222,7 +228,8 @@ func (tx_pool *TransactionPool) removeBlockTxs(block *types.Block) error {
 	for _, tx := range block.Txs[1:] {
 		txHash, _ := tx.TxHash()
 		tx_pool.txcache.Add(*txHash, true)
-		// Since the passed tx is confirmed in a new block, all its childrent remain valid, thus no recursive removal.
+		// Since the passed tx is confirmed in a new block, all its childrent remain
+		// valid, thus no recursive removal.
 		tx_pool.removeTx(tx, false /* non-recursive */)
 		// tx_pool.removeDoubleSpendTxs(tx)
 		tx_pool.removeOrphan(tx)
@@ -238,11 +245,15 @@ func (tx_pool *TransactionPool) processTxMsg(msg p2p.Message) error {
 		return err
 	}
 	hash, _ := tx.TxHash()
-	logger.Debugf("Start to process tx from network. Hash: %v", hash)
+	logger.Debugf("Start to process tx %s from %s", hash, msg.From().Pretty())
 
-	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil && util.InArray(err, core.EvilBehavior) {
-		tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
-		return err
+	if err := tx_pool.ProcessTx(tx, core.RelayMode); err != nil {
+		for _, e := range core.EvilBehavior {
+			if err.Error() == e.Error() {
+				tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.BadTxEvent)
+				return err
+			}
+		}
 	}
 	tx_pool.chain.Bus().Publish(eventbus.TopicConnEvent, msg.From(), eventbus.NewTxEvent)
 	return nil
@@ -290,20 +301,14 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 
 	// ensure it is a standard transaction
-	if !tx_pool.isStandardTx(tx) {
+	if !txlogic.IsStandardTx(tx, tx_pool.chain.TailState()) {
 		logger.Errorf("Tx %v is not standard", txHash.String())
 		return core.ErrNonStandardTransaction
 	}
-	if err := tx_pool.chain.Consensus().VerifyTx(tx); err != nil {
-		logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
-		return err
-	}
-	// Quickly detects if the tx double spends with any transaction in the pool.
-	// Double spending with the main chain txs will be checked in ValidateTxInputs.
-	if err := tx_pool.checkPoolDoubleSpend(tx); err != nil {
-		logger.Errorf("Tx %v double spends outputs spent by other pending txs: %v", txHash.String(), err)
-		return err
-	}
+	// if err := tx_pool.chain.Consensus().VerifyTx(tx); err != nil {
+	// 	logger.Errorf("Failed to verify tx in consensus. Err: %v", txHash.String(), err)
+	// 	return err
+	// }
 	utxoSet, err := chain.GetExtendedTxUtxoSet(tx, tx_pool.chain.DB(), tx_pool.hashToTx)
 	if err != nil {
 		logger.Errorf("Could not get extended utxo set for tx %v", txHash)
@@ -317,40 +322,26 @@ func (tx_pool *TransactionPool) maybeAcceptTx(
 	}
 	nextBlockHeight := tx_pool.chain.LongestChainHeight + 1
 
-	txFee, err := chain.ValidateTxInputs(utxoSet, tx, nextBlockHeight)
-	if err != nil {
+	if err := tx_pool.CheckGasAndNonce(tx, utxoSet); err != nil {
 		return err
 	}
-
-	var gasPrice uint64
-	if o := txlogic.GetContractVout(tx); o != nil { // smart contract tx.
-		sc := script.NewScriptFromBytes(o.ScriptPubKey)
-		param, _, err := sc.ParseContractParams()
-		if err != nil {
-			return err
-		}
-		if txFee != param.GasLimit*param.GasPrice {
-			return errors.New("Invalid contract transaction fee")
-		}
-		gasPrice = param.GasPrice
-		// check contract tx from
-		if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
-			*addr.Hash160() != *param.From {
-			return fmt.Errorf("contract tx from address mismatched")
-		}
-	} else {
-		gasPrice = txFee / core.TransferGasLimit
+	// Quickly detects if the tx double spends with any transaction in the pool.
+	// Double spending with the main chain txs will be checked in ValidateTxInputs.
+	if err := tx_pool.checkDoubleSpend(tx); err != nil {
+		logger.Errorf("Tx %s double spends outputs spent by other pending txs: %s",
+			txHash, err)
+		return err
 	}
-
-	if gasPrice < core.MinGasPrice {
-		return errors.New("tx gasPrice is too low")
+	if tx.Type == types.PayToPubkTx {
+		// this tx may be a contract tx that transfer box to a contract address
+		// so reset tx type and parse tx type when this tx is packed in bpos
+		tx.Type = types.UnknownTx
 	}
-
 	// To check script later so main thread is not blocked
 	tx_pool.newTxScriptCh <- &txScriptWrap{tx, utxoSet}
 
 	// add transaction to pool.
-	tx_pool.addTx(tx, nextBlockHeight, gasPrice)
+	tx_pool.addTx(tx, nextBlockHeight)
 
 	logger.Debugf("Accepted new tx. Hash: %v", txHash)
 	tx_pool.txcache.Add(*txHash, true)
@@ -369,11 +360,12 @@ func (tx_pool *TransactionPool) isTransactionInPool(txHash *crypto.HashType) boo
 	return exists
 }
 
-func (tx_pool *TransactionPool) findTransaction(outpoint types.OutPoint) (*types.Transaction, bool) {
-	if tx, exists := tx_pool.outPointToTx.Load(outpoint); exists {
-		return tx.(*types.Transaction), true
+// FindTransaction returns tx with given outpoint
+func (tx_pool *TransactionPool) FindTransaction(outpoint *types.OutPoint) *types.Transaction {
+	if tx, exists := tx_pool.outPointToTx.Load(*outpoint); exists {
+		return tx.(*types.Transaction)
 	}
-	return nil, false
+	return nil
 }
 
 func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
@@ -381,25 +373,52 @@ func (tx_pool *TransactionPool) isOrphanInPool(txHash *crypto.HashType) bool {
 	return exists
 }
 
-func (tx_pool *TransactionPool) isStandardTx(tx *types.Transaction) bool {
-	for _, txOut := range tx.Vout {
-		sc := *script.NewScriptFromBytes(txOut.ScriptPubKey)
-		if !sc.IsStandard() {
-			return false
+func (tx_pool *TransactionPool) checkDoubleSpend(tx *types.Transaction) error {
+	txHash, _ := tx.TxHash()
+	// check double spend txs
+	if dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx); len(dsTxs) > 0 {
+		for i := 0; i < len(dsTxs); i++ {
+			dsTxHash, _ := dsTxs[i].TxHash()
+			logger.Errorf("tx %s has a double spend outpoint: %s, revelant tx hash: %v",
+				txHash, dsOps[i], dsTxHash)
 		}
+		return core.ErrOutPutAlreadySpent
 	}
-	return true
-}
-
-func (tx_pool *TransactionPool) checkPoolDoubleSpend(tx *types.Transaction) error {
-	for _, txIn := range tx.Vin {
-		if tx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
-			txHash, _ := tx.TxHash()
-			logger.Debugf("Double spend prev hash: %v, first tx hash: %v", txIn.PrevOutPoint.Hash.String(), txHash.String())
-			return core.ErrOutPutAlreadySpent
+	// check double spend inside tx
+	switch len(tx.Vin) {
+	case 1:
+	case 2:
+		if tx.Vin[0].PrevOutPoint == tx.Vin[1].PrevOutPoint {
+			logger.Warnf("tx %s has the same vin, %+v", txHash, tx)
+			return core.ErrDoubleSpendTx
+		}
+	default:
+		opSet := make(map[types.OutPoint]struct{})
+		for _, txIn := range tx.Vin {
+			if _, exists := opSet[txIn.PrevOutPoint]; exists {
+				logger.Errorf("tx %s have the same vin: %+v", txHash, tx)
+				return core.ErrDoubleSpendTx
+			}
+			opSet[txIn.PrevOutPoint] = struct{}{}
 		}
 	}
 	return nil
+}
+
+func (tx_pool *TransactionPool) getPoolDoubleSpendTxs(
+	tx *types.Transaction,
+) ([]*types.OutPoint, []*types.Transaction) {
+	var (
+		ops []*types.OutPoint
+		txs []*types.Transaction
+	)
+	for _, txIn := range tx.Vin {
+		if tx := tx_pool.FindTransaction(&txIn.PrevOutPoint); tx != nil {
+			ops = append(ops, &txIn.PrevOutPoint)
+			txs = append(txs, tx)
+		}
+	}
+	return ops, txs
 }
 
 // ProcessOrphans used to handle orphan transactions
@@ -422,6 +441,8 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 			orphans.Range(func(k, v interface{}) bool {
 				orphan := v.(*types.Transaction)
 				if err := tx_pool.maybeAcceptTx(orphan, core.DefaultMode, false); err != nil {
+					txHash, _ := orphan.TxHash()
+					logger.Warnf("Failed to accept orphan tx. TxHash: %s, Err: %s", txHash, err)
 					return true
 				}
 				tx_pool.removeOrphan(orphan)
@@ -439,13 +460,12 @@ func (tx_pool *TransactionPool) processOrphans(tx *types.Transaction) error {
 }
 
 // Add transaction into tx pool
-func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, gasPrice uint64) {
+func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32) {
 	txHash, _ := tx.TxHash()
 	txWrap := &types.TxWrap{
 		Tx:             tx,
 		AddedTimestamp: time.Now().Unix(),
 		Height:         height,
-		GasPrice:       gasPrice,
 		IsScriptValid:  false,
 	}
 	tx_pool.hashToTx.Store(*txHash, txWrap)
@@ -460,16 +480,28 @@ func (tx_pool *TransactionPool) addTx(tx *types.Transaction, height uint32, gasP
 // Remove transaction from tx pool. Note we do not recursively remove dependent txs here
 func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) {
 	txHash, _ := tx.TxHash()
+	tx_pool.hashToTx.Delete(*txHash)
 	// Unspend the referenced outpoints.
 	for _, txIn := range tx.Vin {
-		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
+		if dsTx := tx_pool.FindTransaction(&txIn.PrevOutPoint); dsTx != nil {
 			tx_pool.outPointToTx.Delete(txIn.PrevOutPoint)
-			doubleSpentTxHash, _ := doubleSpentTx.TxHash()
-			tx_pool.hashToTx.Delete(*doubleSpentTxHash)
+			doubleSpentTxHash, _ := dsTx.TxHash()
+			if !doubleSpentTxHash.IsEqual(txHash) {
+				logger.Warnf("Remove double spend tx when main chain update. TxHash: %v", doubleSpentTxHash)
+				tx_pool.hashToTx.Delete(*doubleSpentTxHash)
+			}
 		}
-
 	}
-	tx_pool.hashToTx.Delete(*txHash)
+	// delete nonce key in nonce map for contract tx
+	if txlogic.GetTxType(tx, tx_pool.chain.TailState()) == types.ContractTx {
+		contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
+		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+		param, _, _ := sc.ParseContractParams()
+		delete(tx_pool.nonceMap[*param.From], param.Nonce)
+		if len(tx_pool.nonceMap[*param.From]) == 0 {
+			delete(tx_pool.nonceMap, *param.From)
+		}
+	}
 
 	if !recursive {
 		return
@@ -485,8 +517,8 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 		for txOutIdx := range removedTx.Vout {
 			outPoint.Index = uint32(txOutIdx)
 
-			childTx, exists := tx_pool.findTransaction(outPoint)
-			if !exists {
+			childTx := tx_pool.FindTransaction(&outPoint)
+			if childTx == nil {
 				continue
 			}
 
@@ -503,8 +535,8 @@ func (tx_pool *TransactionPool) removeTx(tx *types.Transaction, recursive bool) 
 // removeDoubleSpendTxs removes all txs from the main pool, which double spend the passed transaction.
 func (tx_pool *TransactionPool) removeDoubleSpendTxs(tx *types.Transaction) {
 	for _, txIn := range tx.Vin {
-		if doubleSpentTx, exists := tx_pool.findTransaction(txIn.PrevOutPoint); exists {
-			tx_pool.removeTx(doubleSpentTx, true /* recursive */)
+		if dsTx := tx_pool.FindTransaction(&txIn.PrevOutPoint); dsTx != nil {
+			tx_pool.removeTx(dsTx, true /* recursive */)
 		}
 	}
 }
@@ -572,7 +604,7 @@ func (tx_pool *TransactionPool) removeDoubleSpendOrphans(tx *types.Transaction) 
 // check admitted tx's script
 func (tx_pool *TransactionPool) checkTxScript(txScript *txScriptWrap) {
 	// verify crypto signatures for each input
-	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false /* validate script */); err != nil {
+	if _, err := chain.CheckTxScripts(txScript.utxoSet, txScript.tx, false); err != nil {
 		// remove
 		txHash, _ := txScript.tx.TxHash()
 		logger.Errorf("tx %v script verification failed", txHash)
@@ -668,4 +700,100 @@ func lengthOfSyncMap(target *sync.Map) int {
 		return true
 	})
 	return length
+}
+
+// CheckGasAndNonce checks whether gas price of tx is valid
+func (tx_pool *TransactionPool) CheckGasAndNonce(
+	tx *types.Transaction, utxoSet *chain.UtxoSet,
+) error {
+	txFee, err := chain.ValidateTxInputs(utxoSet, tx)
+	if err != nil {
+		return err
+	}
+	if txlogic.GetTxType(tx, tx_pool.chain.TailState()) != types.ContractTx {
+		if txFee != core.TransferFee+tx.ExtraFee() {
+			return fmt.Errorf("%s(%d, need %d)", core.ErrInvalidFee, txFee,
+				core.TransferFee+tx.ExtraFee())
+		}
+		return nil
+	}
+	// smart contract tx.
+	contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
+	if tx.Data != nil && len(tx.Data.Content) > core.MaxCodeSize {
+		return core.ErrMaxCodeSizeExceeded
+	}
+	sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+	param, ty, err := sc.ParseContractParams()
+	if err != nil {
+		return err
+	}
+	if txFee != param.GasLimit*core.FixedGasPrice+tx.ExtraFee() {
+		return core.ErrInvalidFee
+	}
+	contractCreation := ty == types.ContractCreationType
+	gas, err := chain.IntrinsicGas(tx.Data.Content, contractCreation)
+	if err != nil {
+		return err
+	}
+	if param.GasLimit < gas {
+		return vm.ErrOutOfGas
+	}
+	// check contract tx from
+	if addr, err := chain.FetchOutPointOwner(&tx.Vin[0].PrevOutPoint, utxoSet); err != nil ||
+		*addr.Hash160() != *param.From {
+		return fmt.Errorf("contract tx from address mismatched(%x, %x)", addr.Hash(), param.From[:])
+	}
+	// check whether contract utxo exists if it is a contract call tx
+	// NOTE: here not to consider that a contract deploy tx is in tx pool
+	if !contractCreation && !tx_pool.chain.TailState().Exist(*param.To) {
+		return fmt.Errorf("contract call error: %s, block height: %d",
+			core.ErrContractNotFound, tx_pool.chain.TailBlock().Header.Height)
+	}
+	// check sender nonce
+	nonceOnChain := tx_pool.chain.TailState().GetNonce(*param.From)
+	if param.Nonce < nonceOnChain+1 {
+		return fmt.Errorf("%s(%d, %d on chain), block height: %d", core.ErrNonceTooLow,
+			param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
+	}
+	if param.Nonce > nonceOnChain+200 {
+		return fmt.Errorf("%s(%d, %d on chain), block height: %d", core.ErrNonceTooBig,
+			param.Nonce, nonceOnChain, tx_pool.chain.TailBlock().Header.Height)
+	}
+	// check whether nonce is duplicate
+	if _, ok := tx_pool.nonceMap[*param.From]; ok {
+		if _, exists := tx_pool.nonceMap[*param.From][param.Nonce]; exists {
+			return fmt.Errorf("%s(%d)", core.ErrNonceExists, param.Nonce)
+		}
+	} else {
+		tx_pool.nonceMap[*param.From] = make(map[uint64]struct{})
+	}
+	// check whether a tx is in pool that have a bigger nonce and remove it if it exists
+	dsOps, dsTxs := tx_pool.getPoolDoubleSpendTxs(tx)
+	for i := 0; i < len(dsTxs); i++ {
+		if txlogic.GetTxType(dsTxs[i], tx_pool.chain.TailState()) != types.ContractTx {
+			continue
+		}
+		contractVout := txlogic.GetContractVout(tx, tx_pool.chain.TailState())
+		sc := script.NewScriptFromBytes(contractVout.ScriptPubKey)
+		p, _, err := sc.ParseContractParams()
+		if err != nil {
+			// contract vout that pay to contract address
+			continue
+		}
+		if param.Nonce < p.Nonce {
+			txHash, _ := tx.TxHash()
+			dsHash, _ := dsTxs[i].TxHash()
+			logger.Warnf("remove tx %s(nonce %d) from pool since tx %s have a "+
+				"lower nonce(%d)", dsHash, p.Nonce, txHash, param.Nonce)
+			tx_pool.outPointToTx.Delete(*dsOps[i])
+			tx_pool.hashToTx.Delete(*dsHash)
+			delete(tx_pool.nonceMap[*param.From], p.Nonce)
+			if len(tx_pool.nonceMap[*param.From]) == 0 {
+				delete(tx_pool.nonceMap, *param.From)
+			}
+		}
+	}
+	tx_pool.nonceMap[*param.From][param.Nonce] = struct{}{}
+
+	return nil
 }

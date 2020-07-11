@@ -19,7 +19,7 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	config "github.com/BOXFoundation/boxd/config"
-	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/consensus/bpos"
 	"github.com/BOXFoundation/boxd/core/chain"
 	"github.com/BOXFoundation/boxd/core/txpool"
 	"github.com/BOXFoundation/boxd/log"
@@ -49,8 +49,7 @@ type Server struct {
 	blockChain  *chain.BlockChain
 	txPool      *txpool.TransactionPool
 	syncManager *blocksync.SyncManager
-	consensus   *dpos.Dpos
-	wallet      *wallet.Server
+	consensus   *bpos.Bpos
 }
 
 // NewServer new a boxd server
@@ -138,7 +137,7 @@ func (server *Server) Prepare() {
 	server.peer = peer
 
 	// prepare block chain.
-	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus)
+	blockChain, err := chain.NewBlockChain(peer.Proc(), peer, database, server.bus, &cfg.Chain)
 	if err != nil {
 		logger.Fatalf("Failed to new BlockChain... Err: %s", err.Error()) // exit in case of error during creating p2p server instance
 	}
@@ -149,25 +148,16 @@ func (server *Server) Prepare() {
 	server.txPool = txPool
 
 	// prepare consensus.
-	consensus, err := dpos.NewDpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Dpos)
+	server.consensus, err = bpos.NewBpos(txPool.Proc(), blockChain, txPool, peer, &cfg.Bpos)
 	if err != nil {
-		logger.Fatalf("Failed to new Dpos. Err: %v", err)
+		logger.Fatalf("Failed to new bpos... Err: %s", err.Error())
 	}
-	server.consensus = consensus
-
-	if cfg.Wallet.Enable {
-		server.wallet, _ = wallet.NewServer(blockChain.Proc(), &cfg.Wallet, database, server.bus)
-	}
-
-	// prepare grpc server.
-	if cfg.RPC.Enabled {
-		server.grpcsvr = grpcserver.NewServer(txPool.Proc(), &cfg.RPC, blockChain, txPool, server.wallet, server.bus)
-	}
+	peer.SetMinerReader(server.consensus)
 
 	// prepare sync manager.
-	syncManager := blocksync.NewSyncManager(blockChain, peer, consensus, blockChain.Proc())
+	syncManager := blocksync.NewSyncManager(blockChain, peer, server.consensus, blockChain.Proc())
 	server.syncManager = syncManager
-	server.blockChain.Setup(consensus, syncManager)
+	server.blockChain.Setup(server.consensus, syncManager)
 
 }
 
@@ -199,7 +189,7 @@ func (server *Server) Run() error {
 
 	if server.consensus.EnableMint() {
 		if err := server.consensus.Setup(); err != nil {
-			logger.Fatalf("Failed to Setup dpos, Err: %v", err)
+			logger.Fatalf("Failed to Setup consensus, Err: %v", err)
 		}
 		if err := server.consensus.Run(); err != nil {
 			logger.Fatalf("Failed to start consensus. Err: %v", err)
@@ -207,19 +197,19 @@ func (server *Server) Run() error {
 	}
 
 	server.syncManager.Run()
-	metrics.Run(&cfg.Metrics, proc)
+	metrics.Run(&cfg.Metrics)
 	if len(cfg.P2p.Seeds) > 0 {
 		server.consensus.StopMint()
 		server.syncManager.StartSync()
 	}
 
-	if cfg.Wallet.Enable && server.wallet != nil {
-		server.wallet.Run()
-	}
-
-	if cfg.RPC.Enabled {
-		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC, server.blockChain,
-			server.txPool, server.wallet, server.bus)
+	if cfg.RPC.Enable || len(cfg.RPC.AdminIPs) > 0 {
+		var walletAgent service.WalletAgent
+		if cfg.Wallet.Enable {
+			walletAgent = wallet.NewWalletAgent(server.blockChain.DB(), server.txPool, cfg.Wallet.UtxoCacheTime)
+		}
+		server.grpcsvr = grpcserver.NewServer(server.txPool.Proc(), &cfg.RPC,
+			server.blockChain, server.txPool, walletAgent, server.peer, server.bus)
 		server.grpcsvr.Run()
 	}
 

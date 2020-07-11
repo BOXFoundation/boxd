@@ -25,6 +25,34 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
+type DelegatesReq_Type int32
+
+const (
+	DelegatesReq_BOOKKEEPERS DelegatesReq_Type = 0
+	DelegatesReq_DELEGATES   DelegatesReq_Type = 1
+	DelegatesReq_CANDIDATES  DelegatesReq_Type = 2
+)
+
+var DelegatesReq_Type_name = map[int32]string{
+	0: "BOOKKEEPERS",
+	1: "DELEGATES",
+	2: "CANDIDATES",
+}
+
+var DelegatesReq_Type_value = map[string]int32{
+	"BOOKKEEPERS": 0,
+	"DELEGATES":   1,
+	"CANDIDATES":  2,
+}
+
+func (x DelegatesReq_Type) String() string {
+	return proto.EnumName(DelegatesReq_Type_name, int32(x))
+}
+
+func (DelegatesReq_Type) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{24, 0}
+}
+
 // The request message containing debug level.
 type DebugLevelRequest struct {
 	Level string `protobuf:"bytes,1,opt,name=level,proto3" json:"level,omitempty"`
@@ -151,8 +179,10 @@ func (m *GetNetworkIDRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_GetNetworkIDRequest proto.InternalMessageInfo
 
 type GetNetworkIDResponse struct {
-	Id      uint32 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Literal string `protobuf:"bytes,2,opt,name=literal,proto3" json:"literal,omitempty"`
+	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Id      uint32 `protobuf:"varint,3,opt,name=id,proto3" json:"id,omitempty"`
+	Literal string `protobuf:"bytes,4,opt,name=literal,proto3" json:"literal,omitempty"`
 }
 
 func (m *GetNetworkIDResponse) Reset()         { *m = GetNetworkIDResponse{} }
@@ -187,6 +217,20 @@ func (m *GetNetworkIDResponse) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_GetNetworkIDResponse proto.InternalMessageInfo
+
+func (m *GetNetworkIDResponse) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *GetNetworkIDResponse) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
 
 func (m *GetNetworkIDResponse) GetId() uint32 {
 	if m != nil {
@@ -246,21 +290,21 @@ func (m *AddNodeRequest) GetNode() string {
 	return ""
 }
 
-type GetBlockHeightRequest struct {
+type GetCurrentBlockHeightRequest struct {
 }
 
-func (m *GetBlockHeightRequest) Reset()         { *m = GetBlockHeightRequest{} }
-func (m *GetBlockHeightRequest) String() string { return proto.CompactTextString(m) }
-func (*GetBlockHeightRequest) ProtoMessage()    {}
-func (*GetBlockHeightRequest) Descriptor() ([]byte, []int) {
+func (m *GetCurrentBlockHeightRequest) Reset()         { *m = GetCurrentBlockHeightRequest{} }
+func (m *GetCurrentBlockHeightRequest) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHeightRequest) ProtoMessage()    {}
+func (*GetCurrentBlockHeightRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_0c5120591600887d, []int{5}
 }
-func (m *GetBlockHeightRequest) XXX_Unmarshal(b []byte) error {
+func (m *GetCurrentBlockHeightRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *GetBlockHeightRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *GetCurrentBlockHeightRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_GetBlockHeightRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_GetCurrentBlockHeightRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -270,36 +314,36 @@ func (m *GetBlockHeightRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return b[:n], nil
 	}
 }
-func (m *GetBlockHeightRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetBlockHeightRequest.Merge(m, src)
+func (m *GetCurrentBlockHeightRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHeightRequest.Merge(m, src)
 }
-func (m *GetBlockHeightRequest) XXX_Size() int {
+func (m *GetCurrentBlockHeightRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *GetBlockHeightRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetBlockHeightRequest.DiscardUnknown(m)
+func (m *GetCurrentBlockHeightRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHeightRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_GetBlockHeightRequest proto.InternalMessageInfo
+var xxx_messageInfo_GetCurrentBlockHeightRequest proto.InternalMessageInfo
 
-type GetBlockHeightResponse struct {
+type GetCurrentBlockHeightResponse struct {
 	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Height  uint32 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
 }
 
-func (m *GetBlockHeightResponse) Reset()         { *m = GetBlockHeightResponse{} }
-func (m *GetBlockHeightResponse) String() string { return proto.CompactTextString(m) }
-func (*GetBlockHeightResponse) ProtoMessage()    {}
-func (*GetBlockHeightResponse) Descriptor() ([]byte, []int) {
+func (m *GetCurrentBlockHeightResponse) Reset()         { *m = GetCurrentBlockHeightResponse{} }
+func (m *GetCurrentBlockHeightResponse) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHeightResponse) ProtoMessage()    {}
+func (*GetCurrentBlockHeightResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_0c5120591600887d, []int{6}
 }
-func (m *GetBlockHeightResponse) XXX_Unmarshal(b []byte) error {
+func (m *GetCurrentBlockHeightResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *GetBlockHeightResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *GetCurrentBlockHeightResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_GetBlockHeightResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_GetCurrentBlockHeightResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -309,37 +353,133 @@ func (m *GetBlockHeightResponse) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return b[:n], nil
 	}
 }
-func (m *GetBlockHeightResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetBlockHeightResponse.Merge(m, src)
+func (m *GetCurrentBlockHeightResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHeightResponse.Merge(m, src)
 }
-func (m *GetBlockHeightResponse) XXX_Size() int {
+func (m *GetCurrentBlockHeightResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *GetBlockHeightResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetBlockHeightResponse.DiscardUnknown(m)
+func (m *GetCurrentBlockHeightResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHeightResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_GetBlockHeightResponse proto.InternalMessageInfo
+var xxx_messageInfo_GetCurrentBlockHeightResponse proto.InternalMessageInfo
 
-func (m *GetBlockHeightResponse) GetCode() int32 {
+func (m *GetCurrentBlockHeightResponse) GetCode() int32 {
 	if m != nil {
 		return m.Code
 	}
 	return 0
 }
 
-func (m *GetBlockHeightResponse) GetMessage() string {
+func (m *GetCurrentBlockHeightResponse) GetMessage() string {
 	if m != nil {
 		return m.Message
 	}
 	return ""
 }
 
-func (m *GetBlockHeightResponse) GetHeight() uint32 {
+func (m *GetCurrentBlockHeightResponse) GetHeight() uint32 {
 	if m != nil {
 		return m.Height
 	}
 	return 0
+}
+
+type GetCurrentBlockHashRequest struct {
+}
+
+func (m *GetCurrentBlockHashRequest) Reset()         { *m = GetCurrentBlockHashRequest{} }
+func (m *GetCurrentBlockHashRequest) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHashRequest) ProtoMessage()    {}
+func (*GetCurrentBlockHashRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{7}
+}
+func (m *GetCurrentBlockHashRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetCurrentBlockHashRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetCurrentBlockHashRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetCurrentBlockHashRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHashRequest.Merge(m, src)
+}
+func (m *GetCurrentBlockHashRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetCurrentBlockHashRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHashRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetCurrentBlockHashRequest proto.InternalMessageInfo
+
+type GetCurrentBlockHashResponse struct {
+	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Hash    string `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
+}
+
+func (m *GetCurrentBlockHashResponse) Reset()         { *m = GetCurrentBlockHashResponse{} }
+func (m *GetCurrentBlockHashResponse) String() string { return proto.CompactTextString(m) }
+func (*GetCurrentBlockHashResponse) ProtoMessage()    {}
+func (*GetCurrentBlockHashResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{8}
+}
+func (m *GetCurrentBlockHashResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetCurrentBlockHashResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetCurrentBlockHashResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetCurrentBlockHashResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetCurrentBlockHashResponse.Merge(m, src)
+}
+func (m *GetCurrentBlockHashResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetCurrentBlockHashResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetCurrentBlockHashResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetCurrentBlockHashResponse proto.InternalMessageInfo
+
+func (m *GetCurrentBlockHashResponse) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *GetCurrentBlockHashResponse) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *GetCurrentBlockHashResponse) GetHash() string {
+	if m != nil {
+		return m.Hash
+	}
+	return ""
 }
 
 type GetBlockHashRequest struct {
@@ -350,7 +490,7 @@ func (m *GetBlockHashRequest) Reset()         { *m = GetBlockHashRequest{} }
 func (m *GetBlockHashRequest) String() string { return proto.CompactTextString(m) }
 func (*GetBlockHashRequest) ProtoMessage()    {}
 func (*GetBlockHashRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{7}
+	return fileDescriptor_0c5120591600887d, []int{9}
 }
 func (m *GetBlockHashRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -396,7 +536,7 @@ func (m *GetBlockHashResponse) Reset()         { *m = GetBlockHashResponse{} }
 func (m *GetBlockHashResponse) String() string { return proto.CompactTextString(m) }
 func (*GetBlockHashResponse) ProtoMessage()    {}
 func (*GetBlockHashResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{8}
+	return fileDescriptor_0c5120591600887d, []int{10}
 }
 func (m *GetBlockHashResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -454,7 +594,7 @@ func (m *GetBlockRequest) Reset()         { *m = GetBlockRequest{} }
 func (m *GetBlockRequest) String() string { return proto.CompactTextString(m) }
 func (*GetBlockRequest) ProtoMessage()    {}
 func (*GetBlockRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{9}
+	return fileDescriptor_0c5120591600887d, []int{11}
 }
 func (m *GetBlockRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -500,7 +640,7 @@ func (m *GetBlockHeaderResponse) Reset()         { *m = GetBlockHeaderResponse{}
 func (m *GetBlockHeaderResponse) String() string { return proto.CompactTextString(m) }
 func (*GetBlockHeaderResponse) ProtoMessage()    {}
 func (*GetBlockHeaderResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{10}
+	return fileDescriptor_0c5120591600887d, []int{12}
 }
 func (m *GetBlockHeaderResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -550,66 +690,6 @@ func (m *GetBlockHeaderResponse) GetHeader() *pb.BlockHeader {
 	return nil
 }
 
-type GetBlockResponse struct {
-	Code    int32     `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
-	Message string    `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Block   *pb.Block `protobuf:"bytes,3,opt,name=block,proto3" json:"block,omitempty"`
-}
-
-func (m *GetBlockResponse) Reset()         { *m = GetBlockResponse{} }
-func (m *GetBlockResponse) String() string { return proto.CompactTextString(m) }
-func (*GetBlockResponse) ProtoMessage()    {}
-func (*GetBlockResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{11}
-}
-func (m *GetBlockResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetBlockResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetBlockResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetBlockResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetBlockResponse.Merge(m, src)
-}
-func (m *GetBlockResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetBlockResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetBlockResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetBlockResponse proto.InternalMessageInfo
-
-func (m *GetBlockResponse) GetCode() int32 {
-	if m != nil {
-		return m.Code
-	}
-	return 0
-}
-
-func (m *GetBlockResponse) GetMessage() string {
-	if m != nil {
-		return m.Message
-	}
-	return ""
-}
-
-func (m *GetBlockResponse) GetBlock() *pb.Block {
-	if m != nil {
-		return m.Block
-	}
-	return nil
-}
-
 type Node struct {
 	Id    string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Addrs []string `protobuf:"bytes,2,rep,name=addrs,proto3" json:"addrs,omitempty"`
@@ -620,7 +700,7 @@ func (m *Node) Reset()         { *m = Node{} }
 func (m *Node) String() string { return proto.CompactTextString(m) }
 func (*Node) ProtoMessage()    {}
 func (*Node) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{12}
+	return fileDescriptor_0c5120591600887d, []int{13}
 }
 func (m *Node) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -677,7 +757,7 @@ func (m *GetNodeInfoRequest) Reset()         { *m = GetNodeInfoRequest{} }
 func (m *GetNodeInfoRequest) String() string { return proto.CompactTextString(m) }
 func (*GetNodeInfoRequest) ProtoMessage()    {}
 func (*GetNodeInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{13}
+	return fileDescriptor_0c5120591600887d, []int{14}
 }
 func (m *GetNodeInfoRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -707,14 +787,16 @@ func (m *GetNodeInfoRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_GetNodeInfoRequest proto.InternalMessageInfo
 
 type GetNodeInfoResponse struct {
-	Nodes []*Node `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	Code    int32   `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string  `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Nodes   []*Node `protobuf:"bytes,3,rep,name=nodes,proto3" json:"nodes,omitempty"`
 }
 
 func (m *GetNodeInfoResponse) Reset()         { *m = GetNodeInfoResponse{} }
 func (m *GetNodeInfoResponse) String() string { return proto.CompactTextString(m) }
 func (*GetNodeInfoResponse) ProtoMessage()    {}
 func (*GetNodeInfoResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0c5120591600887d, []int{14}
+	return fileDescriptor_0c5120591600887d, []int{15}
 }
 func (m *GetNodeInfoResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -743,6 +825,20 @@ func (m *GetNodeInfoResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GetNodeInfoResponse proto.InternalMessageInfo
 
+func (m *GetNodeInfoResponse) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *GetNodeInfoResponse) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
 func (m *GetNodeInfoResponse) GetNodes() []*Node {
 	if m != nil {
 		return m.Nodes
@@ -750,78 +846,792 @@ func (m *GetNodeInfoResponse) GetNodes() []*Node {
 	return nil
 }
 
+type GetTxCountReq struct {
+	BlockHeight uint32 `protobuf:"varint,1,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
+	BlockHash   string `protobuf:"bytes,2,opt,name=block_hash,json=blockHash,proto3" json:"block_hash,omitempty"`
+}
+
+func (m *GetTxCountReq) Reset()         { *m = GetTxCountReq{} }
+func (m *GetTxCountReq) String() string { return proto.CompactTextString(m) }
+func (*GetTxCountReq) ProtoMessage()    {}
+func (*GetTxCountReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{16}
+}
+func (m *GetTxCountReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetTxCountReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetTxCountReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetTxCountReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetTxCountReq.Merge(m, src)
+}
+func (m *GetTxCountReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetTxCountReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetTxCountReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetTxCountReq proto.InternalMessageInfo
+
+func (m *GetTxCountReq) GetBlockHeight() uint32 {
+	if m != nil {
+		return m.BlockHeight
+	}
+	return 0
+}
+
+func (m *GetTxCountReq) GetBlockHash() string {
+	if m != nil {
+		return m.BlockHash
+	}
+	return ""
+}
+
+type GetTxCountResp struct {
+	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Count   uint32 `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+}
+
+func (m *GetTxCountResp) Reset()         { *m = GetTxCountResp{} }
+func (m *GetTxCountResp) String() string { return proto.CompactTextString(m) }
+func (*GetTxCountResp) ProtoMessage()    {}
+func (*GetTxCountResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{17}
+}
+func (m *GetTxCountResp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetTxCountResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetTxCountResp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetTxCountResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetTxCountResp.Merge(m, src)
+}
+func (m *GetTxCountResp) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetTxCountResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetTxCountResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetTxCountResp proto.InternalMessageInfo
+
+func (m *GetTxCountResp) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *GetTxCountResp) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *GetTxCountResp) GetCount() uint32 {
+	if m != nil {
+		return m.Count
+	}
+	return 0
+}
+
+type Delegate struct {
+	Addr              string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	Votes             uint64 `protobuf:"varint,2,opt,name=votes,proto3" json:"votes,omitempty"`
+	PledgeAmount      uint64 `protobuf:"varint,3,opt,name=pledge_amount,json=pledgeAmount,proto3" json:"pledge_amount,omitempty"`
+	Score             uint64 `protobuf:"varint,4,opt,name=score,proto3" json:"score,omitempty"`
+	ContinualPeriods  uint32 `protobuf:"varint,5,opt,name=continual_periods,json=continualPeriods,proto3" json:"continual_periods,omitempty"`
+	BlocksThisDynasty uint32 `protobuf:"varint,6,opt,name=blocks_this_dynasty,json=blocksThisDynasty,proto3" json:"blocks_this_dynasty,omitempty"`
+	BlocksTotal       uint32 `protobuf:"varint,7,opt,name=blocks_total,json=blocksTotal,proto3" json:"blocks_total,omitempty"`
+}
+
+func (m *Delegate) Reset()         { *m = Delegate{} }
+func (m *Delegate) String() string { return proto.CompactTextString(m) }
+func (*Delegate) ProtoMessage()    {}
+func (*Delegate) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{18}
+}
+func (m *Delegate) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Delegate) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Delegate.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Delegate) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Delegate.Merge(m, src)
+}
+func (m *Delegate) XXX_Size() int {
+	return m.Size()
+}
+func (m *Delegate) XXX_DiscardUnknown() {
+	xxx_messageInfo_Delegate.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Delegate proto.InternalMessageInfo
+
+func (m *Delegate) GetAddr() string {
+	if m != nil {
+		return m.Addr
+	}
+	return ""
+}
+
+func (m *Delegate) GetVotes() uint64 {
+	if m != nil {
+		return m.Votes
+	}
+	return 0
+}
+
+func (m *Delegate) GetPledgeAmount() uint64 {
+	if m != nil {
+		return m.PledgeAmount
+	}
+	return 0
+}
+
+func (m *Delegate) GetScore() uint64 {
+	if m != nil {
+		return m.Score
+	}
+	return 0
+}
+
+func (m *Delegate) GetContinualPeriods() uint32 {
+	if m != nil {
+		return m.ContinualPeriods
+	}
+	return 0
+}
+
+func (m *Delegate) GetBlocksThisDynasty() uint32 {
+	if m != nil {
+		return m.BlocksThisDynasty
+	}
+	return 0
+}
+
+func (m *Delegate) GetBlocksTotal() uint32 {
+	if m != nil {
+		return m.BlocksTotal
+	}
+	return 0
+}
+
+type PeerIDReq struct {
+}
+
+func (m *PeerIDReq) Reset()         { *m = PeerIDReq{} }
+func (m *PeerIDReq) String() string { return proto.CompactTextString(m) }
+func (*PeerIDReq) ProtoMessage()    {}
+func (*PeerIDReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{19}
+}
+func (m *PeerIDReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PeerIDReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PeerIDReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PeerIDReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PeerIDReq.Merge(m, src)
+}
+func (m *PeerIDReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *PeerIDReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_PeerIDReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PeerIDReq proto.InternalMessageInfo
+
+type PeerIDResp struct {
+	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Peerid  string `protobuf:"bytes,3,opt,name=peerid,proto3" json:"peerid,omitempty"`
+}
+
+func (m *PeerIDResp) Reset()         { *m = PeerIDResp{} }
+func (m *PeerIDResp) String() string { return proto.CompactTextString(m) }
+func (*PeerIDResp) ProtoMessage()    {}
+func (*PeerIDResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{20}
+}
+func (m *PeerIDResp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PeerIDResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PeerIDResp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PeerIDResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PeerIDResp.Merge(m, src)
+}
+func (m *PeerIDResp) XXX_Size() int {
+	return m.Size()
+}
+func (m *PeerIDResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_PeerIDResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PeerIDResp proto.InternalMessageInfo
+
+func (m *PeerIDResp) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *PeerIDResp) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *PeerIDResp) GetPeerid() string {
+	if m != nil {
+		return m.Peerid
+	}
+	return ""
+}
+
+type MinersReq struct {
+}
+
+func (m *MinersReq) Reset()         { *m = MinersReq{} }
+func (m *MinersReq) String() string { return proto.CompactTextString(m) }
+func (*MinersReq) ProtoMessage()    {}
+func (*MinersReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{21}
+}
+func (m *MinersReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MinersReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MinersReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MinersReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MinersReq.Merge(m, src)
+}
+func (m *MinersReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *MinersReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_MinersReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MinersReq proto.InternalMessageInfo
+
+type MinersResp struct {
+	Code    int32          `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string         `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Miners  []*MinerDetail `protobuf:"bytes,3,rep,name=miners,proto3" json:"miners,omitempty"`
+}
+
+func (m *MinersResp) Reset()         { *m = MinersResp{} }
+func (m *MinersResp) String() string { return proto.CompactTextString(m) }
+func (*MinersResp) ProtoMessage()    {}
+func (*MinersResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{22}
+}
+func (m *MinersResp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MinersResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MinersResp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MinersResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MinersResp.Merge(m, src)
+}
+func (m *MinersResp) XXX_Size() int {
+	return m.Size()
+}
+func (m *MinersResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_MinersResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MinersResp proto.InternalMessageInfo
+
+func (m *MinersResp) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *MinersResp) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *MinersResp) GetMiners() []*MinerDetail {
+	if m != nil {
+		return m.Miners
+	}
+	return nil
+}
+
+type MinerDetail struct {
+	Id      string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Address string   `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	Iplist  []string `protobuf:"bytes,3,rep,name=iplist,proto3" json:"iplist,omitempty"`
+}
+
+func (m *MinerDetail) Reset()         { *m = MinerDetail{} }
+func (m *MinerDetail) String() string { return proto.CompactTextString(m) }
+func (*MinerDetail) ProtoMessage()    {}
+func (*MinerDetail) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{23}
+}
+func (m *MinerDetail) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MinerDetail) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MinerDetail.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MinerDetail) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MinerDetail.Merge(m, src)
+}
+func (m *MinerDetail) XXX_Size() int {
+	return m.Size()
+}
+func (m *MinerDetail) XXX_DiscardUnknown() {
+	xxx_messageInfo_MinerDetail.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MinerDetail proto.InternalMessageInfo
+
+func (m *MinerDetail) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *MinerDetail) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
+func (m *MinerDetail) GetIplist() []string {
+	if m != nil {
+		return m.Iplist
+	}
+	return nil
+}
+
+type DelegatesReq struct {
+	Type DelegatesReq_Type `protobuf:"varint,1,opt,name=type,proto3,enum=rpcpb.DelegatesReq_Type" json:"type,omitempty"`
+}
+
+func (m *DelegatesReq) Reset()         { *m = DelegatesReq{} }
+func (m *DelegatesReq) String() string { return proto.CompactTextString(m) }
+func (*DelegatesReq) ProtoMessage()    {}
+func (*DelegatesReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{24}
+}
+func (m *DelegatesReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DelegatesReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DelegatesReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DelegatesReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DelegatesReq.Merge(m, src)
+}
+func (m *DelegatesReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *DelegatesReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_DelegatesReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DelegatesReq proto.InternalMessageInfo
+
+func (m *DelegatesReq) GetType() DelegatesReq_Type {
+	if m != nil {
+		return m.Type
+	}
+	return DelegatesReq_BOOKKEEPERS
+}
+
+type DelegatesResp struct {
+	Code      int32       `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message   string      `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Delegates []*Delegate `protobuf:"bytes,3,rep,name=delegates,proto3" json:"delegates,omitempty"`
+}
+
+func (m *DelegatesResp) Reset()         { *m = DelegatesResp{} }
+func (m *DelegatesResp) String() string { return proto.CompactTextString(m) }
+func (*DelegatesResp) ProtoMessage()    {}
+func (*DelegatesResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{25}
+}
+func (m *DelegatesResp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DelegatesResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DelegatesResp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DelegatesResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DelegatesResp.Merge(m, src)
+}
+func (m *DelegatesResp) XXX_Size() int {
+	return m.Size()
+}
+func (m *DelegatesResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_DelegatesResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DelegatesResp proto.InternalMessageInfo
+
+func (m *DelegatesResp) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *DelegatesResp) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *DelegatesResp) GetDelegates() []*Delegate {
+	if m != nil {
+		return m.Delegates
+	}
+	return nil
+}
+
+type LatestConfirmedBlockReq struct {
+}
+
+func (m *LatestConfirmedBlockReq) Reset()         { *m = LatestConfirmedBlockReq{} }
+func (m *LatestConfirmedBlockReq) String() string { return proto.CompactTextString(m) }
+func (*LatestConfirmedBlockReq) ProtoMessage()    {}
+func (*LatestConfirmedBlockReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{26}
+}
+func (m *LatestConfirmedBlockReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *LatestConfirmedBlockReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_LatestConfirmedBlockReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *LatestConfirmedBlockReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LatestConfirmedBlockReq.Merge(m, src)
+}
+func (m *LatestConfirmedBlockReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *LatestConfirmedBlockReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_LatestConfirmedBlockReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LatestConfirmedBlockReq proto.InternalMessageInfo
+
+type LatestConfirmedBlockResp struct {
+	Code    int32  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Height  uint32 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
+	Hash    string `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
+}
+
+func (m *LatestConfirmedBlockResp) Reset()         { *m = LatestConfirmedBlockResp{} }
+func (m *LatestConfirmedBlockResp) String() string { return proto.CompactTextString(m) }
+func (*LatestConfirmedBlockResp) ProtoMessage()    {}
+func (*LatestConfirmedBlockResp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0c5120591600887d, []int{27}
+}
+func (m *LatestConfirmedBlockResp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *LatestConfirmedBlockResp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_LatestConfirmedBlockResp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *LatestConfirmedBlockResp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LatestConfirmedBlockResp.Merge(m, src)
+}
+func (m *LatestConfirmedBlockResp) XXX_Size() int {
+	return m.Size()
+}
+func (m *LatestConfirmedBlockResp) XXX_DiscardUnknown() {
+	xxx_messageInfo_LatestConfirmedBlockResp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LatestConfirmedBlockResp proto.InternalMessageInfo
+
+func (m *LatestConfirmedBlockResp) GetCode() int32 {
+	if m != nil {
+		return m.Code
+	}
+	return 0
+}
+
+func (m *LatestConfirmedBlockResp) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+func (m *LatestConfirmedBlockResp) GetHeight() uint32 {
+	if m != nil {
+		return m.Height
+	}
+	return 0
+}
+
+func (m *LatestConfirmedBlockResp) GetHash() string {
+	if m != nil {
+		return m.Hash
+	}
+	return ""
+}
+
 func init() {
+	proto.RegisterEnum("rpcpb.DelegatesReq_Type", DelegatesReq_Type_name, DelegatesReq_Type_value)
 	proto.RegisterType((*DebugLevelRequest)(nil), "rpcpb.DebugLevelRequest")
 	proto.RegisterType((*UpdateNetworkIDRequest)(nil), "rpcpb.UpdateNetworkIDRequest")
 	proto.RegisterType((*GetNetworkIDRequest)(nil), "rpcpb.GetNetworkIDRequest")
 	proto.RegisterType((*GetNetworkIDResponse)(nil), "rpcpb.GetNetworkIDResponse")
 	proto.RegisterType((*AddNodeRequest)(nil), "rpcpb.AddNodeRequest")
-	proto.RegisterType((*GetBlockHeightRequest)(nil), "rpcpb.GetBlockHeightRequest")
-	proto.RegisterType((*GetBlockHeightResponse)(nil), "rpcpb.GetBlockHeightResponse")
+	proto.RegisterType((*GetCurrentBlockHeightRequest)(nil), "rpcpb.GetCurrentBlockHeightRequest")
+	proto.RegisterType((*GetCurrentBlockHeightResponse)(nil), "rpcpb.GetCurrentBlockHeightResponse")
+	proto.RegisterType((*GetCurrentBlockHashRequest)(nil), "rpcpb.GetCurrentBlockHashRequest")
+	proto.RegisterType((*GetCurrentBlockHashResponse)(nil), "rpcpb.GetCurrentBlockHashResponse")
 	proto.RegisterType((*GetBlockHashRequest)(nil), "rpcpb.GetBlockHashRequest")
 	proto.RegisterType((*GetBlockHashResponse)(nil), "rpcpb.GetBlockHashResponse")
 	proto.RegisterType((*GetBlockRequest)(nil), "rpcpb.GetBlockRequest")
 	proto.RegisterType((*GetBlockHeaderResponse)(nil), "rpcpb.GetBlockHeaderResponse")
-	proto.RegisterType((*GetBlockResponse)(nil), "rpcpb.GetBlockResponse")
 	proto.RegisterType((*Node)(nil), "rpcpb.Node")
 	proto.RegisterType((*GetNodeInfoRequest)(nil), "rpcpb.GetNodeInfoRequest")
 	proto.RegisterType((*GetNodeInfoResponse)(nil), "rpcpb.GetNodeInfoResponse")
+	proto.RegisterType((*GetTxCountReq)(nil), "rpcpb.GetTxCountReq")
+	proto.RegisterType((*GetTxCountResp)(nil), "rpcpb.GetTxCountResp")
+	proto.RegisterType((*Delegate)(nil), "rpcpb.Delegate")
+	proto.RegisterType((*PeerIDReq)(nil), "rpcpb.PeerIDReq")
+	proto.RegisterType((*PeerIDResp)(nil), "rpcpb.PeerIDResp")
+	proto.RegisterType((*MinersReq)(nil), "rpcpb.MinersReq")
+	proto.RegisterType((*MinersResp)(nil), "rpcpb.MinersResp")
+	proto.RegisterType((*MinerDetail)(nil), "rpcpb.MinerDetail")
+	proto.RegisterType((*DelegatesReq)(nil), "rpcpb.DelegatesReq")
+	proto.RegisterType((*DelegatesResp)(nil), "rpcpb.DelegatesResp")
+	proto.RegisterType((*LatestConfirmedBlockReq)(nil), "rpcpb.LatestConfirmedBlockReq")
+	proto.RegisterType((*LatestConfirmedBlockResp)(nil), "rpcpb.LatestConfirmedBlockResp")
 }
 
 func init() { proto.RegisterFile("control.proto", fileDescriptor_0c5120591600887d) }
 
 var fileDescriptor_0c5120591600887d = []byte{
-	// 796 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x55, 0xcd, 0x52, 0xdb, 0x48,
-	0x10, 0x46, 0xfe, 0x81, 0x75, 0x1b, 0x1b, 0x18, 0xff, 0x20, 0x04, 0xf6, 0xc2, 0xec, 0x1e, 0x58,
-	0xb6, 0xd6, 0x5a, 0xd8, 0xcb, 0x16, 0x87, 0xad, 0x8d, 0xa1, 0x42, 0xa8, 0x4a, 0x91, 0x8a, 0x53,
-	0xa9, 0xe2, 0x92, 0xa4, 0x24, 0xcd, 0x60, 0x29, 0xc8, 0x1a, 0x45, 0x1a, 0x93, 0x9c, 0xf3, 0x04,
-	0xa9, 0xca, 0x21, 0xaf, 0x94, 0x23, 0x55, 0xb9, 0xe4, 0x98, 0x82, 0x3c, 0x48, 0x6a, 0x46, 0x23,
-	0x2c, 0xff, 0xe5, 0xc0, 0x6d, 0x5a, 0xdd, 0xfd, 0x7d, 0x5f, 0xb7, 0xbb, 0xdb, 0x50, 0x71, 0x58,
-	0xc0, 0x23, 0xe6, 0x77, 0xc2, 0x88, 0x71, 0x86, 0x8a, 0x51, 0xe8, 0x84, 0xb6, 0xb1, 0xdf, 0xf7,
-	0xb8, 0x3b, 0xb4, 0x3b, 0x0e, 0x1b, 0x98, 0xdd, 0x27, 0xe7, 0x0f, 0xd9, 0x30, 0x20, 0x16, 0xf7,
-	0x58, 0x60, 0xda, 0xec, 0x1d, 0x31, 0x1d, 0x16, 0x51, 0x33, 0xb4, 0x4d, 0xdb, 0x67, 0xce, 0x65,
-	0x92, 0x69, 0x2c, 0x3b, 0x6c, 0x30, 0x60, 0x81, 0xb2, 0xb6, 0xfa, 0x8c, 0xf5, 0x7d, 0x6a, 0x5a,
-	0xa1, 0x67, 0x5a, 0x41, 0xc0, 0xb8, 0xcc, 0x8e, 0x13, 0x2f, 0xfe, 0x03, 0xd6, 0x8e, 0xa9, 0x3d,
-	0xec, 0x3f, 0xa6, 0x57, 0xd4, 0xef, 0xd1, 0x37, 0x43, 0x1a, 0x73, 0x54, 0x87, 0xa2, 0x2f, 0x6c,
-	0x5d, 0xdb, 0xd6, 0x76, 0x4b, 0xbd, 0xc4, 0xc0, 0xbb, 0xd0, 0x7c, 0x1e, 0x12, 0x8b, 0xd3, 0x33,
-	0xca, 0xdf, 0xb2, 0xe8, 0xf2, 0xf4, 0x38, 0x8d, 0xaf, 0x42, 0xce, 0x23, 0x32, 0xb8, 0xd2, 0xcb,
-	0x79, 0x04, 0x37, 0xa0, 0x76, 0x42, 0xf9, 0x64, 0x18, 0xfe, 0x1f, 0xea, 0xe3, 0x9f, 0xe3, 0x90,
-	0x05, 0x31, 0x9d, 0x4c, 0x47, 0x3a, 0x2c, 0xf9, 0x1e, 0xa7, 0x91, 0xe5, 0xeb, 0x39, 0x29, 0x20,
-	0x35, 0xf1, 0xef, 0x50, 0x7d, 0x40, 0xc8, 0x19, 0x23, 0x34, 0xa5, 0x46, 0x50, 0x08, 0x18, 0xa1,
-	0x4a, 0xa9, 0x7c, 0xe3, 0x75, 0x68, 0x9c, 0x50, 0xde, 0x15, 0x1d, 0x79, 0x44, 0xbd, 0xbe, 0xcb,
-	0x53, 0x01, 0x2f, 0xa1, 0x39, 0xe9, 0x50, 0x12, 0x10, 0x14, 0x9c, 0x14, 0xa6, 0xd8, 0x93, 0x6f,
-	0x21, 0x63, 0x40, 0xe3, 0xd8, 0xea, 0xd3, 0x54, 0x86, 0x32, 0x51, 0x13, 0x16, 0x5d, 0x99, 0xaf,
-	0xe7, 0xa5, 0x68, 0x65, 0xe1, 0xbf, 0x64, 0xdd, 0x09, 0xbe, 0x15, 0xbb, 0xa9, 0xc6, 0x51, 0xb8,
-	0x36, 0x16, 0x7e, 0x2e, 0xfb, 0x91, 0x09, 0xbf, 0x97, 0x18, 0x04, 0x05, 0xd7, 0x8a, 0x5d, 0x29,
-	0xa5, 0xd4, 0x93, 0x6f, 0xfc, 0x37, 0xac, 0xa4, 0xc8, 0xa9, 0x88, 0x16, 0x80, 0x9c, 0x91, 0x57,
-	0x32, 0x38, 0x69, 0x57, 0xc9, 0x4e, 0xb9, 0x71, 0x9c, 0x6d, 0x8d, 0x45, 0x68, 0x74, 0x4f, 0x35,
-	0x7f, 0x8a, 0x5a, 0x45, 0xbe, 0xd4, 0x53, 0x3e, 0xa8, 0x75, 0xc4, 0x84, 0x86, 0x76, 0x27, 0x0b,
-	0xad, 0x42, 0x30, 0x85, 0xd5, 0x91, 0xcc, 0x7b, 0xd1, 0xfd, 0x06, 0x45, 0x59, 0x83, 0x62, 0xab,
-	0x8c, 0xb1, 0xf5, 0x12, 0x1f, 0xfe, 0x0f, 0x0a, 0x62, 0x64, 0x32, 0x73, 0x56, 0x92, 0x73, 0x56,
-	0x87, 0xa2, 0x45, 0x48, 0x14, 0xeb, 0xb9, 0xed, 0xbc, 0x18, 0x73, 0x69, 0xa0, 0x55, 0xc8, 0x73,
-	0xee, 0xab, 0x76, 0x8a, 0x27, 0xae, 0x03, 0x12, 0x73, 0xcb, 0x08, 0x3d, 0x0d, 0x2e, 0x58, 0x3a,
-	0x4c, 0xff, 0x26, 0x43, 0x7e, 0xf7, 0x55, 0xe9, 0xdf, 0x81, 0xa2, 0x18, 0xc2, 0x58, 0xd7, 0xb6,
-	0xf3, 0xbb, 0xe5, 0x83, 0x72, 0x47, 0xae, 0x71, 0x47, 0xce, 0x6c, 0xe2, 0x39, 0xf8, 0xb4, 0x04,
-	0xd5, 0x23, 0x16, 0x70, 0x16, 0xf9, 0x47, 0x6c, 0x30, 0xb0, 0x02, 0x82, 0x5e, 0x40, 0xe5, 0x19,
-	0xe5, 0xa3, 0x4d, 0x44, 0xba, 0xca, 0x9b, 0x5a, 0x4e, 0xa3, 0xa6, 0x3c, 0x5d, 0x2b, 0xa6, 0x29,
-	0x2b, 0x6e, 0xbd, 0xff, 0xf2, 0xfd, 0x63, 0x6e, 0x1d, 0x23, 0xf3, 0x6a, 0xdf, 0x74, 0xb8, 0x6f,
-	0x12, 0x91, 0x27, 0xf7, 0xf6, 0x50, 0xdb, 0x43, 0x0e, 0xac, 0x4c, 0xac, 0x2e, 0x6a, 0x29, 0x98,
-	0xd9, 0x2b, 0x3d, 0x9b, 0x65, 0x4b, 0xb2, 0x34, 0xf1, 0x5a, 0xca, 0x12, 0x24, 0x69, 0x1e, 0x11,
-	0x24, 0x17, 0xb0, 0x9c, 0x5d, 0x6f, 0x64, 0x28, 0x88, 0x19, 0xa7, 0xc0, 0xd8, 0x9c, 0xe9, 0x9b,
-	0x57, 0x4c, 0x9f, 0x72, 0xc5, 0x24, 0x78, 0x9e, 0xc2, 0x92, 0x3a, 0x02, 0xa8, 0xa1, 0x60, 0xc6,
-	0x8f, 0xc2, 0x6c, 0xf1, 0x86, 0x44, 0xad, 0xe3, 0x95, 0x14, 0xd5, 0x22, 0x44, 0xfc, 0x1e, 0x02,
-	0x32, 0x84, 0xea, 0xf8, 0x61, 0x40, 0x5b, 0x23, 0x81, 0xd3, 0x87, 0xc4, 0x68, 0xcd, 0xf1, 0x2a,
-	0xaa, 0x1d, 0x49, 0xb5, 0x89, 0x9b, 0x99, 0x02, 0xe4, 0x28, 0x26, 0x8b, 0x2f, 0x18, 0x5d, 0xd9,
-	0xac, 0xbb, 0xdd, 0xcf, 0x36, 0x6b, 0xf2, 0x7e, 0x64, 0x9b, 0x35, 0x75, 0x2c, 0xf0, 0xaf, 0x92,
-	0x6b, 0x03, 0xd7, 0xa7, 0xb8, 0xac, 0xd8, 0x15, 0x4c, 0xaf, 0xb3, 0xb5, 0x89, 0xb5, 0x43, 0xcd,
-	0x09, 0xbc, 0xf9, 0x55, 0x65, 0x0f, 0xc1, 0xcf, 0xaa, 0x12, 0x71, 0x82, 0xeb, 0x1c, 0x7e, 0x49,
-	0x93, 0xe7, 0xb2, 0xac, 0x4f, 0x7d, 0x57, 0xf8, 0x9b, 0x12, 0xbf, 0x81, 0x57, 0x27, 0xf1, 0x05,
-	0x32, 0x81, 0x72, 0x66, 0xdb, 0xd0, 0x46, 0x66, 0x7e, 0xc6, 0xf7, 0xd2, 0x30, 0x66, 0xb9, 0x14,
-	0x45, 0x5b, 0x52, 0xe8, 0xb8, 0x96, 0x9d, 0x2c, 0x46, 0xa8, 0x17, 0x5c, 0xb0, 0x43, 0x6d, 0xaf,
-	0xab, 0x7f, 0xbe, 0x69, 0x6b, 0xd7, 0x37, 0x6d, 0xed, 0xdb, 0x4d, 0x5b, 0xfb, 0x70, 0xdb, 0x5e,
-	0xb8, 0xbe, 0x6d, 0x2f, 0x7c, 0xbd, 0x6d, 0x2f, 0xd8, 0x8b, 0xf2, 0xef, 0xf2, 0x9f, 0x1f, 0x01,
-	0x00, 0x00, 0xff, 0xff, 0xf4, 0x91, 0x48, 0x35, 0xa5, 0x07, 0x00, 0x00,
+	// 1371 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0x4f, 0x6f, 0xdb, 0xc6,
+	0x12, 0x37, 0x65, 0x49, 0x7e, 0x1a, 0x59, 0xfe, 0xb3, 0x96, 0x15, 0x86, 0xb6, 0x15, 0x7b, 0x13,
+	0xbc, 0xe7, 0xe7, 0x34, 0x52, 0xe3, 0x02, 0x3d, 0xe4, 0x50, 0xc0, 0xb6, 0x5c, 0x37, 0x48, 0x1a,
+	0x27, 0x8c, 0x0a, 0x04, 0x28, 0x0a, 0x81, 0x12, 0xd7, 0x12, 0x1b, 0x8a, 0xcb, 0x72, 0x57, 0x69,
+	0x7c, 0x2b, 0x8a, 0x1e, 0x7b, 0x28, 0xd0, 0x6f, 0xd2, 0x4f, 0xd1, 0x63, 0x80, 0x5e, 0x7a, 0x2c,
+	0x92, 0xde, 0xfb, 0x11, 0x5a, 0xec, 0x70, 0x29, 0x51, 0x32, 0x1d, 0xc0, 0x06, 0x7a, 0xd3, 0xec,
+	0xcc, 0xfe, 0x7e, 0xbf, 0x9d, 0x9d, 0x1d, 0x8e, 0xa0, 0xd2, 0xe3, 0x81, 0x8c, 0xb8, 0xdf, 0x08,
+	0x23, 0x2e, 0x39, 0x29, 0x44, 0x61, 0x2f, 0xec, 0x5a, 0xf7, 0xfb, 0x9e, 0x1c, 0x8c, 0xba, 0x8d,
+	0x1e, 0x1f, 0x36, 0x0f, 0x4f, 0x5f, 0x7c, 0xca, 0x47, 0x81, 0xeb, 0x48, 0x8f, 0x07, 0xcd, 0x2e,
+	0x7f, 0xed, 0x36, 0x7b, 0x3c, 0x62, 0xcd, 0xb0, 0xdb, 0xec, 0xfa, 0xbc, 0xf7, 0x32, 0xde, 0x69,
+	0x2d, 0xf6, 0xf8, 0x70, 0xc8, 0x03, 0x6d, 0x6d, 0xf6, 0x39, 0xef, 0xfb, 0xac, 0xe9, 0x84, 0x5e,
+	0xd3, 0x09, 0x02, 0x2e, 0x71, 0xb7, 0x88, 0xbd, 0xf4, 0xff, 0xb0, 0xda, 0x62, 0xdd, 0x51, 0xff,
+	0x31, 0x7b, 0xc5, 0x7c, 0x9b, 0x7d, 0x33, 0x62, 0x42, 0x92, 0x2a, 0x14, 0x7c, 0x65, 0x9b, 0xc6,
+	0xb6, 0xb1, 0x5b, 0xb2, 0x63, 0x83, 0xee, 0x42, 0xed, 0x8b, 0xd0, 0x75, 0x24, 0x7b, 0xc2, 0xe4,
+	0xb7, 0x3c, 0x7a, 0xf9, 0xb0, 0x95, 0xc4, 0x2f, 0x41, 0xce, 0x73, 0x31, 0xb8, 0x62, 0xe7, 0x3c,
+	0x97, 0xae, 0xc3, 0xda, 0x09, 0x93, 0xb3, 0x61, 0x34, 0x80, 0xea, 0xf4, 0xb2, 0x08, 0x79, 0x20,
+	0x18, 0x21, 0x90, 0xef, 0x71, 0x97, 0x21, 0x40, 0xc1, 0xc6, 0xdf, 0xc4, 0x84, 0x85, 0x21, 0x13,
+	0xc2, 0xe9, 0x33, 0x33, 0x87, 0x22, 0x12, 0x53, 0x93, 0xcd, 0x27, 0x64, 0x2a, 0xd2, 0xf7, 0x24,
+	0x8b, 0x1c, 0xdf, 0xcc, 0xc7, 0x91, 0xda, 0xa4, 0x77, 0x60, 0xe9, 0xc0, 0x75, 0x9f, 0x70, 0x97,
+	0x25, 0x42, 0x09, 0xe4, 0x83, 0x84, 0xa9, 0x64, 0xe3, 0x6f, 0x5a, 0x87, 0xcd, 0x13, 0x26, 0x8f,
+	0x46, 0x51, 0xc4, 0x02, 0x79, 0xa8, 0xd2, 0xf8, 0x19, 0xf3, 0xfa, 0x03, 0x99, 0xa8, 0x66, 0xb0,
+	0x75, 0x89, 0xff, 0x5a, 0xf2, 0x6b, 0x50, 0x1c, 0xe0, 0x7e, 0x7d, 0x04, 0x6d, 0xd1, 0x4d, 0xb0,
+	0x66, 0x69, 0x1c, 0x31, 0x48, 0x44, 0x74, 0x60, 0x23, 0xd3, 0x7b, 0x2d, 0x09, 0x04, 0xf2, 0x03,
+	0x47, 0x0c, 0x50, 0x40, 0xc9, 0xc6, 0xdf, 0xf4, 0x1e, 0x5e, 0xd9, 0x2c, 0x6f, 0x4a, 0xad, 0x31,
+	0xa5, 0xf6, 0x05, 0x5e, 0xe5, 0xbf, 0x21, 0xe4, 0x43, 0x58, 0x4e, 0x90, 0x13, 0x11, 0x5b, 0x00,
+	0x58, 0xde, 0x1d, 0x0c, 0x8e, 0xef, 0xae, 0xd4, 0x4d, 0xb8, 0xa9, 0x80, 0xda, 0x58, 0x0b, 0x73,
+	0x5c, 0x16, 0x5d, 0x53, 0xcd, 0x5d, 0x75, 0x56, 0xb5, 0x1f, 0xf5, 0x94, 0xf7, 0xd7, 0x1a, 0xea,
+	0x71, 0x85, 0xdd, 0x46, 0x1a, 0x5a, 0x87, 0xd0, 0x4f, 0x20, 0xaf, 0x0a, 0x2b, 0x55, 0xfa, 0x25,
+	0xac, 0xc6, 0x2a, 0x14, 0x1c, 0xd7, 0x8d, 0x84, 0x99, 0xdb, 0x9e, 0x57, 0x4f, 0x07, 0x0d, 0xb2,
+	0x02, 0xf3, 0x52, 0xfa, 0xfa, 0x9c, 0xea, 0x27, 0xad, 0x02, 0x51, 0x6f, 0x81, 0xbb, 0xec, 0x61,
+	0x70, 0xc6, 0x93, 0x6b, 0x3e, 0x8b, 0x1f, 0xce, 0x78, 0xf5, 0x5a, 0xe7, 0xd8, 0x81, 0x82, 0x2a,
+	0x6c, 0x61, 0xce, 0x6f, 0xcf, 0xef, 0x96, 0xf7, 0xcb, 0x0d, 0x6c, 0x24, 0x0d, 0x7c, 0x07, 0xb1,
+	0x87, 0x3e, 0x83, 0xca, 0x09, 0x93, 0xed, 0xd7, 0x47, 0x7c, 0x14, 0xa8, 0x42, 0x27, 0x3b, 0xb0,
+	0xa8, 0x53, 0x9c, 0xbe, 0xed, 0x72, 0x77, 0x52, 0xee, 0x33, 0xb7, 0x90, 0x9b, 0xbd, 0x85, 0x36,
+	0x2c, 0xa5, 0x21, 0x45, 0x78, 0x45, 0xd5, 0x55, 0x28, 0xf4, 0xd4, 0x56, 0xfd, 0x2c, 0x62, 0x83,
+	0xfe, 0x65, 0xc0, 0x7f, 0x5a, 0xcc, 0x67, 0x7d, 0x47, 0x62, 0x1a, 0x54, 0x3a, 0x93, 0xd7, 0xab,
+	0x7e, 0xab, 0x6d, 0xaf, 0xb8, 0x64, 0x02, 0xe1, 0xf2, 0x76, 0x6c, 0x90, 0xdb, 0x50, 0x09, 0x7d,
+	0xe6, 0xf6, 0x59, 0xc7, 0x19, 0x8e, 0x41, 0xf3, 0xf6, 0x62, 0xbc, 0x78, 0x80, 0x6b, 0x6a, 0xab,
+	0x50, 0x37, 0x8c, 0x6d, 0x23, 0x6f, 0xc7, 0x06, 0xb9, 0x0b, 0xab, 0xaa, 0x0f, 0x7b, 0xc1, 0xc8,
+	0xf1, 0x3b, 0x21, 0x8b, 0x3c, 0xee, 0x0a, 0xb3, 0x80, 0x9a, 0x56, 0xc6, 0x8e, 0xa7, 0xf1, 0x3a,
+	0x69, 0xc0, 0x1a, 0x66, 0x40, 0x74, 0xe4, 0xc0, 0x13, 0x1d, 0xf7, 0x3c, 0x70, 0x84, 0x3c, 0x37,
+	0x8b, 0x18, 0xbe, 0x1a, 0xbb, 0xda, 0x03, 0x4f, 0xb4, 0x62, 0xc7, 0x38, 0xcd, 0xa2, 0x23, 0xb9,
+	0x74, 0x7c, 0x73, 0x21, 0x95, 0x66, 0xd1, 0x56, 0x4b, 0xb4, 0x0c, 0xa5, 0xa7, 0x8c, 0x45, 0xd8,
+	0x35, 0xa9, 0x0d, 0x90, 0x18, 0x57, 0x4e, 0x68, 0x0d, 0x8a, 0x21, 0x63, 0x91, 0xee, 0x95, 0x25,
+	0x5b, 0x5b, 0x8a, 0xe0, 0x73, 0x2f, 0x60, 0x91, 0x50, 0x04, 0x67, 0x00, 0x89, 0x71, 0x65, 0x82,
+	0x3d, 0x28, 0x0e, 0x71, 0xaf, 0x2e, 0x34, 0xa2, 0x0b, 0x0d, 0x01, 0x5b, 0x4c, 0x3a, 0x9e, 0x6f,
+	0xeb, 0x08, 0x7a, 0x0a, 0xe5, 0xd4, 0xf2, 0x85, 0x57, 0x63, 0xc2, 0x82, 0xba, 0x4d, 0x26, 0x44,
+	0x42, 0xa2, 0x4d, 0x75, 0x0a, 0x2f, 0xf4, 0x3d, 0x21, 0x91, 0xa4, 0x64, 0x6b, 0x8b, 0x4a, 0x58,
+	0x4c, 0xea, 0x42, 0x1d, 0x84, 0x7c, 0x00, 0x79, 0x79, 0x1e, 0xc6, 0xd2, 0x97, 0xf6, 0x4d, 0x2d,
+	0x25, 0x1d, 0xd2, 0x68, 0x9f, 0x87, 0xcc, 0xc6, 0x28, 0xfa, 0x31, 0xe4, 0x95, 0x45, 0x96, 0xa1,
+	0x7c, 0x78, 0x7a, 0xfa, 0xe8, 0xd1, 0xf1, 0xf1, 0xd3, 0x63, 0xfb, 0xf9, 0xca, 0x1c, 0xa9, 0x40,
+	0xa9, 0x75, 0xfc, 0xf8, 0xf8, 0xe4, 0xa0, 0x7d, 0xfc, 0x7c, 0xc5, 0x20, 0x4b, 0x00, 0x47, 0x07,
+	0x4f, 0x5a, 0x0f, 0x5b, 0x68, 0xe7, 0xa8, 0x0f, 0x95, 0x14, 0xe4, 0x95, 0x33, 0x76, 0x0f, 0x4a,
+	0x6e, 0xb2, 0x5d, 0x27, 0x6d, 0x79, 0x46, 0xa9, 0x3d, 0x89, 0xa0, 0x37, 0xe1, 0xc6, 0x63, 0xf5,
+	0x43, 0x1e, 0xf1, 0xe0, 0xcc, 0x8b, 0x86, 0xcc, 0x4d, 0xda, 0x22, 0x95, 0x60, 0x66, 0xbb, 0xae,
+	0x53, 0x26, 0x59, 0xdf, 0xa3, 0x71, 0x6f, 0xce, 0x4f, 0x7a, 0xf3, 0xfe, 0xdf, 0x79, 0x58, 0x3c,
+	0x70, 0x87, 0x5e, 0x70, 0x14, 0x4f, 0x2a, 0xe4, 0x2b, 0xa8, 0x3c, 0x67, 0x72, 0x32, 0x40, 0x90,
+	0x49, 0xe2, 0x67, 0x66, 0x0a, 0x6b, 0x4d, 0x7b, 0x0e, 0x1d, 0xc1, 0x92, 0xc6, 0x46, 0xb7, 0xbe,
+	0xff, 0xed, 0xcf, 0x9f, 0x73, 0x37, 0x28, 0x69, 0xbe, 0xba, 0xdf, 0xec, 0x49, 0xbf, 0xe9, 0xaa,
+	0x7d, 0x38, 0x6e, 0x3c, 0x30, 0xf6, 0xc8, 0x19, 0x2c, 0xa6, 0x07, 0x06, 0x62, 0x69, 0x8c, 0x8c,
+	0xe1, 0xc2, 0xda, 0xc8, 0xf4, 0x5d, 0xc6, 0xd3, 0x67, 0x32, 0x88, 0xa3, 0x14, 0x4f, 0x0f, 0x96,
+	0x67, 0x26, 0x1b, 0xb2, 0xa5, 0xe1, 0xb2, 0x27, 0x9e, 0xec, 0xd3, 0x6c, 0x22, 0x4b, 0x8d, 0xae,
+	0x26, 0x2c, 0x9a, 0xc2, 0x73, 0x15, 0xc9, 0x33, 0x58, 0xd0, 0xd3, 0x08, 0x59, 0xd7, 0xbb, 0xa7,
+	0xa7, 0x93, 0x6c, 0x50, 0x0b, 0x41, 0xab, 0x74, 0x39, 0x01, 0x75, 0x5c, 0x57, 0x35, 0x71, 0x05,
+	0xe9, 0x42, 0x39, 0xf5, 0xb9, 0x20, 0x37, 0x53, 0x29, 0x98, 0xfe, 0xb0, 0x58, 0x56, 0x96, 0x4b,
+	0x33, 0xd4, 0x91, 0xc1, 0xa4, 0x6b, 0xe9, 0xe4, 0x70, 0x97, 0x79, 0xc1, 0x19, 0x57, 0x2c, 0x2d,
+	0x28, 0xc6, 0x4d, 0x88, 0xac, 0x68, 0x94, 0x71, 0x83, 0xb2, 0x56, 0x67, 0x56, 0x44, 0x48, 0xd7,
+	0x11, 0x6e, 0x99, 0x82, 0x82, 0x0b, 0xf7, 0xc3, 0x66, 0x7c, 0xfc, 0x16, 0x14, 0xe3, 0x4e, 0x33,
+	0x46, 0x19, 0x77, 0xa1, 0x31, 0xca, 0xa4, 0x15, 0x4d, 0xa3, 0xc4, 0x4d, 0xe4, 0x81, 0xb1, 0xb7,
+	0xff, 0x4b, 0x11, 0x96, 0x54, 0xf1, 0xf1, 0xc8, 0x3f, 0xe2, 0xc3, 0xa1, 0x13, 0xb8, 0xe4, 0x47,
+	0x03, 0xd6, 0x33, 0x07, 0x34, 0x72, 0x7b, 0x72, 0xe8, 0x4b, 0xc7, 0x3b, 0xeb, 0xce, 0xfb, 0x83,
+	0x74, 0x8e, 0x76, 0x51, 0x0e, 0xa5, 0x5b, 0xa9, 0x1c, 0xf5, 0xe2, 0x70, 0x6c, 0xde, 0xf1, 0xa3,
+	0x51, 0xe7, 0xfc, 0xce, 0x80, 0x6a, 0xd6, 0xd3, 0x24, 0x75, 0x4d, 0x74, 0xc9, 0x93, 0xb6, 0x6e,
+	0xbd, 0xd7, 0x2f, 0x42, 0xfa, 0x3f, 0xd4, 0xb0, 0x43, 0x37, 0x13, 0x0d, 0x3e, 0x46, 0xf6, 0x92,
+	0x48, 0x14, 0xa2, 0x24, 0xfc, 0x60, 0xe0, 0x18, 0x31, 0x3b, 0x2d, 0x92, 0x9d, 0x4b, 0x8e, 0x3a,
+	0x99, 0xf7, 0x2c, 0xfa, 0xbe, 0x10, 0x9d, 0x8b, 0xff, 0xa2, 0x8e, 0x6d, 0xba, 0x71, 0x59, 0x2e,
+	0x1c, 0x31, 0x50, 0x32, 0x06, 0xf8, 0x7a, 0x27, 0xf4, 0xa9, 0x1a, 0xbc, 0xc0, 0xbb, 0x91, 0xe9,
+	0xd3, 0x84, 0xb7, 0x90, 0xf0, 0x26, 0xad, 0xa6, 0x08, 0xa7, 0x98, 0xbe, 0xc6, 0xd9, 0x23, 0x35,
+	0xa6, 0x91, 0xda, 0x0c, 0x5e, 0xc2, 0xb3, 0x35, 0xcb, 0x33, 0x35, 0x30, 0xd2, 0x1d, 0x64, 0xda,
+	0xa0, 0xb5, 0x0b, 0x4c, 0x18, 0xa7, 0xb8, 0xbe, 0x04, 0x98, 0xcc, 0x39, 0xa4, 0x3a, 0xc1, 0x9b,
+	0x4c, 0x53, 0xd6, 0x7a, 0xc6, 0xaa, 0x08, 0xe9, 0x36, 0xa2, 0x5b, 0x74, 0x3d, 0x41, 0x47, 0xe8,
+	0xa6, 0x7c, 0x8d, 0xb3, 0x8e, 0x02, 0x6f, 0x43, 0x69, 0xfc, 0x7d, 0x21, 0x6b, 0x19, 0x1f, 0x31,
+	0xab, 0x7a, 0x71, 0x51, 0x84, 0x17, 0x3b, 0xcf, 0xf8, 0x23, 0xf2, 0xc0, 0xd8, 0x3b, 0x34, 0x7f,
+	0x7d, 0x5b, 0x37, 0xde, 0xbc, 0xad, 0x1b, 0x7f, 0xbc, 0xad, 0x1b, 0x3f, 0xbd, 0xab, 0xcf, 0xbd,
+	0x79, 0x57, 0x9f, 0xfb, 0xfd, 0x5d, 0x7d, 0xae, 0x5b, 0xc4, 0x3f, 0x81, 0x1f, 0xfd, 0x13, 0x00,
+	0x00, 0xff, 0xff, 0xa1, 0xa6, 0x7d, 0x34, 0x7b, 0x0e, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -832,20 +1642,281 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
+// AdminControlClient is the client API for AdminControl service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type AdminControlClient interface {
+	// set boxd debug level
+	SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error)
+	UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error)
+	PeerID(ctx context.Context, in *PeerIDReq, opts ...grpc.CallOption) (*PeerIDResp, error)
+	Miners(ctx context.Context, in *MinersReq, opts ...grpc.CallOption) (*MinersResp, error)
+}
+
+type adminControlClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewAdminControlClient(cc *grpc.ClientConn) AdminControlClient {
+	return &adminControlClient{cc}
+}
+
+func (c *adminControlClient) SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/SetDebugLevel", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error) {
+	out := new(GetNetworkIDResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/GetNetworkID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/UpdateNetworkID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
+	out := new(BaseResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/AddNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error) {
+	out := new(GetNodeInfoResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/GetNodeInfo", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) PeerID(ctx context.Context, in *PeerIDReq, opts ...grpc.CallOption) (*PeerIDResp, error) {
+	out := new(PeerIDResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/PeerID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminControlClient) Miners(ctx context.Context, in *MinersReq, opts ...grpc.CallOption) (*MinersResp, error) {
+	out := new(MinersResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.AdminControl/Miners", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AdminControlServer is the server API for AdminControl service.
+type AdminControlServer interface {
+	// set boxd debug level
+	SetDebugLevel(context.Context, *DebugLevelRequest) (*BaseResponse, error)
+	GetNetworkID(context.Context, *GetNetworkIDRequest) (*GetNetworkIDResponse, error)
+	UpdateNetworkID(context.Context, *UpdateNetworkIDRequest) (*BaseResponse, error)
+	AddNode(context.Context, *AddNodeRequest) (*BaseResponse, error)
+	GetNodeInfo(context.Context, *GetNodeInfoRequest) (*GetNodeInfoResponse, error)
+	PeerID(context.Context, *PeerIDReq) (*PeerIDResp, error)
+	Miners(context.Context, *MinersReq) (*MinersResp, error)
+}
+
+func RegisterAdminControlServer(s *grpc.Server, srv AdminControlServer) {
+	s.RegisterService(&_AdminControl_serviceDesc, srv)
+}
+
+func _AdminControl_SetDebugLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DebugLevelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).SetDebugLevel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/SetDebugLevel",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).SetDebugLevel(ctx, req.(*DebugLevelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_GetNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNetworkIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).GetNetworkID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/GetNetworkID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).GetNetworkID(ctx, req.(*GetNetworkIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_UpdateNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateNetworkIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).UpdateNetworkID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/UpdateNetworkID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).UpdateNetworkID(ctx, req.(*UpdateNetworkIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_AddNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).AddNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/AddNode",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).AddNode(ctx, req.(*AddNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_GetNodeInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).GetNodeInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/GetNodeInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).GetNodeInfo(ctx, req.(*GetNodeInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_PeerID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerIDReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).PeerID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/PeerID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).PeerID(ctx, req.(*PeerIDReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminControl_Miners_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MinersReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminControlServer).Miners(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpcpb.AdminControl/Miners",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminControlServer).Miners(ctx, req.(*MinersReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _AdminControl_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "rpcpb.AdminControl",
+	HandlerType: (*AdminControlServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SetDebugLevel",
+			Handler:    _AdminControl_SetDebugLevel_Handler,
+		},
+		{
+			MethodName: "GetNetworkID",
+			Handler:    _AdminControl_GetNetworkID_Handler,
+		},
+		{
+			MethodName: "UpdateNetworkID",
+			Handler:    _AdminControl_UpdateNetworkID_Handler,
+		},
+		{
+			MethodName: "AddNode",
+			Handler:    _AdminControl_AddNode_Handler,
+		},
+		{
+			MethodName: "GetNodeInfo",
+			Handler:    _AdminControl_GetNodeInfo_Handler,
+		},
+		{
+			MethodName: "PeerID",
+			Handler:    _AdminControl_PeerID_Handler,
+		},
+		{
+			MethodName: "Miners",
+			Handler:    _AdminControl_Miners_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "control.proto",
+}
+
 // ContorlCommandClient is the client API for ContorlCommand service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ContorlCommandClient interface {
-	// set boxd debug level
-	SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error)
-	UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error)
-	GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error)
-	AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error)
-	GetBlockHeight(ctx context.Context, in *GetBlockHeightRequest, opts ...grpc.CallOption) (*GetBlockHeightResponse, error)
+	GetCurrentBlockHeight(ctx context.Context, in *GetCurrentBlockHeightRequest, opts ...grpc.CallOption) (*GetCurrentBlockHeightResponse, error)
+	LatestConfirmedBlock(ctx context.Context, in *LatestConfirmedBlockReq, opts ...grpc.CallOption) (*LatestConfirmedBlockResp, error)
+	GetCurrentBlockHash(ctx context.Context, in *GetCurrentBlockHashRequest, opts ...grpc.CallOption) (*GetCurrentBlockHashResponse, error)
 	GetBlockHash(ctx context.Context, in *GetBlockHashRequest, opts ...grpc.CallOption) (*GetBlockHashResponse, error)
 	GetBlockHeader(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockHeaderResponse, error)
-	GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
-	GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error)
+	GetTxCount(ctx context.Context, in *GetTxCountReq, opts ...grpc.CallOption) (*GetTxCountResp, error)
+	Delegates(ctx context.Context, in *DelegatesReq, opts ...grpc.CallOption) (*DelegatesResp, error)
 }
 
 type contorlCommandClient struct {
@@ -856,45 +1927,27 @@ func NewContorlCommandClient(cc *grpc.ClientConn) ContorlCommandClient {
 	return &contorlCommandClient{cc}
 }
 
-func (c *contorlCommandClient) SetDebugLevel(ctx context.Context, in *DebugLevelRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/SetDebugLevel", in, out, opts...)
+func (c *contorlCommandClient) GetCurrentBlockHeight(ctx context.Context, in *GetCurrentBlockHeightRequest, opts ...grpc.CallOption) (*GetCurrentBlockHeightResponse, error) {
+	out := new(GetCurrentBlockHeightResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetCurrentBlockHeight", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *contorlCommandClient) UpdateNetworkID(ctx context.Context, in *UpdateNetworkIDRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/UpdateNetworkID", in, out, opts...)
+func (c *contorlCommandClient) LatestConfirmedBlock(ctx context.Context, in *LatestConfirmedBlockReq, opts ...grpc.CallOption) (*LatestConfirmedBlockResp, error) {
+	out := new(LatestConfirmedBlockResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/LatestConfirmedBlock", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *contorlCommandClient) GetNetworkID(ctx context.Context, in *GetNetworkIDRequest, opts ...grpc.CallOption) (*GetNetworkIDResponse, error) {
-	out := new(GetNetworkIDResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetNetworkID", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *contorlCommandClient) AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/AddNode", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *contorlCommandClient) GetBlockHeight(ctx context.Context, in *GetBlockHeightRequest, opts ...grpc.CallOption) (*GetBlockHeightResponse, error) {
-	out := new(GetBlockHeightResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetBlockHeight", in, out, opts...)
+func (c *contorlCommandClient) GetCurrentBlockHash(ctx context.Context, in *GetCurrentBlockHashRequest, opts ...grpc.CallOption) (*GetCurrentBlockHashResponse, error) {
+	out := new(GetCurrentBlockHashResponse)
+	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetCurrentBlockHash", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -919,18 +1972,18 @@ func (c *contorlCommandClient) GetBlockHeader(ctx context.Context, in *GetBlockR
 	return out, nil
 }
 
-func (c *contorlCommandClient) GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error) {
-	out := new(GetBlockResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetBlock", in, out, opts...)
+func (c *contorlCommandClient) GetTxCount(ctx context.Context, in *GetTxCountReq, opts ...grpc.CallOption) (*GetTxCountResp, error) {
+	out := new(GetTxCountResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetTxCount", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *contorlCommandClient) GetNodeInfo(ctx context.Context, in *GetNodeInfoRequest, opts ...grpc.CallOption) (*GetNodeInfoResponse, error) {
-	out := new(GetNodeInfoResponse)
-	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/GetNodeInfo", in, out, opts...)
+func (c *contorlCommandClient) Delegates(ctx context.Context, in *DelegatesReq, opts ...grpc.CallOption) (*DelegatesResp, error) {
+	out := new(DelegatesResp)
+	err := c.cc.Invoke(ctx, "/rpcpb.ContorlCommand/Delegates", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -939,108 +1992,69 @@ func (c *contorlCommandClient) GetNodeInfo(ctx context.Context, in *GetNodeInfoR
 
 // ContorlCommandServer is the server API for ContorlCommand service.
 type ContorlCommandServer interface {
-	// set boxd debug level
-	SetDebugLevel(context.Context, *DebugLevelRequest) (*BaseResponse, error)
-	UpdateNetworkID(context.Context, *UpdateNetworkIDRequest) (*BaseResponse, error)
-	GetNetworkID(context.Context, *GetNetworkIDRequest) (*GetNetworkIDResponse, error)
-	AddNode(context.Context, *AddNodeRequest) (*BaseResponse, error)
-	GetBlockHeight(context.Context, *GetBlockHeightRequest) (*GetBlockHeightResponse, error)
+	GetCurrentBlockHeight(context.Context, *GetCurrentBlockHeightRequest) (*GetCurrentBlockHeightResponse, error)
+	LatestConfirmedBlock(context.Context, *LatestConfirmedBlockReq) (*LatestConfirmedBlockResp, error)
+	GetCurrentBlockHash(context.Context, *GetCurrentBlockHashRequest) (*GetCurrentBlockHashResponse, error)
 	GetBlockHash(context.Context, *GetBlockHashRequest) (*GetBlockHashResponse, error)
 	GetBlockHeader(context.Context, *GetBlockRequest) (*GetBlockHeaderResponse, error)
-	GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error)
-	GetNodeInfo(context.Context, *GetNodeInfoRequest) (*GetNodeInfoResponse, error)
+	GetTxCount(context.Context, *GetTxCountReq) (*GetTxCountResp, error)
+	Delegates(context.Context, *DelegatesReq) (*DelegatesResp, error)
 }
 
 func RegisterContorlCommandServer(s *grpc.Server, srv ContorlCommandServer) {
 	s.RegisterService(&_ContorlCommand_serviceDesc, srv)
 }
 
-func _ContorlCommand_SetDebugLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DebugLevelRequest)
+func _ContorlCommand_GetCurrentBlockHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCurrentBlockHeightRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContorlCommandServer).SetDebugLevel(ctx, in)
+		return srv.(ContorlCommandServer).GetCurrentBlockHeight(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/SetDebugLevel",
+		FullMethod: "/rpcpb.ContorlCommand/GetCurrentBlockHeight",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).SetDebugLevel(ctx, req.(*DebugLevelRequest))
+		return srv.(ContorlCommandServer).GetCurrentBlockHeight(ctx, req.(*GetCurrentBlockHeightRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ContorlCommand_UpdateNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateNetworkIDRequest)
+func _ContorlCommand_LatestConfirmedBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LatestConfirmedBlockReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContorlCommandServer).UpdateNetworkID(ctx, in)
+		return srv.(ContorlCommandServer).LatestConfirmedBlock(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/UpdateNetworkID",
+		FullMethod: "/rpcpb.ContorlCommand/LatestConfirmedBlock",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).UpdateNetworkID(ctx, req.(*UpdateNetworkIDRequest))
+		return srv.(ContorlCommandServer).LatestConfirmedBlock(ctx, req.(*LatestConfirmedBlockReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ContorlCommand_GetNetworkID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNetworkIDRequest)
+func _ContorlCommand_GetCurrentBlockHash_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCurrentBlockHashRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContorlCommandServer).GetNetworkID(ctx, in)
+		return srv.(ContorlCommandServer).GetCurrentBlockHash(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/GetNetworkID",
+		FullMethod: "/rpcpb.ContorlCommand/GetCurrentBlockHash",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).GetNetworkID(ctx, req.(*GetNetworkIDRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ContorlCommand_AddNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddNodeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContorlCommandServer).AddNode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/AddNode",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).AddNode(ctx, req.(*AddNodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ContorlCommand_GetBlockHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetBlockHeightRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContorlCommandServer).GetBlockHeight(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/GetBlockHeight",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).GetBlockHeight(ctx, req.(*GetBlockHeightRequest))
+		return srv.(ContorlCommandServer).GetCurrentBlockHash(ctx, req.(*GetCurrentBlockHashRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1081,38 +2095,38 @@ func _ContorlCommand_GetBlockHeader_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ContorlCommand_GetBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetBlockRequest)
+func _ContorlCommand_GetTxCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTxCountReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContorlCommandServer).GetBlock(ctx, in)
+		return srv.(ContorlCommandServer).GetTxCount(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/GetBlock",
+		FullMethod: "/rpcpb.ContorlCommand/GetTxCount",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).GetBlock(ctx, req.(*GetBlockRequest))
+		return srv.(ContorlCommandServer).GetTxCount(ctx, req.(*GetTxCountReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ContorlCommand_GetNodeInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNodeInfoRequest)
+func _ContorlCommand_Delegates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DelegatesReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContorlCommandServer).GetNodeInfo(ctx, in)
+		return srv.(ContorlCommandServer).Delegates(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpcpb.ContorlCommand/GetNodeInfo",
+		FullMethod: "/rpcpb.ContorlCommand/Delegates",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContorlCommandServer).GetNodeInfo(ctx, req.(*GetNodeInfoRequest))
+		return srv.(ContorlCommandServer).Delegates(ctx, req.(*DelegatesReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1122,24 +2136,16 @@ var _ContorlCommand_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*ContorlCommandServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SetDebugLevel",
-			Handler:    _ContorlCommand_SetDebugLevel_Handler,
+			MethodName: "GetCurrentBlockHeight",
+			Handler:    _ContorlCommand_GetCurrentBlockHeight_Handler,
 		},
 		{
-			MethodName: "UpdateNetworkID",
-			Handler:    _ContorlCommand_UpdateNetworkID_Handler,
+			MethodName: "LatestConfirmedBlock",
+			Handler:    _ContorlCommand_LatestConfirmedBlock_Handler,
 		},
 		{
-			MethodName: "GetNetworkID",
-			Handler:    _ContorlCommand_GetNetworkID_Handler,
-		},
-		{
-			MethodName: "AddNode",
-			Handler:    _ContorlCommand_AddNode_Handler,
-		},
-		{
-			MethodName: "GetBlockHeight",
-			Handler:    _ContorlCommand_GetBlockHeight_Handler,
+			MethodName: "GetCurrentBlockHash",
+			Handler:    _ContorlCommand_GetCurrentBlockHash_Handler,
 		},
 		{
 			MethodName: "GetBlockHash",
@@ -1150,12 +2156,12 @@ var _ContorlCommand_serviceDesc = grpc.ServiceDesc{
 			Handler:    _ContorlCommand_GetBlockHeader_Handler,
 		},
 		{
-			MethodName: "GetBlock",
-			Handler:    _ContorlCommand_GetBlock_Handler,
+			MethodName: "GetTxCount",
+			Handler:    _ContorlCommand_GetTxCount_Handler,
 		},
 		{
-			MethodName: "GetNodeInfo",
-			Handler:    _ContorlCommand_GetNodeInfo_Handler,
+			MethodName: "Delegates",
+			Handler:    _ContorlCommand_Delegates_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1242,13 +2248,24 @@ func (m *GetNetworkIDResponse) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Id != 0 {
+	if m.Code != 0 {
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if m.Id != 0 {
+		dAtA[i] = 0x18
 		i++
 		i = encodeVarintControl(dAtA, i, uint64(m.Id))
 	}
 	if len(m.Literal) > 0 {
-		dAtA[i] = 0x12
+		dAtA[i] = 0x22
 		i++
 		i = encodeVarintControl(dAtA, i, uint64(len(m.Literal)))
 		i += copy(dAtA[i:], m.Literal)
@@ -1280,7 +2297,7 @@ func (m *AddNodeRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetBlockHeightRequest) Marshal() (dAtA []byte, err error) {
+func (m *GetCurrentBlockHeightRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -1290,7 +2307,7 @@ func (m *GetBlockHeightRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetBlockHeightRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetCurrentBlockHeightRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1298,7 +2315,7 @@ func (m *GetBlockHeightRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetBlockHeightResponse) Marshal() (dAtA []byte, err error) {
+func (m *GetCurrentBlockHeightResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -1308,7 +2325,7 @@ func (m *GetBlockHeightResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetBlockHeightResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetCurrentBlockHeightResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1328,6 +2345,59 @@ func (m *GetBlockHeightResponse) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x18
 		i++
 		i = encodeVarintControl(dAtA, i, uint64(m.Height))
+	}
+	return i, nil
+}
+
+func (m *GetCurrentBlockHashRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetCurrentBlockHashRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *GetCurrentBlockHashResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetCurrentBlockHashResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if len(m.Hash) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Hash)))
+		i += copy(dAtA[i:], m.Hash)
 	}
 	return i, nil
 }
@@ -1453,45 +2523,6 @@ func (m *GetBlockHeaderResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetBlockResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetBlockResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Code != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintControl(dAtA, i, uint64(m.Code))
-	}
-	if len(m.Message) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
-		i += copy(dAtA[i:], m.Message)
-	}
-	if m.Block != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintControl(dAtA, i, uint64(m.Block.Size()))
-		n2, err := m.Block.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n2
-	}
-	return i, nil
-}
-
 func (m *Node) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1570,9 +2601,20 @@ func (m *GetNodeInfoResponse) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
 	if len(m.Nodes) > 0 {
 		for _, msg := range m.Nodes {
-			dAtA[i] = 0xa
+			dAtA[i] = 0x1a
 			i++
 			i = encodeVarintControl(dAtA, i, uint64(msg.Size()))
 			n, err := msg.MarshalTo(dAtA[i:])
@@ -1581,6 +2623,402 @@ func (m *GetNodeInfoResponse) MarshalTo(dAtA []byte) (int, error) {
 			}
 			i += n
 		}
+	}
+	return i, nil
+}
+
+func (m *GetTxCountReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetTxCountReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.BlockHeight != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.BlockHeight))
+	}
+	if len(m.BlockHash) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.BlockHash)))
+		i += copy(dAtA[i:], m.BlockHash)
+	}
+	return i, nil
+}
+
+func (m *GetTxCountResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetTxCountResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if m.Count != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Count))
+	}
+	return i, nil
+}
+
+func (m *Delegate) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Delegate) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Addr) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Addr)))
+		i += copy(dAtA[i:], m.Addr)
+	}
+	if m.Votes != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Votes))
+	}
+	if m.PledgeAmount != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.PledgeAmount))
+	}
+	if m.Score != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Score))
+	}
+	if m.ContinualPeriods != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.ContinualPeriods))
+	}
+	if m.BlocksThisDynasty != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.BlocksThisDynasty))
+	}
+	if m.BlocksTotal != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.BlocksTotal))
+	}
+	return i, nil
+}
+
+func (m *PeerIDReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PeerIDReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *PeerIDResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PeerIDResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if len(m.Peerid) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Peerid)))
+		i += copy(dAtA[i:], m.Peerid)
+	}
+	return i, nil
+}
+
+func (m *MinersReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MinersReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *MinersResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MinersResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if len(m.Miners) > 0 {
+		for _, msg := range m.Miners {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintControl(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *MinerDetail) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MinerDetail) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Id) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Id)))
+		i += copy(dAtA[i:], m.Id)
+	}
+	if len(m.Address) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Address)))
+		i += copy(dAtA[i:], m.Address)
+	}
+	if len(m.Iplist) > 0 {
+		for _, s := range m.Iplist {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	return i, nil
+}
+
+func (m *DelegatesReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DelegatesReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Type != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Type))
+	}
+	return i, nil
+}
+
+func (m *DelegatesResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DelegatesResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if len(m.Delegates) > 0 {
+		for _, msg := range m.Delegates {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintControl(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *LatestConfirmedBlockReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LatestConfirmedBlockReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *LatestConfirmedBlockResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LatestConfirmedBlockResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Code != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Code))
+	}
+	if len(m.Message) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
+	}
+	if m.Height != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(m.Height))
+	}
+	if len(m.Hash) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintControl(dAtA, i, uint64(len(m.Hash)))
+		i += copy(dAtA[i:], m.Hash)
 	}
 	return i, nil
 }
@@ -1634,6 +3072,13 @@ func (m *GetNetworkIDResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
 	if m.Id != 0 {
 		n += 1 + sovControl(uint64(m.Id))
 	}
@@ -1657,7 +3102,7 @@ func (m *AddNodeRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetBlockHeightRequest) Size() (n int) {
+func (m *GetCurrentBlockHeightRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1666,7 +3111,7 @@ func (m *GetBlockHeightRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetBlockHeightResponse) Size() (n int) {
+func (m *GetCurrentBlockHeightResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1681,6 +3126,35 @@ func (m *GetBlockHeightResponse) Size() (n int) {
 	}
 	if m.Height != 0 {
 		n += 1 + sovControl(uint64(m.Height))
+	}
+	return n
+}
+
+func (m *GetCurrentBlockHashRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *GetCurrentBlockHashResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	l = len(m.Hash)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
 	}
 	return n
 }
@@ -1750,26 +3224,6 @@ func (m *GetBlockHeaderResponse) Size() (n int) {
 	return n
 }
 
-func (m *GetBlockResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Code != 0 {
-		n += 1 + sovControl(uint64(m.Code))
-	}
-	l = len(m.Message)
-	if l > 0 {
-		n += 1 + l + sovControl(uint64(l))
-	}
-	if m.Block != nil {
-		l = m.Block.Size()
-		n += 1 + l + sovControl(uint64(l))
-	}
-	return n
-}
-
 func (m *Node) Size() (n int) {
 	if m == nil {
 		return 0
@@ -1808,11 +3262,233 @@ func (m *GetNodeInfoResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
 	if len(m.Nodes) > 0 {
 		for _, e := range m.Nodes {
 			l = e.Size()
 			n += 1 + l + sovControl(uint64(l))
 		}
+	}
+	return n
+}
+
+func (m *GetTxCountReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.BlockHeight != 0 {
+		n += 1 + sovControl(uint64(m.BlockHeight))
+	}
+	l = len(m.BlockHash)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	return n
+}
+
+func (m *GetTxCountResp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if m.Count != 0 {
+		n += 1 + sovControl(uint64(m.Count))
+	}
+	return n
+}
+
+func (m *Delegate) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Addr)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if m.Votes != 0 {
+		n += 1 + sovControl(uint64(m.Votes))
+	}
+	if m.PledgeAmount != 0 {
+		n += 1 + sovControl(uint64(m.PledgeAmount))
+	}
+	if m.Score != 0 {
+		n += 1 + sovControl(uint64(m.Score))
+	}
+	if m.ContinualPeriods != 0 {
+		n += 1 + sovControl(uint64(m.ContinualPeriods))
+	}
+	if m.BlocksThisDynasty != 0 {
+		n += 1 + sovControl(uint64(m.BlocksThisDynasty))
+	}
+	if m.BlocksTotal != 0 {
+		n += 1 + sovControl(uint64(m.BlocksTotal))
+	}
+	return n
+}
+
+func (m *PeerIDReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *PeerIDResp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	l = len(m.Peerid)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	return n
+}
+
+func (m *MinersReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *MinersResp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if len(m.Miners) > 0 {
+		for _, e := range m.Miners {
+			l = e.Size()
+			n += 1 + l + sovControl(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *MinerDetail) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Id)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	l = len(m.Address)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if len(m.Iplist) > 0 {
+		for _, s := range m.Iplist {
+			l = len(s)
+			n += 1 + l + sovControl(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *DelegatesReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Type != 0 {
+		n += 1 + sovControl(uint64(m.Type))
+	}
+	return n
+}
+
+func (m *DelegatesResp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if len(m.Delegates) > 0 {
+		for _, e := range m.Delegates {
+			l = e.Size()
+			n += 1 + l + sovControl(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *LatestConfirmedBlockReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *LatestConfirmedBlockResp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Code != 0 {
+		n += 1 + sovControl(uint64(m.Code))
+	}
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
+	}
+	if m.Height != 0 {
+		n += 1 + sovControl(uint64(m.Height))
+	}
+	l = len(m.Hash)
+	if l > 0 {
+		n += 1 + l + sovControl(uint64(l))
 	}
 	return n
 }
@@ -2059,6 +3735,54 @@ func (m *GetNetworkIDResponse) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
 			}
 			m.Id = 0
@@ -2076,7 +3800,7 @@ func (m *GetNetworkIDResponse) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 2:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Literal", wireType)
 			}
@@ -2205,7 +3929,7 @@ func (m *AddNodeRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetBlockHeightRequest) Unmarshal(dAtA []byte) error {
+func (m *GetCurrentBlockHeightRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2228,10 +3952,10 @@ func (m *GetBlockHeightRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetBlockHeightRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetCurrentBlockHeightRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetBlockHeightRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetCurrentBlockHeightRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:
@@ -2255,7 +3979,7 @@ func (m *GetBlockHeightRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetBlockHeightResponse) Unmarshal(dAtA []byte) error {
+func (m *GetCurrentBlockHeightResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2278,10 +4002,10 @@ func (m *GetBlockHeightResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetBlockHeightResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetCurrentBlockHeightResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetBlockHeightResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetCurrentBlockHeightResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2351,6 +4075,183 @@ func (m *GetBlockHeightResponse) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetCurrentBlockHashRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetCurrentBlockHashRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetCurrentBlockHashRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetCurrentBlockHashResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetCurrentBlockHashResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetCurrentBlockHashResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hash", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hash = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipControl(dAtA[iNdEx:])
@@ -2778,137 +4679,6 @@ func (m *GetBlockHeaderResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetBlockResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowControl
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetBlockResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetBlockResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
-			}
-			m.Code = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowControl
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Code |= (int32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowControl
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthControl
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Message = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Block", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowControl
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthControl
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Block == nil {
-				m.Block = &pb.Block{}
-			}
-			if err := m.Block.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipControl(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthControl
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *Node) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3126,6 +4896,54 @@ func (m *GetNodeInfoResponse) Unmarshal(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Nodes", wireType)
 			}
@@ -3155,6 +4973,1301 @@ func (m *GetNodeInfoResponse) Unmarshal(dAtA []byte) error {
 			if err := m.Nodes[len(m.Nodes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetTxCountReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetTxCountReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetTxCountReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BlockHeight", wireType)
+			}
+			m.BlockHeight = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.BlockHeight |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BlockHash", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.BlockHash = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetTxCountResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetTxCountResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetTxCountResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
+			}
+			m.Count = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Count |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Delegate) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Delegate: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Delegate: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Addr", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Addr = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Votes", wireType)
+			}
+			m.Votes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Votes |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PledgeAmount", wireType)
+			}
+			m.PledgeAmount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PledgeAmount |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Score", wireType)
+			}
+			m.Score = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Score |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ContinualPeriods", wireType)
+			}
+			m.ContinualPeriods = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ContinualPeriods |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BlocksThisDynasty", wireType)
+			}
+			m.BlocksThisDynasty = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.BlocksThisDynasty |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BlocksTotal", wireType)
+			}
+			m.BlocksTotal = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.BlocksTotal |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PeerIDReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PeerIDReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PeerIDReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PeerIDResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PeerIDResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PeerIDResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Peerid", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Peerid = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MinersReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MinersReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MinersReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MinersResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MinersResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MinersResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Miners", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Miners = append(m.Miners, &MinerDetail{})
+			if err := m.Miners[len(m.Miners)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MinerDetail) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MinerDetail: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MinerDetail: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Id = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Address", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Address = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Iplist", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Iplist = append(m.Iplist, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DelegatesReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DelegatesReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DelegatesReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			m.Type = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Type |= (DelegatesReq_Type(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DelegatesResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DelegatesResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DelegatesResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Delegates", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Delegates = append(m.Delegates, &Delegate{})
+			if err := m.Delegates[len(m.Delegates)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LatestConfirmedBlockReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LatestConfirmedBlockReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LatestConfirmedBlockReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipControl(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthControl
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LatestConfirmedBlockResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowControl
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LatestConfirmedBlockResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LatestConfirmedBlockResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
+			}
+			m.Code = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Code |= (int32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Height", wireType)
+			}
+			m.Height = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Height |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hash", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowControl
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthControl
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hash = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

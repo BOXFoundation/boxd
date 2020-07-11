@@ -6,17 +6,16 @@ package splitaddrcmd
 
 import (
 	"fmt"
-	"path"
+	"math"
 	"strconv"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	root "github.com/BOXFoundation/boxd/commands/box/root"
-	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
+	format "github.com/BOXFoundation/boxd/util/format"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -25,27 +24,21 @@ const (
 
 var cfgFile string
 var walletDir string
-var defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "splitaddr",
 	Short: "Split address subcommand",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	Example: `./box create fromaddr [(addr1, weight1), (addr2, weight2), (addr3, weight3), ...]`,
 }
 
 // Init adds the sub command to the root command.
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
-	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "create fromaddr [(addr1, weight1), (addr2, weight2), (addr3, weight3), ...]",
@@ -56,7 +49,6 @@ func init() {
 }
 
 func createCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("splitaddr create called")
 	if len(args) < 3 || len(args)%2 == 0 {
 		fmt.Println("Invalid argument number: expect odd number larger than or equal to 3")
 		return
@@ -82,32 +74,41 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	// addrs and weights
-	addrs, weights := make([]string, 0), make([]uint64, 0)
+	weights := make([]uint32, 0)
+	addrHashes := make([]*types.AddressHash, 0)
 	for i := 1; i < len(args)-1; i += 2 {
-		addrs = append(addrs, args[i])
-		a, err := strconv.ParseUint(args[i+1], 10, 64)
-		if err != nil {
-			fmt.Printf("Invalid amount %s\n", args[i+1])
+		if address, err := types.ParseAddress(args[i]); err == nil {
+			_, ok1 := address.(*types.AddressPubKeyHash)
+			_, ok2 := address.(*types.AddressTypeSplit)
+			if !ok1 && !ok2 {
+				fmt.Printf("invaild address for %s, err: %s\n", args[i], err)
+				return
+			}
+			addrHashes = append(addrHashes, address.Hash160())
+		} else {
+			fmt.Println(err)
 			return
 		}
-		weights = append(weights, a)
+		a, err := strconv.ParseUint(args[i+1], 10, 64)
+		if err != nil || a >= math.MaxUint32 {
+			fmt.Printf("get index %s, err: %s\n", args[i+1], err.Error())
+			return
+		}
+		weights = append(weights, uint32(a))
 	}
-	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println(err)
+	if len(addrHashes) != len(weights) {
+		fmt.Println("the length of addresses must be equal to the length of weights")
 		return
 	}
-	// fee
-	fee := uint64(10)
 	// conn
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
 	// send tx
-	tx, _, err := rpcutil.NewSplitAddrTxWithFee(account, addrs,
-		weights, fee, conn)
+	tx, _, err := rpcutil.NewSplitAddrTx(account, addrHashes, weights, conn)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -117,12 +118,6 @@ func createCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Tx Hash: ", hashStr)
-	fmt.Println(util.PrettyPrint(tx))
-}
-
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
+	fmt.Println("Tx Hash:", hashStr)
+	fmt.Println(format.PrettyPrint(tx))
 }

@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"math"
 	"math/big"
 	"strings"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
@@ -20,12 +22,28 @@ import (
 
 var logger = log.NewLogger("script") // logger
 
+// PubkType defines script public key type
+type PubkType int
+
 // constants
 const (
 	p2PKHScriptLen = 25
 	p2SHScriptLen  = 23
 
+	MaxSplitAddrs   = 32
+	MaxOpReturnSize = 512
+
 	LockTimeThreshold = 5e8 // Tue Nov 5 00:53:20 1985 UTC
+
+	UnknownPubk PubkType = iota
+	PayToPubk
+	TokenTransferPubk
+	TokenIssuePubk
+	ContractPubk
+	SplitAddrPubk
+	PayToPubkCLTV
+	PayToScriptPubk
+	OpReturnPubk
 )
 
 // variables
@@ -35,43 +53,48 @@ var (
 
 // PayToPubKeyHashScript creates a script to lock a transaction output to the specified address.
 func PayToPubKeyHashScript(pubKeyHash []byte) *Script {
-	return NewScript().AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
+	// 25 = 1+1+21+1+1
+	return NewScriptWithCap(25).AddOpCode(OPDUP).AddOpCode(OPHASH160).AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 }
 
 // PayToPubKeyHashCLTVScript creates a script to lock a transaction output to the specified address till a specific time or block height.
 func PayToPubKeyHashCLTVScript(pubKeyHash []byte, blockTimeOrHeight int64) *Script {
-	return NewScript().AddOperand(big.NewInt(blockTimeOrHeight).Bytes()).AddOpCode(OPCHECKLOCKTIMEVERIFY).AddOpCode(OPDUP).AddOpCode(OPHASH160).
+	// 31 = 5+1+1+1+21+1+1
+	return NewScriptWithCap(31).AddOperand(big.NewInt(blockTimeOrHeight).Bytes()).AddOpCode(OPCHECKLOCKTIMEVERIFY).AddOpCode(OPDUP).AddOpCode(OPHASH160).
 		AddOperand(pubKeyHash).AddOpCode(OPEQUALVERIFY).AddOpCode(OPCHECKSIG)
 }
 
 // SignatureScript creates a script to unlock a utxo.
 func SignatureScript(sig *crypto.Signature, pubKey []byte) *Script {
-	return NewScript().AddOperand(sig.Serialize()).AddOperand(pubKey)
+	sigBytes := sig.Serialize()
+	return NewScriptWithCap(len(sigBytes) + len(pubKey) + 4).
+		AddOperand(sigBytes).AddOperand(pubKey)
 }
 
 // StandardCoinbaseSignatureScript returns a standard signature script for coinbase transaction.
 func StandardCoinbaseSignatureScript(height uint32) *Script {
-	return NewScript().AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
-}
-
-// GasRefundSignatureScript returns a standard signature script for gas refound transaction.
-func GasRefundSignatureScript(nonce uint64) *Script {
-	return NewScript().AddOpCode(OPCONTRACT).AddOperand(big.NewInt(int64(nonce)).Bytes())
+	// 7=5+2
+	return NewScriptWithCap(7).
+		AddOperand(big.NewInt(int64(height)).Bytes()).AddOperand(big.NewInt(0).Bytes())
 }
 
 // SplitAddrScript returns a script to store a split address output
-func SplitAddrScript(addrs []types.Address, weights []uint64) *Script {
-	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
-	s := NewScript()
-	weight := big.NewInt(0)
+func SplitAddrScript(addrs []*types.AddressHash, weights []uint32) *Script {
+	if len(addrs) == 0 || len(addrs) != len(weights) || len(addrs) > MaxSplitAddrs {
+		return nil
+	}
+	// OP_RETURN OP0 <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+	s := NewScriptWithCap(len(addrs) * 26)
 	// use as many address/weight pairs as possbile
-	for i := 0; i < len(addrs) && i < len(weights); i++ {
-		weight.SetUint64(weights[i])
-		s.AddOperand(addrs[i].Hash()).AddOperand(weight.Bytes())
+	for i := 0; i < len(addrs); i++ {
+		w := make([]byte, 4)
+		binary.LittleEndian.PutUint32(w, weights[i])
+		s.AddOperand(addrs[i][:]).AddOperand(w)
 	}
 	// Hash acts as address, like in p2sh
 	scriptHash := crypto.Hash160(*s)
-	return NewScript().AddOpCode(OPRETURN).AddOperand(scriptHash).AddScript(s)
+	return NewScriptWithCap(23 + len(*s)).
+		AddOpCode(OPRETURN).AddOpCode(OP0).AddOperand(scriptHash).AddScript(s)
 }
 
 // Script represents scripts
@@ -135,7 +158,8 @@ func (s *Script) AddScript(script *Script) *Script {
 // Validate verifies the script
 func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx int) error {
 	// concatenate unlocking & locking scripts
-	catScript := NewScript().AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
+	catScript := NewScriptWithCap(len(*scriptSig) + 1 + len(*scriptPubKey)).
+		AddScript(scriptSig).AddOpCode(OPCODESEPARATOR).AddScript(scriptPubKey)
 	if err := catScript.evaluate(tx, txInIdx); err != nil {
 		return err
 	}
@@ -150,14 +174,15 @@ func Validate(scriptSig, scriptPubKey *Script, tx *types.Transaction, txInIdx in
 
 	// First operand is signature
 	_, sig, newPc, _ := scriptSig.parseNextOp(0)
-	newScriptSig := NewScript().AddOperand(sig)
+	newScriptSig := NewScriptWithCap(len(sig) + 2).AddOperand(sig)
 
 	// Second operand is serialized redeem script
 	_, redeemScriptBytes, _, _ := scriptSig.parseNextOp(newPc)
 	redeemScript := NewScriptFromBytes(redeemScriptBytes)
 
 	// signature becomes the new scriptSig, redeemScript becomes the new scriptPubKey
-	catScript = NewScript().AddScript(newScriptSig).AddOpCode(OPCODESEPARATOR).AddScript(redeemScript)
+	catScript = NewScriptWithCap(len(*newScriptSig) + 1 + len(*redeemScript)).
+		AddScript(newScriptSig).AddOpCode(OPCODESEPARATOR).AddScript(redeemScript)
 	return catScript.evaluate(tx, txInIdx)
 }
 
@@ -473,24 +498,37 @@ func checkLockTime(lockTime, txLockTime int64) bool {
 // verify if signature is right
 // scriptPubKey is the locking script of the utxo tx input tx.Vin[txInIdx] references
 func verifySig(sigStr []byte, publicKeyStr []byte, scriptPubKey []byte, tx *types.Transaction, txInIdx int) bool {
+	txHash, _ := tx.TxHash()
 	sig, err := crypto.SigFromBytes(sigStr)
 	if err != nil {
-		logger.Debugf("Deserialize signature failed")
+		logger.Errorf("Deserialize signature failed. Err: %v(sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, txhash: %s, txInIdx: %d)", err, sigStr, publicKeyStr,
+			scriptPubKey, txHash, txInIdx)
 		return false
 	}
 	publicKey, err := crypto.PublicKeyFromBytes(publicKeyStr)
 	if err != nil {
-		logger.Debugf("Deserialize public key failed")
+		logger.Errorf("Deserialize public key failed. Err: %v(sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, txhash: %s, txInIdx: %d)", err, sigStr, publicKeyStr,
+			scriptPubKey, txHash, txInIdx)
 		return false
 	}
 
 	sigHash, err := CalcTxHashForSig(scriptPubKey, tx, txInIdx)
 	if err != nil {
-		logger.Debugf("Calculate signature hash failed")
+		logger.Errorf("Calculate signature hash failed. Err: %v(sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, txhash: %s, txInIdx: %d)", err, sigStr, publicKeyStr,
+			scriptPubKey, txHash, txInIdx)
 		return false
 	}
 
-	return sig.VerifySignature(publicKey, sigHash)
+	if ok := sig.VerifySignature(publicKey, sigHash); !ok {
+		logger.Errorf("verify signatrure failed.(sig: %x, raw sig: %x, pubkey: %x, "+
+			"scriptpubkey: %x, sigHash: %x, txhash: %s, txInIdx: %d)", sig.Serialize(),
+			sigStr, publicKeyStr, scriptPubKey, sigHash[:], txHash, txInIdx)
+		return false
+	}
+	return true
 }
 
 // CalcTxHashForSig calculates the hash of a tx input, used for signature
@@ -504,6 +542,7 @@ func CalcTxHashForSig(
 	// construct a transaction from originalTx except scriptPubKey to compute signature hash
 	tx := types.NewTx(originalTx.Version, originalTx.Magic, originalTx.LockTime).
 		AppendVout(originalTx.Vout...)
+	tx.Data = originalTx.Data
 	for i, txIn := range originalTx.Vin {
 		if i != txInIdx {
 			tx.AppendVin(types.NewTxIn(&txIn.PrevOutPoint, nil, txIn.Sequence))
@@ -593,58 +632,93 @@ func (s *Script) IsPayToScriptHash() bool {
 func (s *Script) IsSplitAddrScript() bool {
 	// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
 	ss := *s
-	// 45 = 1 len(op) + 1 (addr size) + 20 (addr len) + 1 (addr size) +
-	//			20 (addr len) + 1 (weight size) + 1 (weight len) + ...
-	return len(ss) >= 45 && ss[0] == byte(OPRETURN) && ss[1] == ripemd160.Size
+	if len(ss) < 49 { // 49 = 23+26
+		return false
+	}
+	// 1 (op) +1 (op) + 1 (addr size) + 20 (addr len) + 1 (addr size) +
+	//			20 (addr len) + 1 (weight size) + 4 (weight len) + ...
+	// 23 = 1(op) + 1(op) + 1(addr size) + 20(addr len)
+	// 26 = 1(addr size) + 20(addr len) + 1(weight size) + 4(weight len)
+	if (len(ss)-23)%26 != 0 || ss[0] != byte(OPRETURN) || ss[1] != byte(OP0) {
+		return false
+	}
+	for i := 23; i < len(ss); i += 26 {
+		if ss[i] != ripemd160.Size || ss[i+21] != 4 {
+			return false
+		}
+		if (i+26)/26 == MaxSplitAddrs {
+			return false
+		}
+	}
+	return true
 }
 
 // IsContractSig returns true if the script sig contains OPCONTRACT code
-func (s *Script) IsContractSig() bool {
-	return len(*s) == 1 && (*s)[0] == byte(OPCONTRACT)
+func IsContractSig(sig []byte) bool {
+	// 10 = 1(op)+1(nonce size)+8(nonce len)
+	return len(sig) == 10 && sig[0] == byte(OPCONTRACT) && sig[1] == 8
 }
 
 // IsContractPubkey returns true if the script pubkey contains OPCONTRACT code
 func (s *Script) IsContractPubkey() bool {
 	ss := *s
-	// 52 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addraddr len)+
-	//			1(nonce size)+1(gasPrice size)+1(gasLimit size)+1(version size)+
-	//			1(code size)+4(checksum len)
-	return len(ss) >= 52 && ss[0] == byte(OPCONTRACT) && ss[1] == ripemd160.Size &&
-		ss[22] == ripemd160.Size
+	// 66 = 1(op)+1(addr size)+20(addr len)+1(addr size)+20(addr len)+
+	//			1(nonce size)+8(nonce len)+1(gasLimit size)+8(gasLimit size)+
+	//			1(version size)+4(version len)+
+	if len(ss) != 66 {
+		return false
+	}
+	if ss[0] != byte(OPCONTRACT) ||
+		ss[1] != ripemd160.Size || ss[22] != ripemd160.Size ||
+		ss[43] != 8 || ss[52] != 8 || ss[61] != 4 {
+		return false
+	}
+	return true
+}
+
+// IsOpReturnScript returns true if the script is of op return
+func (s *Script) IsOpReturnScript() bool {
+	if len(*s) < 3 {
+		return false
+	}
+	if (*s)[0] != byte(OPRETURN) {
+		return false
+	}
+	if (*s)[1] == byte(OP0) {
+		return false
+	}
+	_, oprand, newPc, err := s.parseNextOp(1)
+	if err != nil {
+		return false
+	}
+	if len(oprand) > MaxOpReturnSize {
+		return false
+	}
+	if len(*s) != newPc {
+		return false
+	}
+	return true
 }
 
 // IsStandard returns if a script is standard
 // Only certain types of transactions are allowed, i.e., regarded as standard
 func (s *Script) IsStandard() bool {
-	//if !s.IsPayToPubKeyHash() &&
-	//	!s.IsContractPubkey() &&
-	//	!s.IsTokenTransfer() &&
-	//	!s.IsTokenIssue() &&
-	//	!s.IsSplitAddrScript() &&
-	//	!s.IsPayToScriptHash() &&
-	//	!s.IsPayToPubKeyHashCLTVScript() {
-	//	return false
-	//}
 	_, err := s.ExtractAddress()
-	if err != nil {
-		logger.Errorf("Failed to extract address. script: %s, Err: %v", s.Disasm(), err)
-		return false
+	if err == nil {
+		return true
 	}
-	return true
+	// check OP_RETURN
+	return s.IsOpReturnScript()
 }
 
 // GetSplitAddrScriptPrefix returns prefix of split addr script without and list of addresses and weights
 // only called on split address script, so no need to check error
 func (s *Script) GetSplitAddrScriptPrefix() *Script {
 	opCode, _, pc, _ := s.getNthOp(0, 0)
+	opCode2, _, pc, _ := s.getNthOp(1, 0)
 	_, operandHash, _, _ := s.getNthOp(pc, 0)
-
-	return NewScript().AddOpCode(opCode).AddOperand(operandHash)
-}
-
-// CreateSplitAddrScriptPrefix creates a script prefix for split address with a hashed address
-func CreateSplitAddrScriptPrefix(addr types.Address) *Script {
-	return NewScript().AddOpCode(OPRETURN).AddOperand(addr.Hash())
+	// 34=1+33
+	return NewScriptWithCap(24).AddOpCode(opCode).AddOpCode(opCode2).AddOperand(operandHash)
 }
 
 // is i of type Operand and of specified length
@@ -669,59 +743,82 @@ func (s *Script) getNthOp(pcStart, n int) (OpCode, Operand, int /* pc */, error)
 
 // ExtractAddress returns address within the script
 func (s *Script) ExtractAddress() (types.Address, error) {
-
-	switch {
-	case s.IsPayToPubKeyHash():
-		fallthrough
-	case s.IsTokenTransfer():
-		fallthrough
-	case s.IsTokenIssue():
+	switch s.PubkType() {
+	default:
+		return nil, ErrAddressNotApplicable
+	case PayToPubk, TokenTransferPubk, TokenIssuePubk:
 		_, pubKeyHash, _, err := s.getNthOp(2, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
-	case s.IsContractPubkey():
+	case ContractPubk:
 		return s.ParseContractAddr()
-	case s.IsSplitAddrScript():
-		_, pubKeyHash, _, err := s.getNthOp(1, 0)
+	case SplitAddrPubk:
+		_, pubKeyHash, _, err := s.getNthOp(2, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewSplitAddressFromHash(pubKeyHash)
-	case s.IsPayToPubKeyHashCLTVScript():
+	case PayToPubkCLTV:
 		l := len(*s)
 		_, pubKeyHash, _, err := s.getNthOp(l-23, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
-	case s.IsPayToScriptHash():
+	case PayToScriptPubk:
 		_, pubKeyHash, _, err := s.getNthOp(1, 0)
 		if err != nil {
 			return nil, err
 		}
 		return types.NewAddressPubKeyHash(pubKeyHash)
+	}
+}
+
+// PubkType returns pubkey type
+func (s *Script) PubkType() PubkType {
+	switch {
 	default:
-		return nil, ErrAddressNotApplicable
+		return UnknownPubk
+	case s.IsPayToPubKeyHash():
+		return PayToPubk
+	case s.IsTokenTransfer():
+		return TokenTransferPubk
+	case s.IsTokenIssue():
+		return TokenIssuePubk
+	case s.IsContractPubkey():
+		return ContractPubk
+	case s.IsSplitAddrScript():
+		return SplitAddrPubk
+	case s.IsPayToPubKeyHashCLTVScript():
+		return PayToPubkCLTV
+	case s.IsPayToScriptHash():
+		return PayToScriptPubk
+	case s.IsOpReturnScript():
+		return OpReturnPubk
 	}
 }
 
 // ParseSplitAddrScript returns [addr1, addr2, addr3, ...], [w1, w2, w3, ...]
-// OP_RETURN <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
-func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint64, error) {
+// OP_RETURN OP0 <hash addr> [(addr1, w1), (addr2, w2), (addr3, w3), ...]
+func (s *Script) ParseSplitAddrScript() ([]*types.AddressHash, []uint32, error) {
 	opCode, _, pc, err := s.getNthOp(0, 0)
 	if err != nil || opCode != OPRETURN {
 		return nil, nil, ErrInvalidSplitAddrScript
 	}
-
-	_, operandHash, pc, err := s.getNthOp(pc, 0)
-	if err != nil || opCode != OPRETURN {
+	opCode, _, pc, err = s.getNthOp(pc, 0)
+	if err != nil || opCode != OP0 {
 		return nil, nil, ErrInvalidSplitAddrScript
 	}
 
-	addrs := make([]types.Address, 0, 2)
-	weights := make([]uint64, 0, 2)
+	_, operandHash, pc, err := s.getNthOp(pc, 0)
+	if err != nil || len(operandHash) != ripemd160.Size {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
+
+	addrs := make([]*types.AddressHash, 0, 2)
+	weights := make([]uint32, 0, 2)
 
 	for i := 0; ; i++ {
 		// public key
@@ -739,22 +836,24 @@ func (s *Script) ParseSplitAddrScript() ([]types.Address, []uint64, error) {
 			if err != nil {
 				return nil, nil, ErrInvalidSplitAddrScript
 			}
-			addrs = append(addrs, addr)
+			addrs = append(addrs, addr.Hash160())
 		} else {
 			// weight
-			weight, err := operand.int()
-			if err != nil {
+			if len(operand) != 4 {
 				return nil, nil, ErrInvalidSplitAddrScript
 			}
-			weights = append(weights, uint64(weight))
+			weights = append(weights, binary.LittleEndian.Uint32(operand))
 		}
 	}
 
+	if len(addrs) > MaxSplitAddrs {
+		return nil, nil, ErrInvalidSplitAddrScript
+	}
 	script := NewScript()
-	weight := big.NewInt(0)
 	for i := 0; i < len(addrs); i++ {
-		weight.SetUint64(weights[i])
-		script.AddOperand(addrs[i].Hash()).AddOperand(weight.Bytes())
+		w := make([]byte, 4)
+		binary.LittleEndian.PutUint32(w, weights[i])
+		script.AddOperand(addrs[i][:]).AddOperand(w)
 	}
 	scriptHash := crypto.Hash160(*script)
 	// Check hash is expected
@@ -785,63 +884,46 @@ func (s *Script) getSigOpCount() int {
 	return numSigs
 }
 
-// MakeContractUtxoScriptPubkey makes a script pubkey for contract addr utxo
-func MakeContractUtxoScriptPubkey(from, to *types.AddressHash, nonce uint64, version int32) *Script {
-	// OP_CONTRACT from contract_addr nonce gasPrice gasLimit version code checksum
-	s := NewScriptWithCap(66)
-	s.AddOperand(from[:]).
-		AddOperand(to[:]).
-		AddOperand(big.NewInt(int64(nonce)).Bytes()).
-		AddOperand(big.NewInt(0).Bytes()).
-		AddOperand(big.NewInt(0).Bytes()).
-		AddOperand(big.NewInt(int64(version)).Bytes())
-	// add checksum
-	scriptHash := crypto.Hash160(*s)
-	checksum := scriptHash[:4]
-
-	return NewScript().AddOpCode(OPCONTRACT).AddScript(s).AddOperand(checksum)
-}
-
 // MakeContractScriptPubkey makes a script pubkey for contract vout
 func MakeContractScriptPubkey(
-	from, to *types.AddressHash, code []byte, gasPrice, gasLimit, nonce uint64,
-	version int32,
+	from, to *types.AddressHash, gasLimit, nonce uint64, version int32,
 ) (*Script, error) {
-	// OP_CONTRACT from to nonce gasPrice gasLimit version code checksum
+	// OP_CONTRACT from to nonce gasLimit version checksum
 	// check params
-	if from == nil || len(code) == 0 {
+	if from == nil {
 		return nil, ErrInvalidContractParams
 	}
-	overflowVal := uint64(math.MaxInt64)
-	if gasPrice > overflowVal || gasLimit > overflowVal {
+	if gasLimit == 0 {
 		return nil, ErrInvalidContractParams
 	}
-	if gasPrice > overflowVal/gasLimit {
+	if gasLimit >= uint64(math.MaxInt64)/core.FixedGasPrice {
 		return nil, ErrInvalidContractParams
 	}
 	// set params
-	s := NewScriptWithCap(86 + len(code))
+	// 66 = 1(opcode)+21(from)+21(to)+9(nonce)+9(gas limit)+5(version)
+	s := NewScriptWithCap(66).AddOpCode(OPCONTRACT)
 	toHash := ZeroContractAddress
 	if to != nil {
 		toHash = *to
 	}
-	s.AddOperand(from[:]).
-		AddOperand(toHash[:]).
-		AddOperand(big.NewInt(int64(nonce)).Bytes()).
-		AddOperand(big.NewInt(int64(gasPrice)).Bytes()).
-		AddOperand(big.NewInt(int64(gasLimit)).Bytes()).
-		AddOperand(big.NewInt(int64(version)).Bytes()).
-		AddOperand(code)
-	// add checksum
-	scriptHash := crypto.Hash160(*s)
-	checksum := scriptHash[:4]
+	buf := make([]byte, 8)
+	s.AddOperand(from[:]).AddOperand(toHash[:])
+	binary.LittleEndian.PutUint64(buf, nonce)
+	s.AddOperand(buf)
+	binary.LittleEndian.PutUint64(buf, gasLimit)
+	s.AddOperand(buf)
+	buf = buf[:4]
+	binary.LittleEndian.PutUint32(buf, uint32(version))
+	s.AddOperand(buf)
 
-	return NewScript().AddOpCode(OPCONTRACT).AddScript(s).AddOperand(checksum), nil
+	return s, nil
 }
 
 // MakeContractScriptSig makes a script sig for contract vin
-func MakeContractScriptSig() *Script {
-	return NewScriptWithCap(1).AddOpCode(OPCONTRACT)
+func MakeContractScriptSig(nonce uint64) *Script {
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, nonce)
+	return NewScriptWithCap(1).AddOpCode(OPCONTRACT).AddOperand(buf)
 }
 
 // ParseContractParams parse script pubkey with OPCONTRACT to stack
@@ -891,49 +973,41 @@ func (s *Script) ParseContractParams() (params *types.VMTxParams, typ types.Cont
 	if err != nil {
 		return
 	}
-	// gasPrice
-	params.GasPrice, pc, err = s.readUint64(pc)
-	if err != nil {
-		return
-	}
 	// gasLimit
 	params.GasLimit, pc, err = s.readUint64(pc)
 	if err != nil {
 		return
 	}
 	// version
-	n, pc, e := s.readUint64(pc)
+	ver, pc, e := s.readUint32(pc)
 	if err != nil {
 		err = e
 		return
 	}
-	params.Version = int32(n)
-	// code
-	_, operand, pc, err = s.getNthOp(pc, 0)
-	if err != nil {
-		return
-	}
-	params.Code = operand
-	// checksum
-	cs := crypto.Hash160((*s)[1:pc])
-	_, operand, pc, err = s.getNthOp(pc, 0)
-	if err != nil {
-		return
-	}
-	if len(operand) != 4 {
-		err = ErrInvalidContractScript
-		return
-	}
-	if !bytes.Equal(operand, cs[:4]) {
-		logger.Warnf("contract script checksum mismatched")
-		err = ErrInvalidContractScript
-		return
-	}
+	params.Version = int32(ver)
 	if _, _, _, e := s.getNthOp(pc, 0); e != ErrScriptBound {
 		err = ErrInvalidContractScript
 		return
 	}
 	return
+}
+
+// ParseContractInfo parse contract info.
+func (s *Script) ParseContractInfo() (*types.AddressPubKeyHash, *types.AddressContract, uint64, error) {
+	from, err := s.ParseContractFrom()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	contractAddress, err := s.ParseContractAddr()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	nonce, err := s.ParseContractNonce()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	return from, contractAddress, nonce, nil
+
 }
 
 // ParseContractFrom returns contract address within the script
@@ -970,55 +1044,46 @@ func (s *Script) ParseContractNonce() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, err
+	if len(operand) != 8 {
+		return 0, errors.New("nonce must be 8 byte in script")
 	}
-	return uint64(n), nil
-}
-
-// ParseContractGasPrice returns address within the script
-func (s *Script) ParseContractGasPrice() (uint64, error) {
-	_, operand, _, err := s.getNthOp(43, 1) // 1, 22
-	if err != nil {
-		return 0, err
-	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, err
-	}
-	return uint64(n), nil
+	n := binary.LittleEndian.Uint64(operand)
+	return n, nil
 }
 
 // ParseContractGas returns address within the script
 func (s *Script) ParseContractGas() (uint64, error) {
-	_, operand, _, err := s.getNthOp(43, 2) // 1, 22
+	_, operand, _, err := s.getNthOp(52, 0) // 1, 22, 43, 52
 	if err != nil {
 		return 0, err
 	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, err
+	if len(operand) != 8 {
+		return 0, errors.New("gas must be 8 byte in script")
 	}
-	return uint64(n), nil
+	n := binary.LittleEndian.Uint64(operand)
+	return n, nil
 }
 
-func (s *Script) readInt64(pc int) (int64, int /* pc */, error) {
+func (s *Script) readUint64(pc int) (uint64, int /* pc */, error) {
 	_, operand, pc, err := s.getNthOp(pc, 0)
 	if err != nil {
 		return 0, pc, err
 	}
-	n, err := operand.int64()
-	if err != nil {
-		return 0, pc, err
+	if len(operand) != 8 {
+		return 0, pc, errors.New("operand is not 8 bytes when readUInt64")
 	}
+	n := binary.LittleEndian.Uint64(operand)
 	return n, pc, nil
 }
 
-func (s *Script) readUint64(pc int) (uint64, int /* pc */, error) {
-	n, pc, err := s.readInt64(pc)
+func (s *Script) readUint32(pc int) (uint32, int /* pc */, error) {
+	_, operand, pc, err := s.getNthOp(pc, 0)
 	if err != nil {
 		return 0, pc, err
 	}
-	return uint64(n), pc, nil
+	if len(operand) != 4 {
+		return 0, pc, errors.New("operand is not 4 bytes when readUInt32")
+	}
+	n := binary.LittleEndian.Uint32(operand)
+	return n, pc, nil
 }

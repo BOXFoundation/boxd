@@ -31,7 +31,9 @@ rpc:
     port: 19151
     http:
         port: 19150
-dpos:
+    subscribe_blocks: true
+    subscribe_logs: true
+bpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1
@@ -44,5 +46,4 @@ metrics:
     tags: [region:us-west, host:box-5]
 wallet:
     enable: true
-    cache_size: 512
-    utxo_cache_time: 10
+    utxo_cache_time: 1

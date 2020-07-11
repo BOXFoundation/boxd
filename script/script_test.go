@@ -7,12 +7,10 @@ package script
 import (
 	"bytes"
 	"encoding/hex"
-	"math"
 	"math/big"
 	"strings"
 	"testing"
 
-	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/util"
@@ -32,11 +30,11 @@ var (
 	vIn = []*types.TxIn{
 		txIn,
 	}
-	txOut = &corepb.TxOut{
+	txOut = &types.TxOut{
 		Value:        1,
 		ScriptPubKey: []byte{},
 	}
-	vOut = []*corepb.TxOut{txOut}
+	vOut = []*types.TxOut{txOut}
 	tx   = &types.Transaction{
 		Version:  1,
 		Vin:      vIn,
@@ -333,8 +331,8 @@ func TestGetNthOp(t *testing.T) {
 }
 
 func TestParseSplitAddrScript(t *testing.T) {
-	addrs := []types.Address{addr, addr1, addr2}
-	weights := []uint64{1, 4, 7}
+	addrs := []*types.AddressHash{addr.Hash160(), addr1.Hash160(), addr2.Hash160()}
+	weights := []uint32{1, 4, 7}
 	splitAddrScript := SplitAddrScript(addrs, weights)
 	ensure.True(t, splitAddrScript.IsSplitAddrScript())
 	ensure.True(t, util.IsPrefixed(*splitAddrScript, *splitAddrScript.GetSplitAddrScriptPrefix()))
@@ -358,19 +356,17 @@ func TestContractScript(t *testing.T) {
 	// contract Temp {
 	//     function () payable {}
 	// }
-	code := "6060604052346000575b60398060166000396000f30060606040525b600b5b5b565b0000a165627a7a723058209cedb722bf57a30e3eb00eeefc392103ea791a2001deed29f5c3809ff10eb1dd0029"
 	var tests = []struct {
-		fromAddr     string
-		toAddr       string
-		code         string
-		price, limit uint64
-		nonce        uint64
-		version      int32
-		err          error
+		fromAddr string
+		toAddr   string
+		limit    uint64
+		nonce    uint64
+		version  int32
+		err      error
 	}{
-		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", code, 100, 20000, 1, 1, nil},
-		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", code, 1, 200, 2, 1, nil},
-		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", code, math.MaxUint64, 20000, 3, 1, ErrInvalidContractParams},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "b5nKQMQZXDuZqiFcbZ4bvrw2GoJkgTvcMod", 20000, 1, 1, nil},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", 200, 2, 1, nil},
+		{"b1VAnrX665aeExMaPeW6pk3FZKCLuywUaHw", "", 20000, 3, 1, nil},
 	}
 	for _, tc := range tests {
 		var from, to *types.AddressHash
@@ -380,28 +376,27 @@ func TestContractScript(t *testing.T) {
 		}
 		f, _ := types.NewAddress(tc.fromAddr)
 		from = f.Hash160()
-		code, _ := hex.DecodeString(tc.code)
-		cs, err := MakeContractScriptPubkey(from, to, code, tc.price, tc.limit, tc.nonce, tc.version)
+		cs, err := MakeContractScriptPubkey(from, to, tc.limit, tc.nonce, tc.version)
 		if tc.err != err {
-			t.Fatal(err)
+			t.Fatalf("err got: %v, want: %v", err, tc.err)
 		}
 		if err != nil {
 			continue
+		}
+		if !cs.IsContractPubkey() {
+			t.Fatal("not contract pubkey")
 		}
 		p, typ, err := cs.ParseContractParams()
 		if err != nil {
 			t.Fatal(err)
 		}
 		if (to != nil && !bytes.Equal(p.To[:], to[:])) ||
-			p.GasPrice != tc.price || p.GasLimit != tc.limit ||
-			p.Nonce != tc.nonce || p.Version != tc.version ||
+			p.GasLimit != tc.limit || p.Nonce != tc.nonce || p.Version != tc.version ||
 			(tc.toAddr != "" && typ != types.ContractCallType ||
-				tc.toAddr == "" && typ != types.ContractCreationType) ||
-			!bytes.Equal(p.Code, code) {
-			t.Fatalf("parse contract params got: %s, %d, %d, %d, %s, want: %s, %d, %d, %d, %s",
-				hex.EncodeToString(p.To[:]), p.GasPrice, p.GasLimit, p.Version,
-				hex.EncodeToString(p.Code),
-				hex.EncodeToString(to[:]), tc.price, tc.limit, tc.version, code)
+				tc.toAddr == "" && typ != types.ContractCreationType) {
+			t.Fatalf("parse contract params got: %s, %d, %d, want: %s, %d, %d",
+				hex.EncodeToString(p.To[:]), p.GasLimit, p.Version,
+				hex.EncodeToString(to[:]), tc.limit, tc.version)
 		}
 		if eAddr, err := cs.ParseContractAddr(); err != nil ||
 			(to != nil && *eAddr.Hash160() != *to) {
@@ -411,13 +406,38 @@ func TestContractScript(t *testing.T) {
 			n != tc.nonce {
 			t.Fatalf("parse contract nonce error: %v, want: %d, got: %d", err, tc.nonce, n)
 		}
-		if n, err := cs.ParseContractGas(); err != nil ||
-			n != tc.limit {
+		if n, err := cs.ParseContractGas(); err != nil || n != tc.limit {
 			t.Fatalf("parse contract gas error: %v, want: %d, got: %d", err, tc.limit, n)
 		}
-		if n, err := cs.ParseContractGasPrice(); err != nil ||
-			n != tc.price {
-			t.Fatalf("parse contract gas price error: %v, want: %d, got: %d", err, tc.price, n)
+	}
+}
+
+func TestOpReturnScript(t *testing.T) {
+	// test multiple Oprands in OPRETURN script
+	sc := NewScript().AddOpCode(OPRETURN).AddOperand([]byte("abc")).AddOperand([]byte("123"))
+	if sc.IsOpReturnScript() {
+		t.Fatalf("script 0x%x is op return script? want: %t, got: %t", *sc, false, true)
+	}
+	//
+	var tests = []struct {
+		data string
+		ok   bool
+	}{
+		{"", false},
+		{"abc", true},
+		{"120123456789012345678901234567890123456789012345678901234567890123456789" + "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789", true},
+		{"1230123456789012345678901234567890123456789012345678901234567890123456789" + "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789", false},
+	}
+
+	for _, tc := range tests {
+		sc := NewScript().AddOpCode(OPRETURN).AddOperand([]byte(tc.data))
+		if sc.IsOpReturnScript() != tc.ok {
+			t.Fatalf("check op return %s want: %t, got: %t", tc.data, tc.ok, !tc.ok)
+		}
+		re := strings.Split(sc.Disasm(), " ")[1]
+		bytes, _ := hex.DecodeString(re)
+		if tc.data != string(bytes) {
+			t.Fatalf("disasm %s got %s", tc.data, string(bytes))
 		}
 	}
 }

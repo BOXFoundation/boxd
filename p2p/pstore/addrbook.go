@@ -245,7 +245,12 @@ func (ab *addrBook) Addrs(p peer.ID) []ma.Multiaddr {
 			logger.Errorf("failed to get value of key %s: %v", string(k), err)
 			return nil
 		}
-		addr, err := ma.NewMultiaddrBytes(buf)
+		_, addrbin, err := UnmarshalPeerAddr(buf)
+		if err != nil {
+			logger.Errorf("Unmarshal peer address failed. Err: %v", err)
+			return nil
+		}
+		addr, err := ma.NewMultiaddrBytes(addrbin)
 		if err != nil {
 			logger.Errorf("failed to unmarshal addr: %v", err)
 			return nil
@@ -254,9 +259,9 @@ func (ab *addrBook) Addrs(p peer.ID) []ma.Multiaddr {
 
 		// get ttl
 		ttlKey := ttlBase.Child(key.NewKeyFromBytes(k))
-		if buf, err = txn.Get(ttlKey.Bytes()); err == nil && len(buf) > 0 {
+		if addrbin, err = txn.Get(ttlKey.Bytes()); err == nil && len(addrbin) > 0 {
 			var exp time.Time
-			if err := exp.UnmarshalBinary(buf); err == nil {
+			if err := exp.UnmarshalBinary(addrbin); err == nil {
 				if !exp.IsZero() && exp.Before(earliestExp) {
 					earliestExp = exp
 				}
@@ -405,9 +410,16 @@ func (ab *addrBook) setAddrs(p peer.ID, addrs []ma.Multiaddr, ttl time.Duration,
 	if ab.cache != nil {
 		ab.cache.Remove(p)
 	}
+	// Get peer type.
+	peertype, err := getMetadata(ab.store, p, PTypeSuf)
+	if err != nil {
+		logger.Warnf("get metadata failed. Err: %v, p: %s", err, p.Pretty())
+		peertype = uint8(LayfolkPeer)
+	}
+
 	// Attempt transactional KV insertion.
 	var existed []bool
-	if existed, err = ab.dbInsert(keys, addrs, ttl, mode); err != nil {
+	if existed, err = ab.dbInsert(keys, addrs, peertype.(uint8), ttl, mode); err != nil {
 		logger.Errorf("failed to avoid write conflict for peer %s : %v", p.Pretty(), err)
 		return err
 	}
@@ -424,7 +436,7 @@ func (ab *addrBook) setAddrs(p peer.ID, addrs []ma.Multiaddr, ttl time.Duration,
 /////////////////////////////////// db operations //////////////////////////////
 
 // dbInsert performs a transactional insert of the provided keys and values.
-func (ab *addrBook) dbInsert(keys []key.Key, addrs []ma.Multiaddr, ttl time.Duration, mode ttlWriteMode) ([]bool, error) {
+func (ab *addrBook) dbInsert(keys []key.Key, addrs []ma.Multiaddr, peertype uint8, ttl time.Duration, mode ttlWriteMode) ([]bool, error) {
 	var (
 		err     error
 		existed = make([]bool, len(keys))
@@ -476,8 +488,13 @@ func (ab *addrBook) dbInsert(keys []key.Key, addrs []ma.Multiaddr, ttl time.Dura
 			continue
 		}
 
+		val, err := MarshalPeerAddr(peertype, addrs[i].Bytes())
+		if err != nil {
+			logger.Errorf("failed to marshal peer address and type. peertype: %d, addr: %s", peertype, addrs[i].String())
+		}
+
 		// put addr
-		if err = txn.Put(key.Bytes(), addrs[i].Bytes()); err != nil {
+		if err = txn.Put(key.Bytes(), val); err != nil {
 			logger.Errorf("transaction failed and aborted while setting key: %s, cause: %v", key.String(), err)
 			return nil, err
 		}

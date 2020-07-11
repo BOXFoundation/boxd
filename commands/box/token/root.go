@@ -7,39 +7,30 @@ package tokencmd
 import (
 	"fmt"
 	"math"
-	"path"
 	"strconv"
 	"strings"
 
+	"github.com/BOXFoundation/boxd/commands/box/common"
 	"github.com/BOXFoundation/boxd/commands/box/root"
-	"github.com/BOXFoundation/boxd/config"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
-	"github.com/BOXFoundation/boxd/util"
 	"github.com/BOXFoundation/boxd/wallet"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
-	cfgFile          string
-	walletDir        string
-	defaultWalletDir = path.Join(util.HomeDir(), ".box_keystore")
+	cfgFile   string
+	walletDir string
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "token",
 	Short: "Token subcommand",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
@@ -48,20 +39,20 @@ to quickly create a Cobra application.`,
 // Init adds the sub command to the root command.
 func init() {
 	root.RootCmd.AddCommand(rootCmd)
-	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", defaultWalletDir, "Specify directory to search keystore files")
+	rootCmd.PersistentFlags().StringVar(&walletDir, "wallet_dir", common.DefaultWalletDir, "Specify directory to search keystore files")
 	rootCmd.AddCommand(
 		&cobra.Command{
-			Use:   "issue issuer owner name symbol supply decimal",
+			Use:   "issue [issuer] [owner] [name] [symbol] [supply] [decimal]",
 			Short: "issue a new token",
 			Run:   createTokenCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "transfer from tokenID addr1 amount1 addr2 amount2 ...",
+			Use:   "transfer [from] [tokenID] [addr1,addr2...] [amount1,amount2 ...]",
 			Short: "transfer tokens",
 			Run:   transferTokenCmdFunc,
 		},
 		&cobra.Command{
-			Use:   "getbalance tokenID addr1 addr2 ...",
+			Use:   "getbalance [tokenID] [addr1, addr2 ...]",
 			Short: "get token balance",
 			Run:   getTokenBalanceCmdFunc,
 		},
@@ -69,7 +60,6 @@ func init() {
 }
 
 func createTokenCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("createToken called")
 	if len(args) != 6 {
 		fmt.Println("Invalid argument number")
 		return
@@ -122,7 +112,7 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("Invalid address: %s, error: %s\n", args[0], err)
 		return
 	}
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -131,27 +121,24 @@ func createTokenCmdFunc(cmd *cobra.Command, args []string) {
 
 	tag := txlogic.NewTokenTag(tokenName, tokenSymbol, uint32(tokenDecimals),
 		uint64(tokenTotalSupply))
-	tx, _, _, err := rpcutil.NewIssueTokenTx(account, toAddr.String(), tag, conn)
+	tx, tid, _, err := rpcutil.NewIssueTokenTx(account, toAddr.Hash160(), tag, conn)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	hashStr, err := rpcutil.SendTransaction(conn, tx)
+	_, err = rpcutil.SendTransaction(conn, tx)
 	if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
 		fmt.Println(err)
 		return
 	}
-	hash := new(crypto.HashType)
-	hash.SetString(hashStr)
 
-	tid := txlogic.NewPbOutPoint(hash, 0)
-	fmt.Println("Created Token Address: ", txlogic.EncodeOutPoint(tid))
+	fmt.Println("Created Token Address:", txlogic.EncodeOutPoint(
+		txlogic.NewPbOutPoint(&tid.Hash, tid.Index)))
 }
 
 func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("transferToken called")
-	if len(args) < 5 {
-		fmt.Println("Invalid argument number")
+	if len(args) != 4 {
+		fmt.Println(cmd.Use)
 		return
 	}
 	// from account
@@ -175,98 +162,102 @@ func transferTokenCmdFunc(cmd *cobra.Command, args []string) {
 		return
 	}
 	// token id
-	hashStr := args[1]
-	tHash := new(crypto.HashType)
-	if err := tHash.SetString(hashStr); err != nil {
-		fmt.Println(err)
+	tokenID, err := txlogic.DecodeOutPoint(args[1])
+	if err != nil {
+		fmt.Printf("DecodeOutPoint string %s to TokenID failed: %s\n", args[1], err)
 		return
 	}
-	tIdx, err := strconv.ParseUint(args[2], 10, 64)
-	if err != nil {
-		fmt.Printf("token index %s invalid\n", args[1])
+	tokenHash := new(crypto.HashType)
+	if err = tokenHash.SetBytes(tokenID.Hash); err != nil {
+		fmt.Println("convert type []byte to HashType failed:", err)
 		return
 	}
 	// to address
-	to, amounts := make([]string, 0), make([]uint64, 0)
-	for i := 2; i < len(args)-1; i += 2 {
-		to = append(to, args[i])
-		a, err := strconv.ParseUint(args[i+1], 10, 64)
+	to := strings.Split(args[2], ",")
+	toHashes := make([]*types.AddressHash, 0, len(to))
+	for _, addr := range to {
+		address, err := types.ParseAddress(addr)
 		if err != nil {
-			fmt.Printf("Invalid amount %s", args[i+1])
+			_, ok1 := address.(*types.AddressPubKeyHash)
+			_, ok2 := address.(*types.AddressTypeSplit)
+			if !ok1 && !ok2 {
+				fmt.Printf("invaild address for %s, err: %s\n", addr, err)
+				return
+			}
+		}
+		toHashes = append(toHashes, address.Hash160())
+	}
+	amountStr := strings.Split(args[3], ",")
+	amounts := make([]uint64, 0, len(amountStr))
+	for _, x := range amountStr {
+		tmp, err := strconv.ParseUint(x, 10, 64)
+		if err != nil {
+			fmt.Printf("Conversion %s to unsigned numbers failed: %s\n", x, err)
 			return
 		}
-		amounts = append(amounts, a)
+		amounts = append(amounts, uint64(tmp))
 	}
-	if err := types.ValidateAddr(to...); err != nil {
-		fmt.Println(err)
-		return
-	}
-	//
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	//call RPC
+	conn, err := rpcutil.GetGRPCConn(common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
-	tx, _, _, err := rpcutil.NewTokenTx(account, to, amounts, hashStr, uint32(tIdx), conn)
+	tx, _, _, err := rpcutil.NewTokenTx(account, toHashes, amounts, tokenHash.String(), tokenID.Index, conn)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	hashStr, err = rpcutil.SendTransaction(conn, tx)
+	hashStr, err := rpcutil.SendTransaction(conn, tx)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	fmt.Println("Tx Hash:", hashStr)
-	fmt.Println(util.PrettyPrint(tx))
 }
 
 func getTokenBalanceCmdFunc(cmd *cobra.Command, args []string) {
-	fmt.Println("getTokenBalance called")
-	if len(args) < 3 {
-		fmt.Println("Invalid argument number")
+	if len(args) != 2 {
+		fmt.Println(cmd.Use)
 		return
 	}
-	// tokenID
-	hashStr := args[0]
-	tokenIndex, err := strconv.ParseUint(args[1], 10, 64)
+	// hash
+	tokenID, err := txlogic.DecodeOutPoint(args[0])
 	if err != nil {
-		fmt.Printf("token index %s invalid\n", args[1])
+		fmt.Println(err)
 		return
 	}
+	tokenHash := new(crypto.HashType)
+	if err := tokenHash.SetBytes(tokenID.Hash); err != nil {
+		fmt.Println("Conversion the type of tokenHash failed:", err)
+		return
+	}
+	tokenIndex := tokenID.Index
 	// address
-	addrs := args[2:]
+	addrs := strings.Split(args[1], ",")
 	for _, addr := range addrs {
-		_, err := types.NewAddress(addr)
-		if err != nil {
-			fmt.Println("Invalid address: ", addr)
+		if _, err := types.ParseAddress(addr); err != nil {
+			fmt.Println("invalid address")
 			return
 		}
 	}
-	if err := types.ValidateAddr(addrs...); err != nil {
-		fmt.Println(err)
-		return
-	}
-	// call rpc
-	conn, err := rpcutil.GetGRPCConn(getRPCAddr())
+	respRPC, err := rpcutil.RPCCall(rpcpb.NewTransactionCommandClient, "GetTokenBalance",
+		&rpcpb.GetTokenBalanceReq{Addrs: addrs, TokenHash: tokenHash.String(), TokenIndex: tokenIndex}, common.GetRPCAddr())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer conn.Close()
-	balances, err := rpcutil.GetTokenBalance(conn, addrs, hashStr, uint32(tokenIndex))
-	if err != nil {
-		fmt.Println(err)
+	resp, ok := respRPC.(*rpcpb.GetBalanceResp)
+	if !ok {
+		fmt.Println("Convertion to rpcpb.GetBalanceRespfailed")
 		return
 	}
-	for i, b := range balances {
+	if resp.Code != 0 {
+		fmt.Println(resp.Message)
+		return
+	}
+	for i, b := range resp.Balances {
 		fmt.Printf("%s: %d\n", addrs[i], b)
 	}
-}
-
-func getRPCAddr() string {
-	var cfg config.Config
-	viper.Unmarshal(&cfg)
-	return fmt.Sprintf("%s:%d", cfg.RPC.Address, cfg.RPC.Port)
 }

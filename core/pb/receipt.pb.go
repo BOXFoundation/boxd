@@ -8,6 +8,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,12 +23,15 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type Receipt struct {
-	TxHash  []byte `protobuf:"bytes,1,opt,name=tx_hash,json=txHash,proto3" json:"tx_hash,omitempty"`
-	TxIndex uint32 `protobuf:"varint,2,opt,name=tx_index,json=txIndex,proto3" json:"tx_index,omitempty"`
-	Failed  bool   `protobuf:"varint,3,opt,name=failed,proto3" json:"failed,omitempty"`
-	GasUsed uint64 `protobuf:"varint,4,opt,name=gas_used,json=gasUsed,proto3" json:"gas_used,omitempty"`
-	Logs    []*Log `protobuf:"bytes,5,rep,name=logs,proto3" json:"logs,omitempty"`
-	Bloom   []byte `protobuf:"bytes,6,opt,name=bloom,proto3" json:"bloom,omitempty"`
+	TxHash      []byte   `protobuf:"bytes,1,opt,name=tx_hash,json=txHash,proto3" json:"tx_hash,omitempty"`
+	TxIndex     uint32   `protobuf:"varint,2,opt,name=tx_index,json=txIndex,proto3" json:"tx_index,omitempty"`
+	Deployed    bool     `protobuf:"varint,3,opt,name=deployed,proto3" json:"deployed,omitempty"`
+	Failed      bool     `protobuf:"varint,4,opt,name=failed,proto3" json:"failed,omitempty"`
+	GasUsed     uint64   `protobuf:"varint,5,opt,name=gas_used,json=gasUsed,proto3" json:"gas_used,omitempty"`
+	InternalTxs [][]byte `protobuf:"bytes,6,rep,name=internal_txs,json=internalTxs,proto3" json:"internal_txs,omitempty"`
+	Logs        []*Log   `protobuf:"bytes,7,rep,name=logs,proto3" json:"logs,omitempty"`
+	Bloom       []byte   `protobuf:"bytes,8,opt,name=bloom,proto3" json:"bloom,omitempty"`
+	ErrMsg      string   `protobuf:"bytes,9,opt,name=err_msg,json=errMsg,proto3" json:"err_msg,omitempty"`
 }
 
 func (m *Receipt) Reset()         { *m = Receipt{} }
@@ -44,7 +48,7 @@ func (m *Receipt) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Receipt.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -77,6 +81,13 @@ func (m *Receipt) GetTxIndex() uint32 {
 	return 0
 }
 
+func (m *Receipt) GetDeployed() bool {
+	if m != nil {
+		return m.Deployed
+	}
+	return false
+}
+
 func (m *Receipt) GetFailed() bool {
 	if m != nil {
 		return m.Failed
@@ -91,6 +102,13 @@ func (m *Receipt) GetGasUsed() uint64 {
 	return 0
 }
 
+func (m *Receipt) GetInternalTxs() [][]byte {
+	if m != nil {
+		return m.InternalTxs
+	}
+	return nil
+}
+
 func (m *Receipt) GetLogs() []*Log {
 	if m != nil {
 		return m.Logs
@@ -103,6 +121,13 @@ func (m *Receipt) GetBloom() []byte {
 		return m.Bloom
 	}
 	return nil
+}
+
+func (m *Receipt) GetErrMsg() string {
+	if m != nil {
+		return m.ErrMsg
+	}
+	return ""
 }
 
 type Receipts struct {
@@ -123,7 +148,7 @@ func (m *Receipts) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Receipts.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -150,12 +175,15 @@ func (m *Receipts) GetReceipts() []*Receipt {
 }
 
 type HashReceipt struct {
-	TxHash  []byte     `protobuf:"bytes,1,opt,name=tx_hash,json=txHash,proto3" json:"tx_hash,omitempty"`
-	TxIndex uint32     `protobuf:"varint,2,opt,name=tx_index,json=txIndex,proto3" json:"tx_index,omitempty"`
-	Failed  bool       `protobuf:"varint,3,opt,name=failed,proto3" json:"failed,omitempty"`
-	GasUsed uint64     `protobuf:"varint,4,opt,name=gas_used,json=gasUsed,proto3" json:"gas_used,omitempty"`
-	Logs    []*HashLog `protobuf:"bytes,5,rep,name=logs,proto3" json:"logs,omitempty"`
-	Bloom   []byte     `protobuf:"bytes,6,opt,name=bloom,proto3" json:"bloom,omitempty"`
+	TxHash      []byte     `protobuf:"bytes,1,opt,name=tx_hash,json=txHash,proto3" json:"tx_hash,omitempty"`
+	TxIndex     uint32     `protobuf:"varint,2,opt,name=tx_index,json=txIndex,proto3" json:"tx_index,omitempty"`
+	Deployed    bool       `protobuf:"varint,3,opt,name=deployed,proto3" json:"deployed,omitempty"`
+	Failed      bool       `protobuf:"varint,4,opt,name=failed,proto3" json:"failed,omitempty"`
+	GasUsed     uint64     `protobuf:"varint,5,opt,name=gas_used,json=gasUsed,proto3" json:"gas_used,omitempty"`
+	InternalTxs [][]byte   `protobuf:"bytes,6,rep,name=internal_txs,json=internalTxs,proto3" json:"internal_txs,omitempty"`
+	Logs        []*HashLog `protobuf:"bytes,7,rep,name=logs,proto3" json:"logs,omitempty"`
+	Bloom       []byte     `protobuf:"bytes,8,opt,name=bloom,proto3" json:"bloom,omitempty"`
+	ErrMsg      string     `protobuf:"bytes,9,opt,name=err_msg,json=errMsg,proto3" json:"err_msg,omitempty"`
 }
 
 func (m *HashReceipt) Reset()         { *m = HashReceipt{} }
@@ -172,7 +200,7 @@ func (m *HashReceipt) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_HashReceipt.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -205,6 +233,13 @@ func (m *HashReceipt) GetTxIndex() uint32 {
 	return 0
 }
 
+func (m *HashReceipt) GetDeployed() bool {
+	if m != nil {
+		return m.Deployed
+	}
+	return false
+}
+
 func (m *HashReceipt) GetFailed() bool {
 	if m != nil {
 		return m.Failed
@@ -219,6 +254,13 @@ func (m *HashReceipt) GetGasUsed() uint64 {
 	return 0
 }
 
+func (m *HashReceipt) GetInternalTxs() [][]byte {
+	if m != nil {
+		return m.InternalTxs
+	}
+	return nil
+}
+
 func (m *HashReceipt) GetLogs() []*HashLog {
 	if m != nil {
 		return m.Logs
@@ -231,6 +273,13 @@ func (m *HashReceipt) GetBloom() []byte {
 		return m.Bloom
 	}
 	return nil
+}
+
+func (m *HashReceipt) GetErrMsg() string {
+	if m != nil {
+		return m.ErrMsg
+	}
+	return ""
 }
 
 type HashReceipts struct {
@@ -251,7 +300,7 @@ func (m *HashReceipts) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_HashReceipts.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -287,32 +336,35 @@ func init() {
 func init() { proto.RegisterFile("receipt.proto", fileDescriptor_ace1d6eb38fad2c8) }
 
 var fileDescriptor_ace1d6eb38fad2c8 = []byte{
-	// 293 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2d, 0x4a, 0x4d, 0x4e,
-	0xcd, 0x2c, 0x28, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x4b, 0xce, 0x2f, 0x4a, 0x2d,
-	0x48, 0x92, 0xe2, 0xcc, 0xc9, 0x4f, 0x87, 0x08, 0x29, 0x2d, 0x67, 0xe4, 0x62, 0x0f, 0x82, 0x28,
-	0x12, 0x12, 0xe7, 0x62, 0x2f, 0xa9, 0x88, 0xcf, 0x48, 0x2c, 0xce, 0x90, 0x60, 0x54, 0x60, 0xd4,
-	0xe0, 0x09, 0x62, 0x2b, 0xa9, 0xf0, 0x48, 0x2c, 0xce, 0x10, 0x92, 0xe4, 0xe2, 0x28, 0xa9, 0x88,
-	0xcf, 0xcc, 0x4b, 0x49, 0xad, 0x90, 0x60, 0x52, 0x60, 0xd4, 0xe0, 0x0d, 0x62, 0x2f, 0xa9, 0xf0,
-	0x04, 0x71, 0x85, 0xc4, 0xb8, 0xd8, 0xd2, 0x12, 0x33, 0x73, 0x52, 0x53, 0x24, 0x98, 0x15, 0x18,
-	0x35, 0x38, 0x82, 0xa0, 0x3c, 0x90, 0x96, 0xf4, 0xc4, 0xe2, 0xf8, 0xd2, 0xe2, 0xd4, 0x14, 0x09,
-	0x16, 0x05, 0x46, 0x0d, 0x96, 0x20, 0xf6, 0xf4, 0xc4, 0xe2, 0xd0, 0xe2, 0xd4, 0x14, 0x21, 0x79,
-	0x2e, 0x96, 0x9c, 0xfc, 0xf4, 0x62, 0x09, 0x56, 0x05, 0x66, 0x0d, 0x6e, 0x23, 0x6e, 0x3d, 0x88,
-	0xa3, 0xf4, 0x7c, 0xf2, 0xd3, 0x83, 0xc0, 0x12, 0x42, 0x22, 0x5c, 0xac, 0x49, 0x39, 0xf9, 0xf9,
-	0xb9, 0x12, 0x6c, 0x60, 0x57, 0x40, 0x38, 0x4a, 0xe6, 0x5c, 0x1c, 0x50, 0x87, 0x16, 0x0b, 0x69,
-	0x73, 0x71, 0x40, 0x7d, 0x56, 0x2c, 0xc1, 0x08, 0x36, 0x86, 0x1f, 0x66, 0x0c, 0x54, 0x4d, 0x10,
-	0x5c, 0x81, 0xd2, 0x7a, 0x46, 0x2e, 0x6e, 0x90, 0x37, 0xe8, 0xec, 0x4d, 0x65, 0x14, 0x6f, 0xc2,
-	0xdd, 0x07, 0xb2, 0x89, 0x90, 0x57, 0xed, 0xb9, 0x78, 0x90, 0x1c, 0x5c, 0x2c, 0xa4, 0x8f, 0xe1,
-	0x5d, 0x61, 0x64, 0xe3, 0x30, 0xbc, 0xec, 0x24, 0x71, 0xe2, 0x91, 0x1c, 0xe3, 0x85, 0x47, 0x72,
-	0x8c, 0x0f, 0x1e, 0xc9, 0x31, 0x4e, 0x78, 0x2c, 0xc7, 0x70, 0xe1, 0xb1, 0x1c, 0xc3, 0x8d, 0xc7,
-	0x72, 0x0c, 0x49, 0x6c, 0xe0, 0x68, 0x37, 0x06, 0x04, 0x00, 0x00, 0xff, 0xff, 0xfb, 0x3d, 0x9d,
-	0x58, 0x1a, 0x02, 0x00, 0x00,
+	// 352 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x92, 0x3f, 0x4f, 0xeb, 0x30,
+	0x14, 0xc5, 0xeb, 0xfe, 0x49, 0x52, 0x27, 0xd5, 0x93, 0xfc, 0x9e, 0xde, 0xf3, 0xeb, 0x10, 0x42,
+	0x59, 0x2c, 0x21, 0x15, 0x09, 0x06, 0x46, 0x24, 0x26, 0x90, 0x60, 0xb1, 0x60, 0x8e, 0xd2, 0xc6,
+	0xb8, 0x91, 0xd2, 0x3a, 0xf2, 0x35, 0x92, 0xf9, 0x04, 0xac, 0x7c, 0x2c, 0xc6, 0x8e, 0x8c, 0xa8,
+	0xfd, 0x20, 0xa0, 0xfc, 0x69, 0x55, 0xd4, 0x8d, 0x8d, 0xf1, 0xdc, 0x7b, 0x74, 0xec, 0xf3, 0xd3,
+	0xc5, 0x03, 0x2d, 0xa6, 0x22, 0x2b, 0xcc, 0xb8, 0xd0, 0xca, 0x28, 0xe2, 0x4c, 0x95, 0x16, 0xc5,
+	0x64, 0xd8, 0xcf, 0x95, 0xac, 0x47, 0xa3, 0x0f, 0x84, 0x5d, 0x5e, 0x9b, 0xc8, 0x3f, 0xec, 0x1a,
+	0x1b, 0xcf, 0x12, 0x98, 0x51, 0x14, 0x21, 0x16, 0x70, 0xc7, 0xd8, 0xab, 0x04, 0x66, 0xe4, 0x3f,
+	0xf6, 0x8c, 0x8d, 0xb3, 0x45, 0x2a, 0x2c, 0x6d, 0x47, 0x88, 0x0d, 0xb8, 0x6b, 0xec, 0x75, 0x29,
+	0xc9, 0x10, 0x7b, 0xa9, 0x28, 0x72, 0xf5, 0x24, 0x52, 0xda, 0x89, 0x10, 0xf3, 0xf8, 0x56, 0x93,
+	0xbf, 0xd8, 0x79, 0x48, 0xb2, 0x5c, 0xa4, 0xb4, 0x5b, 0x6d, 0x1a, 0x55, 0xc6, 0xc9, 0x04, 0xe2,
+	0x47, 0x10, 0x29, 0xed, 0x45, 0x88, 0x75, 0xb9, 0x2b, 0x13, 0xb8, 0x07, 0x91, 0x92, 0x43, 0x1c,
+	0x64, 0x0b, 0x23, 0xf4, 0x22, 0xc9, 0x63, 0x63, 0x81, 0x3a, 0x51, 0x87, 0x05, 0xdc, 0xdf, 0xcc,
+	0xee, 0x2c, 0x90, 0x03, 0xdc, 0xcd, 0x95, 0x04, 0xea, 0x46, 0x1d, 0xe6, 0x9f, 0xfa, 0xe3, 0xba,
+	0xd3, 0xf8, 0x46, 0x49, 0x5e, 0x2d, 0xc8, 0x1f, 0xdc, 0x9b, 0xe4, 0x4a, 0xcd, 0xa9, 0x57, 0x95,
+	0xa8, 0x45, 0x59, 0x4e, 0x68, 0x1d, 0xcf, 0x41, 0xd2, 0x7e, 0x84, 0x58, 0x9f, 0x3b, 0x42, 0xeb,
+	0x5b, 0x90, 0xa3, 0x73, 0xec, 0x35, 0x00, 0x80, 0x1c, 0x63, 0xaf, 0x21, 0x06, 0x14, 0x55, 0xf9,
+	0xbf, 0x36, 0xf9, 0x8d, 0x87, 0x6f, 0x0d, 0xa3, 0xe7, 0x36, 0xf6, 0x4b, 0x3c, 0x3f, 0x0b, 0xdf,
+	0xd1, 0x17, 0x7c, 0xdb, 0x7a, 0xe5, 0x47, 0xbf, 0x8d, 0xf0, 0x02, 0x07, 0x3b, 0x20, 0x80, 0x9c,
+	0xec, 0x61, 0xfc, 0xbd, 0xfb, 0xce, 0x1e, 0xca, 0x4b, 0xfa, 0xba, 0x0a, 0xd1, 0x72, 0x15, 0xa2,
+	0xf7, 0x55, 0x88, 0x5e, 0xd6, 0x61, 0x6b, 0xb9, 0x0e, 0x5b, 0x6f, 0xeb, 0xb0, 0x35, 0x71, 0xaa,
+	0x33, 0x3d, 0xfb, 0x0c, 0x00, 0x00, 0xff, 0xff, 0x27, 0x2b, 0x3a, 0x81, 0xca, 0x02, 0x00, 0x00,
 }
 
 func (m *Receipt) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -320,61 +372,96 @@ func (m *Receipt) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Receipt) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Receipt) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.TxHash) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
-		i += copy(dAtA[i:], m.TxHash)
+	if len(m.ErrMsg) > 0 {
+		i -= len(m.ErrMsg)
+		copy(dAtA[i:], m.ErrMsg)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.ErrMsg)))
+		i--
+		dAtA[i] = 0x4a
 	}
-	if m.TxIndex != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+	if len(m.Bloom) > 0 {
+		i -= len(m.Bloom)
+		copy(dAtA[i:], m.Bloom)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.Logs) > 0 {
+		for iNdEx := len(m.Logs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Logs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
+	if len(m.InternalTxs) > 0 {
+		for iNdEx := len(m.InternalTxs) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.InternalTxs[iNdEx])
+			copy(dAtA[i:], m.InternalTxs[iNdEx])
+			i = encodeVarintReceipt(dAtA, i, uint64(len(m.InternalTxs[iNdEx])))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	if m.GasUsed != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
+		i--
+		dAtA[i] = 0x28
 	}
 	if m.Failed {
-		dAtA[i] = 0x18
-		i++
+		i--
 		if m.Failed {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
-	}
-	if m.GasUsed != 0 {
+		i--
 		dAtA[i] = 0x20
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
 	}
-	if len(m.Logs) > 0 {
-		for _, msg := range m.Logs {
-			dAtA[i] = 0x2a
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
+	if m.Deployed {
+		i--
+		if m.Deployed {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
 		}
+		i--
+		dAtA[i] = 0x18
 	}
-	if len(m.Bloom) > 0 {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
-		i += copy(dAtA[i:], m.Bloom)
+	if m.TxIndex != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+		i--
+		dAtA[i] = 0x10
 	}
-	return i, nil
+	if len(m.TxHash) > 0 {
+		i -= len(m.TxHash)
+		copy(dAtA[i:], m.TxHash)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *Receipts) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -382,29 +469,36 @@ func (m *Receipts) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Receipts) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Receipts) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Receipts) > 0 {
-		for _, msg := range m.Receipts {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Receipts) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Receipts[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *HashReceipt) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -412,61 +506,96 @@ func (m *HashReceipt) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *HashReceipt) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HashReceipt) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.TxHash) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
-		i += copy(dAtA[i:], m.TxHash)
+	if len(m.ErrMsg) > 0 {
+		i -= len(m.ErrMsg)
+		copy(dAtA[i:], m.ErrMsg)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.ErrMsg)))
+		i--
+		dAtA[i] = 0x4a
 	}
-	if m.TxIndex != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+	if len(m.Bloom) > 0 {
+		i -= len(m.Bloom)
+		copy(dAtA[i:], m.Bloom)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.Logs) > 0 {
+		for iNdEx := len(m.Logs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Logs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
+	if len(m.InternalTxs) > 0 {
+		for iNdEx := len(m.InternalTxs) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.InternalTxs[iNdEx])
+			copy(dAtA[i:], m.InternalTxs[iNdEx])
+			i = encodeVarintReceipt(dAtA, i, uint64(len(m.InternalTxs[iNdEx])))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	if m.GasUsed != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
+		i--
+		dAtA[i] = 0x28
 	}
 	if m.Failed {
-		dAtA[i] = 0x18
-		i++
+		i--
 		if m.Failed {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
-	}
-	if m.GasUsed != 0 {
+		i--
 		dAtA[i] = 0x20
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(m.GasUsed))
 	}
-	if len(m.Logs) > 0 {
-		for _, msg := range m.Logs {
-			dAtA[i] = 0x2a
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
+	if m.Deployed {
+		i--
+		if m.Deployed {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
 		}
+		i--
+		dAtA[i] = 0x18
 	}
-	if len(m.Bloom) > 0 {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintReceipt(dAtA, i, uint64(len(m.Bloom)))
-		i += copy(dAtA[i:], m.Bloom)
+	if m.TxIndex != 0 {
+		i = encodeVarintReceipt(dAtA, i, uint64(m.TxIndex))
+		i--
+		dAtA[i] = 0x10
 	}
-	return i, nil
+	if len(m.TxHash) > 0 {
+		i -= len(m.TxHash)
+		copy(dAtA[i:], m.TxHash)
+		i = encodeVarintReceipt(dAtA, i, uint64(len(m.TxHash)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *HashReceipts) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -474,33 +603,42 @@ func (m *HashReceipts) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *HashReceipts) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HashReceipts) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Receipts) > 0 {
-		for _, msg := range m.Receipts {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintReceipt(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Receipts) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Receipts[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintReceipt(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintReceipt(dAtA []byte, offset int, v uint64) int {
+	offset -= sovReceipt(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Receipt) Size() (n int) {
 	if m == nil {
@@ -515,11 +653,20 @@ func (m *Receipt) Size() (n int) {
 	if m.TxIndex != 0 {
 		n += 1 + sovReceipt(uint64(m.TxIndex))
 	}
+	if m.Deployed {
+		n += 2
+	}
 	if m.Failed {
 		n += 2
 	}
 	if m.GasUsed != 0 {
 		n += 1 + sovReceipt(uint64(m.GasUsed))
+	}
+	if len(m.InternalTxs) > 0 {
+		for _, b := range m.InternalTxs {
+			l = len(b)
+			n += 1 + l + sovReceipt(uint64(l))
+		}
 	}
 	if len(m.Logs) > 0 {
 		for _, e := range m.Logs {
@@ -528,6 +675,10 @@ func (m *Receipt) Size() (n int) {
 		}
 	}
 	l = len(m.Bloom)
+	if l > 0 {
+		n += 1 + l + sovReceipt(uint64(l))
+	}
+	l = len(m.ErrMsg)
 	if l > 0 {
 		n += 1 + l + sovReceipt(uint64(l))
 	}
@@ -562,11 +713,20 @@ func (m *HashReceipt) Size() (n int) {
 	if m.TxIndex != 0 {
 		n += 1 + sovReceipt(uint64(m.TxIndex))
 	}
+	if m.Deployed {
+		n += 2
+	}
 	if m.Failed {
 		n += 2
 	}
 	if m.GasUsed != 0 {
 		n += 1 + sovReceipt(uint64(m.GasUsed))
+	}
+	if len(m.InternalTxs) > 0 {
+		for _, b := range m.InternalTxs {
+			l = len(b)
+			n += 1 + l + sovReceipt(uint64(l))
+		}
 	}
 	if len(m.Logs) > 0 {
 		for _, e := range m.Logs {
@@ -575,6 +735,10 @@ func (m *HashReceipt) Size() (n int) {
 		}
 	}
 	l = len(m.Bloom)
+	if l > 0 {
+		n += 1 + l + sovReceipt(uint64(l))
+	}
+	l = len(m.ErrMsg)
 	if l > 0 {
 		n += 1 + l + sovReceipt(uint64(l))
 	}
@@ -597,14 +761,7 @@ func (m *HashReceipts) Size() (n int) {
 }
 
 func sovReceipt(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozReceipt(x uint64) (n int) {
 	return sovReceipt(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -624,7 +781,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -652,7 +809,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -661,6 +818,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -683,12 +843,32 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TxIndex |= (uint32(b) & 0x7F) << shift
+				m.TxIndex |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Deployed", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReceipt
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Deployed = bool(v != 0)
+		case 4:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Failed", wireType)
 			}
@@ -702,13 +882,13 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= (int(b) & 0x7F) << shift
+				v |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 			m.Failed = bool(v != 0)
-		case 4:
+		case 5:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field GasUsed", wireType)
 			}
@@ -722,12 +902,44 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.GasUsed |= (uint64(b) & 0x7F) << shift
+				m.GasUsed |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-		case 5:
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field InternalTxs", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReceipt
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.InternalTxs = append(m.InternalTxs, make([]byte, postIndex-iNdEx))
+			copy(m.InternalTxs[len(m.InternalTxs)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Logs", wireType)
 			}
@@ -741,7 +953,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -750,6 +962,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -758,7 +973,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 6:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Bloom", wireType)
 			}
@@ -772,7 +987,7 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -781,6 +996,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -789,6 +1007,38 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				m.Bloom = []byte{}
 			}
 			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ErrMsg", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReceipt
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ErrMsg = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipReceipt(dAtA[iNdEx:])
@@ -796,6 +1046,9 @@ func (m *Receipt) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -825,7 +1078,7 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -853,7 +1106,7 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -862,6 +1115,9 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -877,6 +1133,9 @@ func (m *Receipts) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -906,7 +1165,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -934,7 +1193,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -943,6 +1202,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -965,12 +1227,32 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.TxIndex |= (uint32(b) & 0x7F) << shift
+				m.TxIndex |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Deployed", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReceipt
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Deployed = bool(v != 0)
+		case 4:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Failed", wireType)
 			}
@@ -984,13 +1266,13 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= (int(b) & 0x7F) << shift
+				v |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 			m.Failed = bool(v != 0)
-		case 4:
+		case 5:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field GasUsed", wireType)
 			}
@@ -1004,12 +1286,44 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.GasUsed |= (uint64(b) & 0x7F) << shift
+				m.GasUsed |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-		case 5:
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field InternalTxs", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReceipt
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.InternalTxs = append(m.InternalTxs, make([]byte, postIndex-iNdEx))
+			copy(m.InternalTxs[len(m.InternalTxs)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Logs", wireType)
 			}
@@ -1023,7 +1337,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1032,6 +1346,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1040,7 +1357,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 6:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Bloom", wireType)
 			}
@@ -1054,7 +1371,7 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1063,6 +1380,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1071,6 +1391,38 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				m.Bloom = []byte{}
 			}
 			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ErrMsg", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReceipt
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ErrMsg = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipReceipt(dAtA[iNdEx:])
@@ -1078,6 +1430,9 @@ func (m *HashReceipt) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -1107,7 +1462,7 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -1135,7 +1490,7 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1144,6 +1499,9 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthReceipt
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReceipt
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1159,6 +1517,9 @@ func (m *HashReceipts) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthReceipt
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthReceipt
 			}
 			if (iNdEx + skippy) > l {
@@ -1227,8 +1588,11 @@ func skipReceipt(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			iNdEx += length
 			if length < 0 {
+				return 0, ErrInvalidLengthReceipt
+			}
+			iNdEx += length
+			if iNdEx < 0 {
 				return 0, ErrInvalidLengthReceipt
 			}
 			return iNdEx, nil
@@ -1259,6 +1623,9 @@ func skipReceipt(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthReceipt
+				}
 			}
 			return iNdEx, nil
 		case 4:

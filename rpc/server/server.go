@@ -16,12 +16,16 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/p2p"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
+	"github.com/BOXFoundation/boxd/util"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	"github.com/rs/cors"
 	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 var logger = log.NewLogger("rpc")
@@ -35,20 +39,29 @@ const (
 //
 var (
 	ErrAPINotSupported = errors.New("api not supported")
+	ErrIPNotAllowed    = errors.New("allowed only users in white list")
 )
 
 // Config defines the configurations of rpc server
 type Config struct {
-	Enabled         bool       `mapstructure:"enabled"`
-	Address         string     `mapstructure:"address"`
-	Port            int        `mapstructure:"port"`
-	HTTP            HTTPConfig `mapstructure:"http"`
-	GrpcLimits      int        `mapstructure:"grpc_limits"`
-	HTTPLimits      int        `mapstructure:"http_limits"`
-	HTTPCors        []string   `mapstructure:"http_cors"`
-	FaucetKeyFile   string     `mapstructure:"faucet_keyfile"`
-	SubScribeBlocks bool       `mapstructure:"subscribe_blocks"`
-	SubScribeLogs   bool       `mapstructure:"subscribe_logs"`
+	Enable          bool         `mapstructure:"enable"`
+	Address         string       `mapstructure:"address"`
+	Port            int          `mapstructure:"port"`
+	HTTP            HTTPConfig   `mapstructure:"http"`
+	GrpcLimits      int          `mapstructure:"grpc_limits"`
+	HTTPLimits      int          `mapstructure:"http_limits"`
+	HTTPCors        []string     `mapstructure:"http_cors"`
+	Faucet          FaucetConfig `mapstructure:"faucet"`
+	SubScribeBlocks bool         `mapstructure:"subscribe_blocks"`
+	SubScribeLogs   bool         `mapstructure:"subscribe_logs"`
+	AdminIPs        []string     `mapstructure:"admin_ips"`
+}
+
+//FaucetConfig  defines the faucet config
+type FaucetConfig struct {
+	Keyfile      string   `mapstructure:"keyfile"`
+	WhiteList    []string `mapstructure:"white_list"`
+	AmountPerSec uint64   `mapstructure:"amount_per_sec"`
 }
 
 // HTTPConfig defines the address/port of rest api over http
@@ -63,6 +76,7 @@ type Server struct {
 
 	ChainReader service.ChainReader
 	TxHandler   service.TxHandler
+	TableReader service.TableReader
 	WalletAgent service.WalletAgent
 	eventBus    eventbus.Bus
 	server      *grpc.Server
@@ -111,13 +125,16 @@ type GRPCServer interface {
 }
 
 // NewServer creates a RPC server instance.
-func NewServer(parent goprocess.Process, cfg *Config,
-	cr service.ChainReader, txh service.TxHandler,
-	wa service.WalletAgent, bus eventbus.Bus) *Server {
+func NewServer(
+	parent goprocess.Process, cfg *Config, cr service.ChainReader,
+	txh service.TxHandler, wa service.WalletAgent, peer *p2p.BoxPeer,
+	bus eventbus.Bus,
+) *Server {
 	var server = &Server{
 		cfg:         cfg,
 		ChainReader: cr,
 		TxHandler:   txh,
+		TableReader: peer,
 		eventBus:    bus,
 		WalletAgent: wa,
 		gRPCProc:    goprocess.WithParent(parent),
@@ -132,7 +149,6 @@ var _ service.Server = (*Server)(nil)
 // Run gRPC service
 func (s *Server) Run() error {
 	s.gRPCProc.Go(s.servegRPC)
-
 	return nil
 }
 
@@ -156,6 +172,11 @@ func (s *Server) GetTxHandler() service.TxHandler {
 	return s.TxHandler
 }
 
+// GetTableReader returns an interface to query routing table
+func (s *Server) GetTableReader() service.TableReader {
+	return s.TableReader
+}
+
 // GetWalletAgent returns the wallet related service handler
 func (s *Server) GetWalletAgent() service.WalletAgent {
 	return s.WalletAgent
@@ -176,7 +197,10 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 
 	var opts []grpc.ServerOption
 	var interceptor grpc.UnaryServerInterceptor
-	interceptor = func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	interceptor = func(
+		ctx context.Context, req interface{}, info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
 		//start := time.Now()
 		//uid := uuid.NewV4()
 		resp, err := handler(ctx, req)
@@ -188,6 +212,7 @@ func (s *Server) servegRPC(proc goprocess.Process) {
 	s.server = grpc.NewServer(opts...)
 
 	// regist all gRPC services for the server
+	s.registerSerivices()
 	for name, service := range services {
 		logger.Debugf("register gRPC service: %s", name)
 		service(s)
@@ -303,4 +328,77 @@ func serviceUnavailableHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Errorf("Sorry, the server is busy due to too many requests")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	w.Write([]byte("{\"Err:\",\"Sorry, the server is busy due to too many requests.\nPlease try again later.\"}"))
+}
+
+func (s *Server) registerSerivices() {
+	if len(s.cfg.AdminIPs) > 0 {
+		RegisterServiceWithGatewayHandler(
+			"admincontrol",
+			func(s *Server) {
+				rpcpb.RegisterAdminControlServer(
+					s.server,
+					&adminControl{
+						server:      s,
+						whiteList:   s.cfg.AdminIPs,
+						TableReader: s.GetTableReader(),
+					},
+				)
+			},
+			rpcpb.RegisterAdminControlHandlerFromEndpoint,
+		)
+	}
+	if !s.cfg.Enable {
+		return
+	}
+	RegisterServiceWithGatewayHandler(
+		"control",
+		func(s *Server) {
+			rpcpb.RegisterContorlCommandServer(s.server, &ctlserver{server: s})
+		},
+		rpcpb.RegisterContorlCommandHandlerFromEndpoint,
+	)
+	RegisterServiceWithGatewayHandler(
+		"database",
+		func(s *Server) {
+			rpcpb.RegisterDatabaseCommandServer(s.server, &dbserver{server: s})
+		},
+		rpcpb.RegisterDatabaseCommandHandlerFromEndpoint,
+	)
+	RegisterServiceWithGatewayHandler(
+		"tx",
+		func(s *Server) {
+			rpcpb.RegisterTransactionCommandServer(s.server, &txServer{server: s})
+		},
+		rpcpb.RegisterTransactionCommandHandlerFromEndpoint,
+	)
+	RegisterServiceWithGatewayHandler(
+		"webapi",
+		func(s *Server) {
+			was := newWebAPIServer(s)
+			rpcpb.RegisterWebApiServer(s.server, was)
+		},
+		rpcpb.RegisterWebApiHandlerFromEndpoint,
+	)
+	RegisterServiceWithGatewayHandler(
+		"faucet",
+		registerFaucet,
+		rpcpb.RegisterFaucetHandlerFromEndpoint,
+	)
+}
+
+func isInIPs(ctx context.Context, ips []string) bool {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return false
+	}
+	cliIPs := md["x-forwarded-for"]
+	if util.InStrings("*", ips) {
+		return true
+	}
+	for _, ip := range cliIPs {
+		if util.InStrings(ip, ips) {
+			return true
+		}
+	}
+	return false
 }

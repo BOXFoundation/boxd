@@ -24,7 +24,6 @@ type picker struct {
 
 const (
 	timeoutToChain = 15 * time.Second
-	totalAmount    = 1000000
 )
 
 var (
@@ -36,7 +35,7 @@ var (
 	tokenTestTxCnt     = uint64(0)
 )
 
-func initMinerPicker(minerCnt int) {
+func initOrigMinerPicker(minerCnt int) {
 	minerPicker = picker{status: make([]bool, minerCnt)}
 }
 
@@ -53,15 +52,15 @@ func PickOneMiner() (string, bool) {
 
 	for i, picked := range minerPicker.status {
 		if !picked {
-			if _, err := utils.WaitBalanceEnough(minerAddrs[i], chain.BaseSubsidy, conn,
+			if _, err := utils.WaitBalanceEnough(origAddrs[i], testCoins, conn,
 				time.Second); err != nil {
 				time.Sleep(time.Second)
 				continue
 			}
-			logger.Infof("Picked miner %s box with %d", minerAddrs[i], chain.BaseSubsidy)
+			logger.Infof("Picked miner %s box with %d", origAddrs[i], chain.BaseSubsidy)
 			time.Sleep(time.Second) // to avoid utxo cache in wallet agent
 			minerPicker.status[i] = true
-			return minerAddrs[i], true
+			return origAddrs[i], true
 		}
 	}
 	return "", false
@@ -71,7 +70,7 @@ func PickOneMiner() (string, bool) {
 func UnpickMiner(addr string) bool {
 	minerPicker.Lock()
 	defer minerPicker.Unlock()
-	for i, a := range minerAddrs {
+	for i, a := range origAddrs {
 		if a == addr {
 			minerPicker.status[i] = false
 			return true

@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/BOXFoundation/boxd/consensus/dpos"
+	"github.com/BOXFoundation/boxd/consensus"
 	"github.com/BOXFoundation/boxd/core/chain"
 	coreTypes "github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -29,6 +29,7 @@ var (
 	errCheckFailed  = errors.New("check failed")
 	errNoResponding = errors.New("no responding when node is in sync")
 	zeroHash        = &crypto.HashType{}
+	zeroTime        = time.Time{}
 )
 
 type peerStatus int
@@ -54,12 +55,14 @@ const (
 	maxSyncFailedTimes = 100
 	maxCheckPeers      = 2
 	syncBlockChunkSize = 64
+	maxSyncChunks      = chain.MaxBlocksPerSync / syncBlockChunkSize
 	locatorSeqPartLen  = 6
 	syncTimeout        = 5 * time.Second
 	blocksTimeout      = 10 * time.Second
 	retryTimes         = 10
 	retryInterval      = 1 * time.Second
 	maxSyncTries       = 20
+	minSyncInterval    = 30 * time.Second
 )
 
 const (
@@ -112,16 +115,21 @@ type SyncManager struct {
 	// contain begin hash and length indicate the check hashes
 	checkHash *CheckHash
 	// peers who local peer has checked to or synchronized to
-	stalePeers   *sync.Map
+	stalePeers *sync.Map
+	// malicious peers, which persist in memory
+	maliciousPeers *sync.Map
+	// blocks synced
 	blocksSynced int32
 	// server started only once
 	svrStarted int32
 	// last the end located hash received that been remove by rmOverlap method
 	lastLocatedHash *crypto.HashType
+	// to check interval is not less than min interval
+	lastSyncedTime time.Time
 
 	proc      goprocess.Process
 	chain     *chain.BlockChain
-	consensus *dpos.Dpos
+	consensus consensus.Consensus
 	p2pNet    p2p.Net
 
 	messageCh         chan p2p.Message
@@ -153,33 +161,37 @@ func (sm *SyncManager) resetAll() {
 
 // NewSyncManager returns new block sync manager.
 func NewSyncManager(blockChain *chain.BlockChain, p2pNet p2p.Net,
-	consensus *dpos.Dpos, parent goprocess.Process) *SyncManager {
+	consensus consensus.Consensus, parent goprocess.Process) *SyncManager {
 	return &SyncManager{
-		status:       freeStatus,
-		chain:        blockChain,
-		consensus:    consensus,
-		p2pNet:       p2pNet,
-		proc:         goprocess.WithParent(parent),
-		stalePeers:   new(sync.Map),
-		messageCh:    make(chan p2p.Message, 512),
-		locateErrCh:  make(chan errFlag),
-		locateDoneCh: make(chan struct{}),
-		checkErrCh:   make(chan errFlag),
-		checkOkCh:    make(chan struct{}, maxCheckPeers),
-		syncErrCh:    make(chan struct{}),
-		blocksDoneCh: make(chan struct{},
-			chain.MaxBlocksPerSync/syncBlockChunkSize),
-		blocksErrCh: make(chan FetchBlockHeaders,
-			chain.MaxBlocksPerSync/syncBlockChunkSize),
-		blocksProcessedCh: make(chan struct{},
-			chain.MaxBlocksPerSync/syncBlockChunkSize),
+		status:            freeStatus,
+		chain:             blockChain,
+		consensus:         consensus,
+		p2pNet:            p2pNet,
+		proc:              goprocess.WithParent(parent),
+		stalePeers:        new(sync.Map),
+		maliciousPeers:    new(sync.Map),
+		messageCh:         make(chan p2p.Message, 512),
+		locateErrCh:       make(chan errFlag, 1),
+		locateDoneCh:      make(chan struct{}, 1),
+		checkErrCh:        make(chan errFlag, 1),
+		checkOkCh:         make(chan struct{}, maxCheckPeers),
+		syncErrCh:         make(chan struct{}, 1),
+		blocksDoneCh:      make(chan struct{}, maxSyncChunks),
+		blocksErrCh:       make(chan FetchBlockHeaders, maxSyncChunks),
+		blocksProcessedCh: make(chan struct{}, maxSyncChunks),
 	}
 }
 
 // StartSync start sync block message from remote peers.
 func (sm *SyncManager) StartSync() {
 	if sm.getStatus() != freeStatus {
+		logger.Warn("Peer is in sync")
 		return
+	}
+	if sm.lastSyncedTime != zeroTime &&
+		time.Since(sm.lastSyncedTime) < minSyncInterval {
+		logger.Warnf("last sync time is %s, less minimum sync interval %v",
+			sm.lastSyncedTime.Format(time.Kitchen), minSyncInterval)
 	}
 	logger.Info("StartSync")
 	sm.consensus.StopMint()
@@ -203,17 +215,18 @@ func (sm *SyncManager) ActiveLightSync(pid peer.ID) error {
 }
 
 func (sm *SyncManager) startSync() {
-	p2p.UpdateSynced(false)
 	// prevent startSync being executed again
 	sm.setStatus(locateStatus)
+	p2p.UpdateSynced(false)
 	// sleep 1s to wait for connections to establish
 	time.Sleep(time.Second)
 	//
 	defer func() {
-		sm.consensus.RecoverMint()
 		sm.resetAll()
 		p2p.UpdateSynced(true)
 		logger.Info("sync completed and exit!")
+		sm.consensus.RecoverMint()
+		sm.lastSyncedTime = time.Now()
 	}()
 
 	// timer for locate, check and sync
@@ -314,8 +327,7 @@ out_sync:
 		sm.drainBlocksChan()
 		if err := sm.fetchAllBlocks(sm.fetchHashes); err != nil {
 			logger.Warn(err)
-			sm.blocksProcessedCh = make(chan struct{},
-				chain.MaxBlocksPerSync/syncBlockChunkSize)
+			sm.blocksProcessedCh = make(chan struct{}, maxSyncChunks)
 			return
 		}
 		logger.Infof("wait sync %d blocks done", len(sm.fetchHashes))
@@ -326,7 +338,10 @@ out_sync:
 			case <-sm.blocksDoneCh:
 				if sm.completed() {
 					logger.Infof("complete to sync %d blocks", len(sm.fetchHashes))
-					sm.waitAllBlocksProcessed()
+					if err := sm.waitAllBlocksProcessed(); err != nil {
+						logger.Errorf("wait all block processed error: %s, exit sync", err)
+						return
+					}
 					logger.Infof("complete to process %d blocks", len(sm.fetchHashes))
 					cleanStopTimer(timer)
 					if sm.moreSync() {
@@ -334,21 +349,17 @@ out_sync:
 						needMore = true
 						continue out_sync
 					} else {
-						sm.blocksProcessedCh = make(chan struct{},
-							chain.MaxBlocksPerSync/syncBlockChunkSize)
+						sm.blocksProcessedCh = make(chan struct{}, maxSyncChunks)
 						return
 					}
 				}
-			case <-sm.syncErrCh:
-				logger.Infof("sync blocks error")
 			case fbh := <-sm.blocksErrCh:
 				logger.Warnf("fetch blocks error, retry for %+v", fbh)
 				cleanStopTimer(timer)
 				_, err := sm.fetchRemoteBlocksWithRetry(&fbh, retryTimes, retryInterval)
 				if err != nil {
 					logger.Warn(err)
-					sm.blocksProcessedCh = make(chan struct{},
-						chain.MaxBlocksPerSync/syncBlockChunkSize)
+					sm.blocksProcessedCh = make(chan struct{}, maxSyncChunks)
 					return
 				}
 				drainTimer(timer.C)
@@ -366,8 +377,7 @@ out_sync:
 							retryInterval)
 						if err != nil {
 							logger.Warn(err)
-							sm.blocksProcessedCh = make(chan struct{},
-								chain.MaxBlocksPerSync/syncBlockChunkSize)
+							sm.blocksProcessedCh = make(chan struct{}, maxSyncChunks)
 							return
 						}
 					}
@@ -530,7 +540,8 @@ func heightLocator(height uint32) []uint32 {
 // rmOverlap remove overlapped headers between locateHashes and local chain
 func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) []*crypto.HashType {
 	for i, h := range locateHashes {
-		if block, _ := chain.LoadBlockByHash(*h, sm.chain.DB()); block == nil {
+		if block, _ := chain.LoadBlockByHash(*h, sm.chain.DB()); block == nil ||
+			block.Header.Height > sm.chain.LongestChainHeight {
 			return locateHashes[i:]
 		}
 	}
@@ -540,6 +551,10 @@ func (sm *SyncManager) rmOverlap(locateHashes []*crypto.HashType) []*crypto.Hash
 func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 	ids := make([]peer.ID, 0)
 	var preferedID peer.ID
+	sm.maliciousPeers.Range(func(k, v interface{}) bool {
+		ids = append(ids, k.(peer.ID))
+		return true
+	})
 	sm.stalePeers.Range(func(k, v interface{}) bool {
 		// if now is in syncStatus, prefer to select locate or check peers
 		if syncStatus == blocksStatus &&
@@ -547,6 +562,9 @@ func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 				v.(peerStatus) == checkedDonePeerStatus) {
 			synced, existed := sm.p2pNet.PeerSynced(k.(peer.ID))
 			if existed && synced {
+				if _, ok := sm.maliciousPeers.Load(k); ok {
+					return true
+				}
 				preferedID = k.(peer.ID)
 				return false
 			}
@@ -558,7 +576,7 @@ func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 		return preferedID, nil
 	}
 	var pid peer.ID
-	var syncIds []peer.ID
+	var syncIds []string
 	for {
 		pid = sm.p2pNet.PickOnePeer(ids...)
 		if pid == peer.ID("") {
@@ -568,14 +586,18 @@ func (sm *SyncManager) pickOnePeer(syncStatus syncStatus) (peer.ID, error) {
 		if synced {
 			return pid, nil
 		}
-		syncIds = append(syncIds, pid)
+		syncIds = append(syncIds, string(pid))
 		ids = append(ids, pid)
 	}
 	// select a peer that have sync with this peer when no other peers to sync
 	ids = make([]peer.ID, 0)
+	sm.maliciousPeers.Range(func(k, v interface{}) bool {
+		ids = append(ids, k.(peer.ID))
+		return true
+	})
 	sm.stalePeers.Range(func(k, v interface{}) bool {
 		if (v != nil && v.(peerStatus) == errPeerStatus) ||
-			util.InArray(k.(peer.ID), syncIds) {
+			util.InStrings(string(k.(peer.ID)), syncIds) {
 			ids = append(ids, k.(peer.ID))
 		}
 		return true
@@ -610,10 +632,15 @@ func (sm *SyncManager) completed() bool {
 	return atomic.LoadInt32(&sm.blocksSynced) >= int32(len(sm.fetchHashes))
 }
 
-func (sm *SyncManager) waitAllBlocksProcessed() {
+func (sm *SyncManager) waitAllBlocksProcessed() error {
 	for i := 0; i < len(sm.fetchHashes); i += syncBlockChunkSize {
-		<-sm.blocksProcessedCh
+		select {
+		case <-sm.syncErrCh:
+			return errors.New("receive sync error from channel")
+		case <-sm.blocksProcessedCh:
+		}
 	}
+	return nil
 }
 
 func (sm *SyncManager) moreSync() bool {
@@ -708,12 +735,13 @@ func (sm *SyncManager) drainBlocksChan() {
 			break
 		}
 	}
+	tryPopEmptyChan(sm.syncErrCh)
 }
 
 func tryPopEmptyChan(ch <-chan struct{}) bool {
 	select {
 	case <-ch:
-		logger.Info("pop a struct{}{} from chan struct{}")
+		logger.Warn("pop a struct{}{} from chan struct{}")
 		return true
 	default:
 		return false
@@ -725,7 +753,7 @@ func tryPushEmptyChan(ch chan<- struct{}) bool {
 	case ch <- struct{}{}:
 		return true
 	default:
-		logger.Info("cannot push a struct{}{} to chan struct{}")
+		logger.Warn("cannot push a struct{}{} to chan struct{}")
 		return false
 	}
 }
@@ -745,7 +773,7 @@ func tryPushErrFlagChan(ch chan<- errFlag, v errFlag) bool {
 	case ch <- v:
 		return true
 	default:
-		logger.Info("cannot push %v to chan errFag", v)
+		logger.Warnf("cannot push %v to chan errFag", v)
 		return false
 	}
 }
@@ -765,7 +793,7 @@ func tryPushBlockHeadersChan(ch chan<- FetchBlockHeaders, v FetchBlockHeaders) b
 	case ch <- v:
 		return true
 	default:
-		logger.Info("cannot push %v to chan FetchBlockHeaders", v)
+		logger.Warnf("cannot push %v to chan FetchBlockHeaders", v)
 		return false
 	}
 }

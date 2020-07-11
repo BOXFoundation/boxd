@@ -11,10 +11,13 @@ import (
 	"hash/crc64"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"sync"
+	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/boxd/service"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/log"
 	conv "github.com/BOXFoundation/boxd/p2p/convert"
 	"github.com/BOXFoundation/boxd/p2p/pstore"
@@ -36,10 +39,13 @@ var (
 	crc64Table = crc64.MakeTable(crc64.ECMA)
 
 	isSynced = false
+
+	ipRegex = "(2(5[0-5]{1}|[0-4]\\d{1})|[0-1]?\\d{1,2})(\\.(2(5[0-5]{1}|[0-4]\\d{1})|[0-1]?\\d{1,2})){3}"
 )
 
 // BoxPeer represents a connected remote node.
 type BoxPeer struct {
+	peertype        pstore.PeerType
 	conns           *sync.Map
 	config          *Config
 	host            host.Host
@@ -52,6 +58,7 @@ type BoxPeer struct {
 	scoremgr        *ScoreManager
 	addrbook        service.Server
 	bus             eventbus.Bus
+	minerreader     service.MinerReader
 }
 
 var _ Net = (*BoxPeer)(nil) // BoxPeer implements Net interface
@@ -61,7 +68,13 @@ func NewBoxPeer(parent goprocess.Process, config *Config, s storage.Storage, bus
 
 	proc := goprocess.WithParent(parent) // p2p proc
 	ctx := goprocessctx.OnClosingContext(proc)
-	boxPeer := &BoxPeer{conns: new(sync.Map), config: config, notifier: NewNotifier(), proc: proc, bus: bus}
+	boxPeer := &BoxPeer{
+		conns:    new(sync.Map),
+		config:   config,
+		notifier: NewNotifier(),
+		proc:     proc,
+		bus:      bus,
+	}
 	networkIdentity, err := loadNetworkIdentity(config.KeyPath)
 	if err != nil {
 		return nil, err
@@ -151,6 +164,16 @@ func saveNetworkIdentity(path string, key crypto.PrivKey) error {
 
 func (p *BoxPeer) handleStream(s libp2pnet.Stream) {
 	conn := NewConn(s, p, s.Conn().RemotePeer())
+	if !conn.KeepConn() {
+		s.Close()
+		logger.Warnf("%s, peer.ID: %s", ErrNoConnectPermission.Error(), conn.remotePeer.Pretty())
+		return
+	}
+	ptype, _ := p.Type(conn.remotePeer)
+	err := pstore.UpdateType(conn.remotePeer, uint32(ptype))
+	if err != nil {
+		logger.Error(err)
+	}
 	conn.Loop(p.proc)
 }
 
@@ -167,9 +190,32 @@ func (p *BoxPeer) Run() error {
 		p.connectSeeds()
 		p.table.Loop(p.proc)
 	}
+	go p.Metrics(p.proc)
 	p.notifier.Loop(p.proc)
 
 	return nil
+}
+
+// Metrics is used to measure data
+func (p *BoxPeer) Metrics(proc goprocess.Process) {
+
+	ticker := time.NewTicker(metricsLoopInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-proc.Closing():
+			logger.Info("Quit peer metrics.")
+			return
+		case <-ticker.C:
+			var len int64
+			p.conns.Range(func(k, v interface{}) bool {
+				len++
+				return true
+			})
+			metricsConnGauge.Update(len)
+		}
+	}
+
 }
 
 // Proc returns the gopreocess of database
@@ -206,6 +252,8 @@ func (p *BoxPeer) AddToPeerstore(maddr multiaddr.Multiaddr) error {
 		return err
 	}
 
+	ptype, _ := p.Type(pid)
+	p.table.peerStore.Put(pid, pstore.PTypeSuf, uint8(ptype))
 	// TODO, we must consider how long the peer should be in the peerstore,
 	// PermanentAddrTTL should only be for peer configured by user.
 	// Peer that is connected or observed from other peers should have different TTL.
@@ -229,7 +277,6 @@ func (p *BoxPeer) Broadcast(code uint32, msg conv.Convertible) error {
 		if p.id.Pretty() == conn.remotePeer.Pretty() {
 			return true
 		}
-		// go conn.Write(code, body)
 		go func(conn *Conn) {
 			if err := conn.Write(code, body); err != nil {
 				logger.Errorf("Failed to broadcast message to remote peer.Code: %X, Err: %v", code, err)
@@ -253,7 +300,8 @@ func (p *BoxPeer) BroadcastToBookkeepers(code uint32, msg conv.Convertible, book
 		}
 		pid, err := peer.IDB58Decode(v)
 		if err != nil {
-			return err
+			logger.Errorf("Failed to decode bookkeeper id. Err: %v", err)
+			continue
 		}
 		if c, ok := p.conns.Load(pid); ok {
 			conn := c.(*Conn)
@@ -341,19 +389,131 @@ func (p *BoxPeer) Conns() *sync.Map {
 func (p *BoxPeer) PickOnePeer(peersExclusive ...peer.ID) peer.ID {
 	var pid peer.ID
 	p.conns.Range(func(k, v interface{}) bool {
-		if !util.InArray(k, peersExclusive) {
-			pid = k.(peer.ID)
-			return false
+		for _, p := range peersExclusive {
+			if k.(peer.ID) == p {
+				return true
+			}
 		}
-		return true
+		pid = k.(peer.ID)
+		return false
+
 	})
 	return pid
 }
 
-// PeerSynced get sync states of remote peers
+// PeerSynced get sync states of remote peers.
 func (p *BoxPeer) PeerSynced(peerID peer.ID) (bool, bool) {
 	val, ok := p.conns.Load(peerID)
 	return val.(*Conn).isSynced, ok
+}
+
+// SetMinerReader set minerreader.
+func (p *BoxPeer) SetMinerReader(mr service.MinerReader) {
+	p.minerreader = mr
+}
+
+// Type return returns the type corresponding to the peer id.
+// The second return value indicates skepticism about the result.
+func (p *BoxPeer) Type(pid peer.ID) (pstore.PeerType, bool) {
+	for _, p := range agents {
+		if pid == p {
+			return pstore.ServerPeer, true
+		}
+	}
+	// Need to init minerreader.
+	if p.minerreader == nil {
+		return pstore.UnknownPeer, false
+	}
+	miners, canmint := p.minerreader.Miners()
+
+	pretty := pid.Pretty()
+	if util.InStrings(pretty, miners) {
+		return pstore.MinerPeer, true
+	}
+
+	candidates, _ := p.minerreader.Candidates()
+	if util.InStrings(pretty, candidates) {
+		return pstore.CandidatePeer, true
+	}
+
+	if len(miners) != 0 || (!canmint && len(miners) == 0) {
+		if pretty == p.id.Pretty() {
+			if len(principals) == 0 {
+				return pstore.LayfolkPeer, true
+			}
+			return pstore.ServerPeer, true
+		}
+	}
+
+	return pstore.LayfolkPeer, false
+}
+
+// ConnectingPeers return all connecting peers' ids.
+func (p *BoxPeer) ConnectingPeers() []string {
+	pids := []string{}
+	p.conns.Range(func(k, v interface{}) bool {
+		pids = append(pids, k.(peer.ID).Pretty())
+		return true
+	})
+	return pids
+}
+
+// PeerID return peer.ID.
+func (p *BoxPeer) PeerID() string {
+	return p.id.Pretty()
+}
+
+// Miners return miners and ips.
+func (p *BoxPeer) Miners() []*types.PeerInfo {
+	miners, _ := p.minerreader.Miners()
+	re, _ := regexp.Compile(ipRegex)
+
+	infos := []*types.PeerInfo{}
+	for _, m := range miners {
+		pid, err := peer.IDB58Decode(m)
+		if err != nil {
+			logger.Errorf("IDFromString failed, Err: %v, m: %s", err, m)
+			continue
+		}
+		info := p.table.peerStore.PeerInfo(pid)
+		iplist := []string{}
+		for _, ip := range info.Addrs {
+			ipp := re.Find([]byte(ip.String()))
+			if len(ipp) == 0 {
+				continue
+			}
+			iplist = append(iplist, string(ipp))
+		}
+
+		pinfo := &types.PeerInfo{
+			ID:     m,
+			Iplist: iplist,
+		}
+		infos = append(infos, pinfo)
+	}
+	return infos
+}
+
+// ReorgConns reorg conns by pids.
+func (p *BoxPeer) ReorgConns() uint8 {
+	peertype, nodoubt := p.Type(p.id)
+	if !nodoubt || (peertype != pstore.MinerPeer && peertype != pstore.CandidatePeer) {
+		return 0
+	}
+	close := uint8(0)
+	p.conns.Range(func(k, v interface{}) bool {
+		conn := v.(*Conn)
+		remotetype, _ := p.Type(conn.remotePeer)
+		if !util.InArray(remotetype, []pstore.PeerType{pstore.MinerPeer, pstore.CandidatePeer, pstore.ServerPeer}) {
+			if err := conn.Close(); err != nil {
+				logger.Errorf("Conn close failed. Err: %v", err)
+			} else {
+				close++
+			}
+		}
+		return true
+	})
+	return close
 }
 
 // UpdateSynced update peers' isSynced

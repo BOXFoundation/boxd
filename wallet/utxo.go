@@ -5,10 +5,11 @@
 package wallet
 
 import (
+	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/BOXFoundation/boxd/core"
@@ -30,6 +31,8 @@ const (
 
 var (
 	utxoCacheMtx sync.Mutex
+
+	errInsufficientUtxos = errors.New("insufficient utxos")
 )
 
 type scriptPubKeyFilter func(raw []byte) bool
@@ -52,13 +55,12 @@ func filterTokenTransfer(raw []byte) bool {
 }
 
 // BalanceFor returns balance amount of an address using balance index
-func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, error) {
-	// check addr
-	if _, err := types.NewAddress(addr); err != nil {
-		return 0, err
-	}
+func BalanceFor(
+	addrHash *types.AddressHash, tid *types.TokenID, db storage.Table,
+	txpool txPoolAPI,
+) (uint64, error) {
 	//
-	utxos, err := FetchUtxosOf(addr, tid, 0, true, db)
+	utxos, err := FetchUtxosOf(addrHash, tid, 0, true, db, txpool)
 	//logger.Debugf("fetch utxos of %s token %+v got %d utxos", addr, tid, len(utxos))
 	if err != nil {
 		return 0, err
@@ -66,7 +68,7 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 	var balance uint64
 	for _, u := range utxos {
 		if u == nil || u.IsSpent {
-			logger.Warnf("fetch utxos for %s error, utxo: %+v", addr, u)
+			logger.Warnf("fetch utxos for %x error, utxo: %+v", addrHash[:], u)
 			continue
 		}
 		n, _, err := txlogic.ParseUtxoAmount(u)
@@ -83,58 +85,65 @@ func BalanceFor(addr string, tid *types.TokenID, db storage.Table) (uint64, erro
 // NOTE: if total is 0, fetch all utxos
 // NOTE: if tokenID is nil, fetch box utxos
 func FetchUtxosOf(
-	addr string, tid *types.TokenID, total uint64, forBalance bool, db storage.Table,
+	addrHash *types.AddressHash, tid *types.TokenID, total uint64, forBalance bool,
+	db storage.Table, txpool txPoolAPI,
 ) ([]*rpcpb.Utxo, error) {
 
 	var utxoKey []byte
 	if tid == nil {
-		utxoKey = chain.AddrAllUtxoKey(addr)
+		utxoKey = chain.AddrAllUtxoKey(addrHash)
 	} else {
-		utxoKey = chain.AddrAllTokenUtxoKey(addr, *tid)
+		utxoKey = chain.AddrAllTokenUtxoKey(addrHash, *tid)
 	}
 	//
 	keys := db.KeysWithPrefix(utxoKey)
+	if len(keys) == 0 {
+		return nil, nil
+	}
 	// fetch all utxos if total equals to 0
 	if forBalance {
-		utxos, err := makeUtxosFromDB(keys, tid, db)
-		if err != nil {
-			return nil, err
-		}
-		return utxos, nil
+		return makeUtxosFromDB(keys, tid, db)
 	}
 	// fetch moderate utxos by adjustint to total
-	utxos, err := fetchModerateUtxos(keys, tid, total, db)
-	if err != nil {
+	utxos, amount, err := fetchModerateUtxos(keys, tid, total, db, txpool)
+	if err == nil {
+		return utxos, nil
+	}
+	if tid != nil {
 		return nil, err
 	}
-	return utxos, nil
+	if strings.HasPrefix(err.Error(), errInsufficientUtxos.Error()) {
+		extraFee := uint64(len(utxos)/core.InOutNumPerExtraFee) * core.TransferFee
+		amountP := total + extraFee - amount
+		utxosInTxPool, got, err1 := fetchUtxoFromTxPool(txpool, addrHash, amountP, len(utxos))
+		if err1 != nil {
+			return nil, fmt.Errorf("%s, %s", err, err1)
+		}
+		logger.Infof("got utxo for %s amount %d from db and %d from txpool",
+			addrHash, amount, got)
+		return append(utxos, utxosInTxPool...), nil
+	}
+	return nil, err
 }
 
 func fetchModerateUtxos(
 	keys [][]byte, tid *types.TokenID, total uint64, db storage.Table,
-) ([]*rpcpb.Utxo, error) {
+	txpool txPoolAPI,
+) ([]*rpcpb.Utxo, uint64, error) {
 
 	// update utxo cache
 	utxoLiveCache.Shrink()
 	// adjust amount to fetch
-	amountToFetch := total
-	if len(keys) > utxoMergeCnt || total == 0 {
-		logger.Infof("%s has %d utxos [tid: %v, request amount: %d], start utxos merger",
+	origTotal := total
+	if len(keys) > utxoMergeCnt {
+		logger.Infof("%s has %d utxos [tid: %v, request amount: %d], start merger",
 			key.NewKeyFromBytes(keys[0]).List()[1], len(keys), tid, total)
-		amountToFetch = math.MaxUint64
+		total = 0
 	}
 	// utxos fetch logic
 	result := make([]*rpcpb.Utxo, 0)
-	remain := amountToFetch
-	// here "remain <= amountToFetch", because remain and amountToFetch is uint64
-	for start := 0; start < len(keys) && remain <= amountToFetch; start += utxoSelUnitCnt {
-		// check utxos bound
-		if len(result) == core.MaxUtxosInTx {
-			if amountToFetch-remain > total {
-				return result, nil
-			}
-			return nil, core.ErrUtxosOob
-		}
+	now, extraFee := uint64(0), uint64(0)
+	for start := 0; start < len(keys); start += utxoSelUnitCnt {
 		// calc start and end keys
 		end := start + utxoSelUnitCnt
 		if end > len(keys) {
@@ -143,34 +152,63 @@ func fetchModerateUtxos(
 		// fetch utxo from db
 		origUtxos, err := makeUtxosFromDB(keys[start:end], tid, db)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		// filter utxos in cache
+		// filter utxos in cache and tx pool
 		utxos := make([]*rpcpb.Utxo, 0, len(origUtxos))
 		utxoCacheMtx.Lock()
 		for _, u := range origUtxos {
+			// filter in cache
 			if utxoLiveCache.Contains(txlogic.ConvPbOutPoint(u.OutPoint)) {
+				continue
+			}
+			// filter in txpool
+			if tx := txpool.FindTransaction(txlogic.ConvPbOutPoint(u.OutPoint)); tx != nil {
 				continue
 			}
 			utxos = append(utxos, u)
 		}
 		// select utxos
-		selUtxos, amount := selectUtxos(utxos, tid, remain)
+		selUtxos, amount := selectUtxos(utxos, tid, total-now, len(result)%core.InOutNumPerExtraFee)
 		// add utxos to LiveUtxoCache
 		for _, u := range utxos {
 			utxoLiveCache.Add(txlogic.ConvPbOutPoint(u.OutPoint))
 		}
 		utxoCacheMtx.Unlock()
-
-		remain -= amount
+		// check utxos oob
+		if len(result)+len(selUtxos) >= core.MaxVinInTx {
+			if origTotal == 0 {
+				return append(result, selUtxos[:core.MaxVinInTx-len(result)]...), 0, nil
+			}
+			extraFee = uint64(core.MaxVinInTx/core.InOutNumPerExtraFee) * core.TransferFee
+			if now+amount < origTotal+extraFee {
+				return nil, 0, core.ErrUtxosOob
+			}
+			bit := uint64(0)
+			for i, u := range selUtxos {
+				bit += u.TxOut.Value
+				extraFee = uint64((len(result)+i+1)/core.InOutNumPerExtraFee) * core.TransferFee
+				if len(result)+i+1 <= core.MaxVinInTx && now+bit >= origTotal+extraFee {
+					return append(result, selUtxos[:i+1]...), now + bit, nil
+				}
+			}
+			return nil, 0, core.ErrUtxosOob
+		}
+		//
 		result = append(result, selUtxos...)
+		extraFee = uint64(len(result)/core.InOutNumPerExtraFee) * core.TransferFee
+		now += amount
+		if total != 0 && now >= total+extraFee {
+			return result, now, nil
+		}
 	}
-	if amountToFetch != math.MaxUint64 && remain > 0 && remain <= amountToFetch {
-		return nil, fmt.Errorf("amount for %d utxo %d is less than total %d wanted",
-			len(result), amountToFetch-remain, total)
+	if now >= origTotal+extraFee {
+		return result, now, nil
 	}
-
-	return result, nil
+	err := fmt.Errorf("%s(fetch %d utxos in db amount %d that is less than %d "+
+		"requested add extraFee: %d)", errInsufficientUtxos, len(result), now,
+		origTotal, extraFee)
+	return result, now, err
 }
 
 func makeUtxosFromDB(
@@ -254,7 +292,7 @@ func makeUtxosFromDB(
 }
 
 func selectUtxos(
-	utxos []*rpcpb.Utxo, tid *types.TokenID, amount uint64,
+	utxos []*rpcpb.Utxo, tid *types.TokenID, amount uint64, preUtxoCnt int,
 ) ([]*rpcpb.Utxo, uint64) {
 
 	total := uint64(0)
@@ -271,7 +309,12 @@ func selectUtxos(
 		}
 		total += amount
 	}
-	if total <= amount {
+	if amount == 0 {
+		return utxos, total
+	}
+	extraFee := uint64((len(utxos)+preUtxoCnt)/core.InOutNumPerExtraFee) *
+		core.TransferFee
+	if total <= amount+extraFee {
 		return utxos, total
 	}
 	// sort
@@ -282,12 +325,13 @@ func selectUtxos(
 	}
 	// select
 	i, total := 0, uint64(0)
-	for k := 0; k < len(utxos) && total < amount; k++ {
-		// filter utxos already in cache
-		// have check tid and err in the front
+	extraFee = 0
+	for k := 0; k < len(utxos) && total < amount+extraFee; k++ {
+		// filter utxos already in cache, have check tid and err in the front
 		amount, _, _ := txlogic.ParseUtxoAmount(utxos[i])
 		total += amount
 		i++
+		extraFee = uint64((k+1+preUtxoCnt)/core.InOutNumPerExtraFee) * core.TransferFee
 	}
 	return utxos[:i], total
 }
@@ -330,4 +374,44 @@ func parseOutPointFromKeys(segs []string) (*types.OutPoint, error) {
 		return nil, err
 	}
 	return types.NewOutPoint(hash, uint32(index)), nil
+}
+
+func fetchUtxoFromTxPool(
+	txpool txPoolAPI, addr *types.AddressHash, amount uint64,
+	preUtxoCnt int,
+) ([]*rpcpb.Utxo, uint64, error) {
+	var utxos []*rpcpb.Utxo
+	total, extraFee := uint64(0), uint64(0)
+	preUtxoRemain := preUtxoCnt % core.InOutNumPerExtraFee
+	for _, wrap := range txpool.GetAllTxs() {
+		//if !wrap.IsScriptValid {
+		//	continue
+		//}
+		txHash, _ := wrap.Tx.TxHash()
+		for i, txOut := range wrap.Tx.Vout {
+			sc := script.NewScriptFromBytes(txOut.ScriptPubKey)
+			if !sc.IsPayToPubKeyHash() {
+				continue
+			}
+			if ah, _ := sc.ExtractAddress(); *ah.Hash160() != *addr {
+				continue
+			}
+			op := types.NewOutPoint(txHash, uint32(i))
+			utxoWrap := types.NewUtxoWrap(txOut.Value, txOut.ScriptPubKey, wrap.Height)
+			utxos = append(utxos, txlogic.MakePbUtxo(op, utxoWrap))
+			total += txOut.Value
+			extraFee = uint64((len(utxos)+preUtxoRemain)/core.InOutNumPerExtraFee) * core.TransferFee
+			if total >= amount+extraFee {
+				return utxos, total, nil
+			}
+			preUtxoCnt++
+			if preUtxoCnt >= core.MaxVinInTx {
+				return nil, 0, core.ErrUtxosOob
+			}
+		}
+	}
+	err := fmt.Errorf("%s(fetch %d utxos in txpool amount %d that is less than %d "+
+		"requested add extraFee: %d)", errInsufficientUtxos, len(utxos), total,
+		amount, extraFee)
+	return nil, total, err
 }

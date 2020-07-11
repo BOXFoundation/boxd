@@ -166,6 +166,7 @@ func (db *rocksdb) Close() error {
 	db.writeOptions.Destroy()
 	db.readOptions.Destroy()
 	db.flushOptions.Destroy()
+	db.dboptions.Destroy()
 
 	close(db.writeLock)
 	db.cfs = nil

@@ -20,6 +20,8 @@ log:
 p2p:
     key_path: peer.key
     port: 19199
+    agents:
+        - "/ip4/127.0.0.1/tcp/19189/p2p/12D3KooWKPRAK7vBBrVv9szEin55kBnJEEuHG4gDTQEM72ByZDpA"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
@@ -29,8 +31,15 @@ rpc:
     port: 19191
     http:
         port: 19190
-    faucet_keyfile: ./keyfile/key1.keystore
-dpos:
+    faucet:
+        keyfile: ./keyfile/key1.keystore
+        white_list:
+            - 161.117.80.37
+            - 127.0.0.1
+
+    subscribe_blocks: true
+    subscribe_logs: true
+bpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1
@@ -44,5 +53,4 @@ metrics:
     tags: [region:us-west, host:box-1]
 wallet:
     enable: true
-    cache_size: 512
-    utxo_cache_time: 10
+    utxo_cache_time: 1

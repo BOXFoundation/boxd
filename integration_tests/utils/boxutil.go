@@ -15,6 +15,7 @@ import (
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/types"
+	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/log"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -80,8 +81,8 @@ func UnlockAccount(addr string) *acc.Account {
 	return account
 }
 
-// MinerAccounts get miners' accounts
-func MinerAccounts(keyFiles ...string) ([]string, []*acc.Account) {
+// LoadAccounts get miners' accounts
+func LoadAccounts(keyFiles ...string) ([]string, []*acc.Account) {
 	var (
 		addrs    []string
 		accounts []*acc.Account
@@ -275,6 +276,36 @@ func CallContract(addr, contractAddr string, code []byte, conn *grpc.ClientConn)
 	return output
 }
 
+// Table get connecting peers' id
+func Table(conn *grpc.ClientConn) []string {
+	client := rpcpb.NewWebApiClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req := &rpcpb.TableReq{}
+	resp, err := client.Table(ctx, req)
+	if err != nil {
+		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Panic(errors.New(resp.Message))
+	}
+	return resp.Table
+}
+
+// PeerID get peer's id
+func PeerID(conn *grpc.ClientConn) string {
+	client := rpcpb.NewAdminControlClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req := &rpcpb.PeerIDReq{}
+	resp, err := client.PeerID(ctx, req)
+	if err != nil {
+		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Panic(errors.New(resp.Message))
+	}
+	return resp.Peerid
+}
+
 func parseContractNumberResult(ret []byte) (uint64, error) {
 	r, err := strconv.ParseUint(hex.EncodeToString(ret), 16, 64)
 	if err != nil {
@@ -331,4 +362,18 @@ func NonceFor(addr string, conn *grpc.ClientConn) uint64 {
 		logger.Panic(errors.New(resp.Message))
 	}
 	return resp.Nonce
+}
+
+// QueryTxGasUsed get tx gas used
+func QueryTxGasUsed(hash *crypto.HashType, conn *grpc.ClientConn) (uint64, error) {
+	client := rpcpb.NewWebApiClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	resp, err := client.ViewTxDetail(ctx, &rpcpb.ViewTxDetailReq{Hash: hash.String()})
+	if err != nil {
+		logger.Panic(err)
+	} else if resp.Code != 0 {
+		logger.Warnf("query tx %s gas used error %s", hash, resp.Message)
+	}
+	return resp.GetDetail().Vout[0].GetContractInfo().GetGasUsed(), nil
 }

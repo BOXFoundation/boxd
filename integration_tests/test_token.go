@@ -9,10 +9,10 @@ import (
 	"math/rand"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
@@ -62,17 +62,22 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	defer conn.Close()
 	//
-	miner, ok := PickOneMiner()
+	loaner, ok := PickOneMiner()
 	if !ok {
-		logger.Warnf("have no miner address to pick")
+		logger.Warnf("have no loaner address to pick")
 		return true
 	}
-	defer UnpickMiner(miner)
+	defer UnpickMiner(loaner)
 	//
-	testFee, subsidy := uint64(100000), uint64(1000)
+	curTimes := utils.TokenRepeatTxTimes()
+	if utils.TokenRepeatRandom() {
+		curTimes = 1 + rand.Intn(utils.TokenRepeatTxTimes())
+	}
+	//
+	totalFee := uint64(curTimes+2) * 2 * core.TransferFee
 	logger.Infof("waiting for minersAddr %s has %d at least for token test",
-		miner, testFee+2*subsidy)
-	_, err = utils.WaitBalanceEnough(miner, testFee+2*subsidy, conn, timeoutToChain)
+		loaner, totalFee)
+	_, err = utils.WaitBalanceEnough(loaner, totalFee, conn, timeoutToChain)
 	if err != nil {
 		logger.Error(err)
 		return true
@@ -82,9 +87,12 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return true
 	}
 	issuer, sender, receivers := addrs[0], addrs[1], addrs[2:]
-	minerAcc, _ := AddrToAcc.Load(miner)
-	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{issuer, sender},
-		[]uint64{subsidy, testFee}, conn)
+	issuerAddress, _ := types.NewAddress(issuer)
+	senderAddress, _ := types.NewAddress(sender)
+	minerAcc, _ := AddrToAcc.Load(loaner)
+	tx, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
+		[]*types.AddressHash{issuerAddress.Hash160(), senderAddress.Hash160()},
+		[]uint64{2 * core.TransferFee, totalFee - 2*core.TransferFee}, conn)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -94,14 +102,10 @@ func (t *TokenTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		logger.Error(err)
 		return
 	}
-	UnpickMiner(miner)
+	UnpickMiner(loaner)
 	atomic.AddUint64(&t.txCnt, 1)
-	totalSupply := uint64(10000)
+	totalSupply := uint64(1000 * 1e8)
 	tag := txlogic.NewTokenTag("box token", "FOX", 6, totalSupply)
-	curTimes := utils.TokenRepeatTxTimes()
-	if utils.TokenRepeatRandom() {
-		curTimes = rand.Intn(utils.TokenRepeatTxTimes())
-	}
 	tokenRepeatTest(issuer, sender, receivers[0], tag, curTimes, &t.txCnt, conn)
 	//
 	return
@@ -121,7 +125,10 @@ func tokenRepeatTest(issuer, sender, receiver string,
 	logger.Infof("%s issue %d token to %s", issuer, tag.Supply, sender)
 
 	issuerAcc, _ := AddrToAcc.Load(issuer)
-	tx, tid, _, err := rpcutil.NewIssueTokenTx(issuerAcc.(*acc.Account), sender, tag, conn)
+	senderAddress, _ := types.NewAddress(sender)
+	receiverAddress, _ := types.NewAddress(receiver)
+	tx, tid, _, err := rpcutil.NewIssueTokenTx(issuerAcc.(*acc.Account),
+		senderAddress.Hash160(), tag, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -150,7 +157,7 @@ func tokenRepeatTest(issuer, sender, receiver string,
 	logger.Infof("start to create %d token txs from %s to %s", times, sender, receiver)
 	txTotalAmount := totalAmount/2 + uint64(rand.Int63n(int64(totalAmount)/2))
 	senderAcc, _ := AddrToAcc.Load(sender)
-	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiver,
+	txs, err := rpcutil.NewTokenTxs(senderAcc.(*acc.Account), receiverAddress.Hash160(),
 		txTotalAmount, times, tid.Hash.String(), tid.Index, conn)
 	if err != nil {
 		logger.Panic(err)
@@ -164,7 +171,7 @@ func tokenRepeatTest(issuer, sender, receiver string,
 			logger.Panic(err)
 		}
 		atomic.AddUint64(txCnt, 1)
-		time.Sleep(2 * time.Millisecond)
+		//time.Sleep(2 * time.Millisecond)
 	}
 	logger.Infof("%s sent %d times total %d token tx to %s", sender, times,
 		txTotalAmount, receiver)

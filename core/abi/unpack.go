@@ -5,6 +5,7 @@
 package abi
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -22,6 +23,7 @@ var (
 	maxInt256 = big.NewInt(0).Add(
 		big.NewInt(0).Exp(big.NewInt(2), big.NewInt(255), nil),
 		big.NewInt(-1))
+	errMsgPrefix = []byte{0x8, 0xc3, 0x79, 0xa0}
 )
 
 // reads the integer based on its kind
@@ -258,7 +260,7 @@ func lengthPrefixPointsTo(index int, output []byte) (start int, length int, err 
 	totalSize.Add(totalSize, bigOffsetEnd)
 	totalSize.Add(totalSize, lengthBig)
 	if totalSize.BitLen() > 63 {
-		return 0, 0, fmt.Errorf("abi length larger than int64: %v", totalSize)
+		return 0, 0, fmt.Errorf("abi: length larger than int64: %v", totalSize)
 	}
 
 	if totalSize.Cmp(outputLength) > 0 {
@@ -281,4 +283,28 @@ func tuplePointsTo(index int, output []byte) (start int, err error) {
 		return 0, fmt.Errorf("abi offset larger than int64: %v", offset)
 	}
 	return int(offset.Uint64()), nil
+}
+
+// UnpackErrMsg decode err message from vm.
+func UnpackErrMsg(data []byte) (string, error) {
+	msg, err := UnpackByTypeName("string", data)
+	if err != nil {
+		return "", err
+	}
+	return msg.(string), nil
+}
+
+// UnpackByTypeName unpack bytes to Basic types.
+func UnpackByTypeName(typname string, data []byte) (interface{}, error) {
+	data = bytes.TrimPrefix(data, errMsgPrefix)
+
+	typ, err := NewType(typname, []ArgumentMarshaling{})
+	if err != nil {
+		return nil, err
+	}
+	msg, err := toGoType(0, typ, data)
+	if err != nil {
+		return nil, err
+	}
+	return msg, err
 }

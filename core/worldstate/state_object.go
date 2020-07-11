@@ -48,7 +48,7 @@ func (s Storage) Copy() Storage {
 	return cpy
 }
 
-// stateObject represents an Ethereum account which is being modified.
+// stateObject represents an account which is being modified.
 //
 // The usage pattern is as follows:
 // First you need to obtain a state object.
@@ -56,7 +56,7 @@ func (s Storage) Copy() Storage {
 // Finally, call CommitTrie to write the modified storage trie into a database.
 type stateObject struct {
 	address  types.AddressHash
-	addrHash corecrypto.HashType // hash of ethereum address of the account
+	addrHash corecrypto.HashType // hash of address of the account
 	data     Account
 	db       *StateDB
 
@@ -87,7 +87,7 @@ func (s *stateObject) empty() bool {
 	return s.data.Nonce == 0 && s.data.Balance.Sign() == 0 && bytes.Equal(s.data.CodeHash, emptyCodeHash)
 }
 
-// Account is the Ethereum consensus representation of accounts.
+// Account represent vm accounts.
 // These objects are stored in the main account trie.
 type Account struct {
 	Nonce    uint64
@@ -238,7 +238,7 @@ func (s *stateObject) updateTrie() *trie.Trie {
 func (s *stateObject) updateRoot() {
 	s.updateTrie()
 	s.data.Root = s.trie.Hash()
-	logger.Debugf("DEBUG: state object update addr %x root: %s", s.address[:], s.data.Root)
+	//logger.Debugf("DEBUG: state object update addr %x root: %s", s.address[:], s.data.Root)
 }
 
 // CommitTrie the storage trie of the object to dwb.
@@ -248,10 +248,8 @@ func (s *stateObject) CommitTrie() (*corecrypto.HashType, error) {
 	if s.dbErr != nil {
 		return nil, s.dbErr
 	}
-	//return s.trie.Commit()
-	root, _ := s.trie.Commit()
-	logger.Debugf("DEBUG: state object CommitTrie addr %x root: %s", s.address[:], root)
-	return root, nil
+	//logger.Debugf("DEBUG: state object CommitTrie addr %x root: %s", s.address[:], s.trie.RootHash())
+	return s.trie.RootHash(), nil
 }
 
 // AddBalance removes amount from c's balance.

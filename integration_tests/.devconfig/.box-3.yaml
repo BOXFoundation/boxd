@@ -11,8 +11,8 @@ log:
     hooks:
         - name: filewithformatter
           options:
-              filename: box.log
-              maxlines: 100000
+              filename: box3.log
+              maxlines: 10000000
               # daily: true
               # maxsize: 10240000
               rotate: true
@@ -22,6 +22,8 @@ p2p:
     port: 19179
     seeds:
         - "/ip4/127.0.0.1/tcp/19199/p2p/12D3KooWFQ2naj8XZUVyGhFzBTEMrMc6emiCEDKLjaJMsK7p8Cza"
+    agents:
+        - "/ip4/127.0.0.1/tcp/19119/p2p/12D3KooWGgHsb5HdJUUhaSC5BSSHmuE1esTXT1W1XX5hibtraoGb"
     bucket_size: 16
     latency: 10
     conn_max_capacity: 200
@@ -33,7 +35,7 @@ rpc:
         port: 19130
     subscribe_blocks: true
     subscribe_logs: true
-dpos:
+bpos:
     keypath: key.keystore
     enable_mint: true
     passphrase: 1
@@ -46,5 +48,4 @@ metrics:
     tags: [region:us-west, host:box-3]
 wallet:
     enable: true
-    cache_size: 512
     utxo_cache_time: 1

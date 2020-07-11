@@ -5,6 +5,9 @@
 package types
 
 import (
+	"encoding/hex"
+	"encoding/json"
+
 	"github.com/BOXFoundation/boxd/core"
 	corepb "github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -43,6 +46,32 @@ type Log struct {
 	Removed bool `json:"removed"`
 }
 
+// MarshalJSON implements Log json marshaler interface
+func (log *Log) MarshalJSON() ([]byte, error) {
+	out := struct {
+		Address     AddressHash       `json:"address"`
+		Topics      []crypto.HashType `json:"topics"`
+		Data        string            `json:"data"`
+		BlockNumber uint64            `json:"blockNumber"`
+		TxHash      crypto.HashType   `json:"transactionHash"`
+		TxIndex     uint32            `json:"transactionIndex"`
+		BlockHash   crypto.HashType   `json:"blockHash"`
+		Index       uint32            `json:"logIndex"`
+		Removed     bool              `json:"removed"`
+	}{
+		log.Address,
+		log.Topics,
+		hex.EncodeToString(log.Data),
+		log.BlockNumber,
+		log.TxHash,
+		log.TxIndex,
+		log.BlockHash,
+		log.Index,
+		log.Removed,
+	}
+	return json.Marshal(out)
+}
+
 func (log *Log) toHashLog() *hashLog {
 	hashlog := new(hashLog)
 	copy(hashlog.Address[:], log.Address[:])
@@ -76,7 +105,7 @@ func (log *Log) ToProtoMessage() (proto.Message, error) {
 	return &corepb.Log{
 		Address:     log.Address[:],
 		Topics:      topics,
-		Data:        log.Data,
+		Data:        log.Data[:],
 		BlockNumber: log.BlockNumber,
 		TxHash:      log.TxHash[:],
 		TxIndex:     log.TxIndex,
@@ -102,7 +131,8 @@ func (log *Log) FromProtoMessage(message proto.Message) error {
 		log.Topics[i] = *hash
 		copy(log.Topics[i][:], topic[:])
 	}
-	copy(log.Data[:], pblog.Data[:])
+	log.Data = make([]byte, len(pblog.Data))
+	copy(log.Data, pblog.Data)
 	log.BlockNumber = pblog.BlockNumber
 	copy(log.TxHash[:], pblog.TxHash[:])
 	log.TxIndex = pblog.TxIndex
@@ -155,6 +185,7 @@ func (log *hashLog) FromProtoMessage(message proto.Message) error {
 		log.Topics[i] = *hash
 		copy(log.Topics[i][:], topic[:])
 	}
+	log.Data = make([]byte, len(pblog.Data))
 	copy(log.Data[:], pblog.Data[:])
 	return nil
 }

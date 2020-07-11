@@ -11,10 +11,13 @@ import "log.proto";
 message Receipt {
   bytes tx_hash = 1;
   uint32 tx_index = 2;
-  bool failed = 3;
-  uint64 gas_used = 4;
-  repeated Log logs = 5;
-  bytes bloom = 6;
+  bool deployed = 3;
+  bool failed = 4;
+  uint64 gas_used = 5;
+  repeated bytes internal_txs = 6;
+  repeated Log logs = 7;
+  bytes bloom = 8;
+  string err_msg = 9;
 }
 
 message Receipts {
@@ -24,10 +27,13 @@ message Receipts {
 message HashReceipt {
   bytes tx_hash = 1;
   uint32 tx_index = 2;
-  bool failed = 3;
-  uint64 gas_used = 4;
-  repeated HashLog logs = 5;
-  bytes bloom = 6;
+  bool deployed = 3;
+  bool failed = 4;
+  uint64 gas_used = 5;
+  repeated bytes internal_txs = 6;
+  repeated HashLog logs = 7;
+  bytes bloom = 8;
+  string err_msg = 9;
 }
 
 message HashReceipts {

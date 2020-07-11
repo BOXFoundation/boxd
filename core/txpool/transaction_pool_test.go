@@ -11,7 +11,6 @@ import (
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/chain"
-	"github.com/BOXFoundation/boxd/core/pb"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
 	"github.com/BOXFoundation/boxd/p2p"
@@ -39,7 +38,7 @@ var (
 )
 
 // create a child tx spending parent tx's output
-func createChildTx(parentTx *types.Transaction) *types.Transaction {
+func createChildTx(parentTx *types.Transaction, value uint64) *types.Transaction {
 	outPoint := types.OutPoint{
 		Hash:  *getTxHash(parentTx),
 		Index: txOutIdx,
@@ -52,11 +51,11 @@ func createChildTx(parentTx *types.Transaction) *types.Transaction {
 	vIn := []*types.TxIn{
 		txIn,
 	}
-	txOut := &corepb.TxOut{
+	txOut := &types.TxOut{
 		Value:        value,
 		ScriptPubKey: *scriptPubKey,
 	}
-	vOut := []*corepb.TxOut{txOut}
+	vOut := []*types.TxOut{txOut}
 	tx := &types.Transaction{
 		Version:  1,
 		Vin:      vIn,
@@ -91,9 +90,10 @@ func getTxHash(tx *types.Transaction) *crypto.HashType {
 	return txHash
 }
 
-func verifyProcessTx(t *testing.T, tx *types.Transaction, expectedErr error,
-	isTransactionInPool, isOrphanInPool bool) {
-
+func verifyProcessTx(
+	t *testing.T, tx *types.Transaction, expectedErr error,
+	isTransactionInPool, isOrphanInPool bool,
+) {
 	err := txpool.ProcessTx(tx, core.DefaultMode)
 	ensure.DeepEqual(t, err, expectedErr)
 	verifyTxInPool(t, tx, isTransactionInPool, isOrphanInPool)
@@ -116,42 +116,48 @@ func TestProcessTx(t *testing.T) {
 	verifyProcessTx(t, tx0, core.ErrCoinbaseTx, false, false)
 
 	// manually add tx0 into pool as utxo to bootstrap; otherwise no tx can be accepted
-	txpool.addTx(tx0, chainHeight, 0)
+	txpool.addTx(tx0, chainHeight)
 
 	// tx0(m) <- tx1(m)
 	// tx1 is admitted into main pool since it spends from a valid UTXO, i.e., coinbaseTx
-	tx1 := createChildTx(tx0)
+	value := chain.BaseSubsidy - core.TransferFee
+	tx1 := createChildTx(tx0, value)
 	verifyProcessTx(t, tx1, nil, true, false)
 
 	// a duplicate tx1, already exists in tx pool
 	verifyProcessTx(t, tx1, core.ErrDuplicateTxInPool, true, false)
 
 	// tx0(m) <- tx1(m) <- tx2(m)
-	tx2 := createChildTx(tx1)
+	value -= core.FixedGasPrice * core.TransferGasLimit
+	tx2 := createChildTx(tx1, value)
 	verifyProcessTx(t, tx2, nil, true, false)
 
 	// tx2 is already in the main pool. Ignore.
 	verifyProcessTx(t, tx2, core.ErrDuplicateTxInPool, true, false)
 
 	// Withhold tx3 for now
-	tx3 := createChildTx(tx2)
+	value -= core.FixedGasPrice * core.TransferGasLimit
+	tx3 := createChildTx(tx2, value)
 
 	// tx4 is orphaned since tx3 is missing
 	// tx0(m) <- tx1(m) <- tx2(m)
 	// tx4(o)
-	tx4 := createChildTx(tx3)
+	value -= core.FixedGasPrice * core.TransferGasLimit
+	tx4 := createChildTx(tx3, value)
 	verifyProcessTx(t, tx4, core.ErrOrphanTransaction, false, true)
 
 	// tx5 is orphaned since tx4 is missing
 	// tx0(m) <- tx1(m) <- tx2(m)
 	// tx4(o) <- tx5(o)
-	tx5 := createChildTx(tx4)
+	value -= core.FixedGasPrice * core.TransferGasLimit
+	tx5 := createChildTx(tx4, value)
 	verifyProcessTx(t, tx5, core.ErrOrphanTransaction, false, true)
 
 	// tx6 is orphaned since tx5 is missing
 	// tx0(m) <- tx1(m) <- tx2(m)
 	// tx4(o) <- tx5(o) <- tx6(o)
-	tx6 := createChildTx(tx5)
+	value -= core.FixedGasPrice * core.TransferGasLimit
+	tx6 := createChildTx(tx5, value)
 	verifyProcessTx(t, tx6, core.ErrOrphanTransaction, false, true)
 
 	ensure.DeepEqual(t, len(txpool.GetAllTxs()), 3)

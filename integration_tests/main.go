@@ -6,16 +6,21 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/BOXFoundation/boxd/core"
+	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/integration_tests/utils"
 	"github.com/BOXFoundation/boxd/log"
+	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
+	"github.com/jbenet/goprocess"
+	"google.golang.org/grpc"
 )
 
 type scopeValue string
@@ -26,6 +31,8 @@ const (
 	mainScope     scopeValue = "main"
 	fullScope     scopeValue = "full"
 	continueScope scopeValue = "continue"
+
+	testCoins uint64 = 50 * core.DuPerBox
 )
 
 var logger = log.NewLogger("integration") // logger
@@ -33,9 +40,12 @@ var logger = log.NewLogger("integration") // logger
 var (
 	scope = flag.String("scope", "basic", "can select basic/main/full/continue cases")
 
-	peersAddr  []string
-	minerAddrs []string
-	minerAccs  []*acc.Account
+	peersAddr []string
+	origAddrs []string
+	origAccs  []*acc.Account
+
+	preAddr string
+	preAcc  *acc.Account
 
 	//AddrToAcc stores addr to account
 	AddrToAcc = new(sync.Map)
@@ -45,20 +55,26 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-func initMinerAcc() {
-	minerCnt := len(utils.MinerAddrs())
-	files := make([]string, minerCnt)
-	for i := 0; i < minerCnt; i++ {
-		files[i] = utils.LocalConf.KeyDir + fmt.Sprintf("key%d.keystore", i+1)
+func initAcc() {
+	origAccCnt := 6
+	origAddrs = utils.GenTestAddr(origAccCnt)
+	logger.Debugf("original account addrs: %v\n", origAddrs)
+	for _, addr := range origAddrs {
+		acc := utils.UnlockAccount(addr)
+		AddrToAcc.Store(addr, acc)
+		origAccs = append(origAccs, acc)
 	}
-	minerAddrs, minerAccs = utils.MinerAccounts(files...)
-	logger.Infof("minersAddrs: %v", minerAddrs)
-	for i, addr := range minerAddrs {
-		AddrToAcc.Store(addr, minerAccs[i])
-	}
+	utils.RemoveKeystoreFiles(origAddrs...)
+
+	preKeyStore := utils.LocalConf.KeyDir + "pre.keystore"
+	preAddrs, preAccs := utils.LoadAccounts(preKeyStore)
+	preAddr, preAcc = preAddrs[0], preAccs[0]
+	AddrToAcc.Store(preAddr, preAcc)
+	logger.Infof("init pre-allocation accounts: %s", preAddr)
 }
 
 func main() {
+	proc := goprocess.WithSignals(os.Interrupt)
 	defer func() {
 		if x := recover(); x != nil {
 			os.Exit(1)
@@ -68,15 +84,16 @@ func main() {
 	if err := utils.LoadConf(); err != nil {
 		logger.Panic(err)
 	}
-	initMinerAcc()
-	initMinerPicker(len(minerAddrs))
+	initAcc()
+	initOrigMinerPicker(len(origAddrs))
 	peersAddr = utils.PeerAddrs()
 
 	if *utils.NewNodes {
 		// prepare environment and clean history data
-		if err := utils.PrepareEnv(len(minerAddrs)); err != nil {
+		if err := utils.PrepareEnv(len(utils.MinerAddrs())); err != nil {
 			logger.Panic(err)
 		}
+		//logger.Warnf("miner addrs: %v", utils.MinerAddrs())
 		//defer utils.TearDown(len(minerAddrs))
 
 		// start nodes
@@ -86,8 +103,11 @@ func main() {
 			}
 			defer utils.StopNodes()
 		} else {
-			processes, err := utils.StartLocalNodes(len(minerAddrs))
+			processes, err := utils.StartLocalNodes(len(utils.AllAddrs()))
 			defer utils.StopLocalNodes(processes...)
+			if utils.P2pTestEnable() {
+				go testP2p(proc)
+			}
 			if err != nil {
 				logger.Panic(err)
 			}
@@ -96,9 +116,6 @@ func main() {
 	}
 
 	switch scopeValue(*scope) {
-	case continueScope:
-		// print tx count per TickerDurationTxs
-		go CountGlobalTxs()
 	case voidScope:
 		logger.Info("integration run in void mode, nodes run without txs")
 		quitCh := make(chan os.Signal, 1)
@@ -106,16 +123,23 @@ func main() {
 		<-quitCh
 		logger.Info("quit integration in void mode")
 		return
+	case continueScope:
+		// print tx count per TickerDurationTxs
+		go CountGlobalTxs()
+		fallthrough
+	default:
+		go func() {
+			// wait 10 seconds for nodes connects each other and run steadily
+			time.Sleep(10 * time.Second)
+			topupOrigAccs()
+		}()
 	}
 
+	errChans := make(chan error, len(testItems()))
 	var wg sync.WaitGroup
-	testCnt := 3
-	errChans := make(chan error, testCnt)
-
 	for _, f := range testItems() {
 		runItem(&wg, errChans, f)
 	}
-
 	wg.Wait()
 	for len(errChans) > 0 {
 		utils.TryRecordError(<-errChans)
@@ -154,4 +178,69 @@ func testItems() []func() {
 	}
 
 	return items
+}
+
+func topupOrigAccs() {
+	defer func() {
+		if x := recover(); x != nil {
+			logger.Warn(x)
+		}
+	}()
+	// quit channel
+	quitCh := make(chan os.Signal, 1)
+	signal.Notify(quitCh, os.Interrupt, os.Kill)
+	// conn
+	conn, err := grpc.Dial(peersAddr[0], grpc.WithInsecure())
+	if err != nil {
+		logger.Panic(err)
+	}
+	defer conn.Close()
+
+	t := time.NewTicker(2 * time.Second)
+	defer t.Stop()
+	origAccCnt := len(origAddrs)
+	i := 0
+	for {
+		var balance uint64
+		select {
+		case <-t.C:
+			balance, err = utils.BalanceNoPanicFor(preAddr, conn)
+			if err != nil {
+				logger.Errorf("fetch balance for pre addr %s error %s", preAddr, err)
+				continue
+			}
+			accI, accJ, accK := origAccs[i%origAccCnt], origAccs[(i+2)%origAccCnt],
+				origAccs[(i+4)%origAccCnt]
+			i++
+			tx, _, err := rpcutil.NewTx(preAcc,
+				[]*types.AddressHash{accI.AddressHash(), accJ.AddressHash(), accK.AddressHash()},
+				[]uint64{testCoins, testCoins, testCoins}, conn)
+			if err != nil {
+				logger.Errorf("new tx for pre addr %s to origal account %s %s error %s",
+					preAddr, accI.Addr(), accJ.Addr(), accK.Addr(), err)
+				continue
+			}
+			_, err = rpcutil.SendTransaction(conn, tx)
+			if err != nil && !strings.Contains(err.Error(), core.ErrOrphanTransaction.Error()) {
+				logger.Error(err)
+				continue
+				//logger.Panic(err)
+			}
+			select {
+			case <-quitCh:
+				logger.Info("quit topupOrigAccs.")
+				return
+			default:
+			}
+		case <-quitCh:
+			logger.Info("quit topupOrigAccs.")
+			return
+		}
+		_, err = utils.WaitBalanceEqual(preAddr, balance-3*testCoins-core.TransferFee,
+			conn, 10*time.Second)
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
+	}
 }

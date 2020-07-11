@@ -9,7 +9,7 @@ import (
 	"math"
 	"math/big"
 
-	corepb "github.com/BOXFoundation/boxd/core/pb"
+	"github.com/BOXFoundation/boxd/core/abi"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/script"
 	"github.com/BOXFoundation/boxd/vm"
@@ -114,7 +114,7 @@ func (st *StateTransition) useGas(amount uint64) error {
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 	if st.state.GetBalance(*st.msg.From()).Cmp(mgval) < 0 {
-		logger.Warnf("bug gas error: balance for %s %d, need %d", st.msg.From(),
+		logger.Warnf("buy gas error: balance for %x is %d, need %d", st.msg.From()[:],
 			st.state.GetBalance(*st.msg.From()), mgval)
 		return errInsufficientBalanceForGas
 	}
@@ -172,36 +172,36 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas, gasRemaining uin
 	)
 	if contractCreation {
 		//
-		ret, addr, st.gas, vmerr = evm.Create(from, st.data, st.gas, st.value, false)
+		ret, addr, st.gas, vmerr = evm.Create(from, st.data, st.gas, st.value)
 		// ret is contract code, so replace it with contract address hash
 		ret = addr[:]
+		if vmerr == nil {
+			contractAddr, _ := types.NewContractAddressFromHash(addr[:])
+			logger.Infof("contract address %s created", contractAddr)
+		}
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(*msg.From(), st.state.GetNonce(from.Address())+1)
-		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value, false)
+		ret, st.gas, vmerr = evm.Call(from, st.to(), st.data, st.gas, st.value)
 	}
 	if vmerr != nil {
-		// log.Debug("VM returned with error", "err", vmerr)
-		// The only possible consensus-error would be if there wasn't
-		// sufficient balance to make the transfer happen. The first
-		// balance transfer may never fail.
+		// The only possible consensus-error would be if there wasn't sufficient balance
+		// to make the transfer happen. The first balance transfer may never fail.
 		logger.Warnf("vm execute failed, msg: %s, gasUsed: %d, remaining: %d, error: %s",
 			st.msg, st.gasUsed(), st.gas, vmerr)
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, 0, false, nil, vmerr
 		}
 	}
-	if contractCreation {
-		contractAddr, err := types.NewContractAddressFromHash(addr[:])
-		if err != nil {
-			logger.Error(err)
-		}
-		logger.Infof("contract address %s created", contractAddr)
-	}
 	st.refundGas()
-	gasUsed := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
-	st.state.AddBalance(st.evm.Coinbase, gasUsed)
-
+	st.state.SetError(vmerr)
+	if vmerr != nil && len(ret) != 0 {
+		if errmsg, err := abi.UnpackErrMsg(ret); err != nil {
+			logger.Errorf("UnpackErrMsg failed. Err: %v", err)
+		} else {
+			ret = []byte(errmsg)
+		}
+	}
 	return ret, st.gasUsed(), st.remaining.Uint64(), vmerr != nil, st.gasRefoundTx, nil
 }
 
@@ -224,16 +224,13 @@ func (st *StateTransition) refundGas() {
 func createGasRefundUtxoTx(addrHash *types.AddressHash, value, nonce uint64) *types.Transaction {
 
 	addrScript := *script.PayToPubKeyHashScript(addrHash[:])
-	vout := &corepb.TxOut{
+	vout := &types.TxOut{
 		Value:        value,
 		ScriptPubKey: addrScript,
 	}
 	vin := &types.TxIn{
-		PrevOutPoint: types.OutPoint{
-			Hash:  zeroHash,
-			Index: math.MaxUint32,
-		},
-		ScriptSig: *script.GasRefundSignatureScript(nonce),
+		PrevOutPoint: *types.NewNullOutPoint(),
+		ScriptSig:    *script.MakeContractScriptSig(nonce),
 	}
 	tx := new(types.Transaction)
 	tx.Vin = append(tx.Vin, vin)

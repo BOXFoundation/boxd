@@ -14,13 +14,10 @@ import (
 )
 
 func TestNewIssueTokenUtxoWrap(t *testing.T) {
-	addr := "b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o"
+	fromAddr, _ := types.NewAddress("b1ndoQmEd83y4Fza5PzbUQDYpT3mV772J5o")
 	name, sym, deci := "box token", "BOX", uint32(8)
 	tag := NewTokenTag(name, sym, deci, 10000)
-	uw, err := NewIssueTokenUtxoWrap(addr, tag, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	uw := NewIssueTokenUtxoWrap(fromAddr.Hash160(), tag, 1)
 	sc := script.NewScriptFromBytes(uw.Script())
 	if !sc.IsTokenIssue() {
 		t.Fatal("expect token issue script")
@@ -32,18 +29,16 @@ func TestNewIssueTokenUtxoWrap(t *testing.T) {
 }
 
 func TestMakeSplitAddrVout(t *testing.T) {
-	addrs := []string{
-		"b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh",
-		"b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU",
-		"b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N",
-		"b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc",
+	toAddr1, _ := types.NewAddress("b1YMx5kufN2qELzKaoaBWzks2MZknYqqPnh")
+	toAddr2, _ := types.NewAddress("b1b1ncaV56DBPkSjhUVHePDErSESrBRUnyU")
+	toAddr3, _ := types.NewAddress("b1nfRQofEAHAkayCvwAfr4EVxhZEpQWhp8N")
+	toAddr4, _ := types.NewAddress("b1oKfcV9tsiBjaTT4DxwANsrPi6br76vjqc")
+	to := []*types.AddressHash{
+		toAddr1.Hash160(), toAddr2.Hash160(),
+		toAddr3.Hash160(), toAddr4.Hash160(),
 	}
-	weights := []uint64{1, 2, 3, 4}
-	addresses := make([]types.Address, len(addrs))
-	for i, addr := range addrs {
-		addresses[i], _ = types.ParseAddress(addr)
-	}
-	out := MakeSplitAddrVout(addresses, weights)
+	weights := []uint32{1, 2, 3, 4}
+	out := MakeSplitAddrVout(to, weights)
 
 	sc := script.NewScriptFromBytes(out.ScriptPubKey)
 	if !sc.IsSplitAddrScript() {
@@ -53,12 +48,8 @@ func TestMakeSplitAddrVout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	aas := make([]string, 0)
-	for _, a := range as {
-		aas = append(aas, a.String())
-	}
-	if !reflect.DeepEqual(aas, addrs) {
-		t.Fatalf("addrs want: %v, got %v", addrs, aas)
+	if !reflect.DeepEqual(as, to) {
+		t.Fatalf("addrs want: %v, got %v", to, as)
 	}
 	if !reflect.DeepEqual(ws, weights) {
 		t.Fatalf("weights want: %v, got %v", weights, ws)
@@ -88,60 +79,60 @@ func TestEncodeDecodeOutPoint(t *testing.T) {
 }
 
 func TestMakeSplitAddress(t *testing.T) {
-
 	var tests = []struct {
 		addrs     []string
-		weights   []uint64
+		weights   []uint32
 		splitAddr string
 	}{
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
-			[]uint64{5, 5},
-			"b2aA6qXXJHfkzDhecBt9s5qiVVSe5jtPp1r",
+			[]uint32{5, 5},
+			"b2WeyKZJ3WJjsWcxpAkM6gnm24LWzaqsoQX",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1e2dqxSPtEyZNGEEh7GBaK4pPYaZecFu3H"},
-			[]uint64{3, 7},
-			"b2QqfWj6oBwHUYZjj4KvtpfJmHjj2t51j6k",
+			[]uint32{3, 7},
+			"b2QBrAPAySqzUSg8BTR4QGzaK5qfC2qu8hY",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD"},
-			[]uint64{1, 2},
-			"b2KGTXZnFmBNz8HSr22Nt3kzfxU9LJR87AS",
+			[]uint32{1, 2},
+			"b2KXUNtf25cz9MjDZSnVBaBVq17AUW3wHjR",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1WkepSk6YEeBwd3UxBLoQPHJ5k74c1ZGcg",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
-			[]uint64{1, 2, 3},
-			"b2H6EPRPYFbsS2pYeG4rivGCDByw7F5icdq",
+			[]uint32{1, 2, 3},
+			"b2SyjrVSQXjRF8gy6czR3MZj4HEakocJEQN",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1afgd4BC3Y81ni3ds2YETikEkprG9Bxo98",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
-			[]uint64{2, 3, 4},
-			"b2XiDbmiG8R5kctBJgmF3R7HS7dh72Zt2Go",
+			[]uint32{2, 3, 4},
+			"b2dz4ipBPpaUsFqFCVJqGPhCjijkvyCCN3s",
 		},
 		{
 			[]string{"b1e4se6C2bwX3vTWHcHmT9s87kxrBGEJkEn", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
 				"b1YVsw5ZUfPNmANEhpBezDMfg2Xvj2U2Wrk"},
-			[]uint64{2, 2, 4},
-			"b2XeRQSeED8EyaQ4xnUsNd1oV1EdLebCoFC",
+			[]uint32{2, 2, 4},
+			"b2HEtVD58nKXcfnJiSAabHV8ebmaSdLCP4k",
 		},
 		{
 			[]string{"b1bfGiSykHFaiCeXgYibFN141aBwZURsA9x", "b1bgU3pRjrW2AXZ5DtumFJwrh69QTsErhAD",
 				"b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt", "b1r7TPQS5MFe1wn65ZSuiy77e9fqaB2qvyt"},
-			[]uint64{1, 2, 3},
-			"b2aJ14fh6KW1zb8kJiVCXEsnEqjiz47EPVP",
+			[]uint32{1, 2, 3},
+			"b2dDT8boDTZebiDzkKXpFjqb8FiFJMGS8D4",
 		},
 	}
 	txHash := new(crypto.HashType)
 	txHash.SetString("fc7de81e29e3bcb127d63f9576ec2fffd7bd560aac2dcbe31c119799e3f51b92")
 	for _, tc := range tests {
-		addresses := make([]types.Address, len(tc.addrs))
+		to := make([]*types.AddressHash, len(tc.addrs))
 		for i, addr := range tc.addrs {
-			addresses[i], _ = types.ParseAddress(addr)
+			address, _ := types.NewAddress(addr)
+			to[i] = address.Hash160()
 		}
-		splitAddr := MakeSplitAddress(txHash, 0, addresses, tc.weights)
+		splitAddr := MakeSplitAddress(txHash, 0, to, tc.weights)
 		if splitAddr.String() != tc.splitAddr {
 			t.Errorf("split addr for %v want: %s, got: %s", tc.addrs, tc.splitAddr, splitAddr)
 		}

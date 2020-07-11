@@ -112,68 +112,20 @@ func gasSStore(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, me
 		y, x    = stack.Back(1), stack.Back(0)
 		current = evm.StateDB.GetState(contract.Address(), crypto.BigToHash(x))
 	)
-	// The legacy gas metering only takes into consideration the current state
-	// Legacy rules should be applied if we are in Petersburg (removal of EIP-1283)
-	// OR Constantinople is not active
-	if evm.chainRules.IsPetersburg || !evm.chainRules.IsConstantinople {
-		// This checks for 3 scenario's and calculates gas accordingly:
-		//
-		// 1. From a zero-value address to a non-zero value         (NEW VALUE)
-		// 2. From a non-zero value address to a zero-value address (DELETE)
-		// 3. From a non-zero to a non-zero                         (CHANGE)
-		switch {
-		case current == (crypto.HashType{}) && y.Sign() != 0: // 0 => non 0
-			return types.SstoreSetGas, nil
-		case current != (crypto.HashType{}) && y.Sign() == 0: // non 0 => 0
-			evm.StateDB.AddRefund(types.SstoreRefundGas)
-			return types.SstoreClearGas, nil
-		default: // non 0 => non 0 (or 0 => 0)
-			return types.SstoreResetGas, nil
-		}
-	}
-	// The new gas metering is based on net gas costs (EIP-1283):
+	// This checks for 3 scenario's and calculates gas accordingly:
 	//
-	// 1. If current value equals new value (this is a no-op), 200 gas is deducted.
-	// 2. If current value does not equal new value
-	//   2.1. If original value equals current value (this storage slot has not been changed by the current execution context)
-	//     2.1.1. If original value is 0, 20000 gas is deducted.
-	// 	   2.1.2. Otherwise, 5000 gas is deducted. If new value is 0, add 15000 gas to refund counter.
-	// 	2.2. If original value does not equal current value (this storage slot is dirty), 200 gas is deducted. Apply both of the following clauses.
-	// 	  2.2.1. If original value is not 0
-	//       2.2.1.1. If current value is 0 (also means that new value is not 0), remove 15000 gas from refund counter. We can prove that refund counter will never go below 0.
-	//       2.2.1.2. If new value is 0 (also means that current value is not 0), add 15000 gas to refund counter.
-	// 	  2.2.2. If original value equals new value (this storage slot is reset)
-	//       2.2.2.1. If original value is 0, add 19800 gas to refund counter.
-	// 	     2.2.2.2. Otherwise, add 4800 gas to refund counter.
-	value := crypto.BigToHash(y)
-	if current == value { // noop (1)
-		return types.NetSstoreNoopGas, nil
+	// 1. From a zero-value address to a non-zero value         (NEW VALUE)
+	// 2. From a non-zero value address to a zero-value address (DELETE)
+	// 3. From a non-zero to a non-zero                         (CHANGE)
+	switch {
+	case current == (crypto.HashType{}) && y.Sign() != 0: // 0 => non 0
+		return types.SstoreSetGas, nil
+	case current != (crypto.HashType{}) && y.Sign() == 0: // non 0 => 0
+		evm.StateDB.AddRefund(types.SstoreRefundGas)
+		return types.SstoreClearGas, nil
+	default: // non 0 => non 0 (or 0 => 0)
+		return types.SstoreResetGas, nil
 	}
-	original := evm.StateDB.GetCommittedState(contract.Address(), crypto.BigToHash(x))
-	if original == current {
-		if original == (crypto.HashType{}) { // create slot (2.1.1)
-			return types.NetSstoreInitGas, nil
-		}
-		if value == (crypto.HashType{}) { // delete slot (2.1.2b)
-			evm.StateDB.AddRefund(types.NetSstoreClearRefund)
-		}
-		return types.NetSstoreCleanGas, nil // write existing slot (2.1.2)
-	}
-	if original != (crypto.HashType{}) {
-		if current == (crypto.HashType{}) { // recreate slot (2.2.1.1)
-			evm.StateDB.SubRefund(types.NetSstoreClearRefund)
-		} else if value == (crypto.HashType{}) { // delete slot (2.2.1.2)
-			evm.StateDB.AddRefund(types.NetSstoreClearRefund)
-		}
-	}
-	if original == value {
-		if original == (crypto.HashType{}) { // reset to original inexistent slot (2.2.2.1)
-			evm.StateDB.AddRefund(types.NetSstoreResetClearRefund)
-		} else { // reset to original existing slot (2.2.2.2)
-			evm.StateDB.AddRefund(types.NetSstoreResetRefund)
-		}
-	}
-	return types.NetSstoreDirtyGas, nil
 }
 
 func makeGasLog(n uint64) gasFunc {
@@ -445,16 +397,14 @@ func gasRevert(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, me
 
 func gasSuicide(gt types.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	var gas uint64
-	// EIP150 homestead gas reprice fork:
-	if evm.ChainConfig().IsEIP150(evm.BlockNumber) {
-		gas = gt.Suicide
-		var (
-			address = coretypes.BigToAddressHash(stack.Back(0))
-		)
-		// if empty and transfers value
-		if evm.StateDB.Empty(address) && evm.StateDB.GetBalance(contract.Address()).Sign() != 0 {
-			gas += gt.CreateBySuicide
-		}
+
+	gas = gt.Suicide
+	var (
+		address = coretypes.BigToAddressHash(stack.Back(0))
+	)
+	// if empty and transfers value
+	if evm.StateDB.Empty(address) && evm.StateDB.GetBalance(contract.Address()).Sign() != 0 {
+		gas += gt.CreateBySuicide
 	}
 
 	if !evm.StateDB.HasSuicided(contract.Address()) {

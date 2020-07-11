@@ -10,6 +10,7 @@ import (
 
 var (
 	metricsRevieveChSizeGauge = metrics.NewGauge("box.p2p.recieveCh.size")
+	metricsConnGauge          = metrics.NewGauge("box.p2p.conn.num")
 
 	metricsReadMeter  = metrics.NewMeter("box.p2p.read.request")
 	metricsWriteMeter = metrics.NewMeter("box.p2p.write.request")

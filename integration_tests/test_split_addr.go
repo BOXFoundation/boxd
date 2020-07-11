@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"sync/atomic"
 
+	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
 	"github.com/BOXFoundation/boxd/crypto"
@@ -24,7 +25,7 @@ type SplitAddrTest struct {
 }
 
 var (
-	testAmount, splitFee = uint64(100000), uint64(1000)
+	testAmount = uint64(1e6)
 )
 
 func splitAddrTest() {
@@ -70,25 +71,29 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 	}
 	defer UnpickMiner(miner)
 	//
-	testFee := uint64(1000)
+	curTimes := utils.SplitAddrRepeatTxTimes()
+	if utils.SplitAddrRepeatRandom() {
+		curTimes = 1 + rand.Intn(utils.SplitAddrRepeatTxTimes())
+	}
+	//
+	totalFee := uint64(curTimes+1) * core.TransferFee
 	logger.Infof("waiting for minersAddr %s has %d at least for split address test",
-		miner, testAmount+testFee)
-	_, err = utils.WaitBalanceEnough(miner, testAmount+splitFee+testFee, conn,
-		timeoutToChain)
+		miner, testAmount+totalFee)
+	_, err = utils.WaitBalanceEnough(miner, testAmount+totalFee, conn, timeoutToChain)
 	if err != nil {
 		logger.Error(err)
 		return true
 	}
-
-	sender, receivers := addrs[0], addrs[1:]
-	weights := []uint64{1, 2, 3, 4}
-
+	//
+	sender, receivers, weights := addrs[0], addrs[1:], []uint32{1, 2, 3, 4}
 	// send box to sender
 	prevSenderBalance := utils.BalanceFor(sender, conn)
-	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+splitFee, sender)
+	logger.Infof("miner %s send %d box to sender %s", miner, testAmount+totalFee, sender)
 	minerAcc, _ := AddrToAcc.Load(miner)
-	senderTx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), []string{sender},
-		[]uint64{testAmount + splitFee}, conn)
+	senderAddress, _ := types.NewAddress(sender)
+	senderTx, _, err := rpcutil.NewTx(minerAcc.(*acc.Account),
+		[]*types.AddressHash{senderAddress.Hash160()},
+		[]uint64{testAmount + totalFee}, conn)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -98,24 +103,20 @@ func (t *SplitAddrTest) HandleFunc(addrs []string, index *int) (exit bool) {
 		return
 	}
 
-	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance+testAmount+splitFee,
+	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance+testAmount+totalFee,
 		conn, timeoutToChain)
 	if err != nil {
 		logger.Warn(err)
 		return
 	}
 	UnpickMiner(miner)
-	curTimes := utils.SplitAddrRepeatTxTimes()
-	if utils.SplitAddrRepeatRandom() {
-		curTimes = rand.Intn(utils.SplitAddrRepeatTxTimes())
-	}
 	splitAddrRepeatTest(sender, receivers, weights, curTimes, &t.txCnt, conn)
 	//
 	return
 }
 
 func splitAddrRepeatTest(
-	sender string, receivers []string, weights []uint64, times int, txCnt *uint64,
+	sender string, receivers []string, weights []uint32, times int, txCnt *uint64,
 	conn *grpc.ClientConn,
 ) {
 	logger.Info("=== RUN   splitAddrRepeatTest")
@@ -133,8 +134,12 @@ func splitAddrRepeatTest(
 	logger.Infof("sender %s create split address with addrs %v and weights %v",
 		sender, receivers, weights)
 	senderAcc, _ := AddrToAcc.Load(sender)
-	splitTx, _, err := rpcutil.NewSplitAddrTxWithFee(senderAcc.(*acc.Account),
-		receivers, weights, splitFee, conn)
+	toHashes := make([]*types.AddressHash, 0, len(receivers))
+	for _, addr := range receivers {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
+	}
+	splitTx, _, err := rpcutil.NewSplitAddrTx(senderAcc.(*acc.Account), toHashes, weights, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -144,8 +149,9 @@ func splitAddrRepeatTest(
 	}
 
 	logger.Infof("wait for balance of sender %s equals to %d, timeout %v", sender,
-		prevSenderBalance-splitFee, timeoutToChain)
-	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance-splitFee, conn, timeoutToChain)
+		prevSenderBalance-core.TransferFee, timeoutToChain)
+	_, err = utils.WaitBalanceEqual(sender, prevSenderBalance-core.TransferFee,
+		conn, timeoutToChain)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -163,26 +169,21 @@ func splitAddrRepeatTest(
 	//addrSub, err := MakeSplitAddr(receivers[:2], weights[:2])
 	splitTxHash := new(crypto.HashType)
 	splitTxHash.SetString(hashStr)
-	receiverAddrs := make([]types.Address, len(receivers))
-	for i, addr := range receivers {
-		receiverAddrs[i], _ = types.ParseAddress(addr)
-	}
-	addr := txlogic.MakeSplitAddress(splitTxHash, 0, receiverAddrs, weights)
+	addr := txlogic.MakeSplitAddress(splitTxHash, 0, toHashes, weights)
 
 	// transfer
-	txss, transfer, fee, count, err := rpcutil.NewTxs(senderAcc.(*acc.Account), addr.String(), 1, conn)
+	txss, transfer, fee, count, err := rpcutil.NewTxs(senderAcc.(*acc.Account),
+		addr.Hash160(), 1, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
 	for _, txs := range txss {
 		for _, tx := range txs {
-			//bytes, _ := json.MarshalIndent(tx, "", "  ")
-			//hash, _ := tx.CalcTxHash()
-			//logger.Infof("send split tx hash: %v\nbody: %s", hash[:], string(bytes))
 			if _, err := rpcutil.SendTransaction(conn, tx); err != nil {
 				logger.Panic(err)
 			}
 			atomic.AddUint64(txCnt, 1)
+			//time.Sleep(2 * time.Millisecond)
 		}
 	}
 	logger.Infof("%s sent %d transactions total %d to split address %s",
@@ -198,10 +199,10 @@ func splitAddrRepeatTest(
 
 	totalWeight := uint64(0)
 	for _, w := range weights {
-		totalWeight += w
+		totalWeight += uint64(w)
 	}
 	for i, addr := range receivers {
-		amount := receiversBalancePre[i] + transfer/totalWeight*weights[i]
+		amount := receiversBalancePre[i] + transfer/totalWeight*uint64(weights[i])
 		logger.Infof("wait for balance of receivers[%d] receive %d(%d/%d), timeout: %v",
 			i, amount, weights[i], totalWeight, timeoutToChain)
 		_, err := utils.WaitBalanceEnough(addr, amount, conn, timeoutToChain)

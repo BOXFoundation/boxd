@@ -8,12 +8,14 @@ import (
 	"errors"
 	"hash/crc64"
 	"io"
+	"regexp"
 	"sync"
 	"time"
 
 	"github.com/BOXFoundation/boxd/boxd/eventbus"
 	p2ppb "github.com/BOXFoundation/boxd/p2p/pb"
 	pq "github.com/BOXFoundation/boxd/p2p/priorityqueue"
+	"github.com/BOXFoundation/boxd/p2p/pstore"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
@@ -67,6 +69,8 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 	conn.mutex.Lock()
 	if conn.proc == nil {
 		conn.proc = goprocess.WithParent(parent)
+		ptype, _ := conn.peer.Type(conn.remotePeer)
+		conn.peer.table.peerStore.Put(conn.remotePeer, pstore.PTypeSuf, uint8(ptype))
 		conn.proc.Go(conn.loop).SetTeardown(conn.Close)
 
 		go conn.pq.Run(conn.proc, func(i interface{}) {
@@ -76,7 +80,10 @@ func (conn *Conn) Loop(parent goprocess.Process) {
 			} else {
 				metricsWriteMeter.Mark(int64(len(data) / 8))
 			}
-			// logger.Warnf("pq data: %v, err: %v", crc32.ChecksumIEEE(data), err)
+			_, pids, _ := conn.getFromIPRepo()
+			if pids != nil {
+				pids.Store(conn.remotePeer.Pretty(), nil)
+			}
 		})
 	}
 	conn.mutex.Unlock()
@@ -392,7 +399,21 @@ func (conn *Conn) Close() error {
 		conn.peer.conns.Delete(pid)
 	}
 	conn.pq.Close()
+
 	if conn.stream != nil {
+		ip, pids, _ := conn.getFromIPRepo()
+		if pids != nil {
+			pids.Delete(conn.remotePeer.Pretty())
+			num := 0
+			pids.Range(func(k, v interface{}) bool {
+				num++
+				return true
+			})
+			if num == 0 {
+				conn.peer.connmgr.ipRepo.Delete(string(ip))
+			}
+		}
+
 		conn.peer.bus.Publish(eventbus.TopicConnEvent, pid, eventbus.PeerDisconnEvent)
 		addrs := conn.peer.table.peerStore.Addrs(pid)
 		conn.peer.table.peerStore.SetAddrs(pid, addrs, peerstore.RecentlyConnectedAddrTTL)
@@ -437,4 +458,85 @@ func (conn *Conn) checkMessage(msg *message) error {
 	}
 
 	return msg.check()
+}
+
+// KeepConn decides if the connection needs to be maintained.
+func (conn *Conn) KeepConn() bool {
+	if !conn.availableIP() {
+		return false
+	}
+
+	// If I don't know who you are and I have an agent, then connections are not allowed.
+	remoteType, _ := conn.peer.Type(conn.remotePeer)
+
+	// If I don't know who I am, I can't connect to layfolk peer.
+	if conn.peer.peertype == pstore.UnknownPeer {
+		pType, nodoubt := conn.peer.Type(conn.peer.id)
+		if !nodoubt {
+			if remoteType == pstore.MinerPeer || remoteType == pstore.CandidatePeer {
+				return true
+			}
+			return false
+		}
+		conn.peer.peertype = pType
+	}
+	switch conn.peer.peertype {
+	case pstore.MinerPeer, pstore.CandidatePeer:
+		if remoteType == pstore.LayfolkPeer {
+			return false
+		}
+		return true
+	}
+	return true
+}
+
+func (conn *Conn) getFromIPRepo() (string, *sync.Map, bool) {
+	multiAddr := conn.stream.Conn().RemoteMultiaddr().String()
+	re, _ := regexp.Compile(ipRegex)
+	ip := re.Find([]byte(multiAddr))
+	if len(ip) == 0 {
+		logger.Warnf("No ip was found in multiAddr %s", multiAddr)
+		return "", nil, false
+	}
+	// If it's not public ip
+	if !isPublicIP(string(ip)) {
+		return string(ip), nil, false
+	}
+
+	// If this ip is not connected
+	val, ok := conn.peer.connmgr.ipRepo.Load(string(ip))
+	if !ok {
+		newMap := new(sync.Map)
+		conn.peer.connmgr.ipRepo.Store(string(ip), newMap)
+		return string(ip), newMap, false
+	}
+	return string(ip), val.(*sync.Map), true
+}
+
+func (conn *Conn) availableIP() bool {
+	if conn.peer.config.MaxConnPerIP == 0 {
+		return true
+	}
+	ip, pids, continu := conn.getFromIPRepo()
+	if !continu {
+		return true
+	}
+	// If the number of connections to this IP is idle
+	num := uint32(0)
+	exist := false
+	if pids != nil {
+		pids.Range(func(k, v interface{}) bool {
+			num++
+			if v.(string) == conn.remotePeer.Pretty() {
+				exist = true
+			}
+			return true
+		})
+	}
+	if exist || num < conn.peer.config.MaxConnPerIP {
+		return true
+	}
+	logger.Infof("The number(%d) of conns to %s has reached the maximum number %d",
+		num, ip, conn.peer.config.MaxConnPerIP)
+	return false
 }

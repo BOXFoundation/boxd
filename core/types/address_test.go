@@ -18,6 +18,13 @@ import (
 
 func TestNewAddressPubKeyHash(t *testing.T) {
 
+	bytes, _ := hex.DecodeString("e6e7eaaf9d3682ff241261b651598acdc2e148fe")
+	addr, err := NewAddressPubKeyHash(bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("addr: %s, hash: %x", addr, bytes)
+
 	tests := []struct {
 		name   string
 		pkHash []byte
@@ -49,6 +56,7 @@ func TestNewAddressPubKeyHash(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
+			t.Logf("addr %s pubkey hash: %x", tt.addr, ac.Hash())
 			ad := ac.String()
 			if !reflect.DeepEqual(tt.addr, ad) {
 				t.Errorf("NewAddressPubKeyHash() = %v, want %v", tt.addr, ad)
@@ -249,12 +257,19 @@ func TestAddressValidate(t *testing.T) {
 			"b5KWSqUWZHTdP4g8kHkHtFtNc8Nofr1twq0",
 			false,
 		},
+		{
+			"b1fc1Vzz73WvBtzNQNbBSrxNCUC1Zrbnq4m",
+			true,
+		},
 	}
 
 	for _, tc := range tests {
-		_, err := ParseAddress(tc.addr)
+		address, err := ParseAddress(tc.addr)
 		if err != nil && tc.valid {
 			t.Error(err)
+		}
+		if err == nil {
+			t.Logf("addr: %s, hash: %x", tc.addr, address.Hash())
 		}
 	}
 }

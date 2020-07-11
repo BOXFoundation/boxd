@@ -107,7 +107,6 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	conn, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 	if err != nil {
 		logger.Panic(err)
-		return true
 	}
 	defer conn.Close()
 	//
@@ -120,8 +119,8 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	c.minerAddr = maddr
 	//
 	logger.Infof("waiting for minersAddr %s has %d at least on %s for collection test",
-		maddr, totalAmount, peerAddr)
-	_, err = utils.WaitBalanceEnough(c.minerAddr, totalAmount, conn, timeoutToChain)
+		maddr, testCoins, peerAddr)
+	_, err = utils.WaitBalanceEnough(c.minerAddr, testCoins, conn, timeoutToChain)
 	if err != nil {
 		logger.Warn(err)
 		return true
@@ -130,7 +129,7 @@ func (c *Collection) HandleFunc(addrs []string, idx *int) (exit bool) {
 	signal.Notify(quitCh, os.Interrupt, os.Kill)
 	select {
 	case collAddr := <-c.collAddrCh:
-		logger.Infof("start to launder some fund %d", totalAmount)
+		logger.Infof("start to launder some fund %d", testCoins)
 		for !c.launderFunds(collAddr, addrs, conn, &c.txCnt) {
 			select {
 			case s := <-quitCh:
@@ -166,7 +165,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	var err error
 	count := len(addrs)
 	// transfer from miner to tests[0:len(addrs)-1]
-	amount := totalAmount / uint64(count) / 3
+	amount := testCoins / uint64(count) / 3
 	amounts := make([]uint64, count)
 	for i := 0; i < count; i++ {
 		amounts[i] = amount + uint64(rand.Int63n(int64(amount)))
@@ -177,7 +176,12 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	}
 	logger.Debugf("sent %v from %s to others test addrs", amounts, c.minerAddr)
 	minerAcc, _ := AddrToAcc.Load(c.minerAddr)
-	tx, _, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), addrs, amounts, conn)
+	toHashes := make([]*types.AddressHash, 0, len(addrs))
+	for _, addr := range addrs {
+		address, _ := types.ParseAddress(addr)
+		toHashes = append(toHashes, address.Hash160())
+	}
+	tx, _, err := rpcutil.NewTx(minerAcc.(*acc.Account), toHashes, amounts, conn)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -201,7 +205,6 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	// send tx from each to each
 	amountsRecv := make([]uint64, count)
 	amountsSend := make([]uint64, count)
-	amountsFees := make([]uint64, count)
 	var txs []*types.Transaction
 	var wg sync.WaitGroup
 	errChans := make(chan error, count)
@@ -223,11 +226,10 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 				amountsRecv[j] += amounts2[j]
 			}
 			account, _ := AddrToAcc.Load(addrs[i])
-			tx, _, fee, err := rpcutil.NewTx(account.(*acc.Account), addrs, amounts2, conn)
+			tx, _, err := rpcutil.NewTx(account.(*acc.Account), toHashes, amounts2, conn)
 			if err != nil {
 				logger.Panic(err)
 			}
-			amountsFees[i] = fee
 			txs = append(txs, tx)
 			atomic.AddUint64(txCnt, 1)
 		}(i)
@@ -246,7 +248,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	// check balance
 	logger.Infof("wait for test addrs received fund, timeout %v", timeoutToChain)
 	for i := 0; i < count; i++ {
-		expect := balances[i] + amountsRecv[i] - amountsSend[i] - amountsFees[i]
+		expect := balances[i] + amountsRecv[i] - amountsSend[i] - core.TransferFee
 		logger.Debugf("wait for balance of %s reach %d, timeout %v", addrs[i], expect,
 			timeoutToChain)
 		balances[i], err = utils.WaitBalanceEqual(addrs[i], expect, conn, timeoutToChain)
@@ -258,6 +260,7 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 	// gather count*count utxo via transfering from others to the first one
 	lastBalance := utils.BalanceFor(addr, conn)
 	total := uint64(0)
+	address, _ := types.NewAddress(addr)
 	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func(i int) {
@@ -270,7 +273,8 @@ func (c *Collection) launderFunds(addr string, addrs []string, conn *grpc.Client
 			logger.Debugf("start to gather utxo from addr %d to addr %s", i, addr)
 			fromAddr := addrs[i]
 			fromAcc, _ := AddrToAcc.Load(fromAddr)
-			txss, transfer, _, _, err := rpcutil.NewTxs(fromAcc.(*acc.Account), addr, count, conn)
+			txss, transfer, _, _, err := rpcutil.NewTxs(fromAcc.(*acc.Account),
+				address.Hash160(), count, conn)
 			if err != nil {
 				logger.Panic(err)
 			}

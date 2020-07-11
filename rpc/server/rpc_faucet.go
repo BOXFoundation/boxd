@@ -7,35 +7,23 @@ package rpc
 import (
 	"context"
 	"os"
-	"path/filepath"
+	"sync/atomic"
+	"time"
 
+	"github.com/BOXFoundation/boxd/boxd/service"
 	"github.com/BOXFoundation/boxd/core"
 	"github.com/BOXFoundation/boxd/core/txlogic"
 	"github.com/BOXFoundation/boxd/core/types"
-	"github.com/BOXFoundation/boxd/rpc/pb"
+	rpcpb "github.com/BOXFoundation/boxd/rpc/pb"
 	"github.com/BOXFoundation/boxd/rpc/rpcutil"
 	acc "github.com/BOXFoundation/boxd/wallet/account"
 )
 
-func init() {
-	RegisterServiceWithGatewayHandler(
-		"faucet",
-		registerFaucet,
-		rpcpb.RegisterFaucetHandlerFromEndpoint,
-	)
-}
-
 func registerFaucet(s *Server) {
-	keyFile := s.cfg.FaucetKeyFile
+	keyFile := s.cfg.Faucet.Keyfile
 	if _, err := os.Stat(keyFile); os.IsNotExist(err) {
 		return
 	}
-	filePath, err := filepath.Abs(keyFile)
-	if err != nil {
-		logger.Warn(err)
-		return
-	}
-	logger.Infof("rpc register faucet keyfile %s", filePath)
 	account, err := acc.NewAccountFromFile(keyFile)
 	if err != nil {
 		logger.Warnf("rpc register faucet new account error: %s", err)
@@ -45,31 +33,37 @@ func registerFaucet(s *Server) {
 		logger.Warnf("rpc register faucet unlock account error: %s", err)
 		return
 	}
-	logger.Infof("rpc register faucet account: %+v", account)
-	f := newFaucet(s.GetTxHandler(), s.GetWalletAgent(), account)
+	amountPerSec := s.cfg.Faucet.AmountPerSec
+	if amountPerSec == 0 {
+		amountPerSec = 1000000000000
+	}
+	f := newFaucet(s.cfg.Faucet.WhiteList, s.GetTxHandler(), s.GetWalletAgent(),
+		account, amountPerSec)
 	rpcpb.RegisterFaucetServer(s.server, f)
 }
 
-type txHandler interface {
-	ProcessTx(*types.Transaction, core.TransferMode) error
-}
-
-type walletAgent interface {
-	Utxos(addr string, tid *types.TokenID, amount uint64) ([]*rpcpb.Utxo, error)
-	Balance(addr string, tid *types.TokenID) (uint64, error)
-}
-
 type faucet struct {
-	walletAgent
-	txHandler
-	account *acc.Account
+	service.WalletAgent
+	service.TxHandler
+	refreshTimer  *time.Ticker
+	whiteList     []string
+	account       *acc.Account
+	amountPerSec  uint64
+	remainBalance uint64
 }
 
-func newFaucet(handler txHandler, wa walletAgent, account *acc.Account) *faucet {
+func newFaucet(
+	whiteLists []string, handler service.TxHandler, wa service.WalletAgent,
+	account *acc.Account, amountPerSec uint64,
+) *faucet {
 	return &faucet{
-		txHandler:   handler,
-		walletAgent: wa,
-		account:     account,
+		refreshTimer:  time.NewTicker(time.Second),
+		whiteList:     whiteLists,
+		TxHandler:     handler,
+		WalletAgent:   wa,
+		account:       account,
+		amountPerSec:  amountPerSec,
+		remainBalance: amountPerSec,
 	}
 }
 
@@ -84,30 +78,51 @@ func (f *faucet) Claim(
 	ctx context.Context, req *rpcpb.ClaimReq,
 ) (resp *rpcpb.ClaimResp, err error) {
 
-	logger.Infof("faucet claim req: %+v", req)
 	defer func() {
 		if resp.Code != 0 {
 			logger.Warnf("faucet claim %+v error: %s", req, resp.Message)
 		} else {
-			logger.Infof("faucet claim: %+v succeeded, response: %+v", resp)
+			logger.Infof("faucet claim: %+v succeeded, response: %+v", req, resp)
 		}
 	}()
 
+	if !isInIPs(ctx, f.whiteList) {
+		return newClaimResp(-1, "unauthorized IP!"), err
+	}
+
+	if req.Amount == 0 {
+		return newClaimResp(-1, "Amount must be more than 0 "), nil
+	}
+
+	select {
+	case <-f.refreshTimer.C:
+		atomic.StoreUint64(&f.remainBalance, f.amountPerSec)
+	default:
+	}
+	remain := atomic.LoadUint64(&f.remainBalance)
+	if remain-req.Amount > remain {
+		return newClaimResp(-1, "exceed max amount this second"), nil
+	}
+	atomic.AddUint64(&f.remainBalance, ^uint64(req.Amount-1))
 	addrPubHash, err := types.NewAddressFromPubKey(f.account.PrivateKey().PubKey())
 	if err != nil {
 		return newClaimResp(-1, err.Error()), nil
 	}
-	from, to, amount, fee := addrPubHash.String(), req.Addr, req.Amount, uint64(1000)
-	tx, utxos, err := rpcutil.MakeUnsignedTx(f.walletAgent, from, []string{to},
-		[]uint64{amount}, fee)
+	from, toAddr, amount := addrPubHash.Hash160(), req.Addr, req.Amount
+	toAddress, err := types.NewAddress(toAddr)
 	if err != nil {
-		return newClaimResp(-1, err.Error()), err
+		return newClaimResp(-1, "invalid receiver address"), nil
+	}
+	tx, utxos, err := rpcutil.MakeUnsignedTx(f.WalletAgent, from,
+		[]*types.AddressHash{toAddress.Hash160()}, []uint64{amount})
+	if err != nil {
+		return newClaimResp(-1, err.Error()), nil
 	}
 	if err := txlogic.SignTxWithUtxos(tx, utxos, f.account); err != nil {
-		return newClaimResp(-1, err.Error()), err
+		return newClaimResp(-1, err.Error()), nil
 	}
 	if err := f.ProcessTx(tx, core.BroadcastMode); err != nil {
-		return newClaimResp(-1, err.Error()), err
+		return newClaimResp(-1, err.Error()), nil
 	}
 	resp = newClaimResp(0, "success")
 	hash, _ := tx.TxHash()

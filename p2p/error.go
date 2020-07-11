@@ -17,6 +17,7 @@ var (
 	ErrNoConnectionEstablished   = errors.New("No connection established")
 	ErrFailedToSendMessageToPeer = errors.New("Failed to send message to peer")
 	ErrDuplicateMessage          = errors.New("Duplicate message")
+	ErrNoConnectPermission       = errors.New("There is no permission to connect to this node")
 
 	//message.go
 	ErrMessageHeaderLength     = errors.New("Can not read p2p message header length")

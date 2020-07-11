@@ -36,7 +36,7 @@ var (
 	emptyCode = crypto.Keccak256Hash(nil)
 )
 
-// StateDB within the ethereum protocol are used to store anything
+// StateDB within the protocol are used to store anything
 // within the merkle trie. StateDBs take care of caching and storing
 // nested states. It's the general query interface to retrieve:
 // * Contracts
@@ -119,6 +119,11 @@ func (s *StateDB) setError(err error) {
 	if s.dbErr == nil {
 		s.dbErr = err
 	}
+}
+
+// SetError set error.
+func (s *StateDB) SetError(err error) {
+	s.setError(err)
 }
 
 func (s *StateDB) Error() error {
@@ -265,6 +270,14 @@ func (s *StateDB) GetCodeSize(addr types.AddressHash) int {
 	return 0
 }
 
+// IsContractAddr return if a address is a contract address.
+func (s *StateDB) IsContractAddr(addr types.AddressHash) bool {
+	if s.GetCodeSize(addr) > 0 {
+		return true
+	}
+	return false
+}
+
 // GetCodeHash get code hash.
 func (s *StateDB) GetCodeHash(addr types.AddressHash) corecrypto.HashType {
 	stateObject := s.getStateObject(addr)
@@ -399,9 +412,9 @@ func (s *StateDB) updateStateObject(stateObject *stateObject) {
 	addr := stateObject.Address()
 	data, err := rlp.EncodeToBytes(stateObject)
 	if err != nil {
-		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
+		panic(fmt.Errorf("can't encode object %+v at %x: %s", stateObject, addr[:], err))
 	}
-	logger.Debugf("DEBUG: statedb update state object addr: %x, data: %x", addr[:], data[:])
+	//logger.Debugf("DEBUG: statedb update state object addr: %x", addr[:])
 	s.setError(s.trie.Update(addr[:], data))
 }
 
@@ -518,10 +531,6 @@ func (s *StateDB) Copy() *StateDB {
 	}
 	// Copy the dirty states, logs, and preimages
 	for addr := range s.journal.dirties {
-		// As documented [here](https://github.com/ethereum/go-ethereum/pull/16485#issuecomment-380438527),
-		// and in the Finalise-method, there is a case where an object is in the journal but not
-		// in the stateObjects: OOG after touch on ripeMD prior to Byzantium. Thus, we need to check for
-		// nil
 		if object, exist := s.stateObjects[addr]; exist {
 			state.stateObjects[addr] = object.deepCopy(state)
 			state.stateObjectsDirty[addr] = struct{}{}
@@ -572,6 +581,11 @@ func (s *StateDB) RevertToSnapshot(revid int) {
 	// Replay the journal to undo changes and remove invalidated snapshots
 	s.journal.revert(s, snapshot)
 	s.validRevisions = s.validRevisions[:idx]
+}
+
+// THash returns the thash.
+func (s *StateDB) THash() corecrypto.HashType {
+	return s.thash
 }
 
 // GetRefund returns the current value of the refund counter.
@@ -659,19 +673,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (*corecrypto.HashType, *corecr
 		}
 		delete(s.stateObjectsDirty, addr)
 	}
-	// Write trie changes.
-	root, err := s.trie.Commit()
-	if err != nil {
-		logger.Error(err)
-		return nil, nil, err
-	}
-	// for utxo trie root hash
-	utxoRoot, err := s.utxoTrie.Commit()
-	if err != nil {
-		logger.Error(err)
-		return nil, nil, err
-	}
-	return root, utxoRoot, nil
+	return s.trie.RootHash(), s.utxoTrie.RootHash(), nil
 }
 
 // GetUtxo return contract address utxo at given contract addr
@@ -682,4 +684,14 @@ func (s *StateDB) GetUtxo(addr types.AddressHash) ([]byte, error) {
 // UpdateUtxo updates statedb utxo at given contract addr
 func (s *StateDB) UpdateUtxo(addr types.AddressHash, utxoBytes []byte) error {
 	return s.utxoTrie.Update(addr[:], utxoBytes)
+}
+
+// RootHash return stateDB root hash.
+func (s *StateDB) RootHash() *corecrypto.HashType {
+	return s.trie.RootHash()
+}
+
+// UtxoRoot return stateDB utxo root hash.
+func (s *StateDB) UtxoRoot() *corecrypto.HashType {
+	return s.utxoTrie.RootHash()
 }

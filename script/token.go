@@ -63,9 +63,9 @@ func NewTokenID(txHash crypto.HashType, txOutIdx uint32) TokenID {
 }
 
 // IssueTokenScript creates a script to issue tokens to the specified address.
-func IssueTokenScript(pubKeyHash []byte, params *IssueParams) *Script {
+func IssueTokenScript(addrHash *types.AddressHash, params *IssueParams) *Script {
 	// Regular p2pkh
-	script := PayToPubKeyHashScript(pubKeyHash)
+	script := PayToPubKeyHashScript(addrHash[:])
 	// Append parameters to p2pkh:
 	// TokenNameKey OP_DROP <token name> OP_DROP
 	// TokenSymbolKey OP_DROP <token symbol> OP_DROP
@@ -118,9 +118,9 @@ func (s *Script) GetIssueParams() (*IssueParams, error) {
 }
 
 // TransferTokenScript creates a script to transfer tokens to the specified address.
-func TransferTokenScript(pubKeyHash []byte, params *TransferParams) *Script {
+func TransferTokenScript(addrHash *types.AddressHash, params *TransferParams) *Script {
 	// Regular p2pkh
-	script := PayToPubKeyHashScript(pubKeyHash)
+	script := PayToPubKeyHashScript(addrHash[:])
 	// Append parameters to p2pkh:
 	// TokenTxHashKey OP_DROP <tx hash> OP_DROP
 	// TokenTxOutIdxKey OP_DROP <tx output index> OP_DROP

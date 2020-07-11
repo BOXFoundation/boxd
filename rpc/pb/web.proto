@@ -23,11 +23,30 @@ service WebApi {
         };
     }
 
-    rpc ListenAndReadNewBlock(ListenBlocksReq) returns (stream BlockDetail);
-
     rpc DoCall (CallReq) returns (CallResp) {
         option (google.api.http) = {
             post: "/v1/contract/call"
+            body: "*"
+        };
+    }
+
+    rpc GetCode (GetCodeReq) returns (GetCodeResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/code"
+            body: "*"
+        };
+    }
+
+    rpc EstimateGas (CallReq) returns (EstimateGasResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/estimateGas"
+            body: "*"
+        };
+    }
+
+    rpc GetStorageAt (StorageReq) returns (StorageResp) {
+        option (google.api.http) = {
+            post: "/v1/contract/getStorageAt"
             body: "*"
         };
     }
@@ -39,16 +58,44 @@ service WebApi {
         };
     }
 
-    rpc ListenAndReadNewLog(LogsReq) returns (stream Logs);
-
     rpc GetLogs (LogsReq) returns (Logs) {
         option (google.api.http) = {
             post: "/v1/contract/getLogs"
             body: "*"
         };
     }
+
+    rpc Connect (stream RegisterReq) returns (stream ListenedData);
+
+    rpc Table (TableReq) returns (TableResp) {
+        option (google.api.http) = {
+            post: "/v1/p2p/table"
+            body: "*"
+        };
+    }
 }
 
+message RegisterReq {
+    uint32 type = 1;
+    bool cancel = 2;
+    oneof info {
+        LogsReq logs_req= 3;
+    }
+}
+
+message ListenedData {
+    uint32 type = 1;
+    oneof data {
+        BlockDetail block = 2;
+        LogDetails logs = 3;
+        RegisterDetails info = 4;
+    }
+}
+
+message RegisterDetails {
+    string uid = 1;
+}
+    
 message ViewTxDetailReq {
     string hash = 1;
     bool spread_split = 2;
@@ -73,6 +120,7 @@ message ViewTxDetailResp {
 
 message ViewBlockDetailReq {
     string hash = 1;
+    uint32 height = 2;
 }
 
 message ViewBlockDetailResp {
@@ -82,24 +130,26 @@ message ViewBlockDetailResp {
 }
 
 message ContractInfo {
-  uint32 fee = 1;
-  bool failed = 2;
-  uint64 gas_limit = 3;
-  uint64 gas_used = 4;
-  uint64 gas_price = 5;
-  uint64 nonce = 6;
-  string data = 7;
+    bool failed = 2;
+    uint64 gas_limit = 3;
+    uint64 gas_used = 4;
+    uint64 nonce = 5;
+    string data = 6;
+    repeated string internal_txs = 7;
+    repeated LogDetail logs = 8;
+    string err_msg = 9;
 }
 
 message ListenBlocksReq {
 }
 
 message LogsReq {
-    string hash = 1;
-    uint32 from = 2;
-    uint32 to = 3;
-    repeated string addresses = 4;
-    repeated topiclist topics = 5;
+    string uid = 1;
+    string hash = 2;
+    uint32 from = 3;
+    uint32 to = 4;
+    repeated string addresses = 5;
+    repeated topiclist topics = 6;
 
     message topiclist {
         repeated string topics = 1;
@@ -110,24 +160,38 @@ message Logs {
     int32 code = 1;
     string message = 2;
     repeated LogDetail logs = 3;
+}
 
-    message LogDetail {
-        string address = 1;
-        repeated string topics = 2;
-        string data = 3;
-        uint64 block_number = 4;
-        string tx_hash = 5;
-        uint32 tx_index = 6;
-        string block_hash = 7;
-        uint32 index = 8;
-        bool removed = 9;
-    }
+message LogDetails {
+    repeated LogDetail logs = 1;
+}
+
+message LogDetail {
+    string address = 1;
+    repeated string topics = 2;
+    string data = 3;
+    uint64 block_number = 4;
+    string tx_hash = 5;
+    uint32 tx_index = 6;
+    string block_hash = 7;
+    uint32 index = 8;
+    bool removed = 9;
 }
 
 message TxDetail {
     string hash = 1;
-    repeated TxInDetail vin = 2;
-    repeated TxOutDetail vout = 3;
+    uint64 fee = 2;
+    enum TxType {
+      unknown = 0;
+      pay_to_pubk = 1;
+	    contract = 2;
+	    token_issue = 4;
+	    token_transfer = 5;
+	    split_addr = 8;
+    }
+    TxType type = 3;
+    repeated TxInDetail vin = 4;
+    repeated TxOutDetail vout = 5;
 }
 
 message TxInDetail {
@@ -140,8 +204,7 @@ message TxInDetail {
 message TxOutDetail {
     string addr = 1;
     uint64 value = 2;
-    string script_pub_key = 3;
-    string script_disasm = 4;
+    string script_disasm = 3;
     enum TxOutType {
         unknown = 0;
         pay_to_pubkey_hash = 1;
@@ -153,12 +216,12 @@ message TxOutDetail {
         contract_create = 7;
         contract_call = 8;
     }
-    TxOutType type = 5; 
+    TxOutType type = 4;
     oneof appendix {
-        TokenIssueInfo token_issue_info = 6; 
-        TokenTransferInfo token_transfer_info = 7;
-        SplitContractInfo split_contract_info = 8;
-        ContractInfo contract_info = 9;
+        TokenIssueInfo token_issue_info = 5;
+        TokenTransferInfo token_transfer_info = 6;
+        SplitContractInfo split_contract_info = 7;
+        ContractInfo contract_info = 8;
     }
 }
 
@@ -171,8 +234,9 @@ message BlockDetail {
     string prev_block_hash = 6;
     string coin_base = 7;
     bool confirmed = 8;
-    string signature = 9;
-    repeated TxDetail txs = 10;
+    string signature = 10;
+    repeated TxDetail txs = 11;
+    repeated TxDetail internal_txs = 12;
 }
 
 message TokenIssueInfo {
@@ -181,7 +245,7 @@ message TokenIssueInfo {
 
 message SplitContractInfo  {
     repeated string addrs = 1;
-    repeated uint64 weights = 2;
+    repeated uint32 weights = 2;
 }
 
 message TokenTransferInfo {
@@ -200,6 +264,13 @@ message CallResp {
     int32 code = 1;
     string message = 2;
     string output = 3;
+    int32 height = 4;
+}
+
+message EstimateGasResp {
+    int32 code = 1;
+    string message = 2;
+    int32 gas = 3;
 }
 
 message NonceReq {
@@ -210,4 +281,35 @@ message NonceResp {
     int32 code = 1;
     string message = 2;
     uint64 nonce = 3;
+}
+
+message TableReq {
+}
+
+message TableResp {
+    int32 code = 1;
+    string message = 2;
+    repeated string table = 3;
+}
+
+message GetCodeReq {
+    string address = 1;
+}
+
+message GetCodeResp {
+    int32 code = 1;
+    string message = 2;
+    string data = 3;
+}
+
+message StorageReq {
+    string address = 1;
+    string position = 2;
+    uint32 height = 3;
+}
+
+message StorageResp {
+    int32 code = 1;
+    string message = 2;
+    string data = 3;
 }

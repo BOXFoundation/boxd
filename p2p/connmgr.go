@@ -6,6 +6,7 @@ package p2p
 
 import (
 	"context"
+	"net"
 	"sync"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	goprocessctx "github.com/jbenet/goprocess/context"
 	ifconnmgr "github.com/libp2p/go-libp2p-interface-connmgr"
 	inet "github.com/libp2p/go-libp2p-net"
-	net "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
@@ -25,6 +25,7 @@ type ConnManager struct {
 
 	tagInfos  map[peer.ID]*ifconnmgr.TagInfo
 	peerstore peerstore.Peerstore
+	ipRepo    *sync.Map
 
 	proc                goprocess.Process
 	durationToTrimConns time.Duration
@@ -75,6 +76,7 @@ func (cs ConnStatus) String() string {
 func NewConnManager(ps peerstore.Peerstore) *ConnManager {
 	cmgr := ConnManager{
 		tagInfos:            make(map[peer.ID]*ifconnmgr.TagInfo),
+		ipRepo:              new(sync.Map),
 		durationToTrimConns: time.Second * 30,
 		peerstore:           ps,
 	}
@@ -126,15 +128,15 @@ func (cm *ConnManager) Stop() {
 var _ inet.Notifiee = (*ConnManager)(nil)
 
 // Listen is called when network starts listening on an addr
-func (cm *ConnManager) Listen(network net.Network, multiaddr ma.Multiaddr) {
+func (cm *ConnManager) Listen(network inet.Network, multiaddr ma.Multiaddr) {
 }
 
 // ListenClose is called when network starts listening on an addr
-func (cm *ConnManager) ListenClose(network net.Network, multiaddr ma.Multiaddr) {
+func (cm *ConnManager) ListenClose(network inet.Network, multiaddr ma.Multiaddr) {
 }
 
 // Connected is called when a connection opened
-func (cm *ConnManager) Connected(network net.Network, conn net.Conn) {
+func (cm *ConnManager) Connected(network inet.Network, conn inet.Conn) {
 	// update conn status to NetConnected
 	pid := conn.RemotePeer()
 
@@ -148,7 +150,7 @@ func (cm *ConnManager) Connected(network net.Network, conn net.Conn) {
 }
 
 // Disconnected is called when a connection closed
-func (cm *ConnManager) Disconnected(network net.Network, conn net.Conn) {
+func (cm *ConnManager) Disconnected(network inet.Network, conn inet.Conn) {
 	pid := conn.RemotePeer()
 
 	cm.mutex.Lock()
@@ -162,7 +164,7 @@ func (cm *ConnManager) Disconnected(network net.Network, conn net.Conn) {
 }
 
 // OpenedStream is called when a stream opened
-func (cm *ConnManager) OpenedStream(network net.Network, stream net.Stream) {
+func (cm *ConnManager) OpenedStream(network inet.Network, stream inet.Stream) {
 	pid := stream.Conn().RemotePeer()
 
 	cm.mutex.Lock()
@@ -175,7 +177,7 @@ func (cm *ConnManager) OpenedStream(network net.Network, stream net.Stream) {
 }
 
 // ClosedStream is called when a stream closed
-func (cm *ConnManager) ClosedStream(network net.Network, stream net.Stream) {
+func (cm *ConnManager) ClosedStream(network inet.Network, stream inet.Stream) {
 	pid := stream.Conn().RemotePeer()
 
 	cm.mutex.Lock()
@@ -286,4 +288,24 @@ func (cm *ConnManager) TrimOpenConns(ctx context.Context) {
 // opened and closed connections.
 func (cm *ConnManager) Notifee() inet.Notifiee {
 	return cm
+}
+
+func isPublicIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
+		return false
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		switch true {
+		case ip4[0] == 10:
+			return false
+		case ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31:
+			return false
+		case ip4[0] == 192 && ip4[1] == 168:
+			return false
+		default:
+			return true
+		}
+	}
+	return false
 }
